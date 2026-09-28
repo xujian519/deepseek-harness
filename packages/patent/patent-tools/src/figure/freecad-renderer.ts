@@ -18,7 +18,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { delimiter, join } from 'node:path'
+import { join } from 'node:path'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import {
   STRUCTURE_MANIFEST_FILENAME,
@@ -27,10 +27,12 @@ import {
   type StructureViewName,
 } from './freecad-structure-script.ts'
 import {
-  SPAWN_GRACE_MS,
   describeRenderFailure,
+  describeRenderThrow,
+  findExecutable,
   quietStdio,
   renderStderr,
+  spawnRenderProcess,
   spawnVersionProbe,
   startRenderDeadline,
 } from './subprocess-render.ts'
@@ -101,22 +103,12 @@ export function freecadInstallMessage(executable: string | undefined): string {
  * @returns freecadcmd 可执行文件绝对路径，或 undefined。
  */
 export function findFreeCadCmd(override?: string): string | undefined {
-  if (override !== undefined && override !== '') {
-    return existsSync(override) ? override : undefined
-  }
-  const env = process.env.DSH_FREECAD_CMD
-  if (env !== undefined && env !== '' && existsSync(env)) return env
-  for (const candidate of FREECAD_CMD_CANDIDATES) {
-    if (existsSync(candidate)) return candidate
-  }
-  for (const name of ['freecadcmd', 'FreeCADCmd', 'freecadcmd.exe', 'FreeCADCmd.exe']) {
-    for (const segment of (process.env.PATH ?? '').split(delimiter)) {
-      if (segment === '') continue
-      const candidate = join(segment, name)
-      if (existsSync(candidate)) return candidate
-    }
-  }
-  return undefined
+  return findExecutable({
+    ...(override === undefined ? {} : { override }),
+    envVar: 'DSH_FREECAD_CMD',
+    candidates: FREECAD_CMD_CANDIDATES,
+    names: ['freecadcmd', 'FreeCADCmd', 'freecadcmd.exe', 'FreeCADCmd.exe'],
+  })
 }
 
 /** 探测结果。 */
@@ -237,12 +229,10 @@ export async function renderStructureViews(
   }
   const deadline = startRenderDeadline(options.renderTimeoutMs, spec.signal)
   try {
-    const handle = subprocess.spawn({
+    const { handle, outcome } = await spawnRenderProcess(subprocess, deadline, {
       argv: [executable, scriptPath],
       cwd: spec.outputDir,
       stdio: quietStdio(),
-      graceMs: SPAWN_GRACE_MS,
-      signal: deadline.signal,
       // 隔离 FreeCAD 副作用：HOME/临时/缓存指向 outputDir 内子目录（best-effort）。
       env: {
         HOME: homeDir,
@@ -254,7 +244,6 @@ export async function renderStructureViews(
         TMPDIR: homeDir,
       },
     })
-    const outcome = await handle.done
     if (outcome.exitCode !== 0) {
       const cause = describeRenderFailure(outcome, deadline.timedOut(), spec.signal)
       return {
@@ -268,12 +257,7 @@ export async function renderStructureViews(
     }
     return { ok: true, manifestPath }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      ok: false,
-      code: spec.signal?.aborted === true ? 'aborted' : 'render_failed',
-      error: `FreeCAD 结构投影调用失败：${message}`,
-    }
+    return { ok: false, ...describeRenderThrow('FreeCAD 结构投影', error, spec.signal) }
   } finally {
     deadline.dispose()
   }

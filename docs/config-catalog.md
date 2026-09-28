@@ -2854,7 +2854,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:221`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:230`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -2891,6 +2891,12 @@ export interface Config {
   figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
+  /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，仅 SVG 生效）。 */
+  figureTextToPath?: boolean
+  /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用。 */
+  inkscapeExecutable?: string
+  /** Inkscape 单次文字转路径超时（毫秒）；默认 30000。仅 figureTextToPath 使用。 */
+  inkscapeRenderTimeoutMs?: number
   /** 个人工作台 API 基址覆盖；缺省在 web 组合内自动取本进程 webServer 端口。 */
   workbenchBaseUrl?: string
   /** 案件根目录（相对或绝对路径，其下每案一个 <案号>/ 目录）；默认 <cwd>/patent-workspace。 */

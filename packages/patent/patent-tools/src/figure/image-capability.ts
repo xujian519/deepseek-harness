@@ -47,7 +47,9 @@ export function checkImageCapability(
     allowed: false,
     reason:
       who + ' does not accept image input (declares ' + declaredPhrase(inputModalities) + '); ' +
-      'switch to a model that declares image input',
+      'switch to a model that declares image input — the route must carry "image" in its catalog ' +
+      'inputModalities (a model missing from the catalog is treated as text-only, so a route that ' +
+      'only reads correctly by name is not enough)',
   }
 }
 

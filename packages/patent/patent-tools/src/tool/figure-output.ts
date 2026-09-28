@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-patent-tools/tool/figure-output
  */
 
-import { relative } from 'node:path'
+import { relative, resolve } from 'node:path'
 import { sanitizeId } from '../figure/dot-builder.ts'
 import type { DotEngine, DotFormat, HierarchyNode } from '../figure/dot-builder.ts'
 import { figureDescription as buildFigureDescription } from '../figure/figure-description.ts'
@@ -78,9 +78,13 @@ export function renderGenerateFigureResult(value: GeneratePatentFigureOutput): {
   const pathLabel = value.panels === undefined
     ? value.path
     : value.panels.map(p => p.path).join('、')
+  const absoluteLabel = value.panels === undefined
+    ? value.absolutePath
+    : value.panels.map(p => p.absolutePath).join('、')
   const layout = value.layout
   const lines = [
     `已生成专利附图（图${value.figureNumber}，${value.format}）：${pathLabel}`,
+    `绝对路径（输出目录可能不在工作区内，按此路径定位文件）：${absoluteLabel}`,
     '',
     value.figureDescription,
     ...(layout === undefined
@@ -123,6 +127,7 @@ export function buildOutput(
 ): GeneratePatentFigureOutput {
   const { cwd, outcomePath, figureNumber, format, engine, figureType } = params
   const path = relative(cwd, outcomePath)
+  const absolutePath = resolve(cwd, outcomePath)
   const numeralMap: GeneratePatentFigureOutput['numeralMap'] = []
   const components: FigureComponent[] = []
   const warnings: string[] = []
@@ -177,6 +182,7 @@ export function buildOutput(
 
   const result: GeneratePatentFigureOutput = {
     path,
+    absolutePath,
     format,
     engine,
     figureNumber,

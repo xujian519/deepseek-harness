@@ -104,6 +104,47 @@ async function patentRows(): Promise<PresetRow[]> {
   return flattenRows(plugins)
 }
 
+
+/** The shipped `deepseek-official` model catalog source (the adapter's default list). */
+const DEEPSEEK_CATALOG = join(REPO_ROOT, 'packages/llm/llm-deepseek/src/models.ts')
+
+/** Catalog text used to pin the entry-scoped extractor below. */
+const CATALOG_FIXTURE = [
+  'export const DEFAULT_MODELS = [',
+  '  {',
+  "    id: 'alpha',",
+  "    inputModalities: ['text'],",
+  '  },',
+  '  {',
+  "    id: 'beta',",
+  "    inputModalities: ['text', 'image'],",
+  '  },',
+  ']',
+].join('\n')
+
+/**
+ * The `inputModalities` an entry declares in one catalog source, or null when the
+ * catalog has no such entry. Entries are brace-delimited object literals; the
+ * extraction is scoped to one entry so a neighbouring model's modalities cannot
+ * satisfy the preset's requirement.
+ * @param source - catalog source text.
+ * @param id - model id to look up.
+ * @returns the declared modalities, or null when the id is absent.
+ */
+function imageModalitiesIn(source: string, id: string): string[] | null {
+  for (const match of source.matchAll(/\{\s*\n\s*id:\s*'([^']+)'([\s\S]*?)\n\s*\}/g)) {
+    if (match[1] !== id) continue
+    const declared = /inputModalities:\s*\[([^\]]*)\]/.exec(match[2] ?? '')
+    return (declared?.[1] ?? '').split(',').map(part => part.trim().replace(/'/g, '')).filter(part => part !== '')
+  }
+  return null
+}
+
+/** Modalities the shipped `deepseek-official` catalog declares for one model id. */
+function shippedCatalogModalities(id: string): string[] | null {
+  return imageModalitiesIn(readFileSync(DEEPSEEK_CATALOG, 'utf8'), id)
+}
+
 /** Every package name this workspace contains. */
 function workspacePackageNames(): Set<string> {
   const names = new Set<string>()
@@ -184,6 +225,28 @@ describe('patent preset composition', () => {
     const text = personaPrefix((await patentRows()).find(row => row.id === 'persona'))
     expect(text).toContain('cnlaw 声明段')
     expect(cnlawEndpointLiterals(text)).toEqual([])
+  })
+
+  it('names a figure-analysis route the shipped catalog declares image-capable', async () => {
+    // analyze_patent_figure is gated on the route's DECLARED input modalities, and an
+    // uncatalogued model is treated as text-only. A preset naming a route the shipped
+    // catalog does not declare with "image" denies every figure-analysis call — the
+    // 2026-09-28 incident. The catalog below is the one this bundle's deployments get.
+    const rows = await patentRows() as Array<PresetRow & { config?: { imageModel?: { provider?: unknown; model?: unknown } } }>
+    const route = rows.find(row => row.id === 'patent-tools')?.config?.imageModel
+    expect(route?.provider).toBe('deepseek-official')
+    const model = String(route?.model)
+    const declared = shippedCatalogModalities(model)
+    expect(declared, `deepseek-official catalog has no entry for ${model}`).not.toBeNull()
+    expect(declared, `catalog entry ${model} must declare image input`).toContain('image')
+  })
+
+  it('reports an image modality only for the model it belongs to', () => {
+    // The extractor above passes on a catalog whose entries all declare image only if it
+    // actually scopes to one entry; this fixture pins that scoping.
+    expect(imageModalitiesIn(CATALOG_FIXTURE, 'alpha')).toEqual(['text'])
+    expect(imageModalitiesIn(CATALOG_FIXTURE, 'beta')).toEqual(['text', 'image'])
+    expect(imageModalitiesIn(CATALOG_FIXTURE, 'gamma')).toBeNull()
   })
 
   it('states no cnlaw endpoint literal in the shipped patent skills', () => {

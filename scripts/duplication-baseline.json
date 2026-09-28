@@ -53,7 +53,6 @@
     "packages/patent/patent-tools/src/tool/add-patent-figure-references.ts|packages/patent/patent-tools/src/tool/draft-claims.ts",
     "packages/patent/patent-tools/src/tool/add-patent-figure-references.ts|packages/patent/patent-tools/src/tool/draft-specification.ts",
     "packages/patent/patent-tools/src/tool/add-patent-figure-references.ts|packages/patent/patent-tools/src/tool/figure-tool-schemas.ts",
-    "packages/patent/patent-tools/src/tool/add-patent-figure-references.ts|packages/patent/patent-tools/src/tool/generate-patent-figure.ts",
     "packages/patent/patent-tools/src/tool/add-patent-figure-references.ts|packages/patent/patent-tools/src/tool/patent-search.ts",
     "packages/patent/patent-tools/src/tool/analyze-patent-figure.ts|packages/patent/patent-tools/src/tool/draft-claims.ts",
     "packages/patent/patent-tools/src/tool/analyze-patent-figure.ts|packages/patent/patent-tools/src/tool/generate-patent-figure.ts",

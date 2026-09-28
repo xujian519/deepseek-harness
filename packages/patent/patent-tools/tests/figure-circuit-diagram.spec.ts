@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { CIRCUIT_SYMBOL_KINDS, buildCircuitDiagram } from '../src/figure/circuit-diagram.ts'
 import type { CircuitComponent, CircuitDiagramInput, CircuitSymbolKind } from '../src/figure/circuit-diagram.ts'
-import { VectorFigureError } from '../src/figure/vector-figure.ts'
+import { checkFigureRendering } from '../src/figure/render-check.ts'
+import { VectorFigureError, vectorFigureSvg } from '../src/figure/vector-figure.ts'
+import type { VectorFigureSpec } from '../src/figure/vector-figure.ts'
 
 /** 单元件电路（元件画在 (0,0) 单元中心）。 */
 function solo(kind: CircuitSymbolKind, label?: string): CircuitDiagramInput {
@@ -24,6 +26,13 @@ function expectRejected(input: CircuitDiagramInput): VectorFigureError {
 /** 图面片段中出现的全部填充色。 */
 function fills(body: string): string[] {
   return [...body.matchAll(/fill="([^"]+)"/g)].map(match => match[1] ?? '')
+}
+
+/** 渲染复核报出的「文字被线条贯穿」结论（空数组 = 图面没有贯穿）。 */
+function crossedLabels(spec: VectorFigureSpec): string[] {
+  return checkFigureRendering(vectorFigureSvg(spec)).findings
+    .filter(finding => finding.check === 'text-crossed-by-line')
+    .map(finding => finding.message)
 }
 
 describe('buildCircuitDiagram 符号画法', () => {
@@ -250,7 +259,10 @@ describe('buildCircuitDiagram 图面词语与黑白输出', () => {
       ],
       connections: [{ from: 'a1', to: 'b1', label: 'GND' }],
     })
-    expect(spec.body).toContain('<text x="16.2" y="21" font-size="3" text-anchor="start" fill="#000000" stroke="none">GND</text>')
+    // 竖直走线的首段（a1 下端口引出的 3.5 毫米段）取右侧落位，纵向按占位框居中于段中点。
+    // 两段的四个方向都落在符号外接框内（符号框是软约束），故取首个只满足硬约束的落位。
+    expect(spec.body).toContain('<text x="16.2" y="19.195" font-size="3" text-anchor="start" fill="#000000" stroke="none">GND</text>')
+    expect(crossedLabels(spec)).toEqual([])
   })
 
   it('文本转义 & < >，labels 保留原文', () => {
@@ -285,6 +297,53 @@ describe('buildCircuitDiagram 图面词语与黑白输出', () => {
     expect(fills(spec.body).length).toBeGreaterThan(0)
     expect(new Set(fills(spec.body))).toEqual(new Set(['#000000']))
     expect(new Set([...spec.body.matchAll(/#[0-9a-fA-F]{3,6}/g)].map(match => match[0]))).toEqual(new Set(['#000000']))
+  })
+})
+
+describe('buildCircuitDiagram 文字落位', () => {
+  it('元件名避开上端口走线：不再落在符号正上方被走线贯穿', () => {
+    const spec = buildCircuitDiagram({
+      components: [
+        { id: 'l1', kind: 'lamp', label: '灯泡', col: 0, row: 0 },
+        { id: 'g1', kind: 'ground', label: '接地', col: 0, row: 1 },
+      ],
+      connections: [{ from: 'l1', to: 'g1' }],
+    })
+    // 走线沿 x=15 自灯泡下端口竖直长到接地符号的上端口，其上端口那段正是元件名原先的位置；
+    // 名字改落在符号右侧（半宽 3.5 + 间距 1.2），灯泡名仍留在自己符号上方（其上端口无走线）。
+    expect(spec.body).toContain('<text x="15" y="7.3" font-size="3" text-anchor="middle" fill="#000000" stroke="none">灯泡</text>')
+    expect(spec.body).toContain('<text x="20.7" y="27.945" font-size="3" text-anchor="start" fill="#000000" stroke="none">接地</text>')
+    expect(crossedLabels(spec)).toEqual([])
+  })
+
+  it('连线说明沿走线换段落位：U 形走线内圈放不下时改落在别的段旁', () => {
+    const spec = buildCircuitDiagram({
+      components: [
+        { id: 'fuse', kind: 'battery', col: 0, row: 0 },
+        { id: 'sw', kind: 'switch', col: 1, row: 0 },
+        { id: 'lamp', kind: 'lamp', col: 2, row: 0 },
+        { id: 'gnd', kind: 'ground', col: 2, row: 1 },
+      ],
+      connections: [
+        { from: 'fuse', to: 'sw' },
+        { from: 'sw', to: 'lamp' },
+        { from: 'lamp', to: 'gnd', label: '接地线' },
+      ],
+    })
+    // 主段（8 毫米的水平段）四周都被同一圈走线或符号占住，说明改落在竖直段的右侧。
+    expect(spec.body).toContain('<text x="52.2" y="22.695" font-size="3" text-anchor="start" fill="#000000" stroke="none">接地线</text>')
+    expect(crossedLabels(spec)).toEqual([])
+  })
+
+  it('文字落位不压元件符号：多字元件名不与相邻符号相交', () => {
+    const spec = buildCircuitDiagram({
+      components: [
+        { id: 'a1', kind: 'voltage_source', label: '三相电源', col: 0, row: 0 },
+        { id: 'b1', kind: 'capacitor', label: '滤波电容', col: 1, row: 0 },
+      ],
+      connections: [{ from: 'a1', to: 'b1' }],
+    })
+    expect(crossedLabels(spec)).toEqual([])
   })
 })
 

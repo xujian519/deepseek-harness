@@ -1,0 +1,464 @@
+import { describe, expect, it } from 'vitest'
+import { checkFigureRendering } from '../src/figure/render-check.ts'
+import { SvgAnnotateError } from '../src/figure/svg-annotate.ts'
+
+/**
+ * 构造一张最小矢量附图：`body` 里的元素放入与工具同形的十号描边组，
+ * `width`/`height` 为画布尺寸（毫米）。
+ * @param body - 图元文本。
+ * @param size - 画布尺寸文本，默认 `120mm`×`40mm`。
+ * @returns SVG 文本。
+ */
+function svg(body: string, size = 'width="120mm" height="40mm" viewBox="0 0 120 40"'): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" ${size}>
+  <g fill="none" stroke="#000000" stroke-width="0.35" stroke-linecap="round" stroke-linejoin="round">
+${body}
+  </g>
+</svg>`
+}
+
+/** 上下两半剖：两半共用 y=20 的公共边（实线落在中心线位置上）。 */
+const SPLIT_HALVES = [
+  '<polygon points="10,10 50,10 50,20 10,20" stroke-width="0.5"/>',
+  '<polygon points="10,20 50,20 50,30 10,30" stroke-width="0.5"/>',
+].join('\n')
+
+/** 细点划线：长划—点—长划—点……交错，间隔 2 毫米。 */
+const DASH_DOT = [
+  '<line x1="4" y1="20" x2="12" y2="20" stroke-width="0.25"/>',
+  '<line x1="14" y1="20" x2="14.4" y2="20" stroke-width="0.25"/>',
+  '<line x1="16" y1="20" x2="24" y2="20" stroke-width="0.25"/>',
+  '<line x1="26" y1="20" x2="26.4" y2="20" stroke-width="0.25"/>',
+  '<line x1="28" y1="20" x2="36" y2="20" stroke-width="0.25"/>',
+  '<line x1="38" y1="20" x2="38.4" y2="20" stroke-width="0.25"/>',
+  '<line x1="40" y1="20" x2="48" y2="20" stroke-width="0.25"/>',
+].join('\n')
+
+/** 一条取向为 `deg`、长 `lengthMm` 的线（起点 `x,y`）。 */
+function stroke(x: number, y: number, deg: number, lengthMm = 6): string {
+  const radians = (deg * Math.PI) / 180
+  return `<line x1="${x}" y1="${y}" x2="${x + lengthMm * Math.cos(radians)}" y2="${y + lengthMm * Math.sin(radians)}" stroke-width="0.25"/>`
+}
+
+/** `deg` 取向的一族平行线：`count` 条、起点沿 y 递增 `step` 毫米（同一零件的剖面线）。 */
+function hatchFamily(x: number, y: number, deg: number, count: number, step: number): string {
+  return Array.from({ length: count }, (_, index) => stroke(x, y + index * step, deg)).join('\n')
+}
+
+/**
+ * 两个相邻零件（右件带切角，与左件不互为镜像）各打一族剖面线，取向由调用方给出。
+ * @param leftDeg - 左件剖面线取向（度）。
+ * @param rightDeg - 右件剖面线取向（度）。
+ * @returns 图元文本。
+ */
+function adjacentHatch(leftDeg: number, rightDeg: number): string {
+  return [
+    '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+    '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+    hatchFamily(6, 4, leftDeg, 3, 2),
+    hatchFamily(46, 4, rightDeg, 3, 2),
+  ].join('\n')
+}
+
+describe('checkFigureRendering 量测', () => {
+  it('报告线宽分布、线段取向分布与文字数', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<line x1="0" y1="0" x2="10" y2="10" stroke-width="0.25"/>',
+      '<line x1="0" y1="5" x2="10" y2="5" stroke-width="0.25"/>',
+      '<text x="60" y="10" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">1</text>',
+    ].join('\n')))
+    expect(report.widthMm).toBe(120)
+    expect(report.heightMm).toBe(40)
+    expect(report.textCount).toBe(1)
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.25, count: 2 }, { widthMm: 0.5, count: 1 }])
+    // 45° 的线段与竖直/水平的多边形边各成一桶，按线段数降序。
+    expect(report.orientationDeg.map(entry => entry.orientationDeg)).toEqual([0, 90, 45])
+  })
+
+  it('未声明 stroke-width 的图元继承祖先组的线宽，声明 stroke: none 的不计入分布', () => {
+    // 与电路图同形：外壳给线宽，符号自己不给；实心箭头取消描边。
+    const report = checkFigureRendering(svg([
+      '<polyline points="0,0 10,0 10,10" stroke-width="0.25"/>',
+      '<rect x="20" y="0" width="10" height="10"/>',
+      '<circle cx="50" cy="5" r="4"/>',
+      '<polygon points="60,0 70,0 65,8" fill="#000000" stroke="none"/>',
+    ].join('\n')))
+    // 三个描边图元按外壳的 0.35 计入；取消描边的箭头不计入。
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.25, count: 1 }, { widthMm: 0.35, count: 2 }])
+    expect(report.findings).toEqual([])
+  })
+
+  it('画布尺寸取自根元素本身，子元素的 width/height 不当画布', () => {
+    // 外部 SVG 只给 viewBox，子图元自带 width/height：不得把它当成画布而误报越界。
+    const report = checkFigureRendering(svg('<rect x="0" y="0" width="10" height="80"/>', 'viewBox="0 0 120 40"'))
+    expect(report.widthMm).toBeUndefined()
+    expect(report.heightMm).toBeUndefined()
+    expect(report.findings).toEqual([])
+  })
+
+  it('标号在零件外且引线止于数字外框：无发现', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
+      '<line x1="30" y1="20" x2="78.2" y2="9.16" stroke-width="0.25"/>',
+      '<text x="80" y="9.2" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 文字被线条贯穿', () => {
+  it('引线穿过文字占位框时报 text-crossed-by-line', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
+      '<line x1="30" y1="20" x2="80" y2="10" stroke-width="0.25"/>',
+      '<text x="80" y="11.2" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
+    expect(report.findings[0]?.message).toContain('图面文字「3」被线条贯穿')
+  })
+
+  it('标号落在零件内部被剖面线压住时同样报出', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
+      '<line x1="12" y1="26" x2="28" y2="14" stroke-width="0.25"/>',
+      '<text x="20" y="20" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">5</text>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
+  })
+
+  it('折线、矩形、椭圆与路径的边同样计入贯穿判定', () => {
+    for (const element of [
+      '<polyline points="30,20 80,10" stroke-width="0.25"/>',
+      '<rect x="70" y="4" width="9" height="14" stroke-width="0.25"/>',
+      '<ellipse cx="70" cy="11" rx="9" ry="6" stroke-width="0.25"/>',
+      '<path d="M 30 20 L 80 10" stroke-width="0.25"/>',
+    ]) {
+      const report = checkFigureRendering(svg([
+        '<polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
+        element,
+        '<text x="80" y="11.2" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+      ].join('\n')))
+      expect([element, report.findings.map(finding => finding.check)])
+        .toEqual([element, ['text-crossed-by-line']])
+    }
+  })
+
+  it('纵排数字按自身旋转换算占位框：贴轴放置的轴名不被误判', () => {
+    // 曲线图的纵轴名绕锚点旋转 −90°：占位框随之转成竖条，不再横跨 0.6 毫米外的轴线上。
+    const vertical = [
+      '<polygon points="10,0 12,0 12,40 10,40" stroke-width="0.5"/>',
+      '<text x="9.4" y="20" font-size="3.5" text-anchor="middle" transform="rotate(-90 9.4 20)">温</text>',
+    ].join('\n')
+    const rotated = svg(vertical)
+    expect(checkFigureRendering(rotated).findings).toEqual([])
+    // 同一段文字若不旋转，占位框横跨轴线，正是这条复核要报的图面缺陷。
+    expect(checkFigureRendering(svg(vertical.replace(' transform="rotate(-90 9.4 20)"', ''))).findings
+      .map(finding => finding.check)).toEqual(['text-crossed-by-line'])
+  })
+})
+
+describe('checkFigureRendering 点划线被实线覆盖', () => {
+  it('公共边压在中心线位置上时报 centerline-covered', () => {
+    const report = checkFigureRendering(svg([SPLIT_HALVES, DASH_DOT].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['centerline-covered'])
+    expect(report.findings[0]?.message).toContain('y=20')
+  })
+
+  it('点划线间隔可见时（无同位置实线）不报', () => {
+    const report = checkFigureRendering(svg(DASH_DOT))
+    expect(report.findings).toEqual([])
+  })
+
+  it('零件轮廓的零碎短边不被误判为点划线', () => {
+    // 一行里只有轮廓边：两条长边 + 四条短边，跨度足够但没有 3 个「点」。
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,20 40,20 40,25 0,25" stroke-width="0.5"/>',
+      '<polygon points="0,20 40,20 40,15 0,15" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 相邻剖面线取向', () => {
+  it('相邻两件取向仅差 15° 时报 hatch-orientation-collision', () => {
+    const report = checkFigureRendering(svg(adjacentHatch(135, 150)))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+    expect(report.findings[0]?.message).toContain('15°')
+  })
+
+  it('相邻两件取向相反时（差 90°）不报', () => {
+    expect(checkFigureRendering(svg(adjacentHatch(45, 135))).findings).toEqual([])
+  })
+
+  it('互为镜像的同一零件两半（取向相同）不报', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 20,0 20,5 0,10" stroke-width="0.5"/>',
+      '<polygon points="0,20 20,20 20,15 0,10" stroke-width="0.5"/>',
+      hatchFamily(4, 4, 45, 3, 1),
+      hatchFamily(4, 16, 45, 3, -1),
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('零件内的零散线条不构成剖面线：符号笔画与穿行线不触发取向比较', () => {
+    // 与电路图同形：两个相邻符号各有 1–2 条内部笔画，不是剖面线族。
+    const report = checkFigureRendering(svg([
+      '<rect x="0" y="0" width="20" height="20" stroke-width="0.35"/>',
+      '<rect x="20" y="0" width="20" height="20" stroke-width="0.35"/>',
+      stroke(6, 10, 0, 8),
+      stroke(26, 10, 0, 8),
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 画布与变换', () => {
+  it('墨迹越出画布时报 ink-outside-canvas', () => {
+    const report = checkFigureRendering(svg('<polygon points="0,0 140,0 140,20 0,20" stroke-width="0.5"/>'))
+    expect(report.findings.map(finding => finding.check)).toEqual(['ink-outside-canvas'])
+  })
+
+  it('平移到根组的坐标计入墨迹范围', () => {
+    const translated = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="20mm" viewBox="0 0 40 20">
+  <g transform="translate(38,0)"><polygon points="0,0 10,0 10,10 0,10" stroke-width="0.5"/></g>
+</svg>`
+    expect(checkFigureRendering(translated).findings.map(finding => finding.check)).toEqual(['ink-outside-canvas'])
+  })
+
+  it('并列的兄弟组各按自己的变换换算，平移不相加', () => {
+    const siblings = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="20mm" viewBox="0 0 40 20">
+  <g transform="translate(20,0)"><rect x="0" y="0" width="10" height="10" stroke-width="0.5"/></g>
+  <g transform="translate(20,0)"><rect x="0" y="10" width="10" height="10" stroke-width="0.5"/></g>
+</svg>`
+    expect(checkFigureRendering(siblings).findings).toEqual([])
+  })
+
+  it('缩放与旋转按累计矩阵换算到根坐标系量测', () => {
+    const scaled = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297">
+  <g fill="none" stroke="#000000" transform="translate(25,102.297) scale(1.525)"><polygon points="0,0 10,0 10,10 0,10" stroke-width="0.5"/></g>
+</svg>`
+    const report = checkFigureRendering(scaled)
+    expect(report.findings).toEqual([])
+    // 线宽按平均缩放换算：0.5 × 1.525。
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.763, count: 1 }])
+    const overflowing = scaled.replace('translate(25,102.297)', 'translate(25,290)')
+    expect(checkFigureRendering(overflowing).findings.map(finding => finding.check)).toEqual(['ink-outside-canvas'])
+    const rotated = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="20mm" viewBox="0 0 40 20">
+  <g fill="none" stroke="#000000" transform="rotate(90 20 10)"><rect x="10" y="0" width="20" height="2" stroke-width="0.5"/></g>
+</svg>`
+    expect(checkFigureRendering(rotated).findings).toEqual([])
+  })
+
+  it('实体、超限与非 SVG 输入被拒绝', () => {
+    expect(() => checkFigureRendering('<!ENTITY x "y">')).toThrow(SvgAnnotateError)
+    expect(() => checkFigureRendering(svg('<text>1</text>'), { maxBytes: 10 })).toThrow(SvgAnnotateError)
+    expect(() => checkFigureRendering('<html></html>')).toThrow(SvgAnnotateError)
+  })
+})
+
+describe('checkFigureRendering 未量测发现', () => {
+  it('样式表、引用元素、不可解析的变换各出一条 not-measured', () => {
+    const styled = svg('<line x1="0" y1="0" x2="5" y2="5" stroke-width="0.25"/>').replace('<g ', '<style>.n{stroke-width:1}</style><g ')
+    expect(checkFigureRendering(styled).findings.map(finding => finding.check)).toEqual(['not-measured'])
+    expect(checkFigureRendering(styled).findings[0]?.message).toContain('样式表')
+    const referenced = svg('<use href="#a"/><image href="a.png" width="10" height="10"/>')
+    expect(checkFigureRendering(referenced).findings[0]?.message).toContain('未展开')
+    const skewed = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="20mm" viewBox="0 0 40 20">
+  <g transform="skewX(10)"><polygon points="0,0 10,0 10,10 0,10" stroke-width="0.5"/></g>
+</svg>`
+    const report = checkFigureRendering(skewed)
+    expect(report.findings.map(finding => finding.check)).toEqual(['not-measured'])
+    // 变换不可换算 ⇒ 该子树整体不进量测，也不谎报「未发现问题」。
+    expect(report.strokeWidthMm).toEqual([])
+  })
+
+  it('曲线路径按端点弦近似，并说明近似范围', () => {
+    const report = checkFigureRendering(svg([
+      '<path d="M 10 20 a 5 5 0 0 1 10 0" stroke-width="0.25"/>',
+      '<text x="60" y="10" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">1</text>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['not-measured'])
+    expect(report.findings[0]?.message).toContain('曲线段按端点弦近似')
+    // 弦被计入量测：取向分布里能看到这条 0° 的弦。
+    expect(report.orientationDeg).toEqual([{ orientationDeg: 0, count: 1 }])
+  })
+
+  it('定义容器的子元素不渲染也不量测，引用之外的结构仍量测', () => {
+    const report = checkFigureRendering(svg([
+      '<defs><polygon points="0,0 200,0 200,200 0,200" stroke-width="0.5"/><path d="???"/></defs>',
+      '<polygon points="10,10 20,10 20,20 10,20" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.5, count: 1 }])
+  })
+
+  it('无法解析的路径命令单独报未量测，不影响其余图元', () => {
+    const report = checkFigureRendering(svg([
+      '<path d="Z 1 2" stroke-width="0.25"/>',
+      '<polygon points="10,10 20,10 20,20 10,20" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['not-measured'])
+    expect(report.findings[0]?.message).toContain('无法解析的命令')
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.5, count: 1 }])
+  })
+
+  it('量测无缺口时不出 not-measured，逐项量测都参与判定', () => {
+    const report = checkFigureRendering(svg('<polygon points="0,0 4,0 4,4" stroke-width="0.5"/>', 'viewBox="0 0 4 4"'))
+    expect(report.widthMm).toBeUndefined()
+    expect(report.heightMm).toBeUndefined()
+    expect(report.findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 解析边界', () => {
+  it('跳过退化的图元：点数不足的多边形、坐标缺失的线、非数字坐标', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="1,1 2,2" stroke-width="0.5"/>',
+      '<polygon points="a,b c,d e,f" stroke-width="0.5"/>',
+      '<line x1="1" y1="1" x2="2" stroke-width="0.25"/>',
+      '<polygon points="0,0 10,0 10,10 0,10" stroke-width="0.5"/>',
+    ].join('\n')))
+    // 只有一个合法多边形进入量测。
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.5, count: 1 }])
+    expect(report.findings).toEqual([])
+  })
+
+  it('非数字数值属性按未声明处理，继承祖先取值', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 10,0 10,10 0,10" stroke-width="abc"/>',
+      '<polygon points="0,0 5" stroke-width="0.5"/>',
+      '<line x1="0" y1="0" x2="5" stroke-width="0.25"/>',
+      '<text x="20" y="5" font-size="0" fill="#000000" stroke="none">9</text>',
+    ].join('\n')))
+    // stroke-width 非数字 → 取外壳的 0.35；点数不足的多边形与缺 y2 的线被跳过。
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.35, count: 1 }])
+    expect(report.textCount).toBe(1)
+  })
+
+  it('恒等缩放与单参数 translate 参与坐标换算', () => {
+    const body = '<polygon points="0,0 10,0 10,10 0,10" stroke-width="0.5"/>'
+    const translated = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="20mm" viewBox="0 0 40 20">
+  <g transform="translate(5,5) scale(1)">${body}</g>
+</svg>`
+    expect(checkFigureRendering(translated).findings).toEqual([])
+    const shifted = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="20mm" viewBox="0 0 40 20">
+  <g transform="translate(35)">${body}</g>
+</svg>`
+    expect(checkFigureRendering(shifted).findings.map(finding => finding.check)).toEqual(['ink-outside-canvas'])
+  })
+
+  it('相对命令按当前位置累加，绝对命令重置', () => {
+    // 同一条折线的绝对与相对写法必须量测一致。
+    const absolute = checkFigureRendering(svg('<path d="M 10 10 L 40 10" stroke-width="0.25"/>'))
+    const relative = checkFigureRendering(svg('<path d="m 10 10 l 30 0" stroke-width="0.25"/>'))
+    expect(relative.orientationDeg).toEqual(absolute.orientationDeg)
+    expect(relative.findings).toEqual([])
+    // 小写 m 是相对起点，大写 M 是绝对起点：相对写法不会跳到原点。
+    const moved = checkFigureRendering(svg('<path d="m 30 20 l 5 0 h 5 v -5 z" stroke-width="0.25"/>'))
+    expect(moved.findings).toEqual([])
+    // 两条 0° 边（l 与 h）、一条 90° 边（v）与 z 的收口斜边。
+    expect(moved.orientationDeg).toEqual([
+      { orientationDeg: 0, count: 2 },
+      { orientationDeg: 90, count: 1 },
+      { orientationDeg: 153.4, count: 1 },
+    ])
+  })
+
+  it('H/V 只改一个分量：绝对形式与相对形式量测一致', () => {
+    // 绝对 H/V 只给一个坐标，另一个分量保持不动（把它当 0 会让之后的坐标全部错位）。
+    const absolute = checkFigureRendering(svg('<path d="M 10 20 H 30 V 5" stroke-width="0.25"/>'))
+    const relative = checkFigureRendering(svg('<path d="m 10 20 h 20 v -15" stroke-width="0.25"/>'))
+    expect(absolute.findings).toEqual([])
+    expect(relative.orientationDeg).toEqual(absolute.orientationDeg)
+    expect(absolute.orientationDeg).toEqual([
+      { orientationDeg: 0, count: 1 },
+      { orientationDeg: 90, count: 1 },
+    ])
+    // 混写（Inkscape 的文字轮廓路径形态）：绝对 V 之后接相对命令，坐标仍从该点累加。
+    const mixed = checkFigureRendering(svg('<path d="m 10 20 v 5 V 8 h 4" stroke-width="0.25"/>'))
+    expect(mixed.orientationDeg).toEqual([
+      { orientationDeg: 90, count: 2 },
+      { orientationDeg: 0, count: 1 },
+    ])
+  })
+
+  it('尺寸不同的相邻件不按镜像排除：取向差 0° 仍报出', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,30 40,30" stroke-width="0.5"/>',
+      hatchFamily(10, 6, 135, 3, 3),
+      hatchFamily(50, 6, 135, 3, 3),
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+  })
+
+  it('只有一件有剖面线时不比较取向，也不报出', () => {
+    // 右件带切角（与左件尺寸相同但不互为镜像），故进入取向比较；它没有剖面线。
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 45,20" stroke-width="0.5"/>',
+      hatchFamily(10, 6, 135, 3, 3),
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('尺寸相同的相邻件若不互为镜像，仍按取向比较', () => {
+    // 两件同为 40×20 但右件为梯形：不是镜像对，取向相同即报出。
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 45,20" stroke-width="0.5"/>',
+      hatchFamily(10, 6, 135, 3, 3),
+      hatchFamily(50, 6, 135, 3, 3),
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+  })
+
+  it('竖直方向的点划线被同位置的实线覆盖时同样报出', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="20,4 28,4 28,40 20,40" stroke-width="0.5"/>',
+      '<polygon points="12,4 20,4 20,40 12,40" stroke-width="0.5"/>',
+      '<line x1="20" y1="4" x2="20" y2="12" stroke-width="0.25"/>',
+      '<line x1="20" y1="14" x2="20" y2="14.4" stroke-width="0.25"/>',
+      '<line x1="20" y1="16" x2="20" y2="24" stroke-width="0.25"/>',
+      '<line x1="20" y1="26" x2="20" y2="26.4" stroke-width="0.25"/>',
+      '<line x1="20" y1="28" x2="20" y2="36" stroke-width="0.25"/>',
+      '<line x1="20" y1="38" x2="20" y2="38.4" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['centerline-covered'])
+    expect(report.findings[0]?.message).toContain('x=20')
+  })
+
+  it('点划签名但整行跨度不足时不报', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="2,0 14,0 14,20 2,20" stroke-width="0.5"/>',
+      '<line x1="3" y1="0" x2="6" y2="0" stroke-width="0.25"/>',
+      '<line x1="6.4" y1="0" x2="6.8" y2="0" stroke-width="0.25"/>',
+      '<line x1="7.2" y1="0" x2="7.6" y2="0" stroke-width="0.25"/>',
+      '<line x1="8" y1="0" x2="8.4" y2="0" stroke-width="0.25"/>',
+      '<line x1="8.8" y1="0" x2="11.8" y2="0" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('点划签名但整行跨度不足时不报（零件轮廓的零碎短边）', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 12,0 12,20 0,20" stroke-width="0.5"/>',
+      '<line x1="0" y1="20" x2="2" y2="20" stroke-width="0.25"/>',
+      '<line x1="2.4" y1="20" x2="2.9" y2="20" stroke-width="0.25"/>',
+      '<line x1="3.3" y1="20" x2="5.3" y2="20" stroke-width="0.25"/>',
+      '<line x1="5.7" y1="20" x2="6.2" y2="20" stroke-width="0.25"/>',
+      '<line x1="6.6" y1="20" x2="8.6" y2="20" stroke-width="0.25"/>',
+      '<line x1="9" y1="20" x2="9.5" y2="20" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+})

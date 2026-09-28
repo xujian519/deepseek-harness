@@ -12,7 +12,7 @@ English | [中文](2026-09-17-figure-tools-shared-bootplate.zh.md)
 
 The shared bootplate moves into two modules, and each renderer and tool keeps only what differs:
 
-- `figure/subprocess-render.ts` owns the collected-stream stdio configuration, the version probe (`spawnVersionProbe`, which returns the exit facts plus the merged stdout/stderr text), the render deadline (`startRenderDeadline`: internal timeout and caller cancellation abort one signal; `dispose()` clears both), the stderr excerpt (`renderStderr`), and the failure-cause wording (`describeRenderFailure`). `SPAWN_GRACE_MS` is the one grace period both renderers pass to spawn.
+- `figure/subprocess-render.ts` owns the collected-stream stdio configuration, the executable lookup (`findExecutable`: override → environment variable → platform candidates → `PATH`), the in-deadline spawn (`spawnRenderProcess`, which applies the one grace period `SPAWN_GRACE_MS` and awaits the exit), the version probe (`spawnVersionProbe`, which returns the exit facts plus the merged stdout/stderr text), the render deadline (`startRenderDeadline`: internal timeout and caller cancellation abort one signal; `dispose()` clears both), the stderr excerpt (`renderStderr`), and the failure wording — `describeRenderFailure` for a process that finished, `describeRenderThrow` for a throw at the entry point. The spawn-only dependency type (`SubprocessSpawner`) lives there too, so a renderer's tests can fake it without asserting to `unknown`.
 - `tool/internal/figure-schemas.ts` owns `FIGURE_COMPONENT_KINDS`, `NUMERAL_MAP_SCHEMA`, and `COMPONENT_SCHEMA`. `analyze_patent_figure` re-exports the component-kind vocabulary it used to declare, so its exports are unchanged; `generate_patent_figure` and `generate_structure_figure` import both schemas.
 
 Everything that genuinely differs stays per file: candidate executable lists, install guidance, argv and cwd, FreeCAD's `HOME`/`XDG_*` isolation environment and its `manifest.json` existence check, Graphviz's output-file validation and DOT stdin mapping.
@@ -27,9 +27,11 @@ Everything that genuinely differs stays per file: candidate executable lists, in
 
 ## Consequences
 
-A change to the probe, the deadline, or the failure wording now lands once for both renderers, and a change to the component or numeral-map schema lands once for the three figure tools.
+A change to the lookup, the probe, the deadline, or the failure wording now lands once for every renderer that goes through the module, and a change to the component or numeral-map schema lands once for the three figure tools.
 
 The shared renderer module also fixes the wording of render failures, so a renderer that needs a different cause order now has to say so explicitly instead of diverging in a copy.
+
+The Inkscape text-to-path renderer is the third caller of this module; see [the font-independent export note](../architecture/2026-09-28-inkscape-text-to-path-figure-export.md).
 
 ## Verification
 

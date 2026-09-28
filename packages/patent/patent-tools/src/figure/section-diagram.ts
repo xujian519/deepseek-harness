@@ -9,6 +9,9 @@
  * - GB/T 4457.5《机械制图 剖面区域的表示法》：剖面线为与水平线成 45° 的细实线，
  *   同一零件间距相等、方向一致；相邻零件的剖面线方向相反或间距不等，以免把
  *   相邻零件读成一个整体。
+ * - 引线标号：数字落在零件轮廓之外，引线自零件上的指称点引出并止于数字外框，
+ *   故数字不被线条贯穿；一个零件由多个轮廓拼成时也只标一处（见 {@link SectionLabel}）。
+ * - 中心线：轴类零件的轴线用细点划线，随图形一起缩放（见 {@link SectionCenterline}）。
  *
  * 剖面线裁剪按 even-odd 求交：取平行线族的法向距离 c，对多边形的每条边按「两端
  * 点是否落在 c 的同一侧」（严格小于判定的异或）判交；交点沿线向排序后两两配对，
@@ -17,6 +20,7 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/section-diagram
  */
 
+import { leaderEnd } from './glyph-box.ts'
 import { escapeXmlAttribute, fmt, VectorFigureError, type VectorFigureSpec } from './vector-figure.ts'
 
 /** 剖面线参数：45° 细实线；相邻零件方向相反或间距不等以区分（GB/T 4457.5 实践）。 */
@@ -29,13 +33,44 @@ export type HatchSpec = {
   direction?: 'forward' | 'backward'
 }
 
-/** 被剖切的零件：闭合轮廓 + 剖面线。 */
+/** 被剖切的零件：闭合轮廓 + 剖面线；`hatch: 'none'` 表示该轮廓不打剖面线。 */
 export type SectionPart = {
-  /** 零件名（写入图面，简短）。 */
+  /**
+   * 零件名（写入图面，简短）：数字落在该轮廓包围盒右上角之外，自轮廓重心引一条细实线
+   * 到数字外框 —— 剖面线与沿中线的中心线因此都不穿过数字（《专利审查指南》第一部分
+   * 第一章 4.3）。多轮廓零件用 {@link SectionLabel} 指定唯一标号落点。
+   */
   label?: string
   /** 闭合多边形顶点（毫米，至少 3 个，自动闭合）。 */
   outline: readonly (readonly [number, number])[]
-  hatch?: HatchSpec
+  /**
+   * 剖面线参数；`'none'` 表示该轮廓不是被剖切的实体（引线、轴线、非剖切件），只画轮廓。
+   * 缺省时按 45°/3 毫米打剖面线 —— 调用方若只想画轮廓必须显式写 `'none'`。
+   */
+  hatch?: HatchSpec | 'none'
+}
+
+/**
+ * 附图标记（引线标号）：数字落在零件轮廓之外，引线自零件上的指称点引出。
+ *
+ * 引线只画到数字外框边，因此数字不会被线条贯穿；落点由调用方给出，故一个零件由
+ * 多个轮廓拼成时也只画一处标号（零件本体轮廓的 `label` 会画在每个轮廓的重心上）。
+ */
+export type SectionLabel = {
+  /** 标号文本（写入图面的阿拉伯数字）。 */
+  text: string
+  /** 数字视觉中心落点（毫米）。 */
+  at: readonly [number, number]
+  /** 引线起点：零件上的指称点（毫米）；给出时自该点画一条细实线到数字外框边。 */
+  from?: readonly [number, number]
+}
+
+/** 中心线（细点划线）：轴类零件的轴线，不是被剖切的实体。 */
+export type SectionCenterline = {
+  /** 中心线起点（毫米）。 */
+  from: readonly [number, number]
+  /** 中心线终点（毫米）。 */
+  to: readonly [number, number]
 }
 
 /** 剖切位置符号（剖切位置线 + 投射方向箭头 + 字母）。 */
@@ -55,8 +90,14 @@ export type SectionDiagramInput = {
   outline?: readonly (readonly [number, number])[]
   /** 被剖切零件（至少一个）。 */
   parts: readonly SectionPart[]
+  /** 引线标号（0 个或多个）：数字在零件轮廓之外，引线自零件引出。 */
+  labels?: readonly SectionLabel[]
+  /** 中心线（0 条或多条）：细点划线，画在零件之前、不参与剖面线。 */
+  centerlines?: readonly SectionCenterline[]
   /** 剖切位置符号（0 个或多个）。 */
   cuttingMarks?: readonly CuttingMark[]
+  /** 图面字号（毫米），默认 3.5（附图标记与剖切字母同用）。 */
+  labelFontSizeMm?: number
   /** 画布留白（毫米），默认 4。 */
   paddingMm?: number
 }
@@ -92,8 +133,8 @@ type CuttingMarkGeometry = {
   readonly labelAnchor: TextAnchor
 }
 
-/** 待绘制文字（基线锚点与对齐方式）。 */
-type DiagramText = { readonly text: string; readonly at: Point; readonly anchor: TextAnchor }
+/** 待绘制文字（基线锚点、对齐方式与字号）。 */
+type DiagramText = { readonly text: string; readonly at: Point; readonly anchor: TextAnchor; readonly fontSizeMm: number }
 
 /** 包围盒（原始坐标，毫米）。 */
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
@@ -116,10 +157,23 @@ const ARROW_LENGTH_MM = 2.5
 const ARROW_HALF_WIDTH_MM = 1
 /** 字母到箭头尖端的间隙（毫米）。 */
 const MARK_LABEL_GAP_MM = 1.5
-/** 图面字号（毫米）。 */
-const LABEL_FONT_SIZE_MM = 3.5
-/** 文本基线相对锚点的下沉量（毫米，约 0.35 字号，使文字视觉垂直居中）。 */
+/** 默认图面字号（毫米）；附图标记与剖切字母同用，可由 {@link SectionDiagramInput.labelFontSizeMm} 覆盖。 */
+const DEFAULT_LABEL_FONT_SIZE_MM = 3.5
+/**
+ * 零件名外置时的间隙（字号倍数）：自轮廓包围盒的右上角向上、向右各取两倍字号，
+ * 文字占位框（半宽按内容宽度的一半、基线以上 0.75 字号）因此整体落在轮廓之外，剖面线与
+ * 沿中线的中心线都不压字。
+ */
+const LABEL_OUTSIDE_GAP_FACTOR = 2
+/**
+ * 默认字号下的文本基线相对锚点的下沉量（毫米，约 0.35 字号，使文字视觉垂直居中）；
+ * 其他字号按比例缩放，故默认字号下的图面坐标不随本参数引入而变化。
+ */
 const TEXT_BASELINE_DROP_MM = 1.2
+/** 细点划线的长划、间隔与点长（毫米）；中心线的线型固定，随图形一起缩放。 */
+const DASH_DOT_DASH_MM = 8
+const DASH_DOT_GAP_MM = 2
+const DASH_DOT_DOT_MM = 0.4
 /** 退化线段阈值（毫米）：两交点距离不超过它时不画。 */
 const MIN_SEGMENT_MM = 1e-9
 
@@ -184,13 +238,41 @@ function assertCuttingMark(mark: CuttingMark): void {
 }
 
 /**
+ * 校验中心线：两端点坐标有限且不重合。
+ * @param centerline - 待校验中心线。
+ * @throws VectorFigureError('invalid_input') 校验不通过时。
+ */
+function assertCenterline(centerline: SectionCenterline): void {
+  assertFinitePoint(centerline.from, '中心线起点')
+  assertFinitePoint(centerline.to, '中心线终点')
+  if (centerline.from[0] === centerline.to[0] && centerline.from[1] === centerline.to[1]) {
+    throw new VectorFigureError('invalid_input', `中心线两端点不能重合：(${String(centerline.from[0])}, ${String(centerline.from[1])})`)
+  }
+}
+
+/**
+ * 解析图面字号（毫米）：缺省 3.5，必须为正有限数。
+ * @param fontSizeMm - 传入的字号；缺省取默认值。
+ * @returns 生效字号（毫米）。
+ * @throws VectorFigureError('invalid_input') 字号非正有限数时。
+ */
+function resolveLabelFontSize(fontSizeMm: number | undefined): number {
+  const size = fontSizeMm ?? DEFAULT_LABEL_FONT_SIZE_MM
+  if (!Number.isFinite(size) || size <= 0) {
+    throw new VectorFigureError('invalid_input', `图面字号必须是正有限数：${String(size)}`)
+  }
+  return size
+}
+
+/**
  * 解析剖面线参数并校验取值域（缺省 45°、3 毫米、forward）。
- * @param hatch - 传入的剖面线参数。
+ * @param hatch - 传入的剖面线参数；`'none'` 表示该轮廓不打剖面线。
  * @param subject - 报错用主体名前缀。
- * @returns 缺省值已填入的参数。
+ * @returns 缺省值已填入的参数；`'none'` 时为 undefined。
  * @throws VectorFigureError('invalid_input') 角度、间距或方向非法时。
  */
-function resolveHatch(hatch: HatchSpec | undefined, subject: string): ResolvedHatch {
+function resolveHatch(hatch: HatchSpec | 'none' | undefined, subject: string): ResolvedHatch | undefined {
+  if (hatch === 'none') return undefined
   const angleDeg = hatch?.angleDeg ?? DEFAULT_HATCH_ANGLE_DEG
   const spacingMm = hatch?.spacingMm ?? DEFAULT_HATCH_SPACING_MM
   const direction = hatch?.direction ?? 'forward'
@@ -319,16 +401,80 @@ function averagePoint(points: readonly Point[]): Point {
   return [xSum / points.length, ySum / points.length]
 }
 
+/** 文本基线相对数字视觉中心的距离（毫米）：默认字号下 {@link TEXT_BASELINE_DROP_MM}，按字号比例缩放。 */
+function baselineDrop(fontSizeMm: number): number {
+  return TEXT_BASELINE_DROP_MM * (fontSizeMm / DEFAULT_LABEL_FONT_SIZE_MM)
+}
+
 /**
- * 文字的估算占位框（以锚点为中心、边长 2 倍字号的正方形），用于画布包围盒。
- * @param anchor - 文字基线锚点。
+ * 文字的估算占位框（以视觉中心为中心、边长 2 倍字号的正方形），用于画布包围盒。
+ * @param center - 文字视觉中心。
+ * @param fontSizeMm - 字号（毫米）。
  * @returns 方框的两个对角顶点。
  */
-function textBox(anchor: Point): Point[] {
+function textBox(center: Point, fontSizeMm: number): Point[] {
   return [
-    [anchor[0] - LABEL_FONT_SIZE_MM, anchor[1] - LABEL_FONT_SIZE_MM],
-    [anchor[0] + LABEL_FONT_SIZE_MM, anchor[1] + LABEL_FONT_SIZE_MM],
+    [center[0] - fontSizeMm, center[1] - fontSizeMm],
+    [center[0] + fontSizeMm, center[1] + fontSizeMm],
   ]
+}
+
+/**
+ * 零件名在轮廓之外的落点：包围盒右上角外侧，向右向上各 {@link LABEL_OUTSIDE_GAP_FACTOR}
+ * 倍字号。取斜上方位而非正右方，是为了让数字避开沿零件中线的中心线——轴线图的中心线
+ * 正从轮廓中高向两侧外延，数字落在同一高度就会被它贯穿。
+ * @param points - 零件轮廓顶点。
+ * @param fontSizeMm - 字号（毫米）。
+ * @returns 数字视觉中心落点。
+ */
+function outsideLabelAt(points: readonly Point[], fontSizeMm: number): Point {
+  const bounds = boundsOf(points)
+  const gap = LABEL_OUTSIDE_GAP_FACTOR * fontSizeMm
+  return [bounds.maxX + gap, bounds.minY - gap]
+}
+
+/**
+ * 引线线段：自零件上的指称点画到文字占位框边，线段不进入占位框 —— 文字因此
+ * 不会被引线贯穿。占位框模型与复核侧共用（{@link glyphBox}）。
+ * @param content - 文字内容（决定占位框宽度）。
+ * @param from - 引线起点（零件上的指称点）。
+ * @param at - 文字视觉中心落点。
+ * @param fontSizeMm - 字号（毫米）。
+ * @returns 引线线段；起点与落点重合、或落点在起点之内（后退量不小于全长）时为 undefined。
+ */
+function labelLeader(content: string, from: Point, at: Point, fontSizeMm: number): Segment | undefined {
+  const baseline: Point = [at[0], at[1] + baselineDrop(fontSizeMm)]
+  const end = leaderEnd(content, baseline, fontSizeMm, 'middle', from)
+  return end === undefined ? undefined : { from, to: end }
+}
+
+/**
+ * 细点划线分段：长划—间隔—点—间隔循环，末段按剩余长度截断。
+ * @param from - 中心线起点。
+ * @param to - 中心线终点。
+ * @returns 沿线的线段序列（不含间隙）。
+ */
+function dashDotSegments(from: Point, to: Point): Segment[] {
+  const dx = to[0] - from[0]
+  const dy = to[1] - from[1]
+  const total = Math.hypot(dx, dy)
+  /* v8 ignore next -- assertCenterline 已拒绝两端点完全重合；这里挡住「仅相差浮点噪声」的端点，避免单位向量发散 */
+  if (total <= MIN_SEGMENT_MM) return []
+  const unit: Point = [dx / total, dy / total]
+  const at = (distance: number): Point => [from[0] + unit[0] * distance, from[1] + unit[1] * distance]
+  const pattern: readonly number[] = [
+    DASH_DOT_DASH_MM, DASH_DOT_GAP_MM, DASH_DOT_DOT_MM, DASH_DOT_GAP_MM,
+  ]
+  const segments: Segment[] = []
+  let cursor = 0
+  for (let index = 0; cursor < total; index += 1) {
+    const length = pattern[index % pattern.length] as number
+    const end = Math.min(cursor + length, total)
+    // 长划与点都画细实线；间隔不画。下标 0、2 是画线位。
+    if (index % 2 === 0 && end - cursor > MIN_SEGMENT_MM) segments.push({ from: at(cursor), to: at(end) })
+    cursor = end
+  }
+  return segments
 }
 
 /**
@@ -439,21 +585,27 @@ function segmentElement(segment: Segment, offset: Point, strokeMm: number): stri
  */
 function textElement(item: DiagramText, offset: Point): string {
   const x = fmt(item.at[0] + offset[0])
-  const y = fmt(item.at[1] + offset[1] + TEXT_BASELINE_DROP_MM)
-  const size = fmt(LABEL_FONT_SIZE_MM)
+  const drop = baselineDrop(item.fontSizeMm)
+  const y = fmt(item.at[1] + offset[1] + drop)
+  const size = fmt(item.fontSizeMm)
   return `<text x="${x}" y="${y}" font-size="${size}" text-anchor="${item.anchor}" fill="#000000" stroke="none">${escapeXmlAttribute(item.text)}</text>`
 }
 
 /**
- * 构建剖面图：外轮廓与零件轮廓用粗实线、剖面线用细实线裁剪到零件内部、剖切位置
- * 符号用粗实线箭头加字母。
+ * 构建剖面图：外轮廓与零件轮廓用粗实线、剖面线用细实线裁剪到零件内部、中心线与
+ * 引线用细实线、剖切位置符号用粗实线箭头加字母。
  *
- * 画布为轮廓、零件、剖切符号与留白的包围盒；输出坐标已整体平移，恒为非负。
- * @param input - 剖视图输入（外轮廓、被剖切零件、剖切位置符号、画布留白）。
+ * 图面元素各有一等表达，调用方不必用几何伪造：引线标号用 `labels`（数字落点 +
+ * 引线起点）、轴线用 `centerlines`（细点划线）、非剖切轮廓用 `hatch: 'none'`
+ * （只画轮廓）、字面大小用 `labelFontSizeMm`。
+ *
+ * 画布为轮廓、零件、中心线、引线、标号、剖切符号与留白的包围盒；输出坐标已整体
+ * 平移，恒为非负。
+ * @param input - 剖视图输入（外轮廓、被剖切零件、引线标号、中心线、剖切位置符号、字号、画布留白）。
  * @returns 毫米画布规格与黑色描边片段。
  * @throws VectorFigureError('empty_input') `parts` 为空时。
  * @throws VectorFigureError('invalid_input') 顶点不足、坐标非有限数、剖面线参数、
- * 剖切位置符号或画布留白非法时。
+ * 标号文本为空、中心线两端点重合、字号非正或画布留白非法时。
  */
 export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpec {
   const paddingMm = input.paddingMm ?? DEFAULT_PADDING_MM
@@ -466,11 +618,14 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
 
   const polygons: (readonly Point[])[] = []
   const hatches: Segment[] = []
+  const centerlines: Segment[] = []
+  const leaders: Segment[] = []
   const positionLines: Segment[] = []
   const arrowHeads: (readonly Point[])[] = []
   const texts: DiagramText[] = []
   const labels: string[] = []
   const extents: Point[] = []
+  const fontSizeMm = resolveLabelFontSize(input.labelFontSizeMm)
 
   const outline = input.outline !== undefined && input.outline.length > 0 ? input.outline : undefined
   if (outline !== undefined) {
@@ -485,15 +640,43 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     const hatch = resolveHatch(part.hatch, subject)
     polygons.push(part.outline)
     extents.push(...part.outline)
-    hatches.push(...hatchSegments(part.outline, hatch))
+    if (hatch !== undefined) hatches.push(...hatchSegments(part.outline, hatch))
     const labelText = part.label === undefined ? '' : part.label.trim()
     if (labelText !== '') {
-      const at = polygonCentroid(part.outline)
-      texts.push({ text: labelText, at, anchor: 'middle' })
-      extents.push(...textBox(at))
+      // 数字落在轮廓之外、自重心引出：落在轮廓内会被剖面线或轮廓边贯穿。
+      const at = outsideLabelAt(part.outline, fontSizeMm)
+      const leader = labelLeader(labelText, polygonCentroid(part.outline), at, fontSizeMm)
+      if (leader !== undefined) leaders.push(leader)
+      texts.push({ text: labelText, at, anchor: 'middle', fontSizeMm })
+      extents.push(...textBox(at, fontSizeMm))
       labels.push(labelText)
     }
   })
+
+  for (const centerline of input.centerlines ?? []) {
+    assertCenterline(centerline)
+    const segments = dashDotSegments(centerline.from, centerline.to)
+    centerlines.push(...segments)
+    extents.push(centerline.from, centerline.to)
+  }
+
+  for (const [index, label] of (input.labels ?? []).entries()) {
+    const subject = `标号 #${index + 1} `
+    assertFinitePoint(label.at, `${subject}落点`)
+    const text = label.text.trim()
+    if (text === '') throw new VectorFigureError('invalid_input', `${subject}文本不能为空`)
+    if (label.from !== undefined) {
+      assertFinitePoint(label.from, `${subject}引线起点`)
+      const leader = labelLeader(text, label.from, label.at, fontSizeMm)
+      if (leader !== undefined) {
+        leaders.push(leader)
+        extents.push(label.from, leader.to)
+      }
+    }
+    texts.push({ text, at: label.at, anchor: 'middle', fontSizeMm })
+    extents.push(...textBox(label.at, fontSizeMm))
+    labels.push(text)
+  }
 
   for (const mark of input.cuttingMarks ?? []) {
     assertCuttingMark(mark)
@@ -502,8 +685,8 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     arrowHeads.push(...geometry.arrowHeads)
     extents.push(geometry.positionLine.from, geometry.positionLine.to, ...geometry.arrowHeads.flat())
     for (const at of geometry.labelAnchors) {
-      texts.push({ text: mark.id.trim(), at, anchor: geometry.labelAnchor })
-      extents.push(...textBox(at))
+      texts.push({ text: mark.id.trim(), at, anchor: geometry.labelAnchor, fontSizeMm })
+      extents.push(...textBox(at, fontSizeMm))
     }
     labels.push(mark.id.trim())
   }
@@ -514,6 +697,8 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
   const body = [
     ...polygons.map(points => polygonElement(points, offset)),
     ...hatches.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
+    ...centerlines.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
+    ...leaders.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
     ...positionLines.map(segment => segmentElement(segment, offset, THICK_STROKE_MM)),
     ...arrowHeads.map(points => polylineElement(points, offset)),
     ...texts.map(item => textElement(item, offset)),

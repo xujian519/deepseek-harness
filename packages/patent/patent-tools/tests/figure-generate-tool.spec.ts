@@ -1221,3 +1221,80 @@ describe('generate_patent_figure figure family continuation', () => {
     }
   })
 })
+
+describe('generate_patent_figure 文字转路径', () => {
+  /** 带画布尺寸的渲染产物：落版要能解析 width/height 才会改写文件。 */
+  const sized = (spec: GraphvizRenderSpec): Promise<GraphvizRenderOutcome> => {
+    const out = join(spec.outputDir, `${spec.filename}.${spec.format}`)
+    writeFileSync(out, '<svg width="400pt" height="500pt" viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">'
+      + '<g stroke="#000000" stroke-width="0.35"><line x1="1" y1="1" x2="9" y2="9"/><text x="1" y="2" font-size="10">开始</text></g></svg>')
+    return Promise.resolve({ ok: true, path: out })
+  }
+
+  it('注入转换端口后在落版之后就地改写文件', async () => {
+    const dir = tempDir()
+    const seen: { path: string; content: string }[] = []
+    const tool = createGeneratePatentFigureTool({
+      render: sized,
+      outlineText: async (spec) => {
+        seen.push({ path: spec.path, content: readFileSync(spec.path, 'utf8') })
+        writeFileSync(spec.path, '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h1v1z"/></svg>', 'utf8')
+        return { ok: true }
+      },
+      outputDir: dir,
+      cwd: dir,
+    })
+    try {
+      const result = await tool.execute({ figure_type: 'flowchart', steps: flowSteps, target_office: 'cnipa' }, exec)
+      const value = result as { path: string; absolutePath: string; warnings: string[] }
+      // 转换看到的是已落版的页面（A4 幅面），说明这一步排在落版之后。
+      expect(seen).toHaveLength(1)
+      expect(seen[0]?.path).toBe(value.absolutePath)
+      expect(seen[0]?.content).toContain('width="210mm" height="297mm"')
+      expect(readFileSync(value.absolutePath, 'utf8')).toContain('<path d="M0 0h1v1z"/>')
+      expect(value.warnings.join('\n')).not.toContain('文字转路径')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('非 SVG 输出时给出「仅对 SVG 生效」警告且不调用转换', async () => {
+    const dir = tempDir()
+    let calls = 0
+    const tool = createGeneratePatentFigureTool({
+      render: sized,
+      outlineText: async () => {
+        calls += 1
+        return { ok: true }
+      },
+      outputDir: dir,
+      cwd: dir,
+    })
+    try {
+      const result = await tool.execute({ figure_type: 'flowchart', steps: flowSteps, format: 'png' }, exec)
+      expect(calls).toBe(0)
+      expect((result as { warnings: string[] }).warnings.join('\n'))
+        .toContain('文字转路径（Config.figureTextToPath）仅对 SVG 输出生效')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('转换失败按渲染失败的同一张表映射：not_installed → setup_required', async () => {
+    const dir = tempDir()
+    const tool = createGeneratePatentFigureTool({
+      render: sized,
+      outlineText: () => Promise.resolve({ ok: false, code: 'not_installed', error: '未找到 Inkscape 可执行文件。' }),
+      outputDir: dir,
+      cwd: dir,
+    })
+    try {
+      await expect(tool.execute({ figure_type: 'flowchart', steps: flowSteps }, exec)).rejects.toMatchObject({
+        code: 'setup_required',
+        message: '未找到 Inkscape 可执行文件。',
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

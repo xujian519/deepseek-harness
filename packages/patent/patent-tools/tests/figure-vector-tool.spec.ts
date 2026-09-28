@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -202,6 +202,34 @@ describe('generate_patent_figure：矢量图型（直接绘制 SVG）', () => {
     }
   })
 
+  it('外观视图片段带复核拒绝的结构时记一条跳过说明，不吞掉已生成的图', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-vec-'))
+    const outDir = join(dir, 'figs')
+    const tracker = trackingRenderer()
+    const tool = createGeneratePatentFigureTool({ render: tracker.render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'appearance_view',
+        appearance_views: {
+          views: [{
+            name: '主视图',
+            body: '<!ENTITY x "y"><rect x="0" y="0" width="10" height="10"/>',
+            width_mm: 10,
+            height_mm: 10,
+          }],
+        },
+      }, 'v11')
+      expect(result.isError).toBe(false)
+      const value = result as { value: { warnings: string[]; absolutePath: string } }
+      // 复核因调用方片段里的实体声明被拒：图照常交付，只记一条跳过说明。
+      expect(value.value.warnings.join('\n')).toContain('渲染复核被跳过')
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).toContain('<!ENTITY')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('矢量图型支持落版（图号入图）与非法输入/格式的错误映射', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-vec-'))
     const outDir = join(dir, 'figs')
@@ -247,6 +275,186 @@ describe('generate_patent_figure：矢量图型（直接绘制 SVG）', () => {
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('panels[0].figure_type')
       expect(text(result)).toContain('must be one of')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure：剖视图的引线标号、中心线、字号与文件输入', () => {
+  /** 工具执行结果（文本内容用于断言错误消息，value 用于断言结构化输出）。 */
+  type RunResult = { isError: boolean; value?: Record<string, unknown>; content: { type: string; text?: string }[] }
+
+  /** 建一个只写不渲的工具上下文；返回执行器与输出目录。 */
+  async function setup(): Promise<{ dir: string; outDir: string; run: (args: unknown, label: string) => Promise<RunResult> }> {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-sec-'))
+    const outDir = join(dir, 'figs')
+    const tracker = trackingRenderer()
+    const tool = createGeneratePatentFigureTool({ render: tracker.render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    return {
+      dir,
+      outDir,
+      run: async (args, label) => await execute(ctx, 'generate_patent_figure', args, label) as RunResult,
+    }
+  }
+
+  it('引线标号与中心线写进 SVG，输入检查与渲染复核都不报问题', async () => {
+    const { dir, outDir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        sections: {
+          parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3, direction: 'forward' } }],
+          labels: [{ text: '1', at: [44, 10], from: [40, 10] }],
+          centerlines: [{ from: [-4, 10], to: [42, 10] }],
+          label_font_size_mm: 5,
+        },
+      }, 's1')
+      expect(result.isError).toBe(false)
+      const svg = readFileSync(join(outDir, 'fig1.svg'), 'utf8')
+      expect(svg).toContain('font-size="5"')
+      // 中心线：至少 3 个「点」（≤1 毫米）与 2 个长划，且带 0.25 线宽。
+      const thin = [...svg.matchAll(/<line x1="(-?[\d.]+)" y1="(-?[\d.]+)" x2="(-?[\d.]+)" y2="(-?[\d.]+)" stroke-width="0\.25"\/>/g)]
+      expect(thin.length).toBeGreaterThan(4)
+      const payload = result.value as { warnings: string[]; absolutePath: string }
+      // 引线标号已由输入给出，引用渲染复核通过：只有「未指定剖面线」类的输入提示都不该出现。
+      expect(payload.warnings).toEqual([])
+      expect(payload.absolutePath.startsWith('/')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('零件未指定剖面线时给出「已套用默认」提示', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        sections: { parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]] }] },
+      }, 's2')
+      const payload = result.value as { warnings: string[] }
+      expect(payload.warnings.join('\n')).toContain('未指定剖面线')
+      expect(payload.warnings.join('\n')).toContain('hatch: "none"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('零件名画在轮廓右上角之外并带引线：压在剖面线与沿中线的中心线上都不报贯穿', async () => {
+    const { dir, outDir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        sections: {
+          parts: [{ label: '1', outline: [[0, 0], [40, 0], [40, 20], [0, 20]] }],
+          centerlines: [{ from: [-6, 10], to: [46, 10] }],
+        },
+      }, 's11')
+      expect(result.isError).toBe(false)
+      const payload = result.value as { warnings: string[] }
+      // 数字在包围盒左上角之外，剖面线与中高处的中心线都不穿过数字：只有输入侧的
+      // 「未指定剖面线」提示，没有渲染复核的贯穿提示。
+      expect(payload.warnings.join('\n')).not.toContain('渲染复核：标号')
+      const svg = readFileSync(join(outDir, 'fig1.svg'), 'utf8')
+      const text = /<text x="([\d.]+)"[^>]*>1<\/text>/.exec(svg)
+      expect(text).not.toBeNull()
+      expect(Number(text?.[1])).toBeGreaterThan(40)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('同名零件名落在多个轮廓上时提示改用 labels', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        sections: {
+          parts: [
+            { label: '插头柄', outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: 'none' },
+            { label: '插头柄', outline: [[10, 0], [20, 0], [20, 10], [10, 10]], hatch: 'none' },
+          ],
+        },
+      }, 's3')
+      const payload = result.value as { warnings: string[] }
+      expect(payload.warnings.join('\n')).toContain('零件名「插头柄」出现在 2 个轮廓上')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('leader_lines 对直绘图型给出「不生效」提示而不是静默忽略', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        leader_lines: true,
+        sections: { parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: 'none' }] },
+      }, 's4')
+      const payload = result.value as { warnings: string[] }
+      expect(payload.warnings.join('\n')).toContain('leader_lines')
+      expect(payload.warnings.join('\n')).toContain('sections.labels')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('sections 传 JSON 文件路径：读入并渲染，缺文件与坏内容分别报错', async () => {
+    const { dir, outDir, run } = await setup()
+    try {
+      writeFileSync(join(dir, 'fig4.json'), JSON.stringify({
+        parts: [{ outline: [[0, 0], [30, 0], [30, 10], [0, 10]], hatch: 'none' }],
+        labels: [{ text: '4', at: [34, 5], from: [30, 5] }],
+      }))
+      const fromFile = await run({ figure_type: 'cross_section', sections: 'fig4.json' }, 's5')
+      expect(fromFile.isError).toBe(false)
+      const svg = readFileSync(join(outDir, 'fig1.svg'), 'utf8')
+      expect(svg).toContain('>4</text>')
+
+      const missing = await run({ figure_type: 'cross_section', sections: 'nope.json' }, 's6')
+      expect(missing.isError).toBe(true)
+      expect(text(missing)).toContain('sections 文件不存在或不可读')
+
+      writeFileSync(join(dir, 'bad.json'), '{ not json')
+      const broken = await run({ figure_type: 'cross_section', sections: 'bad.json' }, 's7')
+      expect(broken.isError).toBe(true)
+      expect(text(broken)).toContain('不是合法 JSON')
+
+      // 缺 required 字段：文件内容按同一套参数 schema 被拒。
+      writeFileSync(join(dir, 'shape.json'), JSON.stringify({ outline: [] }))
+      const wrong = await run({ figure_type: 'cross_section', sections: 'shape.json' }, 's8')
+      expect(wrong.isError).toBe(true)
+      expect(text(wrong)).toContain('sections 文件内容不符合剖视图输入')
+
+      // schema 通过但语义不足：由构建层按内联输入同样的错误报出。
+      writeFileSync(join(dir, 'empty.json'), JSON.stringify({ parts: [] }))
+      const emptyParts = await run({ figure_type: 'cross_section', sections: 'empty.json' }, 's8b')
+      expect(emptyParts.isError).toBe(true)
+      expect(text(emptyParts)).toContain('剖视图至少需要一个被剖切零件')
+
+      writeFileSync(join(dir, 'notobject.json'), JSON.stringify([1, 2]))
+      const array = await run({ figure_type: 'cross_section', sections: 'notobject.json' }, 's9')
+      expect(array.isError).toBe(true)
+      expect(text(array)).toContain('不是 JSON 对象')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('渲染复核的发现随警告返回：文字被线条贯穿时给出提示', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        sections: {
+          parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 4, direction: 'forward' } }],
+          // 引线起点就是数字落点：复核会看到线条穿过数字占位框。
+          labels: [{ text: '1', at: [20, 10], from: [20, 10] }],
+        },
+      }, 's10')
+      const payload = result.value as { warnings: string[] }
+      expect(payload.warnings.join('\n')).toContain('渲染复核：图面文字「1」被线条贯穿')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

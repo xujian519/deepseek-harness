@@ -24,6 +24,7 @@ import type {
 } from '../figure/dot-builder.ts'
 import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../figure/graphviz-renderer.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
+import type { InkscapeOutlineOutcome, InkscapeOutlineSpec } from '../figure/inkscape-renderer.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
 import type { SubmissionLayout } from '../figure/submission-page.ts'
 import type {
@@ -70,6 +71,12 @@ export type GeneratePatentFigureIndexEntry = FigureIndexEntry
 export type GeneratePatentFigureDeps = {
   /** DOT 渲染（graphviz-renderer 的 renderWithGraphviz 或测试注入）。 */
   render: (spec: GraphvizRenderSpec) => Promise<GraphvizRenderOutcome>
+  /**
+   * 可选文字转路径（inkscape-renderer 的 outlineSvgText 或测试注入）：把 SVG 的
+   * 图面文字换成轮廓路径，导出文件不再依赖阅读器字体。宿主仅在
+   * Config.figureTextToPath 开启时注入，缺省视为不转换。
+   */
+  outlineText?: (spec: InkscapeOutlineSpec) => Promise<InkscapeOutlineOutcome>
   /** 输出目录（绝对路径），默认 <cwd>/patent/figures。 */
   outputDir?: string
   /** 可选 upsert 进附图索引（写入失败静默降级）。 */
@@ -101,8 +108,11 @@ type SharedFigureInputFields = {
   circuit?: CircuitFigureJson
   /** 曲线图/坐标图输入（figure_type=plot）。 */
   plot?: PlotFigureJson
-  /** 剖视图输入（figure_type=cross_section）。 */
-  sections?: SectionFigureJson
+  /**
+   * 剖视图输入（figure_type=cross_section）：对象，或指向含该对象的 JSON 文件的路径
+   * （工作区相对或绝对路径）——大块坐标放进文件，重渲染时不必把整份 JSON 内联进调用。
+   */
+  sections?: SectionFigureJson | string
   /** 时序图输入（figure_type=sequence_diagram）。 */
   sequence?: SequenceFigureJson
   /** 外观设计视图排布输入（figure_type=appearance_view）。 */
@@ -170,6 +180,11 @@ export type GeneratePatentFigureLayout = SubmissionLayout
 export type GeneratePatentFigureOutput = {
   /** 生成的图片路径（工作区相对）。 */
   path: string
+  /**
+   * 生成的图片**绝对路径**：输出目录取自部署配置（`figureOutputDir`），不一定在工作区
+   * 之下，相对路径不足以定位文件，故随结果返回绝对路径。
+   */
+  absolutePath: string
   format: DotFormat
   engine: DotEngine
   figureNumber: number
@@ -198,15 +213,22 @@ export type GeneratePatentFigurePanelOutput = {
   suffix: string
   /** 面板文件路径（工作区相对）。 */
   path: string
+  /** 面板文件绝对路径（输出目录不一定在工作区之下）。 */
+  absolutePath: string
   /** 面板图型。 */
   figureType: FigureType
   /** 面板落版与合规核算结果（给定 target_office 时）。 */
   layout?: GeneratePatentFigureLayout
 }
 
-/** normalized 视图：结构化字段在 schema 校验 + ?? 归一后恒为数组，figure_type 恒已解析。 */
+/**
+ * normalized 视图：结构化字段在 schema 校验 + ?? 归一后恒为数组，figure_type 恒已解析，
+ * 矢量图型的文件形式（`sections` 传 JSON 文件路径）已在归一前读入并校验。
+ */
 export type NormalizedFigureInput = StructuralFigureInput &
-  Omit<GeneratePatentFigureInput, keyof StructuralFigureInput>
+  Omit<GeneratePatentFigureInput, keyof StructuralFigureInput | 'sections'> & {
+    sections?: SectionFigureJson
+  }
 
 /** 单图构建输入（主路径与面板路径共用；数组字段由 normalize 保证恒为数组）。 */
 export type StructuralFigureInput = {

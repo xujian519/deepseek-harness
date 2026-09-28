@@ -107,19 +107,48 @@ export const SECTION_INPUT_SCHEMA = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          label: { type: 'string' },
+          label: { type: 'string', description: '零件名（数字落在轮廓包围盒右上角之外，自轮廓重心引细实线相连；同一零件由多个轮廓拼成时不要用本字段，用 labels 指定唯一标号落点）' },
           outline: { type: 'array', required: true, items: { type: 'array', items: { type: 'number' } }, description: '零件闭合轮廓（[[x,y],…]，至少 3 点）' },
           hatch: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              angle_deg: { type: 'number', description: '剖面线倾角（度），默认 45' },
-              spacing_mm: { type: 'number', description: '剖面线间距（毫米），默认 3' },
-              direction: { type: 'string', enum: ['forward', 'backward'], description: '相邻零件取相反方向或不同间距以区分' },
-            },
+            oneOf: [
+              {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  angle_deg: { type: 'number', description: '剖面线倾角（度），默认 45' },
+                  spacing_mm: { type: 'number', description: '剖面线间距（毫米），默认 3' },
+                  direction: { type: 'string', enum: ['forward', 'backward'], description: '相邻零件取相反方向或不同间距以区分' },
+                },
+              },
+              { type: 'string', enum: ['none'] },
+            ],
+            description: '剖面线参数；"none" 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。缺省按 45°/3mm 打剖面线',
           },
         },
       },
+      description: '被剖切零件轮廓（同一零件的多个轮廓各给一段）',
+    },
+    labels: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          text: { type: 'string', required: true, description: '标号文本（阿拉伯数字）' },
+          at: { ...POINT_SCHEMA, description: '数字视觉中心落点（毫米），应在零件轮廓之外' },
+          from: { ...POINT_SCHEMA, description: '引线起点：零件上的指称点（毫米）；给出时自该点画细实线到数字外框，数字不被线条贯穿' },
+        },
+      },
+      description: '引线标号：数字置于零件轮廓之外并以引线相连（一个零件由多个轮廓拼成时用本字段，避免每个轮廓各画一处标号）',
+    },
+    centerlines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { from: POINT_SCHEMA, to: POINT_SCHEMA },
+      },
+      description: '中心线（细点划线）：轴类零件的轴线；不要用细长多边形伪造',
     },
     cutting_marks: {
       type: 'array',
@@ -134,6 +163,7 @@ export const SECTION_INPUT_SCHEMA = {
         },
       },
     },
+    label_font_size_mm: { type: 'number', description: '图面字号（毫米），默认 3.5；附图标记与剖切字母同用' },
     padding_mm: { type: 'number', description: '画布留白（毫米），默认 4' },
   },
 } as const
