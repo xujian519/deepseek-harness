@@ -728,7 +728,7 @@ Source: [`packages/api/session-controller/src/types.ts:40`](../packages/api/sess
 'patent/model-call': PatentModelCallEvent
 ```
 
-Source: [`packages/patent/patent-workflow/src/types.ts:41`](../packages/patent/patent-workflow/src/types.ts)
+Source: [`packages/patent/patent-workflow/src/types.ts:40`](../packages/patent/patent-workflow/src/types.ts)
 
 <a id="patentplantask--log-only"></a>
 
@@ -746,7 +746,7 @@ Source: [`packages/patent/patent-workflow/src/types.ts:41`](../packages/patent/p
 'patent/plantask': PatentPlantaskEvent
 ```
 
-Source: [`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/patent-workflow/src/types.ts)
+Source: [`packages/patent/patent-workflow/src/types.ts:22`](../packages/patent/patent-workflow/src/types.ts)
 
 <a id="patentworkflow-run--log-only"></a>
 
@@ -762,7 +762,7 @@ Source: [`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/p
 'patent/workflow-run': PatentWorkflowRunEvent
 ```
 
-Source: [`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
+Source: [`packages/patent/patent-workflow/src/types.ts:29`](../packages/patent/patent-workflow/src/types.ts)
 
 ### `patent-teams/*`
 
@@ -5088,7 +5088,7 @@ One of:
 
 SHA-256: `598d1d2f53c1194133976837c47e016be809a151276df15eabceab4989010bf9`
 
-Sources: [`packages/patent/patent-workflow/src/types.ts:50`](../packages/patent/patent-workflow/src/types.ts)
+Sources: [`packages/patent/patent-workflow/src/types.ts:49`](../packages/patent/patent-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5128,7 +5128,7 @@ Sources: [`packages/patent/patent-core/src/types.ts:45`](../packages/patent/pate
 
 SHA-256: `26647df86465d4f99aef29c880bafd648dc17c4fd73f048144e32ba70f21463d`
 
-Sources: [`packages/patent/patent-workflow/src/types.ts:89`](../packages/patent/patent-workflow/src/types.ts)
+Sources: [`packages/patent/patent-workflow/src/types.ts:88`](../packages/patent/patent-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5342,7 +5342,7 @@ Sources: [`packages/patent/patent-teams/src/event-types.ts:89`](../packages/pate
 
 SHA-256: `fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14`
 
-Sources: [`packages/patent/patent-workflow/src/types.ts:98`](../packages/patent/patent-workflow/src/types.ts)
+Sources: [`packages/patent/patent-workflow/src/types.ts:97`](../packages/patent/patent-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

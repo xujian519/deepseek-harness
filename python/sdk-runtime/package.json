@@ -72,6 +72,7 @@
     "@deepseek-ai/dsh-message-feedback": "workspace:*",
     "@deepseek-ai/dsh-methodology": "workspace:*",
     "@deepseek-ai/dsh-output-retention": "workspace:*",
+    "@deepseek-ai/dsh-otel": "workspace:*",
     "@deepseek-ai/dsh-patent-core": "workspace:*",
     "@deepseek-ai/dsh-patent-data": "workspace:*",
     "@deepseek-ai/dsh-patent-deadline": "workspace:*",

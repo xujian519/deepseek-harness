@@ -730,7 +730,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent/model-call': PatentModelCallEvent
 ```
 
-来源：[`packages/patent/patent-workflow/src/types.ts:41`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:40`](../packages/patent/patent-workflow/src/types.ts)
 
 <a id="patentplantask--log-only"></a>
 
@@ -748,7 +748,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent/plantask': PatentPlantaskEvent
 ```
 
-来源：[`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:22`](../packages/patent/patent-workflow/src/types.ts)
 
 <a id="patentworkflow-run--log-only"></a>
 
@@ -764,7 +764,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent/workflow-run': PatentWorkflowRunEvent
 ```
 
-来源：[`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:29`](../packages/patent/patent-workflow/src/types.ts)
 
 ### `patent-teams/*`
 
@@ -5090,7 +5090,7 @@ SHA-256: `3bd652ebfa8726b3ce3937a4f1bd2759e02f86b3a08a20f9e41a8513656fbc5f`
 
 SHA-256: `598d1d2f53c1194133976837c47e016be809a151276df15eabceab4989010bf9`
 
-来源：[`packages/patent/patent-workflow/src/types.ts:50`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:49`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -5130,7 +5130,7 @@ SHA-256: `aec56c91a0f50f29e02ad4275af5df9aac630f165203c2f9d390f0ce40bbd43d`
 
 SHA-256: `26647df86465d4f99aef29c880bafd648dc17c4fd73f048144e32ba70f21463d`
 
-来源：[`packages/patent/patent-workflow/src/types.ts:89`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:88`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -5344,7 +5344,7 @@ SHA-256: `b06f51954320d247853fa68296e3cc8cf6edc4e70d6a911f8885f5c67ae64532`
 
 SHA-256: `fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14`
 
-来源：[`packages/patent/patent-workflow/src/types.ts:98`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:97`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

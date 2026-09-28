@@ -36,17 +36,31 @@ function simulateScript(name: string, factory: (require: (spec: string) => unkno
   g.__dshChunks__[name] = factory
 }
 
+/**
+ * Replace `document.createElement` with a spy that records the script elements
+ * the loader injects.
+ * @returns the created elements, in creation order.
+ */
+function captureCreatedElements(): HTMLScriptElement[] {
+  const created: HTMLScriptElement[] = []
+  // oxlint-disable-next-line no-deprecated -- capture the real factory before spyOn; oxlint reads the legacy-tag overload as deprecated
+  const originalCreate = document.createElement.bind(document)
+  const createElement = (tag: string): HTMLScriptElement => {
+    const el = originalCreate(tag) as HTMLScriptElement
+    if (tag === 'script') created.push(el)
+    return el
+  }
+  // The client program typechecks Desktop modules that carry Electron's global DOM
+  // augmentation, so the replacement is cast to the overloaded factory it replaces.
+  // oxlint-disable-next-line no-deprecated -- the replaced factory's legacy-tag overload is deprecated
+  vi.spyOn(document, 'createElement').mockImplementation(createElement as typeof document.createElement)
+  return created
+}
+
 describe('default chunk script loader', () => {
   it('injects a classic async script, then materializes after its load event', async () => {
     setChunkModuleSystem({ import: async spec => ({ seed: spec }) })
-    const created: HTMLScriptElement[] = []
-    // oxlint-disable-next-line no-deprecated -- capture the real factory before spyOn; oxlint reads the legacy-tag overload as deprecated
-    const originalCreate = document.createElement.bind(document)
-    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-      const el = originalCreate(tag) as HTMLScriptElement
-      if (tag === 'script') created.push(el)
-      return el
-    })
+    const created = captureCreatedElements()
     const appended = vi.spyOn(document.head, 'append')
 
     const pending = loadChunk('editor')
@@ -68,14 +82,7 @@ describe('default chunk script loader', () => {
 
   it('rejects on the script error event, and the retry re-injects from scratch', async () => {
     setChunkModuleSystem({ import: async spec => ({ seed: spec }) })
-    const created: HTMLScriptElement[] = []
-    // oxlint-disable-next-line no-deprecated -- capture the real factory before spyOn; oxlint reads the legacy-tag overload as deprecated
-    const originalCreate = document.createElement.bind(document)
-    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-      const el = originalCreate(tag) as HTMLScriptElement
-      if (tag === 'script') created.push(el)
-      return el
-    })
+    const created = captureCreatedElements()
 
     const first = loadChunk('editor')
     created[0]!.dispatchEvent(new Event('error'))
