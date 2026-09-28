@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-catalog-request-contract-wrappers.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-28-catalog-request-contract-wrappers.md
+/agent-note-catalog-request-contract-wrappers-survive-a-protocol-override:
+  en: 5b0ce50f632b14e7
+  zh: 4e8736930c48a53a
+/agent-note-catalog-request-contract-wrappers-survive-a-protocol-override/problem:
+  en: a5302995dd819133
+  zh: 06c77ba8c9bf4cd4
+/agent-note-catalog-request-contract-wrappers-survive-a-protocol-override/decision:
+  en: 25047f0249c74b79
+  zh: ac2e7a6a50fb356f
+/agent-note-catalog-request-contract-wrappers-survive-a-protocol-override/alternatives-considered:
+  en: 4927f0e40c1c1e21
+  zh: bb658e4336f33366
+/agent-note-catalog-request-contract-wrappers-survive-a-protocol-override/consequences:
+  en: 16033ecf5a77aebf
+  zh: d670a8cdfb9109d9

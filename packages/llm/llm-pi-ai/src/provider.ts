@@ -9,7 +9,8 @@
  * separate entry point), so rebuilding it from parts would silently narrow
  * which providers work. Every other route — one pi-ai has never heard of, or a
  * catalog route pointed at a different protocol — is built by `createProvider`
- * over the protocol table below.
+ * over the protocol table below, with the catalog provider's request-contract
+ * wrappers re-applied to those replacement streams.
  *
  * Credentials never reach this module's storage: the harness resolves a route's
  * key through `ctx.credentials` before the request enters pi-ai and hands it
@@ -23,6 +24,8 @@ import type { Api, ApiKeyAuth, Model, Provider, ProviderStreams } from '@earendi
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
+import { cloudflareStreams } from '@earendil-works/pi-ai/providers/cloudflare-stream'
+import { withOpenCodeSessionHeader } from '@earendil-works/pi-ai/providers/opencode-headers'
 import { catalogProvider, PiAiCatalogError } from './catalog.ts'
 import { createProvider } from './models.ts'
 
@@ -60,6 +63,34 @@ const PROTOCOLS: Readonly<Record<string, () => ProviderStreams>> = {
  */
 export function supportedProtocols(): readonly string[] {
   return Object.keys(PROTOCOLS)
+}
+
+/**
+ * Request-contract wrappers by catalog provider id. A catalog provider owns
+ * more than its api implementations: the OpenCode gateways refuse any request
+ * without a per-conversation `x-opencode-session`, so pi-ai wraps each of that
+ * provider's implementations to derive the header from the request's
+ * `sessionId`; the Cloudflare providers resolve the account and gateway
+ * placeholders in a model's endpoint from the request's ambient values, which
+ * only that provider's own auth resolution supplies. Replacing those
+ * implementations with the protocol table's, which an explicit route `api`
+ * does, drops the obligation — the gateway refuses the request before the
+ * model runs, or the endpoint keeps its literal placeholders. Each wrapper is
+ * re-applied to the replacement so the catalog provider's obligation survives
+ * the override.
+ *
+ * Keyed by catalog provider id, never by endpoint host: a route naming a
+ * catalog provider inherits that provider's obligations, and a route pi-ai
+ * does not ship — a private gateway the deployment describes itself — has no
+ * catalog contract to inherit. The wrappers come from pi-ai rather than being
+ * restated here, so the header name, the placeholder names, and their
+ * per-request derivations stay upstream-owned.
+ */
+const CATALOG_STREAM_WRAPPERS: Readonly<Record<string, (streams: ProviderStreams) => ProviderStreams>> = {
+  'cloudflare-ai-gateway': cloudflareStreams,
+  'cloudflare-workers-ai': cloudflareStreams,
+  opencode: withOpenCodeSessionHeader,
+  'opencode-go': withOpenCodeSessionHeader,
 }
 
 /**
@@ -181,12 +212,16 @@ export function buildProvider(spec: ProviderSpec): Provider {
       + ` supported protocols are ${supportedProtocols().join(', ')}`,
     )
   }
+  // A route the catalog ships but this profile repoints keeps that provider's
+  // request contract; a route the catalog does not ship has none to keep.
+  const wrapper = catalog === undefined ? undefined : CATALOG_STREAM_WRAPPERS[spec.provider]
+  const streams = factory()
   return createProvider({
     id: spec.provider,
     name: spec.displayName,
     ...spec.baseURL === undefined ? {} : { baseUrl: spec.baseURL },
     auth: routeAuth(spec, catalog),
     models: spec.models,
-    api: factory(),
+    api: wrapper === undefined ? streams : wrapper(streams),
   })
 }

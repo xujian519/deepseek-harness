@@ -5,7 +5,7 @@
  * statically at module scope, so the row cannot mount without it.
  *
  * Every symbol `llm-pi-ai` imports by name is present: a missing CommonJS symbol
- * would surface as `undefined` at call time instead of a link error. The three catalog readers
+ * would surface as `undefined` at call time instead of a link error. The catalog readers
  * return empty collections rather than throwing — the row reads them while it
  * activates, and "this deployment ships no pi-ai provider" is the truth here.
  * Everything on a request path is loud.
@@ -26,14 +26,14 @@ export const getSupportedThinkingLevels = notImplementedFail(MODULE, 'getSupport
 /** Context-overflow predicate (unavailable). */
 export const isContextOverflow = notImplementedFail(MODULE, 'isContextOverflow')
 
-/** Builtin provider ids of pi-ai 0.84.2, in catalog order. */
+/** Builtin provider ids of pi-ai 0.87.1, in catalog order. */
 const BUILTIN_PROVIDER_IDS: readonly string[] = [
   'amazon-bedrock', 'ant-ling', 'anthropic', 'azure-openai-responses', 'baseten', 'cerebras',
   'cloudflare-ai-gateway', 'cloudflare-workers-ai', 'deepseek', 'fireworks', 'github-copilot',
-  'google', 'google-vertex', 'groq', 'huggingface', 'kimi-coding', 'minimax', 'minimax-cn',
+  'google', 'google-vertex', 'groq', 'huggingface', 'kimi-coding', 'meta', 'minimax', 'minimax-cn',
   'mistral', 'moonshotai', 'moonshotai-cn', 'nvidia', 'openai', 'openai-codex', 'opencode',
   'opencode-go', 'openrouter', 'qwen-token-plan', 'qwen-token-plan-cn',
-  'qwen-token-plan-individual', 'together',
+  'qwen-token-plan-individual', 'radius', 'together',
   'vercel-ai-gateway', 'xai', 'xiaomi', 'xiaomi-token-plan-ams', 'xiaomi-token-plan-cn',
   'xiaomi-token-plan-sgp', 'zai', 'zai-coding-cn',
 ]
@@ -72,6 +72,29 @@ export function getBuiltinModels(): unknown[] {
   return []
 }
 
+/**
+ * An empty mutable model collection with the members `llm-pi-ai` reads. The
+ * row clears the collection and installs one provider per resolved route, and a
+ * route that resolved would already have failed on the refusing `createProvider`
+ * below, so the collection answers empty: this deployment serves no pi-ai
+ * provider, and a catalog read must report that rather than fail on a missing
+ * symbol.
+ * @returns an empty collection that accepts the adapter's mutations.
+ */
+export function builtinModels(): {
+  clearProviders: () => void
+  setProvider: (provider: unknown) => void
+  getModels: (provider: string) => unknown[]
+  getModel: (provider: string, model: string) => unknown
+} {
+  return {
+    clearProviders: () => undefined,
+    setProvider: () => undefined,
+    getModels: () => [],
+    getModel: () => undefined,
+  }
+}
+
 /** Anthropic messages API binding (unavailable). */
 export const anthropicMessagesApi = notImplementedFail(MODULE, 'anthropicMessagesApi')
 
@@ -81,12 +104,18 @@ export const openAICompletionsApi = notImplementedFail(MODULE, 'openAICompletion
 /** OpenAI responses API binding (unavailable). */
 export const openAIResponsesApi = notImplementedFail(MODULE, 'openAIResponsesApi')
 
+/** Cloudflare endpoint-placeholder stream wrapper (unavailable). */
+export const cloudflareStreams = notImplementedFail(MODULE, 'cloudflareStreams')
+
+/** OpenCode session-header stream wrapper (unavailable). */
+export const withOpenCodeSessionHeader = notImplementedFail(MODULE, 'withOpenCodeSessionHeader')
+
 /** CommonJS interop marker: the worker loader hands `default` to default imports. */
 export const __esModule = true
 
 /** CommonJS default export: the members `require()` hands a caller of this module. */
 export default {
   createProvider, createModels, getSupportedThinkingLevels, isContextOverflow, builtinProviders,
-  getBuiltinModels, getBuiltinProviders, anthropicMessagesApi, openAICompletionsApi,
-  openAIResponsesApi,
+  builtinModels, getBuiltinModels, getBuiltinProviders, anthropicMessagesApi, openAICompletionsApi,
+  openAIResponsesApi, cloudflareStreams, withOpenCodeSessionHeader,
 }
