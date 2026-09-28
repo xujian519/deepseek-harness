@@ -141,14 +141,14 @@
   en: cc2975041fa6c080
   zh: cc2975041fa6c080
 /session-persistence-event-catalog/events/patent/patent-model-call-log-only:
-  en: 18686534eff8bd95
-  zh: 47254e9a499f413d
+  en: baab3491d82f84f1
+  zh: eb4b764606ef9480
 /session-persistence-event-catalog/events/patent/patent-plantask-log-only:
-  en: 4deee4cef2671e1e
-  zh: 00ccb01844766d36
+  en: 7bffe2ab0f26a189
+  zh: 8d06daec8abe673d
 /session-persistence-event-catalog/events/patent/patent-workflow-run-log-only:
-  en: 7a648cc0c55180f4
-  zh: 7ed9573ca10039a8
+  en: 790b29f18f85ffca
+  zh: 6a0ef00b87a88ebc
 /session-persistence-event-catalog/events/patent-teams:
   en: 7377113bc047a0f5
   zh: 7377113bc047a0f5
@@ -1341,14 +1341,14 @@
   en: ca12d79ecde5d58a
   zh: 0aa1e1fef7468ec1
 /session-persistence-event-catalog/resolved-persistence-types/patentmodelcallevent:
-  en: 242f9539ff840e5e
-  zh: f2582ebd82d8d642
+  en: 6deb95cc0c1beeba
+  zh: 028b9dc47883a2f0
 /session-persistence-event-catalog/resolved-persistence-types/patentmodelusage:
   en: d10296b1bcd5503e
   zh: c6332d8a8efd209f
 /session-persistence-event-catalog/resolved-persistence-types/patentplantaskevent:
-  en: 4828bbb17353def4
-  zh: 7c2ffdcd866cdbe5
+  en: 915017c10476c96b
+  zh: b642bff82a2a087c
 /session-persistence-event-catalog/resolved-persistence-types/patentteamsmemberaddeddata:
   en: 5bbb219dddce7887
   zh: 3c5dc898ba29b9ec
@@ -1380,8 +1380,8 @@
   en: 0310fa7b3b57c99c
   zh: 63f4cc697a3a25f4
 /session-persistence-event-catalog/resolved-persistence-types/patentworkflowrunevent:
-  en: 315a57e1d2413be7
-  zh: ed28483c42dccaa7
+  en: 69abd30946883ff2
+  zh: db7136fcc7b3aa3f
 /session-persistence-event-catalog/resolved-persistence-types/plantask:
   en: c76af075bffe8e8a
   zh: 673df5de688a0d2c
