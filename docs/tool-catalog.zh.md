@@ -5791,7 +5791,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
     },
     "outputName": {
       "type": "string",
-      "description": "Output filename stem (no extension); letters, digits, underscore, hyphen, dot, and Chinese characters (a Chinese draft name is accepted as written). No path separators, no \"..\"."
+      "description": "Output filename stem (no extension); letters, digits, underscore, hyphen, dot, parentheses, Chinese characters, circled numerals (①–⑳), and common Chinese punctuation (a Chinese draft name is accepted as written). No spaces, no path separators, no \"..\"."
     },
     "caseId": {
       "type": "string",
