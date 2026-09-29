@@ -142,6 +142,69 @@ describe('renderPatentDocument', () => {
     }
   })
 
+  it('accepts a circled-numeral case prefix as the output filename', async () => {
+    const dir = makeTempDir()
+    try {
+      const result = await renderPatentDocument(
+        {
+          template: 'patentability-opinion',
+          outputName: '②件_权利要求书与说明书_内部稿',
+          outputDir: dir,
+          format: 'html',
+          sections: { 'meta-title': '圈码前缀' },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      expect(existsSync(result.htmlPath)).toBe(true)
+      expect(result.htmlPath).toContain('②件_权利要求书与说明书_内部稿.html')
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('accepts Chinese punctuation in a draft name', async () => {
+    const dir = makeTempDir()
+    try {
+      const result = await renderPatentDocument(
+        {
+          template: 'patentability-opinion',
+          outputName: '02_权利要求书（草案）·v1',
+          outputDir: dir,
+          format: 'html',
+          sections: { 'meta-title': '中文标点' },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      expect(existsSync(result.htmlPath)).toBe(true)
+      expect(result.htmlPath).toContain('02_权利要求书（草案）·v1.html')
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('rejects a name carrying a path separator', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(
+        renderPatentDocument(
+          {
+            template: 'patentability-opinion',
+            outputName: '内部稿/②件',
+            outputDir: dir,
+            format: 'html',
+            sections: {},
+          },
+          process.cwd(),
+          { subprocess: unusedSubprocess() },
+        ),
+      ).rejects.toThrow(/非法输出文件名/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+
   it('falls back to template tokens.css defaults when no brand is given', async () => {
     const dir = makeTempDir()
     try {
