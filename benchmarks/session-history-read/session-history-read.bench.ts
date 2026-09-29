@@ -37,18 +37,26 @@ const PRE_CHANGE_TRANSIENT_HEAP_MB = {
   'read-surface': 190.8,
 } as const
 
-/** Reference-machine transient heap growth of one read after the copy was removed. */
+/**
+ * Transient heap growth of one read after the copy was removed, in MB. The probe samples heap in use
+ * before V8 collects the read's garbage, so a sample lands on either side of that collection and the
+ * hosted spread is wider than a retained measurement. `read-event` keeps its 72 MB reference median
+ * but is budgeted from the 91 MB hosted ceiling, which hosted samples spanning 52.9–90.9 MB set;
+ * `read-surface` hosted samples span 111–121.8 MB and stay under the 128 MB reference median.
+ */
 const EXPECTED_TRANSIENT_HEAP_MB = {
-  'read-event': 72,
+  'read-event': 91,
   'read-surface': 128,
 } as const
 
 /** Standard two-CPU hosted CI `read-event` samples span 426.3–455.8 ms; 450 ms is the rounded expectation. */
 const EXPECTED_READ_EVENT_CI_MS = 450
 const READ_EVENT_BUDGET_MS = Math.ceil(EXPECTED_READ_EVENT_CI_MS * PERFORMANCE_BUDGET_HEADROOM)
+const READ_EVENT_TRANSIENT_BUDGET_MB = Math.ceil(EXPECTED_TRANSIENT_HEAP_MB['read-event'] * PERFORMANCE_BUDGET_HEADROOM)
 /** Standard two-CPU hosted CI `read-surface` samples span 752.7–778.1 ms; 800 ms is the rounded expectation. */
 const EXPECTED_READ_SURFACE_CI_MS = 800
 const READ_SURFACE_BUDGET_MS = Math.ceil(EXPECTED_READ_SURFACE_CI_MS * PERFORMANCE_BUDGET_HEADROOM)
+const READ_SURFACE_TRANSIENT_BUDGET_MB = Math.ceil(EXPECTED_TRANSIENT_HEAP_MB['read-surface'] * PERFORMANCE_BUDGET_HEADROOM)
 /** Heap in use immediately after the constrained point read, before collection. */
 const CURRENT_PEAK_HEAP_MB = 75.5
 /** Heap still holding the parsed log after that read's collection, which one more copy would double. */
@@ -68,13 +76,13 @@ const READ_ENDPOINTS: readonly {
     scenario: 'read-event',
     label: 'one event with a one-event context window',
     budgetMs: READ_EVENT_BUDGET_MS,
-    transientHeapBudgetMb: Math.ceil(EXPECTED_TRANSIENT_HEAP_MB['read-event'] * PERFORMANCE_BUDGET_HEADROOM),
+    transientHeapBudgetMb: READ_EVENT_TRANSIENT_BUDGET_MB,
   },
   {
     scenario: 'read-surface',
     label: 'the current model surface',
     budgetMs: READ_SURFACE_BUDGET_MS,
-    transientHeapBudgetMb: Math.ceil(EXPECTED_TRANSIENT_HEAP_MB['read-surface'] * PERFORMANCE_BUDGET_HEADROOM),
+    transientHeapBudgetMb: READ_SURFACE_TRANSIENT_BUDGET_MB,
   },
 ]
 
@@ -213,11 +221,24 @@ describe('Session history-read calibration', () => {
     expect(() => expectWithinBudget(1_400, READ_SURFACE_BUDGET_MS)).toThrow()
   })
 
+  it('accepts the recorded hosted transient samples on both endpoints', () => {
+    const readEvent = median([52.9, 75.5, 75.2, 75, 74.6])
+    const slowerReadEvent = median([84.8, 90.7, 90.7, 84.5, 90.9])
+    const readSurface = median([113.2, 113.6, 113.7, 121.8, 113.5])
+
+    expect(slowerReadEvent).toBe(90.7)
+    expectWithinBudget(readEvent, READ_EVENT_TRANSIENT_BUDGET_MB)
+    expectWithinBudget(slowerReadEvent, READ_EVENT_TRANSIENT_BUDGET_MB)
+    expectWithinBudget(readSurface, READ_SURFACE_TRANSIENT_BUDGET_MB)
+    expect(READ_EVENT_TRANSIENT_BUDGET_MB).toBe(114)
+  })
+
   it('rejects the pre-change transient allocation on both endpoints', () => {
     for (const endpoint of READ_ENDPOINTS) {
       const budget = endpoint.transientHeapBudgetMb
       expect(EXPECTED_TRANSIENT_HEAP_MB[endpoint.scenario] * PERFORMANCE_BUDGET_HEADROOM).toBeLessThanOrEqual(budget)
       expect(PRE_CHANGE_TRANSIENT_HEAP_MB[endpoint.scenario]).toBeGreaterThan(budget)
+      expect(() => expectWithinBudget(PRE_CHANGE_TRANSIENT_HEAP_MB[endpoint.scenario], budget)).toThrow()
     }
   })
 
