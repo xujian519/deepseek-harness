@@ -38,7 +38,7 @@ async function collect(events: AsyncIterable<AssistantMessageEvent>): Promise<{ 
 
 // The API implementations dispatch on pi-ai's normalized transcript, which only
 // `normalizeContext` produces.
-const context = normalizeContext({ messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] })
+const context = normalizeContext({ messages: [{ role: 'user', content: 'hi', timestamp: 0 }] })
 
 describe('streamed tool-call arguments (patched pi-ai)', () => {
   it('openai-completions parses arguments once, at the end of the call', async () => {

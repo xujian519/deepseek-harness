@@ -22,7 +22,7 @@
 | `@deepseek-ai/dsh-plugin-manager` | `plugin_manager` | `ctx.tools`, `ctx.pluginManager`, `ctx.sandboxPolicy` | `tool/call`, `tool/result`, `user/message` | - | - |
 | `@deepseek-ai/dsh-mcp-resources` | `list_mcp_resource_templates`, `list_mcp_resources`, `read_mcp_resource` | `ctx.tools`, `ctx.mcpResources` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-experimental-browser-use-stagehand-native` | `stagehand_act`、`stagehand_extract`、`stagehand_navigate`、`stagehand_observe`、`stagehand_screenshot`、`stagehand_tabs` | `ctx.browserUse`、`ctx.agents`、`ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | - |
-| `@deepseek-ai/dsh-tool-ask-user` | `ask_user_question` | `ctx.tools`、`ctx.userQuestions` | `tool/call`、`tool/result after a UI/provider answers the question` | - | ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类答案。 |
+| `@deepseek-ai/dsh-tool-ask-user` | `ask_user_question` | `ctx.tools`、`ctx.userQuestions` | `tool/call`、`tool/result after an answer or timeout`、`late user/message` | - | ask_user_question 默认保持原有阻塞行为；设置 `mode: timed` 后才启用前台超时与 pending 结果，同时问题仍可回答；timed 模式内 `timeout: -1` 让本次调用无限期阻塞。 |
 | `@deepseek-ai/dsh-tools` | `run_code` | `ctx.tools`、`ctx.ptcRuntime (execution time)`、`ctx.systemPrompt` | `tool/call`、`one tool/ptc-dispatch-start + tool/ptc-dispatch pair per bridged sub-call`、`tool/result` | - | 在 `mode: ptc`／`mode: both` 下，它由工具注册表所有，作为可过滤能力层之外的保留传输机制（参见 PTC mode Agent Note）。在 `ptc` 下，它是注册表对协议格式（wire format）的唯一贡献；其他可见能力在使用已加载运行时语言生成的 SDK 章节中声明。程序通过 binding 调用这些能力，调用按照原生并发约定调度：启动顺序和策略遵循提交顺序，并发安全的函数体最多重叠执行 `maxParallelSubCalls` 个。调用会重新进入完整且受守卫保护的工具流水线，并将每个嵌套执行关联到此外层结果。 |
 | `@deepseek-ai/dsh-plan-mode` | `exit_plan_mode` | `ctx.tools`、`ctx.systemPrompt`、`ctx.userQuestions (execution time, opportunistic)` | `tool/call`、`plan/mode inactive on an approved review`、`tool/result` | - | 规划未激活时，exit_plan_mode 仍保留在面向模型的 schema 中，这样状态转换不会在规划策略变更之外额外造成工具目录变动。其执行路径会拒绝规划模式之外的调用；在规划模式下，它通过用户交互 seam 提交计划（批准／根据反馈继续规划），批准后会在步骤边界记录规划模式已停用。 |
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs for run_in_background and the job-backed foreground path` | `tool/call`、`tool/result` | - | bash 工具是 bash 执行器 seam 面向模型的消费方。组合了 job 注册表时，每次调用在启动时即注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；未组合注册表时，或 `enableRunInBackground: false` 时，该工具注册的是不含 `run_in_background` 参数的前台专用 schema。 |
@@ -533,7 +533,7 @@ Source: [`packages/boot/plugin-manager/src/tools.ts`](../packages/boot/plugin-ma
 
 来源：[`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts)
 
-ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类答案。
+ask_user_question 默认保持原有阻塞行为；设置 `mode: timed` 后才启用前台超时与 pending 结果，同时问题仍可回答；timed 模式内 `timeout: -1` 让本次调用无限期阻塞。
 
 <a id="deepseek-aidsh-tools"></a>
 
@@ -616,7 +616,7 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 
 ### `bash`
 
-执行一条 bash 命令（`bash -c`）并返回其 stdout/stderr。每次调用都在全新 shell 中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$DSH_*` 变量暴露，需要时请读取。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。达到超时的前台命令不会被杀死：它会以同样的方式转入后台，返回其 job id 以及目前已有的输出。
+执行一条 bash 命令（`bash -c`）并返回其 stdout/stderr。每次调用都在全新 shell 中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$DSH_*` 变量暴露，需要时请读取。在任何删除或移动之前，请确认解析后的绝对目标路径正是预期路径；绝不要对未经检查的计算路径执行此类操作。未设置的变量会展开为空字符串，因此请用 `${VAR:?}` 保护此类路径中的变量。在任何删除或移动之前，请确认解析后的绝对目标路径正是预期路径；绝不要对未经检查的计算路径执行此类操作。未设置的变量会展开为空字符串，因此请用 `${VAR:?}` 保护此类路径中的变量。不要给 `$HOME` 等自动变量赋值；变量名不区分大小写，因此 `$home` 就是同一个只读变量。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。达到超时的前台命令不会被杀死：它会以同样的方式转入后台，返回其 job id 以及目前已有的输出。
 
 ```json
 {
@@ -761,7 +761,7 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
 
 ### `cordis_inspect_query`
 
-执行 Inspect Provider 声明的只读查询。platform、provider 和 method 必须来自 cordis_inspect_list，input 必须符合该方法的 schema。在编写 plugin 代码前用本 Tool 读取精确 Service 方法、Event mode、plugin Config schema、Tool schema、主题 token，或实时 Slot 树及 props。Host 查询在本地执行；Client 查询等待首个有效页面响应，在页面回答或 Tool 被取消前保持 pending。本 Tool 不能调用业务 Service 方法或修改运行时。
+执行 Inspect Provider 声明的只读查询。platform、provider 和 method 必须来自 cordis_inspect_list，input 必须符合该方法的 schema。在编写 plugin 代码前用本 Tool 读取精确 Service 方法、Event mode、plugin Config schema、Tool schema、主题 token，或实时 Slot 树及 props。Host 查询在本地执行。Client 查询在配置的超时内等待页面首个有效响应；否则返回 Client 错误，或提示重新连接后重试。本 Tool 不能调用业务 Service 方法或修改运行时。
 
 ```json
 {

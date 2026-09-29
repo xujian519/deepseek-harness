@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseDshArgs } from '../src/args.ts'
 
-const parse = (argv: string[]) => parseDshArgs(argv, '1.2.3')
+const parse = (argv: string[], manageDesktopProfile = false) => parseDshArgs(argv, '1.2.3', manageDesktopProfile)
 
 /** Capture the process exit code while muting Commander's output. */
-function exitCode(argv: string[]): number {
+function exitCode(argv: string[], manageDesktopProfile = false): number {
   const exit = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit') })
   vi.spyOn(process.stdout, 'write').mockReturnValue(true)
   vi.spyOn(process.stderr, 'write').mockReturnValue(true)
   try {
-    parse(argv)
+    parse(argv, manageDesktopProfile)
     throw new Error(`expected ${JSON.stringify(argv)} to exit`)
   } catch {
     return exit.mock.calls.at(-1)?.[0] as number
@@ -122,6 +122,26 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', '--save-dev', 'x'] })
   })
 
+  it.each([
+    ['desktop', 'desktop'], ['Desktop', 'desktop'], ['DESKTOP', 'desktop'],
+    // The Electron runtime profile directory this tree reserves under its own name.
+    ['desktop-runtime', 'desktop-runtime'], ['Desktop-Runtime', 'desktop-runtime'],
+  ])('permits installed Desktop plugin commands for %s', (profile, canonical) => {
+    expect(parse(['plugin', '--profile', profile, 'add', 'example-plugin'], true))
+      .toEqual({ mode: 'plugin', profile: canonical, args: ['add', 'example-plugin'] })
+    expect(exitCode(['plugin', '--profile', profile, 'add', 'example-plugin'])).toBe(1)
+  })
+
+  it.each([
+    ['desktop'], ['--profile', 'Desktop'],
+    ['desktop', '--dump-config'], ['DESKTOP', '--dump-default-config'],
+    ['desktop', '--dump-config-schema'],
+    ['desktop-runtime'], ['--profile', 'Desktop-Runtime'],
+    ['desktop-runtime', '--dump-config'],
+  ])('keeps Desktop boot and inspection reserved in its installed CLI: %j', (...argv: string[]) => {
+    expect(exitCode(argv, true)).toBe(1)
+  })
+
   it('routes profile and web config dumps', () => {
     expect(parse(['--profile', 'web', '--dump-config']))
       .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: false, patches: [] })
@@ -211,6 +231,8 @@ describe('parseDshArgs', () => {
     expect(exitCode(['--profile', 'desktop', '--dump-config'])).toBe(1)
     expect(exitCode(['plugin', '--profile', 'desktop', 'add', 'x'])).toBe(1)
     expect(exitCode(['plugin', '--profile', 'Desktop', 'add', 'x'])).toBe(1)
+    expect(exitCode(['--profile', 'desktop-runtime'])).toBe(1)
+    expect(exitCode(['plugin', '--profile', 'desktop-runtime', 'add', 'x'])).toBe(1)
     expect(exitCode(['--from-default-profile', 'web', 'plugin', '--profile', 'x', 'add', 'y'])).toBe(1)
   })
 

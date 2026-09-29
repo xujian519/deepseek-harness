@@ -9,7 +9,7 @@ English | [中文](2026-09-22-fork-source-attribution.zh.md)
 
 ## Summary
 
-Qualifies self-evolve, sidechat, and patent-teams-report as attribution-only source kinds in the recorded session-source policy, so the three additions to the accepted format 4 baseline stay same-version instead of requiring format 5.
+Qualifies self-evolve, sidechat, and patent-teams-report as attribution-only source kinds in the recorded session-source policy, so the three additions to the accepted format 4 baseline stay same-version instead of requiring format 5. Merging upstream `dsh-v0.2.0-rc.2` re-based this acknowledgement onto [2026-09-21-user-question-reply](2026-09-21-user-question-reply.md), so the merged schema also carries upstream's `user-question-reply` attribution kind.
 
 ## Table of Contents
 
@@ -27,20 +27,20 @@ id: 2026-09-22-fork-source-attribution
 baseline: false
 changes:
   - root: "event:agent/inbox/spliced"
-    previous: "2026-09-16-session-format-v4"
-    after: "f4f2424597df0567cd59b35e60684e967deb30803600d7e34dc11d86c298880a"
+    previous: "2026-09-21-user-question-reply"
+    after: "db54cc04ba2cb7603630dfde2c1a5d479de8217deabde0c06a370ecee19922ee"
     decision: same-version
   - root: "event:developer/message"
-    previous: "2026-09-16-session-format-v4"
-    after: "d8eae0dc0feb5d96561d9388d2d0b7cecbc130f0a5f01bcb49e910bd21d7a871"
+    previous: "2026-09-21-user-question-reply"
+    after: "6b6ac01d2684845a20d8ace37d0b08fff13f27ed5e077bda5edc88a3e02a845e"
     decision: same-version
   - root: "event:session/title-llm-request"
-    previous: "2026-09-16-session-format-v4"
-    after: "b11448027a364e518726379f5692fbcb3459abae999975dfb5b24a29836c030e"
+    previous: "2026-09-21-user-question-reply"
+    after: "99a7dde2199675a3b2b3e12fd5bc26977a827bc669bd401eba2728259f9d456a"
     decision: same-version
   - root: "event:user/message"
-    previous: "2026-09-16-session-format-v4"
-    after: "bca411f41b35050229d6515ed5a3c22aa0326694275521c018f3e272a7c136b3"
+    previous: "2026-09-21-user-question-reply"
+    after: "65413309bd7e40004a5852115a882aa1ecfabe842ec1e07e4d77037a99134cee"
     decision: same-version
 ```
 
@@ -52,7 +52,7 @@ The accepted format 4 baseline records neither kind, and each one is declared by
 <a id="verification"></a>
 ## Verification
 
-pnpm run verify-persistence-catalog reports the catalog, both language pages, the known-event-types module, and the schema inventory up to date. pnpm exec vitest run scripts/persistence-changes.spec.ts scripts/persistence-schema.spec.ts: 161 tests passed. pnpm run persistence-changes --check accepts the four recorded transitions with no unacknowledged change.
+pnpm run verify-persistence-catalog reports the catalog, both language pages, the known-event-types module, and the schema inventory up to date. pnpm exec vitest run scripts/persistence-changes.spec.ts scripts/persistence-schema.spec.ts: 161 tests passed. pnpm run persistence-changes --check accepts the four recorded transitions with no unacknowledged change. The rc.2 merge re-derived the acknowledged digests from the merged tree with `pnpm exec tsx scripts/persistence-changes.ts --update 2026-09-22-fork-source-attribution`; `pnpm run verify-persistence-changes` reports 82 roots matching 12 history records.
 
 <a id="dev-note"></a>
 ## Dev Note

@@ -80,9 +80,28 @@ function selectProfile(value: string, previous?: string): string {
   return value
 }
 
+/**
+ * Profile names the Electron application owns. `desktop` is upstream's reserved
+ * name; `desktop-runtime` is the directory this tree gives the Electron runtime
+ * profile (`apps/desktop/src/paths.ts`), which the CLI must reserve for the same
+ * reason: the shell seeds that directory itself, so an ordinary CLI boot or
+ * plugin command there races the shell's release installation.
+ */
+export const ELECTRON_PROFILE_NAMES = ['desktop', 'desktop-runtime'] as const
+
+/**
+ * Whether a profile name is an Electron-owned one.
+ * @param profile - profile name as the user typed it.
+ * @returns true when the name belongs to the Electron application.
+ */
+export function isElectronProfile(profile: string): boolean {
+  const name = profile.toLowerCase()
+  return ELECTRON_PROFILE_NAMES.some(candidate => candidate === name)
+}
+
 function rejectElectronProfile(program: Command, profile: string): void {
-  if (profile.toLowerCase() === 'desktop') {
-    program.error('error: profile "desktop" is managed exclusively by the Electron application')
+  if (isElectronProfile(profile)) {
+    program.error(`error: profile ${JSON.stringify(profile)} is managed exclusively by the Electron application`)
   }
 }
 
@@ -140,9 +159,10 @@ function resolveBoot(program: Command, profile: string, options: BootOptions, ar
  * error.
  * @param argv - arguments after the Node binary and script.
  * @param version - version string printed by `--version`.
+ * @param manageDesktopProfile - permit Desktop's installed carrier to manage its reserved profile's plugins.
  * @returns the resolved invocation.
  */
-export function parseDshArgs(argv: readonly string[], version: string): DshInvocation {
+export function parseDshArgs(argv: readonly string[], version: string, manageDesktopProfile = false): DshInvocation {
   const first = argv[0]
   let resolved: DshInvocation | undefined
   // Annotated, not inferred: the actions below call back into `program`, and an
@@ -191,9 +211,10 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
       .argument('[args...]', 'pnpm arguments, forwarded verbatim (add <pkg>, remove <pkg>, why <pkg>, ...)')
       .action((args: string[], options: { profile: string }) => {
         if (options.profile === '') program.error('error: --profile needs a name')
-        rejectElectronProfile(plugin, options.profile)
+        if (!manageDesktopProfile) rejectElectronProfile(plugin, options.profile)
         if (args.length === 0) program.error('error: plugin needs pnpm arguments to forward (e.g. add <package>)')
-        resolved = { mode: 'plugin', profile: options.profile, args }
+        const requested = options.profile.toLowerCase()
+        resolved = { mode: 'plugin', profile: ELECTRON_PROFILE_NAMES.find(name => name === requested) ?? options.profile, args }
       })
   }
 
