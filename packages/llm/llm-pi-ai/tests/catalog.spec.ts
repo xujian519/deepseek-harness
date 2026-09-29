@@ -546,7 +546,7 @@ describe('catalog routes with per-model configuration', () => {
     if (built === undefined) throw new Error('the deepseek route built no provider')
     const [model] = built.getModels()
     if (model === undefined) throw new Error('the deepseek route resolved no models')
-    const context = normalizeContext({ messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] })
+    const context = normalizeContext({ messages: [{ role: 'user', content: 'hi', timestamp: 0 }] })
 
     // `stream` is interface-required and unused by the harness adapter, which
     // only calls `streamSimple`; both must still reach the catalog provider.

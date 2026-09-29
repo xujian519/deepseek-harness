@@ -7,8 +7,8 @@
     - tab "Deliverables"
 - text: Show the local preview URL. {{clock}}
 - button "Copy"
-- status: Worked
-- button "Took {{duration}}" [disabled]
+- status: Completed
+- button "Completed in {{duration}}" [disabled]
 - heading "Inline code links" [level=2]
 - paragraph:
   - text: "Preview:"

@@ -66,6 +66,12 @@
     ".tocPanel: border-radius: 8px",
     ".tocItem: border-radius: 6px"
   ],
+  "ui-deliverables/src/client/ChangedFiles.module.css": [
+    ".tile: border-radius: 10px"
+  ],
+  "ui-deliverables/src/client/Deliverables.module.css": [
+    ".fileIcon: border-radius: 10px"
+  ],
   "ui-directory-picker-browse/src/client/DirectoryBrowser.module.css": [
     ".nativePickerButton: border-radius: 6px"
   ],

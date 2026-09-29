@@ -9,7 +9,7 @@ kind: persistence-change
 
 ## 概述
 
-将 self-evolve、sidechat 与 patent-teams-report 记为会话来源策略中的仅归因来源类型，使这三项相对已接受的格式 4 基线的增加保持同版本，而不需要格式 5。
+将 self-evolve、sidechat 与 patent-teams-report 记为会话来源策略中的仅归因来源类型，使这三项相对已接受的格式 4 基线的增加保持同版本，而不需要格式 5。合并上游 `dsh-v0.2.0-rc.2` 后，本确认改接在 [2026-09-21-user-question-reply](2026-09-21-user-question-reply.zh.md) 之上，因此合并后的 schema 还带有上游的 `user-question-reply` 归属类型。
 
 ## 目录
 
@@ -27,20 +27,20 @@ id: 2026-09-22-fork-source-attribution
 baseline: false
 changes:
   - root: "event:agent/inbox/spliced"
-    previous: "2026-09-16-session-format-v4"
-    after: "f4f2424597df0567cd59b35e60684e967deb30803600d7e34dc11d86c298880a"
+    previous: "2026-09-21-user-question-reply"
+    after: "db54cc04ba2cb7603630dfde2c1a5d479de8217deabde0c06a370ecee19922ee"
     decision: same-version
   - root: "event:developer/message"
-    previous: "2026-09-16-session-format-v4"
-    after: "d8eae0dc0feb5d96561d9388d2d0b7cecbc130f0a5f01bcb49e910bd21d7a871"
+    previous: "2026-09-21-user-question-reply"
+    after: "6b6ac01d2684845a20d8ace37d0b08fff13f27ed5e077bda5edc88a3e02a845e"
     decision: same-version
   - root: "event:session/title-llm-request"
-    previous: "2026-09-16-session-format-v4"
-    after: "b11448027a364e518726379f5692fbcb3459abae999975dfb5b24a29836c030e"
+    previous: "2026-09-21-user-question-reply"
+    after: "99a7dde2199675a3b2b3e12fd5bc26977a827bc669bd401eba2728259f9d456a"
     decision: same-version
   - root: "event:user/message"
-    previous: "2026-09-16-session-format-v4"
-    after: "bca411f41b35050229d6515ed5a3c22aa0326694275521c018f3e272a7c136b3"
+    previous: "2026-09-21-user-question-reply"
+    after: "65413309bd7e40004a5852115a882aa1ecfabe842ec1e07e4d77037a99134cee"
     decision: same-version
 ```
 
@@ -52,7 +52,7 @@ changes:
 <a id="verification"></a>
 ## 验证
 
-pnpm run verify-persistence-catalog 报告目录、中英文页面、known-event-types 模块与模式清单均为最新。pnpm exec vitest run scripts/persistence-changes.spec.ts scripts/persistence-schema.spec.ts：161 个测试通过。pnpm run persistence-changes --check 接受这四处记录的转换，且没有未确认的变更。
+pnpm run verify-persistence-catalog 报告目录、中英文页面、known-event-types 模块与模式清单均为最新。pnpm exec vitest run scripts/persistence-changes.spec.ts scripts/persistence-schema.spec.ts：161 个测试通过。pnpm run persistence-changes --check 接受这四处记录的转换，且没有未确认的变更。rc.2 合并用 `pnpm exec tsx scripts/persistence-changes.ts --update 2026-09-22-fork-source-attribution` 从合并后的源码树重新推导确认摘要；`pnpm run verify-persistence-changes` 报告 82 个根与 12 条历史记录匹配。
 
 <a id="dev-note"></a>
 ## 开发备注

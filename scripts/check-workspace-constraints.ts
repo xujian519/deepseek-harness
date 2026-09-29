@@ -65,6 +65,7 @@ const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh': ['lib/*.js', 'lib/types/*.d.ts'],
   '@deepseek-ai/dsh-desktop-host': [
     'lib/index.js',
+    'lib/cli.js',
     // The built entry resolves this overlay beside itself at runtime.
     'config/desktop.cordis.patch.yml',
   ],

@@ -119,6 +119,7 @@ interface RegisteredRemoteEventSource {
 interface RemoteEventClient {
   readonly id: RemoteEventClientId
   readonly queue: RemoteEventQueue
+  readonly signal: AbortSignal
   readonly deliveries: Map<RemoteEventId, PendingRemoteEvent>
 }
 
@@ -270,6 +271,17 @@ export class TypertGatewayService extends Service implements TypertGateway {
         }
       }, 'api-gateway: application readiness')
     })
+  }
+
+  /**
+   * Check for an active Client event stream.
+   * @returns whether a stream is open and has not been cancelled.
+   */
+  hasLiveClient(): boolean {
+    for (const client of this.remoteEventClients.values()) {
+      if (!client.signal.aborted) return true
+    }
+    return false
   }
 
   /**
@@ -501,6 +513,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     const client: RemoteEventClient = {
       id: clientId,
       queue: new RemoteEventQueue(),
+      signal: lifetime,
       deliveries: new Map(),
     }
     this.remoteEventClients.set(clientId, client)

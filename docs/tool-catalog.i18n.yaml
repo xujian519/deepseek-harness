@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 5ee0880ddd40e6d4
-  zh: 0675ab40bc169eab
+  en: 6a2f04443b0283c4
+  zh: 9227f548aaf00b26
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -54,8 +54,8 @@
   en: e713a4a11a15d13c
   zh: e713a4a11a15d13c
 /tool-schema-catalog/deepseek-ai-dsh-tool-ask-user/ask-user-question:
-  en: f42b7f17ad59577a
-  zh: 624c14da73524315
+  en: 055268ba4dcd32f9
+  zh: 5390c73d5d95ceca
 /tool-schema-catalog/deepseek-ai-dsh-tools:
   en: 76fbbf0fe38aef10
   zh: 76fbbf0fe38aef10
@@ -72,8 +72,8 @@
   en: 408ff0a5189bd7ec
   zh: 408ff0a5189bd7ec
 /tool-schema-catalog/deepseek-ai-dsh-tool-bash/bash:
-  en: 67ee2b8d4997bd1b
-  zh: cdddfc41c502fae1
+  en: c7be3094a90e8ce0
+  zh: 79fae5096c70fdcd
 /tool-schema-catalog/deepseek-ai-dsh-tool-present:
   en: f656575e6df094f6
   zh: f656575e6df094f6
@@ -84,7 +84,7 @@
   en: b222fc05f3f8ee4a
   zh: b222fc05f3f8ee4a
 /tool-schema-catalog/deepseek-ai-dsh-tool-pwsh/pwsh:
-  en: 9d7055b9fb8ba9de
+  en: 447665e21ecb2aed
   zh: 114555a839e9d546
 /tool-schema-catalog/deepseek-ai-dsh-tool-cordis:
   en: 76c7c62f9029b6f5
@@ -93,8 +93,8 @@
   en: 594e5b42047969cc
   zh: 20764f072436769a
 /tool-schema-catalog/deepseek-ai-dsh-tool-cordis/cordis-inspect-query:
-  en: 9dd13445d5b358e1
-  zh: 278991e3dfc62736
+  en: ef226f6cb7c1182f
+  zh: caa725bb0df4b437
 /tool-schema-catalog/deepseek-ai-dsh-tool-plugin-market:
   en: 28eab5b1f9a47504
   zh: 28eab5b1f9a47504

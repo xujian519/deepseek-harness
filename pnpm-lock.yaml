@@ -896,6 +896,19 @@ importers:
       '@deepseek-ai/libreoffice-kit':
         specifier: ^0.1.1
         version: 0.1.1
+      koffi:
+        specifier: ^3.1.0
+        version: 3.1.1
+    devDependencies:
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:~
+        version: link:../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:~
+        version: link:../../vendor/loader
+      '@deepseek-ai/dsh-skill':
+        specifier: workspace:*
+        version: link:../../packages/skill/skill
 
   apps/web:
     devDependencies:
@@ -2776,7 +2789,7 @@ importers:
     dependencies:
       '@xmanrui/dsh-im':
         specifier: 3.0.5
-        version: 3.0.5(supports-color@9.4.0)
+        version: 3.0.5
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -3478,7 +3491,7 @@ importers:
         version: link:../../util/values
       '@lezer/highlight':
         specifier: ^1.2.3
-        version: 1.2.4
+        version: 1.2.5
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.0
@@ -5012,6 +5025,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-sidebar-documentpreview':
         specifier: workspace:*
         version: link:../ui-sidebar-documentpreview
+      '@deepseek-ai/dsh-client-ui-sidebar-files':
+        specifier: workspace:*
+        version: link:../ui-sidebar-files
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../ui-slots
@@ -5843,7 +5859,7 @@ importers:
         version: 18.3.1
       react-dom:
         specifier: ^18.2.0
-        version: 18.2.0(react@18.3.1)
+        version: 18.3.1(react@18.3.1)
 
   packages/client/ui-settings-models:
     dependencies:
@@ -6957,6 +6973,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
+      '@deepseek-ai/dsh-user-questions':
+        specifier: workspace:*
+        version: link:../../interaction/user-questions
       '@deepseek-ai/dsh-util-workspace-path':
         specifier: workspace:*
         version: link:../../util/workspace-path
@@ -7071,6 +7090,9 @@ importers:
       '@deepseek-ai/dsh-api-session-controller':
         specifier: workspace:*
         version: link:../../api/session-controller
+      '@deepseek-ai/dsh-brand':
+        specifier: workspace:*
+        version: link:../../util/brand
       '@deepseek-ai/dsh-client-connection':
         specifier: workspace:*
         version: link:../connection
@@ -7080,6 +7102,9 @@ importers:
       '@deepseek-ai/dsh-client-store':
         specifier: workspace:*
         version: link:../store
+      '@deepseek-ai/dsh-client-ui-chat':
+        specifier: workspace:*
+        version: link:../ui-chat
       '@deepseek-ai/dsh-client-ui-conversation':
         specifier: workspace:*
         version: link:../ui-conversation
@@ -7095,6 +7120,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../ui-slots
+      '@deepseek-ai/dsh-client-ui-tool':
+        specifier: workspace:*
+        version: link:../ui-tool
       '@deepseek-ai/dsh-llm':
         specifier: workspace:*
         version: link:../../llm/llm
@@ -9493,6 +9521,9 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: workspace:*
         version: link:../../core/agent
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: workspace:*
+        version: link:../../api/gateway
       '@deepseek-ai/dsh-brand':
         specifier: workspace:*
         version: link:../../util/brand
@@ -10604,6 +10635,10 @@ importers:
         version: link:../user-approval
 
   packages/interaction/tool-ask-user:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -10657,9 +10692,12 @@ importers:
 
   packages/interaction/user-questions:
     dependencies:
-      '@deepseek-ai/dsh-value':
-        specifier: workspace:*
-        version: link:../../util/value
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -10673,6 +10711,21 @@ importers:
       '@deepseek-ai/dsh-scope':
         specifier: workspace:*
         version: link:../../core/scope
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: workspace:*
+        version: link:../../session/session-persistence-jsonl
+      '@deepseek-ai/dsh-session-projection':
+        specifier: workspace:*
+        version: link:../../session/session-projection
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:*
+        version: link:../../typert/protocol
 
   packages/jobs/jobs:
     devDependencies:
@@ -18421,8 +18474,8 @@ packages:
       typescript:
         optional: true
 
-  '@lezer/common@1.5.2':
-    resolution: {integrity: sha512-sxQE460fPZyU3sdc8lafxiPwJHBzZRy/udNFynGQky1SePYBdhkBl1kOagA9uT3pxR8K09bOrmTUqA9wb/PjSQ==}
+  '@lezer/common@1.5.3':
+    resolution: {integrity: sha512-H0iErY4e43LpXbYDyBci5W4v/RwTgGV3YzYOlJPiGZ8RY8w51kVE+xLn1tg3Z6UmSfyETvtsUK3r7YsgDQEI7Q==}
 
   '@lezer/cpp@1.1.6':
     resolution: {integrity: sha512-vh9gWWJOXFVY8HBHK3Twzq8MgwG2iN4GSyzBP9sCGTe37P15x2R14VaBQk0VA0ezTRN1KHYBBsHhvpGZ2Xy/pA==}
@@ -18433,8 +18486,8 @@ packages:
   '@lezer/go@1.0.1':
     resolution: {integrity: sha512-xToRsYxwsgJNHTgNdStpcvmbVuKxTapV0dM0wey1geMMRc9aggoVyKgzYp41D2/vVOx+Ii4hmE206kvxIXBVXQ==}
 
-  '@lezer/highlight@1.2.4':
-    resolution: {integrity: sha512-4UeRVFO0lsBaM7GA32zOqbmqNPme9jedo8Ey+5c5656MU3MLitMLIA8aCZTYjUMEpEsuSeXEm78Uea6Iq3bvSg==}
+  '@lezer/highlight@1.2.5':
+    resolution: {integrity: sha512-O1GMVKgtf5YspFaRzpmqkVgMtIk2HG9uMAbH6wdAIdNh3TVzCsch/+cRi+6l2//UGDKe6NB9BW3cvuR5ezMQ0w==}
 
   '@lezer/html@1.3.13':
     resolution: {integrity: sha512-oI7n6NJml729m7pjm9lvLvmXbdoMoi2f+1pwSDJkl9d68zGr7a9Btz8NdHTGQZtW2DA25ybeuv/SyDb9D5tseg==}
@@ -21751,10 +21804,6 @@ packages:
   google-logging-utils@1.1.3:
     resolution: {integrity: sha512-eAmLkjDjAFCVXg7A1unxHsLf961m6y17QFqXqAXGj/gVkKFrEICfStRfwUlGNfeCEjNRa32JEWOUTlYXPyyKvA==}
     engines: {node: '>=14'}
-
-  google-logging-utils@1.2.0:
-    resolution: {integrity: sha512-WE9av4wKDZgRjBwgVUabocx8T6/7o3Ca1Fat46FXDhXVAFibzNadedcOXrdgd1Kzmk8tsk/9ZH89Wyf/SqeZ3A==}
-    engines: {node: '>=18'}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -25166,14 +25215,14 @@ snapshots:
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
 
   '@codemirror/commands@6.11.1':
     dependencies:
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
 
   '@codemirror/lang-cpp@6.0.3':
     dependencies:
@@ -25185,7 +25234,7 @@ snapshots:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/css': 1.3.8
 
   '@codemirror/lang-go@6.0.1':
@@ -25193,7 +25242,7 @@ snapshots:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/go': 1.0.1
 
   '@codemirror/lang-html@6.4.12':
@@ -25204,7 +25253,7 @@ snapshots:
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/css': 1.3.8
       '@lezer/html': 1.3.13
 
@@ -25220,7 +25269,7 @@ snapshots:
       '@codemirror/lint': 6.9.7
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/javascript': 1.5.5
 
   '@codemirror/lang-json@6.0.2':
@@ -25235,7 +25284,7 @@ snapshots:
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/markdown': 1.7.2
 
   '@codemirror/lang-php@6.0.2':
@@ -25243,7 +25292,7 @@ snapshots:
       '@codemirror/lang-html': 6.4.12
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/php': 1.0.6
 
   '@codemirror/lang-python@6.2.1':
@@ -25251,7 +25300,7 @@ snapshots:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/python': 1.1.19
 
   '@codemirror/lang-rust@6.0.2':
@@ -25264,8 +25313,8 @@ snapshots:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@codemirror/lang-vue@0.1.3':
@@ -25273,8 +25322,8 @@ snapshots:
       '@codemirror/lang-html': 6.4.12
       '@codemirror/lang-javascript': 6.2.5
       '@codemirror/language': 6.12.4
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@codemirror/lang-xml@6.1.0':
@@ -25283,7 +25332,7 @@ snapshots:
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
       '@lezer/xml': 1.0.6
 
   '@codemirror/lang-yaml@6.1.3':
@@ -25291,8 +25340,8 @@ snapshots:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.6
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
       '@lezer/yaml': 1.0.4
 
@@ -25300,8 +25349,8 @@ snapshots:
     dependencies:
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
       style-mod: 4.1.4
 
@@ -26207,91 +26256,91 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  '@lezer/common@1.5.2': {}
+  '@lezer/common@1.5.3': {}
 
   '@lezer/cpp@1.1.6':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/css@1.3.8':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/go@1.0.1':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
-  '@lezer/highlight@1.2.4':
+  '@lezer/highlight@1.2.5':
     dependencies:
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
 
   '@lezer/html@1.3.13':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/java@1.1.4':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/javascript@1.5.5':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/json@1.0.3':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/lr@1.4.10':
     dependencies:
-      '@lezer/common': 1.5.2
+      '@lezer/common': 1.5.3
 
   '@lezer/markdown@1.7.2':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
 
   '@lezer/php@1.0.6':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/python@1.1.19':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/rust@1.0.3':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/xml@1.0.6':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@lezer/yaml@1.0.4':
     dependencies:
-      '@lezer/common': 1.5.2
-      '@lezer/highlight': 1.2.4
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
   '@malept/cross-spawn-promise@2.0.0':
@@ -27817,7 +27866,7 @@ snapshots:
 
   '@wecom/aibot-node-sdk@1.0.7':
     dependencies:
-      axios: 1.20.0(debug@4.4.3(supports-color@9.4.0))
+      axios: 1.20.0(debug@4.4.3)
       eventemitter3: 5.0.4
       ws: 8.21.0
     transitivePeerDependencies:
@@ -27826,12 +27875,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@xmanrui/dsh-im@3.0.5(supports-color@9.4.0)':
+  '@xmanrui/dsh-im@3.0.5':
     dependencies:
       '@tencent-connect/qqbot-connector': 1.2.0
       '@tencent-connect/qqbot-nodejs': 1.0.4
       '@wecom/aibot-node-sdk': 1.0.7
-      dingtalk-stream: 2.1.4(supports-color@9.4.0)
+      dingtalk-stream: 2.1.4
       qrcode: 1.5.4
     transitivePeerDependencies:
       - bufferutil
@@ -28113,6 +28162,17 @@ snapshots:
   axios@1.20.0(debug@4.4.3(supports-color@9.4.0)):
     dependencies:
       follow-redirects: 1.16.0(debug@4.4.3(supports-color@9.4.0))
+      form-data: 4.0.6
+      https-proxy-agent: 5.0.1
+      proxy-from-env: 2.1.0
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+    optional: true
+
+  axios@1.20.0(debug@4.4.3):
+    dependencies:
+      follow-redirects: 1.16.0(debug@4.4.3)
       form-data: 4.0.6
       https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
@@ -28880,9 +28940,9 @@ snapshots:
 
   dijkstrajs@1.0.3: {}
 
-  dingtalk-stream@2.1.4(supports-color@9.4.0):
+  dingtalk-stream@2.1.4:
     dependencies:
-      axios: 1.20.0(debug@4.4.3(supports-color@9.4.0))
+      axios: 1.20.0(debug@4.4.3)
       debug: 4.4.3(supports-color@9.4.0)
       ws: 8.21.0
     transitivePeerDependencies:
@@ -29503,6 +29563,11 @@ snapshots:
   follow-redirects@1.16.0(debug@4.4.3(supports-color@9.4.0)):
     optionalDependencies:
       debug: 4.4.3(supports-color@9.4.0)
+    optional: true
+
+  follow-redirects@1.16.0(debug@4.4.3):
+    optionalDependencies:
+      debug: 4.4.3(supports-color@9.4.0)
 
   fontkit@2.0.4:
     dependencies:
@@ -29626,7 +29691,7 @@ snapshots:
   gcp-metadata@8.1.2:
     dependencies:
       gaxios: 7.1.5
-      google-logging-utils: 1.2.0
+      google-logging-utils: 1.1.3
       json-bigint: 1.0.0
     transitivePeerDependencies:
       - supports-color
@@ -29737,8 +29802,6 @@ snapshots:
       - supports-color
 
   google-logging-utils@1.1.3: {}
-
-  google-logging-utils@1.2.0: {}
 
   gopd@1.2.0: {}
 
@@ -29885,7 +29948,7 @@ snapshots:
   http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.16.0(debug@4.4.3(supports-color@9.4.0))
+      follow-redirects: 1.16.0(debug@4.4.3)
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
