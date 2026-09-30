@@ -34,6 +34,8 @@ import {
 } from '../figure/freecad-structure-script.ts'
 import type { StructureRenderOutcome, StructureRenderSpec } from '../figure/freecad-renderer.ts'
 import type { OutlineTextPort } from '../figure/inkscape-renderer.ts'
+import { applyStructureLineStyle, STRUCTURE_LINE_WIDTH_SERIES } from '../figure/structure-svg-postprocess.ts'
+import type { StructureHiddenLineStyle } from '../figure/structure-svg-postprocess.ts'
 import { figureSentence } from '../figure/figure-description.ts'
 import { TARGET_OFFICES, officeProfile, sheetNumberText } from '../figure/office-profile.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
@@ -111,6 +113,13 @@ export type GenerateStructureFigureInput = {
   scale?: number
   /** 是否绘制隐藏线；缺省 false。 */
   show_hidden?: boolean
+  /**
+   * 可见线线宽（毫米）；缺省保持 FreeCAD 输出的档位（FC 0.70mm 档的 0.70）。
+   * 取值须属于 {@link STRUCTURE_LINE_WIDTH_SERIES}（schema 的 enum 即此收口）。
+   */
+  line_width_mm?: number
+  /** 隐藏线线型：`solid`（缺省，FreeCAD 原始实线）或 `dashed`。 */
+  hidden_line_style?: StructureHiddenLineStyle
   /** 件号锚定（可为空）。 */
   callouts?: StructureCalloutInput[]
   /** 图号，默认 1（批量时作为起始图号）。 */
@@ -283,6 +292,8 @@ const DESCRIPTION = [
   '',
   '视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（细实线，FreeCAD 1.1.3 实测隐藏线 0.35 毫米、可见线 0.7 毫米，输出不含 stroke-dasharray，不是虚线）。',
   '',
+  '线宽与线型：line_width_mm 取 GB/T 4457.4 线宽系列之一改写可见线线宽，hidden_line_style="dashed" 把隐藏线画成虚线；缺省两者都不改写，输出与 FreeCAD 原始投影一致。',
+  '',
   '件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。',
   '',
   '批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。',
@@ -299,6 +310,10 @@ type StructureRun = {
   views: StructureViewName[]
   scale: number
   showHidden: boolean
+  /** 可见线线宽（毫米）；缺省不改写。 */
+  lineWidthMm?: number
+  /** 隐藏线线型。 */
+  hiddenLineStyle: StructureHiddenLineStyle
   baseFigure: number
   callouts: StructureCalloutInput[]
   modelPaths: string[]
@@ -326,6 +341,8 @@ async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureD
     throw new PatentToolError('invalid_tool_input', `scale 必须是正有限数，收到 ${String(scale)}`, { tool: 'generate_structure_figure' })
   }
   const showHidden = input.show_hidden ?? false
+  const lineWidthMm = input.line_width_mm
+  const hiddenLineStyle = input.hidden_line_style ?? 'solid'
   const baseFigure = input.figure_number ?? 1
   if (!Number.isInteger(baseFigure) || baseFigure < 1) {
     throw new PatentToolError('invalid_tool_input', `figure_number 必须是正整数，收到 ${String(input.figure_number)}`, { tool: 'generate_structure_figure' })
@@ -341,7 +358,20 @@ async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureD
   if (modelPaths.length > 1 && callouts.length > 0) {
     throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 callouts：件号 3D 锚点仅对单个模型有效，请对单个模型生成结构线稿', { tool: 'generate_structure_figure' })
   }
-  return { deps, input, cwd, outputDir, views, scale, showHidden, baseFigure, callouts, modelPaths }
+  return {
+    deps,
+    input,
+    cwd,
+    outputDir,
+    views,
+    scale,
+    showHidden,
+    ...(lineWidthMm === undefined ? {} : { lineWidthMm }),
+    hiddenLineStyle,
+    baseFigure,
+    callouts,
+    modelPaths,
+  }
 }
 
 /**
@@ -377,6 +407,30 @@ async function renderStructureFigures(run: StructureRun, signal: AbortSignal): P
     })
   }
   return figures
+}
+
+/**
+ * 线宽与线型后处理：逐视图改写 TechDraw 投影片段的线宽分组，并可把隐藏线改成虚线。
+ *
+ * 放在渲染之后、落版之前：落版只加外层变换组，不改线宽属性；越晚改写，越少步骤
+ * 再动同一份文本。缺省参数时该步骤不改写文件（输出与不传参数逐字节一致）。
+ * @param args - the run parameters, the rendered figures, and the warning sink.
+ */
+async function applyViewLineStyles(args: {
+  run: StructureRun
+  figures: readonly StructureFigureView[]
+  warnings: string[]
+}): Promise<void> {
+  const { lineWidthMm, hiddenLineStyle, cwd } = args.run
+  if (lineWidthMm === undefined && hiddenLineStyle === 'solid') return
+  for (const figure of args.figures) {
+    for (const viewPath of figure.paths) {
+      const path = resolve(cwd, viewPath)
+      const styled = applyStructureLineStyle(await readFile(path, 'utf8'), { ...(lineWidthMm === undefined ? {} : { lineWidthMm }), hiddenLineStyle })
+      args.warnings.push(...styled.warnings.map(w => `线宽/线型：${viewPath} ${w}`))
+      await writeFile(path, styled.svg, 'utf8')
+    }
+  }
 }
 
 /** 由 callouts 还原组件列表（件号 → 名称）；无 callouts 则为纯几何线稿。 */
@@ -506,6 +560,8 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
       views: { type: 'array', items: { type: 'string', enum: STRUCTURE_VIEWS }, description: '请求视图，缺省 iso/front/top/right' },
       scale: { type: 'number', description: 'TechDraw 投影比例（正数）；缺省取部署配置或 1' },
       show_hidden: { type: 'boolean', description: '绘制隐藏线（细实线，实测 0.35 毫米；不是虚线），默认 false' },
+      line_width_mm: { type: 'number', enum: STRUCTURE_LINE_WIDTH_SERIES, description: '可见线线宽（毫米），须取 GB/T 4457.4 线宽系列之一；缺省保持 FreeCAD 输出的 0.7 毫米档' },
+      hidden_line_style: { type: 'string', enum: ['solid', 'dashed'], description: '隐藏线线型，默认 solid（FreeCAD 原始细实线）；dashed 时按线宽加 stroke-dasharray 画成虚线' },
       callouts: { type: 'array', items: CALLOUT_SCHEMA, description: '件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）' },
       figure_number: { type: 'integer', description: '图号（正整数），默认 1（批量时作为起始图号）' },
       invention_name: { type: 'string', description: '发明名称（附图说明模板句）' },
@@ -569,6 +625,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
       const run = await resolveStructureRun(args, deps)
       const warnings: string[] = ['由 3D 模型（FreeCAD TechDraw）投影生成的结构线稿']
       const figures = await renderStructureFigures(run, exec.signal)
+      await applyViewLineStyles({ run, figures, warnings })
       // 组件列表只派生一次，不随图数累加，否则每个索引条目会被其他图的组件重复污染。
       const components = structureComponents(run.callouts)
       const numeralMap = structureNumeralMap(figures, run.callouts)

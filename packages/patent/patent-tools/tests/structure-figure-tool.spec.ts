@@ -489,6 +489,92 @@ describe('generate_structure_figure render outcome mapping', () => {
   })
 })
 
+describe('generate_structure_figure 线宽与线型', () => {
+  /** FreeCAD 1.1.3 实测的投影片段形态：可见线一组 0.7、隐藏线一组 0.35，无 dasharray。 */
+  const FREECAD_SHAPED_SVG = [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 -30 60 60" width="60mm" height="60mm">',
+    '<g transform="scale(1,-1)">',
+    '<g fill="none" stroke="#000000" stroke-width="0.7"><path d=" M -20 12 L 20 12 " /></g>',
+    '<g fill="none" stroke="#000000" stroke-width="0.35"><path d=" M -20 -12 L 20 -12 " /></g>',
+    '</g></svg>',
+  ].join('')
+
+  async function renderWith(style: Record<string, unknown>): Promise<string> {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const model = writeModel(dir, 'bracket.step')
+    const tool = createGenerateStructureFigureTool({
+      render: okRenderer({ svg: FREECAD_SHAPED_SVG }).render,
+      enabled: true,
+      outputDir: outDir,
+      cwd: dir,
+    })
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_structure_figure', { model_path: model, views: ['iso'], ...style }, 's-style') as {
+        isError: boolean
+        value: { warnings: string[] }
+      }
+      expect(result.isError).toBe(false)
+      return readFileSync(join(outDir, 'fig1', 'fig1_iso.svg'), 'utf8')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  it('不传参数时视图文件与渲染产物逐字节一致', async () => {
+    expect(await renderWith({})).toBe(FREECAD_SHAPED_SVG)
+    expect(await renderWith({ hidden_line_style: 'solid' })).toBe(FREECAD_SHAPED_SVG)
+  })
+
+  it('line_width_mm 与 hidden_line_style 落到交付文件', async () => {
+    const styled = await renderWith({ line_width_mm: 1, hidden_line_style: 'dashed' })
+    const tags = [...styled.matchAll(/<g\b[^>]*>/g)].map(match => match[0])
+    expect(tags.some(tag => tag.includes('stroke-width="1"') && !tag.includes('stroke-dasharray'))).toBe(true)
+    expect(tags.some(tag => tag.includes('stroke-width="0.35"') && tag.includes('stroke-dasharray="4.2 1.05"'))).toBe(true)
+  })
+
+  it('line_width_mm 非 GB/T 4457.4 线宽系列时被 schema 拒绝', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const tool = createGenerateStructureFigureTool({ render: okRenderer().render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: model, views: ['iso'], line_width_mm: 0.6 }, exec))
+        .rejects.toMatchObject({ code: 'INVALID_ARGS' })
+      await expect(tool.execute({ model_path: model, views: ['iso'], hidden_line_style: 'dotted' }, exec))
+        .rejects.toMatchObject({ code: 'INVALID_ARGS' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('无隐藏线组时告警带视图路径，且不阻断交付', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const model = writeModel(dir, 'bracket.step')
+    const singleGroup = '<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="60mm"><g stroke="#000000" stroke-width="0.7"><path d="M0 0 L10 10"/></g></svg>'
+    try {
+      const tool = createGenerateStructureFigureTool({
+        render: okRenderer({ svg: singleGroup }).render,
+        enabled: true,
+        outputDir: outDir,
+        cwd: dir,
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_structure_figure', {
+        model_path: model,
+        views: ['iso'],
+        hidden_line_style: 'dashed',
+      }, 's-dash') as { isError: boolean; value: { warnings: string[] } }
+      expect(result.isError).toBe(false)
+      expect(result.value.warnings.join('\n')).toContain('figs/fig1/fig1_iso.svg 未发现比可见线更细的线组')
+      expect(readFileSync(join(outDir, 'fig1', 'fig1_iso.svg'), 'utf8')).toBe(singleGroup)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('generate_structure_figure 隐藏线描述', () => {
   it('描述里的线型与实测一致：细实线，不是虚线', async () => {
     // FreeCAD 1.1.3 实测：viewPartAsSvg 开隐藏线后输出两组描边（可见 0.7 毫米、隐藏

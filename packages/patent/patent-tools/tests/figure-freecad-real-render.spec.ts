@@ -6,6 +6,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { DEFAULT_FREECAD_PROBE_TIMEOUT_MS, DEFAULT_FREECAD_RENDER_TIMEOUT_MS, findFreeCadCmd, probeFreeCad, renderStructureViews } from '../src/figure/freecad-renderer.ts'
 import { structureSvgFilename } from '../src/figure/freecad-structure-script.ts'
+import { applyStructureLineStyle } from '../src/figure/structure-svg-postprocess.ts'
+import { measureInkBounds } from '../src/figure/render-check.ts'
 
 /**
  * 真实 FreeCAD 端到端 smoke：仅在本机装有 freecadcmd 时运行（无 FreeCAD 环境
@@ -166,6 +168,41 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
     const iso = readFileSync(join(outDir, structureSvgFilename(1, 'iso')), 'utf8')
     const front = readFileSync(join(outDir, structureSvgFilename(1, 'front')), 'utf8')
     expect(iso).not.toBe(front)
+  }, 180_000)
+
+  it('真实投影片段的线宽分组可被后处理改写（含隐藏线档）', async () => {
+    // 后处理按 `<g stroke-width>` 分组识别可见/隐藏线；FreeCAD 换版若改了片段结构，
+    // 这里的断言与 applyStructureLineStyle 的告警一起暴露，而不是静默交出没生效的图。
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadstyle-'))
+    try {
+      const result = await renderStructureViews(runtime, {
+        modelPath: FIXTURE,
+        views: ['front'],
+        scale: 1,
+        showHidden: true,
+        callouts: [],
+        figureNumber: 1,
+        outputDir: dir,
+      }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      const manifest = JSON.parse(readFileSync(result.manifestPath, 'utf8')) as { views: { path: string }[] }
+      const path = manifest.views[0]?.path as string
+      const original = readFileSync(path, 'utf8')
+      // 实测形态：可见线 0.7 一组、隐藏线 0.35 一组，全篇无 stroke-dasharray。
+      expect(original).toContain('stroke-width="0.7"')
+      expect(original).toContain('stroke-width="0.35"')
+      expect(original).not.toContain('stroke-dasharray')
+      const styled = applyStructureLineStyle(original, { lineWidthMm: 0.5, hiddenLineStyle: 'dashed' })
+      expect(styled.warnings).toEqual([])
+      const tags = [...styled.svg.matchAll(/<g\b[^>]*>/g)].map(match => match[0])
+      // 可见线改宽且不加虚线；隐藏线保持 0.35 并加按该线宽算出的虚线。
+      expect(tags.some(tag => tag.includes('stroke-width="0.5"') && !tag.includes('stroke-dasharray'))).toBe(true)
+      expect(tags.some(tag => tag.includes('stroke-width="0.35"') && tag.includes('stroke-dasharray="4.2 1.05"'))).toBe(true)
+      expect(measureInkBounds(styled.svg)).toEqual(measureInkBounds(original))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   }, 180_000)
 
   afterAll(() => {

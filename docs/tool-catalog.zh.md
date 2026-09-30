@@ -4737,6 +4737,8 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（细实线，FreeCAD 1.1.3 实测隐藏线 0.35 毫米、可见线 0.7 毫米，输出不含 stroke-dasharray，不是虚线）。
 
+线宽与线型：line_width_mm 取 GB/T 4457.4 线宽系列之一改写可见线线宽，hidden_line_style="dashed" 把隐藏线画成虚线；缺省两者都不改写，输出与 FreeCAD 原始投影一致。
+
 件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
 
 批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。
@@ -4774,6 +4776,29 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     "show_hidden": {
       "type": "boolean",
       "description": "绘制隐藏线（细实线，实测 0.35 毫米；不是虚线），默认 false"
+    },
+    "line_width_mm": {
+      "type": "number",
+      "description": "可见线线宽（毫米），须取 GB/T 4457.4 线宽系列之一；缺省保持 FreeCAD 输出的 0.7 毫米档",
+      "enum": [
+        0.13,
+        0.18,
+        0.25,
+        0.35,
+        0.5,
+        0.7,
+        1,
+        1.4,
+        2
+      ]
+    },
+    "hidden_line_style": {
+      "type": "string",
+      "description": "隐藏线线型，默认 solid（FreeCAD 原始细实线）；dashed 时按线宽加 stroke-dasharray 画成虚线",
+      "enum": [
+        "solid",
+        "dashed"
+      ]
     },
     "callouts": {
       "type": "array",
