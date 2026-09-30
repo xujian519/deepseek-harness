@@ -41,8 +41,7 @@ import { SECTION_GEOMETRY_FILENAME, buildSectionScript } from './freecad-section
 import {
   STRUCTURE_MANIFEST_FILENAME,
   buildStructureScript,
-  type StructureCallout,
-  type StructureViewName,
+  type StructureScriptParams,
 } from './freecad-structure-script.ts'
 import {
   describeRenderFailure,
@@ -310,28 +309,19 @@ export type StructureRenderOutcome =
   | { ok: true; manifestPath: string }
   | { ok: false; code: StructureRenderErrorCode; error: string }
 
-/** 结构线稿渲染请求。 */
-export type StructureRenderSpec = {
-  /** 模型文件绝对路径（STEP/IGES/BREP）。 */
-  modelPath: string
-  /** 请求视图（顺序即输出与 manifest 顺序）。 */
-  views: readonly StructureViewName[]
-  /** TechDraw 投影比例。 */
-  scale: number
-  /** 是否绘制隐藏线。 */
-  showHidden: boolean
-  /** 件号锚定（可为空）。 */
-  callouts: readonly StructureCallout[]
-  /** 图号（决定输出文件名与 manifest）。 */
-  figureNumber: number
-  /** 输出目录绝对路径（渲染器负责创建）。 */
-  outputDir: string
+/**
+ * 结构线稿渲染请求：{@link StructureScriptParams} 的全部字段加上调用方取消信号。
+ *
+ * 渲染器把这个请求原样交给 `buildStructureScript`，故两者共用同一份字段定义——
+ * 多一份复制品只会让「脚本读什么」与「渲染器收什么」各自漂移。
+ */
+export type StructureRenderSpec = StructureScriptParams & {
   /** 调用方取消信号。 */
   signal?: AbortSignal
 }
 
 /**
- * 用 FreeCAD headless 把模型投影为多视图结构线稿 SVG + manifest.json。
+ * 用 FreeCAD headless 把一个或多个模型投影为多视图结构线稿 SVG + manifest.json。
  *
  * 流程：解析可执行文件 → 构建脚本 → {@link runFreeCadScript} 执行（退出码 + manifest
  * 存在判定成功）。stderr 的 cfg/transcoder 告警非致命（实测），不参与判定。
@@ -347,15 +337,7 @@ export async function renderStructureViews(
 ): Promise<StructureRenderOutcome> {
   const command = resolveFreeCadCommand(options)
   if (!command.ok) return { ok: false, code: 'not_installed', error: command.error }
-  const script = buildStructureScript({
-    modelPath: spec.modelPath,
-    views: spec.views,
-    scale: spec.scale,
-    showHidden: spec.showHidden,
-    callouts: spec.callouts,
-    figureNumber: spec.figureNumber,
-    outputDir: spec.outputDir,
-  })
+  const script = buildStructureScript(spec)
   const result = await runFreeCadScript(subprocess, command.executable, {
     tool: 'FreeCAD 结构投影',
     outputDir: spec.outputDir,

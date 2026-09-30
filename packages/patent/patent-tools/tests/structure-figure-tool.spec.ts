@@ -66,12 +66,19 @@ function okRenderer(opts: RenderOpts = {}): MockRenderer {
           order,
           path,
           bbox: [0, 0, 10, 10],
-          anchors: spec.callouts.map(c => ({ numeral: c.numeral, label: c.label ?? '', point3d: [...c.point3d], point2d: [0, 0] })),
+          anchors: spec.callouts.map(c => ({
+            numeral: c.numeral,
+            label: c.label ?? '',
+            model: c.model ?? null,
+            modelPath: c.model === undefined ? null : (spec.modelPaths[c.model] ?? null),
+            point3d: [...c.point3d],
+            point2d: [0, 0],
+          })),
         }
       })
       const manifest = {
         figureNumber: spec.figureNumber,
-        modelPath: spec.modelPath,
+        modelPaths: spec.modelPaths,
         scale: spec.scale,
         showHidden: spec.showHidden,
         generator: 'freecad-structure',
@@ -589,5 +596,148 @@ describe('generate_structure_figure 隐藏线描述', () => {
     expect(registered?.description).toContain('细实线')
     expect(registered?.description).toContain('不是虚线')
     expect(registered?.description).not.toContain('隐藏线（虚线）')
+  })
+})
+
+describe('generate_structure_figure 装配体（model_paths）', () => {
+  it('多文件投影成一张图：一次渲染调用带齐全部模型，件号随归属下发', async () => {
+    const dir = tempDir()
+    const plate = writeModel(dir, 'plate.step')
+    const pin = writeModel(dir, 'pin.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: join(dir, 'figs'), cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_structure_figure', {
+        model_paths: [plate, pin],
+        views: ['iso'],
+        figure_number: 2,
+        callouts: [
+          { numeral: '100', point3d: [0, 0, 24], label: '立销', model: 1 },
+          { numeral: '102', point3d: [20, -12, 8], label: '底板', model: 0 },
+        ],
+      }, 'a1') as { isError: boolean; value: { figures: { figureNumber: number; modelPaths: string[]; manifest: { views: { anchors: { numeral: string; model: number | null; modelPath: string | null }[] }[] } }[]; paths: string[] } }
+      expect(result.isError).toBe(false)
+      // 目录批量是「一模型一图」，装配体是「多模型一图」：后者只渲一次。
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.modelPaths).toEqual([plate, pin])
+      expect(calls[0]?.figureNumber).toBe(2)
+      expect(result.value.figures).toHaveLength(1)
+      expect(result.value.figures[0]?.modelPaths).toEqual([plate, pin])
+      expect(result.value.paths).toEqual(['figs/fig2/fig2_iso.svg'])
+      // 归属随 manifest 返回：件号 → 下标 + 该零件的绝对路径。
+      expect(result.value.figures[0]?.manifest.views[0]?.anchors).toEqual([
+        expect.objectContaining({ numeral: '100', model: 1, modelPath: pin }),
+        expect.objectContaining({ numeral: '102', model: 0, modelPath: plate }),
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('装配体下件号必须写明归属：缺 model 报错且不落到渲染器', async () => {
+    const dir = tempDir()
+    const plate = writeModel(dir, 'plate.step')
+    const pin = writeModel(dir, 'pin.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: join(dir, 'figs'), cwd: dir })
+      const failure = await tool.execute({
+        model_paths: [plate, pin],
+        views: ['iso'],
+        callouts: [{ numeral: '100', point3d: [0, 0, 24] }],
+      }, exec).catch((error: unknown) => error)
+      expect(failure).toMatchObject({ code: 'invalid_tool_input' })
+      expect((failure as Error).message).toContain('callouts[0].model')
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('model 下标越界报 invalid_tool_input 并指明字段与取值范围', async () => {
+    const dir = tempDir()
+    const plate = writeModel(dir, 'plate.step')
+    const pin = writeModel(dir, 'pin.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: join(dir, 'figs'), cwd: dir })
+      const failure = await tool.execute({
+        model_paths: [plate, pin],
+        views: ['iso'],
+        callouts: [{ numeral: '100', point3d: [0, 0, 24], model: 2 }],
+      }, exec).catch((error: unknown) => error)
+      expect(failure).toMatchObject({ code: 'invalid_tool_input' })
+      expect((failure as Error).message).toContain('callouts[0].model 必须是 0 到 1 之间的整数')
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('单模型也接受归属声明（下标只能是 0），目录批量仍不支持 callouts', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    const modelDir = join(dir, 'models')
+    mkdirSync(modelDir, { recursive: true })
+    writeModel(modelDir, 'a.step')
+    writeModel(modelDir, 'b.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: join(dir, 'figs'), cwd: dir })
+      const ctx = await ctxWith(tool)
+      // 单模型下 model 只能是 0：归属明确时同样核对锚点是否落在该零件上。
+      const ok = await execute(ctx, 'generate_structure_figure', {
+        model_path: model,
+        views: ['iso'],
+        callouts: [{ numeral: '1', point3d: [0, 0, 0], model: 0 }],
+      }, 'a4') as { isError: boolean }
+      expect(ok.isError).toBe(false)
+      expect(calls[0]?.callouts[0]?.model).toBe(0)
+      await expect(tool.execute({ model_path: modelDir, views: ['iso'], callouts: twoCallouts }, exec))
+        .rejects.toMatchObject({ code: 'invalid_tool_input' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('model_path 与 model_paths 二选一：同给与都不给都报错，且不落到渲染器', async () => {
+    const dir = tempDir()
+    const plate = writeModel(dir, 'plate.step')
+    const pin = writeModel(dir, 'pin.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: join(dir, 'figs'), cwd: dir })
+      const both = await tool.execute({ model_path: plate, model_paths: [plate, pin], views: ['iso'] }, exec).catch((error: unknown) => error)
+      expect((both as Error).message).toContain('二选一')
+      const neither = await tool.execute({ views: ['iso'] }, exec).catch((error: unknown) => error)
+      expect(neither).toMatchObject({ code: 'invalid_tool_input' })
+      expect((neither as Error).message).toContain('model_path')
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('model_paths 的空数组、重复路径、目录与非文件各报错并指明下标', async () => {
+    const dir = tempDir()
+    const plate = writeModel(dir, 'plate.step')
+    const sub = join(dir, 'sub')
+    mkdirSync(sub, { recursive: true })
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: join(dir, 'figs'), cwd: dir })
+      await expect(tool.execute({ model_paths: [], views: ['iso'] }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+      const duplicate = await tool.execute({ model_paths: [plate, plate], views: ['iso'] }, exec).catch((error: unknown) => error)
+      expect((duplicate as Error).message).toContain('model_paths[1] 与前面的模型重复')
+      const directory = await tool.execute({ model_paths: [plate, sub], views: ['iso'] }, exec).catch((error: unknown) => error)
+      expect((directory as Error).message).toContain('model_paths[1] 不是文件')
+      const missing = await tool.execute({ model_paths: [plate, join(dir, 'gone.step')], views: ['iso'] }, exec).catch((error: unknown) => error)
+      expect(missing).toMatchObject({ code: 'file_not_found' })
+      expect((missing as Error).message).toContain('model_paths[1] 不存在')
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

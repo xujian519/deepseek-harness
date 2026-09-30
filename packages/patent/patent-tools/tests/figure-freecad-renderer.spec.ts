@@ -101,7 +101,7 @@ function fakeFreecad(): { dir: string; exe: string } {
 
 function spec(overrides: Partial<StructureRenderSpec> = {}): StructureRenderSpec {
   return {
-    modelPath: '/abs/model.step',
+    modelPaths: ['/abs/model.step'],
     views: ['iso', 'front'],
     scale: 1,
     showHidden: false,

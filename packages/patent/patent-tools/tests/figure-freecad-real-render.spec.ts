@@ -18,6 +18,7 @@ import { HATCH_GEOMETRY_FILENAME, HATCH_PAT_FILENAME, buildHatchScript } from '.
 import { resolveSectionFrame, type SectionRing } from '../src/figure/freecad-section-geometry.ts'
 import { SECTION_GEOMETRY_FILENAME, buildSectionScript } from '../src/figure/freecad-section-script.ts'
 import { structureSvgFilename } from '../src/figure/freecad-structure-script.ts'
+import { createGenerateStructureFigureTool } from '../src/tool/generate-structure-figure.ts'
 import { applyStructureLineStyle } from '../src/figure/structure-svg-postprocess.ts'
 import { measureInkBounds } from '../src/figure/render-check.ts'
 import { expandSectionSource, SectionSourceError, type SectionSourcePorts } from '../src/figure/section-source.ts'
@@ -51,6 +52,12 @@ const TEST_PROBE_TIMEOUT_MS = DEFAULT_FREECAD_PROBE_TIMEOUT_MS
 const hasFreeCad = findFreeCadCmd() !== undefined
 
 const FIXTURE = join(import.meta.dirname, 'fixtures', 'structure-bracket.step')
+
+/**
+ * 装配体的第二个零件（见 generate-structure-pin-fixture.py）：r3 h40 的圆柱销，
+ * 轴线在 x=30 —— 在底板 x 范围（±20）之外，故两件同图的投影必然比单件更宽。
+ */
+const PIN_FIXTURE = join(import.meta.dirname, 'fixtures', 'structure-pin.step')
 
 /** 剖切几何的 fixture：60×30×8 的板，两个 r5 通孔位于 x = ±15（见 generate-section-fixture.py）。 */
 const SECTION_FIXTURE = join(import.meta.dirname, 'fixtures', 'section-holes-plate.step')
@@ -106,6 +113,15 @@ describe('STEP fixture 头部签名（与 generate-structure-fixture.py 生成�
     expect(head).toContain('FreeCAD')
     expect(head).toContain('Open CASCADE STEP processor')
   })
+
+  it('签入的 structure-pin.step 是 FreeCAD 导出的 ISO-10303-21 STEP', () => {
+    const head = readFileSync(PIN_FIXTURE, 'utf8').slice(0, 512)
+    expect(head.startsWith('ISO-10303-21;')).toBe(true)
+    expect(head).toContain('HEADER;')
+    // 同一条生成器签名要求：改动 generate-structure-pin-fixture.py 时必须重跑并复核。
+    expect(head).toContain('FreeCAD')
+    expect(head).toContain('Open CASCADE STEP processor')
+  })
 })
 
 describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcmd` installed)', () => {
@@ -120,7 +136,7 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
 
   it('把签入 fixture 投影为 iso+front 黑白线稿并锚定件号', async () => {
     const result = await renderStructureViews(runtime, {
-      modelPath: FIXTURE,
+      modelPaths: [FIXTURE],
       views: ['iso', 'front'],
       scale: 1,
       showHidden: false,
@@ -141,18 +157,18 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
     // manifest：视图顺序/文件名/包围盒/件号锚点齐备。
     const manifest = JSON.parse(readFileSync(result.manifestPath, 'utf8')) as {
       figureNumber: number
-      modelPath: string
+      modelPaths: string[]
       generator: string
       views: {
         name: string
         order: number
         path: string
         bbox: number[]
-        anchors: { numeral: string; label: string; point3d: number[]; point2d: number[] }[]
+        anchors: { numeral: string; label: string; model: number | null; modelPath: string | null; point3d: number[]; point2d: number[] }[]
       }[]
     }
     expect(manifest.figureNumber).toBe(1)
-    expect(manifest.modelPath).toBe(FIXTURE)
+    expect(manifest.modelPaths).toEqual([FIXTURE])
     expect(manifest.generator).toBe('freecad-structure')
     expect(manifest.views.map(v => v.name)).toEqual(['iso', 'front'])
     expect(manifest.views.map(v => v.order)).toEqual([0, 1])
@@ -182,6 +198,8 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
       expect(height).toBeLessThan(120)
       // 件号锚点落在视图包围盒内（锚定到真实几何投影而非图外）。
       expect(view.anchors.map(a => a.numeral)).toEqual(['100', '102'])
+      // 未声明归属的件号：归属记 null（脚本不核对，也不臆测它属于哪个零件）。
+      expect(view.anchors.map(a => a.model)).toEqual([null, null])
       for (const anchor of view.anchors) {
         const [ax, ay] = anchor.point2d as [number, number]
         expect(ax).toBeGreaterThanOrEqual(minX)
@@ -197,13 +215,128 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
     expect(iso).not.toBe(front)
   }, 180_000)
 
+  it('装配体：两个零件文件投影成同一批视图，件号按归属零件记录', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadassembly-'))
+    try {
+      const result = await renderStructureViews(runtime, {
+        modelPaths: [FIXTURE, PIN_FIXTURE],
+        views: ['front'],
+        scale: 1,
+        showHidden: false,
+        callouts: [
+          { numeral: '100', point3d: [0, 0, 24], label: '立柱', model: 0 },
+          { numeral: '200', point3d: [30, 0, 40], label: '圆柱销', model: 1 },
+        ],
+        figureNumber: 1,
+        outputDir: dir,
+      }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      const manifest = JSON.parse(readFileSync(result.manifestPath, 'utf8')) as {
+        modelPaths: string[]
+        views: {
+          path: string
+          bbox: number[]
+          anchors: { numeral: string; model: number | null; modelPath: string | null; point2d: number[] }[]
+        }[]
+      }
+      expect(manifest.modelPaths).toEqual([FIXTURE, PIN_FIXTURE])
+      const view = manifest.views[0]
+      expect(view).toBeDefined()
+      if (view === undefined) return
+      const svg = readFileSync(view.path, 'utf8')
+      // 两个零件都在同一张图里：圆柱销的 x 到 33，front 视图宽度必然超过底板自身的 40 毫米。
+      expect(svg).toContain('>100</text>')
+      expect(svg).toContain('>200</text>')
+      const [minX, , width] = view.bbox as [number, number, number, number]
+      expect(width).toBeGreaterThan(55)
+      // 归属随件号返回：下标 + 该零件的绝对路径，与 modelPaths 的下标口径一致。
+      expect(view.anchors).toEqual([
+        expect.objectContaining({ numeral: '100', model: 0, modelPath: FIXTURE }),
+        expect.objectContaining({ numeral: '200', model: 1, modelPath: PIN_FIXTURE }),
+      ])
+      for (const anchor of view.anchors) {
+        expect(anchor.point2d[0]).toBeGreaterThanOrEqual(minX)
+        expect(anchor.point2d[0]).toBeLessThanOrEqual(minX + width)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  it('工具端到端：model_paths 走真实渲染出装配图，件号归属随结果返回', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadtool16-'))
+    try {
+      // 工具层到脚本的整条链：工具解析 model_paths → 渲染器 → 脚本一次投影两个零件。
+      // 单测里的渲染是 mock，这里用本机 FreeCAD 跑真几何，故「多文件一起投影」不只是形状断言。
+      const tool = createGenerateStructureFigureTool({
+        render: spec => renderStructureViews(runtime, spec, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }),
+        enabled: true,
+        outputDir: dir,
+        cwd: dir,
+      })
+      const result = await tool.execute({
+        model_paths: [FIXTURE, PIN_FIXTURE],
+        views: ['front'],
+        callouts: [
+          { numeral: '100', point3d: [0, 0, 24], label: '立柱', model: 0 },
+          { numeral: '200', point3d: [30, 0, 40], label: '圆柱销', model: 1 },
+        ],
+        persist_index: false,
+      }, { signal: new AbortController().signal } as never) as {
+        figures: {
+          modelPaths: string[]
+          paths: string[]
+          manifest: { views: { anchors: { numeral: string; model: number | null }[] }[] }
+        }[]
+        numeralMap: { numeral: string; label: string }[]
+        indexed: boolean
+      }
+      expect(result.figures).toHaveLength(1)
+      expect(result.figures[0]?.modelPaths).toEqual([FIXTURE, PIN_FIXTURE])
+      expect(result.figures[0]?.manifest.views[0]?.anchors.map(a => [a.numeral, a.model])).toEqual([['100', 0], ['200', 1]])
+      expect(result.numeralMap.map(m => `${m.numeral}-${m.label}`)).toEqual(['100-立柱', '200-圆柱销'])
+      expect(result.indexed).toBe(false)
+      const svg = readFileSync(join(dir, 'fig1', 'fig1_front.svg'), 'utf8')
+      expect(svg).toContain('>200</text>')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  it('件号归属核对用真实几何：锚点离所声明的零件多远就报多远', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadowner-'))
+    try {
+      // 圆柱销轴线上一点 (30, 0, 5) 声明为属于底板（model 0）：底板 x 只到 20，故实际偏离 10 毫米。
+      const result = await renderStructureViews(runtime, {
+        modelPaths: [FIXTURE, PIN_FIXTURE],
+        views: ['front'],
+        scale: 1,
+        showHidden: false,
+        callouts: [{ numeral: '200', point3d: [30, 0, 5], label: '圆柱销', model: 0 }],
+        figureNumber: 1,
+        outputDir: dir,
+      }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.code).toBe('render_failed')
+      expect(result.error).toContain('callouts[0]')
+      expect(result.error).toContain('不在 modelPaths[0]')
+      expect(result.error).toContain('偏离 10 毫米')
+      // 归属核对在渲染前跑：输入错误不产出任何视图 SVG。
+      expect(existsSync(join(dir, structureSvgFilename(1, 'front')))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
   it('真实投影片段的线宽分组可被后处理改写（含隐藏线档）', async () => {
     // 后处理按 `<g stroke-width>` 分组识别可见/隐藏线；FreeCAD 换版若改了片段结构，
     // 这里的断言与 applyStructureLineStyle 的告警一起暴露，而不是静默交出没生效的图。
     const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadstyle-'))
     try {
       const result = await renderStructureViews(runtime, {
-        modelPath: FIXTURE,
+        modelPaths: [FIXTURE],
         views: ['front'],
         scale: 1,
         showHidden: true,

@@ -56,6 +56,10 @@ const DEFAULT_STRUCTURE_SCALE = 1
 export type StructureManifestAnchor = {
   numeral: string
   label: string
+  /** 件号声明的归属零件下标；`null` 表示未声明归属（脚本未核对）。 */
+  model: number | null
+  /** 归属零件的绝对路径；未声明归属时为 `null`。 */
+  modelPath: string | null
   point3d: number[]
   point2d: number[]
 }
@@ -72,19 +76,20 @@ export type StructureManifestView = {
 /** freecad-structure-script 写出的 manifest.json 结构（渲染产物契约）。 */
 export type StructureManifest = {
   figureNumber: number
-  modelPath: string
+  /** 该图用到的模型文件绝对路径（装配体为多个，顺序即 `callouts[].model` 的下标口径）。 */
+  modelPaths: string[]
   scale: number
   showHidden: boolean
   generator: string
   views: StructureManifestView[]
 }
 
-/** 单张结构附图的渲染结果（批量时逐模型一条）。 */
+/** 单张结构附图的渲染结果（目录批量时逐模型一条；装配体一条含多个模型）。 */
 export type StructureFigureView = {
   /** 图号。 */
   figureNumber: number
-  /** 模型文件绝对路径。 */
-  modelPath: string
+  /** 该图用到的模型文件绝对路径（装配体为多个）。 */
+  modelPaths: string[]
   /** 该图各视图 SVG 路径（工作区相对）。 */
   paths: string[]
   /** 解析后的 manifest。 */
@@ -99,12 +104,16 @@ export type StructureCalloutInput = {
   point3d: [number, number, number]
   /** 可选部件名称（写入标号表/manifest，不进图面像素）。 */
   label?: string
+  /** 该件号所属零件在输入模型列表中的下标（0 起）；给定时渲染脚本核对锚点确实落在该零件上。 */
+  model?: number
 }
 
 /** 工具输入（与 schema 一致）。 */
 export type GenerateStructureFigureInput = {
-  /** 模型文件路径，或其目录（批量：目录内每个受支持模型生成一图，图号自 base 递增）。 */
-  model_path: string
+  /** 模型文件路径，或其目录（批量：目录内每个受支持模型生成一图，图号自 base 递增）；与 `model_paths` 二选一。 */
+  model_path?: string
+  /** 装配体：多个模型文件一起投影成一张图（每个文件一个零件，件号可各自声明归属）；与 `model_path` 二选一。 */
+  model_paths?: string[]
   /** 请求视图；缺省 iso/front/top/right。 */
   views?: StructureViewName[]
   /** TechDraw 投影比例；缺省取 Config.structureFigureScale 或 1。 */
@@ -208,21 +217,40 @@ function normalizeViews(views: readonly string[] | undefined, fallback: readonly
   return [...seen]
 }
 
-/** 解析 model_path：文件或目录（批量），返回受支持模型的绝对路径列表（升序）。 */
+/**
+ * 解析一个模型文件路径：复核它存在、是文件、扩展名受支持，返回绝对路径。
+ *
+ * `model_path` 的单文件与 `model_paths` 的每个文件共用这一段——两处各写一遍必然
+ * 在报错文本和收口的格式上漂移。`field` 是报错里回给模型的下标化字段名。
+ * @param modelPath - the model-supplied path.
+ * @param cwd - the working directory for relative paths.
+ * @param field - 字段名（`model_path`，或 `model_paths[0]` 这样带下标的写法）。
+ * @returns 模型文件的绝对路径。
+ * @throws PatentToolError when the path is missing (file_not_found) or is not a supported file.
+ */
+async function resolveModelFile(modelPath: string, cwd: string, field: string): Promise<string> {
+  const absolute = resolve(cwd, modelPath)
+  const info = await stat(absolute).catch(() => undefined)
+  if (info === undefined) {
+    throw new PatentToolError('file_not_found', `${field} 不存在：${modelPath}`, { tool: 'generate_structure_figure' })
+  }
+  if (!info.isFile()) {
+    throw new PatentToolError('invalid_tool_input', `${field} 不是文件：${modelPath}`, { tool: 'generate_structure_figure' })
+  }
+  if (!SUPPORTED_MODEL_EXTENSIONS.includes(extname(absolute).toLowerCase())) {
+    throw new PatentToolError('invalid_tool_input', `${field} 的格式不受支持 "${extname(absolute)}"；可选：${SUPPORTED_MODEL_EXTENSIONS.join('、')}`, { tool: 'generate_structure_figure' })
+  }
+  return absolute
+}
+
+/** 解析 model_path：文件（单模型）或目录（批量），返回受支持模型的绝对路径列表（升序）。 */
 async function resolveModelPaths(modelPath: string, cwd: string): Promise<string[]> {
   const absolute = resolve(cwd, modelPath)
-  let info
-  try {
-    info = await stat(absolute)
-  } catch {
+  const info = await stat(absolute).catch(() => undefined)
+  if (info === undefined) {
     throw new PatentToolError('file_not_found', `模型路径不存在：${modelPath}`, { tool: 'generate_structure_figure' })
   }
-  if (info.isFile()) {
-    if (!SUPPORTED_MODEL_EXTENSIONS.includes(extname(absolute).toLowerCase())) {
-      throw new PatentToolError('invalid_tool_input', `不支持的模型格式 "${extname(absolute)}"；可选：${SUPPORTED_MODEL_EXTENSIONS.join('、')}`, { tool: 'generate_structure_figure' })
-    }
-    return [absolute]
-  }
+  if (info.isFile()) return [await resolveModelFile(modelPath, cwd, 'model_path')]
   if (!info.isDirectory()) {
     throw new PatentToolError('invalid_tool_input', `model_path 既不是文件也不是目录：${modelPath}`, { tool: 'generate_structure_figure' })
   }
@@ -235,6 +263,55 @@ async function resolveModelPaths(modelPath: string, cwd: string): Promise<string
     throw new PatentToolError('invalid_tool_input', `目录内未找到受支持模型（${SUPPORTED_MODEL_EXTENSIONS.join('、')}）：${modelPath}`, { tool: 'generate_structure_figure' })
   }
   return models
+}
+
+/**
+ * 解析装配体输入（`model_paths`）：逐个文件复核存在、受支持且不重复，返回绝对路径。
+ *
+ * 保持给定顺序：`callouts[].model` 的下标口径就是这个顺序，重排会让件号指错零件。
+ * 不接受目录——目录语义已经是「逐模型出多张图」（见 {@link resolveModelPaths}），
+ * 两种语义共用一个入参只会让调用方猜。
+ * @param paths - the model-supplied file paths.
+ * @param cwd - the working directory for relative paths.
+ * @returns 绝对路径列表（与入参同序）。
+ * @throws PatentToolError when the list is empty, a path is missing/not a file/unsupported, or repeats.
+ */
+async function resolveAssemblyPaths(paths: readonly string[], cwd: string): Promise<string[]> {
+  if (paths.length === 0) {
+    throw new PatentToolError('invalid_tool_input', 'model_paths 不能为空：装配体至少要有一个模型文件', { tool: 'generate_structure_figure' })
+  }
+  const resolved: string[] = []
+  for (const [index, modelPath] of paths.entries()) {
+    const absolute = await resolveModelFile(modelPath, cwd, `model_paths[${index}]`)
+    if (resolved.includes(absolute)) {
+      throw new PatentToolError('invalid_tool_input', `model_paths[${index}] 与前面的模型重复：${modelPath}`, { tool: 'generate_structure_figure' })
+    }
+    resolved.push(absolute)
+  }
+  return resolved
+}
+
+/**
+ * 解析模型输入：`model_path`（单文件或目录批量）与 `model_paths`（装配体）二选一。
+ * @param input - the model-supplied arguments.
+ * @param cwd - the working directory for relative paths.
+ * @returns 绝对路径列表与「是否装配体（多文件投影成一张图）」。
+ * @throws PatentToolError when neither or both are given, or a path is missing/unsupported/duplicated.
+ */
+async function resolveStructureModels(
+  input: GenerateStructureFigureInput,
+  cwd: string,
+): Promise<{ modelPaths: string[]; assembly: boolean }> {
+  if (input.model_path !== undefined && input.model_paths !== undefined) {
+    throw new PatentToolError('invalid_tool_input', 'model_path 与 model_paths 二选一：model_path 是单模型或目录批量，model_paths 是装配体（多文件投影成一张图）', { tool: 'generate_structure_figure' })
+  }
+  if (input.model_paths !== undefined) {
+    return { modelPaths: await resolveAssemblyPaths(input.model_paths, cwd), assembly: true }
+  }
+  if (input.model_path === undefined) {
+    throw new PatentToolError('invalid_tool_input', '必须给 model_path（单模型/目录批量）或 model_paths（装配体）', { tool: 'generate_structure_figure' })
+  }
+  return { modelPaths: await resolveModelPaths(input.model_path, cwd), assembly: false }
 }
 
 /** 解析并轻校验 manifest.json（渲染产物契约；非法 JSON 同样归入 tool_execution_failed）。 */
@@ -280,6 +357,7 @@ const CALLOUT_SCHEMA = {
       items: { type: 'number' },
     },
     label: { type: 'string', description: '可选部件名称（写入标号表/manifest，不进图面像素）' },
+    model: { type: 'integer', description: '该件号所属零件在输入模型列表中的下标（0 起）；给定时核对锚点确实落在该零件上（偏离超过 0.5 毫米即报错）。装配体（model_paths）下必填' },
   },
 } as const
 
@@ -292,9 +370,11 @@ const DESCRIPTION = [
   '',
   '线宽与线型：line_width_mm 取 GB/T 4457.4 线宽系列之一改写可见线线宽，hidden_line_style="dashed" 把隐藏线画成虚线；缺省两者都不改写，输出与 FreeCAD 原始投影一致。',
   '',
-  '件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。',
+  '件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?, model?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。',
   '',
-  '批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。',
+  '装配体：model_paths 传多个模型文件时，所有零件投影到同一张图（TechDraw 一次投影处理零件之间的遮挡），callouts[].model 指明该件号属于第几个零件（0 起，对应 model_paths 的顺序），脚本按该零件的真实几何核对锚点确实落在它上面，偏离超过 0.5 毫米即报错；装配体下每个件号都必须写明归属，以免标号指错零件。',
+  '',
+  '批量：model_path 传目录时，对目录内每个受支持模型各出一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效），多个零件要合成一张图时改用 model_paths。',
   '',
   '产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。',
 ].join('\n')
@@ -315,6 +395,8 @@ type StructureRun = {
   baseFigure: number
   callouts: StructureCalloutInput[]
   modelPaths: string[]
+  /** 是否装配体（`model_paths`）：所有模型投影成一张图，否则逐模型一图。 */
+  assembly: boolean
 }
 
 /**
@@ -349,12 +431,25 @@ async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureD
     numeral: callout.numeral,
     point3d: callout.point3d,
     ...(callout.label === undefined ? {} : { label: callout.label }),
+    ...(callout.model === undefined ? {} : { model: callout.model }),
   }))
-  const modelPaths = await resolveModelPaths(input.model_path, cwd)
+  const { modelPaths, assembly } = await resolveStructureModels(input, cwd)
+  for (const [index, callout] of callouts.entries()) {
+    // 装配体的判据是「件号锚点落在所声明的零件上」，归属不明就无从核对；而目录批量
+    // 是「一个模型一张图」，件号必然属于该图唯一的模型，故只对装配体收口。
+    if (assembly && callout.model === undefined) {
+      throw new PatentToolError('invalid_tool_input', `callouts[${index}].model 必填：装配体（model_paths）下每个件号都要写明所属零件在 model_paths 中的下标`, { tool: 'generate_structure_figure' })
+    }
+    if (callout.model === undefined) continue
+    // schema 只把 model 约束为 integer；模型实参的取值域必须在这里复核（同 scale 的理由）。
+    if (!Number.isInteger(callout.model) || callout.model < 0 || callout.model >= modelPaths.length) {
+      throw new PatentToolError('invalid_tool_input', `callouts[${index}].model 必须是 0 到 ${String(modelPaths.length - 1)} 之间的整数（对应第几个输入模型），收到 ${String(callout.model)}`, { tool: 'generate_structure_figure' })
+    }
+  }
   // 目录批量逐模型出图，但 callouts 的 point3d 是某个模型的专属坐标：把同一组
   // 3D 锚点套到目录内其余模型会落到错误位置，故 fail-loud 拒绝而非静默误标。
-  if (modelPaths.length > 1 && callouts.length > 0) {
-    throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 callouts：件号 3D 锚点仅对单个模型有效，请对单个模型生成结构线稿', { tool: 'generate_structure_figure' })
+  if (!assembly && modelPaths.length > 1 && callouts.length > 0) {
+    throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 callouts：件号 3D 锚点仅对单个模型有效，请对单个模型生成结构线稿，或用 model_paths 把多个零件投影成一张装配图', { tool: 'generate_structure_figure' })
   }
   return {
     deps,
@@ -369,23 +464,28 @@ async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureD
     baseFigure,
     callouts,
     modelPaths,
+    assembly,
   }
 }
 
 /**
- * 逐模型投影渲染并读回 manifest。
+ * 逐图投影渲染并读回 manifest。
+ *
+ * 装配体把所有模型投到同一张图（TechDraw 一次 HLR 处理全部零件）；目录批量逐模型
+ * 出图。两种情况都按「图号 = base + 序号」编号，故整案附图顺序与输入顺序一致。
  * @param run - the resolved run parameters.
  * @param signal - the tool call's cancellation signal.
- * @returns one view record per model, in model-path order.
+ * @returns one view record per figure, in model-path order.
  */
 async function renderStructureFigures(run: StructureRun, signal: AbortSignal): Promise<StructureFigureView[]> {
+  const batches = run.assembly ? [run.modelPaths] : run.modelPaths.map(modelPath => [modelPath])
   const figures: StructureFigureView[] = []
-  for (const [index, modelPath] of run.modelPaths.entries()) {
+  for (const [index, modelPaths] of batches.entries()) {
     const figureNumber = run.baseFigure + index
     // 每图独立子目录：manifest.json/临时脚本/模板/隔离子目录名固定，避免批量互相覆盖。
     const renderDir = join(run.outputDir, `fig${figureNumber}`)
     const outcome = await run.deps.render({
-      modelPath,
+      modelPaths,
       views: run.views,
       scale: run.scale,
       showHidden: run.showHidden,
@@ -399,7 +499,7 @@ async function renderStructureFigures(run: StructureRun, signal: AbortSignal): P
     await assertViewSvgs(manifest)
     figures.push({
       figureNumber,
-      modelPath,
+      modelPaths,
       paths: manifest.views.map(view => relative(run.cwd, view.path)),
       manifest,
     })
@@ -554,13 +654,14 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
     name: 'generate_structure_figure',
     description: DESCRIPTION,
     parameters: {
-      model_path: { type: 'string', required: true, description: '模型文件路径（STEP/IGES/BREP），或其目录（批量）' },
+      model_path: { type: 'string', description: '模型文件路径（STEP/IGES/BREP），或其目录（批量：目录内每个受支持模型各出一图）；与 model_paths 二选一' },
+      model_paths: { type: 'array', items: { type: 'string' }, description: '装配体：多个模型文件一起投影成一张图（每个文件一个零件）；与 model_path 二选一' },
       views: { type: 'array', items: { type: 'string', enum: STRUCTURE_VIEWS }, description: '请求视图，缺省 iso/front/top/right' },
       scale: { type: 'number', description: 'TechDraw 投影比例（正数）；缺省取部署配置或 1' },
       show_hidden: { type: 'boolean', description: '绘制隐藏线（细实线，实测 0.35 毫米；不是虚线），默认 false' },
       line_width_mm: { type: 'number', enum: STRUCTURE_LINE_WIDTH_SERIES, description: '可见线线宽（毫米），须取 GB/T 4457.4 线宽系列之一；缺省保持 FreeCAD 输出的 0.7 毫米档' },
       hidden_line_style: { type: 'string', enum: ['solid', 'dashed'], description: '隐藏线线型，默认 solid（FreeCAD 原始细实线）；dashed 时按线宽加 stroke-dasharray 画成虚线' },
-      callouts: { type: 'array', items: CALLOUT_SCHEMA, description: '件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）' },
+      callouts: { type: 'array', items: CALLOUT_SCHEMA, description: '件号锚定 [{numeral, point3d:[x,y,z], label?, model?}]；model 为所属零件下标，装配体下必填；目录批量不支持' },
       figure_number: { type: 'integer', description: '图号（正整数），默认 1（批量时作为起始图号）' },
       invention_name: { type: 'string', description: '发明名称（附图说明模板句）' },
       target_office: { type: 'string', enum: TARGET_OFFICES, description: '目标法域：给定时把每个视图 SVG 落版到该法域的 A4 幅面与页边距，并返回落版尺寸（仅 SVG 产物生效）' },
@@ -584,7 +685,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
               additionalProperties: false,
               properties: {
                 figureNumber: { type: 'integer', required: true },
-                modelPath: { type: 'string', required: true },
+                modelPaths: { type: 'array', required: true, items: { type: 'string' } },
                 paths: { type: 'array', required: true, items: { type: 'string' } },
                 manifest: { type: 'object', required: true, additionalProperties: true },
               },
@@ -678,7 +779,7 @@ function structureAnalysis(
     imagePath: figure.paths[0] ?? '',
     figureNumber: figure.figureNumber,
     figureType: 'structure',
-    overallDescription: `由 generate_structure_figure 生成（FreeCAD TechDraw 投影，模型 ${figure.modelPath}）。${numeralText}`,
+    overallDescription: `由 generate_structure_figure 生成（FreeCAD TechDraw 投影，模型 ${figure.modelPaths.join('、')}）。${numeralText}`,
     components,
     connections: [],
     figureDescription: `图${figure.figureNumber}是${FIGURE_TYPE_NAMES.structure}`,

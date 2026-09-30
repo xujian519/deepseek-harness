@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_STRUCTURE_VIEWS,
+  STRUCTURE_ANCHOR_TOLERANCE_MM,
   STRUCTURE_MANIFEST_FILENAME,
   STRUCTURE_TEMPLATE_FILENAME,
   STRUCTURE_TRANSIENT_DIRNAME,
@@ -19,7 +20,7 @@ import {
 
 function params(overrides: Partial<StructureScriptParams> = {}): StructureScriptParams {
   return {
-    modelPath: '/abs/model.step',
+    modelPaths: ['/abs/model.step'],
     views: ['iso', 'front'],
     scale: 1,
     showHidden: false,
@@ -83,6 +84,13 @@ describe('buildStructureScript', () => {
     }
   })
 
+  it('stderr 改 UTF-8：中文失败原因不被转义成 \\uXXXX（渲染器据 stderr 归类失败）', () => {
+    const script = buildStructureScript(params())
+    // 实测：LANG=C 时 freecadcmd 的 stderr 是 ascii + backslashreplace，中文报错
+    // 会变成 \u4e0d\u5728 这类字面量传出去，调用方读不懂。
+    expect(script).toContain('sys.stderr.reconfigure(encoding="utf-8")')
+  })
+
   it('把文档 TransientDir 锚定到 outputDir 子目录（TechDraw 以它拷贝模板）', () => {
     const script = buildStructureScript(params())
     // FreeCAD 只在自身缓存目录可写时才派生内存文档的 TransientDir；它为空串时
@@ -99,7 +107,7 @@ describe('buildStructureScript', () => {
 
   it('往返一致：内嵌 payload 双重序列化后可还原为原请求', () => {
     const script = buildStructureScript(params({
-      modelPath: '/abs/含空格 model.step',
+      modelPaths: ['/abs/含空格 model.step'],
       views: ['iso', 'front', 'top'],
       scale: 2.5,
       showHidden: true,
@@ -108,13 +116,13 @@ describe('buildStructureScript', () => {
       outputDir: '/abs/out "quoted"',
     }))
     const payload = extractPayload(script)
-    expect(payload.modelPath).toBe('/abs/含空格 model.step')
+    expect(payload.modelPaths).toEqual(['/abs/含空格 model.step'])
     expect(payload.views).toEqual(['iso', 'front', 'top'])
     expect(payload.scale).toBe(2.5)
     expect(payload.showHidden).toBe(true)
     expect(payload.figureNumber).toBe(7)
     expect(payload.outputDir).toBe('/abs/out "quoted"')
-    expect(payload.callouts).toEqual([{ numeral: '100', point3d: [1, -2.5, 3], label: '立柱' }])
+    expect(payload.callouts).toEqual([{ numeral: '100', point3d: [1, -2.5, 3], label: '立柱', model: null }])
     expect(payload.manifestFilename).toBe(STRUCTURE_MANIFEST_FILENAME)
     expect(payload.templateFilename).toBe(STRUCTURE_TEMPLATE_FILENAME)
     expect(payload.transientDirname).toBe(STRUCTURE_TRANSIENT_DIRNAME)
@@ -150,7 +158,58 @@ describe('buildStructureScript', () => {
   it('callout label 缺省时归一为空字符串（payload 不携带 undefined）', () => {
     const script = buildStructureScript(params({ callouts: [{ numeral: '102', point3d: [1, 2, 3] }] }))
     const payload = extractPayload(script)
-    expect(payload.callouts).toEqual([{ numeral: '102', point3d: [1, 2, 3], label: '' }])
+    expect(payload.callouts).toEqual([{ numeral: '102', point3d: [1, 2, 3], label: '', model: null }])
+  })
+
+  it('装配体：每个模型文件一个 Part::Feature，一起挂到同一视图的 Source 上', () => {
+    const script = buildStructureScript(params({ modelPaths: ['/abs/plate.step', '/abs/pin.step'] }))
+    const payload = extractPayload(script)
+    expect(payload.modelPaths).toEqual(['/abs/plate.step', '/abs/pin.step'])
+    // 逐个载入并各建一个对象：件号归属（callouts[].model）需要按零件分开的形状。
+    expect(script).toContain('for index, model_path in enumerate(MODEL_PATHS):')
+    expect(script).toContain('doc.addObject("Part::Feature", "Model_%d" % index)')
+    expect(script).toContain('view.Source = shape_objs')
+    // 投影中心取样覆盖全部零件（片段是所有零件的合并投影）。
+    expect(script).toContain('for shape in shapes:')
+  })
+
+  it('件号归属随 payload 下发；未声明的记为 null', () => {
+    const script = buildStructureScript(params({
+      modelPaths: ['/abs/plate.step', '/abs/pin.step'],
+      callouts: [
+        { numeral: '100', point3d: [0, 0, 24], label: '立销', model: 1 },
+        { numeral: '102', point3d: [20, -12, 8], label: '底板' },
+      ],
+    }))
+    const payload = extractPayload(script)
+    expect(payload.callouts).toEqual([
+      { numeral: '100', point3d: [0, 0, 24], label: '立销', model: 1 },
+      { numeral: '102', point3d: [20, -12, 8], label: '底板', model: null },
+    ])
+    expect(payload.anchorTolerance).toBe(STRUCTURE_ANCHOR_TOLERANCE_MM)
+  })
+
+  it('归属核对：体外点按 distToShape 的真实偏移报错，且在渲染前跑', () => {
+    const script = buildStructureScript(params({
+      modelPaths: ['/abs/plate.step', '/abs/pin.step'],
+      callouts: [{ numeral: '100', point3d: [0, 0, 40], model: 0 }],
+    }))
+    // 判据与报错文本：指明 callouts 下标、声明归属的 modelPaths 下标与偏离量。
+    expect(script).toContain('distToShape(Part.Vertex(App.Vector(px, py, pz)))')
+    expect(script).toContain('callouts[%d].point3d')
+    expect(script).toContain('不在 modelPaths[%d]')
+    expect(script).toContain('callouts[%d].model = %d 超出 modelPaths 范围')
+    // 锚点错位是输入错误：不得先花掉一次完整投影再报。
+    const verifyAt = script.indexOf('verify_callout_owners(shapes)')
+    expect(verifyAt).toBeGreaterThan(0)
+    expect(verifyAt).toBeLessThan(script.indexOf('TechDraw::DrawPage'))
+  })
+
+  it('manifest 记每个件号的归属（下标 + 绝对路径），未声明的记 null', () => {
+    const script = buildStructureScript(params({ modelPaths: ['/abs/plate.step', '/abs/pin.step'] }))
+    expect(script).toContain('"model": owner')
+    expect(script).toContain('"modelPath": None if owner is None else MODEL_PATHS[owner]')
+    expect(script).toContain('"modelPaths": MODEL_PATHS')
   })
 })
 

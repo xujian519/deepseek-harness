@@ -4806,9 +4806,11 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 线宽与线型：line_width_mm 取 GB/T 4457.4 线宽系列之一改写可见线线宽，hidden_line_style="dashed" 把隐藏线画成虚线；缺省两者都不改写，输出与 FreeCAD 原始投影一致。
 
-件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
+件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?, model?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
 
-批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。
+装配体：model_paths 传多个模型文件时，所有零件投影到同一张图（TechDraw 一次投影处理零件之间的遮挡），callouts[].model 指明该件号属于第几个零件（0 起，对应 model_paths 的顺序），脚本按该零件的真实几何核对锚点确实落在它上面，偏离超过 0.5 毫米即报错；装配体下每个件号都必须写明归属，以免标号指错零件。
+
+批量：model_path 传目录时，对目录内每个受支持模型各出一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效），多个零件要合成一张图时改用 model_paths。
 
 产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。
 
@@ -4818,7 +4820,14 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
   "properties": {
     "model_path": {
       "type": "string",
-      "description": "模型文件路径（STEP/IGES/BREP），或其目录（批量）"
+      "description": "模型文件路径（STEP/IGES/BREP），或其目录（批量：目录内每个受支持模型各出一图）；与 model_paths 二选一"
+    },
+    "model_paths": {
+      "type": "array",
+      "description": "装配体：多个模型文件一起投影成一张图（每个文件一个零件）；与 model_path 二选一",
+      "items": {
+        "type": "string"
+      }
     },
     "views": {
       "type": "array",
@@ -4869,7 +4878,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "callouts": {
       "type": "array",
-      "description": "件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）",
+      "description": "件号锚定 [{numeral, point3d:[x,y,z], label?, model?}]；model 为所属零件下标，装配体下必填；目录批量不支持",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -4888,6 +4897,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
           "label": {
             "type": "string",
             "description": "可选部件名称（写入标号表/manifest，不进图面像素）"
+          },
+          "model": {
+            "type": "integer",
+            "description": "该件号所属零件在输入模型列表中的下标（0 起）；给定时核对锚点确实落在该零件上（偏离超过 0.5 毫米即报错）。装配体（model_paths）下必填"
           }
         },
         "required": [
@@ -4933,10 +4946,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
     }
-  },
-  "required": [
-    "model_path"
-  ]
+  }
 }
 ```
 
