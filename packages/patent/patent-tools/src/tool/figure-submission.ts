@@ -10,20 +10,29 @@ import { drawingComplianceWarnings } from '../figure/compliance.ts'
 import type { DotFormat } from '../figure/dot-builder.ts'
 import { figureCaption, officeProfile, sheetNumberText } from '../figure/office-profile.ts'
 import type { OfficeProfile, TargetOffice } from '../figure/office-profile.ts'
-import { buildSubmissionPage } from '../figure/submission-page.ts'
+import { buildSubmissionPage, DEFAULT_CAPTION_FONT_MM, DEFAULT_CAPTION_GAP_MM, DEFAULT_SHEET_FONT_MM, SUBMISSION_ROTATIONS } from '../figure/submission-page.ts'
+import type { SubmissionRotation } from '../figure/submission-page.ts'
 import type { SubmissionPageMetrics } from '../figure/submission-page.ts'
 import type { GeneratePatentFigureLayout } from './figure-input.ts'
 
 /** DOT 正文字号（与 buildDotHeader 的 node fontsize 一致），用于落版后的字高核算。 */
 const FIGURE_BODY_FONT_SIZE = 10
 
-/** 落版参数（target_office 给定时解析）。 */
+/** 落版参数（target_office 给定时解析；字号与间距已填默认并校验为正）。 */
 type SubmissionPlan = {
   profile: OfficeProfile
   caption?: string | undefined
   sheetNumber: string
   bodyFontSize: number
   fitToPage: boolean
+  /** 图号字高（毫米）。 */
+  captionFontMm: number
+  /** 图号与图形之间的间距（毫米）。 */
+  captionGapMm: number
+  /** 页码字高（毫米）。 */
+  sheetFontMm: number
+  /** 图形绕绘图区中心顺时针旋转的角度。 */
+  rotateDeg: SubmissionRotation
 }
 
 /** 落版执行结果（指标 + 实际写上图面的图号与页码）。 */
@@ -42,14 +51,19 @@ export type SubmissionPlanInput = {
   sheet_total?: number | undefined
   caption?: string | undefined
   fit_to_page?: boolean | undefined
+  caption_font_mm?: number | undefined
+  caption_gap_mm?: number | undefined
+  sheet_font_mm?: number | undefined
+  rotate_deg?: number | undefined
 }
 
 /**
- * 解析落版参数：图号按目标法域生成（panels 模式追加面板后缀），页码按法域写法生成。
+ * 解析落版参数：图号按目标法域生成（panels 模式追加面板后缀），页码按法域写法生成，
+ * 图号/页码字号与间距填默认并校验为正。
  * @param input - 工具输入（或归一化后的结构化输入）。
  * @param suffix - 面板后缀（单图为空串）。
  * @returns 落版参数；未指定 target_office 时 undefined。
- * @throws PatentToolError('invalid_tool_input') 图号、附图总数或页序超出法域写法允许范围时。
+ * @throws PatentToolError('invalid_tool_input') 图号、附图总数或页序超出法域写法允许范围，或字号/间距非正时。
  */
 export function resolveSubmission(input: SubmissionPlanInput, suffix: string): SubmissionPlan | undefined {
   const office = input.target_office
@@ -64,7 +78,51 @@ export function resolveSubmission(input: SubmissionPlanInput, suffix: string): S
   } catch (error) {
     throw new PatentToolError('invalid_tool_input', `落版参数非法：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_patent_figure' })
   }
-  return { profile, caption, sheetNumber, bodyFontSize: FIGURE_BODY_FONT_SIZE, fitToPage: input.fit_to_page ?? true }
+  return {
+    profile,
+    caption,
+    sheetNumber,
+    bodyFontSize: FIGURE_BODY_FONT_SIZE,
+    fitToPage: input.fit_to_page ?? true,
+    captionFontMm: positiveMm(input.caption_font_mm, DEFAULT_CAPTION_FONT_MM, 'caption_font_mm'),
+    captionGapMm: positiveMm(input.caption_gap_mm, DEFAULT_CAPTION_GAP_MM, 'caption_gap_mm'),
+    sheetFontMm: positiveMm(input.sheet_font_mm, DEFAULT_SHEET_FONT_MM, 'sheet_font_mm'),
+    rotateDeg: readRotation(input.rotate_deg),
+  }
+}
+
+/**
+ * 落版旋转角的边界校验：schema 的 enum 只约束模型 JSON，这里对全部调用方收口。
+ * @param value - 模型传入的角度；undefined 表示不旋转。
+ * @returns 闭集内的旋转角。
+ * @throws PatentToolError('invalid_tool_input') 角度不在闭集内时。
+ */
+function readRotation(value: number | undefined): SubmissionRotation {
+  if (value === undefined) return 0
+  const match = SUBMISSION_ROTATIONS.find(rotation => rotation === value)
+  if (match === undefined) {
+    throw new PatentToolError('invalid_tool_input', `落版参数非法：rotate_deg 只支持 ${SUBMISSION_ROTATIONS.join('/')}（度），收到 ${String(value)}`, { tool: 'generate_patent_figure' })
+  }
+  return match
+}
+
+/**
+ * 数值参数的落版校验：缺省取默认值，给了就必须是正的有限数。
+ *
+ * 校验放在解析步骤而不是落版函数里：`buildSubmissionPage` 抛的是裸 `RangeError`，
+ * 到了工具层只会变成内部错误；这里转成 `invalid_tool_input`，模型才知道是自己传错了。
+ * @param value - 模型传入的值；undefined 表示用默认值。
+ * @param fallback - 缺省值。
+ * @param field - 字段名（用于报错定位）。
+ * @returns 校验通过的值。
+ * @throws PatentToolError('invalid_tool_input') 值非正或非有限数时。
+ */
+function positiveMm(value: number | undefined, fallback: number, field: string): number {
+  if (value === undefined) return fallback
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new PatentToolError('invalid_tool_input', `落版参数非法：${field} 必须是正的有限数（毫米），收到 ${String(value)}`, { tool: 'generate_patent_figure' })
+  }
+  return value
 }
 
 /**
@@ -92,6 +150,10 @@ export async function applySubmissionPage(
     caption: plan.caption,
     sheetNumber: plan.sheetNumber,
     bodyFontSize: plan.bodyFontSize,
+    captionFontMm: plan.captionFontMm,
+    captionGapMm: plan.captionGapMm,
+    sheetFontMm: plan.sheetFontMm,
+    rotateDeg: plan.rotateDeg,
   })
   warnings.push(...page.warnings.map(w => `落版：${w}`))
   if (plan.fitToPage) await writeFile(outcomePath, page.svg, 'utf8')

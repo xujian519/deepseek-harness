@@ -170,6 +170,14 @@ export type GeneratePatentFigureInput = SharedFigureInputFields & {
   caption?: string
   /** 是否把图形落版到固定幅面（仅 SVG 且给定 target_office 时生效）；false 时只核算尺寸、不改写画布。 */
   fit_to_page?: boolean
+  /** 图号字高（毫米，默认 4）。 */
+  caption_font_mm?: number
+  /** 图号与图形之间的间距（毫米，默认 3）。 */
+  caption_gap_mm?: number
+  /** 页码字高（毫米，默认 3）。 */
+  sheet_font_mm?: number
+  /** 落版时图形绕绘图区中心顺时针旋转的角度（0/90/180/270，默认 0）；90/270 交换落版后的宽高。 */
+  rotate_deg?: number
   /** 剖视图（cross_section）：要求每个轮廓显式给出 hatch（不被剖切的写 `"none"`），缺省即报错。 */
   require_explicit_hatch?: boolean
   persist_index?: boolean

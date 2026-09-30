@@ -4693,6 +4693,28 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
       "type": "boolean",
       "description": "默认 true：把图形落版到目标法域幅面（仅 SVG）；false 时只核算尺寸、不改写画布"
     },
+    "caption_font_mm": {
+      "type": "number",
+      "description": "图号字高（毫米，默认 4）；目标法域对图面文字有最小字高要求时用它调大，须为正数"
+    },
+    "caption_gap_mm": {
+      "type": "number",
+      "description": "图号与图形之间的间距（毫米，默认 3），须为正数"
+    },
+    "sheet_font_mm": {
+      "type": "number",
+      "description": "附图页页码字高（毫米，默认 3），须为正数"
+    },
+    "rotate_deg": {
+      "type": "integer",
+      "description": "落版时把图形绕绘图区中心顺时针旋转的角度（默认 0）：横长的图形配竖向版心时用 90，落版宽高随之互换；图号仍落在图形正下方",
+      "enum": [
+        0,
+        90,
+        180,
+        270
+      ]
+    },
     "require_explicit_hatch": {
       "type": "boolean",
       "description": "剖视图（cross_section）专用，默认 false：true 时每个轮廓都必须显式给出 hatch（不被剖切的写 \"none\"），否则报错；缺省时未给的轮廓套用默认 45°/3 毫米并返回提示"

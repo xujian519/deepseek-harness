@@ -10,11 +10,14 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { figureCaption, officeProfile, sheetNumberText, TARGET_OFFICES } from '../src/figure/office-profile.ts'
 import type { OfficeProfile } from '../src/figure/office-profile.ts'
 import { buildSubmissionPage, parseDrawingSvg } from '../src/figure/submission-page.ts'
+import { measureInkBounds } from '../src/figure/render-check.ts'
 import { parseLengthMm } from '../src/figure/svg-viewport.ts'
 import type { SubmissionPageMetrics } from '../src/figure/submission-page.ts'
 import { drawingComplianceWarnings } from '../src/figure/compliance.ts'
 import { SvgAnnotateError } from '../src/figure/svg-annotate.ts'
 import { createGeneratePatentFigureTool } from '../src/tool/generate-patent-figure.ts'
+import { resolveSubmission } from '../src/tool/figure-submission.ts'
+import { PatentToolError } from '../src/error.ts'
 import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../src/figure/graphviz-renderer.ts'
 
 const signal = new AbortController().signal
@@ -196,6 +199,102 @@ describe('submission-page：落版', () => {
     expect(() => buildSubmissionPage({ ...base, bodyFontSize: 0 })).toThrow(RangeError)
     const crowded: OfficeProfile = { ...officeProfile('cnipa'), margins: { topMm: 200, leftMm: 20, rightMm: 20, bottomMm: 200 } }
     expect(() => buildSubmissionPage({ ...base, profile: crowded })).toThrow(RangeError)
+  })
+
+  it('图号/页码字号与间距按参数落到落版文本', () => {
+    const tiny = '<svg width="100mm" height="100mm" xmlns="http://www.w3.org/2000/svg"><g/></svg>'
+    const base = { drawingSvg: tiny, profile: officeProfile('cnipa'), caption: '图1', sheetNumber: '1' }
+    const read = (svg: string, text: string): { font: number; y: number } => {
+      const match = new RegExp(`<text x="([^"]*)" y="([^"]*)"[^>]*font-size="([^"]*)"[^>]*>${text}</`).exec(svg)
+      return { font: Number(match?.[3]), y: Number(match?.[2]) }
+    }
+    expect(read(buildSubmissionPage(base).svg, '图1')).toEqual({ font: 4, y: 241.2 })
+    // 图号 y = 图形下沿 + 间距 + 字高×0.8；字号与间距也参与上方的图号块高度，
+    // 故放大后图形上移、y 的增量小于「间距+字高」的增量。
+    expect(read(buildSubmissionPage({ ...base, captionFontMm: 5, captionGapMm: 6 }).svg, '图1')).toEqual({ font: 5, y: 243 })
+    expect(read(buildSubmissionPage({ ...base, sheetFontMm: 6 }).svg, '1').font).toBe(6)
+  })
+})
+
+describe('submission-page：落版旋转', () => {
+  /** 精确填满声明尺寸的矩形，供墨迹量测（无图号/页码时墨迹即图形框）。 */
+  const boxed = (widthMm: number, heightMm: number): string =>
+    `<svg width="${String(widthMm)}mm" height="${String(heightMm)}mm" viewBox="0 0 ${String(widthMm)} ${String(heightMm)}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${String(widthMm)}" height="${String(heightMm)}" fill="none" stroke="#000000"/></svg>`
+
+  it('90°：纵横比互换、旋转后仍装进可绘图区、绕绘图区中心', () => {
+    const profile = officeProfile('cnipa')
+    const plain = buildSubmissionPage({ drawingSvg: boxed(200, 100), profile })
+    const turned = buildSubmissionPage({ drawingSvg: boxed(200, 100), profile, rotateDeg: 90 })
+    expect(turned.metrics.placedWidthMm / turned.metrics.placedHeightMm)
+      .toBeCloseTo(plain.metrics.placedHeightMm / plain.metrics.placedWidthMm)
+    // 可绘图区 170×257；旋转后仍不越界（这正是按旋转后占位重算缩放比的原因）。
+    expect(turned.metrics.placedWidthMm).toBeLessThanOrEqual(170)
+    expect(turned.metrics.placedHeightMm).toBeLessThanOrEqual(257)
+    // 绕可绘图区中心：x 25+170/2=110，y 25+257/2=153.5。
+    expect(turned.svg).toContain('translate(110,153.5) rotate(90) translate(-110,-153.5)')
+    expect(plain.svg).not.toContain('rotate(')
+    // 墨迹中心落在可绘图区中心（两种朝向都不偏），且不越出可绘图区。
+    const slack = 1e-6
+    for (const [label, page, area] of [['不旋转', plain, 170 * 85], ['旋转', turned, 128.5 * 257]] as const) {
+      const ink = measureInkBounds(page.svg)
+      expect(ink, label).toBeDefined()
+      expect(ink?.minX ?? 0, label).toBeGreaterThanOrEqual(25 - slack)
+      expect(ink?.maxX ?? 0, label).toBeLessThanOrEqual(195 + slack)
+      expect(ink?.minY ?? 0, label).toBeGreaterThanOrEqual(25 - slack)
+      expect(ink?.maxY ?? 0, label).toBeLessThanOrEqual(282 + slack)
+      expect(((ink?.maxX ?? 0) + (ink?.minX ?? 0)) / 2, label).toBeCloseTo(110)
+      expect(((ink?.maxY ?? 0) + (ink?.minY ?? 0)) / 2, label).toBeCloseTo(153.5)
+      // 占位面积与旋转无关地守恒（缩放比不同，故只比面积）
+      expect(((ink?.maxX ?? 0) - (ink?.minX ?? 0)) * ((ink?.maxY ?? 0) - (ink?.minY ?? 0)), label).toBeCloseTo(area, 0)
+    }
+  })
+
+  it('正方形图形旋转 90°：图号与页码的 y 逐值不变', () => {
+    const profile = officeProfile('cnipa')
+    const base = { drawingSvg: boxed(100, 100), profile, caption: '图1', sheetNumber: '1' }
+    const plain = buildSubmissionPage(base)
+    const turned = buildSubmissionPage({ ...base, rotateDeg: 90 })
+    const y = (svg: string, text: string): string | undefined =>
+      new RegExp(`<text x="[^"]*" y="([^"]*)"[^>]*>${text}</`).exec(svg)?.[1]
+    expect(y(turned.svg, '图1')).toBe(y(plain.svg, '图1'))
+    expect(y(turned.svg, '1')).toBe(y(plain.svg, '1'))
+    expect(turned.metrics.placedWidthMm).toBeCloseTo(plain.metrics.placedWidthMm)
+    expect(turned.metrics.placedHeightMm).toBeCloseTo(plain.metrics.placedHeightMm)
+  })
+
+  it('非正方形图形旋转后图号仍紧贴旋转后图形的下沿', () => {
+    const profile = officeProfile('cnipa')
+    const base = { drawingSvg: boxed(200, 100), profile, caption: '图1', sheetNumber: '1' }
+    const page = buildSubmissionPage({ ...base, rotateDeg: 90 })
+    const captionY = Number(/<text x="[^"]*" y="([^"]*)"[^>]*>图1</.exec(page.svg)?.[1])
+    // 图号块占 3+4 毫米，故可绘图区高 250；图形下沿 = 25 + (250 - placedHeight)/2 + placedHeight。
+    expect(captionY).toBeCloseTo(25 + (250 + page.metrics.placedHeightMm) / 2 + 3 + 4 * 0.8)
+  })
+
+  it('0 与不传逐字节一致', () => {
+    const base = { drawingSvg: GRAPHVIZ_SVG, profile: officeProfile('cnipa'), caption: '图1', sheetNumber: '1' }
+    expect(buildSubmissionPage({ ...base, rotateDeg: 0 }).svg).toBe(buildSubmissionPage(base).svg)
+  })
+})
+
+describe('figure-submission：落版参数解析', () => {
+  it('rotate_deg 收窄到闭集；非闭集值报 invalid_tool_input', () => {
+    expect(resolveSubmission({}, '')).toBeUndefined()
+    expect(resolveSubmission({ target_office: 'cnipa' }, '')?.rotateDeg).toBe(0)
+    expect(resolveSubmission({ target_office: 'cnipa', rotate_deg: 270 }, '')?.rotateDeg).toBe(270)
+    // schema 的 enum 已挡下模型的非法值；这一层对绕过 schema 的调用方收口。
+    expect(() => resolveSubmission({ target_office: 'cnipa', rotate_deg: 45 }, '')).toThrow(PatentToolError)
+    expect(() => resolveSubmission({ target_office: 'cnipa', rotate_deg: 45 }, '')).toThrow('rotate_deg 只支持 0/90/180/270（度）')
+  })
+
+  it('字号/间距填默认并校验为正', () => {
+    const plain = resolveSubmission({ target_office: 'cnipa' }, '')
+    expect(plain).toMatchObject({ captionFontMm: 4, captionGapMm: 3, sheetFontMm: 3, fitToPage: true })
+    expect(resolveSubmission({ target_office: 'cnipa', caption_font_mm: 5, caption_gap_mm: 2, sheet_font_mm: 4, fit_to_page: false }, ''))
+      .toMatchObject({ captionFontMm: 5, captionGapMm: 2, sheetFontMm: 4, fitToPage: false })
+    expect(() => resolveSubmission({ target_office: 'cnipa', caption_font_mm: 0 }, '')).toThrow('caption_font_mm')
+    expect(() => resolveSubmission({ target_office: 'cnipa', caption_gap_mm: Number.NaN }, '')).toThrow('caption_gap_mm')
+    expect(() => resolveSubmission({ target_office: 'cnipa', sheet_font_mm: -1 }, '')).toThrow('sheet_font_mm')
   })
 })
 
@@ -385,6 +484,69 @@ describe('generate_patent_figure：落版接线', () => {
       const pngValue = png as { value: { layout?: unknown; warnings: string[] } }
       expect(pngValue.value.layout).toBeUndefined()
       expect(pngValue.value.warnings.join('\n')).toContain('落版仅支持 SVG')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('落版字号参数直达工具：生效、非法值报 invalid_tool_input', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-submit-'))
+    const outDir = join(dir, 'figs')
+    const tool = createGeneratePatentFigureTool({ ...svgRenderer(GRAPHVIZ_SVG), outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const sized = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        target_office: 'cnipa',
+        figure_count: 2,
+        caption_font_mm: 5,
+        sheet_font_mm: 4,
+        filename: 'sized',
+      }, 's8')
+      expect(sized.isError).toBe(false)
+      const written = readFileSync(join(outDir, 'sized.svg'), 'utf8')
+      expect(written).toMatch(/font-size="5"[^>]*>图1<\/text>/)
+      expect(written).toMatch(/font-size="4"[^>]*>1<\/text>/)
+      for (const [callId, field, value] of [['s9', 'caption_font_mm', 0], ['s10', 'caption_gap_mm', -1], ['s11', 'sheet_font_mm', 0]] as const) {
+        const bad = await execute(ctx, 'generate_patent_figure', {
+          figure_type: 'flowchart',
+          steps: flowSteps,
+          target_office: 'cnipa',
+          [field]: value,
+        }, callId)
+        expect(bad.isError).toBe(true)
+        expect(text(bad)).toContain(field)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('落版旋转角直达工具：非闭集值报 invalid_tool_input', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-submit-'))
+    const outDir = join(dir, 'figs')
+    const tool = createGeneratePatentFigureTool({ ...svgRenderer(GRAPHVIZ_SVG), outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const turned = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        target_office: 'cnipa',
+        figure_count: 2,
+        rotate_deg: 180,
+        filename: 'turned',
+      }, 's12')
+      expect(turned.isError).toBe(false)
+      expect(readFileSync(join(outDir, 'turned.svg'), 'utf8')).toContain('rotate(180)')
+      const bad = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        target_office: 'cnipa',
+        rotate_deg: 45,
+      }, 's13')
+      expect(bad.isError).toBe(true)
+      expect(text(bad)).toContain('"rotate_deg" must be one of [0,90,180,270]')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
