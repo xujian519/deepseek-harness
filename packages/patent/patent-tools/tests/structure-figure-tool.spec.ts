@@ -10,6 +10,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { StructureRenderOutcome, StructureRenderSpec } from '../src/figure/freecad-renderer.ts'
 import { STRUCTURE_MANIFEST_FILENAME } from '../src/figure/freecad-structure-script.ts'
 import { createGenerateStructureFigureTool, STRUCTURE_FIGURE_MODEL_USED } from '../src/tool/generate-structure-figure.ts'
+import type { GenerateStructureFigureInput } from '../src/tool/generate-structure-figure.ts'
 import type { FigureIndexEntry } from '../src/figure/index-store.ts'
 
 /**
@@ -639,9 +640,13 @@ describe('generate_structure_figure 局部放大视图（details）', () => {
       const { render, calls } = okRenderer()
       const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
       // 非有限数进不到这里的复核分支：JSON 里 Infinity/NaN 会序列化成 null，被 schema
-      // 挡在门外；有限性那半支面向的是直接调库、绕过 schema 的调用方（同 point3d）。
-      const details = [{ ...window8, center: [0, 0] as unknown as [number, number, number] }]
-      await expect(tool.execute({ model_path: model, views: ['front'], details }, exec))
+      // 挡在门外；长度那半支面向的是绕过 schema 的调用方（同 point3d），故按 JSON 边界构造。
+      const args = JSON.parse(JSON.stringify({
+        model_path: model,
+        views: ['front'],
+        details: [{ ...window8, center: [0, 0] }],
+      })) as GenerateStructureFigureInput
+      await expect(tool.execute(args, exec))
         .rejects.toMatchObject({ code: 'invalid_tool_input' })
       expect(calls).toHaveLength(0)
     } finally {

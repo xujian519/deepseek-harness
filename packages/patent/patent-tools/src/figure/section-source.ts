@@ -255,13 +255,20 @@ function portContext(options: SectionSourceOptions): { outputDir: string; signal
 }
 
 /**
+ * 两个端口共用的失败结果：取消与环境缺失在两处同码，其余归各自步骤的失败码。
+ */
+type PortFailureOutcome =
+  | Extract<SectionGeometryOutcome, { ok: false }>
+  | Extract<SectionHatchOutcome, { ok: false }>
+
+/**
  * 端口失败的公共映射：取消与环境缺失各成一码，其余归该步的失败码。
  * @param outcome - 端口的失败结果。
  * @param stage - 该步的取消文案与失败码。
  * @returns 对应的剖切来源错误。
  */
 function portFailure(
-  outcome: { readonly code: 'aborted' | 'not_installed' | string; readonly error: string },
+  outcome: PortFailureOutcome,
   stage: { readonly aborted: string; readonly failed: SectionSourceErrorCode },
 ): SectionSourceError {
   if (outcome.code === 'aborted') return new SectionSourceError('aborted', stage.aborted)
