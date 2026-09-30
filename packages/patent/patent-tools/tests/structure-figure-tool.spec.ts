@@ -63,6 +63,7 @@ function okRenderer(opts: RenderOpts = {}): MockRenderer {
         writeFileSync(path, svg)
         return {
           name,
+          kind: 'view' as const,
           order,
           path,
           bbox: [0, 0, 10, 10],
@@ -76,13 +77,32 @@ function okRenderer(opts: RenderOpts = {}): MockRenderer {
           })),
         }
       })
+      // 放大视图：脚本产出的一等视图条目（kind='detail' + 窗口元数据）。
+      const details = (spec.details ?? []).map((detail, index) => {
+        const name = `detail${index + 1}`
+        const path = join(spec.outputDir, `fig${spec.figureNumber}_${name}.svg`)
+        writeFileSync(path, svg)
+        return {
+          name,
+          kind: 'detail' as const,
+          order: views.length + index,
+          path,
+          bbox: [0, 0, 10, 10],
+          anchors: [],
+          base: detail.base,
+          center3d: [...detail.center],
+          radiusMm: detail.radiusMm,
+          scale: detail.scale,
+          reference: detail.reference,
+        }
+      })
       const manifest = {
         figureNumber: spec.figureNumber,
         modelPaths: spec.modelPaths,
         scale: spec.scale,
         showHidden: spec.showHidden,
         generator: 'freecad-structure',
-        views: opts.emptyViews ? [] : views,
+        views: opts.emptyViews ? [] : [...views, ...details],
       }
       const manifestPath = join(spec.outputDir, STRUCTURE_MANIFEST_FILENAME)
       writeFileSync(manifestPath, JSON.stringify(manifest))
@@ -402,6 +422,23 @@ describe('generate_structure_figure wording & validation', () => {
     }
   })
 
+  it('批量目录与 details 同用报 invalid_tool_input（放大窗口也是模型专属坐标）', async () => {
+    const dir = tempDir()
+    const modelDir = join(dir, 'models')
+    mkdirSync(modelDir, { recursive: true })
+    writeModel(modelDir, 'a.step')
+    writeModel(modelDir, 'b.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: modelDir, views: ['iso'], details: [{ base: 'iso', center: [0, 0, 0], radius_mm: 5 }] }, exec))
+        .rejects.toMatchObject({ code: 'invalid_tool_input' })
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('scale 非正数报 invalid_tool_input', async () => {
     const dir = tempDir()
     const model = writeModel(dir, 'a.step')
@@ -490,6 +527,123 @@ describe('generate_structure_figure render outcome mapping', () => {
       expect(result.isError).toBe(false)
       expect(result.value.indexed).toBe(false)
       expect(result.value.warnings.some(w => w.includes('附图索引写入失败') && w.includes('disk full'))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_structure_figure 局部放大视图（details）', () => {
+  /** 一个最小窗口请求：正视图中以模型 (0,0,8)（立圆柱与底板交界）为圆心、半径 8 毫米。 */
+  const window8 = { base: 'front', center: [0, 0, 8] as [number, number, number], radius_mm: 8 }
+
+  it('归一窗口后交给渲染器：缺省 2 倍放大、标号取序号，放大视图进 paths 与 manifest', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const model = writeModel(dir, 'bracket.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      type ManifestView = {
+        name: string
+        kind: string
+        base?: string
+        center3d?: number[]
+        radiusMm?: number
+        scale?: number
+        reference?: string
+      }
+      const result = await execute(ctx, 'generate_structure_figure', {
+        model_path: model,
+        views: ['front'],
+        details: [window8],
+      }, 'detail1') as {
+        isError: boolean
+        value: { paths: string[]; figures: { manifest: { views: ManifestView[] } }[] }
+      }
+      expect(result.isError).toBe(false)
+      expect(calls[0]!.details).toEqual([{ base: 'front', center: [0, 0, 8], radiusMm: 8, scale: 2, reference: '1' }])
+      // 基视图与放大视图都在产物路径里；放大视图带窗口元数据（kind/base/圆心/半径/倍数/标号）。
+      expect(result.value.paths).toEqual(['figs/fig1/fig1_front.svg', 'figs/fig1/fig1_detail1.svg'])
+      const views = result.value.figures[0]!.manifest.views
+      expect(views.map(view => [view.name, view.kind])).toEqual([['front', 'view'], ['detail1', 'detail']])
+      expect(views[1]).toMatchObject({ base: 'front', center3d: [0, 0, 8], radiusMm: 8, scale: 2, reference: '1' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('显式 scale 与 reference 原样透传', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const model = writeModel(dir, 'bracket.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_structure_figure', {
+        model_path: model,
+        views: ['front'],
+        details: [{ ...window8, scale: 5, reference: 'Ⅰ' }],
+      }, 'detail2') as { isError: boolean }
+      expect(result.isError).toBe(false)
+      expect(calls[0]!.details).toEqual([{ base: 'front', center: [0, 0, 8], radiusMm: 8, scale: 5, reference: 'Ⅰ' }])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('base 不在本次 views 里报 invalid_tool_input（窗口没有落脚处）', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'bracket.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      const error = await tool.execute({ model_path: model, views: ['iso'], details: [window8] }, exec).catch((thrown: unknown) => thrown)
+      expect(error).toMatchObject({ code: 'invalid_tool_input' })
+      // 报错点名是哪个字段：模型要能据此自己改对（并把可用视图列出来）。
+      expect((error as Error).message).toContain('details[0].base')
+      expect((error as Error).message).toContain('iso')
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('半径与倍数非正各报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'bracket.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      const views = ['front']
+      for (const details of [
+        [{ ...window8, radius_mm: 0 }],
+        [{ ...window8, radius_mm: -3 }],
+        [{ ...window8, scale: 0 }],
+        [{ ...window8, scale: -2 }],
+      ]) {
+        await expect(tool.execute({ model_path: model, views, details }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+      }
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('圆心长度不是 3 报 invalid_tool_input（schema 只把 center 约束为 number[]）', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'bracket.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      // 非有限数进不到这里的复核分支：JSON 里 Infinity/NaN 会序列化成 null，被 schema
+      // 挡在门外；有限性那半支面向的是直接调库、绕过 schema 的调用方（同 point3d）。
+      const details = [{ ...window8, center: [0, 0] as unknown as [number, number, number] }]
+      await expect(tool.execute({ model_path: model, views: ['front'], details }, exec))
+        .rejects.toMatchObject({ code: 'invalid_tool_input' })
+      expect(calls).toHaveLength(0)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

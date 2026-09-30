@@ -30,6 +30,7 @@ import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import {
   DEFAULT_STRUCTURE_VIEWS,
   STRUCTURE_VIEWS,
+  type StructureDetail,
   type StructureViewName,
 } from '../figure/freecad-structure-script.ts'
 import { SUPPORTED_MODEL_EXTENSIONS } from '../figure/freecad-renderer.ts'
@@ -52,6 +53,9 @@ export const STRUCTURE_FIGURE_MODEL_USED = 'freecad-structure'
 /** 缺省 TechDraw 投影比例。 */
 const DEFAULT_STRUCTURE_SCALE = 1
 
+/** 局部放大视图的缺省放大倍数（2 倍是机械图「放大图」的常用档）。 */
+const DEFAULT_DETAIL_SCALE = 2
+
 /** manifest 中单个件号锚点（Python 侧投影后写回）。 */
 export type StructureManifestAnchor = {
   numeral: string
@@ -64,13 +68,25 @@ export type StructureManifestAnchor = {
   point2d: number[]
 }
 
-/** manifest 中单个视图条目。 */
+/** manifest 中单个视图条目（`kind` 区分普通投影视图与局部放大视图）。 */
 export type StructureManifestView = {
   name: string
+  /** `view` 为普通投影视图；`detail` 为局部放大视图（带 base/center3d/radiusMm/scale/reference）。 */
+  kind: 'view' | 'detail'
   order: number
   path: string
   bbox: number[]
   anchors: StructureManifestAnchor[]
+  /** 放大视图的基视图名（仅 `kind='detail'`）。 */
+  base?: string
+  /** 放大视图的窗口圆心（模型 3D 坐标，仅 `kind='detail'`）。 */
+  center3d?: number[]
+  /** 放大视图的窗口半径（模型毫米，仅 `kind='detail'`）。 */
+  radiusMm?: number
+  /** 放大视图的放大倍数（仅 `kind='detail'`）。 */
+  scale?: number
+  /** 放大视图的标号（仅 `kind='detail'`）。 */
+  reference?: string
 }
 
 /** freecad-structure-script 写出的 manifest.json 结构（渲染产物契约）。 */
@@ -108,6 +124,20 @@ export type StructureCalloutInput = {
   model?: number
 }
 
+/** 局部放大视图输入（与 schema 一致）：窗口按模型坐标给出，与视图朝向、投影比例无关。 */
+export type StructureDetailInput = {
+  /** 窗口所在的基视图名（必须是本次 `views` 里的视图）。 */
+  base: string
+  /** 窗口圆心的模型 3D 坐标（毫米）。 */
+  center: [number, number, number]
+  /** 窗口半径（模型毫米）。 */
+  radius_mm: number
+  /** 放大倍数；缺省 2。 */
+  scale?: number
+  /** 窗口标号（如「Ⅰ」）；缺省该细节的序号。 */
+  reference?: string
+}
+
 /** 工具输入（与 schema 一致）。 */
 export type GenerateStructureFigureInput = {
   /** 模型文件路径，或其目录（批量：目录内每个受支持模型生成一图，图号自 base 递增）；与 `model_paths` 二选一。 */
@@ -129,6 +159,8 @@ export type GenerateStructureFigureInput = {
   hidden_line_style?: StructureHiddenLineStyle
   /** 件号锚定（可为空）。 */
   callouts?: StructureCalloutInput[]
+  /** 局部放大视图（可为空）：把某个基视图上的一块圆形窗口放大成一张独立视图。 */
+  details?: StructureDetailInput[]
   /** 图号，默认 1（批量时作为起始图号）。 */
   figure_number?: number
   /** 发明名称（附图说明模板句）。 */
@@ -198,6 +230,41 @@ function normalizeCallouts(callouts: readonly StructureCalloutInput[] | undefine
       throw new PatentToolError('invalid_tool_input', `callouts[${index}].point3d 必须是恰好三个有限数 [x,y,z]`, { tool: 'generate_structure_figure' })
     }
     return callout
+  })
+}
+
+/**
+ * 校验并归一局部放大视图。schema 只约束 JSON 形状，模型实参在这里复核：
+ * 基视图必须是本次渲染的视图（否则窗口无处落）、圆心必须恰好三个有限数、
+ * 半径与倍数必须正有限。
+ * @param details - the model-supplied detail entries.
+ * @param views - the resolved view list the details must point into.
+ * @returns normalized details handed to the projection script.
+ * @throws PatentToolError when a value is out of range or the base view is not rendered.
+ */
+function normalizeDetails(
+  details: readonly StructureDetailInput[] | undefined,
+  views: readonly StructureViewName[],
+): StructureDetail[] {
+  return (details ?? []).map((detail, index) => {
+    const base = views.find(view => view === detail.base)
+    if (base === undefined) {
+      throw new PatentToolError('invalid_tool_input', `details[${index}].base 必须是本次渲染的视图之一（${views.join('、')}），收到 "${detail.base}"`, { tool: 'generate_structure_figure' })
+    }
+    const center = detail.center
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- 声明类型是三元组，但模型实参只经 schema 校验为 number[]，长度必须运行时复核
+    if (center.length !== 3 || center.some(n => !Number.isFinite(n))) {
+      throw new PatentToolError('invalid_tool_input', `details[${index}].center 必须是恰好三个有限数 [x,y,z]`, { tool: 'generate_structure_figure' })
+    }
+    // 半径与倍数是模型 JSON 或部署缺省：schema 只约束为 number，正有限性必须在此 fail-loud。
+    if (!Number.isFinite(detail.radius_mm) || detail.radius_mm <= 0) {
+      throw new PatentToolError('invalid_tool_input', `details[${index}].radius_mm 必须是正有限数，收到 ${String(detail.radius_mm)}`, { tool: 'generate_structure_figure' })
+    }
+    const scale = detail.scale ?? DEFAULT_DETAIL_SCALE
+    if (!Number.isFinite(scale) || scale <= 0) {
+      throw new PatentToolError('invalid_tool_input', `details[${index}].scale 必须是正有限数，收到 ${String(detail.scale)}`, { tool: 'generate_structure_figure' })
+    }
+    return { base, center, radiusMm: detail.radius_mm, scale, reference: detail.reference ?? String(index + 1) }
   })
 }
 
@@ -361,6 +428,23 @@ const CALLOUT_SCHEMA = {
   },
 } as const
 
+const DETAIL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    base: { type: 'string', required: true, enum: STRUCTURE_VIEWS, description: '窗口所在的基视图，必须是本次 views 里的视图' },
+    center: {
+      type: 'array',
+      required: true,
+      description: '窗口圆心的模型 3D 坐标 [x,y,z]（毫米，与模型单位一致）',
+      items: { type: 'number' },
+    },
+    radius_mm: { type: 'number', required: true, description: '窗口半径（模型毫米），必须为正' },
+    scale: { type: 'number', description: '放大倍数（正数），缺省 2' },
+    reference: { type: 'string', description: '窗口标号（如「Ⅰ」），缺省该细节的序号' },
+  },
+} as const
+
 const DESCRIPTION = [
   '从 3D 模型生成专利结构线稿附图：用本机 FreeCAD（TechDraw）把 STEP/IGES/BREP 投影为多视图黑白线稿 SVG（等轴测/三视图等），件号以引线锚定到真实顶点投影，输出到工作区 patent/figures/，返回标号映射表与「图N是…的结构示意图」附图说明。需要机械结构真实投影（而非示意框图）时使用。',
   '',
@@ -373,6 +457,8 @@ const DESCRIPTION = [
   '件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?, model?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。',
   '',
   '装配体：model_paths 传多个模型文件时，所有零件投影到同一张图（TechDraw 一次投影处理零件之间的遮挡），callouts[].model 指明该件号属于第几个零件（0 起，对应 model_paths 的顺序），脚本按该零件的真实几何核对锚点确实落在它上面，偏离超过 0.5 毫米即报错；装配体下每个件号都必须写明归属，以免标号指错零件。',
+  '',
+  '局部放大：details 传 [{base, center:[x,y,z], radius_mm, scale?, reference?}]，把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的圆形区域按 scale（缺省 2）放大成一张独立视图（fig{N}_detail{M}.svg），并在 base 视图上画出该窗口的圆与标号。窗口按模型坐标给出，故与视图朝向、投影比例无关；base 必须是本次 views 里的视图，放大视图随 paths/manifest 一并返回（manifest 里该视图带 kind="detail" 与 base/center3d/radiusMm/scale/reference）。',
   '',
   '批量：model_path 传目录时，对目录内每个受支持模型各出一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效），多个零件要合成一张图时改用 model_paths。',
   '',
@@ -394,6 +480,8 @@ type StructureRun = {
   hiddenLineStyle: StructureHiddenLineStyle
   baseFigure: number
   callouts: StructureCalloutInput[]
+  /** 局部放大视图（已归一：base 落在 views 内、半径/倍数为正有限）。 */
+  details: StructureDetail[]
   modelPaths: string[]
   /** 是否装配体（`model_paths`）：所有模型投影成一张图，否则逐模型一图。 */
   assembly: boolean
@@ -433,6 +521,7 @@ async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureD
     ...(callout.label === undefined ? {} : { label: callout.label }),
     ...(callout.model === undefined ? {} : { model: callout.model }),
   }))
+  const details = normalizeDetails(input.details, views)
   const { modelPaths, assembly } = await resolveStructureModels(input, cwd)
   for (const [index, callout] of callouts.entries()) {
     // 装配体的判据是「件号锚点落在所声明的零件上」，归属不明就无从核对；而目录批量
@@ -451,6 +540,10 @@ async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureD
   if (!assembly && modelPaths.length > 1 && callouts.length > 0) {
     throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 callouts：件号 3D 锚点仅对单个模型有效，请对单个模型生成结构线稿，或用 model_paths 把多个零件投影成一张装配图', { tool: 'generate_structure_figure' })
   }
+  // 放大窗口同样是模型专属坐标（圆心 + 半径），套到目录内其余模型会框错地方。
+  if (!assembly && modelPaths.length > 1 && details.length > 0) {
+    throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 details：放大窗口的模型坐标仅对单个模型有效，请对单个模型生成结构线稿，或用 model_paths 把多个零件投影成一张装配图', { tool: 'generate_structure_figure' })
+  }
   return {
     deps,
     input,
@@ -463,6 +556,7 @@ async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureD
     hiddenLineStyle,
     baseFigure,
     callouts,
+    details,
     modelPaths,
     assembly,
   }
@@ -490,6 +584,7 @@ async function renderStructureFigures(run: StructureRun, signal: AbortSignal): P
       scale: run.scale,
       showHidden: run.showHidden,
       callouts: run.callouts,
+      details: run.details,
       figureNumber,
       outputDir: renderDir,
       signal,
@@ -662,6 +757,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
       line_width_mm: { type: 'number', enum: STRUCTURE_LINE_WIDTH_SERIES, description: '可见线线宽（毫米），须取 GB/T 4457.4 线宽系列之一；缺省保持 FreeCAD 输出的 0.7 毫米档' },
       hidden_line_style: { type: 'string', enum: ['solid', 'dashed'], description: '隐藏线线型，默认 solid（FreeCAD 原始细实线）；dashed 时按线宽加 stroke-dasharray 画成虚线' },
       callouts: { type: 'array', items: CALLOUT_SCHEMA, description: '件号锚定 [{numeral, point3d:[x,y,z], label?, model?}]；model 为所属零件下标，装配体下必填；目录批量不支持' },
+      details: { type: 'array', items: DETAIL_SCHEMA, description: '局部放大视图 [{base, center:[x,y,z], radius_mm, scale?, reference?}]：把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的区域放大成独立视图；目录批量不支持' },
       figure_number: { type: 'integer', description: '图号（正整数），默认 1（批量时作为起始图号）' },
       invention_name: { type: 'string', description: '发明名称（附图说明模板句）' },
       target_office: { type: 'string', enum: TARGET_OFFICES, description: '目标法域：给定时把每个视图 SVG 落版到该法域的 A4 幅面与页边距，并返回落版尺寸（仅 SVG 产物生效）' },

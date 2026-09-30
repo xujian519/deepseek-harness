@@ -4810,6 +4810,8 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 装配体：model_paths 传多个模型文件时，所有零件投影到同一张图（TechDraw 一次投影处理零件之间的遮挡），callouts[].model 指明该件号属于第几个零件（0 起，对应 model_paths 的顺序），脚本按该零件的真实几何核对锚点确实落在它上面，偏离超过 0.5 毫米即报错；装配体下每个件号都必须写明归属，以免标号指错零件。
 
+局部放大：details 传 [{base, center:[x,y,z], radius_mm, scale?, reference?}]，把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的圆形区域按 scale（缺省 2）放大成一张独立视图（fig{N}_detail{M}.svg），并在 base 视图上画出该窗口的圆与标号。窗口按模型坐标给出，故与视图朝向、投影比例无关；base 必须是本次 views 里的视图，放大视图随 paths/manifest 一并返回（manifest 里该视图带 kind="detail" 与 base/center3d/radiusMm/scale/reference）。
+
 批量：model_path 传目录时，对目录内每个受支持模型各出一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效），多个零件要合成一张图时改用 model_paths。
 
 产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。
@@ -4906,6 +4908,53 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
         "required": [
           "numeral",
           "point3d"
+        ]
+      }
+    },
+    "details": {
+      "type": "array",
+      "description": "局部放大视图 [{base, center:[x,y,z], radius_mm, scale?, reference?}]：把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的区域放大成独立视图；目录批量不支持",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "base": {
+            "type": "string",
+            "description": "窗口所在的基视图，必须是本次 views 里的视图",
+            "enum": [
+              "iso",
+              "front",
+              "rear",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ]
+          },
+          "center": {
+            "type": "array",
+            "description": "窗口圆心的模型 3D 坐标 [x,y,z]（毫米，与模型单位一致）",
+            "items": {
+              "type": "number"
+            }
+          },
+          "radius_mm": {
+            "type": "number",
+            "description": "窗口半径（模型毫米），必须为正"
+          },
+          "scale": {
+            "type": "number",
+            "description": "放大倍数（正数），缺省 2"
+          },
+          "reference": {
+            "type": "string",
+            "description": "窗口标号（如「Ⅰ」），缺省该细节的序号"
+          }
+        },
+        "required": [
+          "base",
+          "center",
+          "radius_mm"
         ]
       }
     },

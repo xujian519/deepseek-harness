@@ -255,6 +255,58 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
     expect(postTop.point2d[1]).toBeCloseTo(topY, 2)
   }, 180_000)
 
+  it('局部放大：窗口按模型坐标裁剪并放大，基视图画出窗口圆与标号', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-freecaddetail-'))
+    try {
+      const result = await renderStructureViews(runtime, {
+        modelPaths: [FIXTURE],
+        views: ['front'],
+        scale: 1,
+        showHidden: false,
+        callouts: [],
+        // 以立圆柱与底板的交界 (0,0,8) 为圆心、半径 8 毫米的窗口，放大 2 倍。
+        details: [{ base: 'front', center: [0, 0, 8], radiusMm: 8, scale: 2, reference: 'Ⅰ' }],
+        figureNumber: 2,
+        outputDir: dir,
+      }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toEqual({ ok: true, manifestPath: join(dir, 'manifest.json') })
+      if (!result.ok) return
+
+      type ManifestView = {
+        name: string
+        kind: string
+        path: string
+        base?: string
+        center3d?: number[]
+        radiusMm?: number
+        scale?: number
+        reference?: string
+      }
+      const manifest = JSON.parse(readFileSync(result.manifestPath, 'utf8')) as { views: ManifestView[] }
+      expect(manifest.views.map(view => [view.name, view.kind])).toEqual([['front', 'view'], ['detail1', 'detail']])
+      const detail = manifest.views[1]!
+      // manifest 记下窗口口径：基视图、模型坐标圆心、半径、倍数、标号。
+      expect(detail).toMatchObject({ base: 'front', center3d: [0, 0, 8], radiusMm: 8, scale: 2, reference: 'Ⅰ' })
+
+      const points = drawnPoints(readFileSync(detail.path, 'utf8'))
+      expect(points.length).toBeGreaterThan(10)
+      // 裁到窗口内：半径 8×2=16 毫米；TechDraw 那圈边界（matting）圆实测比裁剪圆大 1%，即 16.16。
+      for (const [x, y] of points) expect(Math.hypot(x, y)).toBeLessThanOrEqual(16.3)
+      // 放大 2 倍：立圆柱直径 12 毫米在放大视图里是 24 毫米（两条侧影线落在 x=±12 且长度 >10）。
+      for (const side of [-12, 12]) {
+        const ys = points.filter(([x]) => Math.abs(x - side) < 0.05).map(([, y]) => y)
+        expect(ys.length).toBeGreaterThan(0)
+        expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(10)
+      }
+      // 基视图上画出「放大部位」标记圆与标号：圆心是交界的投影（y = 12 − 8 = 4）。
+      const baseSvg = readFileSync(manifest.views[0]!.path, 'utf8')
+      expect(baseSvg).toContain('<circle cx="0" cy="4" r="8"')
+      expect(baseSvg).toContain('>Ⅰ</text>')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
   it('装配体：两个零件文件投影成同一批视图，件号按归属零件记录', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadassembly-'))
     try {

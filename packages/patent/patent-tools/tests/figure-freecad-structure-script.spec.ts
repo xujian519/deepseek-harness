@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_STRUCTURE_VIEWS,
   STRUCTURE_ANCHOR_TOLERANCE_MM,
+  STRUCTURE_DETAIL_MATTING_SLACK,
   STRUCTURE_MANIFEST_FILENAME,
   STRUCTURE_TEMPLATE_FILENAME,
   STRUCTURE_TRANSIENT_DIRNAME,
   STRUCTURE_VIEW_DIRECTIONS,
   STRUCTURE_VIEWS,
   buildStructureScript,
+  structureDetailSvgFilename,
   structureSvgFilename,
   type StructureScriptParams,
 } from '../src/figure/freecad-structure-script.ts'
@@ -77,8 +79,8 @@ describe('buildStructureScript', () => {
   it('每次 open() 都显式指定 UTF-8，写出不依赖宿主 locale', () => {
     const script = buildStructureScript(params())
     const opens = script.match(/\bopen\([^)]*\)/g) ?? []
-    // 三处文本写出：模板、每视图 SVG、含中文件号名的 manifest。
-    expect(opens).toHaveLength(3)
+    // 四处文本写出：模板、每视图 SVG、放大视图 SVG、含中文件号名的 manifest。
+    expect(opens).toHaveLength(4)
     for (const call of opens) {
       expect(call).toContain('encoding="utf-8"')
     }
@@ -164,6 +166,51 @@ describe('buildStructureScript', () => {
     const script = buildStructureScript(params({ callouts: [{ numeral: '102', point3d: [1, 2, 3] }] }))
     const payload = extractPayload(script)
     expect(payload.callouts).toEqual([{ numeral: '102', point3d: [1, 2, 3], label: '', model: null }])
+  })
+
+  it('局部放大：payload 带窗口、文件名按序号，脚本用实测属性接线', () => {
+    const script = buildStructureScript(params({
+      views: ['front'],
+      details: [{ base: 'front', center: [0, 0, 8], radiusMm: 8, scale: 2, reference: 'Ⅰ' }],
+      figureNumber: 4,
+    }))
+    const payload = extractPayload(script)
+    expect(payload.details).toEqual([{ base: 'front', center3d: [0, 0, 8], radiusMm: 8, scale: 2, reference: 'Ⅰ' }])
+    expect(structureDetailSvgFilename(4, 1)).toBe('fig4_detail1.svg')
+    expect(payload.detailFilenames).toEqual([structureDetailSvgFilename(4, 1)])
+    expect(payload.mattingSlack).toBe(STRUCTURE_DETAIL_MATTING_SLACK)
+    // 1.1.3 的 DrawViewDetail 只有 BaseView/AnchorPoint/Radius/Scale/Reference
+    // 这组属性（没有 ReferenceX/ReferenceY），且圆心必须取「基视图帧」的
+    // projectPoint(圆心) - C——传 projectPoint 原始值会把窗口挪到别处。
+    expect(script).toContain('TechDraw::DrawViewDetail')
+    expect(script).toContain('view.BaseView = base_view')
+    expect(script).toContain('view.AnchorPoint = App.Vector(projected.x - base_center[0], projected.y - base_center[1], 0)')
+    expect(script).not.toContain('ReferenceX')
+    // 基视图上的「放大部位」标记圆由脚本自己画：ShowHighlight 只进 GUI 页面，
+    // viewPartAsSvg(基视图) 在细节视图存在前后逐字节相同。
+    expect(script).toContain('<circle cx="%s" cy="%s" r="%s"')
+    expect(script).toContain('detail_marking_fragments')
+  })
+
+  it('局部放大：不传 details 时不产出窗口文件名，输出与从前一致', () => {
+    const script = buildStructureScript(params())
+    const payload = extractPayload(script)
+    expect(payload.details).toEqual([])
+    expect(payload.detailFilenames).toEqual([])
+    // 标记圆逻辑仍在（供有窗口时使用），但本次不产出任何 circle 片段。
+    expect(script).toContain('detail_marking_fragments')
+  })
+
+  it('局部放大：放大视图的画布用片段自身坐标（片段已按 Scale 放大，不再乘 SCALE）', () => {
+    const script = buildStructureScript(params({
+      views: ['front'],
+      details: [{ base: 'front', center: [0, 0, 8], radiusMm: 8, scale: 2, reference: '1' }],
+    }))
+    // 基视图画布 = 坐标 × SCALE（片段不随 DrawViewPart.Scale 变），放大视图画布
+    // 直接用坐标（片段已随 DrawViewDetail.Scale 放大过）。
+    expect(script).toContain('fmt(width * SCALE)')
+    expect(script).toContain('radius * MATTING_SLACK')
+    expect(script).not.toContain('size * SCALE')
   })
 
   it('装配体：每个模型文件一个 Part::Feature，一起挂到同一视图的 Source 上', () => {
