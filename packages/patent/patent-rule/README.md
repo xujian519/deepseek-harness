@@ -17,6 +17,7 @@ Function plugin porting the Sati constitutional rule engine into the DeepSeek Ha
 - [EVI-011 evidence guards](#evi-011-evidence-guards)
 - [Rule engine (library API)](#rule-engine-library-api)
 - [Rule assets](#rule-assets)
+- [Applicability premises and quoted text](#applicability-premises-and-quoted-text)
 - [Configuration](#configuration)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
@@ -43,9 +44,17 @@ Three families live under `assets/rules/patent/`, distinguished by who owns them
 | --- | --- | --- |
 | Hand-written compliance | `compliance.yaml`, `electrical-section-h.yaml` | One fixed file name each, by `loadPatentComplianceRuleSet` / `loadPatentElectricalRuleSet` |
 | Generated upstream mirrors | `nuo-*.yaml` | By `loadPatentFullRuleSet`, through the explicit `NUO_RULE_FILES` list |
-| Hand-merged current-law and gap rules | `current-law.yaml`, `mady-gap-rules.yaml` | By `loadPatentFullRuleSet`, through the explicit `MERGED_RULE_FILES` list |
+| Hand-merged current-law and gap rules | `current-law.yaml`, `mady-gap-rules.yaml`, `oa-response-form.yaml` | By `loadPatentFullRuleSet`, through the explicit `MERGED_RULE_FILES` list |
 
-`current-law.yaml` bans superseded statute wording in output text: the two-year infringement limitation, the replaced judicial interpretation as the equivalence basis, and attributing utility-model subject matter to the second paragraph of Article 2. Its checks are `pattern_analysis`, so they never reach the output gate. `mady-gap-rules.yaml` holds upstream rules converted to the engine's five check types — bans whose keywords are literal, and completeness checks whose element terms are literal — with every upstream `block` reviewed down to `warn` (`log` for the upstream `info` level). Two of its bans are `keyword_blocklist`, so the output gate picks them up alongside the mirror rules. `activation-overrides.yaml` applies to the merged result, so a review conclusion can target either family.
+`current-law.yaml` bans superseded statute wording in output text: the two-year infringement limitation, the replaced judicial interpretation as the equivalence basis, and attributing utility-model subject matter to the second paragraph of Article 2. Its checks are `pattern_analysis`, so they never reach the output gate. `mady-gap-rules.yaml` holds upstream rules converted to the engine's check types — bans whose keywords are literal, and completeness checks whose element terms are literal — with every upstream `block` reviewed down to `warn` (`log` for the upstream `info` level). Two of its bans are `keyword_blocklist`, so the output gate picks them up alongside the mirror rules. `oa-response-form.yaml` holds the answer-form checks (count-based argument, duplicate quotation, the enablement standard an answer must argue) and is `warn`-only. `activation-overrides.yaml` applies to the merged result, so a review conclusion can target either family.
+
+`activation-overrides.yaml` patches by rule id. `action` and `premise` replace their field; `addKeywords`, `negationContext`, and `additionalNegationWords` add to the existing check without restating it, so a review conclusion never creates a second copy of a generated rule. `premise-vocab` holds the shared vocabularies as YAML anchors — one home per subject. Patches that miss (unknown key, unknown id, empty or non-regex premise, negation words behind a closed switch) draw a load warning instead of silently not applying.
+
+### Applicability premises and quoted text
+
+`ConstitutionalRule.premise` is a rule-level regex OR-list: when no pattern matches the text, the rule is not evaluated and reports nothing. Completeness checks (`structural_analysis`, "missing element = violation") only mean something about text that touches their subject, so the reviewed assets give them subject-matter premises — a 26.3-only office-action answer draws no novelty, inventiveness, or claim-drafting findings. Two properties are deliberate: an unsatisfied premise is silence, not a downgrade (downgrading lowers severity and keeps the noise), and a premise names the subject, never the rule's own element terms — where a single-element expectation rule's pattern list is its own subject vocabulary, gating makes it permanent silence, which the patch reasons record per rule.
+
+`keyword_blocklist` accepts `quoteImmune: true`: a match inside a paired quote (`「」`, `『』`, `“”`) is not the author's own statement, so an examiner sentence quoted with 「一定」 no longer reads as the model's absolute claim. Unclosed quotes exempt nothing — the failure direction is detection, not silence. `quote_repetition` (defaults `minLength` 12, `minOccurrences` 2) reports the same quoted span recurring, comparing spans after whitespace and ellipses are normalized: an answer that grows by restating a passage instead of arguing becomes visible. The answer-form rules built on these checks live in `oa-response-form.yaml` and stay out of the output gate, which takes only `keyword_blocklist`.
 
 ### Job scopes
 
@@ -75,7 +84,7 @@ Independent; the plugin appends nothing to the request prefix, so enabling or di
 - **Layered pack default is base only** — `loadRulePack` without a manifest loads only the packaged base pack; domain and override layers require an explicit manifest.
 - **Rule-set loading is fail-soft** — a missing or damaged asset degrades to an empty rule set (the gate passes through) rather than failing the deployment.
 - **Merged assets cover machine-checkable rules only** — upstream rules whose payload is prose (analysis principles, statutory conditions, decision citations) are not converted into checks and stay outside this package; the conversion set, the check-type mapping, and the boundary are recorded in [the merge-boundary note](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.md).
-- **Job scopes filter by domain, not by document type** — the completeness checks in those domains (`structural_analysis`) report missing expected elements on any text, so a scope run over a document of another type still returns those hits; the scope narrows the rule set, it does not classify the text.
+- **Rules are narrowed by domain and premise, not by document type** — a job scope keeps only its domains and a rule's premise silences it on text that never touches its subject, but nothing classifies the document: a rule whose premise matches (an answer quoting the claim text, say) still reports its missing elements.
 - **Guideline citations are free text** — `legalBasis` reaches output verbatim and no stage parses it, so a rule's 《专利审查指南》 section number is only as correct as the text it was transcribed from; `tests/guideline-citations.spec.ts` holds the numbering form the assets keep and the sections already checked against the 2023 revision, and the remaining citations are unverified.
 
 ### Dev Note

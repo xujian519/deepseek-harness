@@ -18,6 +18,8 @@ import {
   asStringArray,
   hasNonEmptyWord,
   isRuleAction,
+  isSafeRegex,
+  isUsablePremise,
   loadRuleSetFromFile,
   mergeRuleSets,
   type ActivationRulePatch,
@@ -44,11 +46,13 @@ const NUO_RULE_FILES = [
 
 /**
  * 手写并入资产清单（非 nuo 生成物镜像）：`current-law.yaml` 是现行法条口径禁令，
- * `mady-gap-rules.yaml` 是上游未镜像且可确定性执行规则的转换子集。与 nuo 清单分开列出，
- * 因为两者来源不同——nuo 文件名对应 Sati 侧生成流程，本清单由本仓手工维护。
- * 两类都参与 activation-overrides 补丁（同一合并结果集），故评审补丁可同时作用于两者。
+ * `mady-gap-rules.yaml` 是上游未镜像且可确定性执行规则的转换子集，
+ * `oa-response-form.yaml` 是答复文书形式规则（计数式论证/重复引证/26.3 判准落位）。
+ * 与 nuo 清单分开列出，因为两者来源不同——nuo 文件名对应 Sati 侧生成流程，
+ * 本清单由本仓手工维护。三类都参与 activation-overrides 补丁（同一合并结果集），
+ * 故评审补丁可同时作用于三者。
  */
-const MERGED_RULE_FILES = ['current-law.yaml', 'mady-gap-rules.yaml'] as const
+const MERGED_RULE_FILES = ['current-law.yaml', 'mady-gap-rules.yaml', 'oa-response-form.yaml'] as const
 
 /** 专利合规规则集加载结果（规则集、来源、警告）。 */
 export type PatentComplianceLoadResult = {
@@ -128,6 +132,29 @@ export type ActivationOverrides = {
   warnings: string[]
 }
 
+/** 激活覆盖文件的顶层允许键；未知键告警，避免拼错的键被静默忽略。 */
+const ACTIVATION_TOP_LEVEL_KEYS: readonly string[] = ['version', 'premise-vocab', 'overrides']
+
+/**
+ * 校验前提词表（`premise-vocab`，供 `premise` 以 YAML 锚点引用）。
+ * 词表只在此处校验一次：写错的正则在这里显式告警，而不是等某条规则引用它之后才在
+ * 评估期失效（那时只剩"规则不生效"这一现象，定位不到词表）。
+ */
+function validatePremiseVocab(raw: unknown, path: string, warnings: string[]): void {
+  if (raw === undefined) return
+  const vocab = asRecord(raw)
+  if (vocab === null) {
+    warnings.push(`激活覆盖文件 ${path}: premise-vocab 必须是映射（名称 → 非空正则数组），已忽略`)
+    return
+  }
+  for (const [name, value] of Object.entries(vocab)) {
+    const list = asStringArray(value)
+    if (list === null || list.length === 0 || !list.every(isSafeRegex)) {
+      warnings.push(`激活覆盖文件 ${path}: premise-vocab.${name} 必须是非空合法正则数组，已忽略`)
+    }
+  }
+}
+
 /** 解析单条补丁对象；无可识别字段时返回 null（并已写入 warnings）。 */
 function parseActivationPatch(
   id: string,
@@ -142,6 +169,17 @@ function parseActivationPatch(
       return null
     }
     patch.action = record.action
+  }
+
+  if (record.premise !== undefined) {
+    const premise = asStringArray(record.premise)
+    // 与资产解析器（RuleLoader.parsePremise）同一判据：非空字符串数组 + 逐条正则校验
+    // （语法与灾难性回溯）。前提写错会让规则静默不评估或误评估，故整条跳过而不半截应用。
+    if (premise === null || !isUsablePremise(premise)) {
+      warnings.push(`激活覆盖 ${id}: premise 必须是非空合法正则数组，已跳过`)
+      return null
+    }
+    patch.premise = premise
   }
 
   for (const key of ['addKeywords', 'additionalNegationWords'] as const) {
@@ -180,7 +218,7 @@ function parseActivationPatch(
 
 /**
  * 加载 nuo 规则激活评审覆盖（activation-overrides.yaml）。
- * 轻量补丁格式：`overrides: { <id>: { action?, addKeywords?, negationContext?,
+ * 轻量补丁格式：`overrides: { <id>: { action?, premise?, addKeywords?, negationContext?,
  * additionalNegationWords?, reason? } }`（非标准 RuleSet 形态，由本函数专门解析；
  * 字段语义见 `ActivationRulePatch`）。任一字段非法即跳过该条并告警
  * （fail-safe：不应用半截补丁）。文件不存在时返回空补丁 + 警告（不阻塞专利全量规则加载）。
@@ -199,7 +237,20 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
         warnings.push(`激活覆盖文件解析失败 ${path}: ${doc.errors[0]?.message ?? 'unknown'}`)
         continue
       }
-      const raw = asRecord(asRecord(doc.toJS())?.overrides) ?? {}
+      const root = asRecord(doc.toJS())
+      if (root === null) {
+        warnings.push(`激活覆盖文件 ${path}: 顶层必须是对象`)
+        continue
+      }
+      for (const key of Object.keys(root)) {
+        if (!ACTIVATION_TOP_LEVEL_KEYS.includes(key)) {
+          warnings.push(
+            `激活覆盖文件 ${path}: 未知顶层键 "${key}"（允许：${ACTIVATION_TOP_LEVEL_KEYS.join(' / ')}），已忽略`,
+          )
+        }
+      }
+      validatePremiseVocab(root['premise-vocab'], path, warnings)
+      const raw = asRecord(root['overrides']) ?? {}
       const byId = new Map<string, ActivationRulePatch>()
       for (const [id, value] of Object.entries(raw)) {
         const record = asRecord(value)

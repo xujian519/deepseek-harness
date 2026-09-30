@@ -626,3 +626,104 @@ rules:
     expect(issues).toEqual([])
   })
 })
+
+describe('RuleLoader premise', () => {
+  const ruleYaml = (premise: string): string =>
+    `rules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n${premise}    check: { type: keyword_blocklist, keywords: ["x"] }\n`
+
+  it('parses a premise list and keeps it on the rule', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(ruleYaml('    premise: ["创造性", "三步法"]\n'))
+    expect(issues).toEqual([])
+    expect(ruleSet.rules[0]?.premise).toEqual(['创造性', '三步法'])
+  })
+
+  it('omits the field when the premise is absent', () => {
+    const { ruleSet } = parseRuleSetFromYaml(ruleYaml(''))
+    expect(ruleSet.rules[0]?.premise).toBeUndefined()
+  })
+
+  it('reports a non-array premise and evaluates the rule always', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(ruleYaml('    premise: 创造性\n'))
+    expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('premise'))).toBe(true)
+    expect(ruleSet.rules[0]?.premise).toBeUndefined()
+  })
+
+  it('reports a blank-only premise list instead of accepting a premise that can never match', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(ruleYaml('    premise: ["  "]\n'))
+    expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('适用前提正则'))).toBe(true)
+    expect(ruleSet.rules[0]?.premise).toBeUndefined()
+  })
+
+  it('reports an invalid premise regex and evaluates the rule always', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(ruleYaml('    premise: ["(未闭合"]\n'))
+    expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('适用前提正则'))).toBe(true)
+    expect(ruleSet.rules[0]?.premise).toBeUndefined()
+  })
+
+  it('applyRuleOverrides replaces the whole premise field', () => {
+    const base = parseRuleSetFromYaml(ruleYaml('    premise: ["创造性"]\n')).ruleSet
+    const issues: RuleSetValidationIssue[] = []
+    const merged = applyRuleOverrides(base, new Map([['A1', { premise: ['新颖性', '22.2'] }]]), issues)
+    expect(issues).toEqual([])
+    expect(merged.rules[0]?.premise).toEqual(['新颖性', '22.2'])
+  })
+
+  it('applyRuleOverrides reports an empty premise patch instead of clearing the gate silently', () => {
+    const base = parseRuleSetFromYaml(ruleYaml('    premise: ["创造性"]\n')).ruleSet
+    const issues: RuleSetValidationIssue[] = []
+    const merged = applyRuleOverrides(base, new Map([['A1', { premise: [] }]]), issues)
+    expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('premise'))).toBe(true)
+    expect(merged.rules[0]?.premise).toEqual(['创造性'])
+  })
+})
+
+describe('RuleLoader quote handling', () => {
+  const keywordYaml = (extra: string): string =>
+    `rules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n    check:\n      type: keyword_blocklist\n      keywords: ["一定"]\n${extra}`
+
+  it('parses quoteImmune and leaves it off by default', () => {
+    const off = parseRuleSetFromYaml(keywordYaml(''))
+    expect(off.issues).toEqual([])
+    expect(off.ruleSet.rules[0]?.check).toEqual({
+      type: 'keyword_blocklist',
+      keywords: ['一定'],
+      negationContext: false,
+    })
+    const on = parseRuleSetFromYaml(keywordYaml('      quoteImmune: true\n'))
+    expect(on.issues).toEqual([])
+    expect(on.ruleSet.rules[0]?.check).toEqual({
+      type: 'keyword_blocklist',
+      keywords: ['一定'],
+      negationContext: false,
+      quoteImmune: true,
+    })
+  })
+
+  it('reports a non-boolean quoteImmune and ignores the field', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(keywordYaml('      quoteImmune: "yes"\n'))
+    expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('quoteImmune'))).toBe(true)
+    expect(ruleSet.rules[0]?.check).toEqual({
+      type: 'keyword_blocklist',
+      keywords: ['一定'],
+      negationContext: false,
+    })
+  })
+
+  it('parses quote_repetition, materializing the defaults at load time', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n    check: { type: quote_repetition }\n',
+    )
+    expect(issues).toEqual([])
+    expect(ruleSet.rules[0]?.check).toEqual({ type: 'quote_repetition', minLength: 12, minOccurrences: 2 })
+  })
+
+  it('rejects quote_repetition bounds that would never match', () => {
+    const cases = ['minLength: 0', 'minLength: 1.5', 'minOccurrences: 1', 'minOccurrences: 2.5']
+    for (const body of cases) {
+      const { issues } = parseRuleSetFromYaml(
+        `rules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n    check: { type: quote_repetition, ${body} }\n`,
+      )
+      expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('quote_repetition'))).toBe(true)
+    }
+  })
+})

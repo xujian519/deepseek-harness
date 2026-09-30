@@ -26,6 +26,7 @@ export type RuleCheckType =
   | 'structural_analysis'
   | 'citation_analysis'
   | 'synonym_match'
+  | 'quote_repetition'
 
 /**
  * keyword_blocklist — 关键词黑名单。
@@ -53,6 +54,14 @@ export type KeywordBlocklistCheck = {
    * 所有否定语境规则（PAT-RISK-001 / PAT-ABS-001 / INV-EVIDENCE-001 …）的放行面。
    */
   additionalNegationWords?: string[]
+  /**
+   * 引文豁免：命中位置落在成对引号（`「」` / `『』` / `“”`）的引述范围内时放行。
+   *
+   * 用于规则词是**被引述内容**而非本模型断言的情形：答复书逐字引用审查意见
+   * （如通知书的「需要一定的时间」）时，命中的是审查员的措辞，不是申请人自己的
+   * 绝对化断言。未闭合的引号不产生豁免（宁可误报，不静默放行红线）。
+   */
+  quoteImmune?: boolean
   /** 命中时覆盖的严重级别（缺省用规则级 severity）。 */
   severityIfFound?: RuleSeverity
 }
@@ -111,6 +120,21 @@ export type SynonymRequirement = {
   keywords: string[]
 }
 
+/**
+ * quote_repetition — 引文重复检测。
+ *
+ * 成对引号（`「」` / `『』` / `“”`）内的引述片段达到 `minLength` 时统计出现次数，
+ * 同一片段（忽略空白与省略号后逐字相同）出现达到 `minOccurrences` 次即违规。
+ * 用于答复类文书的「重复引证」缺陷：同一段原文被反复整段复述，篇幅增长而论证不增。
+ */
+export type QuoteRepetitionCheck = {
+  type: 'quote_repetition'
+  /** 计入统计的引文最短长度（字符；缺省 12）。 */
+  minLength?: number
+  /** 同一引文重复出现多少次即违规（缺省 2）。 */
+  minOccurrences?: number
+}
+
 /** 全部检查类型的判别联合（tagged enum）。 */
 export type RuleCheck =
   | KeywordBlocklistCheck
@@ -118,6 +142,7 @@ export type RuleCheck =
   | StructuralAnalysisCheck
   | CitationAnalysisCheck
   | SynonymMatchCheck
+  | QuoteRepetitionCheck
 
 /** 单条宪法规则（对齐 BCIP ConstitutionalRule）。 */
 export type ConstitutionalRule = {
@@ -133,6 +158,21 @@ export type ConstitutionalRule = {
   action: RuleAction
   /** 法律/规范依据原文。 */
   legalBasis?: string
+  /**
+   * 适用前提（正则，任一命中即评估该规则；大小写不敏感；缺省始终评估）。
+   *
+   * 「缺失即违规」的完整性规则（structural_analysis / synonym_match）只在文本触及
+   * 规则主题时才有意义：文本根本没讨论新颖性时，「缺少单独对比」不是缺陷，是规则
+   * 不适用。此前这类规则靠 action 降级（block→warn/log）压噪音，但降级不消除噪音
+   * ——48 条不适用规则的「要素不完整」仍会淹没真正需要处理的命中，让自检结果不可用。
+   * premise 把「该不该评估」与「违规级别」分开：前提不满足 = 不评估（不产生违规），
+   * 前提满足 = 按 action 出结果。
+   *
+   * 前提词表取**主题词汇**（该规则所约束的法律问题或文书主题），不是规则自身要素的
+   * 复述：要素是判定标准，前提是话题入口。前提过宽等于没门禁，过窄会让规则在应
+   * 生效时沉默——两者都由加载期校验（正则语法与灾难性回溯）与资产评审保证。
+   */
+  premise?: string[]
   check: RuleCheck
 }
 

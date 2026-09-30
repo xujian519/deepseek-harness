@@ -44,6 +44,7 @@ export type {
   KeywordBlocklistCheck,
   LoadedRuleSet,
   PatternAnalysisCheck,
+  QuoteRepetitionCheck,
   RuleAction,
   RuleCheck,
   RuleCheckType,

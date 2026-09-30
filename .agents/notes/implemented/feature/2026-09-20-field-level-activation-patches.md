@@ -16,7 +16,7 @@ Two structural failures were silent. A patch key that was misspelled, and a patc
 
 ## Decision
 
-A patch is now a **field-level merge at two levels**. `action` replaces the whole field; `addKeywords`, `negationContext`, and `additionalNegationWords` merge at check level — `addKeywords` appends to the rule's existing `keywords`, `negationContext` overrides the switch, `additionalNegationWords` appends to whatever the rule already carries. `ActivationRulePatch` declares the four fields, and `ACTIVATION_PATCH_KEYS` lists the accepted keys (`reason` included, documentation only) so a misspelled key is reportable rather than invisible.
+A patch is now a **field-level merge at two levels**. `action` and `premise` replace the whole field; `addKeywords`, `negationContext`, and `additionalNegationWords` merge at check level — `addKeywords` appends to the rule's existing `keywords`, `negationContext` overrides the switch, `additionalNegationWords` appends to whatever the rule already carries. `ActivationRulePatch` declares the five fields, and `ACTIVATION_PATCH_KEYS` lists the accepted keys (`reason` included, documentation only) so a misspelled key is reportable rather than invisible.
 
 Append rather than redeclare is deliberate. Redeclaring the whole check in the patch would create a second copy in the repository that must be kept in sync with the generated rule, and editing the generated `nuo-*.yaml` is undone by the next port. Appending neither edits the generated artifact nor creates a copy.
 
@@ -50,7 +50,7 @@ The patch file is validated. `loadActivationOverrides` skips a patch whose field
 
 `RuleLoader.ts` exports `asStringArray` and `hasNonEmptyWord`, and the compliance loader validates list fields with the same pair the asset parser uses. Neither rejects an entry with leading or trailing whitespace: the negation list matches it literally and the keyword list trims it, so such an entry does take effect.
 
-The asset's patch count moves from 29 to 31. `patent-full-rule-set.spec.ts` asserts the count together with "no warnings", so a future patch that is written but not applicable fails the suite rather than being absorbed.
+The patch file carries 90 entries. `patent-full-rule-set.spec.ts` asserts the count together with "no warnings", so a future patch that is written but not applicable fails the suite rather than being absorbed. `premise` later joined `action` as a replace field ([premise change](../architecture/2026-09-30-rule-applicability-premises-and-quoted-spans.md)), validated by the same predicate the asset parser uses.
 
 ## Testing
 

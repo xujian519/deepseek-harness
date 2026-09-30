@@ -16,7 +16,7 @@ Status: implemented
 
 ## Decision
 
-补丁现在是**字段级合并，分两级**。`action` 整字段替换；`addKeywords`、`negationContext`、`additionalNegationWords` 在 check 级合并——`addKeywords` 追加到规则既有 `keywords` 之后，`negationContext` 覆盖开关，`additionalNegationWords` 追加到规则原有的词表之后。`ActivationRulePatch` 声明这四个字段，`ACTIVATION_PATCH_KEYS` 列出可接受的键（含仅作文档用途的 `reason`），使拼错的键可被报告而非不可见。
+补丁现在是**字段级合并，分两级**。`action` 与 `premise` 整字段替换；`addKeywords`、`negationContext`、`additionalNegationWords` 在 check 级合并——`addKeywords` 追加到规则既有 `keywords` 之后，`negationContext` 覆盖开关，`additionalNegationWords` 追加到规则原有的词表之后。`ActivationRulePatch` 声明这五个字段，`ACTIVATION_PATCH_KEYS` 列出可接受的键（含仅作文档用途的 `reason`），使拼错的键可被报告而非不可见。
 
 选择增补而不是重声明是有意的。在补丁里重声明整条 check 会在仓里造出第二份必须与生成规则同步维护的副本；而直接改生成物 `nuo-*.yaml` 会被下一次移植还原。增补式补丁既不改生成物，也不产生副本。
 
@@ -50,7 +50,7 @@ check 级键只适用于 `keyword_blocklist`；打在其它 check 类型上时�
 
 `RuleLoader.ts` 导出 `asStringArray` 与 `hasNonEmptyWord`，合规加载器用与资产解析器同一对判据校验列表字段。两者都不拒绝带首尾空白的元素：否定词表按字面匹配它，关键词表 trim 后再匹配，所以这样的元素确实会生效。
 
-资产的补丁条数从 29 变为 31。`patent-full-rule-set.spec.ts` 把条数与「无警告」一起断言，所以将来一条写了却不适用的补丁会让套件转红，而不是被吸收。
+补丁文件现有 90 条。`patent-full-rule-set.spec.ts` 把条数与「无警告」一起断言，所以将来一条写了却不适用的补丁会让套件转红，而不是被吸收。`premise` 后来与 `action` 并列成为整字段替换项（[前提变更](../architecture/2026-09-30-rule-applicability-premises-and-quoted-spans.zh.md)），由与资产解析器同一判据校验。
 
 ## Testing
 

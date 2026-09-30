@@ -12,7 +12,7 @@ Two further facts narrowed the merge. The 48-entry infringement file carries emp
 
 ## Decision
 
-Merge into two hand-written asset files under `packages/patent/patent-rule/assets/rules/patent/`, both loaded by `loadPatentFullRuleSet` through the explicit `MERGED_RULE_FILES` list beside the generated-mirror `NUO_RULE_FILES` list. `activation-overrides.yaml` applies to the merged result, so a review conclusion can target either family.
+Merge into two hand-written asset files under `packages/patent/patent-rule/assets/rules/patent/`, both loaded by `loadPatentFullRuleSet` through the explicit `MERGED_RULE_FILES` list beside the generated-mirror `NUO_RULE_FILES` list; that list also carries the later hand-written `oa-response-form.yaml` ([premise change](2026-09-30-rule-applicability-premises-and-quoted-spans.md)). `activation-overrides.yaml` applies to the merged result, so a review conclusion can target either family.
 
 `current-law.yaml` (3 rules, `LAW-*` ids) turns the current-statute baseline into deterministic bans on output text: a two-year infringement limitation (`民法典第188条` sets three years), the replaced judicial interpretation as the equivalence basis (`法释〔2009〕20 号第 17 条` is current), and attributing utility-model subject matter to `专利法第二条第二款`. Each ban is `pattern_analysis`, so none of them reaches the output gate; a bare phrase such as "两年" cannot be banned through `keyword_blocklist` without over-firing, and clause numbers that the baseline did not verify are named semantically instead of cited.
 
@@ -47,7 +47,7 @@ Not merged, and why:
 
 ## Consequences
 
-`rule_check(patent-full)` now evaluates 117 rules, and the output gate 11. Current-law wording and the converted bans surface through `rule_check`; the current-law bans do not gate output, so a session that publishes such wording still sees them only when the model self-checks.
+`rule_check(patent-full)` now evaluates 120 rules, and the output gate 14. Current-law wording and the converted bans surface through `rule_check`; the current-law bans do not gate output, so a session that publishes such wording still sees them only when the model self-checks.
 
 The residual upstream corpus stays outside the package: no executable payloads to move, and prose standards that are skill material. The merge set, its upstream ids, and the boundary are asserted in `packages/patent/patent-rule/tests/merged-rule-assets.spec.ts`, so an unrecorded merge or a reintroduced equivalent fails the suite.
 

@@ -7,6 +7,8 @@
 #     `additionalNegationWords` 是**紧邻前缀**语义：只在该词紧接命中位置之前时豁免
 #     （前缀与命中词合成一个复合主题，如「防」+「窃听」），不走否定语境的 24 字窗口——
 #     窗口版会让「检测用户行为，诱导其参与赌博」里的「检测」放行十余字之外的红线命中。
+#   - `premise`：适用前提（正则列表），整字段替换。语义见 `ConstitutionalRule.premise`：
+#     前提不满足 = 不评估该规则（不产生违规）。
 # 增补语义是有意的：`nuo-*.yaml` 是 Sati 侧生成物的逐字镜像，从上游再同步会覆盖手改；
 # 而让补丁重声明整条 check 又会在仓里造出第二份必须同步维护的副本。
 # 未列规则保持原 action / 原 check。未知键、非法值、引用不存在 id 均产生加载告警。
@@ -17,7 +19,175 @@
 #   1. keyword_blocklist（出现即违规）：与输出门禁「禁止性合规」语义匹配，可保留 block；
 #   2. structural_analysis（缺失即违规 = 期望模式/完整性检查）：与「产物完整性自检」匹配，
 #      不适合输出门禁「强制挂起审批」，按完整性提醒价值降级 warn（追加提示）或 log（仅记录）。
+#
+# 前提评审（2026-09-30，26.3 答复自检事故）：
+# `rule_check(scope='patent-oa-response')` 在一份 6.5k 字的 26.3 答复上返回 49 条命中，
+# 其中 48 条是「要素不完整」——新颖性/创造性/权利要求布局/说明书五部分等**该答复根本没讨论
+# 的主题**。降级（block→warn/log）压低了级别却没有消除噪音：真正需要处理的命中被淹没，
+# 自检结果不可用。故按「前提不满足 = 不评估」为这批规则补 premise：只有文本触及该主题
+# （答复的对象、引用的法条、讨论的文书部位）时才评估该规则。词表取**主题词汇**而非规则
+# 自身要素的复述；前提是数据，改词表即改门禁面，不需要改引擎。
 version: "1.0"
+
+# 前提词表（供 `overrides.*.premise` 以 YAML 锚点引用；同一主题的词表只维护一份）。
+# 语义：**任一**正则命中即视为文本触及该主题（大小写不敏感，命中引文也算——前提是
+# 「讨论到了」，不是「断言了」）。词表刻意不含宽泛词（如单字「程序」「组织」「证据」）：
+# 前提过宽等于没有门禁，且宽泛词会让规则在无关文本上复活。
+premise-vocab:
+  novelty: &novelty
+    - "新颖性"
+    - "抵触申请"
+    - "单独对比"
+    - "实质相同"
+    - "相同技术方案"
+    - "在先申请"
+    - "在后公布"
+    - "公开日"
+    - "出版物"
+    - "公开使用"
+    - "22\\.?2"
+    - "第二十二条第二款"
+  inventiveness: &inventiveness
+    - "创造性"
+    - "显而易见"
+    - "技术启示"
+    - "结合启示"
+    - "三步法"
+    - "最接近"
+    - "区别技术特征"
+    - "区别特征"
+    - "实际解决的技术问题"
+    - "公知常识"
+    - "技术偏见"
+    - "预料不到"
+    - "实质性特点"
+    - "技术进步"
+    - "22\\.?3"
+    - "第二十二条第三款"
+  utility: &utility
+    - "实用性"
+    - "能够制造"
+    - "能够使用"
+    - "产业上"
+    - "产业应用"
+    - "22\\.?4"
+  eligibility: &eligibility
+    - "第二十五条"
+    - "不授予专利权"
+    - "智力活动"
+    - "疾病诊断"
+    - "动物品种"
+    - "植物品种"
+    - "原子核变换"
+    - "科学发现"
+    - "规则和方法"
+  amendment: &amendment
+    - "修改"
+    - "超范围"
+    - "原始记载"
+    - "原说明书"
+    - "原权利要求书"
+    - "原申请"
+    - "原始公开"
+    - "扩大"
+    - "保护范围"
+    - "第三十三条"
+    - "33\\s*条"
+  claims: &claims
+    - "权利要求"
+    - "权项"
+    - "其特征在于"
+  # 权利要求**书产物**（不是「提到了权利要求」）：撰写形态规则只在答复携带
+  # 修改后的权利要求书时才适用。答复引述「权利要求1记载了…」属论证，不属撰写形态，
+  # 引述句会让编号连续性/独权布局等规则在非产物文本上复活成噪音；编号行同理，
+  # 起首词不是权项写法（一种/根据权利要求等）的编号列举不算产物。
+  claim-drafting: &claim-drafting
+    - "权利要求书"
+    - "独立权利要求"
+    - "从属权利要求"
+    - "其特征在于"
+    - "根据权利要求"
+    - "如权利要求"
+    - "按照权利要求"
+    - "(?:^|\\n)\\s*[0-9]{1,2}\\s*[.、．]\\s*(?:一种|根据权利要求|如权利要求|按照权利要求)"
+  specification: &specification
+    - "说明书"
+    - "申请文件"
+    - "具体实施方式"
+    - "实施例"
+    - "附图"
+  prior-art-description: &prior-art-description
+    - "现有技术"
+    - "已有技术"
+    - "传统方法"
+    - "传统技术"
+  prior-art-citation: &prior-art-citation
+    - "对比文件"
+    - "公开号"
+    - "现有技术"
+    - "已有技术"
+    - "在先文献"
+    - "引证"
+  priority: &priority
+    - "优先权"
+    - "相同主题"
+    - "首次申请"
+    - "同日申请"
+  division: &division
+    - "分案"
+    - "单一性"
+    - "总的发明构思"
+  reexamination: &reexamination
+    - "复审"
+    - "驳回决定"
+    - "驳回理由"
+  abstract: &abstract
+    - "摘要"
+  biosequence: &biosequence
+    - "核苷酸"
+    - "氨基酸"
+    - "序列"
+    - "基因"
+    - "蛋白"
+    - "生物"
+  biomaterial: &biomaterial
+    - "生物材料"
+    - "保藏"
+    - "菌株"
+    - "细胞"
+    - "微生物"
+    - "培养物"
+  computer-program: &computer-program
+    - "计算机程序"
+    - "软件"
+    - "算法"
+    - "流程图"
+    - "处理器"
+    - "代码"
+    - "程序模块"
+  evidence-forensics: &evidence-forensics
+    - "鉴定"
+    - "鉴定意见"
+    - "网络证据"
+    - "网页"
+    - "网站"
+    - "公证"
+  burden-of-proof: &burden-of-proof
+    - "举证妨碍"
+    - "拒不提供"
+    - "拒绝配合"
+    - "拒不提交"
+  technical-appraisal: &technical-appraisal
+    - "技术鉴定"
+    - "技术调查官"
+    - "自行比对"
+  ownership: &ownership
+    - "权属"
+    - "职务发明"
+    - "物质技术条件"
+    - "专利权归属"
+    - "发明人资格"
+    - "离职"
 
 overrides:
   # ---- block → review（编造风险保留人工关注，但词有正常合规用法）----
@@ -36,18 +206,23 @@ overrides:
     reason: "误伤『防窃听装置』等合法专利主题；公序良俗需人工留意但不宜硬拦。2026-09-16（issue #357）补上否定语境：原 asset 未开该开关 ⇒ 连默认词表也用不上，4 个安防放行词（裸「防」不在默认词表里）随本条目生效。放行词是**紧邻前缀**语义（只在该词紧接命中位置之前时豁免），不走 24 字窗口：窗口版会让「检测用户行为，诱导其参与赌博」中的「检测」放行红线命中，公序良俗告警静默丢失。后缀式「窃听检测」仍命中（非对称性已钉为回归判据）。"
   EX-CLM-002:
     action: warn
+    premise: *claims
     reason: "完整性提醒（权利要求是否以说明书为依据）；不完整 ≠ 违规，不应强制审批"
   EX-CMP-001:
     action: warn
+    premise: *computer-program
     reason: "完整性提醒（计算机程序技术方案三要素）"
   EX-DIS-002:
     action: warn
+    premise: *specification
     reason: "完整性提醒（说明书发明内容三要素：技术问题/方案/效果）"
   EX-INV-001:
     action: warn
+    premise: *inventiveness
     reason: "完整性提醒（创造性三步法框架四要素）"
   EX-PRC-001:
     action: warn
+    premise: *amendment
     reason: "OA 高频场景提醒（修改不得超范围）"
   CON-101:
     action: warn
@@ -57,19 +232,24 @@ overrides:
     reason: "完整性提醒（充分公开能够实现）"
   CON-302:
     action: warn
+    premise: *claims
     reason: "完整性提醒（权利要求以说明书为依据）"
   CON-401:
     action: warn
+    premise: *inventiveness
     reason: "完整性提醒（创造性非显而易见性）"
   CON-501:
     action: warn
+    premise: *amendment
     reason: "OA 高频场景提醒（修改不超范围）"
   CON-502:
     action: warn
+    premise: *amendment
     reason: "OA 高频场景提醒（修改不得扩大保护范围）"
   PR-CLM-001:
     action: warn
-    reason: "撰写完整性提醒（独立权利要求布局：一种+其特征在于）"
+    premise: *claim-drafting
+    reason: "撰写完整性提醒（独立权利要求布局：一种+其特征在于）；前提取权利要求书产物形态，答复引述权项不算"
   PR-OA-001:
     action: warn
     reason: "OA 完整性提醒（逐点回应所有审查意见）"
@@ -80,18 +260,23 @@ overrides:
     reason: "单 element pattern=「审查指南」，缺失即违规语义错乱（讨论不应以是否提及『审查指南』判定合规）"
   EX-SEL-001:
     action: log
+    premise: *eligibility
     reason: "pattern 含「组织」等宽泛词，缺失即违规无意义"
   EX-SEL-002:
     action: log
+    premise: *eligibility
     reason: "pattern 含「诊断/治疗」宽泛词，医疗专利讨论正常出现，缺失即违规无意义"
   EX-SEL-003:
     action: log
+    premise: *eligibility
     reason: "pattern 含「算法/经营」宽泛词，缺失即违规无意义"
   IPC-B60-INV-003:
     action: log
+    premise: *inventiveness
     reason: "车辆领域过窄（IPC 单一场景），自动门禁价值低"
   IPC-GEN-INV-001:
     action: log
+    premise: *inventiveness
     reason: "与 EX-INV-001（三步法框架）重复，保留后者 warn 即可"
   JD-DEF-003:
     action: log
@@ -107,12 +292,14 @@ overrides:
     reason: "判例领域单 element pattern 宽泛"
   JD-PRC-002:
     action: log
+    premise: *burden-of-proof
     reason: "判例领域单 element pattern 宽泛"
   CON-301:
     action: log
     reason: "pattern 含「清楚/限定」宽泛词，缺失即违规无意义"
   PR-OA-002:
     action: log
+    premise: *amendment
     reason: "与 CON-501/502（修改超范围）重复"
 
   # ---- 规则资产语义增强（2026-09-16 评审，issue #357）----
@@ -128,3 +315,187 @@ overrides:
   IPC-GEN-INV-002:
     action: log
     reason: "去重：与 EX-INV-007（同 domain/severity/keywords 的「避免事后诸葛亮」）逐字重复，同一文本会产出两条用户可见提示；保留前者 warn、本条降 log，沿用 IPC-GEN-INV-001↔EX-INV-001 的处置先例。不改生成物而走补丁：两条规则分处 examination / ipc 两个转换生成文件，删除任一条都会被下次从上游再同步还原。"
+
+  # ---- 适用前提（2026-09-30 评审：自检结果可读性）----
+  # 全部为 structural_analysis 完整性规则：缺失即违规只在**文本触及该主题**时有意义。
+  # 词表见上方 premise-vocab；未列规则保持无前提（始终评估）——答案类规则
+  # （PR-OA-001 逐点回应、X-STR-003 IC 布局、EX-PRC-003 答复期限）与红线规则
+  # （keyword_blocklist）不加前提。
+  CON-103:
+    premise: *novelty
+    reason: "前提=新颖性主题"
+  CON-104:
+    premise: *inventiveness
+    reason: "前提=创造性主题（三步法结构检查）"
+  CON-402:
+    premise: *inventiveness
+    reason: "前提=创造性主题（预料不到的技术效果）"
+  CON-601:
+    premise: *inventiveness
+    reason: "前提=创造性主题（实用新型创造性标准）"
+  P-INV-004:
+    premise: *inventiveness
+    reason: "前提=创造性主题（辅助判断因素）"
+  P-PRC-003:
+    action: log
+    premise: *priority
+    reason: "前提=优先权主题（相同主题认定）。同时降 log：单元素 期望模式 规则的 pattern 与主题词表重合（「优先权」既在前提里也在元素里），前提成立即元素满足，只剩「同日申请」一种孤立写法能命中——自检信号为零，按 log 类处置（同 CON-COMP-0104 / EX-SEL-001 先例）"
+  P-PRC-004:
+    premise: *reexamination
+    reason: "前提=复审程序主题（驳回理由全面回应）"
+  X-STR-004:
+    premise: *claims
+    reason: "前提=权利要求主题（技术特征与权利要求锚定）"
+  X-QC-001:
+    premise: *claims
+    reason: "前提=权利要求主题（术语一致性）"
+  X-REF-002:
+    premise: *prior-art-citation
+    reason: "前提=对比文件引用主题"
+  EX-SEL-005:
+    premise: *eligibility
+    reason: "前提=不授权客体主题（动植物品种）"
+  EX-CLM-004:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（从属权利要求引用规范）"
+  EX-CLM-005:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（功能性限定）"
+  EX-NOV-001:
+    premise: *novelty
+    reason: "前提=新颖性主题（公开方式）"
+  EX-NOV-003:
+    premise: *novelty
+    reason: "前提=新颖性主题（上位/下位概念）"
+  EX-NOV-004:
+    premise: *novelty
+    reason: "前提=新颖性主题"
+  EX-NOV-005:
+    premise: *novelty
+    reason: "前提=新颖性主题（性能参数产品）"
+  EX-INV-004:
+    premise: *inventiveness
+    reason: "前提=创造性主题（技术启示/公知常识）"
+  EX-INV-005:
+    premise: *inventiveness
+    reason: "前提=创造性主题（公知常识举证）"
+  EX-INV-006:
+    premise: *inventiveness
+    reason: "前提=创造性主题（预料不到的技术效果）"
+  EX-CMP-002:
+    premise: *computer-program
+    reason: "前提=计算机程序主题（算法描述/伪代码）"
+  EX-CMP-003:
+    premise: *computer-program
+    reason: "前提=计算机程序主题"
+  EX-PRC-002:
+    premise: *division
+    reason: "前提=分案主题。本规则的 pattern 与前提词表逐字重合，前提成立即元素满足 ⇒ 加前提后恒不命中；资产本就按 log（仅记录）定义，故保持 log 不另处置（退化形态说明见 P-PRC-003）"
+  EX-SPEC-001:
+    premise: *prior-art-description
+    reason: "前提=背景技术（现有技术描述）主题"
+  EX-SPEC-002:
+    premise: *biosequence
+    reason: "前提=生物序列主题（核苷酸/氨基酸序列）"
+  EX-SPEC-003:
+    premise: *abstract
+    reason: "前提=摘要主题"
+  EX-DIS-001:
+    premise: *specification
+    reason: "前提=说明书主题（五部分结构）"
+  EX-DIS-003:
+    premise: *specification
+    reason: "前提=说明书主题（实施例充分性）"
+  EX-DIS-004:
+    premise: *specification
+    reason: "前提=说明书主题（附图说明规范）"
+  IPC-A61-INV-003:
+    premise: *evidence-forensics
+    reason: "前提=证据审查主题（网络证据真实性）"
+  IPC-A61-INV-004:
+    premise: *inventiveness
+    reason: "前提=创造性主题（医药区别特征的有益效果）"
+  IPC-A61-INV-005:
+    premise: *inventiveness
+    reason: "前提=创造性主题（结构特征与使用效果区分）"
+  IPC-C07-INV-002:
+    premise: *inventiveness
+    reason: "前提=创造性主题（选择发明）"
+  IPC-GEN-INV-003:
+    premise: *inventiveness
+    reason: "前提=创造性主题（公知常识需举证）"
+  IPC-E04-INV-002:
+    premise: *inventiveness
+    reason: "前提=创造性主题（结构替换判断）"
+  IPC-C12-DIS-001:
+    premise: *biomaterial
+    reason: "前提=生物材料主题（保藏要求）"
+  JD-PRC-003:
+    premise: *technical-appraisal
+    reason: "前提=技术鉴定主题。本规则的 pattern 与前提词表逐字重合，前提成立即元素满足 ⇒ 加前提后恒不命中；资产本就按 log（仅记录）定义，故保持 log 不另处置（退化形态说明见 P-PRC-003）"
+  JD-PRC-004:
+    premise: *evidence-forensics
+    reason: "前提=鉴定意见主题（审查标准四要素）"
+  JD-PRC-005:
+    premise: *evidence-forensics
+    reason: "前提=网络证据主题（真实性认定）"
+  JD-OWN-001:
+    premise: *ownership
+    reason: "前提=权属主题（离职后相关性认定）"
+  JD-OWN-002:
+    premise: *ownership
+    reason: "前提=权属主题（物质技术条件认定）"
+  PR-SPEC-001:
+    premise: *specification
+    reason: "前提=说明书主题（技术问题与技术方案对应）"
+  PR-SPEC-002:
+    premise: *prior-art-description
+    reason: "前提=背景技术（现有技术描述）主题"
+  PR-SPEC-003:
+    premise: *specification
+    reason: "前提=说明书主题（实施例数量）"
+  PR-SPEC-004:
+    premise: *specification
+    reason: "前提=说明书主题（技术效果具体化）"
+  PR-SPEC-005:
+    premise: *specification
+    reason: "前提=说明书主题（术语定义统一）"
+  PR-CLM-002:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（多层次防御体系）"
+  PR-CLM-003:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（方法步骤编号）"
+  PR-CLM-004:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（功能性限定使用规范）"
+  PR-CLM-005:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（避免纯功能性限定）"
+  PR-CLM-006:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（马库什结构）"
+  PR-FMT-002:
+    premise: *specification
+    reason: "前提=说明书主题（附图规范）"
+  PR-FMT-003:
+    premise: *claim-drafting
+    reason: "前提=权利要求书产物形态（编号连续性）"
+  PR-OA-003:
+    premise: *inventiveness
+    reason: "前提=创造性主题（三步法回应）"
+  PR-OA-004:
+    premise: *novelty
+    reason: "前提=新颖性主题（单独对比原则）"
+  P-NOV-001:
+    premise: *novelty
+    reason: "前提=新颖性主题（三要素）"
+  P-NOV-002:
+    premise: *novelty
+    reason: "前提=新颖性主题（现有技术证据要素）"
+  P-NOV-003:
+    premise: *novelty
+    reason: "前提=新颖性主题（抵触申请）"
+  P-UTL-001:
+    premise: *utility
+    reason: "前提=实用性主题"

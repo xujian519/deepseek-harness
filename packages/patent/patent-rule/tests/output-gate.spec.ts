@@ -28,6 +28,16 @@ describe('RuleOutputGate', () => {
     expect(warn.warnHits).toContain('PAT-ABS-001')
   })
 
+  it('quote immunity holds on the gate path: quoted-only risky words draw no warn hint', () => {
+    const gate = makeRuleGate()
+    const quoted = gate.process('审查员认为「该参数一定能够提高效率、该方案构成侵权」，申请人认为该认定缺乏依据。')
+    expect(quoted.warnHits).not.toContain('PAT-ABS-001')
+    expect(quoted.warnHits).not.toContain('PAT-RISK-001')
+    const plain = gate.process('该参数一定能够提高效率，该方案构成侵权。')
+    expect(plain.warnHits).toContain('PAT-ABS-001')
+    expect(plain.warnHits).toContain('PAT-RISK-001')
+  })
+
   it('block hit (placeholder patent number) → needsApproval + blockHits', () => {
     const gate = makeRuleGate()
     const result = gate.process('现有技术 CNXXXXXX 公开了一种方法。')

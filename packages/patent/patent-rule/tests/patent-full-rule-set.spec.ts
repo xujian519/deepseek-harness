@@ -9,15 +9,17 @@ import {
   loadPatentFullRuleSet,
   parseRuleSetFromYaml,
   patentAssetDir,
+  patentCaseDomains,
   RuleOutputGate,
+  selectGateRules,
   type PatentComplianceLoadResult,
 } from '@deepseek-ai/dsh-patent-rule'
 
 describe('patent full rule set', () => {
-  it('loadPatentFullRuleSet merges compliance + nuo assets + merged gap assets (4 + 96 + 17 = 117 rules)', () => {
+  it('loadPatentFullRuleSet merges compliance + nuo assets + merged gap assets (4 + 96 + 20 = 120 rules)', () => {
     const loaded = loadPatentFullRuleSet()
     expect(loaded.source).not.toBeNull()
-    expect(loaded.ruleSet.rules.length).toBe(117)
+    expect(loaded.ruleSet.rules.length).toBe(120)
     const ids = new Set(loaded.ruleSet.rules.map(r => r.id))
     expect(ids.has('PAT-RISK-001')).toBe(true)
     expect(ids.has('CON-COMP-0101')).toBe(true)
@@ -59,17 +61,17 @@ describe('patent full rule set', () => {
     expect(clean.blockHits).not.toContain('CON-COMP-0101')
   })
 
-  it('scope differs: patent keeps 4 rules, patent-full keeps 117', () => {
+  it('scope differs: patent keeps 4 rules, patent-full keeps 120', () => {
     const patent = loadPatentComplianceRuleSet()
     const full = loadPatentFullRuleSet()
     expect(patent.ruleSet.rules.length).toBe(4)
-    expect(full.ruleSet.rules.length).toBe(117)
+    expect(full.ruleSet.rules.length).toBe(120)
   })
 
-  it('loadActivationOverrides parses 31 patches with no warnings', () => {
+  it('loadActivationOverrides parses 90 patches with no warnings', () => {
     const ov = loadActivationOverrides()
     expect(ov.source).not.toBeNull()
-    expect(ov.byId.size).toBe(31)
+    expect(ov.byId.size).toBe(90)
     expect(ov.warnings.length).toBe(0)
     expect(ov.byId.get('CON-102')?.action).toBe('review')
     // check 级增补（2026-09-16 语义增强）与 action 整替换共存于同一份补丁表。
@@ -234,6 +236,162 @@ describe('patent full rule set', () => {
       ),
       (loaded) => {
         expect(loaded.warnings.some(w => w.includes('EX-SEL-004') && w.includes('negationContext'))).toBe(true)
+      },
+    )
+  })
+
+  // -------------------------------------------------------------------------
+  // 适用前提评审（2026-09-30，26.3 答复自检事故）
+  //   事故形态：一份只讨论 26.3 的答复在 rule_check(scope='patent-oa-response')
+  //   下返回 49 条命中，其中 48 条来自「该答复根本没讨论的主题」的完整性规则。
+  // -------------------------------------------------------------------------
+
+  /** 一份只讨论 26.3（充分公开）的答复主干：不提新颖性/创造性/权项撰写等主题。 */
+  const DISCLOSURE_ONLY_ANSWER = [
+    '审查员认为本申请说明书公开不充分，不符合专利法第二十六条第三款的规定。',
+    '申请人认为，根据说明书的记载，本领域技术人员能够实现该技术方案。',
+    '说明书具体实施方式部分记载了喷漆、烘干时间的具体控制方式，附图1示出了整体结构，实施例给出了完整工艺参数。',
+    '因此本申请符合专利法第二十六条第三款的规定。',
+  ].join('')
+
+  /** 与事故无关主题的规则族：这些规则在这份答复上必须保持沉默。 */
+  const UNTOUCHED_FAMILIES = [
+    ['新颖性', ['EX-NOV-001', 'EX-NOV-003', 'EX-NOV-004', 'EX-NOV-005', 'CON-103', 'P-NOV-001', 'P-NOV-002', 'P-NOV-003', 'PR-OA-004']],
+    ['创造性', ['EX-INV-004', 'EX-INV-005', 'EX-INV-006', 'CON-104', 'CON-401', 'CON-402', 'CON-601', 'P-INV-004', 'PR-OA-003', 'IPC-GEN-INV-003']],
+    ['权利要求撰写形态', ['PR-CLM-001', 'PR-CLM-002', 'PR-CLM-003', 'PR-CLM-004', 'PR-CLM-005', 'PR-CLM-006', 'PR-FMT-003', 'EX-CLM-004', 'EX-CLM-005']],
+    ['不授予专利权客体', ['EX-SEL-001', 'EX-SEL-002', 'EX-SEL-003', 'EX-SEL-005']],
+    ['其他主题（程序/摘要/生物/权属/判例）', ['EX-CMP-001', 'EX-CMP-002', 'EX-CMP-003', 'EX-SPEC-002', 'EX-SPEC-003', 'EX-PRC-002', 'P-PRC-003', 'JD-PRC-003', 'JD-PRC-004', 'JD-PRC-005', 'JD-OWN-001', 'JD-OWN-002']],
+  ] as const
+
+  it('前提评审落地：只讨论 26.3 的答复不触发无关主题的完整性规则', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const domains = patentCaseDomains('patent-oa-response')
+    expect(domains).toBeDefined()
+    const ids = new Set(
+      evaluateText(DISCLOSURE_ONLY_ANSWER, ruleSet, undefined, { domain: domains ?? [] }).violations.map(v => v.ruleId),
+    )
+    for (const [family, members] of UNTOUCHED_FAMILIES) {
+      const hit = members.filter(id => ids.has(id))
+      expect(hit, `${family} 族不应在只讨论 26.3 的答复上命中`).toEqual([])
+    }
+  })
+
+  it('无关主题族清单与规则集同步：每个成员 id 都必须存在', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const known = new Set(ruleSet.rules.map(r => r.id))
+    for (const [family, members] of UNTOUCHED_FAMILIES) {
+      const missing = members.filter(id => !known.has(id))
+      expect(missing, `${family} 族的成员 id 在规则集中不存在`).toEqual([])
+    }
+  })
+
+  it('前提是主题词表而非全局静音：答复一旦讨论创造性，创造性族的完整性检查回归', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const domains = patentCaseDomains('patent-oa-response')
+    expect(domains).toBeDefined()
+    const withInventiveness = `${DISCLOSURE_ONLY_ANSWER}审查员还认为本申请不具备创造性。`
+    const ids = new Set(
+      evaluateText(withInventiveness, ruleSet, undefined, { domain: domains ?? [] }).violations.map(v => v.ruleId),
+    )
+    expect(ids.has('CON-104')).toBe(true)
+    expect(ids.has('EX-INV-001')).toBe(true)
+  })
+
+  it('前提不改变规则本身：patent-full（无域过滤）仍按主题评估同一批规则', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const ids = new Set(evaluateText(DISCLOSURE_ONLY_ANSWER, ruleSet).violations.map(v => v.ruleId))
+    expect(ids.has('CON-104')).toBe(false)
+    expect(ids.has('EX-NOV-001')).toBe(false)
+  })
+
+  it('引述豁免落地：审查员原话里的「一定」不判本模型违规，引号外的照常判', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const ids = (text: string): string[] => evaluateText(text, ruleSet).violations.map(v => v.ruleId)
+    expect(ids('审查员认为「该参数一定能够提高效率」，申请人认为该认定缺乏依据。')).not.toContain('PAT-ABS-001')
+    expect(ids('该参数一定能够提高效率。')).toContain('PAT-ABS-001')
+  })
+
+  it('权利要求书产物形态前提：答复引述权项不触发撰写形态规则，携带权项书则恢复', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const domains = patentCaseDomains('patent-oa-response')
+    expect(domains).toBeDefined()
+    const ids = (text: string): string[] =>
+      evaluateText(text, ruleSet, undefined, { domain: domains ?? [] }).violations.map(v => v.ruleId)
+    // 引述「权利要求1记载了…」是论证，不是撰写形态
+    expect(ids('申请人认为权利要求1记载的技术方案未被公开。')).not.toContain('PR-CLM-002')
+    // 答复携带修改后的权利要求书 → 撰写形态规则恢复评估
+    expect(ids('修改后的权利要求书如下：\n1. 一种喷漆装置，其特征在于，包括喷头。')).toContain('PR-CLM-002')
+    // 直接粘贴的权项清单（无「权利要求书」字样）按编号行起首词识别为产物
+    expect(ids('1. 一种喷漆装置，包括喷头。')).toContain('PR-CLM-001')
+  })
+
+  it('编号列举不复活撰写形态规则：编号行起首须是权项写法', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const domains = patentCaseDomains('patent-oa-response')
+    const numbered = `${DISCLOSURE_ONLY_ANSWER}\n1. 首先，说明书公开了完整工艺参数。`
+    const ids = new Set(
+      evaluateText(numbered, ruleSet, undefined, { domain: domains ?? [] }).violations.map(v => v.ruleId),
+    )
+    for (const [family, members] of UNTOUCHED_FAMILIES) {
+      const hit = members.filter(id => ids.has(id))
+      expect(hit, `${family} 族不应因编号列举恢复命中`).toEqual([])
+    }
+  })
+
+  it('答复形式规则（PR-OA-005/006/007）随 patent-full 一并加载，且只作用于答复域', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const byId = new Map(ruleSet.rules.map(r => [r.id, r]))
+    for (const id of ['PR-OA-005', 'PR-OA-006', 'PR-OA-007']) {
+      expect(byId.get(id)?.domain).toBe('patent_oa_response')
+      expect(byId.get(id)?.action).toBe('warn')
+    }
+    expect(byId.get('PR-OA-005')?.check.type).toBe('pattern_analysis')
+    expect(byId.get('PR-OA-006')?.check).toEqual({ type: 'quote_repetition', minLength: 12, minOccurrences: 2 })
+    // 答复形式规则不进输出门禁（门禁只取 keyword_blocklist）
+    expect(selectGateRules(ruleSet).rules.some(r => r.id === 'PR-OA-006')).toBe(false)
+  })
+
+  it('前提词表与顶层键校验：写错的前提必须可见，不能只剩「规则不生效」', () => {
+    withTempOverrides(
+      [
+        'version: "1.0"',
+        'premise-vocab:',
+        '  broken: ["(未闭合"]',
+        '  blank: ["  "]',
+        'unknown-section: {}',
+        'overrides:',
+        '  CON-102:',
+        '    premise: []',
+        '    reason: "空前提"',
+        '',
+      ].join('\n'),
+      (loaded) => {
+        expect(loaded.warnings.some(w => w.includes('premise-vocab.broken'))).toBe(true)
+        expect(loaded.warnings.some(w => w.includes('premise-vocab.blank'))).toBe(true)
+        expect(loaded.warnings.some(w => w.includes('unknown-section') && w.includes('未知顶层键'))).toBe(true)
+        expect(loaded.warnings.some(w => w.includes('CON-102') && w.includes('premise'))).toBe(true)
+        // 整条跳过：premise 不会被应用（规则只剩资产原值——本用例的补丁文件替换了随包
+        // 补丁表，故 CON-102 保持资产里的 block，而不是随包评审的 review）
+        const con102 = loaded.ruleSet.rules.find(r => r.id === 'CON-102')
+        expect(con102?.action).toBe('block')
+        expect(con102?.premise).toBeUndefined()
+      },
+    )
+  })
+
+  it('补丁 premise 生效：把规则限定到主题词表', () => {
+    withTempOverrides(
+      [
+        'overrides:',
+        '  CON-401:',
+        '    premise:',
+        '      - "创造性"',
+        '    reason: "只在该主题下评估"',
+        '',
+      ].join('\n'),
+      (loaded) => {
+        expect(loaded.warnings).toEqual([])
+        expect(loaded.ruleSet.rules.find(r => r.id === 'CON-401')?.premise).toEqual(['创造性'])
       },
     )
   })

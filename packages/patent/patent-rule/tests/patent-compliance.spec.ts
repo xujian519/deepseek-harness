@@ -93,7 +93,9 @@ describe('patent compliance loading', () => {
     const noOverrides = loadActivationOverrides(root)
     expect(noOverrides.source).not.toBeNull()
     expect(noOverrides.byId.size).toBe(0)
-    expect(noOverrides.warnings.length).toBe(0)
+    // 顶层没有 overrides 段时补丁表为空；未知顶层键（如拼错的 `premise-vocab`）必须告警，
+    // 否则整段评审结论会因为一个拼错的键而静默消失。
+    expect(noOverrides.warnings.some(w => w.includes('未知顶层键 "foo"'))).toBe(true)
 
     writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: 42\n', 'utf8')
     const badValue = loadActivationOverrides(root)

@@ -64,8 +64,10 @@ export type RuleCheckDeps = {
 const AVAILABLE_SCOPES = 'patent, patent-electrical, patent-full, patent-oa-response, patent-invalidation, patent-reexamination, patent-infringement, pack'
 
 const DESCRIPTION = [
-  'Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match)',
+  'Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match / quote repetition)',
   'against the given text and return violations with severity, action and legal basis.',
+  'Most rules declare an applicability premise: a rule whose premise does not match the text reports nothing, so a document is only checked against the subjects it actually discusses',
+  '(an answer that never touches novelty draws no novelty-completeness findings).',
   'Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions).',
   "Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance),",
   "'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed),",
