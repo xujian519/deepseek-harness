@@ -55,6 +55,14 @@ import {
   startRenderDeadline,
 } from './subprocess-render.ts'
 
+/**
+ * FreeCAD `Part.read` 可读的三维模型格式（两个工具共用：结构线稿投影与剖切几何）。
+ *
+ * 三者的单位语义不同：STEP 在文件头声明单位，IGES/BREP 没有单位声明、按模型自身数值
+ * 读入，故 `sections.source` 另用声明尺寸核对图面比例（见 `figure/section-source`）。
+ */
+export const SUPPORTED_MODEL_EXTENSIONS: readonly string[] = ['.step', '.stp', '.iges', '.igs', '.brep']
+
 /** 各平台常见 FreeCAD console 可执行文件安装路径。 */
 export const FREECAD_CMD_CANDIDATES: readonly string[] = [
   '/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd',

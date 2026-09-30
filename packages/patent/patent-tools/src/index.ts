@@ -54,7 +54,8 @@ import { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts
 import { createGenerateStructureFigureTool } from './tool/generate-structure-figure.ts'
 import type { GenerateStructureFigureDeps } from './tool/generate-structure-figure.ts'
 import { STRUCTURE_VIEWS, type StructureViewName } from './figure/freecad-structure-script.ts'
-import { DEFAULT_FREECAD_RENDER_TIMEOUT_MS, renderStructureViews } from './figure/freecad-renderer.ts'
+import { DEFAULT_FREECAD_RENDER_TIMEOUT_MS, renderSectionGeometry, renderSectionHatch, renderStructureViews } from './figure/freecad-renderer.ts'
+import type { SectionSourcePorts } from './figure/section-source.ts'
 import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 import { createVerifyPatentFigureTool } from './tool/verify-patent-figure.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
@@ -113,6 +114,8 @@ export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-
 export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps } from './tool/search-patent-figure.ts'
 export { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
 export { FIGURE_GENERATOR_MODEL_USED } from './tool/figure-input.ts'
+export { expandSectionSource, SectionSourceError, SECTION_SOURCE_SIZE_TOLERANCE } from './figure/section-source.ts'
+export type { SectionSourcePorts, SectionSourceOptions, SectionSourceExpansion, SectionSourceErrorCode } from './figure/section-source.ts'
 export { createGenerateStructureFigureTool, STRUCTURE_FIGURE_MODEL_USED } from './tool/generate-structure-figure.ts'
 export type {
   GenerateStructureFigureInput,
@@ -272,9 +275,9 @@ export interface Config {
   workbenchCaseRoot?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
   dotFont?: string
-  /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 generate_structure_figure 使用。 */
+  /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。generate_structure_figure 与剖视图的 sections.source 共用。 */
   freecadExecutable?: string
-  /** freecadcmd 单次渲染超时（毫秒）；默认 120000（FreeCAD 冷启动比 dot 慢）。仅 generate_structure_figure 使用。 */
+  /** freecadcmd 单次渲染超时（毫秒）；默认 120000（FreeCAD 冷启动比 dot 慢）。generate_structure_figure 与剖视图的 sections.source 共用。 */
   freecadRenderTimeoutMs?: number
   /** 结构线稿门禁（generate_structure_figure）；默认 false（CAD 隔离、默认关闭，未开启即 fail-loud）。 */
   structureFigureEnabled?: boolean
@@ -630,10 +633,26 @@ export function apply(ctx: Context, config: Config): void {
       renderTimeoutMs: renderBudgets.inkscapeRenderTimeoutMs,
     })
     : undefined
+  // 剖切来源（剖视图的 sections.source）：与结构线稿共用同一段 FreeCAD 通道。宿主未挂载
+  // subprocess 时不注入端口，工具层对 source 报 setup_required —— 需要 CAD 就 fail loud，
+  // 不静默降级成手写轮廓的示意图。
+  const sectionSource: SectionSourcePorts | undefined = subprocess === undefined
+    ? undefined
+    : {
+      sectionGeometry: spec => renderSectionGeometry(subprocess, spec, {
+        ...(config.freecadExecutable === undefined ? {} : { executable: config.freecadExecutable }),
+        renderTimeoutMs: renderBudgets.freecadRenderTimeoutMs,
+      }),
+      sectionHatch: spec => renderSectionHatch(subprocess, spec, {
+        ...(config.freecadExecutable === undefined ? {} : { executable: config.freecadExecutable }),
+        renderTimeoutMs: renderBudgets.freecadRenderTimeoutMs,
+      }),
+    }
   ctx.tools.register(createGeneratePatentFigureTool({
     render: renderDot,
     ...(outlineText === undefined ? {} : { outlineText }),
     ...(exportFigure === undefined ? {} : { exportFigure }),
+    ...(sectionSource === undefined ? {} : { sectionSource }),
     outputDir: resolveFigureOutputDir(config),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
     loadIndex: async () => (await figureIndexStore.load(figureIndexFile)).entries,

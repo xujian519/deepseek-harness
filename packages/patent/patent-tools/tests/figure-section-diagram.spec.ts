@@ -485,6 +485,83 @@ describe('buildSectionDiagram 剖面线分组标记', () => {
   })
 })
 
+describe('buildSectionDiagram 带孔零件与预生成剖面线（T-12）', () => {
+  /** 60×30 底板（居中）与两个 r5 孔环。 */
+  const PLATE: readonly (readonly [number, number])[] = [[-30, -15], [30, -15], [30, 15], [-30, 15]]
+  const HOLE = (centerX: number): readonly (readonly [number, number])[] =>
+    Array.from({ length: 24 }, (_, index) => {
+      const angle = (2 * Math.PI * index) / 24
+      return [centerX + 5 * Math.cos(angle), 5 * Math.sin(angle)] as const
+    })
+
+  it('孔环与轮廓同线宽、同分组号，并按给出的线段原样落图', () => {
+    const segments = [
+      { from: [-30, -10] as const, to: [-20, -10] as const },
+      { from: [20, -10] as const, to: [30, -10] as const },
+    ]
+    const spec = buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [HOLE(-15), HOLE(15)], hatch: { angleDeg: 45, spacingMm: 3 }, hatchSegments: segments }],
+      paddingMm: 0,
+    })
+    const polygons = [...spec.body.matchAll(/<polygon points="[^"]*" stroke-width="([\d.]+)"(?: data-dsh-hatch-group="(\d+)")?\/>/g)]
+    expect(polygons).toHaveLength(3)
+    expect(polygons.map(match => [match[1], match[2]])).toEqual([['0.5', '0'], ['0.5', '0'], ['0.5', '0']])
+    // 剖面线就是给出的两条，没有按轮廓再做一次 even-odd 裁剪（那会把孔里也打上）。
+    expect(hatchLines(spec.body)).toHaveLength(2)
+  })
+
+  it('给了孔却不给 hatchSegments 即报错，而不是把孔里也打上剖面线', () => {
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [HOLE(-15)], hatch: { angleDeg: 45 } }],
+    }))).toContain('给了孔就必须给出 hatchSegments')
+  })
+
+  it('hatchSegments 必须与 hatch 同时给出且不能是 none', () => {
+    const segments = [{ from: [0, 0] as const, to: [1, 0] as const }]
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, hatchSegments: segments }],
+    }))).toContain('就必须同时给出 hatch')
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, hatch: 'none', hatchSegments: segments }],
+    }))).toContain('就必须同时给出 hatch')
+  })
+
+  it('剖面线段端点非有限数即报错并指明下标', () => {
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{
+        outline: PLATE,
+        hatch: { angleDeg: 45 },
+        hatchSegments: [{ from: [0, 0], to: [Number.NaN, 0] }],
+      }],
+    }))).toContain('零件 #1 剖面线段 #1 终点坐标必须是有限数')
+  })
+
+  it('孔环顶点不足、坐标非有限数即报错并指明孔序号', () => {
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [[[0, 0], [1, 1]]], hatch: 'none' }],
+    }))).toContain('零件 #1 孔 #1 至少需要 3 个顶点')
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [[[0, 0], [1, 1], [Number.POSITIVE_INFINITY, 2]]], hatch: 'none' }],
+    }))).toContain('零件 #1 孔 #1 坐标必须是有限数')
+  })
+
+  it('孔环参与包围盒：画布随孔变大', () => {
+    const small = buildSectionDiagram({ parts: [{ outline: PLATE, holes: [HOLE(-15)], hatch: 'none' }], paddingMm: 0 })
+    const wide = buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [[[-40, -5], [40, -5], [40, 5], [-40, 5]]], hatch: 'none' }],
+      paddingMm: 0,
+    })
+    expect(small.widthMm).toBe(60)
+    expect(wide.widthMm).toBe(80)
+  })
+
+  it('带孔的 hatch: none 只画轮廓，不要求 hatchSegments', () => {
+    const spec = buildSectionDiagram({ parts: [{ outline: PLATE, holes: [HOLE(-15)], hatch: 'none' }], paddingMm: 0 })
+    expect(hatchLines(spec.body)).toHaveLength(0)
+    expect(spec.body.match(/<polygon /g) ?? []).toHaveLength(2)
+  })
+})
+
 describe('buildSectionDiagram 线宽（T-07）', () => {
   /** body 中每个 `<polygon>` 的线宽（按出现顺序）。 */
   const polygonWidths = (body: string): number[] =>

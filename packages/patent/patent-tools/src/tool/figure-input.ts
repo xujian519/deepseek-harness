@@ -26,6 +26,7 @@ import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../figure/graphv
 import type { FigureIndexEntry } from '../figure/index-store.ts'
 import type { ExportFigurePort, OutlineTextPort } from '../figure/inkscape-renderer.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
+import type { SectionSourcePorts } from '../figure/section-source.ts'
 import type { SubmissionLayout } from '../figure/submission-page.ts'
 import type {
   AppearanceFigureJson,
@@ -85,6 +86,12 @@ export type GeneratePatentFigureDeps = {
   exportFigure?: ExportFigurePort
   /** 输出目录（绝对路径），默认 <cwd>/patent/figures。 */
   outputDir?: string
+  /**
+   * 可选剖切几何端口（宿主注入 FreeCAD 的剖切与剖面线渲染器）：把剖视图的
+   * `sections.source`（模型文件 + 剖切平面）展开成轮廓与剖面线段。未注入时给 `source`
+   * 报 setup_required —— 需要 FreeCAD，不静默改用示意图。
+   */
+  sectionSource?: SectionSourcePorts
   /** 可选 upsert 进附图索引（写入失败静默降级）。 */
   upsertIndex?: (entry: GeneratePatentFigureIndexEntry) => Promise<void>
   /** 可选读取附图索引（figure_family 跨图续号用；声明家族而缺省时调用报错）。 */

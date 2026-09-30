@@ -2879,7 +2879,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:230`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:233`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -2928,9 +2928,9 @@ export interface Config {
   workbenchCaseRoot?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
   dotFont?: string
-  /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 generate_structure_figure 使用。 */
+  /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。generate_structure_figure 与剖视图的 sections.source 共用。 */
   freecadExecutable?: string
-  /** freecadcmd 单次渲染超时（毫秒）；默认 120000（FreeCAD 冷启动比 dot 慢）。仅 generate_structure_figure 使用。 */
+  /** freecadcmd 单次渲染超时（毫秒）；默认 120000（FreeCAD 冷启动比 dot 慢）。generate_structure_figure 与剖视图的 sections.source 共用。 */
   freecadRenderTimeoutMs?: number
   /** 结构线稿门禁（generate_structure_figure）；默认 false（CAD 隔离、默认关闭，未开启即 fail-loud）。 */
   structureFigureEnabled?: boolean

@@ -3539,6 +3539,8 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
 
+CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_path（STEP/IGES/BREP）与剖切平面 plane（origin 平面内一点、normal 法向、可选 reference 图面「向右」基准）即由本机 FreeCAD 切出闭合轮廓与剖面线；返回的提示里给出切出的材料区域清单（净面积与图面范围），parts 仍按区域逐个给 label、hatch 与 stroke_width_mm，并用 anchor（落在该区域内的一个图面坐标点）把它与区域对上——区域顺序由 OCCT 决定，不能用序号对。剖面线由模型按区域（含孔）精确裁出，孔里不会被打上；source.scale 缩放图面（默认 1），labels/centerlines/cutting_marks 请给同一比例下的图面坐标。给 part_size_mm 会与模型包围盒比对，不符即报错（挡住模型单位读错导致的整体比例错误）。需要本机安装 FreeCAD 1.1+。
+
 图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。
 
 本机未安装 Graphviz 时返回 setup_required 与安装引导。
@@ -3881,12 +3883,19 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
                   },
                   "outline": {
                     "type": "array",
-                    "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）",
+                    "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）；给了 source 时不要给本字段（轮廓由模型切出）",
                     "items": {
                       "type": "array",
                       "items": {
                         "type": "number"
                       }
+                    }
+                  },
+                  "anchor": {
+                    "type": "array",
+                    "description": "落在本零件所属材料区域内的图面坐标点（毫米，已含 scale）：给 source 时必填，用它把本项与模型切出的材料区域对上（区域顺序由 OCCT 决定，不能按序号对）",
+                    "items": {
+                      "type": "number"
                     }
                   },
                   "hatch": {
@@ -3926,11 +3935,65 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
                     "type": "number",
                     "description": "该零件轮廓的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4）；缺省用顶层 stroke_width_mm"
                   }
-                },
-                "required": [
-                  "outline"
-                ]
+                }
               }
+            },
+            "source": {
+              "type": "object",
+              "description": "剖切来源：从 CAD 模型切出零件轮廓（含孔）与剖面线，代替手写坐标；给出时 parts 只给 label、hatch、stroke_width_mm 与 anchor，不要给 outline",
+              "additionalProperties": false,
+              "properties": {
+                "model_path": {
+                  "type": "string",
+                  "description": "模型文件路径（STEP/IGES/BREP），工作区相对或绝对"
+                },
+                "plane": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "origin": {
+                      "type": "array",
+                      "description": "剖切平面上的一点（毫米，模型坐标）",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "normal": {
+                      "type": "array",
+                      "description": "剖切平面法向（任意非零长度，模型坐标）；观察者位于法向正侧，沿 −normal 方向看剖切面",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reference": {
+                      "type": "array",
+                      "description": "图面「向右」参考方向（任意非零、与法向不平行）；缺省按 +X → +Y → +Z 取第一个可用轴。它决定视图绕法向的旋转，要复现同一张图就显式给出",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "required": [
+                    "origin",
+                    "normal"
+                  ]
+                },
+                "scale": {
+                  "type": "number",
+                  "description": "图面比例（默认 1）：切出的轮廓与剖面线坐标乘以它；labels/centerlines/cutting_marks 请按同一比例给图面坐标"
+                },
+                "part_size_mm": {
+                  "type": "array",
+                  "description": "零件整体尺寸（毫米，三个数，顺序无关）：与模型包围盒比对，不符即报错。STEP/IGES/BREP 的单位声明不一致会让图面比例整体错，给出它才能挡住（不核对就画出一张比例错的图）",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "model_path",
+                "plane"
+              ]
             },
             "labels": {
               "type": "array",
@@ -4057,7 +4120,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
           "type": "string"
         }
       ],
-      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联"
+      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联。复杂件用 sections.source 从 CAD 模型（STEP/IGES/BREP）切出轮廓与剖面线，parts 只给 label/hatch/anchor"
     },
     "sequence": {
       "type": "object",

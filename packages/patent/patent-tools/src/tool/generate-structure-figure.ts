@@ -32,6 +32,7 @@ import {
   STRUCTURE_VIEWS,
   type StructureViewName,
 } from '../figure/freecad-structure-script.ts'
+import { SUPPORTED_MODEL_EXTENSIONS } from '../figure/freecad-renderer.ts'
 import type { StructureRenderOutcome, StructureRenderSpec } from '../figure/freecad-renderer.ts'
 import type { OutlineTextPort } from '../figure/inkscape-renderer.ts'
 import { applyStructureLineStyle, STRUCTURE_LINE_WIDTH_SERIES } from '../figure/structure-svg-postprocess.ts'
@@ -47,9 +48,6 @@ import { assertRendered } from './internal/render-outcome.ts'
 
 /** 结构线稿在索引中的模型标识（FreeCAD TechDraw 投影，无 LLM 参与）。 */
 export const STRUCTURE_FIGURE_MODEL_USED = 'freecad-structure'
-
-/** Part.read 可载入的模型扩展名（小写，含点）。 */
-const SUPPORTED_MODEL_EXTENSIONS: readonly string[] = ['.step', '.stp', '.iges', '.igs', '.brep']
 
 /** 缺省 TechDraw 投影比例。 */
 const DEFAULT_STRUCTURE_SCALE = 1

@@ -20,6 +20,11 @@ import { SECTION_GEOMETRY_FILENAME, buildSectionScript } from '../src/figure/fre
 import { structureSvgFilename } from '../src/figure/freecad-structure-script.ts'
 import { applyStructureLineStyle } from '../src/figure/structure-svg-postprocess.ts'
 import { measureInkBounds } from '../src/figure/render-check.ts'
+import { expandSectionSource, SectionSourceError, type SectionSourcePorts } from '../src/figure/section-source.ts'
+import { buildVectorFigure } from '../src/figure/vector-figure-build.ts'
+import type { SectionFigureJson } from '../src/figure/vector-figure-build.ts'
+import { vectorFigureSvg } from '../src/figure/vector-figure.ts'
+import { checkFigureRendering } from '../src/figure/render-check.ts'
 
 /**
  * 真实 FreeCAD 端到端 smoke：仅在本机装有 freecadcmd 时运行（无 FreeCAD 环境
@@ -627,6 +632,136 @@ describe.skipIf(!hasFreeCad)('real FreeCAD section hatching (needs `freecadcmd` 
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  }, 180_000)
+
+  afterAll(() => {
+    rmSync(outDir, { recursive: true, force: true })
+  })
+})
+
+
+describe.skipIf(!hasFreeCad)('real FreeCAD section source (needs `freecadcmd` installed)', () => {
+  const runtime = realSubprocess()
+  const outDir = mkdtempSync(join(tmpdir(), 'dsh-sectionsource-real-'))
+  const renderOptions = { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }
+  const ports: SectionSourcePorts = {
+    sectionGeometry: spec => renderSectionGeometry(runtime, spec, renderOptions),
+    sectionHatch: spec => renderSectionHatch(runtime, spec, renderOptions),
+  }
+
+  /** 有向 Hausdorff 距离（顶点集之间，保守：不小于真实曲线间的距离）。 */
+  function directedHausdorff(from: readonly (readonly [number, number])[], to: readonly (readonly [number, number])[]): number {
+    return Math.max(...from.map(point => Math.min(...to.map(other => Math.hypot(point[0] - other[0], point[1] - other[1])))))
+  }
+
+  /** 对称 Hausdorff 距离（顶点集之间）。 */
+  function hausdorff(left: readonly (readonly [number, number])[], right: readonly (readonly [number, number])[]): number {
+    return Math.max(directedHausdorff(left, right), directedHausdorff(right, left))
+  }
+
+  /** 点到闭合轮廓线（各边线段）的最短距离。 */
+  function distanceToOutline(
+    point: readonly [number, number],
+    polygon: readonly (readonly [number, number])[],
+  ): number {
+    let best = Infinity
+    for (let index = 0; index < polygon.length; index += 1) {
+      const from = polygon[index] as readonly [number, number]
+      const to = polygon[(index + 1) % polygon.length] as readonly [number, number]
+      const dx = to[0] - from[0]
+      const dy = to[1] - from[1]
+      const lengthSquared = dx * dx + dy * dy
+      const t = lengthSquared === 0
+        ? 0
+        : Math.min(1, Math.max(0, ((point[0] - from[0]) * dx + (point[1] - from[1]) * dy) / lengthSquared))
+      best = Math.min(best, Math.hypot(point[0] - (from[0] + t * dx), point[1] - (from[1] + t * dy)))
+    }
+    return best
+  }
+
+  /** 与手工输入的 fig1.json 等效的剖视图输入：底板（含两个通孔）+ 一个标号。 */
+  function sourceInput(): SectionFigureJson {
+    return {
+      source: {
+        model_path: SECTION_FIXTURE,
+        plane: { origin: [0, 0, 4], normal: [0, 0, 1] },
+        part_size_mm: [SECTION_PLATE_WIDTH_MM, SECTION_PLATE_DEPTH_MM, SECTION_PLATE_HEIGHT_MM],
+      },
+      parts: [{ label: '1', anchor: [0, 0], hatch: { angle_deg: 45, spacing_mm: 3 } }],
+      labels: [{ text: '2', at: [37, -22], from: [20, -15] }],
+    }
+  }
+
+  it('切出的轮廓与解析矩形、孔圆环的 Hausdorff 距离都小于 0.1 毫米', async () => {
+    const expanded = await expandSectionSource(sourceInput(), { ports, cwd: import.meta.dirname, artifactDir: outDir })
+    expect(expanded.sections.parts).toHaveLength(1)
+    const [part] = expanded.sections.parts
+    const outline = part?.outline as readonly (readonly [number, number])[]
+    const rectangle: (readonly [number, number])[] = [
+      [-30, -15], [30, -15], [30, 15], [-30, 15],
+    ]
+    expect(part?.holes).toHaveLength(2)
+    expect(outline).toHaveLength(4)
+    expect(hausdorff(outline, rectangle)).toBeLessThan(0.1)
+    for (const [index, hole] of (part?.holes ?? []).entries()) {
+      const centerX = SECTION_HOLE_CENTERS_MM[index] as number
+      const circle = Array.from({ length: 720 }, (_, step) => {
+        const angle = (2 * Math.PI * step) / 720
+        return [centerX + SECTION_HOLE_RADIUS_MM * Math.cos(angle), SECTION_HOLE_RADIUS_MM * Math.sin(angle)] as const
+      })
+      expect(hole).toHaveLength(240)
+      expect(hausdorff(hole, circle)).toBeLessThan(0.1)
+    }
+    expect(expanded.warnings.join('\n')).toContain('切出 1 个材料区域')
+  }, 180_000)
+
+  it('剖面线由模型按区域裁出：孔里没有剖面线，端点落在切出的轮廓上', async () => {
+    const expanded = await expandSectionSource(sourceInput(), { ports, cwd: import.meta.dirname, artifactDir: outDir })
+    const [part] = expanded.sections.parts
+    const segments = part?.hatch_segments ?? []
+    expect(segments.length).toBeGreaterThan(0)
+    const outlines: (readonly (readonly [number, number])[])[] = [
+      part?.outline as readonly (readonly [number, number])[],
+      ...(part?.holes ?? []),
+    ]
+    let longestToOutline = 0
+    for (const segment of segments) {
+      // 中点不落在任何孔内：孔由 makeGeomHatch 精确裁剪（section-diagram 的逐多边形裁剪做不到）。
+      const midpoint = [(segment.from[0] + segment.to[0]) / 2, (segment.from[1] + segment.to[1]) / 2] as const
+      for (const [index] of (part?.holes ?? []).entries()) {
+        const centerX = SECTION_HOLE_CENTERS_MM[index] as number
+        expect(Math.hypot(midpoint[0] - centerX, midpoint[1])).toBeGreaterThan(SECTION_HOLE_RADIUS_MM)
+      }
+      // 端点到轮廓边（外环或孔环的线段）的距离：剖面线落在画出来的轮廓线上。
+      for (const end of [segment.from, segment.to]) {
+        longestToOutline = Math.max(longestToOutline, Math.min(...outlines.map(polygon => distanceToOutline(end, polygon))))
+      }
+      // 取向：45°（无向）。产物坐标取 6 位小数，端点各带约 1e-6 的取整噪声，故容差取 1e-3 度。
+      const degrees = (Math.atan2(segment.to[1] - segment.from[1], segment.to[0] - segment.from[0]) * 180) / Math.PI
+      expect(Math.abs((degrees + 180) % 180 - 45)).toBeLessThan(1e-3)
+    }
+    expect(longestToOutline).toBeLessThan(1e-5)
+  }, 180_000)
+
+  it('展开后的输入直接落图：渲染复核没有任何发现', async () => {
+    const expanded = await expandSectionSource(sourceInput(), { ports, cwd: import.meta.dirname, artifactDir: outDir })
+    const build = buildVectorFigure('cross_section', { sections: expanded.sections })
+    const report = checkFigureRendering(vectorFigureSvg(build.spec, '剖视图'))
+    expect(report.findings).toEqual([])
+  }, 180_000)
+
+  it('声明的零件尺寸与模型包围盒不符时当场报错（挡住单位读错）', async () => {
+    const failure = await expandSectionSource({
+      ...sourceInput(),
+      source: {
+        model_path: SECTION_FIXTURE,
+        plane: { origin: [0, 0, 4], normal: [0, 0, 1] },
+        part_size_mm: [600, 300, 80],
+      },
+    }, { ports, cwd: import.meta.dirname, artifactDir: outDir }).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(SectionSourceError)
+    expect((failure as SectionSourceError).code).toBe('invalid_input')
+    expect((failure as SectionSourceError).message).toContain('80×300×600')
   }, 180_000)
 
   afterAll(() => {

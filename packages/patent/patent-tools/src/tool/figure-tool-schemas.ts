@@ -94,6 +94,33 @@ export const PLOT_INPUT_SCHEMA = {
 /** 二维点 schema（[x, y]，毫米）。 */
 export const POINT_SCHEMA = { type: 'array', required: true, items: { type: 'number' } } as const
 
+/**
+ * 三维坐标 schema（剖切平面参数与零件尺寸共用；模型坐标不是图面坐标，故与 {@link POINT_SCHEMA} 分开）。
+ * 必填与否由各字段自己写 `required: true`：本 schema 的三个使用者（方向、参考方向、零件尺寸）里只有前两个必填。
+ */
+const VEC3_SCHEMA = { type: 'array', items: { type: 'number' } } as const
+
+/** 剖切来源 schema（`sections.source`）：模型文件 + 剖切平面 + 图面比例。 */
+const SECTION_SOURCE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    model_path: { type: 'string', required: true, description: '模型文件路径（STEP/IGES/BREP），工作区相对或绝对' },
+    plane: {
+      type: 'object',
+      required: true,
+      additionalProperties: false,
+      properties: {
+        origin: { ...VEC3_SCHEMA, required: true, description: '剖切平面上的一点（毫米，模型坐标）' },
+        normal: { ...VEC3_SCHEMA, required: true, description: '剖切平面法向（任意非零长度，模型坐标）；观察者位于法向正侧，沿 −normal 方向看剖切面' },
+        reference: { ...VEC3_SCHEMA, description: '图面「向右」参考方向（任意非零、与法向不平行）；缺省按 +X → +Y → +Z 取第一个可用轴。它决定视图绕法向的旋转，要复现同一张图就显式给出' },
+      },
+    },
+    scale: { type: 'number', description: '图面比例（默认 1）：切出的轮廓与剖面线坐标乘以它；labels/centerlines/cutting_marks 请按同一比例给图面坐标' },
+    part_size_mm: { ...VEC3_SCHEMA, description: '零件整体尺寸（毫米，三个数，顺序无关）：与模型包围盒比对，不符即报错。STEP/IGES/BREP 的单位声明不一致会让图面比例整体错，给出它才能挡住（不核对就画出一张比例错的图）' },
+  },
+} as const
+
 /** 剖视图输入 schema。 */
 export const SECTION_INPUT_SCHEMA = {
   type: 'object',
@@ -108,7 +135,8 @@ export const SECTION_INPUT_SCHEMA = {
         additionalProperties: false,
         properties: {
           label: { type: 'string', description: '零件名（数字落在轮廓包围盒右上角之外，自轮廓重心引细实线相连；同一零件由多个轮廓拼成时不要用本字段，用 labels 指定唯一标号落点）' },
-          outline: { type: 'array', required: true, items: { type: 'array', items: { type: 'number' } }, description: '零件闭合轮廓（[[x,y],…]，至少 3 点）' },
+          outline: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '零件闭合轮廓（[[x,y],…]，至少 3 点）；给了 source 时不要给本字段（轮廓由模型切出）' },
+          anchor: { type: 'array', items: { type: 'number' }, description: '落在本零件所属材料区域内的图面坐标点（毫米，已含 scale）：给 source 时必填，用它把本项与模型切出的材料区域对上（区域顺序由 OCCT 决定，不能按序号对）' },
           hatch: {
             oneOf: [
               {
@@ -129,6 +157,7 @@ export const SECTION_INPUT_SCHEMA = {
       },
       description: '被剖切零件轮廓（同一零件的多个轮廓各给一段）',
     },
+    source: { ...SECTION_SOURCE_SCHEMA, description: '剖切来源：从 CAD 模型切出零件轮廓（含孔）与剖面线，代替手写坐标；给出时 parts 只给 label、hatch、stroke_width_mm 与 anchor，不要给 outline' },
     labels: {
       type: 'array',
       items: {

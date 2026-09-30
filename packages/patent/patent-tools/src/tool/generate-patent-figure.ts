@@ -32,6 +32,8 @@ import type { TargetOffice } from '../figure/office-profile.ts'
 import { buildVectorFigure, isVectorFigureType } from '../figure/vector-figure-build.ts'
 import { VectorFigureError, vectorFigureSvg } from '../figure/vector-figure.ts'
 import { checkFigureRendering } from '../figure/render-check.ts'
+import { SectionSourceError, expandSectionSource } from '../figure/section-source.ts'
+import type { SectionSourceExpansion } from '../figure/section-source.ts'
 import { SvgAnnotateError } from '../figure/svg-annotate.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { FIGURE_TYPE_NAMES, FIGURE_TYPES } from './analyze-patent-figure.ts'
@@ -58,7 +60,7 @@ import {
   TREE_SCHEMA,
 } from './figure-tool-schemas.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
-import { assertRendered } from './internal/render-outcome.ts'
+import { assertRendered, sectionSourceError } from './internal/render-outcome.ts'
 
 const DESCRIPTION = [
   '生成专利风格附图：流程图（方法步骤）、状态图（状态+转移条件）、系统框图（组件+连接）、组件层级图，以及直接绘制 SVG 的电路图、曲线图/坐标图、剖视图（含剖面线与剖切符号）、时序图、外观设计六面视图排布；另有内置模板与原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。',
@@ -78,6 +80,8 @@ const DESCRIPTION = [
   '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。',
   '',
   '剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。',
+  '',
+  'CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_path（STEP/IGES/BREP）与剖切平面 plane（origin 平面内一点、normal 法向、可选 reference 图面「向右」基准）即由本机 FreeCAD 切出闭合轮廓与剖面线；返回的提示里给出切出的材料区域清单（净面积与图面范围），parts 仍按区域逐个给 label、hatch 与 stroke_width_mm，并用 anchor（落在该区域内的一个图面坐标点）把它与区域对上——区域顺序由 OCCT 决定，不能用序号对。剖面线由模型按区域（含孔）精确裁出，孔里不会被打上；source.scale 缩放图面（默认 1），labels/centerlines/cutting_marks 请给同一比例下的图面坐标。给 part_size_mm 会与模型包围盒比对，不符即报错（挡住模型单位读错导致的整体比例错误）。需要本机安装 FreeCAD 1.1+。',
   '',
   '图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。',
   '',
@@ -251,8 +255,17 @@ async function generateSingleFigure(
   context: FigureContext,
 ): Promise<GeneratePatentFigureOutput> {
   const { deps, cwd, format } = context
-  const normalized = normalizeSingleFigure(input)
-  const figureNumber = normalized.figure_number ?? 1
+  /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
+  const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
+  const figureNumber = input.figure_number ?? 1
+  const expanded = await withSectionSource(normalizeSingleFigure(input), {
+    deps,
+    cwd,
+    outputDir,
+    figureNumber,
+    signal: context.signal,
+  })
+  const normalized = expanded.input
   const vector = isVectorFigureType(normalized.figure_type)
   // 非 SVG 交付走 SVG 全链：中间产物是 SVG，落版/复核/转路径在其上生效，最后导出。
   const chain = needsSvgChain({
@@ -286,7 +299,6 @@ async function generateSingleFigure(
   const numeralBy = new Map(assignments.map(a => [a.id, a.numeral]))
 
   /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
-  const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
   await mkdir(outputDir, { recursive: true })
   const rendered = await renderSingleFigure(normalized, {
     context,
@@ -315,6 +327,7 @@ async function generateSingleFigure(
   } else if (leaderLinesActive) {
     await annotateRenderedSvg(rendered.path, result.numeralMap, result.warnings)
   }
+  result.warnings.push(...expanded.warnings)
   result.warnings.push(...rendered.vectorWarnings)
   result.warnings.push(...figureWordingWarnings(
     rendered.vectorLabels ?? collectFigureWording(normalized),
@@ -724,6 +737,52 @@ function toExportFormat(format: DotFormat): 'png' | 'pdf' {
 }
 
 /**
+ * 剖切来源展开：`sections.source` 给出时调 FreeCAD 切出轮廓与剖面线并填回输入。
+ *
+ * 中间产物（脚本、几何 JSON、`.pat`）落进输出目录下按图号区分的子目录：文件名固定，
+ * 同一次调用内多次生成不会互相覆盖，不同图号也不冲突。
+ * @param normalized - 已归一的单图输入。
+ * @param options - 运行参数（依赖、工作目录、输出目录、图号与取消信号）。
+ * @returns 展开后的输入与随结果返回的提示；没有 `source` 时原样返回。
+ * @throws PatentToolError 宿主未注入剖切端口（setup_required）、或展开失败（按码映射）时。
+ */
+async function withSectionSource(
+  normalized: NormalizedFigureInput,
+  options: {
+    deps: GeneratePatentFigureDeps
+    cwd: string
+    outputDir: string
+    figureNumber: number
+    signal: AbortSignal
+  },
+): Promise<{ input: NormalizedFigureInput; warnings: string[] }> {
+  const sections = normalized.sections
+  if (sections?.source === undefined) return { input: normalized, warnings: [] }
+  const ports = options.deps.sectionSource
+  if (ports === undefined) {
+    throw new PatentToolError(
+      'setup_required',
+      '剖视图的 sections.source 需要本机 FreeCAD（宿主未挂载 @deepseek-ai/dsh-subprocess，或未找到 freecadcmd）：'
+      + '请安装 FreeCAD 1.1+ 后重试，或改用显式 outline 给出轮廓。',
+      { tool: 'generate_patent_figure' },
+    )
+  }
+  let expansion: SectionSourceExpansion
+  try {
+    expansion = await expandSectionSource(sections, {
+      ports,
+      cwd: options.cwd,
+      artifactDir: join(options.outputDir, `.fig${String(options.figureNumber)}-section`),
+      signal: options.signal,
+    })
+  } catch (error) {
+    if (error instanceof SectionSourceError) throw sectionSourceError(error, 'generate_patent_figure')
+    throw error
+  }
+  return { input: { ...normalized, sections: expansion.sections }, warnings: expansion.warnings }
+}
+
+/**
  * 单图渲染：矢量图型直接绘制 SVG（无 Graphviz 依赖），其余图型构建 DOT 交渲染器。
  * @param normalized - the normalized single-figure input.
  * @param run - the render parameters resolved for this call.
@@ -974,7 +1033,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       plot: { ...PLOT_INPUT_SCHEMA, description: '曲线图/坐标图输入（figure_type=plot 时必填）：坐标轴 + 刻度 + 单位 + 多条序列（用标记形状区分，不用颜色）' },
       sections: {
         oneOf: [SECTION_INPUT_SCHEMA, { type: 'string' }],
-        description: '剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联',
+        description: '剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联。复杂件用 sections.source 从 CAD 模型（STEP/IGES/BREP）切出轮廓与剖面线，parts 只给 label/hatch/anchor',
       },
       sequence: { ...SEQUENCE_INPUT_SCHEMA, description: '时序图输入（figure_type=sequence_diagram 时必填）：参与者生命线 + 消息箭线' },
       appearance_views: { ...APPEARANCE_INPUT_SCHEMA, description: '外观设计视图排布输入（figure_type=appearance_view 时必填）：把调用方提供的六面视图片段按第一角投影排布并统一比例、逐视图标注视图名称' },
