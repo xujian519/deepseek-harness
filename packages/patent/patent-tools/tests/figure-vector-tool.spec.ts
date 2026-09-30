@@ -139,6 +139,8 @@ describe('generate_patent_figure：矢量图型（直接绘制 SVG）', () => {
       expect(svg).toContain('<title>电路图</title>')
       const value = result as { value: { figureType: string; warnings: string[] } }
       expect(value.value.figureType).toBe('circuit')
+      // 元件名按 LABEL_GAP_MM 落在符号与走线旁（符号外框距文字外框 0.84 毫米），这是电路图
+      // 的画法；「标号净距」判据只对机械剖视图开启，故这里不报贴线。
       expect(value.value.warnings).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -307,7 +309,7 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
         sections: {
           parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3, direction: 'forward' } }],
           labels: [{ text: '1', at: [44, 10], from: [40, 10] }],
-          centerlines: [{ from: [-4, 10], to: [42, 10] }],
+          centerlines: [{ from: [-4, 10], to: [40, 10] }],
           label_font_size_mm: 5,
         },
       }, 's1')
@@ -547,6 +549,58 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
       }, 's10')
       const payload = result.value as { warnings: string[] }
       expect(payload.warnings.join('\n')).toContain('渲染复核：图面文字「1」被线条贯穿')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure：自动复核的标号净距按图型开启', () => {
+  /** 工具执行结果（文本内容用于断言错误消息，value 用于断言结构化输出）。 */
+  type RunResult = { isError: boolean; value?: Record<string, unknown> }
+
+  /** 建一个只写不渲的工具上下文；返回执行器与输出目录。 */
+  async function setup(): Promise<{ dir: string; run: (args: unknown, label: string) => Promise<RunResult> }> {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-gap-'))
+    const tracker = trackingRenderer()
+    const tool = createGeneratePatentFigureTool({ render: tracker.render, outputDir: join(dir, 'figs'), cwd: dir })
+    const ctx = await ctxWith(tool)
+    return {
+      dir,
+      run: async (args, label) => await execute(ctx, 'generate_patent_figure', args, label) as RunResult,
+    }
+  }
+
+  it('剖视图：标号贴住中心线时按 1.5 毫米净距报出，并给出量测距离', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        sections: {
+          parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: 'none' }],
+          labels: [{ text: '1', at: [44, 10], from: [40, 10] }],
+          // 中心线在数字外框（下边界 y=11.62）外约 1 毫米处通过：贯穿判据不报，净距判据报。
+          centerlines: [{ from: [-4, 12.6], to: [46, 12.6] }],
+        },
+      }, 's12')
+      expect(result.isError).toBe(false)
+      const payload = result.value as { warnings: string[] }
+      const renderWarnings = payload.warnings.filter(warning => warning.startsWith('渲染复核：'))
+      expect(renderWarnings).toHaveLength(1)
+      expect(renderWarnings[0]).toContain('图面文字「1」距最近的图线仅 1 毫米，不足 1.5 毫米净距')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('电路图：同一个 1.5 毫米净距不套用，元件名贴着符号放不报', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({ figure_type: 'circuit', circuit }, 'c1')
+      expect(result.isError).toBe(false)
+      const payload = result.value as { warnings: string[] }
+      // 三条元件名距各自符号外框 0.84–1.2 毫米：套用净距会把这些画对的图报成缺陷。
+      expect(payload.warnings.filter(warning => warning.includes('净距'))).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

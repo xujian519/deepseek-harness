@@ -14,14 +14,19 @@ const U_SHAPE: readonly (readonly [number, number])[] = [
 ]
 
 /** body 中的 `<line>` 元素（剖面线 0.25 毫米与剖切位置线 0.5 毫米同形）。 */
-function lineElements(body: string): { x1: number; y1: number; x2: number; y2: number; width: number }[] {
-  const pattern = /<line x1="(-?[\d.]+)" y1="(-?[\d.]+)" x2="(-?[\d.]+)" y2="(-?[\d.]+)" stroke-width="([\d.]+)"\/>/g
+function lineElements(body: string): { x1: number; y1: number; x2: number; y2: number; width: number; role?: string }[] {
+  const pattern = new RegExp(
+    '<line x1="(-?[\\d.]+)" y1="(-?[\\d.]+)" x2="(-?[\\d.]+)" y2="(-?[\\d.]+)"'
+    + ' stroke-width="([\\d.]+)"(?: data-dsh-role="(\\w+)")?/>',
+    'g',
+  )
   return [...body.matchAll(pattern)].map(match => ({
     x1: Number(match[1]!),
     y1: Number(match[2]!),
     x2: Number(match[3]!),
     y2: Number(match[4]!),
     width: Number(match[5]!),
+    ...(match[6] === undefined ? {} : { role: match[6] }),
   }))
 }
 
@@ -477,5 +482,82 @@ describe('buildSectionDiagram 剖面线分组标记', () => {
     })
     expect(spec.body.match(/<polygon /g) ?? []).toHaveLength(2)
     expect(groups(spec.body)).toEqual(['0'])
+  })
+})
+
+describe('buildSectionDiagram 线宽（T-07）', () => {
+  /** body 中每个 `<polygon>` 的线宽（按出现顺序）。 */
+  const polygonWidths = (body: string): number[] =>
+    [...body.matchAll(/<polygon [^>]*stroke-width="([\d.]+)"[^>]*\/>/g)].map(match => Number(match[1]!))
+
+  it('缺省不传线宽时，输出与显式给出 0.5/0.25 逐字节相同', () => {
+    const input = { parts: [{ outline: SQUARE, hatch: {} }], paddingMm: 0 } as const
+    const implicit = buildSectionDiagram(input)
+    const explicit = buildSectionDiagram({ ...input, strokeWidthMm: 0.5, thinStrokeWidthMm: 0.25 })
+    expect(implicit.body).toBe(explicit.body)
+  })
+
+  it('零件的 strokeWidthMm 落到该轮廓自身，其他轮廓沿用图级默认', () => {
+    const spec = buildSectionDiagram({
+      outline: OUTLINE,
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: 'none', strokeWidthMm: 0.7 },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: 'none' },
+      ],
+      paddingMm: 0,
+    })
+    // 外轮廓 → 0.5（图级默认）、薄壁件 → 0.7、另一件 → 0.5。
+    expect(polygonWidths(spec.body)).toEqual([0.5, 0.7, 0.5])
+  })
+
+  it('图级粗/细线宽分别落到轮廓与剖面线、中心线', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: {} }],
+      centerlines: [{ from: [0, 5], to: [10, 5] }],
+      strokeWidthMm: 1,
+      thinStrokeWidthMm: 0.35,
+      paddingMm: 0,
+    })
+    expect(polygonWidths(spec.body)).toEqual([1])
+    const widths = new Set(lineElements(spec.body).map(line => line.width))
+    expect(widths).toEqual(new Set([0.35]))
+  })
+
+  it('引线用细线且带 data-dsh-role="leader"，中心线不带该标记', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: 'none' }],
+      centerlines: [{ from: [0, 5], to: [25, 5] }],
+      labels: [{ text: '7', at: [14, 5], from: [10, 5] }],
+      paddingMm: 0,
+    })
+    const roles = [...spec.body.matchAll(/<line [^>]*data-dsh-role="leader"[^>]*\/>/g)]
+    expect(roles).toHaveLength(1)
+    expect(roles[0]?.[0]).toContain('stroke-width="0.25"')
+    // 中心线沿用同线宽但不带 role：净距判据只排除引线。
+    const plain = lineElements(spec.body).filter(line => line.role === undefined)
+    expect(plain.every(line => line.width === 0.25)).toBe(true)
+    expect(plain.length).toBeGreaterThan(1)
+  })
+
+  it('低于 0.18 毫米、零、负数与非有限数一律拒绝并指明主体', () => {
+    const parts = [{ outline: SQUARE, hatch: 'none' as const }]
+    expect(errorMessage(() => buildSectionDiagram({ parts, strokeWidthMm: 0.13 })))
+      .toContain('轮廓线宽必须是不小于 0.18 毫米的有限数')
+    expect(errorMessage(() => buildSectionDiagram({ parts, thinStrokeWidthMm: 0 })))
+      .toContain('细实线线宽必须是不小于 0.18 毫米的有限数')
+    expect(errorMessage(() => buildSectionDiagram({ parts, thinStrokeWidthMm: Number.NaN })))
+      .toContain('细实线线宽必须是不小于 0.18 毫米的有限数')
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: 'none', strokeWidthMm: -1 }],
+    }))).toContain('零件 #1 线宽必须是不小于 0.18 毫米的有限数')
+  })
+
+  it('零件线宽缺省时继承图级默认，而不是硬编码的 0.5', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: 'none' }, { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: 'none' }],
+      strokeWidthMm: 1.4,
+      paddingMm: 0,
+    })
+    expect(polygonWidths(spec.body)).toEqual([1.4, 1.4])
   })
 })

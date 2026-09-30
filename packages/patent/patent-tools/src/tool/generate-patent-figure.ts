@@ -77,7 +77,7 @@ const DESCRIPTION = [
   '',
   '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。',
   '',
-  '剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）。',
+  '剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。',
   '',
   '图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。',
   '',
@@ -328,6 +328,7 @@ async function generateSingleFigure(
       input: normalized,
       suffix: '',
       format,
+      figureType: normalized.figure_type,
       dpi: normalized.dpi ?? deps.dpi,
       style: context.style,
       signal: context.signal,
@@ -351,6 +352,7 @@ async function generateSingleFigure(
         suffix: '',
         format,
         check: false,
+        figureType: normalized.figure_type,
         style: context.style,
         signal: context.signal,
         output: result,
@@ -364,6 +366,7 @@ async function generateSingleFigure(
       suffix: '',
       format,
       check: vector,
+      figureType: normalized.figure_type,
       style: context.style,
       signal: context.signal,
       output: result,
@@ -568,6 +571,7 @@ async function renderPanel(
     input: run.input,
     suffix: panel.suffix,
     format,
+    figureType: panel.figureType,
     dpi: run.input.dpi ?? deps.dpi,
     style: run.context.style,
     signal: run.context.signal,
@@ -594,6 +598,7 @@ async function renderPanel(
       suffix: panel.suffix,
       format,
       check: false,
+      figureType: panel.figureType,
       style: run.context.style,
       signal: run.context.signal,
       output,
@@ -641,6 +646,7 @@ async function finishSvgChain(args: {
   style: 'grayscale' | 'semantic'
   signal: AbortSignal
   output: GeneratePatentFigureOutput
+  figureType: GenerateFigureType
   /** 渲染器直接出图的通路是否存在（矢量图型为 false：导出失败即无产物可交）。 */
   hasDirectRender: boolean
 }): Promise<'done' | 'fallback'> {
@@ -653,7 +659,7 @@ async function finishSvgChain(args: {
     style: args.style,
     output: staged,
   })
-  await checkRenderedFigure({ path: args.svgPath, warnings: staged.warnings })
+  await checkRenderedFigure({ path: args.svgPath, warnings: staged.warnings, figureType: args.figureType })
   await outlineFigureText({ deps: args.deps, path: args.svgPath, format: 'svg', signal: args.signal, warnings: staged.warnings })
   const exported = await args.deps.exportFigure?.({
     path: args.svgPath,
@@ -690,6 +696,7 @@ async function finishDirectRender(args: {
   style: 'grayscale' | 'semantic'
   signal: AbortSignal
   output: GeneratePatentFigureOutput
+  figureType: GenerateFigureType
 }): Promise<void> {
   await layoutSubmissionPage({
     input: args.input,
@@ -699,7 +706,7 @@ async function finishDirectRender(args: {
     style: args.style,
     output: args.output,
   })
-  if (args.check) await checkRenderedFigure({ path: args.outcomePath, warnings: args.output.warnings })
+  if (args.check) await checkRenderedFigure({ path: args.outcomePath, warnings: args.output.warnings, figureType: args.figureType })
   await outlineFigureText({
     deps: args.deps,
     path: args.outcomePath,
@@ -891,9 +898,15 @@ async function layoutSubmissionPage(args: {
  * 体量上限已由 vectorFigureSvg 按 DEFAULT_VECTOR_BODY_MAX_BYTES 卡住，复核不再按同一上限
  * 二次拦截（复核含未量测说明，超限被拒会把它整段吞掉）；调用方给的外观视图片段仍可能带上
  * 复核本身拒绝的结构，那时记一条跳过说明，不吞掉已生成的图。
- * @param args - the delivered path and the warning sink.
+ *
+ * **标号净距只对机械剖视图开启**：1.5 毫米（复核的缺省值）来自 A6 案的实测——剖切面上
+ * 密布剖面线时，标号贴住剖面线带或轴线就读不出。其余图型的图面词语本来就贴着符号放：
+ * 电路图的元件名与连线说明按 `LABEL_GAP_MM` 落在符号与走线旁、曲线图的轴名贴着轴画，
+ * 对这些图型套用同一净距会把工具自己画对的图报成缺陷。需要更严或更松时，调用方用
+ * `verify_patent_figure` 的 `text_clearance_mm` 显式指定。
+ * @param args - the delivered path, the figure type and the warning sink.
  */
-async function checkRenderedFigure(args: { path: string; warnings: string[] }): Promise<void> {
+async function checkRenderedFigure(args: { path: string; warnings: string[]; figureType: GenerateFigureType }): Promise<void> {
   let svg: string
   try {
     svg = await readFile(args.path, 'utf8')
@@ -902,8 +915,11 @@ async function checkRenderedFigure(args: { path: string; warnings: string[] }): 
     return
   }
   try {
-    args.warnings.push(...checkFigureRendering(svg, { maxBytes: Buffer.byteLength(svg, 'utf8') }).findings
-      .map(finding => `渲染复核：${finding.message}`))
+    const report = checkFigureRendering(svg, {
+      maxBytes: Buffer.byteLength(svg, 'utf8'),
+      ...(args.figureType === 'cross_section' ? {} : { textClearanceMm: 0 }),
+    })
+    args.warnings.push(...report.findings.map(finding => `渲染复核：${finding.message}`))
   } catch (error) {
     /* v8 ignore next -- 复核只抛 SvgAnnotateError；其余异常原样上抛（不变量漂移） */
     if (!(error instanceof SvgAnnotateError)) throw error

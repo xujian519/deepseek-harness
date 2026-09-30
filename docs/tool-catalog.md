@@ -3537,7 +3537,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
 
-剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）。
+剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
 
 图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。
 
@@ -3921,6 +3921,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
                       }
                     ],
                     "description": "剖面线参数；\"none\" 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。缺省按 45°/3mm 打剖面线"
+                  },
+                  "stroke_width_mm": {
+                    "type": "number",
+                    "description": "该零件轮廓的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4）；缺省用顶层 stroke_width_mm"
                   }
                 },
                 "required": [
@@ -4031,6 +4035,14 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
             "label_font_size_mm": {
               "type": "number",
               "description": "图面字号（毫米），默认 3.5；附图标记与剖切字母同用"
+            },
+            "stroke_width_mm": {
+              "type": "number",
+              "description": "轮廓与剖切位置线的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4），默认 0.5"
+            },
+            "thin_stroke_width_mm": {
+              "type": "number",
+              "description": "剖面线、中心线与引线的细实线线宽（毫米），不小于 0.18，默认 0.25"
             },
             "padding_mm": {
               "type": "number",
@@ -5743,9 +5755,11 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `verify_patent_figure`
 
-复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、中心线（点划线）被同位置的实线覆盖、相邻零件剖面线取向过近、内容越出画布。
+复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、文字与图线净距不足、中心线（点划线）被同位置的实线覆盖、相邻零件剖面线取向过近、内容越出画布。
 
 量测在矢量源上进行（线段位置、线宽与字号即渲染输入），不需要栅格化器：根元素的画布尺寸、viewBox 与 preserveAspectRatio 先解析成用户单位到毫米的映射，元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 <g> 继承的 text-anchor 与行内 style），故落版页、拼版页与 px 级用户单位的导出文件同一口径量测。不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现：没有它时才等于逐类量测过。
+
+净距判据（text_clearance_mm，默认 1.5 毫米）来自实测：剖切面上密布剖面线时，标号或零件名贴住剖面线带、轴线便读不出。判据把文字外框外扩该净距后与图元线段求交——绘图侧标注为引线（data-dsh-role="leader"）的线段、以及落在更晚绘制的不透明白填充之下的线段不参与（前者本来就止于文字外框，后者图面上看不见）。电路图、曲线图这类「文字贴着符号放」的图型按本判据会大量播报，复核它们时传 text_clearance_mm: 0 关闭。
 
 与 generate_patent_figure 的返回值配合使用：生成后按本工具复核，把 findings 当作必须处理的图面缺陷。
 
@@ -5756,6 +5770,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "svg_path": {
       "type": "string",
       "description": "SVG 图片路径（工作区相对或绝对路径）"
+    },
+    "text_clearance_mm": {
+      "type": "number",
+      "description": "标号净距（毫米），默认 1.5，0 表示不判该判据；文字外框外扩这么多后与图元线段相交即报"
     }
   },
   "required": [

@@ -124,6 +124,7 @@ export const SECTION_INPUT_SCHEMA = {
             ],
             description: '剖面线参数；"none" 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。缺省按 45°/3mm 打剖面线',
           },
+          stroke_width_mm: { type: 'number', description: '该零件轮廓的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4）；缺省用顶层 stroke_width_mm' },
         },
       },
       description: '被剖切零件轮廓（同一零件的多个轮廓各给一段）',
@@ -164,6 +165,8 @@ export const SECTION_INPUT_SCHEMA = {
       },
     },
     label_font_size_mm: { type: 'number', description: '图面字号（毫米），默认 3.5；附图标记与剖切字母同用' },
+    stroke_width_mm: { type: 'number', description: '轮廓与剖切位置线的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4），默认 0.5' },
+    thin_stroke_width_mm: { type: 'number', description: '剖面线、中心线与引线的细实线线宽（毫米），不小于 0.18，默认 0.25' },
     padding_mm: { type: 'number', description: '画布留白（毫米），默认 4' },
   },
 } as const

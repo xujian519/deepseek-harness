@@ -8,7 +8,8 @@
  * {@link FULL_WIDTH_RATIO}、其余按 {@link GLYPH_WIDTH_RATIO}。判定同样共用：线段须在
  * 框内进入至少 {@link GLYPH_BOX_TOLERANCE_MM} 才算穿过（{@link boxCrossedBySegment}
  * 与 {@link quadCrossedBySegment} 是同一判定的轴对齐形式与仿射形式），贴边、沿边共线、
- * 只在角上掠过都不算。
+ * 只在角上掠过都不算。复核侧的「标号净距」判据把框按 {@link inflateQuad} 外扩净距后
+ * 再用同一判定，故「贴线多远才算缺陷」也只有一处定义。
  * @module @deepseek-ai/dsh-patent-tools/figure/glyph-box
  */
 
@@ -131,6 +132,35 @@ export function boxQuad(box: GlyphBox): GlyphQuad {
     origin: [box.minX, box.minY],
     edgeWidth: [box.maxX - box.minX, 0],
     edgeHeight: [0, box.maxY - box.minY],
+  }
+}
+
+/** 把二维向量化为单位向量；零向量原样返回。 */
+function unitVector(vector: readonly [number, number]): readonly [number, number] {
+  const length = Math.hypot(vector[0], vector[1])
+  return length === 0 ? [0, 0] : [vector[0] / length, vector[1] / length]
+}
+
+/**
+ * 把仿射矩形沿两条边各自的方向向外扩 `clearanceMm`：原点后退、两条边向量各自加长两倍净距。
+ *
+ * 矩形上「宽边」的法向就是高边的方向（反之亦然），故沿边方向外扩等价于沿该边的法向
+ * 留出净距——轴对齐的占位框因此得到「四周各外扩净距」的矩形，任意旋转的文字框得到
+ * 同样旋转的放大矩形。退化矩形（字号为零）原样返回。
+ * @param quad - 仿射矩形（占位框或其在图面上的像）。
+ * @param clearanceMm - 净距（毫米）。
+ * @returns 外扩后的仿射矩形。
+ */
+export function inflateQuad(quad: GlyphQuad, clearanceMm: number): GlyphQuad {
+  const width = unitVector(quad.edgeWidth)
+  const height = unitVector(quad.edgeHeight)
+  return {
+    origin: [
+      quad.origin[0] - clearanceMm * (width[0] + height[0]),
+      quad.origin[1] - clearanceMm * (width[1] + height[1]),
+    ],
+    edgeWidth: [quad.edgeWidth[0] + 2 * clearanceMm * width[0], quad.edgeWidth[1] + 2 * clearanceMm * width[1]],
+    edgeHeight: [quad.edgeHeight[0] + 2 * clearanceMm * height[0], quad.edgeHeight[1] + 2 * clearanceMm * height[1]],
   }
 }
 

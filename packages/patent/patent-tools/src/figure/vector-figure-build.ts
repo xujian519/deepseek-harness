@@ -69,6 +69,8 @@ export type SectionFigureJson = {
     outline: readonly (readonly [number, number])[]
     /** `'none'` 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。 */
     hatch?: { angle_deg?: number; spacing_mm?: number; direction?: 'forward' | 'backward' } | 'none'
+    /** 该零件轮廓的粗实线线宽（毫米）；缺省用顶层 `stroke_width_mm`。 */
+    stroke_width_mm?: number
   }[]
   labels?: readonly {
     text: string
@@ -86,6 +88,10 @@ export type SectionFigureJson = {
     arrow: 'left' | 'right' | 'up' | 'down'
   }[]
   label_font_size_mm?: number
+  /** 轮廓与剖切位置线的粗实线线宽（毫米），默认 0.5。 */
+  stroke_width_mm?: number
+  /** 剖面线、中心线与引线的细实线线宽（毫米），默认 0.25。 */
+  thin_stroke_width_mm?: number
   padding_mm?: number
 }
 
@@ -241,6 +247,7 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
           parts: sections.parts.map(part => ({
             ...(part.label === undefined ? {} : { label: part.label }),
             outline: part.outline,
+            ...(part.stroke_width_mm === undefined ? {} : { strokeWidthMm: part.stroke_width_mm }),
             ...(part.hatch === undefined
               ? {}
               : part.hatch === 'none'
@@ -258,6 +265,8 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
           ...(sections.centerlines === undefined ? {} : { centerlines: sections.centerlines }),
           ...(sections.cutting_marks === undefined ? {} : { cuttingMarks: sections.cutting_marks }),
           ...(sections.label_font_size_mm === undefined ? {} : { labelFontSizeMm: sections.label_font_size_mm }),
+          ...(sections.stroke_width_mm === undefined ? {} : { strokeWidthMm: sections.stroke_width_mm }),
+          ...(sections.thin_stroke_width_mm === undefined ? {} : { thinStrokeWidthMm: sections.thin_stroke_width_mm }),
           ...(sections.padding_mm === undefined ? {} : { paddingMm: sections.padding_mm }),
         }),
         warnings: sectionWarnings(sections),
