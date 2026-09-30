@@ -19,7 +19,7 @@ import { SECTION_GEOMETRY_FILENAME, buildSectionScript } from '../src/figure/fre
  */
 
 /** 矩形顶点（逆时针，隐式闭合）。 */
-function rect(width: number, height: number, centerX = 0, centerY = 0): number[][] {
+function rect(width: number, height: number, centerX = 0, centerY = 0): (readonly [number, number])[] {
   const x0 = centerX - width / 2
   const x1 = centerX + width / 2
   const y0 = centerY - height / 2
@@ -28,19 +28,24 @@ function rect(width: number, height: number, centerX = 0, centerY = 0): number[]
 }
 
 /** 多边形绝对面积（测试用独立实现，不复用被测代码）。 */
-function area(points: readonly number[][]): number {
+function area(points: readonly (readonly [number, number])[]): number {
   let sum = 0
   for (let index = 0; index < points.length; index += 1) {
-    const current = points[index] as number[]
-    const next = points[(index + 1) % points.length] as number[]
-    sum += (current[0] as number) * (next[1] as number) - (next[0] as number) * (current[1] as number)
+    const current = points[index] as readonly [number, number]
+    const next = points[(index + 1) % points.length] as readonly [number, number]
+    sum += current[0] * next[1] - next[0] * current[1]
   }
   return Math.abs(sum / 2)
 }
 
+/** 顶点转成产物 JSON 的 `number[][]` 形状（JSON 边界给的是可写数组，不是元组）。 */
+function pointsOf(points: readonly (readonly [number, number])[]): number[][] {
+  return points.map(point => [...point])
+}
+
 /** 一个环的产物记录（`area_mm2` 缺省取多边形自身面积，即离散与精确一致）。 */
-function ring(points: readonly number[][], declaredArea?: number): SectionGeometryPayload['rings'][number] {
-  return { points_mm: points.map(point => [...point]), closed: true, area_mm2: declaredArea ?? area(points) }
+function ring(points: readonly (readonly [number, number])[], declaredArea?: number): SectionGeometryPayload['rings'][number] {
+  return { points_mm: pointsOf(points), closed: true, area_mm2: declaredArea ?? area(points) }
 }
 
 /** 组装脚本产物。 */
@@ -57,7 +62,7 @@ function payload(
 }
 
 /** 正多边形（近似圆孔）。 */
-function polygon(sides: number, radius: number, centerX = 0, centerY = 0): number[][] {
+function polygon(sides: number, radius: number, centerX = 0, centerY = 0): (readonly [number, number])[] {
   return Array.from({ length: sides }, (_, index) => {
     const angle = (2 * Math.PI * index) / sides
     return [centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle)]
@@ -203,7 +208,7 @@ describe('readSectionGeometry 产物结构核对', () => {
   it('环列表不是数组、环未闭合、顶点不足、坐标非有限、面积非正都报错', () => {
     const notArray = captureError(() => readSectionGeometry(JSON.parse('{"rings":null}') as SectionGeometryPayload))
     expect(notArray.code).toBe('invalid_payload')
-    const open = captureError(() => readSectionGeometry(payload([{ points_mm: rect(4, 4), closed: false, area_mm2: 16 }])))
+    const open = captureError(() => readSectionGeometry(payload([{ points_mm: pointsOf(rect(4, 4)), closed: false, area_mm2: 16 }])))
     expect(open.message).toContain('未闭合')
     const few = captureError(() => readSectionGeometry(payload([{ points_mm: [[0, 0], [1, 1]], closed: true, area_mm2: 1 }])))
     expect(few.message).toContain('顶点少于 3')
@@ -215,7 +220,7 @@ describe('readSectionGeometry 产物结构核对', () => {
     const notFinite = captureError(() => readSectionGeometry(payload([badPoint])))
     expect(notFinite.message).toContain('有限二维坐标')
     expect(notFinite.message).toContain('第 3 个顶点')
-    const noArea = captureError(() => readSectionGeometry(payload([{ points_mm: rect(4, 4), closed: true, area_mm2: 0 }])))
+    const noArea = captureError(() => readSectionGeometry(payload([{ points_mm: pointsOf(rect(4, 4)), closed: true, area_mm2: 0 }])))
     expect(noArea.message).toContain('OCCT 面面积')
     const frameBroken = captureError(() => readSectionGeometry({
       ...payload([ring(rect(4, 4))]),
@@ -231,7 +236,7 @@ describe('pointInPolygon', () => {
     expect(pointInPolygon([0, 0], square)).toBe(true)
     expect(pointInPolygon([6, 0], square)).toBe(false)
     // L 形凹多边形：左上角被挖掉（x < 5 且 y > 5 不在图形内）
-    const concave: number[][] = [[0, 0], [10, 0], [10, 10], [5, 10], [5, 5], [0, 5]]
+    const concave: (readonly [number, number])[] = [[0, 0], [10, 0], [10, 10], [5, 10], [5, 5], [0, 5]]
     expect(pointInPolygon([7, 7], concave)).toBe(true)
     expect(pointInPolygon([2, 2], concave)).toBe(true)
     expect(pointInPolygon([2, 7], concave)).toBe(false)

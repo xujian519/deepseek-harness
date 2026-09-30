@@ -101,6 +101,15 @@ async function expand(
   return expandSectionSource(scaled, { ports, cwd: workDir, artifactDir: join(workDir, 'artifacts') })
 }
 
+/** 展开并取回抛出的 SectionSourceError（断言失败也在这里报出实际值）。 */
+async function expandError(sections: SectionFigureJson, ports: SectionSourcePorts, scale?: number): Promise<SectionSourceError> {
+  const failure = await expand(sections, ports, scale).catch((error: unknown) => error)
+  if (!(failure instanceof SectionSourceError)) {
+    throw new Error(`期望抛出 SectionSourceError，实际：${String(failure)}`)
+  }
+  return failure
+}
+
 /** 期待抛出的错误码与信息片段。 */
 async function expectFailure(
   sections: SectionFigureJson,
@@ -109,9 +118,7 @@ async function expectFailure(
   fragment: string,
   scale?: number,
 ): Promise<void> {
-  const failure = await expand(sections, ports, scale).catch((error: unknown) => error)
-  expect(failure, '期望抛出 SectionSourceError').toBeInstanceOf(SectionSourceError)
-  const error = failure as SectionSourceError
+  const error = await expandError(sections, ports, scale)
   expect(error.code).toBe(code)
   expect(error.message).toContain(fragment)
 }
@@ -184,7 +191,7 @@ describe('expandSectionSource 输入校验', () => {
 describe('expandSectionSource 单位核对', () => {
   it('part_size_mm 与模型包围盒不符即报错，并在文案里给出两组尺寸', async () => {
     const { ports } = fakePorts()
-    const failure = await expand(
+    const failure = await expandError(
       sourceSections({
         source: {
           model_path: 'plate.step',
@@ -193,10 +200,9 @@ describe('expandSectionSource 单位核对', () => {
         },
       }),
       ports,
-    ).catch((error: unknown) => error as SectionSourceError)
-    expect(failure).toBeInstanceOf(SectionSourceError)
+    )
     expect(failure.code).toBe('invalid_input')
-    // 文案里的两组尺寸都按大小排序（剖切平面的基向量可能把 xyz 重排，逐轴比对无意义）。
+    // 文案里的两组尺寸都按大小排序（剖切基向量可能把 xyz 重排，逐轴比对无意义）。
     expect(failure.message).toContain('80×300×600')
     expect(failure.message).toContain('8×30×60')
   })

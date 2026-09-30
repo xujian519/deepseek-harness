@@ -461,7 +461,7 @@ describe.skipIf(!hasFreeCad)('real FreeCAD section hatching (needs `freecadcmd` 
   const renderOptions = { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }
 
   /** 打剖面线的板：40×20（与 hatch 探针同一形状，便于对照实测的条纹数）。 */
-  const plate = (): number[][] => hatchRect(40, 20)
+  const plate = (): (readonly [number, number])[] => hatchRect(40, 20)
 
   it('45° 剖面线：取向逐值相符、间距等于请求值、端点落在轮廓线上', async () => {
     const outline = plate()
@@ -770,12 +770,12 @@ describe.skipIf(!hasFreeCad)('real FreeCAD section source (needs `freecadcmd` in
 })
 
 /** 矩形顶点（隐式闭合）。 */
-function hatchRect(width: number, height: number): number[][] {
+function hatchRect(width: number, height: number): (readonly [number, number])[] {
   return [[-width / 2, -height / 2], [width / 2, -height / 2], [width / 2, height / 2], [-width / 2, height / 2]]
 }
 
 /** 正多边形（与 `buildSectionScript` 的 1.5° 角度步长同精度地近似圆孔）。 */
-function hatchCircle(sides: number, radius: number): number[][] {
+function hatchCircle(sides: number, radius: number): (readonly [number, number])[] {
   return Array.from({ length: sides }, (_, index) => {
     const angle = (2 * Math.PI * index) / sides
     return [radius * Math.cos(angle), radius * Math.sin(angle)]
@@ -797,7 +797,7 @@ function hatchOffset(
 ): number {
   const radians = (angleDeg * Math.PI) / 180
   const sign = direction === 'forward' ? 1 : -1
-  const normal = [-sign * Math.sin(radians), Math.cos(radians)]
+  const normal: [number, number] = [-sign * Math.sin(radians), Math.cos(radians)]
   return ((from[0] + to[0]) / 2) * normal[0] + ((from[1] + to[1]) / 2) * normal[1]
 }
 
@@ -807,15 +807,13 @@ function hatchMidpoint(segment: { from: readonly [number, number]; to: readonly 
 }
 
 /** 点在多边形内判定（射线穿越；独立实现，不复用被测代码）。 */
-function hatchInsidePolygon(point: readonly [number, number], polygon: readonly number[][]): boolean {
+function hatchInsidePolygon(point: readonly [number, number], polygon: readonly (readonly [number, number])[]): boolean {
   let inside = false
   for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
-    const current = polygon[index] as number[]
-    const last = polygon[previous] as number[]
-    if (((current[1] as number) > point[1]) === ((last[1] as number) > point[1])) continue
-    const currentY = current[1] as number
-    const lastY = last[1] as number
-    const crossingX = (current[0] as number) + ((point[1] - currentY) / (lastY - currentY)) * ((last[0] as number) - (current[0] as number))
+    const current = polygon[index] as readonly [number, number]
+    const last = polygon[previous] as readonly [number, number]
+    if ((current[1] > point[1]) === (last[1] > point[1])) continue
+    const crossingX = current[0] + ((point[1] - current[1]) / (last[1] - current[1])) * (last[0] - current[0])
     if (point[0] < crossingX) inside = !inside
   }
   return inside

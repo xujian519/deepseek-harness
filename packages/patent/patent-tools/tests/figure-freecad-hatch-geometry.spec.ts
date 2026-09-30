@@ -20,7 +20,7 @@ import { HATCH_GEOMETRY_FILENAME, buildHatchScript } from '../src/figure/freecad
  */
 
 /** 矩形顶点（隐式闭合）。 */
-function rect(width: number, height: number, centerX = 0, centerY = 0): number[][] {
+function rect(width: number, height: number, centerX = 0, centerY = 0): (readonly [number, number])[] {
   const x0 = centerX - width / 2
   const x1 = centerX + width / 2
   const y0 = centerY - height / 2
@@ -29,7 +29,7 @@ function rect(width: number, height: number, centerX = 0, centerY = 0): number[]
 }
 
 /** 正多边形（近似圆孔）。 */
-function polygon(sides: number, radius: number, centerX = 0, centerY = 0): number[][] {
+function polygon(sides: number, radius: number, centerX = 0, centerY = 0): (readonly [number, number])[] {
   return Array.from({ length: sides }, (_, index) => {
     const angle = (2 * Math.PI * index) / sides
     return [centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle)]
