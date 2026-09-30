@@ -16,9 +16,11 @@
  *   后者在图面上不可见。
  * - **点划线被实线覆盖**：同一行既有「长划+点」的点划段、又有一整段连续实线，
  *   点划线的间隔在图面上不可见（上下半剖的两半公共边正好落在轴线位置时如此）。
- * - **相邻零件剖面线取向过近**：两件轮廓相邻而剖面线取向差不超过
- *   {@link ADJACENT_ORIENTATION_LIMIT_DEG}，读成一个零件（GB/T 4457.5 要求相邻
- *   零件的剖面线方向相反或间距不等）。
+ * - **相邻零件剖面线难以区分**：两件轮廓相邻，剖面线的方向差不超过
+ *   {@link ADJACENT_ORIENTATION_LIMIT_DEG} **且**间距比不超过
+ *   {@link ADJACENT_SPACING_RATIO_LIMIT}，读成一个零件（GB/T 4457.5 要求相邻零件的
+ *   剖面线方向相反或间距不等，两项有一项可区分即不报）。类别标识为
+ *   `hatch-orientation-collision`，判据含方向与间距两项。
  * - **内容越出画布**：线段、轮廓或标号落在根元素声明的画布之外，越界部分不会被
  *   渲染出来（后处理放大字号或落版改写画布时最易发生）。
  *
@@ -97,6 +99,17 @@ export type RenderCheckReport = {
 const ADJACENT_GAP_MM = 1
 /** 相邻零件剖面线取向差下限（度）：小于它则两件难以区分。 */
 const ADJACENT_ORIENTATION_LIMIT_DEG = 30
+/**
+ * 相邻零件剖面线间距比上限：两件的实测间距之比（大／小）不超过它即视为「间距相近」。
+ * GB/T 4457.5 只说「间距不等」，未给数值；取 1.5 倍是因为低于此比例的两档疏密在缩印到
+ * 三分之二后仍读作同一种密度。
+ */
+const ADJACENT_SPACING_RATIO_LIMIT = 1.5
+/**
+ * 剖面线间距量测的最小投影差（毫米）：小于它的相邻投影差是同一条线的重复片段
+ * （虚线展开、共线拼接），不参与间距计算。
+ */
+const HATCH_SPACING_MIN_GAP_MM = 0.1
 /**
  * 绘图侧标注同一材料轮廓分组的属性名（见 `section-diagram.ts` 的 `polygonElement`）。
  * 同一零件的多个轮廓各给一段是输入约定；没有这个标注时复核只能把每段各自当成一件。
@@ -1118,12 +1131,14 @@ function isMirrorPair(a: Poly, b: Poly): boolean {
 }
 
 /**
- * 一个零件内的剖面线取向：落入零件内部的线段中，同一取向（0.1° 分桶）重复最多的一条
- * 的取向；没有任何取向达到 {@link HATCH_MIN_LINES} 条时 undefined（该零件没有剖面线）。
+ * 一个零件内剖面线的可辨别特征：取向（0.1° 分桶里重复最多的一条）与同取向平行线的
+ * 相邻间距；没有任何取向达到 {@link HATCH_MIN_LINES} 条时 undefined（该零件没有剖面线）。
  * @param segments - 归入该零件的线段。
- * @returns 剖面线取向（度）；无剖面线时 undefined。
+ * @returns 剖面线取向与间距；无剖面线时 undefined。
  */
-function hatchOrientation(segments: readonly Segment[]): number | undefined {
+function hatchSignature(
+  segments: readonly Segment[],
+): { readonly orientationDeg: number; readonly spacingMm: number | undefined } | undefined {
   const counts = new Map<number, number>()
   for (const segment of segments) {
     const key = Math.round(orientation(segment) * 10) / 10
@@ -1137,7 +1152,48 @@ function hatchOrientation(segments: readonly Segment[]): number | undefined {
       bestCount = count
     }
   }
-  return bestCount >= HATCH_MIN_LINES ? best : undefined
+  if (best === undefined || bestCount < HATCH_MIN_LINES) return undefined
+  return { orientationDeg: best, spacingMm: hatchSpacing(segments, best) }
+}
+
+/**
+ * 同取向剖面线的相邻间距（毫米）：把各线段中点投影到该取向的法线上排序，取**升序**相邻
+ * 投影差的中位数（小于 {@link HATCH_SPACING_MIN_GAP_MM} 的差是同一条线的重复片段，跳过）。
+ * 线段被轮廓裁短后中点仍落在自己那条线上，投影位置不受裁切影响；中位数对个别落单的线段
+ * 稳健，等距剖面线上它与逐段间距同值。
+ * @param segments - 归入该零件的线段。
+ * @param orientationDeg - 剖面线取向（度），取自 {@link hatchSignature} 的众数分桶。
+ * @returns 间距（毫米）；同取向线段不足两条或投影位置全部重合时 undefined。
+ */
+function hatchSpacing(segments: readonly Segment[], orientationDeg: number): number | undefined {
+  const radians = (orientationDeg * Math.PI) / 180
+  const normalX = -Math.sin(radians)
+  const normalY = Math.cos(radians)
+  const offsets = segments
+    .filter(segment => Math.round(orientation(segment) * 10) / 10 === orientationDeg)
+    .map(segment => ((segment.x1 + segment.x2) / 2) * normalX + ((segment.y1 + segment.y2) / 2) * normalY)
+    .sort((left, right) => left - right)
+  const gaps = offsets
+    .slice(1)
+    .map((offset, index) => offset - (offsets[index] as number))
+    .filter(gap => gap >= HATCH_SPACING_MIN_GAP_MM)
+    .sort((left, right) => left - right)
+  if (gaps.length === 0) return undefined
+  const half = Math.floor(gaps.length / 2)
+  const middle = gaps.slice(gaps.length % 2 === 1 ? half : half - 1, half + 1)
+  return middle.reduce((sum, gap) => sum + gap, 0) / middle.length
+}
+
+/**
+ * 两件的剖面线间距是否分不清：任一侧量不出间距时无法证明可区分，按分不清处理
+ * （本判据只放宽、不收紧）。
+ * @param left - 左件间距（毫米）；undefined 表示量不出。
+ * @param right - 右件间距（毫米）；undefined 表示量不出。
+ * @returns 间距相近时为 true。
+ */
+function spacingIndistinguishable(left: number | undefined, right: number | undefined): boolean {
+  if (left === undefined || right === undefined) return true
+  return Math.max(left, right) / Math.min(left, right) <= ADJACENT_SPACING_RATIO_LIMIT
 }
 
 /** 轴对齐分组：同一行/列的线段集合（用于点划线覆盖判定）。 */
@@ -1250,9 +1306,10 @@ function coveredCenterlines(pieces: readonly Segment[]): RenderCheckFinding[] {
 }
 
 /**
- * 相邻零件剖面线取向过近：按「线段中点落在哪个多边形内」把剖面线归到零件，再对
- * 相邻（间隙 ≤ {@link ADJACENT_GAP_MM}）且非镜像对的多边形比较取向差。只有两侧都
- * 真的带剖面线（{@link hatchOrientation} 判定）时才比较。
+ * 相邻零件剖面线难以区分：按「线段中点落在哪个多边形内」把剖面线归到零件，再对
+ * 相邻（间隙 ≤ {@link ADJACENT_GAP_MM}）且非镜像对的多边形比较取向差与间距。只有两侧
+ * 都真的带剖面线（{@link hatchSignature} 判定）时才比较，且**方向与间距都分不清**才报：
+ * GB/T 4457.5 的判据是「方向相反或间距不等」，两项有一项可区分即不报。
  *
  * 带同一分组号（{@link HATCH_GROUP_ATTRIBUTE}）的两个轮廓是同一材料的几段，不比较：
  * 输入约定就是「同一零件的多个轮廓各给一段」，按轮廓比较必然把它们报成相邻两件。
@@ -1277,6 +1334,8 @@ function hatchCollisions(
     })
   })
   const findings: RenderCheckFinding[] = []
+  const spacingText = (mm: number | undefined): string =>
+    mm === undefined ? '间距未测出' : `间距 ${String(Math.round(mm * 10) / 10)} 毫米`
   for (let left = 0; left < outlines.length; left += 1) {
     for (let right = left + 1; right < outlines.length; right += 1) {
       const group = groups[left]
@@ -1291,15 +1350,17 @@ function hatchCollisions(
       )
       if (gap > ADJACENT_GAP_MM) continue
       if (isMirrorPair(a, b)) continue
-      const orientationA = hatchOrientation(byPoly.get(left) ?? [])
-      const orientationB = hatchOrientation(byPoly.get(right) ?? [])
-      if (orientationA === undefined || orientationB === undefined) continue
-      const difference = Math.abs(orientationA - orientationB)
+      const hatchA = hatchSignature(byPoly.get(left) ?? [])
+      const hatchB = hatchSignature(byPoly.get(right) ?? [])
+      if (hatchA === undefined || hatchB === undefined) continue
+      const difference = Math.abs(hatchA.orientationDeg - hatchB.orientationDeg)
       const visual = Math.min(difference, 180 - difference)
       if (visual > ADJACENT_ORIENTATION_LIMIT_DEG) continue
+      if (!spacingIndistinguishable(hatchA.spacingMm, hatchB.spacingMm)) continue
       findings.push({
         check: 'hatch-orientation-collision',
-        message: `相邻零件 #${String(left + 1)}（${String(orientationA)}°）与 #${String(right + 1)}（${String(orientationB)}°）的剖面线取向仅差 ${String(Math.round(visual * 10) / 10)}°：`
+        message: `相邻零件 #${String(left + 1)}（${String(hatchA.orientationDeg)}°／${spacingText(hatchA.spacingMm)}）`
+          + `与 #${String(right + 1)}（${String(hatchB.orientationDeg)}°／${spacingText(hatchB.spacingMm)}）的剖面线方向仅差 ${String(Math.round(visual * 10) / 10)}°、间距也相近：`
           + '相邻零件的剖面线应方向相反或间距不等（GB/T 4457.5），否则读成一个零件',
       })
     }

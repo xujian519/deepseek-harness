@@ -340,11 +340,73 @@ describe('checkFigureRendering 点划线被实线覆盖', () => {
   })
 })
 
-describe('checkFigureRendering 相邻剖面线取向', () => {
-  it('相邻两件取向仅差 15° 时报 hatch-orientation-collision', () => {
+describe('checkFigureRendering 相邻剖面线难以区分', () => {
+  it('相邻两件取向仅差 15°、间距也比不出差别时报 hatch-orientation-collision', () => {
     const report = checkFigureRendering(svg(adjacentHatch(135, 150)))
     expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
     expect(report.findings[0]?.message).toContain('15°')
+    // 两件间距 1.4 与 1.7 毫米（比 1.22），相差不足 1.5 倍，仍读作同一种疏密。
+    expect(report.findings[0]?.message).toContain('间距 1.4 毫米')
+    expect(report.findings[0]?.message).toContain('间距 1.7 毫米')
+  })
+
+  it('相邻两件取向相同但间距相差 1.7 倍时不报：间距不等已可区分', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 135, 3, 3.4),
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('相邻两件方向差 30° 且间距不等时不报：两项判据有一项可区分即可', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 165, 3, 3),
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('一侧量不出间距（同取向线段投影重合）时按分不清处理：判据只放宽不收紧', () => {
+    // 右件的三条 0° 线共线，同取向达 3 条却量不出相邻间距；左件间距 1.5 毫米。
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+      '<line x1="6" y1="6" x2="20" y2="6" stroke-width="0.25"/>',
+      '<line x1="6" y1="7.5" x2="20" y2="7.5" stroke-width="0.25"/>',
+      '<line x1="6" y1="9" x2="20" y2="9" stroke-width="0.25"/>',
+      '<line x1="46" y1="6" x2="50" y2="6" stroke-width="0.25"/>',
+      '<line x1="52" y1="6" x2="56" y2="6" stroke-width="0.25"/>',
+      '<line x1="58" y1="6" x2="62" y2="6" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+    expect(report.findings[0]?.message).toContain('间距未测出')
+  })
+
+  it('剖面线族不整齐时取升序相邻间距的中位数作代表间距', () => {
+    // 左件的 0° 线落在 y=6/7/17/18/20：相邻间距依次是 1、10、1、2，升序中位数为 1.5；
+    // 若按出现顺序取中位（(10+1)/2=5.5）则会与右件的 1 毫米判成不同疏密而漏报。
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,24 0,24" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,24 60,24 40,16" stroke-width="0.5"/>',
+      '<line x1="6" y1="6" x2="30" y2="6" stroke-width="0.25"/>',
+      '<line x1="6" y1="7" x2="30" y2="7" stroke-width="0.25"/>',
+      '<line x1="6" y1="17" x2="30" y2="17" stroke-width="0.25"/>',
+      '<line x1="6" y1="18" x2="30" y2="18" stroke-width="0.25"/>',
+      '<line x1="6" y1="20" x2="30" y2="20" stroke-width="0.25"/>',
+      '<line x1="46" y1="6" x2="70" y2="6" stroke-width="0.25"/>',
+      '<line x1="46" y1="7" x2="70" y2="7" stroke-width="0.25"/>',
+      '<line x1="46" y1="8" x2="70" y2="8" stroke-width="0.25"/>',
+      '<line x1="46" y1="9" x2="70" y2="9" stroke-width="0.25"/>',
+      '<line x1="46" y1="10" x2="70" y2="10" stroke-width="0.25"/>',
+      '<line x1="46" y1="11" x2="70" y2="11" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+    expect(report.findings[0]?.message).toContain('间距 1.5 毫米')
+    expect(report.findings[0]?.message).toContain('间距 1 毫米')
   })
 
   it('相邻两件取向相反时（差 90°）不报', () => {
