@@ -488,3 +488,20 @@ describe('generate_structure_figure render outcome mapping', () => {
     }
   })
 })
+
+describe('generate_structure_figure 隐藏线描述', () => {
+  it('描述里的线型与实测一致：细实线，不是虚线', async () => {
+    // FreeCAD 1.1.3 实测：viewPartAsSvg 开隐藏线后输出两组描边（可见 0.7 毫米、隐藏
+    // 0.35 毫米），全篇无 stroke-dasharray。描述写「虚线」会让模型误判交付物线型。
+    const tool = createGenerateStructureFigureTool({ render: okRenderer().render, enabled: true })
+    const ctx = await ctxWith(tool)
+    const registered = ctx.tools.get('generate_structure_figure')
+    const properties = (registered?.parameters as { properties: Record<string, { description: string }> }).properties
+    expect(properties['show_hidden']?.description).toContain('细实线')
+    // 明写反例而非略过：制图惯例里隐藏线是虚线，模型会默认成虚线，必须说清不是。
+    expect(properties['show_hidden']?.description).toContain('不是虚线')
+    expect(registered?.description).toContain('细实线')
+    expect(registered?.description).toContain('不是虚线')
+    expect(registered?.description).not.toContain('隐藏线（虚线）')
+  })
+})

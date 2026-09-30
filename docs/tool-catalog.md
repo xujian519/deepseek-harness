@@ -4699,7 +4699,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 默认关闭：结构线稿依赖本机 FreeCAD，需先设 Config.structureFigureEnabled=true；未开启或未安装 freecadcmd 时返回 setup_required 与配置/安装引导。
 
-视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（虚线）。
+视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（细实线，FreeCAD 1.1.3 实测隐藏线 0.35 毫米、可见线 0.7 毫米，输出不含 stroke-dasharray，不是虚线）。
 
 件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
 
@@ -4737,7 +4737,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "show_hidden": {
       "type": "boolean",
-      "description": "绘制隐藏线（虚线），默认 false"
+      "description": "绘制隐藏线（细实线，实测 0.35 毫米；不是虚线），默认 false"
     },
     "callouts": {
       "type": "array",
