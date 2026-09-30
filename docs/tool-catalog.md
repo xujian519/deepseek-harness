@@ -4683,6 +4683,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
       "type": "boolean",
       "description": "默认 true：把图形落版到目标法域幅面（仅 SVG）；false 时只核算尺寸、不改写画布"
     },
+    "require_explicit_hatch": {
+      "type": "boolean",
+      "description": "剖视图（cross_section）专用，默认 false：true 时每个轮廓都必须显式给出 hatch（不被剖切的写 \"none\"），否则报错；缺省时未给的轮廓套用默认 45°/3 毫米并返回提示"
+    },
     "persist_index": {
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"

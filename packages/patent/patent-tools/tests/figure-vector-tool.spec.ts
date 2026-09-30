@@ -341,6 +341,46 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
     }
   })
 
+  it('require_explicit_hatch 开启时未给 hatch 即报错，并把未给的轮廓序号列出来', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        require_explicit_hatch: true,
+        sections: {
+          parts: [
+            { outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: 'none' },
+            { outline: [[50, 0], [90, 0], [90, 20], [50, 20]] },
+          ],
+        },
+      }, 's2-strict')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('require_explicit_hatch')
+      expect(text(result)).toContain('零件 #2')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('require_explicit_hatch 下每个轮廓都给了 hatch（含 none）时正常出图', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        require_explicit_hatch: true,
+        sections: {
+          parts: [
+            { outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3 } },
+            { outline: [[50, 0], [90, 0], [90, 20], [50, 20]], hatch: 'none' },
+          ],
+        },
+      }, 's2-strict-ok')
+      expect(result.isError).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('零件名画在轮廓右上角之外并带引线：压在剖面线与沿中线的中心线上都不报贯穿', async () => {
     const { dir, outDir, run } = await setup()
     try {

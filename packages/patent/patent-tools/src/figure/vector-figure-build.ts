@@ -116,6 +116,8 @@ export type VectorFigureJsonInput = {
   sections?: SectionFigureJson
   sequence?: SequenceFigureJson
   appearance_views?: AppearanceFigureJson
+  /** 剖视图：每个轮廓都必须显式给出 hatch（含 `"none"`），缺省即报错而非套用默认值。 */
+  require_explicit_hatch?: boolean
 }
 
 /** 矢量图构建结果：规格 + 随结果返回的检查提示。 */
@@ -140,23 +142,31 @@ function partNumbers(indexes: readonly number[]): string {
 }
 
 /**
- * 剖视图输入的图面检查：把「静默套用默认剖面线」与「同一零件名被多个轮廓重复承载」
+ * 未指定剖面线的轮廓序号（0 起，按输入顺序）。
+ * @param section - 剖视图输入。
+ * @returns 未给 `hatch` 的轮廓下标。
+ */
+function missingHatchIndexes(section: SectionFigureJson): number[] {
+  return section.parts.flatMap((part, index) => (part.hatch === undefined ? [index] : []))
+}
+
+/**
+ * 剖视图输入的图面检查：把「套用了默认剖面线」与「同一零件名被多个轮廓重复承载」
  * 变成模型可见的提示 —— 二者都是图面上看不出来的输入错误。
  *
  * 不检查「多件剖面线取向相同」：镜像成对的上下两半、同一零件的多段轮廓都必须取向
  * 相同，输入里没有「哪些轮廓属于同一零件」的信息，据此报警会把正确图面判成缺陷。
- * 相邻零件取向是否可区分由渲染复核（`figure/render-check`）量测后判定。
+ * 相邻零件取向是否可区分由渲染复核（`figure/render-check`）量测后判定；该复核按绘图侧
+ * 标注的材料分组（`data-dsh-hatch-group`）把同一零件的多段轮廓归为一件。
  * @param section - 剖视图输入。
  * @returns 提示列表（无问题时为空数组）。
  */
 function sectionWarnings(section: SectionFigureJson): string[] {
   const warnings: string[] = []
-  const unhatched = section.parts
-    .map((part, index) => ({ part, index }))
-    .filter(({ part }) => part.hatch === undefined)
+  const unhatched = missingHatchIndexes(section)
   if (unhatched.length > 0) {
     warnings.push(
-      `零件 ${partNumbers(unhatched.map(entry => entry.index))} 未指定剖面线，已按默认 45°/3 毫米打剖面线；`
+      `零件 ${partNumbers(unhatched)} 未指定剖面线，已按默认 45°/3 毫米打剖面线；`
       + '若该轮廓不是被剖切的实体（轴线、引出线、非剖切件），请写 hatch: "none"；'
       + '若它们不是同一零件，相邻零件必须用相反方向或不同间距的剖面线（GB/T 4457.5）',
     )
@@ -219,6 +229,13 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
     }
     case 'cross_section': {
       const sections = required(input.sections, figureType, 'sections')
+      const unhatched = missingHatchIndexes(sections)
+      if (input.require_explicit_hatch === true && unhatched.length > 0) {
+        throw new VectorFigureError(
+          'invalid_input',
+          `require_explicit_hatch 开启时每个轮廓都要显式给出 hatch（不被剖切的写 "none"）：零件 ${partNumbers(unhatched)} 未给`,
+        )
+      }
       return {
         spec: buildSectionDiagram({
           parts: sections.parts.map(part => ({
