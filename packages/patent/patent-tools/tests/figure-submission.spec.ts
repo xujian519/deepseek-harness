@@ -387,6 +387,152 @@ describe('compliance：合规核算', () => {
   })
 })
 
+describe('generate_patent_figure：非 SVG 走 SVG 全链', () => {
+  /** 假导出端口：记录规格，并写出目标文件；返回设定的结果。 */
+  function fakeExport(result: { ok: true } | { ok: false; code: 'not_installed' | 'render_failed' | 'aborted'; error: string } = { ok: true }) {
+    const calls: { path: string; outcomePath: string; format: string; dpi?: number; laidOutSvg: string }[] = []
+    const exportFigure = (spec: { path: string; outcomePath: string; format: string; dpi?: number }): Promise<typeof result> => {
+      calls.push({ ...spec, laidOutSvg: readFileSync(spec.path, 'utf8') })
+      if (result.ok) writeFileSync(spec.outcomePath, `${spec.format.toUpperCase()} bytes`, 'utf8')
+      return Promise.resolve(result)
+    }
+    return { exportFigure, calls }
+  }
+
+  function harness(exportFigure: ReturnType<typeof fakeExport>['exportFigure'] | undefined) {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-chain-'))
+    const outDir = join(dir, 'figs')
+    const tool = createGeneratePatentFigureTool({
+      ...svgRenderer(GRAPHVIZ_SVG),
+      outputDir: outDir,
+      cwd: dir,
+      ...(exportFigure === undefined ? {} : { exportFigure }),
+    })
+    return { dir, outDir, tool }
+  }
+
+  it('pdf + target_office：中间 SVG 已落版，最终交付 pdf 并带 layout', async () => {
+    const { exportFigure, calls } = fakeExport()
+    const { dir, tool } = harness(exportFigure)
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        target_office: 'cnipa',
+        figure_count: 2,
+        format: 'pdf',
+        dpi: 300,
+      }, 'c1') as { isError: boolean; value: { path: string; format: string; layout?: { office: string; caption?: string }; warnings: string[] } }
+      expect(result.isError).toBe(false)
+      expect(result.value.format).toBe('pdf')
+      expect(result.value.path).toBe('figs/fig1.pdf')
+      expect(result.value.layout).toMatchObject({ office: 'cnipa', caption: '图1' })
+      // 交给 Inkscape 的是已落版的 A4 附图页（不是 Graphviz 原始画布）。
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.path).toBe(join(dir, 'figs', 'fig1.svg'))
+      expect(calls[0]?.outcomePath).toBe(join(dir, 'figs', 'fig1.pdf'))
+      expect(calls[0]?.format).toBe('pdf')
+      expect(calls[0]?.dpi).toBe(300)
+      expect(calls[0]?.laidOutSvg).toContain('width="210mm" height="297mm"')
+      expect(calls[0]?.laidOutSvg).toContain('>图1</text>')
+      expect(readFileSync(join(dir, 'figs', 'fig1.pdf'), 'utf8')).toBe('PDF bytes')
+      // 落版/复核的提示照常进入 warnings（复核本身对该图无发现）。
+      expect(result.value.warnings.join('\n')).not.toContain('未生效')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('导出失败：直绘图型退回渲染器直接出图并说明哪几步未生效', async () => {
+    const { exportFigure } = fakeExport({ ok: false, code: 'render_failed', error: 'Inkscape 导出 png 失败（退出码 1）' })
+    const { dir, outDir, tool } = harness(exportFigure)
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        target_office: 'cnipa',
+        figure_count: 2,
+        format: 'png',
+      }, 'c2') as { isError: boolean; value: { path: string; layout?: unknown; warnings: string[] } }
+      expect(result.isError).toBe(false)
+      expect(result.value.path).toBe('figs/fig1.png')
+      expect(result.value.layout).toBeUndefined()
+      expect(result.value.warnings.join('\n')).toContain('落版、渲染复核与文字转路径未生效')
+      // 回退产物来自渲染器直接出图，不是导出端口写的。
+      expect(readFileSync(join(outDir, 'fig1.png'), 'utf8')).toBe(GRAPHVIZ_SVG)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('直绘图型导出 png：走全链（此前只支持 svg）', async () => {
+    const { exportFigure, calls } = fakeExport()
+    const { dir, tool } = harness(exportFigure)
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'cross_section',
+        sections: {
+          parts: [{ label: '基座', outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: 'none' }],
+        },
+        format: 'png',
+        target_office: 'cnipa',
+        figure_count: 2,
+      }, 'c3') as { isError: boolean; value: { path: string; layout?: unknown } }
+      expect(result.isError).toBe(false)
+      expect(result.value.path).toBe('figs/fig1.png')
+      expect(result.value.layout).toBeDefined()
+      expect(calls[0]?.format).toBe('png')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('直绘图型导出失败：无 SVG 直绘以外的通路，报 setup_required', async () => {
+    const { exportFigure } = fakeExport({ ok: false, code: 'not_installed', error: '未找到 Inkscape。' })
+    const { dir, tool } = harness(exportFigure)
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'circuit',
+        circuit: {
+          components: [
+            { id: 'v1', kind: 'voltage_source', label: '电源', col: 0, row: 0 },
+            { id: 'r1', kind: 'resistor', label: '电阻', col: 1, row: 0 },
+          ],
+          connections: [{ from: 'v1', to: 'r1' }],
+        },
+        format: 'png',
+      }, 'c4')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('未找到 Inkscape')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未注入导出端口：保持渲染器直接出图并提示需要 Inkscape', async () => {
+    const { dir, tool } = harness(undefined)
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        target_office: 'cnipa',
+        figure_count: 2,
+        format: 'png',
+      }, 'c5') as { isError: boolean; value: { layout?: unknown; warnings: string[] } }
+      expect(result.isError).toBe(false)
+      expect(result.value.layout).toBeUndefined()
+      expect(result.value.warnings.join('\n')).toContain('Inkscape')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('generate_patent_figure：落版接线', () => {
   it('中国 + 多幅附图：图号入图、页码入图、返回落版尺寸', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-submit-'))

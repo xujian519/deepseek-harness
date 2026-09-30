@@ -287,6 +287,13 @@
                   # host FreeCAD 1.1+ discoverable as freecadcmd (auto-probe covers the
                   # standard install paths).
                   structureFigureEnabled: true
+                  # Not set: figureTextToPath turns every figure's text into outlines, which
+                  # removes the reader's font dependency but also makes an Inkscape-less host
+                  # fail loud with setup_required. It is also a precondition for exporting
+                  # PDFs of figures that carry Chinese text: Inkscape 1.4.4 truncates such a
+                  # PDF while subsetting the font, and exportWithInkscape rejects the
+                  # incomplete product rather than delivering it. Set it to true on a host
+                  # with Inkscape when filing-ready PDFs of Chinese figures are needed.
 
               - id: patent-teams
                 name: '@deepseek-ai/dsh-patent-teams'

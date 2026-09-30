@@ -27,8 +27,8 @@ import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/i
 import { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
 import { DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS } from './figure/graphviz-renderer.ts'
-import { DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS, outlineSvgText } from './figure/inkscape-renderer.ts'
-import type { OutlineTextPort } from './figure/inkscape-renderer.ts'
+import { DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS, exportWithInkscape, findInkscape, outlineSvgText } from './figure/inkscape-renderer.ts'
+import type { ExportFigurePort, OutlineTextPort } from './figure/inkscape-renderer.ts'
 import { pickRenderer } from './figure/render-selector.ts'
 import type { FigureRendererMode } from './figure/render-selector.ts'
 import { PatentToolError } from './error.ts'
@@ -161,8 +161,8 @@ export type { AddPatentFigureReferencesInput, AddPatentFigureReferencesOutput, A
 export { figureIndexStore, FIGURE_INDEX_VERSION, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 export type { FigureIndexEntry, LoadFigureIndexResult } from './figure/index-store.ts'
 export { findDot, probeGraphviz, renderWithGraphviz, sanitizeDotFilename, graphvizInstallMessage, DOT_CANDIDATES } from './figure/graphviz-renderer.ts'
-export { findInkscape, outlineSvgText, inkscapeInstallMessage, INKSCAPE_CANDIDATES, DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS } from './figure/inkscape-renderer.ts'
-export type { InkscapeOutlineOutcome, InkscapeOutlineSpec } from './figure/inkscape-renderer.ts'
+export { findInkscape, outlineSvgText, exportWithInkscape, inkscapeInstallMessage, INKSCAPE_CANDIDATES, DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS } from './figure/inkscape-renderer.ts'
+export type { ExportFigurePort, InkscapeExportFormat, InkscapeExportSpec, InkscapeOutlineOutcome, InkscapeOutlineSpec } from './figure/inkscape-renderer.ts'
 export { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 export type { FigureAnalysisEngine, FigureAnalysisRequest } from './figure/analysis-engine.ts'
 export type {
@@ -621,9 +621,19 @@ export function apply(ctx: Context, config: Config): void {
         renderTimeoutMs: renderBudgets.inkscapeRenderTimeoutMs,
       }))
     : undefined
+  // 格式导出端口：png/pdf 要落版就必须先出 SVG 再导出，故这一段取决于「本机有没有
+  // Inkscape」。可用性在装载时解析一次（与 findFreeCadCmd 同序），工具层据此决定是走
+  // 全链还是渲染器直接出图；没有端口时工具层给出「落版与复核未生效」的警告，不静默。
+  const exportFigure: ExportFigurePort | undefined = subprocess !== undefined && findInkscape(config.inkscapeExecutable) !== undefined
+    ? spec => exportWithInkscape(subprocess, spec, {
+      ...(config.inkscapeExecutable === undefined ? {} : { executable: config.inkscapeExecutable }),
+      renderTimeoutMs: renderBudgets.inkscapeRenderTimeoutMs,
+    })
+    : undefined
   ctx.tools.register(createGeneratePatentFigureTool({
     render: renderDot,
     ...(outlineText === undefined ? {} : { outlineText }),
+    ...(exportFigure === undefined ? {} : { exportFigure }),
     outputDir: resolveFigureOutputDir(config),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
     loadIndex: async () => (await figureIndexStore.load(figureIndexFile)).entries,

@@ -140,7 +140,7 @@ export async function applySubmissionPage(
   warnings: string[],
 ): Promise<AppliedSubmission | undefined> {
   if (format !== 'svg') {
-    warnings.push(`落版仅支持 SVG 输出；本次 ${format} 未落版到 ${plan.profile.office} 幅面，请改用 format="svg" 或自行拼版`)
+    warnings.push(`落版仅支持 SVG 输出；本次 ${format} 未落版到 ${plan.profile.office} 幅面——本机装好 Inkscape（Config.inkscapeExecutable 或 PATH）后，本工具会先出 SVG 再导出 ${format}；否则请改用 format="svg" 或自行拼版`)
     return undefined
   }
   const rendered = await readFile(outcomePath, 'utf8')

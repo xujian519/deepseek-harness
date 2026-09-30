@@ -24,7 +24,7 @@ import type {
 } from '../figure/dot-builder.ts'
 import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../figure/graphviz-renderer.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
-import type { OutlineTextPort } from '../figure/inkscape-renderer.ts'
+import type { ExportFigurePort, OutlineTextPort } from '../figure/inkscape-renderer.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
 import type { SubmissionLayout } from '../figure/submission-page.ts'
 import type {
@@ -77,6 +77,12 @@ export type GeneratePatentFigureDeps = {
    * Config.figureTextToPath 开启时注入，缺省视为不转换。
    */
   outlineText?: OutlineTextPort
+  /**
+   * 可选格式导出（inkscape-renderer 的 exportWithInkscape 或测试注入）。注入后，
+   * 非 SVG 输出在需要落版或图型本身只有 SVG 通路时改走「SVG 全链 + Inkscape 导出」；
+   * 未注入时保持渲染器直接出图（落版与渲染复核对非 SVG 不生效）。
+   */
+  exportFigure?: ExportFigurePort
   /** 输出目录（绝对路径），默认 <cwd>/patent/figures。 */
   outputDir?: string
   /** 可选 upsert 进附图索引（写入失败静默降级）。 */
