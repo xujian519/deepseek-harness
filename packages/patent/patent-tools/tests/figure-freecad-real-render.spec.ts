@@ -10,8 +10,11 @@ import {
   findFreeCadCmd,
   probeFreeCad,
   renderSectionGeometry,
+  renderSectionHatch,
   renderStructureViews,
 } from '../src/figure/freecad-renderer.ts'
+import { resolveHatchPattern } from '../src/figure/freecad-hatch-geometry.ts'
+import { HATCH_GEOMETRY_FILENAME, HATCH_PAT_FILENAME, buildHatchScript } from '../src/figure/freecad-hatch-script.ts'
 import { resolveSectionFrame, type SectionRing } from '../src/figure/freecad-section-geometry.ts'
 import { SECTION_GEOMETRY_FILENAME, buildSectionScript } from '../src/figure/freecad-section-script.ts'
 import { structureSvgFilename } from '../src/figure/freecad-structure-script.ts'
@@ -446,6 +449,242 @@ describe.skipIf(!hasFreeCad)('real FreeCAD section geometry (needs `freecadcmd` 
     rmSync(outDir, { recursive: true, force: true })
   })
 })
+
+describe.skipIf(!hasFreeCad)('real FreeCAD section hatching (needs `freecadcmd` installed)', () => {
+  const runtime = realSubprocess()
+  const outDir = mkdtempSync(join(tmpdir(), 'dsh-freecadhatch-'))
+  const renderOptions = { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }
+
+  /** 打剖面线的板：40×20（与 hatch 探针同一形状，便于对照实测的条纹数）。 */
+  const plate = (): number[][] => hatchRect(40, 20)
+
+  it('45° 剖面线：取向逐值相符、间距等于请求值、端点落在轮廓线上', async () => {
+    const outline = plate()
+    const result = await renderSectionHatch(runtime, {
+      regions: [{ outline }],
+      angleDeg: 45,
+      spacingMm: 2,
+      outputDir: outDir,
+    }, renderOptions)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const { segments } = result.geometry
+    // 族参数区间的解析值：外框在 45° 法向上的投影为 ±(40+20)/2·cos45° = ±21.213，
+    // 步长 2 → 索引 −10…10 共 21 条（步长 3 时 15 条，与探针实测一致）。
+    expect(segments).toHaveLength(21)
+    for (const segment of segments) {
+      expect(Math.abs(hatchAngleDeg(segment) - 45)).toBeLessThan(1e-6)
+      for (const point of [segment.from, segment.to]) {
+        // 端点落在轮廓线上：x = ±20 或 y = ±10（裁剪按同一个离散轮廓，不伸不缩）。
+        expect(Math.abs(Math.abs(point[0]) - 20) < 1e-6 || Math.abs(Math.abs(point[1]) - 10) < 1e-6).toBe(true)
+      }
+    }
+    // 间距：把各条线段中点投影到线族法向，相邻族参数之差就是毫米间距（patScale 由 .pat 的
+    // delta = 1 决定，实测逐值相等）。产物坐标按 6 位小数写出，故反推出来的间距带约 1e-6 的
+    // 取整噪声（实测 2.0000006），余量取 1e-4 毫米（图面上不可辨）。
+    const offsets = segments.map(segment => hatchOffset(segment.from, segment.to, 45, 'forward')).sort((a, b) => a - b)
+    for (let index = 1; index < offsets.length; index += 1) {
+      expect(Math.abs((offsets[index] as number) - (offsets[index - 1] as number) - 2)).toBeLessThan(1e-4)
+    }
+    // 本次生成的 .pat 落盘留档，图案名与角与请求一致。
+    expect(readFileSync(join(outDir, HATCH_PAT_FILENAME), 'utf8')).toContain('*DSH, 45 deg')
+  }, 180_000)
+
+  it('含孔区域：孔里没有剖面线，穿孔的线被孔切成两段', async () => {
+    const hole = hatchCircle(240, 5)
+    const result = await renderSectionHatch(runtime, {
+      regions: [{ outline: plate(), holes: [hole] }],
+      angleDeg: 45,
+      spacingMm: 3,
+      outputDir: outDir,
+    }, renderOptions)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const { segments } = result.geometry
+    // 同一外框不打孔时是 15 条（探针实测）；孔把穿过它的 3 条（族参数 0、±3）各切成两段 → 18 条。
+    expect(segments).toHaveLength(18)
+    // 独立量测一：没有任何线段中点落在孔内（本测试自带射线法，不复用被测代码）。
+    expect(segments.filter(segment => hatchInsidePolygon(hatchMidpoint(segment), hole))).toEqual([])
+    // 独立量测二：恰好 6 个端点落在孔圆上（3 条线各被切一刀、每刀两个端点）——孔环确实参与了成面。
+    const onHole = segments
+      .flatMap(segment => [segment.from, segment.to])
+      .filter(point => Math.abs(Math.hypot(point[0], point[1]) - 5) < 1e-3)
+    expect(onHole).toHaveLength(6)
+  }, 180_000)
+
+  it('backward 的剖面线取向是 180 − 请求角', async () => {
+    const result = await renderSectionHatch(runtime, {
+      regions: [{ outline: plate() }],
+      angleDeg: 45,
+      spacingMm: 3,
+      direction: 'backward',
+      outputDir: outDir,
+    }, renderOptions)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.geometry.segments).toHaveLength(15)
+    for (const segment of result.geometry.segments) {
+      expect(Math.abs(hatchAngleDeg(segment) - 135)).toBeLessThan(1e-6)
+    }
+  }, 180_000)
+
+  it('间距增大时线条数严格减少（patScale 与毫米间距同量纲）', async () => {
+    const counts: number[] = []
+    for (const spacingMm of [2, 6]) {
+      const result = await renderSectionHatch(runtime, {
+        regions: [{ outline: plate() }],
+        angleDeg: 45,
+        spacingMm,
+        outputDir: outDir,
+      }, renderOptions)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      counts.push(result.geometry.segments.length)
+    }
+    // 步长 2 → 21 条，步长 6 → 索引 −3…3 共 7 条。
+    expect(counts).toEqual([21, 7])
+  }, 180_000)
+
+  it('两次运行的剖面线产物逐字节一致（确定性）', async () => {
+    const first = mkdtempSync(join(tmpdir(), 'dsh-freecadhatch-det-'))
+    const second = mkdtempSync(join(tmpdir(), 'dsh-freecadhatch-det-'))
+    try {
+      const spec = { regions: [{ outline: plate(), holes: [hatchCircle(240, 5)] }], angleDeg: 30, spacingMm: 4 }
+      const a = await renderSectionHatch(runtime, { ...spec, outputDir: first }, renderOptions)
+      const b = await renderSectionHatch(runtime, { ...spec, outputDir: second }, renderOptions)
+      expect(a.ok && b.ok).toBe(true)
+      if (!a.ok || !b.ok) return
+      expect(readFileSync(join(first, HATCH_GEOMETRY_FILENAME), 'utf8'))
+        .toBe(readFileSync(join(second, HATCH_GEOMETRY_FILENAME), 'utf8'))
+    } finally {
+      rmSync(first, { recursive: true, force: true })
+      rmSync(second, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  it('退化轮廓与非法角度都当场失败，不产出剖面线', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadhatch-bad-'))
+    try {
+      // 三点共线成不了面：脚本显式报错并 sys.exit(1)（freecadcmd 吞异常时退出码仍是 0）。
+      const degenerate = await renderSectionHatch(runtime, {
+        regions: [{ outline: [[0, 0], [10, 0], [20, 0]] }],
+        angleDeg: 45,
+        spacingMm: 2,
+        outputDir: dir,
+      }, renderOptions)
+      expect(degenerate.ok).toBe(false)
+      if (degenerate.ok) return
+      expect(degenerate.code).toBe('hatch_failed')
+      expect(degenerate.error).toContain('RuntimeError')
+      expect(existsSync(join(dir, HATCH_GEOMETRY_FILENAME))).toBe(false)
+
+      // 中文原样出现在消息里 = 文案由本进程给出（freecadcmd 的 stderr 会把中文转义成 \uXXXX，
+      // 实测），即非法请求在启动子进程之前就被拒了。
+      const badAngle = await renderSectionHatch(runtime, {
+        regions: [{ outline: plate() }],
+        angleDeg: 0,
+        spacingMm: 2,
+        outputDir: dir,
+      }, renderOptions)
+      expect(badAngle.ok).toBe(false)
+      if (badAngle.ok) return
+      expect(badAngle.code).toBe('hatch_failed')
+      expect(badAngle.error).toContain('剖面线角度必须在 (0, 90] 度内')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  it('少传 patFile 的段错误陷阱不会静默成功', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-freecadhatch-trap-'))
+    try {
+      const regions = [{ outline: plate() }]
+      const script = buildHatchScript({
+        pattern: resolveHatchPattern({ regions, angleDeg: 45, spacingMm: 2 }),
+        regions,
+        outputDir: dir,
+      })
+      // 这条链路唯一的可静默失败点是「没显式传 patFile」：实测 freecadcmd 直接段错误，stdout 的
+      // 块缓冲全丢。把第四个位置参数去掉来复现这个陷阱 —— 探针本身必须真的改动脚本，否则这条
+      // 测试是空的。
+      const broken = script.replace(
+        'TechDraw.makeGeomHatch(face, PAT_SCALE, PAT_NAME, PAT_PATH)',
+        'TechDraw.makeGeomHatch(face, PAT_SCALE, PAT_NAME)',
+      )
+      expect(broken).not.toBe(script)
+      const scriptPath = join(dir, 'trap.py')
+      writeFileSync(scriptPath, broken, 'utf8')
+      const run = spawnSync(findFreeCadCmd() as string, [scriptPath], {
+        cwd: dir,
+        encoding: 'utf8',
+        env: { ...process.env, HOME: dir, TMPDIR: dir, TEMP: dir, TMP: dir },
+      })
+      // 实测退出码 139（SIGSEGV）；即使某个 FreeCAD 版本改成返回空 Compound，脚本也会因 0 条边
+      // 而 sys.exit(1)。两种结局都不可能「静默成功」，故这里钉住的是「不可能成功」而不是具体码。
+      expect(run.status).not.toBe(0)
+      expect(run.stdout).not.toContain('HATCH_OK')
+      expect(existsSync(join(dir, HATCH_GEOMETRY_FILENAME))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  afterAll(() => {
+    rmSync(outDir, { recursive: true, force: true })
+  })
+})
+
+/** 矩形顶点（隐式闭合）。 */
+function hatchRect(width: number, height: number): number[][] {
+  return [[-width / 2, -height / 2], [width / 2, -height / 2], [width / 2, height / 2], [-width / 2, height / 2]]
+}
+
+/** 正多边形（与 `buildSectionScript` 的 1.5° 角度步长同精度地近似圆孔）。 */
+function hatchCircle(sides: number, radius: number): number[][] {
+  return Array.from({ length: sides }, (_, index) => {
+    const angle = (2 * Math.PI * index) / sides
+    return [radius * Math.cos(angle), radius * Math.sin(angle)]
+  })
+}
+
+/** 线段在视图帧（y 向下）里的方向角，取 [0, 180) 的无向值。 */
+function hatchAngleDeg(segment: { from: readonly [number, number]; to: readonly [number, number] }): number {
+  const degrees = (Math.atan2(segment.to[1] - segment.from[1], segment.to[0] - segment.from[0]) * 180) / Math.PI
+  return (degrees + 180) % 180
+}
+
+/** 线段中点在剖面线族法向上的投影（族参数）。 */
+function hatchOffset(
+  from: readonly [number, number],
+  to: readonly [number, number],
+  angleDeg: number,
+  direction: 'forward' | 'backward',
+): number {
+  const radians = (angleDeg * Math.PI) / 180
+  const sign = direction === 'forward' ? 1 : -1
+  const normal = [-sign * Math.sin(radians), Math.cos(radians)]
+  return ((from[0] + to[0]) / 2) * normal[0] + ((from[1] + to[1]) / 2) * normal[1]
+}
+
+/** 线段中点。 */
+function hatchMidpoint(segment: { from: readonly [number, number]; to: readonly [number, number] }): [number, number] {
+  return [(segment.from[0] + segment.to[0]) / 2, (segment.from[1] + segment.to[1]) / 2]
+}
+
+/** 点在多边形内判定（射线穿越；独立实现，不复用被测代码）。 */
+function hatchInsidePolygon(point: readonly [number, number], polygon: readonly number[][]): boolean {
+  let inside = false
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const current = polygon[index] as number[]
+    const last = polygon[previous] as number[]
+    if (((current[1] as number) > point[1]) === ((last[1] as number) > point[1])) continue
+    const currentY = current[1] as number
+    const lastY = last[1] as number
+    const crossingX = (current[0] as number) + ((point[1] - currentY) / (lastY - currentY)) * ((last[0] as number) - (current[0] as number))
+    if (point[0] < crossingX) inside = !inside
+  }
+  return inside
+}
 
 /** 环的有向面积（只为独立复核离散面积，不复用被测代码）。 */
 function shoeLace(ring: SectionRing): number {

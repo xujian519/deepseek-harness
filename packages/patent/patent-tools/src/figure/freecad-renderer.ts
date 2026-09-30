@@ -21,6 +21,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import {
+  HatchGeometryError,
+  parseHatchGeometry,
+  resolveHatchPattern,
+  type HatchDirection,
+  type HatchGeometry,
+  type HatchRegion,
+  type SectionHatchRequest,
+} from './freecad-hatch-geometry.ts'
+import { HATCH_GEOMETRY_FILENAME, buildHatchScript } from './freecad-hatch-script.ts'
+import {
   SectionGeometryError,
   parseSectionGeometry,
   resolveSectionFrame,
@@ -88,6 +98,9 @@ const STRUCTURE_RENDER_SCRIPT_FILENAME = '.freecad-structure-render.py'
 
 /** 剖切几何脚本临时文件名（写入 outputDir）。 */
 const SECTION_RENDER_SCRIPT_FILENAME = '.freecad-section-render.py'
+
+/** 剖面线脚本临时文件名（写入 outputDir）。 */
+const HATCH_RENDER_SCRIPT_FILENAME = '.freecad-hatch-render.py'
 
 /** 子进程 HOME/临时目录名（写入 outputDir 内，隔离 FreeCAD 副作用；两条链路共用）。 */
 const FREECAD_HOME_DIRNAME = '.freecad-home'
@@ -413,5 +426,86 @@ export async function renderSectionGeometry(
   } catch (error) {
     if (error instanceof SectionGeometryError) return { ok: false, code: 'geometry_failed', error: error.message }
     return { ok: false, code: 'geometry_failed', error: `剖切几何产物不可用（${geometryPath}）：${errorText(error)}` }
+  }
+}
+
+/** 剖面线请求。 */
+export type SectionHatchSpec = {
+  /** 要打剖面线的材料区域（视图帧毫米；外环 + 其孔环）。 */
+  regions: readonly HatchRegion[]
+  /** 与图面水平线的夹角（度）；取值域 (0, 90]（与 `HatchSpec` 同口径）。 */
+  angleDeg: number
+  /** 相邻剖面线的垂直间距（毫米）。 */
+  spacingMm: number
+  /** 方向；缺省 'forward'。 */
+  direction?: HatchDirection
+  /** 输出目录绝对路径（渲染器负责创建）。 */
+  outputDir: string
+  /** 调用方取消信号。 */
+  signal?: AbortSignal
+}
+
+/** 剖面线错误码（与剖切几何同形，产物不同故 `render_failed` 记作 `hatch_failed`）。 */
+export type SectionHatchErrorCode = 'not_installed' | 'hatch_failed' | 'aborted'
+
+/** 剖面线结果：成功时的线段或分类错误。 */
+export type SectionHatchOutcome =
+  | { ok: true; geometry: HatchGeometry }
+  | { ok: false; code: SectionHatchErrorCode; error: string }
+
+/**
+ * 用 FreeCAD headless 在视图帧里为材料区域生成剖面线（不需要 Document/Page/模板）。
+ *
+ * 流程与 {@link renderSectionGeometry} 同构：解析可执行文件 → 解析请求并构建脚本（角度、间距、
+ * 区域非法时不启动子进程）→ {@link runFreeCadScript} 执行 → 解析产物并核对取向、间距与落点。
+ * 任一核对不通过都归入 `hatch_failed`，不交出线段。
+ *
+ * 面由传入的区域网格点重建，故线段端点落在画出来的轮廓线上；孔环一并成面，孔里不会被打上剖面线。
+ * @param subprocess - 注入的 subprocess 服务。
+ * @param spec - 剖面线请求。
+ * @param options - freecadcmd 路径覆盖与渲染超时。
+ * @returns 成功时的剖面线段或分类错误。
+ */
+export async function renderSectionHatch(
+  subprocess: SubprocessRuntime,
+  spec: SectionHatchSpec,
+  options: FreeCadRenderOptions,
+): Promise<SectionHatchOutcome> {
+  const command = resolveFreeCadCommand(options)
+  if (!command.ok) return { ok: false, code: 'not_installed', error: command.error }
+  const request: SectionHatchRequest = {
+    regions: spec.regions,
+    angleDeg: spec.angleDeg,
+    spacingMm: spec.spacingMm,
+    ...(spec.direction === undefined ? {} : { direction: spec.direction }),
+  }
+  const hatchPath = join(spec.outputDir, HATCH_GEOMETRY_FILENAME)
+  let script: string
+  try {
+    // 请求在这里解析：参数非法时不启动子进程。
+    script = buildHatchScript({
+      pattern: resolveHatchPattern(request),
+      regions: request.regions,
+      outputDir: spec.outputDir,
+    })
+  } catch (error) {
+    return { ok: false, code: 'hatch_failed', error: errorText(error) }
+  }
+  const result = await runFreeCadScript(subprocess, command.executable, {
+    tool: 'FreeCAD 剖面线',
+    outputDir: spec.outputDir,
+    scriptFilename: HATCH_RENDER_SCRIPT_FILENAME,
+    artifactFilename: HATCH_GEOMETRY_FILENAME,
+    artifactLabel: '剖面线几何',
+    ...(spec.signal === undefined ? {} : { signal: spec.signal }),
+  }, script, options)
+  if (!result.ok) {
+    return { ok: false, code: result.code === 'aborted' ? 'aborted' : 'hatch_failed', error: result.error }
+  }
+  try {
+    return { ok: true, geometry: parseHatchGeometry(readFileSync(hatchPath, 'utf8'), request) }
+  } catch (error) {
+    if (error instanceof HatchGeometryError) return { ok: false, code: 'hatch_failed', error: error.message }
+    return { ok: false, code: 'hatch_failed', error: `剖面线产物不可用（${hatchPath}）：${errorText(error)}` }
   }
 }

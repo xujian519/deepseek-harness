@@ -21,6 +21,8 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/freecad-section-geometry
  */
 
+import { fmtNumber, isFiniteNumber } from './freecad-artifact-numbers.ts'
+
 /** 面积核对容差（相对值）：离散多边形面积与 OCCT 面面积的允许相对偏差。 */
 export const SECTION_AREA_TOLERANCE = 1e-3
 
@@ -365,15 +367,6 @@ function finiteVec3(value: Vec3, subject: string): Vec3 {
   return [x, y, z]
 }
 
-/**
- * 有限数判定：同时把（`noUncheckedIndexedAccess` 下的）`number | undefined` 收窄为 `number`。
- * @param value - 待判定值。
- * @returns 是有限数时为 true（类型谓词，供调用点收窄）。
- */
-function isFiniteNumber(value: number | undefined): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
 /** 归一化三维向量；零长度即报错。 */
 function normalizeVec3(value: Vec3, subject: string): Vec3 {
   const vector = finiteVec3(value, subject)
@@ -420,9 +413,4 @@ function scaleVec3(value: Vec3, factor: number): Vec3 {
 /** 模长。 */
 function lengthVec3(value: Vec3): number {
   return Math.sqrt(dotVec3(value, value))
-}
-
-/** 报错文案里的数值格式（最多 6 位小数，去尾零）。 */
-function fmtNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')
 }
