@@ -547,11 +547,13 @@ function coordPair(point: Point, offset: Point): string {
  * 多边形元素（粗实线）。
  * @param points - 多边形顶点。
  * @param offset - 画布平移量。
+ * @param hatchGroup - 同一材料的轮廓分组号；undefined 时不写分组标记。
  * @returns `<polygon>` 元素文本。
  */
-function polygonElement(points: readonly Point[], offset: Point): string {
+function polygonElement(points: readonly Point[], offset: Point, hatchGroup?: number): string {
   const list = points.map(point => coordPair(point, offset)).join(' ')
-  return `<polygon points="${list}" stroke-width="${fmt(THICK_STROKE_MM)}"/>`
+  const group = hatchGroup === undefined ? '' : ` data-dsh-hatch-group="${String(hatchGroup)}"`
+  return `<polygon points="${list}" stroke-width="${fmt(THICK_STROKE_MM)}"${group}/>`
 }
 
 /**
@@ -620,6 +622,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
   }
 
   const polygons: (readonly Point[])[] = []
+  const polygonGroups: (number | undefined)[] = []
   const hatches: Segment[] = []
   const centerlines: Segment[] = []
   const leaders: Segment[] = []
@@ -629,11 +632,25 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
   const labels: string[] = []
   const extents: Point[] = []
   const fontSizeMm = resolveLabelFontSize(input.labelFontSizeMm)
+  // 同一材料的多个轮廓（同一零件被剖成的几段）用同一组剖面线参数；分组号按参数取值标注，
+  // 供渲染复核把它们当一件比较，而不是两条相邻轮廓。未给 hatch 的轮廓不并入任何分组：
+  // 缺省值可能只是漏写，合并会掩盖「相邻两件都落到同一个缺省剖面线」这一真缺陷。
+  const hatchGroupBySpec = new Map<string, number>()
+  const hatchGroupOf = (hatch: HatchSpec | 'none' | undefined): number | undefined => {
+    if (hatch === undefined || hatch === 'none') return undefined
+    const key = `${String(hatch.angleDeg ?? DEFAULT_HATCH_ANGLE_DEG)}|${String(hatch.spacingMm ?? DEFAULT_HATCH_SPACING_MM)}|${hatch.direction ?? 'forward'}`
+    const known = hatchGroupBySpec.get(key)
+    if (known !== undefined) return known
+    const assigned = hatchGroupBySpec.size
+    hatchGroupBySpec.set(key, assigned)
+    return assigned
+  }
 
   const outline = input.outline !== undefined && input.outline.length > 0 ? input.outline : undefined
   if (outline !== undefined) {
     assertPolygon(outline, '外轮廓')
     polygons.push(outline)
+    polygonGroups.push(undefined)
     extents.push(...outline)
   }
 
@@ -642,6 +659,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     assertPolygon(part.outline, `${subject}轮廓`)
     const hatch = resolveHatch(part.hatch, subject)
     polygons.push(part.outline)
+    polygonGroups.push(hatchGroupOf(part.hatch))
     extents.push(...part.outline)
     if (hatch !== undefined) hatches.push(...hatchSegments(part.outline, hatch))
     const labelText = part.label === undefined ? '' : part.label.trim()
@@ -698,7 +716,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
   const offset: Point = [paddingMm - bounds.minX, paddingMm - bounds.minY]
   // 文字在全部线条之后绘制：剖面线不得妨碍附图标记线和主线条的识别。
   const body = [
-    ...polygons.map(points => polygonElement(points, offset)),
+    ...polygons.map((points, index) => polygonElement(points, offset, polygonGroups[index])),
     ...hatches.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
     ...centerlines.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
     ...leaders.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),

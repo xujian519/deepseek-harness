@@ -150,7 +150,7 @@ describe('buildSectionDiagram 剖面线裁剪', () => {
     // 90° 剖面线为竖直线，间距 4 只采到多边形最左顶点所在的 x=0 与右边缘 x=4，两处都只相切。
     const spec = buildSectionDiagram({ parts: [{ outline: [[0, 0], [4, 4], [4, -4]], hatch: { angleDeg: 90, spacingMm: 4 } }] })
     expect(hatchLines(spec.body)).toEqual([])
-    expect(spec.body).toContain('<polygon points="4,8 8,12 8,4" stroke-width="0.5"/>')
+    expect(spec.body).toContain('<polygon points="4,8 8,12 8,4" stroke-width="0.5" data-dsh-hatch-group="0"/>')
   })
 
   it('顶点共线的退化轮廓：重心退化为顶点平均位置，引线自该点引出且不画剖面线', () => {
@@ -429,5 +429,53 @@ describe('buildSectionDiagram 引线标号、中心线、字号与非剖切轮�
       paddingMm: 0,
     })
     expect(lineElements(spec.body)).toEqual([])
+  })
+})
+
+describe('buildSectionDiagram 剖面线分组标记', () => {
+  /** 直接从图元文本取全部分组号（按出现顺序）。 */
+  const groups = (body: string): string[] =>
+    [...body.matchAll(/data-dsh-hatch-group="([^"]*)"/g)].map(match => match[1] as string)
+
+  it('同一材料的分段共用一个分组号，不同材料各占一号', () => {
+    const spec = buildSectionDiagram({
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: { angleDeg: 45, spacingMm: 3, direction: 'forward' } },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: { angleDeg: 45, spacingMm: 3, direction: 'forward' } },
+        { outline: [[40, 0], [50, 0], [50, 10], [40, 10]], hatch: { angleDeg: 75, spacingMm: 4 } },
+      ],
+    })
+    expect(groups(spec.body)).toEqual(['0', '0', '1'])
+  })
+
+  it('缺省值与等价显式写法同组：缺省角度/间距/方向按解析后的值比较', () => {
+    const spec = buildSectionDiagram({
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: {} },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: { angleDeg: 45, spacingMm: 3, direction: 'forward' } },
+      ],
+    })
+    expect(groups(spec.body)).toEqual(['0', '0'])
+  })
+
+  it('未给 hatch 与 hatch 为 none 的轮廓不写分组标记（缺省是漏写，合并会掩盖真缺陷）', () => {
+    const spec = buildSectionDiagram({
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]] },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: 'none' },
+      ],
+      paddingMm: 0,
+    })
+    expect(groups(spec.body)).toEqual([])
+  })
+
+  it('外轮廓不写分组标记', () => {
+    const spec = buildSectionDiagram({
+      outline: [[-5, -5], [45, -5], [45, 15], [-5, 15]],
+      parts: [{ outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: { angleDeg: 45 } }],
+      paddingMm: 0,
+    })
+    expect(spec.body.match(/<polygon /g) ?? []).toHaveLength(2)
+    expect(groups(spec.body)).toEqual(['0'])
   })
 })

@@ -91,6 +91,11 @@ export type RenderCheckReport = {
 const ADJACENT_GAP_MM = 1
 /** 相邻零件剖面线取向差下限（度）：小于它则两件难以区分。 */
 const ADJACENT_ORIENTATION_LIMIT_DEG = 30
+/**
+ * 绘图侧标注同一材料轮廓分组的属性名（见 `section-diagram.ts` 的 `polygonElement`）。
+ * 同一零件的多个轮廓各给一段是输入约定；没有这个标注时复核只能把每段各自当成一件。
+ */
+const HATCH_GROUP_ATTRIBUTE = 'data-dsh-hatch-group'
 /** 点划线签名：短于此值的线段是「点」（毫米）。 */
 const DOT_MAX_LENGTH_MM = 1
 /** 点划线签名：长于此值的线段是「长划」（毫米）。 */
@@ -155,6 +160,8 @@ type Shape = {
   readonly stroked: boolean
   /** `stroke-dasharray` 的虚线段长（毫米，已按累计缩放换算）；实线元素为 undefined。 */
   readonly dashPatternMm?: readonly number[]
+  /** `data-dsh-hatch-group`：同一材料的轮廓共用此值（绘图侧标注）；未标注时为 undefined。 */
+  readonly hatchGroup?: number
 }
 
 /** 一个文字元素：内容与文字占位框四角（根坐标系）。 */
@@ -248,6 +255,17 @@ function numValue(raw: string | undefined): number | undefined {
 /** 读取数值属性（行内 `style` 优先）。 */
 function num(tag: string, name: string): number | undefined {
   return numValue(styled(tag, name))
+}
+
+/**
+ * 读取绘图侧标注的轮廓分组号（{@link HATCH_GROUP_ATTRIBUTE}）。
+ * @param raw - 属性原文。
+ * @returns 非负整数分组号；缺失或非法时 undefined，该轮廓自成一组。
+ */
+function hatchGroupValue(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim() === '') return undefined
+  const value = Number(raw)
+  return Number.isInteger(value) && value >= 0 ? value : undefined
 }
 
 /**
@@ -721,6 +739,7 @@ function scanSvg(svg: string): Scan {
     if (geometry.kind === 'none') continue
     const scale = scaleOf(frame.matrix)
     const dashPattern = dashPatternUser(styled(tag, 'stroke-dasharray'))
+    const hatchGroup = hatchGroupValue(attr(tag, HATCH_GROUP_ATTRIBUTE))
     shapes.push({
       subpaths: geometry.subpaths.map(subpath => ({
         points: subpath.points.map(point => mapPoint(frame.matrix, point)),
@@ -729,6 +748,7 @@ function scanSvg(svg: string): Scan {
       strokeWidthMm: frame.strokeWidthMm * scale,
       stroked: frame.stroked,
       ...(dashPattern === undefined ? {} : { dashPatternMm: dashPattern.map(value => value * scale) }),
+      ...(hatchGroup === undefined ? {} : { hatchGroup }),
     })
   }
   return {
@@ -979,11 +999,19 @@ function coveredCenterlines(pieces: readonly Segment[]): RenderCheckFinding[] {
  * 相邻零件剖面线取向过近：按「线段中点落在哪个多边形内」把剖面线归到零件，再对
  * 相邻（间隙 ≤ {@link ADJACENT_GAP_MM}）且非镜像对的多边形比较取向差。只有两侧都
  * 真的带剖面线（{@link hatchOrientation} 判定）时才比较。
+ *
+ * 带同一分组号（{@link HATCH_GROUP_ATTRIBUTE}）的两个轮廓是同一材料的几段，不比较：
+ * 输入约定就是「同一零件的多个轮廓各给一段」，按轮廓比较必然把它们报成相邻两件。
  * @param outlines - 闭合轮廓。
  * @param segments - 线段（开放子路径：剖面线、引线、中心线；轮廓边不入内）。
+ * @param groups - 与 `outlines` 一一对应的分组号；undefined 表示该轮廓自成一组。
  * @returns 发现的问题。
  */
-function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]): RenderCheckFinding[] {
+function hatchCollisions(
+  outlines: readonly Poly[],
+  segments: readonly Segment[],
+  groups: readonly (number | undefined)[],
+): RenderCheckFinding[] {
   const byPoly = new Map<number, Segment[]>()
   segments.forEach((segment) => {
     const midpoint: Point = [(segment.x1 + segment.x2) / 2, (segment.y1 + segment.y2) / 2]
@@ -997,6 +1025,8 @@ function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]
   const findings: RenderCheckFinding[] = []
   for (let left = 0; left < outlines.length; left += 1) {
     for (let right = left + 1; right < outlines.length; right += 1) {
+      const group = groups[left]
+      if (group !== undefined && group === groups[right]) continue
       const a = outlines[left] as Poly
       const b = outlines[right] as Poly
       const boxA = bounds(a)
@@ -1076,6 +1106,10 @@ export function measureInkBounds(svg: string, options: { maxBytes?: number } = {
  * 元素按嵌套逐层继承变换与样式（见模块文档的量测范围）；凡不在范围内的结构，报告
  * `not-measured` 而不是略过。本模块只读文本、不解析实体也不执行任何内容，输入仍过
  * {@link assertSafeSvg} 的实体/CDATA、体量与根元素检查，被拒时抛出。
+ *
+ * 同一材料的多个轮廓靠绘图侧写的 {@link HATCH_GROUP_ATTRIBUTE} 识别：带同一分组号的
+ * 轮廓不互相比较剖面线取向（见 {@link hatchCollisions}）。没有该标注时每个闭合轮廓
+ * 各自成组，与标注存在前的判定一致。
  * @param svg - 完整 SVG 文本。
  * @param options - 安全校验上限（字节）；缺省沿用 {@link DEFAULT_SVG_MAX_BYTES}。
  * @returns 量测值与发现的问题。
@@ -1085,6 +1119,7 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
   assertSafeSvg(svg, options.maxBytes ?? DEFAULT_SVG_MAX_BYTES)
   const scan = scanSvg(svg)
   const outlines: Poly[] = []
+  const outlineGroups: (number | undefined)[] = []
   const openSegments: Segment[] = []
   const drawn: Segment[] = []
   // 点划线判定用的片段：虚线元素按虚线段展开，其余按整段——`stroke-dasharray` 画出的
@@ -1094,8 +1129,10 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
     for (const subpath of shape.subpaths) {
       const segments = subpathSegments(subpath)
       drawn.push(...segments)
-      if (subpath.closed) outlines.push(subpath.points)
-      else openSegments.push(...segments)
+      if (subpath.closed) {
+        outlines.push(subpath.points)
+        outlineGroups.push(shape.hatchGroup)
+      } else openSegments.push(...segments)
       for (const segment of segments) {
         if (shape.dashPatternMm === undefined) pieces.push(segment)
         else pieces.push(...dashSegments(segment, shape.dashPatternMm))
@@ -1121,7 +1158,7 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
   findings.push(...coveredCenterlines(pieces))
   const ink = inkOutsideCanvas(scan)
   if (ink !== undefined) findings.push(ink)
-  findings.push(...hatchCollisions(outlines, openSegments))
+  findings.push(...hatchCollisions(outlines, openSegments, outlineGroups))
 
   const strokeCounts = new Map<number, number>()
   for (const shape of scan.shapes) {

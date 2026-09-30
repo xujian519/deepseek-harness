@@ -52,12 +52,14 @@ function hatchFamily(x: number, y: number, deg: number, count: number, step: num
  * 两个相邻零件（右件带切角，与左件不互为镜像）各打一族剖面线，取向由调用方给出。
  * @param leftDeg - 左件剖面线取向（度）。
  * @param rightDeg - 右件剖面线取向（度）。
+ * @param group - 两轮廓同属一个材料时给出的分组号；undefined 时各自成组。
  * @returns 图元文本。
  */
-function adjacentHatch(leftDeg: number, rightDeg: number): string {
+function adjacentHatch(leftDeg: number, rightDeg: number, group?: number): string {
+  const mark = group === undefined ? '' : ` data-dsh-hatch-group="${String(group)}"`
   return [
-    '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
-    '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+    `<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"${mark}/>`,
+    `<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"${mark}/>`,
     hatchFamily(6, 4, leftDeg, 3, 2),
     hatchFamily(46, 4, rightDeg, 3, 2),
   ].join('\n')
@@ -354,6 +356,30 @@ describe('checkFigureRendering 相邻剖面线取向', () => {
       stroke(26, 10, 0, 8),
     ].join('\n')))
     expect(report.findings).toEqual([])
+  })
+
+  it('同一材料的两个轮廓（同分组号）取向相同不报：输入约定就是同一零件各给一段', () => {
+    expect(checkFigureRendering(svg(adjacentHatch(135, 135, 2))).findings).toEqual([])
+  })
+
+  it('分组号不同的相邻两件取向相同仍报出', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5" data-dsh-hatch-group="0"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5" data-dsh-hatch-group="1"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 135, 3, 2),
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+  })
+
+  it('分组号非法（非整数）时该轮廓自成一组，取向相同仍报出', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5" data-dsh-hatch-group="甲"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5" data-dsh-hatch-group="1.5"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 135, 3, 2),
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
   })
 })
 
