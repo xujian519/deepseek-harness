@@ -16,13 +16,14 @@
  * `lib/index.js` + 类型声明，额外的 `.py` 资产需要打包与路径解析；纯函数返回
  * 源码把「构建脚本」与「执行脚本」彻底分离，前者可在无 FreeCAD 的环境下单测。
  *
- * 坐标系（本机实测）：`viewPartAsSvg` 输出的 `<g>` 片段、`getVisibleVertexes`
- * 与 `projectPoint` 三者共享同一「投影视图」坐标帧（y 向上，数学约定），而
- * 独立 SVG 画布 y 向下。脚本以 `projectPoint(shape.BoundBox.Center)` 之外的
- * 「密集投影几何包围盒中心」C 把坐标归到片段帧（TechDraw 按投影后的紧致几何
- * 居中，旋转视图下 C ≠ AABB 中心投影），再把片段整体 `scale(1,-1)` 翻正、
- * 件号锚点取 `projectPoint(p) - C` 并翻转 y，保证件号落在真实顶点投影上、
- * 且图面朝上。片段不含模板边框/标题栏/图号，天然满足《专利审查指南》4.3。
+ * 坐标系（本机实测，两帧不同）：`projectPoint` 返回**未居中、y 向上**的帧；
+ * `viewPartAsSvg` 的 `<g>` 片段则是**已按投影紧致几何居中、y 向下**的帧，也就是
+ * 独立 SVG 画布自己的约定，二者关系为 `y_片段 = C_y - y_projectPoint`。因此片段
+ * 原样进画布、不做任何翻转（脚本曾按「片段 y 向上」把它整体 `scale(1,-1)`，那是
+ * 把图上下镜像）；件号锚点同样按 `C_y - y_projectPoint` 归到片段帧，落点即该坐标的
+ * 真实投影。C 是密集投影几何的包围盒中心：TechDraw 按**投影后**的紧致几何居中，
+ * 旋转视图下它不等于模型 AABB 中心的投影，故必须逐边取样求。片段不含模板边框/
+ * 标题栏/图号，天然满足《专利审查指南》4.3。
  *
  * @module @deepseek-ai/dsh-patent-tools/figure/freecad-structure-script
  */
@@ -429,9 +430,9 @@ def build_view_svg(view, shapes, view_name):
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s %s %s %s" '
         'width="%smm" height="%smm">'
         % (fmt(min_x), fmt(min_y), fmt(width), fmt(height), fmt(width * SCALE), fmt(height * SCALE)),
-        '<g transform="scale(1,-1)">',
+        # 片段已是画布帧（y 向下、按 C 居中），原样进画布；上面 parts 的两处 y 也
+        # 都按 C_y - y_projectPoint 算过，故几何与件号同帧，不会互相错开。
         fragment,
-        "</g>",
     ]
     parts.extend(callout_svg)
     parts.append("</svg>")

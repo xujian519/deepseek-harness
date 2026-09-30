@@ -62,6 +62,29 @@ const PIN_FIXTURE = join(import.meta.dirname, 'fixtures', 'structure-pin.step')
 /** 剖切几何的 fixture：60×30×8 的板，两个 r5 通孔位于 x = ±15（见 generate-section-fixture.py）。 */
 const SECTION_FIXTURE = join(import.meta.dirname, 'fixtures', 'section-holes-plate.step')
 
+/**
+ * 抽出 SVG 里所有 `<path>` 的绘制点（`M`/`L`/`C`/`Q` 取坐标对，`A` 取终点）。
+ * 只用于量投影方向：TechDraw 片段是纯折线/曲线路径，不含 transform。
+ * @param svg - the rendered view SVG.
+ * @returns every drawn coordinate pair, in file order.
+ */
+function drawnPoints(svg: string): [number, number][] {
+  const points: [number, number][] = []
+  for (const match of svg.matchAll(/<path[^>]*\sd="([^"]+)"/g)) {
+    for (const [, command, body] of match[1]!.matchAll(/([MLAQC])\s*([^MLAQC]*)/g)) {
+      const numbers = [...body!.matchAll(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g)].map(m => Number(m[0]))
+      if (command === 'A') {
+        if (numbers.length >= 2) points.push([numbers[numbers.length - 2]!, numbers[numbers.length - 1]!])
+        continue
+      }
+      for (let index = 0; index + 1 < numbers.length; index += 2) {
+        points.push([numbers[index]!, numbers[index + 1]!])
+      }
+    }
+  }
+  return points
+}
+
 /** 剖切 fixture 的解析几何：外环 60×30、孔半径 5、板厚 8。 */
 const SECTION_PLATE_WIDTH_MM = 60
 const SECTION_PLATE_DEPTH_MM = 30
@@ -213,6 +236,23 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
     const iso = readFileSync(join(outDir, structureSvgFilename(1, 'iso')), 'utf8')
     const front = readFileSync(join(outDir, structureSvgFilename(1, 'front')), 'utf8')
     expect(iso).not.toBe(front)
+
+    // 投影方向：正视图里 +z 朝上（圆柱立于底板之上）。fixture 的底板 z∈[0,8]、
+    // 立圆柱 z∈[8,24]，投影紧致中心 C_y=12，故画布帧（y 向下，即 viewPartAsSvg
+    // 片段自己的帧）里圆柱顶面在 y=-12、底板左右棱在 y∈[4,12]。脚本曾把片段整体
+    // scale(1,-1)，整张图上下镜像：最上方几何会变成 40 毫米宽的底板下棱。
+    const frontPoints = drawnPoints(front)
+    expect(frontPoints.length).toBeGreaterThan(10)
+    const topY = Math.min(...frontPoints.map(point => point[1]))
+    expect(topY).toBeCloseTo(-12, 2)
+    for (const [x, y] of frontPoints) {
+      if (y < topY + 0.5) expect(Math.abs(x)).toBeLessThanOrEqual(7)
+      if (Math.abs(x) > 19.5) expect(y).toBeGreaterThanOrEqual(3.9)
+    }
+    const postTop = manifest.views[1]!.anchors.find(anchor => anchor.numeral === '100')!
+    // 件号与几何同帧：立柱顶（z=24）的锚点必须落在上面量到的顶面上。
+    expect(postTop.point2d[0]).toBeCloseTo(0, 2)
+    expect(postTop.point2d[1]).toBeCloseTo(topY, 2)
   }, 180_000)
 
   it('装配体：两个零件文件投影成同一批视图，件号按归属零件记录', async () => {

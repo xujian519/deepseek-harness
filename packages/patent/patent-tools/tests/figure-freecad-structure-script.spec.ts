@@ -100,9 +100,14 @@ describe('buildStructureScript', () => {
     expect(script).toContain('doc.TransientDir = transient_dir')
   })
 
-  it('片段翻正（scale(1,-1)）以对齐 y-down SVG 画布', () => {
+  it('片段按画布帧原样落图：不再整体 scale(1,-1)，件号与画布同帧', () => {
     const script = buildStructureScript(params())
-    expect(script).toContain('transform="scale(1,-1)"')
+    // 实测：viewPartAsSvg 的片段本身就是 y 向下、已按投影紧致几何居中的画布帧
+    // （projectPoint 才是 y 向上），再翻一次会把整张图上下镜像。件号锚点、画布
+    // 上下边界都按 C_y - y_projectPoint 算，故三者同帧、引线落在真实投影上。
+    expect(script).not.toContain('scale(1,-1)')
+    expect(script).toContain('-(projected.y - c_y)')
+    expect(script).toContain('-geo_max_y')
   })
 
   it('往返一致：内嵌 payload 双重序列化后可还原为原请求', () => {
