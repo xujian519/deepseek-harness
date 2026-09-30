@@ -169,3 +169,109 @@ describe('generate_patent_figure → verify_patent_figure 联合复核', () => {
     }
   })
 })
+
+describe('verify_patent_figure 标号净距', () => {
+  /** 字号 4 的「3」：占位框 x∈[78.8,81.2]、y∈[17,20.48]；`y` 处的横线距框上边界 `y`−17 毫米。 */
+  const figure = (y: number): string => svg([
+    `<line x1="70" y1="${y}" x2="90" y2="${y}" stroke-width="0.25"/>`,
+    '<text x="80" y="20" font-size="4" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+  ].join('\n'))
+
+  /** 复核给定 SVG 文本的 findings。 */
+  async function verify(dir: string, body: string, args: Record<string, unknown>): Promise<{ check: string; message: string }[]> {
+    writeFileSync(join(dir, 'fig1.svg'), body)
+    const result = await ctxWith(dir).then(ctx => ctx.tools.execute({
+      signal, callId: ToolCallId('vc1'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', ...args },
+    }))
+    expect(result.isError).toBe(false)
+    return (result as { value: { findings: { check: string; message: string }[] } }).value.findings
+  }
+
+  it('缺省净距 1.5 毫米：贴线 1 毫米报出并给出量测距离', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    try {
+      const findings = await verify(dir, figure(16), {})
+      expect(findings.map(finding => finding.check)).toEqual(['text-clearance'])
+      expect(findings[0]?.message).toContain('仅 1 毫米')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('text_clearance_mm 可收紧与放宽：0.5 不报、3 报出 2 毫米外的线', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    try {
+      expect(await verify(dir, figure(16), { text_clearance_mm: 0.5 })).toEqual([])
+      const widened = await verify(dir, figure(15), { text_clearance_mm: 3 })
+      expect(widened.map(finding => finding.check)).toEqual(['text-clearance'])
+      expect(widened[0]?.message).toContain('不足 3 毫米净距')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('text_clearance_mm: 0 关闭该判据，其他判据不受影响', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    try {
+      expect(await verify(dir, figure(16), { text_clearance_mm: 0 })).toEqual([])
+      const pierced = await verify(dir, svg([
+        '<line x1="80" y1="10" x2="80" y2="30" stroke-width="0.25"/>',
+        '<text x="80" y="20" font-size="4" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+      ].join('\n')), { text_clearance_mm: 0 })
+      expect(pierced.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('负净距被拒，并指明参数名', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    const ctx = await ctxWith(dir)
+    try {
+      writeFileSync(join(dir, 'fig1.svg'), figure(16))
+      const result = await ctx.tools.execute({
+        signal, callId: ToolCallId('vc2'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', text_clearance_mm: -1 },
+      })
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('text_clearance_mm 必须是非负数')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('工具自己画的剖视图用同一缺省净距复核：不报', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    const outDir = join(dir, 'figs')
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.tools.register(createGeneratePatentFigureTool({
+      render: () => Promise.resolve({ ok: false, code: 'render_failed', error: '矢量图型不应走 Graphviz 渲染' }),
+      outputDir: outDir,
+      cwd: dir,
+    }))
+    ctx.tools.register(createVerifyPatentFigureTool({ cwd: dir }))
+    try {
+      const generated = await ctx.tools.execute({
+        signal,
+        callId: ToolCallId('vc3'),
+        name: 'generate_patent_figure',
+        arguments: {
+          figure_type: 'cross_section',
+          sections: {
+            parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3 } }],
+            labels: [{ text: '1', at: [52, 10], from: [40, 10] }],
+          },
+        },
+      })
+      expect(generated.isError).toBe(false)
+      const verified = await ctx.tools.execute({ signal, callId: ToolCallId('vc4'), name: 'verify_patent_figure', arguments: { svg_path: 'figs/fig1.svg' } })
+      const body = text(verified)
+      expect(body).toContain('未发现问题')
+      // 引线（data-dsh-role="leader"）止于数字外框：若把它算作图元，这里必报净距。
+      expect(body).not.toContain('text-clearance')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

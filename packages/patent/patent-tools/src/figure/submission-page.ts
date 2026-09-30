@@ -23,6 +23,21 @@ import type { OfficeProfile, TargetOffice } from './office-profile.ts'
 /** 落版放大的上限，避免极小的图形被放大到失真的尺寸。 */
 const MAX_PAGE_SCALE = 4
 
+/** 图号字高默认值（毫米）。 */
+export const DEFAULT_CAPTION_FONT_MM = 4
+
+/** 图号与图形之间的间距默认值（毫米）。 */
+export const DEFAULT_CAPTION_GAP_MM = 3
+
+/** 页码字高默认值（毫米）。 */
+export const DEFAULT_SHEET_FONT_MM = 3
+
+/** 落版支持的旋转角（度）；只取直角，避免斜置后墨迹越出幅面。 */
+export const SUBMISSION_ROTATIONS = [0, 90, 180, 270] as const
+
+/** 落版旋转角。 */
+export type SubmissionRotation = (typeof SUBMISSION_ROTATIONS)[number]
+
 /** 数字与字母高度相对字号的折算比（大写字母高度约为字号的 0.7）。 */
 const CHAR_HEIGHT_RATIO = 0.7
 
@@ -56,25 +71,31 @@ export type SubmissionPageInput = {
   sheetNumber?: string | undefined
   /** 图形正文的数字与字母字号（用户单位，如 DOT 的 fontsize=10），用于核算字高。 */
   bodyFontSize?: number | undefined
-  /** 图号与图形之间的间距（毫米），默认 3。 */
+  /** 图号与图形之间的间距（毫米），默认 {@link DEFAULT_CAPTION_GAP_MM}。 */
   captionGapMm?: number
-  /** 图号字高（毫米），默认 4。 */
+  /** 图号字高（毫米），默认 {@link DEFAULT_CAPTION_FONT_MM}。 */
   captionFontMm?: number
-  /** 页码字高（毫米），默认 3。 */
+  /** 页码字高（毫米），默认 {@link DEFAULT_SHEET_FONT_MM}。 */
   sheetFontMm?: number
+  /**
+   * 图形绕绘图区中心顺时针旋转的角度，默认 0（不旋转）。
+   *
+   * 90/270 会交换落版后的宽高——横向图形可借它落进竖向版心，图号与页码的落点规则不变。
+   */
+  rotateDeg?: SubmissionRotation
 }
 
 /** 落版后的物理尺寸（可依此核算法域的最小字高等要求）。 */
 export type SubmissionPageMetrics = {
   /** 图形落版缩放比（1 表示原尺寸）。 */
   pageScale: number
-  /** 图形落版前的声明尺寸（毫米）。 */
+  /** 图形落版前的声明尺寸（毫米）；未计旋转，与 {@link SubmissionPageInput.rotateDeg} 无关。 */
   drawingWidthMm: number
-  /** 图形落版前的声明尺寸（毫米）。 */
+  /** 图形落版前的声明尺寸（毫米）；未计旋转，与 {@link SubmissionPageInput.rotateDeg} 无关。 */
   drawingHeightMm: number
-  /** 落版后图形占用的宽（毫米）。 */
+  /** 旋转并缩放后图形占用的宽（毫米）。 */
   placedWidthMm: number
-  /** 落版后图形占用的高（毫米）。 */
+  /** 旋转并缩放后图形占用的高（毫米）。 */
   placedHeightMm: number
   /** 落版后正文数字/字母的字高（毫米）；未提供 bodyFontSize 时缺省。 */
   charHeightMm?: number
@@ -152,15 +173,19 @@ export function parseDrawingSvg(svgText: string): { geometry: SvgGeometry; warni
 
 /**
  * 把图形落版到目标法域的固定幅面附图页。
+ *
+ * 旋转绕可绘图区中心：图形无论转多少度都居中，图号仍落在旋转后图形的正下方，
+ * 页码仍在版心底部。
  * @param input - 图形、法域规格、图号与页码。
  * @returns 落版页 SVG、物理尺寸与提示。
  * @throws SvgAnnotateError 图形不是可解析的 SVG 时；RangeError 尺寸/字号参数非正时。
  */
 export function buildSubmissionPage(input: SubmissionPageInput): SubmissionPageResult {
   const { profile, caption, sheetNumber, bodyFontSize } = input
-  const captionFontMm = input.captionFontMm ?? 4
-  const captionGapMm = input.captionGapMm ?? 3
-  const sheetFontMm = input.sheetFontMm ?? 3
+  const rotateDeg = input.rotateDeg ?? 0
+  const captionFontMm = input.captionFontMm ?? DEFAULT_CAPTION_FONT_MM
+  const captionGapMm = input.captionGapMm ?? DEFAULT_CAPTION_GAP_MM
+  const sheetFontMm = input.sheetFontMm ?? DEFAULT_SHEET_FONT_MM
   for (const value of [captionFontMm, captionGapMm, sheetFontMm]) {
     if (!Number.isFinite(value) || value <= 0) {
       throw new RangeError(`图号/页码尺寸必须为正：${String(value)}`)
@@ -179,32 +204,51 @@ export function buildSubmissionPage(input: SubmissionPageInput): SubmissionPageR
   const captionBlockMm = caption === undefined ? 0 : captionGapMm + captionFontMm
   const figureAreaHeightMm = areaHeightMm - captionBlockMm
 
-  const rawScale = Math.min(areaWidthMm / geometry.widthMm, figureAreaHeightMm / geometry.heightMm)
+  // 90/270 交换图形的占位宽高：缩放比必须按旋转**后**的占位算，否则转过来的图形
+  // 会越出可绘图区。旋转绕绘图区中心（该中心与旋转角无关），故未旋转的摆放框
+  // 仍以同一中心定位，旋转后自然落成居中的旋转框。
+  const quarterTurn = rotateDeg === 90 || rotateDeg === 270
+  const boundingWidthMm = quarterTurn ? geometry.heightMm : geometry.widthMm
+  const boundingHeightMm = quarterTurn ? geometry.widthMm : geometry.heightMm
+
+  const rawScale = Math.min(areaWidthMm / boundingWidthMm, figureAreaHeightMm / boundingHeightMm)
   const pageScale = Math.min(rawScale, MAX_PAGE_SCALE)
   if (rawScale > MAX_PAGE_SCALE) {
     warnings.push(`图形相对幅面过小，落版放大被限制在 ${MAX_PAGE_SCALE} 倍；请核对图面细节是否仍可辨`)
   }
-  const placedWidthMm = geometry.widthMm * pageScale
-  const placedHeightMm = geometry.heightMm * pageScale
+  const scaledWidthMm = geometry.widthMm * pageScale
+  const scaledHeightMm = geometry.heightMm * pageScale
+  const placedWidthMm = quarterTurn ? scaledHeightMm : scaledWidthMm
+  const placedHeightMm = quarterTurn ? scaledWidthMm : scaledHeightMm
 
-  const placeX = profile.margins.leftMm + (areaWidthMm - placedWidthMm) / 2
-  const placeY = profile.margins.topMm + (figureAreaHeightMm - placedHeightMm) / 2
+  const placeX = profile.margins.leftMm + (areaWidthMm - scaledWidthMm) / 2
+  const placeY = profile.margins.topMm + (figureAreaHeightMm - scaledHeightMm) / 2
   const centerX = profile.margins.leftMm + areaWidthMm / 2
+  const centerY = profile.margins.topMm + figureAreaHeightMm / 2
   const scaleX = geometry.userUnitToMmX
   const scaleY = geometry.userUnitToMmY
 
+  // 旋转组比不旋转多一层，内层缩进随之加一档；不旋转时不产生任何多余节点。
+  const depth = rotateDeg === 0 ? 0 : 1
+  const pad = '  '.repeat(depth + 1)
   const lines: string[] = [
     '<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
     `<svg xmlns="http://www.w3.org/2000/svg" width="${fmtMm(profile.paper.widthMm)}mm" height="${fmtMm(profile.paper.heightMm)}mm" viewBox="0 0 ${fmtMm(profile.paper.widthMm)} ${fmtMm(profile.paper.heightMm)}">`,
     '  <!-- 附图落版页：幅面与页边距按目标法域规格 -->',
-    `  <g transform="translate(${fmtMm(placeX)},${fmtMm(placeY)}) scale(${fmtMm(pageScale)})">`,
-    `    <g transform="translate(${fmtMm(-geometry.viewBoxX)},${fmtMm(-geometry.viewBoxY)}) scale(${fmtMm(scaleX)},${fmtMm(scaleY)})">`,
-    indent(geometry.inner.trim()),
-    '    </g>',
-    '  </g>',
   ]
+  if (rotateDeg !== 0) {
+    lines.push(`  <g transform="translate(${fmtMm(centerX)},${fmtMm(centerY)}) rotate(${String(rotateDeg)}) translate(${fmtMm(-centerX)},${fmtMm(-centerY)})">`)
+  }
+  lines.push(
+    `${pad}<g transform="translate(${fmtMm(placeX)},${fmtMm(placeY)}) scale(${fmtMm(pageScale)})">`,
+    `${pad}  <g transform="translate(${fmtMm(-geometry.viewBoxX)},${fmtMm(-geometry.viewBoxY)}) scale(${fmtMm(scaleX)},${fmtMm(scaleY)})">`,
+    indent(geometry.inner.trim(), `${pad}    `.length),
+    `${pad}  </g>`,
+    `${pad}</g>`,
+  )
+  if (rotateDeg !== 0) lines.push('  </g>')
   if (caption !== undefined) {
-    const captionY = placeY + placedHeightMm + captionGapMm + captionFontMm * 0.8
+    const captionY = profile.margins.topMm + (figureAreaHeightMm - placedHeightMm) / 2 + placedHeightMm + captionGapMm + captionFontMm * 0.8
     lines.push(textElement(centerX, captionY, captionFontMm, caption))
   }
   if (sheetNumber !== undefined) {
@@ -234,11 +278,17 @@ function fmtMm(value: number): string {
   return String(Math.round(value * 1000) / 1000)
 }
 
-/** 片段缩进（每行前加 6 个空格；空行保持空）。 */
-function indent(body: string): string {
+/**
+ * 片段缩进（每行前加固定个空格；空行保持空）。
+ * @param body - 待缩进的片段。
+ * @param spaces - 缩进空格数。
+ * @returns 逐行缩进后的片段。
+ */
+function indent(body: string, spaces: number): string {
+  const prefix = ' '.repeat(spaces)
   return body
     .split('\n')
-    .map(line => (line.trim() === '' ? '' : `      ${line.trim()}`))
+    .map(line => (line.trim() === '' ? '' : `${prefix}${line.trim()}`))
     .join('\n')
 }
 

@@ -1,27 +1,31 @@
 /**
- * Inkscape `inkscape` CLI 的文字转路径（子进程通道，可选）：把已生成 SVG 的图面
- * 文字换成轮廓路径，导出文件不再依赖阅读器字体。
+ * Inkscape `inkscape` CLI 的两项子进程能力：SVG 的文字转路径（可选加固），以及把
+ * 已完成的 SVG 按页面导出为 png/pdf（固定幅面交付用）。
  *
- * 为什么需要：本包的两条绘图通路（自绘 SVG 片段与 Graphviz DOT）都不声明
+ * 为什么需要文字转路径：本包的两条绘图通路（自绘 SVG 片段与 Graphviz DOT）都不声明
  * `font-family`，图形里的 `<text>` 由阅读器挑字体渲染——换一台没有中文字体的机器
  * （或印厂、审查端）就可能出豆腐块、字宽错位。开启后文字成为路径，字与画一起
  * 走矢量，任何渲染器都一样。
  *
+ * 为什么需要格式导出：落版、渲染复核与文字转路径都只作用于 SVG，而交付常用 png/pdf。
+ * 让 png/pdf 也经过 SVG，这三步才对非 SVG 生效。
+ *
  * 调用形状：argv 直传（不经 shell），输入按路径读（Inkscape 不改写输入文件）、
- * 输出写临时目录；产物按三个门槛放行后才替换原文件——过 {@link assertSafeSvg}、
+ * 输出写临时目录；文字转路径的产物按三个门槛放行后才替换原文件——过 {@link assertSafeSvg}、
  * 已无 `<text>`、且墨迹仍落在原图范围内（{@link geometryRegression}）——失败时原文件
  * 一字不改。写回用 {@link writeFileAtomic}（同目录临时文件 + rename），故读取方看到
  * 的要么是原图、要么是完整的转换产物。期限、取消与失败归类与 graphviz-renderer 共用
  * subprocess-render。
  *
- * 只处理 SVG：png/pdf 由渲染器用 Config.dotFont 出字，是否转换由调用方按格式决定。
+ * 导出始终按**页面**范围（`--export-area-page`）：落版后的附图页就是幅面本身，
+ * 按图形范围裁切会丢掉页边距。
  * @module @deepseek-ai/dsh-patent-tools/figure/inkscape-renderer
  */
 
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { measureInkBounds } from './render-check.ts'
 import type { InkBounds } from './render-check.ts'
@@ -35,6 +39,7 @@ import {
   startRenderDeadline,
 } from './subprocess-render.ts'
 import type { RenderDeadline, SubprocessSpawner } from './subprocess-render.ts'
+import type { SubprocessHandle, SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
 import { DEFAULT_SVG_MAX_BYTES, SvgAnnotateError, assertSafeSvg } from './svg-annotate.ts'
 
 /** 各平台常见 Inkscape 可执行路径。 */
@@ -63,6 +68,13 @@ const TEXT_ELEMENT_PATTERN = /<(?:[\w.-]+:)?(?:text|textPath)[\s/>]/i
  * 远大于此。
  */
 const OUTLINE_GEOMETRY_SLACK_MM = 1
+
+/**
+ * 几何护栏的容差相对墨迹跨度的比例：占位框的估算误差随字形实际尺寸等比放大，落版页
+ * 会把图形放大数倍（本机实测：A4 附图页上的中文轮廓比占位框外扩 1.1 毫米），固定毫米
+ * 容差在小图上够用、在落版页上会误报。整体错位是数十毫米量级，比例项不会削弱它。
+ */
+const OUTLINE_GEOMETRY_SLACK_RATIO = 0.01
 
 /** Inkscape 转换的部署级选项（宿主 Config → 渲染器）。 */
 export type InkscapeOutlineOptions = {
@@ -93,6 +105,30 @@ export type InkscapeOutlineOutcome =
  * 附图生成工具只依赖这个签名，不直接依赖 Inkscape。
  */
 export type OutlineTextPort = (spec: InkscapeOutlineSpec) => Promise<InkscapeOutlineOutcome>
+
+/** 导出目标格式（Inkscape `--export-type` 的取值）。 */
+export type InkscapeExportFormat = 'png' | 'pdf'
+
+/** 导出请求：把一个已完成的附图 SVG 转成位图或 PDF。 */
+export type InkscapeExportSpec = {
+  /** 源 SVG 绝对路径（导出不改写它）。 */
+  path: string
+  /** 目标文件绝对路径；其扩展名须与 {@link format} 一致。 */
+  outcomePath: string
+  /** 目标格式。 */
+  format: InkscapeExportFormat
+  /** 栅格分辨率（png 生效）；缺省用 Inkscape 的默认分辨率。 */
+  dpi?: number
+  /** 调用方取消信号。 */
+  signal?: AbortSignal
+}
+
+/**
+ * 格式导出端口：宿主注入（没有 Inkscape 时返回 `not_installed`），附图生成工具只依赖
+ * 这个签名。与 {@link OutlineTextPort} 分开是因为触发条件不同——文字转路径是可选加固，
+ * 格式导出是非 SVG 交付的必经一步。
+ */
+export type ExportFigurePort = (spec: InkscapeExportSpec) => Promise<InkscapeOutlineOutcome>
 
 /**
  * 生成 Inkscape 缺失/路径失效时的安装引导文案。
@@ -141,10 +177,12 @@ function geometryRegression(before: string, outlined: string): string | undefine
     return original === undefined ? undefined : '转换产物里没有可量测的图形'
   }
   if (original === undefined) return undefined
+  const slack = OUTLINE_GEOMETRY_SLACK_MM
+    + OUTLINE_GEOMETRY_SLACK_RATIO * Math.max(original.maxX - original.minX, original.maxY - original.minY)
   const outside = (['minX', 'minY'] as const).some(
-    side => converted[side] < original[side] - OUTLINE_GEOMETRY_SLACK_MM,
+    side => converted[side] < original[side] - slack,
   ) || (['maxX', 'maxY'] as const).some(
-    side => converted[side] > original[side] + OUTLINE_GEOMETRY_SLACK_MM,
+    side => converted[side] > original[side] + slack,
   )
   if (!outside) return undefined
   const range = (box: InkBounds): string =>
@@ -155,6 +193,39 @@ function geometryRegression(before: string, outlined: string): string | undefine
 /** 毫米数值（至多三位小数，与落版页的写法一致）。 */
 function fmtMm(value: number): string {
   return String(Math.round(value * 1000) / 1000)
+}
+
+/**
+ * 解析 Inkscape 可执行文件。
+ * @param options - 路径覆盖与超时（只用其中的路径覆盖）。
+ * @returns 可执行路径，或 `not_installed` 的分类失败。
+ */
+function resolveInkscape(options: InkscapeOutlineOptions): { ok: true; executable: string } | { ok: false; code: 'not_installed'; error: string } {
+  const executable = findInkscape(options.executable)
+  return executable === undefined
+    ? { ok: false, code: 'not_installed', error: inkscapeInstallMessage(undefined) }
+    : { ok: true, executable }
+}
+
+/**
+ * 子进程退出码非零时的失败归类。
+ * @param args - the finished spawn plus the deadline, signal, captured handle, and label that classify it.
+ * @returns 分类失败；退出码为 0 时 undefined。
+ */
+function inkscapeExitFailure(args: {
+  outcome: SubprocessOutcome
+  deadline: RenderDeadline
+  signal: AbortSignal | undefined
+  handle: SubprocessHandle
+  label: string
+}): { ok: false; code: InkscapeOutlineErrorCode; error: string } | undefined {
+  if (args.outcome.exitCode === 0) return undefined
+  const cause = describeRenderFailure(args.outcome, args.deadline.timedOut(), args.signal)
+  return {
+    ok: false,
+    code: args.signal?.aborted === true ? 'aborted' : 'render_failed',
+    error: `${args.label}失败（${cause}）：${renderStderr(args.handle) || '无 stderr 输出'}`,
+  }
 }
 
 /**
@@ -174,10 +245,8 @@ export async function outlineSvgText(
   spec: InkscapeOutlineSpec,
   options: InkscapeOutlineOptions,
 ): Promise<InkscapeOutlineOutcome> {
-  const executable = findInkscape(options.executable)
-  if (executable === undefined) {
-    return { ok: false, code: 'not_installed', error: inkscapeInstallMessage(undefined) }
-  }
+  const resolved = resolveInkscape(options)
+  if (!resolved.ok) return resolved
   let original: string
   try {
     original = await readFile(spec.path, 'utf8')
@@ -195,7 +264,7 @@ export async function outlineSvgText(
     const outputPath = join(workDir, 'outlined.svg')
     const { handle, outcome } = await spawnRenderProcess(subprocess, started, {
       argv: [
-        executable,
+        resolved.executable,
         '--export-type=svg',
         '--export-plain-svg',
         '--export-text-to-path',
@@ -205,14 +274,8 @@ export async function outlineSvgText(
       cwd: workDir,
       stdio: quietStdio(),
     })
-    if (outcome.exitCode !== 0) {
-      const cause = describeRenderFailure(outcome, started.timedOut(), spec.signal)
-      return {
-        ok: false,
-        code: spec.signal?.aborted === true ? 'aborted' : 'render_failed',
-        error: `Inkscape 文字转路径失败（${cause}）：${renderStderr(handle) || '无 stderr 输出'}`,
-      }
-    }
+    const failed = inkscapeExitFailure({ outcome, deadline: started, signal: spec.signal, handle, label: 'Inkscape 文字转路径' })
+    if (failed !== undefined) return failed
     if (!existsSync(outputPath)) {
       return { ok: false, code: 'render_failed', error: `Inkscape 未生成输出文件：${outputPath}` }
     }
@@ -245,4 +308,92 @@ export async function outlineSvgText(
     // 临时目录清理失败只会留下系统临时区里的残留目录，不能把已经分类的转换结果顶掉。
     if (workDir !== undefined) await rm(workDir, { recursive: true, force: true }).catch(() => undefined)
   }
+}
+
+/**
+ * 用 Inkscape 把附图 SVG 导出为 png/pdf。
+ *
+ * 命令固定为 `--export-type=<format> --export-area-page --export-filename=<目标>`；
+ * 给了 `dpi` 才追加 `--export-dpi=`，缺省沿用 Inkscape 的默认分辨率（与 dot 缺省
+ * 出图的语义一致：不配置就不指定）。导出直接落到目标路径，不经临时目录——目标在
+ * 附图输出目录内，工具层本来就会覆盖同名产物。
+ * @param subprocess - 注入的 subprocess 服务（本模块只用 spawn）。
+ * @param spec - 源 SVG、目标路径、格式、分辨率与取消信号。
+ * @param options - Inkscape 路径覆盖与导出超时。
+ * @returns 成功，或分类错误（not_installed / render_failed / aborted）。
+ */
+export async function exportWithInkscape(
+  subprocess: SubprocessSpawner,
+  spec: InkscapeExportSpec,
+  options: InkscapeOutlineOptions,
+): Promise<InkscapeOutlineOutcome> {
+  const resolved = resolveInkscape(options)
+  if (!resolved.ok) return resolved
+  let deadline: RenderDeadline | undefined
+  try {
+    const started = startRenderDeadline(options.renderTimeoutMs, spec.signal)
+    deadline = started
+    const { handle, outcome } = await spawnRenderProcess(subprocess, started, {
+      argv: [
+        resolved.executable,
+        `--export-type=${spec.format}`,
+        '--export-area-page',
+        ...(spec.dpi === undefined ? [] : [`--export-dpi=${String(spec.dpi)}`]),
+        `--export-filename=${spec.outcomePath}`,
+        spec.path,
+      ],
+      cwd: dirname(spec.outcomePath),
+      stdio: quietStdio(),
+    })
+    const failed = inkscapeExitFailure({ outcome, deadline: started, signal: spec.signal, handle, label: `Inkscape 导出 ${spec.format}` })
+    if (failed !== undefined) return failed
+    // Inkscape 版本差异下可能只写了空文件而不报错；空产物不该当成成功交付。
+    const written = await readFile(spec.outcomePath).catch(() => undefined)
+    if (written === undefined || written.length === 0) {
+      return { ok: false, code: 'render_failed', error: `Inkscape 未生成有效的 ${spec.format} 产物：${spec.outcomePath}` }
+    }
+    const incomplete = spec.format === 'pdf' ? !isCompletePdf(written) : !isCompletePng(written)
+    if (incomplete) {
+      return {
+        ok: false,
+        code: 'render_failed',
+        error: `Inkscape 的 ${spec.format} 产物不完整（${spec.outcomePath}，${String(written.length)} 字节）：退出码为 0 也会中途停止写入。图面文字未转路径时，个别字形的字体子集化会触发这一行为，可开启 Config.figureTextToPath 后重试`,
+      }
+    }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, ...describeRenderThrow(`Inkscape 导出 ${spec.format}`, error, spec.signal) }
+  } finally {
+    deadline?.dispose()
+  }
+}
+
+/** PNG 文件签名。 */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+/** PNG 结尾的 IEND 块（长度 0 + 类型 + CRC）。 */
+const PNG_IEND = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82])
+
+/**
+ * PDF 完整性：有交叉引用表指针，且以 `%%EOF` 收尾。
+ *
+ * Inkscape 1.4.4 本机实测：图面含未转路径的某些中文字形（如「源」）时，导出的 PDF
+ * 在字体对象后被截断、退出码仍为 0——只看退出码和文件非空会把这种半成品当成交付物。
+ * @param buffer - 导出产物内容。
+ * @returns 结构完整时为 true。
+ */
+function isCompletePdf(buffer: Buffer): boolean {
+  const tail = buffer.subarray(Math.max(0, buffer.length - 1024)).toString('latin1')
+  return tail.includes('startxref') && tail.trimEnd().endsWith('%%EOF')
+}
+
+/**
+ * PNG 完整性：以签名开头、以 IEND 块结尾。
+ * @param buffer - 导出产物内容。
+ * @returns 结构完整时为 true。
+ */
+function isCompletePng(buffer: Buffer): boolean {
+  return buffer.length > PNG_SIGNATURE.length + PNG_IEND.length
+    && buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)
+    && buffer.subarray(buffer.length - PNG_IEND.length).equals(PNG_IEND)
 }

@@ -6,14 +6,21 @@
  * 其中；位图量测要引入栅格化器（rsvg/ImageMagick），而本包的两条渲染通路都不
  * 依赖它们。凡「画出来是什么样」取决于矢量源的地方，本模块都按同一条遍历量测。
  *
- * 覆盖四类只在渲染结果上显现的缺陷（前三类来自实测案例）：
+ * 覆盖五类只在渲染结果上显现的缺陷（前四类来自实测案例）：
  * - **文字被线条贯穿**：引线或轮廓线穿过文字占位框，标号或元件名读不出（引线的
  *   终点落在文字上、或标号落在被剖面线的零件内都会触发）。
+ * - **文字与图线净距不足**：线条没压进字身、但贴着文字占位框（默认不足
+ *   {@link DEFAULT_TEXT_CLEARANCE_MM}），标号与元件名周围没有可读的空白。判据把
+ *   占位框外扩净距后再用同一「贯穿」判定；引线（绘图侧标注
+ *   {@link ROLE_ATTRIBUTE}）与落在不透明填充内的线段不参与——前者本来就止于文字外框，
+ *   后者在图面上不可见。
  * - **点划线被实线覆盖**：同一行既有「长划+点」的点划段、又有一整段连续实线，
  *   点划线的间隔在图面上不可见（上下半剖的两半公共边正好落在轴线位置时如此）。
- * - **相邻零件剖面线取向过近**：两件轮廓相邻而剖面线取向差不超过
- *   {@link ADJACENT_ORIENTATION_LIMIT_DEG}，读成一个零件（GB/T 4457.5 要求相邻
- *   零件的剖面线方向相反或间距不等）。
+ * - **相邻零件剖面线难以区分**：两件轮廓相邻，剖面线的方向差不超过
+ *   {@link ADJACENT_ORIENTATION_LIMIT_DEG} **且**间距比不超过
+ *   {@link ADJACENT_SPACING_RATIO_LIMIT}，读成一个零件（GB/T 4457.5 要求相邻零件的
+ *   剖面线方向相反或间距不等，两项有一项可区分即不报）。类别标识为
+ *   `hatch-orientation-collision`，判据含方向与间距两项。
  * - **内容越出画布**：线段、轮廓或标号落在根元素声明的画布之外，越界部分不会被
  *   渲染出来（后处理放大字号或落版改写画布时最易发生）。
  *
@@ -38,14 +45,15 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/render-check
  */
 
-import { glyphBox, quadCrossedBySegment } from './glyph-box.ts'
-import type { GlyphTextAnchor } from './glyph-box.ts'
+import { glyphBox, inflateQuad, quadCrossedBySegment } from './glyph-box.ts'
+import type { GlyphBox, GlyphQuad, GlyphTextAnchor } from './glyph-box.ts'
 import { DEFAULT_SVG_MAX_BYTES, assertSafeSvg } from './svg-annotate.ts'
 import { MM_PER_USER_UNIT, parseLengthMm, resolveSvgViewport } from './svg-viewport.ts'
 
 /** 复核发现的问题类别（稳定标识，供调用方分类）。 */
 export type RenderCheckKind =
   | 'text-crossed-by-line'
+  | 'text-clearance'
   | 'centerline-covered'
   | 'hatch-orientation-collision'
   | 'ink-outside-canvas'
@@ -91,6 +99,40 @@ export type RenderCheckReport = {
 const ADJACENT_GAP_MM = 1
 /** 相邻零件剖面线取向差下限（度）：小于它则两件难以区分。 */
 const ADJACENT_ORIENTATION_LIMIT_DEG = 30
+/**
+ * 相邻零件剖面线间距比上限：两件的实测间距之比（大／小）不超过它即视为「间距相近」。
+ * GB/T 4457.5 只说「间距不等」，未给数值；取 1.5 倍是因为低于此比例的两档疏密在缩印到
+ * 三分之二后仍读作同一种密度。
+ */
+const ADJACENT_SPACING_RATIO_LIMIT = 1.5
+/**
+ * 剖面线间距量测的最小投影差（毫米）：小于它的相邻投影差是同一条线的重复片段
+ * （虚线展开、共线拼接），不参与间距计算。
+ */
+const HATCH_SPACING_MIN_GAP_MM = 0.1
+/**
+ * 绘图侧标注同一材料轮廓分组的属性名（见 `section-diagram.ts` 的 `polygonElement`）。
+ * 同一零件的多个轮廓各给一段是输入约定；没有这个标注时复核只能把每段各自当成一件。
+ */
+const HATCH_GROUP_ATTRIBUTE = 'data-dsh-hatch-group'
+/**
+ * 绘图侧标注线段角色的属性名（见 `section-diagram.ts` 的 `segmentElement`）：值为
+ * {@link LEADER_ROLE} 的线段是引线。引线止于文字占位框外框，参与「贯穿」判定才有的
+ * 可读性；「净距」判据必须排除它，否则工具自己画的每条引线都会被报成贴线。
+ */
+const ROLE_ATTRIBUTE = 'data-dsh-role'
+/** 引线的角色取值。 */
+const LEADER_ROLE = 'leader'
+/**
+ * 标号净距默认值（毫米）：文字占位框外扩这么多之后仍与图元相交即报。
+ *
+ * 取 1.5 毫米的依据是实测案例：A6 案（浅土层供热管道防腐蚀阴极保护装置）自建的净距
+ * 判据在同批图上抓出 3 处「标号贴图线」缺陷，而只判「线条压进字身」的判据一处未报；
+ * 1.5 毫米约为 3.5 毫米字号下字身与图线之间可读空白的下限。
+ */
+const DEFAULT_TEXT_CLEARANCE_MM = 1.5
+/** 判定线段同一位置时的坐标容差（毫米，遮挡切分用）。 */
+const SPLIT_TOLERANCE = 1e-9
 /** 点划线签名：短于此值的线段是「点」（毫米）。 */
 const DOT_MAX_LENGTH_MM = 1
 /** 点划线签名：长于此值的线段是「长划」（毫米）。 */
@@ -155,16 +197,44 @@ type Shape = {
   readonly stroked: boolean
   /** `stroke-dasharray` 的虚线段长（毫米，已按累计缩放换算）；实线元素为 undefined。 */
   readonly dashPatternMm?: readonly number[]
+  /** `data-dsh-hatch-group`：同一材料的轮廓共用此值（绘图侧标注）；未标注时为 undefined。 */
+  readonly hatchGroup?: number
+  /** `data-dsh-role`：绘图侧标注的线段角色；{@link LEADER_ROLE} 表示引线。 */
+  readonly role?: string
+  /** 该元素的不透明填充是否遮挡其下已绘制的图元（白填充）。 */
+  readonly occludes: boolean
+  /** 元素在文档序中的位置（0 起）：遮挡只作用于序号更小的图元。 */
+  readonly order: number
 }
 
-/** 一个文字元素：内容与文字占位框四角（根坐标系）。 */
-type ScannedText = { readonly content: string; readonly corners: Quad }
+/** 一个文字元素：内容与经该元素变换后的文字占位框。 */
+type ScannedText = {
+  readonly content: string
+  /** 占位框（该元素自身坐标系，用户单位）。 */
+  readonly box: GlyphBox
+  /** 该元素的累计变换（占位框经它映射到根坐标系）。 */
+  readonly matrix: Matrix
+}
+
+/** 一条落在图面上的线段及其来源。 */
+type DrawnSegment = {
+  readonly segment: Segment
+  /** 所属图形的文档序（{@link Shape.order}）。 */
+  readonly order: number
+  /** 所属图形被标注为引线（{@link ROLE_ATTRIBUTE}）。 */
+  readonly leader: boolean
+}
+
+/** 遮挡面：不透明填充的闭合轮廓及其文档序。 */
+type Occluder = { readonly points: Poly; readonly order: number }
 
 /** 元素按文档序应用后的帧：变换与继承来的样式取值。 */
 type Frame = {
   readonly matrix: Matrix
   readonly strokeWidthMm: number
   readonly stroked: boolean
+  /** 该元素的不透明填充被视为遮挡面（白填充）；自祖先继承，`fill: none` 起算为假。 */
+  readonly occludes: boolean
   /** 字号（用户单位；绘制时按帧矩阵换算到毫米）。 */
   readonly fontSizeUser: number
   /** `text-anchor`（自祖先继承，取值经白名单校验）。 */
@@ -251,6 +321,17 @@ function num(tag: string, name: string): number | undefined {
 }
 
 /**
+ * 读取绘图侧标注的轮廓分组号（{@link HATCH_GROUP_ATTRIBUTE}）。
+ * @param raw - 属性原文。
+ * @returns 非负整数分组号；缺失或非法时 undefined，该轮廓自成一组。
+ */
+function hatchGroupValue(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim() === '') return undefined
+  const value = Number(raw)
+  return Number.isInteger(value) && value >= 0 ? value : undefined
+}
+
+/**
  * `font-size` 取值 → 用户单位长度。
  *
  * 无单位与 `px` 即用户单位（SVG 1.1 起 1 px = 1 用户单位）；`em` 与 `%` 相对父级字号；
@@ -291,6 +372,21 @@ function textAnchorValue(raw: string | undefined): GlyphTextAnchor | undefined {
     default:
       return undefined
   }
+}
+
+/**
+ * `fill` 取值是否是遮挡面：不透明且为白的填充。
+ *
+ * 只认白：附图是单色线图，白填充是唯一的「遮住下面已画的东西」用法；彩色填充在
+ * 本包的两条绘制通路里都不出现，把它也算作遮挡面会在别的用途上误删真缺陷。
+ * @param raw - `fill` 属性原文（行内 `style` 优先，调用方已取值）。
+ * @returns 遮挡时 true；`none`/`transparent`、彩色、渐变引用与未声明时为 false。
+ */
+function occludingFill(raw: string | undefined): boolean {
+  if (raw === undefined) return false
+  const value = raw.trim().toLowerCase().replace(/\s+/g, '')
+  return value === 'white' || value === '#fff' || value === '#ffffff'
+    || value === 'rgb(255,255,255)' || value === 'rgb(100%,100%,100%)'
 }
 
 /**
@@ -583,6 +679,7 @@ function childFrame(parent: Frame, name: string, tag: string, note: (reason: str
   const transform = parseTransform(styled(tag, 'transform'))
   if (transform === undefined) return undefined
   const stroke = styled(tag, 'stroke')
+  const fill = styled(tag, 'fill')
   const rawFontSize = styled(tag, 'font-size')
   let fontSize = parent.fontSizeUser
   if (rawFontSize !== undefined) {
@@ -597,6 +694,7 @@ function childFrame(parent: Frame, name: string, tag: string, note: (reason: str
     matrix: multiply(parent.matrix, transform),
     strokeWidthMm: numValue(styled(tag, 'stroke-width')) ?? parent.strokeWidthMm,
     stroked: stroke === undefined ? parent.stroked : stroke !== 'none',
+    occludes: fill === undefined ? parent.occludes : occludingFill(fill),
     fontSizeUser: fontSize,
     textAnchor: textAnchorValue(styled(tag, 'text-anchor')) ?? parent.textAnchor,
     // `display: none` 的子树不渲染：既不算墨迹，也不再逐元素记为未量测。
@@ -605,28 +703,56 @@ function childFrame(parent: Frame, name: string, tag: string, note: (reason: str
 }
 
 /**
- * 文字元素记录：内容与经该元素变换后的文字占位框四角。
+ * 文字元素记录：内容、占位框与该元素的累计变换。
  * @param content - 文本节点内容（已去标签与首尾空白）。
  * @param tag - `<text>` 标签原文。
  * @param frame - 该元素的帧。
  * @returns 文字记录。
  */
 function textEntry(content: string, tag: string, frame: Frame): ScannedText {
-  const box = glyphBox(
-    content,
-    [num(tag, 'x') ?? 0, num(tag, 'y') ?? 0],
-    frame.fontSizeUser,
-    frame.textAnchor,
-  )
   return {
     content,
-    corners: [
-      mapPoint(frame.matrix, [box.minX, box.minY]),
-      mapPoint(frame.matrix, [box.maxX, box.minY]),
-      mapPoint(frame.matrix, [box.maxX, box.maxY]),
-      mapPoint(frame.matrix, [box.minX, box.maxY]),
-    ],
+    box: glyphBox(
+      content,
+      [num(tag, 'x') ?? 0, num(tag, 'y') ?? 0],
+      frame.fontSizeUser,
+      frame.textAnchor,
+    ),
+    matrix: frame.matrix,
   }
+}
+
+/**
+ * 文字占位框在图面上的像：原点取框左上角的像，两条边向量取框的两条边经同一变换后的像。
+ * @param text - 文字记录。
+ * @returns 仿射矩形（根坐标系，毫米）。
+ */
+function textQuad(text: ScannedText): GlyphQuad {
+  const origin = mapPoint(text.matrix, [text.box.minX, text.box.minY])
+  const across = mapPoint(text.matrix, [text.box.maxX, text.box.minY])
+  const down = mapPoint(text.matrix, [text.box.minX, text.box.maxY])
+  return {
+    origin,
+    edgeWidth: [across[0] - origin[0], across[1] - origin[1]],
+    edgeHeight: [down[0] - origin[0], down[1] - origin[1]],
+  }
+}
+
+/**
+ * 仿射矩形的四角（左上、右上、右下、左下）。
+ * @param quad - 仿射矩形。
+ * @returns 四角坐标。
+ */
+function quadCorners(quad: GlyphQuad): Quad {
+  const [originX, originY] = quad.origin
+  const [widthX, widthY] = quad.edgeWidth
+  const [heightX, heightY] = quad.edgeHeight
+  return [
+    [originX, originY],
+    [originX + widthX, originY + widthY],
+    [originX + widthX + heightX, originY + widthY + heightY],
+    [originX + heightX, originY + heightY],
+  ]
 }
 
 /**
@@ -653,6 +779,7 @@ function scanSvg(svg: string): Scan {
     ],
     strokeWidthMm: DEFAULT_STROKE_WIDTH,
     stroked: false,
+    occludes: false,
     fontSizeUser: DEFAULT_FONT_SIZE_USER,
     textAnchor: 'start',
     skip: false,
@@ -666,6 +793,7 @@ function scanSvg(svg: string): Scan {
   }
   if (viewport.note !== undefined) note(viewport.note)
   let rootSvgSeen = false
+  let orderCount = 0
   let pending: { readonly contentStart: number; readonly tag: string; readonly frame: Frame } | undefined
 
   for (const match of source.matchAll(TAG_PATTERN)) {
@@ -721,6 +849,8 @@ function scanSvg(svg: string): Scan {
     if (geometry.kind === 'none') continue
     const scale = scaleOf(frame.matrix)
     const dashPattern = dashPatternUser(styled(tag, 'stroke-dasharray'))
+    const hatchGroup = hatchGroupValue(attr(tag, HATCH_GROUP_ATTRIBUTE))
+    const role = attr(tag, ROLE_ATTRIBUTE)
     shapes.push({
       subpaths: geometry.subpaths.map(subpath => ({
         points: subpath.points.map(point => mapPoint(frame.matrix, point)),
@@ -729,7 +859,12 @@ function scanSvg(svg: string): Scan {
       strokeWidthMm: frame.strokeWidthMm * scale,
       stroked: frame.stroked,
       ...(dashPattern === undefined ? {} : { dashPatternMm: dashPattern.map(value => value * scale) }),
+      ...(hatchGroup === undefined ? {} : { hatchGroup }),
+      ...(role === undefined ? {} : { role }),
+      occludes: frame.occludes,
+      order: orderCount,
     })
+    orderCount += 1
   }
   return {
     widthMm: viewport.widthMm,
@@ -788,22 +923,174 @@ function insidePolygon(point: Point, points: Poly): boolean {
 }
 
 /**
- * 线段是否穿过文字占位框：与绘图侧（引线避让、标号落位）共用同一判定
- * （{@link quadCrossedBySegment}），容差同为 glyph-box 的占位框容差。
- * @param segment - 待判线段（根坐标系）。
- * @param quad - 文字占位框四角。
- * @returns 穿过时 true。
+ * 线段与遮挡面的交点参数：`t` 落在线段内、`u` 落在遮挡边内时才计入。
+ * @param segment - 线段。
+ * @param from - 遮挡边起点。
+ * @param to - 遮挡边终点。
+ * @returns 交点参数 `t`；不相交或平行时为 undefined。
  */
-function crossesQuad(segment: Segment, quad: Quad): boolean {
-  return quadCrossedBySegment(
-    {
-      origin: quad[0],
-      edgeWidth: [quad[1][0] - quad[0][0], quad[1][1] - quad[0][1]],
-      edgeHeight: [quad[3][0] - quad[0][0], quad[3][1] - quad[0][1]],
-    },
-    [segment.x1, segment.y1],
-    [segment.x2, segment.y2],
+function crossingParameter(segment: Segment, from: Point, to: Point): number | undefined {
+  const segmentX = segment.x2 - segment.x1
+  const segmentY = segment.y2 - segment.y1
+  const edgeX = to[0] - from[0]
+  const edgeY = to[1] - from[1]
+  const determinant = segmentX * edgeY - segmentY * edgeX
+  if (determinant === 0) return undefined
+  const offsetX = from[0] - segment.x1
+  const offsetY = from[1] - segment.y1
+  const t = (offsetX * edgeY - offsetY * edgeX) / determinant
+  const u = (offsetX * segmentY - offsetY * segmentX) / determinant
+  if (t <= 0 || t >= 1 || u < 0 || u > 1) return undefined
+  return t
+}
+
+/**
+ * 线段在图面上可见的部分：被遮挡面（更晚绘制的不透明填充）盖住的段不可见，不参与文字判定。
+ *
+ * 沿与遮挡面各边的交点把线段切开，逐段取中点判定是否落在某个遮挡面内——直线段的
+ * 「在面内／面外」只会在与边界相交处改变，故按交点切分即得精确结果（凹多边形同样成立）。
+ * 没有更晚绘制的遮挡面时原样返回（本包两条绘制通路都不写填充，故缺省零开销）。
+ * @param drawn - 线段及其文档序。
+ * @param occluders - 遮挡面（闭合轮廓 + 文档序）。
+ * @returns 可见片段（至少……切分后可能为空数组）。
+ */
+function visiblePieces(drawn: DrawnSegment, occluders: readonly Occluder[]): readonly Segment[] {
+  const covers = occluders.filter(occluder => occluder.order > drawn.order)
+  if (covers.length === 0) return [drawn.segment]
+  const { segment } = drawn
+  const cuts: number[] = []
+  for (const occluder of covers) {
+    for (let index = 0; index < occluder.points.length; index += 1) {
+      const from = occluder.points[index] as Point
+      const to = occluder.points[(index + 1) % occluder.points.length] as Point
+      const t = crossingParameter(segment, from, to)
+      if (t !== undefined && !cuts.some(value => Math.abs(value - t) <= SPLIT_TOLERANCE)) cuts.push(t)
+    }
+  }
+  const stops = [0, ...cuts.sort((left, right) => left - right), 1]
+  const pieces: Segment[] = []
+  for (let index = 0; index + 1 < stops.length; index += 1) {
+    const from = stops[index] as number
+    const to = stops[index + 1] as number
+    const at = (t: number): Point => [
+      segment.x1 + (segment.x2 - segment.x1) * t,
+      segment.y1 + (segment.y2 - segment.y1) * t,
+    ]
+    const middle = at((from + to) / 2)
+    if (covers.some(occluder => insidePolygon(middle, occluder.points))) continue
+    const start = at(from)
+    const end = at(to)
+    pieces.push({ x1: start[0], y1: start[1], x2: end[0], y2: end[1] })
+  }
+  return pieces
+}
+
+/** 点到线段的最短距离（毫米）。 */
+function pointSegmentDistance(point: Point, segment: Segment): number {
+  const dx = segment.x2 - segment.x1
+  const dy = segment.y2 - segment.y1
+  const lengthSquared = dx * dx + dy * dy
+  const t = lengthSquared === 0
+    ? 0
+    : Math.max(0, Math.min(1, ((point[0] - segment.x1) * dx + (point[1] - segment.y1) * dy) / lengthSquared))
+  return Math.hypot(point[0] - (segment.x1 + dx * t), point[1] - (segment.y1 + dy * t))
+}
+
+/** 点在有向直线 `from→to` 的哪一侧（叉积符号）。 */
+function sideOf(from: Point, to: Point, point: Point): number {
+  return (to[0] - from[0]) * (point[1] - from[1]) - (to[1] - from[1]) * (point[0] - from[0])
+}
+
+/** 点是否落在线段上（共线且落在两端之间）。 */
+function onSegment(point: Point, segment: Segment): boolean {
+  return sideOf([segment.x1, segment.y1], [segment.x2, segment.y2], point) === 0
+    && point[0] >= Math.min(segment.x1, segment.x2) && point[0] <= Math.max(segment.x1, segment.x2)
+    && point[1] >= Math.min(segment.y1, segment.y2) && point[1] <= Math.max(segment.y1, segment.y2)
+}
+
+/** 两线段是否相交（含端点接触与共线重叠）。 */
+function segmentsIntersect(a: Segment, b: Segment): boolean {
+  const a1: Point = [a.x1, a.y1]
+  const a2: Point = [a.x2, a.y2]
+  const b1: Point = [b.x1, b.y1]
+  const b2: Point = [b.x2, b.y2]
+  const d1 = sideOf(a1, a2, b1)
+  const d2 = sideOf(a1, a2, b2)
+  const d3 = sideOf(b1, b2, a1)
+  const d4 = sideOf(b1, b2, a2)
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
+  return onSegment(b1, a) || onSegment(b2, a) || onSegment(a1, b) || onSegment(a2, b)
+}
+
+/** 两线段的最短距离（毫米）：相交为 0，否则取四个端点到对侧线段的最短距离。 */
+function segmentDistance(a: Segment, b: Segment): number {
+  if (segmentsIntersect(a, b)) return 0
+  return Math.min(
+    pointSegmentDistance([a.x1, a.y1], b),
+    pointSegmentDistance([a.x2, a.y2], b),
+    pointSegmentDistance([b.x1, b.y1], a),
+    pointSegmentDistance([b.x2, b.y2], a),
   )
+}
+
+/** 仿射矩形到线段的最短距离（毫米）：取四条边各自到该线段的最短距离。 */
+function quadSegmentDistance(quad: GlyphQuad, segment: Segment): number {
+  const corners = quadCorners(quad)
+  let best = Number.POSITIVE_INFINITY
+  for (let index = 0; index < corners.length; index += 1) {
+    const from = corners[index] as Point
+    const to = corners[(index + 1) % corners.length] as Point
+    best = Math.min(best, segmentDistance({ x1: from[0], y1: from[1], x2: to[0], y2: to[1] }, segment))
+  }
+  return best
+}
+
+/**
+ * 文字与图线的净距不足：占位框外扩 `clearanceMm` 后仍与图元线段相交即报，并给出两者
+ * 的实测最短距离（毫米，一位小数）。
+ *
+ * 不参与判定的两类线段：**引线**（绘图侧标注 {@link ROLE_ATTRIBUTE}——引线本来就止于
+ * 文字外框，把它算进来等于判工具自己画的每条引线都不合格）；**被遮挡面盖住的线段**
+ * （更晚绘制的不透明填充之下，图面上看不见，见 {@link visiblePieces}）。
+ *
+ * 已被判为 `text-crossed-by-line` 的文字不再另报净距：线条压进字身时净距必然不足，
+ * 重复报同一条缺陷只会淹没真正需要处理的那条。
+ * @param texts - 图面上的文字。
+ * @param drawn - 图元线段及其来源。
+ * @param occluders - 遮挡面。
+ * @param clearanceMm - 净距（毫米）；不大于 0 时不判。
+ * @param crossed - 已判为被线条贯穿的文字下标集合。
+ * @returns 发现的问题。
+ */
+function textClearanceFindings(
+  texts: readonly ScannedText[],
+  drawn: readonly DrawnSegment[],
+  occluders: readonly Occluder[],
+  clearanceMm: number,
+  crossed: ReadonlySet<number>,
+): RenderCheckFinding[] {
+  if (!(clearanceMm > 0)) return []
+  const findings: RenderCheckFinding[] = []
+  texts.forEach((text, index) => {
+    if (crossed.has(index)) return
+    const quad = textQuad(text)
+    const inflated = inflateQuad(quad, clearanceMm)
+    let nearest = Number.POSITIVE_INFINITY
+    for (const item of drawn) {
+      if (item.leader) continue
+      for (const piece of visiblePieces(item, occluders)) {
+        if (!quadCrossedBySegment(inflated, [piece.x1, piece.y1], [piece.x2, piece.y2])) continue
+        nearest = Math.min(nearest, quadSegmentDistance(quad, piece))
+      }
+    }
+    if (!Number.isFinite(nearest)) return
+    findings.push({
+      check: 'text-clearance',
+      message: `图面文字「${text.content}」距最近的图线仅 ${String(Math.round(nearest * 10) / 10)} 毫米，不足 ${String(clearanceMm)} 毫米净距：`
+        + '标号与元件名周围要留出可读的空白，不与零件轮廓、剖面线或中心线贴靠',
+    })
+  })
+  return findings
 }
 
 /**
@@ -844,12 +1131,14 @@ function isMirrorPair(a: Poly, b: Poly): boolean {
 }
 
 /**
- * 一个零件内的剖面线取向：落入零件内部的线段中，同一取向（0.1° 分桶）重复最多的一条
- * 的取向；没有任何取向达到 {@link HATCH_MIN_LINES} 条时 undefined（该零件没有剖面线）。
+ * 一个零件内剖面线的可辨别特征：取向（0.1° 分桶里重复最多的一条）与同取向平行线的
+ * 相邻间距；没有任何取向达到 {@link HATCH_MIN_LINES} 条时 undefined（该零件没有剖面线）。
  * @param segments - 归入该零件的线段。
- * @returns 剖面线取向（度）；无剖面线时 undefined。
+ * @returns 剖面线取向与间距；无剖面线时 undefined。
  */
-function hatchOrientation(segments: readonly Segment[]): number | undefined {
+function hatchSignature(
+  segments: readonly Segment[],
+): { readonly orientationDeg: number; readonly spacingMm: number | undefined } | undefined {
   const counts = new Map<number, number>()
   for (const segment of segments) {
     const key = Math.round(orientation(segment) * 10) / 10
@@ -863,7 +1152,48 @@ function hatchOrientation(segments: readonly Segment[]): number | undefined {
       bestCount = count
     }
   }
-  return bestCount >= HATCH_MIN_LINES ? best : undefined
+  if (best === undefined || bestCount < HATCH_MIN_LINES) return undefined
+  return { orientationDeg: best, spacingMm: hatchSpacing(segments, best) }
+}
+
+/**
+ * 同取向剖面线的相邻间距（毫米）：把各线段中点投影到该取向的法线上排序，取**升序**相邻
+ * 投影差的中位数（小于 {@link HATCH_SPACING_MIN_GAP_MM} 的差是同一条线的重复片段，跳过）。
+ * 线段被轮廓裁短后中点仍落在自己那条线上，投影位置不受裁切影响；中位数对个别落单的线段
+ * 稳健，等距剖面线上它与逐段间距同值。
+ * @param segments - 归入该零件的线段。
+ * @param orientationDeg - 剖面线取向（度），取自 {@link hatchSignature} 的众数分桶。
+ * @returns 间距（毫米）；同取向线段不足两条或投影位置全部重合时 undefined。
+ */
+function hatchSpacing(segments: readonly Segment[], orientationDeg: number): number | undefined {
+  const radians = (orientationDeg * Math.PI) / 180
+  const normalX = -Math.sin(radians)
+  const normalY = Math.cos(radians)
+  const offsets = segments
+    .filter(segment => Math.round(orientation(segment) * 10) / 10 === orientationDeg)
+    .map(segment => ((segment.x1 + segment.x2) / 2) * normalX + ((segment.y1 + segment.y2) / 2) * normalY)
+    .sort((left, right) => left - right)
+  const gaps = offsets
+    .slice(1)
+    .map((offset, index) => offset - (offsets[index] as number))
+    .filter(gap => gap >= HATCH_SPACING_MIN_GAP_MM)
+    .sort((left, right) => left - right)
+  if (gaps.length === 0) return undefined
+  const half = Math.floor(gaps.length / 2)
+  const middle = gaps.slice(gaps.length % 2 === 1 ? half : half - 1, half + 1)
+  return middle.reduce((sum, gap) => sum + gap, 0) / middle.length
+}
+
+/**
+ * 两件的剖面线间距是否分不清：任一侧量不出间距时无法证明可区分，按分不清处理
+ * （本判据只放宽、不收紧）。
+ * @param left - 左件间距（毫米）；undefined 表示量不出。
+ * @param right - 右件间距（毫米）；undefined 表示量不出。
+ * @returns 间距相近时为 true。
+ */
+function spacingIndistinguishable(left: number | undefined, right: number | undefined): boolean {
+  if (left === undefined || right === undefined) return true
+  return Math.max(left, right) / Math.min(left, right) <= ADJACENT_SPACING_RATIO_LIMIT
 }
 
 /** 轴对齐分组：同一行/列的线段集合（用于点划线覆盖判定）。 */
@@ -976,14 +1306,23 @@ function coveredCenterlines(pieces: readonly Segment[]): RenderCheckFinding[] {
 }
 
 /**
- * 相邻零件剖面线取向过近：按「线段中点落在哪个多边形内」把剖面线归到零件，再对
- * 相邻（间隙 ≤ {@link ADJACENT_GAP_MM}）且非镜像对的多边形比较取向差。只有两侧都
- * 真的带剖面线（{@link hatchOrientation} 判定）时才比较。
+ * 相邻零件剖面线难以区分：按「线段中点落在哪个多边形内」把剖面线归到零件，再对
+ * 相邻（间隙 ≤ {@link ADJACENT_GAP_MM}）且非镜像对的多边形比较取向差与间距。只有两侧
+ * 都真的带剖面线（{@link hatchSignature} 判定）时才比较，且**方向与间距都分不清**才报：
+ * GB/T 4457.5 的判据是「方向相反或间距不等」，两项有一项可区分即不报。
+ *
+ * 带同一分组号（{@link HATCH_GROUP_ATTRIBUTE}）的两个轮廓是同一材料的几段，不比较：
+ * 输入约定就是「同一零件的多个轮廓各给一段」，按轮廓比较必然把它们报成相邻两件。
  * @param outlines - 闭合轮廓。
  * @param segments - 线段（开放子路径：剖面线、引线、中心线；轮廓边不入内）。
+ * @param groups - 与 `outlines` 一一对应的分组号；undefined 表示该轮廓自成一组。
  * @returns 发现的问题。
  */
-function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]): RenderCheckFinding[] {
+function hatchCollisions(
+  outlines: readonly Poly[],
+  segments: readonly Segment[],
+  groups: readonly (number | undefined)[],
+): RenderCheckFinding[] {
   const byPoly = new Map<number, Segment[]>()
   segments.forEach((segment) => {
     const midpoint: Point = [(segment.x1 + segment.x2) / 2, (segment.y1 + segment.y2) / 2]
@@ -995,8 +1334,12 @@ function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]
     })
   })
   const findings: RenderCheckFinding[] = []
+  const spacingText = (mm: number | undefined): string =>
+    mm === undefined ? '间距未测出' : `间距 ${String(Math.round(mm * 10) / 10)} 毫米`
   for (let left = 0; left < outlines.length; left += 1) {
     for (let right = left + 1; right < outlines.length; right += 1) {
+      const group = groups[left]
+      if (group !== undefined && group === groups[right]) continue
       const a = outlines[left] as Poly
       const b = outlines[right] as Poly
       const boxA = bounds(a)
@@ -1007,15 +1350,17 @@ function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]
       )
       if (gap > ADJACENT_GAP_MM) continue
       if (isMirrorPair(a, b)) continue
-      const orientationA = hatchOrientation(byPoly.get(left) ?? [])
-      const orientationB = hatchOrientation(byPoly.get(right) ?? [])
-      if (orientationA === undefined || orientationB === undefined) continue
-      const difference = Math.abs(orientationA - orientationB)
+      const hatchA = hatchSignature(byPoly.get(left) ?? [])
+      const hatchB = hatchSignature(byPoly.get(right) ?? [])
+      if (hatchA === undefined || hatchB === undefined) continue
+      const difference = Math.abs(hatchA.orientationDeg - hatchB.orientationDeg)
       const visual = Math.min(difference, 180 - difference)
       if (visual > ADJACENT_ORIENTATION_LIMIT_DEG) continue
+      if (!spacingIndistinguishable(hatchA.spacingMm, hatchB.spacingMm)) continue
       findings.push({
         check: 'hatch-orientation-collision',
-        message: `相邻零件 #${String(left + 1)}（${String(orientationA)}°）与 #${String(right + 1)}（${String(orientationB)}°）的剖面线取向仅差 ${String(Math.round(visual * 10) / 10)}°：`
+        message: `相邻零件 #${String(left + 1)}（${String(hatchA.orientationDeg)}°／${spacingText(hatchA.spacingMm)}）`
+          + `与 #${String(right + 1)}（${String(hatchB.orientationDeg)}°／${spacingText(hatchB.spacingMm)}）的剖面线方向仅差 ${String(Math.round(visual * 10) / 10)}°、间距也相近：`
           + '相邻零件的剖面线应方向相反或间距不等（GB/T 4457.5），否则读成一个零件',
       })
     }
@@ -1031,7 +1376,7 @@ function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]
 function inkBounds(scan: Scan): InkBounds | undefined {
   const points: Point[] = [
     ...scan.shapes.flatMap(shape => shape.subpaths.flatMap(subpath => subpath.points)),
-    ...scan.texts.flatMap(text => [...text.corners]),
+    ...scan.texts.flatMap(text => [...quadCorners(textQuad(text))]),
   ]
   return points.length === 0 ? undefined : bounds(points)
 }
@@ -1076,26 +1421,40 @@ export function measureInkBounds(svg: string, options: { maxBytes?: number } = {
  * 元素按嵌套逐层继承变换与样式（见模块文档的量测范围）；凡不在范围内的结构，报告
  * `not-measured` 而不是略过。本模块只读文本、不解析实体也不执行任何内容，输入仍过
  * {@link assertSafeSvg} 的实体/CDATA、体量与根元素检查，被拒时抛出。
+ *
+ * 同一材料的多个轮廓靠绘图侧写的 {@link HATCH_GROUP_ATTRIBUTE} 识别：带同一分组号的
+ * 轮廓不互相比较剖面线取向（见 {@link hatchCollisions}）。没有该标注时每个闭合轮廓
+ * 各自成组，与标注存在前的判定一致。
  * @param svg - 完整 SVG 文本。
- * @param options - 安全校验上限（字节）；缺省沿用 {@link DEFAULT_SVG_MAX_BYTES}。
+ * @param options - 安全校验上限（字节）；`textClearanceMm` 为标号净距（毫米，默认
+ * {@link DEFAULT_TEXT_CLEARANCE_MM}，`0` 关闭该判据）。
  * @returns 量测值与发现的问题。
  * @throws SvgAnnotateError 输入未通过 {@link assertSafeSvg} 时。
  */
-export function checkFigureRendering(svg: string, options: { maxBytes?: number } = {}): RenderCheckReport {
+export function checkFigureRendering(
+  svg: string,
+  options: { maxBytes?: number; textClearanceMm?: number } = {},
+): RenderCheckReport {
   assertSafeSvg(svg, options.maxBytes ?? DEFAULT_SVG_MAX_BYTES)
   const scan = scanSvg(svg)
   const outlines: Poly[] = []
+  const outlineGroups: (number | undefined)[] = []
   const openSegments: Segment[] = []
-  const drawn: Segment[] = []
+  const drawn: DrawnSegment[] = []
+  const occluders: Occluder[] = []
   // 点划线判定用的片段：虚线元素按虚线段展开，其余按整段——`stroke-dasharray` 画出的
   // 中心线不展开就只是一条长线段，点划签名与「被实线覆盖」都看不出来。
   const pieces: Segment[] = []
   for (const shape of scan.shapes) {
     for (const subpath of shape.subpaths) {
       const segments = subpathSegments(subpath)
-      drawn.push(...segments)
-      if (subpath.closed) outlines.push(subpath.points)
-      else openSegments.push(...segments)
+      drawn.push(...segments.map(segment => ({ segment, order: shape.order, leader: shape.role === LEADER_ROLE })))
+      // 不透明填充的闭合轮廓遮挡更早绘制的图元；开放子路径的填充按闭合处理，故不列入。
+      if (shape.occludes && subpath.closed) occluders.push({ points: subpath.points, order: shape.order })
+      if (subpath.closed) {
+        outlines.push(subpath.points)
+        outlineGroups.push(shape.hatchGroup)
+      } else openSegments.push(...segments)
       for (const segment of segments) {
         if (shape.dashPatternMm === undefined) pieces.push(segment)
         else pieces.push(...dashSegments(segment, shape.dashPatternMm))
@@ -1110,18 +1469,29 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
       message: `以下事实未量测或只作近似：${scan.unmeasured.join('；')}。这些范围内的缺陷不会出现在本报告里，近似项为估计值`,
     })
   }
-  for (const text of scan.texts) {
-    if (drawn.some(segment => crossesQuad(segment, text.corners))) {
-      findings.push({
-        check: 'text-crossed-by-line',
-        message: `图面文字「${text.content}」被线条贯穿：引线或轮廓线穿过了文字外框；文字应落在零件轮廓或元件符号之外，引线应止于文字外框之外`,
-      })
-    }
-  }
+  const crossed = new Set<number>()
+  scan.texts.forEach((text, index) => {
+    const quad = textQuad(text)
+    const hit = drawn.some(item => visiblePieces(item, occluders)
+      .some(piece => quadCrossedBySegment(quad, [piece.x1, piece.y1], [piece.x2, piece.y2])))
+    if (!hit) return
+    crossed.add(index)
+    findings.push({
+      check: 'text-crossed-by-line',
+      message: `图面文字「${text.content}」被线条贯穿：引线或轮廓线穿过了文字外框；文字应落在零件轮廓或元件符号之外，引线应止于文字外框之外`,
+    })
+  })
+  findings.push(...textClearanceFindings(
+    scan.texts,
+    drawn,
+    occluders,
+    options.textClearanceMm ?? DEFAULT_TEXT_CLEARANCE_MM,
+    crossed,
+  ))
   findings.push(...coveredCenterlines(pieces))
   const ink = inkOutsideCanvas(scan)
   if (ink !== undefined) findings.push(ink)
-  findings.push(...hatchCollisions(outlines, openSegments))
+  findings.push(...hatchCollisions(outlines, openSegments, outlineGroups))
 
   const strokeCounts = new Map<number, number>()
   for (const shape of scan.shapes) {
@@ -1130,8 +1500,8 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
     strokeCounts.set(width, (strokeCounts.get(width) ?? 0) + 1)
   }
   const orientationCounts = new Map<number, number>()
-  for (const segment of drawn) {
-    const key = Math.round(orientation(segment) * 10) / 10
+  for (const item of drawn) {
+    const key = Math.round(orientation(item.segment) * 10) / 10
     orientationCounts.set(key, (orientationCounts.get(key) ?? 0) + 1)
   }
 

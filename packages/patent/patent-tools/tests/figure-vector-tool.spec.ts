@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -8,6 +8,10 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { createGeneratePatentFigureTool } from '../src/tool/generate-patent-figure.ts'
+import type { GeneratePatentFigureIndexEntry } from '../src/tool/figure-input.ts'
+import type { SectionSourcePorts } from '../src/figure/section-source.ts'
+import type { SectionHatchSpec } from '../src/figure/freecad-renderer.ts'
+import { readSectionGeometry, type SectionGeometry } from '../src/figure/freecad-section-geometry.ts'
 import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../src/figure/graphviz-renderer.ts'
 
 const signal = new AbortController().signal
@@ -139,6 +143,8 @@ describe('generate_patent_figure：矢量图型（直接绘制 SVG）', () => {
       expect(svg).toContain('<title>电路图</title>')
       const value = result as { value: { figureType: string; warnings: string[] } }
       expect(value.value.figureType).toBe('circuit')
+      // 元件名按 LABEL_GAP_MM 落在符号与走线旁（符号外框距文字外框 0.84 毫米），这是电路图
+      // 的画法；「标号净距」判据只对机械剖视图开启，故这里不报贴线。
       expect(value.value.warnings).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -307,7 +313,7 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
         sections: {
           parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3, direction: 'forward' } }],
           labels: [{ text: '1', at: [44, 10], from: [40, 10] }],
-          centerlines: [{ from: [-4, 10], to: [42, 10] }],
+          centerlines: [{ from: [-4, 10], to: [40, 10] }],
           label_font_size_mm: 5,
         },
       }, 's1')
@@ -336,6 +342,46 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
       const payload = result.value as { warnings: string[] }
       expect(payload.warnings.join('\n')).toContain('未指定剖面线')
       expect(payload.warnings.join('\n')).toContain('hatch: "none"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('require_explicit_hatch 开启时未给 hatch 即报错，并把未给的轮廓序号列出来', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        require_explicit_hatch: true,
+        sections: {
+          parts: [
+            { outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: 'none' },
+            { outline: [[50, 0], [90, 0], [90, 20], [50, 20]] },
+          ],
+        },
+      }, 's2-strict')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('require_explicit_hatch')
+      expect(text(result)).toContain('零件 #2')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('require_explicit_hatch 下每个轮廓都给了 hatch（含 none）时正常出图', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        require_explicit_hatch: true,
+        sections: {
+          parts: [
+            { outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3 } },
+            { outline: [[50, 0], [90, 0], [90, 20], [50, 20]], hatch: 'none' },
+          ],
+        },
+      }, 's2-strict-ok')
+      expect(result.isError).toBe(false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -507,6 +553,237 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
       }, 's10')
       const payload = result.value as { warnings: string[] }
       expect(payload.warnings.join('\n')).toContain('渲染复核：图面文字「1」被线条贯穿')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure：从 CAD 模型切出剖视图（sections.source）', () => {
+  /** 工具执行结果（文本内容用于断言错误消息，value 用于断言结构化输出）。 */
+  type RunResult = { isError: boolean; value?: Record<string, unknown>; content: { type: string; text?: string }[] }
+
+  /** 切出的材料区域：60×30 底板 + 两个 r5 通孔（x = ±15），与真机 fixture 同形。 */
+  function plateGeometry(): SectionGeometry {
+    const circle = (centerX: number): number[][] => Array.from({ length: 240 }, (_, index) => {
+      const angle = (2 * Math.PI * index) / 240
+      return [centerX + 5 * Math.cos(angle), 5 * Math.sin(angle)]
+    })
+    return readSectionGeometry({
+      model: { path: '/models/plate.step', solids: 1, bound_box_mm: { min: [-30, -15, 0], max: [30, 15, 8] } },
+      plane: { origin: [0, 0, 4], normal: [0, 0, 1], right: [1, 0, 0], down: [0, 1, 0], distance: 4 },
+      rings: [
+        { points_mm: [[-30, -15], [30, -15], [30, 15], [-30, 15]], closed: true, area_mm2: 1800 },
+        { points_mm: circle(-15), closed: true, area_mm2: Math.PI * 25 },
+        { points_mm: circle(15), closed: true, area_mm2: Math.PI * 25 },
+      ],
+      slice_face_area_mm2: null,
+    })
+  }
+
+  /** 假端口：切出底板，按请求的每个区域各给一条中央剖面线。 */
+  function platePorts(overrides: Partial<SectionSourcePorts> = {}): { ports: SectionSourcePorts; hatchSpecs: SectionHatchSpec[] } {
+    const hatchSpecs: SectionHatchSpec[] = []
+    return {
+      hatchSpecs,
+      ports: {
+        sectionGeometry: async () => ({ ok: true, geometry: plateGeometry() }),
+        sectionHatch: async (spec) => {
+          hatchSpecs.push(spec)
+          const segments = spec.regions.map((region) => {
+            const xs = region.outline.map(point => point[0])
+            const center = (Math.min(...xs) + Math.max(...xs)) / 2
+            return { from: [center - 1, 0] as const, to: [center + 1, 0] as const }
+          })
+          return {
+            ok: true,
+            geometry: { segments, regionCounts: spec.regions.map(() => 1), patAngleDeg: spec.angleDeg, patScale: spec.spacingMm },
+          }
+        },
+        ...overrides,
+      },
+    }
+  }
+
+  /** 建一个写文件的工具上下文（模型占位文件只用于路径校验）。 */
+  async function setup(
+    model = true,
+    ports?: SectionSourcePorts,
+    index = false,
+  ): Promise<{ dir: string; outDir: string; run: (args: unknown, label: string) => Promise<RunResult>; entries: unknown[] }> {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-src-'))
+    const outDir = join(dir, 'figs')
+    if (model) writeFileSync(join(dir, 'plate.step'), 'ISO-10303-21;\n')
+    const entries: unknown[] = []
+    const tool = createGeneratePatentFigureTool({
+      render: trackingRenderer().render,
+      ...(ports === undefined ? {} : { sectionSource: ports }),
+      ...(index ? { upsertIndex: async (entry: GeneratePatentFigureIndexEntry) => { entries.push(entry) } } : {}),
+      outputDir: outDir,
+      cwd: dir,
+    })
+    const ctx = await ctxWith(tool)
+    return {
+      dir,
+      outDir,
+      entries,
+      run: async (args, label) => await execute(ctx, 'generate_patent_figure', args, label) as RunResult,
+    }
+  }
+
+  /** source 模式的剖视图输入。 */
+  function sourceArgs(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      figure_type: 'cross_section',
+      sections: {
+        source: { model_path: 'plate.step', plane: { origin: [0, 0, 4], normal: [0, 0, 1] } },
+        parts: [{ anchor: [0, 0], hatch: { angle_deg: 45, spacing_mm: 3 }, label: '1' }],
+        ...extra,
+      },
+    }
+  }
+
+  it('切出轮廓与孔、按区域裁好的剖面线落图，复核不报文字贯穿', async () => {
+    const { dir, outDir, run } = await setup(true, platePorts().ports)
+    try {
+      const result = await run(sourceArgs(), 'src1')
+      expect(result.isError).toBe(false)
+      const svg = readFileSync(join(outDir, 'fig1.svg'), 'utf8')
+      // 底板轮廓 + 两个孔环各一个 <polygon>；剖面线只有端口给的那一条。
+      expect(svg.match(/<polygon /g) ?? []).toHaveLength(3)
+      const payload = result.value as { warnings: string[] }
+      // 提示里给出材料区域清单（模型据此放标号），且没有渲染复核的文字贯穿发现。
+      expect(payload.warnings.join('\n')).toContain('切出 1 个材料区域')
+      expect(payload.warnings.join('\n')).toContain('净面积 1642.9')
+      expect(payload.warnings.join('\n')).not.toContain('被线条贯穿')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('几何失败、剖面线失败、模型缺失各按码报错', async () => {
+    const geometryFailed = await setup(true, platePorts({ sectionGeometry: async () => ({ ok: false, code: 'geometry_failed', error: '剖切面未与模型相交' }) }).ports)
+    try {
+      const result = await geometryFailed.run(sourceArgs(), 'src2')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('剖切面未与模型相交')
+    } finally {
+      rmSync(geometryFailed.dir, { recursive: true, force: true })
+    }
+    const hatchFailed = await setup(true, platePorts({ sectionHatch: async () => ({ ok: false, code: 'hatch_failed', error: '剖面线为 0 条' }) }).ports)
+    try {
+      const result = await hatchFailed.run(sourceArgs(), 'src3')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('剖面线为 0 条')
+    } finally {
+      rmSync(hatchFailed.dir, { recursive: true, force: true })
+    }
+    const missing = await setup(false, platePorts().ports)
+    try {
+      const result = await missing.run(sourceArgs(), 'src4')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('model_path 不存在或不可读')
+    } finally {
+      rmSync(missing.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('宿主未注入剖切端口时给 setup_required 而不是静默画成示意图', async () => {
+    const { dir, outDir, run } = await setup(true, undefined)
+    try {
+      const result = await run(sourceArgs(), 'src5')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('FreeCAD')
+      expect(existsSync(join(outDir, 'fig1.svg'))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('区域数与 parts 数不等时把切出的区域列给模型', async () => {
+    const { dir, run } = await setup(true, platePorts().ports)
+    try {
+      const result = await run(sourceArgs({ parts: [{ anchor: [0, 0] }, { anchor: [30, 0] }] }), 'src6')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('切出 1 个材料区域')
+      expect(text(result)).toContain('parts 有 2 个')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('anchor 落在孔里时按输入错误拒绝', async () => {
+    const { dir, run } = await setup(true, platePorts().ports)
+    try {
+      const result = await run(sourceArgs({ parts: [{ anchor: [15, 0], hatch: { angle_deg: 45 } }] }), 'src7')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('不在任何材料区域内')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('落版与索引照常：source 只是几何来源，全链不变', async () => {
+    const { dir, run, entries } = await setup(true, platePorts().ports, true)
+    try {
+      const result = await run({ ...sourceArgs(), target_office: 'cnipa' }, 'src8')
+      expect(result.isError).toBe(false)
+      const payload = result.value as { indexed: boolean; layout?: { office: string } }
+      expect(payload.indexed).toBe(true)
+      expect(entries).toHaveLength(1)
+      expect(payload.layout?.office).toBe('cnipa')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure：自动复核的标号净距按图型开启', () => {
+  /** 工具执行结果（文本内容用于断言错误消息，value 用于断言结构化输出）。 */
+  type RunResult = { isError: boolean; value?: Record<string, unknown> }
+
+  /** 建一个只写不渲的工具上下文；返回执行器与输出目录。 */
+  async function setup(): Promise<{ dir: string; run: (args: unknown, label: string) => Promise<RunResult> }> {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-gap-'))
+    const tracker = trackingRenderer()
+    const tool = createGeneratePatentFigureTool({ render: tracker.render, outputDir: join(dir, 'figs'), cwd: dir })
+    const ctx = await ctxWith(tool)
+    return {
+      dir,
+      run: async (args, label) => await execute(ctx, 'generate_patent_figure', args, label) as RunResult,
+    }
+  }
+
+  it('剖视图：标号贴住中心线时按 1.5 毫米净距报出，并给出量测距离', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        sections: {
+          parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: 'none' }],
+          labels: [{ text: '1', at: [44, 10], from: [40, 10] }],
+          // 中心线在数字外框（下边界 y=11.62）外约 1 毫米处通过：贯穿判据不报，净距判据报。
+          centerlines: [{ from: [-4, 12.6], to: [46, 12.6] }],
+        },
+      }, 's12')
+      expect(result.isError).toBe(false)
+      const payload = result.value as { warnings: string[] }
+      const renderWarnings = payload.warnings.filter(warning => warning.startsWith('渲染复核：'))
+      expect(renderWarnings).toHaveLength(1)
+      expect(renderWarnings[0]).toContain('图面文字「1」距最近的图线仅 1 毫米，不足 1.5 毫米净距')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('电路图：同一个 1.5 毫米净距不套用，元件名贴着符号放不报', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run({ figure_type: 'circuit', circuit }, 'c1')
+      expect(result.isError).toBe(false)
+      const payload = result.value as { warnings: string[] }
+      // 三条元件名距各自符号外框 0.84–1.2 毫米：套用净距会把这些画对的图报成缺陷。
+      expect(payload.warnings.filter(warning => warning.includes('净距'))).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

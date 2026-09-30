@@ -52,12 +52,14 @@ function hatchFamily(x: number, y: number, deg: number, count: number, step: num
  * 两个相邻零件（右件带切角，与左件不互为镜像）各打一族剖面线，取向由调用方给出。
  * @param leftDeg - 左件剖面线取向（度）。
  * @param rightDeg - 右件剖面线取向（度）。
+ * @param group - 两轮廓同属一个材料时给出的分组号；undefined 时各自成组。
  * @returns 图元文本。
  */
-function adjacentHatch(leftDeg: number, rightDeg: number): string {
+function adjacentHatch(leftDeg: number, rightDeg: number, group?: number): string {
+  const mark = group === undefined ? '' : ` data-dsh-hatch-group="${String(group)}"`
   return [
-    '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
-    '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+    `<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"${mark}/>`,
+    `<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"${mark}/>`,
     hatchFamily(6, 4, leftDeg, 3, 2),
     hatchFamily(46, 4, rightDeg, 3, 2),
   ].join('\n')
@@ -103,10 +105,19 @@ describe('checkFigureRendering 量测', () => {
   it('标号在零件外且引线止于数字外框：无发现', () => {
     const report = checkFigureRendering(svg([
       '<polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
-      '<line x1="30" y1="20" x2="78.2" y2="9.16" stroke-width="0.25"/>',
+      // 引线按绘图侧口径标注 data-dsh-role="leader"：它止于数字外框，不参与净距判据。
+      '<line x1="30" y1="20" x2="78.2" y2="9.16" stroke-width="0.25" data-dsh-role="leader"/>',
       '<text x="80" y="9.2" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">3</text>',
     ].join('\n')))
     expect(report.findings).toEqual([])
+    // 同一段线不标注引线时按图元处理：距数字外框 0.8 毫米，净距判据报出。
+    const unmarked = checkFigureRendering(svg([
+      '<polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
+      '<line x1="30" y1="20" x2="78.2" y2="9.16" stroke-width="0.25"/>',
+      '<text x="80" y="9.2" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+    ].join('\n')))
+    expect(unmarked.findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    expect(unmarked.findings[0]?.message).toContain('仅 0.8 毫米')
   })
 })
 
@@ -209,17 +220,19 @@ describe('checkFigureRendering 字号与对齐的继承', () => {
   it('<g> 上的 text-anchor 与行内 style 的字号参与换算', () => {
     const grouped = svg([
       '<g text-anchor="middle"><polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
-      '<line x1="30" y1="20" x2="78.2" y2="9.16" stroke-width="0.25"/>',
+      '<line x1="30" y1="20" x2="78.2" y2="9.16" stroke-width="0.25" data-dsh-role="leader"/>',
       '<text x="80" y="9.2" font-size="3.5" fill="#000000" stroke="none">3</text></g>',
     ].join('\n'))
     expect(checkFigureRendering(grouped).findings).toEqual([])
-    // style 的 7 号字：占位框 y∈[4.75,10.84]，y=3.5 的线在框外；若按 16 号初值算框会误报。
+    // style 的 7 号字：占位框 y∈[4.75,10.84]，y=3 的线在框外 1.75 毫米；若按 16 号初值算框
+    // 会把 y=3 的线算进框内，报出贯穿。
     const styled = svg([
       '<text x="10" y="10" style="font-size:7;text-anchor:middle" fill="#000000" stroke="none">接地</text>',
-      '<line x1="0" y1="3.5" x2="20" y2="3.5" stroke-width="0.25"/>',
+      '<line x1="0" y1="3" x2="20" y2="3" stroke-width="0.25"/>',
     ].join('\n'))
     expect(checkFigureRendering(styled).findings).toEqual([])
-    expect(checkFigureRendering(styled.replace('font-size:7;', ''))).toMatchObject({})
+    expect(checkFigureRendering(styled.replace('font-size:7;', '')).findings.map(finding => finding.check))
+      .toContain('text-crossed-by-line')
   }, 20_000)
 })
 
@@ -288,15 +301,18 @@ describe('checkFigureRendering 文字被线条贯穿', () => {
     }
   })
 
-  it('纵排数字按自身旋转换算占位框：贴轴放置的轴名不被误判', () => {
-    // 曲线图的纵轴名绕锚点旋转 −90°：占位框随之转成竖条，不再横跨 0.6 毫米外的轴线上。
+  it('纵排数字按自身旋转换算占位框：转成竖条后不再被轴线贯穿', () => {
+    // 曲线图的纵轴名绕锚点旋转 −90°：占位框随之转成竖条，不再横跨轴线。
     const vertical = [
       '<polygon points="10,0 12,0 12,40 10,40" stroke-width="0.5"/>',
       '<text x="9.4" y="20" font-size="3.5" text-anchor="middle" transform="rotate(-90 9.4 20)">温</text>',
     ].join('\n')
     const rotated = svg(vertical)
-    expect(checkFigureRendering(rotated).findings).toEqual([])
-    // 同一段文字若不旋转，占位框横跨轴线，正是这条复核要报的图面缺陷。
+    expect(checkFigureRendering(rotated, { textClearanceMm: 0 }).findings).toEqual([])
+    // 这里是刻意贴轴放置（转成竖条后右边界距轴线 0.18 毫米），净距判据因此仍报出——两条
+    // 判据管的事不同：贯穿判定管「字被线压住」，净距判定管「字离线太近」。
+    expect(checkFigureRendering(rotated).findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    // 同一段文字若不旋转，占位框横跨轴线，正是贯穿判定要报的图面缺陷。
     expect(checkFigureRendering(svg(vertical.replace(' transform="rotate(-90 9.4 20)"', ''))).findings
       .map(finding => finding.check)).toEqual(['text-crossed-by-line'])
   })
@@ -324,11 +340,73 @@ describe('checkFigureRendering 点划线被实线覆盖', () => {
   })
 })
 
-describe('checkFigureRendering 相邻剖面线取向', () => {
-  it('相邻两件取向仅差 15° 时报 hatch-orientation-collision', () => {
+describe('checkFigureRendering 相邻剖面线难以区分', () => {
+  it('相邻两件取向仅差 15°、间距也比不出差别时报 hatch-orientation-collision', () => {
     const report = checkFigureRendering(svg(adjacentHatch(135, 150)))
     expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
     expect(report.findings[0]?.message).toContain('15°')
+    // 两件间距 1.4 与 1.7 毫米（比 1.22），相差不足 1.5 倍，仍读作同一种疏密。
+    expect(report.findings[0]?.message).toContain('间距 1.4 毫米')
+    expect(report.findings[0]?.message).toContain('间距 1.7 毫米')
+  })
+
+  it('相邻两件取向相同但间距相差 1.7 倍时不报：间距不等已可区分', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 135, 3, 3.4),
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('相邻两件方向差 30° 且间距不等时不报：两项判据有一项可区分即可', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 165, 3, 3),
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('一侧量不出间距（同取向线段投影重合）时按分不清处理：判据只放宽不收紧', () => {
+    // 右件的三条 0° 线共线，同取向达 3 条却量不出相邻间距；左件间距 1.5 毫米。
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5"/>',
+      '<line x1="6" y1="6" x2="20" y2="6" stroke-width="0.25"/>',
+      '<line x1="6" y1="7.5" x2="20" y2="7.5" stroke-width="0.25"/>',
+      '<line x1="6" y1="9" x2="20" y2="9" stroke-width="0.25"/>',
+      '<line x1="46" y1="6" x2="50" y2="6" stroke-width="0.25"/>',
+      '<line x1="52" y1="6" x2="56" y2="6" stroke-width="0.25"/>',
+      '<line x1="58" y1="6" x2="62" y2="6" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+    expect(report.findings[0]?.message).toContain('间距未测出')
+  })
+
+  it('剖面线族不整齐时取升序相邻间距的中位数作代表间距', () => {
+    // 左件的 0° 线落在 y=6/7/17/18/20：相邻间距依次是 1、10、1、2，升序中位数为 1.5；
+    // 若按出现顺序取中位（(10+1)/2=5.5）则会与右件的 1 毫米判成不同疏密而漏报。
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,24 0,24" stroke-width="0.5"/>',
+      '<polygon points="40,0 80,0 80,24 60,24 40,16" stroke-width="0.5"/>',
+      '<line x1="6" y1="6" x2="30" y2="6" stroke-width="0.25"/>',
+      '<line x1="6" y1="7" x2="30" y2="7" stroke-width="0.25"/>',
+      '<line x1="6" y1="17" x2="30" y2="17" stroke-width="0.25"/>',
+      '<line x1="6" y1="18" x2="30" y2="18" stroke-width="0.25"/>',
+      '<line x1="6" y1="20" x2="30" y2="20" stroke-width="0.25"/>',
+      '<line x1="46" y1="6" x2="70" y2="6" stroke-width="0.25"/>',
+      '<line x1="46" y1="7" x2="70" y2="7" stroke-width="0.25"/>',
+      '<line x1="46" y1="8" x2="70" y2="8" stroke-width="0.25"/>',
+      '<line x1="46" y1="9" x2="70" y2="9" stroke-width="0.25"/>',
+      '<line x1="46" y1="10" x2="70" y2="10" stroke-width="0.25"/>',
+      '<line x1="46" y1="11" x2="70" y2="11" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+    expect(report.findings[0]?.message).toContain('间距 1.5 毫米')
+    expect(report.findings[0]?.message).toContain('间距 1 毫米')
   })
 
   it('相邻两件取向相反时（差 90°）不报', () => {
@@ -354,6 +432,30 @@ describe('checkFigureRendering 相邻剖面线取向', () => {
       stroke(26, 10, 0, 8),
     ].join('\n')))
     expect(report.findings).toEqual([])
+  })
+
+  it('同一材料的两个轮廓（同分组号）取向相同不报：输入约定就是同一零件各给一段', () => {
+    expect(checkFigureRendering(svg(adjacentHatch(135, 135, 2))).findings).toEqual([])
+  })
+
+  it('分组号不同的相邻两件取向相同仍报出', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5" data-dsh-hatch-group="0"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5" data-dsh-hatch-group="1"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 135, 3, 2),
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+  })
+
+  it('分组号非法（非整数）时该轮廓自成一组，取向相同仍报出', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 40,0 40,20 0,20" stroke-width="0.5" data-dsh-hatch-group="甲"/>',
+      '<polygon points="40,0 80,0 80,20 60,20 40,12" stroke-width="0.5" data-dsh-hatch-group="1.5"/>',
+      hatchFamily(6, 4, 135, 3, 2),
+      hatchFamily(46, 4, 135, 3, 2),
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
   })
 })
 
@@ -603,5 +705,94 @@ describe('checkFigureRendering 解析边界', () => {
       '<line x1="9" y1="20" x2="9.5" y2="20" stroke-width="0.25"/>',
     ].join('\n')))
     expect(report.findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 标号净距', () => {
+  /** 字号 4 的「3」：占位框 x∈[78.8,81.2]、y∈[17,20.48]。 */
+  const NUMERAL = '<text x="80" y="20" font-size="4" text-anchor="middle" fill="#000000" stroke="none">3</text>'
+
+  /** 一条穿过 figure 的横线（默认跨 x=70–90）。 */
+  const rule = (y: number): string => `<line x1="70" y1="${y}" x2="90" y2="${y}" stroke-width="0.25"/>`
+
+  it('净距内报、净距外不报：同一条线挪过 1.5 毫米边界两侧', () => {
+    const inside = checkFigureRendering(svg([rule(16), NUMERAL].join('\n')))
+    expect(inside.findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    // 报出的距离是量测值（框上边界 y=17 到 y=16 恰好 1 毫米），不是固定文案。
+    expect(inside.findings[0]?.message).toContain('仅 1 毫米')
+    expect(checkFigureRendering(svg([rule(15.4), NUMERAL].join('\n'))).findings).toEqual([])
+  })
+
+  it('净距可配：收紧到 0.5 毫米后同一条线不报，放宽后 3.5 毫米外的线也报', () => {
+    const atOne = svg([rule(16), NUMERAL].join('\n'))
+    expect(checkFigureRendering(atOne, { textClearanceMm: 0.5 }).findings).toEqual([])
+    const atThreeAndAHalf = svg([rule(13.5), NUMERAL].join('\n'))
+    expect(checkFigureRendering(atThreeAndAHalf).findings).toEqual([])
+    expect(checkFigureRendering(atThreeAndAHalf, { textClearanceMm: 4 }).findings.map(finding => finding.check))
+      .toEqual(['text-clearance'])
+    // 0 关闭该判据，其余判据不受影响。
+    expect(checkFigureRendering(atOne, { textClearanceMm: 0 }).findings).toEqual([])
+  })
+
+  it('引线不参与净距：止于数字外框的引线不算贴线，穿过别的数字仍算贯穿', () => {
+    const stopsAtBox = svg([
+      '<line x1="20" y1="20" x2="78.7" y2="20" stroke-width="0.25" data-dsh-role="leader"/>',
+      NUMERAL,
+    ].join('\n'))
+    // 引线止点距外框 0.1 毫米，若按图元处理必然报净距。
+    expect(checkFigureRendering(stopsAtBox).findings).toEqual([])
+    // 同一条线段不标注引线时按图元处理。
+    const unmarked = stopsAtBox.split('\n').map(line => line.replace(' data-dsh-role="leader"', '')).join('\n')
+    expect(checkFigureRendering(unmarked).findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    // 引线穿过另一个数字的占位框仍是贯穿（引线只豁免净距，不豁免贯穿）。
+    const throughOther = svg([
+      '<line x1="20" y1="18" x2="90" y2="18" stroke-width="0.25" data-dsh-role="leader"/>',
+      NUMERAL,
+    ].join('\n'))
+    expect(checkFigureRendering(throughOther).findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
+  })
+
+  it('白色填充是遮挡面：后画的填充盖住线段时不报，先画的不遮挡', () => {
+    const fill = '<rect x="60" y="8" width="40" height="24" fill="#ffffff" stroke="none"/>'
+    const line = '<line x1="77.5" y1="8" x2="77.5" y2="32" stroke-width="0.25"/>'
+    // 填充在文档序里更晚 → 线段在图面上不可见，不报。
+    expect(checkFigureRendering(svg([line, fill, NUMERAL].join('\n'))).findings).toEqual([])
+    // 填充更早绘制 → 线段画在填充之上，照报。
+    expect(checkFigureRendering(svg([fill, line, NUMERAL].join('\n'))).findings.map(finding => finding.check))
+      .toEqual(['text-clearance'])
+  })
+
+  it('非白填充不做遮挡：只有不透明白色填充才算遮挡面', () => {
+    const marker = '<rect x="60" y="8" width="40" height="24" fill="#cccccc" stroke="none"/>'
+    const line = '<line x1="77.5" y1="8" x2="77.5" y2="32" stroke-width="0.25"/>'
+    expect(checkFigureRendering(svg([line, marker, NUMERAL].join('\n'))).findings.map(finding => finding.check))
+      .toEqual(['text-clearance'])
+  })
+
+  it('A6 案三处缺陷的等价构造全部报出', () => {
+    // ① 标号压剖面线带：三条 45° 之外的剖面线带贴着数字外框（最上面一条距框 1 毫米）。
+    const onHatchBand = svg([rule(10), rule(13), rule(16), NUMERAL].join('\n'))
+    expect(checkFigureRendering(onHatchBand).findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    // ② 标号被竖线贯穿文字盒。
+    const pierced = svg(['<line x1="80" y1="10" x2="80" y2="30" stroke-width="0.25"/>', NUMERAL].join('\n'))
+    expect(checkFigureRendering(pierced).findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
+    // ③ 标号压轴线：细点划线在数字外框外 0.6 毫米处通过（长划—点—长划）。
+    const onCenterline = svg([
+      '<line x1="10" y1="16.4" x2="18" y2="16.4" stroke-width="0.25"/>',
+      '<line x1="20" y1="16.4" x2="20.4" y2="16.4" stroke-width="0.25"/>',
+      '<line x1="22" y1="16.4" x2="30" y2="16.4" stroke-width="0.25"/>',
+      '<line x1="70" y1="16.4" x2="78" y2="16.4" stroke-width="0.25"/>',
+      '<line x1="80" y1="16.4" x2="80.4" y2="16.4" stroke-width="0.25"/>',
+      '<line x1="82" y1="16.4" x2="90" y2="16.4" stroke-width="0.25"/>',
+      NUMERAL,
+    ].join('\n'))
+    const findings = checkFigureRendering(onCenterline).findings
+    expect(findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    expect(findings[0]?.message).toContain('仅 0.6 毫米')
+  })
+
+  it('已被判为贯穿的文字不另报净距：同一条缺陷只报一次', () => {
+    const pierced = svg([rule(18), NUMERAL].join('\n'))
+    expect(checkFigureRendering(pierced).findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
   })
 })

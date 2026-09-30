@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.0-rc.2/patent-figure-non-svg-export/guide.md
+/:
+  en: 142655925228fd47
+  zh: 61e0af60c3dd3982
+/png-pdf-inkscape-svg:
+  en: 52bac822db6f2ee8
+  zh: 1b1a3a277f315191
+/png-pdf-inkscape-svg/change:
+  en: fb835d9cf6a7fb4e
+  zh: 6572428bfb847793
+/png-pdf-inkscape-svg/migration:
+  en: 0d21061da22450db
+  zh: dfe24b35fa341303

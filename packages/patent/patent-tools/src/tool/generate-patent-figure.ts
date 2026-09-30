@@ -28,14 +28,17 @@ import type { DotEngine, DotFormat, DotPageBundle, NumeralAssignment } from '../
 import { figureSentence } from '../figure/figure-description.ts'
 import { sanitizeDotFilename } from '../figure/graphviz-renderer.ts'
 import { TARGET_OFFICES } from '../figure/office-profile.ts'
+import type { TargetOffice } from '../figure/office-profile.ts'
 import { buildVectorFigure, isVectorFigureType } from '../figure/vector-figure-build.ts'
 import { VectorFigureError, vectorFigureSvg } from '../figure/vector-figure.ts'
 import { checkFigureRendering } from '../figure/render-check.ts'
+import { SectionSourceError, expandSectionSource } from '../figure/section-source.ts'
+import type { SectionSourceExpansion } from '../figure/section-source.ts'
 import { SvgAnnotateError } from '../figure/svg-annotate.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { FIGURE_TYPE_NAMES, FIGURE_TYPES } from './analyze-patent-figure.ts'
 import { collectComponents, collectFigureWording, inferFigureType, presentStructuralFields, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
-import type { DotFigureType, GeneratePatentFigureDeps, GeneratePatentFigureInput, GeneratePatentFigureOutput, GeneratePatentFigurePanelInput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
+import type { DotFigureType, GenerateFigureType, GeneratePatentFigureDeps, GeneratePatentFigureInput, GeneratePatentFigureOutput, GeneratePatentFigurePanelInput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
 import type { SectionFigureJson } from '../figure/vector-figure-build.ts'
 import { buildOutput, indexAnalysis, renderGenerateFigureResult, upsertFigureIndex } from './figure-output.ts'
 import { annotateRenderedSvg, buildFigureDot } from './figure-render-plan.ts'
@@ -57,7 +60,7 @@ import {
   TREE_SCHEMA,
 } from './figure-tool-schemas.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
-import { assertRendered } from './internal/render-outcome.ts'
+import { assertRendered, sectionSourceError } from './internal/render-outcome.ts'
 
 const DESCRIPTION = [
   '生成专利风格附图：流程图（方法步骤）、状态图（状态+转移条件）、系统框图（组件+连接）、组件层级图，以及直接绘制 SVG 的电路图、曲线图/坐标图、剖视图（含剖面线与剖切符号）、时序图、外观设计六面视图排布；另有内置模板与原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。',
@@ -70,11 +73,15 @@ const DESCRIPTION = [
   '',
   '色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用黑色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用；target_office="pct" 时 semantic 被拒绝（PCT 实施细则 11.13(a) 规定附图不得着色）。',
   '',
-  '落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。仅 SVG 输出支持落版；fit_to_page=false 时只核算尺寸、不改写画布。',
+  '输出格式：默认 svg。png/pdf 在需要落版（给了 target_office）时走「先出 SVG → 落版 → 渲染复核 → 文字转路径 → 用本机 Inkscape 导出」的全链，故落版、复核与引线标号对它们同样生效；本机没有 Inkscape 时退回渲染器直接出图，并给出「落版与复核未生效」的警告。直绘图型（电路/曲线/剖视/时序/外观）只有 SVG 一条绘图通路，导出 png/pdf 同样需要 Inkscape。含中文的图导出 pdf 时要先开启文字转路径（Config.figureTextToPath）——Inkscape 对个别未转路径的中文字形会写出缺 xref 的不完整 PDF，工具检出后按导出失败处理，不交出半成品。',
   '',
-  '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。',
+  '落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。fit_to_page=false 时只核算尺寸、不改写画布。',
   '',
-  '剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）。',
+  '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。',
+  '',
+  '剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。',
+  '',
+  'CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_path（STEP/IGES/BREP）与剖切平面 plane（origin 平面内一点、normal 法向、可选 reference 图面「向右」基准）即由本机 FreeCAD 切出闭合轮廓与剖面线；返回的提示里给出切出的材料区域清单（净面积与图面范围），parts 仍按区域逐个给 label、hatch 与 stroke_width_mm，并用 anchor（落在该区域内的一个图面坐标点）把它与区域对上——区域顺序由 OCCT 决定，不能用序号对。剖面线由模型按区域（含孔）精确裁出，孔里不会被打上；source.scale 缩放图面（默认 1），labels/centerlines/cutting_marks 请给同一比例下的图面坐标。给 part_size_mm 会与模型包围盒比对，不符即报错（挡住模型单位读错导致的整体比例错误）。需要本机安装 FreeCAD 1.1+。',
   '',
   '图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。',
   '',
@@ -248,12 +255,29 @@ async function generateSingleFigure(
   context: FigureContext,
 ): Promise<GeneratePatentFigureOutput> {
   const { deps, cwd, format } = context
-  const normalized = normalizeSingleFigure(input)
-  const figureNumber = normalized.figure_number ?? 1
+  /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
+  const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
+  const figureNumber = input.figure_number ?? 1
+  const expanded = await withSectionSource(normalizeSingleFigure(input), {
+    deps,
+    cwd,
+    outputDir,
+    figureNumber,
+    signal: context.signal,
+  })
+  const normalized = expanded.input
   const vector = isVectorFigureType(normalized.figure_type)
-  // 引线标号默认按图型：框图/层级图开、流程图关；仅 SVG 生效。
+  // 非 SVG 交付走 SVG 全链：中间产物是 SVG，落版/复核/转路径在其上生效，最后导出。
+  const chain = needsSvgChain({
+    figureType: normalized.figure_type,
+    format,
+    targetOffice: normalized.target_office,
+    exportAvailable: deps.exportFigure !== undefined,
+  })
+  const svgCapable = format === 'svg' || chain
+  // 引线标号默认按图型：框图/层级图开、流程图关；落在 SVG 上，全链时随中间 SVG 一起进最终产物。
   const leaderLines = normalized.leader_lines ?? (normalized.figure_type === 'block_diagram' || normalized.figure_type === 'component_hierarchy')
-  const leaderLinesActive = leaderLines && format === 'svg' && !vector
+  const leaderLinesActive = leaderLines && svgCapable && !vector
   const components = collectComponents(normalized)
   const fontName = (deps.resolveFont ?? ((): string => 'Helvetica'))(components.map(c => c.label))
 
@@ -275,7 +299,6 @@ async function generateSingleFigure(
   const numeralBy = new Map(assignments.map(a => [a.id, a.numeral]))
 
   /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
-  const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
   await mkdir(outputDir, { recursive: true })
   const rendered = await renderSingleFigure(normalized, {
     context,
@@ -284,11 +307,13 @@ async function generateSingleFigure(
     fontName,
     numeralsForBuilder,
     leaderLinesActive,
-  })
+  }, chain ? 'svg' : format)
 
+  // 全链时渲染器写出的是中间 SVG，交付路径是同一基名的目标格式。
+  const outcomePath = chain ? rendered.path.replace(/\.svg$/, `.${format}`) : rendered.path
   const result = buildOutput(normalized, {
     cwd,
-    outcomePath: rendered.path,
+    outcomePath,
     figureNumber,
     format,
     engine: context.engine,
@@ -302,21 +327,64 @@ async function generateSingleFigure(
   } else if (leaderLinesActive) {
     await annotateRenderedSvg(rendered.path, result.numeralMap, result.warnings)
   }
+  result.warnings.push(...expanded.warnings)
   result.warnings.push(...rendered.vectorWarnings)
   result.warnings.push(...figureWordingWarnings(
     rendered.vectorLabels ?? collectFigureWording(normalized),
     result.numeralMap.map(entry => entry.numeral),
   ))
-  await layoutSubmissionPage({
-    input: normalized,
-    suffix: '',
-    outcomePath: rendered.path,
-    format,
-    style: context.style,
-    output: result,
-  })
-  if (vector) await checkRenderedFigure({ path: rendered.path, warnings: result.warnings })
-  await outlineFigureText({ deps, path: rendered.path, format, signal: context.signal, warnings: result.warnings })
+  if (chain) {
+    const outcome = await finishSvgChain({
+      deps,
+      svgPath: rendered.path,
+      outcomePath: result.absolutePath,
+      input: normalized,
+      suffix: '',
+      format,
+      figureType: normalized.figure_type,
+      dpi: normalized.dpi ?? deps.dpi,
+      style: context.style,
+      signal: context.signal,
+      output: result,
+      hasDirectRender: !vector,
+    })
+    if (outcome === 'fallback') {
+      // 直绘通路：按请求的格式重新渲染一次，交付物与不带 target_office 时逐字节相同。
+      const direct = await renderSingleFigure(normalized, {
+        context,
+        figureNumber,
+        outputDir,
+        fontName,
+        numeralsForBuilder,
+        leaderLinesActive: leaderLines && !vector,
+      }, format)
+      await finishDirectRender({
+        deps,
+        outcomePath: direct.path,
+        input: normalized,
+        suffix: '',
+        format,
+        check: false,
+        figureType: normalized.figure_type,
+        style: context.style,
+        signal: context.signal,
+        output: result,
+      })
+    }
+  } else {
+    await finishDirectRender({
+      deps,
+      outcomePath: rendered.path,
+      input: normalized,
+      suffix: '',
+      format,
+      check: vector,
+      figureType: normalized.figure_type,
+      style: context.style,
+      signal: context.signal,
+      output: result,
+    })
+  }
   let indexed = false
   if ((normalized.persist_index ?? true) && deps.upsertIndex !== undefined) {
     indexed = await upsertFigureIndex({
@@ -458,7 +526,13 @@ async function renderPanel(
   const panelAssignments = run.assignments.filter(a => panelIds.has(a.id))
   const numeralsForBuilder = Object.fromEntries(panelAssignments.map(a => [a.id, a.numeral]))
   const numeralBy = new Map(panelAssignments.map(a => [a.id, a.numeral]))
-  const leaderLinesActive = panel.leaderLines && format === 'svg'
+  const chain = needsSvgChain({
+    figureType: panel.figureType,
+    format,
+    targetOffice: run.input.target_office,
+    exportAvailable: deps.exportFigure !== undefined,
+  })
+  const leaderLinesActive = panel.leaderLines && (format === 'svg' || chain)
   let dot: string
   try {
     dot = buildFigureDot(panel.structural, {
@@ -481,7 +555,7 @@ async function renderPanel(
   const outcome = await deps.render({
     dot,
     filename: `fig${run.figureNumber}${panel.suffix}`,
-    format,
+    format: chain ? 'svg' : format,
     engine: run.context.engine,
     outputDir: run.outputDir,
     signal: run.context.signal,
@@ -489,7 +563,7 @@ async function renderPanel(
   assertRendered(outcome, 'generate_patent_figure')
   const output = buildOutput(panel.structural, {
     cwd: run.context.cwd,
-    outcomePath: outcome.path,
+    outcomePath: chain ? outcome.path.replace(/\.svg$/, `.${format}`) : outcome.path,
     figureNumber: run.figureNumber,
     format,
     engine: run.context.engine,
@@ -500,33 +574,231 @@ async function renderPanel(
   if (leaderLinesActive) {
     await annotateRenderedSvg(outcome.path, output.numeralMap, output.warnings)
   }
-  await layoutSubmissionPage({
+  // 全链成功后不再走直绘收尾；失败则按请求的格式重渲染一次，交付物与不带
+  // target_office 时逐字节相同（`finishSvgChain` 已把未生效的原因写进警告）。
+  let directPath = outcome.path
+  const chained = chain && await finishSvgChain({
+    deps,
+    svgPath: outcome.path,
+    outcomePath: output.absolutePath,
     input: run.input,
     suffix: panel.suffix,
-    outcomePath: outcome.path,
     format,
+    figureType: panel.figureType,
+    dpi: run.input.dpi ?? deps.dpi,
     style: run.context.style,
+    signal: run.context.signal,
     output,
-  })
-  await outlineFigureText({ deps, path: outcome.path, format, signal: run.context.signal, warnings: output.warnings })
+    hasDirectRender: true,
+  }) === 'done'
+  if (!chained) {
+    if (chain) {
+      const direct = await deps.render({
+        dot,
+        filename: `fig${run.figureNumber}${panel.suffix}`,
+        format,
+        engine: run.context.engine,
+        outputDir: run.outputDir,
+        signal: run.context.signal,
+      })
+      assertRendered(direct, 'generate_patent_figure')
+      directPath = direct.path
+    }
+    await finishDirectRender({
+      deps,
+      outcomePath: directPath,
+      input: run.input,
+      suffix: panel.suffix,
+      format,
+      check: false,
+      figureType: panel.figureType,
+      style: run.context.style,
+      signal: run.context.signal,
+      output,
+    })
+  }
   return { suffix: panel.suffix, output }
+}
+
+/**
+ * 是否需要「SVG 全链」交付非 SVG：先出 SVG、落版、复核、文字转路径，再交 Inkscape 导出。
+ *
+ * 两种情况需要它——落版/复核/文字转路径只作用于 SVG，而矢量图型本来就只有 SVG 一条
+ * 绘图通路（渲染器无法直接出 png/pdf）。没有注入导出端口时不走全链：渲染器直接出图，
+ * 落版与复核的缺席由各自的警告说明。
+ * @param args - the figure type, the requested format, the target office, and whether the export port is wired.
+ * @returns 本次调用是否走全链。
+ */
+function needsSvgChain(args: {
+  figureType: GenerateFigureType
+  format: DotFormat
+  targetOffice: TargetOffice | undefined
+  exportAvailable: boolean
+}): boolean {
+  if (args.format === 'svg' || !args.exportAvailable) return false
+  return isVectorFigureType(args.figureType) || args.targetOffice !== undefined
+}
+
+/**
+ * SVG 全链的收尾：在中间 SVG 上落版、复核、转路径，再导出请求的格式。
+ *
+ * 三步的警告先攒在暂存输出里，导出成功才并入：导出失败时它们描述的交付物并不存在，
+ * 逐条抛出去会误导用户。
+ * @param args - the deps, the intermediate SVG and final paths, the layout input, the format, dpi, signal, and the output to extend.
+ * @returns 'done' 表示导出成功；'fallback' 表示导出失败但调用方还有直绘通路可退回。
+ * @throws PatentToolError 导出失败且该图型没有 SVG 直绘以外的通路时（`setup_required` / `tool_execution_failed`）。
+ */
+async function finishSvgChain(args: {
+  deps: GeneratePatentFigureDeps
+  svgPath: string
+  outcomePath: string
+  input: SubmissionPlanInput
+  suffix: string
+  format: DotFormat
+  dpi: number | undefined
+  style: 'grayscale' | 'semantic'
+  signal: AbortSignal
+  output: GeneratePatentFigureOutput
+  figureType: GenerateFigureType
+  /** 渲染器直接出图的通路是否存在（矢量图型为 false：导出失败即无产物可交）。 */
+  hasDirectRender: boolean
+}): Promise<'done' | 'fallback'> {
+  const staged: GeneratePatentFigureOutput = { ...args.output, warnings: [] }
+  await layoutSubmissionPage({
+    input: args.input,
+    suffix: args.suffix,
+    outcomePath: args.svgPath,
+    format: 'svg',
+    style: args.style,
+    output: staged,
+  })
+  await checkRenderedFigure({ path: args.svgPath, warnings: staged.warnings, figureType: args.figureType })
+  await outlineFigureText({ deps: args.deps, path: args.svgPath, format: 'svg', signal: args.signal, warnings: staged.warnings })
+  const exported = await args.deps.exportFigure?.({
+    path: args.svgPath,
+    outcomePath: args.outcomePath,
+    format: toExportFormat(args.format),
+    ...(args.dpi === undefined ? {} : { dpi: args.dpi }),
+    signal: args.signal,
+  })
+  if (exported !== undefined && exported.ok) {
+    args.output.warnings.push(...staged.warnings)
+    if (staged.layout !== undefined) args.output.layout = staged.layout
+    return 'done'
+  }
+  const reason = exported === undefined ? '宿主未注入格式导出端口' : exported.error
+  if (!args.hasDirectRender) {
+    throw new PatentToolError(exported?.code === 'not_installed' ? 'setup_required' : 'tool_execution_failed', `导出 ${args.format} 失败：${reason}`, { tool: 'generate_patent_figure' })
+  }
+  args.output.warnings.push(`未能导出 ${args.format}：${reason}；落版、渲染复核与文字转路径未生效（它们只作用于 SVG），改由渲染器直接出图`)
+  return 'fallback'
+}
+
+/**
+ * 渲染器直绘路径的收尾：落版、按需复核、文字转路径。全链回退时也走这里——那时
+ * 交付物是渲染器的原始产物，这三步应按各自对非 SVG 的既有规则给出警告。
+ * @param args - the deps, the delivered path and format, whether to run the render check, the signal, and the warning sink.
+ */
+async function finishDirectRender(args: {
+  deps: GeneratePatentFigureDeps
+  outcomePath: string
+  input: SubmissionPlanInput
+  suffix: string
+  format: DotFormat
+  check: boolean
+  style: 'grayscale' | 'semantic'
+  signal: AbortSignal
+  output: GeneratePatentFigureOutput
+  figureType: GenerateFigureType
+}): Promise<void> {
+  await layoutSubmissionPage({
+    input: args.input,
+    suffix: args.suffix,
+    outcomePath: args.outcomePath,
+    format: args.format,
+    style: args.style,
+    output: args.output,
+  })
+  if (args.check) await checkRenderedFigure({ path: args.outcomePath, warnings: args.output.warnings, figureType: args.figureType })
+  await outlineFigureText({
+    deps: args.deps,
+    path: args.outcomePath,
+    format: args.format,
+    signal: args.signal,
+    warnings: args.output.warnings,
+  })
+}
+
+/** 导出格式窄化（全链只在非 SVG 时启用）。 */
+function toExportFormat(format: DotFormat): 'png' | 'pdf' {
+  /* v8 ignore next -- 全链由 needsSvgChain 保证只在 png/pdf 时启用 */
+  if (format !== 'png' && format !== 'pdf') throw new PatentToolError('invalid_tool_input', `不支持的导出格式：${format}`, { tool: 'generate_patent_figure' })
+  return format
+}
+
+/**
+ * 剖切来源展开：`sections.source` 给出时调 FreeCAD 切出轮廓与剖面线并填回输入。
+ *
+ * 中间产物（脚本、几何 JSON、`.pat`）落进输出目录下按图号区分的子目录：文件名固定，
+ * 同一次调用内多次生成不会互相覆盖，不同图号也不冲突。
+ * @param normalized - 已归一的单图输入。
+ * @param options - 运行参数（依赖、工作目录、输出目录、图号与取消信号）。
+ * @returns 展开后的输入与随结果返回的提示；没有 `source` 时原样返回。
+ * @throws PatentToolError 宿主未注入剖切端口（setup_required）、或展开失败（按码映射）时。
+ */
+async function withSectionSource(
+  normalized: NormalizedFigureInput,
+  options: {
+    deps: GeneratePatentFigureDeps
+    cwd: string
+    outputDir: string
+    figureNumber: number
+    signal: AbortSignal
+  },
+): Promise<{ input: NormalizedFigureInput; warnings: string[] }> {
+  const sections = normalized.sections
+  if (sections?.source === undefined) return { input: normalized, warnings: [] }
+  const ports = options.deps.sectionSource
+  if (ports === undefined) {
+    throw new PatentToolError(
+      'setup_required',
+      '剖视图的 sections.source 需要本机 FreeCAD（宿主未挂载 @deepseek-ai/dsh-subprocess，或未找到 freecadcmd）：'
+      + '请安装 FreeCAD 1.1+ 后重试，或改用显式 outline 给出轮廓。',
+      { tool: 'generate_patent_figure' },
+    )
+  }
+  let expansion: SectionSourceExpansion
+  try {
+    expansion = await expandSectionSource(sections, {
+      ports,
+      cwd: options.cwd,
+      artifactDir: join(options.outputDir, `.fig${String(options.figureNumber)}-section`),
+      signal: options.signal,
+    })
+  } catch (error) {
+    if (error instanceof SectionSourceError) throw sectionSourceError(error, 'generate_patent_figure')
+    throw error
+  }
+  return { input: { ...normalized, sections: expansion.sections }, warnings: expansion.warnings }
 }
 
 /**
  * 单图渲染：矢量图型直接绘制 SVG（无 Graphviz 依赖），其余图型构建 DOT 交渲染器。
  * @param normalized - the normalized single-figure input.
  * @param run - the render parameters resolved for this call.
+ * @param renderFormat - the format to render (the SVG chain renders SVG and exports afterwards).
  * @returns the rendered path with the vector path's labels and warnings.
  */
 async function renderSingleFigure(
   normalized: NormalizedFigureInput,
   run: SingleFigureRun,
+  renderFormat: DotFormat,
 ): Promise<{ path: string; vectorLabels: readonly string[] | undefined; vectorWarnings: readonly string[] }> {
-  const { deps, format, engine, style, signal } = run.context
+  const { deps, engine, style, signal } = run.context
   const filename = normalized.filename ?? `fig${run.figureNumber}`
   // 两条通路：矢量图型直接绘制 SVG（无 Graphviz 依赖）；其余图型构建 DOT 交渲染器。
   if (isVectorFigureType(normalized.figure_type)) {
-    if (format !== 'svg') {
+    if (renderFormat !== 'svg') {
       throw new PatentToolError('invalid_tool_input', `${normalized.figure_type} 是 SVG 直绘图型，仅支持 format="svg"`, { tool: 'generate_patent_figure' })
     }
     let build
@@ -573,7 +845,7 @@ async function renderSingleFigure(
   const outcome = await deps.render({
     dot,
     filename,
-    format,
+    format: renderFormat,
     engine,
     outputDir: run.outputDir,
     signal,
@@ -681,13 +953,20 @@ async function layoutSubmissionPage(args: {
  *
  * 放在落版之后、文字转路径之前：落版会改写坐标与画布，复核要量的是最终交付物；转路径
  * 之后图面已无 `<text>`，贯穿判定无从做起。只查得出「画出来才看得见」的问题（标号被
- * 线条贯穿、点划线被实线覆盖、相邻零件剖面线取向过近、内容越出画布），与输入检查互补。
+ * 线条贯穿、点划线被实线覆盖、相邻零件剖面线的方向与间距都分不清、内容越出画布），与
+ * 输入检查互补。
  * 体量上限已由 vectorFigureSvg 按 DEFAULT_VECTOR_BODY_MAX_BYTES 卡住，复核不再按同一上限
  * 二次拦截（复核含未量测说明，超限被拒会把它整段吞掉）；调用方给的外观视图片段仍可能带上
  * 复核本身拒绝的结构，那时记一条跳过说明，不吞掉已生成的图。
- * @param args - the delivered path and the warning sink.
+ *
+ * **标号净距只对机械剖视图开启**：1.5 毫米（复核的缺省值）来自 A6 案的实测——剖切面上
+ * 密布剖面线时，标号贴住剖面线带或轴线就读不出。其余图型的图面词语本来就贴着符号放：
+ * 电路图的元件名与连线说明按 `LABEL_GAP_MM` 落在符号与走线旁、曲线图的轴名贴着轴画，
+ * 对这些图型套用同一净距会把工具自己画对的图报成缺陷。需要更严或更松时，调用方用
+ * `verify_patent_figure` 的 `text_clearance_mm` 显式指定。
+ * @param args - the delivered path, the figure type and the warning sink.
  */
-async function checkRenderedFigure(args: { path: string; warnings: string[] }): Promise<void> {
+async function checkRenderedFigure(args: { path: string; warnings: string[]; figureType: GenerateFigureType }): Promise<void> {
   let svg: string
   try {
     svg = await readFile(args.path, 'utf8')
@@ -696,8 +975,11 @@ async function checkRenderedFigure(args: { path: string; warnings: string[] }): 
     return
   }
   try {
-    args.warnings.push(...checkFigureRendering(svg, { maxBytes: Buffer.byteLength(svg, 'utf8') }).findings
-      .map(finding => `渲染复核：${finding.message}`))
+    const report = checkFigureRendering(svg, {
+      maxBytes: Buffer.byteLength(svg, 'utf8'),
+      ...(args.figureType === 'cross_section' ? {} : { textClearanceMm: 0 }),
+    })
+    args.warnings.push(...report.findings.map(finding => `渲染复核：${finding.message}`))
   } catch (error) {
     /* v8 ignore next -- 复核只抛 SvgAnnotateError；其余异常原样上抛（不变量漂移） */
     if (!(error instanceof SvgAnnotateError)) throw error
@@ -752,7 +1034,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       plot: { ...PLOT_INPUT_SCHEMA, description: '曲线图/坐标图输入（figure_type=plot 时必填）：坐标轴 + 刻度 + 单位 + 多条序列（用标记形状区分，不用颜色）' },
       sections: {
         oneOf: [SECTION_INPUT_SCHEMA, { type: 'string' }],
-        description: '剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联',
+        description: '剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联。复杂件用 sections.source 从 CAD 模型（STEP/IGES/BREP）切出轮廓与剖面线，parts 只给 label/hatch/anchor',
       },
       sequence: { ...SEQUENCE_INPUT_SCHEMA, description: '时序图输入（figure_type=sequence_diagram 时必填）：参与者生命线 + 消息箭线' },
       appearance_views: { ...APPEARANCE_INPUT_SCHEMA, description: '外观设计视图排布输入（figure_type=appearance_view 时必填）：把调用方提供的六面视图片段按第一角投影排布并统一比例、逐视图标注视图名称' },
@@ -782,7 +1064,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       figure_family: { type: 'string', description: '发明家族标识（跨图续号）：声明后同名组件沿用既有标号、新组件续接空闲号；缺省每图独立编号' },
       style: { type: 'string', enum: ['grayscale', 'semantic'], description: '色彩策略，默认 grayscale' },
       filename: { type: 'string', description: '输出文件名（不含扩展名）' },
-      format: { type: 'string', enum: DOT_FORMATS, description: '输出格式，默认 svg' },
+      format: { type: 'string', enum: DOT_FORMATS, description: '输出格式，默认 svg；png/pdf 在给定 target_office（或图型只有 SVG 通路）时经本机 Inkscape 从 SVG 全链导出，缺 Inkscape 时退回渲染器直接出图' },
       engine: { type: 'string', enum: DOT_ENGINES, description: '布局引擎，默认 dot' },
       page_size: { type: 'string', enum: ['a4', 'letter'], description: '页面尺寸（提交规格）；默认取部署配置' },
       orient: { type: 'string', enum: ['portrait', 'landscape'], description: '页面方向；默认 portrait，取部署配置' },
@@ -792,13 +1074,18 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       target_office: {
         type: 'string',
         enum: TARGET_OFFICES,
-        description: '目标法域：给定时按该法域的 A4 幅面、页边距、图号写法（图1/Fig. 1/FIG. 1）把图形落版为固定幅面附图页，并核算落版字高与色彩合规；仅 SVG 生效',
+        description: '目标法域：给定时按该法域的 A4 幅面、页边距、图号写法（图1/Fig. 1/FIG. 1）把图形落版为固定幅面附图页，并核算落版字高与色彩合规；png/pdf 需经 Inkscape 全链导出才会落版',
       },
       figure_count: { type: 'integer', description: '本案附图总数（默认 1）：两幅以上才逐幅标注图号（中国指南 4.3、PCT 11.13(k)、37 CFR 1.84(u)）' },
       sheet_index: { type: 'integer', description: '附图页序号，默认 1' },
       sheet_total: { type: 'integer', description: '附图页总数，默认 1（PCT/USPTO 页码写作「序号/总数」）' },
       caption: { type: 'string', description: '图号文字覆盖（缺省按目标法域生成；panels 模式自动追加面板后缀，如 图1A / Fig. 1A）' },
-      fit_to_page: { type: 'boolean', description: '默认 true：把图形落版到目标法域幅面（仅 SVG）；false 时只核算尺寸、不改写画布' },
+      fit_to_page: { type: 'boolean', description: '默认 true：把图形落版到目标法域幅面（SVG，或经 Inkscape 全链导出的 png/pdf）；false 时只核算尺寸、不改写画布' },
+      caption_font_mm: { type: 'number', description: '图号字高（毫米，默认 4）；目标法域对图面文字有最小字高要求时用它调大，须为正数' },
+      caption_gap_mm: { type: 'number', description: '图号与图形之间的间距（毫米，默认 3），须为正数' },
+      sheet_font_mm: { type: 'number', description: '附图页页码字高（毫米，默认 3），须为正数' },
+      rotate_deg: { type: 'integer', enum: [0, 90, 180, 270], description: '落版时把图形绕绘图区中心顺时针旋转的角度（默认 0）：横长的图形配竖向版心时用 90，落版宽高随之互换；图号仍落在图形正下方' },
+      require_explicit_hatch: { type: 'boolean', description: '剖视图（cross_section）专用，默认 false：true 时每个轮廓都必须显式给出 hatch（不被剖切的写 "none"），否则报错；缺省时未给的轮廓套用默认 45°/3 毫米并返回提示' },
       persist_index: { type: 'boolean', description: '默认 true：写入附图索引（供 search_patent_figure 检索）' },
     },
     output: {

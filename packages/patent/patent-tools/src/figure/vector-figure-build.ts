@@ -61,15 +61,67 @@ export type PlotFigureJson = {
   height_mm?: number
 }
 
+/** 剖切来源（`sections.source`）：从 CAD 模型切出零件轮廓与剖面线，代替手写坐标。 */
+export type SectionSourceJson = {
+  /** 模型文件路径（STEP/IGES/BREP），工作区相对或绝对。 */
+  model_path: string
+  /** 剖切平面：平面内一点、法向，以及可选的图面「向右」参考方向（决定视图绕法向的旋转）。 */
+  plane: {
+    /** 平面内一点（毫米，模型坐标）。 */
+    origin: readonly number[]
+    /** 平面法向（任意非零长度，模型坐标）。 */
+    normal: readonly number[]
+    /** 图面「向右」的参考方向（任意非零、与法向不平行）；缺省按 +X → +Y → +Z 取第一个可用轴。 */
+    reference?: readonly number[]
+  }
+  /**
+   * 图面比例（默认 1）：切出的轮廓与剖面线坐标乘以它。给定时 `labels`、`centerlines`
+   * 与 `cutting_marks` 也用同一比例下的图面毫米坐标。
+   */
+  scale?: number
+  /**
+   * 零件整体尺寸（毫米，三个数，顺序无关）：与模型包围盒比对，不符即报错。STEP 只保证按
+   * 模型单位读入，不声明就无从核对图面比例，故给出它才能挡住「单位读错、图面比例全错」。
+   */
+  part_size_mm?: readonly number[]
+}
+
 /** 剖视图输入（与工具 schema 同形）。 */
 export type SectionFigureJson = {
   outline?: readonly (readonly [number, number])[]
   parts: readonly {
     label?: string
-    outline: readonly (readonly [number, number])[]
+    /** 零件闭合轮廓（毫米）；给了 `source` 时由工具从模型切出，不要再给。 */
+    outline?: readonly (readonly [number, number])[]
+    /**
+     * 落在某个材料区域内的图面毫米坐标点：`source` 模式下用它把本 entry 与模型切出的材料区域
+     * 对上（区域顺序由 OCCT 决定，按序号对会把标号与剖面线挂到别的区域上）。
+     */
+    anchor?: readonly [number, number]
+    /**
+     * 该零件轮廓内的孔（毫米，工具从模型切出时填入）。
+     *
+     * 模型输入不接受本字段（schema 的 `additionalProperties: false` 会拒绝）：孔环必须与材料
+     * 外环来自同一次剖切，手写孔环与轮廓对不上时剖面线会穿出材料。
+     */
+    holes?: readonly (readonly (readonly [number, number])[])[]
+    /**
+     * 已按区域裁好的剖面线段（毫米，工具从模型切出时填入）。
+     *
+     * 模型输入不接受本字段：现有裁剪按单个多边形求交，带孔区域会把孔里也打上剖面线，故带孔
+     * 零件的剖面线只能来自模型。
+     */
+    hatch_segments?: readonly {
+      readonly from: readonly [number, number]
+      readonly to: readonly [number, number]
+    }[]
     /** `'none'` 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。 */
     hatch?: { angle_deg?: number; spacing_mm?: number; direction?: 'forward' | 'backward' } | 'none'
+    /** 该零件轮廓的粗实线线宽（毫米）；缺省用顶层 `stroke_width_mm`。 */
+    stroke_width_mm?: number
   }[]
+  /** 剖切来源：给出时零件轮廓（含孔）与剖面线由模型切出，`parts` 只给标号、剖面线参数与线宽。 */
+  source?: SectionSourceJson
   labels?: readonly {
     text: string
     at: readonly [number, number]
@@ -86,6 +138,10 @@ export type SectionFigureJson = {
     arrow: 'left' | 'right' | 'up' | 'down'
   }[]
   label_font_size_mm?: number
+  /** 轮廓与剖切位置线的粗实线线宽（毫米），默认 0.5。 */
+  stroke_width_mm?: number
+  /** 剖面线、中心线与引线的细实线线宽（毫米），默认 0.25。 */
+  thin_stroke_width_mm?: number
   padding_mm?: number
 }
 
@@ -116,6 +172,8 @@ export type VectorFigureJsonInput = {
   sections?: SectionFigureJson
   sequence?: SequenceFigureJson
   appearance_views?: AppearanceFigureJson
+  /** 剖视图：每个轮廓都必须显式给出 hatch（含 `"none"`），缺省即报错而非套用默认值。 */
+  require_explicit_hatch?: boolean
 }
 
 /** 矢量图构建结果：规格 + 随结果返回的检查提示。 */
@@ -140,23 +198,31 @@ function partNumbers(indexes: readonly number[]): string {
 }
 
 /**
- * 剖视图输入的图面检查：把「静默套用默认剖面线」与「同一零件名被多个轮廓重复承载」
+ * 未指定剖面线的轮廓序号（0 起，按输入顺序）。
+ * @param section - 剖视图输入。
+ * @returns 未给 `hatch` 的轮廓下标。
+ */
+function missingHatchIndexes(section: SectionFigureJson): number[] {
+  return section.parts.flatMap((part, index) => (part.hatch === undefined ? [index] : []))
+}
+
+/**
+ * 剖视图输入的图面检查：把「套用了默认剖面线」与「同一零件名被多个轮廓重复承载」
  * 变成模型可见的提示 —— 二者都是图面上看不出来的输入错误。
  *
  * 不检查「多件剖面线取向相同」：镜像成对的上下两半、同一零件的多段轮廓都必须取向
  * 相同，输入里没有「哪些轮廓属于同一零件」的信息，据此报警会把正确图面判成缺陷。
- * 相邻零件取向是否可区分由渲染复核（`figure/render-check`）量测后判定。
+ * 相邻零件取向是否可区分由渲染复核（`figure/render-check`）量测后判定；该复核按绘图侧
+ * 标注的材料分组（`data-dsh-hatch-group`）把同一零件的多段轮廓归为一件。
  * @param section - 剖视图输入。
  * @returns 提示列表（无问题时为空数组）。
  */
 function sectionWarnings(section: SectionFigureJson): string[] {
   const warnings: string[] = []
-  const unhatched = section.parts
-    .map((part, index) => ({ part, index }))
-    .filter(({ part }) => part.hatch === undefined)
+  const unhatched = missingHatchIndexes(section)
   if (unhatched.length > 0) {
     warnings.push(
-      `零件 ${partNumbers(unhatched.map(entry => entry.index))} 未指定剖面线，已按默认 45°/3 毫米打剖面线；`
+      `零件 ${partNumbers(unhatched)} 未指定剖面线，已按默认 45°/3 毫米打剖面线；`
       + '若该轮廓不是被剖切的实体（轴线、引出线、非剖切件），请写 hatch: "none"；'
       + '若它们不是同一零件，相邻零件必须用相反方向或不同间距的剖面线（GB/T 4457.5）',
     )
@@ -219,28 +285,48 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
     }
     case 'cross_section': {
       const sections = required(input.sections, figureType, 'sections')
+      const unhatched = missingHatchIndexes(sections)
+      if (input.require_explicit_hatch === true && unhatched.length > 0) {
+        throw new VectorFigureError(
+          'invalid_input',
+          `require_explicit_hatch 开启时每个轮廓都要显式给出 hatch（不被剖切的写 "none"）：零件 ${partNumbers(unhatched)} 未给`,
+        )
+      }
       return {
         spec: buildSectionDiagram({
-          parts: sections.parts.map(part => ({
-            ...(part.label === undefined ? {} : { label: part.label }),
-            outline: part.outline,
-            ...(part.hatch === undefined
-              ? {}
-              : part.hatch === 'none'
-                ? { hatch: 'none' as const }
-                : {
-                  hatch: {
-                    ...(part.hatch.angle_deg === undefined ? {} : { angleDeg: part.hatch.angle_deg }),
-                    ...(part.hatch.spacing_mm === undefined ? {} : { spacingMm: part.hatch.spacing_mm }),
-                    ...(part.hatch.direction === undefined ? {} : { direction: part.hatch.direction }),
-                  },
-                }),
-          })),
+          parts: sections.parts.map((part, index) => {
+            if (part.outline === undefined) {
+              throw new VectorFigureError(
+                'invalid_input',
+                `零件 #${index + 1} 缺少 outline：轮廓要么直接给出，要么由 sections.source 从模型切出`,
+              )
+            }
+            return {
+              ...(part.label === undefined ? {} : { label: part.label }),
+              outline: part.outline,
+              ...(part.holes === undefined ? {} : { holes: part.holes }),
+              ...(part.hatch_segments === undefined ? {} : { hatchSegments: part.hatch_segments }),
+              ...(part.stroke_width_mm === undefined ? {} : { strokeWidthMm: part.stroke_width_mm }),
+              ...(part.hatch === undefined
+                ? {}
+                : part.hatch === 'none'
+                  ? { hatch: 'none' as const }
+                  : {
+                    hatch: {
+                      ...(part.hatch.angle_deg === undefined ? {} : { angleDeg: part.hatch.angle_deg }),
+                      ...(part.hatch.spacing_mm === undefined ? {} : { spacingMm: part.hatch.spacing_mm }),
+                      ...(part.hatch.direction === undefined ? {} : { direction: part.hatch.direction }),
+                    },
+                  }),
+            }
+          }),
           ...(sections.outline === undefined ? {} : { outline: sections.outline }),
           ...(sections.labels === undefined ? {} : { labels: sections.labels }),
           ...(sections.centerlines === undefined ? {} : { centerlines: sections.centerlines }),
           ...(sections.cutting_marks === undefined ? {} : { cuttingMarks: sections.cutting_marks }),
           ...(sections.label_font_size_mm === undefined ? {} : { labelFontSizeMm: sections.label_font_size_mm }),
+          ...(sections.stroke_width_mm === undefined ? {} : { strokeWidthMm: sections.stroke_width_mm }),
+          ...(sections.thin_stroke_width_mm === undefined ? {} : { thinStrokeWidthMm: sections.thin_stroke_width_mm }),
           ...(sections.padding_mm === undefined ? {} : { paddingMm: sections.padding_mm }),
         }),
         warnings: sectionWarnings(sections),

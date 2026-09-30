@@ -3541,11 +3541,15 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用黑色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用；target_office="pct" 时 semantic 被拒绝（PCT 实施细则 11.13(a) 规定附图不得着色）。
 
-落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。仅 SVG 输出支持落版；fit_to_page=false 时只核算尺寸、不改写画布。
+输出格式：默认 svg。png/pdf 在需要落版（给了 target_office）时走「先出 SVG → 落版 → 渲染复核 → 文字转路径 → 用本机 Inkscape 导出」的全链，故落版、复核与引线标号对它们同样生效；本机没有 Inkscape 时退回渲染器直接出图，并给出「落版与复核未生效」的警告。直绘图型（电路/曲线/剖视/时序/外观）只有 SVG 一条绘图通路，导出 png/pdf 同样需要 Inkscape。含中文的图导出 pdf 时要先开启文字转路径（Config.figureTextToPath）——Inkscape 对个别未转路径的中文字形会写出缺 xref 的不完整 PDF，工具检出后按导出失败处理，不交出半成品。
 
-引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
+落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。fit_to_page=false 时只核算尺寸、不改写画布。
 
-剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）。
+引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
+
+剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
+
+CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_path（STEP/IGES/BREP）与剖切平面 plane（origin 平面内一点、normal 法向、可选 reference 图面「向右」基准）即由本机 FreeCAD 切出闭合轮廓与剖面线；返回的提示里给出切出的材料区域清单（净面积与图面范围），parts 仍按区域逐个给 label、hatch 与 stroke_width_mm，并用 anchor（落在该区域内的一个图面坐标点）把它与区域对上——区域顺序由 OCCT 决定，不能用序号对。剖面线由模型按区域（含孔）精确裁出，孔里不会被打上；source.scale 缩放图面（默认 1），labels/centerlines/cutting_marks 请给同一比例下的图面坐标。给 part_size_mm 会与模型包围盒比对，不符即报错（挡住模型单位读错导致的整体比例错误）。需要本机安装 FreeCAD 1.1+。
 
 图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。
 
@@ -3889,12 +3893,19 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
                   },
                   "outline": {
                     "type": "array",
-                    "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）",
+                    "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）；给了 source 时不要给本字段（轮廓由模型切出）",
                     "items": {
                       "type": "array",
                       "items": {
                         "type": "number"
                       }
+                    }
+                  },
+                  "anchor": {
+                    "type": "array",
+                    "description": "落在本零件所属材料区域内的图面坐标点（毫米，已含 scale）：给 source 时必填，用它把本项与模型切出的材料区域对上（区域顺序由 OCCT 决定，不能按序号对）",
+                    "items": {
+                      "type": "number"
                     }
                   },
                   "hatch": {
@@ -3929,12 +3940,70 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
                       }
                     ],
                     "description": "剖面线参数；\"none\" 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。缺省按 45°/3mm 打剖面线"
+                  },
+                  "stroke_width_mm": {
+                    "type": "number",
+                    "description": "该零件轮廓的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4）；缺省用顶层 stroke_width_mm"
                   }
-                },
-                "required": [
-                  "outline"
-                ]
+                }
               }
+            },
+            "source": {
+              "type": "object",
+              "description": "剖切来源：从 CAD 模型切出零件轮廓（含孔）与剖面线，代替手写坐标；给出时 parts 只给 label、hatch、stroke_width_mm 与 anchor，不要给 outline",
+              "additionalProperties": false,
+              "properties": {
+                "model_path": {
+                  "type": "string",
+                  "description": "模型文件路径（STEP/IGES/BREP），工作区相对或绝对"
+                },
+                "plane": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "origin": {
+                      "type": "array",
+                      "description": "剖切平面上的一点（毫米，模型坐标）",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "normal": {
+                      "type": "array",
+                      "description": "剖切平面法向（任意非零长度，模型坐标）；观察者位于法向正侧，沿 −normal 方向看剖切面",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reference": {
+                      "type": "array",
+                      "description": "图面「向右」参考方向（任意非零、与法向不平行）；缺省按 +X → +Y → +Z 取第一个可用轴。它决定视图绕法向的旋转，要复现同一张图就显式给出",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "required": [
+                    "origin",
+                    "normal"
+                  ]
+                },
+                "scale": {
+                  "type": "number",
+                  "description": "图面比例（默认 1）：切出的轮廓与剖面线坐标乘以它；labels/centerlines/cutting_marks 请按同一比例给图面坐标"
+                },
+                "part_size_mm": {
+                  "type": "array",
+                  "description": "零件整体尺寸（毫米，三个数，顺序无关）：与模型包围盒比对，不符即报错。STEP/IGES/BREP 的单位声明不一致会让图面比例整体错，给出它才能挡住（不核对就画出一张比例错的图）",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "model_path",
+                "plane"
+              ]
             },
             "labels": {
               "type": "array",
@@ -4040,6 +4109,14 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
               "type": "number",
               "description": "图面字号（毫米），默认 3.5；附图标记与剖切字母同用"
             },
+            "stroke_width_mm": {
+              "type": "number",
+              "description": "轮廓与剖切位置线的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4），默认 0.5"
+            },
+            "thin_stroke_width_mm": {
+              "type": "number",
+              "description": "剖面线、中心线与引线的细实线线宽（毫米），不小于 0.18，默认 0.25"
+            },
             "padding_mm": {
               "type": "number",
               "description": "画布留白（毫米），默认 4"
@@ -4053,7 +4130,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           "type": "string"
         }
       ],
-      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联"
+      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联。复杂件用 sections.source 从 CAD 模型（STEP/IGES/BREP）切出轮廓与剖面线，parts 只给 label/hatch/anchor"
     },
     "sequence": {
       "type": "object",
@@ -4617,7 +4694,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "format": {
       "type": "string",
-      "description": "输出格式，默认 svg",
+      "description": "输出格式，默认 svg；png/pdf 在给定 target_office（或图型只有 SVG 通路）时经本机 Inkscape 从 SVG 全链导出，缺 Inkscape 时退回渲染器直接出图",
       "enum": [
         "svg",
         "png",
@@ -4666,7 +4743,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "target_office": {
       "type": "string",
-      "description": "目标法域：给定时按该法域的 A4 幅面、页边距、图号写法（图1/Fig. 1/FIG. 1）把图形落版为固定幅面附图页，并核算落版字高与色彩合规；仅 SVG 生效",
+      "description": "目标法域：给定时按该法域的 A4 幅面、页边距、图号写法（图1/Fig. 1/FIG. 1）把图形落版为固定幅面附图页，并核算落版字高与色彩合规；png/pdf 需经 Inkscape 全链导出才会落版",
       "enum": [
         "cnipa",
         "pct",
@@ -4691,7 +4768,33 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "fit_to_page": {
       "type": "boolean",
-      "description": "默认 true：把图形落版到目标法域幅面（仅 SVG）；false 时只核算尺寸、不改写画布"
+      "description": "默认 true：把图形落版到目标法域幅面（SVG，或经 Inkscape 全链导出的 png/pdf）；false 时只核算尺寸、不改写画布"
+    },
+    "caption_font_mm": {
+      "type": "number",
+      "description": "图号字高（毫米，默认 4）；目标法域对图面文字有最小字高要求时用它调大，须为正数"
+    },
+    "caption_gap_mm": {
+      "type": "number",
+      "description": "图号与图形之间的间距（毫米，默认 3），须为正数"
+    },
+    "sheet_font_mm": {
+      "type": "number",
+      "description": "附图页页码字高（毫米，默认 3），须为正数"
+    },
+    "rotate_deg": {
+      "type": "integer",
+      "description": "落版时把图形绕绘图区中心顺时针旋转的角度（默认 0）：横长的图形配竖向版心时用 90，落版宽高随之互换；图号仍落在图形正下方",
+      "enum": [
+        0,
+        90,
+        180,
+        270
+      ]
+    },
+    "require_explicit_hatch": {
+      "type": "boolean",
+      "description": "剖视图（cross_section）专用，默认 false：true 时每个轮廓都必须显式给出 hatch（不被剖切的写 \"none\"），否则报错；缺省时未给的轮廓套用默认 45°/3 毫米并返回提示"
     },
     "persist_index": {
       "type": "boolean",
@@ -4709,11 +4812,17 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 默认关闭：结构线稿依赖本机 FreeCAD，需先设 Config.structureFigureEnabled=true；未开启或未安装 freecadcmd 时返回 setup_required 与配置/安装引导。
 
-视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（虚线）。
+视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（细实线，FreeCAD 1.1.3 实测隐藏线 0.35 毫米、可见线 0.7 毫米，输出不含 stroke-dasharray，不是虚线）。
 
-件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
+线宽与线型：line_width_mm 取 GB/T 4457.4 线宽系列之一改写可见线线宽，hidden_line_style="dashed" 把隐藏线画成虚线；缺省两者都不改写，输出与 FreeCAD 原始投影一致。
 
-批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。
+件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?, model?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
+
+装配体：model_paths 传多个模型文件时，所有零件投影到同一张图（TechDraw 一次投影处理零件之间的遮挡），callouts[].model 指明该件号属于第几个零件（0 起，对应 model_paths 的顺序），脚本按该零件的真实几何核对锚点确实落在它上面，偏离超过 0.5 毫米即报错；装配体下每个件号都必须写明归属，以免标号指错零件。
+
+局部放大：details 传 [{base, center:[x,y,z], radius_mm, scale?, reference?}]，把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的圆形区域按 scale（缺省 2）放大成一张独立视图（fig{N}_detail{M}.svg），并在 base 视图上画出该窗口的圆与标号。窗口按模型坐标给出，故与视图朝向、投影比例无关；base 必须是本次 views 里的视图，放大视图随 paths/manifest 一并返回（manifest 里该视图带 kind="detail" 与 base/center3d/radiusMm/scale/reference）。
+
+批量：model_path 传目录时，对目录内每个受支持模型各出一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效），多个零件要合成一张图时改用 model_paths。
 
 产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。
 
@@ -4723,7 +4832,14 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
   "properties": {
     "model_path": {
       "type": "string",
-      "description": "模型文件路径（STEP/IGES/BREP），或其目录（批量）"
+      "description": "模型文件路径（STEP/IGES/BREP），或其目录（批量：目录内每个受支持模型各出一图）；与 model_paths 二选一"
+    },
+    "model_paths": {
+      "type": "array",
+      "description": "装配体：多个模型文件一起投影成一张图（每个文件一个零件）；与 model_path 二选一",
+      "items": {
+        "type": "string"
+      }
     },
     "views": {
       "type": "array",
@@ -4747,11 +4863,34 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "show_hidden": {
       "type": "boolean",
-      "description": "绘制隐藏线（虚线），默认 false"
+      "description": "绘制隐藏线（细实线，实测 0.35 毫米；不是虚线），默认 false"
+    },
+    "line_width_mm": {
+      "type": "number",
+      "description": "可见线线宽（毫米），须取 GB/T 4457.4 线宽系列之一；缺省保持 FreeCAD 输出的 0.7 毫米档",
+      "enum": [
+        0.13,
+        0.18,
+        0.25,
+        0.35,
+        0.5,
+        0.7,
+        1,
+        1.4,
+        2
+      ]
+    },
+    "hidden_line_style": {
+      "type": "string",
+      "description": "隐藏线线型，默认 solid（FreeCAD 原始细实线）；dashed 时按线宽加 stroke-dasharray 画成虚线",
+      "enum": [
+        "solid",
+        "dashed"
+      ]
     },
     "callouts": {
       "type": "array",
-      "description": "件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）",
+      "description": "件号锚定 [{numeral, point3d:[x,y,z], label?, model?}]；model 为所属零件下标，装配体下必填；目录批量不支持",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -4770,11 +4909,62 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           "label": {
             "type": "string",
             "description": "可选部件名称（写入标号表/manifest，不进图面像素）"
+          },
+          "model": {
+            "type": "integer",
+            "description": "该件号所属零件在输入模型列表中的下标（0 起）；给定时核对锚点确实落在该零件上（偏离超过 0.5 毫米即报错）。装配体（model_paths）下必填"
           }
         },
         "required": [
           "numeral",
           "point3d"
+        ]
+      }
+    },
+    "details": {
+      "type": "array",
+      "description": "局部放大视图 [{base, center:[x,y,z], radius_mm, scale?, reference?}]：把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的区域放大成独立视图；目录批量不支持",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "base": {
+            "type": "string",
+            "description": "窗口所在的基视图，必须是本次 views 里的视图",
+            "enum": [
+              "iso",
+              "front",
+              "rear",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ]
+          },
+          "center": {
+            "type": "array",
+            "description": "窗口圆心的模型 3D 坐标 [x,y,z]（毫米，与模型单位一致）",
+            "items": {
+              "type": "number"
+            }
+          },
+          "radius_mm": {
+            "type": "number",
+            "description": "窗口半径（模型毫米），必须为正"
+          },
+          "scale": {
+            "type": "number",
+            "description": "放大倍数（正数），缺省 2"
+          },
+          "reference": {
+            "type": "string",
+            "description": "窗口标号（如「Ⅰ」），缺省该细节的序号"
+          }
+        },
+        "required": [
+          "base",
+          "center",
+          "radius_mm"
         ]
       }
     },
@@ -4815,10 +5005,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
     }
-  },
-  "required": [
-    "model_path"
-  ]
+  }
 }
 ```
 
@@ -5700,9 +5887,11 @@ Usage notes:
 
 ### `verify_patent_figure`
 
-复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、中心线（点划线）被同位置的实线覆盖、相邻零件剖面线取向过近、内容越出画布。
+复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、文字与图线净距不足、中心线（点划线）被同位置的实线覆盖、相邻零件剖面线难以区分（方向与间距都分不清）、内容越出画布。
 
 量测在矢量源上进行（线段位置、线宽与字号即渲染输入），不需要栅格化器：根元素的画布尺寸、viewBox 与 preserveAspectRatio 先解析成用户单位到毫米的映射，元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 `<g>` 继承的 text-anchor 与行内 style），故落版页、拼版页与 px 级用户单位的导出文件同一口径量测。不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现：没有它时才等于逐类量测过。
+
+净距判据（text_clearance_mm，默认 1.5 毫米）来自实测：剖切面上密布剖面线时，标号或零件名贴住剖面线带、轴线便读不出。判据把文字外框外扩该净距后与图元线段求交——绘图侧标注为引线（data-dsh-role="leader"）的线段、以及落在更晚绘制的不透明白填充之下的线段不参与（前者本来就止于文字外框，后者图面上看不见）。电路图、曲线图这类「文字贴着符号放」的图型按本判据会大量播报，复核它们时传 text_clearance_mm: 0 关闭。
 
 与 generate_patent_figure 的返回值配合使用：生成后按本工具复核，把 findings 当作必须处理的图面缺陷。
 
@@ -5713,6 +5902,10 @@ Usage notes:
     "svg_path": {
       "type": "string",
       "description": "SVG 图片路径（工作区相对或绝对路径）"
+    },
+    "text_clearance_mm": {
+      "type": "number",
+      "description": "标号净距（毫米），默认 1.5，0 表示不判该判据；文字外框外扩这么多后与图元线段相交即报"
     }
   },
   "required": [

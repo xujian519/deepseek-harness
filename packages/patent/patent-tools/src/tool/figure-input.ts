@@ -24,8 +24,9 @@ import type {
 } from '../figure/dot-builder.ts'
 import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../figure/graphviz-renderer.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
-import type { OutlineTextPort } from '../figure/inkscape-renderer.ts'
+import type { ExportFigurePort, OutlineTextPort } from '../figure/inkscape-renderer.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
+import type { SectionSourcePorts } from '../figure/section-source.ts'
 import type { SubmissionLayout } from '../figure/submission-page.ts'
 import type {
   AppearanceFigureJson,
@@ -77,8 +78,20 @@ export type GeneratePatentFigureDeps = {
    * Config.figureTextToPath 开启时注入，缺省视为不转换。
    */
   outlineText?: OutlineTextPort
+  /**
+   * 可选格式导出（inkscape-renderer 的 exportWithInkscape 或测试注入）。注入后，
+   * 非 SVG 输出在需要落版或图型本身只有 SVG 通路时改走「SVG 全链 + Inkscape 导出」；
+   * 未注入时保持渲染器直接出图（落版与渲染复核对非 SVG 不生效）。
+   */
+  exportFigure?: ExportFigurePort
   /** 输出目录（绝对路径），默认 <cwd>/patent/figures。 */
   outputDir?: string
+  /**
+   * 可选剖切几何端口（宿主注入 FreeCAD 的剖切与剖面线渲染器）：把剖视图的
+   * `sections.source`（模型文件 + 剖切平面）展开成轮廓与剖面线段。未注入时给 `source`
+   * 报 setup_required —— 需要 FreeCAD，不静默改用示意图。
+   */
+  sectionSource?: SectionSourcePorts
   /** 可选 upsert 进附图索引（写入失败静默降级）。 */
   upsertIndex?: (entry: GeneratePatentFigureIndexEntry) => Promise<void>
   /** 可选读取附图索引（figure_family 跨图续号用；声明家族而缺省时调用报错）。 */
@@ -170,6 +183,16 @@ export type GeneratePatentFigureInput = SharedFigureInputFields & {
   caption?: string
   /** 是否把图形落版到固定幅面（仅 SVG 且给定 target_office 时生效）；false 时只核算尺寸、不改写画布。 */
   fit_to_page?: boolean
+  /** 图号字高（毫米，默认 4）。 */
+  caption_font_mm?: number
+  /** 图号与图形之间的间距（毫米，默认 3）。 */
+  caption_gap_mm?: number
+  /** 页码字高（毫米，默认 3）。 */
+  sheet_font_mm?: number
+  /** 落版时图形绕绘图区中心顺时针旋转的角度（0/90/180/270，默认 0）；90/270 交换落版后的宽高。 */
+  rotate_deg?: number
+  /** 剖视图（cross_section）：要求每个轮廓显式给出 hatch（不被剖切的写 `"none"`），缺省即报错。 */
+  require_explicit_hatch?: boolean
   persist_index?: boolean
 }
 

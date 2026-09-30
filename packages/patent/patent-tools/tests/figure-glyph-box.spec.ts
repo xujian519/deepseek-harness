@@ -8,6 +8,7 @@ import {
   boxCrossedBySegment,
   boxQuad,
   glyphBox,
+  inflateQuad,
   leaderEnd,
   quadCrossedBySegment,
   textWidthMm,
@@ -140,5 +141,45 @@ describe('leaderEnd', () => {
     expect(leaderEnd('1', [20, 10], 4, 'middle', [20, 8.74])).toBeUndefined()
     // 起点在框内（框 y 7–10.48）：后退量不小于起点距离，故不画。
     expect(leaderEnd('1', [20, 10], 4, 'middle', [20, 9])).toBeUndefined()
+  })
+})
+
+describe('inflateQuad', () => {
+  it('轴对齐框向外扩净距：原点后退、两条边各加长两倍净距', () => {
+    const quad = inflateQuad(boxQuad({ minX: 10, minY: 20, maxX: 14, maxY: 24 }), 1.5)
+    expect(quad.origin).toEqual([8.5, 18.5])
+    expect(quad.edgeWidth).toEqual([7, 0])
+    expect(quad.edgeHeight).toEqual([0, 7])
+  })
+
+  it('零净距原样返回', () => {
+    const box = { minX: 10, minY: 20, maxX: 14, maxY: 24 }
+    expect(inflateQuad(boxQuad(box), 0)).toEqual(boxQuad(box))
+  })
+
+  it('外扩后的框与原框在四边各留出净距：贴着外框的线段不算穿过，越过 1.5 毫米的才算', () => {
+    const box = { minX: 0, minY: 0, maxX: 10, maxY: 4 }
+    const inflated = inflateQuad(boxQuad(box), 1.5)
+    const crossing = (x: number): boolean => quadCrossedBySegment(inflated, [x, -5], [x, 5])
+    // 净距边界在 x = −1.5 与 11.5；框内与外扩 1.5 毫米以内都算相交。
+    expect(crossing(-1.4)).toBe(true)
+    expect(crossing(-1.6)).toBe(false)
+    expect(crossing(11.4)).toBe(true)
+    expect(crossing(11.6)).toBe(false)
+  })
+
+  it('旋转 −90° 的框沿自身两条边外扩，净距方向随之旋转', () => {
+    // 10×4 的框绕原点转 −90°：宽变成竖直的 10，高变成水平的 4。
+    const box = { minX: 0, minY: 0, maxX: 10, maxY: 4 }
+    const rotated = inflateQuad({
+      origin: [0, 0],
+      edgeWidth: [0, -10],
+      edgeHeight: [4, 0],
+    }, 1)
+    // 宽向边 (0,−10) 的外扩沿其自身方向 → 竖直方向各加 1；高向边 (4,0) 同理 → 水平各加 1。
+    expect(rotated.origin).toEqual([-1, 1])
+    expect(rotated.edgeWidth).toEqual([0, -12])
+    expect(rotated.edgeHeight).toEqual([6, 0])
+    expect(box).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 4 })
   })
 })

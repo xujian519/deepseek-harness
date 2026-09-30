@@ -17,6 +17,11 @@
  * 点是否落在 c 的同一侧」（严格小于判定的异或）判交；交点沿线向排序后两两配对，
  * 只绘制落在多边形内部的线段。恰落在采样线上的顶点按「线上方」计，与相邻边不
  * 重复计数。
+ *
+ * 这套裁剪对**带孔的零件轮廓不适用**：它把每个多边形当独立闭合区域求交，孔环因此
+ * 会被当成又一块材料。带孔的零件要由调用方按区域（材料外环 + 孔环）算好剖面线，
+ * 用 {@link SectionPart.hatchSegments} 给出；本模块只画出它们，并把孔环当轮廓一并
+ * 落图（见 {@link SectionPart.holes}）。
  * @module @deepseek-ai/dsh-patent-tools/figure/section-diagram
  */
 
@@ -33,6 +38,14 @@ export type HatchSpec = {
   direction?: 'forward' | 'backward'
 }
 
+/** 线段（毫米，视图帧坐标：x 向右、y 向下）。 */
+export type SectionSegment = {
+  /** 起点。 */
+  readonly from: readonly [number, number]
+  /** 终点。 */
+  readonly to: readonly [number, number]
+}
+
 /** 被剖切的零件：闭合轮廓 + 剖面线；`hatch: 'none'` 表示该轮廓不打剖面线。 */
 export type SectionPart = {
   /**
@@ -44,10 +57,29 @@ export type SectionPart = {
   /** 闭合多边形顶点（毫米，至少 3 个，自动闭合）。 */
   outline: readonly (readonly [number, number])[]
   /**
+   * 该零件轮廓内的孔（毫米，各至少 3 个顶点，隐式闭合）：孔环与 {@link SectionPart.outline}
+   * 同属一个零件，用同一线宽画出并落在同一剖面线分组内，但孔里不打剖面线。
+   *
+   * 给了孔就必须同时用 {@link SectionPart.hatchSegments} 给出剖面线段：本模块的裁剪按单个
+   * 多边形求交，对带孔区域会把孔里也打上剖面线，故不带孔区域那条老路会显式报错而非画出错图。
+   */
+  holes?: readonly (readonly (readonly [number, number])[])[]
+  /**
+   * 已算好的剖面线段（毫米，视图帧）：给出时直接落图，不再按 {@link SectionPart.outline} 裁剪。
+   * 必须与 {@link SectionPart.hatch} 同时给出且不是 `'none'` —— 剖面线分组与渲染复核都按
+   * `hatch` 的参数把同一零件的多个轮廓归并成一件，只给线段会让它们各自成组。
+   */
+  hatchSegments?: readonly SectionSegment[]
+  /**
    * 剖面线参数；`'none'` 表示该轮廓不是被剖切的实体（引线、轴线、非剖切件），只画轮廓。
    * 缺省时按 45°/3 毫米打剖面线 —— 调用方若只想画轮廓必须显式写 `'none'`。
    */
   hatch?: HatchSpec | 'none'
+  /**
+   * 该零件轮廓的粗实线线宽（毫米）；缺省用 {@link SectionDiagramInput.strokeWidthMm}。
+   * 同一张图里薄壁件加粗、或让某一零件轮廓更醒目时用它。
+   */
+  strokeWidthMm?: number
 }
 
 /**
@@ -98,15 +130,16 @@ export type SectionDiagramInput = {
   cuttingMarks?: readonly CuttingMark[]
   /** 图面字号（毫米），默认 3.5（附图标记与剖切字母同用）。 */
   labelFontSizeMm?: number
+  /** 轮廓与剖切位置线的粗实线线宽（毫米），默认 0.5；零件自己的 `strokeWidthMm` 优先。 */
+  strokeWidthMm?: number
+  /** 剖面线、中心线与引线的细实线线宽（毫米），默认 0.25。 */
+  thinStrokeWidthMm?: number
   /** 画布留白（毫米），默认 4。 */
   paddingMm?: number
 }
 
 /** 二维点（毫米）。 */
 type Point = readonly [number, number]
-
-/** 线段（毫米）。 */
-type Segment = { readonly from: Point; readonly to: Point }
 
 /** 文本锚点水平对齐方式。 */
 type TextAnchor = 'start' | 'middle' | 'end'
@@ -124,13 +157,22 @@ type HatchAxes = { readonly normal: Point; readonly along: Point }
 /** 剖切位置符号的几何（原始坐标）。 */
 type CuttingMarkGeometry = {
   /** 剖切位置线（两端各外延 {@link MARK_EXTEND_MM} 后落箭头）。 */
-  readonly positionLine: Segment
+  readonly positionLine: SectionSegment
   /** 两端箭头折线（尖端指向投射方向）。 */
   readonly arrowHeads: readonly (readonly Point[])[]
   /** 两端字母锚点。 */
   readonly labelAnchors: readonly Point[]
   /** 字母水平对齐。 */
   readonly labelAnchor: TextAnchor
+}
+
+/** 一个待绘制的轮廓：顶点、线宽与（同一材料轮廓共用的）分组号。 */
+type PolygonDraw = {
+  readonly points: readonly Point[]
+  /** 该轮廓的线宽（毫米）。 */
+  readonly strokeMm: number
+  /** 同一材料的轮廓分组号；undefined 时该轮廓自成一组。 */
+  readonly hatchGroup: number | undefined
 }
 
 /** 待绘制文字（基线锚点、对齐方式与字号）。 */
@@ -143,10 +185,15 @@ type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
 const THICK_STROKE_MM = 0.5
 /** 剖面线的细实线线宽（毫米）。 */
 const THIN_STROKE_MM = 0.25
-/** 默认剖面线角度（度）。 */
-const DEFAULT_HATCH_ANGLE_DEG = 45
-/** 默认剖面线间距（毫米）。 */
-const DEFAULT_HATCH_SPACING_MM = 3
+/**
+ * 可指定的线宽下限（毫米）：GB/T 4457.4 要求「应避免采用 0.18 mm 以下的图线宽度」
+ * （图样复制后不可辨）。调用方给的线宽低于此值即报错，而不是画出一张印不出来的图。
+ */
+const MIN_STROKE_MM = 0.18
+/** 默认剖面线角度（度）：未给 `hatch` 的轮廓按它打剖面线（另一处使用见 `figure/section-source`）。 */
+export const DEFAULT_HATCH_ANGLE_DEG = 45
+/** 默认剖面线间距（毫米）：与 {@link DEFAULT_HATCH_ANGLE_DEG} 同源，两处不得各写一份。 */
+export const DEFAULT_HATCH_SPACING_MM = 3
 /** 默认画布留白（毫米）。 */
 const DEFAULT_PADDING_MM = 4
 /** 剖切位置线两端外延长度（毫米）：箭头落在外延段上，不压零件轮廓。 */
@@ -265,6 +312,25 @@ function resolveLabelFontSize(fontSizeMm: number | undefined): number {
 }
 
 /**
+ * 解析线宽：缺省取图级默认值，否则校验为有限数且不低于 {@link MIN_STROKE_MM}。
+ * @param strokeMm - 传入的线宽（毫米）；undefined 时取 `fallbackMm`。
+ * @param fallbackMm - 图级默认线宽（毫米）。
+ * @param subject - 报错用主体名前缀。
+ * @returns 线宽（毫米）。
+ * @throws VectorFigureError('invalid_input') 线宽非正有限数或低于下限时。
+ */
+function resolveStrokeWidth(strokeMm: number | undefined, fallbackMm: number, subject: string): number {
+  if (strokeMm === undefined) return fallbackMm
+  if (!Number.isFinite(strokeMm) || strokeMm < MIN_STROKE_MM) {
+    throw new VectorFigureError(
+      'invalid_input',
+      `${subject}必须是不小于 ${String(MIN_STROKE_MM)} 毫米的有限数（GB/T 4457.4 要求避免采用 0.18 毫米以下的图线宽度）：${String(strokeMm)}`,
+    )
+  }
+  return strokeMm
+}
+
+/**
  * 解析剖面线参数并校验取值域（缺省 45°、3 毫米、forward）。
  * @param hatch - 传入的剖面线参数；`'none'` 表示该轮廓不打剖面线。
  * @param subject - 报错用主体名前缀。
@@ -328,7 +394,7 @@ function linePoint(c: number, u: number, axes: HatchAxes): Point {
  * @param hatch - 已解析的剖面线参数。
  * @returns 剖面线线段，按族参数 c 递增排列。
  */
-function hatchSegments(points: readonly Point[], hatch: ResolvedHatch): Segment[] {
+function clipHatchSegments(points: readonly Point[], hatch: ResolvedHatch): SectionSegment[] {
   const axes = hatchAxes(hatch)
   let cMin = Infinity
   let cMax = -Infinity
@@ -338,7 +404,7 @@ function hatchSegments(points: readonly Point[], hatch: ResolvedHatch): Segment[
     if (c > cMax) cMax = c
   }
 
-  const segments: Segment[] = []
+  const segments: SectionSegment[] = []
   for (let index = Math.ceil(cMin / hatch.spacingMm); index * hatch.spacingMm <= cMax; index += 1) {
     const c = index * hatch.spacingMm
     const crossings: number[] = []
@@ -363,6 +429,35 @@ function hatchSegments(points: readonly Point[], hatch: ResolvedHatch): Segment[
     }
   }
   return segments
+}
+
+/**
+ * 读取零件给的预生成剖面线段：必须与 `hatch` 同时给出，且 `hatch` 不是 `'none'`。
+ *
+ * 这里看的是**原始字段**而不是解析后的参数：缺省 `hatch` 会被解析成 45°/3 毫米，与显式给出
+ * 同值无法区分 —— 而线段是按某组参数裁出来的，参数不同却并进一个分组会让渲染复核的
+ * 「相邻零件剖面线是否可区分」判据把真缺陷当成同件。
+ * @param part - 被剖切零件。
+ * @param subject - 报错用主体名前缀。
+ * @returns 已校验端点有限性的线段；未给出时为 undefined。
+ * @throws VectorFigureError('invalid_input') 只给线段没给 `hatch`、`hatch` 为 `'none'`、
+ * 或端点坐标非有限数时。
+ */
+function readProvidedHatchSegments(part: SectionPart, subject: string): SectionSegment[] | undefined {
+  const provided = part.hatchSegments
+  if (provided === undefined) return undefined
+  if (part.hatch === undefined || part.hatch === 'none') {
+    throw new VectorFigureError(
+      'invalid_input',
+      `${subject}给了 hatchSegments 就必须同时给出 hatch（说明这些线段按哪组参数裁出；不能是 "none"）：`
+      + '剖面线分组与渲染复核按 hatch 参数把同一零件的多个轮廓归并成一件',
+    )
+  }
+  provided.forEach((segment, index) => {
+    assertFinitePoint(segment.from, `${subject}剖面线段 #${index + 1} 起点`)
+    assertFinitePoint(segment.to, `${subject}剖面线段 #${index + 1} 终点`)
+  })
+  return [...provided]
 }
 
 /**
@@ -445,7 +540,7 @@ function outsideLabelAt(points: readonly Point[], fontSizeMm: number): Point {
  * @param fontSizeMm - 字号（毫米）。
  * @returns 引线线段；起点与落点重合、或落点在起点之内（后退量不小于全长）时为 undefined。
  */
-function labelLeader(content: string, from: Point, at: Point, fontSizeMm: number): Segment | undefined {
+function labelLeader(content: string, from: Point, at: Point, fontSizeMm: number): SectionSegment | undefined {
   const baseline: Point = [at[0], at[1] + baselineDrop(fontSizeMm)]
   const end = leaderEnd(content, baseline, fontSizeMm, 'middle', from)
   return end === undefined ? undefined : { from, to: end }
@@ -457,7 +552,7 @@ function labelLeader(content: string, from: Point, at: Point, fontSizeMm: number
  * @param to - 中心线终点。
  * @returns 沿线的线段序列（不含间隙）。
  */
-function dashDotSegments(from: Point, to: Point): Segment[] {
+function dashDotSegments(from: Point, to: Point): SectionSegment[] {
   const dx = to[0] - from[0]
   const dy = to[1] - from[1]
   const total = Math.hypot(dx, dy)
@@ -468,7 +563,7 @@ function dashDotSegments(from: Point, to: Point): Segment[] {
   const pattern: readonly number[] = [
     DASH_DOT_DASH_MM, DASH_DOT_GAP_MM, DASH_DOT_DOT_MM, DASH_DOT_GAP_MM,
   ]
-  const segments: Segment[] = []
+  const segments: SectionSegment[] = []
   let cursor = 0
   for (let index = 0; cursor < total; index += 1) {
     const length = pattern[index % pattern.length] as number
@@ -547,22 +642,26 @@ function coordPair(point: Point, offset: Point): string {
  * 多边形元素（粗实线）。
  * @param points - 多边形顶点。
  * @param offset - 画布平移量。
+ * @param strokeMm - 线宽（毫米）。
+ * @param hatchGroup - 同一材料的轮廓分组号；undefined 时不写分组标记。
  * @returns `<polygon>` 元素文本。
  */
-function polygonElement(points: readonly Point[], offset: Point): string {
+function polygonElement(points: readonly Point[], offset: Point, strokeMm: number, hatchGroup?: number): string {
   const list = points.map(point => coordPair(point, offset)).join(' ')
-  return `<polygon points="${list}" stroke-width="${fmt(THICK_STROKE_MM)}"/>`
+  const group = hatchGroup === undefined ? '' : ` data-dsh-hatch-group="${String(hatchGroup)}"`
+  return `<polygon points="${list}" stroke-width="${fmt(strokeMm)}"${group}/>`
 }
 
 /**
  * 折线元素（粗实线，箭头用）。
  * @param points - 折线顶点。
  * @param offset - 画布平移量。
+ * @param strokeMm - 线宽（毫米）。
  * @returns `<polyline>` 元素文本。
  */
-function polylineElement(points: readonly Point[], offset: Point): string {
+function polylineElement(points: readonly Point[], offset: Point, strokeMm: number): string {
   const list = points.map(point => coordPair(point, offset)).join(' ')
-  return `<polyline points="${list}" stroke-width="${fmt(THICK_STROKE_MM)}"/>`
+  return `<polyline points="${list}" stroke-width="${fmt(strokeMm)}"/>`
 }
 
 /**
@@ -570,14 +669,16 @@ function polylineElement(points: readonly Point[], offset: Point): string {
  * @param segment - 线段。
  * @param offset - 画布平移量。
  * @param strokeMm - 线宽（毫米）。
+ * @param role - 该线段的图面角色（绘图侧显式标记，供复核区分引线与图元）；undefined 时不写标记。
  * @returns `<line>` 元素文本。
  */
-function segmentElement(segment: Segment, offset: Point, strokeMm: number): string {
+function segmentElement(segment: SectionSegment, offset: Point, strokeMm: number, role?: 'leader'): string {
   const x1 = fmt(segment.from[0] + offset[0])
   const y1 = fmt(segment.from[1] + offset[1])
   const x2 = fmt(segment.to[0] + offset[0])
   const y2 = fmt(segment.to[1] + offset[1])
-  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${fmt(strokeMm)}"/>`
+  const mark = role === undefined ? '' : ` data-dsh-role="${role}"`
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${fmt(strokeMm)}"${mark}/>`
 }
 
 /**
@@ -602,13 +703,17 @@ function textElement(item: DiagramText, offset: Point): string {
  * 引线起点）、轴线用 `centerlines`（细点划线）、非剖切轮廓用 `hatch: 'none'`
  * （只画轮廓）、字面大小用 `labelFontSizeMm`。
  *
+ * 带孔零件（例如从 CAD 模型切出的剖面）用 `part.holes` 给孔环、`part.hatchSegments`
+ * 给按区域裁好的剖面线段：孔环当轮廓画出，剖面线直接落图。
+ *
  * 画布为轮廓、零件、中心线、引线、标号、剖切符号与留白的包围盒；输出坐标已整体
  * 平移，恒为非负。
- * @param input - 剖视图输入（外轮廓、被剖切零件、引线标号、中心线、剖切位置符号、字号、画布留白）。
+ * @param input - 剖视图输入（外轮廓、被剖切零件、引线标号、中心线、剖切位置符号、字号、粗/细线宽、画布留白）。
  * @returns 毫米画布规格与黑色描边片段。
  * @throws VectorFigureError('empty_input') `parts` 为空时。
  * @throws VectorFigureError('invalid_input') 顶点不足、坐标非有限数、剖面线参数、
- * 标号文本为空、中心线两端点重合、字号非正或画布留白非法时。
+ * 标号文本为空、中心线两端点重合、字号非正、线宽低于 {@link MIN_STROKE_MM}、画布留白非法、
+ * 带孔零件未给 `hatchSegments`、或给了 `hatchSegments` 却没给 `hatch` 时。
  */
 export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpec {
   const paddingMm = input.paddingMm ?? DEFAULT_PADDING_MM
@@ -619,21 +724,36 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     throw new VectorFigureError('empty_input', '剖视图至少需要一个被剖切零件')
   }
 
-  const polygons: (readonly Point[])[] = []
-  const hatches: Segment[] = []
-  const centerlines: Segment[] = []
-  const leaders: Segment[] = []
-  const positionLines: Segment[] = []
+  const polygons: PolygonDraw[] = []
+  const hatches: SectionSegment[] = []
+  const centerlines: SectionSegment[] = []
+  const leaders: SectionSegment[] = []
+  const positionLines: SectionSegment[] = []
   const arrowHeads: (readonly Point[])[] = []
   const texts: DiagramText[] = []
   const labels: string[] = []
   const extents: Point[] = []
   const fontSizeMm = resolveLabelFontSize(input.labelFontSizeMm)
+  const thickMm = resolveStrokeWidth(input.strokeWidthMm, THICK_STROKE_MM, '轮廓线宽')
+  const thinMm = resolveStrokeWidth(input.thinStrokeWidthMm, THIN_STROKE_MM, '细实线线宽')
+  // 同一材料的多个轮廓（同一零件被剖成的几段）用同一组剖面线参数；分组号按参数取值标注，
+  // 供渲染复核把它们当一件比较，而不是两条相邻轮廓。未给 hatch 的轮廓不并入任何分组：
+  // 缺省值可能只是漏写，合并会掩盖「相邻两件都落到同一个缺省剖面线」这一真缺陷。
+  const hatchGroupBySpec = new Map<string, number>()
+  const hatchGroupOf = (hatch: HatchSpec | 'none' | undefined): number | undefined => {
+    if (hatch === undefined || hatch === 'none') return undefined
+    const key = `${String(hatch.angleDeg ?? DEFAULT_HATCH_ANGLE_DEG)}|${String(hatch.spacingMm ?? DEFAULT_HATCH_SPACING_MM)}|${hatch.direction ?? 'forward'}`
+    const known = hatchGroupBySpec.get(key)
+    if (known !== undefined) return known
+    const assigned = hatchGroupBySpec.size
+    hatchGroupBySpec.set(key, assigned)
+    return assigned
+  }
 
   const outline = input.outline !== undefined && input.outline.length > 0 ? input.outline : undefined
   if (outline !== undefined) {
     assertPolygon(outline, '外轮廓')
-    polygons.push(outline)
+    polygons.push({ points: outline, strokeMm: thickMm, hatchGroup: undefined })
     extents.push(...outline)
   }
 
@@ -641,9 +761,25 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     const subject = `零件 #${index + 1} `
     assertPolygon(part.outline, `${subject}轮廓`)
     const hatch = resolveHatch(part.hatch, subject)
-    polygons.push(part.outline)
-    extents.push(...part.outline)
-    if (hatch !== undefined) hatches.push(...hatchSegments(part.outline, hatch))
+    const holes = part.holes ?? []
+    holes.forEach((hole, holeIndex) => { assertPolygon(hole, `${subject}孔 #${holeIndex + 1} `) })
+    const provided = readProvidedHatchSegments(part, subject)
+    const strokeMm = resolveStrokeWidth(part.strokeWidthMm, thickMm, `${subject}线宽`)
+    const hatchGroup = hatchGroupOf(part.hatch)
+    polygons.push({ points: part.outline, strokeMm, hatchGroup })
+    // 孔环与轮廓同一线宽、同一剖面线分组：它们是同一个零件的边界，不是另一个件。
+    for (const hole of holes) polygons.push({ points: hole, strokeMm, hatchGroup })
+    extents.push(...part.outline, ...holes.flat())
+    if (provided !== undefined) hatches.push(...provided)
+    else if (hatch !== undefined) {
+      if (holes.length > 0) {
+        throw new VectorFigureError(
+          'invalid_input',
+          `${subject}给了孔就必须给出 hatchSegments：本模块的剖面线裁剪按单个多边形求交，会把孔里也打上剖面线`,
+        )
+      }
+      hatches.push(...clipHatchSegments(part.outline, hatch))
+    }
     const labelText = part.label === undefined ? '' : part.label.trim()
     if (labelText !== '') {
       // 数字落在轮廓之外、自重心引出：落在轮廓内会被剖面线或轮廓边贯穿。
@@ -697,13 +833,15 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
   const bounds = boundsOf(extents)
   const offset: Point = [paddingMm - bounds.minX, paddingMm - bounds.minY]
   // 文字在全部线条之后绘制：剖面线不得妨碍附图标记线和主线条的识别。
+  // 引线带 `data-dsh-role="leader"`：复核的「标号净距」判据只针对非引线图元，
+  // 引线自己止于文字外框（见 glyph-box 的 leaderEnd），不该被判成贴线。
   const body = [
-    ...polygons.map(points => polygonElement(points, offset)),
-    ...hatches.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
-    ...centerlines.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
-    ...leaders.map(segment => segmentElement(segment, offset, THIN_STROKE_MM)),
-    ...positionLines.map(segment => segmentElement(segment, offset, THICK_STROKE_MM)),
-    ...arrowHeads.map(points => polylineElement(points, offset)),
+    ...polygons.map(draw => polygonElement(draw.points, offset, draw.strokeMm, draw.hatchGroup)),
+    ...hatches.map(segment => segmentElement(segment, offset, thinMm)),
+    ...centerlines.map(segment => segmentElement(segment, offset, thinMm)),
+    ...leaders.map(segment => segmentElement(segment, offset, thinMm, 'leader')),
+    ...positionLines.map(segment => segmentElement(segment, offset, thickMm)),
+    ...arrowHeads.map(points => polylineElement(points, offset, thickMm)),
     ...texts.map(item => textElement(item, offset)),
   ].join('\n')
 

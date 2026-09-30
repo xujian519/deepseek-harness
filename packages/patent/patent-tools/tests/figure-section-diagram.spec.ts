@@ -14,14 +14,19 @@ const U_SHAPE: readonly (readonly [number, number])[] = [
 ]
 
 /** body 中的 `<line>` 元素（剖面线 0.25 毫米与剖切位置线 0.5 毫米同形）。 */
-function lineElements(body: string): { x1: number; y1: number; x2: number; y2: number; width: number }[] {
-  const pattern = /<line x1="(-?[\d.]+)" y1="(-?[\d.]+)" x2="(-?[\d.]+)" y2="(-?[\d.]+)" stroke-width="([\d.]+)"\/>/g
+function lineElements(body: string): { x1: number; y1: number; x2: number; y2: number; width: number; role?: string }[] {
+  const pattern = new RegExp(
+    '<line x1="(-?[\\d.]+)" y1="(-?[\\d.]+)" x2="(-?[\\d.]+)" y2="(-?[\\d.]+)"'
+    + ' stroke-width="([\\d.]+)"(?: data-dsh-role="(\\w+)")?/>',
+    'g',
+  )
   return [...body.matchAll(pattern)].map(match => ({
     x1: Number(match[1]!),
     y1: Number(match[2]!),
     x2: Number(match[3]!),
     y2: Number(match[4]!),
     width: Number(match[5]!),
+    ...(match[6] === undefined ? {} : { role: match[6] }),
   }))
 }
 
@@ -150,7 +155,7 @@ describe('buildSectionDiagram 剖面线裁剪', () => {
     // 90° 剖面线为竖直线，间距 4 只采到多边形最左顶点所在的 x=0 与右边缘 x=4，两处都只相切。
     const spec = buildSectionDiagram({ parts: [{ outline: [[0, 0], [4, 4], [4, -4]], hatch: { angleDeg: 90, spacingMm: 4 } }] })
     expect(hatchLines(spec.body)).toEqual([])
-    expect(spec.body).toContain('<polygon points="4,8 8,12 8,4" stroke-width="0.5"/>')
+    expect(spec.body).toContain('<polygon points="4,8 8,12 8,4" stroke-width="0.5" data-dsh-hatch-group="0"/>')
   })
 
   it('顶点共线的退化轮廓：重心退化为顶点平均位置，引线自该点引出且不画剖面线', () => {
@@ -429,5 +434,207 @@ describe('buildSectionDiagram 引线标号、中心线、字号与非剖切轮�
       paddingMm: 0,
     })
     expect(lineElements(spec.body)).toEqual([])
+  })
+})
+
+describe('buildSectionDiagram 剖面线分组标记', () => {
+  /** 直接从图元文本取全部分组号（按出现顺序）。 */
+  const groups = (body: string): string[] =>
+    [...body.matchAll(/data-dsh-hatch-group="([^"]*)"/g)].map(match => match[1] as string)
+
+  it('同一材料的分段共用一个分组号，不同材料各占一号', () => {
+    const spec = buildSectionDiagram({
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: { angleDeg: 45, spacingMm: 3, direction: 'forward' } },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: { angleDeg: 45, spacingMm: 3, direction: 'forward' } },
+        { outline: [[40, 0], [50, 0], [50, 10], [40, 10]], hatch: { angleDeg: 75, spacingMm: 4 } },
+      ],
+    })
+    expect(groups(spec.body)).toEqual(['0', '0', '1'])
+  })
+
+  it('缺省值与等价显式写法同组：缺省角度/间距/方向按解析后的值比较', () => {
+    const spec = buildSectionDiagram({
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: {} },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: { angleDeg: 45, spacingMm: 3, direction: 'forward' } },
+      ],
+    })
+    expect(groups(spec.body)).toEqual(['0', '0'])
+  })
+
+  it('未给 hatch 与 hatch 为 none 的轮廓不写分组标记（缺省是漏写，合并会掩盖真缺陷）', () => {
+    const spec = buildSectionDiagram({
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]] },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: 'none' },
+      ],
+      paddingMm: 0,
+    })
+    expect(groups(spec.body)).toEqual([])
+  })
+
+  it('外轮廓不写分组标记', () => {
+    const spec = buildSectionDiagram({
+      outline: [[-5, -5], [45, -5], [45, 15], [-5, 15]],
+      parts: [{ outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: { angleDeg: 45 } }],
+      paddingMm: 0,
+    })
+    expect(spec.body.match(/<polygon /g) ?? []).toHaveLength(2)
+    expect(groups(spec.body)).toEqual(['0'])
+  })
+})
+
+describe('buildSectionDiagram 带孔零件与预生成剖面线（T-12）', () => {
+  /** 60×30 底板（居中）与两个 r5 孔环。 */
+  const PLATE: readonly (readonly [number, number])[] = [[-30, -15], [30, -15], [30, 15], [-30, 15]]
+  const HOLE = (centerX: number): readonly (readonly [number, number])[] =>
+    Array.from({ length: 24 }, (_, index) => {
+      const angle = (2 * Math.PI * index) / 24
+      return [centerX + 5 * Math.cos(angle), 5 * Math.sin(angle)] as const
+    })
+
+  it('孔环与轮廓同线宽、同分组号，并按给出的线段原样落图', () => {
+    const segments = [
+      { from: [-30, -10] as const, to: [-20, -10] as const },
+      { from: [20, -10] as const, to: [30, -10] as const },
+    ]
+    const spec = buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [HOLE(-15), HOLE(15)], hatch: { angleDeg: 45, spacingMm: 3 }, hatchSegments: segments }],
+      paddingMm: 0,
+    })
+    const polygons = [...spec.body.matchAll(/<polygon points="[^"]*" stroke-width="([\d.]+)"(?: data-dsh-hatch-group="(\d+)")?\/>/g)]
+    expect(polygons).toHaveLength(3)
+    expect(polygons.map(match => [match[1], match[2]])).toEqual([['0.5', '0'], ['0.5', '0'], ['0.5', '0']])
+    // 剖面线就是给出的两条，没有按轮廓再做一次 even-odd 裁剪（那会把孔里也打上）。
+    expect(hatchLines(spec.body)).toHaveLength(2)
+  })
+
+  it('给了孔却不给 hatchSegments 即报错，而不是把孔里也打上剖面线', () => {
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [HOLE(-15)], hatch: { angleDeg: 45 } }],
+    }))).toContain('给了孔就必须给出 hatchSegments')
+  })
+
+  it('hatchSegments 必须与 hatch 同时给出且不能是 none', () => {
+    const segments = [{ from: [0, 0] as const, to: [1, 0] as const }]
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, hatchSegments: segments }],
+    }))).toContain('就必须同时给出 hatch')
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, hatch: 'none', hatchSegments: segments }],
+    }))).toContain('就必须同时给出 hatch')
+  })
+
+  it('剖面线段端点非有限数即报错并指明下标', () => {
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{
+        outline: PLATE,
+        hatch: { angleDeg: 45 },
+        hatchSegments: [{ from: [0, 0], to: [Number.NaN, 0] }],
+      }],
+    }))).toContain('零件 #1 剖面线段 #1 终点坐标必须是有限数')
+  })
+
+  it('孔环顶点不足、坐标非有限数即报错并指明孔序号', () => {
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [[[0, 0], [1, 1]]], hatch: 'none' }],
+    }))).toContain('零件 #1 孔 #1 至少需要 3 个顶点')
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [[[0, 0], [1, 1], [Number.POSITIVE_INFINITY, 2]]], hatch: 'none' }],
+    }))).toContain('零件 #1 孔 #1 坐标必须是有限数')
+  })
+
+  it('孔环参与包围盒：画布随孔变大', () => {
+    const small = buildSectionDiagram({ parts: [{ outline: PLATE, holes: [HOLE(-15)], hatch: 'none' }], paddingMm: 0 })
+    const wide = buildSectionDiagram({
+      parts: [{ outline: PLATE, holes: [[[-40, -5], [40, -5], [40, 5], [-40, 5]]], hatch: 'none' }],
+      paddingMm: 0,
+    })
+    expect(small.widthMm).toBe(60)
+    expect(wide.widthMm).toBe(80)
+  })
+
+  it('带孔的 hatch: none 只画轮廓，不要求 hatchSegments', () => {
+    const spec = buildSectionDiagram({ parts: [{ outline: PLATE, holes: [HOLE(-15)], hatch: 'none' }], paddingMm: 0 })
+    expect(hatchLines(spec.body)).toHaveLength(0)
+    expect(spec.body.match(/<polygon /g) ?? []).toHaveLength(2)
+  })
+})
+
+describe('buildSectionDiagram 线宽（T-07）', () => {
+  /** body 中每个 `<polygon>` 的线宽（按出现顺序）。 */
+  const polygonWidths = (body: string): number[] =>
+    [...body.matchAll(/<polygon [^>]*stroke-width="([\d.]+)"[^>]*\/>/g)].map(match => Number(match[1]!))
+
+  it('缺省不传线宽时，输出与显式给出 0.5/0.25 逐字节相同', () => {
+    const input = { parts: [{ outline: SQUARE, hatch: {} }], paddingMm: 0 } as const
+    const implicit = buildSectionDiagram(input)
+    const explicit = buildSectionDiagram({ ...input, strokeWidthMm: 0.5, thinStrokeWidthMm: 0.25 })
+    expect(implicit.body).toBe(explicit.body)
+  })
+
+  it('零件的 strokeWidthMm 落到该轮廓自身，其他轮廓沿用图级默认', () => {
+    const spec = buildSectionDiagram({
+      outline: OUTLINE,
+      parts: [
+        { outline: [[0, 0], [10, 0], [10, 10], [0, 10]], hatch: 'none', strokeWidthMm: 0.7 },
+        { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: 'none' },
+      ],
+      paddingMm: 0,
+    })
+    // 外轮廓 → 0.5（图级默认）、薄壁件 → 0.7、另一件 → 0.5。
+    expect(polygonWidths(spec.body)).toEqual([0.5, 0.7, 0.5])
+  })
+
+  it('图级粗/细线宽分别落到轮廓与剖面线、中心线', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: {} }],
+      centerlines: [{ from: [0, 5], to: [10, 5] }],
+      strokeWidthMm: 1,
+      thinStrokeWidthMm: 0.35,
+      paddingMm: 0,
+    })
+    expect(polygonWidths(spec.body)).toEqual([1])
+    const widths = new Set(lineElements(spec.body).map(line => line.width))
+    expect(widths).toEqual(new Set([0.35]))
+  })
+
+  it('引线用细线且带 data-dsh-role="leader"，中心线不带该标记', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: 'none' }],
+      centerlines: [{ from: [0, 5], to: [25, 5] }],
+      labels: [{ text: '7', at: [14, 5], from: [10, 5] }],
+      paddingMm: 0,
+    })
+    const roles = [...spec.body.matchAll(/<line [^>]*data-dsh-role="leader"[^>]*\/>/g)]
+    expect(roles).toHaveLength(1)
+    expect(roles[0]?.[0]).toContain('stroke-width="0.25"')
+    // 中心线沿用同线宽但不带 role：净距判据只排除引线。
+    const plain = lineElements(spec.body).filter(line => line.role === undefined)
+    expect(plain.every(line => line.width === 0.25)).toBe(true)
+    expect(plain.length).toBeGreaterThan(1)
+  })
+
+  it('低于 0.18 毫米、零、负数与非有限数一律拒绝并指明主体', () => {
+    const parts = [{ outline: SQUARE, hatch: 'none' as const }]
+    expect(errorMessage(() => buildSectionDiagram({ parts, strokeWidthMm: 0.13 })))
+      .toContain('轮廓线宽必须是不小于 0.18 毫米的有限数')
+    expect(errorMessage(() => buildSectionDiagram({ parts, thinStrokeWidthMm: 0 })))
+      .toContain('细实线线宽必须是不小于 0.18 毫米的有限数')
+    expect(errorMessage(() => buildSectionDiagram({ parts, thinStrokeWidthMm: Number.NaN })))
+      .toContain('细实线线宽必须是不小于 0.18 毫米的有限数')
+    expect(errorMessage(() => buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: 'none', strokeWidthMm: -1 }],
+    }))).toContain('零件 #1 线宽必须是不小于 0.18 毫米的有限数')
+  })
+
+  it('零件线宽缺省时继承图级默认，而不是硬编码的 0.5', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE, hatch: 'none' }, { outline: [[20, 0], [30, 0], [30, 10], [20, 10]], hatch: 'none' }],
+      strokeWidthMm: 1.4,
+      paddingMm: 0,
+    })
+    expect(polygonWidths(spec.body)).toEqual([1.4, 1.4])
   })
 })

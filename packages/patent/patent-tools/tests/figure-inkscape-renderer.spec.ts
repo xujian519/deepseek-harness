@@ -1,11 +1,12 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import {
   DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS,
   INKSCAPE_CANDIDATES,
+  exportWithInkscape,
   findInkscape,
   inkscapeInstallMessage,
   outlineSvgText,
@@ -327,5 +328,120 @@ describe('outlineSvgText', () => {
     const outcome = await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
     expect(outcome.ok ? '' : outcome.error).toContain('spawn 不可用')
+  })
+})
+
+describe('exportWithInkscape', () => {
+  /** 结构完整的 PNG 产物（签名 + IEND 收尾）。 */
+  const COMPLETE_PNG = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('IHDRpayload'),
+    Buffer.from([0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]),
+  ])
+
+  /** 结构完整的 PDF 产物（有 xref 指针、以 %%EOF 收尾）。 */
+  const COMPLETE_PDF = Buffer.from('%PDF-1.5\n4 0 obj\n<< >>\nendobj\nstartxref\n9\n%%EOF\n', 'latin1')
+
+  /** 造一个待导出的 SVG 与一个导出目标路径。 */
+  function exportPaths(format: 'png' | 'pdf' = 'png'): { source: string; outcome: string } {
+    const source = figureFile()
+    return { source, outcome: join(dirname(source), `fig1.${format}`) }
+  }
+
+  /** 写出与格式相符的完整产物。 */
+  function writeProduct(spec: SubprocessSpawnSpec): void {
+    writeFileSync(outputPathOf(spec), spec.argv.includes('--export-type=pdf') ? COMPLETE_PDF : COMPLETE_PNG)
+  }
+
+  it('Inkscape 缺失时报 not_installed 且不 spawn', async () => {
+    const { source, outcome } = exportPaths()
+    const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+    const result = await exportWithInkscape(runtime, { path: source, outcomePath: outcome, format: 'png' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(result).toMatchObject({ ok: false, code: 'not_installed' })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('命令行按页面范围导出，dpi 只在给出时追加', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const { source, outcome } = exportPaths()
+    const { runtime, calls } = fakeSubprocess((spec) => {
+      writeProduct(spec)
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    expect(await exportWithInkscape(runtime, { path: source, outcomePath: outcome, format: 'png', dpi: 300 }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })).toEqual({ ok: true })
+    expect(calls[0]?.argv).toEqual([
+      '/opt/homebrew/bin/inkscape',
+      '--export-type=png',
+      '--export-area-page',
+      '--export-dpi=300',
+      `--export-filename=${outcome}`,
+      source,
+    ])
+    // 工作目录取目标文件所在目录：目标路径可能是相对路径。
+    expect(calls[0]?.cwd).toBe(dirname(outcome))
+    const noDpi = await exportWithInkscape(runtime, { path: source, outcomePath: outcome, format: 'pdf' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(noDpi).toEqual({ ok: true })
+    expect(calls[1]?.argv).not.toContain('--export-dpi=300')
+    expect(calls[1]?.argv).toContain('--export-type=pdf')
+  })
+
+  it('退出码非零时报 render_failed 并带 stderr', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const { source, outcome } = exportPaths()
+    const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 1, signal: null }, 'unknown export type'))
+    const result = await exportWithInkscape(runtime, { path: source, outcomePath: outcome, format: 'png' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(result.ok ? '' : result.error).toContain('unknown export type')
+  })
+
+  it('产物缺失或为空时报 render_failed（不把空文件当成功）', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const { source, outcome } = exportPaths()
+    const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+    const missing = await exportWithInkscape(runtime, { path: source, outcomePath: outcome, format: 'png' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(missing).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(missing.ok ? '' : missing.error).toContain('未生成有效的 png 产物')
+    const emptyRuntime = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), '', 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    expect(await exportWithInkscape(emptyRuntime.runtime, { path: source, outcomePath: outcome, format: 'png' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }))
+      .toMatchObject({ ok: false, code: 'render_failed' })
+  })
+
+  it('产物结构不完整时报 render_failed：退出码 0 也不算成功', async () => {
+    // Inkscape 1.4.4 本机实测：图面含未转路径的某些中文字形时，PDF 在字体对象后被
+    // 截断而退出码仍为 0；缺 IEND 的 PNG 同理。
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const pdf = exportPaths('pdf')
+    const truncatedPdf = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), '%PDF-1.5\n4 0 obj\n<< >>\nendobj\n', 'latin1')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    const pdfResult = await exportWithInkscape(truncatedPdf.runtime, { path: pdf.source, outcomePath: pdf.outcome, format: 'pdf' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(pdfResult).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(pdfResult.ok ? '' : pdfResult.error).toContain('产物不完整')
+    expect(pdfResult.ok ? '' : pdfResult.error).toContain('figureTextToPath')
+    const png = exportPaths()
+    const truncatedPng = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), COMPLETE_PNG.subarray(0, 12))
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    expect(await exportWithInkscape(truncatedPng.runtime, { path: png.source, outcomePath: png.outcome, format: 'png' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }))
+      .toMatchObject({ ok: false, code: 'render_failed' })
+  })
+
+  it('调用方取消时报 aborted；spawn 抛错时报 render_failed', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const { source, outcome } = exportPaths()
+    const controller = new AbortController()
+    controller.abort()
+    const { runtime } = fakeSubprocess(() => handleWith({ exitCode: null, signal: 'SIGTERM' }))
+    expect(await exportWithInkscape(runtime, { path: source, outcomePath: outcome, format: 'pdf', signal: controller.signal }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }))
+      .toMatchObject({ ok: false, code: 'aborted' })
+    const throwing: SubprocessSpawner = { spawn: () => { throw new Error('spawn 不可用') } }
+    const failed = await exportWithInkscape(throwing, { path: source, outcomePath: outcome, format: 'pdf' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(failed).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(failed.ok ? '' : failed.error).toContain('spawn 不可用')
   })
 })
