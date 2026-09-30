@@ -17,9 +17,17 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/freecad-renderer
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
+import {
+  SectionGeometryError,
+  parseSectionGeometry,
+  resolveSectionFrame,
+  type SectionGeometry,
+  type SectionPlane,
+} from './freecad-section-geometry.ts'
+import { SECTION_GEOMETRY_FILENAME, buildSectionScript } from './freecad-section-script.ts'
 import {
   STRUCTURE_MANIFEST_FILENAME,
   buildStructureScript,
@@ -78,8 +86,11 @@ export type FreeCadProbeOptions = {
 /** 渲染脚本临时文件名（写入 outputDir，与 SVG/manifest 同目录）。 */
 const STRUCTURE_RENDER_SCRIPT_FILENAME = '.freecad-structure-render.py'
 
-/** 子进程 HOME/临时目录名（写入 outputDir 内，隔离 FreeCAD 副作用）。 */
-const STRUCTURE_HOME_DIRNAME = '.freecad-home'
+/** 剖切几何脚本临时文件名（写入 outputDir）。 */
+const SECTION_RENDER_SCRIPT_FILENAME = '.freecad-section-render.py'
+
+/** 子进程 HOME/临时目录名（写入 outputDir 内，隔离 FreeCAD 副作用；两条链路共用）。 */
+const FREECAD_HOME_DIRNAME = '.freecad-home'
 
 /**
  * 生成 FreeCAD 缺失/路径失效时的安装引导文案。
@@ -150,10 +161,123 @@ export async function probeFreeCad(
     const version = text.match(/(\d+\.\d+\.\d+)/)?.[1]
     return { ready: true, executable, ...(version === undefined ? {} : { version }) }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return { ready: false, executable, message: `freecadcmd --version 调用失败：${message}` }
+    return { ready: false, executable, message: `freecadcmd --version 调用失败：${errorText(error)}` }
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/**
+ * 取可读的错误文本（非 Error 抛出也给出文本）。
+ * @param error - 捕获到的值。
+ * @returns 错误消息或该值的字符串形式。
+ */
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** freecadcmd 解析结果：就绪时的绝对路径，或未安装时的诊断文案。 */
+type FreeCadCommandResolution = { ok: true; executable: string } | { ok: false; error: string }
+
+/**
+ * 解析 freecadcmd 并给出未安装时的诊断文案（结构投影与剖切几何共用同一探测与文案）。
+ * @param options - Config.freecadExecutable 对应的路径覆盖。
+ * @returns 就绪时的可执行路径，或未安装的错误文案。
+ */
+function resolveFreeCadCommand(options: FreeCadRenderOptions): FreeCadCommandResolution {
+  const executable = findFreeCadCmd(options.executable)
+  if (executable === undefined) return { ok: false, error: freecadInstallMessage(undefined) }
+  return { ok: true, executable }
+}
+
+/** FreeCAD 脚本执行阶段的错误码（可执行文件已解析之后的失败）。 */
+export type FreeCadScriptErrorCode = 'render_failed' | 'aborted'
+
+/** 一次 FreeCAD 脚本执行请求（结构投影与剖切几何共用同一段执行逻辑）。 */
+export type FreeCadScriptRequest = {
+  /** 链路名，出现在诊断消息里（如 `FreeCAD 结构投影`）。 */
+  tool: string
+  /** 输出目录绝对路径（渲染器负责创建）。 */
+  outputDir: string
+  /** 脚本文件名（写入输出目录）。 */
+  scriptFilename: string
+  /** 脚本执行成功时应存在的产物文件名。 */
+  artifactFilename: string
+  /** 产物说明（缺产物时的诊断消息用，如 `manifest`）。 */
+  artifactLabel: string
+  /** 调用方取消信号。 */
+  signal?: AbortSignal
+}
+
+/**
+ * 把一段 FreeCAD Python 脚本交给 freecadcmd 执行，按「退出码 0 + 产物存在」判定成功。
+ *
+ * 结构投影与剖切几何共用这一段：创建隔离目录 → 写脚本 → spawn `freecadcmd <script.py>`
+ * （cwd = 输出目录，HOME/临时/缓存指向输出目录内的隔离目录）→ 按退出码与产物存在判定。
+ * 隔离目录必须包含可写的临时目录：实测（FreeCAD 1.1.3）`TMPDIR` 指向不存在的路径时，
+ * freecadcmd 会先于脚本 SIGSEGV，stdout/stderr 全空、退出码为 null，故这里先建目录再 spawn。
+ *
+ * stderr 的配置/转码告警非致命（实测），不参与判定；失败分类沿用
+ * {@link describeRenderFailure} 与 {@link describeRenderThrow}。
+ * @param subprocess - 注入的 subprocess 服务。
+ * @param executable - 已解析的 freecadcmd 绝对路径。
+ * @param request - 链路名、输出目录、脚本与产物文件名、调用方取消信号。
+ * @param script - 要执行的 Python 源码。
+ * @param options - 渲染超时。
+ * @returns 成功（产物已生成）或分类错误。
+ */
+async function runFreeCadScript(
+  subprocess: SubprocessRuntime,
+  executable: string,
+  request: FreeCadScriptRequest,
+  script: string,
+  options: FreeCadRenderOptions,
+): Promise<{ ok: true } | { ok: false; code: FreeCadScriptErrorCode; error: string }> {
+  const homeDir = join(request.outputDir, FREECAD_HOME_DIRNAME)
+  const scriptPath = join(request.outputDir, request.scriptFilename)
+  const artifactPath = join(request.outputDir, request.artifactFilename)
+  try {
+    mkdirSync(request.outputDir, { recursive: true })
+    mkdirSync(homeDir, { recursive: true })
+    // 同步写入脚本（体积小）：使 spawn 前的准备全部同步完成，超时计时器与
+    // 子进程启动之间无 await，保证 abort 能命中已启动的子进程。
+    writeFileSync(scriptPath, script, 'utf8')
+  } catch (error) {
+    return { ok: false, code: 'render_failed', error: `准备 FreeCAD 脚本失败：${errorText(error)}` }
+  }
+  const deadline = startRenderDeadline(options.renderTimeoutMs, request.signal)
+  try {
+    const { handle, outcome } = await spawnRenderProcess(subprocess, deadline, {
+      argv: [executable, scriptPath],
+      cwd: request.outputDir,
+      stdio: quietStdio(),
+      // 隔离 FreeCAD 副作用：HOME/临时/缓存指向 outputDir 内子目录（best-effort）。
+      env: {
+        HOME: homeDir,
+        XDG_CONFIG_HOME: join(homeDir, '.config'),
+        XDG_CACHE_HOME: join(homeDir, '.cache'),
+        XDG_DATA_HOME: join(homeDir, '.local'),
+        TEMP: homeDir,
+        TMP: homeDir,
+        TMPDIR: homeDir,
+      },
+    })
+    if (outcome.exitCode !== 0) {
+      const cause = describeRenderFailure(outcome, deadline.timedOut(), request.signal)
+      return {
+        ok: false,
+        code: request.signal?.aborted === true ? 'aborted' : 'render_failed',
+        error: `${request.tool}失败（${cause}）：${renderStderr(handle) || '无 stderr 输出'}`,
+      }
+    }
+    if (!existsSync(artifactPath)) {
+      return { ok: false, code: 'render_failed', error: `${request.tool}未生成 ${request.artifactLabel}：${artifactPath}` }
+    }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, ...describeRenderThrow(request.tool, error, request.signal) }
+  } finally {
+    deadline.dispose()
   }
 }
 
@@ -188,9 +312,8 @@ export type StructureRenderSpec = {
 /**
  * 用 FreeCAD headless 把模型投影为多视图结构线稿 SVG + manifest.json。
  *
- * 流程：解析可执行文件 → 写脚本与隔离子目录 → spawn `freecadcmd <script.py>`
- * （cwd=outputDir）→ 按退出码 + manifest 存在判定成功。stderr 的 cfg/transcoder
- * 告警非致命（实测），不参与判定。
+ * 流程：解析可执行文件 → 构建脚本 → {@link runFreeCadScript} 执行（退出码 + manifest
+ * 存在判定成功）。stderr 的 cfg/transcoder 告警非致命（实测），不参与判定。
  * @param subprocess - 注入的 subprocess 服务。
  * @param spec - 渲染请求。
  * @param options - freecadcmd 路径覆盖与渲染超时。
@@ -201,13 +324,8 @@ export async function renderStructureViews(
   spec: StructureRenderSpec,
   options: FreeCadRenderOptions,
 ): Promise<StructureRenderOutcome> {
-  const executable = findFreeCadCmd(options.executable)
-  if (executable === undefined) {
-    return { ok: false, code: 'not_installed', error: freecadInstallMessage(undefined) }
-  }
-  const homeDir = join(spec.outputDir, STRUCTURE_HOME_DIRNAME)
-  const scriptPath = join(spec.outputDir, STRUCTURE_RENDER_SCRIPT_FILENAME)
-  const manifestPath = join(spec.outputDir, STRUCTURE_MANIFEST_FILENAME)
+  const command = resolveFreeCadCommand(options)
+  if (!command.ok) return { ok: false, code: 'not_installed', error: command.error }
   const script = buildStructureScript({
     modelPath: spec.modelPath,
     views: spec.views,
@@ -217,48 +335,83 @@ export async function renderStructureViews(
     figureNumber: spec.figureNumber,
     outputDir: spec.outputDir,
   })
+  const result = await runFreeCadScript(subprocess, command.executable, {
+    tool: 'FreeCAD 结构投影',
+    outputDir: spec.outputDir,
+    scriptFilename: STRUCTURE_RENDER_SCRIPT_FILENAME,
+    artifactFilename: STRUCTURE_MANIFEST_FILENAME,
+    artifactLabel: 'manifest',
+    ...(spec.signal === undefined ? {} : { signal: spec.signal }),
+  }, script, options)
+  if (!result.ok) return result
+  return { ok: true, manifestPath: join(spec.outputDir, STRUCTURE_MANIFEST_FILENAME) }
+}
+
+/** 剖切几何请求。 */
+export type SectionGeometrySpec = {
+  /** 模型文件绝对路径（STEP/IGES/BREP）。 */
+  modelPath: string
+  /** 剖切平面（平面内一点、法向、可选的图面「向右」参考方向）。 */
+  plane: SectionPlane
+  /** 输出目录绝对路径（渲染器负责创建）。 */
+  outputDir: string
+  /** 调用方取消信号。 */
+  signal?: AbortSignal
+}
+
+/** 剖切几何错误码（与结构投影同形，产物不同故 `render_failed` 记作 `geometry_failed`）。 */
+export type SectionRenderErrorCode = 'not_installed' | 'geometry_failed' | 'aborted'
+
+/** 剖切几何结果：成功时的几何或分类错误。 */
+export type SectionGeometryOutcome =
+  | { ok: true; geometry: SectionGeometry }
+  | { ok: false; code: SectionRenderErrorCode; error: string }
+
+/**
+ * 用 FreeCAD headless 取出剖切平面的闭合轮廓（不需要 Document/Page/模板）。
+ *
+ * 流程与 {@link renderStructureViews} 同构：解析可执行文件 → 解析视图帧并构建脚本
+ * （平面参数非法时不启动子进程）→ {@link runFreeCadScript} 执行 → 解析产物并按面积核对。
+ * 面积核对不通过同样归入 `geometry_failed`，不交出几何。
+ * @param subprocess - 注入的 subprocess 服务。
+ * @param spec - 剖切请求。
+ * @param options - freecadcmd 路径覆盖与渲染超时。
+ * @returns 成功时的几何或分类错误。
+ */
+export async function renderSectionGeometry(
+  subprocess: SubprocessRuntime,
+  spec: SectionGeometrySpec,
+  options: FreeCadRenderOptions,
+): Promise<SectionGeometryOutcome> {
+  const command = resolveFreeCadCommand(options)
+  if (!command.ok) return { ok: false, code: 'not_installed', error: command.error }
+  const geometryPath = join(spec.outputDir, SECTION_GEOMETRY_FILENAME)
+  let script: string
   try {
-    mkdirSync(spec.outputDir, { recursive: true })
-    mkdirSync(homeDir, { recursive: true })
-    // 同步写入脚本（体积小）：使 spawn 前的准备全部同步完成，超时计时器与
-    // 子进程启动之间无 await，保证 abort 能命中已启动的子进程。
-    writeFileSync(scriptPath, script, 'utf8')
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return { ok: false, code: 'render_failed', error: `准备 FreeCAD 脚本失败：${message}` }
-  }
-  const deadline = startRenderDeadline(options.renderTimeoutMs, spec.signal)
-  try {
-    const { handle, outcome } = await spawnRenderProcess(subprocess, deadline, {
-      argv: [executable, scriptPath],
-      cwd: spec.outputDir,
-      stdio: quietStdio(),
-      // 隔离 FreeCAD 副作用：HOME/临时/缓存指向 outputDir 内子目录（best-effort）。
-      env: {
-        HOME: homeDir,
-        XDG_CONFIG_HOME: join(homeDir, '.config'),
-        XDG_CACHE_HOME: join(homeDir, '.cache'),
-        XDG_DATA_HOME: join(homeDir, '.local'),
-        TEMP: homeDir,
-        TMP: homeDir,
-        TMPDIR: homeDir,
-      },
+    // 视图帧在这里解析：平面参数非法时不启动子进程。
+    script = buildSectionScript({
+      modelPath: spec.modelPath,
+      frame: resolveSectionFrame(spec.plane),
+      outputDir: spec.outputDir,
     })
-    if (outcome.exitCode !== 0) {
-      const cause = describeRenderFailure(outcome, deadline.timedOut(), spec.signal)
-      return {
-        ok: false,
-        code: spec.signal?.aborted === true ? 'aborted' : 'render_failed',
-        error: `FreeCAD 结构投影失败（${cause}）：${renderStderr(handle) || '无 stderr 输出'}`,
-      }
-    }
-    if (!existsSync(manifestPath)) {
-      return { ok: false, code: 'render_failed', error: `FreeCAD 未生成 manifest：${manifestPath}` }
-    }
-    return { ok: true, manifestPath }
   } catch (error) {
-    return { ok: false, ...describeRenderThrow('FreeCAD 结构投影', error, spec.signal) }
-  } finally {
-    deadline.dispose()
+    return { ok: false, code: 'geometry_failed', error: errorText(error) }
+  }
+  const result = await runFreeCadScript(subprocess, command.executable, {
+    tool: 'FreeCAD 剖切几何',
+    outputDir: spec.outputDir,
+    scriptFilename: SECTION_RENDER_SCRIPT_FILENAME,
+    artifactFilename: SECTION_GEOMETRY_FILENAME,
+    artifactLabel: '剖切几何',
+    ...(spec.signal === undefined ? {} : { signal: spec.signal }),
+  }, script, options)
+  if (!result.ok) {
+    return { ok: false, code: result.code === 'aborted' ? 'aborted' : 'geometry_failed', error: result.error }
+  }
+  try {
+    return { ok: true, geometry: parseSectionGeometry(readFileSync(geometryPath, 'utf8')) }
+  } catch (error) {
+    if (error instanceof SectionGeometryError) return { ok: false, code: 'geometry_failed', error: error.message }
+    return { ok: false, code: 'geometry_failed', error: `剖切几何产物不可用（${geometryPath}）：${errorText(error)}` }
   }
 }
