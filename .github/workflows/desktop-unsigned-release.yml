@@ -1,0 +1,154 @@
+# Publish an unsigned macOS (Apple Silicon) desktop build to a GitHub Release.
+#
+# The unsigned packaging mode carries no Developer ID signature and no notarization
+# ticket, writes no release completion record, and configures no updater, so the
+# repository's upload:* (Tencent COS) path refuses it; GitHub Releases is its only
+# distribution channel (see
+# .agents/notes/implemented/architecture/2026-09-11-desktop-unsigned-macos-builds.md).
+#
+# electron-builder skips code signing entirely when the release identity is null, and it
+# rewrites the Info.plist and the main executable name of the Electron distribution, so
+# the seal it inherits no longer covers the bundle. This workflow therefore packages an
+# unpacked application and re-signs it with the ad-hoc identity before archiving it;
+# ad-hoc signing needs no Apple account and makes the seal valid again, which Apple
+# Silicon requires before the application starts at all.
+name: Desktop (unsigned)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag; empty publishes desktop-unsigned-v<version>.
+        type: string
+        required: false
+        default: ''
+      draft:
+        description: Leave the release as a draft for manual publication.
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # Publication is a transaction: a later dispatch waits instead of cancelling a
+  # release whose assets are already uploading.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  mac-arm64:
+    name: mac-arm64 (unsigned)
+    runs-on: macos-latest
+    # The packaged runtime carries the complete dsh dependency closure and the
+    # LibreOffice conversion engine, so one build owns the whole job budget.
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        # An application runtime plus its preparation trees exceed what the hosted
+        # image leaves free; the Android SDK is the largest tree this build never uses.
+        run: |
+          set -euo pipefail
+          sudo rm -rf ~/Library/Android/sdk ~/Library/Android ~/.gradle /usr/local/share/dotnet
+          df -h /
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write the packaging environment
+        # Packaging reads every release field from apps/desktop/.env.macos and never
+        # falls back to shell variables, so the file must exist before the build. An
+        # unsigned build needs the application id and the policy origin that packaged
+        # applications carry; it needs no signing, notarization, or upload credential.
+        env:
+          UPDATE_ORIGIN: ${{ vars.DSH_MANDATORY_UPDATE_ORIGIN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$UPDATE_ORIGIN" ]; then
+            echo "::error::Set the repository variable DSH_MANDATORY_UPDATE_ORIGIN to the HTTPS origin your builds carry."
+            exit 1
+          fi
+          cat > apps/desktop/.env.macos <<EOF
+          DSH_DESKTOP_APP_ID=com.deepseek.harness
+          DSH_DESKTOP_AUTO_UPDATE_ENV=production
+          DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN=$UPDATE_ORIGIN
+          DSH_DESKTOP_MACOS_PACK_CONCURRENCY=4
+          EOF
+
+      - name: Package the unpacked application
+        # --dir stops before artifact creation so the application can be re-signed
+        # before it is archived; the builder's own unsigned run would wrap the same
+        # unsigned application in a DMG instead.
+        run: pnpm --dir apps/desktop run package mac-arm64 --dir --unsigned
+
+      - name: Sign ad-hoc and archive
+        run: |
+          set -euo pipefail
+          app_directory="apps/desktop/.desktop-build/targets/mac-arm64/unsigned-artifacts/mac-arm64"
+          application="$(find "$app_directory" -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$application" ]; then
+            echo "::error::No packaged application under $app_directory"
+            exit 1
+          fi
+          codesign --force --deep --sign - "$application"
+          codesign --verify --deep --strict --verbose=2 "$application"
+          version="$(node -p "require('./apps/desktop/package.json').version")"
+          # The archive lands in the ignored build tree so a local re-run leaves no
+          # multi-gigabyte untracked file at the repository root.
+          archive_directory="apps/desktop/.desktop-build/unsigned-release"
+          mkdir -p "$archive_directory"
+          archive="$archive_directory/deepseek-harness-${version}-mac-arm64-unsigned.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$application" "$archive"
+          shasum -a 256 "$archive" > "$archive.sha256"
+          ls -l "$archive"
+          {
+            echo "ARCHIVE=$archive"
+            echo "VERSION=$version"
+          } >> "$GITHUB_ENV"
+
+      - name: Upload the packaging journal
+        # The journal carries the phase timeline and redacted child output of a failed
+        # run, which is the only record a cancelled or failed build leaves behind.
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mac-arm64-packaging-journal
+          path: apps/desktop/.desktop-build/packaging-runs/**
+          if-no-files-found: ignore
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED_TAG:-desktop-unsigned-v$VERSION}"
+          # A release is created as a draft so a re-run replaces assets on a release
+          # that is not yet visible, and only a complete upload turns it public.
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --draft --target "$GITHUB_SHA" \
+              --title "DeepSeek Harness $VERSION (unsigned, macOS arm64)" \
+              --notes-file .github/desktop-unsigned-release-notes.md
+          fi
+          gh release upload "$tag" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
+          if [ "$DRAFT" != 'true' ]; then
+            gh release edit "$tag" --draft=false
+          fi
+          gh release view "$tag" --json url --jq .url
