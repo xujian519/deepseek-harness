@@ -154,6 +154,31 @@ describe('patent compliance loading', () => {
     }
   })
 
+  // premise-vocab 写成标量时词表整体失效；告警必须落在词表本身，否则作者只能看到
+  // 「规则不生效」，定位不到拼错的顶层值。
+  it('loadActivationOverrides warns when premise-vocab is not a mapping', () => {
+    const root = makeFixture({ [OVERRIDES]: 'premise-vocab: 42\noverrides: {}\n' })
+    try {
+      const loaded = loadActivationOverrides(root)
+      expect(loaded.byId.size).toBe(0)
+      expect(loaded.warnings.some(w => w.includes('premise-vocab 必须是映射'))).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  // 顶层写成数组或标量时整份覆盖文件被忽略；没有这条告警，补丁会静默消失。
+  it('loadActivationOverrides warns when the overrides file top level is not an object', () => {
+    const root = makeFixture({ [OVERRIDES]: '- 1\n- 2\n' })
+    try {
+      const loaded = loadActivationOverrides(root)
+      expect(loaded.byId.size).toBe(0)
+      expect(loaded.warnings.some(w => w.includes('顶层必须是对象'))).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('selectGateRules drops the version when the rule set has none', () => {
     const gateRules = selectGateRules({ rules: [] })
     expect(gateRules.version).toBeUndefined()
