@@ -5658,7 +5658,7 @@ Usage notes:
 
 ### `rule_check`
 
-对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配），返回带严重级别、处置建议与法条依据的违规项。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。
+对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。
 
 ```json
 {

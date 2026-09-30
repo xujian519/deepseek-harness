@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-`rule_check` 每个 scope 只给一个规则集：固定合规文件（`patent`）、电学合并（`patent-electrical`）、合并后的全量资产（`patent-full`，117 条）以及项目分层包。四类作业——审查意见答复、无效、复审、侵权——没有各自的 scope，检查某类作业的交付物只能在四条通用合规规则与全部随包规则之间二选一，而全量里含着与作业无关的域。
+`rule_check` 每个 scope 只给一个规则集：固定合规文件（`patent`）、电学合并（`patent-electrical`）、合并后的全量资产（`patent-full`，120 条）以及项目分层包。四类作业——审查意见答复、无效、复审、侵权——没有各自的 scope，检查某类作业的交付物只能在四条通用合规规则与全部随包规则之间二选一，而全量里含着与作业无关的域。
 
 移植来的上游作业表（`builtinPatentManifests[].checkDomains`）不能直接当映射用。它是按 checker 引擎自己的规则集写的，其中三个域（`patent_invalidation`、`patent_reexamination`、`patent_amendment`）在本包资产里没有任何规则，而镜像资产又声明了它从未提及的域（`patent_oa_response`、`patent_procedure`、`patent_general`、`patent_utility`）。
 
@@ -18,9 +18,9 @@ Status: implemented
 
 | Scope | Manifest | 规则数 |
 | --- | --- | --- |
-| `patent-oa-response` | `patent_oa_response_v1` | 105 |
+| `patent-oa-response` | `patent_oa_response_v1` | 108 |
 | `patent-invalidation` | `patent_invalidation_v1` | 97 |
-| `patent-reexamination` | `patent_reexamination_v1` | 105 |
+| `patent-reexamination` | `patent_reexamination_v1` | 108 |
 | `patent-infringement` | `patent_infringement_v1` | 39 |
 
 实体条款所在的域取自本仓自己的理由表：`packages/patent/patent-core/src/notice/office-action.ts` 的驳回类型表与 `.../notice/grounds.ts` 的理由表。两张表指向同一组条款——新颖性（22.2）、创造性（22.3）、实用性（22.4）、充分公开（26.3）、权利要求（26.4）、修改（33 条）——资产把它们承载为 `patent_novelty`、`patent_inventiveness`、`patent_utility`、`patent_disclosure`、`patent_claims` 与 `patent_procedure`。
@@ -41,11 +41,11 @@ Status: implemented
 
 ## Consequences
 
-全量资产仍为 117 条；四个 scope 分别评估其中 105 / 97 / 105 / 39 条，四者并集覆盖合并结果的全部域，故任一资产域都有对应的作业入口——新增资产域不属于任何作业时测试转红。
+全量资产为 120 条；四个 scope 分别评估其中 108 / 97 / 108 / 39 条，四者并集覆盖合并结果的全部域，故任一资产域都有对应的作业入口——新增资产域不属于任何作业时测试转红。
 
-过滤收窄的是规则集，不判断文本类型。资产里的完整性检查（`structural_analysis`）对任意文本都会报出缺失要素，故把某作业 scope 跑在别类文书上仍会得到这些命中——在一条四句样本上实测：`patent-oa-response` 与 `patent-reexamination` 各 69 条命中，`patent-invalidation` 68 条，`patent-infringement` 22 条，不过滤则 79 条。
+过滤按作业收窄规则集，不按文书类型；它与后来加入的逐规则适用前提（[前提变更](2026-09-30-rule-applicability-premises-and-quoted-spans.zh.md)）叠加：文本从未触及的完整性检查根本不被评估，而主题词表出现在文本中的规则，仍会在别类文书上报出缺失要素。
 
-四个作业技能尚未引用各自的 scope：它们经 `patent-quality-gate` 把关，调用 `rule_check` 时用默认的 `patent` scope；把它们指到作业 scope 会重录作业链场景的系统提示固定内容。
+各作业技能对 scope 的引用程度不一：`patent-oa-response` 技能要求在交付前以本作业 scope 做一次 `rule_check` 自检，其余三个仍经 `patent-quality-gate` 把关、调用 `rule_check` 时用默认的 `patent` scope；把它们指到作业 scope 会重录作业链场景的固定内容。
 
 ## Testing
 

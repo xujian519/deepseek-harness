@@ -33,6 +33,7 @@ const CHECK_TYPES: readonly RuleCheckType[] = [
   'structural_analysis',
   'citation_analysis',
   'synonym_match',
+  'quote_repetition',
 ]
 
 /**
@@ -90,25 +91,95 @@ function isRecordOfStrings(value: unknown): value is Record<string, string[]> {
 
 /**
  * 校验正则列表（语法 + 灾难性回溯启发式），非法时收集问题并返回 false。
- * 供 pattern_analysis / structural_analysis 共用，保证 ReDoS 防护一致。
+ * 供 pattern_analysis / structural_analysis / premise 共用，保证 ReDoS 防护一致。
+ * @param patterns - 待校验的正则列表。
+ * @param ruleId - 所属规则 id（问题定位）。
+ * @param issues - 问题收集器。
+ * @param label - 问题消息中的名词（如 "正则" / "适用前提正则"）。
+ * @returns 全部合法时为 true。
  */
-function validateRegexPatterns(patterns: string[], ruleId: string, issues: RuleSetValidationIssue[]): boolean {
+function validateRegexPatterns(
+  patterns: string[],
+  ruleId: string,
+  issues: RuleSetValidationIssue[],
+  label = '正则',
+): boolean {
   for (const pattern of patterns) {
-    try {
-      new RegExp(pattern, 'i')
-    } catch {
-      issues.push({ ruleId, message: `rule ${ruleId}: 非法正则 "${pattern}"` })
-      return false
-    }
-    if (hasNestedQuantifier(pattern)) {
-      issues.push({
-        ruleId,
-        message: `rule ${ruleId}: 正则疑似灾难性回溯（嵌套量词） "${pattern}"`,
-      })
-      return false
+    switch (regexProblem(pattern)) {
+      case null:
+        continue
+      case 'blank':
+        issues.push({ ruleId, message: `rule ${ruleId}: ${label}为空串（匹配任意文本，判据恒成立），已忽略` })
+        return false
+      case 'syntax':
+        issues.push({ ruleId, message: `rule ${ruleId}: 非法${label} "${pattern}"` })
+        return false
+      case 'redos':
+        issues.push({
+          ruleId,
+          message: `rule ${ruleId}: ${label}疑似灾难性回溯（嵌套量词） "${pattern}"`,
+        })
+        return false
+      /* v8 ignore next -- closed union; the switch covers every problem kind. */
+      default:
+        return false
     }
   }
   return true
+}
+
+/**
+ * 单条正则的问题类型；合法（非空白、语法通过且无嵌套量词）返回 null。
+ * 空白串单列为问题：`new RegExp("")` 匹配任意文本，做前提会让规则恒被执行、
+ * 做 pattern 会让规则恒命中——两种都是静默失效。
+ */
+function regexProblem(pattern: string): 'blank' | 'syntax' | 'redos' | null {
+  if (pattern.trim().length === 0) return 'blank'
+  try {
+    new RegExp(pattern, 'i')
+  } catch {
+    return 'syntax'
+  }
+  return hasNestedQuantifier(pattern) ? 'redos' : null
+}
+
+/**
+ * 单条正则是否可安全评估（语法合法 + 无嵌套量词）。
+ * 供补丁解析（patent-compliance 的 activation-overrides）复用资产解析的同一判据，
+ * 保证两条入口的 ReDoS 防护一致。
+ * @param pattern - 待校验的正则。
+ * @returns 可安全评估时为 true。
+ */
+export function isSafeRegex(pattern: string): boolean {
+  return regexProblem(pattern) === null
+}
+
+/**
+ * 声明的适用前提是否可用：非空数组，且每条都是可安全评估的非空白正则。
+ * 空数组会让 `premiseSatisfied` 恒为真（前提形同未声明），空白串匹配任意文本
+ * （前提恒成立）——两种写法都让「写了前提」的评审结论悄悄失效，故与非法正则同判。
+ * 补丁解析与词表校验共用此判据（资产解析走 `parsePremise`，问题消息更分型）。
+ * @param premise - 待校验的前提（调用方负责筛掉非字符串项，见 asStringArray）。
+ * @returns 可用时为 true。
+ */
+export function isUsablePremise(premise: readonly string[]): boolean {
+  return premise.length > 0 && premise.every(isSafeRegex)
+}
+
+/** 解析规则级适用前提（premise）：非空字符串数组 + 逐条正则校验；非法返回 undefined 并收集问题。 */
+function parsePremise(
+  raw: unknown,
+  ruleId: string,
+  issues: RuleSetValidationIssue[],
+): string[] | undefined {
+  if (raw === undefined) return undefined
+  const premise = asStringArray(raw)
+  if (premise === null || premise.length === 0) {
+    issues.push({ ruleId, message: `rule ${ruleId}: premise 必须是非空字符串数组，已忽略` })
+    return undefined
+  }
+  if (!validateRegexPatterns(premise, ruleId, issues, '适用前提正则')) return undefined
+  return premise
 }
 
 /**
@@ -176,12 +247,16 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
       const severityIfFound = SEVERITIES.includes(record.severityIfFound as RuleSeverity)
         ? (record.severityIfFound as RuleSeverity)
         : undefined
+      if (record.quoteImmune !== undefined && typeof record.quoteImmune !== 'boolean') {
+        issues.push({ ruleId, message: `rule ${ruleId}: quoteImmune 必须是布尔值，已忽略` })
+      }
       return {
         type,
         keywords,
         negationContext: record.negationContext === true,
         ...(negationWords !== undefined ? { additionalNegationWords: negationWords } : {}),
         ...(severityIfFound !== undefined ? { severityIfFound } : {}),
+        ...(record.quoteImmune === true ? { quoteImmune: true } : {}),
       }
     }
     case 'pattern_analysis': {
@@ -270,6 +345,19 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
       const minConfidence = typeof record.minConfidence === 'number' ? record.minConfidence : 1
       return { type, requirements, minConfidence }
     }
+    case 'quote_repetition': {
+      const minLength = record.minLength ?? 12
+      const minOccurrences = record.minOccurrences ?? 2
+      if (typeof minLength !== 'number' || !Number.isInteger(minLength) || minLength < 1) {
+        issues.push({ ruleId, message: `rule ${ruleId}: quote_repetition 的 minLength 必须是正整数` })
+        return null
+      }
+      if (typeof minOccurrences !== 'number' || !Number.isInteger(minOccurrences) || minOccurrences < 2) {
+        issues.push({ ruleId, message: `rule ${ruleId}: quote_repetition 的 minOccurrences 必须是不小于 2 的整数` })
+        return null
+      }
+      return { type, minLength, minOccurrences }
+    }
     /* v8 ignore next -- closed-union backstop; the compiler rejects a new check type here. */
     default:
       return assertNever(type, 'rule check type')
@@ -302,6 +390,7 @@ function parseRule(raw: unknown, issues: RuleSetValidationIssue[]): Constitution
   }
   const check = parseCheck(record.check, issues, id)
   if (check === null) return null
+  const premise = parsePremise(record.premise, id, issues)
   return {
     id,
     name: record.name,
@@ -311,6 +400,7 @@ function parseRule(raw: unknown, issues: RuleSetValidationIssue[]): Constitution
     severity,
     action,
     ...(typeof record.legalBasis === 'string' ? { legalBasis: record.legalBasis } : {}),
+    ...(premise !== undefined ? { premise } : {}),
     check,
   }
 }
@@ -454,7 +544,8 @@ export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
  * 激活评审补丁（`activation-overrides.yaml` 的单条）。
  *
  * 字段语义分两级：
- *   - `action`：**整字段替换**（评审结论「这条规则该降级/升级」）；
+ *   - `action` / `premise`：**整字段替换**（评审结论「这条规则该降级/升级」/
+ *     「这条规则只在该主题出现时才评估」）；
  *   - `addKeywords` / `negationContext` / `additionalNegationWords`：**check 级增补**
  *     （评审结论「这条规则的匹配精度要增强」）——只追加/覆盖开关，不重声明既有 keywords。
  *
@@ -464,6 +555,8 @@ export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
  */
 export type ActivationRulePatch = {
   action?: RuleAction
+  /** 适用前提（正则列表，语义见 `ConstitutionalRule.premise`）；整字段替换。 */
+  premise?: string[]
   /** 追加关键词（`a|b|c` OR 组同样适用），增补既有 keywords 之后。 */
   addKeywords?: string[]
   /** 覆盖否定语境开关。 */
@@ -475,6 +568,7 @@ export type ActivationRulePatch = {
 /** 补丁对象的允许键（含仅作文档用途的 `reason`）；未知键告警，避免拼错键被静默忽略。 */
 export const ACTIVATION_PATCH_KEYS: readonly string[] = [
   'action',
+  'premise',
   'addKeywords',
   'negationContext',
   'additionalNegationWords',
@@ -487,7 +581,17 @@ function applyActivationPatch(
   patch: ActivationRulePatch,
   issues?: RuleSetValidationIssue[],
 ): ConstitutionalRule {
-  const next: ConstitutionalRule = patch.action === undefined ? rule : { ...rule, action: patch.action }
+  let next: ConstitutionalRule = rule
+  if (patch.action !== undefined) next = { ...next, action: patch.action }
+  if (patch.premise !== undefined) {
+    // 与资产解析器同一判据：空表/非法正则会造出「写了前提却不生效」的补丁，
+    // 而补丁是评审结论的机器可读形态，静默失效等于评审没做。
+    if (isUsablePremise(patch.premise)) {
+      next = { ...next, premise: patch.premise }
+    } else {
+      issues?.push({ ruleId: rule.id, message: `激活覆盖 ${rule.id}: premise 必须是非空合法正则数组，已忽略` })
+    }
+  }
   const hasCheckPatch =
     patch.addKeywords !== undefined ||
     patch.negationContext !== undefined ||
@@ -525,7 +629,7 @@ function applyActivationPatch(
 
 /**
  * 字段级覆盖规则（按 id 施加 `ActivationRulePatch`，不改未覆盖字段）。
- * 与 mergeRuleSets（整条覆盖）互补：用于「评审补丁」场景——只改 action / 增补关键词，
+ * 与 mergeRuleSets（整条覆盖）互补：用于「评审补丁」场景——只改 action / 前提 / 增补关键词，
  * 而不重写整条规则（避免复制 name/check 等字段漂移）。
  * overrides 中未命中 id 的规则原样保留；**引用不存在 id 的补丁会报 issue**
  * （拼错 id 的补丁此前被静默忽略，等于"评审写了但没生效"）。

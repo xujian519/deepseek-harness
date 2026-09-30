@@ -267,6 +267,133 @@ describe('RuleEngine', () => {
   })
 })
 
+describe('RuleEngine 适用前提（premise）', () => {
+  const gated = ruleSet([
+    {
+      id: 'T-PRE-001',
+      name: '创造性完整性',
+      severity: 'major',
+      action: 'warn',
+      premise: ['创造性', '三步法'],
+      check: { type: 'structural_analysis', requiresAll: [{ element: 'framework', patterns: ['三步法', '最接近的现有技术', '技术启示'] }] },
+    },
+  ])
+
+  it('前提不满足 → 不评估（完整性规则在未触及该主题的文本上保持沉默）', () => {
+    expect(evaluateText('本申请说明书公开充分，本领域技术人员能够实现。', gated).violations.length).toBe(0)
+  })
+
+  it('前提满足 → 照常评估（主题被触及后，缺失要素仍报出）', () => {
+    const result = evaluateText('审查员认为本申请不具备创造性。', gated)
+    expect(result.violations.length).toBe(1)
+    expect(result.violations[0]?.ruleId).toBe('T-PRE-001')
+  })
+
+  it('前提大小写不敏感，且空数组视同未声明（始终评估）', () => {
+    const cased = ruleSet([
+      { id: 'T-PRE-002', name: 'x', severity: 'minor', action: 'warn', premise: ['patent act'], check: { type: 'keyword_blocklist', keywords: ['绝对'] } },
+    ])
+    expect(evaluateText('该结论绝对成立。', cased).violations.length).toBe(0)
+    expect(evaluateText('See PATENT ACT art. 22. 该结论绝对成立。', cased).violations.length).toBe(1)
+    const empty = ruleSet([
+      { id: 'T-PRE-003', name: 'x', severity: 'minor', action: 'warn', premise: [], check: { type: 'keyword_blocklist', keywords: ['绝对'] } },
+    ])
+    expect(evaluateText('该结论绝对成立。', empty).violations.length).toBe(1)
+  })
+
+  it('前提命中引号内的引文也算（前提问的是「讨论到了」）', () => {
+    const quoted = '审查员指出「该方案不具备创造性」。'
+    expect(evaluateText(quoted, gated).violations.length).toBe(1)
+  })
+})
+
+describe('RuleEngine 引述范围放行（quoteImmune）', () => {
+  const quoted = ruleSet([
+    {
+      id: 'T-QIM-001',
+      name: '回避绝对化表述',
+      severity: 'minor',
+      action: 'warn',
+      check: { type: 'keyword_blocklist', keywords: ['一定'], quoteImmune: true },
+    },
+  ])
+
+  it('引号内的命中被放行（引述他人原文不等于自己下结论）', () => {
+    expect(evaluateText('审查员指出「该参数一定能够提高效率」，申请人认为该认定缺乏依据。', quoted).violations.length).toBe(0)
+    expect(evaluateText('审查员指出『该参数一定能够提高效率』。', quoted).violations.length).toBe(0)
+    expect(evaluateText('审查员指出“该参数一定能够提高效率”。', quoted).violations.length).toBe(0)
+  })
+
+  it('引号外的命中照常报出', () => {
+    expect(evaluateText('该参数一定能够提高效率。', quoted).violations.length).toBe(1)
+    expect(evaluateText('审查员指出「该参数能够提高效率」，该结论一定成立。', quoted).violations.length).toBe(1)
+  })
+
+  it('引号未闭合不豁免（失败方向指向检出，不指向放行）', () => {
+    const unclosed = '审查员指出「该参数一定能够提高效率，申请人认为该认定缺乏依据。'
+    expect(evaluateText(unclosed, quoted).violations.length).toBe(1)
+  })
+
+  it('未声明 quoteImmune 时引号不豁免', () => {
+    const plain = ruleSet([
+      { id: 'T-QIM-002', name: 'x', severity: 'minor', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['一定'] } },
+    ])
+    expect(evaluateText('审查员指出「该参数一定能够提高效率」。', plain).violations.length).toBe(1)
+  })
+})
+
+describe('RuleEngine 重复引证（quote_repetition）', () => {
+  const repeated = ruleSet([
+    { id: 'T-QRP-001', name: '重复引证', severity: 'minor', action: 'warn', check: { type: 'quote_repetition' } },
+  ])
+  const quote = '「如何对喷漆、烘干时间进行控制」'
+
+  it('同一引文出现两次即报出，证据带次数', () => {
+    const result = evaluateText(`审查员认为${quote}属于公知常识。申请人认为${quote}并非公知常识。`, repeated)
+    expect(result.violations.length).toBe(1)
+    expect(result.violations[0]?.evidence[0]).toContain('（2 次）')
+  })
+
+  it('只出现一次的引文不报出', () => {
+    expect(evaluateText(`审查员认为${quote}属于公知常识。`, repeated).violations.length).toBe(0)
+  })
+
+  it('短于 minLength 的引文不参与计数', () => {
+    const short = '「控制」与「控制」重复出现。'
+    expect(evaluateText(short, repeated).violations.length).toBe(0)
+  })
+
+  it('归一化空白与省略号后仍视为同一引文', () => {
+    const a = '「如何对喷漆、烘干时间进行控制」'
+    const b = '「如何对喷漆、\n烘干时间进行控制」'
+    const c = '「如何对喷漆、…烘干时间进行控制」'
+    expect(evaluateText(`${a}…${b}`, repeated).violations.length).toBe(1)
+    expect(evaluateText(`${a}…${c}`, repeated).violations.length).toBe(1)
+  })
+
+  it('minLength / minOccurrences 可配置，minOccurrences 3 要求第三次出现', () => {
+    const strict = ruleSet([
+      { id: 'T-QRP-002', name: 'x', severity: 'minor', action: 'warn', check: { type: 'quote_repetition', minLength: 6, minOccurrences: 3 } },
+    ])
+    expect(evaluateText(`${quote}${quote}`, strict).violations.length).toBe(0)
+    expect(evaluateText(`${quote}${quote}${quote}`, strict).violations.length).toBe(1)
+  })
+
+  it('超长引文在证据与消息中一并截断（80 字符加省略号）', () => {
+    const inner = '蓄热式喷漆装置通过螺旋通道与回流腔体的配合实现对喷漆、烘干时间的精确控制并提高效率的完整说明'.repeat(2)
+    const span = `「${inner}」`
+    const result = evaluateText(`${span}${span}`, repeated)
+    expect(result.violations.length).toBe(1)
+    const truncated = `${inner}（2 次）`.slice(0, 80) + '…'
+    expect(result.violations[0]?.evidence).toEqual([truncated])
+    expect(result.violations[0]?.message).toBe(`重复引证：同一引文重复出现（${truncated}）`)
+  })
+
+  it('未闭合引号不参与计数（不是一对完整引文）', () => {
+    expect(evaluateText(`审查员认为${quote}属于公知常识。申请人认为${quote.slice(0, -1)}并非公知常识。`, repeated).violations.length).toBe(0)
+  })
+})
+
 describe('RuleEngine domain filter', () => {
   const domains = ruleSet([
     { id: 'D-NOV', name: '新颖性域', domain: 'patent_novelty', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['单独对比'] } },

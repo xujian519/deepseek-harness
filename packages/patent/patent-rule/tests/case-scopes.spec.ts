@@ -18,10 +18,14 @@ const CASE_SCOPES: readonly PatentCaseScope[] = [
   'patent-infringement',
 ]
 
-/** 断言用文本：同时含答复要素、无效理由、侵权比对与两年时效措辞，让越域漏检必然显形。 */
+/**
+ * 断言用文本：同时含答复要素、无效理由、侵权比对与两年时效措辞，让越域漏检必然显形。
+ * 也含各规则的适用前提词（新颖性/优先权/创造性…）：前提不满足的规则一律不评估，
+ * 探针文本缺主题词就会把「前提沉默」误读成「域过滤生效」。
+ */
 const PROBE_TEXT = [
   '意见陈述书：逐条答复审查意见。权利要求 1 具备创造性，区别技术特征为螺旋通道，现有技术未给出结合启示。',
-  '请求宣告权利要求 1 无效：对比文件 1 公开了全部技术特征，权利要求 1 的保护范围不清楚。',
+  '请求宣告权利要求 1 无效：对比文件 1 公开了全部技术特征，权利要求 1 不具备新颖性、其优先权主张不成立，保护范围不清楚。',
   '被控产品落入权利要求 1 的保护范围，三者手段基本相同、功能基本相同、效果基本相同。',
   '侵权诉讼时效为两年，自权利人知道或应当知道之日起算。',
 ].join('\n')
@@ -91,7 +95,7 @@ describe('patent job scopes (PATENT_CASE_DOMAINS)', () => {
     }
     const invalidation = evaluateScope('patent-invalidation', PROBE_TEXT)
     expect(invalidation).toContain('P-NOV-001')
-    expect(invalidation).toContain('P-PRC-003')
+    expect(invalidation).toContain('EX-PRC-001')
     expect(invalidation).not.toContain('CON-702')
     expect(invalidation).not.toContain('LAW-TIMELIMIT-001')
   })

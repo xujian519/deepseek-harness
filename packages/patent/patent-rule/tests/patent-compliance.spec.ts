@@ -93,7 +93,9 @@ describe('patent compliance loading', () => {
     const noOverrides = loadActivationOverrides(root)
     expect(noOverrides.source).not.toBeNull()
     expect(noOverrides.byId.size).toBe(0)
-    expect(noOverrides.warnings.length).toBe(0)
+    // 顶层没有 overrides 段时补丁表为空；未知顶层键（如拼错的 `premise-vocab`）必须告警，
+    // 否则整段评审结论会因为一个拼错的键而静默消失。
+    expect(noOverrides.warnings.some(w => w.includes('未知顶层键 "foo"'))).toBe(true)
 
     writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: 42\n', 'utf8')
     const badValue = loadActivationOverrides(root)
@@ -147,6 +149,31 @@ describe('patent compliance loading', () => {
       expect(unreadable.source).toBeNull()
       expect(unreadable.byId.size).toBe(0)
       expect(unreadable.warnings.some(w => w.includes('激活覆盖文件加载失败'))).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  // premise-vocab 写成标量时词表整体失效；告警必须落在词表本身，否则作者只能看到
+  // 「规则不生效」，定位不到拼错的顶层值。
+  it('loadActivationOverrides warns when premise-vocab is not a mapping', () => {
+    const root = makeFixture({ [OVERRIDES]: 'premise-vocab: 42\noverrides: {}\n' })
+    try {
+      const loaded = loadActivationOverrides(root)
+      expect(loaded.byId.size).toBe(0)
+      expect(loaded.warnings.some(w => w.includes('premise-vocab 必须是映射'))).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  // 顶层写成数组或标量时整份覆盖文件被忽略；没有这条告警，补丁会静默消失。
+  it('loadActivationOverrides warns when the overrides file top level is not an object', () => {
+    const root = makeFixture({ [OVERRIDES]: '- 1\n- 2\n' })
+    try {
+      const loaded = loadActivationOverrides(root)
+      expect(loaded.byId.size).toBe(0)
+      expect(loaded.warnings.some(w => w.includes('顶层必须是对象'))).toBe(true)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

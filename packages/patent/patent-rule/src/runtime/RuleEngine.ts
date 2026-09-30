@@ -10,6 +10,7 @@ import type {
   ConstitutionalRule,
   KeywordBlocklistCheck,
   PatternAnalysisCheck,
+  QuoteRepetitionCheck,
   RuleEvaluation,
   RuleSeverity,
   RuleSet,
@@ -27,12 +28,64 @@ function truncate(text: string): string {
   return text.length > EVIDENCE_MAX ? `${text.slice(0, EVIDENCE_MAX)}…` : text
 }
 
+/** 成对引号（开→闭），引文豁免与引文重复统计共用同一套配对规则。 */
+const QUOTE_PAIRS: ReadonlyArray<readonly [open: string, close: string]> = [
+  ['「', '」'],
+  ['『', '』'],
+  ['“', '”'],
+]
+
+/**
+ * 计算引述范围（内容区间，半开）。同种引号可嵌套，异种引号按最近配对闭合；
+ * 未闭合的开引号不产生范围——宁可误报，不静默放行红线命中。
+ * @param text - 待扫描文本。
+ * @returns 引述内容区间列表（按出现顺序）。
+ */
+function quotedSpans(text: string): Array<readonly [number, number]> {
+  const openToClose = new Map(QUOTE_PAIRS.map(([open, close]) => [open, close]))
+  const closeToOpen = new Map(QUOTE_PAIRS.map(([open, close]) => [close, open]))
+  const stack: Array<{ open: string; at: number }> = []
+  const spans: Array<readonly [number, number]> = []
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    /* v8 ignore next -- index is in range; the undefined arm only satisfies noUncheckedIndexedAccess. */
+    if (ch === undefined) break
+    if (openToClose.has(ch)) {
+      stack.push({ open: ch, at: i })
+      continue
+    }
+    const opener = closeToOpen.get(ch)
+    if (opener === undefined) continue
+    for (let k = stack.length - 1; k >= 0; k -= 1) {
+      const entry = stack[k]
+      /* v8 ignore next -- k is within the stack. */
+      if (entry?.open !== opener) continue
+      spans.push([entry.at + 1, i])
+      stack.length = k
+      break
+    }
+  }
+  return spans
+}
+
+/**
+ * 引述位置掩码（1 = 落在成对引号内）；仅在规则声明 quoteImmune 时构造。
+ * @param text - 待扫描文本。
+ * @returns 与文本等长的掩码。
+ */
+function quoteMask(text: string): Uint8Array {
+  const mask = new Uint8Array(text.length)
+  for (const [start, end] of quotedSpans(text)) mask.fill(1, start, end)
+  return mask
+}
+
 /** 检查单个 keyword_blocklist 条目（"a|b|c" OR 组），返回证据。 */
 function checkKeywordEntry(
   entry: string,
   text: string,
   negationContext: boolean,
   adjacentWords: readonly string[] | undefined,
+  immunity: Uint8Array | undefined,
 ): string[] {
   const alternatives = entry
     .split('|')
@@ -53,7 +106,8 @@ function checkKeywordEntry(
       if (index >= 0 && (best === null || index < best.index)) best = { index, word }
     }
     if (best === null) break
-    if (!negationContext || !hasNegationContext(text, best.index, contextOptions)) {
+    const quoted = immunity !== undefined && immunity[best.index] === 1
+    if (!quoted && (!negationContext || !hasNegationContext(text, best.index, contextOptions))) {
       evidence.push(best.word)
     }
     searchFrom = best.index + best.word.length
@@ -69,11 +123,38 @@ function checkKeywordBlocklist(check: KeywordBlocklistCheck, text: string): stri
   // 并入会同时放大所有否定语境规则（PAT-RISK-001 / PAT-ABS-001 / INV-EVIDENCE-001 …）
   // 的放行面，且 24 字窗口会让「防」这类单字前缀对窗口内任意命中生效。
   const negationContext = check.negationContext === true
+  const immunity = check.quoteImmune === true ? quoteMask(text) : undefined
   const evidence: string[] = []
   for (const entry of check.keywords) {
     evidence.push(
-      ...checkKeywordEntry(entry, text, negationContext, check.additionalNegationWords),
+      ...checkKeywordEntry(entry, text, negationContext, check.additionalNegationWords, immunity),
     )
+  }
+  return evidence
+}
+
+/**
+ * 引文重复检查：统计长度达标的引述片段，同一片段出现达到阈值即违规。
+ * 片段按「忽略空白与省略号后逐字相同」归一，故「……<截断>」写法与完整引用算同一条。
+ */
+function checkQuoteRepetition(check: QuoteRepetitionCheck, text: string): string[] {
+  const minLength = check.minLength ?? 12
+  const minOccurrences = check.minOccurrences ?? 2
+  const seen = new Map<string, { quote: string; count: number }>()
+  for (const [start, end] of quotedSpans(text)) {
+    const quote = text.slice(start, end)
+    if (quote.length < minLength) continue
+    const key = quote.replace(/\s+/g, '').replace(/…+/g, '')
+    const entry = seen.get(key)
+    if (entry === undefined) {
+      seen.set(key, { quote, count: 1 })
+    } else {
+      entry.count += 1
+    }
+  }
+  const evidence: string[] = []
+  for (const { quote, count } of seen.values()) {
+    if (count >= minOccurrences) evidence.push(`${quote}（${count} 次）`)
   }
   return evidence
 }
@@ -207,13 +288,33 @@ export function evaluateText(
 }
 
 /**
- * 评估单条规则；无违规返回 null。
+ * 规则前提是否满足：任一 premise 正则命中即适用；未声明 premise 始终适用。
+ * 语义见 `ConstitutionalRule.premise`——前提不满足 = 不评估（不产生违规）。
+ * @param premise - 规则声明的适用前提（正则列表）。
+ * @param text - 待评估文本。
+ * @returns 是否适用。
+ */
+function premiseSatisfied(premise: readonly string[] | undefined, text: string): boolean {
+  if (premise === undefined || premise.length === 0) return true
+  for (const pattern of premise) {
+    try {
+      if (new RegExp(pattern, 'i').test(text)) return true
+    } catch {
+      // 非法前提正则已在加载期拦截；此处防御性跳过
+    }
+  }
+  return false
+}
+
+/**
+ * 评估单条规则；不适用或无违规返回 null。
  * @param rule - 待评估规则。
  * @param text - 待评估文本。
  * @param synonyms - 同义词表（synonym_match 检查用）。
- * @returns 违规对象，无违规为 null。
+ * @returns 违规对象，不适用或无违规为 null。
  */
 export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: SynonymMap): RuleViolation | null {
+  if (!premiseSatisfied(rule.premise, text)) return null
   const check = rule.check
   let evidence: string[] = []
   let message: string | null = null
@@ -251,6 +352,12 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
       const violation = confidenceViolation('同义', confidence, missing, check.minConfidence ?? 1)
       if (violation === null) return null
       message = violation
+      break
+    }
+    case 'quote_repetition': {
+      evidence = checkQuoteRepetition(check, text)
+      if (evidence.length === 0) return null
+      message = `重复引证：同一引文重复出现（${[...new Set(evidence)].slice(0, 3).map(truncate).join('；')}）`
       break
     }
     /* v8 ignore next -- closed-union backstop; the compiler rejects a new check type here. */

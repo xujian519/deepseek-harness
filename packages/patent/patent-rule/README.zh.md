@@ -17,6 +17,7 @@ kind: "package-reference"
 - [EVI-011 证据守卫](#evi-011-evidence-guards)
 - [规则引擎（库 API）](#rule-engine-library-api)
 - [规则资产](#rule-assets)
+- [适用前提与引述范围](#applicability-premises-and-quoted-text)
 - [配置](#configuration)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
@@ -47,9 +48,18 @@ kind: "package-reference"
 | --- | --- | --- |
 | 手写合规规则 | `compliance.yaml`、`electrical-section-h.yaml` | 各自固定文件名，由 `loadPatentComplianceRuleSet` / `loadPatentElectricalRuleSet` 加载 |
 | 上游生成物镜像 | `nuo-*.yaml` | 由 `loadPatentFullRuleSet` 经显式清单 `NUO_RULE_FILES` 加载 |
-| 手写并入的现行口径与缺口规则 | `current-law.yaml`、`mady-gap-rules.yaml` | 由 `loadPatentFullRuleSet` 经显式清单 `MERGED_RULE_FILES` 加载 |
+| 手写并入的现行口径与缺口规则 | `current-law.yaml`、`mady-gap-rules.yaml`、`oa-response-form.yaml` | 由 `loadPatentFullRuleSet` 经显式清单 `MERGED_RULE_FILES` 加载 |
 
-`current-law.yaml` 针对输出文本中已废止的法条口径：两年侵权诉讼时效、以已被替换的司法解释作为等同依据、把实用新型客体写成第 2 条第 2 款。其检查为 `pattern_analysis`，因此不进入输出门禁。`mady-gap-rules.yaml` 是上游规则转换到本引擎五类检查的子集——关键词为字面词串的禁令，与要素为字面词串的完整性检查——上游的 `block` 一律评审降为 `warn`（上游 `info` 级降为 `log`）。其中两条禁令是 `keyword_blocklist`，输出门禁与镜像规则一并取用。`activation-overrides.yaml` 作用于合并结果，故评审结论可指向任一族的规则。
+`current-law.yaml` 针对输出文本中已废止的法条口径：两年侵权诉讼时效、以已被替换的司法解释作为等同依据、把实用新型客体写成第 2 条第 2 款。其检查为 `pattern_analysis`，因此不进入输出门禁。`mady-gap-rules.yaml` 是上游规则转换到本引擎各类检查的子集——关键词为字面词串的禁令，与要素为字面词串的完整性检查——上游的 `block` 一律评审降为 `warn`（上游 `info` 级降为 `log`）。其中两条禁令是 `keyword_blocklist`，输出门禁与镜像规则一并取用。`oa-response-form.yaml` 是答复文书的**形式**检查（计数式论证、重复引证、答复必须论证的充分公开判准），全部为 `warn`。`activation-overrides.yaml` 作用于合并结果，故评审结论可指向任一族的规则。
+
+`activation-overrides.yaml` 按规则 id 打补丁。`action` 与 `premise` 整字段替换；`addKeywords`、`negationContext`、`additionalNegationWords` 为 check 级**增补**，不重声明既有 check——评审结论因此不会造出生成物的第二份副本。`premise-vocab` 以 YAML 锚点集中维护各主题词表，同一主题只有一份。未命中的补丁（未知键、未知 id、空前提或非法正则前提、开了关闭开关却留着放行词）在加载期告警，而不是静默不生效。
+
+<a id="applicability-premises-and-quoted-text"></a>
+### 适用前提与引述范围
+
+`ConstitutionalRule.premise` 是规则级的正则 OR 表：一条都不命中时该规则不评估、不产生违规。完整性检查（`structural_analysis`，「缺失即违规」）只在文本**触及该主题**时才有意义，故评审后的资产给它们补上主题词前提——只讨论 26.3 的审查意见答复不再收到新颖性、创造性、权利要求撰写等无关主题的命中。两条性质是有意的：前提不满足是**沉默**而非降级（降级只压低级别、不消除噪音）；前提取**主题词汇**而非规则自身要素的复述——单元素 期望模式 规则的 pattern 与主题词表重合时，加前提后恒不命中，该类规则逐条在补丁 reason 里记录。
+
+`keyword_blocklist` 支持 `quoteImmune: true`：配对引号（`「」`、`『』`、`“”`）内的命中不算作者本人的表述，审查员原话里的「一定」不再被读成本模型的绝对化断言。引号未闭合不豁免任何命中——失败方向指向检出，不指向静默。`quote_repetition`（默认 `minLength` 12、`minOccurrences` 2）报出同一引文反复出现，比较前归一空白与省略号：靠复述原文增长篇幅而不是增加论证的答复因此可见。以这两类检查写成的答复形式规则在 `oa-response-form.yaml`，不进输出门禁（门禁只取 `keyword_blocklist`）。
 
 <a id="job-scopes"></a>
 ### 作业 scope
@@ -83,7 +93,7 @@ None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-01
 - **分层包默认仅 base** — 无清单时 `loadRulePack` 只加载随包的 base 包；domain 与 override 层需显式清单。
 - **规则集加载 fail-soft** — 资产缺失或损坏时降级为空规则集（门禁放行），而非使部署失败。
 - **并入资产只覆盖可机器判定的规则** — 载荷为正文表述（分析原则、法条条件、判例引用）的上游规则未转成检查，留在本包之外；转换清单、检查类型映射与边界见[并入边界说明](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.zh.md)。
-- **作业 scope 按域过滤，不按文书类型判定** — 这些域里的完整性检查（`structural_analysis`）对任意文本都会报出缺失要素，故把某作业 scope 跑在别类文书上仍会得到这些命中；scope 收窄的是规则集，不判断文本属于哪类。
+- **规则按域与前提收窄，不按文书类型判定** — 作业 scope 只留本作业的域，规则的适用前提在文本未触及该主题时保持沉默，但没有任何环节判定文书类型：前提命中的规则（例如答复引述了权利要求文字）仍会报出它缺失的要素。
 - **指南引用是自由文本** — `legalBasis` 原样进入输出，没有任何环节解析它，故规则引的《专利审查指南》节号只与其转录来源一样正确；`tests/guideline-citations.spec.ts` 记下资产须守的编号写法和已按 2023 年修订版核对过的节，其余引用尚未核验。
 
 ### 开发备注

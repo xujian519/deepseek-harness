@@ -12,7 +12,7 @@ Mady 的规则语料（`domains/rules/data/rules/`，27 个文件共 313 条）�
 
 ## Decision
 
-并入落为本仓 `packages/patent/patent-rule/assets/rules/patent/` 下两个手写资产文件，二者都由 `loadPatentFullRuleSet` 经显式清单 `MERGED_RULE_FILES` 加载，与生成物镜像清单 `NUO_RULE_FILES` 并列。`activation-overrides.yaml` 作用于合并结果，故评审结论可指向任一族的规则。
+并入落为本仓 `packages/patent/patent-rule/assets/rules/patent/` 下两个手写资产文件，二者都由 `loadPatentFullRuleSet` 经显式清单 `MERGED_RULE_FILES` 加载，与生成物镜像清单 `NUO_RULE_FILES` 并列；该清单后来还承载了手写的 `oa-response-form.yaml`（[前提变更](2026-09-30-rule-applicability-premises-and-quoted-spans.zh.md)）。`activation-overrides.yaml` 作用于合并结果，故评审结论可指向任一族的规则。
 
 `current-law.yaml`（3 条，`LAW-*` id）把现行法条基准落成对输出文本的确定性禁令：两年侵权诉讼时效（`民法典第188条` 规定为三年）、以已被替换的司法解释作为等同依据（现行为 `法释〔2009〕20 号第 17 条`）、把实用新型客体写成 `专利法第二条第二款`。三条都是 `pattern_analysis`，因此都不进入输出门禁——"两年"这类裸词用 `keyword_blocklist` 会大面积误报；基准未核验的条号按语义命名，不写条号。
 
@@ -47,7 +47,7 @@ Mady 的规则语料（`domains/rules/data/rules/`，27 个文件共 313 条）�
 
 ## Consequences
 
-`rule_check(patent-full)` 现在评估 117 条规则，输出门禁 11 条。现行口径措辞与转换后的禁令经 `rule_check` 露出；现行口径禁令不拦输出，因此发布这类措辞的会话只在模型自检时才看到它。
+`rule_check(patent-full)` 现在评估 120 条规则，输出门禁 14 条。现行口径措辞与转换后的禁令经 `rule_check` 露出；现行口径禁令不拦输出，因此发布这类措辞的会话只在模型自检时才看到它。
 
 剩余上游语料留在本包之外：没有可执行载荷，且正文型标准属技能层材料。并入集合、其上游 id 与边界断言在 `packages/patent/patent-rule/tests/merged-rule-assets.spec.ts` 中，未记录的并入或重新引入的等价规则都会让套件转红。
 

@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-09-30-rule-applicability-premises-and-quoted-spans.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-30-rule-applicability-premises-and-quoted-spans.md
+/agent-note-patent-rule-findings-gate-on-applicability-premises-and-quoted-spans:
+  en: f950b050294f5093
+  zh: 31f4a6786a3511a2
+/agent-note-patent-rule-findings-gate-on-applicability-premises-and-quoted-spans/problem:
+  en: 26a388b992db0b0e
+  zh: 4842fa9cb53f9145
+/agent-note-patent-rule-findings-gate-on-applicability-premises-and-quoted-spans/decision:
+  en: 6e04dca0dd67eac8
+  zh: 544e55f8a49f6285
+/agent-note-patent-rule-findings-gate-on-applicability-premises-and-quoted-spans/alternatives-considered:
+  en: 4a8fe06c5e423c83
+  zh: 526dcdb4485c071d
+/agent-note-patent-rule-findings-gate-on-applicability-premises-and-quoted-spans/consequences:
+  en: a8e96bf4831cfac4
+  zh: 7ec4fc0e394ce656
+/agent-note-patent-rule-findings-gate-on-applicability-premises-and-quoted-spans/testing:
+  en: 9b7361f0532a56cb
+  zh: 8c86e88d2570d864
+/agent-note-patent-rule-findings-gate-on-applicability-premises-and-quoted-spans/related:
+  en: c998c0f3c856c004
+  zh: baddb943ecc05044
