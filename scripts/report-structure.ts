@@ -90,6 +90,27 @@ function functionLike(node: ts.Node): node is ts.FunctionLikeDeclaration {
 }
 
 /**
+ * Read one corpus entry, or null when it disappeared before the read.
+ *
+ * The scan lists the corpus first and reads it after, and specs run beside this
+ * one that write transient probe files under `packages/<group>/<pkg>/src` (see
+ * `oxlint-contract.spec.ts`), so an entry the glob admitted can be gone by the
+ * time it is read. It is absent from this point-in-time report rather than an
+ * error; every other read failure still propagates.
+ * @param root - repository root.
+ * @param path - repository-relative entry the glob admitted.
+ * @returns the file's text, or null when the entry no longer exists.
+ */
+function readCorpusEntry(root: string, path: string): string | null {
+  try {
+    return readFileSync(resolve(root, path), 'utf8')
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null
+    throw error
+  }
+}
+
+/**
  * Measure the structural-debt figures.
  * @param root - repository root.
  * @returns the report.
@@ -108,7 +129,8 @@ export function reportStructure(root: string): StructureReport {
       testFiles += 1
       continue
     }
-    const text = readFileSync(resolve(root, path), 'utf8')
+    const text = readCorpusEntry(root, path)
+    if (text === null) continue
     if (isGeneratedFile(text)) {
       generatedFiles += 1
       if (lineCount(text) > LARGE_FILE_LINES) generatedLargeFiles.push({ path, lines: lineCount(text) })
