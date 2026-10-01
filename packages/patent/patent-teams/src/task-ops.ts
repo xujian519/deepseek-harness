@@ -135,6 +135,8 @@ export interface UpdateTaskResult {
   /** Set when the quality gate bounced the completion back for rework. */
   gated?: boolean
   gate_feedback?: string
+  /** Running count of gate rejections on this task; present once any submission was rejected. */
+  gate_rejections?: number
 }
 
 /**
@@ -167,21 +169,33 @@ function taskRef(fresh: TeamState, task: TeamTask): { teamId: PatentTeamsTeamId;
   return { teamId: PatentTeamsTeamId(fresh.id), taskId: PatentTeamsTaskId(task.id) }
 }
 
+/** The model-facing row `taskView` returns for one task mutation. */
+interface TaskView {
+  task_id: string
+  status: string
+  attempt: number
+  attempt_id?: string
+  output?: string
+  gate_rejections?: number
+}
+
 /**
  * Project one task's mutation result row for the model. `attempt` and `attempt_id`
  * are absent while the task has no live attempt (reassignment revokes the id until
- * the next claim), `output` is absent until one is recorded, so the rows the
+ * the next claim), `output` is absent until one is recorded, and `gate_rejections`
+ * is absent until the quality gate first rejects a submission, so the rows the
  * mutation tools return are deliberately not uniformly shaped.
  * @param task - the task to project.
  * @returns the model-facing row for one task mutation.
  */
-function taskView(task: TeamTask): { task_id: string; status: string; attempt: number; attempt_id?: string; output?: string } {
+function taskView(task: TeamTask): TaskView {
   return {
     task_id: task.id,
     status: task.status,
     attempt: task.attempt ?? 0,
     ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
     ...task.output !== undefined ? { output: task.output } : {},
+    ...task.gateRejections === undefined ? {} : { gate_rejections: task.gateRejections },
   }
 }
 
@@ -486,6 +500,10 @@ export async function updateTask(
           // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured args.output is defined
           task.output = args.output!
           task.gateFeedback = gate
+          // A bounce keeps the attempt open, so this count is the task's only
+          // record that the submission has already been reworked.
+          const rejections = (task.gateRejections ?? 0) + 1
+          task.gateRejections = rejections
           task.updatedAt = Date.now()
           await writeTeam(stateRoot, fresh)
           appendTeamEvent(host.ctx, captainSessionOf(host.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-gated', {
@@ -504,6 +522,7 @@ export async function updateTask(
             ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
             gated: true,
             gate_feedback: gate.feedback,
+            gate_rejections: rejections,
           }
           // v8 ignore stop
         }

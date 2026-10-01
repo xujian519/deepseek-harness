@@ -49,6 +49,12 @@ export interface TeamTask {
   contractValidation?: TaskContractValidation
   /** Quality-gate verdict recorded when a completion is rejected (soft; never blocks `completed`). */
   gateFeedback?: TaskGateFeedback
+  /**
+   * How many completion submissions the quality gate has rejected on this task.
+   * A bounce keeps the attempt open, so this count is the task's only record of
+   * repeated rework; it stays absent until the first rejection.
+   */
+  gateRejections?: number
   createdAt: number
   updatedAt: number
 }

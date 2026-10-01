@@ -23,6 +23,46 @@ describe('RuleEngine', () => {
     expect(result.violations[0]?.evidence).toContain('赌博')
   })
 
+  it('违规带最早字面命中的行号与命中句（调用方据此在原处裁决）', () => {
+    const set = ruleSet([
+      {
+        id: 'PAT-RISK-001',
+        name: '专利风险结论免责声明',
+        severity: 'major',
+        action: 'warn',
+        check: { type: 'keyword_blocklist', keywords: ['专利性'] },
+      },
+    ])
+    const text = [
+      '## 技术领域',
+      '本发明涉及一种装置。',
+      '本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由专利代理确认。',
+    ].join('\n')
+    const violation = evaluateText(text, set).violations[0]
+    expect(violation?.line).toBe(3)
+    expect(violation?.matchedSentence).toBe('专利申请和专利性判断应由专利代理确认。')
+  })
+
+  it('无字面命中的检查不带行号（缺项类违规无从定位）', () => {
+    const set = ruleSet([
+      {
+        id: 'CON-101',
+        name: '技术方案三要素',
+        severity: 'critical',
+        action: 'block',
+        check: {
+          type: 'structural_analysis',
+          requiresAll: [{ element: 'technical_means', patterns: ['装置|设备'] }],
+          minConfidence: 1,
+        },
+      },
+    ])
+    const violation = evaluateText('一种模块化设计。', set).violations[0]
+    expect(violation?.evidence).toEqual([])
+    expect(violation?.line).toBeUndefined()
+    expect(violation?.matchedSentence).toBeUndefined()
+  })
+
   it('keyword_blocklist negation_context allows negated mentions', () => {
     const set = ruleSet([
       {

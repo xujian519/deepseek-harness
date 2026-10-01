@@ -219,6 +219,8 @@ export type { KnowledgeNoteSaveInput, KnowledgeNoteSaveOutput, KnowledgeNoteSave
 export { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
 export { slopGateAtom, SlopGateHandler, SLOP_GATE_PASS_THRESHOLD } from './atoms/slop-gate.ts'
 export { buildSlopRevisionHint } from './internal/retry-hints.ts'
+export { evaluatedTexts, renderEvaluatedTexts } from './internal/evaluated-input.ts'
+export type { EvaluatedText } from './internal/evaluated-input.ts'
 
 // render_patent_document is owned by dsh-patent-document; re-export for library consumers.
 export { createRenderPatentDocumentTool, renderDocumentResult }

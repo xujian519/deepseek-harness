@@ -5221,7 +5221,7 @@ Sources: [`packages/patent/patent-teams/src/event-types.ts:94`](../packages/pate
 
 SHA-256: `30cf4ff4cab601c1d21278109d4b0ee928ae1bebbcc1697d97a9dfd7bfc706b6`
 
-Sources: [`packages/patent/patent-teams/src/types.ts:129`](../packages/patent/patent-teams/src/types.ts)
+Sources: [`packages/patent/patent-teams/src/types.ts:135`](../packages/patent/patent-teams/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

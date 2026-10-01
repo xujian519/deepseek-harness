@@ -145,6 +145,44 @@ describe('validateWorkerOutput', () => {
   })
 })
 
+describe('patent-search-commander 检索完备性门禁', () => {
+  const commander = defaultPatentWorkers().find(w => w.name === 'patent-search-commander')!
+
+  it('一份只有来源与日期的检索报告被判定缺锚点声明', () => {
+    const report = [
+      '## 检索式',
+      'C3 = 脱液 AND 压盘',
+      '## 对比文件',
+      '| 文献号 | 公开日 |',
+      '| CN216629177U | 2022-04-29 |',
+    ].join('\n')
+    const result = validateWorkerOutput(commander, report)
+    expect(result.valid).toBe(false)
+    expect(result.degraded).toBe(true)
+    expect(result.missingHardFields).toEqual(['命名族清单', '正交维度'])
+  })
+
+  it('一份声明了命名族与正交维度的检索报告通过校验', () => {
+    const report = [
+      '## 命名族清单',
+      '| 功能 | 族 A | 族 B | 族 C |',
+      '| 脱液 | 压榨 | 挤压 | 离心 |',
+      '## 正交维度',
+      'IPC A47J 31/44；申请人反查；引证扩展',
+      '## 检索式',
+      'C3 = 脱液 AND 压盘',
+      '## 对比文件',
+      '| CN216629177U |',
+      '## 公开日',
+      '2022-04-29',
+    ].join('\n')
+    const result = validateWorkerOutput(commander, report)
+    expect(result.valid).toBe(true)
+    expect(result.degraded).toBe(false)
+    expect(result.missingHardFields).toEqual([])
+  })
+})
+
 describe('defaultPatentWorkers', () => {
   it('ships the built-in patent workers with hard output contracts', () => {
     const workers = defaultPatentWorkers()

@@ -202,7 +202,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 
 - [ ] **Step 1: 写产物元数据约定**：每个交付产物文件头含元数据块（来源/版本/审批/时间戳），与 persona 纪律 5「输出即证据」合并落地。
 
-- [ ] **Step 2: 与既有审批闭环并轨**：核对 `patent-workflow` 的 ApprovalRecord 审计（`packages/patent/patent-workflow/src/approval.ts`，只增日志）在 preset 中的可见性；`_matter-log.md` 与其并轨，**不做第二套账本**——事件日志为唯一事实源。
+- [ ] **Step 2: 与既有审批闭环并轨**：核对审批审计（`packages/interaction/user-approval/src/index.ts` 追加的 `approval/asked` 与 `approval/decided` 事件对，只增日志）在 preset 中的可见性；`_matter-log.md` 与其并轨，**不做第二套账本**——事件日志为唯一事实源。
 
 - [ ] **Step 3: 写追溯方法**：技能内给出"由任一产物反查证据链"的步骤（产物元数据 → `_matter-log.md` → `01-检索/` 记录 → 对比文件）。
 

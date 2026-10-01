@@ -64,10 +64,11 @@ export {
   DEFAULT_NEGATION_WINDOW,
   DEFAULT_NEGATION_WORDS,
   hasNegationContext,
+  locateMatch,
   parseCnNumber,
   runeSlice,
 } from './rule/text-utils.ts'
-export type { NegationContextOptions } from './rule/text-utils.ts'
+export type { MatchLocation, NegationContextOptions } from './rule/text-utils.ts'
 
 // Atoms: the StageProvider/StageHandler vocabulary and the builtin handlers.
 export * from './atoms/index.ts'

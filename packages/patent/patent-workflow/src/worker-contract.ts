@@ -260,7 +260,7 @@ function analysisWorkers(): WorkerContract[] {
     {
       name: 'patent-search-commander',
       tier: 'domain',
-      description: '制定检索策略并执行专利检索：先经 patent_analysis_report 做 IPC 分类并取得建议检索策略，再据此构造含 IPC 限定的布尔检索式，输出检索报告',
+      description: '制定检索策略并执行专利检索：先按功能产出命名族清单（同一功能 ≥3 个不同成词族）与正交维度计划，再经 patent_analysis_report 做 IPC 分类并取得建议检索策略，据此构造含 IPC 限定的布尔检索式，输出检索报告',
       allowedTools: [
         'patent_search',
         'patent_metadata',
@@ -275,7 +275,10 @@ function analysisWorkers(): WorkerContract[] {
           path: `${caseOutputsDir('{caseId}')}/search-report.md`,
           format: 'markdown',
           contractLevel: 'hard',
-          requiredFields: ['检索式', '对比文件', '公开日'],
+          // 命名族清单与正交维度是检索完备性的前置声明：锚点若只从发明方案术语推导，
+          // 会系统性漏掉用不同词表述同一功能的在先文献；只跑关键词而不跑 IPC/引证/同族等
+          // 正交维度，同义词再多也覆盖不了分类号体系。两者都由完成的合成门禁校验。
+          requiredFields: ['检索式', '对比文件', '公开日', '命名族清单', '正交维度'],
         },
       ],
       triggersHITL: false,

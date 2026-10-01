@@ -6,7 +6,7 @@ English | [中文](2026-09-20-approval-store-seam-closed.zh.md)
 
 ## Problem
 
-`packages/patent/patent-workflow/src/approval.ts` declared `ApprovalStore` — `saveRecord` and `listRecords` — and `createApprovalRecord`, and shipped no implementation. Every `ApprovalStore` in the tree was an inline stub inside `output-gate.spec.ts`, so the interface carried no executable contract, and `stats()` — the source of the `AdoptionRate` the Golden Benchmark conversion needs — did not exist anywhere.
+`patent-workflow`'s `approval.ts` declared `ApprovalStore` — `saveRecord` and `listRecords` — and `createApprovalRecord`, and shipped no implementation. Every `ApprovalStore` in the tree was an inline stub inside `output-gate.spec.ts`, so the interface carried no executable contract, and `stats()` — the source of the `AdoptionRate` the Golden Benchmark conversion needs — did not exist anywhere. That declaration, the `InMemoryApprovalStore` this note added, and that spec were all deleted with the 2026-09-27 scan fixes, so no code carries this decision today.
 
 The type alone cannot tell a reader what an implementation must do with the records it is handed. `listRecords` could return the internal array and let a caller rewrite stored audit records; `saveRecord` could be synchronous or promise-returning; an empty store could report `NaN` or `0` for the adoption rate.
 
@@ -49,7 +49,7 @@ The golden-benchmark conversion still has no `AdoptionRate` to read in productio
 
 ## Testing
 
-`packages/patent/patent-workflow/tests/approval.spec.ts` — save and list round-trip; `listRecords` returns a copy whose mutation does not reach the store; `stats()` counts each verdict and reports `adopted / total`; an empty store reports `adoptionRate === 0`.
+`patent-workflow`'s `approval.spec.ts` (deleted with the 2026-09-27 scan fixes) — save and list round-trip; `listRecords` returns a copy whose mutation does not reach the store; `stats()` counts each verdict and reports `adopted / total`; an empty store reports `adoptionRate === 0`.
 
 ## Related
 

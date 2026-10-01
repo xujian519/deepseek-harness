@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-"有哪些条、每条管什么"这件事分散在四处互不相通的地方。`packages/patent/patent-workflow/src/quality-gate.ts` 里有一张主题表，覆盖《专利法》约二十条与《专利法实施细则》一条。`packages/patent/patent-rule/assets/rules/patent/compliance.yaml` 与 `assets/rules/base/citation.yaml` 各自写着同一个"82 条"上限。145 个规则资产把条号写成自由文本的 `legalBasis`。而事实核验技能要求模型把引用对照 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md`——一个已不再随包交付的 Sati 用户级文件，于是在别的机器上这次对照没有任何可比对象，技能却依然显示为已满足。
+"有哪些条、每条管什么"这件事分散在四处互不相通的地方。`patent-workflow` 的工作流质量门禁（已随 2026-09-27 的扫描修复删除）里有一张主题表，覆盖《专利法》约二十条与《专利法实施细则》一条。`packages/patent/patent-rule/assets/rules/patent/compliance.yaml` 与 `assets/rules/base/citation.yaml` 各自写着同一个"82 条"上限。145 个规则资产把条号写成自由文本的 `legalBasis`。而事实核验技能要求模型把引用对照 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md`——一个已不再随包交付的 Sati 用户级文件，于是在别的机器上这次对照没有任何可比对象，技能却依然显示为已满足。
 
 门禁上的后果是：落在表外的引用一律判 `unknown` 并放行。每一处《专利法实施细则》引用——包括期限标签自己印出来的条号——都落在这一档，于是流水线可以宣布一份"已核验"的引用清单，而实际上没有任何东西核验过它。
 

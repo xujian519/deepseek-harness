@@ -89,7 +89,7 @@ describe('roleContract', () => {
 
 describe('workerDeliverables', () => {
   it('joins the required fields across a role\'s workers', () => {
-    expect(workerDeliverables('researcher')).toBe('检索式、对比文件、公开日')
+    expect(workerDeliverables('researcher')).toBe('检索式、对比文件、公开日、命名族清单、正交维度')
     expect(workerDeliverables('drafter')).toBe('技术问题、技术特征、技术效果、意见陈述、修改对照')
     expect(workerDeliverables('patentee-defender')).toBe('质证意见、反证清单、修改权利要求方案')
     expect(workerDeliverables('document-specialist')).toBe('交付场景、矫正清单、渲染产物')

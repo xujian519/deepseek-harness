@@ -17,7 +17,7 @@ import type {
   RuleViolation,
   StructuralAnalysisCheck,
 } from '@deepseek-ai/dsh-patent-core'
-import { hasNegationContext, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
+import { hasNegationContext, locateMatch, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { checkSynonymRequirements, type SynonymMap } from './synonym-engine.ts'
 
@@ -365,6 +365,7 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
       assertNever(check, 'rule check type')
   }
 
+  const location = locateMatch(text, evidence)
   return {
     ruleId: rule.id,
     ruleName: rule.name,
@@ -373,6 +374,7 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
     ...(rule.legalBasis !== undefined ? { legalBasis: rule.legalBasis } : {}),
     message,
     evidence: [...new Set(evidence)].map(truncate),
+    ...(location === undefined ? {} : { line: location.line, matchedSentence: location.matchedSentence }),
   }
 }
 

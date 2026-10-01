@@ -194,6 +194,10 @@ export type RuleViolation = {
   message: string
   /** 命中的原文证据片段。 */
   evidence: string[]
+  /** 最早一处字面命中的行号（1 基）；缺项类检查无字面命中，故缺省。 */
+  line?: number
+  /** 最早一处字面命中所在的句子（超长时居中截断）；无字面命中时缺省。 */
+  matchedSentence?: string
 }
 
 /** 一次评估的结果。 */

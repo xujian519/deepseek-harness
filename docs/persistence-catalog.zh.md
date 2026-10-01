@@ -5223,7 +5223,7 @@ SHA-256: `edef425b3a57e34b31f8cea3caf75ffc3aefbbe2ff8f7f0e7aaee915c915b354`
 
 SHA-256: `30cf4ff4cab601c1d21278109d4b0ee928ae1bebbcc1697d97a9dfd7bfc706b6`
 
-来源：[`packages/patent/patent-teams/src/types.ts:129`](../packages/patent/patent-teams/src/types.ts)
+来源：[`packages/patent/patent-teams/src/types.ts:135`](../packages/patent/patent-teams/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

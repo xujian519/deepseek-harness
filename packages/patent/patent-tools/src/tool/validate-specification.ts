@@ -17,6 +17,8 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { locateMatch } from '@deepseek-ai/dsh-patent-core'
+import { evaluatedTexts, EVALUATED_TEXT_SCHEMA, renderEvaluatedTexts } from '../internal/evaluated-input.ts'
 import { checkClaimCoverage, checkClaimSet } from './spec-claim-coverage.ts'
 import {
   checkFigureMarkConsistency,
@@ -67,7 +69,7 @@ export function computeSpecScore(violations: SpecViolation[]): { passed: boolean
  *
  * The rule families run in the order the report lists their violations.
  * @param input - the specification fields to validate.
- * @returns the validation result (passed, score, violations).
+ * @returns the validation result (passed, score, violations, evaluated inputs).
  */
 export function validateSpecification(input: ValidateSpecificationInput): ValidateSpecificationOutput {
   const text = input.text ?? ''
@@ -88,6 +90,12 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
     passed: scored.passed,
     score: scored.score,
     violations,
+    evaluated: evaluatedTexts({
+      text: input.text,
+      title: input.title,
+      abstract: input.abstract,
+      claims: input.claims,
+    }),
   }
 }
 
@@ -210,11 +218,15 @@ function clarityViolations(text: string): SpecViolation[] {
   const violations: SpecViolation[] = []
   const vagueHits = VAGUE_TERMS.filter(t => text.includes(t))
   if (vagueHits.length > 0) {
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- vagueHits are substrings of text, so a match always exists
+    const location = locateMatch(text, vagueHits)!
     violations.push({
       rule: 'clarity',
       severity: 'warning',
       message: `说明书包含模糊表述：${vagueHits.join('、')}`,
       suggestion: "删除'约/大致/可能/优选/例如'等模糊表述，使用确定的技术术语",
+      line: location.line,
+      matchedSentence: location.matchedSentence,
     })
   }
   return violations
@@ -309,12 +321,16 @@ function effectViolations(text: string): SpecViolation[] {
   const violations: SpecViolation[] = []
   const vagueEffects = checkEffectQuantification(text)
   if (vagueEffects.length > 0) {
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- vagueEffects are slices of text, so a match always exists
+    const location = locateMatch(text, vagueEffects)!
     violations.push({
       rule: 'effect_data_quantified',
       severity: 'warning',
       section: '发明内容',
       message: `效果表述缺少定量数据支撑：${vagueEffects.slice(0, 3).join('；')}`,
       suggestion: '补充定量效果数据（对比实验/百分比/提升幅度），建立效果与区别技术特征的对应',
+      line: location.line,
+      matchedSentence: location.matchedSentence,
     })
   }
   return violations
@@ -379,13 +395,16 @@ function claimViolations(input: ValidateSpecificationInput, text: string): SpecV
 export function renderSpecification(value: ValidateSpecificationOutput): string {
   const errors = value.violations.filter(v => v.severity === 'error')
   const warnings = value.violations.filter(v => v.severity === 'warning')
+  const evaluated = renderEvaluatedTexts(value.evaluated)
+  const trailer = evaluated === '' ? '' : `\n\n${evaluated}`
   const head = `专利说明书校验：${value.passed ? '通过' : '未通过'}（得分 ${value.score}）`
   if (value.violations.length === 0) {
-    return `${head}，未发现违规项。`
+    return `${head}，未发现违规项。${trailer}`
   }
   const rows = value.violations.map((v) => {
     const where = v.section === undefined ? '' : `（${v.section}）`
-    const line = `- [${v.severity}]${where} ${v.message}`
+    const at = v.line !== undefined && v.matchedSentence !== undefined ? `（第 ${v.line} 行「${v.matchedSentence}」）` : ''
+    const line = `- [${v.severity}]${where} ${v.message}${at}`
     return v.suggestion === undefined ? line : `${line}\n  → ${v.suggestion}`
   })
   return [
@@ -394,7 +413,7 @@ export function renderSpecification(value: ValidateSpecificationOutput): string 
     `共 ${value.violations.length} 项违规（error ${errors.length}、warning ${warnings.length}）：`,
     '',
     ...rows,
-  ].join('\n')
+  ].join('\n') + trailer
 }
 
 const DESCRIPTION = [
@@ -410,6 +429,8 @@ const DESCRIPTION = [
   '用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。',
   '',
   '注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。',
+  '',
+  '结果末尾的「评估输入」给出本次实际读到的各文本字段的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。',
 ].join('\n')
 /**
  * Build the `validate_specification` tool.
@@ -515,9 +536,12 @@ export function createValidateSpecificationTool(deps?: ValidateSpecificationDeps
                 section: { type: 'string' },
                 message: { type: 'string', required: true },
                 suggestion: { type: 'string' },
+                line: { type: 'number' },
+                matchedSentence: { type: 'string' },
               },
             },
           },
+          evaluated: { type: 'array', required: true, items: EVALUATED_TEXT_SCHEMA },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderSpecification(value) }],

@@ -47,6 +47,32 @@ describe('rule_check', () => {
     expect(text(result)).toContain('r1')
   })
 
+  it('renders where the hit is, so a warning can be judged without re-reading the whole text', async () => {
+    const ruleSet = { rules: [{ id: 'PAT-RISK-001', name: '专利风险结论免责声明', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['专利性'] } }] } as unknown as RuleSet
+    const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const body = [
+      '## 技术领域',
+      '本发明涉及一种装置。',
+      '本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。',
+    ].join('\n')
+    const result = await execute(ctx, 'rule_check', { text: body, scope: 'patent' }, 'r-4')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('（第 3 行「专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。」）')
+  })
+
+  it('states the identity of the text it read, so a second run can be compared with it', async () => {
+    const ruleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'block', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] } as unknown as RuleSet
+    const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const body = '包含禁止词的文本'
+    const result = await execute(ctx, 'rule_check', { text: body, scope: 'patent' }, 'r-5')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain(`评估输入: text ${body.length} 字 · `)
+  })
+
   it('reports zero violations on clean text', async () => {
     const ruleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'block', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] } as unknown as RuleSet
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })

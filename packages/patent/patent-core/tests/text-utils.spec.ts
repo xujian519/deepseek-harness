@@ -3,6 +3,7 @@ import {
   DEFAULT_NEGATION_WINDOW,
   DEFAULT_NEGATION_WORDS,
   hasNegationContext,
+  locateMatch,
   parseCnNumber,
 } from '@deepseek-ai/dsh-patent-core'
 
@@ -97,5 +98,40 @@ describe('parseCnNumber', () => {
     expect(parseCnNumber('abc')).toBeNull()
     expect(parseCnNumber('十二abc')).toBeNull()
     expect(parseCnNumber('')).toBeNull()
+  })
+})
+
+describe('locateMatch', () => {
+  it('回报 1 基行号与命中所在句', () => {
+    const text = '第一行无关。\n第二行含目标词。\n第三行无关。'
+    expect(locateMatch(text, ['目标词'])).toEqual({ line: 2, matchedSentence: '第二行含目标词。' })
+  })
+
+  it('多个片段取文本中最早出现的一处，而非片段表顺序', () => {
+    const text = '第一行出现甲。\n第二行出现乙。'
+    const found = locateMatch(text, ['乙', '甲'])
+    expect(found?.line).toBe(1)
+    expect(found?.matchedSentence).toBe('第一行出现甲。')
+  })
+
+  it('命中处不在句首时只取该句，不带上文', () => {
+    const text = '前一句无关。目标词出现在这一句中间，后接其余内容。后一句无关。'
+    expect(locateMatch(text, ['目标词'])?.matchedSentence).toBe('目标词出现在这一句中间，后接其余内容。')
+  })
+
+  it('文本中不含任何片段时返回 undefined', () => {
+    expect(locateMatch('文本', ['缺失'])).toBeUndefined()
+    expect(locateMatch('文本', [])).toBeUndefined()
+    expect(locateMatch('文本', [''])).toBeUndefined()
+  })
+
+  it('超长无标点段落按命中位置居中截断，且保留命中词', () => {
+    const text = `${'甲'.repeat(200)}目标${'乙'.repeat(200)}`
+    const found = locateMatch(text, ['目标'])
+    expect(found?.line).toBe(1)
+    expect(found?.matchedSentence).toContain('目标')
+    expect(found?.matchedSentence.length).toBeLessThanOrEqual(122)
+    expect(found?.matchedSentence.startsWith('…')).toBe(true)
+    expect(found?.matchedSentence.endsWith('…')).toBe(true)
   })
 })

@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-`packages/patent/patent-workflow/src/approval.ts` 声明了 `ApprovalStore`（`saveRecord` 与 `listRecords`）与 `createApprovalRecord`，却没有交付任何实现。仓里每一个 `ApprovalStore` 都是 `output-gate.spec.ts` 里的内联桩，于是该接口不承载可执行的契约，而 `stats()`——Golden Benchmark 转换所需的 `AdoptionRate` 的来源——在任何地方都不存在。
+`patent-workflow`'s `approval.ts` 声明了 `ApprovalStore`（`saveRecord` 与 `listRecords`）与 `createApprovalRecord`，却没有交付任何实现。仓里每一个 `ApprovalStore` 都是 `output-gate.spec.ts` 里的内联桩，于是该接口不承载可执行的契约，而 `stats()`——Golden Benchmark 转换所需的 `AdoptionRate` 的来源——在任何地方都不存在。该声明、本笔记新增的 `InMemoryApprovalStore` 与那份 spec 都已随 2026-09-27 的扫描修复删除，因此如今没有任何代码承载这条决策。
 
 只有类型无法告诉读者实现该如何处置交给它的记录：`listRecords` 可以返回内部数组、听任调用方改写已存审计记录；`saveRecord` 可以是同步的也可以是返回 Promise 的；空存储的采纳率可以是 `NaN` 也可以是 `0`。
 
@@ -49,7 +49,7 @@ Golden Benchmark 转换在生产上仍读不到 `AdoptionRate`，因为生产上
 
 ## Testing
 
-`packages/patent/patent-workflow/tests/approval.spec.ts` —— 存列往返；`listRecords` 返回副本，改动它不触及 store；`stats()` 逐类计数并给出 `adopted / total`；空存储时 `adoptionRate === 0`。
+`patent-workflow`'s `approval.spec.ts`（已随 2026-09-27 的扫描修复删除）—— 存列往返；`listRecords` 返回副本，改动它不触及 store；`stats()` 逐类计数并给出 `adopted / total`；空存储时 `adoptionRate === 0`。
 
 ## Related
 

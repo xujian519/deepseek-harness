@@ -481,6 +481,9 @@ export class PatentTeamsService extends Service {
       ...task.gateFeedback !== undefined
         ? { gate_feedback: task.gateFeedback }
         : {},
+      ...task.gateRejections !== undefined
+        ? { gate_rejections: task.gateRejections }
+        : {},
     }))
     // v8 ignore stop
     const mailboxWarnings: string[] = []
@@ -698,6 +701,8 @@ export interface PatentTeamsStatusTask {
   contract_validation?: { valid: boolean; missing_hard_fields: string[]; degraded: boolean }
   /** Quality-gate verdict when a completion was bounced back for rework. */
   gate_feedback?: { score: number; satisfied: boolean; failures: string[]; feedback: string }
+  /** Running count of gate rejections on this task; absent until the first rejection. */
+  gate_rejections?: number
 }
 
 /** One captain-inbox preview row. */
