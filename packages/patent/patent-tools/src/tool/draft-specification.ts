@@ -61,13 +61,23 @@ export type DraftSpecificationOutput = {
 
 const DESCRIPTION = '根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分）。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。'
 
-/** Render the canonical draft into model-facing Markdown. */
-function renderDraftSpecification(value: DraftSpecificationOutput): string {
-  const lines = [`# 说明书草案（${value.title}）`, `技术领域: ${value.tech_domain} · 专利类型: ${value.patent_type}`, '']
+/**
+ * Render the canonical draft into model-facing Markdown.
+ *
+ * The five parts are the only headings: the draft body can be carried into the
+ * specification as it is, and `validate_specification`'s heading set accepts
+ * it. The placeholder marker stays in the section text (each placeholder
+ * section's content opens with 【撰写指引】), so the title, the domain line and
+ * the warnings are emphasis, not headings.
+ * @param value - the drafted sections and warnings.
+ * @returns the rendered Markdown text.
+ */
+export function renderDraftSpecification(value: DraftSpecificationOutput): string {
+  const lines = [`**说明书草案（${value.title}）**`, `技术领域: ${value.tech_domain} · 专利类型: ${value.patent_type}`, '']
   for (const section of value.sections) {
-    lines.push(`## ${section.name}${section.placeholder ? '（撰写指引）' : ''}`, '', section.content, '')
+    lines.push(`## ${section.name}`, '', section.content, '')
   }
-  if (value.warnings.length > 0) lines.push('## 警告', ...value.warnings.map(w => `- ${w}`))
+  if (value.warnings.length > 0) lines.push('**警告**', ...value.warnings.map(w => `- ${w}`))
   return lines.join('\n')
 }
 

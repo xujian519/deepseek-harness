@@ -15,26 +15,29 @@
   en: 048b521c14935165
   zh: a3fecbd86f7cb10d
 /deepseek-ai-dsh-patent-rule/output-gate:
-  en: c81b4662585a915d
-  zh: 7c596fb4333e4e65
+  en: d1a56c051bf3fbbf
+  zh: 2254acd1b6717c0c
+/deepseek-ai-dsh-patent-rule/output-gate/artifact-structural-gate:
+  en: 9f9945267cd74a52
+  zh: 8297f86d46807378
 /deepseek-ai-dsh-patent-rule/evi-011-evidence-guards:
   en: c13fe53817f38151
   zh: fc1aa0e5f29029d4
 /deepseek-ai-dsh-patent-rule/rule-engine-library-api:
-  en: 99c45ea2be556dc4
-  zh: f3a11dd45bf4b16f
+  en: ea365c31577026ec
+  zh: afa646cdc40ee672
 /deepseek-ai-dsh-patent-rule/rule-assets:
-  en: a171134a5d1b336f
-  zh: 1faaa21e88438a14
+  en: 60320ed6f0272cad
+  zh: bf6875a0d90cd5e4
 /deepseek-ai-dsh-patent-rule/rule-assets/applicability-premises-and-quoted-text:
-  en: 32b7c3b8f89fd688
-  zh: 7fcd4525c0b32e08
+  en: 4d191f7f7a3401ba
+  zh: 1a4e1076595134c4
 /deepseek-ai-dsh-patent-rule/rule-assets/job-scopes:
   en: b3202a6be7459351
   zh: a1e5b7153d891641
 /deepseek-ai-dsh-patent-rule/configuration:
-  en: c9c667686d2ddff2
-  zh: d011c6f57047fc2a
+  en: 2896f85eb6202b2a
+  zh: cd200f2807453088
 /deepseek-ai-dsh-patent-rule/model-experience:
   en: 3880b3cb480881c1
   zh: 4d5586a2e4bdbe54
@@ -42,8 +45,8 @@
   en: e6acf0941fd6c75b
   zh: 63651dab1df109cb
 /deepseek-ai-dsh-patent-rule/known-limitations-and-deferred-work:
-  en: 3ce1cab68033dee3
-  zh: 1242a970f597f777
+  en: 4bcac73e8f8dcf1d
+  zh: 861c17ce23da5a0a
 /deepseek-ai-dsh-patent-rule/known-limitations-and-deferred-work/dev-note:
   en: df42c6d88317e7ca
   zh: 6df4aa8c29bf4278

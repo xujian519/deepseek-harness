@@ -237,6 +237,12 @@
     section { page-break-inside: auto; }
     h2 { page-break-after: avoid; }
     .claim-item { page-break-inside: avoid; }
+    /* 收尾块（落款／免责声明／页脚）在打印时收紧纵向留白：页脚只占一行，一旦被挤到
+       下一页就会留下一个只有页脚的末页。页脚的 margin-top 与前一段的 margin-bottom
+       相邻折叠，改成多少都不起作用；真正买得到空间的是页脚的 padding 与
+       .doc-closing 的上边距，故只调这两处。 */
+    .doc-closing { margin-top: 4mm; }
+    .doc-footer { margin: 3mm 0 0; padding-top: 1mm; break-inside: avoid; page-break-inside: avoid; }
   }
 </style>
 </head>
@@ -282,6 +288,10 @@
   </section>
 
   <!-- 说明书 -->
+  <!-- 说明书段落编号是可选体例：需要时在本节加 data-paragraph-numbering="[0001]"，引擎会给本节
+       每个 <p>/<li> 写入口号（[0001]、[0002]……），h1–h6 标题、表格内容与纯图片段落不编号也不占号。
+       《专利法》《专利法实施细则》与《专利审查指南》均未要求段落编号，是否编号取决于提交体例，
+       因此模板默认不声明。权利要求书与摘要不编号。 -->
   <section id="specification" aria-label="说明书">
     <h2>说明书</h2>
 

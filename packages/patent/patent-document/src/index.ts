@@ -1,7 +1,8 @@
 /**
  * Function plugin porting the Sati patent document renderer into the DeepSeek
  * Harness: template resolution, brand injection, headless-Chrome PDF rendering
- * through ctx.subprocess, and the render_patent_document tool.
+ * through ctx.subprocess, the render_patent_document tool, and the
+ * verify_deliverable consistency check.
  * @module @deepseek-ai/dsh-patent-document
  */
 
@@ -9,11 +10,14 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { DEFAULT_PDF_TIMEOUT_MS } from './document/pdfRenderer.ts'
 import { createRenderPatentDocumentTool } from './tool/render-patent-document.ts'
+import { createVerifyDeliverableTool } from './tool/verify-deliverable.ts'
 
-// Public library API: the ported document engine and the tool factory.
+// Public library API: the ported document engine and the tool factories.
 export * from './document/index.ts'
 export { createRenderPatentDocumentTool, renderDocumentResult } from './tool/render-patent-document.ts'
 export type { RenderPatentDocumentToolOptions } from './tool/render-patent-document.ts'
+export { createVerifyDeliverableTool, renderDeliverableResult, verifyDeliverable } from './tool/verify-deliverable.ts'
+export type { DeliverableArtifactInput, VerifyDeliverableInput, VerifyDeliverableOutput } from './tool/verify-deliverable.ts'
 
 /** Cordis plugin name. */
 export const name = 'patent-document'
@@ -39,7 +43,7 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Register the render_patent_document tool.
+ * Register the render_patent_document and verify_deliverable tools.
  * @param ctx - registrant context carrying the tool registry and subprocess service.
  * @param config - deployment's Chrome path override, default output directory, and print timeout.
  */
@@ -50,4 +54,5 @@ export function apply(ctx: Context, config: Config): void {
     ...(config.outputRoot !== undefined ? { defaultOutputDir: config.outputRoot } : {}),
     pdfTimeoutMs: config.pdfTimeoutMs ?? DEFAULT_PDF_TIMEOUT_MS,
   }))
+  ctx.tools.register(createVerifyDeliverableTool())
 }

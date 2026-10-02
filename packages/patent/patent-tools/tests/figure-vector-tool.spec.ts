@@ -789,3 +789,67 @@ describe('generate_patent_figure：自动复核的标号净距按图型开启', 
     }
   })
 })
+
+describe('generate_patent_figure：剖切符号的强制开关', () => {
+  /** 一个不含剖切符号的最小剖视图输入。 */
+  const NO_MARKS = {
+    figure_type: 'cross_section',
+    sections: { parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3 } }] },
+  }
+  const WITH_MARKS = {
+    figure_type: 'cross_section',
+    sections: {
+      parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3 } }],
+      cutting_marks: [{ id: 'A', from: [10, 24], to: [10, 34], arrow: 'down' }],
+    },
+  }
+
+  async function setup(deps: { requireCuttingMarks?: boolean } = {}) {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-cut-'))
+    const outDir = join(dir, 'figs')
+    const tool = createGeneratePatentFigureTool({
+      render: trackingRenderer().render,
+      outputDir: outDir,
+      cwd: dir,
+      ...deps,
+    })
+    const ctx = await ctxWith(tool)
+    return { dir, run: async (args: unknown, label: string) => await execute(ctx, 'generate_patent_figure', args, label) }
+  }
+
+  it('参数开启时未给剖切符号即报错，给了则正常出图', async () => {
+    const { dir, run } = await setup()
+    try {
+      const missing = await run({ ...NO_MARKS, require_cutting_marks: true }, 'cut-strict')
+      expect(missing.isError).toBe(true)
+      expect(text(missing)).toContain('require_cutting_marks')
+      const ok = await run({ ...WITH_MARKS, require_cutting_marks: true }, 'cut-strict-ok')
+      expect(ok.isError).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('部署级 requireCuttingMarks 在模型未传参时生效，模型传 false 可覆盖', async () => {
+    const { dir, run } = await setup({ requireCuttingMarks: true })
+    try {
+      const byDefault = await run(NO_MARKS, 'cut-dflt')
+      expect(byDefault.isError).toBe(true)
+      expect(text(byDefault)).toContain('require_cutting_marks')
+      const overridden = await run({ ...NO_MARKS, require_cutting_marks: false }, 'cut-over')
+      expect(overridden.isError).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未开启时不要求剖切符号：缺省只出图', async () => {
+    const { dir, run } = await setup()
+    try {
+      const result = await run(NO_MARKS, 'cut-off')
+      expect(result.isError).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

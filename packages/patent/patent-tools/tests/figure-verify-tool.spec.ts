@@ -275,3 +275,114 @@ describe('verify_patent_figure 标号净距', () => {
     }
   })
 })
+
+describe('verify_patent_figure 图内层级 ↔ 权项', () => {
+  const FIGURE = svg([
+    '<rect x="10" y="10" width="30" height="12" stroke-width="0.5"/>',
+    '<rect x="44" y="14" width="8" height="4" stroke-width="0.5"/>',
+  ].join('\n'))
+
+  it('同时给出 hierarchy 与 claims 时核对其一致性', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    try {
+      writeFileSync(join(dir, 'fig1.svg'), FIGURE)
+      const result = await ctxWith(dir).then(ctx => ctx.tools.execute({
+        signal,
+        callId: ToolCallId('vh1'),
+        name: 'verify_patent_figure',
+        arguments: {
+          svg_path: 'fig1.svg',
+          hierarchy: [{ parent: '3', child: '31' }, { parent: '3', child: '311' }],
+          claims: '所述恒电位控制单元31的输入端311，其特征在于……',
+        },
+      }))
+      expect(result.isError).toBe(false)
+      const findings = (result as { value: { findings: { check: string; message: string }[] } }).value.findings
+      expect(findings.map(finding => finding.check)).toEqual(['figure-hierarchy'])
+      expect(findings[0]?.message).toContain('把 311 画在 3 之下')
+      expect(text(result)).toContain('[figure-hierarchy]')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('只给 hierarchy 或只给 claims 时不判层级（无从核对）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    try {
+      writeFileSync(join(dir, 'fig1.svg'), FIGURE)
+      const ctx = await ctxWith(dir)
+      const onlyHierarchy = await ctx.tools.execute({
+        signal,
+        callId: ToolCallId('vh2'),
+        name: 'verify_patent_figure',
+        arguments: { svg_path: 'fig1.svg', hierarchy: [{ parent: '3', child: '311' }] },
+      })
+      expect(onlyHierarchy.isError).toBe(false)
+      expect((onlyHierarchy as { value: { findings: unknown[] } }).value.findings).toEqual([])
+      const onlyClaims = await ctx.tools.execute({
+        signal,
+        callId: ToolCallId('vh3'),
+        name: 'verify_patent_figure',
+        arguments: { svg_path: 'fig1.svg', claims: '所述恒电位控制单元31的输入端311，其特征在于……' },
+      })
+      expect(onlyClaims.isError).toBe(false)
+      expect((onlyClaims as { value: { findings: unknown[] } }).value.findings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('verify_patent_figure 字高下限', () => {
+  const SMALL = svg([
+    '<rect x="10" y="10" width="30" height="12" stroke-width="0.5"/>',
+    '<text x="25" y="20" font-size="2" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+  ].join('\n'))
+
+  it('min_font_mm 给出时低于下限的文字报出，量测值随结果返回', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    try {
+      writeFileSync(join(dir, 'fig1.svg'), SMALL)
+      const result = await ctxWith(dir).then(ctx => ctx.tools.execute({
+        signal, callId: ToolCallId('vf-min'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 3 },
+      }))
+      expect(result.isError).toBe(false)
+      const value = result as { value: { minFontMm: number; findings: { check: string }[] } }
+      expect(value.value.minFontMm).toBeGreaterThan(1)
+      expect(value.value.findings.map(finding => finding.check)).toEqual(['font-below-minimum'])
+      expect(text(result)).toContain('最小字高')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('部署内控下限（deps.minFontMm）在模型未传参时生效，模型传参覆盖它', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.tools.register(createVerifyPatentFigureTool({ cwd: dir, minFontMm: 3 }))
+    try {
+      writeFileSync(join(dir, 'fig1.svg'), SMALL)
+      const byDefault = await ctx.tools.execute({ signal, callId: ToolCallId('vf-dflt'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg' } })
+      expect((byDefault as { value: { findings: { check: string }[] } }).value.findings.map(finding => finding.check)).toEqual(['font-below-minimum'])
+      const overridden = await ctx.tools.execute({ signal, callId: ToolCallId('vf-over'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 1 } })
+      expect((overridden as { value: { findings: unknown[] } }).value.findings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('min_font_mm 非正数被拒，并指明参数名', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    const ctx = await ctxWith(dir)
+    try {
+      writeFileSync(join(dir, 'fig1.svg'), SMALL)
+      const result = await ctx.tools.execute({ signal, callId: ToolCallId('vf-bad'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 0 } })
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('min_font_mm 必须是正数')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

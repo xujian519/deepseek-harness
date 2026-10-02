@@ -19,7 +19,7 @@ function createStore(): { search: KnowledgeLawSearch; dir: string } {
   db.exec(`
     CREATE TABLE documents (
       id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, domain TEXT NOT NULL DEFAULT 'patent',
-      title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, char_count INTEGER DEFAULT 0, chunk_count INTEGER DEFAULT 0
+      title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, char_count INTEGER DEFAULT 0, chunk_count INTEGER DEFAULT 0
     );
     CREATE TABLE chunks (
       id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL REFERENCES documents(id),
@@ -28,11 +28,13 @@ function createStore(): { search: KnowledgeLawSearch; dir: string } {
     CREATE VIRTUAL TABLE docs_fts USING fts5(title, content, module, domain, tags, tokenize='trigram', content='', contentless_delete=1);
   `)
   const insDoc = db.prepare(
-    'INSERT INTO documents (id, source, doc_type, title, indexed_at, level) VALUES (?, \'raw\', ?, ?, \'2026-01-01\', ?)',
+    'INSERT INTO documents (id, source, doc_type, title, indexed_at, level, file_path) VALUES (?, \'raw\', ?, ?, \'2026-01-01\', ?, ?)',
   )
-  insDoc.run('law:专利法', 'law_article', '中华人民共和国专利法', '法律')
-  insDoc.run('law:实施细则', 'law_article', '中华人民共和国专利法实施细则', '行政法规')
-  insDoc.run('raw:无效复审决定:xx', 'case', '某无效决定', null)
+  insDoc.run('law:专利法', 'law_article', '中华人民共和国专利法', '法律', '法律法规_md/中华人民共和国专利法.md')
+  insDoc.run('law:实施细则', 'law_article', '中华人民共和国专利法实施细则', '行政法规', '法律法规_md/专利法实施细则.md')
+  insDoc.run('raw:无效复审决定:xx', 'case', '某无效决定', null, null)
+  // 指南全文（doc_type=guideline_rule）：与法规原文同一 documents 表，按 docTypes 区分。
+  insDoc.run('raw:审查指南_md:第二部分第八章', 'guideline_rule', '专利审查指南 第二部分第八章-实质审查程序', '法律', '审查指南_md/第二部分第八章-实质审查程序.md')
   const insChunk = db.prepare(
     'INSERT INTO chunks (document_id, chunk_index, chunk_type, content, char_count) VALUES (?, ?, \'text\', ?, ?)',
   )
@@ -40,14 +42,22 @@ function createStore(): { search: KnowledgeLawSearch; dir: string } {
   const c2 = insChunk.run('law:专利法', 1, '第二十六条 说明书应当对发明作出清楚、完整的说明。', 26).lastInsertRowid as number
   const c3 = insChunk.run('law:实施细则', 0, '本细则依据专利法制订，对专利申请与审查程序作出具体规定。', 33).lastInsertRowid as number
   insChunk.run('raw:无效复审决定:xx', 0, '决定正文内容', 7)
+  const c4 = insChunk.run('raw:审查指南_md:第二部分第八章', 0, '4.1 审查员应当发出审查意见通知书，指出申请文件的缺陷。', 40).lastInsertRowid as number
   const insFts = db.prepare(
     'INSERT INTO docs_fts (rowid, title, content, module, domain, tags) VALUES (?, ?, ?, \'module\', \'patent\', NULL)',
   )
   insFts.run(c1, '中华人民共和国专利法', '第一条 为了保护专利权人的合法权益，鼓励发明创造。')
   insFts.run(c2, '中华人民共和国专利法', '第二十六条 说明书应当对发明作出清楚、完整的说明。')
   insFts.run(c3, '中华人民共和国专利法实施细则', '本细则依据专利法制订，对专利申请与审查程序作出具体规定。')
+  insFts.run(c4, '专利审查指南 第二部分第八章-实质审查程序', '4.1 审查员应当发出审查意见通知书，指出申请文件的缺陷。')
   db.close()
   return { search: new KnowledgeLawSearch(dbPath), dir }
+}
+
+/** 以指定文档类型打开同一夹具库（指南引擎与法规引擎各一个实例）。 */
+function createStoreWithTypes(docTypes: readonly ('law_article' | 'guideline_rule')[]): { search: KnowledgeLawSearch; dir: string } {
+  const { dir } = createStore()
+  return { search: new KnowledgeLawSearch(join(dir, 'knowledge.db'), { docTypes }), dir }
 }
 
 function withStore(): KnowledgeLawSearch {
@@ -125,7 +135,7 @@ describe('KnowledgeLawSearch', () => {
     const dbPath = join(dir, 'knowledge.db')
     const db = new DatabaseSync(dbPath)
     db.exec(`
-      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, domain TEXT NOT NULL DEFAULT 'patent', title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, char_count INTEGER DEFAULT 0, chunk_count INTEGER DEFAULT 0);
+      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, domain TEXT NOT NULL DEFAULT 'patent', title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, char_count INTEGER DEFAULT 0, chunk_count INTEGER DEFAULT 0);
       CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL REFERENCES documents(id), chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0);
     `)
     db.close()
@@ -168,7 +178,7 @@ describe('KnowledgeLawSearch edge paths', () => {
     const dbPath = join(dir, 'knowledge.db')
     const db = new DatabaseSync(dbPath)
     db.exec(`
-      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, char_count INTEGER DEFAULT 0);
+      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, char_count INTEGER DEFAULT 0);
       CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0);
       CREATE TABLE docs_fts (name TEXT);
     `)
@@ -187,7 +197,7 @@ describe('KnowledgeLawSearch edge paths', () => {
     const dbPath = join(dir, 'knowledge.db')
     const db = new DatabaseSync(dbPath)
     db.exec(`
-      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, char_count INTEGER DEFAULT 0);
+      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, char_count INTEGER DEFAULT 0);
       CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0);
       CREATE TABLE docs_fts (name TEXT);
     `)
@@ -254,6 +264,18 @@ describe('KnowledgeLawSearch edge paths', () => {
     expect(s.getByIds(['law:专利法', '不存在']).map(r => r.name)).toEqual(['中华人民共和国专利法'])
   })
 
+  it('keeps getById inside the engine document types', () => {
+    const { search, dir } = createStoreWithTypes(['guideline_rule'])
+    cleanups.push(() => {
+      search.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    expect(search.getById('raw:审查指南_md:第二部分第八章')?.name).toContain('专利审查指南')
+    // 法规原文不在指南引擎的文档类型内，逐条回源也不返回。
+    expect(search.getById('law:专利法')).toBeUndefined()
+    expect(search.getByIds(['law:专利法'])).toEqual([])
+  })
+
   it('runs the level-filtered FTS query', () => {
     const s = withStore()
     const hits = s.search('保护专利', { level: '法律' })
@@ -275,7 +297,7 @@ describe('KnowledgeLawSearch edge paths', () => {
     const dbPath = join(dir, 'knowledge.db')
     const db = new DatabaseSync(dbPath)
     db.exec(`
-      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, char_count INTEGER DEFAULT 0);
+      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, char_count INTEGER DEFAULT 0);
       CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0);
       CREATE VIRTUAL TABLE docs_fts USING fts5(title, content, module, domain, tags, tokenize='trigram', content='', contentless_delete=1);
     `)
@@ -307,7 +329,7 @@ describe('KnowledgeLawSearch edge paths', () => {
     const dbPath = join(dir, 'knowledge.db')
     const db = new DatabaseSync(dbPath)
     db.exec(`
-      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, char_count INTEGER DEFAULT 0);
+      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, char_count INTEGER DEFAULT 0);
       CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0);
     `)
     db.prepare("INSERT INTO documents (id, source, doc_type, title, indexed_at, level) VALUES ('law:空', 'raw', 'law_article', '无内容条款', '2026-01-01', NULL)").run()
@@ -357,5 +379,38 @@ describe('KnowledgeLawSearch edge paths', () => {
       rmSync(dir, { recursive: true, force: true })
     })
     expect(asInternals(search).withLevelFilter('"x"', {}, 10)).toEqual([])
+  })
+})
+
+describe('KnowledgeLawSearch 文档类型闭集', () => {
+  it('缺省只索引法规原文：指南文档不出现在结果里', () => {
+    const search = withStore()
+    expect(search.search('审查意见通知书').every(hit => hit.id !== 'raw:审查指南_md:第二部分第八章')).toBe(true)
+    expect(search.count()).toBeGreaterThan(0)
+  })
+
+  it('按 docTypes 索引指南全文时命中指南文档，并把 file_path 作为可溯源来源', () => {
+    const { search, dir } = createStoreWithTypes(['guideline_rule'])
+    cleanups.push(() => {
+      search.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    const hits = search.search('审查意见通知书')
+    expect(hits.map(hit => hit.id)).toContain('raw:审查指南_md:第二部分第八章')
+    expect(hits[0]?.filename).toBe('审查指南_md/第二部分第八章-实质审查程序.md')
+    // 指南引擎不索引法规原文。
+    expect(hits.every(hit => hit.id !== 'law:专利法')).toBe(true)
+  })
+
+  it('法规命中也带 file_path（引文来源）', () => {
+    const search = withStore()
+    const hit = search.search('保护专利权人的合法权益')[0]
+    expect(hit?.filename).toBe('法律法规_md/中华人民共和国专利法.md')
+  })
+
+  it('未知文档类型在构造期报错，不静默索引全部语料', () => {
+    const { dir } = createStore()
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    expect(() => new KnowledgeLawSearch(join(dir, 'knowledge.db'), { docTypes: ['nope' as never] })).toThrow(/未知的文档类型/)
   })
 })

@@ -64,6 +64,9 @@ graphify-out/
 # Case dockets and web verification scratch (not source)
 patent-workspace/
 apps/web/verify-sidebar.tmp.mjs
+# Local plugin scratch output (dsh-pdf-reader page renders, image generation)
+.dsh-pdf-reader/
+dsh-image-gen/
 # Local tool indexes
 .codegraph/
 .cursor/

@@ -284,6 +284,13 @@ describe('figure-submission：落版参数解析', () => {
     expect(resolveSubmission({ target_office: 'cnipa', rotate_deg: 270 }, '')?.rotateDeg).toBe(270)
     // schema 的 enum 已挡下模型的非法值；这一层对绕过 schema 的调用方收口。
     expect(() => resolveSubmission({ target_office: 'cnipa', rotate_deg: 45 }, '')).toThrow(PatentToolError)
+  })
+
+  it('正文字号由调用方代入（部署图面字号），缺省沿用历史默认 10pt', () => {
+    // DOT 图代入 pt（小四 = 12.05pt），直绘图型代入毫米；两者都进落版核算。
+    expect(resolveSubmission({ target_office: 'cnipa' }, '', 12.05)?.bodyFontSize).toBe(12.05)
+    expect(resolveSubmission({ target_office: 'cnipa' }, '', 4.25)?.bodyFontSize).toBe(4.25)
+    expect(resolveSubmission({ target_office: 'cnipa' }, '')?.bodyFontSize).toBe(10)
     expect(() => resolveSubmission({ target_office: 'cnipa', rotate_deg: 45 }, '')).toThrow('rotate_deg 只支持 0/90/180/270（度）')
   })
 

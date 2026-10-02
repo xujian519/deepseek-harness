@@ -25,6 +25,12 @@ export type DraftClaimsInput = {
   optional_features?: string[]
   /** Closest prior-art description (optional, for the preamble). */
   prior_art?: string
+  /**
+   * Claim-count ceiling fixed by the drafting instruction (user or case
+   * requirement). Exceeding it is an error: a ceiling an instructing party set
+   * is an acceptance condition, not a cost trade-off.
+   */
+  max_claims?: number
 }
 
 /** One drafted claim (independent or dependent). */
@@ -180,6 +186,15 @@ export function draftClaims(input: DraftClaimsInput): DraftClaimsOutput {
   })
   const claims: DraftedClaim[] = [{ number: 1, type: 'independent', text: independentText }, ...dependents]
   const violations = validateClaims(claims)
+  const cap = input.max_claims
+  if (cap !== undefined && claims.length > cap) {
+    violations.push({
+      rule: 'claim_count_cap',
+      severity: 'error',
+      message: `权利要求共 ${claims.length} 项，超过本次撰写指令的项数上限 ${cap} 项`,
+      suggestion: `把权利要求压缩到 ${cap} 项以内：将附加技术特征并入独权或合并从属权利要求，不得以上限只是费用起征线为由保留超项`,
+    })
+  }
   // 10 项是《专利审查指南》的申请附加费起征线（说明书超过 30 页或权利要求超过 10 项），
   // 不是项数上限：细则第一百一十条第一款第（一）项列明该费种，第一百一十二条要求随申请费按期缴足。
   if (claims.length > 10) {
@@ -230,6 +245,7 @@ export function createDraftClaimsTool(): ToolDefinition {
       technical_features: { type: 'array', required: true, items: { type: 'string' }, description: '必要技术特征列表（用于独立权利要求）' },
       optional_features: { type: 'array', items: { type: 'string' }, description: '附加/可选技术特征列表（用于从属权利要求）' },
       prior_art: { type: 'string', description: '最接近现有技术描述（可选，用于前序部分）' },
+      max_claims: { type: 'integer', description: '本次撰写指令给定的权利要求项数上限（可选）。超过上限判 error——指令给定的上限是验收条件，不得以申请附加费起征线为由放宽' },
     },
     output: {
       schema: {

@@ -30,23 +30,42 @@ export interface CnlawDeclaration {
 }
 
 /**
+ * The guideline/rule channel: neither the cnlaw index nor the packed law index behind
+ * `law_verify` carries the guideline text, so the rule text comes from the deployment's
+ * external IP knowledge base. Naming the tools is what makes a 未核验 guideline citation
+ * actionable — the section is settled by retrieval, never by memory.
+ */
+const GUIDELINE_TEXT = [
+  '- Examination-guideline chapters are not in the cnlaw index, and the packed law index behind `law_verify` holds guideline sections without their text, so a guidelines citation it reports as 未核验 is not a verdict on the rule.',
+  '- Retrieve the rule text from this deployment\'s external IP knowledge base: `law_search` with scope=guideline searches the guideline chapters (scope=law searches the statute text), and every hit carries its corpus path as the citation source; `patent_kg_query` (node_type=GuidelineRule) and `patent_wiki_search` hold the rule cards; `patent_case_search` holds decisions that apply a rule.',
+  '- A guideline section that no retrieval returns stays 未核验: report it as such instead of reconstructing the section from memory.',
+].join('\n')
+
+/**
  * The declaration text for an enabled base: the endpoints the model uses, the
- * routes each one serves, and the MCP tools that supersede them where mounted.
+ * routes each one serves, the guideline channel, and the MCP tools that
+ * supersede the endpoints where mounted.
  */
 function enabledText(declaration: CnlawDeclaration): string {
   return [
-    'This deployment declares a local cnlaw legal base (semantica-cnlaw REST): verify law text, examination guidelines, and case decisions against it after `law_verify`, and record the source_path of every hit.',
+    'This deployment declares a local cnlaw legal base (semantica-cnlaw REST): verify law text and case decisions against it after `law_verify`, and record the source_path of every hit. The index holds statutes and decisions, not the examination guidelines.',
     `- Semantic search endpoint: ${declaration.searchUrl} — REST routes \`/search\`, \`/search/decisions\`, \`/search/judgments\`.`,
     `- Graph and case endpoint: ${declaration.graphUrl} — REST routes \`/api/cnlaw/graph/*\`, \`/api/cnlaw/case/*\`, \`/api/cnlaw/ipc/*\`.`,
+    GUIDELINE_TEXT,
     'Reach the graph, case, and inventive-step routes through the cnlaw MCP tools (`mcp__cnlaw__*`) whenever this session exposes them, and through the endpoints above otherwise; these endpoints are declared by this deployment (patent-law Config `cnlawSearchUrl` / `cnlawGraphUrl`), so use them instead of assuming a port.',
   ].join('\n')
 }
 
 /**
- * The declaration text for a disabled base: the fallback channels, and why no
- * endpoint is named, so the model does not probe a service that is not there.
+ * The declaration text for a disabled base: the fallback channels, why no
+ * endpoint is named, and the guideline channel.
  */
-const DISABLED_TEXT = 'This deployment declares no local cnlaw legal base (patent-law Config `cnlawEnabled=false`): verify law text, examination guidelines, and case decisions through `patent_case_search` / `patent_wiki_search` and `web_fetch` on an official source, and do not attempt a local cnlaw endpoint.'
+function disabledText(): string {
+  return [
+    'This deployment declares no local cnlaw legal base (patent-law Config `cnlawEnabled=false`): verify law text, examination guidelines, and case decisions through `patent_case_search` / `patent_wiki_search` and `web_fetch` on an official source, and do not attempt a local cnlaw endpoint.',
+    GUIDELINE_TEXT,
+  ].join('\n')
+}
 
 /**
  * Render the declaration section: the declared endpoints while the base is
@@ -55,5 +74,5 @@ const DISABLED_TEXT = 'This deployment declares no local cnlaw legal base (paten
  * @returns the section text.
  */
 export function renderCnlawDeclaration(declaration: CnlawDeclaration): string {
-  return declaration.enabled ? enabledText(declaration) : DISABLED_TEXT
+  return declaration.enabled ? enabledText(declaration) : disabledText()
 }

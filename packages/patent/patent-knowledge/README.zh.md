@@ -30,7 +30,11 @@ knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全�
 
 ### legalSearch(query, options?)
 
-经 `KnowledgeLawSearch` 对 `knowledge.db` 的 `law_article` 文档做全文检索。返回 `LawSearchResult[]`；options 支持按 `level` 过滤。
+经 `KnowledgeLawSearch` 对 `knowledge.db` 的 `law_article` 文档做全文检索。返回 `LawSearchResult[]`；options 支持按 `level` 过滤。每条命中带 `filename`（即该文档的 `file_path`），作为引文来源。
+
+### guidelineSearch(query, options?)
+
+对 `knowledge.db` 的 `guideline_rule` 文档（《专利审查指南》全文）做全文检索，由第二个以 `docTypes: ['guideline_rule']` 限定的 `KnowledgeLawSearch` 提供。引擎索引哪类规范文档由构造时的文档类型决定（缺省 `law_article`），因此法规语料与指南语料各自独立、共用同一条检索通路；`documents` 表早于 `file_path` 列的库仍可检索，只是命中不带来源路径。
 
 ### wikiCards(query, limit?)
 

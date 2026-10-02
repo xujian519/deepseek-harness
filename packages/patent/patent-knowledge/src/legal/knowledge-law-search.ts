@@ -1,7 +1,7 @@
 /**
- * knowledge.db 法规全文搜索引擎（law_article 文档）。
+ * knowledge.db 规范全文搜索引擎（法规原文与《专利审查指南》全文）。
  *
- * 数据源：knowledge.db `documents`(doc_type='law_article') / `chunks` /
+ * 数据源：knowledge.db `documents`（doc_type 为 `law_article` 或 `guideline_rule`）/ `chunks` /
  * `docs_fts`（contentless FTS5 trigram）。docs_fts rowid = chunks.id，
  * 正文经 JOIN chunks/documents 回源（与 case-law-search 同模式）。
  *
@@ -22,8 +22,20 @@ import { decompressChunk } from '../shared/chunk-compression.ts'
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { LawCategory, LawRecord, LawSearchResult, LegalSearchSource } from './types.ts'
 
+/**
+ * 引擎可索引的规范文档类型（闭集）：`law_article` 是法规原文，`guideline_rule` 是
+ * 《专利审查指南》全文。闭集既让同一引擎服务两类语料，也保证文档类型不会被拼进 SQL。
+ */
+export const KNOWLEDGE_DOC_TYPES = ['law_article', 'guideline_rule'] as const
+
+/** 规范文档类型。 */
+export type KnowledgeDocType = (typeof KNOWLEDGE_DOC_TYPES)[number]
+
 /** Engine constructor options (all optional). */
-export type KnowledgeLawSearchEngineOptions = KnowledgeSearchEngineOptions
+export type KnowledgeLawSearchEngineOptions = KnowledgeSearchEngineOptions & {
+  /** 索引的文档类型（默认 `['law_article']`，即法规原文）。 */
+  docTypes?: readonly KnowledgeDocType[]
+}
 
 /** 法规全文搜索选项。 */
 export type KnowledgeLawSearchOptions = {
@@ -40,6 +52,8 @@ type DocChunkRow = {
   title: string
   level: string | null
   source: string | null
+  /** documents.file_path：语料内的相对路径，作为该文档的可溯源来源。 */
+  file_path: string | null
   /** 正文片段（LIKE/回源路径有值；FTS 主查询不取正文，经回源填充——延迟解压）。 */
   content: string | null
   chunk_index: number
@@ -60,21 +74,43 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
   /** 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源，保持"命中 chunk"语义）。 */
   private readonly stmtGetChunkAt: StatementSync
   private readonly stmtCount: StatementSync
+  /** 本引擎索引的文档类型（SQL 片段，值取自 {@link KNOWLEDGE_DOC_TYPES} 闭集）。 */
+  private readonly docTypeIn: string
+  /**
+   * 语料库是否有 `documents.file_path` 列：装配后的库有，个别旧源库没有。缺列时投影
+   * NULL，引擎照常检索，只是命中不带来源路径（来源由调用方按 id 判定）。
+   */
+  private readonly filePathColumn: string
 
   constructor(dbPath: string, options: KnowledgeLawSearchEngineOptions = {}) {
     super(dbPath, options)
+    // 文档类型取自闭集常量，故可安全拼进 SQL 文本（调用方传的是类型值，不是自由字符串）。
+    const docTypes = options.docTypes ?? ['law_article']
+    const docTypeList = docTypes.map((type) => {
+      if (!(KNOWLEDGE_DOC_TYPES as readonly string[]).includes(type)) {
+        throw new Error(`knowledge: 未知的文档类型 ${type}（可用：${KNOWLEDGE_DOC_TYPES.join(' / ')}）`)
+      }
+      return `'${type}'`
+    }).join(', ')
+    const docTypeIn = `d.doc_type IN (${docTypeList})`
+    this.docTypeIn = docTypeIn
+    const columns = this.db
+      .prepare("SELECT COUNT(*) AS c FROM pragma_table_info('documents') WHERE name = 'file_path'")
+      .get() as { c: number }
+    const filePathColumn = columns.c > 0 ? 'd.file_path' : 'NULL AS file_path'
+    this.filePathColumn = filePathColumn
 
     // LIKE 降级：documents.title 或每文档最长 chunk 的 content（压缩 chunk 先
     // 解压再匹配）；子查询取最长 chunk 作片段。content 取原始存储（TEXT 明文 /
     // SC 魔数 gzip BLOB），JS 层 decompressChunk 解压——绕开 node:sqlite JS UDF
     // 的 ~4ms/次边界开销；WHERE 的 sati_uncompress 仅匹配语义（LIKE 降级路径低频）。
     this.stmtSearchLike = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source,
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
              c.content AS content, c.char_count
       FROM documents d
       JOIN chunks c ON c.id = (
         SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE d.doc_type = 'law_article'
+      WHERE ${this.docTypeIn}
         AND (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
       ORDER BY d.char_count DESC LIMIT ?
     `)
@@ -86,12 +122,12 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
     if (this.hasFts) {
       try {
         this.stmtSearchFts = this.db.prepare(`
-          SELECT d.id AS document_id, d.title, d.level, d.source,
+          SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
                  NULL AS content, c.chunk_index, c.char_count, bm25(docs_fts) AS fts_rank
           FROM docs_fts
           JOIN chunks c ON c.id = docs_fts.rowid
           JOIN documents d ON d.id = c.document_id
-          WHERE docs_fts MATCH ? AND d.doc_type = 'law_article'
+          WHERE docs_fts MATCH ? AND ${docTypeIn}
           ORDER BY bm25(docs_fts) LIMIT ?
         `)
       } catch (error) {
@@ -100,31 +136,31 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       }
     }
     this.stmtFindByName = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source,
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
              c.content AS content, c.char_count
       FROM documents d
       JOIN chunks c ON c.id = (
         SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE d.doc_type = 'law_article' AND d.title LIKE ? ESCAPE '\\'
+      WHERE ${docTypeIn} AND d.title LIKE ? ESCAPE '\\'
       LIMIT ?
     `)
     this.stmtGetById = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source,
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
              c.content AS content, c.char_count
       FROM documents d
       JOIN chunks c ON c.id = (
         SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE d.id = ?
+      WHERE ${this.docTypeIn} AND d.id = ?
     `)
     // 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源）。
     this.stmtGetChunkAt = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source,
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
              c.content AS content, c.char_count
       FROM documents d
       JOIN chunks c ON c.document_id = d.id AND c.chunk_index = ?
       WHERE d.id = ?
     `)
-    this.stmtCount = this.db.prepare("SELECT COUNT(*) AS c FROM documents WHERE doc_type = 'law_article'")
+    this.stmtCount = this.db.prepare(`SELECT COUNT(*) AS c FROM documents WHERE doc_type IN (${docTypeList})`)
   }
 
   protected readonly degradeLabel = '法规'
@@ -146,7 +182,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
     return rows.map(row => this.toRecord(row))
   }
 
-  /** 按 documents.id 精确查询（语义路回源）。 */
+  /** 按 documents.id 精确查询（语义路回源）；域外的文档类型不返回，与 search 的范围一致。 */
   getById(id: string): LawRecord | undefined {
     const row = this.stmtGetById.get(id) as DocChunkRow | undefined
     return row ? this.toRecord(row) : undefined
@@ -169,12 +205,12 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
     const placeholders = unique.map(() => '?').join(', ')
     const rows = this.db
       .prepare(`
-        SELECT d.id AS document_id, d.title, d.level, d.source,
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
                c.content AS content, c.char_count
         FROM documents d
         JOIN chunks c ON c.id = (
           SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-        WHERE d.doc_type = 'law_article' AND d.id IN (${placeholders})
+        WHERE ${this.docTypeIn} AND d.id IN (${placeholders})
       `)
       .all(...unique) as DocChunkRow[]
     const byId = new Map(rows.map(row => [row.document_id, this.toRecord(row)]))
@@ -229,12 +265,12 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       return ftsSearch.all(match, limit) as DocChunkRow[]
     }
     const sql = `
-      SELECT d.id AS document_id, d.title, d.level, d.source,
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
              NULL AS content, c.chunk_index, c.char_count, bm25(docs_fts) AS fts_rank
       FROM docs_fts
       JOIN chunks c ON c.id = docs_fts.rowid
       JOIN documents d ON d.id = c.document_id
-      WHERE docs_fts MATCH ? AND d.doc_type = 'law_article' AND d.level = ?
+      WHERE docs_fts MATCH ? AND ${this.docTypeIn} AND d.level = ?
       ORDER BY bm25(docs_fts) LIMIT ?
     `
     return this.db.prepare(sql).all(match, options.level, limit) as DocChunkRow[]
@@ -248,12 +284,12 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       return this.stmtSearchLike.all(pattern, pattern, limit) as DocChunkRow[]
     }
     let sql = `
-      SELECT d.id AS document_id, d.title, d.level, d.source,
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
              sati_uncompress(c.content) AS content, c.char_count
       FROM documents d
       JOIN chunks c ON c.id = (
         SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE d.doc_type = 'law_article'
+      WHERE ${this.docTypeIn}
         AND (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
     `
     const params: Array<string | number> = [pattern, pattern]
@@ -287,6 +323,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       id: row.document_id,
       level: row.level ?? '其他',
       name: row.title,
+      ...(row.file_path === null ? {} : { filename: row.file_path }),
       expired: 0,
       categoryId: 0,
       content: content.length > 0 ? content : undefined,

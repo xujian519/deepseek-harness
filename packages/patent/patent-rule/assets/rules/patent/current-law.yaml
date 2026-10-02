@@ -3,8 +3,10 @@
 # 口径基准：2020 修正《专利法》+ 2023 修订《专利法实施细则》+ 2023 修订《专利审查指南》。
 # 本文件只放"输出文本里出现已废止/失去依据的法条口径"这类可确定性判定的禁令：
 # 一律 pattern_analysis（命中即违规），不使用 keyword_blocklist——输出门禁
-# （src/runtime/output-gate.ts 的 selectGateRules）只取 keyword_blocklist，本文件
-# 因此只作用于 rule_check 的显式自检，不改变既有输出门禁的行为。
+# （src/runtime/output-gate.ts 的 selectGateRules）默认只取 keyword_blocklist，本文件
+# 因此默认只作用于 rule_check 的显式自检；部署可经 patent-rule 的 Config.gateCheckTypes
+# 加入 pattern_analysis，届时本文件的规则同时进入输出门禁（随包规则该族的 action 均为
+# warn，命中只记日志，不改结果）。
 # 未核验的条号按语义命名，不写未核验条号。
 
 version: "1.0"

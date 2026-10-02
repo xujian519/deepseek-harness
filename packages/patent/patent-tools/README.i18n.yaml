@@ -15,11 +15,11 @@
   en: d5e558a2a1eb4650
   zh: 3cd31d97eb0a44a5
 /deepseek-ai-dsh-patent-tools/tools:
-  en: 3053d87a9bdef07f
-  zh: 19d4fcec36b902f9
+  en: 4888522968fd9723
+  zh: b53b983e1b5ee10b
 /deepseek-ai-dsh-patent-tools/configuration:
-  en: 742f6beb6366bc05
-  zh: 65924bd072f1526d
+  en: 4b77cad901e1a2c4
+  zh: f698c90f159c265a
 /deepseek-ai-dsh-patent-tools/model-experience:
   en: 215e7ba838619b7b
   zh: 215e7ba838619b7b
@@ -27,8 +27,8 @@
   en: 3039bc5e7a796b21
   zh: 6b7a9eaf69c9ea53
 /deepseek-ai-dsh-patent-tools/model-experience/tool-schemas/what-the-model-sees:
-  en: 0e59f59dab59a419
-  zh: 31354872d4f8c48f
+  en: 121b2d4eea608cd0
+  zh: 05642461d0501b71
 /deepseek-ai-dsh-patent-tools/model-experience/tool-schemas/token-effect:
   en: 498e4b52fc562c0b
   zh: 96419d05aef9b5a7
@@ -36,8 +36,8 @@
   en: f0199d6e3cacfdeb
   zh: 67712ee4125fa6e5
 /deepseek-ai-dsh-patent-tools/known-limitations-and-deferred-work:
-  en: 70144e487acab34d
-  zh: d9b7ad461da3a883
+  en: 33aadaf319b43d9d
+  zh: 12f225581ff8a71b
 /deepseek-ai-dsh-patent-tools/known-limitations-and-deferred-work/dev-note:
   en: be6841fc7e9f393c
   zh: 5f1e563c667fbdb1

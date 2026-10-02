@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.0-rc.2/claims-spec-paragraph-numbering-default/guide.md
+/:
+  en: 550808e2efec6a2c
+  zh: bd5d28dea68d70c1
+/the-claims-spec-template-renders-without-paragraph-numbers-by-default:
+  en: 4d55c1bb39db48db
+  zh: 3d9233656f53d58a
+/the-claims-spec-template-renders-without-paragraph-numbers-by-default/change:
+  en: e980708fdc563e98
+  zh: 583b76e0f02e0310
+/the-claims-spec-template-renders-without-paragraph-numbers-by-default/migration:
+  en: 84dc6362705ee9c5
+  zh: 7e39099284d0d076

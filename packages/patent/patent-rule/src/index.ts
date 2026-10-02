@@ -9,10 +9,17 @@
  * - Delivery-tool results (render_patent_document / draft_claims /
  *   draft_specification / validate_specification, overridable via
  *   {@link Config.gateToolNames}) run through the RuleOutputGate on the
- *   keyword_blocklist subset (selectGateRules). A block-level violation returns
+ *   check families selected by {@link Config.gateCheckTypes} (default: the
+ *   keyword_blocklist subset; an absence-based family is rejected with a
+ *   warning). A block-level violation returns
  *   `{ kind: 'block' }`; a review-level violation fires `ctx.get('approval')`
  *   and accepts only on `'allowed-once'` (fail-closed with no answerer, no
  *   agent, or `approvalDisabled`); warn/log violations pass through unchanged.
+ * - A declared structural gate ({@link Config.structuralGate}) denies a
+ *   delivery-tool call before dispatch when the artifact text in its arguments
+ *   violates a named absence-based rule: those rules cannot judge a tool
+ *   result's prose (plain text is always "missing" most expected elements), so
+ *   they run on the artifact a production tool is about to render or write.
  * - evaluate_evidence calls are denied by two monotonic EVI-011 guards when an
  *   overseas/foreign evidence record omits its required notarization /
  *   legalization / translation declaration.
@@ -30,8 +37,23 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 import type { RuleOutputGate as PatentRuleOutputGate, RuleOutputGateResult } from '@deepseek-ai/dsh-patent-core'
 import { patentAssetDir } from './asset-location.ts'
 import { createEvidenceComplianceGuards } from './guard/evidenceComplianceGuards.ts'
-import { loadPatentFullRuleSet, selectGateRules } from './runtime/patent-compliance.ts'
+import {
+  ARTIFACT_GATE_CHECK_TYPES,
+  DEFAULT_GATE_CHECK_TYPES,
+  GATE_CHECK_TYPES,
+  isGateCheckType,
+  loadPatentFullRuleSet,
+  selectGateRules,
+  type GateCheckType,
+} from './runtime/patent-compliance.ts'
 import { RuleOutputGate } from './runtime/output-gate.ts'
+import {
+  renderStructuralGateDenial,
+  resolveStructuralGate,
+  structuralGateViolations,
+  type StructuralGateEntry,
+  type StructuralGatePlan,
+} from './runtime/structural-gate.ts'
 
 // Public library API: the rule engine, loaders, pack assembler, and guards the
 // rule_check tool and workflow consumers import alongside the plugin surface.
@@ -62,6 +84,11 @@ export {
   type SynonymsLoadResult,
 } from './runtime/synonym-engine.ts'
 export {
+  DEFAULT_GATE_CHECK_TYPES,
+  GATE_CHECK_TYPES,
+  INCIDENT_GATE_CHECK_TYPES,
+  ARTIFACT_GATE_CHECK_TYPES,
+  isGateCheckType,
   loadActivationOverrides,
   loadPatentComplianceRuleSet,
   loadPatentElectricalRuleSet,
@@ -70,9 +97,19 @@ export {
   selectGateRules,
   PATENT_CASE_DOMAINS,
   type ActivationOverrides,
+  type GateCheckType,
   type PatentCaseScope,
   type PatentComplianceLoadResult,
 } from './runtime/patent-compliance.ts'
+export {
+  renderStructuralGateDenial,
+  resolveStructuralGate,
+  structuralGateText,
+  structuralGateViolations,
+  type ResolvedStructuralGateEntry,
+  type StructuralGateEntry,
+  type StructuralGatePlan,
+} from './runtime/structural-gate.ts'
 export {
   loadRulePack,
   parseRulePackManifest,
@@ -133,6 +170,27 @@ export interface Config {
   rulesDir?: string
   /** Tool names whose results run through the output gate. Defaults to the delivery tools. */
   gateToolNames?: string[]
+  /**
+   * Check families the result gate keeps. Defaults to `keyword_blocklist`
+   * (incident: a hit is a violation). Widening to
+   * `pattern_analysis` / `citation_analysis` / `quote_repetition` is a
+   * deployment choice; the absence-based families (`structural_analysis` /
+   * `synonym_match`) are rejected with a warning, because a tool result's prose
+   * is always "missing" most expected elements — they run through
+   * {@link Config.structuralGate} instead. Widening adds log lines only while
+   * the shipped incident-family rules are `action: warn`.
+   */
+  gateCheckTypes?: string[]
+  /**
+   * Artifact structural gate: entries naming a tool, the arguments holding its
+   * artifact text, and the absence-based rule ids to judge it by. A block-level
+   * hit denies the call before dispatch, so a non-conforming artifact is never
+   * rendered or written. No entry ships: a template renderer's arguments hold
+   * slot fragments, so absence checks on them report defects the rendered
+   * document does not have — declare an entry only where the argument is the
+   * whole document text.
+   */
+  structuralGate?: StructuralGateEntry[]
   /** When true, review-level violations block without an approval round-trip (unattended fail-closed). */
   approvalDisabled?: boolean
 }
@@ -140,8 +198,32 @@ export interface Config {
 export const Config: z<Config> = z.object({
   rulesDir: z.string(),
   gateToolNames: z.array(z.string()).default([...DEFAULT_GATE_TOOL_NAMES]),
+  gateCheckTypes: z.array(z.string()).default([...DEFAULT_GATE_CHECK_TYPES]),
+  structuralGate: z.array(z.object({
+    tool: z.string().required(),
+    textArgs: z.array(z.string()).required(),
+    ruleIds: z.array(z.string()).required(),
+    whenArgs: z.dict(z.string()).default({}),
+  })).default([]),
   approvalDisabled: z.boolean().default(false),
 })
+
+/** 解析门禁检查族：未知取值与「缺失即违规」族都告警并跳过，其余按声明顺序保留。 */
+function resolveGateCheckTypes(declared: readonly string[], warnings: string[]): GateCheckType[] {
+  const resolved: GateCheckType[] = []
+  for (const value of declared) {
+    if (!isGateCheckType(value)) {
+      warnings.push(`未知的门禁检查类型 "${value}"（可用：${GATE_CHECK_TYPES.join(' / ')}），已忽略`)
+      continue
+    }
+    if ((ARTIFACT_GATE_CHECK_TYPES as readonly string[]).includes(value)) {
+      warnings.push(`门禁检查类型 "${value}" 是「缺失即违规」族，对工具结果全文评测会海量误报；该族只经制品结构门禁（structuralGate，按声明的入参取制品文本）执行，已忽略`)
+      continue
+    }
+    resolved.push(value)
+  }
+  return resolved
+}
 
 /** Extract the concatenated plain-text content of a tool result (empty for non-text blocks). */
 function resultText(result: Readonly<ToolExecutionResult>): string {
@@ -172,8 +254,11 @@ export function apply(ctx: Context, config: Config): void {
   const approvalDisabled = config.approvalDisabled === true
 
   const { ruleSet, warnings } = loadPatentFullRuleSet(config.rulesDir)
+  const gateCheckTypes = resolveGateCheckTypes(config.gateCheckTypes ?? DEFAULT_GATE_CHECK_TYPES, warnings)
+  const structuralGate: StructuralGatePlan = resolveStructuralGate(ruleSet, config.structuralGate ?? [])
+  warnings.push(...structuralGate.warnings)
   for (const warning of warnings) ctx.logger.warn('patent-rule: ' + warning)
-  const gate = new RuleOutputGate(selectGateRules(ruleSet))
+  const gate = new RuleOutputGate(selectGateRules(ruleSet, gateCheckTypes))
   // Expose the same gate to team-consumers (e.g. patent-teams) so a task
   // completion can be rule-gated consistently with the tools/post-execute path.
   ctx.provide('patentRuleGate', gate)
@@ -183,6 +268,16 @@ export function apply(ctx: Context, config: Config): void {
   const ruleDirs = [patentAssetDir(config.rulesDir)]
   for (const guard of createEvidenceComplianceGuards(ruleDirs)) {
     ctx.tools.guard(guard)
+  }
+
+  // 制品结构门禁：在调用前判定入参里的制品文本。「缺失即违规」的规则不能作用于工具
+  // 结果全文，只能在制品进入渲染/落盘之前拦下——这是它们唯一的硬执行点。
+  if (structuralGate.entries.length > 0) {
+    ctx.on('tools/pre-execute', async (exec, next) => {
+      const violations = structuralGateViolations(structuralGate, exec.name, exec.arguments)
+      if (violations.length === 0) return next()
+      return { kind: 'deny', reason: renderStructuralGateDenial(exec.name, violations) }
+    })
   }
 
   ctx.on('tools/post-execute', async (exec: ToolExecution, result, next): Promise<PostToolDecision> => {

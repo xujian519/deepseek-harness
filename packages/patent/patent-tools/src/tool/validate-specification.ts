@@ -2,12 +2,14 @@
  * `validate_specification` tool: deterministic patent-specification compliance
  * checker ported from Sati's `validateSpecification.ts`.
  *
- * Deterministic rules: five-part structure completeness, invention-title length,
- * abstract length / keywords / drawing, vague wording, drawing-description and
- * figure-mark consistency, embodiment presence, numeric-range endpoints and
- * midpoints, effect-data quantification, chemical characterization,
- * claim-specification feature coverage (A26.4), independent-claim unity (A31.1),
- * and the claim-to-embodiment coverage matrix.
+ * Deterministic rules: five-part structure completeness and order, the heading
+ * set, invention-title length, abstract length / keywords / drawing / headings,
+ * specification figure-reference form (parentheses, figure-number spacing,
+ * paragraph numbering), vague wording, drawing-description and figure-mark
+ * consistency, embodiment presence, numeric-range endpoints and midpoints,
+ * effect-data quantification, chemical characterization, claim-specification
+ * feature coverage (A26.4), independent-claim unity (A31.1), and the
+ * claim-to-embodiment coverage matrix.
  *
  * Sati's SMILES-validity spot-check is gated behind the injected
  * `isRdkitAvailable` dependency; RDKit is not bundled in dsh, so that check
@@ -28,6 +30,7 @@ import {
   knownFigureNumbers,
 } from './spec-figure-marks.ts'
 import { checkNumericRangeCoverage, formatRange } from './spec-numeric.ts'
+import { checkSpecStyle, SPEC_SECTION_HEADINGS } from './spec-style.ts'
 import {
   CHEM_CHARACTERIZATION_TERMS,
   checkChemicalCharacterization,
@@ -41,15 +44,11 @@ import type {
   ValidateSpecificationOutput,
 } from './spec-types.ts'
 
-/** Required sections (matching Sati's requiredSections). */
-const REQUIRED_SECTIONS: Array<{ name: string; pattern: RegExp }> = [
-  { name: '技术领域', pattern: /^#{1,3}\s*技术领域/m },
-  { name: '背景技术', pattern: /^#{1,3}\s*背景技术/m },
-  { name: '发明内容', pattern: /^#{1,3}\s*发明内容/m },
-  { name: '附图说明', pattern: /^#{1,3}\s*附图说明/m },
-  { name: '具体实施方式', pattern: /^#{1,3}\s*具体实施方式/m },
-]
-
+/** Required sections (matching Sati's requiredSections), keyed off the one heading list. */
+const REQUIRED_SECTIONS: Array<{ name: string; pattern: RegExp }> = SPEC_SECTION_HEADINGS.map(name => ({
+  name,
+  pattern: new RegExp(`^#{1,3}\\s*${name}`, 'm'),
+}))
 const VAGUE_TERMS = ['约', '大致', '可能', '优选', '例如', '大约', '左右', '较好']
 
 /**
@@ -77,6 +76,7 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
   const present = presentSections(text)
   const violations: SpecViolation[] = [
     ...formViolations(text, title, present),
+    ...checkSpecStyle(text, input.abstract),
     ...abstractViolations(input, present),
     ...clarityViolations(text),
     ...drawingViolations(input, text, present),
@@ -128,7 +128,7 @@ function formViolations(text: string, title: string, present: Set<string>): Spec
       rule: 'sections',
       severity: 'error',
       message: `缺少必要章节：${missing.join('、')}`,
-      suggestion: '请按顺序撰写技术领域、背景技术、发明内容、附图说明和具体实施方式',
+      suggestion: `请按顺序撰写${SPEC_SECTION_HEADINGS.join('、')}`,
     })
   } else if (text.trim().length === 0) {
     violations.push({
@@ -418,8 +418,10 @@ export function renderSpecification(value: ValidateSpecificationOutput): string 
 
 const DESCRIPTION = [
   '验证专利说明书是否符合撰写要求（确定性规则，无 LLM 调用）。',
-  '- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节',
-  '- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词与摘要附图',
+  '- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节，且顺序符合《专利法实施细则》第二十条',
+  '- 标题集合：说明书只允许上述五部分标题（正文内的「要解决的技术问题／技术方案／有益效果／实施例一／替代实施方式」等一律不是标题）',
+  '- 附图引用形式：说明书记载标记不加括号（指南第二部分第二章 §2.2.6）、图号写作图1、段落编号提示',
+  '- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词、摘要附图、摘要不得使用标题',
   '- 模糊表述、附图说明与图引用一致性、实施例存在性',
   '- 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例',
   '- 独立权利要求之间的单一性（A31.1，传 claim_units 时）',

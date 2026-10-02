@@ -97,6 +97,27 @@ describe('draft_claims deeper paths', () => {
     expect(text(result)).toContain('additional_fee')
   })
 
+  it('blocks a claim set over the ceiling the drafting instruction fixed', () => {
+    const over = draftClaims({
+      invention_name: '装置',
+      technical_features: ['特征A'],
+      optional_features: ['附加特征1', '附加特征2'],
+      max_claims: 2,
+    })
+    const cap = over.violations.find(v => v.rule === 'claim_count_cap')
+    expect(cap?.severity).toBe('error')
+    expect(cap?.message).toContain('超过本次撰写指令的项数上限 2 项')
+    expect(over.claims).toHaveLength(3)
+
+    const within = draftClaims({
+      invention_name: '装置',
+      technical_features: ['特征A'],
+      optional_features: ['附加特征1'],
+      max_claims: 2,
+    })
+    expect(within.violations.map(v => v.rule)).not.toContain('claim_count_cap')
+  })
+
   it('renders the missing-features warning through the tool', async () => {
     const ctx = await ctxWith(createDraftClaimsTool())
     const result = await execute(ctx, 'draft_claims', {
@@ -197,7 +218,7 @@ describe('draft_specification deeper paths', () => {
     const result = await execute(ctx, 'draft_specification', { title: '二'.repeat(30) }, 'ds-3')
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect(text(result)).toContain('## 警告')
+    expect(text(result)).toContain('**警告**')
   })
 
   it('warns for a utility model without drawings and auto-detects the domain', () => {
@@ -211,7 +232,7 @@ describe('draft_specification deeper paths', () => {
     const result = await execute(ctx, 'draft_specification', { title: '装置', patent_type: 'utility_model' }, 'ds-2')
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect(text(result)).toContain('## 警告')
+    expect(text(result)).toContain('**警告**')
   })
 })
 

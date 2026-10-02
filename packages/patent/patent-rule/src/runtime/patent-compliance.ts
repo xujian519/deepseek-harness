@@ -270,23 +270,69 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
 }
 
 /**
- * 输出门禁规则子集：只保留「出现即违规」的 keyword_blocklist 规则。
+ * 门禁检查族（语义「命中即违规」）：命中一处即产出一条违规，对任意文本成立，
+ * 可以直接作用于工具结果的全文。
  *
- * - structural_analysis（缺失即违规 = 完整性期望）对任意 assistant 输出会海量误报
- *   （普通文本天然「缺失」几十个期望要素），只适用 rule_check 显式自检（A 链）；
- * - citation_analysis 需要引用索引与上下文，同样只适用 rule_check 显式自检。
+ * citation_analysis 只对「引用范围」报违规（条号超出法定条数），引用本身不在文本
+ * 里就不产生结果，故与关键词禁令同为命中即违规。
+ */
+export const INCIDENT_GATE_CHECK_TYPES = [
+  'keyword_blocklist',
+  'pattern_analysis',
+  'citation_analysis',
+  'quote_repetition',
+] as const
+
+/**
+ * 门禁检查族（语义「缺失即违规」）：只有被评估文本本身就是交付制品时才成立。
+ * 普通文本天然「缺失」几十个期望要素，把这类规则放进作用于工具结果的门禁会海量
+ * 误报，故它们只能经 {@link selectGateRules} 的显式选择，或经制品结构门禁
+ * （`structural-gate.ts`，按工具入参取制品文本）执行。
+ */
+export const ARTIFACT_GATE_CHECK_TYPES = ['structural_analysis', 'synonym_match'] as const
+
+/** 门禁可用的检查类型。 */
+export type GateCheckType = (typeof INCIDENT_GATE_CHECK_TYPES)[number] | (typeof ARTIFACT_GATE_CHECK_TYPES)[number]
+
+/** 全部门禁检查类型（供配置解析与校验）。 */
+export const GATE_CHECK_TYPES: readonly GateCheckType[] = [
+  ...INCIDENT_GATE_CHECK_TYPES,
+  ...ARTIFACT_GATE_CHECK_TYPES,
+]
+
+/**
+ * 判定一个字符串是否为门禁检查类型；配置里的未知取值据此告警而非静默忽略。
+ * @param value - 待判定的取值。
+ * @returns 是否为门禁检查类型。
+ */
+export function isGateCheckType(value: string): value is GateCheckType {
+  return (GATE_CHECK_TYPES as readonly string[]).includes(value)
+}
+
+/** 默认门禁检查族：只有「命中即违规」的关键词禁令，与关键词门禁的历史行为一致。 */
+export const DEFAULT_GATE_CHECK_TYPES: readonly GateCheckType[] = ['keyword_blocklist']
+
+/**
+ * 输出门禁规则子集：按检查族筛选规则。
  *
- * 结果 = compliance 的风险词/审批词/绝对化规则（PAT-RISK-001 / PAT-APPROVAL-001 /
- * PAT-ABS-001）与 nuo 的 keyword_blocklist 规则（占位符/商业宣传/公序良俗/清楚性/
- * 事后诸葛亮/编造对比文件等）。PAT-* 曾因「关键词门禁镜像了同一词表」被排除，该
- * 关键词门禁已删除，规则门禁是这些规则的唯一执行者。
+ * 默认只保留 keyword_blocklist（compliance 的风险词/审批词/绝对化规则 PAT-RISK-001 /
+ * PAT-APPROVAL-001 / PAT-ABS-001，与 nuo 的占位符/商业宣传/公序良俗/清楚性/事后诸葛亮/
+ * 编造对比文件等禁令）。部署可经 `patent-rule` 的 `gateCheckTypes` 扩到
+ * {@link INCIDENT_GATE_CHECK_TYPES} 里其余命中即违规的族；{@link ARTIFACT_GATE_CHECK_TYPES}
+ * 里的缺失即违规规则默认排除，因为对工具结果全文评测时它们对普通文本海量误报，其执行
+ * 点是制品结构门禁（按工具声明的入参取制品文本）。
  * @param ruleSet - 待筛选的规则集。
+ * @param checkTypes - 保留的检查族；缺省 {@link DEFAULT_GATE_CHECK_TYPES}。
  * @returns 门禁规则子集。
  */
-export function selectGateRules(ruleSet: RuleSet): RuleSet {
+export function selectGateRules(
+  ruleSet: RuleSet,
+  checkTypes: readonly GateCheckType[] = DEFAULT_GATE_CHECK_TYPES,
+): RuleSet {
+  const allowed = new Set<string>(checkTypes)
   return {
     ...(ruleSet.version !== undefined ? { version: ruleSet.version } : {}),
-    rules: ruleSet.rules.filter(rule => rule.check.type === 'keyword_blocklist'),
+    rules: ruleSet.rules.filter(rule => allowed.has(rule.check.type)),
   }
 }
 
