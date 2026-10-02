@@ -13,7 +13,7 @@
 
 import { spawn } from 'node:child_process'
 import { closeSync, openSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { EvalTask } from '../types.ts'
 import type { SwebenchRow } from './manifest.ts'
@@ -163,6 +163,11 @@ export interface PrepareTaskOptions {
   envTool: 'uv' | 'venv'
   setupTimeoutMs: number
   installTimeoutMs: number
+  /**
+   * Milliseconds between base-repository clone attempts. Callers that cannot
+   * wait (tests, an offline CI shard) pass 0.
+   */
+  cloneRetryDelayMs?: number
   logPath: string
 }
 
@@ -203,10 +208,12 @@ export async function prepareTaskWorkspace(options: PrepareTaskOptions): Promise
   }
 
   const cloneUrl = `https://github.com/${row.repo}.git`
-  const cloneResult = await exec('git', ['clone', '--quiet', '--no-tags', cloneUrl, repoBase], {
-    cwd: taskDir, timeoutMs: setupTimeoutMs, logPath,
-  })
-  if (cloneResult.exitCode !== 0) throw new Error(`clone ${row.repo} exited ${cloneResult.exitCode}`)
+  const clone = await cloneBaseRepository(
+    cloneUrl, repoBase, taskDir, setupTimeoutMs, logPath, options.cloneRetryDelayMs ?? CLONE_RETRY_DELAY_MS,
+  )
+  if (clone.result.exitCode !== 0) {
+    throw new Error(`clone ${row.repo} exited ${clone.result.exitCode} after ${clone.attempts} attempt(s)`)
+  }
   const checkoutResult = await exec('git', ['checkout', '--quiet', row.baseCommit], {
     cwd: repoBase, timeoutMs: setupTimeoutMs, logPath,
   })
@@ -266,6 +273,12 @@ export interface AgentRunOptions {
   dshEntry: string
   /** Absolute module specifier for the tsx ESM hook (`node --import <this>`). */
   tsxImport: string
+  /**
+   * Absolute path to the tsconfig carrying the workspace `paths`. The arm's
+   * working directory is the task checkout, where tsx would otherwise fail to
+   * resolve `@deepseek-ai/*` and exit before the profile boots.
+   */
+  tsconfigPath: string
   /** Evolved-arm overlay (the built-in dsh `--patch` overlay path), or none. */
   overlayPath?: string
   timeoutMs: number
@@ -289,6 +302,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ExecResult> {
     cwd: options.workspace.repoArms[options.arm],
     env: {
       DSH_TELEMETRY_DISABLED: '1',
+      TSX_TSCONFIG_PATH: options.tsconfigPath,
       ...(options.dshHome === undefined ? {} : { DSH_HOME: options.dshHome }),
     },
     timeoutMs: options.timeoutMs,
@@ -330,7 +344,19 @@ export async function collectPrediction(
 export interface Verdict {
   passed: boolean
   detail: string
+  /**
+   * The pinned ids never executed, so no verdict exists: pytest reported a
+   * usage error or collected nothing. The arm is retryable rather than failed.
+   */
+  infra?: boolean
 }
+
+/**
+ * pytest exit codes meaning the requested ids were never executed: a usage
+ * error (4) and no tests collected (5). Any other nonzero exit ran at least
+ * one test, so it settles a failed verdict.
+ */
+const PYTEST_NOTHING_RAN_EXITS = new Set([4, 5])
 
 /**
  * Verify one arm: reset the checkout to a pristine base, re-apply the test
@@ -380,7 +406,11 @@ export async function verifyVerdict(
   })
   if (test.exitCode === 0) return { passed: true, detail: `FAIL_TO_PASS/PASS_TO_PASS green in ${Math.round(test.seconds)}s` }
   if (test.timeout) return { passed: false, detail: `verify timeout after ${timeoutMs}ms` }
-  return { passed: false, detail: `pytest exited ${test.exitCode}; ${await tailOf(logPath, 400)}` }
+  const detail = `pytest exited ${test.exitCode}; ${await tailOf(logPath, 400)}`
+  if (PYTEST_NOTHING_RAN_EXITS.has(test.exitCode)) {
+    return { passed: false, infra: true, detail: `${detail} (no test id executed)` }
+  }
+  return { passed: false, detail }
 }
 
 /** Last `maxChars` of a file, or an empty string when unreadable. */
@@ -392,4 +422,46 @@ async function tailOf(path: string, maxChars: number): Promise<string> {
     /* v8 ignore next -- an unreadable log yields an empty detail; the verify path always creates the file. */
     return ''
   }
+}
+
+/** Clone attempts for the networked base checkout; transient failures retry. */
+const CLONE_ATTEMPTS = 3
+
+/** Milliseconds between clone attempts. */
+const CLONE_RETRY_DELAY_MS = 5_000
+
+/**
+ * Clone the task repository, retrying a transient failure.
+ *
+ * The base checkout is the only networked git step, and an intermittent
+ * connection failure here would otherwise surface as an unretryable infra
+ * error for the whole task. A partial clone from a failed attempt is removed
+ * before retrying so git does not refuse a non-empty destination.
+ *
+ * @param url - repository clone URL.
+ * @param destination - directory to clone into.
+ * @param cwd - working directory for the git subprocess.
+ * @param timeoutMs - per-attempt wall-clock cap.
+ * @param logPath - log file the attempt output appends to.
+ * @param retryDelayMs - pause between attempts.
+ * @returns the last attempt's result and how many attempts ran.
+ */
+async function cloneBaseRepository(
+  url: string,
+  destination: string,
+  cwd: string,
+  timeoutMs: number,
+  logPath: string,
+  retryDelayMs: number,
+): Promise<{ result: ExecResult; attempts: number }> {
+  let result = await exec('git', ['clone', '--quiet', '--no-tags', url, destination], { cwd, timeoutMs, logPath })
+  let attempts = 1
+  // A timeout means the attempt consumed its whole budget, so retrying would
+  // spend it again; `attempts` reports what actually ran.
+  for (; attempts < CLONE_ATTEMPTS && result.exitCode !== 0 && !result.timeout; attempts += 1) {
+    await rm(destination, { recursive: true, force: true })
+    await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+    result = await exec('git', ['clone', '--quiet', '--no-tags', url, destination], { cwd, timeoutMs, logPath })
+  }
+  return { result, attempts }
 }

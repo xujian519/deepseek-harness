@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { normalizeSwebenchRow, readManifestRows } from '../src/campaign/manifest.ts'
 import { runCampaign } from '../src/campaign/orchestrate.ts'
+import { resolveSourceLaunchAnchors } from '../src/campaign/source-launch.ts'
 
 /**
  * Real-process e2e for the local-path campaign runner: clone the task repo,
@@ -40,6 +41,11 @@ describe.skipIf(!KEY || !MANIFEST)('self-evolve campaign e2e (real process, keye
         },
       ]))
 
+      const dshEntry = resolve('apps/cli/src/bin.ts')
+      // The arm runs with the task checkout as its working directory, so both
+      // anchors must come from the harness entry rather than the cwd.
+      const anchors = resolveSourceLaunchAnchors(dshEntry)
+
       const summary = await runCampaign({
         manifestPath: resolve(MANIFEST as string),
         subsetPath,
@@ -48,8 +54,9 @@ describe.skipIf(!KEY || !MANIFEST)('self-evolve campaign e2e (real process, keye
         workDir: join(root, 'work'),
         armMode: 'baseline',
         profile: 'headless',
-        dshEntry: resolve('apps/cli/src/bin.ts'),
-        tsxImport: 'tsx/esm',
+        dshEntry,
+        tsxImport: anchors.tsxImport,
+        tsconfigPath: anchors.tsconfigPath,
         buildCommandTemplate: '{python} -m compileall -q .',
         pythonVersion: '3.11',
         envTool: 'venv',
@@ -72,6 +79,13 @@ describe.skipIf(!KEY || !MANIFEST)('self-evolve campaign e2e (real process, keye
       }
       expect(results.tasks).toHaveLength(1)
       expect(typeof results.tasks[0]?.baselinePassed).toBe('boolean')
+      // A boolean alone cannot tell a booted agent from one that died at
+      // launch — both settle `false`. The launch failure is what the anchors
+      // exist to prevent, so assert it did not happen.
+      const baselineError = results.tasks[0]?.baselineError
+      expect(baselineError === undefined || typeof baselineError === 'string').toBe(true)
+      const detail = typeof baselineError === 'string' ? baselineError : ''
+      expect(detail).not.toMatch(/agent exited|agent spawn failed|env: /)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

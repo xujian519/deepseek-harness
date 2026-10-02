@@ -80,3 +80,6 @@ native/system/test/bin/
 
 # Desktop runtime descriptor (generated into whichever directory is used as the runtime root)
 desktop-runtime.json
+
+# Downloaded SWE-bench dataset export (see packages/self-evolve/evaluation/RUNBOOK.md)
+swebench-verified.jsonl

@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DEFAULT_SUBSET_SIZE, loadTaskManifest, normalizeSwebenchInstances, selectSubset } from '../src/subset.ts'
+import { DEFAULT_SUBSET_SIZE, decodeTestIds, loadTaskManifest, normalizeSwebenchInstances, selectSubset } from '../src/subset.ts'
 import type { EvalTask } from '../src/types.ts'
 
 function tasks(count: number, offset = 0): EvalTask[] {
@@ -40,6 +40,60 @@ describe('normalizeSwebenchInstances', () => {
     const rows = [null, 'nope', 42, { instance_id: 'a__b-1', repo: 'a/b', base_commit: 'c' }]
     expect(normalizeSwebenchInstances(rows)).toHaveLength(1)
   })
+
+  it('decodes the JSON-array strings the dataset actually ships', () => {
+    const rows = [{
+      instance_id: 'django__django-13158',
+      repo: 'django/django',
+      base_commit: 'abc',
+      FAIL_TO_PASS: '["queries/test_qs.py::test_a"]',
+      PASS_TO_PASS: '["queries/test_qs.py::test_b","queries/test_qs.py::test_c"]',
+    }]
+    expect(normalizeSwebenchInstances(rows)).toEqual([{
+      instanceId: 'django__django-13158',
+      repo: 'django/django',
+      baseCommit: 'abc',
+      failToPass: ['queries/test_qs.py::test_a'],
+      passToPass: ['queries/test_qs.py::test_b', 'queries/test_qs.py::test_c'],
+    }])
+  })
+
+  it('accepts an empty JSON-array string, as rows with no PASS_TO_PASS ship', () => {
+    const rows = [{
+      instance_id: 'a__b-1',
+      repo: 'a/b',
+      base_commit: 'c',
+      FAIL_TO_PASS: '["x.py::test_a"]',
+      PASS_TO_PASS: '[]',
+    }]
+    expect(normalizeSwebenchInstances(rows)[0]?.passToPass).toEqual([])
+  })
+})
+
+describe('decodeTestIds', () => {
+  it('fails loud on a string that is not JSON', () => {
+    expect(() => decodeTestIds('FAIL_TO_PASS', 'not-an-array')).toThrow(/is not valid JSON/)
+  })
+
+  it('fails loud on a JSON value that is not an array', () => {
+    expect(() => decodeTestIds('PASS_TO_PASS', '{"a":1}')).toThrow(/got a JSON object/)
+  })
+
+  it('fails loud on a number', () => {
+    expect(() => decodeTestIds('PASS_TO_PASS', 7)).toThrow(/must be a JSON array string or an array, got number/)
+  })
+
+  it('names the task in the failure so a bad manifest row is locatable', () => {
+    expect(() => decodeTestIds('django__django-1 FAIL_TO_PASS', 'oops')).toThrow(/django__django-1 FAIL_TO_PASS/)
+  })
+
+  it('keeps string ids and drops non-string entries inside a real array', () => {
+    expect(decodeTestIds('FAIL_TO_PASS', ['tests/x.py::test_1', 7])).toEqual(['tests/x.py::test_1'])
+  })
+
+  it('keeps string ids and drops non-string entries inside a JSON-array string', () => {
+    expect(decodeTestIds('FAIL_TO_PASS', '["tests/x.py::test_1", 7]')).toEqual(['tests/x.py::test_1'])
+  })
 })
 
 describe('selectSubset', () => {
@@ -67,6 +121,13 @@ describe('selectSubset', () => {
   it('yields unique instance ids', () => {
     const subset = selectSubset(tasks(50), 7, 20)
     expect(new Set(subset.map(task => task.instanceId)).size).toBe(20)
+  })
+
+  it('fails loud when a selected task has no FAIL_TO_PASS ids', () => {
+    const source: EvalTask[] = [
+      { instanceId: 'a__b-1', repo: 'a/b', baseCommit: 'c', failToPass: [], passToPass: [] },
+    ]
+    expect(() => selectSubset(source, 1, 1)).toThrow(/no FAIL_TO_PASS ids/)
   })
 })
 

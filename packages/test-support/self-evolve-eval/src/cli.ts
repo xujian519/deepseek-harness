@@ -16,6 +16,7 @@
 import { dirname, join, resolve } from 'node:path'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { runCampaign } from './campaign/orchestrate.ts'
+import { resolveSourceLaunchAnchors } from './campaign/source-launch.ts'
 import { decide, recordDecision } from './decision.ts'
 import { bootstrapCi, summarize, validateResults } from './score.ts'
 import { DEFAULT_SUBSET_SIZE, loadTaskManifest, selectSubset } from './subset.ts'
@@ -33,7 +34,7 @@ function usage(): void {
   console.log('  decide  --results <results.json> [--seed <n>] [--write] [--out <path>]')
   console.log('  campaign --manifest <jsonl> --subset <subset.json> --results <results.json> --stats <stats.jsonl> \\')
   console.log('           --work-dir <dir> [--arm both|baseline|evolved] [--profile headless] [--env-tool uv|venv] \\')
-  console.log('           [--dsh-entry <bin.ts>] [--tsx-import <hook>] [--build-command <template>] [--python <v>] \\')
+  console.log('           [--dsh-entry <bin.ts>] [--tsx-import <absolute hook path>] [--build-command <template>] [--python <v>] \\')
   console.log('           [--concurrency <n>] [--agent-timeout <ms>] [--verify-timeout <ms>] \\')
   console.log('           [--setup-timeout <ms>] [--install-timeout <ms>] [--task-limit <n>] \\')
   console.log('           [--skip-existing] [--keep-work] [--dry-run]')
@@ -112,9 +113,13 @@ async function main(): Promise<void> {
       const workDir = requireArg('--work-dir')
       const profile = arg('--profile') ?? 'headless'
       const dshEntry = resolve(arg('--dsh-entry') ?? 'apps/cli/src/bin.ts')
-      const tsxImport = arg('--tsx-import') ?? 'tsx/esm'
+      const tsxOverride = arg('--tsx-import')
+      const anchors = resolveSourceLaunchAnchors(dshEntry, tsxOverride === null ? {} : { tsxImport: tsxOverride })
+      const tsxImport = tsxOverride ?? anchors.tsxImport
       const buildCommandTemplate = arg('--build-command') ?? '{python} -m compileall -q .'
-      const pythonVersion = arg('--python') ?? '3.11'
+      // Absent leaves the per-task `python` (an augmented manifest's official
+      // interpreter) in charge; an explicit flag overrides every task.
+      const pythonVersion = arg('--python') ?? undefined
       const concurrency = Number(arg('--concurrency') ?? '1')
       if (!Number.isInteger(concurrency) || concurrency < 1) {
         throw new Error('self-evolve-eval: --concurrency must be a positive integer')
@@ -138,8 +143,9 @@ async function main(): Promise<void> {
         profile,
         dshEntry,
         tsxImport,
+        tsconfigPath: anchors.tsconfigPath,
         buildCommandTemplate,
-        pythonVersion,
+        ...(pythonVersion === undefined ? {} : { pythonVersion }),
         envTool,
         concurrency,
         agentTimeoutMs,

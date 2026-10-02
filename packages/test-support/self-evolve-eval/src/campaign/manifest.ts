@@ -9,6 +9,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { isRecord } from '@deepseek-ai/dsh-value'
+import { decodeTestIds } from '../subset.ts'
 
 /** The raw manifest row fields the campaign consumes. */
 export interface SwebenchRow {
@@ -20,6 +21,12 @@ export interface SwebenchRow {
   testPatch: string
   /** The environment install command (run once per task into the venv). */
   install?: string
+  /**
+   * Python version this task's environment needs. The dataset carries no
+   * environment record, so an augmented manifest supplies it (derived from
+   * the official per-instance spec); absent falls back to `--python`.
+   */
+  python?: string
   failToPass: string[]
   passToPass: string[]
 }
@@ -81,6 +88,7 @@ export function normalizeSwebenchRow(raw: Record<string, unknown>): SwebenchRow 
     return null
   }
   const install = str(raw.install)
+  const python = str(raw.python)
   return {
     instanceId,
     repo,
@@ -88,15 +96,12 @@ export function normalizeSwebenchRow(raw: Record<string, unknown>): SwebenchRow 
     problemStatement,
     testPatch,
     ...(install === null ? {} : { install }),
-    failToPass: strArray(raw.FAIL_TO_PASS),
-    passToPass: strArray(raw.PASS_TO_PASS),
+    ...(python === null ? {} : { python }),
+    failToPass: decodeTestIds(`${instanceId} FAIL_TO_PASS`, raw.FAIL_TO_PASS),
+    passToPass: decodeTestIds(`${instanceId} PASS_TO_PASS`, raw.PASS_TO_PASS),
   }
 }
 
 function str(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
-}
-
-function strArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
