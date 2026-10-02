@@ -29,7 +29,7 @@ python -c "import datasets; print(datasets.__version__)" || echo "WARN: 安装 '
 
 # 脚手架自检（评估单测必须全绿）
 pnpm exec vitest run packages/test-support/self-evolve-eval
-#   预期: Test Files 9 passed (9), Tests 126 passed (126)
+#   预期: Test Files 9 passed (9), Tests 134 passed (134)
 ```
 
 > 若找不到 `pnpm`/`node`，先 prepend nvm/homebrew bin 目录，例如 `export PATH="$HOME/.nvm/versions/node/v22.22.3/bin:/opt/homebrew/bin:$PATH"`。

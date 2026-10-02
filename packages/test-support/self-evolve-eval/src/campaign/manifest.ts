@@ -97,8 +97,8 @@ export function normalizeSwebenchRow(raw: Record<string, unknown>): SwebenchRow 
     testPatch,
     ...(install === null ? {} : { install }),
     ...(python === null ? {} : { python }),
-    failToPass: decodeTestIds('FAIL_TO_PASS', raw.FAIL_TO_PASS),
-    passToPass: decodeTestIds('PASS_TO_PASS', raw.PASS_TO_PASS),
+    failToPass: decodeTestIds(`${instanceId} FAIL_TO_PASS`, raw.FAIL_TO_PASS),
+    passToPass: decodeTestIds(`${instanceId} PASS_TO_PASS`, raw.PASS_TO_PASS),
   }
 }
 

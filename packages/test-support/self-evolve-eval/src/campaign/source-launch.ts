@@ -29,23 +29,38 @@ export interface SourceLaunchAnchors {
   tsconfigPath: string
 }
 
+/** Caller-supplied anchors that replace the ones this module would resolve. */
+export interface SourceLaunchOverrides {
+  /**
+   * Absolute path to the tsx ESM hook. Supply it when tsx is not installed in
+   * the harness workspace, or when the entry sits outside it (`--tsx-import`).
+   */
+  tsxImport?: string
+}
+
 /**
  * Derive the tsx hook and tsconfig paths from the harness entry.
  *
  * @param dshEntry - absolute path to the harness entry module.
+ * @param overrides - anchors to use verbatim instead of resolving.
  * @returns the anchors to pass to an arm launch.
- * @throws when either anchor is missing, naming what to install or pass instead.
+ * @throws when an anchor is missing and no override supplies it.
  */
-export function resolveSourceLaunchAnchors(dshEntry: string): SourceLaunchAnchors {
-  let tsxImport: string
-  try {
-    tsxImport = createRequire(dshEntry).resolve('tsx/esm')
-  } catch (cause) {
-    throw new Error(
-      `self-evolve-eval: cannot resolve the tsx ESM hook from ${dshEntry}; ` +
-      'install tsx in the harness workspace or pass --tsx-import <absolute path>',
-      { cause },
-    )
+export function resolveSourceLaunchAnchors(
+  dshEntry: string,
+  overrides: SourceLaunchOverrides = {},
+): SourceLaunchAnchors {
+  let tsxImport = overrides.tsxImport
+  if (tsxImport === undefined) {
+    try {
+      tsxImport = createRequire(dshEntry).resolve('tsx/esm')
+    } catch (cause) {
+      throw new Error(
+        `self-evolve-eval: cannot resolve the tsx ESM hook from ${dshEntry}; ` +
+        'install tsx in the harness workspace or pass --tsx-import <absolute path>',
+        { cause },
+      )
+    }
   }
 
   let directory = dirname(dshEntry)

@@ -57,6 +57,9 @@ export function planCampaign(tasks: readonly EvalTask[], armMode: CampaignArm | 
   }))
 }
 
+/** Interpreter a task venv uses when neither the caller nor its row names one. */
+export const DEFAULT_PYTHON_VERSION = '3.11'
+
 /** Options for {@link runCampaign}. */
 export interface CampaignOptions {
   manifestPath: string
@@ -77,7 +80,12 @@ export interface CampaignOptions {
    * replaced by the per-task venv python.
    */
   buildCommandTemplate: string
-  pythonVersion: string
+  /**
+   * Interpreter for every task's venv. Omit to let each task's manifest
+   * `python` (the official per-instance interpreter) decide, falling back to
+   * {@link DEFAULT_PYTHON_VERSION}; a value here overrides every task.
+   */
+  pythonVersion?: string
   envTool: 'uv' | 'venv'
   concurrency: number
   agentTimeoutMs: number
@@ -167,7 +175,18 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
       await persist()
       return
     }
-    const row = normalizeSwebenchRow(rawRow)
+    let row: SwebenchRow | null
+    try {
+      row = normalizeSwebenchRow(rawRow)
+    } catch (error) {
+      // A malformed test-id field is a per-task data defect: fold it the same
+      // way as a missing or incomplete row so one bad row cannot abort a run.
+      infraErrors += 1
+      const detail = `manifest: ${errorMessage(error)}`
+      tasks = foldInfraFailure(tasks, taskId, arms, detail)
+      await persist()
+      return
+    }
     if (row === null) {
       infraErrors += 1
       tasks = foldInfraFailure(tasks, taskId, arms, 'manifest: incomplete row (needs repo/base_commit/problem_statement/test_patch)')
@@ -179,7 +198,7 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
     try {
       workspace = await prepareTaskWorkspace({
         workDir: options.workDir, task: entryTask(entry, row), row,
-        pythonVersion: row.python ?? options.pythonVersion,
+        pythonVersion: options.pythonVersion ?? row.python ?? DEFAULT_PYTHON_VERSION,
         envTool: options.envTool, setupTimeoutMs: options.setupTimeoutMs, installTimeoutMs: options.installTimeoutMs,
         logPath: join(options.workDir, entry.taskId, 'setup.log'),
       })
@@ -200,6 +219,16 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
         continue
       }
       const result = await runArm(workspace, arm, options)
+      if (result.infra === true) {
+        // No verdict exists for this arm (its ids never executed), so fold an
+        // infra failure that a rerun can settle rather than a failed verdict.
+        infraErrors += 1
+        const detail = `verify: ${result.error ?? 'no test id executed'}`
+        tasks = mergeArmOutcome(tasks, taskId, arm, undefined, detail)
+        await persist()
+        await recordStats(statLine(Date.now(), taskId, arm, 'verify', false, result.seconds ?? 0, null, detail))
+        continue
+      }
       if (result.passed) passed += 1
       else failed += 1
       tasks = mergeArmOutcome(tasks, taskId, arm, result.passed, result.error)
@@ -227,6 +256,8 @@ interface ArmOutcome {
   error?: string
   seconds?: number
   exitCode?: number
+  /** The arm produced no verdict at all, so it stays retryable. */
+  infra?: boolean
 }
 
 /**
@@ -282,6 +313,7 @@ async function runArm(
     const verdict = await verifyVerdict(
       workspace, arm, prediction, options.verifyTimeoutMs, join(logDir, `${arm}-verify.log`),
     )
+    if (verdict.infra === true) return { passed: false, infra: true, error: verdict.detail, seconds, exitCode: 0 }
     return verdict.passed
       ? { passed: true, seconds, exitCode: 0 }
       : { passed: false, error: verdict.detail, seconds, exitCode: 0 }

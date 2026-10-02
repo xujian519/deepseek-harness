@@ -208,10 +208,12 @@ export async function prepareTaskWorkspace(options: PrepareTaskOptions): Promise
   }
 
   const cloneUrl = `https://github.com/${row.repo}.git`
-  const cloneResult = await cloneBaseRepository(
+  const clone = await cloneBaseRepository(
     cloneUrl, repoBase, taskDir, setupTimeoutMs, logPath, options.cloneRetryDelayMs ?? CLONE_RETRY_DELAY_MS,
   )
-  if (cloneResult.exitCode !== 0) throw new Error(`clone ${row.repo} exited ${cloneResult.exitCode} after ${CLONE_ATTEMPTS} attempts`)
+  if (clone.result.exitCode !== 0) {
+    throw new Error(`clone ${row.repo} exited ${clone.result.exitCode} after ${clone.attempts} attempt(s)`)
+  }
   const checkoutResult = await exec('git', ['checkout', '--quiet', row.baseCommit], {
     cwd: repoBase, timeoutMs: setupTimeoutMs, logPath,
   })
@@ -342,7 +344,19 @@ export async function collectPrediction(
 export interface Verdict {
   passed: boolean
   detail: string
+  /**
+   * The pinned ids never executed, so no verdict exists: pytest reported a
+   * usage error or collected nothing. The arm is retryable rather than failed.
+   */
+  infra?: boolean
 }
+
+/**
+ * pytest exit codes meaning the requested ids were never executed: a usage
+ * error (4) and no tests collected (5). Any other nonzero exit ran at least
+ * one test, so it settles a failed verdict.
+ */
+const PYTEST_NOTHING_RAN_EXITS = new Set([4, 5])
 
 /**
  * Verify one arm: reset the checkout to a pristine base, re-apply the test
@@ -392,7 +406,11 @@ export async function verifyVerdict(
   })
   if (test.exitCode === 0) return { passed: true, detail: `FAIL_TO_PASS/PASS_TO_PASS green in ${Math.round(test.seconds)}s` }
   if (test.timeout) return { passed: false, detail: `verify timeout after ${timeoutMs}ms` }
-  return { passed: false, detail: `pytest exited ${test.exitCode}; ${await tailOf(logPath, 400)}` }
+  const detail = `pytest exited ${test.exitCode}; ${await tailOf(logPath, 400)}`
+  if (PYTEST_NOTHING_RAN_EXITS.has(test.exitCode)) {
+    return { passed: false, infra: true, detail: `${detail} (no test id executed)` }
+  }
+  return { passed: false, detail }
 }
 
 /** Last `maxChars` of a file, or an empty string when unreadable. */
@@ -426,7 +444,7 @@ const CLONE_RETRY_DELAY_MS = 5_000
  * @param timeoutMs - per-attempt wall-clock cap.
  * @param logPath - log file the attempt output appends to.
  * @param retryDelayMs - pause between attempts.
- * @returns the last attempt's result.
+ * @returns the last attempt's result and how many attempts ran.
  */
 async function cloneBaseRepository(
   url: string,
@@ -435,12 +453,15 @@ async function cloneBaseRepository(
   timeoutMs: number,
   logPath: string,
   retryDelayMs: number,
-): Promise<ExecResult> {
+): Promise<{ result: ExecResult; attempts: number }> {
   let result = await exec('git', ['clone', '--quiet', '--no-tags', url, destination], { cwd, timeoutMs, logPath })
-  for (let attempt = 2; attempt <= CLONE_ATTEMPTS && result.exitCode !== 0 && !result.timeout; attempt += 1) {
+  let attempts = 1
+  // A timeout means the attempt consumed its whole budget, so retrying would
+  // spend it again; `attempts` reports what actually ran.
+  for (; attempts < CLONE_ATTEMPTS && result.exitCode !== 0 && !result.timeout; attempts += 1) {
     await rm(destination, { recursive: true, force: true })
     await new Promise(resolve => setTimeout(resolve, retryDelayMs))
     result = await exec('git', ['clone', '--quiet', '--no-tags', url, destination], { cwd, timeoutMs, logPath })
   }
-  return result
+  return { result, attempts }
 }

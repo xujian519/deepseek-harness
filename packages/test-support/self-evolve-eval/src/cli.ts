@@ -113,10 +113,13 @@ async function main(): Promise<void> {
       const workDir = requireArg('--work-dir')
       const profile = arg('--profile') ?? 'headless'
       const dshEntry = resolve(arg('--dsh-entry') ?? 'apps/cli/src/bin.ts')
-      const anchors = resolveSourceLaunchAnchors(dshEntry)
-      const tsxImport = arg('--tsx-import') ?? anchors.tsxImport
+      const tsxOverride = arg('--tsx-import')
+      const anchors = resolveSourceLaunchAnchors(dshEntry, tsxOverride === null ? {} : { tsxImport: tsxOverride })
+      const tsxImport = tsxOverride ?? anchors.tsxImport
       const buildCommandTemplate = arg('--build-command') ?? '{python} -m compileall -q .'
-      const pythonVersion = arg('--python') ?? '3.11'
+      // Absent leaves the per-task `python` (an augmented manifest's official
+      // interpreter) in charge; an explicit flag overrides every task.
+      const pythonVersion = arg('--python') ?? undefined
       const concurrency = Number(arg('--concurrency') ?? '1')
       if (!Number.isInteger(concurrency) || concurrency < 1) {
         throw new Error('self-evolve-eval: --concurrency must be a positive integer')
@@ -142,7 +145,7 @@ async function main(): Promise<void> {
         tsxImport,
         tsconfigPath: anchors.tsconfigPath,
         buildCommandTemplate,
-        pythonVersion,
+        ...(pythonVersion === undefined ? {} : { pythonVersion }),
         envTool,
         concurrency,
         agentTimeoutMs,

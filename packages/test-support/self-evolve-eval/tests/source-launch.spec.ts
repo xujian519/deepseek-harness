@@ -48,6 +48,20 @@ describe('resolveSourceLaunchAnchors', () => {
     expect(tsconfigPath).toBe(join(dir, 'tsconfig.base.json'))
     expect(tsxImport).toContain('tsx')
   })
+
+  it('uses a supplied tsxImport verbatim, so the documented override works', async () => {
+    // No tsx is installed anywhere here: the override must bypass resolution
+    // rather than fail on it, which is what its error message promises.
+    const dir = await tempDir()
+    const nested = join(dir, 'apps', 'cli', 'src')
+    await mkdir(nested, { recursive: true })
+    const entry = join(nested, 'bin.ts')
+    await writeFile(entry, '')
+    await writeFile(join(dir, 'tsconfig.base.json'), '{}')
+    const anchors = resolveSourceLaunchAnchors(entry, { tsxImport: '/elsewhere/tsx/esm/index.mjs' })
+    expect(anchors.tsxImport).toBe('/elsewhere/tsx/esm/index.mjs')
+    expect(anchors.tsconfigPath).toBe(join(dir, 'tsconfig.base.json'))
+  })
 })
 
 /** Write a minimal resolvable `tsx` package so the hook lookup succeeds. */

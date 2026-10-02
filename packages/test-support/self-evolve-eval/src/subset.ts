@@ -59,8 +59,8 @@ export function normalizeSwebenchInstances(rows: unknown[]): EvalTask[] {
       instanceId,
       repo,
       baseCommit,
-      failToPass: decodeTestIds('FAIL_TO_PASS', row.FAIL_TO_PASS ?? row.failToPass),
-      passToPass: decodeTestIds('PASS_TO_PASS', row.PASS_TO_PASS ?? row.passToPass),
+      failToPass: decodeTestIds(`${instanceId} FAIL_TO_PASS`, row.FAIL_TO_PASS ?? row.failToPass),
+      passToPass: decodeTestIds(`${instanceId} PASS_TO_PASS`, row.PASS_TO_PASS ?? row.passToPass),
     })
   }
   return tasks
@@ -78,22 +78,25 @@ export function normalizeSwebenchInstances(rows: unknown[]): EvalTask[] {
  * absent field carries no ids and reads as empty;
  * {@link selectSubset} refuses a subset whose tasks all end up that way.
  *
- * @param field - dataset field name, for the failure message.
+ * @param label - names the field and its task, for the failure message.
  * @param value - the raw field value.
  * @returns the string ids the field carries.
  */
-export function decodeTestIds(field: string, value: unknown): string[] {
+export function decodeTestIds(label: string, value: unknown): string[] {
   if (value === undefined || value === null) return []
   let decoded: unknown = value
   if (typeof value === 'string') {
     try {
       decoded = JSON.parse(value) as unknown
     } catch (cause) {
-      throw new Error(`self-evolve-eval: ${field} is not valid JSON: ${String(cause)}`, { cause })
+      throw new Error(`self-evolve-eval: ${label} is not valid JSON: ${String(cause)}`, { cause })
     }
   }
   if (!Array.isArray(decoded)) {
-    throw new Error(`self-evolve-eval: ${field} must be a JSON array string or an array, got ${typeof value}`)
+    // A string input already passed the accepted spelling, so name what it
+    // decoded to: "got string" would contradict the message.
+    const actual = typeof value === 'string' ? `a JSON ${typeof decoded}` : typeof value
+    throw new Error(`self-evolve-eval: ${label} must be a JSON array string or an array, got ${actual}`)
   }
   return decoded.filter((item): item is string => typeof item === 'string')
 }

@@ -168,7 +168,7 @@ describe('prepareTaskWorkspace', () => {
     // Three clone attempts, all failing: the retry budget is exhausted.
     setPlan([{ code: 0 }, { code: 1 }, { code: 1 }, { code: 1 }])
     await expect(prepareTaskWorkspace({ ...PREPARE_OPTIONS, workDir: dir }))
-      .rejects.toThrow(/clone a\/b exited 1 after 3 attempts/)
+      .rejects.toThrow(/clone a\/b exited 1 after 3 attempt\(s\)/)
     setPlan([{ code: 0 }, { code: 0 }, { code: 3 }])
     await expect(prepareTaskWorkspace({ ...PREPARE_OPTIONS, workDir: dir })).rejects.toThrow(/checkout abc exited 3/)
   })
@@ -336,8 +336,30 @@ describe('verifyVerdict', () => {
 
     setPlan([{ code: 0 }, { code: 0 }, { code: 0 }, { code: 0 }, { code: 5 }])
     verdict = await verifyVerdict(ws, 'baseline', '/pred.patch', 1_000, logPath)
-    expect(verdict).toMatchObject({ passed: false })
+    expect(verdict).toMatchObject({ passed: false, infra: true })
     expect(verdict.detail).toContain('pytest exited 5')
+    expect(verdict.detail).toContain('no test id executed')
+  })
+
+  it('folds a usage error to an infra verdict, since no id ran', async () => {
+    const dir = await tempDir()
+    const logPath = join(dir, 'verify.log')
+    const ws = workspace('/repo', { row: row({ failToPass: ['tests/x.py::t'] }), testPatchPath: join(dir, 'test.patch') })
+    setPlan([{ code: 0 }, { code: 0 }, { code: 0 }, { code: 0 }, { code: 4 }])
+    const verdict = await verifyVerdict(ws, 'baseline', '/pred.patch', 1_000, logPath)
+    expect(verdict).toMatchObject({ passed: false, infra: true })
+    expect(verdict.detail).toContain('pytest exited 4')
+  })
+
+  it('settles a failed verdict when tests ran and failed', async () => {
+    const dir = await tempDir()
+    const logPath = join(dir, 'verify-failed.log')
+    const ws = workspace('/repo', { row: row({ failToPass: ['tests/x.py::t'] }), testPatchPath: join(dir, 'test.patch') })
+    // Exit 1 means at least one test ran, so the arm has a real verdict.
+    setPlan([{ code: 0 }, { code: 0 }, { code: 0 }, { code: 0 }, { code: 1 }])
+    const verdict = await verifyVerdict(ws, 'baseline', '/pred.patch', 1_000, logPath)
+    expect(verdict).toMatchObject({ passed: false })
+    expect(verdict.infra).toBeUndefined()
   })
 
   it('truncates a long verify log tail on failure', async () => {
@@ -345,10 +367,10 @@ describe('verifyVerdict', () => {
     const logPath = join(dir, 'verify-long.log')
     await writeFile(logPath, 'x'.repeat(500))
     const ws = workspace('/repo', { row: row({ failToPass: ['tests/x.py::t'] }), testPatchPath: join(dir, 'test.patch') })
-    setPlan([{ code: 0 }, { code: 0 }, { code: 0 }, { code: 0 }, { code: 5 }])
+    setPlan([{ code: 0 }, { code: 0 }, { code: 0 }, { code: 0 }, { code: 1 }])
     const verdict = await verifyVerdict(ws, 'baseline', '/pred.patch', 1_000, logPath)
     expect(verdict).toMatchObject({ passed: false })
-    expect(verdict.detail).toContain('pytest exited 5')
+    expect(verdict.detail).toContain('pytest exited 1')
   })
 
   it('reports a pytest timeout when the test run hangs', async () => {

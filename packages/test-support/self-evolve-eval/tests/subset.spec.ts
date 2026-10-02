@@ -76,11 +76,15 @@ describe('decodeTestIds', () => {
   })
 
   it('fails loud on a JSON value that is not an array', () => {
-    expect(() => decodeTestIds('PASS_TO_PASS', '{"a":1}')).toThrow(/must be a JSON array string or an array/)
+    expect(() => decodeTestIds('PASS_TO_PASS', '{"a":1}')).toThrow(/got a JSON object/)
   })
 
   it('fails loud on a number', () => {
-    expect(() => decodeTestIds('PASS_TO_PASS', 7)).toThrow(/must be a JSON array string or an array/)
+    expect(() => decodeTestIds('PASS_TO_PASS', 7)).toThrow(/must be a JSON array string or an array, got number/)
+  })
+
+  it('names the task in the failure so a bad manifest row is locatable', () => {
+    expect(() => decodeTestIds('django__django-1 FAIL_TO_PASS', 'oops')).toThrow(/django__django-1 FAIL_TO_PASS/)
   })
 
   it('keeps string ids and drops non-string entries inside a real array', () => {

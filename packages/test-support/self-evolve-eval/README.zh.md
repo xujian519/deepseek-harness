@@ -79,6 +79,7 @@ self-evolve 跑通而 baseline 未跑通的任务为 **win**，反之为 **loss*
 - **战役运行（本地 P-B）**：`git`、`uv`（或经 `--env-tool venv` 用 `python3 -m venv`）、以及 agent 臂所需的 `DEEPSEEK_API_KEY`；无需 Docker。每题用一个共享 venv，并运行数据集 `install` 命令进去；判定是在 arm checkout 里跑的本地 `python -m pytest`，并被标注为 **local-reproduction，而非官方 SWE-bench**。脚手架不代跑 agent；收集到的 `results.json` 就是契约。
 - **战役运行（官方交叉校验 P-C）**：`DEEPSEEK_API_KEY` 与支持 docker 的主机（每实例的 SWE-bench 协议）。官方判定可能因依赖/系统漂移而不同于本地判定，仍是正式的证据路径。
 - **可复现**：在战役记录中固定子集 seed 与清单；bootstrap seed 只需对决策记录稳定。
+- **解释器**：每题 venv 优先使用清单行携带的 `python`（增强清单由此提供官方 per-instance 规格所钉的解释器），否则用 `--python`，再否则 3.11。显式传入的 `--python` 覆盖所有行。
 
 <a id="honest-status"></a>
 ## 诚实状态
@@ -92,6 +93,7 @@ self-evolve 跑通而 baseline 未跑通的任务为 **win**，反之为 **loss*
 
 - **判定假设了单一的 pytest 调用形态。** `verifyVerdict` 以 arm checkout 为工作目录执行 `python -m pytest -q -p no:cacheprovider <ids>`。这能解析路径式 node id（`tests/test_util_inspect.py::test_x`），但解析不了部分仓库公布的 unittest 式 id——例如 django 使用的 `test_union_none (queries.test_qs_combinators.QuerySetSetOperationTests)`；而一套非 pytest 原生的测试套件还可能要求它自己的 settings 模块与应用启动流程。这类任务收集不到任何测试，pytest 以 4 退出，而运行器会把它记为一个已定案失败的判定。因此跑子集不仅需要每个仓库如何安装的说明，还需要每个仓库如何运行其 id 的说明。
 - **数据集不提供环境 `install` 命令。** `princeton-nlp/SWE-bench_Verified` 与完整的 `princeton-nlp/SWE-bench` 都不带 `install` 列，因此 `prepareWorkspace` 只准备一个空的每题 venv（`uv venv --seed`：pip、setuptools、wheel）并跳过安装步骤。每个 FAIL_TO_PASS id 都需要其项目自身的依赖，判定才有意义。
+- **判定要求所有钉住的 id 全绿，因此环境漂移会读成失败。** `verifyVerdict` 把 FAIL_TO_PASS 与 PASS_TO_PASS 放在同一次运行里，且只在退出码为 0 时才判定 `passed`。若某任务的测试无法执行——例如某个不兼容的传递依赖在 fixture setup 阶段抛错——两条臂会同样失败并打平，而判定规则会把它读成「没有信号」而不是「没有测量」。pytest 以 4（用法错误）或 5（未收集到测试）退出时，因为没有任何 id 真正执行，会被折叠为 infra 错误；但 setup 错误仍以 1 退出并落成一个真实判定。读某次运行的净胜前，先确认它的 FAIL_TO_PASS id 确实执行过。
 - **本地复现，非官方 SWE-bench**——P-B 判定是在 arm checkout 中本地执行 `python -m pytest`；依赖与系统漂移可能使其不同于官方每实例判定，后者仍是正式证据路径。
 - **安装与 arm 工作区的约束**——数据集 `install` 命令在基 checkout 上运行一次并写入共享 venv；对 editable 包安装，被测包可能从基 checkout 而非 arm 的预测解析；判定将以此为前提报告。
 - **Keyed 路径尚未在本仓库跑过**——本仓库尚未执行任何真实 SWE-bench 任务。记录的 `eval-decision.json` 尚不存在，因此 CI 停开关处于休眠态。

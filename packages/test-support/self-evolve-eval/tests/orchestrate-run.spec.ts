@@ -157,6 +157,73 @@ describe('runCampaign execute path', () => {
     expect(lines.every(line => line.stage === 'env')).toBe(true)
   })
 
+  it('marks an infra failure when the raw row carries a malformed test-id field', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-malformed')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-malformed', { instance_id: 't-malformed' }]]))
+    mocks.normalizeSwebenchRow.mockImplementation(() => {
+      throw new Error('self-evolve-eval: t-malformed FAIL_TO_PASS is not valid JSON')
+    })
+    const summary = await runCampaign(options(dir))
+    // The throw is folded per task rather than aborting the campaign.
+    expect(summary.infraErrors).toBe(1)
+    expect(mocks.prepareTaskWorkspace).not.toHaveBeenCalled()
+    const results = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8')) as {
+      tasks: Array<Record<string, unknown>>
+    }
+    expect(results.tasks[0]?.baselinePassed).toBeUndefined()
+    expect(String(results.tasks[0]?.baselineError)).toContain('t-malformed FAIL_TO_PASS')
+  })
+
+  it('marks an infra failure when a verdict ran no test id', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-norun')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-norun', { instance_id: 't-norun' }]]))
+    mocks.normalizeSwebenchRow.mockReturnValue(workspace('t-norun').row)
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-norun'))
+    mocks.runAgent.mockResolvedValue({ exitCode: 0, seconds: 1, timeout: false, spawnError: null })
+    mocks.collectPrediction.mockResolvedValue('/work/t-norun/pred.patch')
+    mocks.verifyVerdict.mockResolvedValue({ passed: false, infra: true, detail: 'pytest exited 4; no test id executed' })
+    const summary = await runCampaign(options(dir, { armMode: 'baseline' }))
+    // No verdict exists, so the arm stays open for a rerun.
+    expect(summary.infraErrors).toBe(1)
+    expect(summary.failed).toBe(0)
+    const results = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8')) as {
+      tasks: Array<Record<string, unknown>>
+    }
+    expect(results.tasks[0]?.baselinePassed).toBeUndefined()
+  })
+
+  it('falls back to the row python when no --python is given', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-py')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-py', { instance_id: 't-py' }]]))
+    mocks.normalizeSwebenchRow.mockReturnValue({ ...workspace('t-py').row, python: '3.9.6' })
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-py'))
+
+    // The helper seeds `pythonVersion`; drop it to model an absent flag.
+    const withFlag = options(dir, { armMode: 'baseline' })
+    const { pythonVersion: seeded, ...withoutFlag } = withFlag
+    expect(seeded).toBe('3.11')
+    await runCampaign(withoutFlag)
+    expect(mocks.prepareTaskWorkspace.mock.calls.at(-1)?.[0]).toMatchObject({ pythonVersion: '3.9.6' })
+  })
+
+  it('lets an explicit --python override every row', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-py2')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-py2', { instance_id: 't-py2' }]]))
+    mocks.normalizeSwebenchRow.mockReturnValue({ ...workspace('t-py2').row, python: '3.9.6' })
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-py2'))
+
+    await runCampaign(options(dir, { armMode: 'baseline', pythonVersion: '3.12' }))
+    expect(mocks.prepareTaskWorkspace.mock.calls.at(-1)?.[0]).toMatchObject({ pythonVersion: '3.12' })
+  })
+
   it('retries a crashed agent once and reports the terminal exit', async () => {
     const dir = await tempDir()
     mocks.loadTaskManifest.mockResolvedValue([task('t-crash')])
