@@ -12,8 +12,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { createPatentDeadlinesTool } from './tool/patent-deadlines.ts'
+import { createPatentDeadlineService, type PatentDeadlineService } from './service.ts'
 import { loadWorkCalendar } from './work-calendar.ts'
-
 // Public library API: pure date and period arithmetic, delivery determination,
 // the deadline evaluator, and the tool factory.
 export {
@@ -66,6 +66,12 @@ export {
 } from './statutes.ts'
 export { renderDeadlineReport, type DeadlineReportMeta } from './report.ts'
 export {
+  createPatentDeadlineService,
+  type PatentDeadlineCalendarCoverage,
+  type PatentDeadlineService,
+  type PatentDeadlineServiceOptions,
+} from './service.ts'
+export {
   createPatentDeadlinesTool,
   DeadlineToolError,
   type PatentDeadlinesInput,
@@ -77,6 +83,13 @@ export {
 /** Cordis plugin name. */
 export const name = 'patent-deadline'
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** The deadline evaluator; present only when a deployment mounts this plugin with `provideService: true`. */
+    patentDeadline?: PatentDeadlineService
+  }
+}
+
 /** Services the plugin requires before registration. */
 export const inject = ['tools']
 
@@ -86,23 +99,37 @@ export interface Config {
   calendarDir?: string
   /** Warn when an end date falls within this many days (deployment policy, not a legal period). */
   reminderLeadDays?: number
+  /**
+   * Publish the evaluator as the `patentDeadline` Cordis service. Defaults to
+   * false so the preset mount stays tool-only; a root-domain mount sets it to
+   * true so a sibling plugin can consume the same evaluator.
+   */
+  provideService?: boolean
+  /** Register the `patent_deadlines` tool. Defaults to true; a service-only mount sets it to false. */
+  exposeTool?: boolean
 }
 
-/** Schemastery configuration: calendar override and warning horizon. */
+/** Schemastery configuration: calendar override, warning horizon, and mount role. */
 export const Config: z<Config> = z.object({
   calendarDir: z.string(),
   reminderLeadDays: z.number().default(30),
+  provideService: z.boolean().default(false),
+  exposeTool: z.boolean().default(true),
 })
 
 /**
- * Register the patent_deadlines tool over the configured holiday arrangement.
+ * Register the patent_deadlines tool over the configured holiday arrangement,
+ * and/or publish the evaluator as the `patentDeadline` service.
  * @param ctx - registrant context carrying the tool registry.
- * @param config - calendar override and reminder horizon.
+ * @param config - calendar override, reminder horizon, and mount role.
  */
 export function apply(ctx: Context, config: Config): void {
   const calendar = loadWorkCalendar(config.calendarDir)
-  ctx.tools.register(createPatentDeadlinesTool({
-    calendar,
-    reminderLeadDays: config.reminderLeadDays ?? 30,
-  }))
+  const reminderLeadDays = config.reminderLeadDays ?? 30
+  if (config.provideService ?? false) {
+    ctx.provide('patentDeadline', createPatentDeadlineService({ calendar, reminderLeadDays }))
+  }
+  if (config.exposeTool ?? true) {
+    ctx.tools.register(createPatentDeadlinesTool({ calendar, reminderLeadDays }))
+  }
 }

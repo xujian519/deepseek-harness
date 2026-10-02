@@ -59,6 +59,29 @@ Schemastery configuration, every field optional.
 | --- | --- | --- | --- |
 | calendarDir | string | packaged asset | Directory holding `cn-holidays.yaml`; must mirror the packaged layout. A missing or invalid file fails the plugin load. |
 | reminderLeadDays | number | 30 | Warn when an end date falls within this many days. A firm policy, not a legal period. |
+| provideService | boolean | false | Publish the `patentDeadline` service (see below). Off by default so the agent-preset mount stays tool-only. |
+| exposeTool | boolean | true | Register the `patent_deadlines` tool. A service-only root mount sets this to false so no second model-facing tool appears. |
+
+<a id="patentdeadline-service"></a>
+## `patentDeadline` service (root mount)
+
+A plugin mounted inside an agent preset writes to that preset's isolated tool registry, so a sibling plugin at the profile root — the patent workbench's deadline board, for example — cannot reach the evaluator through the tool registry. A deployment that needs that access registers this package a second time **at the profile root** with `provideService: true` and `exposeTool: false`:
+
+```yaml
+- id: patent-deadline-service
+  name: '@deepseek-ai/dsh-patent-deadline'
+  config: { provideService: true, exposeTool: false }
+```
+
+That row publishes the evaluator as the root-scoped `patentDeadline` service without adding a second model-facing tool; the preset row keeps its default `exposeTool: true` for the agent. Registering one package in two rows is safe — only a duplicate loader entry *id* is fatal, and the two rows carry distinct ids.
+
+The service is a pass-through to the pure functions, so no period, delivery, or rest-day rule is restated:
+
+- `evaluate(query, options?)` — the same `DeadlineQuery`/`DeadlineReport` as `evaluateDeadlines`, with `query.today` supplied by the caller so a report is reproducible. `options.reminderLeadDays` overrides the built-in horizon for one call.
+- `periodEnd(start, period)`, `resolveDeliveryDate(request)`, `describePatentKind(kind)` — the library functions above.
+- `calendarCoverage()` — `{ years }`, the years the loaded arrangement covers. A consumer uses this to warn that an end date's year is unverified instead of showing a roll-forward that was never checked.
+
+Dates cross the boundary as `{ year, month, day }` objects, so a consumer never re-parses the calendar. A consumer probes the service (`ctx.get('patentDeadline')`) rather than injecting it, so it still loads when the deployment has not wired the service.
 
 ## Model Experience
 

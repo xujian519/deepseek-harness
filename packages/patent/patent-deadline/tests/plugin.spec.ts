@@ -31,6 +31,7 @@ describe('@deepseek-ai/dsh-patent-deadline plugin surface', () => {
     expect(typeof Pkg.evaluateDeadlines).toBe('function')
     expect(typeof Pkg.renderDeadlineReport).toBe('function')
     expect(typeof Pkg.createPatentDeadlinesTool).toBe('function')
+    expect(typeof Pkg.createPatentDeadlineService).toBe('function')
     expect(typeof Pkg.describePatentKind).toBe('function')
     expect(Pkg.CALENDAR_FILE_NAME).toBe('cn-holidays.yaml')
   })
@@ -40,6 +41,28 @@ describe('@deepseek-ai/dsh-patent-deadline plugin surface', () => {
     expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(true)
     await fiber.dispose()
     expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(false)
+  })
+
+  it('stays tool-only by default: no patentDeadline service is published', async () => {
+    const { ctx } = await install()
+    expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(true)
+    expect(ctx.get('patentDeadline')).toBeUndefined()
+  })
+
+  it('publishes the patentDeadline service without a tool when mounted service-only', async () => {
+    const { ctx, fiber } = await install({ provideService: true, exposeTool: false })
+    expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(false)
+    const service = ctx.get('patentDeadline')
+    expect(service).toBeDefined()
+    expect(service?.calendarCoverage().years.length).toBeGreaterThan(0)
+    await fiber.dispose()
+    expect(ctx.get('patentDeadline')).toBeUndefined()
+  })
+
+  it('publishes the service and the tool when both roles are requested', async () => {
+    const { ctx } = await install({ provideService: true })
+    expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(true)
+    expect(ctx.get('patentDeadline')).toBeDefined()
   })
 
   it('fails loud at load when the configured calendar directory has no asset', async () => {
