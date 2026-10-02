@@ -108,7 +108,7 @@ Schemastery 配置；`baselineDir` 可选，其余处置字段均有默认值。
 
 #### 模型看到什么
 
-一段静态系统提示，名 `patent-law:cnlaw`，与其余专利域段落同序，内容是声明的端点——`cnlawSearchUrl` 对应 `/search`、`/search/decisions`、`/search/judgments`，`cnlawGraphUrl` 对应图谱、案件与 IPC 路由——并写明部署挂载 MCP 桥时由 `mcp__cnlaw__*` 工具取而代之；`cnlawEnabled=false` 时改为写明本部署没有底座、应走哪些核验通道。人设与专利技能都以「cnlaw 声明段」称呼它，因此随包文本不出现端口。仅在挂载了提示注册表的组合里注册该段；没有它时工具照常工作。
+一段静态系统提示，名 `patent-law:cnlaw`，与其余专利域段落同序，内容是声明的端点——`cnlawSearchUrl` 对应 `/search`、`/search/decisions`、`/search/judgments`，`cnlawGraphUrl` 对应图谱、案件与 IPC 路由——并写明部署挂载 MCP 桥时由 `mcp__cnlaw__*` 工具取而代之；`cnlawEnabled=false` 时改为写明本部署没有底座、应走哪些核验通道。人设与专利技能都以「cnlaw 声明段」称呼它，因此随包文本不出现端口。该段同时声明指南通道：索引只含法条与判例，端点查不到指南并不说明被引的节号不存在——规则原文取自部署的外接 IP 知识库（`law_search` 的 scope=guideline 取指南全文、scope=law 取法规条文；`patent_kg_query` 的 node_type=GuidelineRule 与 `patent_wiki_search` 取规则卡片；`patent_case_search` 取适用规则的决定），取不到的节号保持未核验，不得凭记忆补全。仅在挂载了提示注册表的组合里注册该段；没有它时工具照常工作。
 
 #### Token 影响
 
@@ -132,6 +132,7 @@ Schemastery 配置；`baselineDir` 可选，其余处置字段均有默认值。
 - **`patent-rule` 仍保留自己的条号上限。** 专利 preset 已挂载本插件，模型会先跑 law_verify；`patent-rule` 的条号上限仍自行作决定，它只把《专利法》条号限制在 82 以内，不逐条持有对应行。因此本部索引报为 `not-indexed` 的引用会被它放行——第 69、70 条即属此列。把该上限改读本部索引仍属后续工作：规则只按条号作决定，本部索引按条目作决定。
 - **不发布包不变量。** 基线的正确性是内容属性，任何运行期观测都不能独立证伪；可机械检查的部分（引用解析、条与节存在性、条数上限）是门禁执行的检查，不满足不变量的门槛。
 - **声明段说的是部署声明了什么，不是有什么可达。** 两个端点都不在加载时探测，因此声明了但已停掉的服务在实际调用失败时才暴露；人设的回退纪律覆盖该情形。部署换了地址却没有更新 `cnlawSearchUrl` / `cnlawGraphUrl` 时，声明段仍声明旧端点。
+- **指南通道是声明，不是校验。** 该段点名检索工具（知识库检索与规则卡片工具）；本包既不调用它们也不核验某个指南节号是否真的存在于其中，故一条引用只与模型实际执行的检索同等可靠。检索为空只对该次检索式成立。
 
 ### 开发备注
 

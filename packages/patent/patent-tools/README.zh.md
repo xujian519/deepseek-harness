@@ -26,6 +26,7 @@ kind: "package-reference"
 | `patent_search` | 检索 | `@deepseek-ai/dsh-patent-data`（nuo `searchPatents`，LRU 缓存） |
 | `patent_metadata` | 检索 | `@deepseek-ai/dsh-patent-data`（nuo `scrapePatent`，LRU 缓存） |
 | `patent_legal_status` | 检索 | `@deepseek-ai/dsh-patent-data`（nuo `LegalStatusChecker`） |
+| `law_search` | 知识 | `ctx.patentKnowledge.legalSearch` / `.guidelineSearch`（knowledge.db FTS5，语料为 `law_article` 与 `guideline_rule` 两类文档，`scope` 选语料） |
 | `patent_case_search` | 知识 | `ctx.patentKnowledge.caseLawSearch`（knowledge.db FTS5） |
 | `patent_wiki_search` | 知识 | `ctx.patentKnowledge` wiki 卡片 |
 | `patent_kg_query` | 知识 | `ctx.patentKnowledge` 知识图谱 |
@@ -41,9 +42,9 @@ kind: "package-reference"
 | `rule_check` | 质量 | `@deepseek-ai/dsh-patent-rule` 规则引擎 |
 | `analyze_patent_figure` | 分析 | 经 `FigureAnalysisEngine` 走视觉 ModelPort（Config.figureAnalysisMode：`single`=一次调用，默认；`two-step`=结构抽取+说明生成两次调用）；按附图模型做图片输入门禁 |
 | `search_patent_figure` | 检索 | 附图索引关键词检索（索引由 `analyze_patent_figure` 写入，见 Config.figureIndexFile） |
-| `generate_patent_figure` | 撰写 | 附图生成：Graphviz DOT 通路（流程图/状态图/框图/层级图/模板/原始 DOT）+ SVG 直绘通路（电路图/曲线图/剖视图/时序图/外观设计视图排布）；SVG 默认内置 `@viz-js/viz` WASM，png/pdf 与 `figureRenderer: 'cli'` 走 `dot` CLI（Config.graphvizExecutable / figureOutputDir / dotFont）；可选导出时文字转路径，使 SVG 不带字体依赖（Config.figureTextToPath，需要 Inkscape）；给了 `target_office` 或图型只有 SVG 通路时，png/pdf 走 SVG 全链（落版 → 渲染复核 → 文字转路径 → Inkscape `--export-type=png|pdf --export-area-page` 导出），落版、复核与引线标号因此对它们同样生效——本机没有 Inkscape 时改由渲染器直接出图，并明确提示落版与复核未生效；提交规格 page/dpi/margin/orientation；框图/层级图 SVG 默认引线标号（直绘图型收到该参数时明确回报「不生效」，不再静默忽略）；剖视图可给引线标号（`sections.labels`）、中心线（`sections.centerlines`）、图面字号（`label_font_size_mm`）、按 GB/T 4457.4 的线宽（`stroke_width_mm`/`thin_stroke_width_mm`，零件用 `parts[].stroke_width_mm` 单独覆盖，均不得低于 0.18 毫米），非剖切轮廓用 `hatch: "none"`——剖视图也可不从手写坐标而来，而用 `sections.source`（STEP/IGES/BREP + 剖切平面）从 CAD 模型切出轮廓与剖面线，材料区域由 `parts[].anchor` 认领——`sections` 亦可传 JSON 文件路径；`panels` 多面板输出与 `figure_family` 跨图标号续接；`target_office` 按法域落版为固定幅面附图页并核算尺寸；返回图形绝对路径；返回图面用语检查警告、输入层剖面线警告与渲染复核发现；结果写入附图索引（Config.figureIndexFile） |
+| `generate_patent_figure` | 撰写 | 附图生成：Graphviz DOT 通路（流程图/状态图/框图/层级图/模板/原始 DOT）+ SVG 直绘通路（电路图/曲线图/剖视图/时序图/外观设计视图排布）；SVG 默认内置 `@viz-js/viz` WASM，png/pdf 与 `figureRenderer: 'cli'` 走 `dot` CLI（Config.graphvizExecutable / figureOutputDir / dotFont）；可选导出时文字转路径，使 SVG 不带字体依赖（Config.figureTextToPath，需要 Inkscape）；给了 `target_office` 或图型只有 SVG 通路时，png/pdf 走 SVG 全链（落版 → 渲染复核 → 文字转路径 → Inkscape `--export-type=png|pdf --export-area-page` 导出），落版、复核与引线标号因此对它们同样生效——本机没有 Inkscape 时改由渲染器直接出图，并明确提示落版与复核未生效；提交规格 page/dpi/margin/orientation；框图/层级图 SVG 默认引线标号（直绘图型收到该参数时明确回报「不生效」，不再静默忽略）；剖视图可给引线标号（`sections.labels`）、中心线（`sections.centerlines`）、图面字号（`label_font_size_mm`）、按 GB/T 4457.4 的线宽（`stroke_width_mm`/`thin_stroke_width_mm`，零件用 `parts[].stroke_width_mm` 单独覆盖，均不得低于 0.18 毫米），非剖切轮廓用 `hatch: "none"`——剖视图也可不从手写坐标而来，而用 `sections.source`（STEP/IGES/BREP + 剖切平面）从 CAD 模型切出轮廓与剖面线，材料区域由 `parts[].anchor` 认领——`sections` 亦可传 JSON 文件路径；`panels` 多面板输出与 `figure_family` 跨图标号续接；部署的图面字号（Config.figureFontMm，小四 = 4.23 毫米）决定 DOT 的 `fontsize`、直绘图型的图面字号默认与落版核算的正文字高，故本所的小四/四号体例一次配置即生效（模型显式给的参数优先）；`require_cutting_marks`（Config.figureRequireCuttingMarks）让缺 `sections.cutting_marks` 的剖视图直接报错，而不是静默出一张没有剖切符号的图；`target_office` 按法域落版为固定幅面附图页并核算尺寸；返回图形绝对路径；返回图面用语检查警告、输入层剖面线警告与渲染复核发现；结果写入附图索引（Config.figureIndexFile） |
 | `add_patent_figure_references` | 撰写 | SVG 标号后处理：内嵌模式按 `<text>`/`<tspan>` 文本匹配追加 `(标号)`；`leader_lines: true` 在部件轮廓外侧绘制引线并放置独立标号；返回标注文件的绝对路径 |
-| `verify_patent_figure` | 质量 | 对已生成的 SVG 源做渲染复核量测（不需要栅格化器）：线宽与线段取向分布、文字元素，以及只在画面上才看得见的缺陷——图面文字（标号、元件名、连线说明）被引线或轮廓贯穿、与图线净距不足（`text_clearance_mm`，默认 1.5 毫米，0 关闭；绘图侧标注的引线与被更晚绘制的不透明白填充盖住的图元不计）、细点划线中心线被同位置的实线边覆盖、相邻零件剖面线取向近到无法区分、内容越出画布。元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 `<g>` 继承的 `text-anchor` 与行内 `style`），根元素的画布尺寸与 viewBox/preserveAspectRatio 先解析成毫米，故落版页、拼版页与 px 级用户单位的导出文件同一口径；不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现而不是略过 |
+| `verify_patent_figure` | 质量 | 对已生成的 SVG 源做渲染复核量测（不需要栅格化器）：线宽与线段取向分布、文字元素，以及只在画面上才看得见的缺陷——图面文字（标号、元件名、连线说明）被引线或轮廓贯穿、与图线净距不足（`text_clearance_mm`，默认 1.5 毫米，0 关闭；绘图侧标注的引线与被更晚绘制的不透明白填充盖住的图元不计）、细点划线中心线被同位置的实线边覆盖、相邻零件剖面线取向近到无法区分、两个图元叠压（闭合轮廓包围盒部分相交——有意嵌套、同材料分组号的轮廓、两侧都是纯填充图元都不计）、字高低于下限（`min_font_mm` 或 Config.figureMinFontMm；报告同时给出量测值 `minFontMm`）、内容越出画布。同时给出 `hierarchy`（声明的父标记 → 子标记）与 `claims` 时，另报「图内层级与权项写出的构造归属相矛盾」。元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 `<g>` 继承的 `text-anchor` 与行内 `style`），根元素的画布尺寸与 viewBox/preserveAspectRatio 先解析成毫米，故落版页、拼版页与 px 级用户单位的导出文件同一口径；不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现而不是略过 |
 | `generate_structure_figure` | 撰写 | FreeCAD TechDraw 结构线稿：经宿主 `freecadcmd` 子进程把 STEP/IGES/BREP 模型投影为黑白多视图 SVG（`iso`/`front`/`rear`/`top`/`bottom`/`left`/`right`，Config.freecadExecutable）；件号锚定到真实 3D 顶点的投影；局部放大视图（`details`：给出基视图与模型坐标窗口及放大倍数，落成 `TechDraw::DrawViewDetail`）；默认关闭（Config.structureFigureEnabled）且 CAD 隔离；支持单模型文件或目录批量（目录批量与 `callouts`、`details` 互斥：二者的坐标都只对单个模型有效）；`target_office` 按法域落版每个视图 SVG；结果写入附图索引（`figureType: 'structure'`）；可选导出时文字转路径（Config.figureTextToPath，同 generate_patent_figure） |
 | `patent_pdf_download` | 文档 | browser-backend 冷决策：ego-browser 下载拦截（统一 ego 栈） |
 | `recognize_chemical_structure` | 分析 | 可选（rdkit 未随包）；索引写入已接线（Config.chemistryIndexFile） |
@@ -77,6 +78,9 @@ Schemastery 配置，所有字段可选。
 | `graphvizRenderTimeoutMs` | number | `60000` | CLI `dot` 单次渲染的超时；WASM 引擎为同步渲染，不受它约束。 |
 | `figureOutputDir` | string | `<cwd>/patent/figures` | `generate_patent_figure` 的输出目录（绝对或相对 cwd）。 |
 | `figureTextToPath` | boolean | `false` | 导出时把图面文字转成轮廓路径，SVG 因此不依赖阅读器字体；需要 Inkscape，两个附图生成工具都适用，也适用于导出 png/pdf 所依据的中间 SVG；不经该全链的 png/pdf 仍由渲染器出字，并回报该参数不生效。产物仍含 `<text>`、未通过 SVG 安全校验、或墨迹越出原图范围时拒绝替换，原图保持原样。含中文的图导出 pdf 时本参数还是前置条件：Inkscape 1.4.4 在字体子集化个别字形（实测「源」）时会截断 PDF 且退出码仍为 0，故 `exportWithInkscape` 对缺 `startxref`/`%%EOF` 的 PDF 一律判为失败而不交付。 |
+| `figureRequireCuttingMarks` | boolean | `false` | 要求每个剖视图都给出剖切位置符号（`sections.cutting_marks`）：未给即报错，不再交付缺剖切符号的剖视图。GB/T 4458.6 只在剖切平面与对称面重合且视图在标准位置时允许省略，此类剖视图可在调用时传 `require_cutting_marks: false`。 |
+| `figureFontMm` | number | 无 | 部署的图面字号（毫米）：决定 DOT 的 `fontsize`、直绘图型的图面字号默认与落版核算的正文字高。小四 = 4.23 毫米、四号 = 4.94 毫米；模型逐次显式给的参数优先。 |
+| `figureMinFontMm` | number | 无 | 图面字高内控下限（毫米）；模型未传 `min_font_mm` 时 `verify_patent_figure` 按它判定。法条只要求缩小到三分之二仍能分辨，毫米数是部署内控口径而非法定值。 |
 | `inkscapeExecutable` | string | 自动探测 | 文字转路径所用的 `inkscape` 可执行路径覆盖；探测顺序：覆盖值 → `DSH_INKSCAPE` → 平台候选路径 → `PATH`。 |
 | `inkscapeRenderTimeoutMs` | number | `30000` | 单次文字转路径的超时（毫秒）。 |
 | `workbenchBaseUrl` | string | 进程内 webServer 端口 | `workbench_link_patent_case` 的工作台 API 基址；显式配置优先，web 组合内自动取 `http://127.0.0.1:<webServer 端口>`；不可用（非 web profile）时工具在执行期以 `setup_required` 失败。 |
@@ -105,7 +109,7 @@ Schemastery 配置，所有字段可选。
 
 #### 模型所见
 
-31 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。
+32 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。
 
 #### Token 影响
 
@@ -136,6 +140,8 @@ Schemastery 配置，所有字段可选。
 - **违规定位只覆盖字面命中** — `rule_check` 与 `validate_specification` 对**计入本次违规的最早一处命中**回报 `line` 与 `matchedSentence`，使告警可以在原处判读，不必通读全文。开启否定语境或引文豁免的词表检查（`negationContext`、`quoteImmune`）取的是豁免之后剩下最早的那一处，不是该词在文本中的最早出现。缺项类与比例类检查（章节缺失、覆盖率、数值范围端点）、`quote_repetition`（证据带重复次数，不是原文中的连续片段），以及读取独立入参字段的检查（发明名称、摘要、权利要求）不带这两项：那里指向说明书的行号没有对应位置。
 
 - **结果携带「评估了什么」的身份** — `rule_check` 与 `validate_specification` 的文本是内联传入的，两个调用方核对「同一份文件」时可能各传一个修订本。实案实测：三个队友重跑同一道门禁分别传了 12164、12166、12177 字符，**没有一个等于磁盘上的 13399 字符**，而结论差异正好落在文本差异处。因此每条结果末尾带一行 `评估输入`，给出本次读到的各文本字段的字数与指纹，使两次运行可直接比对。该行只**报告**差异：目前没有任何东西强制一次运行必须与磁盘产物一致。
+
+- **说明书体例校验依赖 markdown 文本能表达的形态** — 标题集合校验放行五部分标题与 `render_patent_document` 写出的 `说明书` 外层标题，其余标题一律报出，因此模板外层标题不同的部署会看到该标题被报出；括号标记校验读 `名称（数字）`，并跳过以列举后缀结尾的名称（`实施例（1）`、`图（2）`），因此恰好在标记某构件的列举式引用不会被报出。段落编号是 warning 而非 error：法条与《专利审查指南》均未要求或禁止段落编号，是否使用取决于提交体例。
 
 ### 开发备注
 

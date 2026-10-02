@@ -29,7 +29,11 @@ Full-text search over the `documents`/`chunks`/`docs_fts` tables (FTS5 BM25 firs
 
 ### legalSearch(query, options?)
 
-Full-text search over the `law_article` documents of `knowledge.db` via `KnowledgeLawSearch`. Returns `LawSearchResult[]`; options filter by `level`.
+Full-text search over the `law_article` documents of `knowledge.db` via `KnowledgeLawSearch`. Returns `LawSearchResult[]`; options filter by `level`. Each hit carries `filename` — the document's `file_path` — as the citation's source.
+
+### guidelineSearch(query, options?)
+
+Full-text search over the `guideline_rule` documents of `knowledge.db` (the 《专利审查指南》 chapters), through a second `KnowledgeLawSearch` scoped with `docTypes: ['guideline_rule']`. The engine indexes whichever normative document types it is constructed with (`law_article` by default), so the statute corpus and the guideline corpus stay separate while sharing one query path; a database whose `documents` table predates the `file_path` column still searches, and then reports no source path.
 
 ### wikiCards(query, limit?)
 

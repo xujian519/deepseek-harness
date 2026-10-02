@@ -100,6 +100,16 @@ export type GeneratePatentFigureDeps = {
   cwd?: string
   /** 平台字体解析（含 CJK 时选平台字体），默认 Helvetica。 */
   resolveFont?: (labels: readonly string[]) => string
+  /**
+   * 部署级剖视要求：为 true 时每个剖视图都必须给出剖切位置符号（工具参数
+   * `require_cutting_marks` 未给时取本项）。宿主按 Config 注入；缺省不要求。
+   */
+  requireCuttingMarks?: boolean
+  /**
+   * 部署的图面文字字号（毫米，Config.figureFontMm）：直绘图型的图面字号与 DOT 的
+   * fontsize 由它定，落版核算的字高也用它；模型显式给的字号优先。缺省时不改历史默认。
+   */
+  figureFontMm?: number
   /** 提交规格页面尺寸默认（Config.figurePageSize）。 */
   pageSize?: DotPageSize
   /** 提交规格方向默认（Config.figureOrientation）。 */
@@ -193,6 +203,12 @@ export type GeneratePatentFigureInput = SharedFigureInputFields & {
   rotate_deg?: number
   /** 剖视图（cross_section）：要求每个轮廓显式给出 hatch（不被剖切的写 `"none"`），缺省即报错。 */
   require_explicit_hatch?: boolean
+  /**
+   * 剖视图（cross_section）：要求给出剖切位置符号（`sections.cutting_marks`），缺省即报错。
+   * 缺省（false）时只把「未给剖切符号」作提示返回，因为剖切平面与对称面重合且视图在标准位置
+   * 时可以省略（GB/T 4458.6）；本部署要求一律标注时把它设为 true。
+   */
+  require_cutting_marks?: boolean
   persist_index?: boolean
 }
 

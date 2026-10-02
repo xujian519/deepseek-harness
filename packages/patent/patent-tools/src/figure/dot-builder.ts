@@ -420,6 +420,15 @@ export function findFileReferenceAttribute(dot: string): string | undefined {
 }
 
 /**
+ * 部署字号的可选透传字段：未配置时不带该键（`exactOptionalPropertyTypes` 下不能传 undefined）。
+ * @param options - the builder options carrying the optional deployment font size.
+ * @returns the field to spread into the DOT header call.
+ */
+function fontPtField(options: { fontPt?: number }): { fontPt?: number } {
+  return options.fontPt === undefined ? {} : { fontPt: options.fontPt }
+}
+
+/**
  * 构建 DOT 头（图形名、rankdir、页面属性、node/edge 默认属性）。
  * @param graphName - 图形名（自动清洗为合法 id）。
  * @param options - rankdir 方向、字体名、是否填充（semantic 模式）、可选提交规格页面 bundle。
@@ -427,16 +436,19 @@ export function findFileReferenceAttribute(dot: string): string | undefined {
  */
 export function buildDotHeader(
   graphName: string,
-  options: { rankdir: string; fontName: string; filled: boolean; page?: DotPageBundle },
+  options: { rankdir: string; fontName: string; filled: boolean; page?: DotPageBundle; fontPt?: number },
 ): string[] {
-  const nodeAttrs = [`fontname="${escapeDotLabel(options.fontName)}"`, 'fontsize=10']
+  // 字号的唯一来源：部署的图面字号换算成 pt（小四 = 12pt）。缺省保持历史值（node 10 / edge 9）。
+  const nodeFontPt = options.fontPt ?? 10
+  const edgeFontPt = options.fontPt ?? 9
+  const nodeAttrs = [`fontname="${escapeDotLabel(options.fontName)}"`, `fontsize=${String(nodeFontPt)}`]
   if (options.filled) nodeAttrs.push('style=filled')
   return [
     `digraph ${sanitizeId(graphName)} {`,
     `    rankdir=${options.rankdir};`,
     ...(options.page === undefined ? [] : pageAttributeLines(options.page)),
     `    node [${nodeAttrs.join(', ')}];`,
-    `    edge [fontname="${escapeDotLabel(options.fontName)}", fontsize=9];`,
+    `    edge [fontname="${escapeDotLabel(options.fontName)}", fontsize=${String(edgeFontPt)}];`,
     '',
   ]
 }
@@ -449,6 +461,8 @@ export type BuildFlowchartOptions = {
   style?: DotStyle
   /** 字体名（默认 Helvetica；含 CJK 时由调用方传入平台字体）。 */
   fontName?: string
+  /** 正文与标号字号（pt；缺省 node 10 / edge 9）；部署的图面字号（小四 = 12pt）经它落到 DOT。 */
+  fontPt?: number
   /** 显式标号（跨图续接）。 */
   numerals?: NumeralMap
   /** 自动标号步进。 */
@@ -477,6 +491,7 @@ export function buildFlowchartDOT(steps: readonly FlowchartStep[], options: Buil
     fontName: options.fontName ?? 'Helvetica',
     filled: false,
     ...(options.page === undefined ? {} : { page: options.page }),
+    ...fontPtField(options),
   })
   const ALLOWED_SHAPES: readonly FlowchartShape[] = ['box', 'ellipse', 'diamond', 'parallelogram', 'cylinder']
   for (const step of steps) {
@@ -529,6 +544,8 @@ export type BuildBlockDiagramOptions = {
   style?: DotStyle
   /** 字体名（默认 Helvetica）。 */
   fontName?: string
+  /** 正文与标号字号（pt；缺省 node 10 / edge 9）；部署的图面字号（小四 = 12pt）经它落到 DOT。 */
+  fontPt?: number
   /** 显式标号（跨图续接）。 */
   numerals?: NumeralMap
   /** 自动标号步进。 */
@@ -583,6 +600,7 @@ export function buildBlockDiagramDOT(
     fontName: options.fontName ?? 'Helvetica',
     filled: semantic,
     ...(options.page === undefined ? {} : { page: options.page }),
+    ...fontPtField(options),
   })
   for (const block of blocks) {
     const id = sanitizeId(block.id)
@@ -619,6 +637,8 @@ export type BuildHierarchyOptions = {
   style?: DotStyle
   /** 字体名（默认 Helvetica）。 */
   fontName?: string
+  /** 正文与标号字号（pt；缺省 node 10 / edge 9）；部署的图面字号（小四 = 12pt）经它落到 DOT。 */
+  fontPt?: number
   /** 显式标号（跨图续接）。 */
   numerals?: NumeralMap
   /** 自动标号步进。 */
@@ -659,6 +679,7 @@ export function buildComponentHierarchyDOT(
     fontName: options.fontName ?? 'Helvetica',
     filled: false,
     ...(options.page === undefined ? {} : { page: options.page }),
+    ...fontPtField(options),
   })
   for (const id of ids) {
     // 同 buildFlowchartDOT：标号恒存在。
@@ -709,6 +730,7 @@ export function buildStateDiagramDOT(
     fontName: options.fontName ?? 'Helvetica',
     filled: false,
     ...(options.page === undefined ? {} : { page: options.page }),
+    ...fontPtField(options),
   })
   for (const state of states) {
     const id = sanitizeId(state.id)

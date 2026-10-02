@@ -57,6 +57,10 @@ export type { CaseLawChunk, CaseLawDocType, CaseLawHit, CaseLawRecord, CaseLawSe
 
 // Legal surface.
 export { KnowledgeLawSearch } from './legal/knowledge-law-search.ts'
+export {
+  KNOWLEDGE_DOC_TYPES,
+  type KnowledgeDocType,
+} from './legal/knowledge-law-search.ts'
 export type { KnowledgeLawSearchEngineOptions, KnowledgeLawSearchOptions } from './legal/knowledge-law-search.ts'
 export { extractLawKeywords } from './legal/keywords.ts'
 export { toRecord, toSearchResult } from './legal/row-mapper.ts'
@@ -123,6 +127,7 @@ export class PatentKnowledge extends Service {
 
   private caseLawEngine?: CaseLawSearchEngine | undefined
   private lawEngine?: KnowledgeLawSearch | undefined
+  private guidelineEngine?: KnowledgeLawSearch | undefined
   private kg?: KgStore | undefined
   private readonly wiki: WikiCardLoader
 
@@ -153,6 +158,18 @@ export class PatentKnowledge extends Service {
    */
   legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[] {
     return this.law().search(query, options)
+  }
+
+  /**
+   * Guideline full-text search over the guideline_rule documents of knowledge.db
+   * (the 《专利审查指南》 chapters). Same engine and options as the law search,
+   * scoped to that document type.
+   * @param query - the search text.
+   * @param options - result cap and level filter.
+   * @returns the de-duplicated hits in rank order, each with its `filename` (file_path) for citation.
+   */
+  guidelineSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[] {
+    return this.guideline().search(query, options)
   }
 
   /**
@@ -241,6 +258,11 @@ export class PatentKnowledge extends Service {
     return (this.lawEngine ??= new KnowledgeLawSearch(this.paths.queryDbPath))
   }
 
+  /** Lazy guideline engine over knowledge.db guideline_rule documents (审查指南全文). */
+  private guideline(): KnowledgeLawSearch {
+    return (this.guidelineEngine ??= new KnowledgeLawSearch(this.paths.queryDbPath, { docTypes: ['guideline_rule'] }))
+  }
+
   /** Lazy knowledge-graph store. */
   private kgStore(): KgStore {
     return (this.kg ??= new KgStore(this.paths.queryDbPath, { nodeCacheMaxEntries: this.nodeCacheMaxEntries }))
@@ -257,6 +279,8 @@ export class PatentKnowledge extends Service {
     this.caseLawEngine = undefined
     this.lawEngine?.close()
     this.lawEngine = undefined
+    this.guidelineEngine?.close()
+    this.guidelineEngine = undefined
     this.kg?.close()
     this.kg = undefined
   }

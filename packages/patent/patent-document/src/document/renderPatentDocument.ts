@@ -10,6 +10,8 @@ import { caseOutputsDir } from '@deepseek-ai/dsh-patent-core'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { buildBrandStyle, loadBrandFromPath, mergeBrand } from './brandInjector.ts'
 import { DocumentRenderError } from './errors.ts'
+import { findMatchingCloseTag } from './htmlScan.ts'
+import { applyParagraphNumbering } from './paragraphNumbering.ts'
 import { DEFAULT_PDF_TIMEOUT_MS, renderPdf } from './pdfRenderer.ts'
 import { readTemplateHtml } from './templateResolver.ts'
 import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './types.ts'
@@ -124,52 +126,6 @@ function injectBrandCss(html: string, brandCss: string): string {
   return style + '\n' + html
 }
 
-/** HTML void 元素（无闭合标签），标签配平扫描时跳过。 */
-const VOID_TAGS = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'param',
-  'source',
-  'track',
-  'wbr',
-])
-
-/**
- * 从开标签结束位置向后扫描，找到与之配对的闭合标签起始下标。
- * 用全标签深度计数处理嵌套内容（模板为受控的良构 HTML）。
- * @param html - HTML 文本。
- * @param openEnd - 开标签结束位置。
- * @returns 配对闭合标签起始下标，未找到时 undefined。
- */
-function findMatchingCloseTag(html: string, openEnd: number): number | undefined {
-  const tagRe = /<\/?[A-Za-z][^>]*>/g
-  tagRe.lastIndex = openEnd
-  let depth = 1
-  let match: RegExpExecArray | null
-  while ((match = tagRe.exec(html)) !== null) {
-    const token = match[0]
-    const isClose = token.startsWith('</')
-    // tagRe 保证 token 以字母开头的标签名开始；用捕获组提取标签名。
-    const name = token.replace(/^<\/?([A-Za-z][A-Za-z0-9]*).*/, '$1').toLowerCase()
-    if (isClose) {
-      depth -= 1
-      if (depth === 0) return match.index
-    } else {
-      if (VOID_TAGS.has(name) || /\/>$/.test(token)) continue
-      depth += 1
-    }
-  }
-  return undefined
-}
-
 /**
  * 将 sections 按元素 id 替换为 innerHTML。
  * @param html - 模板 HTML。
@@ -236,6 +192,9 @@ export async function renderPatentDocument(
   if (injected.skippedIds.length > 0) {
     warnings.push(`以下 section id 未命中模板，内容已忽略: ${injected.skippedIds.join(', ')}`)
   }
+  // 段落编号由模板通过 data-paragraph-numbering 声明；引擎把编号写成字面文本，
+  // 使 PDF 与下游 HTML→docx 转制读到同一串字符。
+  html = applyParagraphNumbering(html).html
 
   await atomicWriteFile(htmlPath, html)
 

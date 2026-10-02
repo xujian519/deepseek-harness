@@ -35,11 +35,14 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md`。
-2. 复制 `assets/template.html` 为 `claims-spec.html`。
+2. **用 `render_patent_document` 渲染**（`template: claims-spec`），把内容按 `id -> innerHTML` 传给 `sections`。
+   **不要手工复制 `assets/template.html` 另存再填**：模板的样式、品牌注入点与槽位 `id` 都由渲染引擎解释，手工复制再填会丢掉这些处理（含可选的段落编号声明）。
+   渲染后再编辑产物以补模板没有的槽位（案卷号、状态框、额外的信息行）是安全的。
 3. 填充：案件信息 → 权利要求书 → 说明书（技术领域/背景技术/发明内容/附图说明/具体实施方式）→ 摘要 → 落款/页脚。
 4. 权利要求书采用层级递进：独立权利要求 → 从属权利要求；从属引用用「如权利要求 X 所述的……」。
 5. 说明书五部分顺序固定：技术领域 → 背景技术 → 发明内容 → 附图说明 → 具体实施方式。
-6. 按 `references/checklist.md` 自查后定稿。
+6. **说明书默认不写段落编号**：法条与《专利审查指南》均未要求段落编号，模板默认不声明，渲染件因此不带编号；确需编号时按 `references/conventions.md` 第 7 节在模板上声明，不要手写编号。
+7. 按 `references/checklist.md` 自查后定稿。
 
 ## 输出契约
 

@@ -21,8 +21,21 @@
  *   {@link ADJACENT_SPACING_RATIO_LIMIT}，读成一个零件（GB/T 4457.5 要求相邻零件的
  *   剖面线方向相反或间距不等，两项有一项可区分即不报）。类别标识为
  *   `hatch-orientation-collision`，判据含方向与间距两项。
+ * - **两个图元叠压**：两个闭合轮廓的包围盒部分相交（相交区两轴都不小于
+ *   {@link OVERLAP_MIN_MM}，且任一方的包围盒不整体包含另一方），说明同一块图面被两个
+ *   图元占用——或其中一个的位置/尺寸有误，或该处本不该有第二个图元。类别标识为
+ *   `element-overlap`。有意嵌套（型腔内画零件、模块内画子模块）不算：那是包含而非部分
+ *   相交；同一材料的几段轮廓（{@link HATCH_GROUP_ATTRIBUTE} 同号）也不算；两侧都是纯填充
+ *   图元（无 `stroke`，如文字转路径后的字形轮廓）也不算——那不是两条画出来的轮廓线。
+ * - **构造层级与权利要求不一致**：出图时声明的图内层级与权利要求写出的归属表述矛盾
+ *   （权利要求说「31 的输入端 311」，而声明的层级把 311 挂在 3 之下）。类别标识为
+ *   `figure-hierarchy`，判据见 `hierarchy-check.ts`；只在调用方给出声明层级与权利要求
+ *   正文时产出，本模块自身不解析权利要求。
  * - **内容越出画布**：线段、轮廓或标号落在根元素声明的画布之外，越界部分不会被
  *   渲染出来（后处理放大字号或落版改写画布时最易发生）。
+ * - **字高低于下限**：某处图面文字的字高小于调用方给出的内控下限（`minFontMm` 选项），
+ *   缩小到三分之二后读不出。类别标识为 `font-below-minimum`；下限是本部署的内控口径，
+ *   法条只要求「缩小到三分之二时仍能清晰地分辨」。同时给出量测值 `minFontMm`。
  *
  * 量测范围：根元素的画布尺寸与 `viewBox`/`preserveAspectRatio`（`svg-viewport` 解析成
  * 用户单位 → 毫米的映射，故 px 级用户单位的导出文件与落版页同一口径）；`line`/`polyline`/
@@ -50,12 +63,20 @@ import type { GlyphBox, GlyphQuad, GlyphTextAnchor } from './glyph-box.ts'
 import { DEFAULT_SVG_MAX_BYTES, assertSafeSvg } from './svg-annotate.ts'
 import { MM_PER_USER_UNIT, parseLengthMm, resolveSvgViewport } from './svg-viewport.ts'
 
-/** 复核发现的问题类别（稳定标识，供调用方分类）。 */
+/**
+ * 复核发现的问题类别（稳定标识，供调用方分类）。
+ *
+ * `element-overlap` 与 `figure-hierarchy` 分别由本模块的包围盒判据与
+ * `hierarchy-check.ts` 的声明层级判据产出，共用同一发现类型。
+ */
 export type RenderCheckKind =
   | 'text-crossed-by-line'
   | 'text-clearance'
   | 'centerline-covered'
   | 'hatch-orientation-collision'
+  | 'element-overlap'
+  | 'figure-hierarchy'
+  | 'font-below-minimum'
   | 'ink-outside-canvas'
   | 'not-measured'
 
@@ -91,6 +112,8 @@ export type RenderCheckReport = {
   readonly strokeWidthMm: readonly { readonly widthMm: number; readonly count: number }[]
   /** 线段取向分布（0–180°，点划线/引线/剖面线一并统计），按线段数降序。 */
   readonly orientationDeg: readonly { readonly orientationDeg: number; readonly count: number }[]
+  /** 最小字高（毫米，根坐标系下文字占位框的高；无文字时 undefined）。 */
+  readonly minFontMm?: number
   /** 发现的问题（无问题为空数组）。 */
   readonly findings: readonly RenderCheckFinding[]
 }
@@ -110,6 +133,11 @@ const ADJACENT_SPACING_RATIO_LIMIT = 1.5
  * （虚线展开、共线拼接），不参与间距计算。
  */
 const HATCH_SPACING_MIN_GAP_MM = 0.1
+/**
+ * 图元叠压判定的最小相交尺寸（毫米）：包围盒相交区在任一轴上不超过它，视为擦边接触
+ * （相邻零件共边、轮廓恰好相接）而非叠压。
+ */
+const OVERLAP_MIN_MM = 0.2
 /**
  * 绘图侧标注同一材料轮廓分组的属性名（见 `section-diagram.ts` 的 `polygonElement`）。
  * 同一零件的多个轮廓各给一段是输入约定；没有这个标注时复核只能把每段各自当成一件。
@@ -227,6 +255,14 @@ type DrawnSegment = {
 
 /** 遮挡面：不透明填充的闭合轮廓及其文档序。 */
 type Occluder = { readonly points: Poly; readonly order: number }
+
+/** 轴对齐包围盒（毫米/用户单位，随调用处的坐标系）。 */
+type Box = {
+  readonly minX: number
+  readonly minY: number
+  readonly maxX: number
+  readonly maxY: number
+}
 
 /** 元素按文档序应用后的帧：变换与继承来的样式取值。 */
 type Frame = {
@@ -1369,6 +1405,100 @@ function hatchCollisions(
 }
 
 /**
+ * 严格包含：`outer` 的包围盒含住 `inner` 且至少一轴真的更大。
+ * 只在「有意嵌套」的排除上要求严格：两个完全重合的轮廓不是嵌套，是同一图元画了两遍。
+ * @param outer - 外层包围盒。
+ * @param inner - 内层包围盒。
+ * @returns 是否严格包含。
+ */
+function strictlyContains(outer: Box, inner: Box): boolean {
+  const contains = outer.minX <= inner.minX && outer.maxX >= inner.maxX
+    && outer.minY <= inner.minY && outer.maxY >= inner.maxY
+  if (!contains) return false
+  return outer.minX < inner.minX || outer.maxX > inner.maxX || outer.minY < inner.minY || outer.maxY > inner.maxY
+}
+
+/**
+ * 两个图元叠压：闭合轮廓的包围盒部分相交——相交区两轴都不小于 {@link OVERLAP_MIN_MM}，
+ * 且任一方的包围盒都不严格包含另一方。
+ *
+ * 用包围盒而不是轮廓本身：包围盒相交是「同一块图面被两个图元占用」的最小证据，也正是人工
+ * 复核时按 SVG 坐标算的判据；包围盒已相交的两个图元在图上一定互相叠压。只擦边接触（相邻
+ * 零件共边）与有意嵌套（型腔内画零件、模块内画子模块）都不报，后者是包含关系。
+ *
+ * 带同一 {@link HATCH_GROUP_ATTRIBUTE} 分组号的轮廓是同一材料的几段（输入约定即「同一
+ * 零件的多个轮廓各给一段」），不互相判叠压。
+ *
+ * 两侧都不是描边图元（`stroke: none` 的纯填充）时也不判：纯填充图的轮廓不是画出来的线，
+ * 两个实心色块叠放是「后来的盖住先前的」——把实心标记、符号画在已有着色区域上正是这样
+ * 做的；本判据针对的是两条**画出来的**轮廓线占用同一块图面。文字转路径后的字形轮廓正是
+ * 纯填充路径（Inkscape `--export-text-to-path` 的产物不带 `stroke`），若不排除，同一行
+ * 的数字会互相报成叠压。
+ * @param outlines - 闭合轮廓（按文档序）。
+ * @param groups - 与 `outlines` 一一对应的材料分组号；undefined 表示该轮廓自成一组。
+ * @param stroked - 与 `outlines` 一一对应的描边标记。
+ * @returns 发现的问题。
+ */
+function outlineOverlaps(
+  outlines: readonly Poly[],
+  groups: readonly (number | undefined)[],
+  stroked: readonly boolean[],
+): RenderCheckFinding[] {
+  const boxes = outlines.map(bounds)
+  const round = (value: number): string => String(Math.round(value * 10) / 10)
+  const findings: RenderCheckFinding[] = []
+  for (let left = 0; left < outlines.length; left += 1) {
+    for (let right = left + 1; right < outlines.length; right += 1) {
+      const group = groups[left]
+      if (group !== undefined && group === groups[right]) continue
+      if (stroked[left] !== true && stroked[right] !== true) continue
+      const a = boxes[left] as Box
+      const b = boxes[right] as Box
+      const minX = Math.max(a.minX, b.minX)
+      const maxX = Math.min(a.maxX, b.maxX)
+      const minY = Math.max(a.minY, b.minY)
+      const maxY = Math.min(a.maxY, b.maxY)
+      if (maxX - minX <= OVERLAP_MIN_MM || maxY - minY <= OVERLAP_MIN_MM) continue
+      if (strictlyContains(a, b) || strictlyContains(b, a)) continue
+      findings.push({
+        check: 'element-overlap',
+        message: `图元 #${String(left + 1)} 与 #${String(right + 1)} 叠压：两个闭合轮廓的包围盒相交 ${round(maxX - minX)}×${round(maxY - minY)} 毫米`
+          + `（相交区 x ${round(minX)}–${round(maxX)}／y ${round(minY)}–${round(maxY)}）：`
+          + '同一块图面被两个图元占用，其中一个的位置或尺寸有误，或该处本不该有第二个图元；有意嵌套应改为包含关系',
+      })
+    }
+  }
+  return findings
+}
+
+/**
+ * 字高低于下限的发现：法条只要求「缩小到三分之二时仍能清晰地分辨」（审查指南第一部分第一章
+ * 4.3），下限本身是本部署的内控口径，由调用方给出毫米数。低于下限的文字逐处列出，模型据此
+ * 调大字号或减少图面内容，不必靠反复出图试字号。
+ * @param texts - 文字元素（按文档序）。
+ * @param heightsMm - 与 `texts` 一一对应的字高（毫米）。
+ * @param floorMm - 字高下限（毫米）；undefined 表示不判该判据。
+ * @returns 发现的问题；无低于下限的文字时为 undefined。
+ */
+function fontBelowMinimum(
+  texts: readonly ScannedText[],
+  heightsMm: readonly number[],
+  floorMm: number | undefined,
+): RenderCheckFinding | undefined {
+  if (floorMm === undefined) return undefined
+  const offenders = texts
+    .map((text, index) => ({ content: text.content, mm: heightsMm[index] as number }))
+    .filter(item => item.mm < floorMm)
+  if (offenders.length === 0) return undefined
+  const shown = offenders.slice(0, 4).map(item => `「${item.content}」${String(item.mm)} 毫米`).join('、')
+  return {
+    check: 'font-below-minimum',
+    message: `${String(offenders.length)} 处图面文字的字高低于 ${String(floorMm)} 毫米（最小 ${String(Math.min(...offenders.map(item => item.mm)))} 毫米）：${shown}`
+      + `${offenders.length > 4 ? ' 等' : ''}。下限是本部署的内控口径（法条只要求缩小到三分之二仍能分辨）：调大字号或减少图面内容后重出`,
+  }
+}
+
+/**
  * 图面墨迹的包围盒：全部子路径顶点与文字占位框四角的并集。
  * @param scan - 遍历结果。
  * @returns 墨迹包围盒；没有可量测图元时 undefined。
@@ -1433,12 +1563,13 @@ export function measureInkBounds(svg: string, options: { maxBytes?: number } = {
  */
 export function checkFigureRendering(
   svg: string,
-  options: { maxBytes?: number; textClearanceMm?: number } = {},
+  options: { maxBytes?: number; textClearanceMm?: number; minFontMm?: number } = {},
 ): RenderCheckReport {
   assertSafeSvg(svg, options.maxBytes ?? DEFAULT_SVG_MAX_BYTES)
   const scan = scanSvg(svg)
   const outlines: Poly[] = []
   const outlineGroups: (number | undefined)[] = []
+  const outlineStroked: boolean[] = []
   const openSegments: Segment[] = []
   const drawn: DrawnSegment[] = []
   const occluders: Occluder[] = []
@@ -1454,6 +1585,7 @@ export function checkFigureRendering(
       if (subpath.closed) {
         outlines.push(subpath.points)
         outlineGroups.push(shape.hatchGroup)
+        outlineStroked.push(shape.stroked)
       } else openSegments.push(...segments)
       for (const segment of segments) {
         if (shape.dashPatternMm === undefined) pieces.push(segment)
@@ -1492,6 +1624,17 @@ export function checkFigureRendering(
   const ink = inkOutsideCanvas(scan)
   if (ink !== undefined) findings.push(ink)
   findings.push(...hatchCollisions(outlines, openSegments, outlineGroups))
+  findings.push(...outlineOverlaps(outlines, outlineGroups, outlineStroked))
+  // 字高按文字占位框的高（`O→O+e2` 的模）量：它已经是字号换算到根坐标系的结果，
+  // 与「文字被贯穿」「标号净距」同一口径。
+  const fontHeightsMm = scan.texts.map((text) => {
+    const corners = quadCorners(textQuad(text))
+    const up = corners[3]
+    const origin = corners[0]
+    return Math.round(Math.hypot(up[0] - origin[0], up[1] - origin[1]) * 100) / 100
+  })
+  const smallestFont = fontBelowMinimum(scan.texts, fontHeightsMm, options.minFontMm)
+  if (smallestFont !== undefined) findings.push(smallestFont)
 
   const strokeCounts = new Map<number, number>()
   for (const shape of scan.shapes) {
@@ -1509,6 +1652,7 @@ export function checkFigureRendering(
     ...(scan.widthMm === undefined ? {} : { widthMm: scan.widthMm }),
     ...(scan.heightMm === undefined ? {} : { heightMm: scan.heightMm }),
     textCount: scan.texts.length,
+    ...(fontHeightsMm.length === 0 ? {} : { minFontMm: Math.min(...fontHeightsMm) }),
     strokeWidthMm: [...strokeCounts]
       .map(([stroke, count]) => ({ widthMm: stroke, count }))
       .sort((left, right) => left.widthMm - right.widthMm),

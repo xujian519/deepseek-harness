@@ -174,6 +174,13 @@ export type VectorFigureJsonInput = {
   appearance_views?: AppearanceFigureJson
   /** 剖视图：每个轮廓都必须显式给出 hatch（含 `"none"`），缺省即报错而非套用默认值。 */
   require_explicit_hatch?: boolean
+  /** 剖视图：必须给出剖切位置符号（`sections.cutting_marks`），缺省即报错而非只给提示。 */
+  require_cutting_marks?: boolean
+  /**
+   * 图面文字字号的部署默认（毫米，直绘图型的用户单位即毫米）：`sections.label_font_size_mm`
+   * 缺省时用它（小四 = 4.23 毫米）。模型显式给的字号优先。
+   */
+  defaultFontMm?: number
 }
 
 /** 矢量图构建结果：规格 + 随结果返回的检查提示。 */
@@ -285,11 +292,19 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
     }
     case 'cross_section': {
       const sections = required(input.sections, figureType, 'sections')
+      const labelFontSizeMm = sections.label_font_size_mm ?? input.defaultFontMm
       const unhatched = missingHatchIndexes(sections)
       if (input.require_explicit_hatch === true && unhatched.length > 0) {
         throw new VectorFigureError(
           'invalid_input',
           `require_explicit_hatch 开启时每个轮廓都要显式给出 hatch（不被剖切的写 "none"）：零件 ${partNumbers(unhatched)} 未给`,
+        )
+      }
+      if (input.require_cutting_marks === true && (sections.cutting_marks ?? []).length === 0) {
+        throw new VectorFigureError(
+          'invalid_input',
+          'require_cutting_marks 开启时必须给出剖切位置符号（sections.cutting_marks：剖切标记字母 + 剖切位置线 + 投射方向）；'
+          + '剖切平面与对称面重合且视图在标准位置时可省略，此时请不要开启该开关',
         )
       }
       return {
@@ -324,7 +339,7 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
           ...(sections.labels === undefined ? {} : { labels: sections.labels }),
           ...(sections.centerlines === undefined ? {} : { centerlines: sections.centerlines }),
           ...(sections.cutting_marks === undefined ? {} : { cuttingMarks: sections.cutting_marks }),
-          ...(sections.label_font_size_mm === undefined ? {} : { labelFontSizeMm: sections.label_font_size_mm }),
+          ...(labelFontSizeMm === undefined ? {} : { labelFontSizeMm }),
           ...(sections.stroke_width_mm === undefined ? {} : { strokeWidthMm: sections.stroke_width_mm }),
           ...(sections.thin_stroke_width_mm === undefined ? {} : { thinStrokeWidthMm: sections.thin_stroke_width_mm }),
           ...(sections.padding_mm === undefined ? {} : { paddingMm: sections.padding_mm }),

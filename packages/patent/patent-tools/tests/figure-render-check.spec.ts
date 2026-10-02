@@ -796,3 +796,115 @@ describe('checkFigureRendering 标号净距', () => {
     expect(checkFigureRendering(pierced).findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
   })
 })
+
+describe('checkFigureRendering 图元叠压', () => {
+  it('两个闭合轮廓包围盒部分相交时报 element-overlap，并给出相交区尺寸与位置', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="30" height="10" stroke-width="0.5"/>',
+      '<rect x="34.8" y="8" width="6" height="6" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['element-overlap'])
+    expect(report.findings[0]?.message).toContain('图元 #1 与 #2')
+    expect(report.findings[0]?.message).toContain('相交 5.2×4 毫米')
+    expect(report.findings[0]?.message).toContain('x 34.8–40／y 10–14')
+  })
+
+  it('一个轮廓整体含住另一个时不算叠压：有意嵌套（型腔内画零件）', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="40" height="20" stroke-width="0.5"/>',
+      '<circle cx="30" cy="20" r="4" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('两条共边的轮廓不算叠压：只擦边接触', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="10,10 40,10 40,20 10,20" stroke-width="0.5"/>',
+      '<polygon points="40,10 70,10 70,20 40,20" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('同一材料分组号的两个轮廓重叠不报：同一零件的几段', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="30" height="10" stroke-width="0.5" data-dsh-hatch-group="2"/>',
+      '<rect x="34.8" y="8" width="6" height="6" stroke-width="0.5" data-dsh-hatch-group="2"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('两个完全重合的轮廓照报：同一图元画了两遍不是嵌套', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="30" height="10" stroke-width="0.5"/>',
+      '<rect x="10" y="10" width="30" height="10" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['element-overlap'])
+  })
+
+  it('相交尺寸不超过 0.2 毫米的擦边不报', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="30" height="10" stroke-width="0.5"/>',
+      '<rect x="39.9" y="10" width="10" height="10" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('开放的折线不参与叠压：连线本来就可以穿过符号', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="30" height="10" stroke-width="0.5"/>',
+      '<polyline points="0,15 60,15" stroke-width="0.25"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('两侧都是纯填充图元（文字转路径的字形）时不判叠压', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="30" height="10" stroke="none" fill="#000000"/>',
+      '<rect x="34" y="8" width="6" height="14" stroke="none" fill="#000000"/>',
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('一侧是描边轮廓时仍判：实心图元盖住画出来的轮廓同样看不出来', () => {
+    const report = checkFigureRendering(svg([
+      '<rect x="10" y="10" width="30" height="10" stroke-width="0.5"/>',
+      '<rect x="34" y="8" width="6" height="14" stroke="none" fill="#000000"/>',
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['element-overlap'])
+  })
+})
+
+describe('checkFigureRendering 字高与字高下限', () => {
+  const SMALL = svg([
+    '<rect x="10" y="10" width="30" height="12" stroke-width="0.5"/>',
+    '<text x="25" y="20" font-size="2" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+  ].join('\n'))
+
+  it('给出最小字高量测值（无文字时不给）', () => {
+    const measured = checkFigureRendering(SMALL)
+    expect(measured.minFontMm).toBeGreaterThan(1)
+    expect(measured.minFontMm).toBeLessThan(3)
+    expect(checkFigureRendering(svg('<rect x="10" y="10" width="30" height="12" stroke-width="0.5"/>')).minFontMm).toBeUndefined()
+  })
+
+  it('给下限时低于下限的文字逐处列出并给出最小值', () => {
+    const report = checkFigureRendering(SMALL, { minFontMm: 3 })
+    expect(report.findings.map(finding => finding.check)).toEqual(['font-below-minimum'])
+    expect(report.findings[0]?.message).toContain('「3」')
+    expect(report.findings[0]?.message).toContain('下限是本部署的内控口径')
+    expect(report.findings[0]?.message).toContain(`最小 ${String(report.minFontMm)} 毫米`)
+  })
+
+  it('字高达标时不报；不给下限时也不报', () => {
+    expect(checkFigureRendering(SMALL, { minFontMm: 1 }).findings).toEqual([])
+    expect(checkFigureRendering(SMALL).findings).toEqual([])
+  })
+
+  it('多于四处时只列出前四处并注明', () => {
+    const many = svg(Array.from({ length: 6 }, (_, index) =>
+      `<text x="${10 + index * 12}" y="20" font-size="2" text-anchor="middle" fill="#000000" stroke="none">${String(index + 1)}</text>`).join('\n'))
+    const report = checkFigureRendering(many, { minFontMm: 3 })
+    expect(report.findings[0]?.message).toContain('6 处图面文字')
+    expect(report.findings[0]?.message).toContain('等。')
+  })
+})

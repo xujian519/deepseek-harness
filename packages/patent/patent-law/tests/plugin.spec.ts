@@ -110,6 +110,16 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
     expect(text).toContain('http://10.0.0.8:9101')
   })
 
+  it('names the retrieval channel for guideline rule text', async () => {
+    // 指南条文不在 cnlaw 索引、随包索引也不含条文，故声明段必须点名取原文的工具，
+    // 让 `law_verify` 判「未核验」的指南节号有落点。
+    const { ctx } = await install()
+    const text = declarationText(await ctx.systemPrompt.assemble())
+    expect(text).toContain('law_search')
+    expect(text).toContain('scope=guideline')
+    expect(text).toContain('未核验')
+  })
+
   it('declares the absence of the base when the deployment disables it', async () => {
     // A disabled base must name no endpoint at all, and must say what to verify
     // through instead, so the model does not probe a service that is not there.

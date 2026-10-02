@@ -36,4 +36,24 @@ describe('cnlaw declaration section text', () => {
     expect(text).not.toContain(DEFAULT_CNLAW_SEARCH_URL)
     expect(text).not.toContain(DEFAULT_CNLAW_GRAPH_URL)
   })
+
+  it('states that guideline chapters are not in the index and names the retrieval channel', () => {
+    const text = renderCnlawDeclaration(DECLARED)
+    expect(text).toContain('not in the cnlaw index')
+    expect(text).toContain('not the examination guidelines')
+    // 规则取自外接 IP 知识库：声明段点名取原文的工具，未核验的节号才有落点。
+    expect(text).toContain('law_search')
+    expect(text).toContain('scope=guideline')
+    expect(text).toContain('patent_kg_query')
+    expect(text).toContain('GuidelineRule')
+    expect(text).toContain('未核验')
+  })
+
+  it('keeps the guideline channel in both enabled and disabled base texts', () => {
+    for (const enabled of [true, false]) {
+      const text = renderCnlawDeclaration({ ...DECLARED, enabled })
+      expect(text).toContain('law_search')
+      expect(text).toContain('未核验')
+    }
+  })
 })

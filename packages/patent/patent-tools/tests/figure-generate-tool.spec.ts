@@ -1298,3 +1298,60 @@ describe('generate_patent_figure 文字转路径', () => {
     }
   })
 })
+
+describe('generate_patent_figure：部署图面字号（小四／四号）', () => {
+  it('配置图面字号时 DOT 的 node/edge fontsize 按毫米换算出 pt', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const { render, calls } = okRenderer(outDir)
+    const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir, figureFontMm: 4.25 })
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', { figure_type: 'flowchart', steps: flowSteps }, 'fontpt')
+      expect(result.isError).toBe(false)
+      // 4.25 毫米 = 12.05pt（小四 = 12pt）；node 与 edge 同用部署值。
+      expect(calls[0]?.dot).toContain('fontsize=12.05')
+      expect(calls[0]?.dot).not.toContain('fontsize=10')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未配置时保持历史默认（node 10／edge 9）', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const { render, calls } = okRenderer(outDir)
+    const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      await execute(ctx, 'generate_patent_figure', { figure_type: 'flowchart', steps: flowSteps }, 'fontdef')
+      expect(calls[0]?.dot).toContain('fontsize=10')
+      expect(calls[0]?.dot).toContain('fontsize=9')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('剖视图的图面字号取部署默认，模型显式给的字号优先', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const { render } = okRenderer(outDir)
+    const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir, figureFontMm: 4.25 })
+    const ctx = await ctxWith(tool)
+    const sections = {
+      parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3 } }],
+      labels: [{ text: '1', at: [44, 10], from: [40, 10] }],
+    }
+    try {
+      await execute(ctx, 'generate_patent_figure', { figure_type: 'cross_section', sections }, 'fontsec')
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).toContain('font-size="4.25"')
+      await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'cross_section',
+        sections: { ...sections, label_font_size_mm: 5 },
+      }, 'fontsec2')
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).toContain('font-size="5"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

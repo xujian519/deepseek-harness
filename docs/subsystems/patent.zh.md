@@ -63,6 +63,16 @@ caseLawSearch(query: string, options?: CaseLawSearchOptions): CaseLawHit[]
 legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]
 
 /**
+ * Guideline full-text search over the guideline_rule documents of knowledge.db
+ * (the 《专利审查指南》 chapters). Same engine and options as the law search,
+ * scoped to that document type.
+ * @param query - the search text.
+ * @param options - result cap and level filter.
+ * @returns the de-duplicated hits in rank order, each with its `filename` (file_path) for citation.
+ */
+guidelineSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]
+
+/**
  * Keyword lookup over the wiki-card directory (title/concept/domain).
  * @param query - the keyword.
  * @param limit - result cap.

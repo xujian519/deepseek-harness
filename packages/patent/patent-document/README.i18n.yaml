@@ -3,20 +3,23 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-document/README.md
 /:
-  en: 4cf2c8457667edb5
-  zh: 6341a8b1f7799797
+  en: d0d7ccad131ca0ff
+  zh: c234bf507b7ecf1d
 /deepseek-ai-dsh-patent-document:
   en: 8b59a1894ae77479
   zh: b9c3a38c5cfb14b9
 /deepseek-ai-dsh-patent-document/summary:
-  en: 66bbcbeae4880e8a
-  zh: e88182747448e835
+  en: 9aeb5e13c2544840
+  zh: fb0ea6c3f6647538
 /deepseek-ai-dsh-patent-document/table-of-contents:
-  en: c1d779e7bfba8829
-  zh: ab4520e6cc208a93
+  en: aaef764be168158b
+  zh: 30ec86bccf5f9d53
 /deepseek-ai-dsh-patent-document/render-patent-document-tool:
-  en: 6523ccf67644d8ef
-  zh: 6723b42046af313d
+  en: 8e593e67c524badb
+  zh: a47662afa0566fb1
+/deepseek-ai-dsh-patent-document/verify-deliverable-tool:
+  en: cadf0ec894df8e34
+  zh: c3687efb2c0c6f31
 /deepseek-ai-dsh-patent-document/document-engine-library-api:
   en: 4e7b5b3bfa4697bd
   zh: bdda03de5f52d19f
@@ -37,10 +40,22 @@
   zh: 23bd79950815924b
 /deepseek-ai-dsh-patent-document/model-experience/render-patent-document-tool/kv-cache-effect:
   en: 037822c61c0c57f5
+  zh: 224e5ecf9e9818bc
+/deepseek-ai-dsh-patent-document/model-experience/verify-deliverable-tool:
+  en: c8b35e89fe66f9af
+  zh: c0eec2cf0bcfd7ad
+/deepseek-ai-dsh-patent-document/model-experience/verify-deliverable-tool/what-the-model-sees:
+  en: 087fbfcdc2c6b6d4
+  zh: 2c3ba82a07373637
+/deepseek-ai-dsh-patent-document/model-experience/verify-deliverable-tool/token-effect:
+  en: 3871d9e3fd75b378
+  zh: eb0cbdcba0432d73
+/deepseek-ai-dsh-patent-document/model-experience/verify-deliverable-tool/kv-cache-effect:
+  en: 037822c61c0c57f5
   zh: 8a130c3e64e7f5d6
 /deepseek-ai-dsh-patent-document/known-limitations-and-deferred-work:
-  en: 8b6095363f493d7a
-  zh: 9aa7c5e5aa76da1f
+  en: 16dc1d169b62a1c7
+  zh: d68ba5ce5ce00922
 /deepseek-ai-dsh-patent-document/known-limitations-and-deferred-work/dev-note:
   en: ee4b080cebc6dac9
   zh: 97f5bf6fed009fd8

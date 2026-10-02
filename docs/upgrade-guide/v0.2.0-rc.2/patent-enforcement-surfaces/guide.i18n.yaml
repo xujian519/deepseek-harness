@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.0-rc.2/patent-enforcement-surfaces/guide.md
+/:
+  en: d91160dd7915056f
+  zh: 9f4d537dfc0d97d4
+/patent-enforcement-surfaces-artifact-gate-figure-checks-requirement-checklist:
+  en: 35d6c9e30599f26c
+  zh: 9e2077483fba17d5
+/patent-enforcement-surfaces-artifact-gate-figure-checks-requirement-checklist/change:
+  en: 76f60965e4d43dfa
+  zh: 10d71b7053d1171f
+/patent-enforcement-surfaces-artifact-gate-figure-checks-requirement-checklist/migration:
+  en: ff70a7175947f29c
+  zh: e6a0be60fdff1536

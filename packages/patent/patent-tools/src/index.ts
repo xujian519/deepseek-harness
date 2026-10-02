@@ -36,6 +36,7 @@ import { createPatentSearchTool } from './tool/patent-search.ts'
 import { createPatentMetadataTool } from './tool/patent-metadata.ts'
 import { createPatentLegalStatusTool } from './tool/patent-legal-status.ts'
 import { createPatentCaseSearchTool } from './tool/patent-case-search.ts'
+import { createLawSearchTool } from './tool/law-search.ts'
 import { createPatentWikiSearchTool } from './tool/patent-wiki-search.ts'
 import { createPatentKgQueryTool } from './tool/patent-kg-query.ts'
 import { createPatentEvalTool } from './tool/patent-eval.ts'
@@ -83,6 +84,8 @@ export type { PatentMetadataInput, PatentMetadataOutput, PatentMetadataDeps } fr
 export { createPatentLegalStatusTool } from './tool/patent-legal-status.ts'
 export type { PatentLegalStatusInput, PatentLegalStatusOutput, PatentLegalStatusItem, PatentLegalStatusDeps } from './tool/patent-legal-status.ts'
 export { createPatentCaseSearchTool } from './tool/patent-case-search.ts'
+export { createLawSearchTool } from './tool/law-search.ts'
+export type { LawSearchInput, LawSearchOutput, LawSearchScope, LawSearchDeps } from './tool/law-search.ts'
 export type { PatentCaseSearchInput, PatentCaseSearchOutput, PatentCaseSearchDeps } from './tool/patent-case-search.ts'
 export { createPatentWikiSearchTool, PATENT_WIKI_DIRS } from './tool/patent-wiki-search.ts'
 export type { PatentWikiSearchInput, PatentWikiSearchOutput, PatentWikiSearchDeps, PatentWikiDir } from './tool/patent-wiki-search.ts'
@@ -266,6 +269,25 @@ export interface Config {
   figureOutputDir?: string
   /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，两个附图生成工具、仅 SVG 生效）。 */
   figureTextToPath?: boolean
+  /**
+   * 剖视图是否必须给出剖切位置符号（`sections.cutting_marks`）；默认 false。
+   * 为 true 时模型未给该参数也按「必须给」处理，缺省即报错（GB/T 4458.6 只在剖切平面
+   * 与对称面重合且视图在标准位置时允许省略；本所要求一律标注时设 true）。
+   */
+  figureRequireCuttingMarks?: boolean
+  /**
+   * 图面文字字号的部署默认（毫米）：直绘图型的图面字号、DOT 图型的 fontsize 与落版核算
+   * 的字高都由它定（小四 = 4.23 毫米、四号 = 4.94 毫米）；模型显式给的字号优先。
+   * 必须为正数：0 会让图面文字失去字高，故在加载时由 schema 拒绝。
+   */
+  figureFontMm?: number
+  /**
+   * 图面字高内控下限（毫米）；缺省不判。法条只要求「缩小到三分之二时仍能清晰地分辨」
+   * （审查指南第一部分第一章 4.3），毫米数由本所按缩印可读性定；给出后
+   * verify_patent_figure 在模型未传 min_font_mm 时按它判定。必须为正数：非正值会让
+   * 每次判定都失败，故在加载时由 schema 拒绝。
+   */
+  figureMinFontMm?: number
   /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用（两个附图生成工具共用同一端口）。 */
   inkscapeExecutable?: string
   /** Inkscape 单次文字转路径超时（毫秒）；默认 30000。仅 figureTextToPath 使用。 */
@@ -315,6 +337,9 @@ export const Config: z<Config> = z.object({
   figureMargin: z.number(),
   figureOutputDir: z.string(),
   figureTextToPath: z.boolean(),
+  figureRequireCuttingMarks: z.boolean(),
+  figureFontMm: z.number().min(Number.MIN_VALUE),
+  figureMinFontMm: z.number().min(Number.MIN_VALUE),
   inkscapeExecutable: z.string(),
   inkscapeRenderTimeoutMs: z.number().step(1).min(1).default(DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS),
   workbenchBaseUrl: z.string(),
@@ -531,6 +556,12 @@ export function apply(ctx: Context, config: Config): void {
       search: (q, o) => knowledge.caseLawSearch(q, o),
       dbPath: knowledge.paths.queryDbPath,
     }))
+    // 规范原文检索：法规条文与《专利审查指南》全文同出一库（知识库 documents 的两类文档）。
+    ctx.tools.register(createLawSearchTool({
+      searchLaw: (q, o) => knowledge.legalSearch(q, o),
+      searchGuideline: (q, o) => knowledge.guidelineSearch(q, o),
+      dbPath: knowledge.paths.queryDbPath,
+    }))
     ctx.tools.register(createPatentWikiSearchTool({
       searchIn: (prefix, keyword, limit) => wiki.searchIn(prefix, keyword, limit),
       formatAsContext: (id, maxChars) => wiki.formatAsContext(id, maxChars),
@@ -542,6 +573,7 @@ export function apply(ctx: Context, config: Config): void {
     ctx.tools.register(createPatentKgQueryTool(kgDeps))
   } else {
     ctx.tools.register(createPatentCaseSearchTool({}))
+    ctx.tools.register(createLawSearchTool({}))
     ctx.tools.register(createPatentWikiSearchTool({}))
     ctx.tools.register(createPatentKgQueryTool({}))
   }
@@ -658,6 +690,8 @@ export function apply(ctx: Context, config: Config): void {
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
     loadIndex: async () => (await figureIndexStore.load(figureIndexFile)).entries,
     resolveFont: labels => resolveDotFont(config, labels),
+    ...(config.figureRequireCuttingMarks === undefined ? {} : { requireCuttingMarks: config.figureRequireCuttingMarks }),
+    ...(config.figureFontMm === undefined ? {} : { figureFontMm: config.figureFontMm }),
     ...(config.figurePageSize === undefined ? {} : { pageSize: config.figurePageSize }),
     ...(config.figureOrientation === undefined ? {} : { orientation: config.figureOrientation }),
     ...(config.figureDpi === undefined ? {} : { dpi: config.figureDpi }),
@@ -667,7 +701,9 @@ export function apply(ctx: Context, config: Config): void {
   // 渲染复核:量测已生成的 SVG 附图(标号是否被线条贯穿、点划线是否被实线覆盖、相邻
   // 零件剖面线是否可区分、内容是否越出画布)。生成后的自动复核在生成工具内部完成,
   // 本工具供已交付/外部生成的 SVG 做交付前自检。
-  ctx.tools.register(createVerifyPatentFigureTool({}))
+  ctx.tools.register(createVerifyPatentFigureTool(
+    config.figureMinFontMm === undefined ? {} : { minFontMm: config.figureMinFontMm },
+  ))
 
   // Structure line-art figure: an independent tool parallel to generate_patent_figure,
   // projecting STEP/IGES/BREP models through the host FreeCAD (TechDraw) via

@@ -52,8 +52,8 @@
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
 | `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | list_doc_templates 列出随包的文档模板及其变量与支持的格式；render_doc_template 用给定变量把其中一个渲染为 Markdown、HTML 或 DOCX，并返回文档、残余占位符与变量警告。部署还可在 `styleGuide` 中指定已加载的书写风格名，把该风格指南作为系统提示段落注入。 |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
-| `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
+| `@deepseek-ai/dsh-patent-document` | `render_patent_document`、`verify_deliverable` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计。 |
@@ -3119,6 +3119,10 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     "prior_art": {
       "type": "string",
       "description": "最接近现有技术描述（可选，用于前序部分）"
+    },
+    "max_claims": {
+      "type": "integer",
+      "description": "本次撰写指令给定的权利要求项数上限（可选）。超过上限判 error——指令给定的上限是验收条件，不得以申请附加费起征线为由放宽"
     }
   },
   "required": [
@@ -4796,6 +4800,10 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
       "type": "boolean",
       "description": "剖视图（cross_section）专用，默认 false：true 时每个轮廓都必须显式给出 hatch（不被剖切的写 \"none\"），否则报错；缺省时未给的轮廓套用默认 45°/3 毫米并返回提示"
     },
+    "require_cutting_marks": {
+      "type": "boolean",
+      "description": "剖视图（cross_section）专用，默认 false：true 时必须有剖切位置符号（sections.cutting_marks：剖切标记字母 + 剖切位置线 + 投射方向），否则报错；缺省时未给只作提示返回（剖切平面与对称面重合且视图在标准位置时可省略，GB/T 4458.6）"
+    },
     "persist_index": {
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
@@ -5037,6 +5045,47 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
   "required": [
     "title",
     "content"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `law_search`
+
+检索部署的外接 IP 知识库（knowledge.db 全文索引）里的规范原文：scope=law 取法律法规条文，scope=guideline 取《专利审查指南》全文。 这是**规则**的检索通道：`law_verify` 只按随包索引判定引用形式与是否转录（指南条文未转录时判「未核验」），指南条文要在这里取原文并把 sourcePath（语料内路径）记为引文来源；判例全文另有 patent_case_search。 命中为空不得下任何结论；引用格式：`<名称>` + `<条号/节号>` + `<sourcePath>`。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（如 说明书 附图标记、有益效果、计算机程序 技术方案）"
+    },
+    "scope": {
+      "type": "string",
+      "description": "语料范围：law=法律法规条文（缺省），guideline=《专利审查指南》全文",
+      "enum": [
+        "law",
+        "guideline"
+      ]
+    },
+    "level": {
+      "type": "string",
+      "description": "法律层级过滤（法律/行政法规/司法解释/部门规章…），对法规条文生效"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    },
+    "include_content": {
+      "type": "boolean",
+      "description": "是否附命中片段（默认 true，截断约 800 字）"
+    }
+  },
+  "required": [
+    "query"
   ]
 }
 ```
@@ -5734,8 +5783,10 @@ Usage notes:
 ### `validate_specification`
 
 验证专利说明书是否符合撰写要求（确定性规则，无 LLM 调用）。
-- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节
-- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词与摘要附图
+- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节，且顺序符合《专利法实施细则》第二十条
+- 标题集合：说明书只允许上述五部分标题（正文内的「要解决的技术问题／技术方案／有益效果／实施例一／替代实施方式」等一律不是标题）
+- 附图引用形式：说明书记载标记不加括号（指南第二部分第二章 §2.2.6）、图号写作图1、段落编号提示
+- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词、摘要附图、摘要不得使用标题
 - 模糊表述、附图说明与图引用一致性、实施例存在性
 - 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例
 - 独立权利要求之间的单一性（A31.1，传 claim_units 时）
@@ -5889,11 +5940,15 @@ Usage notes:
 
 ### `verify_patent_figure`
 
-复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、文字与图线净距不足、中心线（点划线）被同位置的实线覆盖、相邻零件剖面线难以区分（方向与间距都分不清）、内容越出画布。
+复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、文字与图线净距不足、中心线（点划线）被同位置的实线覆盖、两个图元叠压（闭合轮廓包围盒部分相交）、相邻零件剖面线难以区分（方向与间距都分不清）、内容越出画布。
 
 量测在矢量源上进行（线段位置、线宽与字号即渲染输入），不需要栅格化器：根元素的画布尺寸、viewBox 与 preserveAspectRatio 先解析成用户单位到毫米的映射，元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 `<g>` 继承的 text-anchor 与行内 style），故落版页、拼版页与 px 级用户单位的导出文件同一口径量测。不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现：没有它时才等于逐类量测过。
 
 净距判据（text_clearance_mm，默认 1.5 毫米）来自实测：剖切面上密布剖面线时，标号或零件名贴住剖面线带、轴线便读不出。判据把文字外框外扩该净距后与图元线段求交——绘图侧标注为引线（data-dsh-role="leader"）的线段、以及落在更晚绘制的不透明白填充之下的线段不参与（前者本来就止于文字外框，后者图面上看不见）。电路图、曲线图这类「文字贴着符号放」的图型按本判据会大量播报，复核它们时传 text_clearance_mm: 0 关闭。
+
+叠压判据（图元×图元）取闭合轮廓的包围盒：相交区两轴都超过 0.2 毫米且任一方的包围盒不严格包含另一方才算叠压——只擦边接触（共边）与有意嵌套（型腔内画零件、模块内画子模块）不报；绘图侧标注同一材料分组（data-dsh-hatch-group 同号）的轮廓是同一零件的几段，不互相判叠压。
+
+构造层级判据只在同时给出 hierarchy（出图时声明的父标记 → 直接子标记）与 claims（权利要求书正文）时生效：权利要求写出的归属（如「恒电位控制单元31的输入端311」）必须与声明的层级一致，否则报出矛盾。两端标记都必须是声明过的节点，权利要求序号与图号因此不参与。
 
 与 generate_patent_figure 的返回值配合使用：生成后按本工具复核，把 findings 当作必须处理的图面缺陷。
 
@@ -5908,6 +5963,34 @@ Usage notes:
     "text_clearance_mm": {
       "type": "number",
       "description": "标号净距（毫米），默认 1.5，0 表示不判该判据；文字外框外扩这么多后与图元线段相交即报"
+    },
+    "min_font_mm": {
+      "type": "number",
+      "description": "字高下限（毫米），本部署的内控口径（法条只要求缩小到三分之二仍能分辨）：给出时，字高低于它的文字逐处报出；不给则不判"
+    },
+    "hierarchy": {
+      "type": "array",
+      "description": "出图时声明的图内构造层级（父标记 → 直接子标记），与 claims 同时给出时判「图内层级 ↔ 权项构造层级」是否一致",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parent": {
+            "type": "string"
+          },
+          "child": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "parent",
+          "child"
+        ]
+      }
+    },
+    "claims": {
+      "type": "string",
+      "description": "权利要求书正文：与 hierarchy 同时给出时，核对其中的归属表述（如「控制单元31的输入端311」）与声明的图内层级是否一致"
     }
   },
   "required": [
@@ -6030,6 +6113,94 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
 来源：[`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
 
 render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。
+
+### `verify_deliverable`
+
+核对交付件与案卷主路径的一致性并输出交付清单（确定性规则，无 LLM 调用）。
+- 逐字节比对每件申请文件的案卷主路径与交付版：不一致即报错——读者打开主路径必须看到本次交付版，旧版要先归档
+- 记录每件的 SHA-256 与 mtime，供交付报告引用
+- 给定渲染件时，核对渲染晚于全部输入件（文本与附图），交付时序倒挂即报错
+- 给定 requirements 时逐条核对：每条要求必须给出证据文件，缺证据或证据文件不存在即报错，并把核对表随结果返回（交付报告直接引用它，不要用「已按要求复核」这类概括句代替）
+
+用法：交付前调用。传 artifacts（role + canonical_path + delivered_path 一组或多组），有附图传 figures，有渲染件传 rendered，有用户或案卷要求时传 requirements（requirement 用指令原话 + evidence 文件路径）；返回 passed、manifest、requirements 核对表与 violations，未通过不得交付。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "artifacts": {
+      "type": "array",
+      "description": "待核对的一组或多组申请文件（主路径 ↔ 交付版）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "文件角色，如「权利要求书」"
+          },
+          "canonical_path": {
+            "type": "string",
+            "description": "案卷主路径（读者优先打开的那份）"
+          },
+          "delivered_path": {
+            "type": "string",
+            "description": "本次交付版路径"
+          }
+        },
+        "required": [
+          "role",
+          "canonical_path",
+          "delivered_path"
+        ]
+      }
+    },
+    "figures": {
+      "type": "array",
+      "description": "本次交付的附图文件路径（可选）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rendered": {
+      "type": "string",
+      "description": "本次交付的渲染件路径（可选；给定后核对渲染晚于全部输入件）"
+    },
+    "requirements": {
+      "type": "array",
+      "description": "本次交付必须交代的每条要求及其证据（可选）；给出后随结果返回逐条核对表",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirement": {
+            "type": "string",
+            "description": "用户或案卷要求的原话（不要转述）"
+          },
+          "evidence": {
+            "type": "array",
+            "description": "该要求的证据文件路径（工具结论、成品文件等）；留空即按未满足报错",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "requirement",
+          "evidence"
+        ]
+      }
+    }
+  },
+  "required": [
+    "artifacts"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
+
+render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.
 
 <a id="deepseek-aidsh-patent-deadline"></a>
 

@@ -54,19 +54,22 @@ export type FigureDotParams = {
   numeralStep?: number | undefined
   style: 'grayscale' | 'semantic'
   fontName: string
+  /** 部署图面字号换算出的 DOT pt 值（小四 = 12pt）；缺省不设，DOT 用历史默认。 */
+  fontPt: number | undefined
   pageBundle: ReturnType<typeof resolvePageBundle>
   leaderLinesActive: boolean
 }
 
 /** 单图 DOT 构建共用选项（flowchart/block/hierarchy 共用数值/样式/页面/引线开关）。 */
 function buildDotOptions(params: FigureDotParams) {
-  const { figureNumber, numeralsForBuilder, numeralStep, style, fontName, pageBundle, leaderLinesActive } = params
+  const { figureNumber, numeralsForBuilder, numeralStep, style, fontName, fontPt, pageBundle, leaderLinesActive } = params
   return {
     figureNumber,
     numerals: numeralsForBuilder,
     ...(numeralStep === undefined ? {} : { numeralStep }),
     style,
     fontName,
+    ...(fontPt === undefined ? {} : { fontPt }),
     ...(pageBundle === undefined ? {} : { page: pageBundle }),
     ...(leaderLinesActive ? { embedNumerals: false } : {}),
   }

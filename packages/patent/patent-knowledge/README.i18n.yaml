@@ -21,8 +21,11 @@
   en: 7bdd86952130c12c
   zh: 6680adeeb36961fd
 /deepseek-ai-dsh-patent-knowledge/service/legalsearch-query-options:
-  en: 4d5dd4227f11ae97
-  zh: 410ab25a84e59522
+  en: 72514c2591bccbdb
+  zh: b3ef77e3fe4c1062
+/deepseek-ai-dsh-patent-knowledge/service/guidelinesearch-query-options:
+  en: ae9c904be82e181e
+  zh: c502b0e962aef7eb
 /deepseek-ai-dsh-patent-knowledge/service/wikicards-query-limit:
   en: 160d840333a60075
   zh: cbfef29237f4b190

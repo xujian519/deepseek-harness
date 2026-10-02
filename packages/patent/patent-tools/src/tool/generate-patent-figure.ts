@@ -116,8 +116,21 @@ type PanelRun = {
   figureNumber: number
   outputDir: string
   fontName: string
+  fontPt: number | undefined
   pageBundle: DotPageBundle | undefined
   assignments: readonly NumeralAssignment[]
+}
+
+/** 毫米 → pt（1pt = 25.4/72 毫米）：图面字号以毫米表述，DOT 与落版核算用 pt。 */
+const MM_PER_PT = 25.4 / 72
+
+/**
+ * 部署图面字号（毫米）换算成 DOT 的 pt 值；未配置时 undefined（DOT 保持历史默认）。
+ * @param figureFontMm - 部署配置的图面字号（毫米）。
+ * @returns DOT 的 fontsize（pt）；未配置时 undefined。
+ */
+function resolveFontPt(figureFontMm: number | undefined): number | undefined {
+  return figureFontMm === undefined ? undefined : Math.round((figureFontMm / MM_PER_PT) * 100) / 100
 }
 
 /** 单图一次渲染的参数：渲染器、文件命名、标号与引线。 */
@@ -126,6 +139,7 @@ type SingleFigureRun = {
   figureNumber: number
   outputDir: string
   fontName: string
+  fontPt: number | undefined
   numeralsForBuilder: Record<string, string>
   leaderLinesActive: boolean
 }
@@ -236,7 +250,10 @@ async function generatePanels(
   /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
   const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
   await mkdir(outputDir, { recursive: true })
-  const run: PanelRun = { input, context, figureNumber, outputDir, fontName, pageBundle, assignments }
+  const run: PanelRun = {
+    input, context, figureNumber, outputDir, fontName,
+    fontPt: resolveFontPt(deps.figureFontMm), pageBundle, assignments,
+  }
   const panelOutputs: { suffix: string; output: GeneratePatentFigureOutput }[] = []
   for (const ps of panelStructurals) {
     panelOutputs.push(await renderPanel(ps, run))
@@ -305,6 +322,7 @@ async function generateSingleFigure(
     figureNumber,
     outputDir,
     fontName,
+    fontPt: resolveFontPt(deps.figureFontMm),
     numeralsForBuilder,
     leaderLinesActive,
   }, chain ? 'svg' : format)
@@ -355,6 +373,7 @@ async function generateSingleFigure(
         figureNumber,
         outputDir,
         fontName,
+        fontPt: resolveFontPt(deps.figureFontMm),
         numeralsForBuilder,
         leaderLinesActive: leaderLines && !vector,
       }, format)
@@ -541,6 +560,7 @@ async function renderPanel(
       numeralStep: run.input.numeral_step,
       style: run.context.style,
       fontName: run.fontName,
+      fontPt: run.fontPt,
       pageBundle: run.pageBundle,
       leaderLinesActive,
     })
@@ -671,6 +691,7 @@ async function finishSvgChain(args: {
     format: 'svg',
     style: args.style,
     output: staged,
+    ...styleBodyFont(args.deps, args.figureType),
   })
   await checkRenderedFigure({ path: args.svgPath, warnings: staged.warnings, figureType: args.figureType })
   await outlineFigureText({ deps: args.deps, path: args.svgPath, format: 'svg', signal: args.signal, warnings: staged.warnings })
@@ -718,6 +739,7 @@ async function finishDirectRender(args: {
     format: args.format,
     style: args.style,
     output: args.output,
+    ...styleBodyFont(args.deps, args.figureType),
   })
   if (args.check) await checkRenderedFigure({ path: args.outcomePath, warnings: args.output.warnings, figureType: args.figureType })
   await outlineFigureText({
@@ -803,7 +825,14 @@ async function renderSingleFigure(
     }
     let build
     try {
-      build = buildVectorFigure(normalized.figure_type, normalized)
+      // 部署级剖视要求（Config.figureRequireCuttingMarks）在模型未给工具参数时生效：
+      // 本所要求剖视图一律标注剖切平面位置与投射方向，模型不必逐次记住该参数。
+      const requiresCuttingMarks = normalized.require_cutting_marks ?? deps.requireCuttingMarks
+      build = buildVectorFigure(normalized.figure_type, {
+        ...normalized,
+        ...(requiresCuttingMarks === undefined ? {} : { require_cutting_marks: requiresCuttingMarks }),
+        ...(deps.figureFontMm === undefined ? {} : { defaultFontMm: deps.figureFontMm }),
+      })
     } catch (error) {
       if (error instanceof VectorFigureError) {
         throw new PatentToolError('invalid_tool_input', `${normalized.figure_type} 输入校验失败：${error.message}`, { tool: 'generate_patent_figure' })
@@ -831,6 +860,7 @@ async function renderSingleFigure(
       numeralStep: normalized.numeral_step,
       style,
       fontName: run.fontName,
+      fontPt: run.fontPt,
       pageBundle,
       leaderLinesActive: run.leaderLinesActive,
     })
@@ -929,6 +959,30 @@ async function mergePanelOutputs(args: {
 }
 
 /**
+ * 落版核算用的正文字号（用户单位）：直绘图型的用户单位是毫米，DOT 图是 pt；
+ * 未配置图面字号（Config.figureFontMm）时 undefined，落版核算沿用历史默认 10pt。
+ * @param deps - the tool dependencies (carrying the deployment figure font size).
+ * @param figureType - the figure type of this render.
+ * @returns the body font size in the artifact's user units; undefined when unconfigured.
+ */
+function bodyFontFor(deps: GeneratePatentFigureDeps, figureType: GenerateFigureType): number | undefined {
+  const mm = deps.figureFontMm
+  if (mm === undefined) return undefined
+  return isVectorFigureType(figureType) ? mm : resolveFontPt(mm)
+}
+
+/**
+ * 落版参数里的正文字号字段：未配置图面字号时不带该字段（exactOptionalPropertyTypes）。
+ * @param deps - the tool dependencies (carrying the deployment figure font size).
+ * @param figureType - the figure type of this render.
+ * @returns the field to spread into the layout call.
+ */
+function styleBodyFont(deps: GeneratePatentFigureDeps, figureType: GenerateFigureType): { bodyFontSize?: number } {
+  const size = bodyFontFor(deps, figureType)
+  return size === undefined ? {} : { bodyFontSize: size }
+}
+
+/**
  * 落版与合规核算：给定 target_office 时把图形落到该法域幅面，并把结果挂到输出上。
  * @param args - the input, the panel suffix (`''` for the single path), the rendered path, the format, the style, and the output to extend.
  */
@@ -939,8 +993,10 @@ async function layoutSubmissionPage(args: {
   format: DotFormat
   style: 'grayscale' | 'semantic'
   output: GeneratePatentFigureOutput
+  /** 图面字号（用户单位）：DOT 图为 pt、直绘图型为毫米；未配置时 undefined。 */
+  bodyFontSize?: number
 }): Promise<void> {
-  const plan = resolveSubmission(args.input, args.suffix)
+  const plan = resolveSubmission(args.input, args.suffix, args.bodyFontSize)
   if (plan === undefined) return
   const applied = await applySubmissionPage(args.outcomePath, plan, args.format, args.output.warnings)
   if (applied !== undefined) {
@@ -1086,6 +1142,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       sheet_font_mm: { type: 'number', description: '附图页页码字高（毫米，默认 3），须为正数' },
       rotate_deg: { type: 'integer', enum: [0, 90, 180, 270], description: '落版时把图形绕绘图区中心顺时针旋转的角度（默认 0）：横长的图形配竖向版心时用 90，落版宽高随之互换；图号仍落在图形正下方' },
       require_explicit_hatch: { type: 'boolean', description: '剖视图（cross_section）专用，默认 false：true 时每个轮廓都必须显式给出 hatch（不被剖切的写 "none"），否则报错；缺省时未给的轮廓套用默认 45°/3 毫米并返回提示' },
+      require_cutting_marks: { type: 'boolean', description: '剖视图（cross_section）专用，默认 false：true 时必须有剖切位置符号（sections.cutting_marks：剖切标记字母 + 剖切位置线 + 投射方向），否则报错；缺省时未给只作提示返回（剖切平面与对称面重合且视图在标准位置时可省略，GB/T 4458.6）' },
       persist_index: { type: 'boolean', description: '默认 true：写入附图索引（供 search_patent_figure 检索）' },
     },
     output: {

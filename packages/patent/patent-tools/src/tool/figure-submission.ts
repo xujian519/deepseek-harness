@@ -15,7 +15,10 @@ import type { SubmissionRotation } from '../figure/submission-page.ts'
 import type { SubmissionPageMetrics } from '../figure/submission-page.ts'
 import type { GeneratePatentFigureLayout } from './figure-input.ts'
 
-/** DOT 正文字号（与 buildDotHeader 的 node fontsize 一致），用于落版后的字高核算。 */
+/**
+ * DOT 正文字号的历史默认（与 buildDotHeader 的 node fontsize 一致），用于落版后的字高核算。
+ * 部署配置了图面字号（Config.figureFontMm）时以它为准——那时代入的正是 DOT 实际用的 pt 值。
+ */
 const FIGURE_BODY_FONT_SIZE = 10
 
 /** 落版参数（target_office 给定时解析；字号与间距已填默认并校验为正）。 */
@@ -62,10 +65,15 @@ export type SubmissionPlanInput = {
  * 图号/页码字号与间距填默认并校验为正。
  * @param input - 工具输入（或归一化后的结构化输入）。
  * @param suffix - 面板后缀（单图为空串）。
+ * @param bodyFontSize - 图面字号（用户单位：DOT 图为 pt、直绘图型为毫米）；未给时用历史默认 10pt。
  * @returns 落版参数；未指定 target_office 时 undefined。
  * @throws PatentToolError('invalid_tool_input') 图号、附图总数或页序超出法域写法允许范围，或字号/间距非正时。
  */
-export function resolveSubmission(input: SubmissionPlanInput, suffix: string): SubmissionPlan | undefined {
+export function resolveSubmission(
+  input: SubmissionPlanInput,
+  suffix: string,
+  bodyFontSize?: number,
+): SubmissionPlan | undefined {
   const office = input.target_office
   if (office === undefined) return undefined
   const profile = officeProfile(office)
@@ -82,7 +90,7 @@ export function resolveSubmission(input: SubmissionPlanInput, suffix: string): S
     profile,
     caption,
     sheetNumber,
-    bodyFontSize: FIGURE_BODY_FONT_SIZE,
+    bodyFontSize: bodyFontSize ?? FIGURE_BODY_FONT_SIZE,
     fitToPage: input.fit_to_page ?? true,
     captionFontMm: positiveMm(input.caption_font_mm, DEFAULT_CAPTION_FONT_MM, 'caption_font_mm'),
     captionGapMm: positiveMm(input.caption_gap_mm, DEFAULT_CAPTION_GAP_MM, 'caption_gap_mm'),

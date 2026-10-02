@@ -2708,7 +2708,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-document`
 
 - `inject`: `tools` · `subprocess`
-- `source`: [`packages/patent/patent-document/src/index.ts:25`](../packages/patent/patent-document/src/index.ts)
+- `source`: [`packages/patent/patent-document/src/index.ts:29`](../packages/patent/patent-document/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-document plugin configuration. */
@@ -2816,7 +2816,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:128`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:165`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -2828,8 +2828,44 @@ export interface Config {
   rulesDir?: string
   /** Tool names whose results run through the output gate. Defaults to the delivery tools. */
   gateToolNames?: string[]
+  /**
+   * Check families the result gate keeps. Defaults to `keyword_blocklist`
+   * (incident: a hit is a violation). Widening to
+   * `pattern_analysis` / `citation_analysis` / `quote_repetition` is a
+   * deployment choice; the absence-based families (`structural_analysis` /
+   * `synonym_match`) are rejected with a warning, because a tool result's prose
+   * is always "missing" most expected elements — they run through
+   * {@link Config.structuralGate} instead. Widening adds log lines only while
+   * the shipped incident-family rules are `action: warn`.
+   */
+  gateCheckTypes?: string[]
+  /**
+   * Artifact structural gate: entries naming a tool, the arguments holding its
+   * artifact text, and the absence-based rule ids to judge it by. A block-level
+   * hit denies the call before dispatch, so a non-conforming artifact is never
+   * rendered or written. No entry ships: a template renderer's arguments hold
+   * slot fragments, so absence checks on them report defects the rendered
+   * document does not have — declare an entry only where the argument is the
+   * whole document text.
+   */
+  structuralGate?: StructuralGateEntry[]
   /** When true, review-level violations block without an approval round-trip (unattended fail-closed). */
   approvalDisabled?: boolean
+}
+
+/** 一条制品结构门禁声明。 */
+export type StructuralGateEntry = {
+  /** 被门禁的交付工具名。 */
+  tool: string
+  /** 承载制品文本的入参名：字符串入参取其值，记录/数组入参取其全部字符串值。 */
+  textArgs: string[]
+  /** 参与判定的规则 id（取自全量规则集）；规则集里不存在的 id 告警并忽略。 */
+  ruleIds: string[]
+  /**
+   * 精确匹配才生效的入参（如 `{ template: 'claims-spec' }`）：声明的每一项都与实际
+   * 入参相等时该条才适用，用于同一个工具的不同制品形态各判各的规则。
+   */
+  whenArgs?: Record<string, string>
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-rule -->
@@ -2879,7 +2915,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:234`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:237`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -2918,6 +2954,25 @@ export interface Config {
   figureOutputDir?: string
   /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，两个附图生成工具、仅 SVG 生效）。 */
   figureTextToPath?: boolean
+  /**
+   * 剖视图是否必须给出剖切位置符号（`sections.cutting_marks`）；默认 false。
+   * 为 true 时模型未给该参数也按「必须给」处理，缺省即报错（GB/T 4458.6 只在剖切平面
+   * 与对称面重合且视图在标准位置时允许省略；本所要求一律标注时设 true）。
+   */
+  figureRequireCuttingMarks?: boolean
+  /**
+   * 图面文字字号的部署默认（毫米）：直绘图型的图面字号、DOT 图型的 fontsize 与落版核算
+   * 的字高都由它定（小四 = 4.23 毫米、四号 = 4.94 毫米）；模型显式给的字号优先。
+   * 必须为正数：0 会让图面文字失去字高，故在加载时由 schema 拒绝。
+   */
+  figureFontMm?: number
+  /**
+   * 图面字高内控下限（毫米）；缺省不判。法条只要求「缩小到三分之二时仍能清晰地分辨」
+   * （审查指南第一部分第一章 4.3），毫米数由本所按缩印可读性定；给出后
+   * verify_patent_figure 在模型未传 min_font_mm 时按它判定。必须为正数：非正值会让
+   * 每次判定都失败，故在加载时由 schema 拒绝。
+   */
+  figureMinFontMm?: number
   /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用（两个附图生成工具共用同一端口）。 */
   inkscapeExecutable?: string
   /** Inkscape 单次文字转路径超时（毫秒）；默认 30000。仅 figureTextToPath 使用。 */
