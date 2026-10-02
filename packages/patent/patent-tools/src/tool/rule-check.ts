@@ -21,6 +21,8 @@ import type { RulePackLoadResult } from '@deepseek-ai/dsh-patent-rule'
 import type { RuleSet } from '@deepseek-ai/dsh-patent-core'
 import type { SynonymMap } from '@deepseek-ai/dsh-patent-rule'
 import { PatentToolError } from '../error.ts'
+import { evaluatedTexts, EVALUATED_TEXT_SCHEMA, renderEvaluatedTexts } from '../internal/evaluated-input.ts'
+import type { EvaluatedText } from '../internal/evaluated-input.ts'
 
 /** Input for the rule_check tool. */
 export type RuleCheckInput = {
@@ -39,12 +41,18 @@ export type RuleViolationView = {
   legalBasis?: string
   message: string
   evidence: string[]
+  /** Line (1-based) of the earliest literal hit; absent for checks that match no literal text. */
+  line?: number
+  /** Sentence containing that hit; absent for checks that match no literal text. */
+  matchedSentence?: string
 }
 
 /** Output of the rule_check tool. */
 export type RuleCheckOutput = {
   scope: string
   violations: RuleViolationView[]
+  /** Identity of the text this run evaluated, so another run can be compared with it. */
+  evaluated: EvaluatedText[]
   /** Layered pack summary (scope=pack only). */
   packHeader?: string
   packWarnings?: string[]
@@ -74,22 +82,29 @@ const DESCRIPTION = [
   "a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement'",
   "(the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish),",
   "or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).",
+  'Every result ends with an 评估输入 line giving the character count and digest of the text this run actually read: keep that line when you transcribe the result, so a later run can show whether it read the same text.',
 ].join(' ')
 
 /** Render the canonical rule-check value into model-facing prose. */
 function renderRuleCheck(value: RuleCheckOutput): string {
   const header = value.packHeader !== undefined ? `${value.packHeader}\n` : ''
   const warnings = value.packWarnings !== undefined && value.packWarnings.length > 0 ? `\n加载警告: ${value.packWarnings.join('；')}` : ''
+  const evaluated = renderEvaluatedTexts(value.evaluated)
+  // `text` is a required input, so an evaluation always reports at least one identity.
+  const trailer = `${warnings}\n${evaluated}`
   if (value.violations.length === 0) {
-    return `${header}rule_check(${value.scope}): 无违规${warnings}`
+    return `${header}rule_check(${value.scope}): 无违规${trailer}`
   }
   const lines = value.violations.map((v) => {
     const basis = v.legalBasis ? `（依据：${v.legalBasis}）` : ''
     const evidence = v.evidence.length > 0 ? ` 命中「${v.evidence.join('」「')}」` : ''
-    return `- [${v.severity}/${v.action}] ${v.ruleId} ${v.ruleName}：${v.message}${evidence}${basis}`
+    const where = v.line !== undefined && v.matchedSentence !== undefined
+      ? `（第 ${v.line} 行「${v.matchedSentence}」）`
+      : ''
+    return `- [${v.severity}/${v.action}] ${v.ruleId} ${v.ruleName}：${v.message}${evidence}${where}${basis}`
   })
   const summary = `rule_check(${value.scope}): 发现 ${value.violations.length} 条违规`
-  return `${header}${summary}\n${lines.join('\n')}${warnings}`
+  return `${header}${summary}\n${lines.join('\n')}${trailer}`
 }
 
 const VIOLATION_SCHEMA = {
@@ -103,6 +118,8 @@ const VIOLATION_SCHEMA = {
     legalBasis: { type: 'string' },
     message: { type: 'string', required: true },
     evidence: { type: 'array', required: true, items: { type: 'string' } },
+    line: { type: 'number' },
+    matchedSentence: { type: 'string' },
   },
 } as const
 
@@ -156,6 +173,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
         properties: {
           scope: { type: 'string', required: true },
           violations: { type: 'array', required: true, items: VIOLATION_SCHEMA },
+          evaluated: { type: 'array', required: true, items: EVALUATED_TEXT_SCHEMA },
           packHeader: { type: 'string' },
           packWarnings: { type: 'array', items: { type: 'string' } },
         },
@@ -186,7 +204,10 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
           ...(v.legalBasis !== undefined ? { legalBasis: v.legalBasis } : {}),
           message: v.message,
           evidence: v.evidence,
+          ...(v.line !== undefined ? { line: v.line } : {}),
+          ...(v.matchedSentence !== undefined ? { matchedSentence: v.matchedSentence } : {}),
         })),
+        evaluated: evaluatedTexts({ text: args.text }),
         ...(packHeader !== undefined ? { packHeader } : {}),
         ...(pack !== null && pack.warnings.length > 0 ? { packWarnings: pack.warnings } : {}),
       }

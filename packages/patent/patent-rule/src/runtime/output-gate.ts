@@ -94,7 +94,10 @@ export class RuleOutputGate implements RuleOutputGateInterface {
 function formatViolation(v: RuleViolation): string {
   const basis = v.legalBasis ? `（依据：${escapeXml(v.legalBasis)}）` : ''
   const evidence = v.evidence.length > 0 ? ` — 命中「${v.evidence.map(escapeXml).join('」「')}」` : ''
-  return `- [${escapeXml(v.ruleId)}] ${escapeXml(v.ruleName)}：${escapeXml(v.message)}${evidence}${basis}`
+  const where = v.line !== undefined && v.matchedSentence !== undefined
+    ? `（第 ${v.line} 行「${escapeXml(v.matchedSentence)}」）`
+    : ''
+  return `- [${escapeXml(v.ruleId)}] ${escapeXml(v.ruleName)}：${escapeXml(v.message)}${evidence}${where}${basis}`
 }
 
 /** 转义规则/证据文本中的 XML 特殊字符，防提示注入/格式混淆。 */

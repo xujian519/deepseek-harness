@@ -52,7 +52,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure. |
 | `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`, `tool/result` | - | law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted. |
-| `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
+| `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section. |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
@@ -5648,7 +5648,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `rule_check`
 
-Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match / quote repetition) against the given text and return violations with severity, action and legal basis. Most rules declare an applicability premise: a rule whose premise does not match the text reports nothing, so a document is only checked against the subjects it actually discusses (an answer that never touches novelty draws no novelty-completeness findings). Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions). Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance), 'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed), a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement' (the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish), or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).
+Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match / quote repetition) against the given text and return violations with severity, action and legal basis. Most rules declare an applicability premise: a rule whose premise does not match the text reports nothing, so a document is only checked against the subjects it actually discusses (an answer that never touches novelty draws no novelty-completeness findings). Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions). Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance), 'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed), a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement' (the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish), or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides). Every result ends with an 评估输入 line giving the character count and digest of the text this run actually read: keep that line when you transcribe the result, so a later run can show whether it read the same text.
 
 ```json
 {
@@ -5735,6 +5735,8 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。
 
 注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。
+
+结果末尾的「评估输入」给出本次实际读到的各文本字段的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
 
 ```json
 {
@@ -5879,7 +5881,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、文字与图线净距不足、中心线（点划线）被同位置的实线覆盖、相邻零件剖面线难以区分（方向与间距都分不清）、内容越出画布。
 
-量测在矢量源上进行（线段位置、线宽与字号即渲染输入），不需要栅格化器：根元素的画布尺寸、viewBox 与 preserveAspectRatio 先解析成用户单位到毫米的映射，元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 <g> 继承的 text-anchor 与行内 style），故落版页、拼版页与 px 级用户单位的导出文件同一口径量测。不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现：没有它时才等于逐类量测过。
+量测在矢量源上进行（线段位置、线宽与字号即渲染输入），不需要栅格化器：根元素的画布尺寸、viewBox 与 preserveAspectRatio 先解析成用户单位到毫米的映射，元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 `<g>` 继承的 text-anchor 与行内 style），故落版页、拼版页与 px 级用户单位的导出文件同一口径量测。不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现：没有它时才等于逐类量测过。
 
 净距判据（text_clearance_mm，默认 1.5 毫米）来自实测：剖切面上密布剖面线时，标号或零件名贴住剖面线带、轴线便读不出。判据把文字外框外扩该净距后与图元线段求交——绘图侧标注为引线（data-dsh-role="leader"）的线段、以及落在更晚绘制的不透明白填充之下的线段不参与（前者本来就止于文字外框，后者图面上看不见）。电路图、曲线图这类「文字贴着符号放」的图型按本判据会大量播报，复核它们时传 text_clearance_mm: 0 关闭。
 
@@ -6315,7 +6317,7 @@ law_verify reads the law citations of a text, or the references passed directly,
 
 ### `query_writing_patterns`
 
-- Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a <writing_skills> block
+- Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a `<writing_skills>` block
 - A pattern covers one situation with ordered steps and the rules to follow or avoid: claim drafting, specification drafting, disclosure drafting, IPC strategy, embodiment writing, and office-action replies on inventiveness, novelty, and clarity
 - Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed, capped by `limit`
 - Selection is lexical and offline: the tool picks patterns, it does not judge the case. Apply the returned steps to the passage being written
@@ -6360,7 +6362,7 @@ law_verify reads the law citations of a text, or the references passed directly,
 
 Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/writing-patterns/src/index.ts)
 
-query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call.
+query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call.
 
 <a id="deepseek-aidsh-doc-template"></a>
 

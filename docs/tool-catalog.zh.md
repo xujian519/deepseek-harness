@@ -54,7 +54,7 @@
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
 | `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
-| `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
+| `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计。 |
 | `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`、`tool/result` | - | law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行。 |
@@ -5658,7 +5658,7 @@ Usage notes:
 
 ### `rule_check`
 
-对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。
+对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。每条结果末尾的「评估输入」给出本次实际读到的文本的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
 
 ```json
 {
@@ -5745,6 +5745,8 @@ Usage notes:
 用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。
 
 注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。
+
+结果末尾的「评估输入」给出本次实际读到的各文本字段的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
 
 ```json
 {
@@ -6325,7 +6327,7 @@ law_verify 读取一段文本中的法条引用（或直接传入的引用），
 
 ### `query_writing_patterns`
 
-- 取回适合当前撰写或答复场景的专利与法律撰写模式，并编译为 <writing_skills> 块
+- 取回适合当前撰写或答复场景的专利与法律撰写模式，并编译为 `<writing_skills>` 块
 - 每个模式覆盖一个场景，含有序步骤与应当遵循或避免的规则：权利要求撰写、说明书撰写、交底书撰写、IPC 策略、具体实施方式撰写，以及针对创造性、新颖性、清楚性的审查意见答复
 - 选择方式：传 `query` 按关键词检索；否则用 `features` 把案件特征与模式名称、摘要、步骤名做匹配；否则按 `category` 列出该类目；不带任何参数时按 `limit` 上限列出模式库
 - 选择是词法且离线的：工具只挑选模式，不对案件作判断。把返回的步骤应用到正在撰写的段落上
@@ -6370,7 +6372,7 @@ Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/wri
 }
 ```
 
-query_writing_patterns 按类目、关键词或案件特征从随包语料中挑出撰写与答复模式，返回匹配到的模式与编译后的 <writing_skills> 块；同一个块也作为系统提示段注入，使撰写纪律无需调用即可生效。
+query_writing_patterns 按类目、关键词或案件特征从随包语料中挑出撰写与答复模式，返回匹配到的模式与编译后的 `<writing_skills>` 块；同一个块也作为系统提示段注入，使撰写纪律无需调用即可生效。
 
 <a id="deepseek-aidsh-doc-template"></a>
 

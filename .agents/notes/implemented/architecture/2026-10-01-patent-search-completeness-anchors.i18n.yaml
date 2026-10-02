@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-01-patent-search-completeness-anchors.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-01-patent-search-completeness-anchors.md
+/agent-note-a-patent-search-report-declares-its-naming-families-and-orthogonal-dimensions:
+  en: 13da3193ee686ec2
+  zh: fbb09dda0ce9aa46
+/agent-note-a-patent-search-report-declares-its-naming-families-and-orthogonal-dimensions/problem:
+  en: 5d18f4a98eeb236b
+  zh: 542437d802c8d2e4
+/agent-note-a-patent-search-report-declares-its-naming-families-and-orthogonal-dimensions/decision:
+  en: 196136318b4637f2
+  zh: 1af2415133a04726
+/agent-note-a-patent-search-report-declares-its-naming-families-and-orthogonal-dimensions/alternatives-considered:
+  en: 89423a5e6d551f46
+  zh: 4e119c673940d1c9
+/agent-note-a-patent-search-report-declares-its-naming-families-and-orthogonal-dimensions/testing:
+  en: ccc0cc2a483a8956
+  zh: f1ceb52a6670b0b7
+/agent-note-a-patent-search-report-declares-its-naming-families-and-orthogonal-dimensions/consequences:
+  en: 8a4ad0fc9061a695
+  zh: 25e469019f7c76f8

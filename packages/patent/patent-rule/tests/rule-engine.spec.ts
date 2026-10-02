@@ -23,6 +23,65 @@ describe('RuleEngine', () => {
     expect(result.violations[0]?.evidence).toContain('赌博')
   })
 
+  it('违规带最早字面命中的行号与命中句（调用方据此在原处裁决）', () => {
+    const set = ruleSet([
+      {
+        id: 'PAT-RISK-001',
+        name: '专利风险结论免责声明',
+        severity: 'major',
+        action: 'warn',
+        check: { type: 'keyword_blocklist', keywords: ['专利性'] },
+      },
+    ])
+    const text = [
+      '## 技术领域',
+      '本发明涉及一种装置。',
+      '本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由专利代理确认。',
+    ].join('\n')
+    const violation = evaluateText(text, set).violations[0]
+    expect(violation?.line).toBe(3)
+    expect(violation?.matchedSentence).toBe('专利申请和专利性判断应由专利代理确认。')
+  })
+
+  it('定位取计入违规的那一处，不取被否定语境豁免的更早命中', () => {
+    const set = ruleSet([
+      {
+        id: 'PAT-ABS-001',
+        name: '回避绝对化表述',
+        severity: 'minor',
+        action: 'warn',
+        check: { type: 'keyword_blocklist', keywords: ['一定'], negationContext: true },
+      },
+    ])
+    // 第一处的「一定」被同句的「避免」豁免（PAT-ABS-001 用默认否定词表，24 字窗口内无句界）；
+    // 只按字面反查会定位到被豁免的这一处。
+    const text = '本方案避免一定程度的外推。\n本发明一定能显著提高生产效率。'
+    const violation = evaluateText(text, set).violations[0]
+    expect(violation?.evidence).toEqual(['一定'])
+    expect(violation?.line).toBe(2)
+    expect(violation?.matchedSentence).toBe('本发明一定能显著提高生产效率。')
+  })
+
+  it('无字面命中的检查不带行号（缺项类违规无从定位）', () => {
+    const set = ruleSet([
+      {
+        id: 'CON-101',
+        name: '技术方案三要素',
+        severity: 'critical',
+        action: 'block',
+        check: {
+          type: 'structural_analysis',
+          requiresAll: [{ element: 'technical_means', patterns: ['装置|设备'] }],
+          minConfidence: 1,
+        },
+      },
+    ])
+    const violation = evaluateText('一种模块化设计。', set).violations[0]
+    expect(violation?.evidence).toEqual([])
+    expect(violation?.line).toBeUndefined()
+    expect(violation?.matchedSentence).toBeUndefined()
+  })
+
   it('keyword_blocklist negation_context allows negated mentions', () => {
     const set = ruleSet([
       {
@@ -327,6 +386,13 @@ describe('RuleEngine 引述范围放行（quoteImmune）', () => {
   it('引号外的命中照常报出', () => {
     expect(evaluateText('该参数一定能够提高效率。', quoted).violations.length).toBe(1)
     expect(evaluateText('审查员指出「该参数能够提高效率」，该结论一定成立。', quoted).violations.length).toBe(1)
+  })
+
+  it('更早的命中被引号放行时，定位落在后面未放行的那一处', () => {
+    const result = evaluateText('审查员指出「该参数一定能够提高效率」。申请人认为该结论一定成立。', quoted)
+    expect(result.violations.length).toBe(1)
+    expect(result.violations[0]?.line).toBe(1)
+    expect(result.violations[0]?.matchedSentence).toBe('申请人认为该结论一定成立。')
   })
 
   it('引号未闭合不豁免（失败方向指向检出，不指向放行）', () => {

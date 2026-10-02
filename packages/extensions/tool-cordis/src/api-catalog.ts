@@ -6770,7 +6770,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PatentTeamsStatusTask',
-    declaration: 'export interface PatentTeamsStatusTask {\n    id: string;\n    subject: string;\n    status: string;\n    assignee: string;\n    dependencies: string[];\n    attempt: number;\n    attempt_id: string;\n    reassigning: boolean;\n    output?: string;\n    worker?: string;\n    contract_validation?: {\n        valid: boolean;\n        missing_hard_fields: string[];\n        degraded: boolean;\n    };\n    gate_feedback?: {\n        score: number;\n        satisfied: boolean;\n        failures: string[];\n        feedback: string;\n    };\n}',
+    declaration: 'export interface PatentTeamsStatusTask {\n    id: string;\n    subject: string;\n    status: string;\n    assignee: string;\n    dependencies: string[];\n    attempt: number;\n    attempt_id: string;\n    reassigning: boolean;\n    output?: string;\n    worker?: string;\n    contract_validation?: {\n        valid: boolean;\n        missing_hard_fields: string[];\n        degraded: boolean;\n    };\n    gate_feedback?: {\n        score: number;\n        satisfied: boolean;\n        failures: string[];\n        feedback: string;\n    };\n    gate_rejections?: number;\n}',
   },
   {
     name: 'PeerAdmission',
@@ -9082,7 +9082,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'UpdateTaskResult',
-    declaration: 'export interface UpdateTaskResult {\n    task_id: string;\n    status: string;\n    output?: string;\n    attempt: number;\n    attempt_id?: string;\n    gated?: boolean;\n    gate_feedback?: string;\n}',
+    declaration: 'export interface UpdateTaskResult {\n    task_id: string;\n    status: string;\n    output?: string;\n    attempt: number;\n    attempt_id?: string;\n    gated?: boolean;\n    gate_feedback?: string;\n    gate_rejections?: number;\n}',
   },
   {
     name: 'UpdateTeamTaskRequest',

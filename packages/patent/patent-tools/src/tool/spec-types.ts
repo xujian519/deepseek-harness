@@ -6,6 +6,7 @@
  */
 
 import type { TechDomain } from './draft-claims.ts'
+import type { EvaluatedText } from '../internal/evaluated-input.ts'
 
 /** Tool input: the specification fields to validate. */
 export type ValidateSpecificationInput = {
@@ -59,6 +60,15 @@ export type SpecViolation = {
   section?: string
   message: string
   suggestion?: string
+  /**
+   * Line (1-based) of the earliest literal hit in the checked text. Absent for
+   * absence and aggregate checks (missing sections, coverage rates, numeric-range
+   * coverage), and for checks reading a separate input field (title, abstract,
+   * claims), where a line into the specification would point at nothing.
+   */
+  line?: number
+  /** Sentence containing that hit; present exactly when `line` is. */
+  matchedSentence?: string
 }
 
 /** The canonical validation result. */
@@ -66,6 +76,8 @@ export type ValidateSpecificationOutput = {
   passed: boolean
   score: number
   violations: SpecViolation[]
+  /** Identity of the text inputs this run read, so another run can be compared with it. */
+  evaluated: EvaluatedText[]
 }
 
 /** A numeric range extracted from the specification. */

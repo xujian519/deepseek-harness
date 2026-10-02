@@ -272,7 +272,7 @@ describe('memberPersona and memberWelcome', () => {
     expect(persona).toContain('Role contract:')
     expect(persona).toContain('检索员 (researcher)')
     expect(persona).toContain('Stance: [neutral]')
-    expect(persona).toContain('Required deliverables: 检索式、对比文件、公开日')
+    expect(persona).toContain('Required deliverables: 检索式、对比文件、公开日、命名族清单、正交维度')
     expect(persona).toContain('Tools: patent_search、patent_metadata、patent_legal_status、web_search、web_fetch、patent_analysis_report、patent_eval')
     expect(persona).toContain('Forbidden:')
     expect(persona).toContain('HITL: deliverables can be completed directly')

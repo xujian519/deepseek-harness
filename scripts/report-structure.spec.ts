@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -63,6 +63,19 @@ describe('reportStructure', () => {
     expect(report.largeFiles).toEqual([{ path: 'packages/a/b/src/large.ts', lines: 801 }])
     expect(report.generatedFiles).toBe(1)
     expect(report.generatedLargeFiles).toEqual([{ path: 'packages/a/b/src/catalog.ts', lines: 801 }])
+  })
+
+  // The glob admits a name the read cannot resolve, which is the state a
+  // concurrent spec leaves behind when it removes a probe file under this tree
+  // between the listing and the read. A symlink reproduces it deterministically;
+  // Windows withholds that privilege by default.
+  it.skipIf(process.platform === 'win32')('skips a corpus entry that vanishes before its read', () => {
+    const fixture = fixtureRoot()
+    write(fixture, 'packages/a/b/src/kept.ts', longFunction('kept', 151))
+    symlinkSync('absent.ts', join(fixture, 'packages/a/b/src/vanished.ts'))
+    const report = reportStructure(fixture)
+    expect(report.longFunctions.map(entry => entry.name)).toEqual(['kept'])
+    expect(report.scanned).toBe(2)
   })
 
   it('reports the shipped sources with the ledger figures recoverable', () => {

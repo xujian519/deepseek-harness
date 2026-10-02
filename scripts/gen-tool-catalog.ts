@@ -814,7 +814,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(WritingPatterns, {})
     },
     note:
-      'query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call.',
+      'query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call.',
   },
   {
     pkg: '@deepseek-ai/dsh-doc-template',

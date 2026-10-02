@@ -37,7 +37,20 @@ const VALID_SPEC = [
 describe('validateSpecification', () => {
   it('passes a complete specification', () => {
     const out = validateSpecification({ text: VALID_SPEC })
-    expect(out).toEqual({ passed: true, score: 1, violations: [] })
+    expect(out).toMatchObject({ passed: true, score: 1, violations: [] })
+    // vitest asymmetric matcher is typed any; the field holds the matcher object
+    const anyDigest = expect.any(String) as string
+    expect(out.evaluated).toEqual([{ field: 'text', chars: VALID_SPEC.length, digest: anyDigest }])
+  })
+
+  it('records the identity of every text field it read, so another run can be compared', () => {
+    const first = validateSpecification({ text: VALID_SPEC, abstract: '摘要。' })
+    const second = validateSpecification({ text: `${VALID_SPEC}约` , abstract: '摘要。' })
+    expect(first.evaluated.map(e => e.field)).toEqual(['text', 'abstract'])
+    expect(second.evaluated[0]?.chars).toBe(first.evaluated[0]!.chars + 1)
+    expect(second.evaluated[0]?.digest).not.toBe(first.evaluated[0]!.digest)
+    // A field the caller did not supply is not reported at all.
+    expect(first.evaluated.map(e => e.field)).not.toContain('claims')
   })
 
   it('reports missing required sections', () => {
@@ -84,6 +97,20 @@ describe('validateSpecification', () => {
     const v = out.violations.find(x => x.rule === 'clarity')
     expect(v?.severity).toBe('warning')
     expect(v?.message).toContain('约')
+  })
+
+  it('reports where the vague wording is, so the warning can be judged in place', () => {
+    const text = '## 技术领域\n本发明涉及一种装置。\n## 具体实施方式\n本实施例中温度约为 60℃，时间为 2 小时。'
+    const v = validateSpecification({ text }).violations.find(x => x.rule === 'clarity')
+    expect(v?.line).toBe(4)
+    expect(v?.matchedSentence).toBe('本实施例中温度约为 60℃，时间为 2 小时。')
+  })
+
+  it('reports where an unquantified effect statement is', () => {
+    const text = '## 发明内容\n本发明显著提高了熬制效率，改善了药材利用率。\n## 具体实施方式\n实施例1：一种装置。'
+    const v = validateSpecification({ text }).violations.find(x => x.rule === 'effect_data_quantified')
+    expect(v?.line).toBe(2)
+    expect(v?.matchedSentence).toContain('显著提高了熬制效率')
   })
 
   it('reports body figure references without a drawing section', () => {
@@ -298,10 +325,20 @@ describe('computeSpecScore', () => {
 
 describe('renderSpecification', () => {
   it('renders pass and violation prose', () => {
-    expect(renderSpecification({ passed: true, score: 1, violations: [] })).toContain('通过')
-    const fail = { passed: false, score: 0.75, violations: [{ rule: 'sections', severity: 'error' as const, message: '缺少必要章节', suggestion: '请补充' }] }
+    expect(renderSpecification({ passed: true, score: 1, violations: [], evaluated: [] })).toContain('通过')
+    const fail = { passed: false, score: 0.75, violations: [{ rule: 'sections', severity: 'error' as const, message: '缺少必要章节', suggestion: '请补充' }], evaluated: [] }
     expect(renderSpecification(fail)).toContain('未通过')
     expect(renderSpecification(fail)).toContain('请补充')
+  })
+
+  it('renders the evaluated-input identity', () => {
+    const out = renderSpecification({
+      passed: true,
+      score: 1,
+      violations: [],
+      evaluated: [{ field: 'text', chars: 12164, digest: '3f9a2c1b' }],
+    })
+    expect(out).toContain('评估输入: text 12164 字 · 3f9a2c1b')
   })
 })
 
@@ -312,12 +349,19 @@ describe('createValidateSpecificationTool', () => {
     expect(typeof tool.execute).toBe('function')
     expect(typeof tool.output.render).toBe('function')
     const value = await tool.execute({ text: VALID_SPEC }, {} as never)
-    expect(value).toEqual({ passed: true, score: 1, violations: [] })
+    // vitest asymmetric matcher is typed any; the field holds the matcher object
+    const anyDigest = expect.any(String) as string
+    expect(value).toMatchObject({
+      passed: true,
+      score: 1,
+      violations: [],
+      evaluated: [{ field: 'text', chars: VALID_SPEC.length, digest: anyDigest }],
+    })
   })
 
   it('renders model-facing text', () => {
     const tool = createValidateSpecificationTool()
-    const blocks = tool.output.render({}, { passed: true, score: 1, violations: [] })
+    const blocks = tool.output.render({}, { passed: true, score: 1, violations: [], evaluated: [] })
     // vitest asymmetric matcher is typed any; the literal text field holds the matcher object
     const textMatcher = expect.stringContaining('通过') as string
     expect(blocks).toEqual([{ type: 'text', text: textMatcher }])
@@ -601,9 +645,22 @@ describe('renderSpecification with section and no suggestion', () => {
         { rule: 'sections', severity: 'error' as const, section: '摘要', message: '摘要过长', suggestion: '压缩' },
         { rule: 'clarity', severity: 'warning' as const, message: '模糊表述' },
       ],
+      evaluated: [],
     })
     expect(out).toContain('（摘要）')
     expect(out).toContain('压缩')
     expect(out).not.toContain('模糊表述（')
+  })
+
+  it('renders the locator when a violation carries one', () => {
+    const out = renderSpecification({
+      passed: false,
+      score: 0.9,
+      violations: [
+        { rule: 'clarity', severity: 'warning' as const, message: '模糊表述：约', line: 12, matchedSentence: '本实施例中温度约为 60℃。' },
+      ],
+      evaluated: [],
+    })
+    expect(out).toContain('模糊表述：约（第 12 行「本实施例中温度约为 60℃。」）')
   })
 })

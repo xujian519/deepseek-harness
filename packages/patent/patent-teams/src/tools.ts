@@ -39,7 +39,7 @@ function renderStatus(team: PatentTeamsStatus): string {
         ? ` · contract: ${task.contract_validation.valid ? 'ok' : `degraded(${task.contract_validation.missing_hard_fields.join('、')})`}`
         : ''
       const gated = task.gate_feedback && !task.gate_feedback.satisfied
-        ? ` · gated: ${task.gate_feedback.score.toFixed(2)} (${task.gate_feedback.failures.join('、')})`
+        ? ` · gated ×${task.gate_rejections ?? 1}: ${task.gate_feedback.score.toFixed(2)} (${task.gate_feedback.failures.join('、')})`
         : ''
       return `  - ${task.id} [${task.status}] attempt ${task.attempt}${handoff} ${task.subject} → ${task.assignee || 'unassigned'}${deps}${worker}${validation}${gated}${output}`
     }),
@@ -330,13 +330,14 @@ function registerTaskAttemptTools(ctx: Context, teams: PatentTeamsService): void
           attempt_id: { type: 'string' },
           gated: { type: 'boolean' },
           gate_feedback: { type: 'string' },
+          gate_rejections: { type: 'number' },
         },
       },
       render: (_args, value) => [{
         type: 'text',
         text: value.gated === true
-          ? `Task ${value.task_id} 未过质量门禁（保持 ${value.status}）:\n${value.gate_feedback ?? ''}`
-          : `Task ${value.task_id} attempt ${value.attempt} → ${value.status}${value.output !== undefined ? `\nOutput: ${value.output}` : ''}`,
+          ? `Task ${value.task_id} 未过质量门禁（第 ${value.gate_rejections ?? 1} 次被打回；保持 ${value.status}）:\n${value.gate_feedback ?? ''}`
+          : `Task ${value.task_id} attempt ${value.attempt} → ${value.status}${value.gate_rejections !== undefined ? `（累计被打回 ${value.gate_rejections} 次）` : ''}${value.output !== undefined ? `\nOutput: ${value.output}` : ''}`,
       }],
     },
     async execute(args, exec) {

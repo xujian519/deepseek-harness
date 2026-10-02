@@ -1183,7 +1183,7 @@ describe('role contract and quality gate', () => {
     const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
     const alice = fakeAgent('member-1', h.workspace)
     await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
-    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；命名族清单：脱液含压榨/挤压/离心三族；正交维度：IPC A47J；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
     const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
     expect(team?.tasks[0]?.contractValidation).toMatchObject({ worker: 'patent-search-commander', valid: true, degraded: false })
   })
@@ -1198,9 +1198,9 @@ describe('role contract and quality gate', () => {
     const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
     const alice = fakeAgent('member-1', h.workspace)
     await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
-    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；命名族清单：脱液含压榨/挤压/离心三族；正交维度：IPC A47J；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
     const status = await h.ctx.patentTeams.status(captain)
-    expect(status.members[0]?.role_contract).toEqual({ stance: 'neutral', deliverables: '检索式、对比文件、公开日' })
+    expect(status.members[0]?.role_contract).toEqual({ stance: 'neutral', deliverables: '检索式、对比文件、公开日、命名族清单、正交维度' })
     expect(status.members[1]?.role_contract).toBeUndefined()
     expect(status.tasks[0]?.worker).toBe('patent-search-commander')
     expect(status.tasks[0]?.contract_validation).toMatchObject({ valid: true, degraded: false })
@@ -1209,9 +1209,9 @@ describe('role contract and quality gate', () => {
   // Contract-complete, content-sufficient, section-less work product. A search
   // report/adverse opinion is a segment, not a full multi-section brief, so it
   // must clear the gate (regression for "format dims bounce every segment").
-  const CONTRACT_COMPLETE = '检索式：(A AND B) OR C。对比文件：D1 为 CN123456A（公开日 2024-01-01），D2 为 CN654321B（公开日 2023-06-15）。检索途径：CNIPA 全文检索，检索日期 2026-08-23，共命中 12 篇，其中 D1 与 D2 为最接近的现有技术。经逐篇阅读，D1 公开了权1 的全部必要技术特征，其采用相变材料填充散热基板；区别特征在于 D2 通过设置导热翅片实现散热。建议以 D1 为最接近现有技术，按三步法主张二者结合不具备技术启示，并结合 D1 的公开日论证相应时间点。' // prettier-ignore
+  const CONTRACT_COMPLETE = '检索式：(A AND B) OR C。命名族清单：脱液功能在在先文献中分别以「压榨」「挤压」「离心」三个成词族出现。正交维度：IPC 分类号 A47J 31/44、申请人反查、引证扩展均已执行。对比文件：D1 为 CN123456A（公开日 2024-01-01），D2 为 CN654321B（公开日 2023-06-15）。检索途径：CNIPA 全文检索，检索日期 2026-08-23，共命中 12 篇，其中 D1 与 D2 为最接近的现有技术。经逐篇阅读，D1 公开了权1 的全部必要技术特征，其采用相变材料填充散热基板；区别特征在于 D2 通过设置导热翅片实现散热。建议以 D1 为最接近现有技术，按三步法主张二者结合不具备技术启示，并结合 D1 的公开日论证相应时间点。' // prettier-ignore
   // Content-sufficient (>=200 chars) but missing the `公开日` hard field.
-  const CONTRACT_MISSING = '检索式：(A AND B) OR C。对比文件：D1 为 CN123456A（申请号 CN202310000001），D2 为 CN654321B；二者均属 IPC 分类号 H05K 领域。检索途径：CNIPA 全文检索；检索日期 2026-08-23；命中 12 篇。经逐篇阅读，D1 公开了权1 的全部必要技术特征，其采用相变材料填充散热基板；区别特征在于 D2 通过设置导热翅片实现散热。建议以 D1 为最接近现有技术，按三步法主张二者结合不具备技术启示。' // prettier-ignore
+  const CONTRACT_MISSING = '检索式：(A AND B) OR C。命名族清单：脱液功能分别以「压榨」「挤压」「离心」三个成词族出现。正交维度：IPC 分类号 A47J 31/44 与申请人反查均已执行。对比文件：D1 为 CN123456A（申请号 CN202310000001），D2 为 CN654321B；二者均属 IPC 分类号 H05K 领域。检索途径：CNIPA 全文检索；检索日期 2026-08-23；命中 12 篇。经逐篇阅读，D1 公开了权1 的全部必要技术特征，其采用相变材料填充散热基板；区别特征在于 D2 通过设置导热翅片实现散热。建议以 D1 为最接近现有技术，按三步法主张二者结合不具备技术启示。' // prettier-ignore
 
   it('admits a contract-complete, content-sufficient completion under the default gate', async () => {
     const h = await makeService({ qualityGate: true })
@@ -1247,6 +1247,44 @@ describe('role contract and quality gate', () => {
     expect(team?.tasks[0]?.gateFeedback?.failures.join('')).toContain('契约缺字段')
   })
 
+  it('accumulates a rejection count across repeated bounces while the attempt stays open', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    const first = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_MISSING, attempt_id: claimed.attempt_id! })
+    expect(first.gate_rejections).toBe(1)
+    const second = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_MISSING, attempt_id: claimed.attempt_id! })
+    expect(second.gate_rejections).toBe(2)
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.gateRejections).toBe(2)
+    // The bounce keeps the attempt open, which is why the count is the only
+    // record of repeated rework.
+    expect(team?.tasks[0]?.attempt).toBe(claimed.attempt)
+  })
+
+  it('keeps the rejection count readable after the task finally completes', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_MISSING, attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_COMPLETE, attempt_id: claimed.attempt_id! })
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('completed')
+    expect(team?.tasks[0]?.gateRejections).toBe(1)
+    const status = await h.ctx.patentTeams.status(captain)
+    expect(status.tasks[0]?.gate_rejections).toBe(1)
+  })
+
   it('bounces a content-thin but contract-complete completion as an empty shell', async () => {
     const h = await makeService({ qualityGate: true })
     const captain = fakeAgent('captain-1', h.workspace)
@@ -1256,7 +1294,7 @@ describe('role contract and quality gate', () => {
     const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
     const alice = fakeAgent('member-1', h.workspace)
     await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
-    const gated = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
+    const gated = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；命名族清单：脱液含压榨/挤压/离心三族；正交维度：IPC A47J；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
     expect(gated.gated).toBe(true)
     expect(gated.gate_feedback).toContain('内容充分性')
   })

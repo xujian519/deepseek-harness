@@ -1,8 +1,9 @@
 /**
  * 宪法规则引擎 — 中文文本处理共享工具。
  *
- * 统一 `hasNegationContext`（否定语境检测）与 `parseCnNumber`（中文数字解析），
- * 供 RuleEngine / synonym-engine 复用，避免镜像实现漂移。
+ * 统一 `hasNegationContext`（否定语境检测）、`parseCnNumber`（中文数字解析）与
+ * `locateMatch` / `locationAt`（命中定位），供 RuleEngine / synonym-engine / 说明书校验复用，
+ * 避免镜像实现漂移。
  */
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,85 @@ export function hasNegationContext(text: string, matchStart: number, options?: N
     }
   }
   return false
+}
+
+// ---------------------------------------------------------------------------
+// locateMatch
+// ---------------------------------------------------------------------------
+
+/** 命中定位：1 基行号 + 命中句。 */
+export type MatchLocation = {
+  /** 命中片段所在行号（1 基）。 */
+  line: number
+  /** 命中片段所在的句子（超长时按命中位置居中截断）。 */
+  matchedSentence: string
+}
+
+/**
+ * 命中句最大字符数。超长句按命中位置居中截断：句边界不一定在近处
+ * （无标点的长段、或整段被当作一句时），截断保证返回体有界。
+ */
+const SENTENCE_MAX = 120
+
+/**
+ * 取命中位置所在的句子，超长时按命中位置居中截断。
+ * @param text - 被扫描的完整文本。
+ * @param index - 命中片段的起始下标。
+ * @returns 命中句（句末终止符保留，换行不并入；被截断的一侧补省略号）。
+ */
+function sentenceAt(text: string, index: number): string {
+  let start = index
+  while (start > 0 && !SENTENCE_BOUNDARIES.includes(text.charAt(start - 1))) start -= 1
+  let end = index
+  while (end < text.length && !SENTENCE_BOUNDARIES.includes(text.charAt(end))) end += 1
+  // 句末终止符属于这句话；换行只是排版分隔，不并入句子
+  if (end < text.length && text.charAt(end) !== '\n') end += 1
+  let from = start
+  let to = end
+  if (to - from > SENTENCE_MAX) {
+    from = Math.max(start, index - Math.floor(SENTENCE_MAX / 2))
+    to = Math.min(end, from + SENTENCE_MAX)
+  }
+  return `${from > start ? '…' : ''}${text.slice(from, to).trim()}${to < end ? '…' : ''}`
+}
+
+/**
+ * 取已知命中位置的行号与命中句。调用方在扫描时已经记下命中的下标（而非只留下
+ * 命中词）时用它：这些下标经过豁免判定筛选，`locateMatch` 的字面反查做不到。
+ * @param text - 被扫描的完整文本。
+ * @param index - 命中片段的起始下标。
+ * @returns 行号与命中句。
+ */
+export function locationAt(text: string, index: number): MatchLocation {
+  return { line: text.slice(0, index).split('\n').length, matchedSentence: sentenceAt(text, index) }
+}
+
+/**
+ * 定位文本中最早出现的一处字面命中，返回行号与其所在句。
+ *
+ * 规则违规类返回值只说明"命中了什么词"，不说明"命中在哪里"：调用方拿到
+ * `命中禁止词：专利性` 无法判断那是正文断言、强制免责样板还是被引原文，
+ * 只能人工通读全文裁决。行号让这个判断可以在原处完成。
+ *
+ * 取**最早**一处：足以让调用方找到并判读上下文；全部片段列举则会让一个
+ * 高频词把返回体撑大。
+ *
+ * 只在片段必为原文子串、且"最早一处"就是违规那一处时使用：它无法区分同一
+ * 片段的多次出现，若扫描期丢弃了被豁免命中的位置（否定语境、引文），反查会
+ * 落到被豁免的那一处——那种调用方应改用 {@link locationAt}。
+ * @param text - 被扫描的完整文本。
+ * @param needles - 待定位的字面片段（空片段被忽略）。
+ * @returns 行号与命中句；文本中不含任何片段时返回 undefined。
+ */
+export function locateMatch(text: string, needles: readonly string[]): MatchLocation | undefined {
+  let bestIndex = Number.POSITIVE_INFINITY
+  for (const needle of needles) {
+    if (needle.length === 0) continue
+    const index = text.indexOf(needle)
+    if (index >= 0 && index < bestIndex) bestIndex = index
+  }
+  if (bestIndex === Number.POSITIVE_INFINITY) return undefined
+  return locationAt(text, bestIndex)
 }
 
 // ---------------------------------------------------------------------------
