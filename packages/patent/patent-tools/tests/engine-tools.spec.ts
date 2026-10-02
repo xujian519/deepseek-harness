@@ -48,7 +48,7 @@ describe('rule_check', () => {
   })
 
   it('renders where the hit is, so a warning can be judged without re-reading the whole text', async () => {
-    const ruleSet = { rules: [{ id: 'PAT-RISK-001', name: '专利风险结论免责声明', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['专利性'] } }] } as unknown as RuleSet
+    const ruleSet: RuleSet = { rules: [{ id: 'PAT-RISK-001', name: '专利风险结论免责声明', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['专利性'] } }] }
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
     const ctx = await ctxWith(tool)
     const body = [
@@ -74,7 +74,7 @@ describe('rule_check', () => {
   })
 
   it('reports zero violations on clean text', async () => {
-    const ruleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'block', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] } as unknown as RuleSet
+    const ruleSet: RuleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
     const ctx = await ctxWith(tool)
     const result = await execute(ctx, 'rule_check', { text: '干净文本', scope: 'patent' }, 'r-3')
