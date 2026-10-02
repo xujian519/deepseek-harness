@@ -87,7 +87,7 @@ export function decodeTestIds(label: string, value: unknown): string[] {
   let decoded: unknown = value
   if (typeof value === 'string') {
     try {
-      decoded = JSON.parse(value) as unknown
+      decoded = JSON.parse(value)
     } catch (cause) {
       throw new Error(`self-evolve-eval: ${label} is not valid JSON: ${String(cause)}`, { cause })
     }

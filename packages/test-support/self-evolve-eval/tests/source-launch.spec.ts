@@ -19,6 +19,12 @@ afterEach(async () => {
 describe('resolveSourceLaunchAnchors', () => {
   it('fails loud when the tsx hook is not resolvable from the entry', async () => {
     const dir = await tempDir()
+    // The shadow package exports no `./esm` subpath, so the hook lookup fails
+    // here whatever the ambient module search paths hold. Without it a
+    // repo-installed tsx resolves through NODE_PATH, which is what the coverage
+    // gate's environment provides: the throw then never runs and its statement
+    // reads as uncovered there while passing in a bare shell.
+    await writeTsxWithoutEsmSubpath(dir)
     const entry = join(dir, 'bin.ts')
     await writeFile(entry, '')
     expect(() => resolveSourceLaunchAnchors(entry)).toThrow(/cannot resolve the tsx ESM hook/)
@@ -76,4 +82,19 @@ async function writeFakeTsx(root: string): Promise<void> {
   }))
   await writeFile(join(pkg, 'index.mjs'), '')
   await writeFile(join(pkg, 'esm', 'index.mjs'), '')
+}
+
+/**
+ * Write a `tsx` package that resolves as a package but exposes no `./esm`
+ * subpath, so `resolve('tsx/esm')` fails at the nearest match instead of
+ * falling through to a tsx installed outside the tree.
+ */
+async function writeTsxWithoutEsmSubpath(root: string): Promise<void> {
+  const pkg = join(root, 'node_modules', 'tsx')
+  await mkdir(pkg, { recursive: true })
+  await writeFile(join(pkg, 'package.json'), JSON.stringify({
+    name: 'tsx',
+    version: '0.0.0',
+    exports: { '.': './index.mjs' },
+  }))
 }

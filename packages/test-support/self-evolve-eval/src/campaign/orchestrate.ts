@@ -219,14 +219,14 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
         continue
       }
       const result = await runArm(workspace, arm, options)
-      if (result.infra === true) {
+      if (result.kind === 'infra') {
         // No verdict exists for this arm (its ids never executed), so fold an
         // infra failure that a rerun can settle rather than a failed verdict.
         infraErrors += 1
-        const detail = `verify: ${result.error ?? 'no test id executed'}`
+        const detail = `verify: ${result.detail}`
         tasks = mergeArmOutcome(tasks, taskId, arm, undefined, detail)
         await persist()
-        await recordStats(statLine(Date.now(), taskId, arm, 'verify', false, result.seconds ?? 0, null, detail))
+        await recordStats(statLine(Date.now(), taskId, arm, 'verify', false, result.seconds, null, detail))
         continue
       }
       if (result.passed) passed += 1
@@ -234,8 +234,7 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
       tasks = mergeArmOutcome(tasks, taskId, arm, result.passed, result.error)
       await persist()
       await recordStats(
-        /* v8 ignore next -- runArm always sets seconds, so the zero fallback is unreachable. */
-        statLine(Date.now(), taskId, arm, 'verdict', result.passed, result.seconds ?? 0, result.exitCode ?? null, result.error ?? ''),
+        statLine(Date.now(), taskId, arm, 'verdict', result.passed, result.seconds, result.exitCode ?? null, result.error ?? ''),
       )
     }
 
@@ -250,15 +249,26 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
   }
 }
 
-/** One arm run's outcome for the orchestration. */
-interface ArmOutcome {
+/** One arm's settled verdict. */
+interface ArmVerdict {
+  kind: 'verdict'
   passed: boolean
+  /** Why the arm failed; absent when it passed. */
   error?: string
-  seconds?: number
+  seconds: number
   exitCode?: number
-  /** The arm produced no verdict at all, so it stays retryable. */
-  infra?: boolean
 }
+
+/** An arm that produced no verdict at all, so it stays retryable. */
+interface ArmInfra {
+  kind: 'infra'
+  /** What prevented a verdict. */
+  detail: string
+  seconds: number
+}
+
+/** One arm run's outcome: a settled verdict or an infra failure to retry. */
+type ArmOutcome = ArmVerdict | ArmInfra
 
 /**
  * Agent run → prediction → verdict for one arm. A dsh process crash (non-zero
@@ -295,30 +305,37 @@ async function runArm(
     agentRun = await runAgent(agentOptions)
   }
   const seconds = (Date.now() - started) / 1000
-  if (agentRun.spawnError !== null) return { passed: false, error: `agent spawn failed: ${agentRun.spawnError}`, seconds, exitCode: agentRun.exitCode }
+  if (agentRun.spawnError !== null) {
+    return { kind: 'verdict', passed: false, error: `agent spawn failed: ${agentRun.spawnError}`, seconds, exitCode: agentRun.exitCode }
+  }
   if (agentRun.exitCode !== 0) {
     const extra = agentRun.timeout ? ' (agent timeout)' : ''
     const retried = agentRun !== first ? ' after retry' : ''
-    return { passed: false, error: `agent exited ${agentRun.exitCode}${extra}${retried}`, seconds, exitCode: agentRun.exitCode }
+    return {
+      kind: 'verdict', passed: false, error: `agent exited ${agentRun.exitCode}${extra}${retried}`,
+      seconds, exitCode: agentRun.exitCode,
+    }
   }
   const predictionPath = join(taskDir, `prediction-${arm}.patch`)
   let prediction: string | null
   try {
     prediction = await collectPrediction(workspace, arm, predictionPath)
   } catch (error) {
-    return { passed: false, error: `prediction collection failed: ${errorMessage(error)}`, seconds }
+    return { kind: 'verdict', passed: false, error: `prediction collection failed: ${errorMessage(error)}`, seconds }
   }
-  if (prediction === null) return { passed: false, error: 'no prediction (empty diff)', seconds, exitCode: 0 }
+  if (prediction === null) {
+    return { kind: 'verdict', passed: false, error: 'no prediction (empty diff)', seconds, exitCode: 0 }
+  }
   try {
     const verdict = await verifyVerdict(
       workspace, arm, prediction, options.verifyTimeoutMs, join(logDir, `${arm}-verify.log`),
     )
-    if (verdict.infra === true) return { passed: false, infra: true, error: verdict.detail, seconds, exitCode: 0 }
+    if (verdict.infra === true) return { kind: 'infra', detail: verdict.detail, seconds }
     return verdict.passed
-      ? { passed: true, seconds, exitCode: 0 }
-      : { passed: false, error: verdict.detail, seconds, exitCode: 0 }
+      ? { kind: 'verdict', passed: true, seconds, exitCode: 0 }
+      : { kind: 'verdict', passed: false, error: verdict.detail, seconds, exitCode: 0 }
   } catch (error) {
-    return { passed: false, error: `verdict failed: ${errorMessage(error)}`, seconds }
+    return { kind: 'verdict', passed: false, error: `verdict failed: ${errorMessage(error)}`, seconds }
   }
 }
 

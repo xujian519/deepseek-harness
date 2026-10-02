@@ -180,6 +180,16 @@ describe('prepareTaskWorkspace', () => {
     await expect(prepareTaskWorkspace({ ...PREPARE_OPTIONS, workDir: dir })).resolves.toBeDefined()
   })
 
+  it('resolves the production clone retry delay when the caller names none', async () => {
+    const dir = await tempDir()
+    // Only the caller-specific override is dropped; a first-attempt clone
+    // success means the resolved default is never spent.
+    const { cloneRetryDelayMs: override, ...withoutDelay } = PREPARE_OPTIONS
+    expect(override).toBe(0)
+    setPlan([{ code: 0 }, { code: 0 }])
+    await expect(prepareTaskWorkspace({ ...withoutDelay, workDir: dir })).resolves.toBeDefined()
+  })
+
   it('fails loud on a baseline arm clone, checkout, and test-patch apply failure', async () => {
     const dir = await tempDir()
     setPlan([{ code: 0 }, { code: 0 }, { code: 0 }, { code: 4 }])

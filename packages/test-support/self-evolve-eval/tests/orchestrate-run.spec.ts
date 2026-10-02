@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { runCampaign, type CampaignOptions } from '../src/campaign/orchestrate.ts'
+import { DEFAULT_PYTHON_VERSION, runCampaign, type CampaignOptions } from '../src/campaign/orchestrate.ts'
 import type { EvalTask } from '../src/types.ts'
 
 const { mocks } = vi.hoisted(() => {
@@ -222,6 +222,23 @@ describe('runCampaign execute path', () => {
 
     await runCampaign(options(dir, { armMode: 'baseline', pythonVersion: '3.12' }))
     expect(mocks.prepareTaskWorkspace.mock.calls.at(-1)?.[0]).toMatchObject({ pythonVersion: '3.12' })
+  })
+
+  it('uses the default interpreter when neither the caller nor the row names one', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-defpy')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-defpy', { instance_id: 't-defpy' }]]))
+    // The row carries no python, unlike the two cases above.
+    mocks.normalizeSwebenchRow.mockReturnValue(workspace('t-defpy').row)
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-defpy'))
+
+    const withFlag = options(dir, { armMode: 'baseline' })
+    const { pythonVersion: seeded, ...withoutFlag } = withFlag
+    expect(seeded).toBe('3.11')
+    await runCampaign(withoutFlag)
+    expect(mocks.prepareTaskWorkspace.mock.calls.at(-1)?.[0])
+      .toMatchObject({ pythonVersion: DEFAULT_PYTHON_VERSION })
   })
 
   it('retries a crashed agent once and reports the terminal exit', async () => {
