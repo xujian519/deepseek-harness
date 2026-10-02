@@ -59,6 +59,29 @@ Schemastery 配置，全部字段可选。
 | --- | --- | --- | --- |
 | calendarDir | string | 随包资产 | 存放 `cn-holidays.yaml` 的目录，须镜像随包布局。文件缺失或非法将使插件加载失败。 |
 | reminderLeadDays | number | 30 | 届满日剩余天数不超过该值时标记为紧急。属事务所策略，非法定期限。 |
+| provideService | boolean | false | 发布 `patentDeadline` 服务（见下）。默认关，使 agent preset 的挂载保持“只有工具”。 |
+| exposeTool | boolean | true | 注册 `patent_deadlines` 工具。根域的“只提供服务”挂载把它设为 false，从而不新增第二个面向模型的工具。 |
+
+<a id="patentdeadline-service"></a>
+## `patentDeadline` 服务（根域挂载）
+
+挂在 agent preset 里的插件只能写入该 preset 隔离域的工具注册表，因此 profile 根域的同级插件——例如专利工作台的期限看板——无法经工具注册表拿到求值器。需要该访问的部署把本包**在 profile 根域再注册一次**，配置 `provideService: true` 与 `exposeTool: false`：
+
+```yaml
+- id: patent-deadline-service
+  name: '@deepseek-ai/dsh-patent-deadline'
+  config: { provideService: true, exposeTool: false }
+```
+
+这一行把求值器发布为根域的 `patentDeadline` 服务，且不新增第二个面向模型的工具；预设那一行保持默认的 `exposeTool: true` 供 agent 使用。同一个包注册两行是安全的——只有重复的 loader entry **id** 才是致命错误，而两行持不同 id。
+
+该服务是对纯函数的直通，因此期间、送达或顺延规则都不复述：
+
+- `evaluate(query, options?)` —— 与 `evaluateDeadlines` 相同的 `DeadlineQuery`/`DeadlineReport`，`query.today` 由调用方给定以保证报告可复现；`options.reminderLeadDays` 为本次调用覆盖内置阈值。
+- `periodEnd(start, period)`、`resolveDeliveryDate(request)`、`describePatentKind(kind)` —— 即上文的库函数。
+- `calendarCoverage()` —— `{ years }`，即所载安排覆盖的年份。消费者据此说明某个届满日的年份未经核实，而不是显示一个从未核验过的顺延。
+
+日期以 `{ year, month, day }` 对象跨边界，消费者因此不必再解析一次日历。消费者**软探测**该服务（`ctx.get('patentDeadline')`）而不注入它，因此部署未接线时它照常加载。
 
 <a id="model-experience"></a>
 ## 模型体验

@@ -24,8 +24,11 @@
   en: 05bb33d6473683ec
   zh: 3c33ed5bb3af6cc2
 /deepseek-ai-dsh-patent-deadline/configuration:
-  en: 35928a5541662039
-  zh: a578d9e7c57fa70d
+  en: 9efa4e622e46b767
+  zh: 2cb33b778dce1023
+/deepseek-ai-dsh-patent-deadline/patentdeadline-service-root-mount:
+  en: 626c74bb27ab1b22
+  zh: 6f97dbdd43a07185
 /deepseek-ai-dsh-patent-deadline/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90

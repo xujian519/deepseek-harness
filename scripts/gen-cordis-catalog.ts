@@ -183,6 +183,7 @@ export const SERVICE_WALK_EXEMPTIONS: Record<string, string> = {
   dshHomePath: 'not a service: boot-provided root accessor function (typeof dshHomePath | undefined) for Loader !!js config expressions — packages/boot/app-boot/README.md owns the boot contract',
   launchEnvironment: 'not a service: launcher-provided root accessor value (LaunchEnvironmentSnapshot | undefined) — packages/util/launch-environment/README.md owns this launcher contract',
   patentRuleGate: 'not a service: patent-rule-provided optional gate accessor (PatentRuleOutputGate | undefined) for patent-teams task gating — packages/patent/patent-rule/README.md owns the contract',
+  patentDeadline: 'not a service: patent-deadline-provided optional deadline evaluator (PatentDeadlineService | undefined), published only when a deployment mounts the package with provideService: true — packages/patent/patent-deadline/README.md owns the contract',
   pluginPackages: 'profile-boot-owned package resolver service used by optional consumers — packages/boot/app-boot/README.md owns this internal API',
   fileUpload: 'client-side browser upload service — packages/client/file-upload/README.md owns the API',
   uiRenderer: 'client-side interface-typed browser service — packages/client/ui-renderer/README.md owns the API',
