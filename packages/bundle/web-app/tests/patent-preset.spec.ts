@@ -226,6 +226,20 @@ describe('patent preset composition', () => {
     expect(cnlawEndpointLiterals(text)).toEqual([])
   })
 
+  it('keeps the evidence check and the conditional figure route the zero-call audit added', async () => {
+    // The 2026-10-03 zero-call audit gave evaluate_evidence its first route and
+    // narrowed add_patent_figure_references to self-drawn or external SVG input.
+    // Both rules live only in this persona prefix — no other file states them — so
+    // a rewrite that drops either one leaves every other gate green.
+    const text = personaPrefix((await patentRows()).find(row => row.id === 'persona'))
+    expect(text).toContain('`evaluate_evidence`')
+    expect(text).toContain('自绘或外部来源的 SVG')
+    expect(text).toContain('`.sati/figures-index.json`')
+    // The persona states the model's task; the guard's name and wiring are
+    // deployment implementation detail, not prompt content (packages/AGENTS.md).
+    expect(text).not.toContain('EVI-011')
+  })
+
   it('names a figure-analysis route the shipped catalog declares image-capable', async () => {
     // analyze_patent_figure is gated on the route's DECLARED input modalities, and an
     // uncatalogued model is treated as text-only. A preset naming a route the shipped

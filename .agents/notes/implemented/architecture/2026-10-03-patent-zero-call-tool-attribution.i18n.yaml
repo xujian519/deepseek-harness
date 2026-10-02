@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-03-patent-zero-call-tool-attribution.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-03-patent-zero-call-tool-attribution.md
+/agent-note-patent-zero-call-tools-are-attributed-and-routed:
+  en: 8d17cae5be65d903
+  zh: bc12ec9729325dca
+/agent-note-patent-zero-call-tools-are-attributed-and-routed/problem:
+  en: 40c5e71ee3cc2951
+  zh: 4b7a8057ec2bf9d9
+/agent-note-patent-zero-call-tools-are-attributed-and-routed/decision:
+  en: 49ad2d5f6bc2cf93
+  zh: 41e730c7279bd754
+/agent-note-patent-zero-call-tools-are-attributed-and-routed/alternatives-considered:
+  en: b70f46d7384fea7f
+  zh: b5e43a958a86e1df
+/agent-note-patent-zero-call-tools-are-attributed-and-routed/consequences:
+  en: d33e7b094cbf3eff
+  zh: 9d652943ec4b3ea3

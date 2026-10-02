@@ -65,7 +65,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t2 | 现有技术检索：对比文件 + 布局依据 | 检索员 | t1 |
 | t3 | 权利要求布局方案（HITL 确认） | 撰写员 | t2 |
 | t4 | 说明书五部分撰写 | 撰写员 | t3 |
-| t4a | 附图与附图标记表：按图面类型出图（`generate_patent_figure`；三维模型走 `generate_structure_figure`）、标号回填（`add_patent_figure_references`）、图文双向一致性核验（`validate_specification` + `analyze_patent_figure`），产出 `figure-deliverable.md` | 制图员 | t4 |
+| t4a | 附图与附图标记表：按图面类型出图（`generate_patent_figure`，标号随 `labels[]` 内嵌；三维模型走 `generate_structure_figure`）、外部 SVG 标号回填（`add_patent_figure_references`，仅自绘/外部来源图需要）、图文双向一致性核验（`validate_specification` + `analyze_patent_figure`），产出 `figure-deliverable.md` | 制图员 | t4 |
 | t5 | 对立评审：清楚/支持/充分公开/单一性 | 对立审查员 | t4a |
 | t6 | 技术核验：实施例/效果数据复核 | 技术专家 | t4a（与 t5 并行） |
 | t7 | 范围审视：扩张机会与从权布局 | 申请人代理 | t5 |
@@ -82,7 +82,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t1 | OA 解析与问题识别（A22.2/22.3/26.3/26.4/33 等） | 撰写员 | — |
 | t2 | 法条与审查标准核验 | 对立审查员 | t1 |
 | t3 | 修改方案与争辩策略（HITL 确认） | 申请人代理 | t2 |
-| t3a | 附图修改执行与标号一致性核验：按已确认的修改方案改图（附图修改同样受 A33 约束）、`add_patent_figure_references` 回填标号、`figure-deliverable.md` 落盘 | 制图员 | t3 |
+| t3a | 附图修改执行与标号一致性核验：按已确认的修改方案改图（附图修改同样受 A33 约束）、自绘/外部 SVG 用 `add_patent_figure_references` 回填标号、`figure-deliverable.md` 落盘 | 制图员 | t3 |
 | t4 | 答复意见书起草 | 撰写员 | t3 |
 | t5 | 红队评审交付稿 | 对立审查员 | t4, t3a |
 | t6 | 技术核验 | 技术专家 | t4（与 t5 并行） |
