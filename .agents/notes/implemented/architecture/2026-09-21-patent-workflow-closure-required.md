@@ -28,6 +28,6 @@ Closure stays required, and the team path carries it:
 ## Consequences
 
 - Every case type now spends at least one workflow run on closure, and a case that stops at the human-approval gate must re-call with `approveStageIds`, which the persona and skills state.
-- The audit's next equal-length window makes the decision testable: `patent_workflow_run` at five or more calls means the requirement reached the model; zero calls with the requirement now written into the persona *and* the closure rows means the requirement is again mis-placed, and the retirement branch reopens with better evidence than this round had.
+- The 2026-10-03 equal-length window (91 sessions) recorded zero `patent_workflow_run` calls with the requirement already written into the persona and the closure rows, which is this decision's own failure condition: the requirement is again mis-placed, and the retirement branch reopens with better evidence than the 2026-09-21 round had. [The zero-call attribution note](2026-10-03-patent-zero-call-tool-attribution.md) holds the call counts and the state of that branch.
 - The team DAG gains a required step per scenario, so a captain that skips closure produces a task list whose final row is visibly unmet rather than an analysis that silently looks finished.
 - Rectification cases carry a checklist instead of a stage record, so their audit trail is weaker than every other case type's; the skill records the reason rather than inventing a manifest entry.
