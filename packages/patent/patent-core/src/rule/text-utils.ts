@@ -2,7 +2,7 @@
  * 宪法规则引擎 — 中文文本处理共享工具。
  *
  * 统一 `hasNegationContext`（否定语境检测）、`parseCnNumber`（中文数字解析）与
- * `locateMatch`（命中定位），供 RuleEngine / synonym-engine / 说明书校验复用，
+ * `locateMatch` / `locationAt`（命中定位），供 RuleEngine / synonym-engine / 说明书校验复用，
  * 避免镜像实现漂移。
  */
 
@@ -134,6 +134,17 @@ function sentenceAt(text: string, index: number): string {
 }
 
 /**
+ * 取已知命中位置的行号与命中句。调用方在扫描时已经记下命中的下标（而非只留下
+ * 命中词）时用它：这些下标经过豁免判定筛选，`locateMatch` 的字面反查做不到。
+ * @param text - 被扫描的完整文本。
+ * @param index - 命中片段的起始下标。
+ * @returns 行号与命中句。
+ */
+export function locationAt(text: string, index: number): MatchLocation {
+  return { line: text.slice(0, index).split('\n').length, matchedSentence: sentenceAt(text, index) }
+}
+
+/**
  * 定位文本中最早出现的一处字面命中，返回行号与其所在句。
  *
  * 规则违规类返回值只说明"命中了什么词"，不说明"命中在哪里"：调用方拿到
@@ -142,6 +153,10 @@ function sentenceAt(text: string, index: number): string {
  *
  * 取**最早**一处：足以让调用方找到并判读上下文；全部片段列举则会让一个
  * 高频词把返回体撑大。
+ *
+ * 只在片段必为原文子串、且"最早一处"就是违规那一处时使用：它无法区分同一
+ * 片段的多次出现，若扫描期丢弃了被豁免命中的位置（否定语境、引文），反查会
+ * 落到被豁免的那一处——那种调用方应改用 {@link locationAt}。
  * @param text - 被扫描的完整文本。
  * @param needles - 待定位的字面片段（空片段被忽略）。
  * @returns 行号与命中句；文本中不含任何片段时返回 undefined。
@@ -154,7 +169,7 @@ export function locateMatch(text: string, needles: readonly string[]): MatchLoca
     if (index >= 0 && index < bestIndex) bestIndex = index
   }
   if (bestIndex === Number.POSITIVE_INFINITY) return undefined
-  return { line: text.slice(0, bestIndex).split('\n').length, matchedSentence: sentenceAt(text, bestIndex) }
+  return locationAt(text, bestIndex)
 }
 
 // ---------------------------------------------------------------------------

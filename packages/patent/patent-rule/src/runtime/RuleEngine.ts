@@ -17,7 +17,7 @@ import type {
   RuleViolation,
   StructuralAnalysisCheck,
 } from '@deepseek-ai/dsh-patent-core'
-import { hasNegationContext, locateMatch, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
+import { hasNegationContext, locateMatch, locationAt, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { checkSynonymRequirements, type SynonymMap } from './synonym-engine.ts'
 
@@ -79,20 +79,32 @@ function quoteMask(text: string): Uint8Array {
   return mask
 }
 
-/** 检查单个 keyword_blocklist 条目（"a|b|c" OR 组），返回证据。 */
+/**
+ * 一条计入违规的 keyword_blocklist 命中：词与它在文本中的起始下标。
+ * 下标是豁免判定与定位共用的产物，故一并留下——只留词的话，定位只能反查字面，
+ * 会落到被豁免的那一处。
+ */
+type KeywordHit = {
+  /** 命中的词。 */
+  word: string
+  /** 命中词在文本中的起始下标。 */
+  index: number
+}
+
+/** 检查单个 keyword_blocklist 条目（"a|b|c" OR 组），返回计入违规的命中。 */
 function checkKeywordEntry(
   entry: string,
   text: string,
   negationContext: boolean,
   adjacentWords: readonly string[] | undefined,
   immunity: Uint8Array | undefined,
-): string[] {
+): KeywordHit[] {
   const alternatives = entry
     .split('|')
     .map(s => s.trim())
     .filter(s => s.length > 0)
   if (alternatives.length === 0) return []
-  const evidence: string[] = []
+  const hits: KeywordHit[] = []
   // 默认否定词表由 hasNegationContext 自己填，这里只补领域前缀表；可选属性在
   // exactOptionalPropertyTypes 下不接受显式 undefined，故按需构造一次（循环不变量）。
   const contextOptions = adjacentWords === undefined ? undefined : { adjacentWords }
@@ -108,14 +120,14 @@ function checkKeywordEntry(
     if (best === null) break
     const quoted = immunity !== undefined && immunity[best.index] === 1
     if (!quoted && (!negationContext || !hasNegationContext(text, best.index, contextOptions))) {
-      evidence.push(best.word)
+      hits.push({ word: best.word, index: best.index })
     }
     searchFrom = best.index + best.word.length
   }
-  return evidence
+  return hits
 }
 
-function checkKeywordBlocklist(check: KeywordBlocklistCheck, text: string): string[] {
+function checkKeywordBlocklist(check: KeywordBlocklistCheck, text: string): KeywordHit[] {
   // 两个键正交：`negationContext` 是唯一的开关，`additionalNegationWords` 只提供词。
   // 「声明了词却没开开关」由 RuleLoader 的加载校验与补丁路径告警（不在这里静默开启，
   // 否则 `negationContext: false` + 词表这种自相矛盾的组合会变成"词表说了算"，读代码看不出来谁生效）。
@@ -124,13 +136,13 @@ function checkKeywordBlocklist(check: KeywordBlocklistCheck, text: string): stri
   // 的放行面，且 24 字窗口会让「防」这类单字前缀对窗口内任意命中生效。
   const negationContext = check.negationContext === true
   const immunity = check.quoteImmune === true ? quoteMask(text) : undefined
-  const evidence: string[] = []
+  const hits: KeywordHit[] = []
   for (const entry of check.keywords) {
-    evidence.push(
+    hits.push(
       ...checkKeywordEntry(entry, text, negationContext, check.additionalNegationWords, immunity),
     )
   }
-  return evidence
+  return hits
 }
 
 /**
@@ -317,13 +329,20 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
   if (!premiseSatisfied(rule.premise, text)) return null
   const check = rule.check
   let evidence: string[] = []
+  // 扫描期已记录下标的检查（keyword_blocklist）在这里交出最早一处命中；其余检查按
+  // 证据片段字面反查。见文件末尾的 location 计算。
+  let locatedAt: number | undefined
   let message: string | null = null
   let severity: RuleSeverity = rule.severity
 
   switch (check.type) {
     case 'keyword_blocklist': {
-      evidence = checkKeywordBlocklist(check, text)
-      if (evidence.length === 0) return null
+      const hits = checkKeywordBlocklist(check, text)
+      if (hits.length === 0) return null
+      evidence = hits.map(hit => hit.word)
+      // 取最早一处计入违规的命中：被豁免的命中（否定语境、引文）不在 hits 内，
+      // 拿 evidence 反查文本会落到被豁免的那一处。
+      locatedAt = hits.reduce((min, hit) => Math.min(min, hit.index), Number.POSITIVE_INFINITY)
       severity = check.severityIfFound ?? rule.severity
       message = `命中禁止词：${[...new Set(evidence)].join('、')}`
       break
@@ -365,7 +384,7 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
       assertNever(check, 'rule check type')
   }
 
-  const location = locateMatch(text, evidence)
+  const location = locatedAt === undefined ? locateMatch(text, evidence) : locationAt(text, locatedAt)
   return {
     ruleId: rule.id,
     ruleName: rule.name,

@@ -4,6 +4,7 @@ import {
   DEFAULT_NEGATION_WORDS,
   hasNegationContext,
   locateMatch,
+  locationAt,
   parseCnNumber,
 } from '@deepseek-ai/dsh-patent-core'
 
@@ -133,5 +134,21 @@ describe('locateMatch', () => {
     expect(found?.matchedSentence.length).toBeLessThanOrEqual(122)
     expect(found?.matchedSentence.startsWith('…')).toBe(true)
     expect(found?.matchedSentence.endsWith('…')).toBe(true)
+  })
+})
+
+describe('locationAt', () => {
+  it('按下标给出该处的行号与所在句', () => {
+    const text = '第一行无关。\n第二行含目标词。\n第三行无关。'
+    expect(locationAt(text, text.indexOf('目标词'))).toEqual({ line: 2, matchedSentence: '第二行含目标词。' })
+  })
+
+  it('取指定下标那一处，而非同词更早的命中', () => {
+    const text = '第一行含目标词。\n第二行也含目标词。'
+    expect(locationAt(text, text.lastIndexOf('目标词'))).toEqual({ line: 2, matchedSentence: '第二行也含目标词。' })
+  })
+
+  it('下标为 0 时落在第一行句首', () => {
+    expect(locationAt('目标词起头。后一句。', 0)).toEqual({ line: 1, matchedSentence: '目标词起头。' })
   })
 })

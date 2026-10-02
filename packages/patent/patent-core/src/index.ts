@@ -65,6 +65,7 @@ export {
   DEFAULT_NEGATION_WORDS,
   hasNegationContext,
   locateMatch,
+  locationAt,
   parseCnNumber,
   runeSlice,
 } from './rule/text-utils.ts'
