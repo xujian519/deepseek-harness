@@ -19,6 +19,7 @@ const CAMPAIGN_OPTIONS = {
   profile: 'headless',
   dshEntry: '/nonexistent/bin.ts',
   tsxImport: '/nonexistent/tsx.js',
+  tsconfigPath: '/repo/tsconfig.base.json',
   buildCommandTemplate: '{python} -m compileall -q .',
   pythonVersion: '3.11',
   envTool: 'uv' as const,
@@ -139,12 +140,32 @@ describe('manifest rows', () => {
     expect(row?.install).toBe('pip install -e .')
   })
 
-  it('omits install when absent and tolerates a non-array failToPass/passToPass', () => {
-    const row = normalizeSwebenchRow({ ...valid, install: undefined, FAIL_TO_PASS: 'not-an-array', PASS_TO_PASS: 7 })
+  it('omits install when absent and decodes JSON-array test id strings', () => {
+    const row = normalizeSwebenchRow({
+      ...valid,
+      install: undefined,
+      FAIL_TO_PASS: '["tests/x.py::test_1"]',
+      PASS_TO_PASS: '[]',
+    })
     expect(row).not.toBeNull()
     expect(row?.install).toBeUndefined()
-    expect(row?.failToPass).toEqual([])
+    expect(row?.failToPass).toEqual(['tests/x.py::test_1'])
     expect(row?.passToPass).toEqual([])
+  })
+
+  it('fails loud on a malformed test id field rather than scoring the arm as failed', () => {
+    expect(() => normalizeSwebenchRow({ ...valid, FAIL_TO_PASS: 'not-an-array' })).toThrow(/is not valid JSON/)
+    expect(() => normalizeSwebenchRow({ ...valid, PASS_TO_PASS: 7 })).toThrow(/must be a JSON array string or an array/)
+  })
+
+  it('carries the per-task python an augmented manifest supplies', () => {
+    const row = normalizeSwebenchRow({ ...valid, python: '3.9.6' })
+    expect(row?.python).toBe('3.9.6')
+  })
+
+  it('omits python when absent, so the campaign falls back to --python', () => {
+    const row = normalizeSwebenchRow({ ...valid, python: undefined })
+    expect(row?.python).toBeUndefined()
   })
 
   it('returns null when a field the campaign needs is missing', () => {

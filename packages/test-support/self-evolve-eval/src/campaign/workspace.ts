@@ -13,7 +13,7 @@
 
 import { spawn } from 'node:child_process'
 import { closeSync, openSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { EvalTask } from '../types.ts'
 import type { SwebenchRow } from './manifest.ts'
@@ -163,6 +163,11 @@ export interface PrepareTaskOptions {
   envTool: 'uv' | 'venv'
   setupTimeoutMs: number
   installTimeoutMs: number
+  /**
+   * Milliseconds between base-repository clone attempts. Callers that cannot
+   * wait (tests, an offline CI shard) pass 0.
+   */
+  cloneRetryDelayMs?: number
   logPath: string
 }
 
@@ -203,10 +208,10 @@ export async function prepareTaskWorkspace(options: PrepareTaskOptions): Promise
   }
 
   const cloneUrl = `https://github.com/${row.repo}.git`
-  const cloneResult = await exec('git', ['clone', '--quiet', '--no-tags', cloneUrl, repoBase], {
-    cwd: taskDir, timeoutMs: setupTimeoutMs, logPath,
-  })
-  if (cloneResult.exitCode !== 0) throw new Error(`clone ${row.repo} exited ${cloneResult.exitCode}`)
+  const cloneResult = await cloneBaseRepository(
+    cloneUrl, repoBase, taskDir, setupTimeoutMs, logPath, options.cloneRetryDelayMs ?? CLONE_RETRY_DELAY_MS,
+  )
+  if (cloneResult.exitCode !== 0) throw new Error(`clone ${row.repo} exited ${cloneResult.exitCode} after ${CLONE_ATTEMPTS} attempts`)
   const checkoutResult = await exec('git', ['checkout', '--quiet', row.baseCommit], {
     cwd: repoBase, timeoutMs: setupTimeoutMs, logPath,
   })
@@ -266,6 +271,12 @@ export interface AgentRunOptions {
   dshEntry: string
   /** Absolute module specifier for the tsx ESM hook (`node --import <this>`). */
   tsxImport: string
+  /**
+   * Absolute path to the tsconfig carrying the workspace `paths`. The arm's
+   * working directory is the task checkout, where tsx would otherwise fail to
+   * resolve `@deepseek-ai/*` and exit before the profile boots.
+   */
+  tsconfigPath: string
   /** Evolved-arm overlay (the built-in dsh `--patch` overlay path), or none. */
   overlayPath?: string
   timeoutMs: number
@@ -289,6 +300,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ExecResult> {
     cwd: options.workspace.repoArms[options.arm],
     env: {
       DSH_TELEMETRY_DISABLED: '1',
+      TSX_TSCONFIG_PATH: options.tsconfigPath,
       ...(options.dshHome === undefined ? {} : { DSH_HOME: options.dshHome }),
     },
     timeoutMs: options.timeoutMs,
@@ -392,4 +404,43 @@ async function tailOf(path: string, maxChars: number): Promise<string> {
     /* v8 ignore next -- an unreadable log yields an empty detail; the verify path always creates the file. */
     return ''
   }
+}
+
+/** Clone attempts for the networked base checkout; transient failures retry. */
+const CLONE_ATTEMPTS = 3
+
+/** Milliseconds between clone attempts. */
+const CLONE_RETRY_DELAY_MS = 5_000
+
+/**
+ * Clone the task repository, retrying a transient failure.
+ *
+ * The base checkout is the only networked git step, and an intermittent
+ * connection failure here would otherwise surface as an unretryable infra
+ * error for the whole task. A partial clone from a failed attempt is removed
+ * before retrying so git does not refuse a non-empty destination.
+ *
+ * @param url - repository clone URL.
+ * @param destination - directory to clone into.
+ * @param cwd - working directory for the git subprocess.
+ * @param timeoutMs - per-attempt wall-clock cap.
+ * @param logPath - log file the attempt output appends to.
+ * @param retryDelayMs - pause between attempts.
+ * @returns the last attempt's result.
+ */
+async function cloneBaseRepository(
+  url: string,
+  destination: string,
+  cwd: string,
+  timeoutMs: number,
+  logPath: string,
+  retryDelayMs: number,
+): Promise<ExecResult> {
+  let result = await exec('git', ['clone', '--quiet', '--no-tags', url, destination], { cwd, timeoutMs, logPath })
+  for (let attempt = 2; attempt <= CLONE_ATTEMPTS && result.exitCode !== 0 && !result.timeout; attempt += 1) {
+    await rm(destination, { recursive: true, force: true })
+    await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+    result = await exec('git', ['clone', '--quiet', '--no-tags', url, destination], { cwd, timeoutMs, logPath })
+  }
+  return result
 }

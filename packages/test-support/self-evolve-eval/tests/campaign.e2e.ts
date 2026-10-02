@@ -50,6 +50,7 @@ describe.skipIf(!KEY || !MANIFEST)('self-evolve campaign e2e (real process, keye
         profile: 'headless',
         dshEntry: resolve('apps/cli/src/bin.ts'),
         tsxImport: 'tsx/esm',
+        tsconfigPath: '/repo/tsconfig.base.json',
         buildCommandTemplate: '{python} -m compileall -q .',
         pythonVersion: '3.11',
         envTool: 'venv',

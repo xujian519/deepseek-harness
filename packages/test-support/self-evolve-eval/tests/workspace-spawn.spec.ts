@@ -110,6 +110,7 @@ const PREPARE_OPTIONS = {
   envTool: 'venv' as const,
   setupTimeoutMs: 1_000,
   installTimeoutMs: 1_000,
+  cloneRetryDelayMs: 0,
   logPath: '/tmp/setup.log',
 }
 
@@ -164,10 +165,19 @@ describe('prepareTaskWorkspace', () => {
 
   it('fails loud on a clone failure and a base checkout failure', async () => {
     const dir = await tempDir()
-    setPlan([{ code: 0 }, { code: 1 }])
-    await expect(prepareTaskWorkspace({ ...PREPARE_OPTIONS, workDir: dir })).rejects.toThrow(/clone a\/b exited 1/)
+    // Three clone attempts, all failing: the retry budget is exhausted.
+    setPlan([{ code: 0 }, { code: 1 }, { code: 1 }, { code: 1 }])
+    await expect(prepareTaskWorkspace({ ...PREPARE_OPTIONS, workDir: dir }))
+      .rejects.toThrow(/clone a\/b exited 1 after 3 attempts/)
     setPlan([{ code: 0 }, { code: 0 }, { code: 3 }])
     await expect(prepareTaskWorkspace({ ...PREPARE_OPTIONS, workDir: dir })).rejects.toThrow(/checkout abc exited 3/)
+  })
+
+  it('retries a transient clone failure and proceeds when an attempt succeeds', async () => {
+    const dir = await tempDir()
+    // venv, a failing clone attempt, then every later step succeeds.
+    setPlan([{ code: 0 }, { code: 128 }])
+    await expect(prepareTaskWorkspace({ ...PREPARE_OPTIONS, workDir: dir })).resolves.toBeDefined()
   })
 
   it('fails loud on a baseline arm clone, checkout, and test-patch apply failure', async () => {
@@ -218,7 +228,8 @@ describe('runAgent', () => {
     const ws = workspace('/repo')
     await runAgent({
       workspace: ws, arm: 'baseline', taskText: 'solve', profile: 'headless',
-      dshEntry: '/apps/bin.ts', tsxImport: 'tsx/esm', timeoutMs: 100, logPath: '/tmp/agent.log',
+      dshEntry: '/apps/bin.ts', tsxImport: '/tsx/esm.mjs', tsconfigPath: '/repo/tsconfig.base.json',
+      timeoutMs: 100, logPath: '/tmp/agent.log',
     })
     const args = spawnMock.mock.calls.at(-1)?.[1] as readonly string[]
     expect(args).toContain('--profile')
@@ -227,12 +238,24 @@ describe('runAgent', () => {
     expect(args).not.toContain('--patch')
   })
 
+  it('anchors the tsconfig so the entry boots outside the harness repository', async () => {
+    setPlan([{ code: 0 }])
+    await runAgent({
+      workspace: workspace('/repo'), arm: 'baseline', taskText: 'solve', profile: 'headless',
+      dshEntry: '/apps/bin.ts', tsxImport: '/tsx/esm.mjs', tsconfigPath: '/repo/tsconfig.base.json',
+      timeoutMs: 100, logPath: '/tmp/agent.log',
+    })
+    const options = spawnMock.mock.calls.at(-1)?.[2] as { env: Record<string, string> }
+    expect(options.env.TSX_TSCONFIG_PATH).toBe('/repo/tsconfig.base.json')
+  })
+
   it('adds the overlay and DSH_HOME for an evolved run', async () => {
     setPlan([{ code: 0 }])
     const ws = workspace('/repo')
     const result = await runAgent({
       workspace: ws, arm: 'evolved', taskText: 'solve', profile: 'headless',
-      dshEntry: '/apps/bin.ts', tsxImport: 'tsx/esm', overlayPath: '/evolved.yml', dshHome: '/home',
+      dshEntry: '/apps/bin.ts', tsxImport: '/tsx/esm.mjs', tsconfigPath: '/repo/tsconfig.base.json',
+      overlayPath: '/evolved.yml', dshHome: '/home',
       timeoutMs: 100, logPath: '/tmp/agent.log',
     })
     const args = spawnMock.mock.calls.at(-1)?.[1] as readonly string[]

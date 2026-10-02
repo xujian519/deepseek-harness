@@ -71,6 +71,7 @@ function options(dir: string, overrides: Partial<CampaignOptions> = {}): Campaig
     profile: 'headless',
     dshEntry: '/apps/bin.ts',
     tsxImport: 'tsx/esm',
+    tsconfigPath: '/repo/tsconfig.base.json',
     buildCommandTemplate: '{python} -m compileall -q .',
     pythonVersion: '3.11',
     envTool: 'venv' as const,

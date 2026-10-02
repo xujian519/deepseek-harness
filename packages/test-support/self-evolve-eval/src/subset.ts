@@ -59,11 +59,43 @@ export function normalizeSwebenchInstances(rows: unknown[]): EvalTask[] {
       instanceId,
       repo,
       baseCommit,
-      failToPass: asStringArray(row.FAIL_TO_PASS ?? row.failToPass),
-      passToPass: asStringArray(row.PASS_TO_PASS ?? row.passToPass),
+      failToPass: decodeTestIds('FAIL_TO_PASS', row.FAIL_TO_PASS ?? row.failToPass),
+      passToPass: decodeTestIds('PASS_TO_PASS', row.PASS_TO_PASS ?? row.passToPass),
     })
   }
   return tasks
+}
+
+/**
+ * Decode a SWE-bench test-id field into its ids. The dataset ships
+ * `FAIL_TO_PASS` and `PASS_TO_PASS` as JSON-encoded strings — `datasets`
+ * types both as `Value('string')` — while a subset file carries real arrays.
+ * Both decode to the same ids.
+ *
+ * A value that is neither form fails loud. Returning `[]` instead would let
+ * the campaign run `pytest` with no test ids and record the arm as a settled
+ * failed verdict, turning a manifest-shape mistake into a scored result. An
+ * absent field carries no ids and reads as empty;
+ * {@link selectSubset} refuses a subset whose tasks all end up that way.
+ *
+ * @param field - dataset field name, for the failure message.
+ * @param value - the raw field value.
+ * @returns the string ids the field carries.
+ */
+export function decodeTestIds(field: string, value: unknown): string[] {
+  if (value === undefined || value === null) return []
+  let decoded: unknown = value
+  if (typeof value === 'string') {
+    try {
+      decoded = JSON.parse(value) as unknown
+    } catch (cause) {
+      throw new Error(`self-evolve-eval: ${field} is not valid JSON: ${String(cause)}`, { cause })
+    }
+  }
+  if (!Array.isArray(decoded)) {
+    throw new Error(`self-evolve-eval: ${field} must be a JSON array string or an array, got ${typeof value}`)
+  }
+  return decoded.filter((item): item is string => typeof item === 'string')
 }
 
 /** First string-valued field among `keys`, in order; undefined when none is. */
@@ -75,24 +107,25 @@ function rowField(row: Record<string, unknown>, keys: readonly string[]): string
   return undefined
 }
 
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
-}
-
 /**
  * Deterministically select a subset of `count` tasks. Tasks are sorted by
  * instance id first (input order never influences the result), then shuffled
  * with the seeded PRNG; the first `count` tasks of the shuffle are the
  * subset. Tests and reproducibility depend on the stable sort.
  *
+ * Every selected task must carry at least one `failToPass` id: the verdict
+ * runs exactly those ids, so an empty list leaves the campaign with no test to
+ * execute and scores both arms as failed.
+ *
  * @param tasks - the normalized task list.
  * @param seed - sampling seed; the campaign records it with the results.
  * @param count - subset size (default 60). Clamped to the task list length.
  * @returns the selected subset, in shuffled order.
+ * @throws when a selected task has no `failToPass` id.
  */
 export function selectSubset(tasks: EvalTask[], seed: number, count = DEFAULT_SUBSET_SIZE): EvalTask[] {
   const sorted = [...tasks].sort((a, b) => a.instanceId.localeCompare(b.instanceId))
-  if (sorted.length <= count) return sorted
+  if (sorted.length <= count) return assertScorable(sorted)
   const random = mulberry32(seed)
   // Fisher-Yates shuffle of the sorted list.
   for (let index = sorted.length - 1; index > 0; index -= 1) {
@@ -104,7 +137,23 @@ export function selectSubset(tasks: EvalTask[], seed: number, count = DEFAULT_SU
     sorted[index] = swapTarget
     sorted[swapWith] = current
   }
-  return sorted.slice(0, count)
+  return assertScorable(sorted.slice(0, count))
+}
+
+/**
+ * Reject a subset carrying a task with no `failToPass` id. The verdict runs
+ * exactly those ids, so such a task leaves the campaign with no test to run.
+ *
+ * @param selected - the chosen subset.
+ * @returns `selected` unchanged when every task is scorable.
+ * @throws when a selected task has no `failToPass` id.
+ */
+function assertScorable(selected: EvalTask[]): EvalTask[] {
+  const untestable = selected.find(task => task.failToPass.length === 0)
+  if (untestable !== undefined) {
+    throw new Error(`self-evolve-eval: ${untestable.instanceId} has no FAIL_TO_PASS ids; the subset cannot be scored`)
+  }
+  return selected
 }
 
 /**

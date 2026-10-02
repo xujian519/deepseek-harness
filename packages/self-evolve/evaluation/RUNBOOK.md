@@ -29,7 +29,7 @@ python -c "import datasets; print(datasets.__version__)" || echo "WARN: install 
 
 # Scaffold self-check (the eval unit suite must be green)
 pnpm exec vitest run packages/test-support/self-evolve-eval
-#   Expect: Test Files 9 passed (9), Tests 111 passed (111)
+#   Expect: Test Files 9 passed (9), Tests 126 passed (126)
 ```
 
 > If `pnpm`/`node` are not found, prepend the nvm/homebrew bin dir, e.g. `export PATH="$HOME/.nvm/versions/node/v22.22.3/bin:/opt/homebrew/bin:$PATH"`.

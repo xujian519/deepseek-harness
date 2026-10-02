@@ -70,6 +70,8 @@ export interface CampaignOptions {
   dshEntry: string
   /** Absolute module specifier for the tsx ESM hook. */
   tsxImport: string
+  /** Absolute path to the tsconfig whose `paths` resolve the harness sources. */
+  tsconfigPath: string
   /**
    * The evolved arm's workspace-verifier build command, with `{python}`
    * replaced by the per-task venv python.
@@ -176,7 +178,8 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
     let workspace: PreparedWorkspace
     try {
       workspace = await prepareTaskWorkspace({
-        workDir: options.workDir, task: entryTask(entry, row), row, pythonVersion: options.pythonVersion,
+        workDir: options.workDir, task: entryTask(entry, row), row,
+        pythonVersion: row.python ?? options.pythonVersion,
         envTool: options.envTool, setupTimeoutMs: options.setupTimeoutMs, installTimeoutMs: options.installTimeoutMs,
         logPath: join(options.workDir, entry.taskId, 'setup.log'),
       })
@@ -250,7 +253,7 @@ async function runArm(
   const started = Date.now()
   const agentOptions = {
     workspace, arm, taskText: workspace.row.problemStatement, profile: options.profile,
-    dshEntry: options.dshEntry, tsxImport: options.tsxImport,
+    dshEntry: options.dshEntry, tsxImport: options.tsxImport, tsconfigPath: options.tsconfigPath,
     timeoutMs: options.agentTimeoutMs, logPath: agentLog,
     ...(overlayPath === undefined ? {} : { overlayPath }),
     ...(options.dshHome === undefined ? {} : { dshHome: options.dshHome }),
