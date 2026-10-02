@@ -229,7 +229,7 @@ describe('skill-filesystem watcher failures', () => {
     expect(watcherHarness.watchers).toHaveLength(3)
     expect(watcherHarness.watchers[0]?.options).toMatchObject({
       atomic: true,
-      depth: 1,
+      depth: 2,
       followSymlinks: false,
       usePolling: true,
       interval: 10,
@@ -265,13 +265,29 @@ describe('skill-filesystem watcher failures', () => {
     first.emitter.emit('change', join(home, 'outside.md'))
     first.emitter.emit('change', join(first.path, 'watched-skill/references.md'))
     first.emitter.emit('change', join(first.path, '.system/SKILL.md'))
+    first.emitter.emit('change', join(first.path, 'patent-legal/drafting/notes.md'))
+    first.emitter.emit('add', join(first.path, 'patent-legal/drafting/notes.md'))
     await settle()
     expect(invalidations).toBe(0)
+
+    // A category appearing, a bundle changing inside one, and that bundle
+    // disappearing all change the catalog discovered below the root.
+    first.emitter.emit('addDir', join(first.path, 'patent-legal'))
+    await settle()
+    expect(invalidations).toBe(1)
+
+    first.emitter.emit('change', join(first.path, 'patent-legal/drafting/SKILL.md'))
+    await settle()
+    expect(invalidations).toBe(2)
+
+    first.emitter.emit('unlinkDir', join(first.path, 'patent-legal/drafting'))
+    await settle()
+    expect(invalidations).toBe(3)
 
     first.emitter.emit('change', join(first.path, 'watched-skill/SKILL.md'))
     first.emitter.emit('change', join(first.path, 'watched-skill/SKILL.md'))
     await settle()
-    expect(invalidations).toBe(1)
+    expect(invalidations).toBe(4)
 
     watcherHarness.closeErrors = 1
     watcherHarness.startupErrors.push(new Error('runtime rewatch failed'))

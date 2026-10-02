@@ -33,7 +33,7 @@ agent（智能体）可以使用来自仓库、自定义目录或用户 agent �
 
 ### skill 格式
 
-skill 可以是被扫描根目录顶层的目录 bundle `<name>/SKILL.md`，也可以是平铺文件 `<name>.md`；刻意不支持发现嵌套的 `**/SKILL.md`。文件以 YAML frontmatter 开头：必填 `name` 与 `description`，另有可选 `whenToUse`、`metadata`、`disable-model-invocation` 与 `user-invocable`。
+skill 可以是被扫描根目录顶层的目录 bundle `<name>/SKILL.md` 或平铺文件 `<name>.md`，也可以是其下一层分类目录内的目录 bundle `<category>/<name>/SKILL.md`——技能库用它按主题分组 skill。分类目录自身的 Markdown 文件是资料而非平铺 skill，比该层更深的 `**/SKILL.md` 刻意不发现。文件以 YAML frontmatter 开头：必填 `name` 与 `description`，另有可选 `whenToUse`、`metadata`、`disable-model-invocation` 与 `user-invocable`。
 
 `disable-model-invocation: true` 会把 skill 从面向模型的目录和 loader 中排除；`user-invocable: false` 会把它从面向用户的命令中排除，省略的字段默认允许对应接口调用。这两个键接受 YAML 布尔值，以及不区分大小写的 `true`/`false`、`yes`/`no`、`on`/`off` 和 `1`/`0` 形式；被拒绝的拼写或非布尔值会让整个 skill 随警告一起被丢弃，而不会静默允许某个接口。
 
@@ -107,11 +107,11 @@ skill 可以是被扫描根目录顶层的目录 bundle `<name>/SKILL.md`，也�
 
 ### 发现流程
 
-发现过程先为查找 cwd 解析根列表，让监视管理器附加到每个根，再扫描每个根的直接条目：目录 bundle 解析为 `<name>/SKILL.md`，平铺文件解析为 `<name>.md`。每个文件都会解析 frontmatter——`name` 必须为 kebab-case，`description` 必填，调用键按严格布尔语法解析——候选项携带根目录的来源标签与 rank，供注册表与其他提供方合并。已确认缺失的路径属于有效空状态；格式错误或非文本条目会随警告跳过。
+发现过程先为查找 cwd 解析根列表，让监视管理器附加到每个根，再扫描每个根的直接条目：目录 bundle 解析为 `<name>/SKILL.md`，平铺文件解析为 `<name>.md`；自身没有 `SKILL.md` 的目录是分类目录，其下的目录 bundle 解析为 `<category>/<name>/SKILL.md`。每个文件都会解析 frontmatter——`name` 必须为 kebab-case，`description` 必填，调用键按严格布尔语法解析——候选项携带根目录的来源标签与 rank，供注册表与其他提供方合并。已确认缺失的路径属于有效空状态；格式错误或非文本条目会随警告跳过。
 
 ### 监视与失效
 
-现有根目录由 Chokidar 以深度 1 监视；不存在的根会从最近的现有祖先开始，借助 `fs.watchFile` 每次沿一个缺失路径段跟踪。相关事件——直属 bundle 添加/移除、平铺 `.md` 添加/移除、直接 `SKILL.md` 添加/移除/变更——会在每个微任务批次合并为一次提供方失效，资源子树下的变更则被忽略。监视管理器受 `watchMaxProjects` 限制，会记录启动失败并重试，并在释放时关闭所有句柄。第一方 `write`/`edit` 变更通过 `fs/observed` 事件同步失效。
+现有根目录由 Chokidar 以深度 2 监视；不存在的根会从最近的现有祖先开始，借助 `fs.watchFile` 每次沿一个缺失路径段跟踪。相关事件——顶层或分类内 bundle 的 `SKILL.md` 添加/移除/变更、顶层平铺 `.md` 添加/移除、分类目录自身的添加/移除——会在每个微任务批次合并为一次提供方失效，资源子树下的变更则被忽略。监视管理器受 `watchMaxProjects` 限制，会记录启动失败并重试，并在释放时关闭所有句柄。第一方 `write`/`edit` 变更通过 `fs/observed` 事件同步失效。
 
 </details>
 
@@ -145,7 +145,7 @@ watcher 触发的失效可促使上述消费方在现有请求历史中追加替
 
 这些限制说明该提供方何时不合适，或何时需要特别的运维注意。它们是当前包约束，不是任务积压。
 
-- **发现深度为一层**——只识别 `<root>/<name>/SKILL.md` 与 `<root>/<name>.md`；忽略嵌套 skill 树与包 manifest（元数据清单）。
+- **发现止于根目录下一层分类**——只识别 `<root>/<name>/SKILL.md`、`<root>/<name>.md` 与 `<root>/<category>/<name>/SKILL.md`；忽略分类目录内的平铺 `.md`、隐藏目录、更深的 skill 树与包 manifest（元数据清单）。
 - **项目范围为最近 `.git` 祖先**——没有该标记的工作区回退到提供的 cwd，不支持其他项目根标记或 monorepo 子项目选择。
 - **格式错误的条目随警告消失**——模型目录不会收到逐 skill 诊断，无法区分缺失的 skill 与无效的 skill；意外的 I/O 失败则会保留最后一份可用目录。
 - **缺失根观察每次轮询一个路径段**——启动时不存在的根会使用 `fs.watchFile` 按 `watchPollIntervalMs` 轮询，直至 Chokidar 可以附加；这以有界检测延迟换取跨 IDE、Git 与 shell 工作流的可靠创建检测。

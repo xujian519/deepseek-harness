@@ -495,7 +495,8 @@ class SkillWatchManager {
       // this provider's effect explicitly closes every handle at teardown.
       persistent: true,
       ignoreInitial: true,
-      depth: 1,
+      // Two levels reach a category's skill bundle `<root>/<category>/<skill>/SKILL.md`.
+      depth: 2,
       followSymlinks: this.config.followSymlinks,
       atomic: true,
       awaitWriteFinish: {
@@ -673,19 +674,24 @@ function isRelevantWatchEvent(
     if (event === 'addDir' || event === 'unlinkDir') return true
     return segments[0]?.endsWith('.md') === true
   }
-  return segments.length === 2
-    && segments[1] === 'SKILL.md'
+  if (segments.length === 2) {
+    // A category directory appears or disappears, or a top-level bundle's body changes.
+    if (event === 'addDir' || event === 'unlinkDir') return true
+    return segments[1] === 'SKILL.md'
+  }
+  return segments.length === 3
+    && segments[2] === 'SKILL.md'
     && event !== 'addDir'
     && event !== 'unlinkDir'
 }
 
 function isPotentialSkillPath(root: SkillRoot, path: string): boolean {
   const segments = containedSegments(root.path, path)
-  if (segments === undefined || segments.length === 0 || segments.length > 2) return false
+  if (segments === undefined || segments.length === 0 || segments.length > 3) return false
   if (root.skipSystem === true && segments[0] === '.system') return false
-  return segments.length === 1
-    ? segments[0]?.endsWith('.md') === true
-    : segments[1] === 'SKILL.md'
+  if (segments.length === 1) return segments[0]?.endsWith('.md') === true
+  if (segments.length === 2) return segments[1] === 'SKILL.md'
+  return segments[2] === 'SKILL.md'
 }
 
 function containedSegments(root: string, path: string): string[] | undefined {
@@ -717,43 +723,70 @@ function hasErrorCode(error: unknown, code: string): boolean {
 
 async function discoverRoot(root: SkillRoot, ctx: Context, provider: string): Promise<SkillCandidate[]> {
   const skills: SkillCandidate[] = []
+  const trustedHost = root.trustedHost === true
   const entries = await listSkillRootEntries(root, ctx)
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (root.skipSystem && entry.name === '.system') continue
-    const locator = entry.type === 'directory'
-      ? { path: join(entry.path, 'SKILL.md'), directory: entry.path }
-      : entry.type === 'file' && entry.name.endsWith('.md')
-        ? { path: entry.path, directory: root.path }
-        : undefined
-    if (locator === undefined) continue
-    const parsed = await parseSkillFile(locator.path, ctx, undefined, root.trustedHost === true)
+    if (entry.type === 'directory') {
+      const locator: LocalLocator = { path: join(entry.path, 'SKILL.md'), directory: entry.path }
+      const bundle = await parseSkillFile(locator.path, ctx, undefined, trustedHost)
+      if (bundle !== undefined) {
+        skills.push(skillCandidateFrom(bundle, locator, root, provider))
+        continue
+      }
+      // A directory without its own SKILL.md holds skills one level below it:
+      // the skill library layout a `customSkillDirs` root often names as
+      // `<root>/<category>/<skill>/SKILL.md`. Only directory bundles count
+      // there — a category's own `.md` files are notes, not flat skills — and
+      // nothing below that level is discovered. Hidden directories are
+      // repository or tooling metadata, never categories.
+      if (entry.name.startsWith('.')) continue
+      for (const child of await listDirectoryEntries(entry.path, ctx, trustedHost)) {
+        if (child.type !== 'directory') continue
+        const nestedLocator: LocalLocator = { path: join(child.path, 'SKILL.md'), directory: child.path }
+        const nested = await parseSkillFile(nestedLocator.path, ctx, undefined, trustedHost)
+        if (nested === undefined) continue
+        skills.push(skillCandidateFrom(nested, nestedLocator, root, provider))
+      }
+      continue
+    }
+    if (entry.type !== 'file' || !entry.name.endsWith('.md')) continue
+    const parsed = await parseSkillFile(entry.path, ctx, undefined, trustedHost)
     if (parsed === undefined) continue
-    skills.push({
-      name: parsed.name,
-      description: parsed.description,
-      ...parsed.whenToUse !== undefined ? { whenToUse: parsed.whenToUse } : {},
-      invocation: parsed.invocation,
-      provider,
-      source: root.source,
-      rank: root.rank,
-      locator,
-      resourceBase: { kind: 'directory', path: locator.directory },
-      path: parsed.path,
-      ...parsed.metadata !== undefined ? { metadata: parsed.metadata } : {},
-    })
+    skills.push(skillCandidateFrom(parsed, { path: entry.path, directory: root.path }, root, provider))
   }
   return skills
 }
 
-async function listSkillRootEntries(root: SkillRoot, ctx: Context): Promise<SkillRootEntry[]> {
-  const fs = optionalFileSystem(ctx)
-  if (fs !== undefined && root.trustedHost !== true) return await listSkillRootEntriesFromFileSystem(root, fs)
-  return await listSkillRootEntriesFromNode(root, ctx)
+function skillCandidateFrom(parsed: ParsedSkill, locator: LocalLocator, root: SkillRoot, provider: string): SkillCandidate {
+  return {
+    name: parsed.name,
+    description: parsed.description,
+    ...parsed.whenToUse !== undefined ? { whenToUse: parsed.whenToUse } : {},
+    invocation: parsed.invocation,
+    provider,
+    source: root.source,
+    rank: root.rank,
+    locator,
+    resourceBase: { kind: 'directory', path: locator.directory },
+    path: parsed.path,
+    ...parsed.metadata !== undefined ? { metadata: parsed.metadata } : {},
+  }
 }
 
-async function listSkillRootEntriesFromFileSystem(root: SkillRoot, fs: FileSystem): Promise<SkillRootEntry[]> {
+async function listSkillRootEntries(root: SkillRoot, ctx: Context): Promise<SkillRootEntry[]> {
+  return await listDirectoryEntries(root.path, ctx, root.trustedHost === true)
+}
+
+async function listDirectoryEntries(path: string, ctx: Context, trustedHost: boolean): Promise<SkillRootEntry[]> {
+  const fs = optionalFileSystem(ctx)
+  if (fs !== undefined && !trustedHost) return await listDirectoryEntriesFromFileSystem(path, fs)
+  return await listDirectoryEntriesFromNode(path, ctx)
+}
+
+async function listDirectoryEntriesFromFileSystem(path: string, fs: FileSystem): Promise<SkillRootEntry[]> {
   try {
-    return (await fsListDir(fs, root.path)).map(entryFromFs)
+    return (await fsListDir(fs, path)).map(entryFromFs)
   } catch (error) {
     if (isAbsentSkillPathError(error)) return []
     throw error
@@ -769,10 +802,10 @@ function entryFromFs(entry: FsDirEntry): SkillRootEntry {
   return { name: entry.name, type: entry.type, path: entry.target.displayPath }
 }
 
-async function listSkillRootEntriesFromNode(root: SkillRoot, ctx: Context): Promise<SkillRootEntry[]> {
+async function listDirectoryEntriesFromNode(directory: string, ctx: Context): Promise<SkillRootEntry[]> {
   let entries
   try {
-    entries = await readdir(root.path, { withFileTypes: true, encoding: 'utf8' })
+    entries = await readdir(directory, { withFileTypes: true, encoding: 'utf8' })
   } catch (error) {
     /* v8 ignore else -- Native non-absence directory failures are provider-dependent; the ctx.fs path pins incomplete discovery. */
     if (isAbsentSkillPathError(error)) return []
@@ -782,7 +815,7 @@ async function listSkillRootEntriesFromNode(root: SkillRoot, ctx: Context): Prom
 
   const result: SkillRootEntry[] = []
   for (const entry of entries) {
-    const path = join(root.path, entry.name)
+    const path = join(directory, entry.name)
     const type = await nodeEntryKind(path, entry, ctx)
     result.push({ name: entry.name, type: type ?? 'other', path })
   }

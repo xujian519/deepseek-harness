@@ -246,6 +246,49 @@ describe('FileSystemSkillProvider', () => {
     expect((await ctx.skills.get('runtime-name', { cwd: project }))?.description).toBe('Runtime wins')
   })
 
+  it('discovers skill bundles one category below a scanned root and stops there', async () => {
+    const home = await tempDir('skill-category-home')
+    const project = await tempDir('skill-category-project')
+    await mkdir(join(project, '.git'), { recursive: true })
+    const root = join(project, '.dsh/skills')
+
+    await writeSkill(root, 'top-level', 'top level bundle')
+    await writeSkill(join(root, 'patent-legal'), 'patent-drafting-general', 'patent category bundle')
+    await writeSkill(join(root, 'patent-legal'), 'search-commander', 'second bundle in the same category')
+    await writeSkill(join(root, 'development'), 'code-review', 'development category bundle')
+    // A category's own Markdown files are notes, not flat skills.
+    await writeFlatSkill(join(root, 'patent-legal'), 'notes', 'category note')
+    // A directory below a category is not a skill, and a third level is not scanned.
+    await mkdir(join(root, 'development', 'assets'), { recursive: true })
+    await writeSkill(join(root, 'development', 'assets'), 'too-deep', 'third level bundle')
+    // Hidden directories are tooling metadata, never categories.
+    await writeSkill(join(root, '.hidden'), 'hidden-category', 'hidden category bundle')
+    // A directory bundle is never treated as a category as well.
+    await writeSkill(root, 'dual', 'the directory itself is the skill')
+    await writeSkill(join(root, 'dual'), 'dual-child', 'child of a top-level bundle')
+
+    const ctx = await setupLocal(home)
+    const cwd = join(project, 'src')
+    const skills = await ctx.skills.list({ cwd })
+
+    expect(skills.map(skill => skill.name)).toEqual([
+      'code-review',
+      'dual',
+      'patent-drafting-general',
+      'search-commander',
+      'top-level',
+    ])
+    expect(skills.find(skill => skill.name === 'patent-drafting-general')).toMatchObject({
+      source: 'project-dsh',
+      description: 'patent category bundle',
+    })
+    expect(await ctx.skills.get('search-commander', { cwd })).toMatchObject({
+      content: 'Use the skill.',
+      path: join(root, 'patent-legal/search-commander/SKILL.md'),
+      resourceBase: { kind: 'directory', path: join(root, 'patent-legal/search-commander') },
+    })
+  })
+
   it('parses flat skills and filters invalid skills from the invocation-neutral listing', async () => {
     const home = await tempDir('skill-flat')
     const root = join(home, '.dsh/skills')
@@ -730,6 +773,10 @@ describe('FileSystemSkillProvider', () => {
     emitObserved(join(root, 'observed-skill/references/notes.md'), { name: 'write' })
     emitObserved(join(home, '.dsh/skills/.system/SKILL.md'), { name: 'write' })
     emitObserved(join(root, 'flat-skill.md'), { name: 'write' })
+    // Below the root, only a category bundle's own SKILL.md changes the catalog.
+    await writeSkill(join(root, 'patent-legal'), 'category-skill', 'Category skill')
+    emitObserved(join(root, 'patent-legal/category-skill/SKILL.md'), { name: 'write' })
+    emitObserved(join(root, 'patent-legal/category-skill/references/deep/notes.md'), { name: 'write' })
     ctx.emit(
       'fs/observed',
       { targetKey: path as never, displayPath: path },
@@ -737,8 +784,8 @@ describe('FileSystemSkillProvider', () => {
       { name: 'edit' },
     )
 
-    expect(invalidations).toBe(2)
-    expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['observed-skill'])
+    expect(invalidations).toBe(3)
+    expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['category-skill', 'observed-skill'])
   })
 
   it('bounds project watchers and re-observes an evicted project on its next lookup', async () => {
