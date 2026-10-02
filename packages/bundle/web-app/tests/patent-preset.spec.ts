@@ -62,6 +62,13 @@ interface DeclarationRow {
   config?: { id?: unknown; plugins?: unknown }
 }
 
+/** One `deliveryGate` entry as the `patent` preset declares it. */
+interface DeliveryGateDeclaration {
+  tool?: string
+  requires?: string[]
+  whenArgs?: { template?: string[] }
+}
+
 /** The persona text a row declares, or `''` when the row carries none. */
 function personaPrefix(row: PresetRow | undefined): string {
   const config = row?.config
@@ -215,6 +222,44 @@ describe('patent preset composition', () => {
     const row = rows.find(entry => entry.id === 'patent-fees')
     expect(row?.name).toBe('@deepseek-ai/dsh-patent-fees')
     expect(row?.disabled).toBeUndefined()
+  })
+
+  it('gates a delivery render on the gate runs the persona requires', async () => {
+    // The delivery discipline also lives in the persona prefix; this declaration is
+    // what makes it an execution point. A required tool whose package the preset does
+    // not mount, or a template id the renderer does not ship, leaves a gate that looks
+    // armed and never fires.
+    const rows = await patentRows()
+    const row = rows.find(entry => entry.id === 'patent-rule')
+    const gate = (row?.config as { deliveryGate?: DeliveryGateDeclaration[] } | undefined)?.deliveryGate
+    expect(gate).toHaveLength(2)
+
+    const [compliance, closure] = gate ?? []
+    expect(compliance?.tool).toBe('render_patent_document')
+    expect(compliance?.requires).toEqual(['rule_check', 'law_verify'])
+    expect(closure?.tool).toBe('render_patent_document')
+    expect(closure?.requires).toEqual(['patent_workflow_run'])
+
+    // Every required tool comes from a build package this preset enables:
+    // rule_check and patent_workflow_run from patent-tools, law_verify from patent-law.
+    for (const id of ['patent-tools', 'patent-law']) {
+      const mounted = rows.find(entry => entry.id === id)
+      expect(mounted?.name).toBe(`@deepseek-ai/dsh-${id}`)
+      expect(mounted?.disabled).toBeUndefined()
+    }
+
+    // Every gated template is one the renderer ships, and the two forms that run no
+    // manifest stay out of the closure requirement.
+    const catalog = JSON.parse(readFileSync(
+      join(REPO_ROOT, 'packages/patent/patent-document/assets/templates/patent/manifest.json'),
+      'utf8',
+    )) as { templates?: string[] }
+    const shippedTemplates = catalog.templates ?? []
+    const analysisTemplates = [...(closure?.whenArgs?.template ?? [])].sort()
+    expect(analysisTemplates.length).toBeGreaterThan(0)
+    expect(analysisTemplates.filter(template => !shippedTemplates.includes(template))).toEqual([])
+    expect(analysisTemplates).not.toContain('claims-spec')
+    expect(analysisTemplates).not.toContain('rectification-response')
   })
 
   it('sends the model to the cnlaw declaration instead of a literal endpoint', async () => {

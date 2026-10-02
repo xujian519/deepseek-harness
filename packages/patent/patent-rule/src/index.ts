@@ -20,6 +20,11 @@
  *   violates a named absence-based rule: those rules cannot judge a tool
  *   result's prose (plain text is always "missing" most expected elements), so
  *   they run on the artifact a production tool is about to render or write.
+ * - A declared delivery gate ({@link Config.deliveryGate}) denies a
+ *   delivery-tool call whose declared prerequisite calls have not succeeded
+ *   earlier in the same session, so a deliverable cannot ship without the gate
+ *   runs the delivery discipline requires. Successful prerequisite calls are
+ *   recorded from tools/post-execute; the deny is a monotonic guard.
  * - evaluate_evidence calls are denied by two monotonic EVI-011 guards when an
  *   overseas/foreign evidence record omits its required notarization /
  *   legalization / translation declaration.
@@ -47,6 +52,14 @@ import {
   type GateCheckType,
 } from './runtime/patent-compliance.ts'
 import { RuleOutputGate } from './runtime/output-gate.ts'
+import {
+  deliveryGateMissing,
+  DeliveryAttemptLedger,
+  renderDeliveryGateDenial,
+  resolveDeliveryGate,
+  type DeliveryGateEntry,
+  type DeliveryGatePlan,
+} from './runtime/delivery-gate.ts'
 import {
   renderStructuralGateDenial,
   resolveStructuralGate,
@@ -110,6 +123,19 @@ export {
   type StructuralGateEntry,
   type StructuralGatePlan,
 } from './runtime/structural-gate.ts'
+export {
+  declaredArgsMatch,
+  jsonRecord,
+  type DeclaredArgValue,
+} from './runtime/args-match.ts'
+export {
+  DeliveryAttemptLedger,
+  deliveryGateMissing,
+  renderDeliveryGateDenial,
+  resolveDeliveryGate,
+  type DeliveryGateEntry,
+  type DeliveryGatePlan,
+} from './runtime/delivery-gate.ts'
 export {
   loadRulePack,
   parseRulePackManifest,
@@ -191,6 +217,17 @@ export interface Config {
    * whole document text.
    */
   structuralGate?: StructuralGateEntry[]
+  /**
+   * Delivery gate: entries naming a delivery tool and the tools that must have
+   * succeeded earlier in the same session before it may run. An unsatisfied
+   * entry denies the call through a monotonic guard, so a deliverable cannot
+   * ship while the gate runs its discipline requires are missing from the
+   * session's call record. `whenArgs` narrows an entry to matching calls, which
+   * lets one tool's forms carry different prerequisites. No entry ships: the
+   * prerequisites a deployment requires are its delivery policy, not this
+   * package's.
+   */
+  deliveryGate?: DeliveryGateEntry[]
   /** When true, review-level violations block without an approval round-trip (unattended fail-closed). */
   approvalDisabled?: boolean
 }
@@ -204,6 +241,11 @@ export const Config: z<Config> = z.object({
     textArgs: z.array(z.string()).required(),
     ruleIds: z.array(z.string()).required(),
     whenArgs: z.dict(z.string()).default({}),
+  })).default([]),
+  deliveryGate: z.array(z.object({
+    tool: z.string().required(),
+    requires: z.array(z.string()).required(),
+    whenArgs: z.dict(z.union([z.string(), z.array(z.string())])),
   })).default([]),
   approvalDisabled: z.boolean().default(false),
 })
@@ -257,6 +299,8 @@ export function apply(ctx: Context, config: Config): void {
   const gateCheckTypes = resolveGateCheckTypes(config.gateCheckTypes ?? DEFAULT_GATE_CHECK_TYPES, warnings)
   const structuralGate: StructuralGatePlan = resolveStructuralGate(ruleSet, config.structuralGate ?? [])
   warnings.push(...structuralGate.warnings)
+  const deliveryGate: DeliveryGatePlan = resolveDeliveryGate(config.deliveryGate ?? [])
+  warnings.push(...deliveryGate.warnings)
   for (const warning of warnings) ctx.logger.warn('patent-rule: ' + warning)
   const gate = new RuleOutputGate(selectGateRules(ruleSet, gateCheckTypes))
   // Expose the same gate to team-consumers (e.g. patent-teams) so a task
@@ -280,7 +324,24 @@ export function apply(ctx: Context, config: Config): void {
     })
   }
 
+  // 交付前置门禁：纪律（先跑哪个闸门才能出件）在此处成为执行点。台账只记成功返回的
+  // 调用，判定与登记分开——调用前的 guard 只能看到「即将调用」，看不到结果。
+  const deliveryLedger = new DeliveryAttemptLedger()
+  const gatedTools = new Set(deliveryGate.entries.map(entry => entry.tool))
+  const requiredTools = new Set(deliveryGate.entries.flatMap(entry => entry.requires))
+  if (deliveryGate.entries.length > 0) {
+    ctx.tools.guard((exec) => {
+      if (!gatedTools.has(exec.name)) return undefined
+      const missing = deliveryGateMissing(deliveryGate, deliveryLedger, exec.agent, exec.name, exec.arguments)
+      return missing.length === 0 ? undefined : renderDeliveryGateDenial(exec.name, missing)
+    })
+  }
+
   ctx.on('tools/post-execute', async (exec: ToolExecution, result, next): Promise<PostToolDecision> => {
+    // 先登记再判定：前置工具本身通常不在 gateToolNames 里，下面的输出门禁会直接放行。
+    if (!result.isError && exec.agent !== undefined && requiredTools.has(exec.name)) {
+      deliveryLedger.record(exec.agent, exec.name)
+    }
     if (!gateToolNames.has(exec.name) || result.isError) return next()
     const text = resultText(result)
     if (text.trim().length === 0) return next()
