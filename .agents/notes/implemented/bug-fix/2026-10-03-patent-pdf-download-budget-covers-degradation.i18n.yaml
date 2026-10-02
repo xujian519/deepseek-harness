@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-03-patent-pdf-download-budget-covers-degradation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-03-patent-pdf-download-budget-covers-degradation.md
+/agent-note-patent-pdf-download-budgets-the-overall-call-for-its-own-degradation-path:
+  en: 22fdc78ca6a18686
+  zh: 8d6d5da40f704b0f
+/agent-note-patent-pdf-download-budgets-the-overall-call-for-its-own-degradation-path/problem:
+  en: bfc08d5242f878dc
+  zh: 89ec8e5b44a3eebd
+/agent-note-patent-pdf-download-budgets-the-overall-call-for-its-own-degradation-path/decision:
+  en: f6e168f7b1203077
+  zh: f415865f511c8124
+/agent-note-patent-pdf-download-budgets-the-overall-call-for-its-own-degradation-path/alternatives-considered:
+  en: 7602f9c9307d7ce5
+  zh: 13140ef4a4cd13ad
+/agent-note-patent-pdf-download-budgets-the-overall-call-for-its-own-degradation-path/consequences:
+  en: a812c5bf960030c1
+  zh: 925a796c88d7c80e
