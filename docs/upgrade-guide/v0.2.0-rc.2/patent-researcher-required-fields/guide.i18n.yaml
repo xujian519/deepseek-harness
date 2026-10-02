@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.0-rc.2/patent-researcher-required-fields/guide.md
+/:
+  en: 675c0c0aee1cfe4e
+  zh: f228777d15714692
+/researcher-search-reports-must-declare-naming-families-and-orthogonal-dimensions:
+  en: a718048526915472
+  zh: a605d9a0da46a44c
+/researcher-search-reports-must-declare-naming-families-and-orthogonal-dimensions/change:
+  en: ae162b379b713767
+  zh: 5d8dbc687358339f
+/researcher-search-reports-must-declare-naming-families-and-orthogonal-dimensions/migration:
+  en: adaab7cf92da1d9a
+  zh: 1919b92bb3721931
