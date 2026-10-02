@@ -9,9 +9,11 @@
  * inputs differed, so reconciling the three runs took a written comparison table
  * and a human chase.
  *
- * Recording the identity of each text input makes that comparison mechanical: equal
- * identity means the same text was evaluated, and a differing count or digest is
- * visible without re-reading anything.
+ * Recording the identity of each text input makes that comparison mechanical: a
+ * differing count or digest proves the two runs read different text, so the
+ * divergence is visible without re-reading anything. Matches only clear the input —
+ * `contentHash` is a 32-bit FNV-1a digest, short enough that two different texts can
+ * collide, so equal entries are consistent with one input rather than proof of it.
  * @module @deepseek-ai/dsh-patent-tools/internal/evaluated-input
  */
 
@@ -23,7 +25,7 @@ export type EvaluatedText = {
   field: string
   /** Characters read (UTF-16 units — the count `String.length` reports). */
   chars: number
-  /** Digest of exactly that value; two entries with the same digest read the same text. */
+  /** Digest of exactly that value; a differing digest proves two runs read different text. */
   digest: string
 }
 
