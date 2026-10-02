@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-03-skill-category-discovery.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-03-skill-category-discovery.md
+/agent-note-skill-discovery-reaches-one-category-below-a-scan-root:
+  en: 82ba5af67b879d08
+  zh: 9c58d978b62ca30e
+/agent-note-skill-discovery-reaches-one-category-below-a-scan-root/problem:
+  en: c8f1f5ff2eb8d77a
+  zh: 5da4ef9942ee1d6c
+/agent-note-skill-discovery-reaches-one-category-below-a-scan-root/decision:
+  en: b968fab5020b848c
+  zh: 83329f6b367b45b2
+/agent-note-skill-discovery-reaches-one-category-below-a-scan-root/alternatives-considered:
+  en: 3304a621de0a463a
+  zh: 520bd63438a89a0a
+/agent-note-skill-discovery-reaches-one-category-below-a-scan-root/consequences:
+  en: cef3ff0fe7029970
+  zh: dd29f9f3c68d0527
+/agent-note-skill-discovery-reaches-one-category-below-a-scan-root/testing:
+  en: ed0760d2b9466d96
+  zh: d4bc34056294cc1c
