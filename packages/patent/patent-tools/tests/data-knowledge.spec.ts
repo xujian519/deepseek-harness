@@ -74,6 +74,28 @@ describe('patent_search failure and render paths', () => {
     expect(out).toContain('**assignee**: N/A')
   })
 
+  it('names the channel in a hit render and in an upstream failure', async () => {
+    const hit = {
+      patent: 'CN1A', title: 'T', assignee: 'A', publication_date: '2024-01-01',
+      priority_date: '', abstract: '', url: 'u',
+    }
+    const okTool = createPatentSearchTool({ search: async () => ({ query: 'q', total: 1, hits: [hit], warnings: [] }) })
+    const okCtx = await ctxWith(okTool)
+    const ok = await execute(okCtx, 'patent_search', { query: 'q' }, 'ps-ch-ok')
+    expect(ok.isError).toBe(false)
+    expect(text(ok)).toContain('channel: Google Patents（nuo 引擎）')
+
+    const failTool = createPatentSearchTool({
+      search: async () => ({ query: 'q', total: 0, hits: [], warnings: ['检索失败: fetch failed'] }),
+    })
+    const failCtx = await ctxWith(failTool)
+    const failed = await execute(failCtx, 'patent_search', { query: 'q' }, 'ps-ch-fail')
+    expect(failed.isError).toBe(true)
+    const message = text(failed)
+    expect(message).toContain('通道 Google Patents（nuo 引擎）：检索失败: fetch failed')
+    expect(message).not.toContain('CNIPR')
+  })
+
   it('builds a cached search tool without an injected search', () => {
     expect(createPatentSearchTool().name).toBe('patent_search')
     expect(createPatentMetadataTool().name).toBe('patent_metadata')
@@ -126,6 +148,33 @@ describe('patent_metadata failure and render paths', () => {
     }
   })
 
+  it('names the channel and the attempts made in a failed lookup', async () => {
+    let attempts = 0
+    const tool = createPatentMetadataTool({
+      scrapeRetryDelaysMs: [0, 0],
+      scrape: async () => {
+        attempts += 1
+        return scrapeResult({ errorCode: 'HTTP_ERROR', errorMessage: 'HTTP 503' })
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'US1A' }, 'pm-ch-fail')
+    expect(result.isError).toBe(true)
+    expect(attempts).toBe(3)
+    const message = text(result)
+    expect(message).toContain('通道 Google Patents（nuo 引擎）：HTTP 503；已退避重试 2 次仍未成功')
+    expect(message).not.toContain('CNIPR')
+  })
+
+  it('renders the channel of a not-found lookup', async () => {
+    const tool = createPatentMetadataTool({ scrape: async () => scrapeResult({ errorCode: 'NOT_FOUND', errorMessage: '查无此专利' }) })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'US1A' }, 'pm-ch-nf')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('patent_metadata(US1A) · channel: Google Patents（nuo 引擎）: 查无此专利')
+  })
+
   it('rejects an invalid patent number', async () => {
     const tool = createPatentMetadataTool({ scrape: async () => scrapeResult({}) })
     const ctx = await ctxWith(tool)
@@ -172,6 +221,7 @@ describe('patent_metadata failure and render paths', () => {
     if (result.isError) throw new Error('expected success')
     const out = text(result)
     expect(out).toContain('**inventors**: N/A')
+    expect(out).toContain('**channel**: Google Patents（nuo 引擎）')
     expect(out).toContain('**pdf**: https://p/pdf')
     expect(out).toContain('est. expiration 2030-01-01')
     expect(out).toContain('摘要')

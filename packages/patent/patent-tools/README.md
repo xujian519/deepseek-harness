@@ -106,7 +106,7 @@ When `provider`/ `model` are unset the LLM-consuming tools register but fail lou
 
 #### What the model sees
 
-32 registered tool definitions (see the table above), each with a description, parameter schema, and an `output.render` that renders the canonical result as Markdown prose. Exact descriptions and parameters are in the generated [`patent-tools` schema](../../../docs/tool-catalog.md#deepseek-aidsh-patent-tools).
+32 registered tool definitions (see the table above), each with a description, parameter schema, and an `output.render` that renders the canonical result as Markdown prose. Exact descriptions and parameters are in the generated [`patent-tools` schema](../../../docs/tool-catalog.md#deepseek-aidsh-patent-tools). `patent_search` and `patent_metadata` name the channel they read (`Google Patents（nuo 引擎）`) in the rendered result and in any upstream failure, so a search report cites the channel a fact came from instead of inferring it from a hit URL.
 
 #### Token effect
 

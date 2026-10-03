@@ -215,7 +215,7 @@ describe('patent_metadata', () => {
     const ctx = await ctxWith(tool)
     const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-retry-out')
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('已重试 1 次仍未成功')
+    expect(text(result)).toContain('通道 Google Patents（nuo 引擎）：HTTP 503；已退避重试 1 次仍未成功')
     expect(calls).toBe(2)
   })
 

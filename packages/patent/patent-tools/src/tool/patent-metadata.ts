@@ -12,6 +12,7 @@ import type { ScrapeResult } from '@deepseek-ai/nuo-patent'
 import { cachedScrapePatent, mapPatentData } from '@deepseek-ai/dsh-patent-data'
 import type { StructuredPatentData } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../error.ts'
+import { GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
 
 /** Input for the patent_metadata tool. */
 export type PatentMetadataInput = {
@@ -29,6 +30,8 @@ export type PatentMetadataInput = {
 export type PatentMetadataOutput = {
   success: boolean
   patent: string
+  /** Channel this lookup read from; a report cites it as the fact's source. */
+  channel: string
   url: string
   /** Structured patent data on success (JSON-string fields parsed); null on failure. */
   data: JsonValue | null
@@ -101,6 +104,22 @@ async function scrapeWithRetry(
 
 
 /**
+ * Name the channel, the upstream error, and the attempts made in a failed lookup.
+ *
+ * The upstream phrase alone (`fetch failed`) leaves a report unable to tell which
+ * channel produced the fact, and naming some other channel here would read as an
+ * instruction to leave the tool layer. The attempt count belongs in the record
+ * because a caller cannot otherwise tell a first failure from a retried one.
+ * @param detail - the upstream failure text.
+ * @param attempts - total scrape attempts made.
+ * @returns the model-facing failure text.
+ */
+function channelFailure(detail: string, attempts: number): string {
+  const retried = attempts > 1 ? `；已退避重试 ${attempts - 1} 次仍未成功` : ''
+  return `通道 ${GOOGLE_PATENTS_CHANNEL}：${detail}${retried}；上游瞬时失败，可稍后重试`
+}
+
+/**
  * Map one nuo ScrapeResult into the tool output, throwing on runtime-class failures.
  * @param result - the settled scrape result.
  * @param attempts - total scrape attempts made, reported when an upstream failure outlived the retries.
@@ -111,6 +130,7 @@ function mapScrapeResult(result: ScrapeResult, attempts: number): PatentMetadata
     return {
       success: true,
       patent: result.patent,
+      channel: GOOGLE_PATENTS_CHANNEL,
       url: result.url,
       data: mapPatentData(result.data, result.patent, result.url) as unknown as JsonValue,
       errorCode: '',
@@ -127,6 +147,7 @@ function mapScrapeResult(result: ScrapeResult, attempts: number): PatentMetadata
       return {
         success: false,
         patent: result.patent,
+        channel: GOOGLE_PATENTS_CHANNEL,
         url: result.url,
         data: null,
         errorCode: result.errorCode,
@@ -134,9 +155,7 @@ function mapScrapeResult(result: ScrapeResult, attempts: number): PatentMetadata
         parseWarnings: result.parseWarnings,
       }
     default:
-      throw new PatentToolError('tool_execution_failed', attempts > 1
-        ? `${result.errorMessage}（已重试 ${attempts - 1} 次仍未成功：上游瞬时失败，可稍后重试，或改用 CNIPR/CNIPA 通道取该专利）`
-        : result.errorMessage, {
+      throw new PatentToolError('tool_execution_failed', channelFailure(result.errorMessage, attempts), {
         tool: 'patent_metadata',
         patent: result.patent,
         errorCode: result.errorCode,
@@ -152,9 +171,10 @@ const DESCRIPTION = [
   '',
   'Usage notes:',
   '  - Read-only; makes one network request per patent',
+  '  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used',
   '  - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number',
   "  - A 'not found' result (patent does not exist) is returned as data with success:false — not an error",
-  '  - A transient upstream failure (HTTP 503, dropped connection) is retried twice before the call fails',
+  '  - A transient upstream failure (HTTP 503, dropped connection) is retried twice; a failure that outlives the retries names the channel, the upstream error, and the attempts made',
   '  - Non-fatal parse warnings (fields the page structure left empty) are listed under 警告 in the rendered result',
 ].join('\n')
 
@@ -167,8 +187,8 @@ const DESCRIPTION = [
  */
 function renderMetadata(value: PatentMetadataOutput): string {
   const lines = value.success && value.data !== null
-    ? metadataBodyLines(value.data as unknown as StructuredPatentData)
-    : [`patent_metadata(${value.patent}): ${value.errorMessage}`]
+    ? metadataBodyLines(value.data as unknown as StructuredPatentData, value.channel)
+    : [`patent_metadata(${value.patent}) · channel: ${value.channel}: ${value.errorMessage}`]
   if (value.parseWarnings.length > 0) {
     lines.push('', '## 警告', ...value.parseWarnings.map(w => `- ${w.field}: ${w.message}`))
   }
@@ -178,12 +198,13 @@ function renderMetadata(value: PatentMetadataOutput): string {
 /**
  * Render the metadata fields of a successful lookup.
  * @param d - the mapped structured patent data.
+ * @param channel - the channel the lookup read from.
  * @returns the field lines, before the warning section is appended.
  */
-function metadataBodyLines(d: StructuredPatentData): string[] {
+function metadataBodyLines(d: StructuredPatentData, channel: string): string[] {
   const lines = [
     `## ${d.title}`,
-    `**patent**: ${d.patent} · **url**: ${d.url}`,
+    `**patent**: ${d.patent} · **url**: ${d.url} · **channel**: ${channel}`,
     `**inventors**: ${d.inventors.join(', ') || 'N/A'}`,
     `**assignees**: ${d.assigneesCurrent.join(', ') || 'N/A'}`,
     `**dates**: filing ${d.filingDate || 'N/A'} · grant ${d.grantDate || 'N/A'} · pub ${d.pubDate || 'N/A'}`,
@@ -229,6 +250,7 @@ export function createPatentMetadataTool(deps: PatentMetadataDeps = {}): ToolDef
         properties: {
           success: { type: 'boolean', required: true },
           patent: { type: 'string', required: true },
+          channel: { type: 'string', required: true },
           url: { type: 'string', required: true },
           data: { type: 'json' },
           errorCode: { type: 'string', required: true },
