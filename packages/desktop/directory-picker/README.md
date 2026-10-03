@@ -33,5 +33,3 @@ None; this package neither assembles nor sends a provider request.
 - **Single-directory selection** — the `electron` capability returns one path (the first selected directory) or `null` on cancel. Multi-selection is not exposed through the `DirectoryPicker` contract.
 
 ### Dev Note
-
-No runtime invariant companion is published; the provider owns no state — it delegates every pick to ctx.desktop.showOpenDialog and converts the response to the directory picker's string | null contract at the call boundary.

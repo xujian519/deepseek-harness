@@ -53,5 +53,3 @@ Both extractors are `PageExtractor` implementations; download tools pick one and
 - **browser-use is a local CLI, not an npm dependency**: the probe fails with an install hint when the CLI is absent; the package never assumes it is installed.
 
 ### Dev Note
-
-No runtime invariant companion is published; the backend probes and routing are stateless read-only operations with no package-owned durable state, and the download tools that consume the routed backend own their execution relations.

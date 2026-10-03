@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-一条 assistant 流若携带畸形 chunk，会把整棵会话树打崩而不是优雅降级。三类情况会到达渲染器：chunk 的 block 索引为负、小数或超大；`text-delta`/`reasoning-delta`/`tool-call-delta` 的载荷不是字符串；`block-end` 的 `block` 不是对象。partial 累加器（`packages/client/ui-chat/src/client/conversation-nodes/partial.ts`）把该索引直接写进稀疏 `blocks` 数组，projector（`packages/client/ui-chat/src/client/conversation-nodes/assistant.ts`）在会话节点侧也这么做，而 `AssistantMarkdown` 原样把 `block.text` 喂给 markdown 渲染器。`block-end` 载荷为 null 会在 `toAssistantBlock` 抛错；非字符串 text 之后会到达 `MarkdownText`。在长时团队任务里，这表现为打开会话面板时白屏。
+一条 assistant 流若携带畸形 chunk，会把整棵会话树打崩而不是优雅降级。三类情况会到达渲染器：chunk 的 block 索引为负、小数或超大；`text-delta`/`reasoning-delta`/`tool-call-delta` 的载荷不是字符串；`block-end` 的 `block` 不是对象。partial 累加器（当时是同目录下的独立 partial 模块，上游已并入 chat projector）把该索引直接写进稀疏 `blocks` 数组，projector（`packages/client/ui-chat/src/client/conversation-nodes/assistant.ts`）在会话节点侧也这么做，而 `AssistantMarkdown` 原样把 `block.text` 喂给 markdown 渲染器。`block-end` 载荷为 null 会在 `toAssistantBlock` 抛错；非字符串 text 之后会到达 `MarkdownText`。在长时团队任务里，这表现为打开会话面板时白屏。
 
 ## 决策
 

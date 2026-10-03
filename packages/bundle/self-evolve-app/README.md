@@ -34,5 +34,3 @@ None, as the glue plugin holds the composition seat without assembling or sendin
 - **No keyed end-to-end verification** — proposal effects are reversible commits covered by unit tests; a live `dsh --profile` loop run requires a keyed environment.
 
 ### Dev Note
-
-No runtime invariant companion is published; the bundle patch and glue plugin hold no mutable state of their own, and every contribution lands in an owning registry.

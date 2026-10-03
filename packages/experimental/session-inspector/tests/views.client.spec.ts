@@ -12,7 +12,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { ChatSnapshotBuilder } from '@deepseek-ai/dsh-client-ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { ConversationGroupStore } from '@deepseek-ai/dsh-client-ui-conversation/src/client/conversation/group-store.ts'
-import type { ConversationSnapshot, GroupKey, NodeKey } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConversationBinding, ConversationSnapshot, GroupKey, NodeKey } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionInspectorInjected } from '../src/client/views/View.tsx'
 import { chatNodeWithLocation } from './chat-node-fixture.client.ts'
@@ -122,8 +122,8 @@ describe('Session Inspector Sidebar tab', () => {
     const current = createSnapshotStore({ key: id })
     const services = {
       sessions: { binding: (key: SessionId) => key === id ? binding : undefined },
-      uiConversation: { binding: () => ({ snapshot, openTurn: createSnapshotStore<number | undefined>(1),
-        activate: vi.fn(), target: () => { throw new Error('unused') } }) },
+      uiConversation: { binding: () => ({ snapshot, openTurn: createSnapshotStore<number | undefined>(1), select: vi.fn(),
+        target: (() => ({ getSnapshot: () => chat, subscribe: (listener: () => void) => snapshot.subscribe(listener) })) as ConversationBinding['target'] }) },
       uiSession: { adapter: { current } },
     }
     const { ctx, declare } = await fixture(services)

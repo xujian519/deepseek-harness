@@ -74,7 +74,6 @@ kind: "package-reference"
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`market_source_list` / `market_plugin_search` / `market_plugin_preview`、源解析，以及 `tool:plugin-market` 提示词章节 |
 | [`src/prompt.ts`](src/prompt.ts) | `tool:plugin-market` 系统提示词章节 |
-| — | 不发布运行时不变式伴生；此模型面向适配器不持有独立生命周期流，所有权关系继承自它读取的 pluginMarket 能力间隔。 |
 
 ### 一次调用的流程
 

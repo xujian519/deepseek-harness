@@ -93,4 +93,4 @@ None.
 
 </details>
 
-**Runtime invariant:** No companion is published. The plugin owns no store (data arrives on the session list's projection column), emits no cordis events, and holds no cross-plugin mutable state; the `conversation.view` registration and its dictionaries unload with the plugin's fiber (HMR-safety test in `tests/apply.client.spec.ts`).
+**Runtime invariant:** the plugin owns no store (data arrives on the session list's projection column), emits no cordis events, and holds no cross-plugin mutable state; the `conversation.view` registration and its dictionaries unload with the plugin's fiber (HMR-safety test in `tests/apply.client.spec.ts`).

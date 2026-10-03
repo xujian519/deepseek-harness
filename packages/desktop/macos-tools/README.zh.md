@@ -91,5 +91,3 @@ kind: "package-reference"
 <a id="dev-note"></a>
 
 ### 开发备注
-
-不发布运行时不变式伴生；本包不持有独立发散的观测——其效果是一次性系统命令，其结果已由工具结果记录，审批行为由 `@deepseek-ai/dsh-user-approval` 拥有。

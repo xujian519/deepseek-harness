@@ -60,5 +60,3 @@ Independent; the library contributes no model-visible content, so it never popul
 ### Dev Note
 
 None.
-
-No companion is published because the library is pure validation over caller-supplied text and owns no durable state.

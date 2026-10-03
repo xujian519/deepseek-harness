@@ -62,5 +62,3 @@ kind: "package-reference"
 - **投影范围** — `failure-patterns` 只折叠已文档化的事件面（工具结果、agent 请求错误、compaction 结束、`self-evolve/end`）；非验证器信号不在模式词汇表内。
 
 ### 开发备注
-
-不发布运行时不变式伴生；引擎是抽象服务与词汇表的纯声明——事件、模式词汇与 projection-unit 契约即全部接口，没有可观测的运行时状态。

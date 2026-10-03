@@ -53,6 +53,4 @@ No direct effect; reading plugin-market state does not alter model requests alre
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-No runtime invariant companion is published; the plugin-market seam owns catalog sources, install receipts, and their events, while this package only projects its read-only methods onto the wire.
-
 </details>

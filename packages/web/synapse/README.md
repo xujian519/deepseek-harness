@@ -60,5 +60,3 @@ None: it never changes request headers, system prompts, or tool registries, so a
 - Legacy v3 data migrates tool cards by order (each call paired with the next result); live events pair by `callId`.
 
 ### Dev Note
-
-No runtime invariant companion is published; the canvas graph is derived, reconstructable UI state whose truth lives in the DSH SessionStore, which enforces its only owned relationships at mutation time, and the projection replays committed logs rather than publishing an independent raw-event stream.

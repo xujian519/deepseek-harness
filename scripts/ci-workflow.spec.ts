@@ -1231,7 +1231,7 @@ describe('Issue lifecycle workflow', () => {
 
 describe('npm release workflows', () => {
   it('passes the optional vendor channel as a quoted argument while preserving default publication', () => {
-    const workflow = loadWorkflow('.github/workflows/release-vendor-publish.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/release-vendor-publish.yml')
     expect(workflow.on).toMatchObject({
       workflow_dispatch: {
         inputs: {

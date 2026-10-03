@@ -93,4 +93,4 @@ kind: "package-reference"
 
 </details>
 
-**运行时不变量：** 不发布伴随插件。本插件不拥有 store（数据经会话列表的投影列到达），不发出 cordis 事件，不持有跨插件可变状态；`conversation.view` 注册及其字典随插件 fiber 卸载（HMR 安全测试见 `tests/apply.client.spec.ts`）。
+**运行时不变量：** 本插件不拥有 store（数据经会话列表的投影列到达），不发出 cordis 事件，不持有跨插件可变状态；`conversation.view` 注册及其字典随插件 fiber 卸载（HMR 安全测试见 `tests/apply.client.spec.ts`）。

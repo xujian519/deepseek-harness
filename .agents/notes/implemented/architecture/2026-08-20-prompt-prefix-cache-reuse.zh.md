@@ -40,7 +40,7 @@ harness 缓存每个会话的**连续 stable 前缀**——从首段起、文本
 
 - stable providers 每个缓存条目只求值一次而非每次组装；system-prompt 与 prompt-cache 测试套件用 provider 调用计数断言该行为。
 - token 成本取决于 provider 端缓存命中，命中依赖字节稳定而非本客户端缓存；基线脚本度量命中率。
-- core 表面变更：`system-prompt` 的 `assemble()` 增加可选缓存分支；未挂载策略时行为逐字节一致（有回归测试），round-trip 不变量（`packages/core/prompt-cache/src/invariant.ts`）钉住缓存契约。
+- core 表面变更：`system-prompt` 的 `assemble()` 增加可选缓存分支；未挂载策略时行为逐字节一致（有回归测试），round-trip 不变量（原由该包的不变式伴随钉住，该伴随已随 v0.2.1-alpha.1 移除 runtime invariant 子系统时删除）约束缓存契约。
 - 误声明 `stable` 的 provider 在 TTL 内产生陈旧前缀；TTL、失效与 round-trip 不变量限制损害，而非静默降级。
 - 工具变更仍打断前缀（接受的 gap）：新工具必须存在于请求 payload；低频且显式。
 - DeepSeek 无 cache-write 遥测；命中率口径用 hit/(hit+miss)。

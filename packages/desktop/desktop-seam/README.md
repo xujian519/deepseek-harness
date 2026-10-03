@@ -33,5 +33,3 @@ None; this package neither assembles nor sends a provider request.
 - **Event payload scope** — payloads are intentionally narrow; richer UI state (menu checked/unchecked, tray icons, notification actions) requires future contract revisions.
 
 ### Dev Note
-
-No runtime invariant companion is published; the package declares the ctx.desktop Service Definition as types, the two bridge-id brand constructors, and a closed error vocabulary, and owns no runtime state to observe, and providers assert their own bridge state through typed DesktopError failures at the call boundary.

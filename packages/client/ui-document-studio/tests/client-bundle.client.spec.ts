@@ -99,7 +99,9 @@ describe('tsdown client artifact', () => {
     ctx.provide('remote.workspaceFiles', remoteWorkspaceFiles as never)
     ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
     const locale = await import('@deepseek-ai/dsh-client-locale/client')
-    ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
+    // The plugin under test injects `locale`; the locale plugin publishes the service on
+    // its own activation turn, so wait for it before mounting or that mount stays pending.
+    await ctx.plugin({ inject: [...locale.inject], apply: locale.apply }).await()
     const fiber = ctx.plugin(exports)
     return { ctx, fiber, slots, sessionsList, viewSetters }
   }
@@ -184,7 +186,9 @@ describe('tsdown client artifact', () => {
       ctx.provide('remote.workspaceFiles', remoteWorkspaceFiles as never)
       ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
       const locale = await import('@deepseek-ai/dsh-client-locale/client')
-      ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
+      // The plugin under test injects `locale`; the locale plugin publishes the service on
+      // its own activation turn, so wait for it before mounting or that mount stays pending.
+      await ctx.plugin({ inject: [...locale.inject], apply: locale.apply }).await()
       const fiber = ctx.plugin(exports)
       await fiber.await()
       const initial = attempts

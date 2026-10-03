@@ -81,8 +81,8 @@ export class ChatNodeModel implements ObservableSnapshot<readonly InspectorRow[]
   subscribe = (listener: () => void): (() => void) => {
     const stop = this.rows.subscribe(listener)
     if (this.subscribers++ === 0) {
-      this.disconnect = this.binding.snapshot.subscribe(() => { this.refresh() })
-      this.binding.activate('chat')
+      // Claiming the Chat target assembles it while observed and invalidates on every publication.
+      this.disconnect = this.binding.target('chat').subscribe(() => { this.refresh() })
       this.refresh(true)
     }
     return () => {

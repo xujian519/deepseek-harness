@@ -73,7 +73,6 @@ invokeContained(ctx, 'jobs: onJobsChanged', listeners, [owner], errorMessage)
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `invokeContained`、`emitContained` 与 `ContainedListener` 回调类型 |
-| — | 不发布运行时不变式伴生；此纯工具不持有事件流或可变运行时数据，受控行为由单元测试覆盖。 |
 
 ### 派发参数契约
 

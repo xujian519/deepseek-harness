@@ -95,5 +95,3 @@ The first exercise against real dataset rows found that the runner carries two p
 - **The keyed path has never run here** — no real SWE-bench task has been executed in this repository. The recorded `eval-decision.json` does not exist yet, so the CI stop switch is dormant.
 
 ### Dev Note
-
-No runtime invariant companion is published; this evaluation scaffold owns no production event stream or mutable data — it only consumes campaign result files authored by keyed external runs.

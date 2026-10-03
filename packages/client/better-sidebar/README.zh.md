@@ -152,6 +152,6 @@ side 会话是插件自行创建的子会话，种子是父会话截至点击时
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-`dsh-better-sidebar` 设置命名空间与 side chat 注入标记有意保留历史名称：两者都持久存在于跨 profile 共享的用户设置与会话日志中，因此未随包名一并 rescope。本包自 omdsh-dev 的 MIT 许可 `dsh-better-sidebar` 0.17.1 收编为第一方，MIT LICENSE 文件保留；收编决策及其放弃的内容记录在[收编 Agent Note](../../../.agents/notes/implemented/architecture/2026-08-28-adopt-better-sidebar-first-party.zh.md)。不发布运行时不变式伴生；侧边栏不持有自身的服务状态或事件协议——每条路由都挂在宿主 webServer 护栏下，pty 生命周期、存储语义与路由护栏各自经由其能力间隔观测。
+`dsh-better-sidebar` 设置命名空间与 side chat 注入标记有意保留历史名称：两者都持久存在于跨 profile 共享的用户设置与会话日志中，因此未随包名一并 rescope。本包自 omdsh-dev 的 MIT 许可 `dsh-better-sidebar` 0.17.1 收编为第一方，MIT LICENSE 文件保留；收编决策及其放弃的内容记录在[收编 Agent Note](../../../.agents/notes/implemented/architecture/2026-08-28-adopt-better-sidebar-first-party.zh.md)。
 
 </details>

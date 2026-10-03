@@ -40,7 +40,7 @@ A new root in the same Session format version. Existing logs contain no such eve
 <a id="verification"></a>
 ## Verification
 
-pnpm exec vitest run packages/patent/patent-workflow/tests/model-call-log.spec.ts packages/patent/patent-workflow/tests/invariant.spec.ts packages/test-support/llm-replay/tests/llm-replay.spec.ts: 162 tests passed; snapshots/session/patent-oa-chain replays a full office-action chain (approval-gate pause plus the approved rerun) through dsh --profile headless.
+pnpm exec vitest run packages/patent/patent-workflow/tests/model-call-log.spec.ts packages/test-support/llm-replay/tests/llm-replay.spec.ts: 162 tests passed; snapshots/session/patent-oa-chain replays a full office-action chain (approval-gate pause plus the approved rerun) through dsh --profile headless.
 
 <a id="dev-note"></a>
 ## Dev Note

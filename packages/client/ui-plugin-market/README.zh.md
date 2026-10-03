@@ -108,6 +108,4 @@ kind: "package-reference"
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-不发布运行时不变式伴生；本包持有只读发现贡献。
-
 </details>

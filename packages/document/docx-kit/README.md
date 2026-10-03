@@ -113,5 +113,3 @@ None: the package sends nothing to a provider and mutates no request prefix.
 ### Dev Note
 
 The package is a rewrite of two files of the MIT-licensed Go project Mady: `domains/doctmpl/renderer_docx.go` for the write direction and `knowledge/fileindex/reader_docx.go` for the read direction. The deliberate differences are recorded in the module JSDoc of the modules they touch: the writer emits sizes in the local file header instead of a data descriptor and uses a fixed DOS timestamp, so equal input bytes produce equal output, and the reader reports structured problems where the Go reader returned empty text and a `Confidence` field.
-
-No companion is published because the package owns no durable state or event: every export is a pure function over caller-owned bytes.

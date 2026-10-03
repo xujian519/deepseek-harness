@@ -29,8 +29,8 @@ it('nests group members, includes hidden Nodes, and leaves row order unchanged o
   const viewStore = { get: () => chat, grouped: () => groups } as ConversationSnapshot['views']
   const snapshot = createSnapshotStore<ConversationSnapshot>({ views: viewStore, activeTargets: new Set(['chat']) })
   const binding: ConversationBinding = {
-    snapshot, openTurn: createSnapshotStore<number | undefined>(undefined),
-    activate: vi.fn(), target: () => { throw new Error('unused') },
+    snapshot, openTurn: createSnapshotStore<number | undefined>(undefined), select: vi.fn(),
+    target: (() => ({ getSnapshot: () => chat, subscribe: (listener: () => void) => snapshot.subscribe(listener) })) as ConversationBinding['target'],
   }
   const model = new ChatNodeModel(binding)
   const changed = vi.fn()
@@ -85,8 +85,8 @@ it('places unlisted assistant steps by event anchor without inventing group memb
   ], groups: { kind: 'replace', snapshots: [{ key: groupKey, members, data: {} }] } }, key => chat.nodes.get(key))
   const views = { get: () => chat, grouped: () => groups } as ConversationSnapshot['views']
   const snapshot = createSnapshotStore<ConversationSnapshot>({ views, activeTargets: new Set(['chat']) })
-  const model = new ChatNodeModel({ snapshot, openTurn: createSnapshotStore<number | undefined>(undefined),
-    activate: vi.fn(), target: () => { throw new Error('unused') } })
+  const model = new ChatNodeModel({ snapshot, openTurn: createSnapshotStore<number | undefined>(undefined), select: vi.fn(),
+    target: (() => ({ getSnapshot: () => chat, subscribe: (listener: () => void) => snapshot.subscribe(listener) })) as ConversationBinding['target'] })
   onTestFinished(model.subscribe(vi.fn()))
   expect(model.getSnapshot().map(row => row.key)).toEqual([
     'node:turn-start:1:', 'group:process', 'node:first-member:', 'node:second-member:',
@@ -111,15 +111,24 @@ it('shares activation while observed and retires groups and queued updates when 
   let groups: ConversationGroupStore<object> | undefined = undefined
   const views = { get: () => chat, grouped: () => groups } as ConversationSnapshot['views']
   const snapshot = createSnapshotStore<ConversationSnapshot>({ views, activeTargets: new Set() })
-  const activate = vi.fn(() => { chat = builder.replace({ nodes: [first, second], timeline }) })
-  const model = new ChatNodeModel({ snapshot, activate, openTurn: createSnapshotStore<number | undefined>(undefined),
-    target: () => { throw new Error('unused') } })
+  const claims: string[] = []
+  const target = ((name: string) => {
+    claims.push(name)
+    return {
+      getSnapshot: () => chat,
+      subscribe: (listener: () => void) => {
+        chat = builder.replace({ nodes: [first, second], timeline })
+        return snapshot.subscribe(listener)
+      },
+    }
+  }) as ConversationBinding['target']
+  const model = new ChatNodeModel({ snapshot, openTurn: createSnapshotStore<number | undefined>(undefined), select: vi.fn(), target })
   expect(model.getSnapshot()).toEqual([])
   expect(model.pick({ nodeKey: 'missing' })).toBeUndefined()
   const releases: Array<() => void> = []
   onTestFinished(() => { for (const release of releases.splice(0)) release() })
   releases.push(model.subscribe(vi.fn()), model.subscribe(vi.fn()))
-  expect(activate).toHaveBeenCalledOnce()
+  expect(claims).toEqual(['chat'])
   expect(model.getSnapshot()).toHaveLength(2)
   const original = model.row('node:first:')
   groups = new ConversationGroupStore()
@@ -174,8 +183,8 @@ it('keeps an unavailable group source empty and orders unlisted nodes with equal
   const grouped = { entries: [{ kind: 'group' as const, key }], groupSource: () => group }
   const views = { get: () => chat, grouped: () => grouped } as ConversationSnapshot['views']
   const snapshot = createSnapshotStore<ConversationSnapshot>({ views, activeTargets: new Set(['chat']) })
-  const model = new ChatNodeModel({ snapshot, activate: vi.fn(), openTurn: createSnapshotStore<number | undefined>(undefined),
-    target: () => { throw new Error('unused') } })
+  const model = new ChatNodeModel({ snapshot, openTurn: createSnapshotStore<number | undefined>(undefined), select: vi.fn(),
+    target: (() => ({ getSnapshot: () => chat, subscribe: (listener: () => void) => snapshot.subscribe(listener) })) as ConversationBinding['target'] })
   onTestFinished(model.subscribe(vi.fn()))
   expect(model.getSnapshot().map(row => row.key)).toEqual(['group:loading-group', 'node:a:', 'node:b:'])
   expect(model.row('group:loading-group')?.getSnapshot()).toBeUndefined()

@@ -81,5 +81,3 @@ None; this package neither assembles nor sends a provider request.
 - **Deferred** — screenshots (Screen Recording TCC is bound to the host process and the tool would need image content blocks), Apple Music control, and volume control are deliberately out of scope for this first version.
 
 ### Dev Note
-
-No runtime invariant companion is published; the package owns no independently divergent observations — its effects are one-shot system commands whose outcomes the tool results already record, and approval behavior is owned by `@deepseek-ai/dsh-user-approval`.

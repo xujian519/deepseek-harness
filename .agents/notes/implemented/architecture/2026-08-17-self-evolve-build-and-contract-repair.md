@@ -11,7 +11,7 @@ The self-evolve capability packages (`@deepseek-ai/dsh-self-evolve`, `@deepseek-
 Specific failures included:
 
 - `dsh-brand` now brands with a string-literal tag, but `self-evolve/src/brand.ts` still declared `Branded<unique symbol, ...>` and had no opaque-id factories for the package's own ids.
-- `dsh-invariants` exposes a `(ctx, fail)` dispatcher API, while `self-evolve/src/invariant.ts` called an older `(label, ctx, check)` shape, so every invariant rule was a type error.
+- `dsh-invariants` exposes a `(ctx, fail)` dispatcher API, while the package's invariant companion (since removed with the runtime invariant subsystem in v0.2.1-alpha.1) called an older `(label, ctx, check)` shape, so every invariant rule was a type error.
 - `self-evolve-basic/src/index.ts` imported ids directly as strings, passed an invalid schemastery shape for `Config`, accessed `ProjectionSnapshot.values` with the wrong field name, narrowed the `EvolveProposal` union incorrectly, and passed the wrong validation object downstream.
 - `self-evolve-basic/tsconfig.json` and `tool-self-evolve/tsconfig.json` referenced moved packages (`core/agent-loop-testkit` and `scope/scope`).
 - None of the three packages had a `tsdown.config.mjs`, so the build produced no bundle even if compilation had succeeded.
@@ -23,7 +23,7 @@ Specific failures included:
 Repair the three packages to current harness conventions in a single scoped change.
 
 - `packages/self-evolve/self-evolve/src/brand.ts` now brands with a string-literal tag and exports `SelfEvolveRunId`, `FailurePatternId`, and `EvolveProposalId` factories so callers construct opaque ids instead of casting raw strings.
-- `packages/self-evolve/self-evolve/src/invariant.ts` is rewritten against the current `dsh-invariants` `(ctx, fail)` API. It validates `self-evolve/*` event brackets through an internal dispatch check plus a session/event check.
+- The `packages/self-evolve/self-evolve/` invariant companion (since removed with the runtime invariant subsystem in v0.2.1-alpha.1) is rewritten against the current `dsh-invariants` `(ctx, fail)` API. It validates `self-evolve/*` event brackets through an internal dispatch check plus a session/event check.
 - `packages/self-evolve/self-evolve-basic/src/index.ts` imports branded id factories, fixes `resolveConfig` typing, uses the real schemastery object/dict/union API, reads `ProjectionSnapshot.values` correctly, narrows `EvolveProposal` by its `kind` discriminant, forwards the right validation object, removes a non-existent `rank` field, and wraps `requireSession` with `SessionId(sessionId)`.
 - `packages/self-evolve/self-evolve/src/index.ts` keeps the `EvolveProposal` type export and removes the unused import that caused a lint error.
 - `packages/self-evolve/self-evolve/src/failure-projection.ts` makes `foldEvent` synchronous by replacing the async WebCrypto SHA-1 path with `node:crypto` `createHash('sha1')`; the projection definition's `apply` now actually folds events instead of returning the state unchanged.

@@ -117,10 +117,8 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 - **Dates belong to `patent_deadlines`.** The tool takes `annuityYears` and `lateMonths` as inputs and computes no date and no started-month count itself, so a caller that has not run `patent_deadlines` cannot learn the years; a delay whose months were counted differently from the deadline package's late-payment window will disagree with it.
 - **Percentages round half up to the 分** as an arithmetic convention of this package, stated once in `money.ts`; the official standard does not say how a fractional 分 is handled, and a deployment that must match a published rounding should check the difference on the amounts it bills.
 - **A service fee, a foreign office fee, and a fee the index does not carry are out of scope.** The index covers the Chinese fee items it lists; the report says nothing about anything else, and its silence is not a zero.
-- **No package invariant is published.** Whether an amount is right is a property of the content, and no runtime observation can falsify it independently; the mechanically checkable parts (index parsing, quantity arithmetic, the statuses, and the refusal to total) are checks the tool runs, so they do not meet the invariant bar.
+- **Correctness is content-owned, not runtime-observed.** Whether an amount is right is a property of the content, and no runtime observation can falsify it independently; the mechanically checkable parts (index parsing, quantity arithmetic, the statuses, and the refusal to total) are checks the tool runs.
 
 ### Dev Note
 
 None.
-
-No companion is published because the package owns no durable state or session event: the index is read at load, and every export is a pure function over an explicit query.

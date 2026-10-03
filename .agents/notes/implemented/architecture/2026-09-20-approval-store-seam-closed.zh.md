@@ -13,7 +13,7 @@ Status: implemented
 促成此项工作的那条结论本身还有两处夸大，这两处更正也记在此处，否则后来的读者会重新推导一遍：
 
 - **`PatentOutputGate` 没有生产构造点。** `new PatentOutputGate(` 只出现在 `output-gate.spec.ts`。生产上生效的门是 `RuleOutputGate`，由 `patent-rule/src/index.ts` 接线到 `tools/post-execute`，review 级违规经 `ctx.get('approval')` 路由，无应答者时 fail-closed。所以往 `PatentOutputGate` 里接一个 store，是挂在一条无人可达的链上。
-- **本域并非没有留痕。** `packages/interaction/user-approval/src/index.ts` 写入 `approval/asked` 与 `approval/decided` 事件对（声明于 `packages/core/session/src/known-event-types.ts`），`packages/interaction/user-approval/src/invariant.ts` 校验该配对。相对上游设计所缺的是决策之上的**聚合指标层**，而不是决策记录本身。
+- **本域并非没有留痕。** `packages/interaction/user-approval/src/index.ts` 写入 `approval/asked` 与 `approval/decided` 事件对（声明于 `packages/core/session/src/known-event-types.ts`），该包的不变式伴随（已随 v0.2.1-alpha.1 移除 runtime invariant 子系统时删除）校验该配对。相对上游设计所缺的是决策之上的**聚合指标层**，而不是决策记录本身。
 
 ## Decision
 

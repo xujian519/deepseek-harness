@@ -34,5 +34,3 @@ Indirectly, through the mounted consumer: this bundle inserts the `tool-self-evo
 - **无 keyed 端到端验证** — 提案效果是可逆提交，由单元测试覆盖；实机 `dsh --profile` 循环运行需要 keyed 环境。
 
 ### 开发备注
-
-不发布运行时不变式伴生；bundle patch 与胶水插件不持有自身的可变状态，所有贡献都落入各主管注册表。

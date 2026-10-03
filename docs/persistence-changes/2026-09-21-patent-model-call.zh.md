@@ -40,7 +40,7 @@ changes:
 <a id="verification"></a>
 ## 验证
 
-pnpm exec vitest run packages/patent/patent-workflow/tests/model-call-log.spec.ts packages/patent/patent-workflow/tests/invariant.spec.ts packages/test-support/llm-replay/tests/llm-replay.spec.ts：162 个测试通过；snapshots/session/patent-oa-chain 经 dsh --profile headless 回放完整审查意见答复链（审批门暂停 + 放行后重跑）。
+pnpm exec vitest run packages/patent/patent-workflow/tests/model-call-log.spec.ts packages/test-support/llm-replay/tests/llm-replay.spec.ts：162 个测试通过；snapshots/session/patent-oa-chain 经 dsh --profile headless 回放完整审查意见答复链（审批门暂停 + 放行后重跑）。
 
 <a id="dev-note"></a>
 ## 开发备注

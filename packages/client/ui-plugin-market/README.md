@@ -108,6 +108,4 @@ These limits define the freshness and reach of the discovery view; they are curr
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-No runtime invariant companion is published; this package owns a read-only discovery contribution.
-
 </details>

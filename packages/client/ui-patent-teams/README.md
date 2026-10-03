@@ -52,5 +52,3 @@ None.
 - No auto-switch to the Teams tab on team creation: the conversation service exposes no per-session snapshot read to gate the switch yet.
 
 ### Dev Note
-
-No runtime invariant companion is published; this package is a read-only projection of patent-teams/* session events onto one chat renderer and view-target fold — it emits no cordis events, owns no cross-plugin mutable state, and its registrations prove disposal through the HMR-safety spec.

@@ -32,5 +32,3 @@ None; this package neither assembles nor sends a provider request.
 - **Single backend connection** — the bridge server accepts one concurrent backend socket and rejects additional connections; reconnection is client-driven with exponential backoff and live-registration replay.
 
 ### Dev Note
-
-No runtime invariant companion is published; the provider deliberately loads without DSH_DESKTOP_BRIDGE_PATH so tests and headless boots can compose the same bundle, and a disconnected bridge is reported through typed DesktopError('bridge-disconnected') failures at the call boundary.

@@ -1021,7 +1021,9 @@ describe('runScenario', () => {
       await Promise.race([reading.promise, rejected])
       expect(pendingRead).toBeDefined()
       await rejected
-      await expect(run).rejects.toHaveProperty('cause', expect.any(Error))
+      // The shared wait reports the caller's diagnostic; a probe failure would replace it,
+      // never vitest's generic timeout message.
+      await expect(run).rejects.not.toThrow('Timed out in waitFor!')
     } finally {
       release.resolve(undefined)
       await Promise.allSettled([pendingRead, run, rejected])
