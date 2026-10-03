@@ -242,7 +242,27 @@ describe('patent_metadata failure and render paths', () => {
     expect(attempts).toBe(3)
     const message = text(result)
     expect(message).toContain('通道 Google Patents（nuo 引擎）：HTTP 503；已退避重试 2 次仍未成功')
+    expect(message).toContain('上游限流')
     expect(message).not.toContain('CNIPR')
+  })
+
+  it('asks for a spaced retry on a rate-limited upstream and a plain retry otherwise', async () => {
+    const rateLimited = createPatentMetadataTool({
+      scrapeRetryDelaysMs: [0, 0],
+      scrape: async () => scrapeResult({ errorCode: 'HTTP_ERROR', errorMessage: 'HTTP 503' }),
+    })
+    const rateLimitedResult = await execute(await ctxWith(rateLimited), 'patent_metadata', { patent: 'US1A' }, 'pm-rate-limit')
+    expect(rateLimitedResult.isError).toBe(true)
+    expect(text(rateLimitedResult)).toContain('上游限流或过载（可持续数分钟），请间隔数分钟再试')
+
+    const transient = createPatentMetadataTool({
+      scrapeRetryDelaysMs: [0, 0],
+      scrape: async () => scrapeResult({ errorCode: 'NETWORK_ERROR', errorMessage: 'fetch failed' }),
+    })
+    const transientResult = await execute(await ctxWith(transient), 'patent_metadata', { patent: 'US1A' }, 'pm-transient')
+    expect(transientResult.isError).toBe(true)
+    expect(text(transientResult)).toContain('上游瞬时失败，可稍后重试')
+    expect(text(transientResult)).not.toContain('上游限流')
   })
 
   it('renders the channel of a not-found lookup', async () => {
