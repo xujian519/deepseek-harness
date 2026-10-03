@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-03-patent-delivery-gate-enforces-gate-runs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-03-patent-delivery-gate-enforces-gate-runs.md
+/agent-note-patent-delivery-gates-are-enforced-at-the-tool-call-seam:
+  en: c5fdb00f41b91e46
+  zh: 290fb7d0091ed4d6
+/agent-note-patent-delivery-gates-are-enforced-at-the-tool-call-seam/problem:
+  en: 05571e3375279c03
+  zh: 79cabc27a3af0660
+/agent-note-patent-delivery-gates-are-enforced-at-the-tool-call-seam/decision:
+  en: b8009dc5926749ae
+  zh: bd07d79fe53be20a
+/agent-note-patent-delivery-gates-are-enforced-at-the-tool-call-seam/alternatives-considered:
+  en: 004c2cfaa4b7767d
+  zh: 876900cdc4c2f94f
+/agent-note-patent-delivery-gates-are-enforced-at-the-tool-call-seam/consequences:
+  en: 5d7c8b91770be2da
+  zh: 4e22389e7ad49884

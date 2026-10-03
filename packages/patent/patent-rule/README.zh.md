@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 宪法规则引擎原生移植进 DeepSeek Harness：随包分发 YAML 规则包资产，对文本做确定性评估，将 EVI-011 证据合规守卫注册为单调 deny，并把 RuleOutputGate 接线到 tools/post-execute，review 经 ctx.approval 路由。"
+description: "函数插件，将 Sati 宪法规则引擎原生移植进 DeepSeek Harness：随包分发 YAML 规则包资产，对文本做确定性评估，将 EVI-011 证据合规守卫注册为单调 deny，把 RuleOutputGate 接线到 tools/post-execute、review 经 ctx.approval 路由，并在交付工具的前置闸门调用未在本会话成功执行时拒绝该次调用。"
 kind: "package-reference"
 ---
 
@@ -9,11 +9,12 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 宪法规则引擎原生移植进 DeepSeek Harness：随包分发 YAML 规则包资产，对文本做确定性评估，将 EVI-011 证据合规守卫注册为单调 deny，并把 RuleOutputGate 接线到 tools/post-execute，review 经 ctx.approval 路由。
+函数插件，将 Sati 宪法规则引擎原生移植进 DeepSeek Harness：随包分发 YAML 规则包资产，对文本做确定性评估，将 EVI-011 证据合规守卫注册为单调 deny，把 RuleOutputGate 接线到 tools/post-execute、review 经 ctx.approval 路由，并在交付工具的前置闸门调用未在本会话成功执行时拒绝该次调用。
 
 ## 目录
 
 - [输出门禁](#output-gate)
+- [交付前置门禁](#delivery-gate)
 - [EVI-011 证据守卫](#evi-011-evidence-guards)
 - [规则引擎（库 API）](#rule-engine-library-api)
 - [规则资产](#rule-assets)
@@ -40,6 +41,17 @@ kind: "package-reference"
 
 条目只对**入参本身承载制品全文**的工具成立。`render_patent_document` 的 `sections` 只是模板槽位片段，而随包模板已含固定措辞（权利要求句式、各部标题），按这些片段判结构会报出渲染成品并不存在的缺失——该模板不是安全的目标。工具的入参就是文书全文时才启用本门禁。
 
+<a id="delivery-gate"></a>
+## 交付前置门禁
+
+部署可声明 `deliveryGate` 条目：每条给出一个交付工具，以及它被调用前必须已在本会话成功执行过的工具（可选 `whenArgs` 把该条收窄到匹配的调用——字符串为精确匹配，字符串数组为取值集合）。未满足的条目经 `ctx.tools.guard()` 这一单调 guard 拒绝该次调用，故监听器顺序或权限规则都无法把拒绝还原成一次执行。拒绝理由点出尚缺的前置工具，模型据此补跑，而不是让这次交付静默地少一道闸门。
+
+这道门禁存在的原因是：只写在提示词里的纪律与没有纪律，在调用记录上无法区分——跑过的那次与没跑过的那次留下同样的痕迹，若没有任何环节核对。台账保存**成功返回**的工具名，由 `tools/post-execute` 登记，因为派发前作出的拒绝无法知道它即将放行的调用会不会成功。登记与判定因此分开：guard 读的是 post-execute 监听器填写的台账。
+
+台账按调用方（agent）归属，一个案件的门禁调用不会顶替另一个案件的交付。没有 agent 的调用无法归属到任何会话，一律按未满足处理：无法归属的交付件同样拿不出本会话的记录。随包默认不声明任何条目——一次交付欠哪些闸门调用，是本部署的交付政策，不是本包的政策。
+
+生产消费者是 `render_patent_document`：`patent` 预置要求任何交付渲染前已跑过 `rule_check` 与 `law_verify`，分析类模板另要求 `patent_workflow_run`（它们按 manifest 收口）。两种撰写形态（`claims-spec`、`rectification-response`）不跑 manifest，不在第二条要求内。
+
 <a id="evi-011-evidence-guards"></a>
 ## EVI-011 证据守卫
 
@@ -48,7 +60,7 @@ kind: "package-reference"
 <a id="rule-engine-library-api"></a>
 ## 规则引擎（库 API）
 
-包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`isGateCheckType`、`PATENT_CASE_DOMAINS`、`patentCaseDomains`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`，以及制品门禁的 `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`。
+包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`isGateCheckType`、`PATENT_CASE_DOMAINS`、`patentCaseDomains`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`，制品门禁的 `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`，以及交付门禁的 `DeliveryAttemptLedger` / `deliveryGateMissing` / `renderDeliveryGateDenial` / `resolveDeliveryGate` 与共用的 `jsonRecord` / `declaredArgsMatch`。
 
 <a id="rule-assets"></a>
 ## 规则资产
@@ -88,6 +100,7 @@ Schemastery 配置。
 | `gateToolNames` | string[] | 交付物工具 | 结果经输出门禁评估的工具名。 |
 | `gateCheckTypes` | string[] | `keyword_blocklist` | 结果门禁保留的检查族；点名缺失即违规族会告警拒绝。 |
 | `structuralGate` | object[] | `[]` | 制品门禁条目（`tool`、`textArgs`、`ruleIds`，可选 `whenArgs`）：制品文本命中 block 级规则即在调用前拒绝。 |
+| `deliveryGate` | object[] | `[]` | 交付门禁条目（`tool`、`requires`，可选 `whenArgs`）：前置工具未在本会话成功执行过的调用由单调 guard 拒绝。 |
 | `approvalDisabled` | boolean | `false` | 对 review 级违规直接拦截，不经审批往返。 |
 
 <a id="model-experience"></a>
@@ -108,6 +121,8 @@ None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-01
 - **并入资产只覆盖可机器判定的规则** — 载荷为正文表述（分析原则、法条条件、判例引用）的上游规则未转成检查，留在本包之外；转换清单、检查类型映射与边界见[并入边界说明](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.zh.md)。
 - **规则按域与前提收窄，不按文书类型判定** — 作业 scope 只留本作业的域，规则的适用前提在文本未触及该主题时保持沉默，但没有任何环节判定文书类型：前提命中的规则（例如答复引述了权利要求文字）仍会报出它缺失的要素。
 - **制品门禁无随包条目** — 本制品门禁不带任何 `structuralGate` 条目，因为本部署没有「入参即交付文书全文」的生产工具：`render_patent_document` 的入参是模板槽位片段，而模板本身已含固定措辞，按片段判缺失会报出渲染成品并不存在的缺陷。生产工具的入参就是文书全文时才启用。
+- **交付台账不跨恢复保留** — 台账保存在插件挂载内、以活动 agent 对象为键，故在新进程里恢复的会话从零开始，即使此前已跑过前置调用也会要求重跑。失败方向是多跑一次闸门，不是少跑。
+- **前置条件认「成功调用」而非「通过结论」** — 台账记录的是某工具未报错返回。`rule_check` 结果里报了违规、或 `patent_workflow_run` 停在人工确认门，都算满足；门禁强制的是这次闸门在本会话跑过，结论由交付报告承载供人核阅。
 - **指南引用是自由文本** — `legalBasis` 原样进入输出，没有任何环节解析它，故规则引的《专利审查指南》节号只与其转录来源一样正确；`tests/guideline-citations.spec.ts` 记下资产须守的编号写法和已按 2023 年修订版核对过的节，其余引用尚未核验。
 
 ### 开发备注

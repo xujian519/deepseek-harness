@@ -3,29 +3,32 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-rule/README.md
 /:
-  en: 89730e682e44bffc
-  zh: b67c77a8b38f8a8b
+  en: e05dc048a43a15f0
+  zh: 84c1373f6af33afa
 /deepseek-ai-dsh-patent-rule:
   en: f12145b2246fa994
   zh: bc5d8bfbe1ee7e3d
 /deepseek-ai-dsh-patent-rule/summary:
-  en: 97669d6d9a4dd942
-  zh: 4d665e80c9167d62
+  en: 38fcc07ced61c22c
+  zh: 3b124686df43fd6e
 /deepseek-ai-dsh-patent-rule/table-of-contents:
-  en: 048b521c14935165
-  zh: a3fecbd86f7cb10d
+  en: 23d8c3a72909d9ef
+  zh: e7bc847f5329b909
 /deepseek-ai-dsh-patent-rule/output-gate:
   en: d1a56c051bf3fbbf
   zh: 2254acd1b6717c0c
 /deepseek-ai-dsh-patent-rule/output-gate/artifact-structural-gate:
   en: 9f9945267cd74a52
-  zh: 8297f86d46807378
+  zh: 95b313f82db31357
+/deepseek-ai-dsh-patent-rule/delivery-gate:
+  en: a864bf2d6b60311e
+  zh: aa02738df987a454
 /deepseek-ai-dsh-patent-rule/evi-011-evidence-guards:
   en: c13fe53817f38151
   zh: fc1aa0e5f29029d4
 /deepseek-ai-dsh-patent-rule/rule-engine-library-api:
-  en: ea365c31577026ec
-  zh: afa646cdc40ee672
+  en: aeee0dd992de448c
+  zh: 4c5748da7ca919a8
 /deepseek-ai-dsh-patent-rule/rule-assets:
   en: 60320ed6f0272cad
   zh: bf6875a0d90cd5e4
@@ -36,8 +39,8 @@
   en: b3202a6be7459351
   zh: a1e5b7153d891641
 /deepseek-ai-dsh-patent-rule/configuration:
-  en: 2896f85eb6202b2a
-  zh: cd200f2807453088
+  en: 880fabcc55819812
+  zh: 9e58a904aa0f6967
 /deepseek-ai-dsh-patent-rule/model-experience:
   en: 3880b3cb480881c1
   zh: 4d5586a2e4bdbe54
@@ -45,8 +48,8 @@
   en: e6acf0941fd6c75b
   zh: 63651dab1df109cb
 /deepseek-ai-dsh-patent-rule/known-limitations-and-deferred-work:
-  en: 4bcac73e8f8dcf1d
-  zh: 861c17ce23da5a0a
+  en: d6bd8489e641ea0d
+  zh: 7c21917f255f61bc
 /deepseek-ai-dsh-patent-rule/known-limitations-and-deferred-work/dev-note:
   en: df42c6d88317e7ca
   zh: 6df4aa8c29bf4278

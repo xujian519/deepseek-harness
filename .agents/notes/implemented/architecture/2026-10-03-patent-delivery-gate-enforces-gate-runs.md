@@ -1,0 +1,41 @@
+# Agent Note: patent delivery gates are enforced at the tool-call seam
+
+Status: implemented
+
+English | [中文](2026-10-03-patent-delivery-gate-enforces-gate-runs.zh.md)
+
+## Problem
+
+The `patent` preset states its delivery discipline in the persona: a deliverable owes a `rule_check` run (the compliance rule pack, item by item) and a `law_verify` run (citation form and index coverage), and an analysis owes a `patent_workflow_run` closure before it may enter document delivery. The 2026-10-03 clearance of the same corpus ([the zero-call attribution note](2026-10-03-patent-zero-call-tool-attribution.md)) measured what reached a model against what the text asked for: `patent_workflow_run` was offered in 91 patent-enabled work sessions and called 0 times, and `law_verify` was called 0 times in the whole corpus. `rule_check` was called 63 times across 19 sessions, but of the 13 sessions that rendered a deliverable, only 2 had run it before their first render — 55 of the 63 renders shipped from a session with no compliance run recorded ahead of them.
+
+A discipline stated only in a prompt is indistinguishable from no discipline in the call record: the run that happened and the run that did not leave the same trace when nothing checks. [The closure-required note](2026-09-21-patent-workflow-closure-required.md) considered forcing closure through a tool-level guard and rejected it, for two recorded reasons — a guard that blocks rendering would break case types whose manifest has no entry (rectification), and would break runs that legitimately stop at the human-approval gate. That note also recorded its own failure condition, a further equal-length window with zero closure calls, and the 2026-10-03 window met it.
+
+## Decision
+
+`@deepseek-ai/dsh-patent-rule` gains a second declared artifact gate alongside `structuralGate`. A `deliveryGate` entry names a delivery tool and the tools that must have succeeded earlier **in the same session** before that tool may run; an optional `whenArgs` narrows the entry to matching calls, where a string matches exactly and a string array is a value set. An unsatisfied entry denies the call through `ctx.tools.guard()`, the monotonic guard, so neither listener ordering nor a permission rule can turn the denial back into a call. The denial names the missing prerequisite tools, so the model re-runs them instead of losing the delivery to an unstated gap.
+
+Recording and judging are separate, because a deny decided before dispatch cannot know whether the call it is about to allow will succeed. The ledger holds tool names that returned successfully, filled from `tools/post-execute`, and the guard reads it. The ledger is keyed by the live calling agent, so one case's gate run never satisfies another case's delivery, and a call carrying no agent is treated as unsatisfied: an unattributable deliverable has no session record to show either. The shipped default declares no entry — which gate runs one delivery owes is the deployment's delivery policy, not this package's.
+
+The `patent` preset declares two entries for `render_patent_document`: every render requires `rule_check` and `law_verify`, and the seven analysis templates (`patentability-opinion`, `search-report`, `oa-response`, `invalidation-opinion`, `re-examination-request`, `infringement-opinion`, `litigation-pleading`) additionally require `patent_workflow_run`. The two recorded objections to a guard are answered by that shape. Template narrowing answers the rectification case: `rectification-response` and `claims-spec` run no manifest and stay outside the closure entry. Successful-call semantics answer the approval-gate case: a run stopped at `review_gate` returns without error and satisfies the gate, so the persona's existing instruction to re-call with `approveStageIds` carries the approval step, and nothing locks rendering behind a second pass.
+
+The delivery gate is this package's third enforcement point, next to the result gate on `tools/post-execute` ([the output-gating note](2026-09-28-patent-output-gating-runs-on-the-rule-gate.md), where the rule gate is the single executor of the compliance rules) and the artifact structural gate. The three answer different questions: what the produced text says, what the artifact about to be rendered contains, and which runs this session has already completed.
+
+Argument matching moved to `runtime/args-match.ts` and is shared by both gates: the deployed artifact gate and the delivery gate answer the same question about a declaration — whether it is aimed at this call — and two copies would let one declaration mean two things.
+
+## Alternatives considered
+
+- **Retire `patent_workflow_run` rather than enforce it** — the branch the closure note reopened once its window came back empty. Not taken: the closure note's reasons for keeping the stage record (a reviewable account of which stage ran, on what input, with which verdict) still hold, and retirement drops the record instead of producing it.
+- **Keep routing the gates and sharpen the persona wording.** Already tried: the requirement was in the persona and in the closure rows of five skills, and the 2026-10-03 window still recorded 0 closure calls and 0 `law_verify` calls.
+- **Turn the three gate skills into tools**, which the optimization ledger proposed. Rejected: `patent-compliance-review` is a thin wrapper over `rule_check` and `patent-fact-check`'s first required step is `law_verify`, so new tools would duplicate two shipped ones. The missing part was never a tool; it was that nothing required the call.
+- **Enforce inside `render_patent_document`.** Rejected: `patent-document` would need a dependency on `patent-rule`, inverting the seam, and the renderer cannot see the other calls in its session. The gate belongs to the plugin that owns delivery gating and can observe the call stream.
+- **Judge the verdict rather than the call.** Rejected: it requires reducing each gate's structured result to a pass/fail this package does not own, and a `rule_check` result that reports violations is a normal answer for a human to read, not a reason to block rendering permanently.
+- **Fold the prerequisite into `structuralGate`.** Rejected: that gate judges artifact text inside one call's arguments, while a prerequisite is session state — a different input and a different failure, which would have to be bolted onto an entry type whose `textArgs` and `ruleIds` have no meaning for it.
+
+## Consequences
+
+- A delivered document can no longer ship from a session that has not run the two gates, and an analysis-type document additionally needs a closure run. The next equal-length window tests the third attempt at this requirement: zero `patent_workflow_run` calls beside a populated `render_patent_document` count would mean the gate itself is not reaching the model.
+- The ledger does not survive a resume: it is held in the plugin mount and keyed by the live agent object, so a session resumed in a fresh process re-runs its prerequisites even when an earlier run satisfied them. The failure direction is a repeated gate run rather than a missing one. The package README records this under its known limitations.
+- The ledger counts a successful call, not a passing verdict, so a `rule_check` reporting violations satisfies it. The gate enforces that the run happened in the session; the delivery report carries the verdict for a human to read. Also recorded in the package README.
+- `verify_deliverable` stays out of the prerequisite set: it checks that the rendered artifact is newer than its inputs and byte-identical to the case's canonical files, so it runs after the render and cannot be a precondition of it.
+- `evaluate_evidence` stays routed rather than gated. Its scene is "evidence is being cited", which a tool-call gate cannot observe: an office-action answer that cites no evidence would be forced into a call with nothing to evaluate. [The zero-call attribution note](2026-10-03-patent-zero-call-tool-attribution.md) deferred that enforcement to this work; the deferral stands, with the obstacle now named as observability rather than mechanism.
+- The `patent` preset and `scripts/preset-divergence-baseline.json` carry the new declaration and its re-recorded hash, so the preset's own divergence row moves with the enforcement change.

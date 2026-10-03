@@ -1,5 +1,5 @@
 ---
-description: "Function plugin porting the Sati constitutional rule engine into the DeepSeek Harness: it ships the YAML rule packs as package assets, evaluates text deterministically, registers the EVI-011 evidence-compliance guards as monotonic denies, and wires the RuleOutputGate onto tools/post-execute with review routed through ctx.approval."
+description: "Function plugin porting the Sati constitutional rule engine into the DeepSeek Harness: it ships the YAML rule packs as package assets, evaluates text deterministically, registers the EVI-011 evidence-compliance guards as monotonic denies, wires the RuleOutputGate onto tools/post-execute with review routed through ctx.approval, and denies a delivery tool call whose declared prerequisite gate runs have not succeeded earlier in the same session."
 kind: "package-reference"
 ---
 
@@ -9,11 +9,12 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin porting the Sati constitutional rule engine into the DeepSeek Harness: it ships the YAML rule packs as package assets, evaluates text deterministically, registers the EVI-011 evidence-compliance guards as monotonic denies, and wires the RuleOutputGate onto tools/post-execute with review routed through ctx.approval.
+Function plugin porting the Sati constitutional rule engine into the DeepSeek Harness: it ships the YAML rule packs as package assets, evaluates text deterministically, registers the EVI-011 evidence-compliance guards as monotonic denies, wires the RuleOutputGate onto tools/post-execute with review routed through ctx.approval, and denies a delivery tool call whose declared prerequisite gate runs have not succeeded earlier in the same session.
 
 ## Table of Contents
 
 - [Output gate](#output-gate)
+- [Delivery gate](#delivery-gate)
 - [EVI-011 evidence guards](#evi-011-evidence-guards)
 - [Rule engine (library API)](#rule-engine-library-api)
 - [Rule assets](#rule-assets)
@@ -38,13 +39,23 @@ The declaration is per rule id rather than per domain because a domain's absence
 
 An entry is only correct for arguments that carry the artifact itself. `render_patent_document` takes template slot fragments in `sections`, and the shipped templates already contain the fixed wording (claim sentences, section headings), so judging those fragments reports absences the rendered document does not have — that template is not a safe target. Enable the gate where the tool's argument is the document text in full.
 
+## Delivery gate
+
+A deployment may declare `deliveryGate` entries: each names a delivery tool and the tools that must have succeeded earlier in the same session before it may run, with optional `whenArgs` (a string matches exactly, a string array is a value set) narrowing the entry to matching calls. An unsatisfied entry denies the call through `ctx.tools.guard()`, a monotonic guard, so no listener ordering or permission rule can turn the denial back into a call. The denial names the missing prerequisite tools, and the model re-invokes them instead of losing the delivery to a silent gap.
+
+The gate exists because a discipline stated only in a prompt is indistinguishable from no discipline in the call record: the run that happened and the run that did not leave the same trace when nothing checks. The ledger holds the tool names that returned successfully, recorded from `tools/post-execute` where the outcome is known — a deny decided before dispatch cannot know whether the call it is about to allow will succeed. Recording and judging are therefore separate: the guard reads a ledger the post-execute listener fills.
+
+The ledger is keyed by the calling agent, so one case's gate run never satisfies another case's delivery. A call with no agent cannot be attributed to any session, so it is treated as unsatisfied: an unattributable deliverable has no session record to show either. The shipped default declares no entry — which gate runs a delivery owes is the deployment's delivery policy, not this package's.
+
+`render_patent_document` is the production consumer: the `patent` preset requires `rule_check` and `law_verify` before any delivery render, and additionally `patent_workflow_run` for the analysis templates, which run a manifest to closure. The two drafting forms (`claims-spec`, `rectification-response`) run no manifest and stay outside that second entry.
+
 ## EVI-011 evidence guards
 
 `evaluate_evidence` calls are denied by two monotonic guards when an overseas or foreign-language evidence record omits its required notarization, legalization, or translation declaration. The guard condition fields derive from the packaged `evidence-rules.yaml`, falling back to a hardcoded set when the asset is missing. Each guard returns a denial reason string, so no allow result can override it.
 
 ## Rule engine (library API)
 
-The package re-exports the ported rule engine: `evaluateText`, `evaluateRule`, `groupByAction`, `parseRuleSetFromYaml`, `loadRuleSetFromFile`, `loadRuleSetDir`, `mergeRuleSets`, `applyRuleOverrides`, `loadPatentComplianceRuleSet`, `loadPatentElectricalRuleSet`, `loadPatentFullRuleSet`, `loadActivationOverrides`, `selectGateRules`, `isGateCheckType`, `PATENT_CASE_DOMAINS`, `patentCaseDomains`, `loadRulePack`, `loadSynonymsAsset`, `RuleOutputGate`, and the artifact gate's `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`.
+The package re-exports the ported rule engine: `evaluateText`, `evaluateRule`, `groupByAction`, `parseRuleSetFromYaml`, `loadRuleSetFromFile`, `loadRuleSetDir`, `mergeRuleSets`, `applyRuleOverrides`, `loadPatentComplianceRuleSet`, `loadPatentElectricalRuleSet`, `loadPatentFullRuleSet`, `loadActivationOverrides`, `selectGateRules`, `isGateCheckType`, `PATENT_CASE_DOMAINS`, `patentCaseDomains`, `loadRulePack`, `loadSynonymsAsset`, `RuleOutputGate`, the artifact gate's `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`, and the delivery gate's `DeliveryAttemptLedger` / `deliveryGateMissing` / `renderDeliveryGateDenial` / `resolveDeliveryGate` plus the shared `jsonRecord` / `declaredArgsMatch`.
 
 ## Rule assets
 
@@ -80,6 +91,7 @@ Schemastery configuration.
 | `gateToolNames` | string[] | delivery tools | Tool names whose results run through the output gate. |
 | `gateCheckTypes` | string[] | `keyword_blocklist` | Check families the result gate keeps; an absence-based family is rejected with a warning. |
 | `structuralGate` | object[] | `[]` | Artifact gate entries (`tool`, `textArgs`, `ruleIds`, optional `whenArgs`): a block-level hit on the artifact text denies the call before dispatch. |
+| `deliveryGate` | object[] | `[]` | Delivery gate entries (`tool`, `requires`, optional `whenArgs`): a call whose prerequisite tools have not succeeded earlier in the same session is denied by a monotonic guard. |
 | `approvalDisabled` | boolean | `false` | Block review-level violations without an approval round-trip. |
 
 ## Model Experience
@@ -98,6 +110,8 @@ Independent; the plugin appends nothing to the request prefix, so enabling or di
 - **Merged assets cover machine-checkable rules only** — upstream rules whose payload is prose (analysis principles, statutory conditions, decision citations) are not converted into checks and stay outside this package; the conversion set, the check-type mapping, and the boundary are recorded in [the merge-boundary note](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.md).
 - **Rules are narrowed by domain and premise, not by document type** — a job scope keeps only its domains and a rule's premise silences it on text that never touches its subject, but nothing classifies the document: a rule whose premise matches (an answer quoting the claim text, say) still reports its missing elements.
 - **No shipped structural gate entry** — the artifact gate ships with no `structuralGate` entry because no production tool in this deployment takes the delivered document as one argument: `render_patent_document` takes template slot fragments, and the templates already carry the fixed wording, so absence checks on those fragments report defects the rendered document does not have. A deployment whose production tool takes the document text enables it there.
+- **The delivery ledger does not survive a resume** — it is held in the plugin mount and keyed by the live agent object, so a session resumed in a fresh process starts with no record and re-runs the prerequisites even when an earlier run satisfied them. The failure direction is a repeated gate run, not a missing one.
+- **A prerequisite counts on a successful call, not on a passing verdict** — the ledger records that a tool returned without error. A `rule_check` whose result reports violations, or a `patent_workflow_run` paused at its review gate, satisfies the gate; what the gate enforces is that the run happened in this session, and the delivery report carries the verdict for a human to read.
 - **Guideline citations are free text** — `legalBasis` reaches output verbatim and no stage parses it, so a rule's 《专利审查指南》 section number is only as correct as the text it was transcribed from; `tests/guideline-citations.spec.ts` holds the numbering form the assets keep and the sections already checked against the 2023 revision, and the remaining citations are unverified.
 
 ### Dev Note
