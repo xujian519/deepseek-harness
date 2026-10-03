@@ -28,10 +28,15 @@ import {
 import { PatentToolError } from '../error.ts'
 
 const MAX_PATENTS = 50
-/** 默认整体超时推算参数：每篇 25s，下限 60s，上限 180s。 */
-const PER_PATENT_TIMEOUT_MS = 25_000
+/**
+ * 默认整体超时推算参数：一篇的最坏预算 = 开页超时 + 下载拦截轮询预算（两者都有可传入的
+ * 默认值），整批再加一次设置开销。取值必须覆盖这两个预算之和：小于它时 ego 腿还没回退到
+ * 页面解析 + HTTP 下载，整体超时就先掐断调用，预置 persona 承诺的降级路径走不到。
+ * 上限取入参自身的上限 300s。
+ */
+const PER_BATCH_OVERHEAD_MS = 15_000
 const MIN_DEFAULT_TIMEOUT_MS = 60_000
-const MAX_DEFAULT_TIMEOUT_MS = 180_000
+const MAX_DEFAULT_TIMEOUT_MS = 300_000
 /**
  * Google Patents CDN（patentimages.storage.googleapis.com）对非浏览器 UA 返回
  * 403，因此 fetch 兜底刻意使用浏览器 UA。
@@ -63,7 +68,7 @@ export type PatentPdfDownloadInput = {
   pageTimeoutSec?: number
   /** 每篇下载拦截超时（毫秒），默认 60_000。 */
   downloadTimeoutMs?: number
-  /** 整体执行超时（毫秒）；默认按每篇 25s 推算并夹在 60_000–180_000 之间，上限 300_000。 */
+  /** 整体执行超时（毫秒）；默认按 `篇数 × (pageTimeoutSec × 1000 + downloadTimeoutMs) + 15_000` 推算，夹在 60_000–300_000 之间。 */
   timeoutMs?: number
   /** 是否截图留证（页面证据截图），默认 false。 */
   record?: boolean
@@ -433,7 +438,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
       outputDir: { type: 'string', description: '输出目录（绝对或相对当前工作目录）；默认 <cwd>/专利原文/YYYY-MM-DD' },
       pageTimeoutSec: { type: 'number', description: '每页打开超时（秒），默认 20' },
       downloadTimeoutMs: { type: 'number', description: '每篇下载拦截超时（毫秒），默认 60000' },
-      timeoutMs: { type: 'number', description: '整体执行超时（毫秒）；默认 clamp(25s × 篇数, 60s, 180s)，上限 300000' },
+      timeoutMs: { type: 'number', description: '整体执行超时（毫秒）；默认 clamp(篇数 × (pageTimeoutSec × 1000 + downloadTimeoutMs) + 15000, 60000, 300000)，上限 300000' },
       record: { type: 'boolean', description: '是否截图留证（默认 false）' },
       force: { type: 'boolean', description: '忽略 MANIFEST 断点续传，强制重下全部（默认 false）' },
     },
@@ -475,9 +480,13 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
 
       const pageTimeoutSecValue = pageTimeoutSec ?? 20
       const downloadTimeoutMsValue = downloadTimeoutMs ?? 60_000
+      const perPatentMs = pageTimeoutSecValue * 1000 + downloadTimeoutMsValue
       const timeoutMsValue =
         timeoutMs ??
-        Math.min(MAX_DEFAULT_TIMEOUT_MS, Math.max(MIN_DEFAULT_TIMEOUT_MS, patents.length * PER_PATENT_TIMEOUT_MS))
+        Math.min(
+          MAX_DEFAULT_TIMEOUT_MS,
+          Math.max(MIN_DEFAULT_TIMEOUT_MS, patents.length * perPatentMs + PER_BATCH_OVERHEAD_MS),
+        )
       const record = args.record === true
       const force = args.force === true
 
