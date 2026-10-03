@@ -199,12 +199,14 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // The web bundle ships the patent and document preset layers beside the
   // upstream ones: each guide file documents its patch sheet, and `skills` holds
   // the roots those sheets resolve at runtime through this package's location.
+  // Startup and runtime share the advertised URL parser.
   '@deepseek-ai/dsh-web-app': [
     'presets/patent.md',
     'presets/patent.zh.md',
     'presets/document.md',
     'presets/document.zh.md',
     'skills',
+    'lib/public-url-*.js',
   ],
   // The workspace sidebar's heavy preview/terminal libraries build as lazy
   // chunk scripts beside the client bundle; the plugin's /sidebar/bundle
@@ -275,8 +277,6 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // through a hashed chunk. The committed bin.js is the link target pnpm can
   // resolve at install time, before the build produces lib/bin.js.
   '@deepseek-ai/dsh-experimental-webworker-packer': ['bin.js', 'lib/repository-*.js'],
-  // Startup and runtime share the advertised URL parser.
-  '@deepseek-ai/dsh-web-app': ['lib/public-url-*.js'],
   // The headless entry and its startup row share the JSON projection code
   // through a hashed tsdown chunk; both import it by relative path.
   '@deepseek-ai/dsh-headless': ['lib/json-stream-*.js'],

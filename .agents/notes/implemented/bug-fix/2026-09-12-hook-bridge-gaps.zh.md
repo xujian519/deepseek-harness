@@ -69,4 +69,4 @@ Status: implemented
 
 - [Claude Code hook bridge](../../../../packages/hooks/hooks-claude-code/README.zh.md)——受影响桥接的用户级合约。
 - [Codex hook bridge](../../../../packages/hooks/hooks-codex/README.zh.md)——受影响桥接的用户级合约。
-- [拦截扩展点](../feature/2026-06-30-interception-extension-points.zh.md)——桥接所映射的类型化 Decision 表面。
+- [拦截扩展点](../../archived/feature/2026-06-30-interception-extension-points.md)——桥接所映射的类型化 Decision 表面。

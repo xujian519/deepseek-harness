@@ -360,9 +360,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'a Session already addressable through the Session Controller.',
       },
       {
-        signature: 'startSession(workspaceId?: WorkspaceId): void',
+        signature: 'startSession(workspaceId?: WorkspaceId, options?: StartSessionOptions): void',
         description: 'Start a New Session flow and navigate to its Session; a creation the Host refuses is shown through the Workspace notice and leaves the selection as it was.',
-        parameters: [{ name: 'workspaceId', description: 'explicit target; absent inherits the current or most recent Workspace.' }],
+        parameters: [{ name: 'workspaceId', description: 'explicit target; absent inherits the current or most recent Workspace.' }, { name: 'options', description: 'initial content; existing text or attachments are preserved unless clearPreviousDraft is true.' }],
       },
       {
         signature: 'archiveSession(sessionId: SessionId, options?: { readonly stopActivity?: boolean }): Promise<void>',
@@ -586,6 +586,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'Context',
     declaration: 'export type Context = CordisContext & SidebarContextShape;',
+  },
+  {
+    name: 'DraftInitializationOptions',
+    declaration: 'export interface DraftInitializationOptions {\n    readonly prompt?: string;\n    readonly clearPreviousDraft?: boolean;\n}',
   },
   {
     name: 'EditorToolbarControls',
@@ -981,7 +985,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SidebarContextShape',
-    declaration: 'export interface SidebarContextShape {\n    webServer: SidebarWebServer;\n    sessions: SidebarSessionStore & SidebarSessionsService;\n    connection: SidebarConnectionHandle;\n    webRuntime: SidebarWebRuntime;\n    slots: SidebarSlotsService;\n    workspaces: SidebarWorkspacesService;\n    settings: SidebarSettingsService;\n    configEditor: SidebarConfigEditorService;\n    invariants: SidebarInvariantsService;\n    tools: SidebarToolsService;\n    locale: SidebarLocaleService;\n    modules: {\n        import(specifier: string): Promise<unknown>;\n    };\n    jobs: SidebarJobsService;\n    agents: SidebarAgentsService;\n    subagents: SidebarSubagentsService;\n    agentPresets: SidebarAgentPresetsService;\n    sessionTitle: SidebarSessionTitleService;\n    sessionController: SidebarSessionControllerService;\n    conversation: SidebarConversation;\n    betterSidebar: BetterSidebarService;\n    on(event: \'settings/document-updated\', listener: (ns: string, revision: number) => void): () => void;\n    on(event: string, listener: (session: unknown, event: SidebarSessionEvent) => void): () => void;\n}',
+    declaration: 'export interface SidebarContextShape {\n    webServer: SidebarWebServer;\n    sessions: SidebarSessionStore & SidebarSessionsService;\n    connection: SidebarConnectionHandle;\n    webRuntime: SidebarWebRuntime;\n    slots: SidebarSlotsService;\n    workspaces: SidebarWorkspacesService;\n    settings: SidebarSettingsService;\n    configEditor: SidebarConfigEditorService;\n    tools: SidebarToolsService;\n    locale: SidebarLocaleService;\n    modules: {\n        import(specifier: string): Promise<unknown>;\n    };\n    jobs: SidebarJobsService;\n    agents: SidebarAgentsService;\n    subagents: SidebarSubagentsService;\n    agentPresets: SidebarAgentPresetsService;\n    sessionTitle: SidebarSessionTitleService;\n    sessionController: SidebarSessionControllerService;\n    conversation: SidebarConversation;\n    betterSidebar: BetterSidebarService;\n    on(event: \'settings/document-updated\', listener: (ns: string, revision: number) => void): () => void;\n    on(event: string, listener: (session: unknown, event: SidebarSessionEvent) => void): () => void;\n}',
   },
   {
     name: 'SidebarConversation',
@@ -1002,10 +1006,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SidebarHttpResponse',
     declaration: 'export interface SidebarHttpResponse {\n    statusCode: number;\n    writeHead(status: number, headers?: Record<string, string>): void;\n    end(body?: string | Uint8Array): void;\n}',
-  },
-  {
-    name: 'SidebarInvariantsService',
-    declaration: 'export interface SidebarInvariantsService {\n    register(packageName: string, installer: (ctx: Context, fail: (message: string) => never) => void | Promise<void>): () => void;\n}',
   },
   {
     name: 'SidebarJobsService',
@@ -1238,6 +1238,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SnapshotSelectorHook',
     declaration: 'export type SnapshotSelectorHook<T> = <S>(sel: (s: T) => S, eq?: (a: S, b: S) => boolean) => S;',
+  },
+  {
+    name: 'StartSessionOptions',
+    declaration: 'export type StartSessionOptions = DraftInitializationOptions;',
   },
   {
     name: 'StoreDecl',

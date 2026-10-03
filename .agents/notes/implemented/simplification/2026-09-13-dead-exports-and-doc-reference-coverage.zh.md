@@ -18,7 +18,7 @@ Status: implemented
 - **把两处 chunk 注释指向该设计在包内的归属。** `chunk-loader.ts` 与 `tsdown.config.ts` 持有 chunk 注册表与 `chunkBundle` 构建，包 README 的源码映射同时点出这两者。
 - **改为引用为 plugin-shape 守卫提供依据的事后复盘**，替代一个任何门禁都无法解析的包路径。[事后复盘 0001](../../../../docs/postmortem/0001-acp-default-export-drops-inject.zh.md) 记录了为什么一个多余 default 导出会让 Loader 丢弃 `inject`。
 - **语料扩到 `packages/**/*.tsx`，并把引用定义为「开出一个路径的记号」**：位于记号起始处的 `docs/…` 或 `.agents/notes/…`，或一条对仓库根解析的 `./`/`../` 链的尾段。延续更长具名路径的记号不在范围内，于是夹具的虚拟路径 `/ws/docs/README.md` 不会进入报告。`apps/` 仍在语料之外：它形如文档的记号只出现在一个合成工具调用画廊的夹具路径里。
-- **不新增死导出门禁。**[移除 knip 门禁](../process/2026-08-19-remove-knip.zh.md) 已经裁定本仓库不设全仓静态未使用导出的检查，且未来的检查必须理解 manifest 驱动的 Cordis 加载、生成产物与 Host/Client 分裂。
+- **不新增死导出门禁。**[移除 knip 门禁](../../archived/process/2026-08-19-remove-knip.md) 已经裁定本仓库不设全仓静态未使用导出的检查，且未来的检查必须理解 manifest 驱动的 Cordis 加载、生成产物与 Host/Client 分裂。
 
 ## Alternatives considered
 
@@ -38,4 +38,4 @@ Status: implemented
 
 ## Related
 
-[移除 knip 门禁](../process/2026-08-19-remove-knip.zh.md) 持有「不存在全仓未使用代码检查」这一决定。
+[移除 knip 门禁](../../archived/process/2026-08-19-remove-knip.md) 持有「不存在全仓未使用代码检查」这一决定。

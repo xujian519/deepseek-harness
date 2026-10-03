@@ -41,4 +41,4 @@ Status: implemented
 ## 相关
 
 - [添加工作区只有一条路](../../archived/simplification/2026-07-31-one-route-to-add-a-workspace.md)——正是那次移除让 `title` 失去了正式调用方。
-- [工作区注册项删除](../feature/2026-07-27-workspace-registration-deletion.zh.md)——继续拥有目录及其会话的移除路径。
+- [工作区注册项删除](../../archived/feature/2026-07-27-workspace-registration-deletion.md)——继续拥有目录及其会话的移除路径。

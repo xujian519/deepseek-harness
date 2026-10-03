@@ -52,5 +52,5 @@ Issue #92 列出四类可靠性债务。同一 Issue 上先前的两批已修复
 
 - [快照 harness 的等待诊断](2026-09-12-snapshot-wait-diagnostic.zh.md) —— 同一条规则在 session-snapshot 等待上的应用。
 - [修复 keyless 录制会话语料](2026-09-12-snapshot-corpus-repair.zh.md) —— Issue #92 上的前一批。
-- [用户补丁事务决定文件系统事件投递](2026-09-09-user-patch-hmr-test-delivery.zh.md) —— 其 `eventually` 辅助已报告负载与已等待时长，覆盖该族的负载敏感用例。
+- [用户补丁事务决定文件系统事件投递](../../archived/testing/2026-09-09-user-patch-hmr-test-delivery.md) —— 其 `eventually` 辅助已报告负载与已等待时长，覆盖该族的负载敏感用例。
 - [同仓 Issue 的技术债务跟踪](../process/2026-09-11-tech-debt-issue-tracking.zh.md) —— Issue #92 与新开 Issue #121 的登记处。

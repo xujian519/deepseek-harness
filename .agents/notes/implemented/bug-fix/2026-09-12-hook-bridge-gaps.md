@@ -69,4 +69,4 @@ The existing test harness helper accepts an optional `pluginConfig` partial so t
 
 - [Claude Code hook bridge](../../../../packages/hooks/hooks-claude-code/README.md) — user-facing contract for the affected bridge.
 - [Codex hook bridge](../../../../packages/hooks/hooks-codex/README.md) — user-facing contract for the affected bridge.
-- [Interception extension points](../feature/2026-06-30-interception-extension-points.md) — the typed Decision surface the bridges map onto.
+- [Interception extension points](../../archived/feature/2026-06-30-interception-extension-points.md) — the typed Decision surface the bridges map onto.

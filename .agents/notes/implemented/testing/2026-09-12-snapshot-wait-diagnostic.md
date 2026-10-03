@@ -53,5 +53,5 @@ The harness no longer uses `vi.waitFor`, so its tests assert the harness's own d
 
 ## Related
 
-- [ACP snapshot tests](2026-06-19-acp-snapshot-tests.md) — the suite that introduced this harness and its wait steps.
+- [ACP snapshot tests](../../archived/testing/2026-06-19-acp-snapshot-tests.md) — the suite that introduced this harness and its wait steps.
 - Issue #92 — the test-reliability family this fix belongs to.
