@@ -43,6 +43,7 @@ cordis.yml 的 `Config` 声明随部署变化的 ego-browser 取值；逐调用�
 | `defaultTimeoutMs` | `90000` | 默认运行超时（毫秒）。 |
 | `maxTimeoutMs` | `300000` | 单次运行超时硬上限。 |
 | `maxOutputBytes` | `500000` | 合并输出的软上限（字节）。 |
+| `nuoRequestChannel` | `auto` | nuo 请求走的通道：`auto` 用 nuo 自己的可用性探测，`native` 强制原生 fetch，`browser` 强制 ego 浏览器。取后两者会写入进程级 `NUO_PATENT_EGO_BROWSER`——该环境变量是 nuo 唯一的开关。 |
 
 其余选项只走逐调用：它们是测试接缝，或本服务无从知晓的取值。
 
@@ -68,6 +69,7 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 ## 已知局限与延期工作
 
 - **外部 `ego-browser` CLI 依赖** — 反爬抓取路径需要外部 `ego-browser`（ego-lite）CLI 已安装且在 PATH 上（仅 macOS）；本包不随附任何 ego-browser 脚本资产（Sati 的 `skills/ego-browser/` 仅含 learnings），因此站点反爬升级在本包之外维护。
+- **装了 JSON 查看器扩展时，nuo 的浏览器路径会让检索失效** — macOS 上只要装了该 CLI，`fetchHtml` 就优先走 ego 浏览器，因此「不设 `NUO_PATENT_EGO_BROWSER`」不等于留在原生 fetch。该路径下浏览器里的 JSON 查看器扩展会把搜索 XHR 的 `application/json` 响应渲染成 HTML：`parseSearchResultsJson` 拿不到 JSON，HTML 回退也解析不出命中，`patent_search` 只带一条非致命告警返回零命中。2026-10-03 在同一代理下实测：三个查询经浏览器路径均零命中，改走原生 fetch 后各 10 条命中。检索必须可用的部署设 `nuoRequestChannel: native`（专利 preset 已设）；该选择是进程级的，因为 nuo 只以环境变量暴露它。
 - **消费方接线** — 检索 provider 工厂与 ego-session runner 由 `dsh-patent-tools` 消费（patent_search/metadata/legal_status 与 patent_pdf_download）。缓存、映射、持久化与路径模块保持库导出供这些消费方使用。
 
 ### 开发备注

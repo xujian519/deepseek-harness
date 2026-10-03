@@ -271,6 +271,14 @@
             config:
               - id: patent-data
                 name: '@deepseek-ai/dsh-patent-data'
+                config:
+                  # nuo 的 fetchHtml 在 macOS 上只要 PATH 里有 ego-browser 就经浏览器发请求，
+                  # 「不设 NUO_PATENT_EGO_BROWSER」并不等于关闭。浏览器里的 JSON 查看器扩展
+                  # 会把搜索 XHR 的 application/json 响应渲染成 HTML，patent_search 于是以
+                  # 一条非致命告警静默返回零命中（2026-10-03 实测：浏览器路径 3/3 零命中且无
+                  # 网络错误；同一查询走原生 fetch 3/3 各 10 条命中，同批 scrape 也从 1.3–2.3s
+                  # 降到 0.8–1.6s）。此处按实测固定为原生 fetch。
+                  nuoRequestChannel: native
 
               - id: patent-knowledge
                 name: '@deepseek-ai/dsh-patent-knowledge'
