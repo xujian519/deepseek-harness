@@ -5300,9 +5300,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 Usage notes:
   - Read-only; makes one network request per patent
+  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used
   - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number
   - A 'not found' result (patent does not exist) is returned as data with success:false — not an error
-  - A transient upstream failure (HTTP 503, dropped connection) is retried twice before the call fails
+  - A transient upstream failure (HTTP 503, dropped connection) is retried twice; a failure that outlives the retries names the channel, the upstream error, and the attempts made
   - Non-fatal parse warnings (fields the page structure left empty) are listed under 警告 in the rendered result
 
 ```json
@@ -5457,7 +5458,8 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 Usage notes:
   - Read-only; query syntax follows Google Patents search grammar
   - Follow up with patent_metadata to fetch full details of a specific hit
-  - A network failure is reported as an error; a genuine zero-result search returns empty hits
+  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used instead of inferring one from a hit URL
+  - A network failure is reported as an error naming that channel; a genuine zero-result search returns empty hits
   - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result
 
 ```json

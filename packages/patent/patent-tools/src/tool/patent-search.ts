@@ -10,6 +10,7 @@ import { searchPatents as searchPatentsImpl } from '@deepseek-ai/nuo-patent'
 import type { PatentSearchHit, PatentSearchResult } from '@deepseek-ai/nuo-patent'
 import { cachedSearchPatents } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../error.ts'
+import { GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
 
 /** Input for the patent_search tool. */
 export type PatentSearchInput = {
@@ -33,6 +34,8 @@ export type PatentSearchHitItem = {
 /** Output of the patent_search tool. */
 export type PatentSearchOutput = {
   query: string
+  /** Channel this search read from; a report cites it as the fact's source. */
+  channel: string
   total: number
   hits: PatentSearchHitItem[]
   /** Non-fatal warnings (parse degradation / partial fields / family dedupe). */
@@ -116,7 +119,8 @@ const DESCRIPTION = [
   'Usage notes:',
   '  - Read-only; query syntax follows Google Patents search grammar',
   '  - Follow up with patent_metadata to fetch full details of a specific hit',
-  '  - A network failure is reported as an error; a genuine zero-result search returns empty hits',
+  '  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used instead of inferring one from a hit URL',
+  '  - A network failure is reported as an error naming that channel; a genuine zero-result search returns empty hits',
   '  - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result',
 ].join('\n')
 
@@ -137,11 +141,23 @@ function renderSearch(value: PatentSearchOutput): string {
       ...(h.abstract ? [h.abstract] : []),
     ].join('\n'),
   )
-  const header = `**patent_search** — ${value.hits.length} result(s) for "${value.query}"`
+  const header = `**patent_search** — ${value.hits.length} result(s) for "${value.query}" · channel: ${value.channel}`
   const warningLines = value.warnings.length > 0
     ? ['', '## 警告', ...value.warnings.map(w => `- ${w}`)]
     : []
   return [header, '', hits.join('\n\n---\n\n'), ...warningLines].join('\n')
+}
+
+/**
+ * Name the channel in an upstream failure. The upstream phrase alone
+ * (`fetch failed`) leaves a report unable to tell which channel produced the
+ * fact, and a bare retry hint reads as an invitation to leave the tool layer;
+ * the channel name is what makes the call record self-describing.
+ * @param detail - the upstream failure phrase.
+ * @returns the model-facing failure text.
+ */
+function channelFailure(detail: string): string {
+  return `通道 ${GOOGLE_PATENTS_CHANNEL}：${detail}；上游瞬时失败，可稍后重试`
 }
 
 const HIT_SCHEMA = {
@@ -182,6 +198,7 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
         additionalProperties: false,
         properties: {
           query: { type: 'string', required: true },
+          channel: { type: 'string', required: true },
           total: { type: 'integer', required: true },
           hits: { type: 'array', required: true, items: HIT_SCHEMA },
           warnings: { type: 'array', required: true, items: { type: 'string' } },
@@ -199,17 +216,17 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
       const failure = result.warnings.find(w => /^(查询条件为空|检索超时|检索失败)/.test(w))
       if (failure) {
         if (failure.startsWith('检索超时')) {
-          throw new PatentToolError('tool_timeout', failure, { tool: 'patent_search', query })
+          throw new PatentToolError('tool_timeout', channelFailure(failure), { tool: 'patent_search', query })
         }
         if (failure === '查询条件为空') {
           throw new PatentToolError('invalid_tool_input', failure, { tool: 'patent_search' })
         }
-        throw new PatentToolError('tool_execution_failed', failure, { tool: 'patent_search', query })
+        throw new PatentToolError('tool_execution_failed', channelFailure(failure), { tool: 'patent_search', query })
       }
 
       const { hits: dedupedHits, warnings } = dedupeByFamily(result.hits, result.warnings)
       const hits = dedupedHits.map(toItem)
-      return { query, total: result.total, hits, warnings }
+      return { query, channel: GOOGLE_PATENTS_CHANNEL, total: result.total, hits, warnings }
     },
   })
 }
