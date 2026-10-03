@@ -2822,7 +2822,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:165`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:191`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -2855,6 +2855,17 @@ export interface Config {
    * whole document text.
    */
   structuralGate?: StructuralGateEntry[]
+  /**
+   * Delivery gate: entries naming a delivery tool and the tools that must have
+   * succeeded earlier in the same session before it may run. An unsatisfied
+   * entry denies the call through a monotonic guard, so a deliverable cannot
+   * ship while the gate runs its discipline requires are missing from the
+   * session's call record. `whenArgs` narrows an entry to matching calls, which
+   * lets one tool's forms carry different prerequisites. No entry ships: the
+   * prerequisites a deployment requires are its delivery policy, not this
+   * package's.
+   */
+  deliveryGate?: DeliveryGateEntry[]
   /** When true, review-level violations block without an approval round-trip (unattended fail-closed). */
   approvalDisabled?: boolean
 }
@@ -2873,6 +2884,22 @@ export type StructuralGateEntry = {
    */
   whenArgs?: Record<string, string>
 }
+
+/** 一条交付门禁声明：被门禁的工具，以及它被调用前必须已成功执行过的工具。 */
+export type DeliveryGateEntry = {
+  /** 被门禁的交付工具名。 */
+  tool: string
+  /** 前置工具名：本会话内须各成功执行过一次。 */
+  requires: string[]
+  /**
+   * 仅对匹配的入参生效的约束：字符串为精确匹配，字符串数组为取值集合。
+   * 用于同一个工具的不同交付形态各要各的前置条件（如按 `template` 区分分析与撰写）。
+   */
+  whenArgs?: Record<string, DeclaredArgValue>
+}
+
+/** 一条声明的入参取值：字符串为精确匹配，字符串数组为取值集合。 */
+export type DeclaredArgValue = string | string[]
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-rule -->
 
