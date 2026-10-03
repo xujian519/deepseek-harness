@@ -5460,6 +5460,7 @@ Usage notes:
   - Follow up with patent_metadata to fetch full details of a specific hit
   - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used instead of inferring one from a hit URL
   - A network failure is reported as an error naming that channel; a genuine zero-result search returns empty hits
+  - A transient upstream failure (timeout, dropped connection) is retried twice; a failure that outlives the retries names the channel, the upstream error, and the attempts made
   - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result
 
 ```json
