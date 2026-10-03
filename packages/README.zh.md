@@ -86,7 +86,6 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`client/`](client/README.zh.md) | web GUI 浏览器半侧：shell、协议层、对象服务、slot、`ui-*` 插件 |
 | [`desktop/`](desktop/README.zh.md) | 桌面操作系统集成：Service Definition + Electron shell 提供方 + 沙盒化目录选择桥 + CLI 驱动的 macOS 原生工具 |
 | [`test-support/`](test-support/README.zh.md) | 测试基础设施（testkit、回放、Loader 冒烟测试） |
-| [`runtime-diagnostics/`](runtime-diagnostics/README.zh.md) | 运行时诊断：按包归属的运行时不变式检查与报告 |
 | [`util/`](util/README.zh.md) | 组间共享的低层工具（`Branded<B>`、home/路径辅助函数、超时、留存）；运行期依赖只出现在确实需要它的原语里（`zod`、`undici`、`dsh-util-values`） |
 
 -----
@@ -94,7 +93,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 <a id="release-expectations"></a>
 ## 发布预期
 
-大多数组属于产品组，提供稳定 API。例外：`experimental/` 发布时不提供稳定性或支持承诺，`test-support/`、`runtime-diagnostics/` 与 `util/` 是兼容性预期较低的支持组。
+大多数组属于产品组，提供稳定 API。例外：`experimental/` 发布时不提供稳定性或支持承诺，`test-support/` 与 `util/` 是兼容性预期较低的支持组。
 
 -----
 
@@ -110,7 +109,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 <a id="package-readme-contracts"></a>
 ## 包 README 约定
 
-每个包 README 都覆盖用途、配置、扩展点与[模型体验](../docs/cookbook/adding-a-package.zh.md#4-write-the-package-readme)，列入模型无关[省略允许清单](../scripts/verify-package-readme-model-experience.ts)的包除外。它还要包含 `## Known Limitations and Deferred Work`，或列入其[允许清单](../scripts/verify-package-readme-limitations.ts)。包约定——导出、服务访问、不变式、测试——见 [packages/AGENTS.md](AGENTS.md)。
+每个包 README 都覆盖用途、配置、扩展点与[模型体验](../docs/cookbook/adding-a-package.zh.md#4-write-the-package-readme)，列入模型无关[省略允许清单](../scripts/verify-package-readme-model-experience.ts)的包除外。它还要包含 `## Known Limitations and Deferred Work`，或列入其[允许清单](../scripts/verify-package-readme-limitations.ts)。包约定——导出、服务访问、测试——见 [packages/AGENTS.md](AGENTS.md)。
 
 -----
 

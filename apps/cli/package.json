@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh",
   "description": "dsh CLI: profile launch, plugin management, and configuration inspection",
-  "version": "0.2.0-rc.2",
+  "version": "0.2.1-alpha.1",
   "publishConfig": {
     "access": "public"
   },
@@ -52,7 +52,7 @@
     "@deepseek-ai/dsh-docx-kit": "workspace:*",
     "@deepseek-ai/dsh-experimental-agent-team-profile": "workspace:*",
     "@deepseek-ai/dsh-experimental-auto-review": "workspace:*",
-    "@deepseek-ai/dsh-experimental-schedule-bundle": "workspace:*",
+    "@deepseek-ai/dsh-experimental-inspector-profile": "workspace:*",
     "@deepseek-ai/dsh-experimental-voice-input-bundle": "workspace:*",
     "@deepseek-ai/dsh-fs": "workspace:*",
     "@deepseek-ai/dsh-fs-local": "workspace:*",
@@ -66,7 +66,6 @@
     "@deepseek-ai/dsh-hooks-codex": "workspace:*",
     "@deepseek-ai/dsh-http-proxy": "workspace:*",
     "@deepseek-ai/dsh-im": "workspace:*",
-    "@deepseek-ai/dsh-invariants": "workspace:*",
     "@deepseek-ai/dsh-jobs": "workspace:*",
     "@deepseek-ai/dsh-jobs-local": "workspace:*",
     "@deepseek-ai/dsh-launch-environment": "workspace:*",
@@ -130,6 +129,7 @@
     "@deepseek-ai/dsh-tool-pwsh": "workspace:*",
     "@deepseek-ai/dsh-tool-pwsh-persistent": "workspace:*",
     "@deepseek-ai/dsh-tool-ralph": "workspace:*",
+    "@deepseek-ai/dsh-tool-schedule": "workspace:*",
     "@deepseek-ai/dsh-tool-skill": "workspace:*",
     "@deepseek-ai/dsh-tool-str-replace-editor": "workspace:*",
     "@deepseek-ai/dsh-tool-subagent": "workspace:*",
