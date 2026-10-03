@@ -103,6 +103,7 @@ describe('PatentData service', () => {
       defaultTimeoutMs: DEFAULT_EGO_TIMEOUT_MS,
       maxTimeoutMs: DEFAULT_EGO_MAX_TIMEOUT_MS,
       maxOutputBytes: DEFAULT_EGO_MAX_OUTPUT_BYTES,
+      nuoRequestChannel: 'auto',
     })
   })
 

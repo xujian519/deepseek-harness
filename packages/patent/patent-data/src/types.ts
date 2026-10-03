@@ -7,6 +7,16 @@
 
 import type { Citation, PatentSearchResult } from '@deepseek-ai/nuo-patent'
 
+/**
+ * The channel nuo requests travel over. `native` uses the plain fetch, `browser`
+ * the ego-browser path, and `auto` nuo's own availability probe (which turns the
+ * browser path on wherever `ego-browser` is installed on macOS).
+ */
+export const NUO_REQUEST_CHANNELS = ['auto', 'native', 'browser'] as const
+
+/** One nuo request channel: see {@link NUO_REQUEST_CHANNELS}. */
+export type NuoRequestChannel = (typeof NUO_REQUEST_CHANNELS)[number]
+
 /** Options for the nuo search-provider factory. */
 export interface CreateNuoSearchProviderOptions {
   /** Injected search function; defaults to the LRU-cached nuo `searchPatents`. */

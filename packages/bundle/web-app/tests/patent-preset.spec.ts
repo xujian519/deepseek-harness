@@ -185,7 +185,7 @@ describe('patent preset composition', () => {
   })
 
   it('keeps the patent-data provider and its consumer enabled in one realm', async () => {
-    const rows = await patentRows()
+    const rows = await patentRows() as Array<PresetRow & { config?: { nuoRequestChannel?: unknown } }>
     const provider = rows.find(row => row.id === 'patent-data')
     const consumer = rows.find(row => row.id === 'patent-tools')
 
@@ -198,6 +198,9 @@ describe('patent preset composition', () => {
     expect(provider?.parent).toBe(consumer?.parent)
     expect(provider?.parent).toBe('patent')
     expect(patentRealmKeys(rows)).toContain('patentData')
+    // The nuo browser path turns itself on wherever `ego-browser` is installed on
+    // macOS, and search returns zero hits behind a non-fatal warning there.
+    expect(provider?.config?.nuoRequestChannel).toBe('native')
   })
 
   it('enables the model-facing web tool with its fetch channel', async () => {

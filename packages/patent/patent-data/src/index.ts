@@ -20,7 +20,9 @@ import {
   EgoBrowserSession,
 } from './ego-session.ts'
 import { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
-import type { CreateNuoSearchProviderOptions, EgoSessionOptions } from './types.ts'
+import { applyNuoRequestChannel } from './nuo-channel.ts'
+import { NUO_REQUEST_CHANNELS } from './types.ts'
+import type { CreateNuoSearchProviderOptions, EgoSessionOptions, NuoRequestChannel } from './types.ts'
 
 export { createNuoSearchProvider } from './search-provider.ts'
 export {
@@ -42,6 +44,8 @@ export {
   DEFAULT_EGO_TIMEOUT_MS,
 } from './ego-session.ts'
 export { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
+export { applyNuoRequestChannel, NUO_EGO_BROWSER_ENV } from './nuo-channel.ts'
+export { NUO_REQUEST_CHANNELS } from './types.ts'
 // Persistence/path helpers live in dsh-patent-core (single home); re-exported
 // here so the data seam keeps its historical public surface.
 export { JsonFileStore, SAFE_ID_PATTERN, assertSafeId, atomicWriteJson } from '@deepseek-ai/dsh-patent-core'
@@ -61,6 +65,7 @@ export type {
   EgoSpawnResult,
   EgoSpawnRunner,
   EgoSpawnSpec,
+  NuoRequestChannel,
   PatentCacheOptions,
   StructuredPatentData,
 } from './types.ts'
@@ -83,6 +88,14 @@ export interface Config {
   maxTimeoutMs?: number
   /** Soft cap in bytes for the merged run output (default 500000). */
   maxOutputBytes?: number
+  /**
+   * Channel the nuo engine's requests travel over (default `auto`). `native`
+   * forces the plain fetch and `browser` the ego-browser path; because nuo reads
+   * the choice from a process environment variable, setting either writes
+   * `NUO_PATENT_EGO_BROWSER` for the whole process — every consumer of the
+   * vendored engine in it, not just this service.
+   */
+  nuoRequestChannel?: NuoRequestChannel
 }
 
 /**
@@ -107,6 +120,7 @@ export class PatentData extends Service {
     defaultTimeoutMs: z.natural().default(DEFAULT_EGO_TIMEOUT_MS),
     maxTimeoutMs: z.natural().default(DEFAULT_EGO_MAX_TIMEOUT_MS),
     maxOutputBytes: z.natural().default(DEFAULT_EGO_MAX_OUTPUT_BYTES),
+    nuoRequestChannel: z.union(NUO_REQUEST_CHANNELS).default('auto'),
   })
 
   private readonly egoDefaults: ResolvedEgoDefaults
@@ -114,6 +128,7 @@ export class PatentData extends Service {
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'patentData')
     this.egoDefaults = resolveEgoDefaults(config)
+    applyNuoRequestChannel(config.nuoRequestChannel ?? 'auto')
   }
 
   /**
