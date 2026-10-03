@@ -33,5 +33,5 @@ Related: [the workbench case bridge](2026-09-03-workbench-case-bridge.md) covers
 - Tool-only deployments are unaffected: no new service, no behavior change, and the preset row's configuration stays as it was.
 - A deployment that wants the service adds a second loader row for the same package. Both rows read the same calendar asset, so their coverage years agree.
 - The service surface is a cross-repo contract with no shared type package. A consumer mirrors `PatentDeadlineService` / `DeadlineQuery` / `DeadlineReport` structurally and must be updated when the engine changes that shape; the package README is the reference for it.
-- `evaluate` never reads the host clock: a caller that wants "today" for status and days-remaining fixes it explicitly, which is what makes a stored report's provenance meaningful.
+- `evaluate` never reads the host clock: a caller that wants "today" for status and days-remaining fixes it explicitly, which is what makes the as-of date on a stored report meaningful.
 - The consumer persists only dated results; deadlines the engine reports as `pending` (a missing grant publication date, say) have no end date, so they stay in the response instead of occupying a real-date column with a placeholder.
