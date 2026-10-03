@@ -11,6 +11,10 @@
  * best-effort (depends on the ego-browser environment's download handling);
  * anything that cannot be saved by the browser is reported as a `fallback`
  * item carrying the extracted CDN URL, which the tool then fetches itself.
+ * The first patent that misses also turns off interception for the rest of the
+ * batch: a browser build either lands the page-level download or does not, so
+ * paying the full poll budget again for every later patent only delays the same
+ * fallback (2026-10-03 实测 Chromium 152 已不再落盘，逐篇等满预算时每篇多花约 60s).
  * @module @deepseek-ai/dsh-patent-tools/tool/patent-pdf-download-ego
  */
 
@@ -68,12 +72,19 @@ export function buildDownloadScript(request: EgoDownloadRequest): string {
     ...(request.record ? ['  const evidence = []'] : []),
     `  const patents = ${patents}`,
     `  const outputDir = ${outputDir}`,
+    // 一台浏览器只有一种下载拦截能力：本批第一篇等满轮询仍没落盘，就说明这条腿在本环境
+    // 不可用，其余篇目直接交回页面解析 + HTTP 兜底，不必再逐篇等满预算。
+    '  let interceptUsable = true',
     '  for (const patent of patents) {',
     '    let pdfUrl = null',
     '    try {',
     `      await openOrReuseTab('https://patents.google.com/patent/' + patent + '/en', { wait: true, timeout: ${pageTimeoutSec} })`,
     '      pdfUrl = await js(String.raw`(() => { const a = document.querySelector(\'a[href*="patentimages.storage.googleapis.com"]\'); return a ? a.href : null })()`)',
     '      if (!pdfUrl) throw new Error(\'no CDN pdf link on page\')',
+    '      if (!interceptUsable) {',
+    '        items.push({ patent, status: \'fallback\', pdfUrl })',
+    '        continue',
+    '      }',
     '      await cdp(\'Page.setDownloadBehavior\', { behavior: \'allow\', downloadPath: outputDir })',
     '      await openOrReuseTab(pdfUrl, { wait: false })',
     '      const fs = await import(\'node:fs\')',
@@ -95,6 +106,7 @@ export function buildDownloadScript(request: EgoDownloadRequest): string {
     '        items.push({ patent, status: \'ok\', path: saved })',
     ...evidenceLines,
     '      } else {',
+    '        interceptUsable = false',
     '        items.push({ patent, status: \'fallback\', pdfUrl })',
     '      }',
     '    } catch (e) {',

@@ -46,6 +46,19 @@ describe('buildDownloadScript', () => {
     expect(script).toContain('completeTaskSpace(task.id, { keep: false })')
   })
 
+  it('stops waiting for interception for the rest of the batch after the first miss', () => {
+    const script = buildDownloadScript(request())
+    const guard = script.indexOf('if (!interceptUsable)')
+    const poll = script.indexOf('Date.now() < deadline')
+    expect(script).toContain('let interceptUsable = true')
+    expect(guard).toBeGreaterThan(-1)
+    // 跳过分支必须在它要避开的轮询之前，且在分支内直接收尾（不再等待）。
+    expect(poll).toBeGreaterThan(guard)
+    expect(script.slice(guard, poll)).toContain('continue')
+    // 未落盘的那一篇清掉标志，其后篇目才走跳过分支。
+    expect(script.indexOf('interceptUsable = false')).toBeGreaterThan(poll)
+  })
+
   it('injects the per-page and download timeouts', () => {
     const script = buildDownloadScript(request({ pageTimeoutSec: 30, downloadTimeoutMs: 90_000 }))
     expect(script).toContain('timeout: 30')
