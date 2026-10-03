@@ -36,19 +36,33 @@ function okSession(overrides: Partial<Parameters<typeof createEgoDownloadRunner>
 describe('buildDownloadScript', () => {
   it('opens the task space, each patent page, and the CDN link', () => {
     const script = buildDownloadScript(request())
-    expect(script).toContain("useOrCreateTaskSpace('sati-patent-download')")
-    expect(script).toContain("openOrReuseTab('https://patents.google.com/patent/' + patent + '/en'")
+    expect(script).toContain("taskSpace('sati-patent-download')")
+    expect(script).toContain("page.goto('https://patents.google.com/patent/' + patent + '/en'")
     expect(script).toContain('patentimages.storage.googleapis.com')
     expect(script).toContain('"US11452699B2"')
     expect(script).toContain('"CN115690481A"')
-    expect(script).toContain("cdp('Page.setDownloadBehavior'")
-    expect(script).toContain("cliLog('EGO_DOWNLOAD:' + JSON.stringify(payload))")
-    expect(script).toContain('completeTaskSpace(task.id, { keep: false })')
+    expect(script).toContain("console.log('EGO_DOWNLOAD:' + JSON.stringify(payload))")
+  })
+
+  it('captures the PDF response body through CDP instead of the download behavior', () => {
+    const script = buildDownloadScript(request())
+    expect(script).toContain("page.cdp('Network.enable'")
+    expect(script).toContain("page.cdp('Network.getResponseBody'")
+    expect(script).toContain('await page.events()')
+    // 页面级下载行为在 Chromium 152 已不落盘，这条腿回到它就等于回到空等。
+    expect(script).not.toContain('setDownloadBehavior')
+    // 只认 PDF 魔数：没有它就不算拿到文档，交由兜底通道。
+    const magic = script.indexOf("'%PDF-'")
+    const okReport = script.indexOf("items.push({ patent, status: 'ok'")
+    expect(magic).toBeGreaterThan(-1)
+    expect(okReport).toBeGreaterThan(magic)
+    // 首个 CDN 链接不一定是文档（CN 实用新型页先给附图 PNG），.pdf 直链优先。
+    expect(script).toContain('.pdf($|[?#])')
   })
 
   it('injects the per-page and download timeouts', () => {
     const script = buildDownloadScript(request({ pageTimeoutSec: 30, downloadTimeoutMs: 90_000 }))
-    expect(script).toContain('timeout: 30')
+    expect(script).toContain('timeout: 30000')
     expect(script).toContain('Date.now() + 90000')
   })
 

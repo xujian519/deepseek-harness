@@ -1,16 +1,22 @@
 /**
  * ego-browser download adapter for `patent_pdf_download`: builds the
- * ego-browser heredoc script that opens each Google Patents page, extracts the
- * CDN PDF link, and attempts a browser-side download intercept, then runs it
- * over an injected `EgoBrowserSession` and maps the tagged JSON result back to
- * the tool's `EgoDownloadResult` vocabulary.
+ * ego-browser script that opens each Google Patents page, extracts the CDN PDF
+ * link, and captures the PDF response body through CDP, then runs it over an
+ * injected `EgoBrowserSession` and maps the tagged JSON result back to the
+ * tool's `EgoDownloadResult` vocabulary.
  *
- * The script is the port of Sati's buildDownloadScript: one task space per
- * call (`sati-patent-download`), per-patent try/catch, and a single
- * `EGO_DOWNLOAD:<json>` payload emitted via cliLog. Intercept success is
- * best-effort (depends on the ego-browser environment's download handling);
- * anything that cannot be saved by the browser is reported as a `fallback`
- * item carrying the extracted CDN URL, which the tool then fetches itself.
+ * The capture reads the network stack instead of relying on the browser's
+ * download handling: `Network.enable` arms the page, `page.events()` yields the
+ * `Network.responseReceived` for the CDN URL, and `Network.getResponseBody`
+ * returns its bytes. The page-level download behavior this replaced no longer
+ * lands on Chromium 152, and the bytes are not readable from the page itself
+ * (the CDN is cross-origin, so a page-side fetch is refused).
+ *
+ * The script is one task space per deployment (`sati-patent-download`), resolved
+ * by name so a later call lands in the same space and keeps the login state and
+ * tab; per-patent try/catch; one `EGO_DOWNLOAD:<json>` payload via stdout.
+ * Anything the browser cannot capture is reported as a `fallback` item carrying
+ * the extracted CDN URL, which the tool then fetches itself.
  * @module @deepseek-ai/dsh-patent-tools/tool/patent-pdf-download-ego
  */
 
@@ -19,6 +25,17 @@ import type { EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult, RunEgo } f
 
 /** Task-space name for the patent PDF download space (sati-<domain>, matching EgoBrowserSession.taskSpaceName). */
 const TASK_SPACE_DOMAIN = 'sati-patent-download'
+
+/** PDF bytes start with this; a captured body without it is not the document we asked for. */
+const PDF_MAGIC = '%PDF-'
+
+/**
+ * Page-side expression returning the patent's CDN PDF link. The first CDN anchor
+ * is not always the document (a CN utility model page leads with its drawing
+ * PNG), so a `.pdf` link wins and the first CDN anchor is the fallback.
+ */
+const PDF_LINK_EXPRESSION =
+  '(() => { const anchors = Array.from(document.querySelectorAll(\'a[href*="patentimages.storage.googleapis.com"]\')); const pdf = anchors.find(a => /\\.pdf($|[?#])/i.test(a.href)); const chosen = pdf || anchors[0]; return chosen ? chosen.href : null })()'
 
 /** One settled ego-browser script run, as the adapter consumes it. */
 type EgoScriptRun = {
@@ -41,72 +58,77 @@ export type EgoSessionSeam = {
 }
 
 /**
- * Build the ego-browser heredoc script for one batch download.
+ * Build the ego-browser script for one batch download.
  * @param request - the validated download request.
  * @returns the script body to pass to `ego-browser nodejs` via stdin.
  */
 export function buildDownloadScript(request: EgoDownloadRequest): string {
   const patents = JSON.stringify(request.patents)
   const outputDir = JSON.stringify(request.outputDir)
-  const pageTimeoutSec = request.pageTimeoutSec
+  const pageTimeoutMs = request.pageTimeoutSec * 1000
   const downloadTimeoutMs = request.downloadTimeoutMs
   const evidenceLines = request.record
     ? [
-      '        if (saved) {',
-      '          const shot = await cdp(\'Page.captureScreenshot\', { format: \'png\' })',
-      '          if (shot && shot.data) { const p = outputDir + \'/evidence-\' + patent + \'.png\'; fs.writeFileSync(p, Buffer.from(shot.data, \'base64\')); evidence.push(p) }',
-      '        }',
+      '    const shot = await page.cdp(\'Page.captureScreenshot\', { format: \'png\' })',
+      '    const shotPayload = shot && shot.result ? shot.result : shot',
+      '    if (shotPayload && shotPayload.data) { const evidencePath = outputDir + \'/evidence-\' + patent + \'.png\'; fs.writeFileSync(evidencePath, Buffer.from(shotPayload.data, \'base64\')); evidence.push(evidencePath) }',
     ]
     : []
   const recordedLine = request.record
-    ? '  if (evidence.length > 0) payload.recorded = outputDir + \'/evidence\''
+    ? 'if (evidence.length > 0) payload.recorded = outputDir + \'/evidence\''
     : undefined
   return [
-    `const task = await useOrCreateTaskSpace('${TASK_SPACE_DOMAIN}')`,
-    'try {',
-    '  const items = []',
-    ...(request.record ? ['  const evidence = []'] : []),
-    `  const patents = ${patents}`,
-    `  const outputDir = ${outputDir}`,
-    '  for (const patent of patents) {',
-    '    let pdfUrl = null',
-    '    try {',
-    `      await openOrReuseTab('https://patents.google.com/patent/' + patent + '/en', { wait: true, timeout: ${pageTimeoutSec} })`,
-    '      pdfUrl = await js(String.raw`(() => { const a = document.querySelector(\'a[href*="patentimages.storage.googleapis.com"]\'); return a ? a.href : null })()`)',
-    '      if (!pdfUrl) throw new Error(\'no CDN pdf link on page\')',
-    '      await cdp(\'Page.setDownloadBehavior\', { behavior: \'allow\', downloadPath: outputDir })',
-    '      await openOrReuseTab(pdfUrl, { wait: false })',
-    '      const fs = await import(\'node:fs\')',
-    '      const before = new Set(fs.readdirSync(outputDir))',
-    `      const deadline = Date.now() + ${downloadTimeoutMs}`,
-    '      let saved = null',
-    '      while (Date.now() < deadline) {',
-    '        const fresh = fs.readdirSync(outputDir).filter(f => !before.has(f) && !f.endsWith(\'.crdownload\') && !f.endsWith(\'.tmp\'))',
-    '        if (fresh.length > 0) {',
-    '          const src = outputDir + \'/\' + fresh[0]',
-    '          const target = outputDir + \'/\' + patent + \'.pdf\'',
-    '          if (src !== target) fs.renameSync(src, target)',
-    '          saved = target',
-    '          break',
-    '        }',
-    '        await wait(1)',
+    `const task = await taskSpace('${TASK_SPACE_DOMAIN}')`,
+    // 名称解析到同一个任务空间：下一次调用沿用它的登录态与标签页（脚本不回收到处）。
+    'const page = task.page(\'p1\')',
+    'const fs = await import(\'node:fs\')',
+    'const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))',
+    'const items = []',
+    ...(request.record ? ['const evidence = []'] : []),
+    `const patents = ${patents}`,
+    `const outputDir = ${outputDir}`,
+    'for (const patent of patents) {',
+    '  let pdfUrl = null',
+    '  try {',
+    '    await page.cdp(\'Network.enable\', {})',
+    `    await page.goto('https://patents.google.com/patent/' + patent + '/en', { timeout: ${pageTimeoutMs} })`,
+    `    pdfUrl = await page.evaluate(${JSON.stringify(PDF_LINK_EXPRESSION)})`,
+    '    if (!pdfUrl) throw new Error(\'no CDN pdf link on page\')',
+    '    await page.events()',
+    `    await page.goto(pdfUrl, { timeout: ${downloadTimeoutMs} })`,
+    '    const seen = new Set()',
+    '    let bytes = null',
+    `    const deadline = Date.now() + ${downloadTimeoutMs}`,
+    '    while (bytes === null && Date.now() < deadline) {',
+    '      const events = await page.events()',
+    '      for (const event of events) {',
+    '        const response = event && event.method === \'Network.responseReceived\' && event.params ? event.params.response : null',
+    '        if (!response || response.url !== pdfUrl || response.status !== 200 || !/pdf/i.test(response.mimeType || \'\')) continue',
+    '        seen.add(event.params.requestId)',
     '      }',
-    '      if (saved) {',
-    '        items.push({ patent, status: \'ok\', path: saved })',
-    ...evidenceLines,
-    '      } else {',
-    '        items.push({ patent, status: \'fallback\', pdfUrl })',
+    '      for (const requestId of seen) {',
+    '        try {',
+    '          const detail = await page.cdp(\'Network.getResponseBody\', { requestId })',
+    '          const body = detail && detail.result ? detail.result : detail',
+    '          if (!body || typeof body.body !== \'string\') continue',
+    '          const candidate = Buffer.from(body.body, body.base64Encoded ? \'base64\' : \'utf8\')',
+    `          if (candidate.subarray(0, 5).toString('latin1') === '${PDF_MAGIC}') { bytes = candidate; break }`,
+    '        } catch (error) { /* 候选已过期或被逐出：继续试下一个 */ }',
     '      }',
-    '    } catch (e) {',
-    '      items.push({ patent, status: \'fallback\', pdfUrl, error: String(e && e.message || e) })',
+    '      if (bytes === null) await sleep(250)',
     '    }',
+    '    if (!bytes) throw new Error(\'no PDF body captured\')',
+    '    const target = outputDir + \'/\' + patent + \'.pdf\'',
+    '    fs.writeFileSync(target, bytes)',
+    '    items.push({ patent, status: \'ok\', path: target })',
+    ...evidenceLines,
+    '  } catch (error) {',
+    '    items.push({ patent, status: \'fallback\', pdfUrl, error: String(error && error.message || error) })',
     '  }',
-    '  const payload = { items }',
-    ...(recordedLine === undefined ? [] : [recordedLine]),
-    '  cliLog(\'EGO_DOWNLOAD:\' + JSON.stringify(payload))',
-    '} finally {',
-    '  await completeTaskSpace(task.id, { keep: false })',
     '}',
+    'const payload = { items }',
+    ...(recordedLine === undefined ? [] : [recordedLine]),
+    'console.log(\'EGO_DOWNLOAD:\' + JSON.stringify(payload))',
   ].join('\n')
 }
 

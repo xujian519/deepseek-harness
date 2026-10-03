@@ -29,7 +29,7 @@ import { PatentToolError } from '../error.ts'
 
 const MAX_PATENTS = 50
 /**
- * 默认整体超时推算参数：一篇的最坏预算 = 开页超时 + 下载拦截轮询预算（两者都有可传入的
+ * 默认整体超时推算参数：一篇的最坏预算 = 开页超时 + PDF 取回预算（两者都有可传入的
  * 默认值），整批再加一次设置开销。取值必须覆盖这两个预算之和：小于它时 ego 腿还没回退到
  * 页面解析 + HTTP 下载，整体超时就先掐断调用，预置 persona 承诺的降级路径走不到。
  * 上限取入参自身的上限 300s。
@@ -66,7 +66,7 @@ export type PatentPdfDownloadInput = {
   outputDir?: string
   /** 每页打开超时（秒），默认 20。 */
   pageTimeoutSec?: number
-  /** 每篇下载拦截超时（毫秒），默认 60_000。 */
+  /** 每篇取回 PDF 响应体的超时（毫秒），默认 60_000。 */
   downloadTimeoutMs?: number
   /** 整体执行超时（毫秒）；默认按 `篇数 × (pageTimeoutSec × 1000 + downloadTimeoutMs) + 15_000` 推算，夹在 60_000–300_000 之间。 */
   timeoutMs?: number
@@ -86,7 +86,7 @@ export type PatentDownloadItem = {
   pdfUrl?: string
   /** 失败原因。 */
   error?: string
-  /** 落盘方式：browser=ego-browser 下载拦截，http=fetch 兜底，skip=MANIFEST 续传命中。 */
+  /** 落盘方式：browser=浏览器内取回响应体，http=fetch 兜底，skip=MANIFEST 续传命中。 */
   method?: 'browser' | 'http' | 'skip'
   /** fetch 兜底路径的下载耗时（毫秒）。 */
   durationMs?: number
@@ -416,7 +416,7 @@ const ITEM_SCHEMA = {
 } as const
 
 const DESCRIPTION = [
-  '从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）做浏览器内下载拦截（复用登录态），拦截不可用或失败时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。',
+  '从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）在浏览器内取回 PDF 响应体（复用登录态），取不到时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。',
   '',
   'Usage notes:',
   '  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下',
@@ -437,7 +437,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
       patents: { type: 'array', required: true, items: { type: 'string' }, description: '专利公开号列表（1-50 篇）' },
       outputDir: { type: 'string', description: '输出目录（绝对或相对当前工作目录）；默认 <cwd>/专利原文/YYYY-MM-DD' },
       pageTimeoutSec: { type: 'number', description: '每页打开超时（秒），默认 20' },
-      downloadTimeoutMs: { type: 'number', description: '每篇下载拦截超时（毫秒），默认 60000' },
+      downloadTimeoutMs: { type: 'number', description: '每篇取回 PDF 响应体的超时（毫秒），默认 60000' },
       timeoutMs: { type: 'number', description: '整体执行超时（毫秒）；默认 clamp(篇数 × (pageTimeoutSec × 1000 + downloadTimeoutMs) + 15000, 60000, 300000)，上限 300000' },
       record: { type: 'boolean', description: '是否截图留证（默认 false）' },
       force: { type: 'boolean', description: '忽略 MANIFEST 断点续传，强制重下全部（默认 false）' },
