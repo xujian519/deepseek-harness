@@ -97,7 +97,7 @@ describe('patent_pdf_download', () => {
       })
       const ctx = await ctxWith(tool)
       await execute(ctx, 'patent_pdf_download', { patents: ['US1A'] }, 'p-b1')
-      // 一篇的「开页 20s + 下载拦截轮询 60s」必须落在默认预算内，否则 ego 腿还没回退到
+      // 一篇的「开页 20s + PDF 取回 60s」必须落在默认预算内，否则 ego 腿还没回退到
       // 页面解析 + HTTP 下载，整体超时就先掐断调用。
       expect(budgets[0]).toBeGreaterThanOrEqual(20_000 + 60_000)
       expect(budgets[0]).toBe(20_000 + 60_000 + 15_000)

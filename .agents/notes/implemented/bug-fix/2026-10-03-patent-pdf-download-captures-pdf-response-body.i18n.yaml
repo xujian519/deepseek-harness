@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-03-patent-pdf-download-captures-pdf-response-body.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-03-patent-pdf-download-captures-pdf-response-body.md
+/agent-note-patent-pdf-download-captures-the-pdf-response-body-through-cdp:
+  en: 083b2eba2f3645a4
+  zh: b7fb01810a9d4bd4
+/agent-note-patent-pdf-download-captures-the-pdf-response-body-through-cdp/problem:
+  en: 9653afaa7e8ba8bd
+  zh: 271592848e9e4fae
+/agent-note-patent-pdf-download-captures-the-pdf-response-body-through-cdp/decision:
+  en: 5590e71ec8586c99
+  zh: fdb107bc3777b57e
+/agent-note-patent-pdf-download-captures-the-pdf-response-body-through-cdp/alternatives-considered:
+  en: 0b3870ee25e4ead2
+  zh: 6daca014e504d86f
+/agent-note-patent-pdf-download-captures-the-pdf-response-body-through-cdp/consequences:
+  en: e5dafe6e23e9d0d5
+  zh: 5722218654438a46
