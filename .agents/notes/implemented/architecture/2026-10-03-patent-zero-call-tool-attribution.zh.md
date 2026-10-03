@@ -27,7 +27,7 @@ Status: implemented
 - `generate_structure_figure` —— 已设 `structureFigureEnabled: true`，且本机 FreeCAD 探测通过（`/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd`，FreeCAD 1.1.3）。窗口内没有 STEP/IGES/BREP 案件。
 - `flexible_plan` —— 为没有内置 manifest 入口的外观设计无效 A23 理由表路由。窗口内没有此类案件。
 
-**保留，已有决策覆盖** —— `patent_workflow_run` 由[收口必经的 Agent Note](2026-09-21-patent-workflow-closure-required.zh.md) 承担；`recognize_chemical_structure` 按构造即不可用，其移植流水线缺失，description 已如实说明。
+**保留，已有决策覆盖** —— `patent_workflow_run` 由[收口必经的 Agent Note](2026-09-21-patent-workflow-closure-required.zh.md) 承担，[交付前置门禁那篇](2026-10-03-patent-delivery-gate-enforces-gate-runs.zh.md) 现已对分析类模板强制该 run；`recognize_chemical_structure` 按构造即不可用，其移植流水线缺失，description 已如实说明。
 
 **不进路由** —— 保留在工具集内，但有意不出现在 persona 中：
 
@@ -39,7 +39,7 @@ Status: implemented
 
 - **删除不进路由的工具。** 否决：它们属于移植过来的专利工具集，删除其中一个是产品面改动，本批证据不足以强制它。稀释成本改记在 Consequences 下。
 - **只修数字，不动归因。** 否决：错误的理由比缺失的理由活得更久，而这里有两条是错的。
-- **不改文本，改为对 `evaluate_evidence` 强制。** 本批不做：交付路径是文档渲染而不是状态迁移，强制需要跨调用的证据状态。[收口必经的 Agent Note](2026-09-21-patent-workflow-closure-required.zh.md) 对收口否决过同一形态；这个问题属于交付闸门的工作。
+- **不改文本，改为对 `evaluate_evidence` 强制。** 本批不做：交付路径是文档渲染而不是状态迁移，强制需要跨调用的证据状态。[收口必经的 Agent Note](2026-09-21-patent-workflow-closure-required.zh.md) 对收口否决过同一形态。[交付前置门禁那篇](2026-10-03-patent-delivery-gate-enforces-gate-runs.zh.md) 把这套机制落地了，同时让 `evaluate_evidence` 继续走路由：门禁能观察到某次调用发生过，观察不到「正在引用证据」。
 - **要求每幅起草的图都调用 `add_patent_figure_references`。** 否决：`generate_patent_figure` 已内嵌标号，强制调用只会多出一遍没有产物的重复标注。
 
 ## Consequences

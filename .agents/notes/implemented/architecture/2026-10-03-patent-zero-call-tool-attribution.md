@@ -27,7 +27,7 @@ Each of the eleven tools takes one verdict, with its evidence named.
 - `generate_structure_figure` — `structureFigureEnabled: true` is set and the FreeCAD probe passes on this host (`/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd`, FreeCAD 1.1.3). No STEP/IGES/BREP case appeared.
 - `flexible_plan` — routed for a design-invalidation A23 ground program, which has no built-in manifest entry. No such case appeared.
 
-**Kept, an existing decision owns it** — `patent_workflow_run` is the subject of [the closure-required note](2026-09-21-patent-workflow-closure-required.md); `recognize_chemical_structure` is unavailable by construction, its ported pipeline is absent and its description says so.
+**Kept, an existing decision owns it** — `patent_workflow_run` is the subject of [the closure-required note](2026-09-21-patent-workflow-closure-required.md), and [the delivery-gate note](2026-10-03-patent-delivery-gate-enforces-gate-runs.md) now enforces the run for the analysis templates; `recognize_chemical_structure` is unavailable by construction, its ported pipeline is absent and its description says so.
 
 **Not routed** — kept in the tool set, deliberately absent from the persona:
 
@@ -39,7 +39,7 @@ Each of the eleven tools takes one verdict, with its evidence named.
 
 - **Delete the tools that are not routed.** Rejected: they belong to the ported patent tool set, and deleting one is a product-surface change this evidence does not force. The dilution cost stays recorded under Consequences.
 - **Correct the counts and leave the attributions.** Rejected: a false reason outlives a missing one, and two of these were false.
-- **Enforce `evaluate_evidence` instead of routing it.** Not done here: the delivery path is a document render rather than a state transition, so enforcement would need cross-call evidence state. [The closure-required note](2026-09-21-patent-workflow-closure-required.md) rejected the same shape for closure; that question belongs with the delivery-gate work.
+- **Enforce `evaluate_evidence` instead of routing it.** Not done here: the delivery path is a document render rather than a state transition, so enforcement would need cross-call evidence state. [The closure-required note](2026-09-21-patent-workflow-closure-required.md) rejected the same shape for closure. [The delivery-gate note](2026-10-03-patent-delivery-gate-enforces-gate-runs.md) ships that mechanism and keeps `evaluate_evidence` routed: a gate can observe that a call happened, not that evidence is being cited.
 - **Require `add_patent_figure_references` for every drafted figure.** Rejected: `generate_patent_figure` already embeds numerals, so a required call would add a re-annotation pass with no artifact.
 
 ## Consequences

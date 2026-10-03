@@ -82,6 +82,46 @@ describe('patent_pdf_download', () => {
     }
   })
 
+  it('derives the overall budget from the per-patent page and download budgets', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const budgets: number[] = []
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async (request) => {
+          budgets.push(request.timeoutMs)
+          return {
+            items: request.patents.map(p => ({ patent: p, status: 'ok' as const, path: join(dir, `${p}.pdf`) })),
+          }
+        },
+        resolveOutputDir: () => dir,
+      })
+      const ctx = await ctxWith(tool)
+      await execute(ctx, 'patent_pdf_download', { patents: ['US1A'] }, 'p-b1')
+      // 一篇的「开页 20s + 下载拦截轮询 60s」必须落在默认预算内，否则 ego 腿还没回退到
+      // 页面解析 + HTTP 下载，整体超时就先掐断调用。
+      expect(budgets[0]).toBeGreaterThanOrEqual(20_000 + 60_000)
+      expect(budgets[0]).toBe(20_000 + 60_000 + 15_000)
+      await execute(
+        ctx,
+        'patent_pdf_download',
+        { patents: ['US2A', 'US3A'], pageTimeoutSec: 30, downloadTimeoutMs: 20_000 },
+        'p-b2',
+      )
+      expect(budgets[1]).toBe(2 * (30_000 + 20_000) + 15_000)
+      await execute(ctx, 'patent_pdf_download', { patents: ['US4A'], pageTimeoutSec: 5, downloadTimeoutMs: 5_000 }, 'p-b3')
+      expect(budgets[2]).toBe(60_000)
+      await execute(
+        ctx,
+        'patent_pdf_download',
+        { patents: Array.from({ length: 10 }, (_, i) => `US${10 + i}A`) },
+        'p-b4',
+      )
+      expect(budgets[3]).toBe(300_000)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('falls back to fetch for a fallback item and writes the PDF', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {

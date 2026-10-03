@@ -16,6 +16,7 @@
  */
 
 import type { ConstitutionalRule, RuleSet, RuleViolation } from '@deepseek-ai/dsh-patent-core'
+import { declaredArgsMatch, jsonRecord } from './args-match.ts'
 import { evaluateText } from './RuleEngine.ts'
 
 /** 一条制品结构门禁声明。 */
@@ -49,12 +50,6 @@ export type StructuralGatePlan = {
   warnings: string[]
 }
 
-/** 把 JSON 值当作字符串记录读取；非记录返回 null。 */
-function jsonRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
-  return value as Record<string, unknown>
-}
-
 /** 递归收集一个 JSON 值里的全部字符串（记录取全部值，数组逐项展开）。 */
 function collectText(value: unknown, out: string[]): void {
   if (typeof value === 'string') {
@@ -82,14 +77,6 @@ export function structuralGateText(args: unknown, textArgs: readonly string[]): 
   const parts: string[] = []
   for (const name of textArgs) collectText(record[name], parts)
   return parts.join('\n')
-}
-
-/** 声明的 whenArgs 是否与实际入参逐项相等（字符串精确匹配）。 */
-function whenArgsMatch(when: Record<string, string> | undefined, args: unknown): boolean {
-  if (when === undefined) return true
-  const record = jsonRecord(args)
-  if (record === null) return false
-  return Object.entries(when).every(([name, value]) => record[name] === value)
 }
 
 /**
@@ -141,7 +128,7 @@ export function structuralGateViolations(
 ): RuleViolation[] {
   const violations: RuleViolation[] = []
   for (const { entry, rules } of plan.entries) {
-    if (entry.tool !== tool || !whenArgsMatch(entry.whenArgs, args)) continue
+    if (entry.tool !== tool || !declaredArgsMatch(entry.whenArgs, args)) continue
     const text = structuralGateText(args, entry.textArgs)
     if (text.trim().length === 0) continue
     const evaluation = evaluateText(text, { rules })

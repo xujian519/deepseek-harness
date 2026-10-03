@@ -2652,7 +2652,7 @@
           },
           "timeoutMs": {
             "type": "number",
-            "description": "整体执行超时（毫秒）；默认 clamp(25s × 篇数, 60s, 180s)，上限 300000"
+            "description": "整体执行超时（毫秒）；默认 clamp(篇数 × (pageTimeoutSec × 1000 + downloadTimeoutMs) + 15000, 60000, 300000)，上限 300000"
           },
           "record": {
             "type": "boolean",
