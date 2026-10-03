@@ -109,7 +109,7 @@ Schemastery 配置，所有字段可选。
 
 #### 模型所见
 
-32 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推。
+32 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推。两者对瞬时上游失败（超时、连接断开）各按带界退避重试两次，退避耗尽仍失败时报告已尝试次数。
 
 #### Token 影响
 

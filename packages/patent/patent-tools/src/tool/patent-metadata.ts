@@ -12,7 +12,8 @@ import type { ScrapeResult } from '@deepseek-ai/nuo-patent'
 import { cachedScrapePatent, mapPatentData } from '@deepseek-ai/dsh-patent-data'
 import type { StructuredPatentData } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../error.ts'
-import { GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
+import { retryBounded } from './internal/bounded-retry.ts'
+import { GOOGLE_PATENTS_CHANNEL, renderUpstreamFailure } from './internal/upstream-channel.ts'
 
 /** Input for the patent_metadata tool. */
 export type PatentMetadataInput = {
@@ -80,43 +81,9 @@ export function compactPatentNumber(value: string): string {
   return folded.replace(/[-:/]/g, '')
 }
 
-/** Wait for the given delay; the scrape retry never outlives the caller's patience. */
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-/** Run one scrape, retrying transient upstream failures under a bounded backoff. */
-async function scrapeWithRetry(
-  scrape: NonNullable<PatentMetadataDeps['scrape']>,
-  patent: string,
-  options: { timeout: number; returnAbstract: boolean; returnLegal: boolean; signal?: AbortSignal },
-  retryDelaysMs: readonly number[],
-): Promise<{ result: ScrapeResult; attempts: number }> {
-  let attempts = 0
-  for (;;) {
-    attempts += 1
-    const result = await scrape(patent, options)
-    const retry = RETRYABLE_SCRAPE_ERROR_CODES.includes(result.errorCode)
-    if (!retry || attempts > retryDelaysMs.length) return { result, attempts }
-    await delay(retryDelaysMs[attempts - 1] ?? 0)
-  }
-}
-
-
-/**
- * Name the channel, the upstream error, and the attempts made in a failed lookup.
- *
- * The upstream phrase alone (`fetch failed`) leaves a report unable to tell which
- * channel produced the fact, and naming some other channel here would read as an
- * instruction to leave the tool layer. The attempt count belongs in the record
- * because a caller cannot otherwise tell a first failure from a retried one.
- * @param detail - the upstream failure text.
- * @param attempts - total scrape attempts made.
- * @returns the model-facing failure text.
- */
-function channelFailure(detail: string, attempts: number): string {
-  const retried = attempts > 1 ? `；已退避重试 ${attempts - 1} 次仍未成功` : ''
-  return `通道 ${GOOGLE_PATENTS_CHANNEL}：${detail}${retried}；上游瞬时失败，可稍后重试`
+/** Whether a settled scrape is worth another attempt: transient network-layer failures. */
+function scrapeRetryable(result: ScrapeResult): boolean {
+  return RETRYABLE_SCRAPE_ERROR_CODES.includes(result.errorCode)
 }
 
 /**
@@ -155,7 +122,7 @@ function mapScrapeResult(result: ScrapeResult, attempts: number): PatentMetadata
         parseWarnings: result.parseWarnings,
       }
     default:
-      throw new PatentToolError('tool_execution_failed', channelFailure(result.errorMessage, attempts), {
+      throw new PatentToolError('tool_execution_failed', renderUpstreamFailure(result.errorMessage, attempts), {
         tool: 'patent_metadata',
         patent: result.patent,
         errorCode: result.errorCode,
@@ -273,12 +240,16 @@ export function createPatentMetadataTool(deps: PatentMetadataDeps = {}): ToolDef
       }
       /* v8 ignore next -- the vendored validator always normalizes valid numbers. */
       const patent = validation.normalized ?? compacted
-      const { result, attempts } = await scrapeWithRetry(scrape, patent, {
-        timeout: args.timeout ?? 30000,
-        returnAbstract: args.returnAbstract ?? true,
-        returnLegal: args.returnLegal ?? true,
-        signal: exec.signal,
-      }, retryDelaysMs)
+      const { result, attempts } = await retryBounded(
+        () => scrape(patent, {
+          timeout: args.timeout ?? 30000,
+          returnAbstract: args.returnAbstract ?? true,
+          returnLegal: args.returnLegal ?? true,
+          signal: exec.signal,
+        }),
+        scrapeRetryable,
+        retryDelaysMs,
+      )
       return mapScrapeResult(result, attempts)
     },
   })

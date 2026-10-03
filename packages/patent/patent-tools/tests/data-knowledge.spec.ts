@@ -50,11 +50,89 @@ describe('patent_search failure and render paths', () => {
       ['查询条件为空', 'ps-e'],
       ['检索失败: network unreachable', 'ps-f'],
     ] as const) {
-      const tool = createPatentSearchTool({ search: async () => ({ query: 'q', total: 0, hits: [], warnings: [warning] }) })
+      const tool = createPatentSearchTool({
+        searchRetryDelaysMs: [],
+        search: async () => ({ query: 'q', total: 0, hits: [], warnings: [warning] }),
+      })
       const ctx = await ctxWith(tool)
       const result = await execute(ctx, 'patent_search', { query: 'q' }, label)
       expect(result.isError).toBe(true)
     }
+  })
+
+  it('retries a transient upstream failure and returns the recovered hits', async () => {
+    const hit = {
+      patent: 'CN1A', title: 'T', assignee: 'A', publication_date: '2024-01-01',
+      priority_date: '', abstract: '', url: 'u',
+    }
+    let calls = 0
+    const tool = createPatentSearchTool({
+      searchRetryDelaysMs: [0, 0],
+      search: async () => {
+        calls += 1
+        return calls === 1
+          ? { query: 'q', total: 0, hits: [], warnings: ['检索失败: fetch failed'] }
+          : { query: 'q', total: 1, hits: [hit], warnings: [] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 'ps-retry-ok')
+    expect(result.isError).toBe(false)
+    expect(calls).toBe(2)
+    expect(text(result)).toContain('**patent**: CN1A')
+  })
+
+  it('reports the attempts made when the failure outlives the retries', async () => {
+    let calls = 0
+    const tool = createPatentSearchTool({
+      searchRetryDelaysMs: [0, 0],
+      search: async () => {
+        calls += 1
+        return { query: 'q', total: 0, hits: [], warnings: ['检索失败: fetch failed'] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 'ps-retry-dead')
+    expect(result.isError).toBe(true)
+    expect(calls).toBe(3)
+    expect(text(result)).toContain('已退避重试 2 次仍未成功')
+  })
+
+  it('does not retry a non-transient failure (empty query)', async () => {
+    let calls = 0
+    const tool = createPatentSearchTool({
+      searchRetryDelaysMs: [0, 0],
+      search: async () => {
+        calls += 1
+        return { query: 'q', total: 0, hits: [], warnings: ['查询条件为空'] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 'ps-retry-empty')
+    expect(result.isError).toBe(true)
+    expect(calls).toBe(1)
+  })
+
+  it('stops retrying once the call is aborted', async () => {
+    const controller = new AbortController()
+    let calls = 0
+    const tool = createPatentSearchTool({
+      searchRetryDelaysMs: [0, 0],
+      search: async () => {
+        calls += 1
+        controller.abort()
+        return { query: 'q', total: 0, hits: [], warnings: ['检索失败: fetch failed'] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await ctx.tools.execute({
+      signal: controller.signal,
+      callId: ToolCallId('ps-retry-abort'),
+      name: 'patent_search',
+      arguments: { query: 'q' },
+    })
+    expect(result.isError).toBe(true)
+    expect(calls).toBe(1)
   })
 
   it('renders a sparse hit with fallbacks', async () => {
@@ -86,6 +164,7 @@ describe('patent_search failure and render paths', () => {
     expect(text(ok)).toContain('channel: Google Patents（nuo 引擎）')
 
     const failTool = createPatentSearchTool({
+      searchRetryDelaysMs: [],
       search: async () => ({ query: 'q', total: 0, hits: [], warnings: ['检索失败: fetch failed'] }),
     })
     const failCtx = await ctxWith(failTool)

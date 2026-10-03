@@ -10,7 +10,8 @@ import { searchPatents as searchPatentsImpl } from '@deepseek-ai/nuo-patent'
 import type { PatentSearchHit, PatentSearchResult } from '@deepseek-ai/nuo-patent'
 import { cachedSearchPatents } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../error.ts'
-import { GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
+import { retryBounded } from './internal/bounded-retry.ts'
+import { GOOGLE_PATENTS_CHANNEL, renderUpstreamFailure } from './internal/upstream-channel.ts'
 
 /** Input for the patent_search tool. */
 export type PatentSearchInput = {
@@ -45,6 +46,26 @@ export type PatentSearchOutput = {
 /** Injected search function (tests override; production uses the LRU-cached nuo search). */
 export type PatentSearchDeps = {
   search?: (query: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<PatentSearchResult>
+  /** Retry backoff before each repeat attempt (defaults to {@link DEFAULT_SEARCH_RETRY_DELAYS_MS}). */
+  searchRetryDelaysMs?: readonly number[]
+}
+
+/**
+ * The engine answers timeouts and dropped connections under load; both are
+ * transient, so a bounded backoff turns them into a slower answer instead of a
+ * failed search. The delays mirror `patent_metadata`'s scrape retry.
+ */
+const DEFAULT_SEARCH_RETRY_DELAYS_MS: readonly number[] = [400, 1_200]
+
+/** Failure-class warning prefixes: the engine reports failures in `warnings`, not an error code. */
+const SEARCH_FAILURE_WARNING = /^(查询条件为空|检索超时|检索失败)/
+
+/** The subset of failure warnings worth another attempt: transient upstream failures. */
+const RETRYABLE_SEARCH_FAILURE_WARNING = /^(检索超时|检索失败)/
+
+/** The failure-class warning carried by a result, if any. */
+function failureWarning(result: PatentSearchResult): string | undefined {
+  return result.warnings.find(w => SEARCH_FAILURE_WARNING.test(w))
 }
 
 function toItem(h: PatentSearchHit): PatentSearchHitItem {
@@ -121,6 +142,7 @@ const DESCRIPTION = [
   '  - Follow up with patent_metadata to fetch full details of a specific hit',
   '  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used instead of inferring one from a hit URL',
   '  - A network failure is reported as an error naming that channel; a genuine zero-result search returns empty hits',
+  '  - A transient upstream failure (timeout, dropped connection) is retried twice; a failure that outlives the retries names the channel, the upstream error, and the attempts made',
   '  - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result',
 ].join('\n')
 
@@ -148,18 +170,6 @@ function renderSearch(value: PatentSearchOutput): string {
   return [header, '', hits.join('\n\n---\n\n'), ...warningLines].join('\n')
 }
 
-/**
- * Name the channel in an upstream failure. The upstream phrase alone
- * (`fetch failed`) leaves a report unable to tell which channel produced the
- * fact, and a bare retry hint reads as an invitation to leave the tool layer;
- * the channel name is what makes the call record self-describing.
- * @param detail - the upstream failure phrase.
- * @returns the model-facing failure text.
- */
-function channelFailure(detail: string): string {
-  return `通道 ${GOOGLE_PATENTS_CHANNEL}：${detail}；上游瞬时失败，可稍后重试`
-}
-
 const HIT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -181,6 +191,7 @@ const HIT_SCHEMA = {
  */
 export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinition {
   const search = deps.search ?? cachedSearchPatents(searchPatentsImpl)
+  const retryDelaysMs = deps.searchRetryDelaysMs ?? DEFAULT_SEARCH_RETRY_DELAYS_MS
   return defineTool({
     name: 'patent_search',
     description: DESCRIPTION,
@@ -211,17 +222,25 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
       if (query.length === 0) {
         throw new PatentToolError('invalid_tool_input', 'Search query is empty.', { tool: 'patent_search' })
       }
-      const result = await search(query, { limit: args.limit ?? 10, signal: exec.signal })
+      const { result, attempts } = await retryBounded(
+        () => search(query, { limit: args.limit ?? 10, signal: exec.signal }),
+        (settled) => {
+          const warning = failureWarning(settled)
+          return warning !== undefined && RETRYABLE_SEARCH_FAILURE_WARNING.test(warning)
+        },
+        retryDelaysMs,
+        exec.signal,
+      )
 
-      const failure = result.warnings.find(w => /^(查询条件为空|检索超时|检索失败)/.test(w))
+      const failure = failureWarning(result)
       if (failure) {
         if (failure.startsWith('检索超时')) {
-          throw new PatentToolError('tool_timeout', channelFailure(failure), { tool: 'patent_search', query })
+          throw new PatentToolError('tool_timeout', renderUpstreamFailure(failure, attempts), { tool: 'patent_search', query })
         }
         if (failure === '查询条件为空') {
           throw new PatentToolError('invalid_tool_input', failure, { tool: 'patent_search' })
         }
-        throw new PatentToolError('tool_execution_failed', channelFailure(failure), { tool: 'patent_search', query })
+        throw new PatentToolError('tool_execution_failed', renderUpstreamFailure(failure, attempts), { tool: 'patent_search', query })
       }
 
       const { hits: dedupedHits, warnings } = dedupeByFamily(result.hits, result.warnings)
