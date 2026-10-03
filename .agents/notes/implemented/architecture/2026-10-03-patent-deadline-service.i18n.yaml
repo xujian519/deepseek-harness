@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-03-patent-deadline-service.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-03-patent-deadline-service.md
+/agent-note-patent-deadline-as-a-root-scoped-service:
+  en: 4e118a43164f4487
+  zh: b52aa1bc43b552c4
+/agent-note-patent-deadline-as-a-root-scoped-service/problem:
+  en: b1a53f15ce8082c6
+  zh: 7c81a4710e745e0e
+/agent-note-patent-deadline-as-a-root-scoped-service/decision:
+  en: 805c126612365251
+  zh: 4f9f225f889d67cc
+/agent-note-patent-deadline-as-a-root-scoped-service/alternatives-considered:
+  en: d18931cd08c0a035
+  zh: 1af87e0858067731
+/agent-note-patent-deadline-as-a-root-scoped-service/consequences:
+  en: 51c617cc9afd86db
+  zh: 9c9227143b4081a6
