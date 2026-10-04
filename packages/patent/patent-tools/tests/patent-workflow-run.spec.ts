@@ -17,7 +17,7 @@ import {
   type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { JobId } from '@deepseek-ai/dsh-jobs'
-import type { JobHooks, JobSpec } from '@deepseek-ai/dsh-jobs'
+import type { JobHooks, JobSpec, JobView } from '@deepseek-ai/dsh-jobs'
 import { PatentToolError } from '../src/error.ts'
 import {
   createPatentWorkflowRunTool,
@@ -59,7 +59,10 @@ function fakeModel(): PatentModelPort {
 
 const fakeSearch = async () => []
 
-/** 最小 job 注册表替身：捕获 starter 的 hooks，由测试驱动结算。 */
+/**
+ * 最小 job 注册表替身：捕获 starter 的 hooks，由测试驱动结算；`list` 反映仍在跑的
+ * job（结算即从列表移除），供并发防护的用例使用。
+ */
 function fakeJobRegistry(): {
   jobs: WorkflowRunJobRegistry
   started: JobSpec[]
@@ -67,14 +70,27 @@ function fakeJobRegistry(): {
 } {
   const started: JobSpec[] = []
   const hooks: JobHooks[] = []
+  const live = new Map<string, JobView>()
   return {
     started,
     hooks,
     jobs: {
+      list: () => [...live.values()],
       start: (spec) => {
         started.push(spec)
-        hooks.push(spec.run({ id: JobId('patent-workflow-1'), append: () => {}, updateProgress: () => {} }))
-        return JobId('patent-workflow-1')
+        const id = JobId(`patent-workflow-${started.length}`)
+        live.set(id, {
+          id,
+          kind: spec.kind,
+          label: spec.label,
+          status: 'running',
+          startedAt: 0,
+          output: { total: 0, earliest: 0 },
+        })
+        const hook = spec.run({ id, append: () => {}, updateProgress: () => {} })
+        hooks.push(hook)
+        void hook.done.then(() => { live.delete(id) })
+        return id
       },
     },
   }
@@ -233,6 +249,46 @@ describe('patent_workflow_run', () => {
       ),
     ).rejects.toThrow('priorArt 必须是 JSON 数组')
     expect(started).toHaveLength(0)
+  })
+
+  it('refuses a second live background run for the same case and manifest', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+    const { jobs, started } = fakeJobRegistry()
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs, cwd: temp })
+    const args = {
+      manifestId: 'patent_disclosure_v1',
+      input: 'technical disclosure',
+      caseId: 'CN2024-0001',
+      run_in_background: true,
+    }
+    await tool.execute(args, exec)
+    await expect(tool.execute(args, exec)).rejects.toThrow('已有一个后台运行')
+    expect(started).toHaveLength(1)
+  })
+
+  it('starts the same case run again once the previous one settled', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+    const { jobs, started, hooks } = fakeJobRegistry()
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs, cwd: temp })
+    const args = {
+      manifestId: 'patent_disclosure_v1',
+      input: 'technical disclosure',
+      caseId: 'CN2024-0002',
+      run_in_background: true,
+    }
+    await tool.execute(args, exec)
+    await hooks[0]!.done
+    await expect(tool.execute(args, exec)).resolves.toMatchObject({ jobId: 'patent-workflow-2' })
+    expect(started).toHaveLength(2)
+  })
+
+  it('does not constrain background runs that write no case artifacts', async () => {
+    const { jobs, started } = fakeJobRegistry()
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs })
+    const args = { manifestId: 'patent_disclosure_v1', input: 'technical disclosure', run_in_background: true }
+    await tool.execute(args, exec)
+    await tool.execute(args, exec)
+    expect(started).toHaveLength(2)
   })
 
   it('run_in_background requires a job registry and rejects the graph path', async () => {

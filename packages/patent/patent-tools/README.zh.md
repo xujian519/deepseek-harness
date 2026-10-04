@@ -143,7 +143,7 @@ Schemastery 配置，所有字段可选。
 
 - **说明书体例校验依赖 markdown 文本能表达的形态** — 标题集合校验放行五部分标题与 `render_patent_document` 写出的 `说明书` 外层标题，其余标题一律报出，因此模板外层标题不同的部署会看到该标题被报出；括号标记校验读 `名称（数字）`，并跳过以列举后缀结尾的名称（`实施例（1）`、`图（2）`），因此恰好在标记某构件的列举式引用不会被报出。段落编号是 warning 而非 error：法条与《专利审查指南》均未要求或禁止段落编号，是否使用取决于提交体例。
 
-- **`patent_workflow_run` 的后台运行** — `run_in_background: true` 把 manifest 运行注册进 `ctx.jobs`（`@deepseek-ai/dsh-jobs` 加 `@deepseek-ai/dsh-tool-jobs`）并立即返回 job id；结算后的 job 携带与前台调用完全相同的那段渲染文本，经 `job_output` 收集。本会话未启用后台任务时该开关 fail loud（`setup_required`），不会静默阻塞当前回合；graph 路径上传入该开关按 `invalid_tool_input` 拒绝。job 持有自己的中止信号，因为这次运行比启动它的调用活得久：`job_kill` 或 owner teardown 才是取消它的方式，而中止在阶段边界生效（进行中的模型调用不会被中断）。
+- **`patent_workflow_run` 的后台运行** — `run_in_background: true` 把 manifest 运行注册进 `ctx.jobs`（`@deepseek-ai/dsh-jobs` 加 `@deepseek-ai/dsh-tool-jobs`）并立即返回 job id；结算后的 job 携带与前台调用完全相同的那段渲染文本，经 `job_output` 收集。本会话未启用后台任务时该开关 fail loud（`setup_required`），不会静默阻塞当前回合；graph 路径上传入该开关按 `invalid_tool_input` 拒绝。带 caseId 的运行按「案卷 + manifest」写定一份产物路径，因此同一对已有一个在跑的后台运行时，第二次按 `file_conflict` 拒绝，而不是让两者互相覆盖对方的记录；不带 caseId 的运行不写产物，不受此约束。job 持有自己的中止信号，因为这次运行比启动它的调用活得久：`job_kill` 或 owner teardown 才是取消它的方式，而中止在阶段边界生效（进行中的模型调用不会被中断）。
 
 ### 开发备注
 

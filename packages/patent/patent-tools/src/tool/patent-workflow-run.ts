@@ -154,11 +154,11 @@ export interface PatentWorkflowRunDeps extends WorkflowProviderDeps {
 }
 
 /**
- * The `ctx.jobs` face this tool uses: registering one job. Narrowed to the
- * consumed method so the tool cannot depend on registry operations it does not
- * call; the real service satisfies it.
+ * The `ctx.jobs` face this tool uses: registering a job and listing this
+ * caller's live ones. Narrowed to the consumed methods so the tool cannot
+ * depend on registry operations it does not call; the real service satisfies it.
  */
-export type WorkflowRunJobRegistry = Pick<JobRegistry, 'start'>
+export type WorkflowRunJobRegistry = Pick<JobRegistry, 'start' | 'list'>
 
 const DESCRIPTION = [
   'Automatically execute a declarative patent workflow (atom stages) or a domain graph.',
@@ -166,7 +166,7 @@ const DESCRIPTION = [
   'Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array).',
   'Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material.',
   'The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.',
-  'A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output, stop with job_kill); graph runs are foreground-only.',
+  'A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.',
 ].join(' ')
 /** Render the graph-mode result into model-facing prose. */
 function renderGraphRun(value: PatentWorkflowRunOutput): string {
@@ -432,19 +432,38 @@ async function runManifest(run: ManifestRunInput, signal: AbortSignal): Promise<
  * signal no longer speaks for this run, so `job_kill` and owner teardown are
  * what cancel it. The settled job carries the same rendered text a foreground
  * call returns, handed to the model's first `job_output` read.
+ *
+ * A case run writes to one deterministic artifact path per case and manifest,
+ * so a second live run for the same pair would overwrite the first one's
+ * record when it settles. That is refused here rather than reported after the
+ * loss; runs without a case write no artifacts and are not constrained.
  * @param jobs - the job registry face.
  * @param owner - the calling agent's session, when the call has one.
  * @param run - the run inputs.
  * @returns the canonical output carrying the job id.
+ * @throws PatentToolError `file_conflict` when a live run already holds this case and manifest.
  */
 function startBackgroundManifestRun(
   jobs: WorkflowRunJobRegistry,
   owner: JobSpec['owner'],
   run: ManifestRunInput,
 ): PatentWorkflowRunOutput {
+  const label = `${run.manifest.id}${run.input.caseId !== undefined ? ` (${run.input.caseId})` : ''}`
+  if (run.input.caseId !== undefined) {
+    const live = jobs.list(owner).find(job => job.kind === 'patent-workflow'
+      && job.label === label
+      && (job.status === 'running' || job.status === 'stopping'))
+    if (live !== undefined) {
+      throw new PatentToolError(
+        'file_conflict',
+        `patent_workflow_run: 案卷 ${run.input.caseId} 的 ${run.manifest.id} 已有一个后台运行（job ${live.id}）在跑，两者会写同一份运行记录与图；先 job_output 收集它、或 job_kill 停止它，再启动新的。`,
+        { tool: 'patent_workflow_run', jobId: live.id },
+      )
+    }
+  }
   const jobId = jobs.start({
     kind: 'patent-workflow',
-    label: `${run.manifest.id}${run.input.caseId !== undefined ? ` (${run.input.caseId})` : ''}`,
+    label,
     ...(owner !== undefined ? { owner } : {}),
     run: () => {
       const controller = new AbortController()
