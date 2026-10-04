@@ -3025,7 +3025,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `claim_chart_build`
 
-构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。
+构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。
 
 ```json
 {
@@ -3048,7 +3048,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "targets": {
       "type": "array",
-      "description": "映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}",
+      "description": "映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}。id 原样出现在 pin-cite 里（格式 [文档id 段[xxxx] 图n]，如 [D1 段[0032] 图3]），可含空格如 \"产品 A\"；source_path 指向该目标的文本文件时按段号/逐字引用核对引用，源文无 [xxxx] 段号标记（如 Google Patents 转存文本）时只核对逐字引用。",
       "items": {}
     },
     "case_id": {
@@ -5593,7 +5593,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `patent_workflow_run`
 
-Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.
+Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port. A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.
 
 ```json
 {
@@ -5651,6 +5651,10 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
     "priorArt": {
       "type": "string",
       "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Manifest path only: register the run as a background job and return its id immediately (collect with job_output, stop with job_kill) instead of holding the turn until every stage finishes. Defaults to false."
     }
   },
   "required": [

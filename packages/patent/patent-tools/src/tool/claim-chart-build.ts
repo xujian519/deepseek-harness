@@ -79,7 +79,7 @@ export type ClaimChartBuildDeps = {
   model?: PatentModelPort
 }
 
-const DESCRIPTION = '构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。'
+const DESCRIPTION = '构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。'
 
 /** 四态覆盖结论的中文说明（描述数据，不是法律结论）。 */
 const OUTCOME_LABELS: Record<AllElementsOutcome, string> = {
@@ -253,7 +253,7 @@ export function createClaimChartBuildTool(deps: ClaimChartBuildDeps = {}): ToolD
     parameters: {
       mode: { type: 'string', required: true, enum: ['infringement', 'invalidity', 'oa-response', 'reexamination', 'patentability'], description: '场景模式：infringement=侵权（被控产品，支持 doe）/invalidity=无效/oa-response=审查意见答复/reexamination=复审/patentability=撰写前可专利性' },
       claim_text: { type: 'string', required: true, description: '权利要求原文（需拆分的权利要求，可含多条）' },
-      targets: { type: 'array', required: true, items: { type: 'json' }, description: '映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}' },
+      targets: { type: 'array', required: true, items: { type: 'json' }, description: '映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}。id 原样出现在 pin-cite 里（格式 [文档id 段[xxxx] 图n]，如 [D1 段[0032] 图3]），可含空格如 "产品 A"；source_path 指向该目标的文本文件时按段号/逐字引用核对引用，源文无 [xxxx] 段号标记（如 Google Patents 转存文本）时只核对逐字引用。' },
       case_id: { type: 'string', description: '案卷 ID（提供时结果落盘 data/cases/<case_id>/outputs/）' },
       risk: { type: 'json', description: '侵权模式的评分事实（可选）：{defenses: (high|medium|low)[], remedyExposureRatio: 0–1, estoppelApplied?, dedicationApplied?, equivalents?: 等同三要素认定记录[]}。不提供时不计算风险等级；评分只用这些可复核事实，工具不接受直接给出的分数或等级。' },
     },

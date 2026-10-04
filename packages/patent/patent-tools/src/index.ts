@@ -611,7 +611,9 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createPatentAnalysisReportTool({ model }))
   ctx.tools.register(createClaimChartBuildTool({ model }))
   ctx.tools.register(createTrizContradictionAnalysisTool({ model }))
-  ctx.tools.register(createPatentWorkflowRunTool({ model }))
+  // ctx.jobs backs `run_in_background`: read lazily, because the job registry
+  // may load after this plugin; absent means the tool fails loud on that flag.
+  ctx.tools.register(createPatentWorkflowRunTool({ model, jobs: () => ctx.get('jobs') }))
   ctx.tools.register(createFlexiblePlanTool({ model }))
   ctx.tools.register(createAnalyzePatentFigureTool({
     ...(imageModel === undefined ? {} : { imageModel }),

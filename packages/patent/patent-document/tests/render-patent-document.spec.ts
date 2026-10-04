@@ -359,6 +359,26 @@ describe('renderPatentDocument', () => {
     }
   })
 
+  it('warns on internal working-record headings in the assembled document', async () => {
+    const dir = makeTempDir()
+    try {
+      const result = await renderPatentDocument(
+        {
+          template: 'patentability-opinion',
+          outputName: 'internal-heading',
+          outputDir: dir,
+          format: 'html',
+          sections: { 'executive-summary': '<h2>待办清单</h2><p>内容 A</p>' },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      expect(result.warnings?.join(' ')).toContain('内部工作记录用语')
+    } finally {
+      cleanup(dir)
+    }
+  })
+
   it('fails closed on an illegal case id', async () => {
     const dir = makeTempDir()
     try {

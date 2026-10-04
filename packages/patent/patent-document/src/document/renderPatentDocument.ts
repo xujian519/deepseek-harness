@@ -9,6 +9,7 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { caseOutputsDir } from '@deepseek-ai/dsh-patent-core'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { buildBrandStyle, loadBrandFromPath, mergeBrand } from './brandInjector.ts'
+import { checkDocumentCompliance } from './documentCompliance.ts'
 import { DocumentRenderError } from './errors.ts'
 import { findMatchingCloseTag } from './htmlScan.ts'
 import { applyParagraphNumbering } from './paragraphNumbering.ts'
@@ -128,11 +129,17 @@ function injectBrandCss(html: string, brandCss: string): string {
 
 /**
  * 将 sections 按元素 id 替换为 innerHTML。
+ *
+ * 命中 `<section id="x">` 时替换的是该 section 的**全部**内层内容，模板里的骨架
+ * 标题随之一并被替换 —— 需要保留章节标题的调用方必须在传入内容里自行给出。
  * @param html - 模板 HTML。
  * @param sections - id → 内容映射。
- * @returns 替换后的 HTML 与被跳过（未命中/非法）的 id 列表。
+ * @returns 替换后的 HTML，以及被跳过（未命中/非法）的 id 列表。
  */
-function injectSections(html: string, sections: Record<string, string>): { html: string; skippedIds: string[] } {
+function injectSections(
+  html: string,
+  sections: Record<string, string>,
+): { html: string; skippedIds: string[] } {
   let result = html
   const skippedIds: string[] = []
   for (const [id, content] of Object.entries(sections)) {
@@ -195,6 +202,9 @@ export async function renderPatentDocument(
   // 段落编号由模板通过 data-paragraph-numbering 声明；引擎把编号写成字面文本，
   // 使 PDF 与下游 HTML→docx 转制读到同一串字符。
   html = applyParagraphNumbering(html).html
+  for (const issue of checkDocumentCompliance(html)) {
+    warnings.push(issue.message)
+  }
 
   await atomicWriteFile(htmlPath, html)
 

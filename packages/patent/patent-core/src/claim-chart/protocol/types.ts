@@ -57,7 +57,11 @@ export interface ChartRow {
   targetId: string
   /** 目标（对比文件/产品证据）verbatim 引用。 */
   quote: string
-  /** "[D1 段[0032] 图3]" 形式，必须能在源文定位（pin-cite-validator 强制）。 */
+  /**
+   * "[D1 段[0032] 图3]" 形式（pin-cite-validator 强制格式；目标 id 可含空格、
+   * 段号可写范围、可多图）。源文带 `[xxxx]` 段号标记时必须能在源文定位，源文
+   * 没有这种标记（如 Google Patents 转存文本）时段号存在性不核对。
+   */
   pinCite: string
   mapping: Mapping
   state: RowState

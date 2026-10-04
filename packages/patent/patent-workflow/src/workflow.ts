@@ -209,7 +209,18 @@ function stageWindow(manifest: WorkflowManifest, index: number, maxParallelStage
  * @param group - 本组阶段（并行窗口切片）。
  * @returns 组内中断；无中断时为 undefined。
  */
-async function runParallelGroup(run: StageRun, group: readonly WorkflowStage[]): Promise<WorkflowInterrupt | undefined> {
+async function runParallelGroup(
+  run: StageRun,
+  group: readonly WorkflowStage[],
+  startIndex: number,
+): Promise<WorkflowInterrupt | undefined> {
+  // 通知与顺序路径同一时机（阶段开始前）；稀疏阶段数组在窗口内可能有空洞，故按
+  // 既有守卫写法逐位读取，遇空即止。
+  for (let gi = 0; gi < group.length; gi += 1) {
+    const groupStage = group[gi]
+    if (groupStage === undefined) break
+    run.options.onStage?.(groupStage.id, startIndex + gi, run.manifest.stages.length)
+  }
   const outcomes = await Promise.all(group.map(stage => runStageOnce(stage, run.state, run.stageOptions)))
   for (let gi = 0; gi < outcomes.length; gi += 1) {
     const outcome = outcomes[gi]
@@ -231,6 +242,7 @@ async function runParallelGroup(run: StageRun, group: readonly WorkflowStage[]):
 async function runSingleStage(run: StageRun, index: number): Promise<StageStep> {
   const stage = run.manifest.stages[index]
   if (stage === undefined) return { nextIndex: null }
+  run.options.onStage?.(stage.id, index, run.manifest.stages.length)
   const outcome = await runStageOnce(stage, run.state, run.stageOptions)
   if (outcome.interrupted) return { nextIndex: null, interrupted: outcome.interrupted }
   const { output, retries } = outcome
@@ -279,7 +291,7 @@ async function runStages(run: StageRun): Promise<WorkflowInterrupt | undefined> 
     const window = stageWindow(run.manifest, index, run.maxParallelStages)
     if (window > 1) {
       const group = run.manifest.stages.slice(index, index + window)
-      const interrupted = await runParallelGroup(run, group)
+      const interrupted = await runParallelGroup(run, group, index)
       if (interrupted !== undefined) return interrupted
       index += window
       continue

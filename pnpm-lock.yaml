@@ -12028,6 +12028,12 @@ importers:
       '@deepseek-ai/dsh-attachment':
         specifier: workspace:*
         version: link:../../attachment/attachment
+      '@deepseek-ai/dsh-jobs':
+        specifier: workspace:*
+        version: link:../../jobs/jobs
+      '@deepseek-ai/dsh-jobs-local':
+        specifier: workspace:*
+        version: link:../../jobs/jobs-local
       '@deepseek-ai/dsh-llm':
         specifier: workspace:*
         version: link:../../llm/llm
@@ -12055,6 +12061,9 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:*
         version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tool-jobs':
+        specifier: workspace:*
+        version: link:../../jobs/tool-jobs
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools

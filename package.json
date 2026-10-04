@@ -132,6 +132,7 @@
     "verify-preset-divergence": "tsx scripts/verify-preset-divergence.ts",
     "preset-divergence:baseline": "tsx scripts/verify-preset-divergence.ts --write",
     "verify-patent-team-roster": "tsx scripts/verify-patent-team-roster.ts",
+    "verify-patent-document-output": "tsx scripts/verify-patent-document-output.ts",
     "verify-patent-oas-gold": "tsx scripts/verify-patent-oas-gold.ts",
     "gate:patent-oas": "tsx scripts/run-patent-oas.ts",
     "verify-upgrade-guides": "tsx scripts/verify-upgrade-guides.ts",

@@ -15,6 +15,7 @@
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type { JobOutcome, JobRegistry, JobSpec } from '@deepseek-ai/dsh-jobs'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   DOMAIN_GRAPHS,
@@ -31,6 +32,7 @@ import {
   type GraphCheckpoint,
   type GraphState,
   type StageHandlerRegistry,
+  type StageProvider,
   type WorkflowContext,
   type WorkflowManifest,
   type WorkflowRunResult,
@@ -52,6 +54,13 @@ import {
 
 /** The domain graphs the graph path can run. */
 export type PatentWorkflowRunGraph = 'novelty' | 'inventiveness' | 'enablement' | 'citation-check'
+
+declare module '@deepseek-ai/dsh-jobs' {
+  interface JobKindMap {
+    /** 一次后台执行的 `patent_workflow_run` manifest 运行。 */
+    'patent-workflow': 'patent-workflow'
+  }
+}
 
 /** Tool input: manifest or graph path plus the material and approval controls. */
 export type PatentWorkflowRunInput = {
@@ -77,6 +86,12 @@ export type PatentWorkflowRunInput = {
   maxResults?: number
   /** Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds against these). */
   priorArt?: string
+  /**
+   * Register the manifest run as a background job and return its id at once
+   * (collect with `job_output`, stop with `job_kill`) instead of holding the
+   * turn until every stage finishes. Manifest path only.
+   */
+  run_in_background?: boolean
 }
 
 /** Tool canonical result: manifest-mode run record or graph-mode run state. */
@@ -117,6 +132,10 @@ export type PatentWorkflowRunOutput = {
   error?: string
   /** Built-in manifest ids (only when the requested manifest is unknown). */
   available?: string[]
+  /** Whether this call registered a background job instead of running to completion. */
+  background?: boolean
+  /** The background job id to collect with `job_output` (`background` only). */
+  jobId?: string
 }
 
 /** Tool dependencies: model port + search (inherited) plus cwd and handlers. */
@@ -125,7 +144,21 @@ export interface PatentWorkflowRunDeps extends WorkflowProviderDeps {
   cwd?: string
   /** Stage-handler registry (default: the global registry). */
   handlers?: StageHandlerRegistry
+  /**
+   * Read the background job registry (`ctx.jobs`) at call time. Lazy because
+   * this plugin may load before or after the registry; absent (or undefined
+   * when read) means `run_in_background` fails loud instead of silently
+   * blocking the turn.
+   */
+  jobs?: () => WorkflowRunJobRegistry | undefined
 }
+
+/**
+ * The `ctx.jobs` face this tool uses: registering a job and listing this
+ * caller's live ones. Narrowed to the consumed methods so the tool cannot
+ * depend on registry operations it does not call; the real service satisfies it.
+ */
+export type WorkflowRunJobRegistry = Pick<JobRegistry, 'start' | 'list'>
 
 const DESCRIPTION = [
   'Automatically execute a declarative patent workflow (atom stages) or a domain graph.',
@@ -133,6 +166,7 @@ const DESCRIPTION = [
   'Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array).',
   'Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material.',
   'The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.',
+  'A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.',
 ].join(' ')
 /** Render the graph-mode result into model-facing prose. */
 function renderGraphRun(value: PatentWorkflowRunOutput): string {
@@ -169,6 +203,9 @@ function renderGraphRun(value: PatentWorkflowRunOutput): string {
  */
 export function renderWorkflowRun(value: PatentWorkflowRunOutput): string {
   if (!value.ok) return `patent_workflow_run: ${value.error ?? '失败'}`
+  if (value.background === true && value.jobId !== undefined) {
+    return `patent_workflow_run(${value.manifestId}): 已在后台启动 job ${value.jobId}——用 job_output 收集结果，job_kill 停止。`
+  }
   if (value.mode === 'graph') return renderGraphRun(value)
   return renderWorkflowResultText({
     toolName: 'patent_workflow_run',
@@ -212,6 +249,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       chartTargets: { type: 'string', description: 'claim-chart target objects JSON (default empty).' },
       maxResults: { type: 'number', description: 'Max prior-art search results (default 5).' },
       priorArt: { type: 'string', description: 'Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these).' },
+      run_in_background: { type: 'boolean', description: 'Manifest path only: register the run as a background job and return its id immediately (collect with job_output, stop with job_kill) instead of holding the turn until every stage finishes. Defaults to false.' },
     },
     output: {
       schema: {
@@ -236,6 +274,8 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
           checkpointNote: { type: 'string' },
           error: { type: 'string' },
           available: { type: 'array', items: { type: 'string' } },
+          background: { type: 'boolean' },
+          jobId: { type: 'string' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderWorkflowRun(value) }],
@@ -243,6 +283,13 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
     async execute(args, exec) {
       const input = args
       if (input.graph !== undefined) {
+        if (input.run_in_background === true) {
+          throw new PatentToolError(
+            'invalid_tool_input',
+            'patent_workflow_run: run_in_background 仅支持 manifest 路径，graph 路径只有前台执行一种方式；需要后台化时改用 manifest 路径。',
+            { tool: 'patent_workflow_run' },
+          )
+        }
         return executeGraphRun(input, deps, cwd, exec)
       }
 
@@ -270,53 +317,188 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
         }
       }
 
-      const provider = buildWorkflowProvider(
-        bindModel(deps, exec, manifestId),
-        { ...(input.caseId !== undefined ? { caseId: input.caseId } : {}) },
-      )
-      if (!provider) {
+      const provider = buildManifestProvider(deps, exec, manifestId, input.caseId)
+      // Input parsing happens here, not inside the run: malformed arguments must
+      // fail the call, never register a job that then reports its own failure.
+      const runInput: ManifestRunInput = { manifest, deps, provider, ctx: buildRunContext(input), input, cwd }
+      if (input.run_in_background !== true) {
+        return await runManifest(runInput, exec.signal)
+      }
+      const jobs = deps.jobs?.()
+      if (jobs === undefined) {
         throw new PatentToolError(
           'setup_required',
-          'patent_workflow_run: 未提供模型客户端（deps.model 缺失），无法执行原子阶段。请在有模型会话中调用。',
+          'patent_workflow_run: 本会话未启用后台任务，run_in_background 不可用；去掉该参数前台执行。',
+          { tool: 'patent_workflow_run' },
         )
       }
+      return startBackgroundManifestRun(jobs, exec.agent?.id, runInput)
+    },
+  })
+}
 
-      const workflowCtx = buildRunContext(input)
-      const executor = createChainStageExecutor(provider, 'patent_workflow_run')
-      const { result, persistTarget } = await runWorkflowWithPersist(manifest, workflowCtx, executor, {
-        handlers: deps.handlers ?? globalStageHandlerRegistry,
-        atoms: globalAtomRegistry,
-        provider,
-        signal: exec.signal,
-        caseId: input.caseId,
-        cwd,
-        ...(input.approveStageIds !== undefined && input.approveStageIds.length > 0
-          ? { approvalGrants: input.approveStageIds }
-          : {}),
-      })
+/** 一次 manifest 运行的全部输入；前台调用与后台 job 走同一条执行路径。 */
+interface ManifestRunInput {
+  /** The manifest to run. */
+  manifest: WorkflowManifest
+  /** Tool dependencies carrying the handler registry. */
+  deps: PatentWorkflowRunDeps
+  /** The assembled stage provider (built before a background job registers, so a missing model fails the call, not the job). */
+  provider: StageProvider
+  /** The workflow context mapped from the parsed arguments. */
+  ctx: WorkflowContext
+  /** The tool call arguments. */
+  input: PatentWorkflowRunInput
+  /** Working directory the run paths resolve against. */
+  cwd: string
+}
 
-      const persistNote = persistTarget
-        ? await writeRunArtifacts(persistTarget, manifest, result)
-        : '持久化: 未启用（未提供 caseId）'
-      const interruptNote = result.interrupted
-        ? `⏸ 审批门暂停: "${result.interrupted.stageId}"（${result.interrupted.message}）——等待人工确认，后续阶段未执行`
-        : undefined
+/**
+ * Assemble the manifest path's StageProvider. Fails loud without a model
+ * client: an echo stub would silently "complete" every stage.
+ * @param deps - tool dependencies carrying the model port.
+ * @param exec - the calling tool context (the model port resolves against its agent).
+ * @param manifestId - manifest id for the call-site log entry.
+ * @param caseId - optional case identity propagated to the atoms.
+ * @returns the provider.
+ */
+function buildManifestProvider(
+  deps: PatentWorkflowRunDeps,
+  exec: Pick<ToolRunContext, 'agent'>,
+  manifestId: string,
+  caseId: string | undefined,
+): StageProvider {
+  const provider = buildWorkflowProvider(
+    bindModel(deps, exec, manifestId),
+    { ...(caseId !== undefined ? { caseId } : {}) },
+  )
+  if (!provider) {
+    throw new PatentToolError(
+      'setup_required',
+      'patent_workflow_run: 未提供模型客户端（deps.model 缺失），无法执行原子阶段。请在有模型会话中调用。',
+    )
+  }
+  return provider
+}
 
+/**
+ * Execute one manifest run and map its result into the tool's canonical value.
+ * Foreground calls pass the tool-call signal; a background job passes its own,
+ * because the run outlives the call that started it.
+ * @param run - the run inputs (manifest, provider, arguments, cwd).
+ * @param signal - cancellation signal for this run.
+ * @param onStage - stage-advance notification, when the caller reports progress.
+ * @returns the canonical run output.
+ */
+async function runManifest(
+  run: ManifestRunInput,
+  signal: AbortSignal,
+  onStage?: (stageId: string, index: number, total: number) => void,
+): Promise<PatentWorkflowRunOutput> {
+  const { manifest, deps, provider, ctx: workflowCtx, input, cwd } = run
+  const executor = createChainStageExecutor(provider, 'patent_workflow_run')
+  const { result, persistTarget } = await runWorkflowWithPersist(manifest, workflowCtx, executor, {
+    handlers: deps.handlers ?? globalStageHandlerRegistry,
+    atoms: globalAtomRegistry,
+    provider,
+    signal,
+    ...(onStage !== undefined ? { onStage } : {}),
+    caseId: input.caseId,
+    cwd,
+    ...(input.approveStageIds !== undefined && input.approveStageIds.length > 0
+      ? { approvalGrants: input.approveStageIds }
+      : {}),
+  })
+
+  const persistNote = persistTarget
+    ? await writeRunArtifacts(persistTarget, manifest, result)
+    : '持久化: 未启用（未提供 caseId）'
+  const interruptNote = result.interrupted
+    ? `⏸ 审批门暂停: "${result.interrupted.stageId}"（${result.interrupted.message}）——等待人工确认，后续阶段未执行`
+    : undefined
+
+  return {
+    ok: true,
+    mode: 'manifest',
+    manifestId: manifest.id,
+    completed: result.completed,
+    summary: result.summary,
+    stages: result.stages as unknown as JsonValue[],
+    degradedSteps: result.degradedSteps,
+    persistNote,
+    ...(interruptNote !== undefined ? { interruptNote } : {}),
+    /* v8 ignore next -- the built-in run stores surface no persist warning in this build. */
+    ...(result.persistWarning !== undefined ? { persistWarning: result.persistWarning } : {}),
+  }
+}
+
+/**
+ * Register a manifest run as a background job and return its id at once. The
+ * run owns its own AbortController: once the tool call returns, the caller's
+ * signal no longer speaks for this run, so `job_kill` and owner teardown are
+ * what cancel it. The settled job carries the same rendered text a foreground
+ * call returns, handed to the model's first `job_output` read.
+ *
+ * A case run writes to one deterministic artifact path per case and manifest,
+ * so a second live run for the same pair would overwrite the first one's
+ * record when it settles. That is refused here rather than reported after the
+ * loss; runs without a case write no artifacts and are not constrained.
+ * @param jobs - the job registry face.
+ * @param owner - the calling agent's session, when the call has one.
+ * @param run - the run inputs.
+ * @returns the canonical output carrying the job id.
+ * @throws PatentToolError `file_conflict` when a live run already holds this case and manifest.
+ */
+function startBackgroundManifestRun(
+  jobs: WorkflowRunJobRegistry,
+  owner: JobSpec['owner'],
+  run: ManifestRunInput,
+): PatentWorkflowRunOutput {
+  const label = `${run.manifest.id}${run.input.caseId !== undefined ? ` (${run.input.caseId})` : ''}`
+  if (run.input.caseId !== undefined) {
+    const live = jobs.list(owner).find(job => job.kind === 'patent-workflow'
+      && job.label === label
+      && (job.status === 'running' || job.status === 'stopping'))
+    if (live !== undefined) {
+      throw new PatentToolError(
+        'file_conflict',
+        `patent_workflow_run: 案卷 ${run.input.caseId} 的 ${run.manifest.id} 已有一个后台运行（job ${live.id}）在跑，两者会写同一份运行记录与图；先 job_output 收集它、或 job_kill 停止它，再启动新的。`,
+        { tool: 'patent_workflow_run', jobId: live.id },
+      )
+    }
+  }
+  const jobId = jobs.start({
+    kind: 'patent-workflow',
+    label,
+    ...(owner !== undefined ? { owner } : {}),
+    run: (job) => {
+      const controller = new AbortController()
+      const done = (async (): Promise<JobOutcome> => {
+        try {
+          const value = await runManifest(run, controller.signal, (stageId, index, total) => {
+            job.updateProgress(`${index + 1}/${total} ${stageId}`)
+          })
+          return {
+            status: 'completed',
+            // The run either finished its stages or paused at an approval gate;
+            // degraded stages are reported in the rendered result, not here.
+            detail: value.interruptNote !== undefined ? 'interrupted' : 'completed',
+            result: renderWorkflowRun(value),
+          }
+        } catch (error: unknown) {
+          return {
+            status: controller.signal.aborted ? 'killed' : 'failed',
+            detail: error instanceof Error ? error.message : String(error),
+          }
+        }
+      })()
       return {
-        ok: true,
-        mode: 'manifest' as const,
-        manifestId: manifest.id,
-        completed: result.completed,
-        summary: result.summary,
-        stages: result.stages as unknown as JsonValue[],
-        degradedSteps: result.degradedSteps,
-        persistNote,
-        ...(interruptNote !== undefined ? { interruptNote } : {}),
-        /* v8 ignore next -- the built-in run stores surface no persist warning in this build. */
-        ...(result.persistWarning !== undefined ? { persistWarning: result.persistWarning } : {}),
+        cancel: (reason?: string) => { controller.abort(reason ?? 'patent_workflow_run background job killed') },
+        done,
       }
     },
   })
+  return { ok: true, mode: 'manifest', manifestId: run.manifest.id, background: true, jobId }
 }
 
 /** 解析工具输入的 priorArt JSON（校验失败在输入边界报错，不静默降级）。 */

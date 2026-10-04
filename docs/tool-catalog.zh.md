@@ -3031,7 +3031,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 ### `claim_chart_build`
 
-构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。
+构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。
 
 ```json
 {
@@ -3054,7 +3054,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "targets": {
       "type": "array",
-      "description": "映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}",
+      "description": "映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}。id 原样出现在 pin-cite 里（格式 [文档id 段[xxxx] 图n]，如 [D1 段[0032] 图3]），可含空格如 \"产品 A\"；source_path 指向该目标的文本文件时按段号/逐字引用核对引用，源文无 [xxxx] 段号标记（如 Google Patents 转存文本）时只核对逐字引用。",
       "items": {}
     },
     "case_id": {
@@ -5599,7 +5599,7 @@ Usage notes:
 
 ### `patent_workflow_run`
 
-自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：8 个内置 manifest——patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）、patent_novelty_v1、patent_inventiveness_v1（三步法）、patent_patentability_v1、patent_oa_response_v1（通知书解析 → 权利要求对照表 → 答复草稿）、patent_invalidation_v1（无效理由 → 对照表 → 新颖性与创造性）、patent_reexamination_v1（驳回理由 → 对照表 → 新颖性与创造性）、patent_infringement_v1（对照表 → 全面覆盖/等同核验 → 报告）。图路径（graph=novelty|inventiveness|enablement|citation-check）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）；citation-check 为确定性纯函数图，校验结论文本（inventiveness_conclusion/novelty_report/text）中的每个 `D<id>`/专利号引用均出现在 priorArt（以 JSON 数组传入）中。以 input 提供材料；当权利要求文本不应混入该材料时，另以 claims 单独传入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。
+自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：8 个内置 manifest——patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）、patent_novelty_v1、patent_inventiveness_v1（三步法）、patent_patentability_v1、patent_oa_response_v1（通知书解析 → 权利要求对照表 → 答复草稿）、patent_invalidation_v1（无效理由 → 对照表 → 新颖性与创造性）、patent_reexamination_v1（驳回理由 → 对照表 → 新颖性与创造性）、patent_infringement_v1（对照表 → 全面覆盖/等同核验 → 报告）。图路径（graph=novelty|inventiveness|enablement|citation-check）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）；citation-check 为确定性纯函数图，校验结论文本（inventiveness_conclusion/novelty_report/text）中的每个 `D<id>`/专利号引用均出现在 priorArt（以 JSON 数组传入）中。以 input 提供材料；当权利要求文本不应混入该材料时，另以 claims 单独传入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。manifest 运行会占用当前回合直到跑完或在审批门暂停；需要立即拿到 job id 并继续其它工作（用 job_output 收集；job_kill 在下一个阶段边界停止它）时传 run_in_background: true；图路径仅支持前台执行。
 
 ```json
 {
@@ -5657,6 +5657,10 @@ Usage notes:
     "priorArt": {
       "type": "string",
       "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Manifest path only: register the run as a background job and return its id immediately (collect with job_output, stop with job_kill) instead of holding the turn until every stage finishes. Defaults to false."
     }
   },
   "required": [

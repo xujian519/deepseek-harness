@@ -426,3 +426,31 @@ describe('runWorkflow — degraded and interrupted summaries', () => {
     expect(outcome.output).toBe('直接执行')
   })
 })
+
+describe('runWorkflow — 阶段通知', () => {
+  it('每个阶段开始前通知阶段 id、序号与总数', async () => {
+    const seen: Array<[string, number, number]> = []
+    const result = await runWorkflow(
+      manifest('notify', [stage('a'), stage('b')]),
+      { input: 'x' },
+      okExecutor,
+      { onStage: (stageId, index, total) => { seen.push([stageId, index, total]) } },
+    )
+    expect(seen).toEqual([['a', 0, 2], ['b', 1, 2]])
+    expect(result.completed).toBe(true)
+  })
+
+  it('并行窗口内的阶段同样各自通知一次', async () => {
+    const seen: string[] = []
+    const handlers = new StageHandlerRegistry()
+    handlers.register({ name: 'extract', category: 'extract', execute: async () => ({ out: 'ok' }) })
+    const result = await runWorkflow(
+      manifest('windowed', [stage('a', { atom: 'extract' }), stage('b', { atom: 'extract' })]),
+      { input: 'x' },
+      undefined,
+      { atoms: atomRegistry(['extract']), handlers, maxParallelStages: 2, onStage: (stageId) => { seen.push(stageId) } },
+    )
+    expect(seen).toEqual(['a', 'b'])
+    expect(result.completed).toBe(true)
+  })
+})

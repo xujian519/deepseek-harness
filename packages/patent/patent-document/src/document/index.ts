@@ -13,6 +13,8 @@ export type {
 } from './types.ts'
 
 export { DocumentRenderError } from './errors.ts'
+export { checkDocumentCompliance } from './documentCompliance.ts'
+export type { ComplianceIssue, ComplianceRule } from './documentCompliance.ts'
 export { renderPatentDocument, DEFAULT_OUTPUT_DIR } from './renderPatentDocument.ts'
 export type { RenderPatentDocumentOptions } from './renderPatentDocument.ts'
 export { DEFAULT_PDF_TIMEOUT_MS, renderPdf, findChrome } from './pdfRenderer.ts'
