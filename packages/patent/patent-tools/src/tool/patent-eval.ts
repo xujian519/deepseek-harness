@@ -169,9 +169,24 @@ function evaluateRetrieval(text: string): Record<string, PatentEvalDimension> {
   return { 关键词覆盖: { score: keywordScore, passed: keywordScore >= 0.5, details: `检索式含 ${keywords.length} 个关键词/分类号` } }
 }
 
+/**
+ * 行首的步骤标记：可带 markdown 标题（`##`）或无序列表项（`-`）前缀，后接步骤词，
+ * 或中文序数写法（`第一步` / `第二阶段`）。只认行首，正文里的行内提及
+ * （"如该步骤中……"）不计入。数字编号的行首由 {@link ORDERED_STEP_RE} 独立命中。
+ */
+const STEP_MARKER_RE =
+  /^[ \t]*(?:#{1,6}[ \t]*)?(?:[-*+][ \t]+)?(?:步骤|阶段|step|phase|第\s*[一二三四五六七八九十百零两\d]+\s*(?:步骤|步|阶段|环节))/i
+
+/**
+ * 有序列表项本身即一步：工作流文档惯以编号枚举阶段，不重复写"步骤"二字。
+ * 代价是任何编号列表都会被计为步骤（权利要求清单、文献清单亦然）。该计数既决定
+ * `workflow` 模式的通过判定，也以 0.15 权重进入 `comprehensive` 的综合分，因此编号
+ * 列表会把「流程完整性」抬高：读这一维的分数时先确认它是不是被列表撑起来的。
+ */
+const ORDERED_STEP_RE = /^[ \t]*\d+[.、)][ \t]*\S/
+
 function evaluateWorkflow(text: string): Record<string, PatentEvalDimension> {
-  const stepPattern = /^\s*(步骤|Step|阶段|Phase)\s*\d*/gm
-  const steps = text.match(stepPattern) ?? []
+  const steps = text.split(/\r?\n/).filter(line => STEP_MARKER_RE.test(line) || ORDERED_STEP_RE.test(line))
   let stepScore = 0
   if (steps.length >= 5) stepScore = 1.0
   else if (steps.length >= 3) stepScore = 0.6

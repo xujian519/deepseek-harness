@@ -386,6 +386,38 @@ describe('patent_eval deeper paths', () => {
     expect(none.details['流程完整性']?.score).toBe(0)
   })
 
+  it('detects workflow steps written as markdown headings, lists, or ordinals', () => {
+    const markdown = [
+      '## 步骤1 检索现有技术',
+      '## 步骤2 解析权利要求',
+      '## 步骤3 构建对照表',
+    ].join('\n')
+    expect(evaluatePatentContent('workflow', markdown, []).details['流程完整性']?.score).toBe(0.6)
+
+    const listed = [
+      '- 步骤1 检索现有技术',
+      '- 步骤2 解析权利要求',
+      '1. 构建对照表',
+      '2. 输出报告',
+      '3. 复核',
+    ].join('\n')
+    expect(evaluatePatentContent('workflow', listed, []).details['流程完整性']?.score).toBe(1)
+
+    const ordinals = ['第一步：检索', '第二阶段：解析', '第三环节：比对'].join('\n')
+    expect(evaluatePatentContent('workflow', ordinals, []).details['流程完整性']?.score).toBe(0.6)
+  })
+
+  it('counts one line once and ignores inline mentions of 步骤', () => {
+    const inline = ['本发明的处理流程如下所述。', '如该步骤中所述，壳体由不锈钢制成。'].join('\n')
+    expect(evaluatePatentContent('workflow', inline, []).details['流程完整性']?.score).toBe(0)
+
+    const repeated = '步骤1 步骤2 步骤3'
+    expect(evaluatePatentContent('workflow', repeated, []).details['流程完整性']?.details).toBe('检出 1 个工作流步骤')
+
+    const statute = '第二十二条第三款的规定'
+    expect(evaluatePatentContent('workflow', statute, []).details['流程完整性']?.score).toBe(0)
+  })
+
   it('scores retrieval keyword counts at every threshold', () => {
     const two = evaluatePatentContent('retrieval', 'a b', [])
     expect(two.details['关键词覆盖']?.score).toBe(0.5)
