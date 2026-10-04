@@ -12,14 +12,18 @@ import {
   globalAtomRegistry,
   globalStageHandlerRegistry,
   registerBuiltinAtoms,
+  StageHandlerRegistry,
   type PatentModelPort,
   type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
+import { JobId } from '@deepseek-ai/dsh-jobs'
+import type { JobHooks, JobSpec } from '@deepseek-ai/dsh-jobs'
 import { PatentToolError } from '../src/error.ts'
 import {
   createPatentWorkflowRunTool,
   renderWorkflowRun,
   type PatentWorkflowRunOutput,
+  type WorkflowRunJobRegistry,
 } from '../src/tool/patent-workflow-run.ts'
 import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
 
@@ -29,7 +33,20 @@ registerBuiltinAtoms()
 globalAtomRegistry.register(slopGateAtom)
 globalStageHandlerRegistry.register(new SlopGateHandler())
 
-const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
+/**
+ * Tool execution context for a call from this spec. `withAgent` adds the
+ * calling agent, which the tool reads for job ownership (`owner`) and for
+ * binding its model port to a session.
+ * @param withAgent - include a calling agent.
+ * @returns the execution context the tool body reads.
+ */
+function toolExec(withAgent = false): Parameters<ToolDefinition['execute']>[1] {
+  const agent = { id: 'sess-1', session: { id: 'sess-1', append: () => {} } }
+  const context = { signal: new AbortController().signal, ...(withAgent ? { agent } : {}) }
+  return context as unknown as Parameters<ToolDefinition['execute']>[1]
+}
+
+const exec = toolExec()
 
 function fakeModel(): PatentModelPort {
   return {
@@ -41,6 +58,43 @@ function fakeModel(): PatentModelPort {
 }
 
 const fakeSearch = async () => []
+
+/** 最小 job 注册表替身：捕获 starter 的 hooks，由测试驱动结算。 */
+function fakeJobRegistry(): {
+  jobs: WorkflowRunJobRegistry
+  started: JobSpec[]
+  hooks: JobHooks[]
+} {
+  const started: JobSpec[] = []
+  const hooks: JobHooks[] = []
+  return {
+    started,
+    hooks,
+    jobs: {
+      start: (spec) => {
+        started.push(spec)
+        hooks.push(spec.run({ id: JobId('patent-workflow-1'), append: () => {}, updateProgress: () => {} }))
+        return JobId('patent-workflow-1')
+      },
+    },
+  }
+}
+
+/** 受测试控制的模型：首个流调用挂起，直到 release() 被调用。 */
+function gatedModel(): { port: PatentModelPort; release: () => void } {
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  return {
+    release: () => { release() },
+    port: {
+      stream: async function* () {
+        await gate
+        yield { type: 'delta', text: '{"features": ["f1"], "problems": ["p1"], "effects": ["e1"]}' }
+        yield { type: 'done' }
+      },
+    },
+  }
+}
 
 describe('patent_workflow_run', () => {
   it('registers under patent_workflow_run', () => {
@@ -84,6 +138,114 @@ describe('patent_workflow_run', () => {
     expect(value.ok).toBe(false)
     expect(value.mode).toBe('graph')
     expect(value.error).toContain('检查点')
+  })
+
+  it('run_in_background registers a job and returns its id without running the stages inline', async () => {
+    const { jobs, started, hooks } = fakeJobRegistry()
+    // caseId 使 manifest 运行把结果写到 <cwd>/data/cases/<id>/workflow-runs；cwd 指向临时目录，
+    // 否则产物落进仓库工作树。
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs, cwd: temp })
+    const value = (await tool.execute(
+      { manifestId: 'patent_disclosure_v1', input: 'technical disclosure', caseId: 'CN2024-0003', run_in_background: true },
+      exec,
+    )) as PatentWorkflowRunOutput
+
+    expect(value).toMatchObject({
+      ok: true,
+      mode: 'manifest',
+      manifestId: 'patent_disclosure_v1',
+      background: true,
+      jobId: 'patent-workflow-1',
+    })
+    expect(value.stages).toBeUndefined()
+    expect(started[0]?.kind).toBe('patent-workflow')
+    expect(started[0]?.label).toBe('patent_disclosure_v1 (CN2024-0003)')
+    expect(renderWorkflowRun(value)).toContain('已在后台启动 job patent-workflow-1')
+
+    // 工作流在 job 自己的信号下跑完，结算结果就是前台调用会返回的那段文本。
+    const outcome = await hooks[0]!.done
+    expect(outcome.status).toBe('completed')
+    expect(outcome.detail).toBe('interrupted')
+    expect(outcome.result).toContain('patent_workflow_run(patent_disclosure_v1)')
+    expect(outcome.result).toContain('review_gate')
+
+    // 审批门已放行时同一 manifest 跑到头：结算 detail 为完成而不是中断。
+    const done = fakeJobRegistry()
+    const completeTool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => done.jobs })
+    await completeTool.execute(
+      {
+        manifestId: 'patent_disclosure_v1',
+        input: 'technical disclosure',
+        run_in_background: true,
+        approveStageIds: ['review_gate'],
+      },
+      exec,
+    )
+    await expect(done.hooks[0]!.done).resolves.toMatchObject({ status: 'completed', detail: 'completed' })
+  })
+
+  it('a cancelled background job settles killed', async () => {
+    const { port, release } = gatedModel()
+    const { jobs, hooks } = fakeJobRegistry()
+    const tool = createPatentWorkflowRunTool({ model: port, search: fakeSearch, jobs: () => jobs })
+    await tool.execute(
+      { manifestId: 'patent_disclosure_v1', input: 'technical disclosure', run_in_background: true },
+      exec,
+    )
+
+    hooks[0]!.cancel()
+    release()
+    const outcome = await hooks[0]!.done
+    expect(outcome.status).toBe('killed')
+    expect(outcome.result).toBeUndefined()
+  })
+
+  it('a background job whose run fails loud settles failed, owned by the calling agent session', async () => {
+    // A stage handler that fails loud (setup_required) propagates out of the run
+    // instead of degrading, which is the failure the job must report.
+    const handlers = new StageHandlerRegistry()
+    handlers.register({
+      name: 'extract',
+      category: 'extract',
+      execute: () => { throw new PatentToolError('setup_required', 'stage handler exploded') },
+    })
+    const { jobs, started, hooks } = fakeJobRegistry()
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, handlers, jobs: () => jobs })
+    await tool.execute(
+      { manifestId: 'patent_disclosure_v1', input: 'technical disclosure', run_in_background: true },
+      toolExec(true),
+    )
+
+    expect(started[0]?.owner).toBe('sess-1')
+    expect(started[0]?.label).toBe('patent_disclosure_v1')
+    const outcome = await hooks[0]!.done
+    expect(outcome).toMatchObject({ status: 'failed', detail: 'stage handler exploded' })
+  })
+
+  it('rejects malformed arguments before registering a background job', async () => {
+    const { jobs, started } = fakeJobRegistry()
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs })
+    await expect(
+      tool.execute(
+        { manifestId: 'patent_disclosure_v1', input: 'x', priorArt: '{oops', run_in_background: true },
+        exec,
+      ),
+    ).rejects.toThrow('priorArt 必须是 JSON 数组')
+    expect(started).toHaveLength(0)
+  })
+
+  it('run_in_background requires a job registry and rejects the graph path', async () => {
+    const withoutJobs = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    await expect(
+      withoutJobs.execute({ manifestId: 'patent_disclosure_v1', input: 'x', run_in_background: true }, exec),
+    ).rejects.toThrow('未启用后台任务')
+
+    const { jobs } = fakeJobRegistry()
+    const withJobs = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs })
+    await expect(
+      withJobs.execute({ graph: 'citation-check', input: 'x', run_in_background: true }, exec),
+    ).rejects.toThrow('仅支持 manifest 路径')
   })
 
   it('renders manifest and graph prose', () => {
