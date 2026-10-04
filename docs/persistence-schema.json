@@ -27270,7 +27270,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:117"
+        "packages/patent/patent-core/src/workflow/types.ts:123"
       ]
     },
     {
@@ -27588,7 +27588,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:129"
+        "packages/patent/patent-core/src/workflow/types.ts:135"
       ]
     },
     {

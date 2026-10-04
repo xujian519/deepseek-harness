@@ -387,9 +387,14 @@ function buildManifestProvider(
  * because the run outlives the call that started it.
  * @param run - the run inputs (manifest, provider, arguments, cwd).
  * @param signal - cancellation signal for this run.
+ * @param onStage - stage-advance notification, when the caller reports progress.
  * @returns the canonical run output.
  */
-async function runManifest(run: ManifestRunInput, signal: AbortSignal): Promise<PatentWorkflowRunOutput> {
+async function runManifest(
+  run: ManifestRunInput,
+  signal: AbortSignal,
+  onStage?: (stageId: string, index: number, total: number) => void,
+): Promise<PatentWorkflowRunOutput> {
   const { manifest, deps, provider, ctx: workflowCtx, input, cwd } = run
   const executor = createChainStageExecutor(provider, 'patent_workflow_run')
   const { result, persistTarget } = await runWorkflowWithPersist(manifest, workflowCtx, executor, {
@@ -397,6 +402,7 @@ async function runManifest(run: ManifestRunInput, signal: AbortSignal): Promise<
     atoms: globalAtomRegistry,
     provider,
     signal,
+    ...(onStage !== undefined ? { onStage } : {}),
     caseId: input.caseId,
     cwd,
     ...(input.approveStageIds !== undefined && input.approveStageIds.length > 0
@@ -465,11 +471,13 @@ function startBackgroundManifestRun(
     kind: 'patent-workflow',
     label,
     ...(owner !== undefined ? { owner } : {}),
-    run: () => {
+    run: (job) => {
       const controller = new AbortController()
       const done = (async (): Promise<JobOutcome> => {
         try {
-          const value = await runManifest(run, controller.signal)
+          const value = await runManifest(run, controller.signal, (stageId, index, total) => {
+            job.updateProgress(`${index + 1}/${total} ${stageId}`)
+          })
           return {
             status: 'completed',
             // The run either finished its stages or paused at an approval gate;

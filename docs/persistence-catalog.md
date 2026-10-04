@@ -6508,7 +6508,7 @@ One of:
 
 SHA-256: `89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:129`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:135`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6526,7 +6526,7 @@ Sources: [`packages/patent/patent-core/src/workflow/types.ts:129`](../packages/p
 
 SHA-256: `76f13244df957cb786e2f48f1aae4300842c535cde25ff7e3f4603627bbcd956`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:117`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:123`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

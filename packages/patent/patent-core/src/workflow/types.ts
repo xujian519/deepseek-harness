@@ -109,6 +109,12 @@ export type WorkflowRunOptions = {
   runId?: string
   /** 并行窗口上限（连续、同 atom、无 retry 的阶段并行数）；缺省 4。 */
   maxParallelStages?: number
+  /**
+   * 每个阶段开始前通知一次：阶段 id、序号（0 基）与阶段总数（顺序执行与并行窗口内
+   * 的阶段都是同一时机）。调用方用它把长运行的进展报给等待方——工作流本身不消费返回值，
+   * 也不捕获异常，回调抛错即中止运行。
+   */
+  onStage?: (stageId: string, index: number, total: number) => void
   /** 调用方取消信号：阶段边界检查，中止时中止执行。 */
   signal?: AbortSignal
 }

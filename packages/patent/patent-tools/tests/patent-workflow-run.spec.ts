@@ -67,13 +67,16 @@ function fakeJobRegistry(): {
   jobs: WorkflowRunJobRegistry
   started: JobSpec[]
   hooks: JobHooks[]
+  progress: string[]
 } {
   const started: JobSpec[] = []
   const hooks: JobHooks[] = []
+  const progress: string[] = []
   const live = new Map<string, JobView>()
   return {
     started,
     hooks,
+    progress,
     jobs: {
       list: () => [...live.values()],
       start: (spec) => {
@@ -87,7 +90,7 @@ function fakeJobRegistry(): {
           startedAt: 0,
           output: { total: 0, earliest: 0 },
         })
-        const hook = spec.run({ id, append: () => {}, updateProgress: () => {} })
+        const hook = spec.run({ id, append: () => {}, updateProgress: (line) => { progress.push(line) } })
         hooks.push(hook)
         void hook.done.then(() => { live.delete(id) })
         return id
@@ -249,6 +252,20 @@ describe('patent_workflow_run', () => {
       ),
     ).rejects.toThrow('priorArt 必须是 JSON 数组')
     expect(started).toHaveLength(0)
+  })
+
+  it('reports stage progress through the job handle as the run advances', async () => {
+    const { jobs, hooks, progress } = fakeJobRegistry()
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs })
+    await tool.execute(
+      { manifestId: 'patent_disclosure_v1', input: 'technical disclosure', run_in_background: true },
+      exec,
+    )
+    await hooks[0]!.done
+
+    // 结算前 job_output 读不到环内容，进展只能经 updateProgress（job_list 的状态行）。
+    expect(progress[0]).toMatch(/^1\/\d+ \S+$/)
+    expect(progress.some(line => line.includes('review_gate'))).toBe(true)
   })
 
   it('refuses a second live background run for the same case and manifest', async () => {

@@ -166,6 +166,8 @@ export interface RunWorkflowWithPersistOptions {
   provider: StageProvider
   /** Cancellation signal propagated to stage boundaries. */
   signal?: AbortSignal
+  /** Stage-advance notification forwarded to the workflow engine. */
+  onStage?: (stageId: string, index: number, total: number) => void
   /** Case identity keying the run persistence; undefined disables persistence. */
   caseId: string | undefined
   /** Working directory the relative run paths resolve against. */
@@ -204,6 +206,7 @@ export async function runWorkflowWithPersist(
     provider: opts.provider,
     /* v8 ignore next -- every caller passes an AbortSignal through. */
     ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
+    ...(opts.onStage !== undefined ? { onStage: opts.onStage } : {}),
     ...(persistTarget !== undefined
       ? { persist: new JsonFileWorkflowRunStore(persistTarget.runsDir), runId: persistTarget.runId }
       : {}),
