@@ -61,7 +61,8 @@ const fakeSearch = async () => []
 
 /**
  * 最小 job 注册表替身：捕获 starter 的 hooks，由测试驱动结算；`list` 反映仍在跑的
- * job（结算即从列表移除），供并发防护的用例使用。
+ * job（结算即从列表移除），供并发防护的用例使用。每个 hook 同时登记进
+ * {@link outstanding}，由 teardown 统一结算后再删临时目录。
  */
 function fakeJobRegistry(): {
   jobs: WorkflowRunJobRegistry
@@ -92,6 +93,7 @@ function fakeJobRegistry(): {
         })
         const hook = spec.run({ id, append: () => {}, updateProgress: (line) => { progress.push(line) } })
         hooks.push(hook)
+        outstanding.push(hook)
         void hook.done.then(() => { live.delete(id) })
         return id
       },
@@ -634,7 +636,15 @@ describe('patent_workflow_run', () => {
 
 let temp: string | undefined
 
+/**
+ * 本文件启动过的后台 run。带 caseId 的 run 把运行记录写进 `temp`，且是先写兄弟临时
+ * 文件再 rename；删除目录时若 run 仍在写，递归删除会在 rename 落地前撞上那个临时文件
+ * 而以 ENOTEMPTY 失败。teardown 先等它们结算。
+ */
+const outstanding: JobHooks[] = []
+
 afterEach(async () => {
+  await Promise.all(outstanding.splice(0).map(hook => hook.done))
   if (temp !== undefined) {
     await rm(temp, { recursive: true, force: true })
     temp = undefined
