@@ -47,6 +47,6 @@ fork 与上游的分叉体现在两处 `files` 过滤器、`resources/node_modul
 
 ## Related
 
-- [用独立打包的引擎做 Node Office 转换](2026-09-11-node-office-kit.zh.md)——本次放置所服务的 kit 边界。
+- [用独立打包的引擎做 Node Office 转换](../../archived/architecture/2026-09-11-node-office-kit.md)——本次放置所服务的 kit 边界。
 - [独立 LibreOffice kit 的归属](2026-09-14-independent-libreoffice-kit.zh.md)——引擎路径处理为何属于 kit。
 - [Electron 桌面打包与更新](2026-08-25-electron-desktop-packaging-and-updates.zh.md)——本次改动所扩展的发布布局。

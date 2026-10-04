@@ -118,11 +118,11 @@
       "standard.patch.yml": "d132cb2a6d"
     },
     "tool-subagent": {
-      "cordis.patch.yml": "f59db4f0b0",
+      "cordis.patch.yml": "e38590675f",
       "document.patch.yml": "1db355f62b",
       "patent.patch.yml": "1db355f62b",
-      "ptc.patch.yml": "f59db4f0b0",
-      "standard.patch.yml": "f59db4f0b0"
+      "ptc.patch.yml": "e38590675f",
+      "standard.patch.yml": "e38590675f"
     },
     "tool-subagent-claude-code": {
       "cordis.patch.yml": "2d7faa37b3",
@@ -144,11 +144,11 @@
       "standard.patch.yml": "3d9b0c534b"
     },
     "tool-subagent-fork": {
-      "cordis.patch.yml": "f86cc7f97b",
+      "cordis.patch.yml": "b0658107e2",
       "document.patch.yml": "151876b9b3",
       "patent.patch.yml": "f7fdd4b57b",
-      "ptc.patch.yml": "f86cc7f97b",
-      "standard.patch.yml": "f86cc7f97b"
+      "ptc.patch.yml": "b0658107e2",
+      "standard.patch.yml": "b0658107e2"
     },
     "tool-subagent-list-agents": {
       "cordis.patch.yml": "9d73757b44",

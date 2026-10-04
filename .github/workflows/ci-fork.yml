@@ -357,7 +357,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
     name: node 24 / benchmarks
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:

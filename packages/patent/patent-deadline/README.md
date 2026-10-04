@@ -113,5 +113,3 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 ### Dev Note
 
 None.
-
-No companion is published because the package owns no durable state or event: every export is a pure function over an explicit query, and the one asset it reads is validated fail-loud at plugin load.

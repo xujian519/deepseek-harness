@@ -102,5 +102,3 @@ Prefix-stable while the section text, its order, and the compiled block are unch
 ### Dev Note
 
 None.
-
-No companion is published because the package owns no durable state or event: every export is a pure function over the corpus, and the one asset directory it reads is validated fail-loud at plugin load.

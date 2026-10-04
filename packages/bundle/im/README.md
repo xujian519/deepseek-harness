@@ -31,5 +31,3 @@ None directly; the pinned `@xmanrui/dsh-im` package owns its effect.
 - **The pinned upstream is external** — `@xmanrui/dsh-im` is version-pinned at `3.0.5`; bumping it requires rechecking its `@deepseek-ai/dsh-*` service contract (it injects `connection`, `credentials`, `webServer`, `typertGateway`) against the installed core.
 
 ### Dev Note
-
-No runtime invariant companion is published; the package is a static patch-list carrier (a YAML document of loader rows owned by other packages), mounts no service or events, and owns no mutable relation to check; the pinned xmanrui-dsh-im row's own package carries that plugin's invariants.

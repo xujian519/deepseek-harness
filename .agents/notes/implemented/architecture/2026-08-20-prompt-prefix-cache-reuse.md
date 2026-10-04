@@ -40,7 +40,7 @@ Deferred (explicitly not shipped): a persistent (SQLite-backed) strategy — the
 
 - Stable providers are evaluated once per cache entry instead of per assembly; the system-prompt and prompt-cache suites assert this by provider call counting.
 - Token cost follows provider-side cache hits, which depend on byte stability, not on this client cache; the baseline script measures the hit rate.
-- Core-surface change: `system-prompt`'s `assemble()` grew an optional cache branch; with no strategy mounted the behavior is byte-identical (regression-tested), and the round-trip invariant (`packages/core/prompt-cache/src/invariant.ts`) pins the cache contract.
+- Core-surface change: `system-prompt`'s `assemble()` grew an optional cache branch; with no strategy mounted the behavior is byte-identical (regression-tested), and the round-trip invariant its removed invariant companion used to pin (deleted with the runtime invariant subsystem in v0.2.1-alpha.1) held the cache contract.
 - A misdeclared `stable` provider yields a stale prefix within TTL; TTL, invalidation, and the round-trip invariant bound the damage instead of failing silently.
 - Tool changes still break the prefix (accepted): new tools must exist in the request payload; low-frequency and explicit.
 - DeepSeek exposes no cache-write telemetry; the hit-rate metric uses hit/(hit+miss).

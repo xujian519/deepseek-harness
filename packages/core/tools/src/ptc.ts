@@ -40,7 +40,8 @@ export const RUN_CODE_NAME = 'run_code'
  */
 const RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION
   = 'Clear, concise description of what this program does in active voice, '
-    + '5-10 words (shown in the UI). Examples: "Count TODO markers across packages"; '
+    + '5-10 words (shown in the UI). Provide `description` before `code` in the arguments. '
+    + 'Examples: "Count TODO markers across packages"; '
     + '"Read failing test and its fixture"; "Rename config key in every cordis.yml".'
 
 const RUN_CODE_CONTROLS = {
@@ -135,8 +136,8 @@ export interface RunCodeBridgeOptions {
 }
 
 /**
- * Build the `run_code` {@link ToolDefinition}: required `code` and
- * `description` parameters, executed through the dispatch bridge described
+ * Build the `run_code` {@link ToolDefinition}: required `description` and
+ * `code` parameters, executed through the dispatch bridge described
  * above. The
  * registry reserves it as presentation infrastructure under non-native modes,
  * outside the filterable global/scoped capability layers.
@@ -157,12 +158,12 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
     // independent (one required string `code`).
     description: TYPESCRIPT_FLAVOR.description,
     parameters: {
-      code: { type: 'string', required: true, description: TYPESCRIPT_FLAVOR.codeDescription },
       description: {
         type: 'string',
         required: true,
         description: RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION,
       },
+      code: { type: 'string', required: true, description: TYPESCRIPT_FLAVOR.codeDescription },
       ...RUN_CODE_CONTROLS,
     },
     output: {
@@ -455,10 +456,10 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
     // Recompile through the same spec→schema projection defineTool used, so
     // the emitted schema always matches the validated specification.
     get: () => parameterSchemaSpecToJsonSchema({
-      code: { type: 'string', required: true, description: resolveFlavor(peekRuntime).codeDescription },
       description: { type: 'string', required: true, description: RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION },
+      code: { type: 'string', required: true, description: resolveFlavor(peekRuntime).codeDescription },
       ...controlParameters(peekRuntime()),
-    }) as unknown as Record<string, unknown>,
+    }),
   })
   return definition
 }

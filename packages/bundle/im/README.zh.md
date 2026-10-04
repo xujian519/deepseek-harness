@@ -31,5 +31,3 @@ kind: "package-bundle"
 - **被固定的上游是外部项目** —— `@xmanrui/dsh-im` 固定为 `3.0.5`；升级它需重新核对它相对所安装 core 的 `@deepseek-ai/dsh-*` 服务契约（它 inject `connection`、`credentials`、`webServer`、`typertGateway`）。
 
 ### 开发备注
-
-不发布运行时不变式伴生；本包是静态 patch 列表载体（由其他包持有的 loader 行的 YAML 文档），不挂载服务或事件，也没有可检查的可变关系；被固定的 xmanrui-dsh-im 行由其所属包承载对应插件的不变式。

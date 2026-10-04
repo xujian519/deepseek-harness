@@ -18,7 +18,7 @@ Three citations named paths that do not exist. `chunks/editor.tsx` and `chunks/t
 - **Point the two chunk comments at the design's home inside the package.** `chunk-loader.ts` and `tsdown.config.ts` hold the chunk registry and the `chunkBundle` build, and the package README's source map names both.
 - **Cite the post-mortem that justifies the plugin-shape guard** in place of a package path no gate resolves. [Post-mortem 0001](../../../../docs/postmortem/0001-acp-default-export-drops-inject.md) records why a stray default export makes the Loader discard `inject`.
 - **Extend the corpus to `packages/**/*.tsx` and define a citation as a token that opens a reference**: `docs/…` or `.agents/notes/…` at a token start, or the tail of a `./`/`../` chain that resolves against the repository root. A token continuing a longer named path stays out of scope, which keeps a fixture's virtual `/ws/docs/README.md` out of the report. `apps/` remains outside the corpus: its only doc-shaped tokens are fixture paths inside a synthetic tool-call gallery.
-- **Add no dead-export gate.** [Remove Knip from repository gates](../process/2026-08-19-remove-knip.md) owns the decision that the repository carries no repo-wide static check for unused exports, and that a future check must understand manifest-driven Cordis loading, generated outputs, and the Host/Client split.
+- **Add no dead-export gate.** [Remove Knip from repository gates](../../archived/process/2026-08-19-remove-knip.md) owns the decision that the repository carries no repo-wide static check for unused exports, and that a future check must understand manifest-driven Cordis loading, generated outputs, and the Host/Client split.
 
 ## Alternatives considered
 
@@ -38,4 +38,4 @@ The repository carries two fewer public exports and one fewer declared Context k
 
 ## Related
 
-[Remove Knip from repository gates](../process/2026-08-19-remove-knip.md) owns the decision that no repo-wide unused-code check exists.
+[Remove Knip from repository gates](../../archived/process/2026-08-19-remove-knip.md) owns the decision that no repo-wide unused-code check exists.

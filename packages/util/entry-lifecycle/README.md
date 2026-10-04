@@ -72,7 +72,6 @@ A publisher whose own dispatch must not reenter reads `hasOpenDispatch` before o
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `EntryLifecycle` — the announcement claim, the dispatch windows, and the deferred-removal request |
-| — | No runtime invariant companion is published; this pure state machine owns no event stream or mutable runtime data, and its ordering rules are enforced by unit tests. |
 
 ### Two edges, one order
 

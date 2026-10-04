@@ -68,5 +68,3 @@ kind: "package-reference"
 ### 开发备注
 
 确定性核验为本包原创，不是移植：它读取移植来的风格资产（[`@deepseek-ai/dsh-doc-style`](../doc-style/README.zh.md)）的禁用词表，以及移植来的模板引擎（[`@deepseek-ai/dsh-doc-template`](../doc-template/README.zh.md)）的占位符约定。`document_deliver` 工具本身、其参数校验与存在性检查沿用原插件，未作改动。
-
-不发布运行时不变式伴生：工具除常规 tool/call 与 tool/result 日志外不写入包级持久会话事件，tool/result 日志由工具注册表持有，本包报告的核验结论也没有本包之外的持有者。

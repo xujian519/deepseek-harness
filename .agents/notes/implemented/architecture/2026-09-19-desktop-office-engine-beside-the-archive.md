@@ -47,6 +47,6 @@ A packaged macOS arm64 directory build (unsigned, `electron-builder --dir` over 
 
 ## Related
 
-- [Node Office conversion with independently packaged engines](2026-09-11-node-office-kit.md) — the kit boundary this placement serves.
+- [Node Office conversion with independently packaged engines](../../archived/architecture/2026-09-11-node-office-kit.md) — the kit boundary this placement serves.
 - [Independent LibreOffice kit ownership](2026-09-14-independent-libreoffice-kit.md) — why engine-path handling belongs to the kit.
 - [Electron desktop packaging and updates](2026-08-25-electron-desktop-packaging-and-updates.md) — the release layout this change extends.

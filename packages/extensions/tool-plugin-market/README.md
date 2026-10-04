@@ -74,7 +74,6 @@ The toolset is a thin, model-facing layer over the `pluginMarket` service. It ad
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `market_source_list` / `market_plugin_search` / `market_plugin_preview`, source resolution, and the `tool:plugin-market` prompt section |
 | [`src/prompt.ts`](src/prompt.ts) | The `tool:plugin-market` system-prompt section |
-| — | No runtime invariant companion is published; this model-facing adapter has no independent lifecycle stream, and the ownership relation is inherited from the pluginMarket capability seam it reads. |
 
 ### How a call flows
 

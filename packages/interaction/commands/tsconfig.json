@@ -36,9 +36,6 @@
       "path": "../../util/contained-emit"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../typert/protocol"
     },
     {

@@ -72,7 +72,6 @@ function announce(entry: Entry): void {
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `EntryLifecycle`——公告认领、派发窗口与延迟移除请求 |
-| — | 不发布运行时不变式伴生；此纯状态机不持有事件流或可变运行时数据，其顺序规则由单元测试覆盖。 |
 
 ### 两条边，一种顺序
 

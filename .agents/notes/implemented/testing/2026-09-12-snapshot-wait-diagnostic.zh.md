@@ -53,5 +53,5 @@ harness 不再使用 `vi.waitFor`,因此它的测试改为断言 harness 自己�
 
 ## 相关
 
-- [ACP 快照测试](2026-06-19-acp-snapshot-tests.zh.md) —— 引入本 harness 及其等待步骤的套件。
+- [ACP 快照测试](../../archived/testing/2026-06-19-acp-snapshot-tests.md) —— 引入本 harness 及其等待步骤的套件。
 - Issue #92 —— 本次修复所属的测试可靠性族。

@@ -33,5 +33,3 @@ kind: "package-reference"
 - **单一后端连接** — 桥接服务端只接受一个并发后端 socket，额外连接会被拒绝；重连由客户端驱动，带指数退避与活动注册重放。
 
 ### 开发备注
-
-不发布运行时不变式伴生；provider 有意在无 DSH_DESKTOP_BRIDGE_PATH 下装载，以便测试与无头启动组合同一 bundle，断开的桥接在调用边界通过类型化 DesktopError('bridge-disconnected') 失败上报。

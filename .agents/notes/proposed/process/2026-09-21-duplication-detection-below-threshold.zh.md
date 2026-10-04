@@ -10,7 +10,7 @@ Status: proposed
 
 第一个是阈值。`.jscpd.json` 设 `minTokens: 60`、`minLines: 6`。用发行配置单独扫 `packages/patent/patent-tools` 报 `0 clones`(54 文件 / 80521 tokens);用 `--min-tokens 30 --min-lines 5` 扫同一棵树报 **113 克隆 / 866 行重复(1.64%)/ 283 文件**,最大克隆 55 tokens。60 tokens 以下的克隆全部不可见,而该域最大的克隆就在这条线之下。
 
-第二个是 ignore 标记。`jscpd:ignore-start` / `jscpd:ignore-end` 把它们之间的区域掩码,仓库用这对标记登记「承认但尚未收敛」的重复。当跨包对只有一侧带标记时,掩码该侧会让整对从报告中消失,于是标记从「登记豁免」变成「静默隐藏」。`packages/patent/tool-literature/src/tool/paper-download.ts:106,123` 与 `packages/patent/patent-workflow/src/invariant.ts` 带标记,而它们的对端(`packages/patent/patent-tools/src/tool/patent-pdf-download.ts`、`packages/patent/patent-teams/src/invariant.ts`)没有。
+第二个是 ignore 标记。`jscpd:ignore-start` / `jscpd:ignore-end` 把它们之间的区域掩码,仓库用这对标记登记「承认但尚未收敛」的重复。当跨包对只有一侧带标记时,掩码该侧会让整对从报告中消失,于是标记从「登记豁免」变成「静默隐藏」。`packages/patent/tool-literature/src/tool/paper-download.ts:106,123` 带标记,而它的对端(`packages/patent/patent-tools/src/tool/patent-pdf-download.ts`)没有;本笔记记录的另外一对是 `patent-workflow`/`patent-teams` 的不变式伴随,两者已随 v0.2.1-alpha.1 移除 runtime invariant 子系统时删除。
 
 后果不限于专利域。一个报告 0 的门禁无法区分「没有重复」与「阈值之上没有重复」,因此它无法对短于 60 tokens 的新克隆失败,也无法用来论证某个域是干净的。
 

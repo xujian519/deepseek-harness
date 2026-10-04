@@ -8,7 +8,7 @@ Status: proposed
 
 多智能体团队功能在本仓库中存在三份实现、两种互不兼容的持久化模型，而唯一已发布的那份被锁死在专利领域：
 
-- `packages/experimental/agent-team` + `packages/experimental/tool-agent-team`（[落位决策](../../implemented/architecture/2026-08-18-experimental-agent-teams-packages.zh.md)）——Lead/teammate 模型，邮箱与任务板存放在 Lead 的会话日志中，带事件折叠与不变量重放。未发布（experimental 发布排除），仅被 headless 示例挂载，且没有调度器。
+- `packages/experimental/agent-team` + `packages/experimental/tool-agent-team`（[落位决策](../../archived/architecture/2026-08-18-experimental-agent-teams-packages.md)）——Lead/teammate 模型，邮箱与任务板存放在 Lead 的会话日志中，带事件折叠与不变量重放。未发布（experimental 发布排除），仅被 headless 示例挂载，且没有调度器。
 - `packages/patent/patent-teams`——上游插件 `NanmiCoder/dsh-agent-teams` 的正式移植版，重定域到专利：文件态 `.patent-teams/`、带 `attempt`/`attemptId`/`handoffId` 撤销的事件驱动调度器、JSONL 邮箱、组合式完成门禁，以及唯一真实接入的 preset（[接线](../../implemented/feature/2026-08-23-wire-patent-teams-into-preset.zh.md)）。
 - 上游插件本体（外部、MIT、约 1.1k stars）——领域无关且比我们的移植版功能更全，但在仓库之外、不受我们的接缝控制。
 

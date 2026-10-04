@@ -34,5 +34,3 @@ kind: "package-reference"
 - **单目录选择** — `electron` 能力只返回一个路径（第一个选中的目录），取消时返回 `null`。`DirectoryPicker` 契约不暴露多选能力。
 
 ### 开发备注
-
-不发布运行时不变式伴生；provider 不持有状态——它把每次选取委托给 ctx.desktop.showOpenDialog，并在调用边界把响应转换为目录选择器的 string | null 约定。

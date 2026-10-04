@@ -152,6 +152,6 @@ These limits define what the sidebar does not do today. They are current package
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-The `dsh-better-sidebar` settings namespace and the side-chat injection marker intentionally keep their historical names: both persist in user settings and session logs shared across profiles, so they were not rescoped with the package name. The package was adopted first-party from the MIT-licensed `dsh-better-sidebar` 0.17.1 by omdsh-dev, and the MIT LICENSE file is preserved; the adoption decision and everything it gave up are recorded in the [adoption Agent Note](../../../.agents/notes/implemented/architecture/2026-08-28-adopt-better-sidebar-first-party.md). No runtime invariant companion is published; the sidebar owns no service state or event protocol of its own — every route is mounted under the host's webServer fence, and the pty lifecycle, store semantics, and route fence are each observed through their seams.
+The `dsh-better-sidebar` settings namespace and the side-chat injection marker intentionally keep their historical names: both persist in user settings and session logs shared across profiles, so they were not rescoped with the package name. The package was adopted first-party from the MIT-licensed `dsh-better-sidebar` 0.17.1 by omdsh-dev, and the MIT LICENSE file is preserved; the adoption decision and everything it gave up are recorded in the [adoption Agent Note](../../../.agents/notes/implemented/architecture/2026-08-28-adopt-better-sidebar-first-party.md).
 
 </details>

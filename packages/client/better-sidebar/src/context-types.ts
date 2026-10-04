@@ -462,20 +462,6 @@ export interface SidebarWorkspacesService {
 }
 
 /**
- * The invariant service face (mirror of @deepseek-ai/dsh-invariants'
- * InvariantRegistry). The upstream augmentation does not reach this Context
- * (dual-cordis-instance resolution), so the register signature is restated
- * structurally, exactly like the other service faces above.
- */
-export interface SidebarInvariantsService {
-  /** Reserve one package's checks and install them in the service's child fiber. */
-  register(
-    packageName: string,
-    installer: (ctx: Context, fail: (message: string) => never) => void | Promise<void>,
-  ): () => void
-}
-
-/**
  * One profile entry's live Config form (mirror of @deepseek-ai/dsh-settings'
  * SettingsDescriptor — only the slices the sidebar reads).
  */
@@ -574,8 +560,6 @@ export interface SidebarContextShape {
    * of hardcoding an id string.
    */
   configEditor: SidebarConfigEditorService
-  /** The invariant registry face. */
-  invariants: SidebarInvariantsService
   /** The tool registry face. */
   tools: SidebarToolsService
   /** The client locale service face. */

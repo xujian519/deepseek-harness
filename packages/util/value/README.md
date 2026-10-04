@@ -217,7 +217,6 @@ The library is built on one boundary: the predicate and the failure message belo
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `isRecord`, `asRecord`, `isPlainObject`, `hasExactKeys`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `isAbortError`, `errorMessage`, `toError`, `deepFreeze` |
-| — | No runtime invariant companion is published; this pure utility owns no event stream or mutable runtime data, and the predicate algebra is exercised by unit tests. |
 
 ### Why the guard is shape-only
 

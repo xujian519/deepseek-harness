@@ -52,5 +52,5 @@ Every socket round-trip in the desktop bridge suite now fails with the frames it
 
 - [Snapshot-harness wait diagnostics](2026-09-12-snapshot-wait-diagnostic.md) — the same rule applied to the session-snapshot waits.
 - [Repairing the keyless recorded-session corpus](2026-09-12-snapshot-corpus-repair.md) — the preceding batch on Issue #92.
-- [User-patch transactions control filesystem event delivery](2026-09-09-user-patch-hmr-test-delivery.md) — the fixture whose `eventually` helper reports load average and waited time, already covering that family's load-sensitive case.
+- [User-patch transactions control filesystem event delivery](../../archived/testing/2026-09-09-user-patch-hmr-test-delivery.md) — the fixture whose `eventually` helper reports load average and waited time, already covering that family's load-sensitive case.
 - [Tech-debt tracking in same-repository Issues](../process/2026-09-11-tech-debt-issue-tracking.md) — where Issue #92 and the new Issue #121 are registered.

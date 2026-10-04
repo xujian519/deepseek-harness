@@ -41,4 +41,4 @@ Lowercased and root spellings stay unvalidated at this seam: `defaultWorkspaceTi
 ## Related
 
 - [one route to add a workspace](../../archived/simplification/2026-07-31-one-route-to-add-a-workspace.md) — the removal that left `title` without a production caller.
-- [Workspace registration deletion](../feature/2026-07-27-workspace-registration-deletion.md) — the removal path that keeps owning the directory and its sessions.
+- [Workspace registration deletion](../../archived/feature/2026-07-27-workspace-registration-deletion.md) — the removal path that keeps owning the directory and its sessions.

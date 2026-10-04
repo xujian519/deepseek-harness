@@ -8,7 +8,7 @@ English | [中文](2026-08-27-generalize-agent-teams-capability.zh.md)
 
 Multi-agent team functionality exists three times in this repository with two incompatible durability models, and the only shipped implementation is locked to the patent domain:
 
-- `packages/experimental/agent-team` + `packages/experimental/tool-agent-team` ([placement](../../implemented/architecture/2026-08-18-experimental-agent-teams-packages.md)) — a Lead/teammate model whose mailbox and task board live in the Lead's session log, with event fold and invariant replay. Unreleased (experimental release exclusion), mounted only by the headless example, and it has no scheduler.
+- `packages/experimental/agent-team` + `packages/experimental/tool-agent-team` ([placement](../../archived/architecture/2026-08-18-experimental-agent-teams-packages.md)) — a Lead/teammate model whose mailbox and task board live in the Lead's session log, with event fold and invariant replay. Unreleased (experimental release exclusion), mounted only by the headless example, and it has no scheduler.
 - `packages/patent/patent-teams` — a formal port of the upstream plugin `NanmiCoder/dsh-agent-teams`, re-scoped to patent: file-backed `.patent-teams/` state, an event-driven scheduler with `attempt`/`attemptId`/`handoffId` revocation, JSONL mailboxes, a composite completion gate, and the only real preset wiring ([wiring](../../implemented/feature/2026-08-23-wire-patent-teams-into-preset.md)).
 - The upstream plugin itself (external, MIT, ~1.1k stars) — domain-neutral and more featureful than our port, but outside the repo and outside our seam control.
 

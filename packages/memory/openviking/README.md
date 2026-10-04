@@ -114,5 +114,3 @@ The list joins the prompt prefix and changes only when the repository index chan
 - **Raw recall blocks are untrusted** — injected memory text is background data; the model-facing guidance forbids following instructions found only inside memory.
 
 ### Dev Note
-
-No runtime invariant companion is published; recall/capture/commit are pure consumers of the session event stream and the prompt registry — the agent/session layers own durable context admission, and StateStore owns the only mutable data plane, whose monotonicity and atomic replacement are enforced at its own boundary.

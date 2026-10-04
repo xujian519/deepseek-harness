@@ -85,5 +85,3 @@ None: the package sends nothing to a provider and mutates no request prefix.
 ### Dev Note
 
 The package is a rewrite of two files of the MIT-licensed Go project Mady: `domains/config/style.go` for the model and its projections, and `domains/config/style_embed.go` for the loader, plus the four `styles/*.yaml` assets. The deliberate differences are recorded in the module JSDoc of the modules they touch: the loader fails loud where upstream skipped a missing directory and a malformed file, and `systemPromptForTemplate` takes a structural template record so this library never depends on `@deepseek-ai/dsh-doc-template`.
-
-No companion is published because the package owns no durable state or event: every export is a pure function over an explicitly loaded style set, and the one asset root it reads is validated fail-loud at load.

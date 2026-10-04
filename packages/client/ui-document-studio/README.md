@@ -11,8 +11,6 @@ English | [中文](README.zh.md)
 
 Document-delivery studio for the [document agent preset](../../bundle/web-app/presets/document.patch.yml): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the session's `workspaceFiles` Remote, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent.
 
-No runtime invariant companion is published; this is a pure-consumer plugin that emits no cordis events and owns no mutable cross-plugin state — its view-slot registration and auto-switch subscriber are plain effects whose disposal the slot ledger's own specs and this package's behavior specs observe directly.
-
 
 ## Table of Contents
 

@@ -68,5 +68,5 @@ fork 的 `.github/workflows/ci-fork.yml` 原先运行 lint、typecheck、duplica
 
 ## 相关
 
-- [CI Node 编译缓存](2026-08-28-ci-node-compile-cache-data-disk.zh.md)——上游 lane 携带而这两个 job 没有的 lane 级环境注入。
+- [CI Node 编译缓存](../../archived/process/2026-08-28-ci-node-compile-cache-data-disk.md)——上游 lane 携带而这两个 job 没有的 lane 级环境注入。
 - [上游同步后债务清扫](../bug-fix/2026-08-28-post-sync-debt-sweep.zh.md)——本门禁现在所针对的覆盖率 exclude 登记。

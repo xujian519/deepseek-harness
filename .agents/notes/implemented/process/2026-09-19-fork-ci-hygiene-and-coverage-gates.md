@@ -68,5 +68,5 @@ The `PRIMARY_NODE_VERSION` pin matters here beyond consistency. Under Node 22 th
 
 ## Related
 
-- [CI Node compile cache](2026-08-28-ci-node-compile-cache-data-disk.md) — the lane-scoped environment injection upstream lanes carry and these two do not.
+- [CI Node compile cache](../../archived/process/2026-08-28-ci-node-compile-cache-data-disk.md) — the lane-scoped environment injection upstream lanes carry and these two do not.
 - [Post-sync debt sweep](../bug-fix/2026-08-28-post-sync-debt-sweep.md) — the coverage exclude registrations this gate now runs against.

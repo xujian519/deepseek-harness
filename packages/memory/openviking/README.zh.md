@@ -119,5 +119,3 @@ e2e 门禁针对真实 OpenViking 服务运行（`OPENVIKING_URL`，默认 `http
 - **召回块不可信** — 注入的记忆文本是背景数据；模型侧指导禁止执行仅出现在记忆中的指令。
 
 ### 开发备注
-
-不发布运行时不变式伴生；recall/capture/commit 是会话事件流与 prompt 注册表的纯消费者——agent/session 层持有持久上下文准入，StateStore 持有唯一可变数据面，其单调性与原子替换在自己边界强制执行。

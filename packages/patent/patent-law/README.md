@@ -129,12 +129,10 @@ Static: the text is computed from Config at plugin load, so it is stable by defi
 - **The compact `A22.3` form is accepted only at a token boundary**, and it is always read as 《专利法》: a deployment that needs the form for another statute would need its own reference reader.
 - **The guideline index is section-path keyed.** A citation written in a form the normalizer does not reproduce (for example a section nested deeper than the captured tail) lands in `not-indexed` rather than being guessed at.
 - **`patent-rule` keeps its own citation ceiling.** The patent preset mounts this plugin, so the model runs law_verify first; `patent-rule`'s article ceiling still decides on its own, bounding 《专利法》 article numbers at 82 without holding a row per article. It therefore passes a citation this index reports as `not-indexed` — 第 69 条 and 第 70 条 among them. Delegating the ceiling to this index remains follow-up work: the rule decides from the article number alone, while this index decides per entry.
-- **No package invariant is published.** Baseline correctness is a property of the content, and no runtime observation can falsify it independently; the mechanically checkable parts (references parsing, article and section existence, the article ceiling) are checks the gate runs, so they do not meet the invariant bar.
+- **Baseline correctness is content-owned, not runtime-observed.** Baseline correctness is a property of the content, and no runtime observation can falsify it independently; the mechanically checkable parts (references parsing, article and section existence, the article ceiling) are checks the gate runs.
 - **The declaration states what the deployment declares, not what is reachable.** Neither endpoint is probed at load, so a declared but stopped base is discovered when a call fails; the persona's fallback discipline covers that case. A deployment that moves the base without updating `cnlawSearchUrl` / `cnlawGraphUrl` keeps declaring the old endpoint.
 - **The guideline channel is a declaration, not a check.** The section names the retrieval tools (the knowledge-base search and rule-card tools); the package neither calls them nor verifies that a given guideline section exists there, so a citation is only as settled as the retrieval the model actually runs. An empty retrieval is decisive only for that query.
 
 ### Dev Note
 
 None.
-
-No companion is published because the package owns no durable state or session event: the index is read at load, and every export is a pure function over an explicit query.

@@ -13,7 +13,7 @@ The type alone cannot tell a reader what an implementation must do with the reco
 The finding that prompted this work also overstated two things, and the corrections belong here because a later reader will otherwise re-derive them:
 
 - **`PatentOutputGate` has no production construction site.** `new PatentOutputGate(` appears only in `output-gate.spec.ts`. The gate that runs in production is `RuleOutputGate`, wired onto `tools/post-execute` in `patent-rule/src/index.ts`, routing review-level violations through `ctx.get('approval')` and failing closed when no answerer is present. So a store wired into `PatentOutputGate` would sit on a chain nothing reaches.
-- **The domain is not without an audit trail.** `packages/interaction/user-approval/src/index.ts` appends the `approval/asked` and `approval/decided` pair, declared in `packages/core/session/src/known-event-types.ts`, and `packages/interaction/user-approval/src/invariant.ts` checks the pair. What is missing relative to the upstream design is the aggregate metric layer over those decisions, not the record of them.
+- **The domain is not without an audit trail.** `packages/interaction/user-approval/src/index.ts` appends the `approval/asked` and `approval/decided` pair, declared in `packages/core/session/src/known-event-types.ts`, and the package's invariant companion (since removed with the runtime invariant subsystem in v0.2.1-alpha.1) checked the pair. What is missing relative to the upstream design is the aggregate metric layer over those decisions, not the record of them.
 
 ## Decision
 

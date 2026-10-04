@@ -66,5 +66,3 @@ Prefix-stable while the registered tool set and the description are unchanged.
 ### Dev Note
 
 The deterministic checks are original to this package, not a port: they read the forbidden words of the ported style assets ([`@deepseek-ai/dsh-doc-style`](../doc-style/README.md)) and the placeholder conventions of the ported template engine ([`@deepseek-ai/dsh-doc-template`](../doc-template/README.md)). The `document_deliver` tool itself, its argument validation, and its existence check are unchanged from the original plugin.
-
-No runtime invariant companion is published: the tool writes no package-owned durable session events beyond the normal tool/call and tool/result log, the tool/result log is owned by the tool registry, and nothing outside this package owns the checks it reports.

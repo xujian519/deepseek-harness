@@ -53,6 +53,4 @@ kind: "package-reference"
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-不发布运行时不变式伴生；插件市场能力继承目录来源、安装凭据及其事件，本包仅将其只读方法投射到线上。
-
 </details>

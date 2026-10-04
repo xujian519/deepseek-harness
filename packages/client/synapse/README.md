@@ -39,5 +39,3 @@ None: it sends no model requests and mutates no request headers.
 - The exposed bridge surface (create/fork/send/open/activate) is a deliberate minimal RPC contract with the canvas; adding verbs means extending both `src/client/index.ts` and the canvas app.
 
 ### Dev Note
-
-No runtime invariant companion is published; the browser half only renders a view switch and an iframe host, owns no registry or observation stream of its own, and every session relationship it reads comes through the client sessions/workspaces services, which enforce their own contracts.

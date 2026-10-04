@@ -13,11 +13,7 @@
     },
     {
       "path": "../../../vendor/schemastery"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
+    },    {
       "path": "../scope"
     },
     {

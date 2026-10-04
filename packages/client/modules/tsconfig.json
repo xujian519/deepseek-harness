@@ -13,7 +13,6 @@
     {"path": "../../boot/app-boot"},
     {"path": "../../host/webserver"},
     {"path": "../../util/package-manifest"},
-    {"path": "../../runtime-diagnostics/invariants"},
     {"path": "../store"}
   ]
 }

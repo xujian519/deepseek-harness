@@ -42,5 +42,3 @@ Web 组合以 `dsh.client` 行 `synapse-client` 挂载本包（节点半侧为�
 - 暴露的桥接面（create/fork/send/open/activate）是与画布约定的最小 RPC 契约；增加动词需同时扩展 `src/client/index.ts` 与画布 app。
 
 ### 开发备注
-
-不发布运行时不变式伴生；浏览器半边只渲染视图切换与 iframe 宿主，不持有自身注册表或观测流，它读取的每个会话关系都经由客户端 sessions/workspaces 服务，这些服务自行执行其约定。
