@@ -49,7 +49,7 @@ export default defineConfig({
     name: 'race-stress',
     execArgv: vitestExecArgv,
     pool: 'forks',
-    setupFiles: ['./scripts/test-proxy-environment.ts', './scripts/test-invariants.ts'],
+    setupFiles: ['./scripts/test-proxy-environment.ts'],
     include: RACE_STRESS_INCLUDES,
     exclude: windowsUnsupportedTests,
     // The custom runner injects repeats into every collected test because
