@@ -14,7 +14,7 @@
 | 日期 | 公开日 / 版本日期 / 检索日期 | 现有技术须验证早于申请日（`src/patent/evidence/date.ts`） |
 | 置信度 | 证据支撑 / 客户提供 / 模型推断 / 假设 | 四档，与 `conventions.md` §5 徽标一一对应 |
 
-每行附**定位（pin-cite）**：`D1 ¶0023`（公开号 + 段号）或 `权利要求1` / `审查指南第X章`。段号必须真实存在于来源文件——引用存在性校验复用 `src/patent/claim-chart/runtime/pin-cite-validator.ts` 的 `verifyQuoteInSource`。
+每行附**引证定位**：`D1 ¶0023`（公开号 + 段号）或 `权利要求1` / `审查指南第X章`。段号必须真实存在于来源文件；引用存在性校验复用 `src/patent/claim-chart/runtime/pin-cite-validator.ts` 的 `verifyQuoteInSource`（该函数核对的是逐字引用，与引证写法无关）。
 
 ## 2. 生成规则
 

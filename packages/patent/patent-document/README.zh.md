@@ -25,6 +25,8 @@ kind: "package-reference"
 
 render_patent_document 将九个随包模板之一（patentability-opinion、search-report、oa-response、claims-spec、invalidation-opinion、rectification-response、re-examination-request、infringement-opinion 或 litigation-pleading）渲染为 HTML 文件，默认同时生成 PDF。选定一个模板 id 与 outputName，再以 id -> innerHTML 记录的形式传入 sections 填充模板槽位。结果以模型可读文本返回写出的 htmlPath、pdfPath、可能的 pdfError 与 warnings；当 PDF 失败时，HTML 仍然存在。
 
+渲染器还会检查装配后的文书，把每处发现写进 `warnings`：`一、` 式编号出现在章节级标题之外的层级（章节层级取文档中第一个带编号的标题所在层级，随包模板中带该编号的都用 `h2`，因此带编号的 `h3` 或 `h4` 会与骨架冲突）、章节编号重复、章节编号未按递增顺序、以及标题使用内部工作记录用语。传入的节会替换骨架的**整个**内层内容（含章节标题本身），因此需要保留章节标题的调用方仍须在内容里自行给出。渲染器所检查的规则与用语表在 `document/documentCompliance.ts`；`scripts/verify-patent-document-output.ts` 对产出的文件或随包模板样例离线施加同样的检查。检查只报告不拒绝，因此带发现的文书仍会交到调用方。
+
 模板可用 `data-paragraph-numbering` 在某个容器上声明段落编号，属性值即编号形态（`[0001]` 表示方括号、四位、左补零）。《专利法》《专利法实施细则》与《专利审查指南》均未要求段落编号，因此 claims-spec 的说明书节默认不带该声明；提交体例使用编号时自行加到相应节上，该节内每个 `<p>` 与 `<li>` 就会被写入字面的 `[0001]`、`[0002]`……编号，从 1 起连续；标题、表格内容与只有图片的段落不编号。编号写成字面文本而非 CSS 计数器，是为了让 PDF 与下游的 HTML→docx 转制读到同一串字符。既有编号会先被剥掉再重写，因此重复渲染幂等，手写的编号也不会叠加——请勿手写编号。
 
 <a id="verify_deliverable-tool"></a>
