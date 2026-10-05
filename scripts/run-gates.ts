@@ -345,6 +345,7 @@ function ciSharedStaticGates(): Gate[] {
     pnpmScript('dsh-package-licenses', 'verify-dsh-package-licenses', { label: 'DSH package licenses' }),
     pnpmScript('self-evolve-eval', 'verify-self-evolve-eval', { label: 'self-evolve eval decision' }),
     pnpmScript('patent-oas-gold', 'verify-patent-oas-gold', { label: 'patent-oas gold gate' }),
+    pnpmScript('ipc-standards-source', 'verify-ipc-standards-source', { label: 'IPC standards source' }),
     pnpmScript('package-meta', 'verify-package-meta', { label: 'package metadata' }),
     pnpmScript('cordis-config', 'verify-cordis-config', { label: 'Cordis config' }),
     ...sharedHygieneGates(),
