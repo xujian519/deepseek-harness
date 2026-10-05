@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-05-patent-closure-gate-covers-drafting.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-05-patent-closure-gate-covers-drafting.md
+/agent-note-the-patent-closure-gate-covers-the-drafting-render:
+  en: a8d3d6aced986d88
+  zh: be2ed0f46cf06add
+/agent-note-the-patent-closure-gate-covers-the-drafting-render/problem:
+  en: 92b032087ef72997
+  zh: 8079fe9b8998b7e4
+/agent-note-the-patent-closure-gate-covers-the-drafting-render/decision:
+  en: 272ce52e74a41d27
+  zh: ad3f7ea520546fa9
+/agent-note-the-patent-closure-gate-covers-the-drafting-render/alternatives-considered:
+  en: 724695355fce35dc
+  zh: 3085d134addfcd42
+/agent-note-the-patent-closure-gate-covers-the-drafting-render/consequences:
+  en: bdf389ed4a169eea
+  zh: 91519ad3efb42863
