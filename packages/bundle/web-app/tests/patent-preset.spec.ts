@@ -251,18 +251,19 @@ describe('patent preset composition', () => {
       expect(mounted?.disabled).toBeUndefined()
     }
 
-    // Every gated template is one the renderer ships, and the two forms that run no
-    // manifest stay out of the closure requirement.
+    // Every gated template is one the renderer ships. The closure entry covers the
+    // analysis templates plus claims-spec, whose disclosure manifest ends in a claims
+    // draft; rectification-response has no manifest entry and stays out.
     const catalog = JSON.parse(readFileSync(
       join(REPO_ROOT, 'packages/patent/patent-document/assets/templates/patent/manifest.json'),
       'utf8',
     )) as { templates?: string[] }
     const shippedTemplates = catalog.templates ?? []
-    const analysisTemplates = [...(closure?.whenArgs?.template ?? [])].sort()
-    expect(analysisTemplates.length).toBeGreaterThan(0)
-    expect(analysisTemplates.filter(template => !shippedTemplates.includes(template))).toEqual([])
-    expect(analysisTemplates).not.toContain('claims-spec')
-    expect(analysisTemplates).not.toContain('rectification-response')
+    const closureTemplates = [...(closure?.whenArgs?.template ?? [])].sort()
+    expect(closureTemplates.length).toBeGreaterThan(0)
+    expect(closureTemplates.filter(template => !shippedTemplates.includes(template))).toEqual([])
+    expect(closureTemplates).toContain('claims-spec')
+    expect(closureTemplates).not.toContain('rectification-response')
   })
 
   it('sends the model to the cnlaw declaration instead of a literal endpoint', async () => {

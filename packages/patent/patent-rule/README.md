@@ -47,7 +47,7 @@ The gate exists because a discipline stated only in a prompt is indistinguishabl
 
 The ledger is keyed by the calling agent, so one case's gate run never satisfies another case's delivery. A call with no agent cannot be attributed to any session, so it is treated as unsatisfied: an unattributable deliverable has no session record to show either. The shipped default declares no entry — which gate runs a delivery owes is the deployment's delivery policy, not this package's.
 
-`render_patent_document` is the production consumer: the `patent` preset requires `rule_check` and `law_verify` before any delivery render, and additionally `patent_workflow_run` for the analysis templates, which run a manifest to closure. The two drafting forms (`claims-spec`, `rectification-response`) run no manifest and stay outside that second entry.
+`render_patent_document` is the production consumer: the `patent` preset requires `rule_check` and `law_verify` before any delivery render, and additionally `patent_workflow_run` for every template that reaches closure through a manifest — the analysis templates, plus `claims-spec`, whose `patent_disclosure_v1` run ends in a claims draft. `rectification-response` is the one shipped template left outside that second entry: it has no manifest entry, and the delivery skills substitute a per-claim-line rectification record for the run.
 
 ## EVI-011 evidence guards
 

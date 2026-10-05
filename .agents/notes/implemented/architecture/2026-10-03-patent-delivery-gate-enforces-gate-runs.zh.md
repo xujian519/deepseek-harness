@@ -16,7 +16,7 @@ Status: implemented
 
 登记与判定是分开的，因为派发前作出的拒绝无法知道它即将放行的调用会不会成功。台账保存**成功返回**的工具名，由 `tools/post-execute` 填写，guard 读它。台账以活动调用方 agent 为键，一个案件的门禁运行永远不会满足另一个案件的交付；不带 agent 的调用按未满足处理——无法归属的交付件同样拿不出会话记录。随包默认不声明任何条目——一次交付欠哪些闸门调用，是部署的交付政策，不是本包的政策。
 
-`patent` 预置为 `render_patent_document` 声明两条：任何渲染都要求 `rule_check` 与 `law_verify`；七个分析类模板（`patentability-opinion`、`search-report`、`oa-response`、`invalidation-opinion`、`re-examination-request`、`infringement-opinion`、`litigation-pleading`）另要求 `patent_workflow_run`。记下的两条反对意见正由这一形态化解：按模板收窄化解了补正那一例——`rectification-response` 与 `claims-spec` 不跑 manifest，留在收口条之外；认「成功调用」化解了人工确认门那一例——停在 `review_gate` 的 run 未报错返回即满足门禁，故 persona 既有的「带 `approveStageIds` 重新调用」承担审批步骤，没有任何东西把渲染锁在第二遍之后。
+`patent` 预置为 `render_patent_document` 声明两条：任何渲染都要求 `rule_check` 与 `law_verify`；七个分析类模板（`patentability-opinion`、`search-report`、`oa-response`、`invalidation-opinion`、`re-examination-request`、`infringement-opinion`、`litigation-pleading`）与 `claims-spec` 另要求 `patent_workflow_run`。记下的两条反对意见正由这一形态化解：按模板收窄化解了补正那一例——`rectification-response` 无 manifest 入口，留在收口条之外，而 `claims-spec` 已于 2026-10-05 [补进该条](2026-10-05-patent-closure-gate-covers-drafting.zh.md)，因为认出该模板所走的通路——末段即权利要求草稿的 `patent_disclosure_v1`；认「成功调用」化解了人工确认门那一例——停在 `review_gate` 的 run 未报错返回即满足门禁，故 persona 既有的「带 `approveStageIds` 重新调用」承担审批步骤，没有任何东西把渲染锁在第二遍之后。
 
 交付门禁是本包的第三个执行点，与 `tools/post-execute` 上的结果门禁（[输出门禁的 Agent Note](2026-09-28-patent-output-gating-runs-on-the-rule-gate.zh.md)，其中规则门禁是合规规则唯一的执行者）和制品结构门禁并列。三者回答不同的问题：产出的文本说了什么、即将被渲染的制品里有什么、本会话已完成过哪些运行。
 
