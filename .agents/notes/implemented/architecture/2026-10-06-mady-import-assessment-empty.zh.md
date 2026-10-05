@@ -14,7 +14,7 @@ Mady 是一个 Go 单体仓库（`github.com/xujian519/mady`，1689 个 `.go` �
 
 没有任何能力符合条件。九个候选领域中，五个在本仓已等价，其中三个本仓更强：数值范围重叠引擎多一档 `inside_without_endpoint` 判定，另有单位写在连接符前的读法与 LLM 双轨对照；pin-cite 校验多一层段号存在性核对，且源文无段号标记时跳过而非判失败；期限评估器覆盖 10 个期限族 20 个期限 id，哨兵是带 `requiredInput` 与 `reason` 的类型化 `PendingDeadline`，而上游 8 类中有 2 类是死枚举、完全没有节假日顺延、并把中文哨兵串写进声明为 ISO 8601 的字段。IPC 标准集在两仓逐字节相同，证据规则资产本仓是严格超集。
 
-溯源决定其余部分。Mady 在 2026-08-28 题为"引入 DeepSeek Harness 三批设计"的提交新增了 `domains/claimchart/pincite.go`、`domains/novelty/numeric_range.go`、`domains/rulekit/verdict.go` 与 `domains/slop/slop.go`。这四项是从本仓搬出的移植：它们出现在 Mady 侧，正是本仓早已有对应设计的证据。把它们引入，等于把本仓自己 2026-08 的工作搬回本仓。引入方向实际已反向发生三次：2026-08-17 的提交带入 `ipc-standards.yaml` 与 `evidence-rules.yaml`，2026-09-21 的提交带入侵权内核并在 `all-elements.ts`、`equivalence.ts`、`risk.ts` 的 JSDoc 中记录了有意改动，更早的提交带入了 checker 引擎、slop 引擎与质量评估器。
+提交历史决定其余部分。Mady 在 2026-08-28 题为"引入 DeepSeek Harness 三批设计"的提交新增了 `domains/claimchart/pincite.go`、`domains/novelty/numeric_range.go`、`domains/rulekit/verdict.go` 与 `domains/slop/slop.go`。这四项是从本仓搬出的移植：它们出现在 Mady 侧，正是本仓早已有对应设计的证据。把它们引入，等于把本仓自己 2026-08 的工作搬回本仓。引入方向实际已反向发生三次：2026-08-17 的提交带入 `ipc-standards.yaml` 与 `evidence-rules.yaml`，2026-09-21 的提交带入侵权内核并在 `all-elements.ts`、`equivalence.ts`、`risk.ts` 的 JSDoc 中记录了有意改动，更早的提交带入了 checker 引擎、slop 引擎与质量评估器。
 
 本仓是二者的下游，并维持这一位置。Mady 不再引入。
 
@@ -34,7 +34,7 @@ Mady 是一个 Go 单体仓库（`github.com/xujian519/mady`，1689 个 `.go` �
 
 ## Consequences
 
-今后关于"能否从 Mady 引入"的问题有据可依，且不必重跑跨仓侦察；候选清单并不短，其中四项的引入方向本身就是反的。
+今后关于"能否从 Mady 引入"的问题有据可依，且不必重跑跨仓侦察；候选清单并不短，其中四项的引入方向本身就是反的，这一点光看候选清单看不出来。
 
 本次评估依赖的两项资产事实仍未处理。Mady 持有两份与本仓逐字节相同的 `ipc-standards.yaml`，两个仓库都没有门禁或共享生成器把三份副本对齐，因此[空卡片补齐](../bug-fix/2026-10-06-ipc-standards-empty-cards.zh.md)只改了其中一份。另有 21 张卡片在源库自身就是双空壳，两份副本皆然，无论怎么引入都改变不了。
 
@@ -42,4 +42,4 @@ Mady 是一个 Go 单体仓库（`github.com/xujian519/mady`，1689 个 `.go` �
 
 ## Testing
 
-本决策没有代码变更。评估依据是文件级比对与 git 溯源：`evidence-rules.yaml` 的全文件比对给出三处差异，其中唯一实质改动在本仓一侧更具体；`ipc-standards.yaml` 的 `cmp` 返回 exit 0；`patent-core/src/atoms/handlers/builtin/extract.ts` 与 Mady `disclosure/types.go` 的结构比对显示两侧特征列表都是扁平的；`domains/infringement/rules.go` 中全部 15 个 `Check` 方法体连同调用点逐个读过；两个仓库的 `git log` 用于区分三次 Mady→本仓的提交与一次本仓→Mady 的提交。
+本决策没有代码变更。评估依据是文件级比对与两个仓库的 `git log`：`evidence-rules.yaml` 的全文件比对给出三处差异，其中唯一实质改动在本仓一侧更具体；`ipc-standards.yaml` 的 `cmp` 返回 exit 0；`patent-core/src/atoms/handlers/builtin/extract.ts` 与 Mady `disclosure/types.go` 的结构比对显示两侧特征列表都是扁平的；`domains/infringement/rules.go` 中全部 15 个 `Check` 方法体连同调用点逐个读过；`git log` 用于区分三次 Mady→本仓的提交与一次本仓→Mady 的提交。
