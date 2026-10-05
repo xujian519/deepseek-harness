@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-06-ipc-standards-empty-cards.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-06-ipc-standards-empty-cards.md
+/agent-note-backfill-the-empty-ipc-examination-standard-cards-and-gate-their-source:
+  en: e4d2d3bbe858718c
+  zh: 23d6cefda8063018
+/agent-note-backfill-the-empty-ipc-examination-standard-cards-and-gate-their-source/problem:
+  en: ab989ab2132d3f94
+  zh: 43d7b89da702a0ee
+/agent-note-backfill-the-empty-ipc-examination-standard-cards-and-gate-their-source/decision:
+  en: e06c155e490f241d
+  zh: f4d150b206a6a64f
+/agent-note-backfill-the-empty-ipc-examination-standard-cards-and-gate-their-source/alternatives-considered:
+  en: 7341d4e1eaa851a5
+  zh: 87e4768b8bc19e66
+/agent-note-backfill-the-empty-ipc-examination-standard-cards-and-gate-their-source/consequences:
+  en: 25b11d4cd5982b94
+  zh: 4bb4e17cf1c16026
+/agent-note-backfill-the-empty-ipc-examination-standard-cards-and-gate-their-source/testing:
+  en: 5cb83afcfda6fac3
+  zh: aa17e4a8bc6343b2
