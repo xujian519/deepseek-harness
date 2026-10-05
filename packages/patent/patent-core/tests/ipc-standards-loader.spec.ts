@@ -53,6 +53,24 @@ describe('ipc-standards-loader', () => {
     expect(cards.length).toBeGreaterThan(0)
   })
 
+  it('每张卡片的 keyPoints 与 tips 不同时为空', () => {
+    // 空壳卡片在 <memory-context> 中只产出裸标题行：既占 token 预算，又让模型
+    // 误读为该 IPC 部已提供审查标准。资产补齐后由本断言固定，源库演进产生新
+    // 空壳时立即失败，而不是等到模型给出错误结论。
+    const shells = loadIpcStandards(STANDARDS_PATH).all
+      .filter(card => card.keyPoints.length === 0 && card.tips.length === 0)
+      .map(card => card.id)
+    expect(shells).toEqual([])
+  })
+
+  it('每张卡片的 source 指向 Wiki 目录下的源文件路径', () => {
+    // source 是回源核对与漂移检测的唯一线索。头部注释与每条 source 曾漏掉
+    // Wiki/ 这一层，按注释字面定位会 404。
+    for (const card of loadIpcStandards(STANDARDS_PATH).all) {
+      expect(card.source).toMatch(/^宝宸知识库\/Wiki\/复审无效\//)
+    }
+  })
+
   it('searches by keyword with a limit', () => {
     const cards = searchStandards('医药', 5)
     expect(cards.length).toBeGreaterThan(0)
@@ -64,6 +82,26 @@ describe('ipc-standards-loader', () => {
     const text = formatStandardsAsContext(cards)
     expect(text.length).toBeGreaterThan(0)
     expect(text).toContain('[')
+  })
+
+  it('注入上下文时跳过无实质内容的卡片', () => {
+    const cards = queryIpcStandards('G')
+    const shell = {
+      id: 'SHELL-ONLY',
+      article: 'patent-law-a22.3',
+      ipcSection: 'G',
+      ipcDetail: 'G06',
+      name: '只有标题的空壳',
+      keyPoints: [],
+      tips: [],
+      source: '',
+    }
+    const withShell = formatStandardsAsContext([...cards, shell])
+    expect(withShell).not.toContain('只有标题的空壳')
+    expect(withShell).not.toContain('SHELL-ONLY')
+    // 全部卡片都无内容时返回空串，而不是产出一行裸标题。
+    expect(formatStandardsAsContext([shell])).toBe('')
+    expect(formatStandardsAsContext([])).toBe('')
   })
 })
 

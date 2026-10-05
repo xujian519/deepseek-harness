@@ -51,6 +51,9 @@ it('loadIpcStandards：fixture 畸形卡片字段兜底（模块重置后走 ove
     '    ipcSection: G',
     '    article: art2',
     '    name: 无明细规则',
+    // 承载无 ipcDetail 的格式化兜底，需要有实质内容：内容为空的卡片不进
+    // <memory-context>，该分支将无法被覆盖。
+    '    keyPoints: [要点B]',
   ].join('\n'))
   try {
     const index = freshLoad(join(dir, 'standards.yaml'))

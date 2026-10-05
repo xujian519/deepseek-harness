@@ -140,16 +140,29 @@ export function searchStandards(keyword: string, limit = 10): IpcStandardCard[] 
 }
 
 /**
+ * 卡片是否向模型提供实质内容：keyPoints 与 tips 同时为空的卡片只有标题，
+ * 注入 <memory-context> 时既占预算又会让模型误读为该领域已提供审查标准。
+ */
+function hasSubstance(card: IpcStandardCard): boolean {
+  return card.keyPoints.length > 0 || card.tips.length > 0
+}
+
+/**
  * 将卡片格式化为上下文文本（供 <memory-context> 注入）。
+ *
+ * 跳过 keyPoints 与 tips 同时为空的卡片：它们只能产出裸标题行，对
+ * 判断没有贡献。资产本身的空壳由 `tests/ipc-standards-loader.spec.ts`
+ * 的非空断言拦截，此处过滤使注入内容与该断言保持一致。
  * @param cards - 待格式化的审查标准卡片列表。
- * @returns 格式化的上下文文本。
+ * @returns 格式化的上下文文本；全部卡片无实质内容时返回空串。
  */
 export function formatStandardsAsContext(cards: IpcStandardCard[]): string {
-  if (cards.length === 0) return ''
-  return cards
+  const substantive = cards.filter(hasSubstance)
+  if (substantive.length === 0) return ''
+  return substantive
     .map((card) => {
-      const points = card.keyPoints.length > 0 ? card.keyPoints.map(k => `  - ${k}`).join('\n') : ''
-      const tips = card.tips.length > 0 ? card.tips.map(t => `  - ${t}`).join('\n') : ''
+      const points = card.keyPoints.map(k => `  - ${k}`).join('\n')
+      const tips = card.tips.map(t => `  - ${t}`).join('\n')
       return `- [${card.ipcSection}${card.ipcDetail ?? ''}] ${card.name} (${card.article})\n${points}${tips}`
     })
     .join('\n')
