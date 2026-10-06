@@ -175,6 +175,7 @@
     "verify-cordis-inspect-catalog": "tsx scripts/gen-cordis-inspect-catalog.ts --check",
     "verify-client-catalog": "tsx scripts/gen-client-catalog.ts --check",
     "verify-export-jsdoc": "tsx scripts/verify-export-jsdoc.ts",
+    "verify-ipc-standards-source": "tsx scripts/verify-ipc-standards-source.ts",
     "verify-group-readme-packages": "tsx scripts/verify-group-readme-packages.ts",
     "gen-tool-catalog": "tsx scripts/gen-tool-catalog.ts",
     "gen-workflow-guest": "tsx scripts/gen-workflow-guest.ts",
