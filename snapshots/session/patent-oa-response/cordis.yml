@@ -15,7 +15,9 @@
 # (`patent-oa-chain`, `patent-invalidation-chain`, `patent-reexamination-chain`,
 # `patent-infringement-chain`) replay from that. `writing-patterns` is left out
 # because its drafting section changes the system prompt; the
-# `patent-writing-patterns` scenario pins that section.
+# `patent-writing-patterns` scenario pins that section. `patent-filing` is left
+# out because this scenario files nothing, and its two tool schemas are pinned
+# by the tool-catalog gate instead of by a recorded request.
 
 - insert:
     - id: patent-tools

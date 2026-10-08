@@ -25,6 +25,7 @@ Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh
 | [`patent-teams/`](patent-teams/README.md) | Durable multi-agent teams: captain-led members, dependency-aware tasks, mailbox messaging, shared-task scheduler. | `patentTeams` |
 | [`patent-rule/`](patent-rule/README.md) | Rule engine, compliance assets, output gates on `tools/post-execute`. | (policy plugin) |
 | [`patent-document/`](patent-document/README.md) | Patent document rendering: templates, brand injection, PDF. | (registers on `ctx.tools`) |
+| [`patent-filing/`](patent-filing/README.md) | CNIPA filing assembly: template-derived formatting, structured-content DOCX build, format and content assertions. | (registers on `ctx.tools`) |
 | [`patent-deadline/`](patent-deadline/README.md) | Patent deadlines: period arithmetic, delivery dates, holiday roll-forward. | (registers on `ctx.tools`) |
 | [`patent-index-asset/`](patent-index-asset/README.md) | Shipped-index asset format shared by the law and fee indexes: YAML mapping step, strict field readers, recorded source fields. | (pure library) |
 | [`patent-law/`](patent-law/README.md) | Law index and citation checking: reference parsing, the source recorded per entry, the law_verify tool. | (registers on `ctx.tools`) |

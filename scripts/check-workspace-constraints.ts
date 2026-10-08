@@ -245,6 +245,9 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // package-root asset resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-deadline': ['assets'],
   // The writing-pattern corpus (10 seed YAML files) ships as package-root
+  // The filing template (the formatting source of truth) and the Python engine
+  // scripts ship as package-root assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-filing': ['assets'],
   // assets resolved via import.meta.url.
   '@deepseek-ai/dsh-writing-patterns': ['assets'],
   // The law index (3 per-document YAML files) ships as package-root assets

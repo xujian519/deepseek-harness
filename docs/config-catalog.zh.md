@@ -2772,6 +2772,35 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-fees -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-filing -->
+<a id="deepseek-aidsh-patent-filing"></a>
+
+## `@deepseek-ai/dsh-patent-filing`
+
+- `inject`: `tools` · `subprocess`
+- `source`: [`packages/patent/patent-filing/src/index.ts:38`](../packages/patent/patent-filing/src/index.ts)
+
+```ts config-catalog
+/** 申请文件出件插件的部署配置。 */
+export interface Config {
+  /** Python 解释器绝对路径；缺省按 DSH_PYTHON_PATH、随包运行时、PATH 顺序探测。 */
+  pythonPath?: string
+  /** Chrome 可执行文件绝对路径；`.svg` 附图栅格化用，缺省按 DSH_CHROME_PATH/CHROME_PATH/常见安装位置探测。 */
+  chromePath?: string
+  /** 体例真相源（模板 .docx）的绝对路径；缺省用随包模板。 */
+  templatePath?: string
+  /** 结构与断言定义（spec JSON）的绝对路径；缺省用随包 spec。换模板时必须一并核对。 */
+  specPath?: string
+  /** 缺省输出目录（相对进程工作目录）；既未给 outputDir 也未给 caseId 时使用。 */
+  outputRoot?: string
+  /** `.svg` 附图栅格化倍率。 */
+  figureScale?: number
+  /** 单次引擎调用超时（毫秒）。 */
+  timeoutMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-filing -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-knowledge -->
 <a id="deepseek-aidsh-patent-knowledge"></a>
 
