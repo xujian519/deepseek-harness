@@ -378,6 +378,12 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 - [x] `patent-team-composition` 七场景包均纳入文档专员，质量门禁后、收口前插入「正式文档输出」任务；质量门禁、目录规范、preset README（双语）同步。
 - [x] 手工验证待办：真实案件跑一次含文档专员的团队流程（示例见 render-patent-document.spec 模板渲染单测已覆盖资产加载）。
 
+### 追加落地记录（2026-10-08）
+
+- [x] 提交格式成文路径：新增 `@deepseek-ai/dsh-patent-filing`（`build_patent_filing` / `verify_patent_filing`），按随包模板的体例把结构化内容成文为 CNIPA 申请文件 docx，并在交付前对成品跑体例与内容断言。
+- [x] 表格式模板两份：`right-evaluation-report`（专利权评价报告）与 `search-report-form`（专利检索报告），各出「空白模板 + 已填示例」，填位随内容伸缩；`render_patent_document` 模板扩至 11 个。
+- [x] 交付前置门禁覆盖成文路径：`build_patent_filing` 与 `render_patent_document` 同要求 `rule_check` + `law_verify`；`search-report-form` 与 `search-report` 同列收口模板，`right-evaluation-report` 的转制用法无分析可收口，不列入。
+
 ---
 
 ## 自检记录（writing-plans Self-Review）

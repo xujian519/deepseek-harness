@@ -46,9 +46,11 @@ agent 读取对应模板目录下的 `SKILL.md`，按其中「输入要求」补
 |---|---|
 | 评估授权前景 | `patentability-opinion` |
 | 出具检索报告 | `search-report` |
+| 出具表格式检索报告 | `search-report-form` |
 | 答复审查意见 | `oa-response` |
 | 撰写申请文件 | `claims-spec` |
 | 发起/分析无效 | `invalidation-opinion` |
+| 转制 / 模拟专利权评价报告 | `right-evaluation-report` |
 
 ### 2. 品牌覆盖
 
@@ -69,6 +71,10 @@ agent 读取对应模板目录下的 `SKILL.md`，按其中「输入要求」补
 | `oa-response` | ✅ 已落地 | 审查意见答复 / 意见陈述书 |
 | `claims-spec` | ✅ 已落地 | 权利要求书 / 说明书（含内部审稿版与正式提交版切换说明） |
 | `invalidation-opinion` | ✅ 已落地 | 无效请求 / 无效宣告意见 |
+| `search-report-form` | ✅ 已落地 | 表格式专利检索报告（复刻《表格 220701》检索记录版式） |
+| `right-evaluation-report` | ✅ 已落地 | 实用新型/外观设计专利权评价报告（复刻《表格 220701》版式） |
+
+`search-report-form` 与 `right-evaluation-report` 是「表格式（复刻官方/检索记录版式）」家族：刻意使用黑白表格线、不套用 `tokens.css` 品牌色，以贴近官方原件外观；与品牌风的同族模板（如 `search-report`）是两种版式，按交付场合选用。
 
 ## 相关
 

@@ -14,6 +14,8 @@ export type DocumentTemplateId =
   | 're-examination-request'
   | 'infringement-opinion'
   | 'litigation-pleading'
+  | 'right-evaluation-report'
+  | 'search-report-form'
 
 /** 渲染输出格式。 */
 export type RenderFormat = 'html' | 'pdf' | 'both'

@@ -50,7 +50,7 @@ kind: "package-reference"
 
 台账按调用方（agent）归属，一个案件的门禁调用不会顶替另一个案件的交付。没有 agent 的调用无法归属到任何会话，一律按未满足处理：无法归属的交付件同样拿不出本会话的记录。随包默认不声明任何条目——一次交付欠哪些闸门调用，是本部署的交付政策，不是本包的政策。
 
-生产消费者是 `render_patent_document`：`patent` 预置要求任何交付渲染前已跑过 `rule_check` 与 `law_verify`，凡按 manifest 收口的模板另要求 `patent_workflow_run`——分析类模板，以及 `claims-spec`（其 `patent_disclosure_v1` 的末段就是权利要求草稿）。随包模板中只有 `rectification-response` 不在第二条要求内：它无 manifest 入口，交付技能以逐项替换页核验记录替代该次运行。
+生产消费者是 `render_patent_document` 与 `build_patent_filing`：`patent` 预置要求任何交付渲染或提交格式成文前已跑过 `rule_check` 与 `law_verify`，凡按 manifest 收口的模板另要求 `patent_workflow_run`——分析类模板，以及 `claims-spec`（其 `patent_disclosure_v1` 的末段就是权利要求草稿）。随包模板中有两个不在第二条要求内：`rectification-response` 无 manifest 入口，交付技能以逐项替换页核验记录替代该次运行；`right-evaluation-report` 作转制用时只是把行政机关已出具的报告排成模板版式，没有分析可收口。
 
 <a id="evi-011-evidence-guards"></a>
 ## EVI-011 证据守卫

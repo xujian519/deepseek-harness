@@ -235,17 +235,23 @@ describe('patent preset composition', () => {
     const rows = await patentRows()
     const row = rows.find(entry => entry.id === 'patent-rule')
     const gate = (row?.config as { deliveryGate?: DeliveryGateDeclaration[] } | undefined)?.deliveryGate
-    expect(gate).toHaveLength(2)
+    expect(gate).toHaveLength(3)
 
-    const [compliance, closure] = gate ?? []
+    const [compliance, filing, closure] = gate ?? []
     expect(compliance?.tool).toBe('render_patent_document')
     expect(compliance?.requires).toEqual(['rule_check', 'law_verify'])
+    // The DOCX that goes to the office is a deliverable too, and it carries no argument
+    // to narrow a gate on, so its entry applies to the tool unconditionally.
+    expect(filing?.tool).toBe('build_patent_filing')
+    expect(filing?.requires).toEqual(['rule_check', 'law_verify'])
+    expect(filing?.whenArgs).toBeUndefined()
     expect(closure?.tool).toBe('render_patent_document')
     expect(closure?.requires).toEqual(['patent_workflow_run'])
 
-    // Every required tool comes from a build package this preset enables:
-    // rule_check and patent_workflow_run from patent-tools, law_verify from patent-law.
-    for (const id of ['patent-tools', 'patent-law']) {
+    // Every gated tool, and every tool a gate requires, comes from a build package this
+    // preset enables: rule_check and patent_workflow_run from patent-tools, law_verify
+    // from patent-law, and the two gated tools from patent-document and patent-filing.
+    for (const id of ['patent-tools', 'patent-law', 'patent-document', 'patent-filing']) {
       const mounted = rows.find(entry => entry.id === id)
       expect(mounted?.name).toBe(`@deepseek-ai/dsh-${id}`)
       expect(mounted?.disabled).toBeUndefined()
@@ -253,7 +259,8 @@ describe('patent preset composition', () => {
 
     // Every gated template is one the renderer ships. The closure entry covers the
     // analysis templates plus claims-spec, whose disclosure manifest ends in a claims
-    // draft; rectification-response has no manifest entry and stays out.
+    // draft; rectification-response has no manifest entry and stays out, and so does
+    // right-evaluation-report, whose transcription use has no analysis to close.
     const catalog = JSON.parse(readFileSync(
       join(REPO_ROOT, 'packages/patent/patent-document/assets/templates/patent/manifest.json'),
       'utf8',
@@ -263,7 +270,9 @@ describe('patent preset composition', () => {
     expect(closureTemplates.length).toBeGreaterThan(0)
     expect(closureTemplates.filter(template => !shippedTemplates.includes(template))).toEqual([])
     expect(closureTemplates).toContain('claims-spec')
+    expect(closureTemplates).toContain('search-report-form')
     expect(closureTemplates).not.toContain('rectification-response')
+    expect(closureTemplates).not.toContain('right-evaluation-report')
   })
 
   it('sends the model to the cnlaw declaration instead of a literal endpoint', async () => {

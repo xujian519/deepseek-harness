@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：九个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具，以及 verify_deliverable 交付件一致性核对。"
+description: "函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：十一个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具，以及 verify_deliverable 交付件一致性核对。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：九个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具，以及 verify_deliverable 交付件一致性核对。
+函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：十一个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具，以及 verify_deliverable 交付件一致性核对。
 
 ## 目录
 
@@ -23,7 +23,7 @@ kind: "package-reference"
 <a id="render_patent_document-tool"></a>
 ## render_patent_document 工具
 
-render_patent_document 将九个随包模板之一（patentability-opinion、search-report、oa-response、claims-spec、invalidation-opinion、rectification-response、re-examination-request、infringement-opinion 或 litigation-pleading）渲染为 HTML 文件，默认同时生成 PDF。选定一个模板 id 与 outputName，再以 id -> innerHTML 记录的形式传入 sections 填充模板槽位。结果以模型可读文本返回写出的 htmlPath、pdfPath、可能的 pdfError 与 warnings；当 PDF 失败时，HTML 仍然存在。
+render_patent_document 将十一个随包模板之一（patentability-opinion、search-report、oa-response、claims-spec、invalidation-opinion、rectification-response、re-examination-request、infringement-opinion、litigation-pleading、right-evaluation-report 或 search-report-form）渲染为 HTML 文件，默认同时生成 PDF。选定一个模板 id 与 outputName，再以 id -> innerHTML 记录的形式传入 sections 填充模板槽位。结果以模型可读文本返回写出的 htmlPath、pdfPath、可能的 pdfError 与 warnings；当 PDF 失败时，HTML 仍然存在。
 
 渲染器还会检查装配后的文书，把每处发现写进 `warnings`：`一、` 式编号出现在章节级标题之外的层级（章节层级取文档中第一个带编号的标题所在层级，随包模板中带该编号的都用 `h2`，因此带编号的 `h3` 或 `h4` 会与骨架冲突）、章节编号重复、章节编号未按递增顺序、以及标题使用内部工作记录用语。传入的节会替换骨架的**整个**内层内容（含章节标题本身），因此需要保留章节标题的调用方仍须在内容里自行给出。渲染器所检查的规则与用语表在 `document/documentCompliance.ts`；`scripts/verify-patent-document-output.ts` 对产出的文件或随包模板样例离线施加同样的检查。检查只报告不拒绝，因此带发现的文书仍会交到调用方。
 
@@ -58,7 +58,7 @@ Schemastery 配置，所有字段均可选。
 
 #### 模型看到的内容
 
-一个名为 `render_patent_document` 的已注册工具，含必需的 `template` 枚举（九个 id：`patentability-opinion`、`search-report`、`oa-response`、`claims-spec`、`invalidation-opinion`、`rectification-response`、`re-examination-request`、`infringement-opinion`、`litigation-pleading`）、必需的 `outputName`，以及可选的 `caseId`、`outputDir`、`format`、`sections`、`brand` 与 `brandPath`。结果以 Markdown 文本渲染，列出写出的 `htmlPath`、`pdfPath`、可能的 `pdfError` 与 `warnings`。
+一个名为 `render_patent_document` 的已注册工具，含必需的 `template` 枚举（十一个 id：`patentability-opinion`、`search-report`、`oa-response`、`claims-spec`、`invalidation-opinion`、`rectification-response`、`re-examination-request`、`infringement-opinion`、`litigation-pleading`、`right-evaluation-report`、`search-report-form`）、必需的 `outputName`，以及可选的 `caseId`、`outputDir`、`format`、`sections`、`brand` 与 `brandPath`。结果以 Markdown 文本渲染，列出写出的 `htmlPath`、`pdfPath`、可能的 `pdfError` 与 `warnings`。
 
 #### Token 影响
 

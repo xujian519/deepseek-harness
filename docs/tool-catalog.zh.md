@@ -6050,7 +6050,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
 
 ### `render_patent_document`
 
-从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见或诉讼文书）渲染为磁盘文件。选择模板 id 与 outputName；以 id → innerHTML 记录的形式传入 sections 填充模板插槽。写出 HTML 文件，默认还通过无头 Chrome 生成 PDF（format：html、pdf 或 both，默认 both）。返回写入的文件路径及任何告警或 PDF 失败原因（PDF 失败时 HTML 仍存在）。
+从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见、诉讼文书、专利权评价报告或表格式检索报告）渲染为磁盘文件。选择模板 id 与 outputName；以 id → innerHTML 记录的形式传入 sections 填充模板插槽。写出 HTML 文件，默认还通过无头 Chrome 生成 PDF（format：html、pdf 或 both，默认 both）。返回写入的文件路径及任何告警或 PDF 失败原因（PDF 失败时 HTML 仍存在）。
 
 ```json
 {
@@ -6058,7 +6058,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
   "properties": {
     "template": {
       "type": "string",
-      "description": "Template id to render (one of the nine shipped patent templates).",
+      "description": "Template id to render (one of the eleven shipped patent templates).",
       "enum": [
         "patentability-opinion",
         "search-report",
@@ -6068,7 +6068,9 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
         "rectification-response",
         "re-examination-request",
         "infringement-opinion",
-        "litigation-pleading"
+        "litigation-pleading",
+        "right-evaluation-report",
+        "search-report-form"
       ]
     },
     "outputName": {

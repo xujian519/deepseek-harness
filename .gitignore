@@ -75,6 +75,7 @@ dist/
 
 # Local figure/architecture artifacts and agent-skill workspaces (not source)
 .demo-figures/
+.eval-crops/
 .video_agent/
 .zcode/
 skills-lock.json

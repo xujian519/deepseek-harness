@@ -238,18 +238,18 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // The Sati rule packs (base/domains/patent YAML + pack.schema.json) ship as
   // package-root assets resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-rule': ['assets'],
-  // The Sati patent document templates (5 template dirs + manifest + tokens.css)
+  // The Sati patent document templates (11 template dirs + manifest + tokens.css)
   // ship as package-root assets resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-document': ['assets'],
   // The State Council holiday arrangements (cn-holidays.yaml) ship as a
   // package-root asset resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-deadline': ['assets'],
   // The writing-pattern corpus (10 seed YAML files) ships as package-root
+  // assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-writing-patterns': ['assets'],
   // The filing template (the formatting source of truth) and the Python engine
   // scripts ship as package-root assets resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-filing': ['assets'],
-  // assets resolved via import.meta.url.
-  '@deepseek-ai/dsh-writing-patterns': ['assets'],
   // The law index (3 per-document YAML files) ships as package-root assets
   // resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-law': ['assets'],
