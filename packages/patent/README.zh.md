@@ -25,6 +25,7 @@ patent 组按 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植�
 | [`patent-teams/`](patent-teams/README.zh.md) | 持久多智能体团队：队长领导成员、依赖感知任务、邮箱消息、共享任务调度器。 | `patentTeams` |
 | [`patent-rule/`](patent-rule/README.zh.md) | 规则引擎、合规资产、`tools/post-execute` 输出门禁。 | （策略插件） |
 | [`patent-document/`](patent-document/README.zh.md) | 专利文书渲染：模板、品牌注入、PDF。 | （注册于 `ctx.tools`） |
+| [`patent-filing/`](patent-filing/README.zh.md) | 申请文件出件：模板反解体例、结构化内容成文 DOCX、体例与内容断言。 | （注册于 `ctx.tools`） |
 | [`patent-deadline/`](patent-deadline/README.zh.md) | 专利期限：期限计算、送达日、届满日顺延。 | （注册于 `ctx.tools`） |
 | [`patent-index-asset/`](patent-index-asset/README.zh.md) | 法条索引与费用索引共用的随包索引资产格式：YAML 映射读取、严格字段读取器、来源记录字段。 | （纯库） |
 | [`patent-law/`](patent-law/README.zh.md) | 法条索引与引用核验：引用解析、逐条记录来源与核验日期、law_verify 工具。 | （注册于 `ctx.tools`） |

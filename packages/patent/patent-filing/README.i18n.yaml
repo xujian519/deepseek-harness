@@ -1,0 +1,61 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/patent/patent-filing/README.md
+/:
+  en: d999100004c6f1d8
+  zh: 61ccc460a6b7bd45
+/deepseek-ai-dsh-patent-filing:
+  en: 3eb3f4a6ca4ee97b
+  zh: 6ac23f3b37afe04b
+/deepseek-ai-dsh-patent-filing/summary:
+  en: 3e939a75b46d6376
+  zh: 2faa8105e0d014a9
+/deepseek-ai-dsh-patent-filing/table-of-contents:
+  en: 8c9a2dc0c0577bd8
+  zh: 99926cb02f3b6746
+/deepseek-ai-dsh-patent-filing/build-patent-filing-tool:
+  en: 41962a1b248572f0
+  zh: 8d680b48b7cf6f3d
+/deepseek-ai-dsh-patent-filing/verify-patent-filing-tool:
+  en: 8ef252b4f9e0d3e1
+  zh: b50965e47b3f7c56
+/deepseek-ai-dsh-patent-filing/filing-assets:
+  en: d05a4113184faf90
+  zh: a56a4a53c9f38773
+/deepseek-ai-dsh-patent-filing/configuration:
+  en: 7896dc70d3cd8952
+  zh: 6338b2af9f9064ac
+/deepseek-ai-dsh-patent-filing/model-experience:
+  en: 215e7ba838619b7b
+  zh: a2b031367304cae4
+/deepseek-ai-dsh-patent-filing/model-experience/build-patent-filing-tool:
+  en: bc7451dbebc0dcfc
+  zh: b3d11395f9cefd24
+/deepseek-ai-dsh-patent-filing/model-experience/build-patent-filing-tool/what-the-model-sees:
+  en: 6b168d4403f80d99
+  zh: dd6db338a5d659c6
+/deepseek-ai-dsh-patent-filing/model-experience/build-patent-filing-tool/token-effect:
+  en: a8598a9995dd4aa5
+  zh: 7e87a11b5af021e5
+/deepseek-ai-dsh-patent-filing/model-experience/build-patent-filing-tool/kv-cache-effect:
+  en: 037822c61c0c57f5
+  zh: 4e72d4b06519ad63
+/deepseek-ai-dsh-patent-filing/model-experience/verify-patent-filing-tool:
+  en: 27cfffa5bafde37d
+  zh: 289accf85a949bf0
+/deepseek-ai-dsh-patent-filing/model-experience/verify-patent-filing-tool/what-the-model-sees:
+  en: b653bc2f85f86f2e
+  zh: dcbb6bab2aefcbc9
+/deepseek-ai-dsh-patent-filing/model-experience/verify-patent-filing-tool/token-effect:
+  en: ff09e46a3b6d3c79
+  zh: 16cea13314449e73
+/deepseek-ai-dsh-patent-filing/model-experience/verify-patent-filing-tool/kv-cache-effect:
+  en: 037822c61c0c57f5
+  zh: 791b92ce2892492a
+/deepseek-ai-dsh-patent-filing/known-limitations-and-deferred-work:
+  en: 8adf3245bc90908f
+  zh: d5e3b875f100d7ec
+/deepseek-ai-dsh-patent-filing/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

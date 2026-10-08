@@ -83,6 +83,7 @@ import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
 import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
 import * as PatentDeadline from '@deepseek-ai/dsh-patent-deadline'
 import * as PatentFees from '@deepseek-ai/dsh-patent-fees'
+import * as PatentFiling from '@deepseek-ai/dsh-patent-filing'
 import * as PatentLaw from '@deepseek-ai/dsh-patent-law'
 import * as DocTemplate from '@deepseek-ai/dsh-doc-template'
 import * as WritingPatterns from '@deepseek-ai/dsh-writing-patterns'
@@ -727,6 +728,23 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-filing',
+    dir: 'patent-filing',
+    source: 'packages/patent/patent-filing/src/index.ts',
+    requires: ['ctx.tools', 'ctx.subprocess'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin registers build_patent_filing and verify_patent_filing once the
+      // subprocess seam is mounted. Its apply resolves a Python interpreter because
+      // a real deployment needs one; here the executable only has to exist, so this
+      // process's own binary stands in and the boot stays offline and host-independent.
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(PatentFiling, { pythonPath: process.execPath })
+    },
+    note:
+      'build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, rewriting source paragraph numbers in order; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, claim count, continuous numbering, and surviving internal marks.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-deadline',

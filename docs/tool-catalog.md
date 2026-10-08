@@ -49,6 +49,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
 | `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`, `verify_deliverable` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
+| `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`, `verify_patent_filing` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, rewriting source paragraph numbers in order; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, claim count, continuous numbering, and surviving internal marks. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure. |
 | `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`, `tool/result` | - | law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted. |
@@ -6196,6 +6197,134 @@ Source: [`packages/patent/patent-document/src/index.ts`](../packages/patent/pate
 Source: [`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
 
 render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.
+
+<a id="deepseek-aidsh-patent-filing"></a>
+
+## `@deepseek-ai/dsh-patent-filing`
+
+### `build_patent_filing`
+
+把结构化内容按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书段落编号由本工具按 spec 顺序写入，源稿已带 `[NNNN]` 时先剥后写；源稿编号与本工具的序号不一致会报错而不是静默覆盖。 附图按图序传入，第 1 张进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "object",
+      "description": "申请文件的结构化内容",
+      "additionalProperties": false,
+      "properties": {
+        "abstract": {
+          "type": "array",
+          "description": "说明书摘要正文段（不含「摘要附图」标注——摘要附图是独立的一节，由 figures[0] 承载）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "claims": {
+          "type": "array",
+          "description": "权利要求项，按项序排列（含项号，如「1. 一种……」）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "specification": {
+          "type": "array",
+          "description": "说明书主体，按文档顺序：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "h3/h4 为法定部分标题，p 为正文段，table 为表格",
+                "enum": [
+                  "h3",
+                  "h4",
+                  "p",
+                  "table"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "description": "h3/h4/p 的文本"
+              },
+              "rows": {
+                "type": "array",
+                "description": "table 的行列；首行为表头，各行必须等宽",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "figures": {
+          "type": "array",
+          "description": "附图路径，按图序排列（第 1 张即摘要附图）；支持 .svg 源件与 .png/.jpg/.jpeg 位图",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "abstract",
+        "claims",
+        "specification",
+        "figures"
+      ]
+    },
+    "outputName": {
+      "type": "string",
+      "description": "输出文件名主干（不含扩展名），如「②件_权利要求书与说明书」；不得含路径分隔符、`..` 或首尾空白"
+    },
+    "caseId": {
+      "type": "string",
+      "description": "可选案卷号；给出后成品落在 data/cases/<案卷号>/outputs/ 而不是缺省目录"
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "可选显式输出目录（优先于案卷号与缺省目录）"
+    }
+  },
+  "required": [
+    "content",
+    "outputName"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-filing/src/index.ts`](../packages/patent/patent-filing/src/index.ts)
+
+### `verify_patent_filing`
+
+对一件申请文件 .docx 跑体例与内容断言：分节数、各节页眉、行距、首行缩进、字号、是否出现非黑色文字（Word 内置标题样式会带蓝色）、说明书五部分是否齐备、每一节是否都承载了内容（空节意味着内容没落进那一节，而分节数、页眉与编号连续性都不会报）、权利要求项数、`[NNNN]` 段落编号是否从 1 起连续、各节实际承载的段落与图片数、以及内部复核痕迹是否清除。 同时核对成品体例与模板反解体例是否一致——模板漂移会报错。 这些是模型看不出来的静默缺陷，交付前必须跑；断言不通过时 `errors` 逐条给出实测值。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "docx": {
+      "type": "string",
+      "description": "待验收的申请文件 .docx 路径"
+    }
+  },
+  "required": [
+    "docx"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-filing/src/index.ts`](../packages/patent/patent-filing/src/index.ts)
+
+build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, rewriting source paragraph numbers in order; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, claim count, continuous numbering, and surviving internal marks.
 
 <a id="deepseek-aidsh-patent-deadline"></a>
 
