@@ -3,7 +3,7 @@
   "id": "patent",
   "name": "Sati Patent Legal Documents",
   "category": "Legal Document / Patent",
-  "description": "Formal Chinese patent-attorney deliverables: patentability opinions, search reports, OA responses, claim charts, invalidation opinions, rectification responses, re-examination requests, infringement opinions, and litigation pleadings.",
+  "description": "Formal Chinese patent-attorney deliverables: patentability opinions, search reports, OA responses, claim charts, invalidation opinions, rectification responses, re-examination requests, infringement opinions, litigation pleadings, right-evaluation reports, and tabular search report forms.",
   "source": {
     "type": "bundled",
     "origin": "Sati workspace template"
@@ -21,7 +21,9 @@
     "rectification-response",
     "re-examination-request",
     "infringement-opinion",
-    "litigation-pleading"
+    "litigation-pleading",
+    "right-evaluation-report",
+    "search-report-form"
   ],
   "renders": {
     "default": "both",

@@ -82,7 +82,7 @@
                   · 派工照模板、不复述纪律：任务描述按 `patent-team-composition` 的「派工纪律」写（目标／输入路径／产出路径／验收标准／禁止事项）。成员 persona 已内置作业纪律与角色契约，把纪律与契约整段抄进每个任务只会重复占用双方上下文。
                   · 派工先核依赖，被阻塞的任务不催办：建任务时用 `patent_teams_create_task` 的 dependencies 把依赖拓扑**写进任务本身**（不要只在描述里用文字写「依赖 t10/t11」）；依赖未全部 completed 的任务成员 claim 不了（工具会报 blocked），因此**不要在依赖未解除时下发派工消息或催办**——那只会换来「未 claim、待命」的空转回执。依赖完成后先用 `patent_teams_status` 确认状态，再派工。
                   · 团队适用门槛：只有「多角色互证能实质降低风险」的案子才组队（全流程撰写、OA 答复、无效／复审、侵权比对）。任务数少、单一技能通路（单纯的形式复核、单幅附图重绘）自己做或 fork 一个子代理即可，不要为一个线性任务拉起 6–7 人团队：本所一次 7 人团队 + 15 任务 + 13 条裁决 + 51 条消息的产出仍被用户否。
-                - 正式文档交付：正式交付文书（专利性意见/检索报告/OA 答复/权利要求书+说明书/补正书/复审请求书/无效意见/侵权比对意见/诉讼文书）按 preset 技能 patent-document-polish 走场景→模板映射与 render_patent_document 渲染（或 docx，officecli 可用时）；校正（术语/法条引用/数字/编号/称谓）与美化（模板/品牌/A4），文档专员不改实体结论。
+                - 正式文档交付：正式交付文书（专利性意见/检索报告/OA 答复/权利要求书+说明书/补正书/复审请求书/无效意见/侵权比对意见/诉讼文书）按 preset 技能 patent-document-polish 走场景→模板映射与 render_patent_document 渲染；需要提交格式的申请文件 docx 用 build_patent_filing 成文（见「成品交付约定」）；校正（术语/法条引用/数字/编号/称谓）与美化（模板/品牌/A4），文档专员不改实体结论。
                 - 可选增强：若用户 `~/.agents/skills/` 提供 `patent-legal/`（`google-patents-search` / `patent-drafting-general` 等，按分类目录组织）与 `officecli` / `document-processing`，可叠加使用，但不作为硬依赖。
 
                 ## 个人工作台协作
@@ -337,17 +337,24 @@
                   # 渲染前跑过 rule_check，law_verify 一次未跑。门禁按会话归属记账，只认本
                   # 会话内成功返回的调用；未满足即拒绝该次调用，使缺闸门证据的件不落盘。
                   deliveryGate:
-                    # 所有交付渲染：合规规则库逐条 + 法条引用形式与索引收录，各一次。
+                    # 所有交付渲染与提交格式成文：合规规则库逐条 + 法条引用形式与索引收录，各一次。
+                    # build_patent_filing 写出的正是交给 CNIPA 的申请文件 docx，与渲染件同属交付物；
+                    # 它没有可据以收窄的入参（无 template），因此这一条按工具无条件生效。
                     - tool: render_patent_document
+                      requires: [rule_check, law_verify]
+                    - tool: build_patent_filing
                       requires: [rule_check, law_verify]
                     # 分析类与撰写类产物另须收口；补正（rectification-response）
                     # 无 manifest 入口，以替换页逐项核验记录替代，故按模板收窄。
+                    # right-evaluation-report 是行政机关文书：转制件只把既有报告排成模板版式，
+                    # 没有分析可收口，故不列入；其模拟件的「模拟件 · 非行政机关出具」标注按 persona 执行。
                     - tool: render_patent_document
                       requires: [patent_workflow_run]
                       whenArgs:
                         template:
                           - patentability-opinion
                           - search-report
+                          - search-report-form
                           - oa-response
                           - invalidation-opinion
                           - re-examination-request

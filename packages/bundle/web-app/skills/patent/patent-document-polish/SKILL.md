@@ -15,11 +15,13 @@ description: 专利正式文档输出规范（文档专员/单会话通用）：
 |---|---|---|
 | 立案 / 可专利性初判 | `patentability-opinion` | 可专利性分析意见书 |
 | 检索 | `search-report` | 检索报告 |
+| 检索（表格式记录） | `search-report-form` | 表格式检索报告（复刻《表格 220701》检索记录版式） |
 | 撰写 | `claims-spec` | 权利要求书 + 说明书 + 摘要 |
 | 答复审查意见 | `oa-response` | 意见陈述书 + 修改对照 |
 | 补正 | `rectification-response` | 补正书（对补正通知书答复 + 替换页清单） |
 | 复审 | `re-examination-request` | 复审请求书 |
 | 无效 | `invalidation-opinion` | 无效宣告请求书 / 无效意见 |
+| 评价报告转制 / 模拟 | `right-evaluation-report` | 专利权评价报告（转制收到的报告，或抬头显著标注的模拟件） |
 | 侵权比对 | `infringement-opinion` | 侵权比对意见书 |
 | 诉讼文书 | `litigation-pleading` | 起诉状 / 答辩状 |
 
