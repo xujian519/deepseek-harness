@@ -47,7 +47,7 @@ Status: implemented
 ## Testing
 
 - `pnpm exec vitest run packages/session-query/session-query/tests` — 101 通过。
-- `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 通过，覆盖面向模型的工具、session-reference 上下文插件与 SQLite 后端。
+- `pnpm exec vitest run packages/experimental/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 通过，覆盖面向模型的工具、session-reference 上下文插件与 SQLite 后端。
 - 新增用例 `observes one stored session per cold read instead of listing the corpus`：断言冷点读执行零次列举、一次 `stat`；信号到达该观察；不存在的 id 仍报 `SESSION_QUERY_SESSION_NOT_FOUND`。
 - 新增用例 `refuses a stored log this build cannot read instead of reporting it absent`：复现后端自身的不对称（列举略过结构上外来的 header、单 id 观察拒绝它），断言该拒绝以 `SESSION_QUERY_PERSISTENCE_FAILED` 为码、并以该拒绝为 cause 到达调用方，且全库列举仍把该会话报告为不存在。
 - 负向控制：把列举预检放回 `borrow`，该用例（连同套件中另外十个用例）以 `expected [AbortSignal] to deeply equal []` 失败；保留预检、但其后仍执行该 id 的观察，则该用例以期望 `{ code: 'SESSION_QUERY_PERSISTENCE_FAILED' }`、实收 `SESSION_QUERY_SESSION_NOT_FOUND` 失败。

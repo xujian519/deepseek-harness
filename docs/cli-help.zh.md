@@ -15,6 +15,7 @@
 - [`dsh plugin`](#dsh-plugin)
 - [`dsh acp`](#dsh-acp)
 - [`dsh headless`](#dsh-headless)
+- [`dsh headless browsers`](#dsh-headless-browsers)
 - [`dsh sdk`](#dsh-sdk)
 - [`dsh sdk-minimal`](#dsh-sdk-minimal)
 - [`dsh web`](#dsh-web)
@@ -105,7 +106,7 @@ Example:
 调用方式: `dsh headless --help`, `dsh --profile headless --help`
 
 ```text
-Usage: dsh --profile headless [options] [task...]
+Usage: dsh --profile headless [options] [command] [task...]
 
 Answer one task and exit; the answer goes to stdout and diagnostics to stderr.
 
@@ -120,12 +121,31 @@ Options:
                      an error
   -h, --help         show this help
 
+Commands:
+  browsers           Probe local browser automation backends (ego lite →
+                     BrowserOS neo → browser-use → @playwright/mcp).
+
 Examples:
   dsh --profile headless "run the tests"          answer one task and exit
   echo "run the tests" | dsh --profile headless   read the task from stdin
   dsh --profile headless --json "run the tests"   emit machine-readable run events
   dsh --profile headless --session-id session-… "continue"   resume an existing Session
 
+```
+
+<a id="dsh-headless-browsers"></a>
+## `dsh headless browsers`
+
+调用方式: `dsh headless browsers --help`, `dsh --profile headless browsers --help`
+
+```text
+Usage: dsh --profile headless browsers [options]
+
+Probe local browser automation backends (ego lite → BrowserOS neo → browser-use
+→ @playwright/mcp).
+
+Options:
+  -h, --help  display help for command
 ```
 
 <a id="dsh-sdk"></a>

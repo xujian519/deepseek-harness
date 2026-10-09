@@ -2910,7 +2910,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-filing`
 
 - `inject`: `tools` · `subprocess`
-- `source`: [`packages/patent/patent-filing/src/index.ts:37`](../packages/patent/patent-filing/src/index.ts)
+- `source`: [`packages/patent/patent-filing/src/index.ts:38`](../packages/patent/patent-filing/src/index.ts)
 
 ```ts config-catalog
 /** 申请文件出件插件的部署配置。 */

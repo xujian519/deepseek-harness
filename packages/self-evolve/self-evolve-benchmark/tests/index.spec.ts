@@ -19,7 +19,7 @@ function nonTextBlock(): ContentBlock {
 }
 
 interface StubRun {
-  id: SessionId
+  childId: SessionId
   result: Promise<{ output: ContentBlock[]; stopReason: string }>
   dispose: ReturnType<typeof vi.fn>
 }

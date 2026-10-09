@@ -21,9 +21,9 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | `packages/client/better-sidebar/src/client/Sidebar.tsx` | 1775 | 克隆中心 | 不在 |
 | `packages/core/tools/src/index.ts` | 1913 | ToolRuntime 加五个职责 | 不在 |
 | `packages/self-evolve/self-evolve-basic/src/index.ts` | 1857 | 自审计以来持平 | 不在 |
-| `packages/subagent/subagent/src/continuation.ts` | 550 | 已从 1483 收敛 | 不在——issue 自行销案 |
+| `packages/subagent/subagent/src/manager.ts` | 1475 | 上游的托管 activation 重写替换了这个 fork 模块 | 不在——issue 自行销案 |
 
-五个条目在本 note 之外，各有一条明写的理由，而不是被略过。`continuation.ts` 已收敛，且 issue 自身建议销案。`better-sidebar` 的 `state.ts` 与 `Sidebar.tsx` 被 issue 点为克隆中心：它们的正解是去重，而切割两个本就互为镜像的文件，只会把一处文件内克隆变成一处跨文件克隆——那项工作属 M1 去重族，不在这里。`core/tools/src/index.ts` 与 `self-evolve-basic/src/index.ts` 已到或低于 issue 记录的行数，而本 note 自己的标准——每一刀都要由「某个测试变得可行」「某个接口变得显式」「某个方法变得可读」之一来证成——对它们尚无答案；它们留在 issue 上，而不是在没有理由的情况下进入某个批次。行数在每刀落地时实测，最近一次为 2026-09-15：即试点、会话折叠提取、fixture RPC 派发表提取、ptc 调度池提取、会话对象提取、行组件提取、analyzer 类型图提取、python 配置门禁提取、python 子进程监管器提取与 analyzer 的 Remote/RPC 分析器提取之后。
+五个条目在本 note 之外，各有一条明写的理由，而不是被略过。`continuation.ts` 已收敛，issue 自身建议销案；该文件随后随上游 v0.2.1-alpha.2 的 manager 重构删除。`better-sidebar` 的 `state.ts` 与 `Sidebar.tsx` 被 issue 点为克隆中心：它们的正解是去重，而切割两个本就互为镜像的文件，只会把一处文件内克隆变成一处跨文件克隆——那项工作属 M1 去重族，不在这里。`core/tools/src/index.ts` 与 `self-evolve-basic/src/index.ts` 已到或低于 issue 记录的行数，而本 note 自己的标准——每一刀都要由「某个测试变得可行」「某个接口变得显式」「某个方法变得可读」之一来证成——对它们尚无答案；它们留在 issue 上，而不是在没有理由的情况下进入某个批次。行数在每刀落地时实测，最近一次为 2026-09-15：即试点、会话折叠提取、fixture RPC 派发表提取、ptc 调度池提取、会话对象提取、行组件提取、analyzer 类型图提取、python 配置门禁提取、python 子进程监管器提取与 analyzer 的 Remote/RPC 分析器提取之后。
 
 对在范围的七个文件的结构调研发现：**体量并不是它们难以拆分的原因**。每一个都有肉眼可见的切口——模块级纯函数、已经抽出的辅助函数、读者能看到的段落边界。它们真正缺的，是**切口边界该归谁**这个问题的定论；而且其中几个带着明确的契约，粗暴拆分会让它们悄无声息地失效：
 

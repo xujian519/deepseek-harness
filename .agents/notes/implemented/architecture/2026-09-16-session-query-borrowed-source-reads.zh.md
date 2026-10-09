@@ -70,7 +70,7 @@ Status: implemented
 ## Testing
 
 - `pnpm exec vitest run packages/session-query/session-query/tests` — 101 通过。
-- `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 通过，覆盖面向模型的工具、消费 `readSurface` 的 session-reference 上下文插件，以及 SQLite 后端。
+- `pnpm exec vitest run packages/experimental/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 通过，覆盖面向模型的工具、消费 `readSurface` 的 session-reference 上下文插件，以及 SQLite 后端。
 - 新增用例 `copies only the returned window instead of the whole log`：用 `structuredClone` 上的 spy 断言每个端点的克隆次数——每个返回事件至多一次分离加 header，`readSession` 少于 1.5 遍分离。同时断言返回的窗口仍是分离副本，不会触动会话本身。
 - 负向控制：把被移除的全量克隆重新放回 `borrowLive`，该用例以 `expected 203 to be less than or equal to 3` 失败。
 - `packages/session-query/session-query/src/corpus.ts` 与 `src/index.ts` 在本包测试下覆盖率为 100%。

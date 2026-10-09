@@ -1238,7 +1238,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 }
 ```
 
-来源：[`packages/terminal/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
+来源：[`packages/experimental/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
 
 ### `terminal_list`
 
@@ -1251,7 +1251,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 }
 ```
 
-来源：[`packages/terminal/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
+来源：[`packages/experimental/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
 
 ### `terminal_open`
 
@@ -1280,7 +1280,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 }
 ```
 
-来源：[`packages/terminal/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
+来源：[`packages/experimental/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
 
 ### `terminal_read`
 
@@ -1309,7 +1309,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 }
 ```
 
-来源：[`packages/terminal/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
+来源：[`packages/experimental/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
 
 ### `terminal_send`
 
@@ -1343,7 +1343,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 }
 ```
 
-来源：[`packages/terminal/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
+来源：[`packages/experimental/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
 
 ### `terminal_signal`
 
@@ -1376,7 +1376,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 }
 ```
 
-来源：[`packages/terminal/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
+来源：[`packages/experimental/tool-terminal/src/index.ts`](../packages/experimental/tool-terminal/src/index.ts)
 
 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。
 
@@ -1842,7 +1842,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 }
 ```
 
-来源：[`packages/workflow/tool-ralph/src/index.ts`](../packages/experimental/tool-ralph/src/index.ts)
+来源：[`packages/experimental/tool-ralph/src/index.ts`](../packages/experimental/tool-ralph/src/index.ts)
 
 固定的前台工作流会在每个 Round 启动一个全新的结构化子级；模型只能选择不可变目标和可选的 Round 上限。
 
@@ -1952,7 +1952,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 }
 ```
 
-来源：[`packages/session-query/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
+来源：[`packages/experimental/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
 
 ### `session_event_search`
 
@@ -2012,7 +2012,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 }
 ```
 
-来源：[`packages/session-query/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
+来源：[`packages/experimental/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
 
 ### `session_event_trace`
 
@@ -2037,7 +2037,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 }
 ```
 
-来源：[`packages/session-query/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
+来源：[`packages/experimental/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
 
 ### `session_search`
 
@@ -2130,7 +2130,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 }
 ```
 
-来源：[`packages/session-query/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
+来源：[`packages/experimental/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
 
 ### `session_trace`
 
@@ -2148,7 +2148,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 }
 ```
 
-来源：[`packages/session-query/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
+来源：[`packages/experimental/tool-session-query/src/index.ts`](../packages/experimental/tool-session-query/src/index.ts)
 
 这 5 个只读工具会隐藏提供方游标，并根据不可变的调用 agent 会话为每个结果授权。该包需要选择启用；需要强制截止时间或限制行内输出的组合还会挂载通用超时或 spill 策略。
 
