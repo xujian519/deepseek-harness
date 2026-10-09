@@ -1,7 +1,7 @@
 /** Installed launcher scripts preserve terminal invocation through a minimal runtime fixture. */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
@@ -21,10 +21,12 @@ function fixture() {
   })
   const application = join(root, 'Application 中文 with spaces.app')
   const platform = process.platform === 'win32' ? 'win32' : 'darwin'
+  const productName = platform === 'win32' ? 'DSH Patent' : 'DSH Patent 中文 🚀'
   const resources = join(application, ...platform === 'darwin' ? ['Contents', 'Resources'] : ['resources'])
   const cli = join(resources, 'runtime', 'cli')
-  prepareDesktopCli(cli, platform)
-  const electron = join(application, ...platform === 'darwin' ? ['Contents', 'MacOS', 'DeepSeek Harness'] : ['DeepSeek Harness.exe'])
+  prepareDesktopCli(cli, platform, productName)
+  const electron = join(application,
+    ...platform === 'darwin' ? ['Contents', 'MacOS', productName] : [`${productName}.exe`])
   mkdirSync(dirname(electron), { recursive: true })
   if (platform === 'win32') copyFileSync(process.execPath, electron)
   else symlinkSync(process.execPath, electron)
@@ -84,4 +86,18 @@ it.skipIf(process.platform === 'win32')('resolves chained command symlinks witho
   run.child.stdin.end()
   expect(await run.closed, run.stderr()).toBe(23)
   expect(JSON.parse(run.stdout())).toMatchObject({ args, cwd: f.root, nodeMode: '1' })
+})
+
+it.each([
+  ['darwin', 'dsh', 'DSH Patent 中文'],
+  ['win32', 'dsh.cmd', 'DSH Patent'],
+] as const)('substitutes the packaged name into the %s launcher', (platform, name, productName) => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), `dsh-cli-${platform}-`)))
+  onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
+  prepareDesktopCli(root, platform, productName)
+  const script = readFileSync(join(root, 'bin', name), 'utf8')
+  expect(script).toContain(platform === 'darwin'
+    ? `MacOS/${productName}"`
+    : `..\\..\\..\\..\\${productName}.exe"`)
+  expect(script).not.toContain('__DSH_DESKTOP_PRODUCT_NAME__')
 })
