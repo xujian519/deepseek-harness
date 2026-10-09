@@ -316,13 +316,10 @@ export function validateSpecDraft(input: unknown): SpecDraft {
   const abstractFigure = root.abstractFigure === undefined
     ? undefined
     : requireNonEmptyString(root.abstractFigure, 'abstractFigure', violations)
-  if (abstractFigure !== undefined && figureFiles !== undefined) {
-    const figureNumber = ABSTRACT_FIGURE_NUMBER.test(abstractFigure) ? Number(abstractFigure) : 0
-    if (figureNumber < 1 || figureNumber > figureFiles.length) {
-      violations.push(
-        `abstractFigure ${JSON.stringify(abstractFigure)} 不是有效附图号（须为 1..${figureFiles.length} 的整数，figureFiles 共 ${figureFiles.length} 项）`,
-      )
-    }
+  if (abstractFigure !== undefined && figureFiles !== undefined && !inFigureNumberRange(abstractFigure, figureFiles.length)) {
+    violations.push(
+      `abstractFigure ${JSON.stringify(abstractFigure)} 不是有效附图号（须为 1..${figureFiles.length} 的整数，figureFiles 共 ${figureFiles.length} 项）`,
+    )
   }
   const sections = validateSpecSections(root.sections, violations)
   if (figureFiles !== undefined && sections !== undefined) {
@@ -348,6 +345,13 @@ export function validateSpecDraft(input: unknown): SpecDraft {
 /** 附图说明部分的附图条目数：列表块项数之和（每项渲染成一条「图N为……」）。 */
 function figureEntryCount(blocks: readonly DraftBlock[]): number {
   return blocks.reduce((total, block) => total + (block.kind === 'list' ? block.items.length : 0), 0)
+}
+
+/** 摘要附图号是否落在 1..count：十进制正整数、无前导零（与「图 N」的渲染逐字一致）。 */
+function inFigureNumberRange(value: string, count: number): boolean {
+  if (!ABSTRACT_FIGURE_NUMBER.test(value)) return false
+  const number = Number(value)
+  return number >= 1 && number <= count
 }
 
 /** 列出选项集合：`id（label）` 逐项。 */

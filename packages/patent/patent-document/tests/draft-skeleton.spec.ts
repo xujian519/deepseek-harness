@@ -9,7 +9,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { DocumentTemplateId } from '../src/document/types.ts'
-import type { SpecDraft, TemplateDraft, TemplateDraftSection } from '@deepseek-ai/dsh-patent-core'
+import type {
+  SpecDraft,
+  TemplateDraft,
+  TemplateDraftSection,
+  TemplateFieldSlot,
+  TemplateSectionSlot,
+} from '@deepseek-ai/dsh-patent-core'
 import { renderPatentDocument } from '@deepseek-ai/dsh-patent-document'
 import { findMatchingCloseTag } from '../src/document/htmlScan.ts'
 import { readTemplateHtml } from '../src/document/templateResolver.ts'
@@ -27,9 +33,19 @@ type SlotAttribute = 'id' | 'data-slot'
 
 /** 全部走 TemplateDraft 的模板及其槽位机制。 */
 const DRAFT_TEMPLATES: ReadonlyArray<{ id: DocumentTemplateId; schema: TemplateSlotRegistry; attribute: SlotAttribute }> = [
-  ...GENERIC_TEMPLATE_IDS.map(id => ({ id: id as DocumentTemplateId, schema: GENERIC_TEMPLATE_SCHEMAS[id], attribute: 'id' as const })),
-  ...FORM_TEMPLATE_IDS.map(id => ({ id: id as DocumentTemplateId, schema: FORM_TEMPLATE_SCHEMAS[id], attribute: 'data-slot' as const })),
+  ...GENERIC_TEMPLATE_IDS.map(id => ({ id, schema: GENERIC_TEMPLATE_SCHEMAS[id], attribute: 'id' as const })),
+  ...FORM_TEMPLATE_IDS.map(id => ({ id, schema: FORM_TEMPLATE_SCHEMAS[id], attribute: 'data-slot' as const })),
 ]
+
+/** 注册表里的全部槽位：`槽位引用 → 槽位声明`。 */
+function slotEntries(schema: TemplateSlotRegistry): Array<[string, TemplateFieldSlot | TemplateSectionSlot]> {
+  return [...Object.entries(schema.fields ?? {}), ...Object.entries(schema.sections ?? {})]
+}
+
+/** 注册表里的全部槽位引用（元素 id 或 data-slot 组名）。 */
+function slotRefs(schema: TemplateSlotRegistry): string[] {
+  return slotEntries(schema).map(([ref]) => ref)
+}
 
 /** 槽位引用在 HTML 中的正则安全形式。 */
 function escapeRef(ref: string): string {
@@ -70,14 +86,18 @@ function staticHeadingTexts(html: string, refs: readonly string[], attribute: Sl
   const slots = refs
     .map(ref => slotElement(html, ref, attribute))
     .filter((element): element is SlotElement => element !== undefined)
-  const result: string[] = []
-  for (const match of html.matchAll(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/g)) {
-    const start = match.index ?? 0
-    const end = start + match[0].length
-    if (slots.some(element => element.start > start && element.start < end)) continue
-    result.push(visibleText(match[1] ?? ''))
-  }
-  return result
+  return headingTags(html)
+    .filter((match) => {
+      const start = match.index ?? 0
+      const end = start + match[0].length
+      return !slots.some(element => element.start > start && element.start < end)
+    })
+    .map(match => visibleText(match[1] ?? ''))
+}
+
+/** 文档里的全部标题标签（含标签与标题文字）。 */
+function headingTags(html: string): RegExpMatchArray[] {
+  return [...html.matchAll(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/g)]
 }
 
 /** 去掉标签与常见实体后的可见文本。 */
@@ -90,7 +110,7 @@ const FABRICATED_PLACEHOLDER = /X{3,}/
 
 /** 文档里全部标题的可见文本，按出现顺序。 */
 function headingTexts(html: string): string[] {
-  return [...html.matchAll(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/g)].map(match => visibleText(match[1] ?? ''))
+  return headingTags(html).map(match => visibleText(match[1] ?? ''))
 }
 
 /** 只填必填槽位的最小草案：可选槽位一律省略，用来暴露骨架泄漏。 */
@@ -157,7 +177,7 @@ describe('草案模板骨架契约', () => {
 
       it('可选槽位的骨架为空（签名行除外）', () => {
         const offenders: string[] = []
-        for (const [ref, slot] of [...Object.entries(schema.fields ?? {}), ...Object.entries(schema.sections ?? {})]) {
+        for (const [ref, slot] of slotEntries(schema)) {
           if (slot.required === true) continue
           const element = slotElement(html, ref, attribute)
           if (element === undefined || isSignatureLine(element)) continue
@@ -168,7 +188,7 @@ describe('草案模板骨架契约', () => {
       })
 
       it('槽位元素内不含标题', () => {
-        const offenders = [...Object.keys(schema.fields ?? {}), ...Object.keys(schema.sections ?? {})].filter((ref) => {
+        const offenders = slotRefs(schema).filter((ref) => {
           const element = slotElement(html, ref, attribute)
           return element !== undefined && /<h[1-6][\s>]/i.test(element.inner)
         })
@@ -178,8 +198,7 @@ describe('草案模板骨架契约', () => {
       it('最小草案渲染后模板标题全部保留，且无伪造编号占位', async () => {
         const output = await renderTemplate(id, { templateDraft: minimalDraft(schema) })
         const actual = headingTexts(output)
-        const refs = [...Object.keys(schema.fields ?? {}), ...Object.keys(schema.sections ?? {})]
-        expect(staticHeadingTexts(html, refs, attribute).filter(text => !actual.includes(text))).toEqual([])
+        expect(staticHeadingTexts(html, slotRefs(schema), attribute).filter(text => !actual.includes(text))).toEqual([])
         expect(visibleText(output).match(FABRICATED_PLACEHOLDER)).toBeNull()
       })
     })
@@ -188,6 +207,7 @@ describe('草案模板骨架契约', () => {
   it('claims-spec 最小草案渲染后模板标题全部保留，且无伪造编号占位', async () => {
     const output = await renderTemplate('claims-spec', { draft: minimalSpecDraft() })
     const actual = headingTexts(output)
+    // claims-spec 无槽位注册表：骨架标题全部计入比较（abstract 槽里的「摘要」小节标题由转换器重建）。
     expect(headingTexts(readTemplateHtml('claims-spec')).filter(text => !actual.includes(text))).toEqual([])
     expect(visibleText(output).match(FABRICATED_PLACEHOLDER)).toBeNull()
     // 案卷号由草案供给：抬头编号行与页脚都印草案的值。
