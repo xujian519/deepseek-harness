@@ -1,15 +1,15 @@
 /**
- * src/document/draftSchema — 表单模板的受控草案注册表。
+ * src/document/draftSchema — 受控草案注册表（表单模板 + 通用文档模板）。
  *
- * 每个表单模板的槽位集合以 `references/slots.md` 为事实源手工登记，并由
- * draft-schema-conformance 测试对照 template.html 机械提取结果逐条锁定：
- * 模板里每个 data-slot 必被注册表覆盖，注册表每个槽位必在模板中存在。
- * 纯展示元素（无 data-slot）在 staticElements 逐条记录不设槽位的理由。
+ * 表单模板（data-slot 机制）的槽位集合以 `references/slots.md` 为事实源手工登记；
+ * 通用文档模板（元素 id 机制）的槽位由 draft-schema-conformance 测试对照
+ * template.html 机械提取结果双向锁定。纯展示元素在 staticElements 逐条记录理由。
  * @module @deepseek-ai/dsh-patent-document/document/draftSchema
  */
 
 import type { TemplateDraftSchema } from '@deepseek-ai/dsh-patent-core'
 import type { DocumentTemplateId } from '../types.ts'
+import { GENERIC_TEMPLATE_IDS, isGenericTemplateId } from './generic.ts'
 
 /** 已接入受控草案的表单模板 id。 */
 export const FORM_TEMPLATE_IDS = ['right-evaluation-report', 'search-report-form'] as const
@@ -25,8 +25,8 @@ export function isFormTemplateId(id: DocumentTemplateId): id is FormTemplateId {
   return (FORM_TEMPLATE_IDS as readonly string[]).includes(id)
 }
 
-/** 表单模板的草案注册表项：槽位 schema + 纯展示元素登记。 */
-export interface FormTemplateDraftSchema extends TemplateDraftSchema {
+/** 模板草案注册表项：槽位 schema + 纯展示元素登记（表单与通用文档模板共用）。 */
+export interface TemplateSlotRegistry extends TemplateDraftSchema {
   /** 模板中无槽位的纯展示元素，逐条给出不设槽位的理由（marker 为模板中的可检索文本）。 */
   staticElements: ReadonlyArray<{ marker: string; reason: string }>
 }
@@ -50,7 +50,7 @@ function checkboxSlot(label: string, optionId: string): { kind: 'choice'; multip
 }
 
 /** right-evaluation-report 的草案注册表（槽位事实源：references/slots.md）。 */
-const RIGHT_EVALUATION_SCHEMA: FormTemplateDraftSchema = {
+const RIGHT_EVALUATION_SCHEMA: TemplateSlotRegistry = {
   fields: {
     patentNo: { required: true },
     ...YMD('applicationDate', true),
@@ -180,7 +180,7 @@ const RIGHT_EVALUATION_SCHEMA: FormTemplateDraftSchema = {
 }
 
 /** search-report-form 的草案注册表（槽位事实源：references/slots.md）。 */
-const SEARCH_REPORT_SCHEMA: FormTemplateDraftSchema = {
+const SEARCH_REPORT_SCHEMA: TemplateSlotRegistry = {
   fields: {
     reportNo: { required: true },
     ...YMD('searchDate', true),
@@ -225,7 +225,29 @@ const SEARCH_REPORT_SCHEMA: FormTemplateDraftSchema = {
 }
 
 /** 两个表单模板的注册表。 */
-export const FORM_TEMPLATE_SCHEMAS: Readonly<Record<FormTemplateId, FormTemplateDraftSchema>> = {
+export const FORM_TEMPLATE_SCHEMAS: Readonly<Record<FormTemplateId, TemplateSlotRegistry>> = {
   'right-evaluation-report': RIGHT_EVALUATION_SCHEMA,
   'search-report-form': SEARCH_REPORT_SCHEMA,
 }
+
+export {
+  GENERIC_TEMPLATE_IDS,
+  GENERIC_TEMPLATE_SCHEMAS,
+  isGenericTemplateId,
+} from './generic.ts'
+export type { GenericTemplateId } from './generic.ts'
+import type { GenericTemplateId } from './generic.ts'
+
+/** 除 claims-spec 外全部接入受控草案的模板 id（表单 + 通用文档）。 */
+export type DraftTemplateId = FormTemplateId | GenericTemplateId
+
+/** 判断模板 id 是否已接入 TemplateDraft（表单或通用文档；类型守卫）。
+ * @param id - 模板 id。
+ * @returns 该 id 是否为受控草案模板 id。
+ */
+export function isDraftTemplateId(id: DocumentTemplateId): id is DraftTemplateId {
+  return isFormTemplateId(id) || isGenericTemplateId(id)
+}
+
+/** 全部接入草案的模板 id 列表（错误消息与日志用）。 */
+export const DRAFT_TEMPLATE_IDS: readonly string[] = [...FORM_TEMPLATE_IDS, ...GENERIC_TEMPLATE_IDS]

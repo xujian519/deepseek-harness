@@ -16,8 +16,8 @@ import { applyParagraphNumbering } from './paragraphNumbering.ts'
 import { DEFAULT_PDF_TIMEOUT_MS, renderPdf } from './pdfRenderer.ts'
 import { readTemplateHtml } from './templateResolver.ts'
 import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './types.ts'
-import { FORM_TEMPLATE_IDS, isFormTemplateId } from './draftSchema/index.ts'
-import { injectTemplateDraft, renderSpecDraftSections } from './draftConverter/index.ts'
+import { isFormTemplateId } from './draftSchema/index.ts'
+import { injectTemplateDraft, renderGenericTemplateSections, renderSpecDraftSections } from './draftConverter/index.ts'
 
 /** 缺省输出目录（相对 cwd，取代 Sati 的 .sati/documents）。 */
 export const DEFAULT_OUTPUT_DIR = '.dsh/documents'
@@ -167,15 +167,16 @@ function injectSections(
 }
 
 /**
- * 解析本次渲染的槽位注入映射：claims-spec 走受控草案（转换器生成结构），
- * 其余模板暂走 sections；两者互斥，未迁移模板传 draft 明确报错。
+ * 解析本次渲染的槽位注入映射：claims-spec 走受控草案（转换器生成结构）；
+ * 其余模板暂兼容 sections（draft 接入后的混合期，硬切换在全部接入后的
+ * 发布阶段移除 sections）。draft 与 sections 互斥。
  * @param input - 渲染输入。
  * @returns 元素 id → innerHTML 映射。
  */
 function resolveSections(input: DocumentRenderInput): Record<string, string> {
   if (input.draft !== undefined) {
     if (input.template !== 'claims-spec') {
-      throw new DocumentRenderError(`模板 ${input.template} 不接受 SpecDraft 草案：draft（claims-spec 结构）仅支持 claims-spec；right-evaluation-report 与 search-report-form 请用 draft 传表单草案（fields + sections 槽位）`)
+      throw new DocumentRenderError(`模板 ${input.template} 不接受 SpecDraft 草案：draft 的 claims-spec 结构仅用于 claims-spec；其余模板用表单/通用草案结构（同样走 draft 参数）`)
     }
     if (Object.keys(input.sections).length > 0) {
       throw new DocumentRenderError('draft 与 sections 互斥：claims-spec 请只传 draft（结构化草案）')
@@ -192,23 +193,27 @@ function resolveSections(input: DocumentRenderInput): Record<string, string> {
 }
 
 /**
- * 校验表单模板草案分支的互斥约束并执行注入。
+ * 校验表单/通用模板草案分支的互斥约束并执行注入。
  * @param html - 模板 HTML（品牌注入后）。
  * @param input - 渲染输入。
- * @returns 注入表单草案后的 HTML。
+ * @returns 注入草案后的 HTML。
  */
 function resolveTemplateDraft(html: string, input: DocumentRenderInput): string {
   if (input.templateDraft === undefined) return html
   if (input.draft !== undefined) {
     throw new DocumentRenderError('draft 与 templateDraft 互斥：一次渲染只传一份草案')
   }
-  if (!isFormTemplateId(input.template)) {
-    throw new DocumentRenderError(`模板 ${input.template} 尚未接入受控草案：表单草案目前仅支持 ${FORM_TEMPLATE_IDS.join('、')}`)
+  if (input.template === 'claims-spec') {
+    throw new DocumentRenderError('claims-spec 请用 draft 参数（SpecDraft 结构）：templateDraft 仅用于其余十个模板')
   }
   if (Object.keys(input.sections).length > 0) {
-    throw new DocumentRenderError(`sections 已停用：${input.template} 请改用受控草案参数 draft（fields 文本/选项槽位 + sections 章节/数据行槽位）`)
+    throw new DocumentRenderError(`sections 已停用：${input.template} 请改用受控草案参数 draft（槽位清单见草案校验报错）`)
   }
-  return injectTemplateDraft(html, input.template, input.templateDraft)
+  if (isFormTemplateId(input.template)) {
+    return injectTemplateDraft(html, input.template, input.templateDraft)
+  }
+  const injected = injectSections(html, renderGenericTemplateSections(html, input.templateDraft))
+  return injected.html
 }
 
 /**

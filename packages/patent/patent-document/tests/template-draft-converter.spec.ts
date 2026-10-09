@@ -149,3 +149,21 @@ describe('injectTemplateDraft 无 fields 草案', () => {
     expect(html).toContain('<span class="fill w-full">仅章节。</span>')
   })
 })
+
+describe('injectTemplateDraft 占位行移除的空白处理', () => {
+  const blocksDraft = (texts: string[]): TemplateDraft => ({
+    sections: [{ id: 'searchField', blocks: texts.map(text => ({ kind: 'paragraph', text })) }],
+  })
+
+  it('额外占位行前是制表符缩进时一并吞掉', () => {
+    const html = '<div data-slot="searchField"><span class="fill w-full"></span></div>\n\t<div data-slot="searchField"><span class="fill w-full"></span></div>\n'
+    const out = injectTemplateDraft(html, 'right-evaluation-report', blocksDraft(['甲', '乙']))
+    expect(out).toBe('<div><span class="fill w-full">甲</span></div><div><span class="fill w-full">乙</span></div>\n\n')
+  })
+
+  it('额外占位元素不在行首时只移除元素本身', () => {
+    const html = '<div data-slot="searchField"><span class="fill w-full"></span></div> 尾注 <div data-slot="searchField"><span class="fill w-full"></span></div>\n'
+    const out = injectTemplateDraft(html, 'right-evaluation-report', blocksDraft(['甲', '乙']))
+    expect(out).toBe('<div><span class="fill w-full">甲</span></div><div><span class="fill w-full">乙</span></div> 尾注 \n')
+  })
+})

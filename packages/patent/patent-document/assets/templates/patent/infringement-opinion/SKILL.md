@@ -35,8 +35,8 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md`。
-2. 复制 `assets/template.html` 为 `infringement-opinion.html`。
-3. 填充：案件信息 → 权利要求解释 → 被控物特征分解 → 全面覆盖比对表 → 等同分析表 → 结论与风险 → 落款。
+2. 用 `render_patent_document` 渲染：template 传 `infringement-opinion`，draft 传 id 键控草案：`fields` 填著录项与结论文本槽（meta-*、claim-text、accused-summary、coverage-conclusion、conclusion-text、footer-case、footer-date），`sections` 传 blocks 槽（doc-number、interpretation-notes、equivalence-limits、risk-items、evidence-log）与 rows 槽（accused-table-body/comparison-table-body/equivalence-table-body）。槽位清单与必填项以草案校验报错为准。
+3. 按结构填充：案件信息 → 权利要求解释 → 被控物特征分解 → 全面覆盖比对表 → 等同分析表 → 结论与风险 → 落款。
 4. 每个特征结论注明来源类型徽标（证据/客户/模型推断/假设）。
 5. 渲染后核对：特征编号连续、结论与表格一致、来源路径完整、无占位符。
 

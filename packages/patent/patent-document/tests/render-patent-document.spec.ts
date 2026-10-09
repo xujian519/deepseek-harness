@@ -908,13 +908,13 @@ describe('renderPatentDocument 表单模板受控草案', () => {
     }
   })
 
-  it('未迁移模板传 templateDraft 报错并列出表单模板', async () => {
+  it('claims-spec 传 templateDraft 报错并指向 draft（SpecDraft 结构）', async () => {
     const dir = makeTempDir()
     try {
       await expect(renderPatentDocument(
         {
-          template: 'oa-response',
-          outputName: 'wrong-template',
+          template: 'claims-spec',
+          outputName: 'wrong-draft-kind',
           outputDir: dir,
           format: 'html',
           sections: {},
@@ -922,7 +922,7 @@ describe('renderPatentDocument 表单模板受控草案', () => {
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
-      )).rejects.toThrow(/表单草案目前仅支持 right-evaluation-report、search-report-form/)
+      )).rejects.toThrow(/claims-spec 请用 draft 参数（SpecDraft 结构）/)
     } finally {
       cleanup(dir)
     }

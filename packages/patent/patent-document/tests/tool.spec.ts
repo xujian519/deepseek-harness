@@ -375,17 +375,64 @@ describe('render_patent_document tool 表单草案分发', () => {
     )).rejects.toThrow(/未知选项 "notAnOption".*granted/)
   })
 
-  it('rejects draft for a template that is not migrated yet', async () => {
+  it('executes an oa-response render from a generic-template draft', async () => {
     const subprocess = fakeSubprocess(() => successHandle()).runtime
-    const tool = createRenderPatentDocumentTool({ subprocess })
-    await expect(tool.execute(
-      {
-        template: 'oa-response',
-        outputName: 'not-migrated',
-        format: 'html',
-        draft: srpDraft,
-      },
-      { signal: new AbortController().signal } as never,
-    )).rejects.toThrow(/尚未接入受控草案：draft 目前支持 claims-spec、right-evaluation-report、search-report-form/)
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-tool-'))
+    try {
+      const tool = createRenderPatentDocumentTool({ subprocess })
+      const value = (await tool.execute(
+        {
+          template: 'oa-response',
+          outputName: 'oa-draft',
+          outputDir: dir,
+          format: 'html',
+          draft: {
+            fields: {
+              'meta-appno': 'CN2022209876543',
+              'meta-title': '一种带式输送机的自动张紧机构',
+              'meta-oa-no': '第一次审查意见通知书',
+              'meta-oa-date': '2026-09-01',
+              'meta-response-date': '2026-10-09',
+              'meta-agent': 'XX 知识产权代理事务所',
+              'position-summary': '申请人认为权利要求具备新颖性与创造性。',
+              'arg-nov-oa': '审查意见：权利要求 1 相对 D1 无新颖性。',
+              'arg-nov-reply': '答复：D1 未公开随动结构。',
+              'arg-nov-evidence': 'D1 说明书第 2 页。',
+              'arg-nov-conclusion': '权利要求 1 具备新颖性。',
+              'arg-inv-oa': '审查意见：权利要求 1 相对 D1+D2 无创造性。',
+              'arg-inv-reply': '答复：结合无技术启示。',
+              'arg-inv-evidence': 'D2 说明书第 3 页。',
+              'arg-inv-conclusion': '权利要求 1 具备创造性。',
+              'conclusion-text': '恳请授予专利权。',
+              'footer-date': '2026 年 10 月 09 日',
+            },
+            sections: [
+              { id: 'position-points', blocks: [{ kind: 'list', items: ['要点一；', '要点二。'], ordered: true }] },
+              { id: 'amended-claim-1', blocks: [{ kind: 'paragraph', text: '1. 一种带式输送机的自动张紧机构，其特征在于，还包括随动结构。' }] },
+              {
+                id: 'amendment-table',
+                rows: [['权利要求 1', '未限定随动结构', '增加随动结构', '克服创造性缺陷']],
+              },
+              {
+                id: 'evidence-table',
+                rows: [['D1', 'CN213456789 U', '2021.06.22', '实用新型', '随动结构未公开', '证据来源']],
+              },
+              {
+                id: 'citation-table',
+                rows: [['D1', 'CN213456789 U', '2021.06.22', '对比文件', '全文', '1']],
+              },
+            ],
+          },
+        },
+        { signal: new AbortController().signal } as never,
+      )) as { htmlPath: string; warnings: string[] }
+      expect(existsSync(value.htmlPath)).toBe(true)
+      const html = readFileSync(value.htmlPath, 'utf8')
+      expect(html).toContain('CN2022209876543')
+      expect(html).toContain('<td>增加随动结构</td>')
+      expect(html).toContain('随动结构未公开')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
