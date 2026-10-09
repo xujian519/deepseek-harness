@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：十一个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具（claims-spec 与两个表单模板已接入受控草案转换器），以及 verify_deliverable 交付件一致性核对。"
+description: "函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：十一个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具（全部十一个模板已接入受控草案转换器），以及 verify_deliverable 交付件一致性核对。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：十一个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具（claims-spec 与两个表单模板已接入受控草案转换器），以及 verify_deliverable 交付件一致性核对。
+函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：十一个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染、render_patent_document 工具（全部十一个模板已接入受控草案转换器），以及 verify_deliverable 交付件一致性核对。
 
 ## 目录
 
@@ -24,16 +24,16 @@ kind: "package-reference"
 <a id="render_patent_document-tool"></a>
 ## render_patent_document 工具
 
-render_patent_document 将十一个随包模板之一（patentability-opinion、search-report、oa-response、claims-spec、invalidation-opinion、rectification-response、re-examination-request、infringement-opinion、litigation-pleading、right-evaluation-report 或 search-report-form）渲染为 HTML 文件，默认同时生成 PDF。选定一个模板 id 与 outputName，再以 id -> innerHTML 记录的形式传入 sections 填充模板槽位——claims-spec 与两个表单模板除外，它们传受控草案（结构见下）。结果以模型可读文本返回写出的 htmlPath、pdfPath、可能的 pdfError 与 warnings；当 PDF 失败时，HTML 仍然存在。
+render_patent_document 将十一个随包模板之一（patentability-opinion、search-report、oa-response、claims-spec、invalidation-opinion、rectification-response、re-examination-request、infringement-opinion、litigation-pleading、right-evaluation-report 或 search-report-form）渲染为 HTML 文件，默认同时生成 PDF。选定一个模板 id 与 outputName，再传受控草案（结构见下）；sections 旧参数已删除，传它的调用会被参数校验拒绝。结果以模型可读文本返回写出的 htmlPath、pdfPath、可能的 pdfError 与 warnings；当 PDF 失败时，HTML 仍然存在。
 
-渲染器还会检查装配后的文书，把每处发现写进 `warnings`：`一、` 式编号出现在章节级标题之外的层级（章节层级取文档中第一个带编号的标题所在层级，随包模板中带该编号的都用 `h2`，因此带编号的 `h3` 或 `h4` 会与骨架冲突）、章节编号重复、章节编号未按递增顺序、以及标题使用内部工作记录用语。传入的节会替换骨架的**整个**内层内容（含章节标题本身），因此需要保留章节标题的调用方仍须在内容里自行给出。渲染器所检查的规则与用语表在 `document/documentCompliance.ts`；`scripts/verify-patent-document-output.ts` 对产出的文件或随包模板样例离线施加同样的检查。检查只报告不拒绝，因此带发现的文书仍会交到调用方。
+渲染器还会检查装配后的文书，把每处发现写进 `warnings`：`一、` 式编号出现在章节级标题之外的层级（章节层级取文档中第一个带编号的标题所在层级，随包模板中带该编号的都用 `h2`，因此带编号的 `h3` 或 `h4` 会与骨架冲突）、章节编号重复、章节编号未按递增顺序、以及标题使用内部工作记录用语。草案槽位只替换槽位元素的内层内容：骨架包装与其章节标题保持原位，标题、编号与表题都由转换器在槽位内生成。渲染器所检查的规则与用语表在 `document/documentCompliance.ts`；`scripts/verify-patent-document-output.ts` 对产出的文件或随包模板样例离线施加同样的检查。检查只报告不拒绝，因此带发现的文书仍会交到调用方。
 
 模板可用 `data-paragraph-numbering` 在某个容器上声明段落编号，属性值即编号形态（`[0001]` 表示方括号、四位、左补零）。《专利法》《专利法实施细则》与《专利审查指南》均未要求段落编号，因此 claims-spec 的说明书节默认不带该声明；提交体例使用编号时自行加到相应节上，该节内每个 `<p>` 与 `<li>` 就会被写入字面的 `[0001]`、`[0002]`……编号，从 1 起连续；标题、表格内容与只有图片的段落不编号。编号写成字面文本而非 CSS 计数器，是为了让 PDF 与下游的 HTML→docx 转制读到同一串字符。既有编号会先被剥掉再重写，因此重复渲染幂等，手写的编号也不会叠加——请勿手写编号。
 
 <a id="controlled-drafts"></a>
 ## 受控草案
 
-`renderSpecDraftSections(draft)` 把校验过的 `SpecDraft` 转换为渲染器注入的 id → innerHTML 映射：`meta-*` 槽位与 `footer-date` 接收转义后的著录项文本；`claims` 每项生成一个 `.claim-item` 并自动连续编号；`specification` 按 `SPEC_PART_HEADINGS` 顺序生成五个 `h3` 部分，附图说明列表项改写为「图N为……」，具体实施方式的表格带「表 N · 名称」表题；`abstract` 生成 `.abstract-box`，每段一个 `<p>` 并附 `abstractFigure` 行（缺省 `1`）。两个表单模板（right-evaluation-report、search-report-form）改传表单草案（`validateTemplateDraft` + `draftSchema` 注册表校验）：`fields` 文本槽填充 `.fill` 值位（同一 id 可出现多处，如检索人在抬头与落款各一处，全部填充同一值）；`choice` 选项槽按选项 id 渲染 `.cb` 勾选状态（模板中复选框带 `data-slot="<组>:<选项>"`，多选组传 id 数组）；`sections` 支持 `blocks`（paragraph/list 每段或每项克隆一行，多余模板空行自动移除）与 `rows`（等宽字符串数组按行数克隆表单数据行，如六列的相关文件表）。`injectTemplateDraft(html, template, draft)` 直接填充 `data-slot` 属性，成品不携带任何 `data-slot` 标记。每个表单模板随附 `references/slots.md` 槽位清单（注册表的事实源）、`assets/example-draft.json` 示例草案与由它渲染的 `example.html`；`tests/draft-schema-conformance.spec.ts` 把注册表与模板中的每个 `data-slot` 机械锁定。8 个文档模板由同一一致性测试锁定：模板中每个元素 id 要么是注册槽位、要么是 staticElements 登记的包装元素，rows 槽位列数与各表占位行单元格数一致。渲染管线会拒绝：无注册表的模板传 draft、claims-spec 与表单模板传 sections、draft 与 templateDraft 同传。
+`renderSpecDraftSections(draft)` 把校验过的 `SpecDraft` 转换为渲染器注入的 id → innerHTML 映射：`meta-*` 槽位与 `footer-date` 接收转义后的著录项文本；`claims` 每项生成一个 `.claim-item` 并自动连续编号；`specification` 按 `SPEC_PART_HEADINGS` 顺序生成五个 `h3` 部分，附图说明列表项改写为「图N为……」，具体实施方式的表格带「表 N · 名称」表题；`abstract` 生成 `.abstract-box`，每段一个 `<p>` 并附 `abstractFigure` 行（缺省 `1`）。两个表单模板（right-evaluation-report、search-report-form）改传表单草案（`validateTemplateDraft` + `draftSchema` 注册表校验）：`fields` 文本槽填充 `.fill` 值位（同一 id 可出现多处，如检索人在抬头与落款各一处，全部填充同一值）；`choice` 选项槽按选项 id 渲染 `.cb` 勾选状态（模板中复选框带 `data-slot="<组>:<选项>"`，多选组传 id 数组）；`sections` 支持 `blocks`（paragraph/list 每段或每项克隆一行，多余模板空行自动移除）与 `rows`（等宽字符串数组按行数克隆表单数据行，如六列的相关文件表）。`injectTemplateDraft(html, template, draft)` 直接填充 `data-slot` 属性，成品不携带任何 `data-slot` 标记。每个表单模板随附 `references/slots.md` 槽位清单（注册表的事实源）、`assets/example-draft.json` 示例草案与由它渲染的 `example.html`；`tests/draft-schema-conformance.spec.ts` 把注册表与模板中的每个 `data-slot` 机械锁定。8 个文档模板由同一一致性测试锁定：模板中每个元素 id 要么是注册槽位、要么是 staticElements 登记的包装元素，rows 槽位列数与各表占位行单元格数一致。渲染管线会拒绝：claims-spec 之外的模板传 SpecDraft、claims-spec 传 templateDraft、draft 与 templateDraft 同传；工具调用一律要求 draft。
 
 <a id="verify_deliverable-tool"></a>
 ## verify_deliverable 工具
@@ -64,7 +64,7 @@ Schemastery 配置，所有字段均可选。
 
 #### 模型看到的内容
 
-一个名为 `render_patent_document` 的已注册工具，含必需的 `template` 枚举（十一个 id：`patentability-opinion`、`search-report`、`oa-response`、`claims-spec`、`invalidation-opinion`、`rectification-response`、`re-examination-request`、`infringement-opinion`、`litigation-pleading`、`right-evaluation-report`、`search-report-form`）、必需的 `outputName`，以及可选的 `caseId`、`outputDir`、`format`、`sections`、`brand` 与 `brandPath`。结果以 Markdown 文本渲染，列出写出的 `htmlPath`、`pdfPath`、可能的 `pdfError` 与 `warnings`。
+一个名为 `render_patent_document` 的已注册工具，含必需的 `template` 枚举（十一个 id：`patentability-opinion`、`search-report`、`oa-response`、`claims-spec`、`invalidation-opinion`、`rectification-response`、`re-examination-request`、`infringement-opinion`、`litigation-pleading`、`right-evaluation-report`、`search-report-form`）、必需的 `outputName`，必需的 `draft`，以及可选的 `caseId`、`outputDir`、`format`、`brand` 与 `brandPath`。结果以 Markdown 文本渲染，列出写出的 `htmlPath`、`pdfPath`、可能的 `pdfError` 与 `warnings`。
 
 #### Token 影响
 
@@ -96,7 +96,7 @@ Schemastery 配置，所有字段均可选。
 - **PDF 需要可探测的 Chrome** — headless PDF 打印经 ctx.subprocess 派生 Chrome（取代 Sati 的 execFile）；当探测不到 Chrome（或未设置 chromePath/DSH_CHROME_PATH）时，渲染降级为仅 HTML，结果携带 pdfError。
 - **默认输出目录为 .dsh/documents** — 相对进程工作目录（取代 Sati 的 .sati/documents）；给定 caseId 时仍采用 data/cases/<caseId>/outputs 约定。
 - **brandPath 读取 Sati 形态的 theme.json** — 加载器读取该文件的 documents.patent 命名空间；不支持其他主题 schema。
-- **草案软切换已完成** — 全部 11 个模板接受 `draft`；仅 8 个文档模板仍保留旧 `sections` innerHTML 参数（硬切换在发布阶段移除）。8 个文档模板走 id 键控草案：fields 填叶级文本槽（meta、footer 等），sections 传 blocks（paragraph/list/table 块，表题自动连续编号）或 rows（等宽字符串数组，按各表占位行克隆）。表单模板的页脚页码（逐页不同）、评价报告专用章与诉讼文书签名槽刻意不由草案驱动或非必填，定稿时人工处理。
+- **草案硬切换已完成** — 全部 11 个模板都要求 `draft`，旧 `sections` innerHTML 参数已删除，传它的调用会被参数校验拒绝。8 个文档模板走 id 键控草案：fields 填叶级文本槽（meta、footer 等），sections 传 blocks（paragraph/list/table 块，表题自动连续编号）或 rows（等宽字符串数组，按各表占位行克隆）。表单模板的页脚页码（逐页不同）、评价报告专用章与诉讼文书签名槽刻意不由草案驱动或非必填，定稿时人工处理。
 - **无附图页与图片嵌入** — 模板只承载附图说明文字段，渲染出的文档不含附图图像，附图因此以调用方自行命名并随渲染文件一同交付的独立附件到达客户。
 - **段落编号是可选体例且依赖渲染器** — `data-paragraph-numbering` 是声明而非标记，只有 render_patent_document 会解释它。《专利法》《专利法实施细则》与《专利审查指南》均未要求段落编号，因此 claims-spec 模板默认不声明；声明了编号的模板依赖渲染路径，且撰写方不得手写编号。
 

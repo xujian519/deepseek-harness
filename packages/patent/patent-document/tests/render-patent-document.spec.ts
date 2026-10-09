@@ -100,10 +100,13 @@ describe('renderPatentDocument', () => {
           outputDir: dir,
           format: 'html',
           brand: { firm: '测试事务所' },
-          sections: {
-            'meta-client': '委托方 A',
-            'meta-title': '智能保温杯',
-            'sum-conclusion': '授权前景良好。',
+          templateDraft: {
+            fields: {
+              'meta-client': '委托方 A',
+              'meta-title': '智能保温杯',
+              'sum-conclusion': '授权前景良好。',
+            },
+            sections: [],
           },
         },
         process.cwd(),
@@ -132,7 +135,7 @@ describe('renderPatentDocument', () => {
           outputName: '待补案卷号-claims-spec_v1_未放行校验稿',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '中文命名' },
+          templateDraft: { fields: { 'meta-title': '中文命名' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -153,7 +156,7 @@ describe('renderPatentDocument', () => {
           outputName: '②件_权利要求书与说明书_内部稿',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '圈码前缀' },
+          templateDraft: { fields: { 'meta-title': '圈码前缀' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -174,7 +177,7 @@ describe('renderPatentDocument', () => {
           outputName: '02_权利要求书（草案）·v1',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '中文标点' },
+          templateDraft: { fields: { 'meta-title': '中文标点' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -196,7 +199,6 @@ describe('renderPatentDocument', () => {
             outputName: '内部稿/②件',
             outputDir: dir,
             format: 'html',
-            sections: {},
           },
           process.cwd(),
           { subprocess: unusedSubprocess() },
@@ -216,7 +218,7 @@ describe('renderPatentDocument', () => {
           outputName: 'test-default-brand',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '默认品牌测试' },
+          templateDraft: { fields: { 'meta-title': '默认品牌测试' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -237,7 +239,7 @@ describe('renderPatentDocument', () => {
           outputName: 'sr-001',
           caseId: 'case-2026-001',
           format: 'html',
-          sections: { 'meta-title': '检索报告测试' },
+          templateDraft: { fields: { 'meta-title': '检索报告测试' }, sections: [] },
         },
         dir,
         { subprocess: unusedSubprocess() },
@@ -259,7 +261,6 @@ describe('renderPatentDocument', () => {
             outputName: '../escape',
             outputDir: dir,
             format: 'html',
-            sections: {},
           },
           process.cwd(),
           { subprocess: unusedSubprocess() },
@@ -280,7 +281,7 @@ describe('renderPatentDocument', () => {
           outputName: 'test-pdf',
           outputDir: dir,
           format: 'pdf',
-          sections: { 'meta-title': 'PDF 生成测试' },
+          templateDraft: { fields: { 'meta-title': 'PDF 生成测试' }, sections: [] },
         },
         process.cwd(),
         { subprocess: pdfWritingSubprocess(), chromePath: join(dir, 'chrome') },
@@ -303,7 +304,7 @@ describe('renderPatentDocument', () => {
           outputName: 'no-chrome',
           outputDir: dir,
           format: 'both',
-          sections: { 'meta-title': '降级测试' },
+          templateDraft: { fields: { 'meta-title': '降级测试' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess(), chromePath: join(dir, 'missing-chrome') },
@@ -317,46 +318,94 @@ describe('renderPatentDocument', () => {
     }
   })
 
-  it('injects a container section without breaking structure', async () => {
+  it('renders a generic document template from a templateDraft and keeps the skeleton wrappers', async () => {
     const dir = makeTempDir()
     try {
       const result = await renderPatentDocument(
         {
           template: 'patentability-opinion',
-          outputName: 'container-inject',
+          outputName: 'generic-draft',
           outputDir: dir,
           format: 'html',
-          sections: { 'executive-summary': '<h3>新摘要</h3><p>内容 A</p>' },
+          templateDraft: {
+            fields: { 'meta-title': '草案标题' },
+            sections: [
+              { id: 'basis', blocks: [{ kind: 'paragraph', text: '要件结论正文。' }] },
+            ],
+          },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
       )
       const html = readFileSync(result.htmlPath, 'utf8')
-      expect(html).toMatch(/<section id="executive-summary"[^>]*>\s*<h3>新摘要<\/h3><p>内容 A<\/p>\s*<\/section>/)
+      expect(html).toContain('<p>要件结论正文。</p>')
+      // 骨架包装（含分区标题与子槽位）由模板保留，草案只注入槽位内容。
+      expect(html).toContain('id="executive-summary"')
     } finally {
       cleanup(dir)
     }
   })
 
-  it('warns on unmatched or illegal section ids without polluting the HTML', async () => {
+  it('skips an illegal draft section id with a warning', async () => {
     const dir = makeTempDir()
     try {
       const result = await renderPatentDocument(
         {
           template: 'patentability-opinion',
-          outputName: 'warn-ids',
+          outputName: 'illegal-id',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '正常', 'no-such-id': '丢弃', '../bad': '非法' },
+          templateDraft: { sections: [{ id: '../bad', blocks: [{ kind: 'paragraph', text: '丢弃内容' }] }] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
       )
-      expect(result.warnings?.join(' ')).toContain('no-such-id')
+      expect(result.warnings.join(' ')).toContain('../bad')
       const html = readFileSync(result.htmlPath, 'utf8')
-      expect(html).toContain('正常')
-      expect(html).not.toContain('丢弃')
+      expect(html).not.toContain('丢弃内容')
     } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('warns on draft section ids missing from the template without polluting the HTML', async () => {
+    const dir = makeTempDir()
+    try {
+      renderMocks.craftedTemplate = '<html><body><section id="specification"></section></body></html>'
+      const result = await renderPatentDocument(
+        {
+          template: 'claims-spec',
+          outputName: 'warn-ids',
+          outputDir: dir,
+          format: 'html',
+          draft: {
+            meta: { title: '一种智能保温杯', applicant: '示例科技有限公司', inventor: '张三', agent: 'XX 事务所', date: '2026-10-09' },
+            claims: ['一种智能保温杯，其特征在于，包括杯体。'],
+            abstract: ['本发明公开一种智能保温杯。'],
+            figureFiles: ['fig1.svg'],
+            drawingDescriptions: ['整体结构示意图'],
+            sections: {
+              technicalField: [{ kind: 'paragraph', text: '本发明属于日用品领域。' }],
+              background: [{ kind: 'paragraph', text: '现有保温杯无法显示水温。' }],
+              summary: [{ kind: 'paragraph', text: '本发明提供一种智能保温杯。' }],
+              drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }],
+              embodiment: [{ kind: 'paragraph', text: '下面结合附图说明。' }],
+            },
+          },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      const warnings = result.warnings.join(' ')
+      expect(warnings).toContain('claims')
+      expect(warnings).toContain('abstract')
+      const html = readFileSync(result.htmlPath, 'utf8')
+      expect(html).toContain('<h3>技术领域</h3>')
+      // 未命中的槽位不注入：meta/claims 等槽位在模板中不存在，其内容整体被跳过。
+      expect(html).not.toContain('示例科技有限公司')
+      expect(html).not.toContain('claim-num')
+    } finally {
+      renderMocks.craftedTemplate = undefined
       cleanup(dir)
     }
   })
@@ -364,19 +413,21 @@ describe('renderPatentDocument', () => {
   it('warns on internal working-record headings in the assembled document', async () => {
     const dir = makeTempDir()
     try {
+      renderMocks.craftedTemplate = '<html><head></head><body><h2>待办清单</h2><section id="basis"></section></body></html>'
       const result = await renderPatentDocument(
         {
           template: 'patentability-opinion',
           outputName: 'internal-heading',
           outputDir: dir,
           format: 'html',
-          sections: { 'executive-summary': '<h2>待办清单</h2><p>内容 A</p>' },
+          templateDraft: { sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
       )
       expect(result.warnings?.join(' ')).toContain('内部工作记录用语')
     } finally {
+      renderMocks.craftedTemplate = undefined
       cleanup(dir)
     }
   })
@@ -391,7 +442,6 @@ describe('renderPatentDocument', () => {
             outputName: 'escape',
             caseId: '../../etc',
             format: 'html',
-            sections: {},
           },
           dir,
           { subprocess: unusedSubprocess() },
@@ -411,7 +461,7 @@ describe('renderPatentDocument', () => {
           outputName: 'dup',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '第一版' },
+          templateDraft: { fields: { 'meta-title': '第一版' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -422,7 +472,7 @@ describe('renderPatentDocument', () => {
           outputName: 'dup',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '第二版' },
+          templateDraft: { fields: { 'meta-title': '第二版' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -445,7 +495,7 @@ describe('renderPatentDocument', () => {
           outputDir: dir,
           format: 'html',
           brandPath: join(dir, 'not-there.json'),
-          sections: { 'meta-title': '品牌回退测试' },
+          templateDraft: { fields: { 'meta-title': '品牌回退测试' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -464,7 +514,7 @@ describe('renderPatentDocument', () => {
           template: 'patentability-opinion',
           outputName: 'default-dir',
           format: 'html',
-          sections: { 'meta-title': '缺省目录' },
+          templateDraft: { fields: { 'meta-title': '缺省目录' }, sections: [] },
         },
         dir,
         { subprocess: unusedSubprocess() },
@@ -485,7 +535,7 @@ describe('renderPatentDocument', () => {
           outputName: 'rel-out',
           outputDir: 'out/docs',
           format: 'html',
-          sections: { 'meta-title': '相对目录' },
+          templateDraft: { fields: { 'meta-title': '相对目录' }, sections: [] },
         },
         dir,
         { subprocess: unusedSubprocess() },
@@ -508,7 +558,7 @@ describe('renderPatentDocument', () => {
           outputDir: dir,
           format: 'html',
           brandPath: 'theme.json',
-          sections: { 'meta-title': '相对品牌路径' },
+          templateDraft: { fields: { 'meta-title': '相对品牌路径' }, sections: [] },
         },
         dir,
         { subprocess: unusedSubprocess() },
@@ -528,7 +578,7 @@ describe('renderPatentDocument', () => {
           template: 'patentability-opinion',
           outputName: 'default-both',
           outputDir: dir,
-          sections: { 'meta-title': '默认 both' },
+          templateDraft: { fields: { 'meta-title': '默认 both' }, sections: [] },
         },
         process.cwd(),
         { subprocess: unusedSubprocess(), chromePath: join(dir, 'missing-chrome') },
@@ -552,7 +602,7 @@ describe('renderPatentDocument', () => {
           outputName: 'signal-only',
           outputDir: dir,
           format: 'pdf',
-          sections: { 'meta-title': '信号传递' },
+          templateDraft: { fields: { 'meta-title': '信号传递' }, sections: [] },
         },
         process.cwd(),
         {
@@ -580,7 +630,7 @@ describe('renderPatentDocument', () => {
             outputName: 'write-fail',
             outputDir: dir,
             format: 'html',
-            sections: { 'meta-title': '写失败' },
+            templateDraft: { fields: { 'meta-title': '写失败' }, sections: [] },
           },
           process.cwd(),
           { subprocess: unusedSubprocess() },
@@ -602,7 +652,6 @@ describe('renderPatentDocument', () => {
           outputDir: dir,
           format: 'html',
           brand: { firm: '无头品牌' },
-          sections: {},
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
@@ -616,58 +665,25 @@ describe('renderPatentDocument', () => {
     }
   })
 
-  it('balances void and self-closing tags and skips an element with no matching close', async () => {
-    const dir = makeTempDir()
-    try {
-      renderMocks.craftedTemplate =
-        '<html><head><title>t</title></head><body>' +
-        '<section id="sec"><p>orig</p><br><span/></section>' +
-        '<img id="img-only">' +
-        '<div id="unclosed"><span>' +
-        '</body></html>'
-      const result = await renderPatentDocument(
-        {
-          template: 'patentability-opinion',
-          outputName: 'tag-scan',
-          outputDir: dir,
-          format: 'html',
-          sections: {
-            sec: '新内容',
-            'img-only': '不会注入',
-          },
-        },
-        process.cwd(),
-        { subprocess: unusedSubprocess() },
-      )
-      const html = readFileSync(result.htmlPath, 'utf8')
-      expect(html).toMatch(/<section id="sec">新内容<\/section>/)
-      expect(html).not.toContain('不会注入')
-      expect(result.warnings.join(' ')).toContain('img-only')
-    } finally {
-      renderMocks.craftedTemplate = undefined
-      cleanup(dir)
-    }
-  })
-
   it('renders each of the four post-draft templates from the real assets', async () => {
     const dir = makeTempDir()
     try {
       const cases = [
         {
           template: 'rectification-response',
-          sections: { 'meta-title': '一种电池模组散热方法', 'rect-findings': '通知缺陷摘录' },
+          fields: { 'meta-title': '一种电池模组散热方法', 'rect-findings': '通知缺陷摘录' },
         },
         {
           template: 're-examination-request',
-          sections: { 'meta-title': '一种电池模组散热结构', 'ground-1': '针对理由一的回应' },
+          fields: { 'meta-title': '一种电池模组散热结构', 'ground-1': '针对理由一的回应' },
         },
         {
           template: 'infringement-opinion',
-          sections: { 'meta-title': '一种电池模组温度均衡装置', 'claim-text': '权利要求 1 全文', 'conclusion-text': '落入保护范围' },
+          fields: { 'meta-title': '一种电池模组温度均衡装置', 'claim-text': '权利要求 1 全文', 'conclusion-text': '落入保护范围' },
         },
         {
           template: 'litigation-pleading',
-          sections: { 'meta-title': '侵害发明专利权纠纷', 'doc-kind': '答辩状' },
+          fields: { 'meta-title': '侵害发明专利权纠纷', 'doc-kind': '答辩状' },
         },
       ] as const
       for (const c of cases) {
@@ -677,13 +693,13 @@ describe('renderPatentDocument', () => {
             outputName: `tmp-${c.template}`,
             outputDir: dir,
             format: 'html',
-            sections: c.sections,
+            templateDraft: { fields: { ...c.fields }, sections: [] },
           },
           process.cwd(),
           { subprocess: unusedSubprocess() },
         )
         const html = readFileSync(result.htmlPath, 'utf8')
-        for (const value of Object.values(c.sections)) {
+        for (const value of Object.values(c.fields)) {
           expect(html).toContain(value)
         }
       }
@@ -712,6 +728,37 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
     }
   }
 
+  it('balances void and self-closing tags and skips an element with no matching close', async () => {
+    const dir = makeTempDir()
+    try {
+      renderMocks.craftedTemplate =
+        '<html><head><title>t</title></head><body>' +
+        '<section id="specification"><p>orig</p><br><span/></section>' +
+        '<img id="claims">' +
+        '<div id="abstract"><span>'
+      const result = await renderPatentDocument(
+        {
+          template: 'claims-spec',
+          outputName: 'tag-scan',
+          outputDir: dir,
+          format: 'html',
+          draft: draft(),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      const html = readFileSync(result.htmlPath, 'utf8')
+      expect(html).toContain('<h3>技术领域</h3>')
+      expect(html).not.toContain('orig')
+      // claims（void img）与 abstract（未闭合 div）都找不到配对闭合，整体跳过并告警。
+      expect(result.warnings.join(' ')).toContain('claims')
+      expect(result.warnings.join(' ')).toContain('abstract')
+    } finally {
+      renderMocks.craftedTemplate = undefined
+      cleanup(dir)
+    }
+  })
+
   it('claims-spec 传 draft 渲染：结构由转换器生成，非落款无占位符', async () => {
     const dir = makeTempDir()
     try {
@@ -721,7 +768,6 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
           outputName: 'spec-draft',
           outputDir: dir,
           format: 'html',
-          sections: {},
           draft: draft(),
         },
         process.cwd(),
@@ -742,44 +788,6 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
     }
   })
 
-  it('claims-spec 传 sections 时点名拒绝并指向 draft', async () => {
-    const dir = makeTempDir()
-    try {
-      await expect(renderPatentDocument(
-        {
-          template: 'claims-spec',
-          outputName: 'spec-old',
-          outputDir: dir,
-          format: 'html',
-          sections: { 'meta-title': '旧用法' },
-        },
-        process.cwd(),
-        { subprocess: unusedSubprocess() },
-      )).rejects.toThrow(/sections 已停用：claims-spec 请改用受控草案参数 draft/)
-    } finally {
-      cleanup(dir)
-    }
-  })
-
-  it('claims-spec 缺 draft 与 sections 时同样拒绝', async () => {
-    const dir = makeTempDir()
-    try {
-      await expect(renderPatentDocument(
-        {
-          template: 'claims-spec',
-          outputName: 'spec-empty',
-          outputDir: dir,
-          format: 'html',
-          sections: {},
-        },
-        process.cwd(),
-        { subprocess: unusedSubprocess() },
-      )).rejects.toThrow(/sections 已停用：claims-spec 请改用受控草案参数 draft/)
-    } finally {
-      cleanup(dir)
-    }
-  })
-
   it('未迁移模板传 SpecDraft 时报错并说明可用的草案模板', async () => {
     const dir = makeTempDir()
     try {
@@ -789,7 +797,6 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
           outputName: 'opinion-draft',
           outputDir: dir,
           format: 'html',
-          sections: {},
           draft: draft(),
         },
         process.cwd(),
@@ -800,7 +807,7 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
     }
   })
 
-  it('draft 与 sections 同传时报互斥错误', async () => {
+  it('claims-spec 的 draft 与 templateDraft 互斥', async () => {
     const dir = makeTempDir()
     try {
       await expect(renderPatentDocument(
@@ -809,12 +816,12 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
           outputName: 'spec-both',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '多余' },
+          templateDraft: { fields: { 'meta-title': '多余' }, sections: [] },
           draft: draft(),
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
-      )).rejects.toThrow(/draft 与 sections 互斥/)
+      )).rejects.toThrow(/draft 与 templateDraft 互斥/)
     } finally {
       cleanup(dir)
     }
@@ -839,7 +846,6 @@ describe('renderPatentDocument 表单模板受控草案', () => {
           outputName: 'form-draft',
           outputDir: dir,
           format: 'html',
-          sections: {},
           templateDraft: exampleDraft('search-report-form'),
         },
         process.cwd(),
@@ -855,25 +861,6 @@ describe('renderPatentDocument 表单模板受控草案', () => {
     }
   })
 
-  it('表单模板传 sections 报错并指向 draft', async () => {
-    const dir = makeTempDir()
-    try {
-      await expect(renderPatentDocument(
-        {
-          template: 'right-evaluation-report',
-          outputName: 'form-sections',
-          outputDir: dir,
-          format: 'html',
-          sections: { note: '<p>旧路径</p>' },
-        },
-        process.cwd(),
-        { subprocess: unusedSubprocess() },
-      )).rejects.toThrow(/sections 已停用：right-evaluation-report 请改用受控草案参数 draft/)
-    } finally {
-      cleanup(dir)
-    }
-  })
-
   it('draft 与 templateDraft 互斥', async () => {
     const dir = makeTempDir()
     try {
@@ -883,7 +870,6 @@ describe('renderPatentDocument 表单模板受控草案', () => {
           outputName: 'both-drafts',
           outputDir: dir,
           format: 'html',
-          sections: {},
           draft: {
             meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
             claims: ['一种装置，其特征在于，包括本体。'],
@@ -917,38 +903,11 @@ describe('renderPatentDocument 表单模板受控草案', () => {
           outputName: 'wrong-draft-kind',
           outputDir: dir,
           format: 'html',
-          sections: {},
           templateDraft: exampleDraft('right-evaluation-report'),
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
       )).rejects.toThrow(/claims-spec 请用 draft 参数（SpecDraft 结构）/)
-    } finally {
-      cleanup(dir)
-    }
-  })
-})
-
-describe('renderPatentDocument 表单草案与 sections 互斥', () => {
-  it('templateDraft 与 sections 同时传入时报错', async () => {
-    const dir = makeTempDir()
-    try {
-      const raw = JSON.parse(readFileSync(
-        'packages/patent/patent-document/assets/templates/patent/search-report-form/assets/example-draft.json',
-        'utf8',
-      )) as unknown
-      await expect(renderPatentDocument(
-        {
-          template: 'search-report-form',
-          outputName: 'draft-and-sections',
-          outputDir: dir,
-          format: 'html',
-          sections: { note: '<p>旧路径</p>' },
-          templateDraft: validateTemplateDraft(raw, FORM_TEMPLATE_SCHEMAS['search-report-form']),
-        },
-        process.cwd(),
-        { subprocess: unusedSubprocess() },
-      )).rejects.toThrow(/sections 已停用：search-report-form 请改用受控草案参数 draft/)
     } finally {
       cleanup(dir)
     }

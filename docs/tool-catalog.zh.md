@@ -6050,7 +6050,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
 
 ### `render_patent_document`
 
-从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见、诉讼文书、专利权评价报告或表格式检索报告）渲染为磁盘文件。选择模板 id 与 outputName；全部 11 个模板都接受受控草案（draft 参数）。claims-spec 申请文件传 SpecDraft 结构：著录项 meta、不带项号的 claims、多段 abstract、每幅附图一条 drawingDescriptions，以及按五部分（technicalField/background/summary/drawingDescriptions/embodiment）组织的 paragraph/list/table 块。八个文档模板传 id 键控草案：fields 填叶级文本槽（meta、footer 等），sections 传 blocks（paragraph/list/table 块，表题自动生成且全文档连续编号）或 rows（等宽字符串数组，按模板表体占位行克隆）。两个表单模板传表单草案：文本槽、按选中项 id 表示的勾选选项槽（多选组传 id 数组），以及 blocks/rows 章节槽。草案驱动模板的标题、权项编号、附图号、表题与勾选状态全部由结构生成——不要撰写标记。八个文档模板在硬切换前仍接受旧 sections 参数（id → innerHTML 记录）；claims-spec 与两个表单模板已拒绝。写出 HTML 文件，默认另经 headless Chrome 生成 PDF（format: html、pdf 或 both，默认 both）。返回写出的文件路径与告警或 PDF 失败原因（PDF 失败时 HTML 仍然存在）。
+从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见、诉讼文书、专利权评价报告或表格式检索报告）渲染为磁盘文件。选择模板 id 与 outputName；全部 11 个模板都接受受控草案（draft 参数）。claims-spec 申请文件传 SpecDraft 结构：著录项 meta、不带项号的 claims、多段 abstract、每幅附图一条 drawingDescriptions，以及按五部分（technicalField/background/summary/drawingDescriptions/embodiment）组织的 paragraph/list/table 块。八个文档模板传 id 键控草案：fields 填叶级文本槽（meta、footer 等），sections 传 blocks（paragraph/list/table 块，表题自动生成且全文档连续编号）或 rows（等宽字符串数组，按模板表体占位行克隆）。两个表单模板传表单草案：文本槽、按选中项 id 表示的勾选选项槽（多选组传 id 数组），以及 blocks/rows 章节槽。草案驱动模板的标题、权项编号、附图号、表题与勾选状态全部由结构生成——不要撰写标记。draft 为全部模板的必填参数；旧 sections innerHTML 参数已删除，传它的调用会被参数校验拒绝。写出 HTML 文件，默认另经 headless Chrome 生成 PDF（format: html、pdf 或 both，默认 both）。返回写出的文件路径与告警或 PDF 失败原因（PDF 失败时 HTML 仍然存在）。
 
 ```json
 {
@@ -6094,14 +6094,9 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
         "both"
       ]
     },
-    "sections": {
-      "type": "object",
-      "description": "Record of element id -> HTML innerHTML content to inject into the template. Legacy path: rejected for claims-spec and the two form templates (use draft), and still accepted for the eight document templates until the hard cutover.",
-      "additionalProperties": true
-    },
     "draft": {
       "type": "object",
-      "description": "Controlled draft (structured JSON). All eleven templates accept draft. The claims-spec template takes the SpecDraft structure: meta (title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, one drawingDescriptions entry per figure, and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks; tables are allowed only in embodiment and are captioned automatically. The eight document templates (patentability-opinion, search-report, oa-response, invalidation-opinion, rectification-response, re-examination-request, infringement-opinion, litigation-pleading) take id-keyed drafts: fields fill leaf text slots (meta, footer, and other single-line slots), and sections carry blocks (paragraph/list/table, table captions generated and numbered continuously) or rows (equal-width string arrays cloned into the template table body). The form templates right-evaluation-report and search-report-form take the form draft: fields (text slots filled into .fill spans, and choice slots given as the selected option id, or an array of ids for multi-select groups), plus sections as either blocks (paragraph/list, rendered one line per paragraph or item) or rows (equal-width string arrays for the related-documents and search-round tables). Headings, claim numbers, figure numbers, table captions, and checkbox states are generated from the structure, never authored. Unknown or missing slots fail validation with the slot list; the legacy sections parameter is rejected for claims-spec and the form templates and remains available for the eight document templates until the hard cutover.",
+      "description": "Controlled draft (structured JSON). All eleven templates accept draft. The claims-spec template takes the SpecDraft structure: meta (title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, one drawingDescriptions entry per figure, and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks; tables are allowed only in embodiment and are captioned automatically. The eight document templates (patentability-opinion, search-report, oa-response, invalidation-opinion, rectification-response, re-examination-request, infringement-opinion, litigation-pleading) take id-keyed drafts: fields fill leaf text slots (meta, footer, and other single-line slots), and sections carry blocks (paragraph/list/table, table captions generated and numbered continuously) or rows (equal-width string arrays cloned into the template table body). The form templates right-evaluation-report and search-report-form take the form draft: fields (text slots filled into .fill spans, and choice slots given as the selected option id, or an array of ids for multi-select groups), plus sections as either blocks (paragraph/list, rendered one line per paragraph or item) or rows (equal-width string arrays for the related-documents and search-round tables). Headings, claim numbers, figure numbers, table captions, and checkbox states are generated from the structure, never authored. Unknown or missing slots fail validation with the slot list; draft is required for every template, and the legacy sections innerHTML parameter is gone.",
       "additionalProperties": true
     },
     "brand": {
@@ -6116,7 +6111,8 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
   },
   "required": [
     "template",
-    "outputName"
+    "outputName",
+    "draft"
   ]
 }
 ```

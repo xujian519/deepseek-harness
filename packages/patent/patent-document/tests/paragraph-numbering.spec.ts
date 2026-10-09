@@ -127,7 +127,6 @@ describe('renderPatentDocument 段落编号', () => {
           outputName: 'numbering',
           outputDir: dir,
           format: 'html',
-          sections: {},
           draft: {
             meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
             claims: ['一种装置，其特征在于，包括示例部件。'],

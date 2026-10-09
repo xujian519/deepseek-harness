@@ -130,10 +130,10 @@ function injectBrandCss(html: string, brandCss: string): string {
 }
 
 /**
- * 将 sections 按元素 id 替换为 innerHTML。
+ * 将注入映射按元素 id 替换为 innerHTML（claims-spec 与通用文档草案的内部注入器）。
  *
- * 命中 `<section id="x">` 时替换的是该 section 的**全部**内层内容，模板里的骨架
- * 标题随之一并被替换 —— 需要保留章节标题的调用方必须在传入内容里自行给出。
+ * 命中 `<section id="x">` 时替换的是该 section 的**全部**内层内容；映射只覆盖
+ * 注册槽位 id，转换器生成的槽位内容不含骨架包装与章节标题，因此骨架保持原位。
  * @param html - 模板 HTML。
  * @param sections - id → 内容映射。
  * @returns 替换后的 HTML，以及被跳过（未命中/非法）的 id 列表。
@@ -167,53 +167,33 @@ function injectSections(
 }
 
 /**
- * 解析本次渲染的槽位注入映射：claims-spec 走受控草案（转换器生成结构）；
- * 其余模板暂兼容 sections（draft 接入后的混合期，硬切换在全部接入后的
- * 发布阶段移除 sections）。draft 与 sections 互斥。
+ * 解析本次渲染的受控草案注入：claims-spec 走 SpecDraft（转换器生成结构），
+ * 其余十个模板走 templateDraft（表单按 data-slot 注入，通用文档按元素 id 注入）。
+ * 两种草案互斥；都不传时按模板骨架原样渲染。
+ * @param html - 模板 HTML（品牌注入后）。
  * @param input - 渲染输入。
- * @returns 元素 id → innerHTML 映射。
+ * @returns 注入后的 HTML，以及未命中模板的草稿 section id。
  */
-function resolveSections(input: DocumentRenderInput): Record<string, string> {
+function resolveDraft(html: string, input: DocumentRenderInput): { html: string; skippedIds: string[] } {
   if (input.draft !== undefined) {
+    if (input.templateDraft !== undefined) {
+      throw new DocumentRenderError('draft 与 templateDraft 互斥：一次渲染只传一份草案')
+    }
     if (input.template !== 'claims-spec') {
       throw new DocumentRenderError(`模板 ${input.template} 不接受 SpecDraft 草案：draft 的 claims-spec 结构仅用于 claims-spec；其余模板用表单/通用草案结构（同样走 draft 参数）`)
     }
-    if (Object.keys(input.sections).length > 0) {
-      throw new DocumentRenderError('draft 与 sections 互斥：claims-spec 请只传 draft（结构化草案）')
+    return injectSections(html, { ...renderSpecDraftSections(input.draft) })
+  }
+  if (input.templateDraft !== undefined) {
+    if (input.template === 'claims-spec') {
+      throw new DocumentRenderError('claims-spec 请用 draft 参数（SpecDraft 结构）：templateDraft 仅用于其余十个模板')
     }
-    return { ...renderSpecDraftSections(input.draft) }
+    if (isFormTemplateId(input.template)) {
+      return { html: injectTemplateDraft(html, input.template, input.templateDraft), skippedIds: [] }
+    }
+    return injectSections(html, renderGenericTemplateSections(html, input.templateDraft))
   }
-  if (input.template === 'claims-spec') {
-    throw new DocumentRenderError('sections 已停用：claims-spec 请改用受控草案参数 draft（结构化块，不再传 innerHTML）')
-  }
-  if (isFormTemplateId(input.template)) {
-    throw new DocumentRenderError(`sections 已停用：${input.template} 请改用受控草案参数 draft（fields 文本/选项槽位 + sections 章节/数据行槽位）`)
-  }
-  return input.sections
-}
-
-/**
- * 校验表单/通用模板草案分支的互斥约束并执行注入。
- * @param html - 模板 HTML（品牌注入后）。
- * @param input - 渲染输入。
- * @returns 注入草案后的 HTML。
- */
-function resolveTemplateDraft(html: string, input: DocumentRenderInput): string {
-  if (input.templateDraft === undefined) return html
-  if (input.draft !== undefined) {
-    throw new DocumentRenderError('draft 与 templateDraft 互斥：一次渲染只传一份草案')
-  }
-  if (input.template === 'claims-spec') {
-    throw new DocumentRenderError('claims-spec 请用 draft 参数（SpecDraft 结构）：templateDraft 仅用于其余十个模板')
-  }
-  if (Object.keys(input.sections).length > 0) {
-    throw new DocumentRenderError(`sections 已停用：${input.template} 请改用受控草案参数 draft（槽位清单见草案校验报错）`)
-  }
-  if (isFormTemplateId(input.template)) {
-    return injectTemplateDraft(html, input.template, input.templateDraft)
-  }
-  const injected = injectSections(html, renderGenericTemplateSections(html, input.templateDraft))
-  return injected.html
+  return { html, skippedIds: [] }
 }
 
 /**
@@ -246,13 +226,10 @@ export async function renderPatentDocument(
 
   let html = readTemplateHtml(input.template)
   html = injectBrandCss(html, buildBrandStyle(brand))
-  html = resolveTemplateDraft(html, input)
-  if (input.templateDraft === undefined) {
-    const injected = injectSections(html, resolveSections(input))
-    html = injected.html
-    if (injected.skippedIds.length > 0) {
-      warnings.push(`以下 section id 未命中模板，内容已忽略: ${injected.skippedIds.join(', ')}`)
-    }
+  const drafted = resolveDraft(html, input)
+  html = drafted.html
+  if (drafted.skippedIds.length > 0) {
+    warnings.push(`以下 section id 未命中模板，内容已忽略: ${drafted.skippedIds.join(', ')}`)
   }
   // 段落编号由模板通过 data-paragraph-numbering 声明；引擎把编号写成字面文本，
   // 使 PDF 与下游 HTML→docx 转制读到同一串字符。

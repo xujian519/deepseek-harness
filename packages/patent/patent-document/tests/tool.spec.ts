@@ -6,6 +6,31 @@ import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-
 import { fakeSubprocess, successHandle } from './helpers.ts'
 
 describe('render_patent_document tool', () => {
+  /** patentability-opinion 的最小合规草案：只填注册表声明的必填槽位。 */
+  function opinionDraft(title = '标题'): Record<string, unknown> {
+    return {
+      fields: {
+        'meta-client': '委托方',
+        'meta-title': title,
+        'meta-case': '案卷号',
+        'meta-basis': '分析依据',
+        'meta-date': '2026-10-09',
+        'sum-title': '结论摘要',
+        'sum-conclusion': '结论正文。',
+        'footer-date': '2026 年 10 月 09 日',
+      },
+      sections: [
+        { id: 'basis', blocks: [{ kind: 'paragraph', text: '要件结论。' }] },
+        { id: 'claim-decomposition', blocks: [{ kind: 'paragraph', text: '特征分解。' }] },
+        { id: 'feature-comparison', blocks: [{ kind: 'paragraph', text: '比对结论。' }] },
+        { id: 'inventiveness', blocks: [{ kind: 'paragraph', text: '创造性分析。' }] },
+        { id: 'other-requirements', blocks: [{ kind: 'paragraph', text: '其他要件。' }] },
+        { id: 'evidence', blocks: [{ kind: 'paragraph', text: '证据清单。' }] },
+        { id: 'citation-log', blocks: [{ kind: 'paragraph', text: '引用日志。' }] },
+      ],
+    }
+  }
+
   it('declares the defineTool shape', () => {
     const subprocess = fakeSubprocess(() => successHandle()).runtime
     const tool = createRenderPatentDocumentTool({ subprocess })
@@ -13,12 +38,13 @@ describe('render_patent_document tool', () => {
     expect(tool.name).toBe('render_patent_document')
     expect(typeof tool.description).toBe('string')
     expect(tool.description.length).toBeGreaterThan(0)
-    const parameters = tool.parameters as { properties?: Record<string, unknown> }
+    const parameters = tool.parameters as { properties?: Record<string, unknown>; required?: string[] }
     expect(parameters.properties).toBeDefined()
     expect(parameters.properties).toHaveProperty('template')
     expect(parameters.properties).toHaveProperty('outputName')
-    expect(parameters.properties).toHaveProperty('sections')
+    expect(parameters.properties).not.toHaveProperty('sections')
     expect(parameters.properties).toHaveProperty('draft')
+    expect(parameters.required).toContain('draft')
     expect(typeof tool.output.render).toBe('function')
     expect(typeof tool.execute).toBe('function')
   })
@@ -75,9 +101,10 @@ describe('render_patent_document tool', () => {
     )).rejects.toThrow(/claims\[0\] 自带项号/)
   })
 
-  it('rejects legacy sections for claims-spec by name', async () => {
+  it('rejects the legacy sections parameter at the executor argument gate', async () => {
     const subprocess = fakeSubprocess(() => successHandle()).runtime
     const tool = createRenderPatentDocumentTool({ subprocess })
+    // sections 已不在参数 schema 里：执行器按缺 required draft 拒绝，不静默忽略旧键。
     await expect(tool.execute(
       {
         template: 'claims-spec',
@@ -86,7 +113,35 @@ describe('render_patent_document tool', () => {
         sections: { 'meta-title': '旧用法' },
       },
       { signal: new AbortController().signal } as never,
-    )).rejects.toThrow(/sections 已停用：claims-spec 请改用受控草案参数 draft/)
+    )).rejects.toThrow(/missing required property "draft"/)
+  })
+
+  it('rejects a non-string brand value', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const tool = createRenderPatentDocumentTool({ subprocess })
+    await expect(tool.execute(
+      {
+        template: 'claims-spec',
+        outputName: 'bad-brand',
+        format: 'html',
+        brand: { firm: 42 as never },
+        draft: {
+          meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+          claims: ['一种装置，其特征在于，包括示例部件。'],
+          abstract: ['本发明公开一种装置。'],
+          figureFiles: ['fig1.svg'],
+          drawingDescriptions: ['整体结构示意图'],
+          sections: {
+            technicalField: [{ kind: 'paragraph', text: '本发明属于示例领域。' }],
+            background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],
+            summary: [{ kind: 'paragraph', text: '本发明提供一种装置。' }],
+            drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }],
+            embodiment: [{ kind: 'paragraph', text: '下面结合附图说明。' }],
+          },
+        },
+      },
+      { signal: new AbortController().signal } as never,
+    )).rejects.toThrow(/brand 的键 "firm" 必须是字符串/)
   })
 
   it('renders the canonical result as pure model-facing prose', () => {
@@ -118,7 +173,7 @@ describe('render_patent_document tool', () => {
           outputName: 'test-opinion',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '标题' },
+          draft: opinionDraft('标题'),
         },
         { signal: new AbortController().signal } as never,
       )) as { htmlPath: string; warnings: string[] }
@@ -148,7 +203,7 @@ describe('render_patent_document tool', () => {
           outputName: 'timed',
           outputDir: dir,
           format: 'pdf',
-          sections: { 'meta-title': '标题' },
+          draft: opinionDraft('标题'),
         },
         { signal: new AbortController().signal } as never,
       )) as { pdfPath?: string }
@@ -167,13 +222,13 @@ describe('render_patent_document tool', () => {
     expect(blocks).toEqual([{ type: 'text', text: 'HTML written: /out/a.html' }])
   })
 
-  it('executes without sections, brand, outputDir, or format into the default output directory', async () => {
+  it('executes without brand, outputDir, or format into the default output directory', async () => {
     const subprocess = fakeSubprocess(() => successHandle()).runtime
     const dir = mkdtempSync(join(tmpdir(), 'dsh-tool-'))
     try {
       const tool = createRenderPatentDocumentTool({ subprocess, defaultOutputDir: dir, chromePath: join(dir, 'missing-chrome') })
       const value = (await tool.execute(
-        { template: 'patentability-opinion', outputName: 'default-dir' },
+        { template: 'patentability-opinion', outputName: 'default-dir', draft: opinionDraft('缺省') },
         { signal: new AbortController().signal } as never,
       )) as { htmlPath: string; warnings: string[]; pdfError?: string }
 
@@ -199,7 +254,7 @@ describe('render_patent_document tool', () => {
           outputName: 'branded',
           outputDir: dir,
           format: 'html',
-          sections: { 'meta-title': '品牌' },
+          draft: opinionDraft('品牌'),
           brand: { firm: '显式事务所' },
           brandPath: themePath,
         },
@@ -221,11 +276,11 @@ describe('render_patent_document tool', () => {
       const tool = createRenderPatentDocumentTool({ subprocess })
       const value = (await tool.execute(
         {
-          template: 'search-report',
+          template: 'patentability-opinion',
           outputName: 'sr-case',
           caseId: 'c-2026-01',
           format: 'html',
-          sections: { 'meta-title': '案卷' },
+          draft: opinionDraft('案卷'),
         },
         { signal: new AbortController().signal } as never,
       )) as { htmlPath: string }
@@ -253,35 +308,13 @@ describe('render_patent_document tool', () => {
           outputName: 'pdf-ok',
           outputDir: dir,
           format: 'pdf',
-          sections: { 'meta-title': 'PDF 成功' },
+          draft: opinionDraft('PDF 成功'),
         },
         { signal: new AbortController().signal } as never,
       )) as { htmlPath: string; pdfPath?: string }
 
       expect(value.pdfPath).toBe(join(dir, 'pdf-ok.pdf'))
       expect(existsSync(value.pdfPath as string)).toBe(true)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('rejects a non-string section value', async () => {
-    const subprocess = fakeSubprocess(() => successHandle()).runtime
-    const dir = mkdtempSync(join(tmpdir(), 'dsh-tool-'))
-    try {
-      const tool = createRenderPatentDocumentTool({ subprocess })
-      await expect(
-        tool.execute(
-          {
-            template: 'patentability-opinion',
-            outputName: 'bad-section',
-            outputDir: dir,
-            format: 'html',
-            sections: { 'meta-title': 42 as never },
-          },
-          { signal: new AbortController().signal } as never,
-        ),
-      ).rejects.toThrow(/sections 的键 "meta-title" 必须是字符串/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

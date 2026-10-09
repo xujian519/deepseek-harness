@@ -39,17 +39,15 @@ export type DocumentRenderInput = {
   format?: RenderFormat
   /**
    * claims-spec 受控草案（已通过 validateSpecDraft）：标题、权项编号与表题由
-   * 转换器生成。claims-spec 必填；其余模板接入前传 draft 会抛错。
+   * 转换器生成。仅 claims-spec 接受；与 templateDraft 互斥。
    */
   draft?: SpecDraft
   /**
-   * 表单模板（right-evaluation-report / search-report-form）受控草案
-   * （已通过 validateTemplateDraft + 注册表 schema 校验）：text/choice/rows/blocks
-   * 槽位按 data-slot 注入。与 draft 互斥；表单模板下 sections 必须为空。
+   * 表单与通用文档模板的受控草案（已通过 validateTemplateDraft + 注册表 schema
+   * 校验）：表单模板的 text/choice/rows/blocks 槽位按 data-slot 注入，通用文档
+   * 模板的 fields/sections 槽位按元素 id 注入。与 draft 互斥。
    */
   templateDraft?: TemplateDraft
-  /** 按元素 id 注入的 HTML 内容（innerHTML）；claims-spec 与表单模板已停用，其余模板暂用。 */
-  sections: Record<string, string>
   /** 内联品牌覆盖（优先级高于 brandPath）。 */
   brand?: DocumentBrand
   /** 指向 theme.json 的显式路径；本包不随包分发默认品牌文件。 */
