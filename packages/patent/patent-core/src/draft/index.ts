@@ -9,6 +9,7 @@
 
 export {
   SPEC_PART_HEADINGS,
+  SPEC_PART_ORDER,
   type DraftBlock,
   type SpecDraft,
   type SpecDraftMeta,
@@ -17,4 +18,8 @@ export {
   type TemplateDraftSchema,
   type TemplateDraftSection,
 } from './types.ts'
+export {
+  numberedFigureDescriptions,
+  type NumberedFigureDescription,
+} from './figureDescriptions.ts'
 export { DraftValidationError, validateSpecDraft, validateTemplateDraft } from './validate.ts'

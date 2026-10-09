@@ -6211,82 +6211,16 @@ render_patent_document renders patent deliverables (claims/specification/search 
 
 ### `build_patent_filing`
 
-把结构化内容按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书段落编号由本工具按 spec 顺序写入，源稿已带 `[NNNN]` 时先剥后写；源稿编号与本工具的序号不一致会报错而不是静默覆盖。 附图按图序传入，第 1 张进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
+把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、每幅附图一条 drawingDescriptions、figureFiles、五部分 sections 块）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书段落编号由本工具按 spec 顺序写入；正文里已带 `[NNNN]` 的会先剥后写，编号与段落顺序不一致会报错而不是静默覆盖。 附图按图序传入 draft.figureFiles，第 1 张进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
 
 ```json
 {
   "type": "object",
   "properties": {
-    "content": {
+    "draft": {
       "type": "object",
-      "description": "申请文件的结构化内容",
-      "additionalProperties": false,
-      "properties": {
-        "abstract": {
-          "type": "array",
-          "description": "说明书摘要正文段（不含「摘要附图」标注——摘要附图是独立的一节，由 figures[0] 承载）",
-          "items": {
-            "type": "string"
-          }
-        },
-        "claims": {
-          "type": "array",
-          "description": "权利要求项，按项序排列（含项号，如「1. 一种……」）",
-          "items": {
-            "type": "string"
-          }
-        },
-        "specification": {
-          "type": "array",
-          "description": "说明书主体，按文档顺序：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "type": "string",
-                "description": "h3/h4 为法定部分标题，p 为正文段，table 为表格",
-                "enum": [
-                  "h3",
-                  "h4",
-                  "p",
-                  "table"
-                ]
-              },
-              "text": {
-                "type": "string",
-                "description": "h3/h4/p 的文本"
-              },
-              "rows": {
-                "type": "array",
-                "description": "table 的行列；首行为表头，各行必须等宽",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          }
-        },
-        "figures": {
-          "type": "array",
-          "description": "附图路径，按图序排列（第 1 张即摘要附图）；支持 .svg 源件与 .png/.jpg/.jpeg 位图",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "abstract",
-        "claims",
-        "specification",
-        "figures"
-      ]
+      "description": "申请文件受控草案。受控草案（结构化 JSON，与 render_patent_document 的 claims-spec draft 同一份 SpecDraft 结构）：meta（title/applicant/inventor/agent/date）、claims（不带项号，≥1 项）、abstract（≥1 段）、figureFiles（按图序，第 1 张即摘要附图）、drawingDescriptions（每项一幅附图）、sections（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分的 paragraph/list/table 块；表格仅允许出现在具体实施方式）",
+      "additionalProperties": true
     },
     "outputName": {
       "type": "string",
@@ -6302,7 +6236,7 @@ render_patent_document renders patent deliverables (claims/specification/search 
     }
   },
   "required": [
-    "content",
+    "draft",
     "outputName"
   ]
 }

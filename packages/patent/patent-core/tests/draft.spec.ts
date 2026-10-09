@@ -74,6 +74,33 @@ describe('SPEC_PART_HEADINGS', () => {
       embodiment: '具体实施方式',
     })
   })
+
+  it('SPEC_PART_ORDER 与键序一致', async () => {
+    const { SPEC_PART_ORDER } = await import('@deepseek-ai/dsh-patent-core')
+    expect(SPEC_PART_ORDER).toEqual(['technicalField', 'background', 'summary', 'drawingDescriptions', 'embodiment'])
+  })
+})
+
+describe('numberedFigureDescriptions', () => {
+  it('跨列表块连续编号，末项标记 last', async () => {
+    const { numberedFigureDescriptions } = await import('@deepseek-ai/dsh-patent-core')
+    const result = numberedFigureDescriptions([
+      { kind: 'paragraph', text: '本申请共三幅附图。' },
+      { kind: 'list', items: ['整体结构示意图', '模块框图'] },
+      { kind: 'list', items: ['剖视示意图'] },
+    ])
+    expect(result).toEqual([
+      { index: 1, text: '整体结构示意图', last: false },
+      { index: 2, text: '模块框图', last: false },
+      { index: 3, text: '剖视示意图', last: true },
+    ])
+  })
+
+  it('忽略非列表块且空列表部分返回空', async () => {
+    const { numberedFigureDescriptions } = await import('@deepseek-ai/dsh-patent-core')
+    expect(numberedFigureDescriptions([{ kind: 'paragraph', text: '无附图。' }])).toEqual([])
+    expect(numberedFigureDescriptions([])).toEqual([])
+  })
 })
 
 describe('validateSpecDraft', () => {

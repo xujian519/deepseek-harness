@@ -14,6 +14,7 @@ kind: "package-reference"
 ## 目录
 
 - [build_patent_filing 工具](#build_patent_filing-tool)
+- [草案映射](#draft-mapping)
 - [verify_patent_filing 工具](#verify_patent_filing-tool)
 - [随包资产](#filing-assets)
 - [配置](#configuration)
@@ -25,11 +26,16 @@ kind: "package-reference"
 <a id="build_patent_filing-tool"></a>
 ## build_patent_filing 工具
 
-build_patent_filing 接收结构化 `content`（摘要段落、按项序排列的权利要求、说明书节点列表、按图序排列的附图路径）、`outputName`，以及可选的 `caseId`/`outputDir`，写出一件五节的 DOCX。结果返回成品路径、真正入文的位图、各节承载的段落与图片数、段落编号总数、从源稿读到并核对过的编号数、从模板反解出的体例，以及模板的 SHA-256。
+build_patent_filing 接收受控 `draft`（与 `render_patent_document` 的 claims-spec 模板同一份 `SpecDraft`，由 `dsh-patent-core` 的 `validateSpecDraft` 校验）、`outputName`，以及可选的 `caseId`/`outputDir`，写出一件五节的 DOCX。结果返回成品路径、真正入文的位图、各节承载的段落与图片数、段落编号总数、从源稿读到并核对过的编号数、从模板反解出的体例，以及模板的 SHA-256。旧的 `content` 参数已删除：调用方再传它会在执行器参数校验处被「missing required property \"draft\"」拒绝。
 
-五节即法定节序：说明书摘要、摘要附图、权利要求书、说明书、说明书附图。附图按调用方给定的图序入文——第 1 张进摘要附图节，全部进说明书附图节且每图独占一页。`.svg` 源件先经 headless Chrome 栅格化，`.png`/`.jpg`/`.jpeg` 直接使用。
+五节即法定节序：说明书摘要、摘要附图、权利要求书、说明书、说明书附图。附图按 `draft.figureFiles` 给定的图序入文——第 1 张进摘要附图节，全部进说明书附图节且每图独占一页。`.svg` 源件先经 headless Chrome 栅格化，`.png`/`.jpg`/`.jpeg` 直接使用。
 
-节标题、段落编号与内部工作痕迹不会从本工具的输入进入成品，因为契约里没有承载它们的字段：说明书的 `h3`/`h4` 节点就是五个法定部分标题，`[0001]` 形态的段落编号由引擎自己写入。
+节标题、权项项号、附图说明图号与表题全部由草案结构生成、不由模型撰写：`contentFromDraft` 把五部分映射为法定 `h3` 标题、给权项加项号前缀、把附图说明列表项改写为「图N为……；/。」正文段，并在每个表格前生成「表 N · 名称」表题段——与 HTML 通道同一算法，两通道成文不可能分叉。随后引擎自己写入 `[0001]` 形态的段落编号，并剥掉正文里残留的源稿编号。
+
+<a id="draft-mapping"></a>
+## 草案映射
+
+`contentFromDraft(draft)` 是确定性的 `SpecDraft` → `FilingContent` 桥：内容模型没有列表节点，一个 `list` 块落成逐项正文段；表题全文档连续编号（「表 N · 名称」），表题段在前、`table` 节点（首行表头）在后。`tests/from-draft.spec.ts` 里的一致性测试把同一份草案的权项项号、表题与附图说明图号与 HTML 通道 `renderSpecDraftSections` 的输出逐一对齐钉住。
 
 <a id="verify_patent_filing-tool"></a>
 ## verify_patent_filing 工具
@@ -74,7 +80,7 @@ Schemastery 配置，全部字段可选。
 
 #### What the model sees
 
-一个名为 `build_patent_filing` 的注册工具，必填 `content` 对象（`abstract`、`claims`、`specification` 节点、`figures`）与 `outputName`，可选 `caseId` 与 `outputDir`。结果渲染为 Markdown 散文：成品路径、反解出的体例、各节段落与图片数、段落编号总数与其核对过的源稿编号、附图张数，以及截断的模板指纹。schema 本身见[工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-filing)。
+一个名为 `build_patent_filing` 的注册工具，必填 `draft` 对象（共享的 `SpecDraft`：`meta`、不带项号的 `claims`、`abstract`、`figureFiles`、`drawingDescriptions`，以及按五部分组织的 `paragraph`/`list`/`table` 块）与 `outputName`，可选 `caseId` 与 `outputDir`。结果渲染为 Markdown 散文：成品路径、反解出的体例、各节段落与图片数、段落编号总数与其核对过的源稿编号、附图张数，以及截断的模板指纹。schema 本身见[工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-filing)。
 
 #### Token effect
 

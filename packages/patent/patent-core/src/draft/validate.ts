@@ -9,6 +9,7 @@
 import { asJsonRecord } from '../llm-json.ts'
 import {
   SPEC_PART_HEADINGS,
+  SPEC_PART_ORDER,
   type DraftBlock,
   type SpecDraft,
   type SpecDraftMeta,
@@ -56,7 +57,6 @@ const CLAIM_NUMBER_PREFIX = /^\s*\d+\s*[.、．]/
 /** 表名禁止的行首形态：`表1`、`表 2`。 */
 const TABLE_NUMBER_PREFIX = /^\s*表\s*\d/
 
-const SPEC_PART_IDS = Object.keys(SPEC_PART_HEADINGS) as SpecPartId[]
 
 function available(parts: readonly string[]): string {
   return parts.join('、')
@@ -257,9 +257,9 @@ function validateSpecSections(value: unknown, violations: string[]): Record<Spec
     violations.push('sections 必须是对象')
     return undefined
   }
-  let valid = !reportUnknownKeys(record, SPEC_PART_IDS, 'sections', violations)
+  let valid = !reportUnknownKeys(record, SPEC_PART_ORDER, 'sections', violations)
   const sections: Partial<Record<SpecPartId, DraftBlock[]>> = {}
-  for (const partId of SPEC_PART_IDS) {
+  for (const partId of SPEC_PART_ORDER) {
     const heading = SPEC_PART_HEADINGS[partId]
     if (!Object.hasOwn(record, partId)) {
       violations.push(`sections.${partId} 缺失（${heading}）`)

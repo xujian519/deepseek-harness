@@ -53,6 +53,24 @@ const VERIFY_FAIL_REPORT = JSON.stringify({
   },
 })
 
+/** 最小可通过校验的受控草案（claims 不带项号）。 */
+function draftFixture(figure: string): Record<string, unknown> {
+  return {
+    meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+    claims: ['一种装置，其特征在于，包括本体。'],
+    abstract: ['摘要正文。'],
+    figureFiles: [figure],
+    drawingDescriptions: ['整体结构示意图'],
+    sections: {
+      technicalField: [{ kind: 'paragraph', text: '本发明属于机械领域。' }],
+      background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],
+      summary: [{ kind: 'paragraph', text: '本发明提供一种装置。' }],
+      drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }],
+      embodiment: [{ kind: 'paragraph', text: '下面结合附图说明。' }],
+    },
+  }
+}
+
 describe('build_patent_filing tool', () => {
   it('declares the defineTool shape', () => {
     const tool = createBuildPatentFilingTool({
@@ -68,7 +86,7 @@ describe('build_patent_filing tool', () => {
     expect(tool.description).toContain('申请文件')
     const parameters = tool.parameters as { properties?: Record<string, unknown> }
     expect(parameters.properties).toBeDefined()
-    expect(parameters.properties).toHaveProperty('content')
+    expect(parameters.properties).toHaveProperty('draft')
     expect(parameters.properties).toHaveProperty('outputName')
     expect(parameters.properties).toHaveProperty('caseId')
     expect(parameters.properties).toHaveProperty('outputDir')
@@ -93,12 +111,7 @@ describe('build_patent_filing tool', () => {
         chromePath: '/usr/bin/chrome',
       })
       const value = await tool.execute({
-        content: {
-          abstract: ['摘要正文。'],
-          claims: ['1. 一种装置，其特征在于，包括本体。'],
-          specification: [{ kind: 'h3', text: '技术领域' }, { kind: 'p', text: '本发明属于机械领域。' }],
-          figures: [figure],
-        },
+        draft: draftFixture(figure),
         outputName: '案卷_申请文件',
       }, { signal: new AbortController().signal } as never) as FilingBuildResult
 
@@ -128,7 +141,7 @@ describe('build_patent_filing tool', () => {
         timeoutMs: 1_000,
       })
       const value = await tool.execute({
-        content: { abstract: ['a'], claims: ['1. a'], specification: [{ kind: 'p', text: 'x' }], figures: [figure] },
+        draft: draftFixture(figure),
         outputName: 'out',
         caseId: 'A-1',
         outputDir: explicit,
@@ -155,13 +168,46 @@ describe('build_patent_filing tool', () => {
       })
       // 无 caseId、无 outputDir：覆盖缺省目录分支。
       const value = await tool.execute({
-        content: { abstract: ['a'], claims: ['1. a'], specification: [{ kind: 'p', text: 'x' }], figures: [figure] },
+        draft: draftFixture(figure),
         outputName: 'default-dir',
       }, { signal: new AbortController().signal } as never) as FilingBuildResult
       expect(value.docxPath).toBe(join(work, 'default-dir.docx'))
     } finally {
       rmSync(work, { recursive: true, force: true })
     }
+  })
+
+  it('rejects the legacy content parameter at the executor argument gate', async () => {
+    const tool = createBuildPatentFilingTool({
+      subprocess: fakeSubprocess(() => stdoutHandle(BUILD_REPORT)).spawner,
+      pythonPath: '/usr/bin/python3',
+      specPath: defaultSpecPath(),
+      templatePath: defaultTemplatePath(),
+      defaultOutputDir: '.dsh/documents',
+      figureScale: 3,
+      timeoutMs: 1_000,
+    })
+    // content 已不在参数 schema 里：执行器按缺 required draft 拒绝，不静默忽略旧键。
+    await expect(tool.execute({
+      content: { abstract: ['a'], claims: ['1. a'], specification: [{ kind: 'p', text: 'x' }], figures: ['f.png'] },
+      outputName: 'legacy',
+    }, { signal: new AbortController().signal } as never)).rejects.toThrow(/missing required property "draft"/)
+  })
+
+  it('rejects an invalid draft with the slot-listing validation message', async () => {
+    const tool = createBuildPatentFilingTool({
+      subprocess: fakeSubprocess(() => stdoutHandle(BUILD_REPORT)).spawner,
+      pythonPath: '/usr/bin/python3',
+      specPath: defaultSpecPath(),
+      templatePath: defaultTemplatePath(),
+      defaultOutputDir: '.dsh/documents',
+      figureScale: 3,
+      timeoutMs: 1_000,
+    })
+    await expect(tool.execute({
+      draft: { claims: ['1. 自带项号的一种装置'] },
+      outputName: 'bad-draft',
+    }, { signal: new AbortController().signal } as never)).rejects.toThrow(/claims\[0\] 自带项号/)
   })
 
   it('renders the canonical result as pure model-facing prose', () => {

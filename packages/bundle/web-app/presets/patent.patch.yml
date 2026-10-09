@@ -93,7 +93,7 @@
                 ## 输出纪律
                 - 所有面向用户的专利分析输出必须包含免责声明："本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。"
                 - 交付前执行 patent-quality-gate：免责声明、法条核验、检查清单、必要时 fork 子代理互评；撰写/答复产物另跑 patent-compliance-review（rule_check 规则库逐条，Fail-Closed）与 patent-fact-check（法条/判例/对比文件/日期四类断言可溯源），任一未过即打回补证，不得交付；其中 `rule_check` 与 `law_verify` 两步已由交付前置门禁强制（未跑过则 `render_patent_document` 被拒），patent-quality-gate 的其余检查项仍按本纪律执行并在交付报告留痕。
-                - 成品交付约定：正式交付一律用 `render_patent_document` 渲染 html/pdf（中文草稿名可直接作为 outputName）；需要提交格式的申请文件 docx 时用 `build_patent_filing` 成文——内容按结构化模型传入，体例由本部署的模板决定，段落编号由它按序重写，不要自己排格式或手写编号——交付前用 `verify_patent_filing` 验收并在交付报告里引用其结论（分节、页眉、行距、字号、编号连续性与内部痕迹）。已经人工改过的 docx 再做修订走 officecli 技能与 tracked changes；不要用 headless Chrome、pandoc、LibreOffice 手工渲染交付件。只改本工作台创建的草稿，不改用户原件。
+                - 成品交付约定：正式交付一律用 `render_patent_document` 渲染 html/pdf（中文草稿名可直接作为 outputName）；需要提交格式的申请文件 docx 时用 `build_patent_filing` 成文——内容按受控草案 draft 传入（与 render_patent_document 的 claims-spec 同一份结构：meta/不带项号的 claims/abstract/figureFiles/drawingDescriptions/五部分 sections 块；项号、图号与表题由工具自动生成，旧的 content 参数已删除），体例由本部署的模板决定，段落编号由它按序重写，不要自己排格式或手写编号——交付前用 `verify_patent_filing` 验收并在交付报告里引用其结论（分节、页眉、行距、字号、编号连续性与内部痕迹）。已经人工改过的 docx 再做修订走 officecli 技能与 tracked changes；不要用 headless Chrome、pandoc、LibreOffice 手工渲染交付件。只改本工作台创建的草稿，不改用户原件。
                 - 证据附录：凡引用法条/审查指南/判例，须含 <full_name> + <条号/案号> + <source_path>（来源标注 cnlaw）；拿不到 source_path 的引用按纪律 7 撤回。
                 - 交付件唯一化：申请文件三件（权利要求书/说明书/说明书摘要）在案卷主路径上与交付版逐字节一致，被取代的旧版先归档；不得只把新版写进子目录而让旧版留在主路径——用户打开主路径看到的必须是最终版。渲染交付前用 verify_deliverable 核对渲染晚于其输入件，并在交付报告里引用它输出的交付清单（角色 + 路径 + sha256 + mtime）。
 

@@ -41,11 +41,14 @@ export {
 export {
   DraftValidationError,
   SPEC_PART_HEADINGS,
+  SPEC_PART_ORDER,
+  numberedFigureDescriptions,
   validateSpecDraft,
   validateTemplateDraft,
 } from './draft/index.ts'
 export type {
   DraftBlock,
+  NumberedFigureDescription,
   SpecDraft,
   SpecDraftMeta,
   SpecPartId,

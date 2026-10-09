@@ -10,38 +10,24 @@
 
 import {
   SPEC_PART_HEADINGS,
-  type DraftBlock,
+  SPEC_PART_ORDER,
+  numberedFigureDescriptions,
   type SpecDraft,
-  type SpecPartId,
 } from '@deepseek-ai/dsh-patent-core'
 import { renderBlocks, type TableCaptionCounter } from './blocks.ts'
 import { escapeHtmlText } from './escape.ts'
 
-/** 五部分章节的固定渲染顺序。 */
-const PART_ORDER: readonly SpecPartId[] = [
-  'technicalField',
-  'background',
-  'summary',
-  'drawingDescriptions',
-  'embodiment',
-]
-
-/** 渲染附图说明部分：列表项按序号生成「图N为……；」，段末句号落在全部分最后一个列表项。 */
-function renderDrawingDescriptions(blocks: readonly DraftBlock[], captionCounter: TableCaptionCounter): string {
-  let total = 0
-  for (const block of blocks) {
-    if (block.kind === 'list') total += block.items.length
-  }
-  let index = 0
+/** 渲染附图说明部分：列表项按契约层编号生成「图N为……；」，末项句号。 */
+function renderDrawingDescriptions(blocks: Parameters<typeof numberedFigureDescriptions>[0], captionCounter: TableCaptionCounter): string {
+  const figures = numberedFigureDescriptions(blocks)
   return blocks.map((block) => {
     if (block.kind !== 'list') {
       return renderBlocks([block], captionCounter)
     }
-    const items = block.items.map((item) => {
-      index += 1
-      const punctuation = index === total ? '。' : '；'
-      return `<li>图${index}为${escapeHtmlText(item)}${punctuation}</li>`
-    }).join('')
+    const items = figures
+      .splice(0, block.items.length)
+      .map(figure => `<li>图${figure.index}为${escapeHtmlText(figure.text)}${figure.last ? '。' : '；'}</li>`)
+      .join('')
     return `<ul class="figure-list">${items}</ul>`
   }).join('')
 }
@@ -75,7 +61,7 @@ export interface SpecDraftSectionMap {
  */
 export function renderSpecDraftSections(draft: SpecDraft): SpecDraftSectionMap {
   const captionCounter: TableCaptionCounter = { count: 0 }
-  const specification = PART_ORDER.map((partId) => {
+  const specification = SPEC_PART_ORDER.map((partId) => {
     const heading = `<h3>${SPEC_PART_HEADINGS[partId]}</h3>`
     const blocks = partId === 'drawingDescriptions'
       ? renderDrawingDescriptions(draft.sections[partId], captionCounter)

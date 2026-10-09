@@ -114,7 +114,7 @@ atoms 层定义工作流阶段词汇：`Atom`/`AtomRegistry`（声明式契约�
 <a id="draft-model-controlled-drafts"></a>
 ## 受控草案模型
 
-`draft` 模块定义了受控草案契约，取代专利交付工具中由模型产出的 HTML：`SpecDraft` 用于 claims-spec 申请文件（著录项 `meta`、不带项号的 `claims`、多段 `abstract`、`figureFiles`、每幅附图一条的 `drawingDescriptions`，以及按 `SPEC_PART_HEADINGS` 五部分 keyed 的 `sections`）；`TemplateDraft` 用于其余文书模板（`fields` 文本槽 + `sections` 块槽）。块仅有 `paragraph`/`list`/`table` 三种；表题与权项编号由下游转换器生成，因此合法草案不会携带标题或任意表格标记。`validateSpecDraft`/`validateTemplateDraft` 把无类型的工具 JSON 窄化为上述类型，并把全部违规聚合进一次抛出的 `DraftValidationError`，消息中对每个未知键列出可用项。支撑 `TemplateDraft` 校验的槽位注册表随 `dsh-patent-document` 分发。
+`draft` 模块定义了受控草案契约，取代专利交付工具中由模型产出的 HTML：`SpecDraft` 用于 claims-spec 申请文件（著录项 `meta`、不带项号的 `claims`、多段 `abstract`、`figureFiles`、每幅附图一条的 `drawingDescriptions`，以及按 `SPEC_PART_HEADINGS` 五部分 keyed 的 `sections`）；`TemplateDraft` 用于其余文书模板（`fields` 文本槽 + `sections` 块槽）。块仅有 `paragraph`/`list`/`table` 三种；表题与权项编号由下游转换器生成，因此合法草案不会携带标题或任意表格标记。两通道共享的词汇——`SPEC_PART_ORDER` 与生成「图N为……；/。」附图说明的 `numberedFigureDescriptions`——也在这里持有，HTML 与 DOCX 转换器不可能分叉。`validateSpecDraft`/`validateTemplateDraft` 把无类型的工具 JSON 窄化为上述类型，并把全部违规聚合进一次抛出的 `DraftValidationError`，消息中对每个未知键列出可用项。支撑 `TemplateDraft` 校验的槽位注册表随 `dsh-patent-document` 分发。
 
 <a id="model-experience"></a>
 ## Model Experience

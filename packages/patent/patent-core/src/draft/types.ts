@@ -43,6 +43,15 @@ export const SPEC_PART_HEADINGS = {
 /** claims-spec 五部分章节 id。 */
 export type SpecPartId = keyof typeof SPEC_PART_HEADINGS
 
+/** 五部分章节的固定文档顺序（与 SPEC_PART_HEADINGS 键序一致）。 */
+export const SPEC_PART_ORDER: readonly SpecPartId[] = [
+  'technicalField',
+  'background',
+  'summary',
+  'drawingDescriptions',
+  'embodiment',
+]
+
 /** claims-spec 著录项：五项必填非空。 */
 export interface SpecDraftMeta {
   /** 发明名称。 */
