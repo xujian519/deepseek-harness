@@ -298,12 +298,6 @@
               - id: tool-workflow
                 name: '@deepseek-ai/dsh-tool-workflow'
 
-              - id: tool-ralph
-                name: '@deepseek-ai/dsh-tool-ralph'
-                config:
-                  subagentProvider: spawn
-                  maxRounds: 64
-
           # ── remaining model-facing rows ─────────────────────────────────────────────
 
           - id: tool-ask-user
