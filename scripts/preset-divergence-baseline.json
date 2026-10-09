@@ -155,7 +155,7 @@
     },
     "tool-workflow": {
       "cordis.patch.yml": "0898baaf9f",
-      "document.patch.yml": "1bff54a31f",
+      "document.patch.yml": "eb4ebd71c6",
       "patent.patch.yml": "d4c6822d04",
       "ptc.patch.yml": "1aa5baad08",
       "standard.patch.yml": "0898baaf9f"
