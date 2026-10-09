@@ -7,10 +7,10 @@ import { readTemplateHtml } from '../src/document/templateResolver.ts'
 
 /** 读取示例草案并通过注册表校验。 */
 function exampleDraft(template: 'right-evaluation-report' | 'search-report-form'): TemplateDraft {
-  const raw = JSON.parse(readFileSync(
+  const raw: unknown = JSON.parse(readFileSync(
     `packages/patent/patent-document/assets/templates/patent/${template}/assets/example-draft.json`,
     'utf8',
-  )) as unknown
+  ))
   return validateTemplateDraft(raw, FORM_TEMPLATE_SCHEMAS[template])
 }
 

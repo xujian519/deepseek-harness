@@ -83,10 +83,10 @@ describe('draft schema conformance（注册表 ↔ 模板机械提取一致性�
       })
 
       it('示例草案通过注册表校验（必填槽位齐全）', () => {
-        const raw = JSON.parse(readFileSync(
+        const raw: unknown = JSON.parse(readFileSync(
           `packages/patent/patent-document/assets/templates/patent/${template}/assets/example-draft.json`,
           'utf8',
-        )) as unknown
+        ))
         const draft = validateTemplateDraft(raw, schema)
         expect(draft.sections.length).toBeGreaterThan(0)
       })

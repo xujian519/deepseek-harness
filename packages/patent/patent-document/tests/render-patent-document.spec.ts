@@ -828,10 +828,10 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
 
 describe('renderPatentDocument 表单模板受控草案', () => {
   function exampleDraft(template: 'right-evaluation-report' | 'search-report-form'): TemplateDraft {
-    const raw = JSON.parse(readFileSync(
+    const raw: unknown = JSON.parse(readFileSync(
       `packages/patent/patent-document/assets/templates/patent/${template}/assets/example-draft.json`,
       'utf8',
-    )) as unknown
+    ))
     return validateTemplateDraft(raw, FORM_TEMPLATE_SCHEMAS[template])
   }
 
