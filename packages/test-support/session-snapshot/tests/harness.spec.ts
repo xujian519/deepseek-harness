@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join, relative, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import type { TestContext } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { runScenario, snapshotSpillRoot, type AgentUnderTest, type InputStep } from '../src/harness.ts'
 import { launchAcpTestAgent } from '../src/launcher.ts'
@@ -74,6 +75,21 @@ async function scenario(behavior: object): Promise<{ dir: string; fixtureFile: s
   tempDirs.push(dir)
   await writeFile(join(dir, 'behavior.json'), JSON.stringify(behavior))
   return { dir, fixtureFile: join(dir, 'session.jsonl') }
+}
+
+/** Keep immutable-log diagnostics independent of initial filesystem harvest latency. */
+function isolateDiagnosticTimeout(onTestFinished: TestContext['onTestFinished']): void {
+  const waitFor = vi.waitFor
+  const wait = vi.spyOn(vi, 'waitFor')
+  onTestFinished(() => { wait.mockRestore() })
+  wait.mockImplementation(async (callback, options) => {
+    if (typeof options !== 'object' || options.timeout !== 20) return waitFor(callback, options)
+    try {
+      return await callback()
+    } catch (error) {
+      return waitFor(() => { throw error }, options)
+    }
+  })
 }
 
 const boot: InputStep[] = [{ op: 'initialize' }, { op: 'newSession' }]

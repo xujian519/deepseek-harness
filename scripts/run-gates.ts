@@ -23,6 +23,8 @@ export type Mode =
   | 'ci-coverage'
   | 'ci-unit'
   | 'ci-bench'
+  | 'ci-snapshot'
+  | 'ci-artifacts'
   | 'ci-consumers'
   | 'ci-windows-blocking'
   | 'ci-windows-complete'
@@ -480,6 +482,18 @@ function ciStaticGates(options: { ownsBuild: boolean }): Gate[] {
       docsBuildScript: 'docs:build:mpa',
     }),
     pnpmScript('module-graph', 'verify-module-graph', { label: 'module graph' }),
+  ]
+}
+
+function ciArtifactGates(): Gate[] {
+  return [
+    ciBuildGate(),
+    pnpmScript('publint', 'publint', { needs: ['build'] }),
+    pnpmScript('node-next-types', 'verify-node-next-types', {
+      label: 'node-next types',
+      needs: ['build'],
+    }),
+    builtBinSmokeGate(),
   ]
 }
 

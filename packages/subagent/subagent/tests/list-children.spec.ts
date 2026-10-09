@@ -481,7 +481,7 @@ describe('SubagentRuntime.listDescendants', () => {
       origin: 'subagent',
     }, childEvents(descriptorPayload('under the fork')))
     // A real one-shot child, then a continuable authored below it.
-    const oneShot = await ctx.subagents.start('spawn', {
+    const oneShot = await startTestActivation(ctx, 'spawn', {
       label: 'one-shot intermediate',
       prompt: [{ type: 'text', text: 'one-shot task' }],
       parent,

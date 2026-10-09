@@ -839,6 +839,8 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts.',
+  },
+  {
     pkg: '@deepseek-ai/dsh-tool-working-directory',
     dir: 'tool-working-directory',
     source: 'packages/session/tool-working-directory/src/index.ts',

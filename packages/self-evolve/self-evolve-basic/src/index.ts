@@ -776,18 +776,24 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const subagents = this.ctx.get('subagents')
     const parent = this.ctx.agents.get(agent.sessionId)
     if (subagents === undefined || parent === undefined || subagents.getProvider('fork') === undefined) return null
-    const run = await subagents.start('fork', {
-      prompt: [{
-        type: 'text',
-        text: `你正在验证一个自进化修补提案，请如实重放以下失败场景并应用修补方案，完成一次验证执行。\n失败场景：${caseText}\n修补方案：${candidateText(proposal)}\n请按修补方案重新执行原本失败的操作，完成后用一句话说明结果。`,
-      }],
-      parent,
+    const run = await subagents.startActivation({
+      provider: 'fork',
+      label: 'self-evolve-replay',
+      delivery: 'caller',
+      request: {
+        prompt: [{
+          type: 'text',
+          text: `你正在验证一个自进化修补提案，请如实重放以下失败场景并应用修补方案，完成一次验证执行。\n失败场景：${caseText}\n修补方案：${candidateText(proposal)}\n请按修补方案重新执行原本失败的操作，完成后用一句话说明结果。`,
+        }],
+        parent,
+      },
       signal,
     })
     try {
       const result = await run.result
       const exitCode = result.stopReason === 'completed' ? 0 : 1
-      const retriggeredPatternIds = run.localAgent === undefined ? [] : classifyChildSession(run.localAgent.session)
+      const replayAgent = this.ctx.agents.get(run.childId)
+      const retriggeredPatternIds = replayAgent === undefined ? [] : classifyChildSession(replayAgent.session)
       return { exitCode, retriggeredPatternIds }
     } finally {
       await run.dispose()

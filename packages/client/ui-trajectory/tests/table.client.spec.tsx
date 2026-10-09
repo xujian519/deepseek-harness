@@ -2,7 +2,7 @@
 /** Trajectory ledger selection, details, status, and fold behavior. */
 
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { TrajectoryTable as LocalizedTrajectoryTable } from '../src/client/TrajectoryTable.tsx'

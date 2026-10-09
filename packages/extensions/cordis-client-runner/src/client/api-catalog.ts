@@ -638,6 +638,8 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'FloatWindow',
     declaration: 'export interface FloatWindow {\n    id: string;\n    tab: SidebarTab;\n    x: number;\n    y: number;\n    w: number;\n    h: number;\n}',
+  },
+  {
     name: 'FontFamilies',
     declaration: 'export type FontFamilies = Readonly<Record<FontRole, string>>;',
   },

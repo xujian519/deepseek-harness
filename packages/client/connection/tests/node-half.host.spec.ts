@@ -245,7 +245,8 @@ describe('connection node half', () => {
           fakeRequest({ host: '127.0.0.1:3080', 'x-forwarded-proto': secure ? 'http' : 'https' }, `${url.pathname}${url.search}`),
           exchanged.response,
         )
-        const setCookie = exchanged.state.headers?.['set-cookie']
+        const setCookieHeader = exchanged.state.headers?.['set-cookie']
+        const setCookie = typeof setCookieHeader === 'string' ? setCookieHeader : setCookieHeader?.at(-1)
         expect(setCookie?.endsWith('; Secure'), protocol).toBe(secure)
         if (setCookie === undefined) throw new Error('browser token exchange did not set a cookie')
         expect(connection.requestRejection(fakeRequest({

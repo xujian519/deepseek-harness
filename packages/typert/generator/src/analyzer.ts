@@ -586,6 +586,8 @@ class FaceAnalyzer {
   private readonly graph: TypeGraph
   private readonly sourceFiles = new Map<string, ts.SourceFile>()
   private readonly exportsByPackage = new Map<string, ExportRecord[]>()
+  /** Registration lookup per source path; the registration set is fixed per analyzer. */
+  private readonly registrationByFile = new Map<string, PackageRegistration | undefined>()
   /** Remote/RPC contract analysis, over the graph this face mints ids in. */
   private readonly remote: RemoteAnalyzer
 
