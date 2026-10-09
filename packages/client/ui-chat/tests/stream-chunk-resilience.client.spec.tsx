@@ -15,6 +15,7 @@ import { assistantDefinition } from '../src/client/conversation-nodes/assistant.
 import { chatViewDefinition } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
 import { unknownFallbackDefinition } from '../src/client/conversation-nodes/fallback.ts'
 import { AssistantMarkdown, type AssistantMarkdownProps } from '../src/client/chat/AssistantMarkdown.tsx'
+import { useSearchableHidden } from '../src/client/chat/searchable-hidden.ts'
 import { useDisclosure } from '../src/client/chat/use-disclosure.ts'
 import { useDetailedPresentation } from './presentation-fixture.client.ts'
 import { zh } from '../src/client/locale.ts'
@@ -134,7 +135,7 @@ describe('stream-chunk resilience', () => {
     ] as unknown as AssistantBlock[]
     expect(() =>
       render(
-        <AssistantMarkdown useDisclosure={useDisclosure}
+        <AssistantMarkdown renderSlot={() => null} useGroupAction={useSearchableHidden} useDisclosure={useDisclosure}
           usePresentation={useDetailedPresentation}
           blocks={blocks}
           streaming={false}
