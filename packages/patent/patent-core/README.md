@@ -1,5 +1,5 @@
 ---
-description: "Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with fourteen builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, and persistence/path helpers."
+description: "Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with fourteen builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with fourteen builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, and persistence/path helpers.
+Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with fourteen builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers.
 
 ## Table of Contents
 
@@ -28,6 +28,7 @@ Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines 
 - [Infringement kernel](#infringement-kernel)
 - [Graph engine](#graph-engine)
 - [Rule protocol + IPC](#rule-protocol--ipc)
+- [Draft model (controlled drafts)](#draft-model-controlled-drafts)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
@@ -95,13 +96,17 @@ The evidence layer records tool receipts (`Ledger`/`receiptFromToolExecution`), 
 
 The constitutional rule engine protocol types (`RuleSeverity`/`RuleAction`/`RuleCheck`/`ConstitutionalRule`/...) and the `hasNegationContext`/`parseCnNumber` text utilities ship here for the P3.1/P4.1 rule gates. The IPC classifier (`classifyIpc`/`classifyIpcTop`) and the `ipc-standards.yaml` examination-standard loader ship as pure lookups.
 
+## Draft model (controlled drafts)
+
+The `draft` module defines the controlled-draft contract that replaced model-authored HTML in the patent deliverable tools: `SpecDraft` for the claims-spec filing document (bibliographic `meta`, unnumbered `claims`, multi-paragraph `abstract`, `figureFiles`, one `drawingDescriptions` entry per figure, and `sections` keyed by the five specification parts in `SPEC_PART_HEADINGS`), and `TemplateDraft` for the other document templates (`fields` text slots plus `sections` block slots). Blocks are `paragraph`/`list`/`table` only; table captions and claim numbers are generated downstream, so a valid draft cannot carry headings or ad-hoc table markup. `validateSpecDraft`/`validateTemplateDraft` narrow untyped tool JSON into these types and aggregate every violation into one `DraftValidationError` whose messages list the available keys for each unknown slot. The slot registry backing `TemplateDraft` validation ships with `dsh-patent-document`.
+
 ## Model Experience
 
-None, as The library is pure computation for the workflow and tool layer; every model-facing schema and result is owned by its consumers.
+None, as the draft schema reaches the model only as a tool argument composed per call; the library contributes no prompt or system-side content, and a model authors a structured `SpecDraft`/`TemplateDraft` instead of template innerHTML, so headings, claim-item markup, and table markup leave the model output entirely (the converter generates them) and validation errors enumerate the available slots for correction without re-reading the template source.
 
 #### KV Cache effect
 
-Independent; the library contributes no model-visible content, so it never populates or invalidates a reusable KV-cache prefix.
+Independent; the draft schema is submitted per call inside tool arguments and never populates a reusable system-side KV-cache prefix.
 
 ## Known Limitations and Deferred Work
 
@@ -117,6 +122,8 @@ Independent; the library contributes no model-visible content, so it never popul
 - **Response preparation plans, it does not argue** — the plan states which grounds must be answered, which claims must be amended, and which gaps the notice leaves; claiming priority, actual amendments, and the merits stay with the attorney.
 - **Infringement equivalence is caller-supplied** — means/function/effect findings are inputs the module cross-checks for consistency; it neither decides equivalence nor substitutes an unpublished damage ceiling for the caller's ratio.
 - **LLM cross-check needs the `verdict` field** — the numeric-range node reads `verdict` from the LLM JSON; a response without it leaves the agreement at `n_a` instead of guessing.
+- **Draft model validates structure, not rendering** — the slot registry, HTML converter, and docx mapping live in `dsh-patent-document`/`dsh-patent-filing`; patent-core owns the shared types and validators only.
+- **Figureless applications are unsupported** — `figureFiles` and `drawingDescriptions` are required on `SpecDraft`; an application without drawings is out of scope for the current draft contract.
 
 ### Dev Note
 

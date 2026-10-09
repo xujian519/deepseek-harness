@@ -1,0 +1,20 @@
+/**
+ * src/draft — 受控草案模型与校验（patent 域共享）。
+ *
+ * 模型不再产出 HTML（标题、表格标记、innerHTML），而是提交结构化草案；
+ * 标题与表格由转换器按结构生成（by construction），渲染层不再接受模型可控标签。
+ * claims-spec 申请文件使用 {@link SpecDraft}，其余模板使用 {@link TemplateDraft}；
+ * 两通道（claims-spec HTML/PDF 与 build_patent_filing docx）共用同一份草案。
+ */
+
+export {
+  SPEC_PART_HEADINGS,
+  type DraftBlock,
+  type SpecDraft,
+  type SpecDraftMeta,
+  type SpecPartId,
+  type TemplateDraft,
+  type TemplateDraftSchema,
+  type TemplateDraftSection,
+} from './types.ts'
+export { DraftValidationError, validateSpecDraft, validateTemplateDraft } from './validate.ts'

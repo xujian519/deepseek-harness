@@ -21,6 +21,13 @@ describe('@deepseek-ai/dsh-patent-core surface', () => {
     expect(typeof Pkg.tryParseJson).toBe('function')
   })
 
+  it('exports the controlled draft model + validators', () => {
+    expect(typeof Pkg.validateSpecDraft).toBe('function')
+    expect(typeof Pkg.validateTemplateDraft).toBe('function')
+    expect(typeof Pkg.DraftValidationError).toBe('function')
+    expect(Pkg.SPEC_PART_HEADINGS.embodiment).toBe('具体实施方式')
+  })
+
   it('exports the IPC classifier + standards loader', () => {
     expect(typeof Pkg.classifyIpc).toBe('function')
     expect(typeof Pkg.classifyIpcTop).toBe('function')

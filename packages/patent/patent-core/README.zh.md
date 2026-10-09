@@ -1,5 +1,5 @@
 ---
-description: "纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。"
+description: "纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、专利交付工具的受控草案模型（SpecDraft/TemplateDraft）及校验器、以及持久化/路径助手。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。
+纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、专利交付工具的受控草案模型（SpecDraft/TemplateDraft）及校验器、以及持久化/路径助手。
 
 ## 目录
 
@@ -28,6 +28,7 @@ kind: "package-reference"
 - [侵权确定性内核](#infringement-kernel)
 - [Graph 引擎](#graph-engine)
 - [规则协议 + IPC](#rule-protocol--ipc)
+- [受控草案模型](#draft-model-controlled-drafts)
 - [Model Experience](#model-experience)
 - [已知局限与延期工作](#known-limitations-and-deferred-work)
 
@@ -110,14 +111,19 @@ atoms 层定义工作流阶段词汇：`Atom`/`AtomRegistry`（声明式契约�
 
 宪法规则引擎协议类型（`RuleSeverity`/`RuleAction`/`RuleCheck`/`ConstitutionalRule`/...）与 `hasNegationContext`/`parseCnNumber` 文本工具在此落地，供 P3.1/P4.1 规则门禁使用。IPC 分类器（`classifyIpc`/`classifyIpcTop`）与 `ipc-standards.yaml` 审查标准加载器以纯查表形式随包分发。
 
+<a id="draft-model-controlled-drafts"></a>
+## 受控草案模型
+
+`draft` 模块定义了受控草案契约，取代专利交付工具中由模型产出的 HTML：`SpecDraft` 用于 claims-spec 申请文件（著录项 `meta`、不带项号的 `claims`、多段 `abstract`、`figureFiles`、每幅附图一条的 `drawingDescriptions`，以及按 `SPEC_PART_HEADINGS` 五部分 keyed 的 `sections`）；`TemplateDraft` 用于其余文书模板（`fields` 文本槽 + `sections` 块槽）。块仅有 `paragraph`/`list`/`table` 三种；表题与权项编号由下游转换器生成，因此合法草案不会携带标题或任意表格标记。`validateSpecDraft`/`validateTemplateDraft` 把无类型的工具 JSON 窄化为上述类型，并把全部违规聚合进一次抛出的 `DraftValidationError`，消息中对每个未知键列出可用项。支撑 `TemplateDraft` 校验的槽位注册表随 `dsh-patent-document` 分发。
+
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as The library is pure computation for the workflow and tool layer; every model-facing schema and result is owned by its consumers.
+None，因为草案 schema 每次调用仅作为工具参数到达模型，库本身不贡献 prompt 或系统侧内容；模型以结构化草案替代模板 innerHTML 后，标题、权项标记与表格标记全部由下游转换器生成，模型输出更短且同模板文档的 token 结构一致，校验错误会列出可用槽位，被驳回的草案无需回读模板源码即可修正。
 
 #### KV Cache effect
 
-Independent; the library contributes no model-visible content, so it never populates or invalidates a reusable KV-cache prefix.
+Independent; the draft schema is submitted per call inside tool arguments and never populates a reusable system-side KV-cache prefix.
 
 <a id="known-limitations-and-deferred-work"></a>
 ## 已知局限与延期工作
@@ -134,6 +140,8 @@ Independent; the library contributes no model-visible content, so it never popul
 - **侵权的等同结论由调用方给出** — 手段/功能/效果的认定是输入，本模块只核对其与图表是否自洽；它既不判断是否构成等同，也不以未公开的赔偿上限替换调用方给出的比例。
 - **数值提取只识别封闭的单位表** — 拉丁/符号单位加一份列明的汉字单位表；用其他单位（或无单位）书写的数值只算弱发现、不能改变结论，因此该核验偏向返回 `inconclusive`。
 - **LLM 对照依赖 `verdict` 字段** — 数值范围节点从 LLM JSON 读取 `verdict`；响应缺少该字段时对照结论保持 `n_a`，不做猜测。
+- **草案模型只校验结构、不渲染** — 槽位注册表、HTML 转换器与 docx 映射位于 `dsh-patent-document`/`dsh-patent-filing`；patent-core 只持有共享类型与校验器。
+- **不支持无附图申请** — `SpecDraft` 要求 `figureFiles` 与 `drawingDescriptions` 必填；无附图的申请不在当前草案契约范围内。
 
 ### 开发备注
 

@@ -5,7 +5,9 @@
  * utilities, the dual-track checker rule engine, the problem atomization
  * checks, the evidence closed-loop ledger/engine, the structured reasoning
  * primitives, the claim-chart engine, the claim-drafting self-checks (claim unity
- * and the claim-to-embodiment coverage matrix), the IPC classifier/standards
+ * and the claim-to-embodiment coverage matrix), the controlled draft model
+ * (SpecDraft/TemplateDraft) with its validators for the patent deliverable tools,
+ * the IPC classifier/standards
  * lookup, and the persistence/path helpers.
  * @module @deepseek-ai/dsh-patent-core
  */
@@ -33,6 +35,24 @@ export {
   stripCodeFence,
   tryParseJson,
 } from './llm-json.ts'
+
+// Controlled draft model + validation: the model submits structured drafts
+// (no HTML); converters generate headings and tables from the structure.
+export {
+  DraftValidationError,
+  SPEC_PART_HEADINGS,
+  validateSpecDraft,
+  validateTemplateDraft,
+} from './draft/index.ts'
+export type {
+  DraftBlock,
+  SpecDraft,
+  SpecDraftMeta,
+  SpecPartId,
+  TemplateDraft,
+  TemplateDraftSchema,
+  TemplateDraftSection,
+} from './draft/index.ts'
 
 // Prompt-injection isolation for untrusted text spliced into LLM prompts.
 export { dataBlock } from './prompt-hygiene.ts'
