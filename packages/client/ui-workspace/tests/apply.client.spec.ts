@@ -29,6 +29,15 @@ import { FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
 import { apply as hostApply } from '../src/index.ts'
 
+/**
+ * The Client Controller face of `ctx.sessions`. This program reaches both the Host augmentation
+ * (`@deepseek-ai/dsh-session` declares `SessionStore`) and the Client one
+ * (`@deepseek-ai/dsh-api-session-controller/client` declares `ISessions`); the merged member is
+ * whichever declaration the program loads first, which here is the Host one. Intersecting the
+ * Client face in keeps `retain` resolving to the service the bench mocks.
+ */
+type ClientSessionsContext = Context & { sessions: ISessions }
+
 const sid = (id: string) => id as SessionId
 const summary = (id: string, updatedAt: number): SessionSummary => ({
   id: sid(id), displayTitle: id, running: false, blank: false, updatedAt, retainedBy: {},
@@ -52,7 +61,7 @@ const workspaceState = (
 })
 
 async function bench() {
-  const ctx = new Context()
+  const ctx = new Context() as ClientSessionsContext
   ctx.provide('shortcuts', { register: () => () => {}, catalog: createSnapshotStore([]) })
   ctx.provide('uiConversation', {})
   await ctx.plugin(SlotRegistry).await()
