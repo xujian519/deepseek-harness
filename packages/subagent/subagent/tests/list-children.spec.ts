@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -26,8 +27,9 @@ import SubagentRuntime, {
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
-import { TestSessionQuery } from './test-session-query.ts'
+import { startTestActivation } from './local-activation.ts'
 import { seedStoredSession } from './persistence-helpers.ts'
+import { TestSessionQuery } from './test-session-query.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
@@ -70,6 +72,7 @@ async function setup(
     projectionCacheDisposers.push(() => cache.dispose())
   }
   await ctx.plugin(TestSessionQuery)
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
   await ctx.plugin(SubagentFork, { providerName: 'fork' })
@@ -92,7 +95,7 @@ async function startChild(
   parent: Agent,
   label: string,
 ): Promise<SessionId> {
-  const started = await ctx.subagents.startContinuable({
+  const started = await ctx.subagents.startActivation({ delivery: 'parent',
     provider: 'spawn',
     label,
     request: { prompt: [{ type: 'text', text: `task: ${label}` }], parent },
@@ -213,24 +216,26 @@ describe('SubagentRuntime.listChildren', () => {
     }
   })
 
-  it('lists provider-established children from the parent catalog without a corpus or child read', async () => {
+  it('lists settled local children for both delivery modes without corpus or child reads', async () => {
     const { ctx, parent } = await setup([textResponse('once'), textResponse('again')])
-    const oneShot = await ctx.subagents.start('spawn', {
+    const callerOwned = await startTestActivation(ctx, 'spawn', {
       prompt: [{ type: 'text', text: 'finish once' }],
       agentOptions: { model: 'child-model' },
       parent,
       signal: testSignal,
     })
-    const oneShotId = oneShot.id
-    await oneShot.result
-    await oneShot.dispose()
+    expect(await ctx.subagents.listChildren(parent.id)).toMatchObject([
+      { id: callerOwned.childId, label: 'spawn', mode: 'continuable' },
+    ])
+    await callerOwned.result
+    await callerOwned.dispose()
     const continuableId = await startChild(ctx, parent, 'continuable child')
     const listSessions = vi.spyOn(ctx.sessionQuery, 'listSessions')
     const observeSession = vi.spyOn(ctx.sessionQuery, 'observeSession')
 
     const children = await ctx.subagents.listChildren(parent.id)
     expect(children.map(({ createdAt: _createdAt, ...child }) => child)).toEqual([
-      { id: oneShotId, mode: 'one-shot' },
+      { id: callerOwned.childId, label: 'spawn', mode: 'continuable' },
       { id: continuableId, label: 'continuable child', mode: 'continuable' },
     ])
     expect(children.every(child => Number.isFinite(child.createdAt))).toBe(true)
@@ -288,6 +293,7 @@ describe('SubagentRuntime.listChildren', () => {
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(TestSessionQuery)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     const ancestor = ctx.sessions.create(SessionId('catalog-ancestor'))
     ancestor.append('turn/start', { turn: 1 })
@@ -317,6 +323,7 @@ describe('SubagentRuntime.listChildren', () => {
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(TestSessionQuery)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     const parent = ctx.sessions.create(SessionId('chunk-parent'))
     for (let index = 0; index < 1_001; index += 1) {
@@ -348,6 +355,7 @@ describe('SubagentRuntime.listChildren', () => {
   it('fails loud when the query service is unavailable', async () => {
     const withoutProjection = new Context()
     await withoutProjection.plugin(SessionStore)
+    await mountWorkingDirectoryFixture(withoutProjection)
     await withoutProjection.plugin(SubagentRuntime)
     const parent = withoutProjection.sessions.create(SessionId('parent'))
     await expect(withoutProjection.subagents.listChildren(parent.id)).rejects.toMatchObject({

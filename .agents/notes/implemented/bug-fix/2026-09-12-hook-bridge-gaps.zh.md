@@ -18,7 +18,7 @@ Status: implemented
 
 ## 决策
 
-两个桥接现在以相同机制对称实现于 `packages/hooks/hooks-claude-code/src/index.ts` 与 `packages/hooks/hooks-codex/src/index.ts`：
+两个桥接现在以相同机制对称实现于 `packages/experimental/hooks-claude-code/src/index.ts` 与 `packages/experimental/hooks-codex/src/index.ts`：
 
 ### Session-start 投递门控
 
@@ -56,7 +56,7 @@ Status: implemented
 
 ## 测试
 
-`npx vitest run packages/hooks/hooks-claude-code/tests/bridge.spec.ts packages/hooks/hooks-codex/tests/bridge.spec.ts` 在两侧覆盖四种行为：
+`npx vitest run packages/experimental/hooks-claude-code/tests/bridge.spec.ts packages/experimental/hooks-codex/tests/bridge.spec.ts` 在两侧覆盖四种行为：
 
 - `UserPromptSubmit` hook 返回 `{"continue": false}` 会取消运行。
 - 从不自我限制的阻塞式 `Stop` hook 在 `maxStopContinuations` 次强制 continuation 后被取消。
@@ -67,6 +67,6 @@ Status: implemented
 
 ## 相关
 
-- [Claude Code hook bridge](../../../../packages/hooks/hooks-claude-code/README.zh.md)——受影响桥接的用户级合约。
-- [Codex hook bridge](../../../../packages/hooks/hooks-codex/README.zh.md)——受影响桥接的用户级合约。
+- [Claude Code hook bridge](../../../../packages/experimental/hooks-claude-code/README.zh.md)——受影响桥接的用户级合约。
+- [Codex hook bridge](../../../../packages/experimental/hooks-codex/README.zh.md)——受影响桥接的用户级合约。
 - [拦截扩展点](../../archived/feature/2026-06-30-interception-extension-points.md)——桥接所映射的类型化 Decision 表面。

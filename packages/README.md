@@ -40,7 +40,7 @@ New packages join existing groups, and a new group updates its own README and th
 | [`subprocess/`](subprocess/README.md) | Subprocess capability family: Service Definition + local process-tree provider |
 | [`ssh/`](ssh/README.md) | POSIX remote connection with paired filesystem, subprocess and sandbox providers |
 | [`shell/`](shell/README.md) | Bash capability family: executor seam, local impl, model-facing tools |
-| [`terminal/`](terminal/README.md) | Persistent PTY capability family: owner-scoped sessions, local implementation, model-facing tools |
+| [`terminal/`](terminal/README.md) | Persistent PTY service with owner-scoped sessions and a local shell backend |
 | [`ptc-runtime/`](ptc-runtime/README.md) | PTC execution capability family: Service Definition + sandboxed Node provider + PTC mode Consumer |
 | [`computer-use/`](computer-use/README.md) | Exclusive named desktop-provider registration |
 | [`browser-use/`](browser-use/README.md) | Exclusive named browser-provider registration |
@@ -54,9 +54,8 @@ New packages join existing groups, and a new group updates its own README and th
 | [`memory/`](memory/README.md) | External memory and context-database integrations (OpenViking) |
 | [`subagent/`](subagent/README.md) | Subagent capability family: provider-registry contract and model-facing delegation tools |
 | [`jobs/`](jobs/README.md) | Generic background-job runtime and model-facing job control tools |
-| [`experimental/`](experimental/README.md) | Pre-stable prototypes with explicit private exceptions |
-| [`workflow/`](workflow/README.md) | Workflow seam, PTC process engine, and model-facing `workflow`/`ralph` tools |
-| [`webhook/`](webhook/README.md) | Verified external events, trusted rules, and fire-and-forget Workspace Sessions |
+| [`experimental/`](experimental/README.md) | Capabilities under evaluation; [status and support policy](experimental/README.md#status) |
+| [`workflow/`](workflow/README.md) | Workflow seam, PTC process engine, and the model-facing `workflow` tool |
 | [`web/`](web/README.md) | Web capability family: seam, search/fetch providers, model-facing web tools |
 | [`document/`](document/README.md) | Document domain: the model-facing delivery tool, templates, style model, and DOCX kit, plus Host Office-to-PDF conversion |
 | [`attachment/`](attachment/README.md) | Durable attachment identity, validation, local content-addressed storage |
@@ -68,7 +67,6 @@ New packages join existing groups, and a new group updates its own README and th
 | [`bundle/`](bundle/README.md) | Installable `dsh --profile` patch layers |
 | [`extensions/`](extensions/README.md) | Agent runtime self-modification and plugin discovery: live inspection, model-written mount/unmount, read-only catalog discovery tools |
 | [`self-evolve/`](self-evolve/README.md) | Campaign-based self-evaluation and plugin evolution: durable service, agent-loop provider, benchmark runner, model-facing tools |
-| [`hooks/`](hooks/README.md) | Hook bridges + the shared Claude Code / Codex wire-protocol library |
 | [`mcp/`](mcp/README.md) | Attach external Model Context Protocol servers so their tools are callable as native tools |
 | [`patent/`](patent/README.md) | Patent domain plugins ported from Sati: engines, tools, rule gates, and knowledge access as workspace packages |
 | [`session/`](session/README.md) | Durable session data plane: persistence seam + backends, projection seam, log-backed titles, session reporting |
@@ -93,7 +91,7 @@ New packages join existing groups, and a new group updates its own README and th
 <a id="release-expectations"></a>
 ## Release expectations
 
-Most groups are product — stable API. The exceptions: `experimental/` publishes without stability or support promises, and `test-support/` and `util/` are support with lower compatibility expectations.
+Product groups have maintained product roles, while their public APIs remain pre-stable. [Experimental status](experimental/README.md#status) is independent of publication, installation, and optional delivery. Nonexperimental runtime packages must have product use or an explicit [package classification](../scripts/product-package-policy.ts); SDK, build, test, and declaration infrastructure have separate classifications.
 
 -----
 
