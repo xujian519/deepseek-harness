@@ -36,7 +36,7 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md`。
-2. 复制 `assets/template.html` 为 `litigation-pleading.html`。
+2. 用 `render_patent_document` 渲染：template 传 `litigation-pleading`，draft 传 id 键控草案：`fields` 填著录项、当事人、请求与事实文本槽（meta-*、doc-type/doc-kind、party-*、relief-*、facts-*、footer-case、footer-date），`sections` 传 blocks 槽（doc-number、defense-items、facts-rebuttal、sign-party、sign-date）与 rows 槽（evidence-table-body）。签名与日期槽位非必填（人工签署）。槽位清单与必填项以草案校验报错为准。
 3. 确定文书类型（起诉状/答辩状）→ 填充当事人信息 → 诉讼请求/答辩意见 → 事实与理由 → 证据清单 → 落款。
 4. 答辩状需逐项回应起诉状主张（对事实、对证据、对法律适用），不得遗漏。
 5. 渲染后核对：金额/日期数值、案由表述、证据编号连续、无占位符。

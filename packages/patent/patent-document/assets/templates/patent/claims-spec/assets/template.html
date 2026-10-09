@@ -256,7 +256,7 @@
   <div class="doc-masthead">
     <span class="doc-type">专利申请文件</span>
     <h1>权利要求书与说明书</h1>
-    <div class="doc-number">案卷号：CS-2026-XXXX · 版本 V1.0</div>
+    <div class="doc-number">案卷号：<span class="mono" id="meta-case">________</span> · 版本 V1.0</div>
   </div>
 
   <dl class="doc-meta">
@@ -267,86 +267,71 @@
     <dt>撰写日期</dt><dd id="meta-date">________</dd>
   </dl>
 
-  <!-- 权利要求书 -->
+  <!-- 权利要求书：draft.claims 每项一个 claim-item，项号由转换器自动连续生成 -->
   <section class="claims-section" id="claims" aria-label="权利要求书">
     <h2>权利要求书</h2>
+    <div id="claims-body">
 
-    <div class="claim-item" id="claim-1">
-      <span class="claim-num">1.</span>
-      一种<span id="claim1-subject">________</span>，其特征在于，<span id="claim1-features">________</span>。
-    </div>
+      <div class="claim-item"><span class="claim-num">1.</span>一种智能保温杯，包括杯体、杯盖、温度显示模块和加热单元，其特征在于，所述杯体为双层真空结构，所述杯盖设有温度显示模块，所述杯体内部设有加热单元，所述加热单元根据所述温度显示模块测得的水温自动启停。</div>
 
-    <div class="claim-item" id="claim-2">
-      <span class="claim-num">2.</span>
-      如权利要求 1 所述的<span class="claim-ref-subject">________</span>，其特征在于，<span id="claim2-features">________</span>。
-    </div>
-
-    <div class="claim-item" id="claim-3">
-      <span class="claim-num">3.</span>
-      如权利要求 <span class="mono">__</span> 所述的<span class="claim-ref-subject">________</span>，其特征在于，<span id="claim3-features">________</span>。
+      <div class="claim-item"><span class="claim-num">2.</span>如权利要求 1 所述的智能保温杯，其特征在于，所述温度显示模块包括温度传感器和显示屏，所述显示屏嵌设于所述杯盖上表面。</div>
     </div>
   </section>
 
   <!-- 说明书 -->
-  <!-- 说明书段落编号是可选体例：需要时在本节加 data-paragraph-numbering="[0001]"，引擎会给本节
+  <!-- draft.sections 五部分（技术领域/背景技术/发明内容/附图说明/具体实施方式），h3 标题、
+       图号与表题由转换器生成；模型只提交 paragraph/list/table 块。
+       说明书段落编号是可选体例：需要时在本节加 data-paragraph-numbering="[0001]"，引擎会给本节
        每个 <p>/<li> 写入口号（[0001]、[0002]……），h1–h6 标题、表格内容与纯图片段落不编号也不占号。
        《专利法》《专利法实施细则》与《专利审查指南》均未要求段落编号，是否编号取决于提交体例，
        因此模板默认不声明。权利要求书与摘要不编号。 -->
   <section id="specification" aria-label="说明书">
     <h2>说明书</h2>
+    <div id="specification-body">
 
-    <h3>技术领域</h3>
-    <p id="spec-field">本发明属于<span id="field-domain">________</span>领域，具体涉及一种<span id="field-subject">________</span>。</p>
+      <h3>技术领域</h3>
+      <p>本发明属于日常生活用品领域，具体涉及一种具有温度显示与自动加热功能的智能保温杯。</p>
 
-    <h3>背景技术</h3>
-    <p id="spec-background">________</p>
-    <p>现有技术存在以下问题：</p>
-    <ul id="spec-problems">
-      <li>________</li>
-    </ul>
+      <h3>背景技术</h3>
+      <p>现有保温杯多采用双层真空结构以延长保温时间，但普遍存在水温不可视、无法主动补热的问题。</p>
 
-    <h3>发明内容</h3>
-    <p id="spec-summary">本发明提供一种<span id="summary-subject">________</span>，以解决上述技术问题。</p>
-    <p>本发明的技术方案如下：</p>
-    <p id="spec-solution">________</p>
-    <p>本发明的有益效果：</p>
-    <ul id="spec-effects">
-      <li>________</li>
-    </ul>
+      <h3>发明内容</h3>
+      <p>本发明提供一种智能保温杯，以解决现有保温杯水温不可视且无法主动补热的技术问题。</p>
+      <ul>
+        <li>通过双层真空结构延长基础保温时间；</li>
+        <li>通过加热单元与温度显示模块联动，在水温低于阈值时自动补热。</li>
+      </ul>
 
-    <h3>附图说明</h3>
-    <ul class="figure-list" id="spec-figures">
-      <li>图 1 为<span id="fig-1">________</span>；</li>
-      <li>图 2 为<span id="fig-2">________</span>。</li>
-    </ul>
+      <h3>附图说明</h3>
+      <ul class="figure-list">
+        <li>图1为智能保温杯的整体结构示意图；</li>
+        <li>图2为加热控制逻辑的模块框图。</li>
+      </ul>
 
-    <h3>具体实施方式</h3>
-    <p id="spec-embodiment-intro">下面结合附图对本发明作进一步说明。</p>
-
-    <h4>实施例 1</h4>
-    <p id="embodiment-1">________</p>
-
-    <h4>实施例 2</h4>
-    <p id="embodiment-2">________</p>
-
-    <h4>附图标记说明</h4>
-    <table>
-      <caption>表 1 · 附图标记说明</caption>
-      <thead>
-        <tr><th style="width:15%">标记</th><th>名称</th></tr>
-      </thead>
-      <tbody id="mark-table">
-        <tr><td class="mono">1</td><td>________</td></tr>
-      </tbody>
-    </table>
+      <h3>具体实施方式</h3>
+      <p>下面结合附图对本发明作进一步说明。</p>
+      <p>参照图1，本实施例的智能保温杯包括杯体1、杯盖2、温度显示模块3和加热单元4。杯体1为双层真空结构，杯盖2上嵌设有温度显示模块3，杯体1内部设有加热单元4，加热单元4根据温度显示模块3测得的水温自动启停。</p>
+      <p>参照图2，控制模块5分别与温度显示模块3和加热单元4电连接，控制模块5根据预设温度阈值控制加热单元4的启停。</p>
+      <table>
+        <caption>表 1 · 附图标记说明</caption>
+        <thead>
+          <tr><th style="width:15%">标记</th><th>名称</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">1</td><td>杯体</td></tr>
+          <tr><td class="mono">2</td><td>杯盖</td></tr>
+          <tr><td class="mono">3</td><td>温度显示模块</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
-  <!-- 摘要 -->
+  <!-- 摘要：draft.abstract 每段一个 <p>，摘要附图号取 draft.abstractFigure（缺省 1） -->
   <section id="abstract" aria-label="摘要">
     <div class="abstract-box">
       <h3>摘要</h3>
-      <p id="abstract-text">________</p>
-      <p id="abstract-figure"><strong>摘要附图：</strong>图 <span class="mono">__</span></p>
+      <p>本发明公开一种智能保温杯，包括杯体、杯盖、温度显示模块和加热单元，加热单元根据温度显示模块测得的水温自动启停，实现水温可视化并主动补热，延长保温时长。</p>
+      <p><strong>摘要附图：</strong>图 <span class="mono">1</span></p>
     </div>
   </section>
 
@@ -358,7 +343,7 @@
     </div>
     <div class="disclaimer"></div>
     <footer class="doc-footer">
-      <span>CS-2026-XXXX · 机密</span>
+      <span id="footer-case">________</span>
       <span id="footer-date">________</span>
     </footer>
   </div>

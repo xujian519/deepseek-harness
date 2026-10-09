@@ -254,7 +254,7 @@
   <div class="doc-masthead">
     <span class="doc-type">专利检索报告</span>
     <h1>专利检索报告</h1>
-    <div class="doc-number">报告编号：SR-2026-XXXX · 版本 V1.0</div>
+    <div class="doc-number" id="doc-number">报告编号：<span class="mono">________</span> · 版本 V1.0</div>
   </div>
 
   <!-- 案件信息 -->
@@ -401,11 +401,8 @@
   <!-- 八、假设与局限 -->
   <section id="assumptions" aria-label="假设与局限">
     <h2>八、假设与局限</h2>
-    <ul>
-      <li>检索范围、数据库、截止日期；未穷尽所有语言或专利同族。</li>
-      <li>关键词/分类号策略的覆盖盲区。</li>
-      <li class="assumption-note">假设项以斜体标注，均未经验证，不构成本报告的确定结论。</li>
-    </ul>
+    <div id="assumptions-body"></div>
+    <p class="assumption-note">假设项以斜体标注，均未经验证，不构成本报告的确定结论。</p>
   </section>
 
   <!-- 落款与免责声明 -->
@@ -416,7 +413,7 @@
     </div>
     <div class="disclaimer"></div>
     <footer class="doc-footer">
-      <span>SR-2026-XXXX · 机密</span>
+      <span id="footer-case">________</span>
       <span id="footer-date">________</span>
     </footer>
   </div>

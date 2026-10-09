@@ -44,10 +44,12 @@ export interface FilingContent {
   /** 说明书主体，按文档顺序。 */
   specification: SpecificationNode[]
   /**
-   * 附图路径，按图序排列（第 1 张即摘要附图）。
+   * 附图路径，按图序排列。
    * `.svg` 源件先栅格化为 PNG 再入文；`.png`/`.jpg`/`.jpeg` 直接入文。
    */
   figures: string[]
+  /** 「摘要附图」节所用图号：`figures` 的 0 起下标；缺省 0，即第 1 张。 */
+  abstractFigureIndex?: number
 }
 
 /** 一节实际承载的内容量，用于核对内容落进了正确的节。 */

@@ -5,16 +5,19 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import type { FilingBuildResult, FilingContent } from '../types.ts'
+import { validateSpecDraft } from '@deepseek-ai/dsh-patent-core'
+import type { FilingBuildResult } from '../types.ts'
 import { buildFiling } from '../filing/engine.ts'
 import type { BuildEngineOptions } from '../filing/engine.ts'
+import { contentFromDraft } from '../filing/fromDraft.ts'
 import { SECTION_TALLY_SCHEMA } from './schemas.ts'
 
 const DESCRIPTION = [
-  '把结构化内容按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。',
+  '把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。',
+  '草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure、五部分 sections 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。',
   '正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。',
-  '说明书段落编号由本工具按 spec 顺序写入，源稿已带 `[NNNN]` 时先剥后写；源稿编号与本工具的序号不一致会报错而不是静默覆盖。',
-  '附图按图序传入，第 1 张进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。',
+  '说明书段落编号由本工具按 spec 顺序写入；正文里已带 `[NNNN]` 的会先剥后写，编号与段落顺序不一致会报错而不是静默覆盖。',
+  '附图按图序传入 draft.figureFiles，其中 draft.abstractFigure 指定的那张（缺省第 1 张）进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。',
 ].join(' ')
 
 /** 模板反解体例的 JSON schema。 */
@@ -49,53 +52,11 @@ const RESULT_SCHEMA = {
   },
 } as const
 
-/** 内容模型参数的 schema；节点字段的跨字段约束由内容校验补足。 */
-const CONTENT_PARAM = {
+/** 受控草案参数的 schema；块级约束由 patent-core 的 validateSpecDraft 补足。 */
+const DRAFT_PARAM = {
   type: 'object',
-  additionalProperties: false,
-  properties: {
-    abstract: {
-      type: 'array',
-      required: true,
-      items: { type: 'string' },
-      description: '说明书摘要正文段（不含「摘要附图」标注——摘要附图是独立的一节，由 figures[0] 承载）',
-    },
-    claims: {
-      type: 'array',
-      required: true,
-      items: { type: 'string' },
-      description: '权利要求项，按项序排列（含项号，如「1. 一种……」）',
-    },
-    specification: {
-      type: 'array',
-      required: true,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          kind: {
-            type: 'string',
-            required: true,
-            enum: ['h3', 'h4', 'p', 'table'],
-            description: 'h3/h4 为法定部分标题，p 为正文段，table 为表格',
-          },
-          text: { type: 'string', description: 'h3/h4/p 的文本' },
-          rows: {
-            type: 'array',
-            items: { type: 'array', items: { type: 'string' } },
-            description: 'table 的行列；首行为表头，各行必须等宽',
-          },
-        },
-      },
-      description: '说明书主体，按文档顺序：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式',
-    },
-    figures: {
-      type: 'array',
-      required: true,
-      items: { type: 'string' },
-      description: '附图路径，按图序排列（第 1 张即摘要附图）；支持 .svg 源件与 .png/.jpg/.jpeg 位图',
-    },
-  },
+  additionalProperties: true,
+  description: '受控草案（结构化 JSON，与 render_patent_document 的 claims-spec draft 同一份 SpecDraft 结构）：meta（caseNumber（案卷号，HTML 通道印在抬头编号行与页脚；docx 通道不印）、title/applicant/inventor/agent/date）、claims（不带项号，≥1 项）、abstract（≥1 段）、figureFiles（按图序）、abstractFigure（摘要附图号，1..figureFiles 项数，缺省 1）、sections（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分的 paragraph/list/table 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数；表格仅允许出现在具体实施方式）',
 } as const
 
 /**
@@ -130,7 +91,7 @@ export function createBuildPatentFilingTool(options: BuildPatentFilingToolOption
     name: 'build_patent_filing',
     description: DESCRIPTION,
     parameters: {
-      content: { ...CONTENT_PARAM, required: true, description: '申请文件的结构化内容' },
+      draft: { ...DRAFT_PARAM, required: true, description: `申请文件受控草案。${DRAFT_PARAM.description}` },
       outputName: {
         type: 'string',
         required: true,
@@ -150,12 +111,8 @@ export function createBuildPatentFilingTool(options: BuildPatentFilingToolOption
       render: (_args, value) => [{ type: 'text', text: renderBuildResult(value) }],
     },
     async execute(args, exec) {
-      const content: FilingContent = {
-        abstract: args.content.abstract,
-        claims: args.content.claims,
-        specification: args.content.specification,
-        figures: args.content.figures,
-      }
+      // 旧 content 参数已从 schema 删除：执行器的参数校验会以防缺 draft 拒绝，到不了这里。
+      const content = contentFromDraft(validateSpecDraft(args.draft))
       return buildFiling(
         {
           content,

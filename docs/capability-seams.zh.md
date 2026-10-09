@@ -5,7 +5,7 @@
 
 [English](capability-seams.md) | 中文
 
-服务可以是核心主干服务、可替换的能力 seam、组合包／组合点或独立服务。下图展示了拥有服务声明的包、已知实现包，以及直接消费该服务的包。
+服务可以是核心主干服务、可替换的能力 seam、组合包／组合点，也可以是独立服务。下图展示了拥有服务声明的包、已知实现包，以及直接消费该服务的包。
 
 ```mermaid
 flowchart LR
@@ -98,6 +98,8 @@ flowchart LR
   svc_terminalController["ctx.terminalController<br/>Session interactive terminal Remote controller"]
   pkg_api_workspace_controller["api-workspace-controller"]
   svc_workspaceController["ctx.workspaceController<br/>Host Workspace Remote controller"]
+  pkg_api_plugin_market_controller["api-plugin-market-controller"]
+  svc_pluginMarketController["ctx.pluginMarketController<br/>Host plugin-market Remote controller"]
   svc_directoryPickerController["ctx.directoryPickerController<br/>Host directory-picking Remote controller"]
   pkg_typert_registry["typert-registry"]
   svc_typert["ctx.typert<br/>Runtime type registry"]
@@ -154,6 +156,8 @@ flowchart LR
   svc_sessionTitle["ctx.sessionTitle<br/>Log-backed session titles"]
   pkg_session_title_first_prompt_llm["session-title-first-prompt-llm"]
   pkg_session_title_all_prompts_llm["session-title-all-prompts-llm"]
+  pkg_prompt_cache["prompt-cache"]
+  svc_promptCache["ctx.promptCache<br/>Prompt prefix cache"]
   pkg_system_prompt["system-prompt"]
   svc_systemPrompt["ctx.systemPrompt<br/>System prompt assembly registry"]
   pkg_tools["tools"]
@@ -256,6 +260,12 @@ flowchart LR
   svc_jobs["ctx.jobs<br/>Background job registry"]
   pkg_jobs_local["jobs-local"]
   pkg_tool_jobs["tool-jobs"]
+  pkg_self_evolve["self-evolve"]
+  svc_selfEvolve["ctx.selfEvolve<br/>Self-evolve evolution loop"]
+  pkg_self_evolve_basic["self-evolve-basic"]
+  pkg_tool_self_evolve["tool-self-evolve"]
+  pkg_self_evolve_benchmark["self-evolve-benchmark"]
+  svc_selfEvolveBenchmark["ctx.selfEvolveBenchmark<br/>Benchmark-driven evolution loop"]
   pkg_web["web"]
   svc_web["ctx.web<br/>Web access provider registry"]
   pkg_web_search_exa["web-search-exa"]
@@ -270,11 +280,17 @@ flowchart LR
   svc_directoryPicker["ctx.directoryPicker<br/>Workspace-directory picking seam"]
   pkg_host_directory_picker_native["host-directory-picker-native"]
   pkg_host_directory_picker_browse["host-directory-picker-browse"]
+  pkg_desktop_seam["desktop-seam"]
+  svc_desktop["ctx.desktop<br/>Desktop OS-integration seam"]
+  pkg_desktop_shell["desktop-shell"]
+  pkg_desktop_directory_picker["desktop-directory-picker"]
   pkg_host_webserver["host-webserver"]
   svc_webServer["ctx.webServer<br/>HTTP route registration"]
   pkg_client_modules["client-modules"]
   pkg_client_hmr["client-hmr"]
   svc_clientModules["ctx.clientModules<br/>Client plugin graph host"]
+  pkg_better_sidebar["better-sidebar"]
+  svc_betterSidebar["ctx.betterSidebar<br/>Sidebar tab and file-viewer registry"]
   pkg_workflow["workflow"]
   svc_workflowEngine["ctx.workflowEngine<br/>Workflow script engine"]
   pkg_tool_workflow["tool-workflow"]
@@ -287,12 +303,21 @@ flowchart LR
   pkg_cordis_host_runner["cordis-host-runner"]
   svc_dynamicCordisRunner["ctx.dynamicCordisRunner<br/>Dynamic Cordis package host runner"]
   svc_cordisInspect["ctx.cordisInspect<br/>Dynamic Cordis inspect registry"]
+  pkg_patent_data["patent-data"]
+  svc_patentData["ctx.patentData<br/>Patent data access seam"]
+  pkg_patent_knowledge["patent-knowledge"]
+  svc_patentKnowledge["ctx.patentKnowledge<br/>knowledge.db query seam"]
+  pkg_patent_workflow["patent-workflow"]
+  svc_patentWorkflow["ctx.patentWorkflow<br/>Patent execution pipeline"]
+  pkg_patent_teams["patent-teams"]
+  svc_patentTeams["ctx.patentTeams<br/>Patent team coordination domain"]
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
   pkg_agent_loop --> svc_agentLoop
   pkg_agent_preset_registry --> svc_agentPresets
   pkg_api_gateway --> svc_typertGateway
   pkg_api_job_controller --> svc_jobController
+  pkg_api_plugin_market_controller --> svc_pluginMarketController
   pkg_api_session_controller --> svc_sessionController
   pkg_api_session_controller --> svc_sessionFileReferences
   pkg_api_session_controller --> svc_sessionSkillCatalog
@@ -308,6 +333,7 @@ flowchart LR
   pkg_authorization --> svc_authorization
   pkg_bash_local --> svc_shell
   pkg_bash_sandbox --> svc_shell
+  pkg_better_sidebar --> svc_betterSidebar
   pkg_browser_use --> svc_browserUse
   pkg_client_connection --> svc_connection
   pkg_client_file_upload --> svc_fileUploads
@@ -328,6 +354,8 @@ flowchart LR
   pkg_deepseek_account --> svc_deepseekAccount
   pkg_deepseek_account_platform --> svc_deepseekAccount
   pkg_deepseek_llm_api_extensions --> svc_deepseekLlmApiExtensions
+  pkg_desktop_seam --> svc_desktop
+  pkg_desktop_shell --> svc_desktop
   pkg_experimental_agent_team --> svc_agentTeams
   pkg_experimental_api_speech_to_text --> svc_speechController
   pkg_experimental_browser_use_chrome_devtools_mcp --> svc_browserUse
@@ -369,10 +397,15 @@ flowchart LR
   pkg_message_feedback --> svc_messageFeedback
   pkg_office_to_pdf --> svc_officeToPdf
   pkg_otel --> svc_otel
+  pkg_patent_data --> svc_patentData
+  pkg_patent_knowledge --> svc_patentKnowledge
+  pkg_patent_teams --> svc_patentTeams
+  pkg_patent_workflow --> svc_patentWorkflow
   pkg_permission_presets --> svc_permissionPresets
   pkg_plan_mode --> svc_planMode
   pkg_plugin_manager --> svc_pluginManager
   pkg_plugin_package_inventory_deepseek --> svc_deepseekLlmApiExtensions
+  pkg_prompt_cache --> svc_promptCache
   pkg_ptc_runtime --> svc_ptcRuntime
   pkg_ptc_runtime_node --> svc_ptcRuntime
   pkg_pwsh_local --> svc_shell
@@ -382,6 +415,9 @@ flowchart LR
   pkg_sandbox_ssh --> svc_sandbox
   pkg_sandbox_windows_acl --> svc_skills
   pkg_schedule --> svc_schedule
+  pkg_self_evolve --> svc_selfEvolve
+  pkg_self_evolve_basic --> svc_selfEvolve
+  pkg_self_evolve_benchmark --> svc_selfEvolveBenchmark
   pkg_session --> svc_sessions
   pkg_session_log_deepseek --> svc_deepseekLlmApiExtensions
   pkg_session_persistence --> svc_sessionPersistence
@@ -474,6 +510,7 @@ flowchart LR
   svc_deepseekAccount --> pkg_api_account_controller
   svc_deepseekAccount --> pkg_llm_deepseek
   svc_deepseekLlmApiExtensions --> pkg_llm_deepseek
+  svc_desktop --> pkg_desktop_directory_picker
   svc_directoryPicker --> pkg_api_workspace_controller
   svc_dynamicCordisRunner --> pkg_tool_cordis
   svc_fileReferences --> pkg_api_session_controller
@@ -496,6 +533,7 @@ flowchart LR
   svc_pluginManager --> pkg_ui_settings_plugin_inventory
   svc_pluginRegistryProbe --> pkg_client_ui_plugin_manager
   svc_profileContext --> pkg_plugin_manager
+  svc_promptCache --> pkg_system_prompt
   svc_ptcRuntime --> pkg_tools
   svc_ptcRuntime --> pkg_workflow_ptc
   svc_sandbox --> pkg_bash_sandbox
@@ -503,6 +541,7 @@ flowchart LR
   svc_sandboxPolicy --> pkg_bash_sandbox
   svc_sandboxPolicy --> pkg_fs_sandbox
   svc_sandboxPolicy --> pkg_terminal_bash
+  svc_selfEvolve --> pkg_tool_self_evolve
   svc_sessionPersistence --> pkg_agent_loop
   svc_sessionPersistence --> pkg_hooks_claude_code
   svc_sessionPersistence --> pkg_hooks_codex
@@ -594,19 +633,19 @@ flowchart LR
 
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ctx.cotTranslation` | `service` | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | - | - | 为展开的思考内容提供有界的 Session 翻译请求，不改变模型可见历史。 |
-| `ctx.translator` | `service` | [`experimental-translator`](../packages/experimental/translator) | - | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | 解析 Google 或 Bing 请求，并可选保留统一的实验性 Session 记录。 |
-| `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 负责模块和精确配置监听；应用修改共用其队列，自动重载等待应用文件锁。 |
+| `ctx.cotTranslation` | `service` | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | - | - | 提供推理翻译、复用已保存结果，并为未缓存的非活动 Session 接入常规 Session activation。 |
+| `ctx.translator` | `service` | [`experimental-translator`](../packages/experimental/translator) | - | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | 解析 Google 或 Bing 请求，并通过活动 Session writer 保留共享的实验记录。 |
+| `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 拥有模块与精确配置的监听器；应用变更共享其队列，自动重载会等待应用文件锁。 |
 | `ctx.pluginRegistryProbe` | `core` | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | 在 Host 上并发比较公共安装源响应；初始安装源推荐由 Client 负责。 |
-| `ctx.pluginManager` | `core` | [`plugin-manager`](../packages/boot/plugin-manager) | - | [`plugin-manager`](../packages/boot/plugin-manager), `ui-settings-plugin-inventory` | - | 与 CLI 共享 profile 包操作，并向 Web 和 Agent 调用方分别报告持久状态与运行状态。 |
-| `ctx.profileContext` | `core` | [`app-boot`](../packages/boot/app-boot) | - | [`plugin-manager`](../packages/boot/plugin-manager) | - | dsh launcher 提供纯数据形式的 profile 位置与组合输入；重载调度由 dsh-hmr 负责。 |
-| `ctx.connection` | `core` | [`client-connection`](../packages/client/connection) | - | [`api-gateway`](../packages/api/gateway), [`host-frontend-static`](../packages/host/frontend-static) | - | 负责浏览器认证与共享 HTTP 请求分发；API 适配器注册端点和流。 |
-| `ctx.worktrees` | `seam` | [`experimental-worktree`](../packages/experimental/worktree) | [`experimental-worktree`](../packages/experimental/worktree) | [`experimental-tool-worktree`](../packages/experimental/tool-worktree) | - | 显式实验组合从固定的本地提交创建工作树。检出目录与共享 Git 元数据受现有写权限约束；工作目录服务拥有创建后的 Session 目录。 |
-| `ctx.workingDirectory` | `seam` | [`working-directory`](../packages/session/working-directory) | [`working-directory`](../packages/session/working-directory) | [`tool-working-directory`](../packages/session/tool-working-directory), [`tool-fs`](../packages/fs/tool-fs), [`tool-bash`](../packages/shell/tool-bash), [`tool-pwsh`](../packages/shell/tool-pwsh), [`subagent`](../packages/subagent/subagent), [`sdk-jsonrpc-server`](../packages/sdk/server) | - | 一个 Session 投影拥有有效执行目录。文件系统验证变更，用户上下文报告目录信息，原始元数据与写入授权保持不变。 |
+| `ctx.pluginManager` | `core` | [`plugin-manager`](../packages/boot/plugin-manager) | - | [`plugin-manager`](../packages/boot/plugin-manager), `ui-settings-plugin-inventory` | - | 与 CLI 共享 profile 包操作，并向 Web 与 agent 调用方报告已持久化状态和运行状态。 |
+| `ctx.profileContext` | `core` | [`app-boot`](../packages/boot/app-boot) | - | [`plugin-manager`](../packages/boot/plugin-manager) | - | dsh 启动器提供仅含数据的 profile 位置与组合输入；重载调度属于 dsh-hmr。 |
+| `ctx.connection` | `core` | [`client-connection`](../packages/client/connection) | - | [`api-gateway`](../packages/api/gateway), [`host-frontend-static`](../packages/host/frontend-static) | - | 拥有浏览器认证与共享 HTTP 请求分发；API 适配器注册端点与流。 |
+| `ctx.worktrees` | `seam` | [`experimental-worktree`](../packages/experimental/worktree) | [`experimental-worktree`](../packages/experimental/worktree) | [`experimental-tool-worktree`](../packages/experimental/tool-worktree) | - | 从固定的本地提交进行显式的实验性创建。检出与共享 Git 元数据受既有写权限约束；生成的 Session 目录归 working-directory 服务所有。 |
+| `ctx.workingDirectory` | `seam` | [`working-directory`](../packages/session/working-directory) | [`working-directory`](../packages/session/working-directory) | [`tool-working-directory`](../packages/session/tool-working-directory), [`tool-fs`](../packages/fs/tool-fs), [`tool-bash`](../packages/shell/tool-bash), [`tool-pwsh`](../packages/shell/tool-pwsh), [`subagent`](../packages/subagent/subagent), [`sdk-jsonrpc-server`](../packages/sdk/server) | - | 由一份 Session 投影持有生效的执行目录。文件系统负责校验变更；用户上下文报告变更，而原始元数据与写授权保持不变。 |
 | `ctx.mcpResources` | `seam` | [`mcp-resources`](../packages/mcp/mcp-resources) | [`mcp-client`](../packages/mcp/mcp-client) | [`mcp-resources`](../packages/mcp/mcp-resources) | - | 连接所有者提供的操作在调用 agent 的作用域内服务于共享资源工具。 |
 | `ctx.browserUse` | `seam` | [`browser-use`](../packages/browser-use/browser-use) | [`experimental-browser-use-playwright-mcp`](../packages/experimental/browser-use-playwright-mcp), [`experimental-browser-use-chrome-devtools-mcp`](../packages/experimental/browser-use-chrome-devtools-mcp), [`experimental-browser-use-stagehand-native`](../packages/experimental/browser-use-stagehand-native) | [`experimental-browser-use-playwright-mcp`](../packages/experimental/browser-use-playwright-mcp), [`experimental-browser-use-chrome-devtools-mcp`](../packages/experimental/browser-use-chrome-devtools-mcp), [`experimental-browser-use-stagehand-native`](../packages/experimental/browser-use-stagehand-native) | - | 每个服务实例注册一个提供方拥有的名称。提供方按实时 Session 拥有自己的工具与浏览器资源；共享服务不提供浏览器操作 API。 |
 | `ctx.computerUse` | `seam` | [`computer-use`](../packages/computer-use/computer-use) | [`experimental-computer-use-cua-driver-mcp`](../packages/experimental/computer-use-cua-driver-mcp), [`experimental-computer-use-cua-driver-native`](../packages/experimental/computer-use-cua-driver-native) | [`experimental-computer-use-cua-driver-mcp`](../packages/experimental/computer-use-cua-driver-mcp), [`experimental-computer-use-cua-driver-native`](../packages/experimental/computer-use-cua-driver-native) | - | 每个服务实例只注册一个提供方自定的名称。各提供方也拥有自己的模型工具；服务不提供通用操作 API、运行时选择或 Session 流程锁。 |
-| `ctx.officeToPdf` | `core` | [`office-to-pdf`](../packages/document/office-to-pdf) | - | [`client-ui-sidebar-documentpreview`](../packages/client/ui-sidebar-documentpreview) | - | 已授权的 Office 字节在宿主上使用已声明的原生目标引擎转换；未声明原生目标时使用 Node WASM。 |
+| `ctx.officeToPdf` | `core` | [`office-to-pdf`](../packages/document/office-to-pdf) | - | [`client-ui-sidebar-documentpreview`](../packages/client/ui-sidebar-documentpreview) | - | 已授权的 Office 字节在 Host 上使用目标声明的原生引擎转换；未声明原生目标时使用 Node WASM。 |
 | `ctx.attachments` | `seam` | [`attachment`](../packages/attachment/attachment) | [`attachment-local`](../packages/attachment/attachment-local) | [`api-session-controller`](../packages/api/session-controller), [`tool-fs`](../packages/fs/tool-fs), [`llm-pi-ai`](../packages/llm/llm-pi-ai), [`llm-deepseek`](../packages/llm/llm-deepseek) | - | 宿主会在会话事件之前提交已接受的图片；提供方适配器将已授权的持久引用解析为提供方原生内容。 |
 | `ctx.fileUploads` | `core` | [`client-file-upload`](../packages/client/file-upload) | - | [`api-session-controller`](../packages/api/session-controller) | - | 负责流式接收、持久存储和暂存回执生命周期；Session Controller 将回执绑定到已接受的提交。 |
 | `ctx.llm` | `seam` | [`llm`](../packages/llm/llm) | [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai), [`llm-replay`](../packages/test-support/llm-replay) | [`agent-loop`](../packages/core/agent-loop), [`compaction-basic`](../packages/compaction/compaction-basic) | - | 适配器注册提供方实现；agent loop（智能体循环）与压缩功能调用提供方无关的流服务。 |
@@ -614,30 +653,31 @@ flowchart LR
 | `ctx.tokenMeter` | `core` | [`token-meter`](../packages/llm/token-meter) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 拥有按会话隔离的回放折叠区；压力消费方共享不可变且带修订版本的测量结果。 |
 | `ctx.toolResultPruner` | `core` | [`compaction-tool-result-pruner`](../packages/compaction/compaction-tool-result-pruner) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 在摘要压缩前，通过可回放的单节点表层替换来改写过大的当前工具结果。 |
 | `ctx.sessions` | `core` | [`session`](../packages/core/session) | - | [`agent-loop`](../packages/core/agent-loop), [`agent`](../packages/core/agent), [`session-persistence`](../packages/session/session-persistence), [`session-query`](../packages/session-query/session-query), [`session-query-sqlite`](../packages/session-query/session-query-sqlite), [`subagent`](../packages/subagent/subagent), [`message-feedback`](../packages/feedback/message-feedback) | - | 拥有仅追加的 Session 实例，并发出持久的会话事件流。 |
-| `ctx.speechController` | `core` | [`experimental-api-speech-to-text`](../packages/experimental/api-speech-to-text) | - | - | - | 在 Provider 调用前校验受限的浏览器音频。 |
+| `ctx.speechController` | `core` | [`experimental-api-speech-to-text`](../packages/experimental/api-speech-to-text) | - | - | - | 在提供方分发前校验有界的浏览器音频。 |
 | `ctx.sessionController` | `core` | [`api-session-controller`](../packages/api/session-controller) | - | - | - | 负责 Session 命令、冷读取、持久事件跟随、实时控制状态、模型目录、workspace 打开与 Agent 激活策略。 |
 | `ctx.sessionFileReferences` | `core` | [`api-session-controller`](../packages/api/session-controller) | - | - | - | 通过 Session Controller 的既有 Agent lookup 策略委托文件引用发现。 |
 | `ctx.sessionSkillCatalog` | `core` | [`api-session-controller`](../packages/api/session-controller) | - | - | - | 在不激活冷 Agent 的前提下列出 Session 组合中允许用户调用的 skill。 |
-| `ctx.jobController` | `core` | [`api-job-controller`](../packages/api/job-controller) | - | - | - | 经生成的 Remote namespace 流式发送一个后台任务的观测 record；名册仍在会话控制流上。 |
+| `ctx.jobController` | `core` | [`api-job-controller`](../packages/api/job-controller) | - | - | - | 经生成的 Remote 命名空间流式提供一个后台作业的观察记录；名册仍留在会话控制流上。 |
 | `ctx.credentialsController` | `core` | [`api-settings-controller`](../packages/api/settings-controller) | - | - | - | 把凭据引用 seam 投影到生成的 Remote namespace：批量扇出、视图投影与拒绝映射都在这里，而不在 seam Definition 上。 |
 | `ctx.settingsController` | `core` | [`api-settings-controller`](../packages/api/settings-controller) | - | - | - | 把用户设置 seam 投影到生成的 Remote namespace：读取一律脱敏，所有拒绝在这里分类，而不在 seam Definition 上。 |
 | `ctx.workspaceFiles` | `core` | [`api-workspace-files`](../packages/api/workspace-files) | - | - | - | 为会话工作区根内的文件提供 stat、分页文本、字节窗口、目录列举与变更流，经 lstat、包含关系与 stat 重检限定。 |
-| `ctx.workspaceChanges` | `core` | [`workspace-changes`](../packages/deliverables/workspace-changes) | - | - | - | Serves the summary each workspace/changes event announced and each listed file's turn-start and turn-end comparison, by Session and event sequence, until that Session is disposed; the log carries only the turn. |
+| `ctx.workspaceChanges` | `core` | [`workspace-changes`](../packages/deliverables/workspace-changes) | - | - | - | 按 Session 与事件序号，提供每个 workspace/changes 事件所宣告的摘要，以及每个列出文件在回合开始与回合结束时的对比，直至该 Session 被销毁；日志中只记录回合号。 |
 | `ctx.terminalController` | `core` | [`api-terminal-controller`](../packages/api/terminal-controller) | - | - | - | 通过子进程提供方与类型化 Remote 传输管理用户终端进程、解析默认 shell，并恢复有界终端屏幕。 |
 | `ctx.workspaceController` | `core` | [`api-workspace-controller`](../packages/api/workspace-controller) | - | - | - | 通过生成的 Remote namespace 负责 Workspace 命令和可在重连后收敛的 Workspace 状态投递。 |
+| `ctx.pluginMarketController` | `core` | [`api-plugin-market-controller`](../packages/api/plugin-market-controller) | - | - | - | 插件市场发现 seam 的只读 Remote 投影（来源、搜索、预览）；安装仍归 profile CLI 负责。 |
 | `ctx.directoryPickerController` | `core` | [`api-workspace-controller`](../packages/api/workspace-controller) | - | - | - | 把选目录 seam 送上线：能力门禁、取消传播，以及浏览器目录流程用于分支判断的 seam 错误码。 |
 | `ctx.typert` | `core` | [`typert-registry`](../packages/typert/registry) | - | [`typert-loader`](../packages/typert/loader), [`api-gateway`](../packages/api/gateway) | - | 插件直接或通过 dsh-typert-loader 注册实时 zod 贡献；API 网关消费调用描述符和提供方，其他运行时消费方则在各自边界查询 schema 与反射元数据。 |
 | `ctx.typertGateway` | `core` | [`api-gateway`](../packages/api/gateway) | - | - | - | 将生成的 Remote 描述符与实时 Cordis 服务关联，解析已注册的身份，并通过共享的 Connection RPC 载体提供一元调用。 |
 | `ctx.sessionPersistence` | `seam` | [`session-persistence`](../packages/session/session-persistence) | [`session-persistence-jsonl`](../packages/session/session-persistence-jsonl) | [`agent-loop`](../packages/core/agent-loop), [`tool-bash`](../packages/shell/tool-bash), [`hooks-claude-code`](../packages/experimental/hooks-claude-code), [`hooks-codex`](../packages/experimental/hooks-codex), [`session-query`](../packages/session-query/session-query), [`session-query-sqlite`](../packages/session-query/session-query-sqlite), [`message-feedback`](../packages/feedback/message-feedback) | - | JSONL backend 把 SessionEvent 词汇持久化为每个 Session 一份产物。 |
-| `ctx.configEditor` | `core` | [`config-editor`](../packages/boot/config-editor) | - | [`settings`](../packages/settings/settings), [`agent-default-model`](../packages/core/agent-default-model) | - | Persists profile config patches under the application file lock and HMR queue, then reconciles Loader entries. |
-| `ctx.settings` | `core` | [`settings`](../packages/settings/settings) | - | [`api-settings-controller`](../packages/api/settings-controller) | - | Forms project volatile Config fields from active profile entries and delegate validated edits to config-editor. Plugins consume their own Config references. |
+| `ctx.configEditor` | `core` | [`config-editor`](../packages/boot/config-editor) | - | [`settings`](../packages/settings/settings), [`agent-default-model`](../packages/core/agent-default-model) | - | 在应用文件锁与 HMR 队列下持久化 profile 配置补丁，再对账 Loader 条目。 |
+| `ctx.settings` | `core` | [`settings`](../packages/settings/settings) | - | [`api-settings-controller`](../packages/api/settings-controller) | - | 由活动 profile 条目把易变的 Config 字段构成为表单，并把经校验的编辑委托给 config-editor。插件消费各自的 Config 引用。 |
 | `ctx.subagentModelSelection` | `core` | [`tool-subagent`](../packages/subagent/tool-subagent) | - | [`tool-subagent`](../packages/subagent/tool-subagent) | - | 拥有默认关闭的设置命名空间；Agent 作用域的委派工具会在组合新顶层 Session 时读取它。 |
 | `ctx.credentials` | `seam` | [`credentials`](../packages/credentials/credentials) | [`credentials-local`](../packages/credentials/credentials-local) | [`api-settings-controller`](../packages/api/settings-controller), [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai) | - | 配置携带对机密信息的引用；提供方拥有实际值。消费方按操作解析，因此轮换后的凭据会在紧接着的下一次请求中生效；settings controller 提供不含实际值的视图和只写存储。 |
-| `ctx.deepseekAccount` | `seam` | [`deepseek-account`](../packages/credentials/deepseek-account) | [`deepseek-account-platform`](../packages/credentials/deepseek-account-platform) | [`api-account-controller`](../packages/api/account-controller), [`llm-deepseek`](../packages/llm/llm-deepseek) | - | Host 负责浏览器授权和本地凭证；UI 使用方只接收不含 token 的状态。 |
+| `ctx.deepseekAccount` | `seam` | [`deepseek-account`](../packages/credentials/deepseek-account) | [`deepseek-account-platform`](../packages/credentials/deepseek-account-platform) | [`api-account-controller`](../packages/api/account-controller), [`llm-deepseek`](../packages/llm/llm-deepseek) | - | Host 拥有浏览器授权与本地凭据；UI 消费方只接收不含令牌的状态。 |
 | `ctx.authorization` | `seam` | [`authorization`](../packages/credentials/authorization) | - | [`llm-pi-ai`](../packages/llm/llm-pi-ai) | - | flow 由知道如何取得某份凭据的插件注册，并以其写入的记录为键；seam 拥有这段对话与"每个键同时只跑一次尝试"的生命周期，而非协议本身。 |
 | `ctx.productAnalytics` | `service` | [`client-product-analytics`](../packages/client/product-analytics) | - | - | - | 根据 Host 动态采集策略接收指定桌面事件、补充可用登录身份并监听实时压缩。 |
-| `ctx.otel` | `service` | [`otel`](../packages/telemetry/otel) | - | [`host-product-telemetry-otel`](../packages/host/product-telemetry-otel), [`session-telemetry-otel`](../packages/session/session-telemetry-otel) | - | 产品埋点和 Session 反馈适配器通过同一个注入服务创建独立上报通道。 |
-| `ctx.productTelemetry` | `service` | [`host-product-telemetry-otel`](../packages/host/product-telemetry-otel) | - | - | - | 通过 OTLP/HTTP 发送显式提交的分析事件；仅挂载插件不会采集信息。 |
+| `ctx.otel` | `service` | [`otel`](../packages/telemetry/otel) | - | [`host-product-telemetry-otel`](../packages/host/product-telemetry-otel), [`session-telemetry-otel`](../packages/session/session-telemetry-otel) | - | 产品分析与 Session 反馈适配器通过同一个注入服务创建相互独立的报送通道。 |
+| `ctx.productTelemetry` | `service` | [`host-product-telemetry-otel`](../packages/host/product-telemetry-otel) | - | - | - | 经 OTLP/HTTP 导出显式提交的分析事件；仅挂载插件不采集任何数据。 |
 | `ctx.sessionTelemetry` | `seam` | [`session-telemetry`](../packages/session/session-telemetry) | [`session-telemetry-otel`](../packages/session/session-telemetry-otel) | - | - | 该 seam 捕获会话记录、进行脱敏并交给一个后端；没有其他组件消费该服务，其输出会离开当前进程。 |
 | `ctx.storage` | `seam` | [`storage`](../packages/storage/storage) | [`storage-json`](../packages/storage/storage-json), [`storage-sqlite`](../packages/storage/storage-sqlite) | [`storage-domain`](../packages/storage/storage-domain) | - | 各后端以不同名称并列注册；数据形态（领域优先）挂载到枢纽上，并将类型化操作转换为不透明的 KV 单元原语。 |
 | `ctx.storageDomain` | `core` | [`storage-domain`](../packages/storage/storage-domain) | - | [`workspace`](../packages/workspace/workspace) | - | 等待所有已配置后端就绪，然后将领域形态发布为一个受生命周期约束的服务，用于类型化持久状态。 |
@@ -648,17 +688,18 @@ flowchart LR
 | `ctx.fileReferences` | `seam` | [`file-reference`](../packages/context/file-reference) | [`file-reference-local`](../packages/context/file-reference-local) | [`api-session-controller`](../packages/api/session-controller) | - | 该接口返回 Agent cwd 内仅含路径的补全候选；提供方负责命名空间访问与排序，但不读取文件内容。 |
 | `ctx.sessionReferenceResolver` | `core` | [`session-reference`](../packages/context/session-reference) | - | - | - | 将当前表层中有界的对话快照投影为持久但不可信的消息上下文；Host 适配器负责提及语法。 |
 | `ctx.sessionTitle` | `seam` | [`session-title`](../packages/session/session-title) | [`session-title-first-prompt-llm`](../packages/session/session-title-first-prompt-llm), [`session-title-all-prompts-llm`](../packages/experimental/session-title-all-prompts-llm) | - | - | 负责确定性回退、最新标题折叠区，以及唯一的可选异步提供方注册。 |
+| `ctx.promptCache` | `seam` | [`prompt-cache`](../packages/core/prompt-cache) | - | [`system-prompt`](../packages/core/system-prompt) | - | 可选的装配前缀缓存：system-prompt 通过 ctx.reflect.get("promptCache", false) 读取它；未挂载策略时装配结果保持逐字节不变。 |
 | `ctx.systemPrompt` | `core` | [`system-prompt`](../packages/core/system-prompt) | - | [`agent-loop`](../packages/core/agent-loop), [`tools`](../packages/core/tools), [`tool-fs`](../packages/fs/tool-fs), [`tool-terminal`](../packages/experimental/tool-terminal), [`tool-web`](../packages/web/tool-web) | - | 为每个步骤收集提示词各部分和面向模型的工具 schema。 |
 | `ctx.tools` | `core` | [`tools`](../packages/core/tools) | - | [`agent-loop`](../packages/core/agent-loop), [`tool-ask-user`](../packages/interaction/tool-ask-user), [`tool-bash`](../packages/shell/tool-bash), [`tool-cordis`](../packages/extensions/tool-cordis), [`tool-fs`](../packages/fs/tool-fs), [`tool-terminal`](../packages/experimental/tool-terminal), [`tool-skill`](../packages/skill/tool-skill), [`tool-subagent`](../packages/subagent/tool-subagent), [`tool-todo`](../packages/todo/tool-todo), [`tool-web`](../packages/web/tool-web) | - | 注册能力，负责 PTC mode 传输，并让调用依次经过策略前处理、单调守卫、环绕分派、策略后处理和最终结果观测。 |
 | `ctx.userQuestions` | `seam` | [`user-questions`](../packages/interaction/user-questions) | - | [`tool-ask-user`](../packages/interaction/tool-ask-user) | - | UI 前端提供当前生效的人工回答提供方；tool-ask-user 在提供方无关的 ask() promise 上暂停工具调用。 |
 | `ctx.planMode` | `core` | [`plan-mode`](../packages/plan/plan-mode) | - | - | - | 折叠已记录的计划／模式状态，在轮次边界刷新用户选择，渲染由部署方拥有的指导信息，注册 /plan，并在状态转换期间保持计划退出 schema 稳定。 |
-| `ctx.agentPresets` | `core` | [`agent-preset-registry`](../packages/preset/agent-preset-registry) | - | - | - | 立即挂载 YAML 声明的 preset 版本，把 Agent 和冷读取绑定到作用域内的贡献，并保留已替换的版本，直到最后一个使用者释放它。 |
+| `ctx.agentPresets` | `core` | [`agent-preset-registry`](../packages/preset/agent-preset-registry) | - | - | - | 预挂载 YAML 声明的 preset 修订，把 Agent 与冷读取方绑定到作用域贡献，并在最后一个使用者释放前保留已退役修订。 |
 | `ctx.commands` | `core` | [`commands`](../packages/interaction/commands) | - | - | - | 插件注册直接面向人的命令，而不会把调用发送给模型。 |
 | `ctx.sessionProjections` | `core` | [`session-projection`](../packages/session/session-projection) | - | [`api-session-controller`](../packages/api/session-controller), [`tool-todo`](../packages/todo/tool-todo), [`session-title`](../packages/session/session-title) | - | 各领域注册由状态驱动的折叠单元；主动驱动过程维护每个会话的水位状态，Session controller 提供 baseline 并推送发生变化的值。 |
-| `ctx.sessionProjectionCache` | `core` | [`session-projection-cache`](../packages/session/session-projection-cache) | - | [`api-session-controller`](../packages/api/session-controller), [`session-query`](../packages/session-query/session-query), [`session-reference`](../packages/context/session-reference) | - | 按会话持久保存投影单元状态的检查点（节流检查点，以及轮次／结束／分离时的必选检查点），提供缓存投影视图，并加速 prepared Session 的投影恢复。 |
+| `ctx.sessionProjectionCache` | `core` | [`session-projection-cache`](../packages/session/session-projection-cache) | - | [`api-session-controller`](../packages/api/session-controller), [`session-query`](../packages/session-query/session-query), [`session-reference`](../packages/context/session-reference) | - | 按会话持久保存投影单元状态的检查点（节流检查点，以及轮次／结束／分离时的必选检查点），并提供冷读取阶梯：缓存行加持久化尾部回放，因此列表读取永远不需要加载完整日志。 |
 | `ctx.skills` | `seam` | [`skill`](../packages/skill/skill) | [`sandbox-windows-acl`](../packages/sandbox/sandbox-windows-acl), [`skill-badge`](../packages/experimental/skill-badge), [`skill-filesystem`](../packages/skill/skill-filesystem), [`skill-office`](../packages/skill/skill-office) | [`tool-skill`](../packages/skill/tool-skill) | - | 合并提供方的 skill（技能）目录；tool-skill 渲染会话前缀目录，并加载完整的 skill 正文。 |
 | `ctx.agents` | `core` | [`agent`](../packages/core/agent) | - | [`agent-loop`](../packages/core/agent-loop), [`acp`](../packages/acp/acp), [`subagent`](../packages/subagent/subagent) | - | 拥有实时 Agent 句柄、创建／恢复工厂 seam，以及进程本地的发起方传播。 |
-| `ctx.agentDefaultModel` | `core` | [`agent-default-model`](../packages/core/agent-default-model) | - | [`api-session-controller`](../packages/api/session-controller), [`headless`](../packages/bundle/headless) | - | Reads the default ModelSelection from volatile Config and saves selections through the profile editor. |
+| `ctx.agentDefaultModel` | `core` | [`agent-default-model`](../packages/core/agent-default-model) | - | [`api-session-controller`](../packages/api/session-controller), [`headless`](../packages/bundle/headless) | - | 从易变的 Config 读取默认 `ModelSelection`，并经 profile 编辑器保存选择。 |
 | `ctx.agentLoop` | `bundle` | [`agent-loop`](../packages/core/agent-loop) | - | [`base`](../packages/bundle/base), [`sdk-minimal`](../packages/bundle/sdk-minimal) | - | 唯一的具体循环插件；扩展包依赖 dsh-agent 的事件和服务，而不依赖此包。 |
 | `ctx.schedule` | `core` | [`schedule`](../packages/schedule/schedule) | - | - | - | 独立于 Session 的加载状态存储任务，并将到期消息排入原 Session。 |
 | `ctx.goals` | `core` | [`goal`](../packages/goal/goal) | - | - | - | 从会话日志折叠带修订版本的目标状态，并将实时延续激活保留在进程本地。 |
@@ -674,21 +715,29 @@ flowchart LR
 | `ctx.ptcRuntime` | `seam` | [`ptc-runtime`](../packages/ptc-runtime/ptc-runtime) | [`ptc-runtime-node`](../packages/ptc-runtime/ptc-runtime-node), [`experimental-ptc-runtime-python`](../packages/experimental/ptc-runtime-python) | [`tools`](../packages/core/tools), [`workflow-ptc`](../packages/workflow/workflow-ptc) | - | 使用 Host 提供的异步绑定运行程序；tools 负责 PTC 呈现，workflow-ptc 负责工作流编排。 |
 | `ctx.fs` | `seam` | [`fs`](../packages/fs/fs) | [`fs-local`](../packages/fs/fs-local), [`fs-sandbox`](../packages/fs/fs-sandbox), [`fs-ssh`](../packages/ssh/fs-ssh) | [`tool-fs`](../packages/fs/tool-fs) | [`fs-observation-policy`](../packages/fs/fs-observation-policy) | tool-fs 通过 ctx.fs 执行读取／写入／编辑；fs-sandbox 按共享沙箱模式限制变更；fs-observation-policy 通过 fs/* 事件门禁贡献基于观测状态的检查。 |
 | `ctx.compaction` | `seam` | [`compaction`](../packages/compaction/compaction) | [`compaction-basic`](../packages/compaction/compaction-basic) | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 基础后端消费步骤后的压力事件和请求错误恢复事件；不存在面向模型的压缩工具。 |
-| `ctx.subagents` | `seam` | [`subagent`](../packages/subagent/subagent) | [`subagent-spawn-in-process`](../packages/subagent/subagent-spawn-in-process), [`subagent-fork-in-process`](../packages/subagent/subagent-fork-in-process), [`subagent-acp`](../packages/subagent/subagent-acp), [`subagent-codex`](../packages/subagent/subagent-codex), [`subagent-claude-code`](../packages/subagent/subagent-claude-code), [`subagent-dsh-sdk`](../packages/subagent/subagent-dsh-sdk) | [`tool-subagent`](../packages/subagent/tool-subagent), [`tool-subagent-control`](../packages/subagent/tool-subagent-control), [`tool-ralph`](../packages/experimental/tool-ralph) | - | 提供方准备本地子级或执行外部任务；一个 activation 管理器持有两类生命周期。委派工具选择后端，控制工具投递本地后续消息，工作流等待 activation 结果。 |
+| `ctx.subagents` | `seam` | [`subagent`](../packages/subagent/subagent) | [`subagent-spawn-in-process`](../packages/subagent/subagent-spawn-in-process), [`subagent-fork-in-process`](../packages/subagent/subagent-fork-in-process), [`subagent-acp`](../packages/subagent/subagent-acp), [`subagent-codex`](../packages/subagent/subagent-codex), [`subagent-claude-code`](../packages/subagent/subagent-claude-code), [`subagent-dsh-sdk`](../packages/subagent/subagent-dsh-sdk) | [`tool-subagent`](../packages/subagent/tool-subagent), [`tool-subagent-control`](../packages/subagent/tool-subagent-control), [`tool-ralph`](../packages/experimental/tool-ralph) | - | 提供方实现传输；该服务还负责可选的、基于 Activation 的延续编排，tool-subagent 选择一次性或可延续委派，tool-subagent-control 传递后续消息，而 tool-ralph 要求一条全新的结构化输出路由。 |
 | `ctx.speechToText` | `seam` | [`experimental-speech-to-text`](../packages/experimental/speech-to-text) | [`experimental-speech-to-text-sensevoice`](../packages/experimental/speech-to-text-sensevoice) | [`experimental-api-speech-to-text`](../packages/experimental/api-speech-to-text) | - | 路由显式选择的识别器；浏览器使用带认证的 Remote，并在提交前将转写保留在草稿中。 |
-| `ctx.agentTeams` | `core` | [`experimental-agent-team`](../packages/experimental/agent-team) | - | [`experimental-tool-agent-team`](../packages/experimental/tool-agent-team) | - | 负责隐式 Root roster、直接 peer inbox 投递、共享任务 DAG 与 continuable child 生命周期；tool-agent-team 提供模型控制工具。 |
-| `ctx.claudeCodeMods` | `core` | [`experimental-claude-code-mods`](../packages/experimental/claude-code-mods) | - | - | - | 加载 defineMod 插件添加的模组，从 harness 扩展点触发其钩子链，并通过其 Remote 绘制提示框上方的横幅。 |
+| `ctx.agentTeams` | `core` | [`experimental-agent-team`](../packages/experimental/agent-team) | - | [`experimental-tool-agent-team`](../packages/experimental/tool-agent-team) | - | 负责隐式 Root roster、持久 peer mailbox、共享任务 DAG 与 continuable child 生命周期；tool-agent-team 提供模型控制工具。 |
+| `ctx.claudeCodeMods` | `core` | [`experimental-claude-code-mods`](../packages/experimental/claude-code-mods) | - | - | - | 加载 `defineMod` 插件新增的 mod，为它们从 harness 扩展点拉起 hook 链，并在提示词上方通过其 Remote 绘制 band。 |
 | `ctx.inspector` | `core` | `inspector` | - | - | - | 负责 Worker 托管的 CDP target，以及独立于传输的 Host 和 Client observation 与 Cordis tree query API。 |
-| `ctx.jobs` | `seam` | [`jobs`](../packages/jobs/jobs) | [`jobs-local`](../packages/jobs/jobs-local) | [`tool-bash`](../packages/shell/tool-bash), [`tool-pwsh`](../packages/shell/tool-pwsh), [`tool-terminal`](../packages/experimental/tool-terminal), [`tool-jobs`](../packages/jobs/tool-jobs), [`api-job-controller`](../packages/api/job-controller) | - | 生产方（后台 bash/pwsh 与 PTY 发送）登记正在运行的工作；声明 record 的 job 还为非消费观察者流式提供原始输出；tool-jobs 是面向模型的控制器，用于读取、列出和终止这些工作；jobs-local 是进程本地注册表。 |
+| `ctx.jobs` | `seam` | [`jobs`](../packages/jobs/jobs) | [`jobs-local`](../packages/jobs/jobs-local) | [`tool-bash`](../packages/shell/tool-bash), [`tool-pwsh`](../packages/shell/tool-pwsh), [`tool-terminal`](../packages/experimental/tool-terminal), [`tool-jobs`](../packages/jobs/tool-jobs), [`api-job-controller`](../packages/api/job-controller) | - | 生产方（后台 bash/pwsh、PTY 发送和 subagent 委派）登记正在运行的工作；声明 record 的作业还为非消费观察者流式提供原始输出；tool-jobs 是面向模型的控制器，用于读取、列出和终止这些工作；jobs-local 是进程本地注册表。 |
+| `ctx.selfEvolve` | `seam` | [`self-evolve`](../packages/self-evolve/self-evolve) | [`self-evolve-basic`](../packages/self-evolve/self-evolve-basic) | [`tool-self-evolve`](../packages/self-evolve/tool-self-evolve) | - | 提供方拥有触发策略、以验证器为依据的失败挖掘、验证（fork 回放、留出搜索、LLM 裁判）以及可回滚的 L1/L2 提交；tool-self-evolve 是面向模型的控制方，用于检视模式并启动显式循环。 |
+| `ctx.selfEvolveBenchmark` | `seam` | [`self-evolve-benchmark`](../packages/self-evolve/self-evolve-benchmark) | - | - | - | self-evolve 的互补维度：以持久化基准为目标 agent 打分，并在"改进否则回滚"的严格约束下优化，配合全状态快照版本管理；评估与优化都经由 fork 子 agent 运行，私有评分标准不会到达优化器。 |
 | `ctx.web` | `seam` | [`web`](../packages/web/web) | [`web-search-exa`](../packages/web/web-search-exa), [`web-search-perplexity`](../packages/web/web-search-perplexity), [`web-search-deepseek`](../packages/web/web-search-deepseek), [`web-fetch-http`](../packages/web/web-fetch-http) | [`tool-web`](../packages/web/tool-web) | - | 搜索和抓取提供方注册到同一个 ctx.web seam；tool-web 负责稳定的面向模型名称。 |
 | `ctx.spillStore` | `seam` | [`spill`](../packages/spill/spill) | [`spill-local`](../packages/spill/spill-local) | [`spill-policy`](../packages/spill/spill-policy) | - | 后端保存过大的工具文本，并返回面向模型的定位信息和取回提示；spill-policy 是 tools/post-execute 消费方，负责决定何时 spill。 |
 | `ctx.directoryPicker` | `seam` | [`host-directory-picker`](../packages/host/directory-picker) | [`host-directory-picker-native`](../packages/host/directory-picker-native), [`host-directory-picker-browse`](../packages/host/directory-picker-browse) | [`api-workspace-controller`](../packages/api/workspace-controller) | - | 带判别标记的交互能力：原生后端在 Host 显示设备上打开一个操作系统选择器，浏览后端为应用内浏览器提供列表与创建原语；双端后端通过其浏览器侧填充 ui-workspace 目录流程的 slot（不通过协议发布）。 |
+| `ctx.desktop` | `seam` | [`desktop-seam`](../packages/desktop/desktop-seam) | [`desktop-shell`](../packages/desktop/shell) | [`desktop-directory-picker`](../packages/desktop/directory-picker) | - | Electron Main 拥有原生对话框、通知、菜单、全局快捷键、托盘与拖放；shell 提供方通过本地 socket 把它们桥接到后端，使渲染进程保持沙箱化。 |
 | `ctx.webServer` | `core` | [`host-webserver`](../packages/host/webserver) | - | [`client-connection`](../packages/client/connection), [`client-modules`](../packages/client/modules), [`client-hmr`](../packages/client/hmr) | - | 普通的 node:http 载体：具名路由注册表、索引转换 tap，以及静态 dist 回退；Web 传输插件注册自己的路由。 |
 | `ctx.clientModules` | `core` | [`client-modules`](../packages/client/modules) | - | [`client-hmr`](../packages/client/hmr) | - | 通过增量 `dsh.client` 扫描组合 __DSH_BOOT__ 入口图，提供插件组合包，并通知重建／图变更订阅方。 |
+| `ctx.betterSidebar` | `seam` | [`better-sidebar`](../packages/client/better-sidebar) | - | - | - | 以 ctx.betterSidebar 发布的 Service Definition：客户端插件注册侧边栏标签类型与文件查看器；better-sidebar 面板是提供方宿主，按 Session 渲染已注册的类型。 |
 | `ctx.workflowEngine` | `seam` | [`workflow`](../packages/workflow/workflow) | [`workflow-ptc`](../packages/workflow/workflow-ptc) | [`tool-workflow`](../packages/workflow/tool-workflow), [`tool-ralph`](../packages/experimental/tool-ralph) | - | 每个上下文使用一个引擎，与 bash 相同，且没有具名提供方注册表；通用工作流与固定 Ralph 消费方启动运行，其中的 agent() 调用通过 ctx.subagents 扇出。 |
 | `ctx.webhookRuntime` | `core` | [`webhook`](../packages/experimental/webhook) | - | [`webhook-github`](../packages/experimental/webhook-github) | - | 提供方适配器分派已认证交付；可信插件注册独立的进程本地规则，runtime 把非 null 结果转换为普通的 Workspace-backed Session，不保留交付或完成状态。 |
 | `ctx.lsp` | `seam` | [`lsp`](../packages/lsp/lsp) | [`lsp-stdio`](../packages/lsp/lsp-stdio) | [`tool-lsp`](../packages/lsp/tool-lsp) | - | 提供方注册与选择，加上恰好四种操作的标准化查询执行；该 seam 不提供协议逃生口，后端必须转换为标准化请求和结果。 |
 | `ctx.dynamicCordisRunner` | `core` | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) | - | [`tool-cordis`](../packages/extensions/tool-cordis) | - | 拥有内存定义注册表、Host 半的 vm 沙箱和 request-run 往返流程；浏览器页面通过其 Remote 命名空间在线访问同一服务。 |
 | `ctx.cordisInspect` | `core` | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) | - | [`tool-cordis`](../packages/extensions/tool-cordis) | - | 注册 Host inspect 提供方、镜像 Client 提供方 manifest，并通过动态 Cordis 传输路由 Client 查询。 |
+| `ctx.patentData` | `seam` | [`patent-data`](../packages/patent/patent-data) | - | - | - | nuo-patent 映射/搜索以及 ego-browser 子进程提供方的 Service Definition；提供方与工具消费方随计划阶段（P1.2、P3.2）落地。 |
+| `ctx.patentKnowledge` | `seam` | [`patent-knowledge`](../packages/patent/patent-knowledge) | - | - | - | 判例法全文检索、法条、wiki 卡片与知识图谱查询的 Service Definition；sqlite 提供方与安装命令随 P1.3 落地。 |
+| `ctx.patentWorkflow` | `seam` | [`patent-workflow`](../packages/patent/patent-workflow) | - | - | - | workflow/flexible-plan/plantask 状态机及其 HITL 审批接线的 Service Definition；实现随 P3.1 落地。 |
+| `ctx.patentTeams` | `core` | [`patent-teams`](../packages/patent/patent-teams) | - | - | - | 拥有持久化的团队名册、共享任务 DAG、成员信箱与调度锁；同目录下的 patent_teams_* 工具是面向模型的控制方。 |
 
 维护模式：混合模式。服务从 Cordis 声明中发现；接口、实现和消费方角色在 `scripts/gen-doc-graphs.ts` 中分类，并设有完整性守卫。

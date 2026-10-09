@@ -68,7 +68,15 @@ export function validateContent(content: FilingContent): FilingContent {
   if (content.specification.length === 0) {
     throw new PatentFilingError('specification 说明书至少要有 1 个节点')
   }
-  nonEmptyList(content.figures, 'figures 附图（第 1 张即摘要附图，不能为空）')
+  nonEmptyList(content.figures, 'figures 附图（不能为空）')
+  if (content.abstractFigureIndex !== undefined) {
+    const index = content.abstractFigureIndex
+    if (!Number.isInteger(index) || index < 0 || index >= content.figures.length) {
+      throw new PatentFilingError(
+        `abstractFigureIndex ${index} 不是有效附图下标（须为 0..${content.figures.length - 1} 的整数，figures 共 ${content.figures.length} 张）`,
+      )
+    }
+  }
   content.specification.forEach((node, index) => {
     checkNode(node, `specification[${index}]（${node.kind}）`)
   })

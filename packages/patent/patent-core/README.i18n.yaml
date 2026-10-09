@@ -3,17 +3,17 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-core/README.md
 /:
-  en: 9821abc3747eb69a
-  zh: e3d054283c68d8ad
+  en: 4d95630557fa0754
+  zh: e39f3cfd7b47ae06
 /deepseek-ai-dsh-patent-core:
   en: 40a881446449f10b
   zh: d9595659c5bbaf76
 /deepseek-ai-dsh-patent-core/summary:
-  en: 2b077d2542d18c0d
-  zh: bd5bff6828fa65b1
+  en: f5c018da3028efb4
+  zh: d7634256e9fa43d6
 /deepseek-ai-dsh-patent-core/table-of-contents:
-  en: 42e61b5ce6ab32a6
-  zh: e9db37713e911900
+  en: 7b6b6f1bfeceb22a
+  zh: e9d67b2e10eb482f
 /deepseek-ai-dsh-patent-core/atoms-engines:
   en: 178c28d9ef640238
   zh: 7d91be327549f195
@@ -58,16 +58,19 @@
   zh: 8c807e7f81130bb5
 /deepseek-ai-dsh-patent-core/rule-protocol-ipc:
   en: a1132c53ccb863a8
-  zh: 0d3d923c0f3b76b7
+  zh: 0060dbee26fed14d
+/deepseek-ai-dsh-patent-core/draft-model-controlled-drafts:
+  en: 802a02acf8827edb
+  zh: 792f9ac90381afef
 /deepseek-ai-dsh-patent-core/model-experience:
-  en: 9de61955934e5f5e
-  zh: 9de61955934e5f5e
+  en: d9184acbaee86450
+  zh: ff4f228bf9b232b4
 /deepseek-ai-dsh-patent-core/model-experience/kv-cache-effect:
-  en: c38a9a13cdecab79
-  zh: c45dff8e2bf20b08
+  en: 55b14a07a52f1e74
+  zh: ee2b162778f6fc5b
 /deepseek-ai-dsh-patent-core/known-limitations-and-deferred-work:
-  en: ff123f97d228f096
-  zh: 2fe3f25e260dc7a2
+  en: 1ab8bb66e1e0a882
+  zh: 4a55b0be2f4b9954
 /deepseek-ai-dsh-patent-core/known-limitations-and-deferred-work/dev-note:
   en: 0a1253c6f7b5e8b9
   zh: 8b287223fbe17bcd

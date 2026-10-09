@@ -34,8 +34,8 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md`。
-2. 复制 `assets/template.html` 为 `re-examination-request.html`。
-3. 填充：请求人信息 → 请求复审的理由（逐条：驳回理由 → 请求人观点 → 依据）→ 修改对照表 → 法律依据 → 请求事项 → 落款。
+2. 用 `render_patent_document` 渲染：template 传 `re-examination-request`，draft 传 id 键控草案：`fields` 填著录项、理由与落款文本槽（meta-*、rejection-summary、ground-1/ground-2、procedure-note、request-date、footer-case、footer-date），`sections` 传 blocks 槽（doc-number、ground-citations、legal-basis）与 rows 槽（amendment-table-body）。槽位清单与必填项以草案校验报错为准。
+3. 按结构填充：请求人信息 → 请求复审的理由（逐条：驳回理由 → 请求人观点 → 依据）→ 修改对照表 → 法律依据 → 请求事项 → 落款。
 4. 复审理由必须针对驳回理由逐项回应；修改方案须与理由一一对应并给出修改依据（法条/原申请文件）。
 5. 渲染后核对：期限数值、法条引用、对比文件公开号、无占位符。
 

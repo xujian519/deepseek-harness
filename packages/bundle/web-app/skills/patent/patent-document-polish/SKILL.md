@@ -37,7 +37,7 @@ description: 专利正式文档输出规范（文档专员/单会话通用）：
 ## 美化清单
 
 1. **选对模板**：按上表映射选择，模板 slot 逐项填充；缺输入即打回补证，禁止留空渲染。
-2. **渲染**：`render_patent_document` 传 `template`、`outputName`（`<caseId>-<场景>_v<版本>`，中文草稿名可直接使用）、`caseId` 使产物落 `data/cases/<caseId>/outputs/`；有事务所品牌时传 `brand` / `brandPath`。交付件只走这一条渲染路径——不要用 headless Chrome、pandoc、LibreOffice 手工渲染。
+2. **渲染**：`render_patent_document` 传 `template`、`draft`（受控草案，槽位清单与必填项以草案校验报错和所选模板的 SKILL 为准）、`outputName`（`<caseId>-<场景>_v<版本>`，中文草稿名可直接使用）、`caseId` 使产物落 `data/cases/<caseId>/outputs/`；有事务所品牌时传 `brand` / `brandPath`。交付件只走这一条渲染路径——不要用 headless Chrome、pandoc、LibreOffice 手工渲染。
 3. **版式**：遵循模板品牌契约（A4、`16mm 18mm 18mm 18mm` 边距、`--sati-doc-*` 变量、语义徽章色）；结论/风险用语义色徽章而非装饰。
 4. **docx 交付**（officecli / docx 能力可用时）：由渲染/定稿 md 转换而来，修订以 tracked changes 呈现，输入原件未被改动；否则交付 html/pdf + md 定稿。
 5. **失败降级**：PDF 失败时 HTML 已存在即算渲染成功，如实报告 `pdfError`。

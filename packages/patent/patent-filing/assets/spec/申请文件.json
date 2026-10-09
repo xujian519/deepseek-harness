@@ -5,7 +5,7 @@
 
   "sections": [
     { "key": "abstract",        "header": "说明书摘要", "from": "abstract",      "kind": "text",   "numbering": "none" },
-    { "key": "abstract_figure", "header": "摘要附图",   "from": "figures",       "kind": "figure", "figure_index": 0 },
+    { "key": "abstract_figure", "header": "摘要附图",   "from": "figures",       "kind": "figure", "figure_index": 0, "figure_index_from": "abstractFigureIndex" },
     { "key": "claims",          "header": "权利要求书", "from": "claims",        "kind": "text",   "numbering": "none" },
     { "key": "specification",   "header": "说明书",     "from": "specification", "kind": "mixed",  "numbering": "paragraph" },
     { "key": "figures",         "header": "说明书附图", "from": "figures",       "kind": "figure", "figure_all": true, "one_per_page": true }

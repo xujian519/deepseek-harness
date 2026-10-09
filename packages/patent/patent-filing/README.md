@@ -1,5 +1,5 @@
 ---
-description: "Patent filing document assembly for the DeepSeek Harness: renders a CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into DOCX from a shipped template whose formatting is the single source of truth, then asserts the finished file against that template."
+description: "Patent filing document assembly for the DeepSeek Harness: renders a CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into DOCX from a controlled draft, using a shipped template whose formatting is the single source of truth, then asserts the finished file against that template."
 kind: "package-reference"
 ---
 
@@ -9,11 +9,12 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Renders a CNIPA patent application document — abstract, abstract drawing, claims, specification, drawings — into one DOCX, and asserts the finished file against the shipped template. The template is the single source of truth for formatting: fonts, size, line spacing, first-line indent, section count, and headers are reverse-derived from it, and a `style` block that disagrees with it fails before writing. Content arrives as a structured model; the engine strips any source paragraph numbers and rewrites them, so a source numbering mismatch fails instead of diverging.
+Renders a CNIPA patent application document — abstract, abstract drawing, claims, specification, drawings — into one DOCX, and asserts the finished file against the shipped template. The template is the single source of truth for formatting: fonts, size, line spacing, first-line indent, section count, and headers are reverse-derived from it, and a `style` block that disagrees with it fails before writing. Content arrives as a controlled draft — the same SpecDraft the claims-spec HTML/PDF channel renders.
 
 ## Table of Contents
 
 - [build_patent_filing tool](#build_patent_filing-tool)
+- [Draft mapping](#draft-mapping)
 - [verify_patent_filing tool](#verify_patent_filing-tool)
 - [Filing assets](#filing-assets)
 - [Configuration](#configuration)
@@ -25,11 +26,15 @@ Renders a CNIPA patent application document — abstract, abstract drawing, clai
 <a id="build_patent_filing-tool"></a>
 ## build_patent_filing tool
 
-build_patent_filing takes a structured `content` (abstract paragraphs, claims in item order, a specification node list, and drawing paths in figure order), an `outputName`, and optional `caseId`/`outputDir`, and writes one five-section DOCX. It returns the written path, the bitmaps that reached the document, the paragraphs and figures each section carries, the paragraph-numbering total, the source numbering it read and checked, the formatting it reverse-derived from the template, and the template's SHA-256.
+build_patent_filing takes a controlled `draft` (the same `SpecDraft` the `render_patent_document` claims-spec template accepts, validated by `validateSpecDraft` from `dsh-patent-core`), an `outputName`, and optional `caseId`/`outputDir`, and writes one five-section DOCX. It returns the written path, the bitmaps that reached the document, the paragraphs and figures each section carries, the paragraph-numbering total, the source numbering it read and checked, the formatting it reverse-derived from the template, and the template's SHA-256. The legacy `content` parameter is deleted: a call carrying it is rejected at the executor's argument gate with `missing required property "draft"`.
 
-The five sections are the statutory ones: 说明书摘要, 摘要附图, 权利要求书, 说明书, 说明书附图. Figures enter the document in caller order — the first becomes the abstract drawing, and all of them fill the drawing section one per page. A `.svg` source is rasterized through headless Chrome first; `.png`, `.jpg`, and `.jpeg` are used as they are.
+The five sections are the statutory ones: 说明书摘要, 摘要附图, 权利要求书, 说明书, 说明书附图. Figures enter the document in `draft.figureFiles` order — the first becomes the abstract drawing, and all of them fill the drawing section one per page. A `.svg` source is rasterized through headless Chrome first; `.png`, `.jpg`, and `.jpeg` are used as they are.
 
-Section headings, paragraph numbers, and internal working marks never enter the document from this tool's own input, because the contract has no field for them: the specification's `h3`/`h4` nodes are the five statutory part headings, and the engine writes `[0001]`-style paragraph numbers itself.
+Section headings, claim item numbers, figure captions, and table captions are generated from the draft structure, never authored: `contentFromDraft` maps the five specification parts to the statutory `h3` headings, prefixes claims with their item numbers, rewrites drawing-description list items as `图N为……；/。` paragraphs, and emits `表 N · 名称` caption paragraphs before each table — the same algorithm the HTML channel runs, so the two channels cannot diverge. The engine then writes `[0001]`-style paragraph numbers itself (caption paragraphs are excluded: they neither carry nor occupy a number) and strips any source numbering a paragraph text still carries.
+
+## Draft mapping
+
+`contentFromDraft(draft)` is the deterministic `SpecDraft` → `FilingContent` bridge. Lists have no node kind in the content model, so a `list` block becomes one paragraph per item. Table captions are numbered continuously across the document (`表 N · 名称`) and the caption paragraph precedes the `table` node whose first row is the header. The consistency test in `tests/from-draft.spec.ts` pins the same draft's claim numbers, table captions, and figure captions against the HTML channel's `renderSpecDraftSections` output.
 
 ## verify_patent_filing tool
 
@@ -71,7 +76,7 @@ The engine needs `python-docx`; the packaged runtime payload supplies it, and di
 
 #### What the model sees
 
-One registered tool named `build_patent_filing` with a required `content` object (`abstract`, `claims`, `specification` nodes, `figures`), a required `outputName`, and optional `caseId` and `outputDir`. The result renders as Markdown prose: the written path, the reverse-derived formatting, the per-section paragraph and figure tallies, the paragraph-numbering total beside the source numbering it checked, the figure count, and the truncated template fingerprint. See the [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-patent-filing) for the schema itself.
+One registered tool named `build_patent_filing` with a required `draft` object (the shared `SpecDraft`: `meta`, unnumbered `claims`, `abstract`, `figureFiles`, `abstractFigure` (which figure goes into the 摘要附图 section, default 1), and the five specification parts as `paragraph`/`list`/`table` blocks (the drawing-description part lists one item per figure)), a required `outputName`, and optional `caseId` and `outputDir`. The result renders as Markdown prose: the written path, the reverse-derived formatting, the per-section paragraph and figure tallies, the paragraph-numbering total beside the source numbering it checked, the figure count, and the truncated template fingerprint. See the [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-patent-filing) for the schema itself.
 
 #### Token effect
 
@@ -98,7 +103,7 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 ## Known Limitations and Deferred Work
 
 - **Figures reach the document as bitmaps** — a `.svg` source is rasterized before inserting, so the DOCX holds images rather than vector drawings. Re-export a drawing by re-running the build; the recorded template fingerprint does not cover figure sources.
-- **The HTML review draft is not an input** — the upstream `claims-spec` draft is consumed as a structured content model, so whoever produces the draft must hand over its content rather than a file path. An importer for the rendered HTML was deliberately left out: the four defects recorded in the porting record all came from reading element structure out of that HTML.
+- **The HTML review draft is not an input** — the upstream `claims-spec` draft is consumed as the shared controlled draft, so whoever produces it hands the same `SpecDraft` to both channels rather than a rendered file path. An importer for the rendered HTML was deliberately left out: the four defects recorded in the porting record all came from reading element structure out of that HTML.
 - **Page count is not asserted** — the verifier compares formatting parameters, section boundaries, and content, but the pagination a real Word build produces depends on font metrics; LibreOffice reports a different page count for the same file and is not an arbiter.
 - **The DOCX was never opened in Word on the development host** — the porting record states the same limitation; `genoffice` was the page-count arbiter.
 - **The template carries no table formatting** — the packaged template has no table, so `table_size_pt` is the one formatting value the template cannot be reverse-derived for; it is declared in the spec and asserted through `max_sizes_pt`.

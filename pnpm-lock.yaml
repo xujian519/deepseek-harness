@@ -423,6 +423,9 @@ importers:
       '@deepseek-ai/dsh-patent-fees':
         specifier: workspace:*
         version: link:../../packages/patent/patent-fees
+      '@deepseek-ai/dsh-patent-filing':
+        specifier: workspace:*
+        version: link:../../packages/patent/patent-filing
       '@deepseek-ai/dsh-patent-knowledge':
         specifier: workspace:*
         version: link:../../packages/patent/patent-knowledge
@@ -10535,7 +10538,7 @@ importers:
         version: 4.0.7
       readable-stream:
         specifier: ^4.7.0
-        version: 4.7.0
+        version: 4.8.0
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -12684,6 +12687,9 @@ importers:
       '@deepseek-ai/dsh-patent-core':
         specifier: workspace:*
         version: link:../patent-core
+      '@deepseek-ai/dsh-patent-document':
+        specifier: workspace:*
+        version: link:../patent-document
       '@deepseek-ai/dsh-subprocess':
         specifier: workspace:*
         version: link:../../subprocess/subprocess
@@ -24568,8 +24574,8 @@ packages:
     resolution: {integrity: sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==}
     engines: {node: '>= 6'}
 
-  readable-stream@4.7.0:
-    resolution: {integrity: sha512-oIGGmcpTLwPga8Bn6/Z75SVaH1z5dUut2ibSyAMVhmUggWpmDn2dapB0n7f8nwaSiRtepAsfJyfXIO5DCVAODg==}
+  readable-stream@4.8.0:
+    resolution: {integrity: sha512-2jhTTU3Eilp/2DMT71gbcoqC35eQHasMJH0RHkYxwlxIv3+FR6Y5xAFZIwEGLxKkjZYEFlsiMNIdwUqjK2lLHQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   readdir-glob@1.1.3:
@@ -32818,7 +32824,7 @@ snapshots:
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
 
-  readable-stream@4.7.0:
+  readable-stream@4.8.0:
     dependencies:
       abort-controller: 3.0.0
       buffer: 6.0.3

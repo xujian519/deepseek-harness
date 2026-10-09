@@ -30,6 +30,14 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 const PATENT_PRESET = join(REPO_ROOT, 'packages/bundle/web-app/presets/patent.patch.yml')
 /** The directory holding the skills the `patent` preset ships. */
 const PATENT_SKILLS = join(REPO_ROOT, 'packages/bundle/web-app/skills/patent')
+/**
+ * The dsh installation's manifest. The profile resolution table seeds its
+ * package list from this manifest's declared dependency closure, so a host row
+ * outside that closure has no table entry to import through.
+ */
+const INSTALLATION_ANCHOR = join(REPO_ROOT, 'apps/cli/package.json')
+/** The bundle shipping this preset; its closure joins the table when selected. */
+const BUNDLE_ANCHOR = join(REPO_ROOT, 'packages/bundle/web-app/package.json')
 
 /**
  * Literal endpoints of the deployment's cnlaw legal base. The persona and the
@@ -173,6 +181,61 @@ function packageOf(name: string): string {
   return name.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0] as string
 }
 
+/**
+ * Every workspace package name mapped to its manifest path. The closure walks
+ * below read manifests rather than built entry points, the way the profile
+ * resolution table does, so the checks hold on an unbuilt tree as well.
+ * @returns Workspace package names and their `package.json` paths.
+ */
+function workspaceManifests(): Map<string, string> {
+  const manifests = new Map<string, string>()
+  const patterns = [
+    'packages/*/*/package.json',
+    'vendor/*/package.json',
+    'apps/*/package.json',
+    'native/system/package.json',
+    'native/system/packages/*/package.json',
+  ]
+  for (const pattern of patterns) {
+    for (const relative of globSync(pattern, { cwd: REPO_ROOT })) {
+      const path = join(REPO_ROOT, relative)
+      const manifest = JSON.parse(readFileSync(path, 'utf8')) as { name?: unknown }
+      if (typeof manifest.name === 'string') manifests.set(manifest.name, path)
+    }
+  }
+  return manifests
+}
+
+/**
+ * Whether `name` is reachable from `anchor` through declared `dependencies`
+ * and `peerDependencies`, the way the profile resolution table seeds itself
+ * before any plugin import. The walk stays inside the workspace map: reaching
+ * a row through an external package is not a path the installation offers.
+ * @param anchor - Absolute manifest path the walk starts from.
+ * @param name - Package name to find in the anchor's declared closure.
+ * @param manifests - Workspace name-to-manifest map.
+ * @returns true when the anchor's declared closure contains the name.
+ */
+function withinInstallationClosure(anchor: string, name: string, manifests: ReadonlyMap<string, string>): boolean {
+  const seen = new Set<string>()
+  const queue = [anchor]
+  for (let current = queue.shift(); current !== undefined; current = queue.shift()) {
+    const manifest = JSON.parse(readFileSync(current, 'utf8')) as {
+      dependencies?: Record<string, unknown>
+      peerDependencies?: Record<string, unknown>
+    }
+    const declared = [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]
+    for (const dependency of declared) {
+      if (seen.has(dependency)) continue
+      seen.add(dependency)
+      if (dependency === name) return true
+      const next = manifests.get(dependency)
+      if (next !== undefined) queue.push(next)
+    }
+  }
+  return false
+}
+
 describe('patent preset composition', () => {
   it('names only packages this workspace contains', async () => {
     const known = workspacePackageNames()
@@ -182,6 +245,21 @@ describe('patent preset composition', () => {
       .map(packageOf)
       .filter(name => !known.has(name))
     expect(unknown).toEqual([])
+  })
+
+  it('resolves every row package from an anchor the runtime carries', async () => {
+    // A workspace package can still sit outside the declared closures the
+    // profile resolution table seeds from — the installation's and the
+    // selected bundles'. The mount then reports the row as "never started"
+    // and the whole preset refuses to activate at session creation.
+    const manifests = workspaceManifests()
+    const unresolved = (await patentRows())
+      .map(row => row.name)
+      .filter((name): name is string => typeof name === 'string' && name.startsWith('@deepseek-ai/'))
+      .map(packageOf)
+      .filter(name => !withinInstallationClosure(INSTALLATION_ANCHOR, name, manifests)
+        && !withinInstallationClosure(BUNDLE_ANCHOR, name, manifests))
+    expect([...new Set(unresolved)]).toEqual([])
   })
 
   it('keeps the patent-data provider and its consumer enabled in one realm', async () => {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>实用新型专利权评价报告 — 示例</title>
+<title>实用新型专利权评价报告</title>
 <style>
   /* ============================================================
    * 实用新型专利权评价报告 — 文书骨架（复刻表格 220701 版式）。
@@ -11,7 +11,6 @@
    * 版式：正文 10.5pt、行距 1.5、版心 177mm。
    * 值位一律用 .fill（横线长度随内容伸缩）；表格行数与列宽随内容。
    * 刻意复刻官方表格版式，使用黑白表格线，不套用 tokens.css 品牌色。
-   * 本文件为填充示例，样式与 assets/template.html 一致；示例数据均为虚构。
    * ============================================================ */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { font-size: 10.5pt; }
@@ -72,7 +71,7 @@
   }
   .fill.w-sm { min-width: 8mm; }
   .fill.w-lg { min-width: 30mm; }
-  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; }
+  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; white-space: normal; }
   .fill.as-end { flex: 1 1 24mm; }
   .opt .txt.fill-row { display: flex; align-items: baseline; gap: 1mm; flex-wrap: wrap; }
 
@@ -151,20 +150,20 @@
         </colgroup>
         <tbody>
           <tr>
-            <td colspan="11">专利号：ZL2022209876543</td>
-            <td colspan="13">申请日：2022 年 03 月 15 日</td>
+            <td colspan="11">专利号：<span class="fill w-lg">ZL2022209876543</span></td>
+            <td colspan="13">申请日：<span class="fill w-sm">2022</span> 年 <span class="fill w-sm">03</span> 月 <span class="fill w-sm">15</span> 日</td>
             <td colspan="16">优先权日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
           </tr>
           <tr>
-            <td colspan="20">授权公告日：2022 年 12 月 20 日</td>
-            <td colspan="20">实用新型名称：一种带式输送机的自动张紧机构</td>
+            <td colspan="20">授权公告日：<span class="fill w-sm">2022</span> 年 <span class="fill w-sm">12</span> 月 <span class="fill w-sm">20</span> 日</td>
+            <td colspan="20">实用新型名称：<span class="fill w-lg">一种带式输送机的自动张紧机构</span></td>
           </tr>
           <tr>
-            <td colspan="23">专利权人：宁波华驰输送设备有限公司</td>
-            <td colspan="17">请求人：宁波华驰输送设备有限公司</td>
+            <td colspan="23">专利权人：<span class="fill w-lg">宁波华驰输送设备有限公司</span></td>
+            <td colspan="17">请求人：<span class="fill w-lg">宁波华驰输送设备有限公司</span></td>
           </tr>
           <tr>
-            <td colspan="40">请求日：2023 年 02 月 10 日</td>
+            <td colspan="40">请求日：<span class="fill w-sm">2023</span> 年 <span class="fill w-sm">02</span> 月 <span class="fill w-sm">10</span> 日</td>
           </tr>
           <tr>
             <td colspan="20">评价报告总计 <span class="fill w-sm">4</span> 页</td>
@@ -193,7 +192,7 @@
 
   <div class="doc-foot">
     <div class="code">220701<br>2011.4</div>
-    <div class="pages">第 1 页　共 4 页</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 
@@ -202,18 +201,18 @@
   <div class="page-body">
     <div class="form-box box-standalone">
       <div class="part part-first">
-        <div class="part-label">A. 主题的分类（IPC）　B65G 23/44</div>
+        <div class="part-label">A. 主题的分类（IPC）　<span class="fill w-lg">B65G 23/44</span></div>
       </div>
 
       <div class="part">
         <div class="part-label">B. 检索领域</div>
-        <div class="part-value">B65G23/44, B65G23/06, B65G23/00, B65G15/60, B65G21/14, B65G43/02</div>
+        <div class="part-value"><span class="fill w-full">B65G23/44, B65G23/06, B65G23/00, B65G15/60, B65G21/14, B65G43/02</span></div>
       </div>
 
       <div class="part">
         <div class="part-label">C. 在检索时查阅的电子数据库（数据库的名称和/或使用的检索式）</div>
-        <div class="part-value">CNABS, DWPI, SIPOABS, 中国期刊网全文数据库：</div>
-        <div class="part-value">输送带, 张紧, 张紧辊, 张紧装置, 配重, 缓冲, 输送机, belt conveyor, tension, take-up, tensioning roller, belt tensioner</div>
+        <div class="part-value"><span class="fill w-full">CNABS, DWPI, SIPOABS, 中国期刊网全文数据库：</span></div><div class="part-value"><span class="fill w-full">输送带, 张紧, 张紧辊, 张紧装置, 配重, 缓冲, 输送机, belt conveyor, tension, take-up, tensioning roller, belt tensioner</span></div>
+
       </div>
 
       <div class="part">
@@ -233,14 +232,8 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td>Y</td><td class="l">CN213456789 U</td><td>2021.06.22</td><td>B65G 23/44</td><td>说明书具体实施方式、附图 1-5</td><td>1、5</td></tr>
-            <tr><td>Y</td><td class="l">CN214567890 U</td><td>2021.11.05</td><td>B65G 23/44</td><td>说明书具体实施方式、附图 1-4</td><td>1、5</td></tr>
-            <tr><td>A</td><td class="l">CN112345678 A</td><td>2021.03.09</td><td>B65G 23/44</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN113456789 A</td><td>2021.09.28</td><td>B65G 15/60</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN211234567 U</td><td>2020.08.11</td><td>B65G 21/14</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN110987654 A</td><td>2019.12.17</td><td>B65G 23/44</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN208765432 U</td><td>2019.04.26</td><td>B65G 23/06</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">KR1020150123456 A</td><td>2015.11.04</td><td>B65G 23/44</td><td>全文</td><td>1-8</td></tr>
+            <!-- 数据行：按相关文件条数复制本行；超出本页时勾选下面一行并转到续页 I -->
+            <tr><td><span class="fill w-full">Y</span></td><td><span class="fill w-full">CN213456789 U</span></td><td><span class="fill w-full">2021.06.22</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">说明书具体实施方式、附图 1-5</span></td><td><span class="fill w-full">1、5</span></td></tr><tr><td><span class="fill w-full">Y</span></td><td><span class="fill w-full">CN214567890 U</span></td><td><span class="fill w-full">2021.11.05</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">说明书具体实施方式、附图 1-4</span></td><td><span class="fill w-full">1、5</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN112345678 A</span></td><td><span class="fill w-full">2021.03.09</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN113456789 A</span></td><td><span class="fill w-full">2021.09.28</span></td><td><span class="fill w-full">B65G 15/60</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN211234567 U</span></td><td><span class="fill w-full">2020.08.11</span></td><td><span class="fill w-full">B65G 21/14</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN110987654 A</span></td><td><span class="fill w-full">2019.12.17</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN208765432 U</span></td><td><span class="fill w-full">2019.04.26</span></td><td><span class="fill w-full">B65G 23/06</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">KR1020150123456 A</span></td><td><span class="fill w-full">2015.11.04</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr>
           </tbody>
         </table>
         <div class="opt" style="margin-top:1mm"><span class="cb"></span><span class="txt">相关文件，参见续页 I。</span></div>
@@ -268,7 +261,7 @@
 
   <div class="doc-foot">
     <div class="code">220701<br>2011.4</div>
-    <div class="pages">第 2 页　共 4 页</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 
@@ -294,10 +287,10 @@
         <hr class="inner-rule">
 
         <div class="concl-sub">
-          <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill w-sm">1-8</span> 具备专利法第 22 条第 2 款规定的新颖性。</span></div>
+          <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill">1-8</span> 具备专利法第 22 条第 2 款规定的新颖性。</span></div>
           <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不具备专利法第 22 条第 2 款规定的新颖性。</span></div>
           <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill">2-4、6-8</span> 具备专利法第 22 条第 3 款规定的创造性。</span></div>
-          <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill w-sm">1、5</span> 不具备专利法第 22 条第 3 款规定的创造性。</span></div>
+          <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill">1、5</span> 不具备专利法第 22 条第 3 款规定的创造性。</span></div>
         </div>
 
         <hr class="inner-rule">
@@ -312,11 +305,11 @@
 
       <div class="opinion">
         <div class="part-label">2. 专利权评价意见：</div>
-        <p>1、权利要求 1-8 保护的技术方案具备中华人民共和国专利法第 22 条第 2 款规定的新颖性。</p>
-        <p class="indent">权利要求 1 要求保护一种带式输送机的自动张紧机构，对比文件 1（公告号：CN213456789 U）公开了一种带式输送机的张紧装置，其中（参见该对比文件的说明书具体实施方式以及说明书附图 1-5）具体公开了如下内容：包括机架 1（相当于本专利的固定架），所述机架 1 的两侧沿输送方向设有导轨 2（相当于本专利的导向槽），所述导轨 2 内可滑动地装有张紧滑块 3（相当于本专利的张紧座），所述张紧滑块 3 上转动支承有张紧辊 4（相当于本专利的改向辊），所述张紧辊 4 与绕经其表面的输送带 5（相当于本专利的环形带）配合；所述张紧滑块 3 远离输送带 5 的一侧连接有螺杆 6（相当于本专利的调节杆），所述螺杆 6 伸出机架 1 的一端装有调节螺母 7（相当于本专利的锁紧件），附图可见张紧滑块 3 与导轨 2 的配合面以及机架 1 的两侧板。但对比文件 1 没有公开随输送带张力变化自动移动张紧辊的随动结构。因此，对比文件 1 未公开权利要求 1 的全部技术特征。</p>
-        <p class="indent">基于上述理由，权利要求 1 具备新颖性，符合专利法第 22 条第 2 款有关新颖性的规定。在权利要求 1 具备新颖性的基础上，其从属权利要求 2-8，因而也具备新颖性，符合中华人民共和国专利法第 22 条第 2 款的规定。</p>
+        <!-- 逐条填入评价意见；正文超出本页时勾选下一行，并转到续页 II 继续 -->
+        <p class="indent"><span class="fill w-full">1、权利要求 1-8 保护的技术方案具备中华人民共和国专利法第 22 条第 2 款规定的新颖性。</span></p><p class="indent"><span class="fill w-full">权利要求 1 要求保护一种带式输送机的自动张紧机构，对比文件 1（公告号：CN213456789 U）公开了一种带式输送机的张紧装置，其中（参见该对比文件的说明书具体实施方式以及说明书附图 1-5）具体公开了如下内容：包括机架 1（相当于本专利的固定架），所述机架 1 的两侧沿输送方向设有导轨 2（相当于本专利的导向槽），所述导轨 2 内可滑动地装有张紧滑块 3（相当于本专利的张紧座），所述张紧滑块 3 上转动支承有张紧辊 4（相当于本专利的改向辊），所述张紧辊 4 与绕经其表面的输送带 5（相当于本专利的环形带）配合；所述张紧滑块 3 远离输送带 5 的一侧连接有螺杆 6（相当于本专利的调节杆），所述螺杆 6 伸出机架 1 的一端装有调节螺母 7（相当于本专利的锁紧件），附图可见张紧滑块 3 与导轨 2 的配合面以及机架 1 的两侧板。但对比文件 1 没有公开随输送带张力变化自动移动张紧辊的随动结构。因此，对比文件 1 未公开权利要求 1 的全部技术特征。</span></p><p class="indent"><span class="fill w-full">基于上述理由，权利要求 1 具备新颖性，符合专利法第 22 条第 2 款有关新颖性的规定。在权利要求 1 具备新颖性的基础上，其从属权利要求 2-8，因而也具备新颖性，符合中华人民共和国专利法第 22 条第 2 款的规定。</span></p>
 
-        <p class="item-gap"><span class="cb on" style="margin-right:1.5mm"></span>专利权评价意见，参见续页 II。</p>
+
+        <p class="item-gap"><span class="cb" style="margin-right:1.5mm"></span>专利权评价意见，参见续页 II。</p>
       </div>
     </div>
 
@@ -327,9 +320,9 @@
       <tbody>
         <tr>
           <td class="stamp">专利权评价报告<br>专用章</td>
-          <td>审查员：李文涛</td>
-          <td>审核员：陈静</td>
-          <td>完成日期：<br>2023 年 03 月 06 日</td>
+          <td>审查员：<span class="fill w-sm">李文涛</span></td>
+          <td>审核员：<span class="fill w-sm">陈静</span></td>
+          <td>完成日期：<br><span class="fill w-sm">2023</span> 年 <span class="fill w-sm">03</span> 月 <span class="fill w-sm">06</span> 日</td>
         </tr>
       </tbody>
     </table>
@@ -337,19 +330,19 @@
 
   <div class="doc-foot">
     <div class="code">220701<br>2011.4</div>
-    <div class="pages">第 3 页　共 4 页</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 
-<!-- ==================== 第 4 页：续页 II ==================== -->
+<!-- ==================== 续页 II 骨架：评价意见超过第 3 页时使用，不足一页删除本页 ==================== -->
 <div class="page">
   <div class="page-body">
     <div class="form-box box-standalone">
       <div class="cont-head">专利权评价意见，续页 II</div>
       <div class="opinion" style="border-top:0">
-        <p class="item-gap">2、权利要求 1、5 保护的技术方案不具备中华人民共和国专利法第 22 条第 3 款规定的创造性。</p>
-        <p class="indent">与对比文件 1（CN213456789 U）相比，权利要求 1 的区别技术特征为：随输送带张力变化自动移动张紧辊的随动结构。该技术特征在对比文件 2（CN214567890 U）中（参见该对比文件的说明书具体实施方式以及说明书附图 1-4）公开了，内容如下：包括固定在机架侧板上的支座 11，所述支座 11 上铰接有摆臂 12（相当于本专利的张紧臂），所述摆臂 12 的自由端转动支承有张紧辊 13，所述摆臂 12 的另一端连接有拉伸弹簧 14（相当于本专利的弹性件），所述拉伸弹簧 14 的另一端固定在机架底板上，输送带张力变化时摆臂 12 绕支座 11 摆动而带动张紧辊 13 移动，附图可见摆臂 12 与支座 11 的铰接轴以及弹簧 14 的固定座。由此可见，在对比文件 1 的基础上结合对比文件 2 得出该权利要求 1 的技术方案，对本技术领域的技术人员来说是显而易见的，因此该权利要求 1 所保护的技术方案不具有实质性特点和进步，不具备创造性，不符合专利法第 22 条第 3 款有关创造性的规定。</p>
-        <p class="indent">权利要求 5 是权利要求 1 的从属权利要求，其附加技术特征是：所述张紧臂的自由端设有沿轴向可调的限位块。该技术特征已在对比文件 2 中公开，因此，在对比文件 1 的基础上结合对比文件 2 得到本专利权利要求 5 的技术方案，对于本领域技术人员而言是显而易见的。权利要求 5 所要求保护的技术方案不具备实质性特点和进步，不具备中华人民共和国专利法第 22 条第 3 款所规定的创造性。</p>
+        <!-- 逐段填入评价意见正文；需多张续页时复制本页整块与页眉 -->
+        <p class="indent"><span class="fill w-full">2、权利要求 1、5 保护的技术方案不具备中华人民共和国专利法第 22 条第 3 款规定的创造性。</span></p><p class="indent"><span class="fill w-full">与对比文件 1（CN213456789 U）相比，权利要求 1 的区别技术特征为：随输送带张力变化自动移动张紧辊的随动结构。该技术特征在对比文件 2（CN214567890 U）中（参见该对比文件的说明书具体实施方式以及说明书附图 1-4）公开了，内容如下：包括固定在机架侧板上的支座 11，所述支座 11 上铰接有摆臂 12（相当于本专利的张紧臂），所述摆臂 12 的自由端转动支承有张紧辊 13，所述摆臂 12 的另一端连接有拉伸弹簧 14（相当于本专利的弹性件），所述拉伸弹簧 14 的另一端固定在机架底板上，输送带张力变化时摆臂 12 绕支座 11 摆动而带动张紧辊 13 移动，附图可见摆臂 12 与支座 11 的铰接轴以及弹簧 14 的固定座。由此可见，在对比文件 1 的基础上结合对比文件 2 得出该权利要求 1 的技术方案，对本技术领域的技术人员来说是显而易见的，因此该权利要求 1 所保护的技术方案不具有实质性特点和进步，不具备创造性，不符合专利法第 22 条第 3 款有关创造性的规定。</span></p><p class="indent"><span class="fill w-full">权利要求 5 是权利要求 1 的从属权利要求，其附加技术特征是：所述张紧臂的自由端设有沿轴向可调的限位块。该技术特征已在对比文件 2 中公开，因此，在对比文件 1 的基础上结合对比文件 2 得到本专利权利要求 5 的技术方案，对于本领域技术人员而言是显而易见的。权利要求 5 所要求保护的技术方案不具备实质性特点和进步，不具备中华人民共和国专利法第 22 条第 3 款所规定的创造性。</span></p>
+
 
       </div>
     </div>
@@ -357,7 +350,7 @@
 
   <div class="doc-foot">
     <div class="code">220701<br>2011.4</div>
-    <div class="pages">第 4 页　共 4 页</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 
