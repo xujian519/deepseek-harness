@@ -35,6 +35,13 @@
     "presets/ptc.patch.yml",
     "presets/minimal.patch.yml",
     "presets/cordis.patch.yml",
+    "presets/patent.patch.yml",
+    "presets/document.patch.yml",
+    "presets/patent.md",
+    "presets/patent.zh.md",
+    "presets/document.md",
+    "presets/document.zh.md",
+    "skills",
     "lib/public-url-*.js",
     "lib/types/**/*.d.ts"
   ],
@@ -46,7 +53,9 @@
         "./presets/standard.patch.yml",
         "./presets/ptc.patch.yml",
         "./presets/minimal.patch.yml",
-        "./presets/cordis.patch.yml"
+        "./presets/cordis.patch.yml",
+        "./presets/patent.patch.yml",
+        "./presets/document.patch.yml"
       ]
     }
   },
@@ -174,7 +183,6 @@
     "@deepseek-ai/dsh-tool-present": "workspace:*",
     "@deepseek-ai/dsh-tool-pwsh": "workspace:*",
     "@deepseek-ai/dsh-tool-pwsh-persistent": "workspace:*",
-    "@deepseek-ai/dsh-tool-ralph": "workspace:*",
     "@deepseek-ai/dsh-tool-schedule": "workspace:*",
     "@deepseek-ai/dsh-tool-skill": "workspace:*",
     "@deepseek-ai/dsh-tool-subagent": "workspace:*",
