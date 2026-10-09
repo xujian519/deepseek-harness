@@ -35,7 +35,7 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md` 与 `references/citation-log.md`。
-2. 用 `render_patent_document` 渲染：template 传 `search-report`，draft 传 id 键控草案：`fields` 填著录项、任务与页脚文本槽（meta-*、task-*、preliminary-suggestion、footer-date），`sections` 传 rows 槽（strategy-elements/strategy-runs/feature-table/prior-art-table/matrix-table/preliminary-table/citation-table，占位行克隆的等宽字符串数组）与 blocks 槽（assumptions）。槽位清单与必填项以草案校验报错为准。
+2. 用 `render_patent_document` 渲染：template 传 `search-report`，draft 传 id 键控草案：`fields` 填著录项、任务与页脚文本槽（meta-*、task-*、preliminary-suggestion、footer-case、footer-date），`sections` 传 rows 槽（strategy-elements/strategy-runs/feature-table/prior-art-table/matrix-table/preliminary-table/citation-table，占位行克隆的等宽字符串数组）与 blocks 槽（doc-number，以及可选槽位 assumptions-body：省略即不渲染「假设与局限」正文）。槽位清单与必填项以草案校验报错为准。
 3. 按结构填充：案件信息 → 检索策略 → 技术方案/权利要求特征 → 对比文件清单 → 特征-文件映射 → 初步结论 → 引用日志 → 假设与局限。
 4. 相关度代码统一：`X`（可单独影响新颖性/创造性）、`Y`（可与 X 文件结合）、`A`（背景技术）、`P`（中间文件）、`E`（同族/冲突申请）。
 5. 引证定位用 `D1 ¶0023` 格式；无法溯源的段落标注为待核实。

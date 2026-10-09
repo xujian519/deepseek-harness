@@ -32,13 +32,13 @@ export class DraftValidationError extends Error {
 }
 
 /** claims-spec 草案的顶层可用键。 */
-const SPEC_DRAFT_KEYS = ['meta', 'claims', 'abstract', 'abstractFigure', 'figureFiles', 'drawingDescriptions', 'sections'] as const
+const SPEC_DRAFT_KEYS = ['meta', 'claims', 'abstract', 'figureFiles', 'abstractFigure', 'sections'] as const
 
 /** 模板草案的顶层可用键。 */
 const TEMPLATE_DRAFT_KEYS = ['fields', 'sections'] as const
 
 /** meta 的必填键。 */
-const META_KEYS = ['title', 'applicant', 'inventor', 'agent', 'date'] as const
+const META_KEYS = ['caseNumber', 'title', 'applicant', 'inventor', 'agent', 'date'] as const
 
 /** 块类型可用项。 */
 const BLOCK_KINDS = ['paragraph', 'list', 'table'] as const
@@ -54,6 +54,9 @@ const TABLE_KEYS = ['kind', 'name', 'header', 'rows'] as const
 
 /** 权利要求自带项号的行首形态：`1.`、`3、`、`12．`。 */
 const CLAIM_NUMBER_PREFIX = /^\s*\d+\s*[.、．]/
+
+/** 摘要附图号的合法形态：十进制正整数，无前导零（与图号渲染逐字一致）。 */
+const ABSTRACT_FIGURE_NUMBER = /^[1-9]\d*$/
 
 /** 表名禁止的行首形态：`表1`、`表 2`。 */
 const TABLE_NUMBER_PREFIX = /^\s*表\s*\d/
@@ -236,7 +239,7 @@ function validateMeta(value: unknown, violations: string[]): SpecDraftMeta | und
     return undefined
   }
   let valid = !reportUnknownKeys(record, META_KEYS, 'meta', violations)
-  const meta: SpecDraftMeta = { title: '', applicant: '', inventor: '', agent: '', date: '' }
+  const meta: SpecDraftMeta = { caseNumber: '', title: '', applicant: '', inventor: '', agent: '', date: '' }
   for (const key of META_KEYS) {
     const text = readRequiredString(record, key, 'meta', violations)
     if (text === undefined) {
@@ -309,23 +312,42 @@ export function validateSpecDraft(input: unknown): SpecDraft {
     })
   }
   const abstractParagraphs = readStringList(root.abstract, 'abstract', violations, '至少一段')
+  const figureFiles = readStringList(root.figureFiles, 'figureFiles', violations)
   const abstractFigure = root.abstractFigure === undefined
     ? undefined
     : requireNonEmptyString(root.abstractFigure, 'abstractFigure', violations)
-  const figureFiles = readStringList(root.figureFiles, 'figureFiles', violations)
-  const drawingDescriptions = readStringList(root.drawingDescriptions, 'drawingDescriptions', violations)
+  if (abstractFigure !== undefined && figureFiles !== undefined) {
+    const figureNumber = ABSTRACT_FIGURE_NUMBER.test(abstractFigure) ? Number(abstractFigure) : 0
+    if (figureNumber < 1 || figureNumber > figureFiles.length) {
+      violations.push(
+        `abstractFigure ${JSON.stringify(abstractFigure)} 不是有效附图号（须为 1..${figureFiles.length} 的整数，figureFiles 共 ${figureFiles.length} 项）`,
+      )
+    }
+  }
   const sections = validateSpecSections(root.sections, violations)
+  if (figureFiles !== undefined && sections !== undefined) {
+    const entries = figureEntryCount(sections.drawingDescriptions)
+    if (entries !== figureFiles.length) {
+      violations.push(
+        `附图说明条目数与 figureFiles 项数不一致：附图说明 ${entries} 条，figureFiles ${figureFiles.length} 项（每幅附图恰一条列表项，渲染为「图N为……」）`,
+      )
+    }
+  }
 
   if (violations.length > 0) throw new DraftValidationError(violations)
   return {
     meta: meta as SpecDraftMeta,
     claims: claims as string[],
     abstract: abstractParagraphs as string[],
-    ...(abstractFigure !== undefined ? { abstractFigure } : {}),
     figureFiles: figureFiles as string[],
-    drawingDescriptions: drawingDescriptions as string[],
+    ...(abstractFigure !== undefined ? { abstractFigure } : {}),
     sections: sections as Record<SpecPartId, DraftBlock[]>,
   }
+}
+
+/** 附图说明部分的附图条目数：列表块项数之和（每项渲染成一条「图N为……」）。 */
+function figureEntryCount(blocks: readonly DraftBlock[]): number {
+  return blocks.reduce((total, block) => total + (block.kind === 'list' ? block.items.length : 0), 0)
 }
 
 /** 列出选项集合：`id（label）` 逐项。 */

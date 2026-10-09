@@ -36,7 +36,7 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md` 与 `references/citation-log.md`。
-2. 用 `render_patent_document` 渲染：template 传 `oa-response`，draft 传 id 键控草案：`fields` 填著录项、争辩与结论文本槽（meta-*、position-summary、arg-*、conclusion-text、footer-date），`sections` 传 blocks 槽（position-points、amended-claim-1）与 rows 槽（amendment-table/evidence-table/citation-table）。槽位清单与必填项以草案校验报错为准。
+2. 用 `render_patent_document` 渲染：template 传 `oa-response`，draft 传 id 键控草案：`fields` 填著录项、争辩与结论文本槽（meta-*、position-summary、arg-*、conclusion-text、footer-case、footer-date），`sections` 传 blocks 槽（doc-number、position-points、amended-claim-1）与 rows 槽（amendment-table/evidence-table/citation-table）。槽位清单与必填项以草案校验报错为准。
 3. 按结构填充：案件信息 → 总体立场 → 修改说明 → 逐条争辩 → 证据清单 → 引用日志 → 结论请求。
 4. 每条争辩意见按「审查意见要点 → 答复要点 → 事实/证据分析 → 法条适用 → 结论」五段式组织。
 5. 修改后的权利要求用下划线或加粗标注修改处；删除线仅用于说明，不写入正式文件。

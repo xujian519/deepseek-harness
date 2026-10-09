@@ -71,6 +71,7 @@
 
 ```js
 import { chromium } from "playwright";
+const caseNo = "CN2026-0001"; // 本案编号：取草案编号行的编号，示例值勿照抄
 const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.goto(`file://${path}/patentability-opinion.html`);
@@ -84,7 +85,7 @@ await page.pdf({
   footerTemplate:
     '<div style="font-size:9px;width:100%;padding:0 18mm;color:#6b6b6b;display:flex;justify-content:space-between;">' +
     '<span>第 <span class="pageNumber"></span> / <span class="totalPages"></span> 页</span>' +
-    '<span>PA-2026-XXXX</span></div>',
+    `<span>${caseNo}</span></div>`,
   margin: { top: "16mm", bottom: "18mm", left: "18mm", right: "18mm" },
 });
 await browser.close();

@@ -128,11 +128,10 @@ describe('renderPatentDocument 段落编号', () => {
           outputDir: dir,
           format: 'html',
           draft: {
-            meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+            meta: { caseNumber: 'CN2026-0001', title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
             claims: ['一种装置，其特征在于，包括示例部件。'],
             abstract: ['本发明公开一种装置。'],
             figureFiles: ['fig1.svg'],
-            drawingDescriptions: ['整体结构示意图'],
             sections: {
               technicalField: [{ kind: 'paragraph', text: '本发明属于医疗器械领域。' }],
               background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],

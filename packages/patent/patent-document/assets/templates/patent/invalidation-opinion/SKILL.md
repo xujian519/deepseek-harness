@@ -37,7 +37,7 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md` 与 `references/citation-log.md`。
-2. 用 `render_patent_document` 渲染：template 传 `invalidation-opinion`，draft 传 id 键控草案：`fields` 填著录项、逐条分析与结论文本槽（meta-*、position-summary、nov-*/inv-*、other-grounds、conclusion-text、footer-date），`sections` 传 blocks 槽（position-points）与 rows 槽（claim-feature-table/evidence-table/claim-conclusion-table/citation-table）。槽位清单与必填项以草案校验报错为准。
+2. 用 `render_patent_document` 渲染：template 传 `invalidation-opinion`，draft 传 id 键控草案：`fields` 填著录项、逐条分析与结论文本槽（meta-*、position-summary、nov-*/inv-*、other-grounds、conclusion-text、footer-case、footer-date），`sections` 传 blocks 槽（doc-number、position-points）与 rows 槽（claim-feature-table/evidence-table/claim-conclusion-table/citation-table）。槽位清单与必填项以草案校验报错为准。
 3. 按结构填充：案件信息 → 总体立场 → 涉案专利权利要求分析 → 证据清单 → 无效理由 → 逐权利要求分析 → 引用日志 → 结论与请求。
 4. 无效理由按法条组织，每个理由下列出：事实认定 → 证据分析 → 法条适用 → 结论。
 5. 对比文件公开日必须早于涉案专利优先权日/申请日；中间文件、冲突申请单独标注。

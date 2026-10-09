@@ -30,7 +30,7 @@
 - [ ] 引用日志同时导出为独立 `.md`/`.json` 文件供审核留档（对齐 ib-pitch-book 的 citation log 导出）
 - [ ] `@media print` 下表格跨页表头重复、callout 不跨页断裂（用浏览器打印预览抽查 2 页以上）
 - [ ] 生成 HTML 时同步产出 `.md` 源稿与 `.pdf`，三件套文件命名一致（`patentability-opinion.{html,md,pdf}`）
-- [ ] 文档版本行（`PA-2026-XXXX · 版本 V1.0`）与案卷记录一致
+- [ ] 抬头编号行（草案 `doc-number` 槽）与页脚编号（`footer-case` 槽）与案卷记录一致
 
 ## 渲染后快速检查（一次性人工复核）
 

@@ -14,6 +14,7 @@ import {
 function validSpecDraft(): SpecDraft {
   return {
     meta: {
+      caseNumber: 'CN2026-0001',
       title: '一种示例装置',
       applicant: '示例申请人',
       inventor: '示例发明人',
@@ -23,7 +24,6 @@ function validSpecDraft(): SpecDraft {
     claims: ['一种示例装置，其特征在于，包括示例部件。'],
     abstract: ['本发明公开一种示例装置。'],
     figureFiles: ['fig1.png', 'fig2.png'],
-    drawingDescriptions: ['示例装置的整体结构示意图', '示例部件的剖视示意图'],
     sections: {
       technicalField: [{ kind: 'paragraph', text: '本发明属于示例技术领域。' }],
       background: [{ kind: 'paragraph', text: '现有技术存在示例问题。' }],
@@ -126,26 +126,26 @@ describe('validateSpecDraft', () => {
   })
 
   it('拒绝未知顶层键并列出可用项', () => {
-    expectSpecViolation(withSpecDraft({ extra: 1 }), 'extra', 'meta', 'claims', 'abstractFigure', 'figureFiles', 'drawingDescriptions', 'sections')
+    expectSpecViolation(withSpecDraft({ extra: 1 }), 'extra', 'meta', 'claims', 'abstract', 'figureFiles', 'abstractFigure', 'sections')
   })
 
   it('meta 缺失时报缺失并列出可用项', () => {
     const { meta: _meta, ...rest } = validSpecDraft()
-    expectSpecViolation(rest, 'meta 缺失', 'title', 'applicant', 'inventor', 'agent', 'date')
+    expectSpecViolation(rest, 'meta 缺失', 'caseNumber', 'title', 'applicant', 'inventor', 'agent', 'date')
   })
 
   it('meta 为非对象时拒绝', () => {
     expectSpecViolation(withSpecDraft({ meta: '示例' }), 'meta 必须是对象')
   })
 
-  it.each(['title', 'applicant', 'inventor', 'agent', 'date'] as const)('meta.%s 必填非空', (field) => {
+  it.each(['caseNumber', 'title', 'applicant', 'inventor', 'agent', 'date'] as const)('meta.%s 必填非空', (field) => {
     expectSpecViolation(withSpecDraft({ meta: { ...validSpecDraft().meta, [field]: '  ' } }), `meta.${field} 为空`)
     const { [field]: _dropped, ...restMeta } = validSpecDraft().meta
     expectSpecViolation(withSpecDraft({ meta: restMeta }), `meta.${field} 缺失`)
   })
 
   it('meta 未知键时拒绝并列出可用项', () => {
-    expectSpecViolation(withSpecDraft({ meta: { ...validSpecDraft().meta, extra: 'x' } }), 'meta.extra', 'title、applicant、inventor、agent、date')
+    expectSpecViolation(withSpecDraft({ meta: { ...validSpecDraft().meta, extra: 'x' } }), 'meta.extra', 'caseNumber、title、applicant、inventor、agent、date')
   })
 
   it('claims 缺失或为空数组时拒绝', () => {
@@ -181,16 +181,45 @@ describe('validateSpecDraft', () => {
     expectSpecViolation(withSpecDraft({ abstractFigure: '' }), 'abstractFigure 为空')
   })
 
+  it('abstractFigure 超出附图项数或非十进制正整数时拒绝', () => {
+    expectSpecViolation(withSpecDraft({ abstractFigure: '3' }), 'abstractFigure', '1..2')
+    expectSpecViolation(withSpecDraft({ abstractFigure: '0' }), 'abstractFigure', '1..2')
+    expectSpecViolation(withSpecDraft({ abstractFigure: '02' }), 'abstractFigure')
+    expectSpecViolation(withSpecDraft({ abstractFigure: '2.0' }), 'abstractFigure')
+    expectSpecViolation(withSpecDraft({ abstractFigure: '二' }), 'abstractFigure')
+  })
+
   it('figureFiles 缺失、为空数组或含空项时拒绝', () => {
     expectSpecViolation(withSpecDraft({ figureFiles: undefined }), 'figureFiles 缺失')
     expectSpecViolation(withSpecDraft({ figureFiles: [] }), 'figureFiles 至少一项')
     expectSpecViolation(withSpecDraft({ figureFiles: [' '] }), 'figureFiles[0] 为空')
   })
 
-  it('drawingDescriptions 缺失、为空数组或含空项时拒绝', () => {
-    expectSpecViolation(withSpecDraft({ drawingDescriptions: undefined }), 'drawingDescriptions 缺失')
-    expectSpecViolation(withSpecDraft({ drawingDescriptions: [] }), 'drawingDescriptions 至少一项')
-    expectSpecViolation(withSpecDraft({ drawingDescriptions: ['ok', ''] }), 'drawingDescriptions[1] 为空')
+  it('附图说明条目数与 figureFiles 项数不一致时拒绝', () => {
+    const tooFew = { ...validSpecDraft().sections, drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }] }
+    expectSpecViolation(
+      withSpecDraft({ sections: tooFew }),
+      '附图说明条目数与 figureFiles 项数不一致',
+      '附图说明 1 条',
+      'figureFiles 2 项',
+    )
+    const tooMany = {
+      ...validSpecDraft().sections,
+      drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图', '剖视示意图', '局部放大示意图'] }],
+    }
+    expectSpecViolation(withSpecDraft({ sections: tooMany }), '附图说明 3 条', 'figureFiles 2 项')
+  })
+
+  it('附图说明的段落与表格块不计入附图条目', () => {
+    const sections = {
+      ...validSpecDraft().sections,
+      drawingDescriptions: [
+        { kind: 'paragraph', text: '本申请共两幅附图。' },
+        { kind: 'list', items: ['整体结构示意图', '剖视示意图'] },
+      ],
+    }
+    const validated = validateSpecDraft(withSpecDraft({ sections }))
+    expect(validated.sections.drawingDescriptions).toHaveLength(2)
   })
 
   it('sections 缺失、为非对象或为空对象时拒绝', () => {

@@ -330,7 +330,7 @@ describe('renderPatentDocument', () => {
           templateDraft: {
             fields: { 'meta-title': '草案标题' },
             sections: [
-              { id: 'basis', blocks: [{ kind: 'paragraph', text: '要件结论正文。' }] },
+              { id: 'basis-body', blocks: [{ kind: 'paragraph', text: '要件结论正文。' }] },
             ],
           },
         },
@@ -371,7 +371,7 @@ describe('renderPatentDocument', () => {
   it('warns on draft section ids missing from the template without polluting the HTML', async () => {
     const dir = makeTempDir()
     try {
-      renderMocks.craftedTemplate = '<html><body><section id="specification"></section></body></html>'
+      renderMocks.craftedTemplate = '<html><body><section id="specification-body"></section></body></html>'
       const result = await renderPatentDocument(
         {
           template: 'claims-spec',
@@ -379,11 +379,10 @@ describe('renderPatentDocument', () => {
           outputDir: dir,
           format: 'html',
           draft: {
-            meta: { title: '一种智能保温杯', applicant: '示例科技有限公司', inventor: '张三', agent: 'XX 事务所', date: '2026-10-09' },
+            meta: { caseNumber: 'CN2026-0001', title: '一种智能保温杯', applicant: '示例科技有限公司', inventor: '张三', agent: 'XX 事务所', date: '2026-10-09' },
             claims: ['一种智能保温杯，其特征在于，包括杯体。'],
             abstract: ['本发明公开一种智能保温杯。'],
             figureFiles: ['fig1.svg'],
-            drawingDescriptions: ['整体结构示意图'],
             sections: {
               technicalField: [{ kind: 'paragraph', text: '本发明属于日用品领域。' }],
               background: [{ kind: 'paragraph', text: '现有保温杯无法显示水温。' }],
@@ -397,7 +396,7 @@ describe('renderPatentDocument', () => {
         { subprocess: unusedSubprocess() },
       )
       const warnings = result.warnings.join(' ')
-      expect(warnings).toContain('claims')
+      expect(warnings).toContain('claims-body')
       expect(warnings).toContain('abstract')
       const html = readFileSync(result.htmlPath, 'utf8')
       expect(html).toContain('<h3>技术领域</h3>')
@@ -713,11 +712,10 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
   /** 最小可渲染 claims-spec 草案（与 draft-converter 用例同形）。 */
   function draft(): SpecDraft {
     return {
-      meta: { title: '一种智能保温杯', applicant: '示例科技有限公司', inventor: '张三', agent: 'XX 事务所', date: '2026-10-09' },
+      meta: { caseNumber: 'CN2026-0001', title: '一种智能保温杯', applicant: '示例科技有限公司', inventor: '张三', agent: 'XX 事务所', date: '2026-10-09' },
       claims: ['一种智能保温杯，其特征在于，包括杯体。'],
       abstract: ['本发明公开一种智能保温杯。'],
       figureFiles: ['fig1.svg'],
-      drawingDescriptions: ['整体结构示意图'],
       sections: {
         technicalField: [{ kind: 'paragraph', text: '本发明属于日用品领域。' }],
         background: [{ kind: 'paragraph', text: '现有保温杯无法显示水温。' }],
@@ -733,8 +731,8 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
     try {
       renderMocks.craftedTemplate =
         '<html><head><title>t</title></head><body>' +
-        '<section id="specification"><p>orig</p><br><span/></section>' +
-        '<img id="claims">' +
+        '<section id="specification-body"><p>orig</p><br><span/></section>' +
+        '<img id="claims-body">' +
         '<div id="abstract"><span>'
       const result = await renderPatentDocument(
         {
@@ -750,8 +748,8 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
       const html = readFileSync(result.htmlPath, 'utf8')
       expect(html).toContain('<h3>技术领域</h3>')
       expect(html).not.toContain('orig')
-      // claims（void img）与 abstract（未闭合 div）都找不到配对闭合，整体跳过并告警。
-      expect(result.warnings.join(' ')).toContain('claims')
+      // claims-body（void img）与 abstract（未闭合 div）都找不到配对闭合，整体跳过并告警。
+      expect(result.warnings.join(' ')).toContain('claims-body')
       expect(result.warnings.join(' ')).toContain('abstract')
     } finally {
       renderMocks.craftedTemplate = undefined
@@ -871,11 +869,10 @@ describe('renderPatentDocument 表单模板受控草案', () => {
           outputDir: dir,
           format: 'html',
           draft: {
-            meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+            meta: { caseNumber: 'CN2026-0001', title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
             claims: ['一种装置，其特征在于，包括本体。'],
             abstract: ['摘要正文。'],
             figureFiles: ['fig1.svg'],
-            drawingDescriptions: ['整体结构示意图'],
             sections: {
               technicalField: [{ kind: 'paragraph', text: '本发明属于机械领域。' }],
               background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],

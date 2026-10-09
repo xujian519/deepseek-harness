@@ -144,11 +144,10 @@ describe('patent-filing real Loader composition through cordis.yml', () => {
       name: 'build_patent_filing',
       arguments: {
         draft: {
-          meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+          meta: { caseNumber: 'CN2026-0001', title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
           claims: ['一种装置，其特征在于，包括本体。'],
           abstract: ['摘要正文。'],
           figureFiles: [figure],
-          drawingDescriptions: ['整体结构示意图'],
           sections: {
             technicalField: [{ kind: 'paragraph', text: '本发明属于机械领域。' }],
             background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],

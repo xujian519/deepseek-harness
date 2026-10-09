@@ -36,7 +36,7 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md`（版式惯例）与 `references/citation-log.md`（引用日志规范）。
-2. 用 `render_patent_document` 渲染：template 传 `patentability-opinion`，draft 传 id 键控草案：`fields` 填著录项与页脚文本槽（meta-*、sum-title、sum-conclusion、footer-date 等），`sections` 传 blocks 槽（basis、claim-decomposition、feature-comparison、inventiveness、other-requirements、evidence、citation-log，paragraph/list/table 块，表格自动编号）与 rows 槽；表格槽位为占位行克隆的等宽字符串数组。槽位清单与必填项以草案校验报错为准。
+2. 用 `render_patent_document` 渲染：template 传 `patentability-opinion`，draft 传 id 键控草案：`fields` 填著录项与页脚文本槽（meta-*、sum-title、sum-conclusion、footer-case、footer-date 等），`sections` 传 blocks 槽（doc-number、basis-body、claim-decomposition-body、feature-comparison-body、inventiveness-step-1/2/3（分别对应 5.1/5.2/5.3）、other-requirements-body、evidence-body、citation-log-body，paragraph/list/table 块，表格自动编号），可选槽位 assumptions-body（假设与局限）省略即不渲染。本模板没有 rows 槽。分区标题（一至九与 5.1–5.3）留在模板里，不写进块。槽位清单与必填项以草案校验报错为准。
 3. 按结构填充：案件信息 → 结论摘要（表 1）→ 方案解析（表 2）→ 逐特征比对（表 3）→ 创造性三步法 → 其他要件（表 4）→ 证据清单（表 5）→ 引用日志（表 6）→ 假设与局限。
 4. 引用定位一律用 `D1 ¶0023` 格式（交付件的引证写法；claim-chart 的机器校验字段另用 `[D1 段[0032] 图3]`，两者不可混用），**禁止凭记忆写公开号/段号**；比对行沿用 claim-chart 的逐字引用核对。
 5. 无法溯源的断言：降级为 `模型推断` 或 `假设`（斜体），不写确定性结论。

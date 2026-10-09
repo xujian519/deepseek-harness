@@ -34,6 +34,8 @@ function renderDrawingDescriptions(blocks: Parameters<typeof numberedFigureDescr
 
 /** 转换产物的槽位映射：键为 claims-spec 骨架中的固定元素 id。 */
 export interface SpecDraftSectionMap {
+  /** 抬头案卷号（编号行的值位；「案卷号：」标签与版本号留在骨架里）。 */
+  'meta-case': string
   /** 发明名称。 */
   'meta-title': string
   /** 申请人。 */
@@ -46,11 +48,13 @@ export interface SpecDraftSectionMap {
   'meta-date': string
   /** 页脚日期。 */
   'footer-date': string
-  /** 权利要求书内层（claim-item 序列）。 */
-  claims: string
-  /** 说明书内层（五部分 h3 + 块）。 */
-  specification: string
-  /** 摘要内层（abstract-box）。 */
+  /** 页脚案卷号。 */
+  'footer-case': string
+  /** 权利要求书正文容器（claim-item 序列；分区标题留在骨架里，不在本槽位内）。 */
+  'claims-body': string
+  /** 说明书正文容器（五部分 h3 + 块；分区标题留在骨架里）。 */
+  'specification-body': string
+  /** 摘要内层（abstract-box，含自带 h3）。 */
   abstract: string
 }
 
@@ -76,14 +80,16 @@ export function renderSpecDraftSections(draft: SpecDraft): SpecDraftSectionMap {
     + draft.abstract.map(paragraph => `<p>${escapeHtmlText(paragraph)}</p>`).join('')
     + `<p><strong>摘要附图：</strong>图 <span class="mono">${abstractFigure}</span></p></div>`
   return {
+    'meta-case': escapeHtmlText(draft.meta.caseNumber),
     'meta-title': escapeHtmlText(draft.meta.title),
     'meta-applicant': escapeHtmlText(draft.meta.applicant),
     'meta-inventor': escapeHtmlText(draft.meta.inventor),
     'meta-agent': escapeHtmlText(draft.meta.agent),
     'meta-date': escapeHtmlText(draft.meta.date),
     'footer-date': escapeHtmlText(draft.meta.date),
-    claims,
-    specification,
+    'footer-case': escapeHtmlText(draft.meta.caseNumber),
+    'claims-body': claims,
+    'specification-body': specification,
     abstract,
   }
 }

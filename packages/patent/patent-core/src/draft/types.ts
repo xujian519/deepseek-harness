@@ -52,8 +52,10 @@ export const SPEC_PART_ORDER: readonly SpecPartId[] = [
   'embodiment',
 ]
 
-/** claims-spec 著录项：五项必填非空。 */
+/** claims-spec 著录项：六项必填非空。 */
 export interface SpecDraftMeta {
+  /** 案卷号；抬头编号行与页脚共用。 */
+  caseNumber: string
   /** 发明名称。 */
   title: string
   /** 申请人。 */
@@ -74,13 +76,17 @@ export interface SpecDraft {
   claims: string[]
   /** 摘要段落；≥1 段，每段非空。 */
   abstract: string[]
-  /** 摘要附图号；缺省渲染为「1」。 */
-  abstractFigure?: string
-  /** 附图文件路径（docx 通道使用；HTML 通道忽略）；≥1 项，每项非空。 */
+  /** 附图文件路径，按图序；≥1 项，每项非空。 */
   figureFiles: string[]
-  /** 附图说明；每项对应一幅附图（与 figureFiles 项数一致由 filing 侧校验），每项非空。 */
-  drawingDescriptions: string[]
-  /** 说明书五部分；每部分 ≥1 个非空块，表格块仅允许出现在 embodiment。 */
+  /**
+   * 摘要附图号：1..figureFiles 项数的整数；缺省为第 1 幅。
+   * 两条通道都按它标注摘要附图（HTML 通道印「摘要附图：图 N」，docx 通道把它放进「摘要附图」节）。
+   */
+  abstractFigure?: string
+  /**
+   * 说明书五部分；每部分 ≥1 个非空块，表格块仅允许出现在 embodiment。
+   * 附图说明部分的列表项即附图条目（每项渲染成一条「图N为……」），其条数必须等于 figureFiles 项数。
+   */
   sections: Record<SpecPartId, DraftBlock[]>
 }
 

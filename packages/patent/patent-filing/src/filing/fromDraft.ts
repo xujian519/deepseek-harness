@@ -2,8 +2,8 @@
  * src/filing/fromDraft — SpecDraft → FilingContent 的确定性映射。
  *
  * docx 通道与 HTML 通道（dsh-patent-document 的 draftConverter）消费同一份受控草案：
- * 权项项号（「1. 」前缀）、附图说明的「图N为……；/。」与表题「表 N · 名称」按同一算法
- * 生成，两通道成文不可能分叉。内容模型没有列表节点，列表块落成逐项正文段。
+ * 权项项号（「1. 」前缀）、附图说明的「图N为……；/。」、表题「表 N · 名称」与摘要附图号
+ * 都按草案决定，两通道成文不可能分叉。内容模型没有列表节点，列表块落成逐项正文段。
  * 入参必须是已通过 validateSpecDraft 的草案（tool JSON 边界在校验处收窄）。
  * @module @deepseek-ai/dsh-patent-filing/filing/fromDraft
  */
@@ -87,5 +87,7 @@ export function contentFromDraft(draft: SpecDraft): FilingContent {
     claims: draft.claims.map((claim, index) => `${index + 1}. ${claim}`),
     specification,
     figures: [...draft.figureFiles],
+    // 摘要附图号在草案里是 1 起的图号，内容模型用 0 起下标；缺省（草案未给）即第 1 张。
+    ...(draft.abstractFigure !== undefined ? { abstractFigureIndex: Number(draft.abstractFigure) - 1 } : {}),
   }
 }

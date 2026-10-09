@@ -17,16 +17,20 @@ describe('render_patent_document tool', () => {
         'meta-date': '2026-10-09',
         'sum-title': '结论摘要',
         'sum-conclusion': '结论正文。',
+        'footer-case': 'PA-2026-0031 · 机密',
         'footer-date': '2026 年 10 月 09 日',
       },
       sections: [
-        { id: 'basis', blocks: [{ kind: 'paragraph', text: '要件结论。' }] },
-        { id: 'claim-decomposition', blocks: [{ kind: 'paragraph', text: '特征分解。' }] },
-        { id: 'feature-comparison', blocks: [{ kind: 'paragraph', text: '比对结论。' }] },
-        { id: 'inventiveness', blocks: [{ kind: 'paragraph', text: '创造性分析。' }] },
-        { id: 'other-requirements', blocks: [{ kind: 'paragraph', text: '其他要件。' }] },
-        { id: 'evidence', blocks: [{ kind: 'paragraph', text: '证据清单。' }] },
-        { id: 'citation-log', blocks: [{ kind: 'paragraph', text: '引用日志。' }] },
+        { id: 'doc-number', blocks: [{ kind: 'paragraph', text: '文档编号：PA-2026-0031 · 版本 V1.0' }] },
+        { id: 'basis-body', blocks: [{ kind: 'paragraph', text: '要件结论。' }] },
+        { id: 'claim-decomposition-body', blocks: [{ kind: 'paragraph', text: '特征分解。' }] },
+        { id: 'feature-comparison-body', blocks: [{ kind: 'paragraph', text: '比对结论。' }] },
+        { id: 'inventiveness-step-1', blocks: [{ kind: 'paragraph', text: '最接近的现有技术。' }] },
+        { id: 'inventiveness-step-2', blocks: [{ kind: 'paragraph', text: '区别特征与实际解决的技术问题。' }] },
+        { id: 'inventiveness-step-3', blocks: [{ kind: 'paragraph', text: '技术启示分析。' }] },
+        { id: 'other-requirements-body', blocks: [{ kind: 'paragraph', text: '其他要件。' }] },
+        { id: 'evidence-body', blocks: [{ kind: 'paragraph', text: '证据清单。' }] },
+        { id: 'citation-log-body', blocks: [{ kind: 'paragraph', text: '引用日志。' }] },
       ],
     }
   }
@@ -61,11 +65,10 @@ describe('render_patent_document tool', () => {
           outputDir: dir,
           format: 'html',
           draft: {
-            meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+            meta: { caseNumber: 'CN2026-0001', title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
             claims: ['一种装置，其特征在于，包括示例部件。'],
             abstract: ['本发明公开一种装置。'],
             figureFiles: ['fig1.svg'],
-            drawingDescriptions: ['整体结构示意图'],
             sections: {
               technicalField: [{ kind: 'paragraph', text: '本发明属于示例领域。' }],
               background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],
@@ -126,11 +129,10 @@ describe('render_patent_document tool', () => {
         format: 'html',
         brand: { firm: 42 as never },
         draft: {
-          meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+          meta: { caseNumber: 'CN2026-0001', title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
           claims: ['一种装置，其特征在于，包括示例部件。'],
           abstract: ['本发明公开一种装置。'],
           figureFiles: ['fig1.svg'],
-          drawingDescriptions: ['整体结构示意图'],
           sections: {
             technicalField: [{ kind: 'paragraph', text: '本发明属于示例领域。' }],
             background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],
@@ -437,9 +439,11 @@ describe('render_patent_document tool 表单草案分发', () => {
               'arg-inv-evidence': 'D2 说明书第 3 页。',
               'arg-inv-conclusion': '权利要求 1 具备创造性。',
               'conclusion-text': '恳请授予专利权。',
+              'footer-case': 'OA-2026-0042 · 机密',
               'footer-date': '2026 年 10 月 09 日',
             },
             sections: [
+              { id: 'doc-number', blocks: [{ kind: 'paragraph', text: '答复编号：OA-2026-0042 · 版本 V1.0' }] },
               { id: 'position-points', blocks: [{ kind: 'list', items: ['要点一；', '要点二。'], ordered: true }] },
               { id: 'amended-claim-1', blocks: [{ kind: 'paragraph', text: '1. 一种带式输送机的自动张紧机构，其特征在于，还包括随动结构。' }] },
               {

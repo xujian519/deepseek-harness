@@ -20,8 +20,12 @@
       "abstract":      ["段落", ...],
       "claims":        ["1. …", ...],
       "specification": [{"kind": "h3"|"h4"|"p"|"table", "text": ..., "rows": ...}, ...],
-      "figures":       ["/abs/fig1.png", ...]
+      "figures":       ["/abs/fig1.png", ...],
+      "abstractFigureIndex": 0
     }
+
+``abstractFigureIndex`` 是可选字段：声明 ``figure_index_from`` 的单图节（本 spec 的「摘要附图」）
+按它取图，缺省回落到 spec 的 ``figure_index``。
 
 标准输出是一份 JSON 报告（``status``/``sections``/``numbering_total``/
 ``upstream_numbering_seen``/``template_style``）；失败时以非零退出码结束，错误写 stderr。
@@ -209,6 +213,23 @@ NODE_KINDS = ("h3", "h4", "p", "table")
 NUMBERING_POLICIES = ("none", "paragraph")
 
 
+def single_figure_index(sec: dict, content: dict):
+    """单图节的图序：spec 声明 ``figure_index_from`` 时从 content 取（「摘要附图」由模型指定
+    第几张），content 未给该键时回落到 spec 的 ``figure_index``。
+
+    Args:
+        sec: spec 里的一个 ``kind`` 为 ``figure`` 且不带 ``figure_all`` 的节。
+        content: 结构化内容模型。
+
+    Returns:
+        ``(图序, 来源名)``；来源名用于报错文案。
+    """
+    source = sec.get("figure_index_from")
+    if source in content:
+        return content[source], f"content.{source}"
+    return sec.get("figure_index"), "figure_index"
+
+
 def validate_spec(spec: dict, content: dict) -> re.Pattern:
     """校验 spec 与 content 的接缝，返回段落编号的匹配式。
 
@@ -246,10 +267,10 @@ def validate_spec(spec: dict, content: dict) -> re.Pattern:
                     f"spec {where} 的 numbering {sec.get('numbering')!r} 未定义；可用：{'、'.join(NUMBERING_POLICIES)}"
                 )
         if sec["kind"] == "figure" and not sec.get("figure_all"):
-            index = sec.get("figure_index")
-            if not isinstance(index, int) or not 0 <= index < len(content["figures"]):
+            index, origin = single_figure_index(sec, content)
+            if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(content["figures"]):
                 raise SystemExit(
-                    f"spec {where} 的 figure_index {index!r} 超出 content.figures（{len(content['figures'])} 张）"
+                    f"spec {where} 的 {origin} {index!r} 超出 content.figures（{len(content['figures'])} 张）"
                 )
         if sec["kind"] == "mixed":
             for node in content[sec["from"]]:
@@ -325,7 +346,10 @@ def build(spec: dict, content: dict, template_path: Path, out_path: Path) -> dic
 
         elif kind == "figure":
             figures = content["figures"]
-            selected = figures if sec.get("figure_all") else [figures[sec["figure_index"]]]
+            if sec.get("figure_all"):
+                selected = figures
+            else:
+                selected = [figures[single_figure_index(sec, content)[0]]]
             for n, image in enumerate(selected):
                 if n > 0 and sec.get("one_per_page"):
                     tpl.insert(None if anchor is None else anchor, page_break(style))
