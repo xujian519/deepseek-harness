@@ -6050,7 +6050,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
 
 ### `render_patent_document`
 
-从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见、诉讼文书、专利权评价报告或表格式检索报告）渲染为磁盘文件。选择模板 id 与 outputName；以 id → innerHTML 记录的形式传入 sections 填充模板插槽。写出 HTML 文件，默认还通过无头 Chrome 生成 PDF（format：html、pdf 或 both，默认 both）。返回写入的文件路径及任何告警或 PDF 失败原因（PDF 失败时 HTML 仍存在）。
+从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见、诉讼文书、专利权评价报告或表格式检索报告）渲染为磁盘文件。选择模板 id 与 outputName；全部 11 个模板都接受受控草案（draft 参数）。claims-spec 申请文件传 SpecDraft 结构：著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure，以及按五部分（technicalField/background/summary/drawingDescriptions/embodiment）组织的 paragraph/list/table 块（附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）。八个文档模板传 id 键控草案：fields 填叶级文本槽（meta、footer 等），sections 传 blocks（paragraph/list/table 块，表题自动生成且全文档连续编号）或 rows（等宽字符串数组，按模板表体占位行克隆）。两个表单模板传表单草案：文本槽、按选中项 id 表示的勾选选项槽（多选组传 id 数组），以及 blocks/rows 章节槽。草案驱动模板的标题、权项编号、附图号、表题与勾选状态全部由结构生成——不要撰写标记。draft 为全部模板的必填参数；旧 sections innerHTML 参数已删除，传它的调用会被参数校验拒绝。写出 HTML 文件，默认另经 headless Chrome 生成 PDF（format: html、pdf 或 both，默认 both）。返回写出的文件路径与告警或 PDF 失败原因（PDF 失败时 HTML 仍然存在）。
 
 ```json
 {
@@ -6094,9 +6094,9 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
         "both"
       ]
     },
-    "sections": {
+    "draft": {
       "type": "object",
-      "description": "Record of element id -> HTML innerHTML content to inject into the template.",
+      "description": "Controlled draft (structured JSON). All eleven templates accept draft. The claims-spec template takes the SpecDraft structure: meta (caseNumber, printed in the masthead number line and the footer, plus title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, optional abstractFigure (the 1-based figure number printed as the abstract figure, default 1, at most the figureFiles count), and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks; the drawingDescriptions part is a list with exactly one item per figure (a paragraph or table block there adds no figure entry); tables are allowed only in embodiment and are captioned automatically. The eight document templates (patentability-opinion, search-report, oa-response, invalidation-opinion, rectification-response, re-examination-request, infringement-opinion, litigation-pleading) take id-keyed drafts: fields fill leaf text slots (meta, footer, and other single-line slots), and sections carry blocks (paragraph/list/table, table captions generated and numbered continuously) or rows (equal-width string arrays cloned into the template table body); the masthead number line (doc-number) and the footer number (footer-case) are draft-supplied slots, so the rendered document carries no template-invented document number. The form templates right-evaluation-report and search-report-form take the form draft: fields (text slots filled into .fill spans, and choice slots given as the selected option id, or an array of ids for multi-select groups), plus sections as either blocks (paragraph/list, rendered one line per paragraph or item) or rows (equal-width string arrays for the related-documents and search-round tables). Headings, claim numbers, figure numbers, table captions, and checkbox states are generated from the structure, never authored. Unknown or missing slots fail validation with the slot list; draft is required for every template, and the legacy sections innerHTML parameter is gone.",
       "additionalProperties": true
     },
     "brand": {
@@ -6111,7 +6111,8 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
   },
   "required": [
     "template",
-    "outputName"
+    "outputName",
+    "draft"
   ]
 }
 ```
@@ -6214,82 +6215,16 @@ render_patent_document renders patent deliverables (claims/specification/search 
 
 ### `build_patent_filing`
 
-把结构化内容按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书段落编号由本工具按 spec 顺序写入，源稿已带 `[NNNN]` 时先剥后写；源稿编号与本工具的序号不一致会报错而不是静默覆盖。 附图按图序传入，第 1 张进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
+把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure、五部分 sections 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书段落编号由本工具按 spec 顺序写入；正文里已带 `[NNNN]` 的会先剥后写，编号与段落顺序不一致会报错而不是静默覆盖。 附图按图序传入 draft.figureFiles，其中 draft.abstractFigure 指定的那张（缺省第 1 张）进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
 
 ```json
 {
   "type": "object",
   "properties": {
-    "content": {
+    "draft": {
       "type": "object",
-      "description": "申请文件的结构化内容",
-      "additionalProperties": false,
-      "properties": {
-        "abstract": {
-          "type": "array",
-          "description": "说明书摘要正文段（不含「摘要附图」标注——摘要附图是独立的一节，由 figures[0] 承载）",
-          "items": {
-            "type": "string"
-          }
-        },
-        "claims": {
-          "type": "array",
-          "description": "权利要求项，按项序排列（含项号，如「1. 一种……」）",
-          "items": {
-            "type": "string"
-          }
-        },
-        "specification": {
-          "type": "array",
-          "description": "说明书主体，按文档顺序：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "type": "string",
-                "description": "h3/h4 为法定部分标题，p 为正文段，table 为表格",
-                "enum": [
-                  "h3",
-                  "h4",
-                  "p",
-                  "table"
-                ]
-              },
-              "text": {
-                "type": "string",
-                "description": "h3/h4/p 的文本"
-              },
-              "rows": {
-                "type": "array",
-                "description": "table 的行列；首行为表头，各行必须等宽",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          }
-        },
-        "figures": {
-          "type": "array",
-          "description": "附图路径，按图序排列（第 1 张即摘要附图）；支持 .svg 源件与 .png/.jpg/.jpeg 位图",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "abstract",
-        "claims",
-        "specification",
-        "figures"
-      ]
+      "description": "申请文件受控草案。受控草案（结构化 JSON，与 render_patent_document 的 claims-spec draft 同一份 SpecDraft 结构）：meta（caseNumber（案卷号，HTML 通道印在抬头编号行与页脚；docx 通道不印）、title/applicant/inventor/agent/date）、claims（不带项号，≥1 项）、abstract（≥1 段）、figureFiles（按图序）、abstractFigure（摘要附图号，1..figureFiles 项数，缺省 1）、sections（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分的 paragraph/list/table 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数；表格仅允许出现在具体实施方式）",
+      "additionalProperties": true
     },
     "outputName": {
       "type": "string",
@@ -6305,7 +6240,7 @@ render_patent_document renders patent deliverables (claims/specification/search 
     }
   },
   "required": [
-    "content",
+    "draft",
     "outputName"
   ]
 }

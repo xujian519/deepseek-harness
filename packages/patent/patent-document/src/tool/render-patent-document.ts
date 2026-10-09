@@ -7,9 +7,11 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { validateSpecDraft, validateTemplateDraft, type SpecDraft, type TemplateDraft } from '@deepseek-ai/dsh-patent-core'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { DocumentRenderError } from '../document/errors.ts'
+import { FORM_TEMPLATE_SCHEMAS, GENERIC_TEMPLATE_SCHEMAS, isFormTemplateId } from '../document/draftSchema/index.ts'
 import { renderPatentDocument } from '../document/renderPatentDocument.ts'
 import type { DocumentRenderResult } from '../document/types.ts'
 
@@ -29,7 +31,7 @@ const TEMPLATE_IDS = [
 ] as const
 
 const DESCRIPTION = [
-  'Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, litigation pleading, right-evaluation report, or search report form) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).',
+  'Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, litigation pleading, right-evaluation report, or search report form) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; all eleven templates accept a controlled draft (the draft parameter). The claims-spec filing document takes the SpecDraft structure: bibliographic meta, unnumbered claims, multi-paragraph abstract, figureFiles, the abstract figure number, and the five specification parts as paragraph/list/table blocks; the drawing-description part lists one item per figure, and that item count must equal the figureFiles count. The eight document templates take id-keyed drafts: fields fill leaf text slots (meta, footer), and sections carry blocks (paragraph/list/table, table captions generated) or rows (equal-width string arrays cloned into the template table body). The two form templates take form drafts with text and checkbox choice slots plus blocks/rows sections. Draft-driven templates generate headings, claim numbers, figure numbers, table captions, and checkbox states from the structure — never author markup. draft is required for every template; the legacy sections innerHTML parameter is gone, and callers passing it are rejected at the argument gate. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).',
 ].join('\n')
 /** 输出 canonical 值的 JSON schema（与 DocumentRenderResult 对应）。 */
 const RESULT_SCHEMA = {
@@ -62,9 +64,8 @@ export function renderDocumentResult(value: DocumentRenderResult): string {
  * @param field - 参数字段名（用于报错）。
  * @returns 字符串值记录；非字符串值抛输入契约错误。
  */
-function coerceStringRecord(value: Record<string, JsonValue> | undefined, field: string): Record<string, string> {
+function coerceStringRecord(value: Record<string, JsonValue>, field: string): Record<string, string> {
   const result: Record<string, string> = {}
-  if (value === undefined) return result
   for (const [key, entry] of Object.entries(value)) {
     if (typeof entry !== 'string') {
       throw new DocumentRenderError(`${field} 的键 "${key}" 必须是字符串`)
@@ -120,10 +121,11 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
         enum: ['html', 'pdf', 'both'] as const,
         description: 'Output format: html, pdf, or both (default both).',
       },
-      sections: {
+      draft: {
         type: 'object',
         additionalProperties: true,
-        description: 'Record of element id -> HTML innerHTML content to inject into the template.',
+        required: true,
+        description: 'Controlled draft (structured JSON). All eleven templates accept draft. The claims-spec template takes the SpecDraft structure: meta (caseNumber, printed in the masthead number line and the footer, plus title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, optional abstractFigure (the 1-based figure number printed as the abstract figure, default 1, at most the figureFiles count), and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks; the drawingDescriptions part is a list with exactly one item per figure (a paragraph or table block there adds no figure entry); tables are allowed only in embodiment and are captioned automatically. The eight document templates (patentability-opinion, search-report, oa-response, invalidation-opinion, rectification-response, re-examination-request, infringement-opinion, litigation-pleading) take id-keyed drafts: fields fill leaf text slots (meta, footer, and other single-line slots), and sections carry blocks (paragraph/list/table, table captions generated and numbered continuously) or rows (equal-width string arrays cloned into the template table body); the masthead number line (doc-number) and the footer number (footer-case) are draft-supplied slots, so the rendered document carries no template-invented document number. The form templates right-evaluation-report and search-report-form take the form draft: fields (text slots filled into .fill spans, and choice slots given as the selected option id, or an array of ids for multi-select groups), plus sections as either blocks (paragraph/list, rendered one line per paragraph or item) or rows (equal-width string arrays for the related-documents and search-round tables). Headings, claim numbers, figure numbers, table captions, and checkbox states are generated from the structure, never authored. Unknown or missing slots fail validation with the slot list; draft is required for every template, and the legacy sections innerHTML parameter is gone.',
       },
       brand: {
         type: 'object',
@@ -140,8 +142,18 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
       render: (_args, value) => [{ type: 'text', text: renderDocumentResult(value) }],
     },
     async execute(args, exec) {
-      const sections = coerceStringRecord(args.sections, 'sections')
       const brand = args.brand === undefined ? undefined : coerceStringRecord(args.brand, 'brand')
+      // 旧 sections 参数已从 schema 删除：执行器的参数校验会以防缺 required draft 拒绝，到不了这里。
+      let draft: SpecDraft | undefined
+      let templateDraft: TemplateDraft | undefined
+      if (args.template === 'claims-spec') {
+        // validateSpecDraft 的契约是只抛 DraftValidationError（消息已列出可用槽位），直接传播。
+        draft = validateSpecDraft(args.draft)
+      } else if (isFormTemplateId(args.template)) {
+        templateDraft = validateTemplateDraft(args.draft, FORM_TEMPLATE_SCHEMAS[args.template])
+      } else {
+        templateDraft = validateTemplateDraft(args.draft, GENERIC_TEMPLATE_SCHEMAS[args.template])
+      }
       const result = await renderPatentDocument(
         {
           template: args.template,
@@ -149,7 +161,8 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
           ...(args.caseId !== undefined ? { caseId: args.caseId } : {}),
           ...(args.outputDir !== undefined ? { outputDir: args.outputDir } : {}),
           ...(args.format !== undefined ? { format: args.format } : {}),
-          sections,
+          ...(draft !== undefined ? { draft } : {}),
+          ...(templateDraft !== undefined ? { templateDraft } : {}),
           ...(brand !== undefined ? { brand } : {}),
           ...(args.brandPath !== undefined ? { brandPath: args.brandPath } : {}),
         },

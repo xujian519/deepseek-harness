@@ -37,7 +37,7 @@ A deployment may declare `structuralGate` entries: each names a delivery tool, t
 
 The declaration is per rule id rather than per domain because a domain's absence rules may not suit the artifact's form: `patent_claims` holds CON-301, whose patterns are review words (清楚 / 简要 / 限定 / 必要技术特征) that a plain claim draft never contains. A declared id missing from the loaded rule set draws a load warning and is dropped, so a typo never leaves a gate that looks armed but judges nothing.
 
-An entry is only correct for arguments that carry the artifact itself. `render_patent_document` takes template slot fragments in `sections`, and the shipped templates already contain the fixed wording (claim sentences, section headings), so judging those fragments reports absences the rendered document does not have — that template is not a safe target. Enable the gate where the tool's argument is the document text in full.
+An entry is only correct for arguments that carry the artifact itself. `render_patent_document` takes template slot fragments in the controlled `draft`, and the shipped templates already contain the fixed wording (claim sentences, section headings), so judging those fragments reports absences the rendered document does not have — that template is not a safe target. Enable the gate where the tool's argument is the document text in full.
 
 ## Delivery gate
 

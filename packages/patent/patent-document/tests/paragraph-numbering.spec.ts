@@ -127,12 +127,18 @@ describe('renderPatentDocument 段落编号', () => {
           outputName: 'numbering',
           outputDir: dir,
           format: 'html',
-          sections: {
-            specification:
-              '<h3>技术领域</h3><p>本发明属于医疗器械领域。</p>'
-              + '<h3>背景技术</h3><p>现有技术存在不足。</p>'
-              + '<h3>发明内容</h3><p>本发明提供一种装置。</p>',
-            'abstract-text': '本发明公开了一种装置。',
+          draft: {
+            meta: { caseNumber: 'CN2026-0001', title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+            claims: ['一种装置，其特征在于，包括示例部件。'],
+            abstract: ['本发明公开一种装置。'],
+            figureFiles: ['fig1.svg'],
+            sections: {
+              technicalField: [{ kind: 'paragraph', text: '本发明属于医疗器械领域。' }],
+              background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],
+              summary: [{ kind: 'paragraph', text: '本发明提供一种装置。' }],
+              drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }],
+              embodiment: [{ kind: 'paragraph', text: '下面结合附图说明。' }],
+            },
           },
         },
         process.cwd(),

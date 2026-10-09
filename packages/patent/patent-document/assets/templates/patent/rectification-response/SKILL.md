@@ -35,8 +35,8 @@ template:
 ## 工作流
 
 1. 读 `references/conventions.md`。
-2. 复制 `assets/template.html` 为 `rectification-response.html`。
-3. 填充：申请信息 → 补正通知要点 → 补正内容对照表 → 替换页清单 → 未超范围声明 → 落款/页脚。
+2. 用 `render_patent_document` 渲染：template 传 `rectification-response`，draft 传 id 键控草案：`fields` 填著录项与落款文本槽（meta-*、rect-findings、replacement-note、rect-statement、footer-case、footer-date），`sections` 传 blocks 槽（doc-number、rect-defects）与 rows 槽（rect-table-body/replacement-table-body）。槽位清单与必填项以草案校验报错为准。
+3. 按结构填充：申请信息 → 补正通知要点 → 补正内容对照表 → 替换页清单 → 未超范围声明 → 落款/页脚。
 4. 补正内容表逐缺陷项一行；通知未涉及但主动补正的项单独标注「主动补正」。
 5. 渲染后核对：无占位符、页码引用与替换页一致、期限数值正确。
 

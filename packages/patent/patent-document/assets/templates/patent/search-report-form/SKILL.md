@@ -39,11 +39,12 @@ template:
 
 ## 工作流
 
-1. 读 `references/conventions.md`、`references/checklist.md` 与 `references/citation-log.md`。
-2. 复制 `assets/template.html` 为输出文件。
-3. 填充：著录项 → A/B/C/D 分区与图例 → E 检索结论 → E.1 相关度分布 → 检索式执行记录 → F 检索范围与局限 → 落款与声明。
-4. D 表按相关文件条数复制数据行，附页表按检索轮次复制；超出本页时勾选「相关文件，参见附页」。
-5. 删除模板占位，按 `references/checklist.md` 自查后定稿。
+1. 读 `references/conventions.md`、`references/checklist.md` 与 `references/citation-log.md`；槽位命名以 `references/slots.md` 为准。
+2. 用 `render_patent_document` 渲染：template 传 `search-report-form`，draft 传表单草案——`fields` 填文本槽（日期按年/月/日三个槽位），`sections` 传 blocks 槽位（searchField/databases/conclusion，paragraph 每段一行、list 每项一行）与 rows 槽位（relatedDocuments 六列、searchRounds 五列，按条数给等宽字符串数组）；勾选类只有「相关文件，参见附页」（`moreDocuments: ["continued"]`）。槽位清单与必填项以草案校验报错为准。
+3. 「F. 检索范围与局限」三条声明与页脚页码不由草案驱动：声明是否勾选、页码在定稿时人工处理。
+4. 按 `references/checklist.md` 自查后定稿。
+
+`assets/example-draft.json` 是完整示例草案，`example.html` 由它渲染生成，可作为结构参照。
 
 ## 输出契约
 

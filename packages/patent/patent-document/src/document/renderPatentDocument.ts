@@ -16,6 +16,8 @@ import { applyParagraphNumbering } from './paragraphNumbering.ts'
 import { DEFAULT_PDF_TIMEOUT_MS, renderPdf } from './pdfRenderer.ts'
 import { readTemplateHtml } from './templateResolver.ts'
 import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './types.ts'
+import { isFormTemplateId } from './draftSchema/index.ts'
+import { injectTemplateDraft, renderGenericTemplateSections, renderSpecDraftSections } from './draftConverter/index.ts'
 
 /** 缺省输出目录（相对 cwd，取代 Sati 的 .sati/documents）。 */
 export const DEFAULT_OUTPUT_DIR = '.dsh/documents'
@@ -128,10 +130,10 @@ function injectBrandCss(html: string, brandCss: string): string {
 }
 
 /**
- * 将 sections 按元素 id 替换为 innerHTML。
+ * 将注入映射按元素 id 替换为 innerHTML（claims-spec 与通用文档草案的内部注入器）。
  *
- * 命中 `<section id="x">` 时替换的是该 section 的**全部**内层内容，模板里的骨架
- * 标题随之一并被替换 —— 需要保留章节标题的调用方必须在传入内容里自行给出。
+ * 命中 `<section id="x">` 时替换的是该 section 的**全部**内层内容；映射只覆盖
+ * 注册槽位 id，转换器生成的槽位内容不含骨架包装与章节标题，因此骨架保持原位。
  * @param html - 模板 HTML。
  * @param sections - id → 内容映射。
  * @returns 替换后的 HTML，以及被跳过（未命中/非法）的 id 列表。
@@ -165,6 +167,36 @@ function injectSections(
 }
 
 /**
+ * 解析本次渲染的受控草案注入：claims-spec 走 SpecDraft（转换器生成结构），
+ * 其余十个模板走 templateDraft（表单按 data-slot 注入，通用文档按元素 id 注入）。
+ * 两种草案互斥；都不传时按模板骨架原样渲染。
+ * @param html - 模板 HTML（品牌注入后）。
+ * @param input - 渲染输入。
+ * @returns 注入后的 HTML，以及未命中模板的草稿 section id。
+ */
+function resolveDraft(html: string, input: DocumentRenderInput): { html: string; skippedIds: string[] } {
+  if (input.draft !== undefined) {
+    if (input.templateDraft !== undefined) {
+      throw new DocumentRenderError('draft 与 templateDraft 互斥：一次渲染只传一份草案')
+    }
+    if (input.template !== 'claims-spec') {
+      throw new DocumentRenderError(`模板 ${input.template} 不接受 SpecDraft 草案：draft 的 claims-spec 结构仅用于 claims-spec；其余模板用表单/通用草案结构（同样走 draft 参数）`)
+    }
+    return injectSections(html, { ...renderSpecDraftSections(input.draft) })
+  }
+  if (input.templateDraft !== undefined) {
+    if (input.template === 'claims-spec') {
+      throw new DocumentRenderError('claims-spec 请用 draft 参数（SpecDraft 结构）：templateDraft 仅用于其余十个模板')
+    }
+    if (isFormTemplateId(input.template)) {
+      return { html: injectTemplateDraft(html, input.template, input.templateDraft), skippedIds: [] }
+    }
+    return injectSections(html, renderGenericTemplateSections(html, input.templateDraft))
+  }
+  return { html, skippedIds: [] }
+}
+
+/**
  * 渲染并落盘专利文书（HTML，可选 PDF）。
  * @param input - 渲染输入。
  * @param cwd - 相对路径基准目录。
@@ -194,10 +226,10 @@ export async function renderPatentDocument(
 
   let html = readTemplateHtml(input.template)
   html = injectBrandCss(html, buildBrandStyle(brand))
-  const injected = injectSections(html, input.sections)
-  html = injected.html
-  if (injected.skippedIds.length > 0) {
-    warnings.push(`以下 section id 未命中模板，内容已忽略: ${injected.skippedIds.join(', ')}`)
+  const drafted = resolveDraft(html, input)
+  html = drafted.html
+  if (drafted.skippedIds.length > 0) {
+    warnings.push(`以下 section id 未命中模板，内容已忽略: ${drafted.skippedIds.join(', ')}`)
   }
   // 段落编号由模板通过 data-paragraph-numbering 声明；引擎把编号写成字面文本，
   // 使 PDF 与下游 HTML→docx 转制读到同一串字符。

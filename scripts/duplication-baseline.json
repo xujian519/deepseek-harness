@@ -35,6 +35,7 @@
     "packages/patent/patent-deadline/src/tool/patent-deadlines.ts|packages/patent/patent-deadline/src/tool/patent-deadlines.ts",
     "packages/patent/patent-deadline/src/tool/patent-deadlines.ts|packages/patent/patent-fees/src/tool/patent-fees.ts",
     "packages/patent/patent-deadline/src/tool/patent-deadlines.ts|packages/patent/patent-tools/src/tool/figure-tool-schemas.ts",
+    "packages/patent/patent-document/src/document/draftSchema/generic.ts|packages/patent/patent-document/src/document/draftSchema/generic.ts",
     "packages/patent/patent-document/src/document/pdfRenderer.ts|packages/patent/patent-filing/src/filing/engine.ts",
     "packages/patent/patent-document/src/document/renderPatentDocument.ts|packages/patent/patent-filing/src/filing/engine.ts",
     "packages/patent/patent-document/src/tool/verify-deliverable.ts|packages/patent/patent-document/src/tool/verify-deliverable.ts",

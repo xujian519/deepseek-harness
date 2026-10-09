@@ -71,7 +71,7 @@
   }
   .fill.w-sm { min-width: 8mm; }
   .fill.w-lg { min-width: 30mm; }
-  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; }
+  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; white-space: normal; }
   .fill.as-end { flex: 1 1 24mm; }
   .opt .txt.fill-row { display: flex; align-items: baseline; gap: 1mm; flex-wrap: wrap; }
 
@@ -150,42 +150,42 @@
         </colgroup>
         <tbody>
           <tr>
-            <td colspan="11">专利号：<span class="fill w-lg"></span></td>
-            <td colspan="13">申请日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
-            <td colspan="16">优先权日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
+            <td colspan="11">专利号：<span class="fill w-lg" data-slot="patentNo"></span></td>
+            <td colspan="13">申请日：<span class="fill w-sm" data-slot="applicationDateYear"></span> 年 <span class="fill w-sm" data-slot="applicationDateMonth"></span> 月 <span class="fill w-sm" data-slot="applicationDateDay"></span> 日</td>
+            <td colspan="16">优先权日：<span class="fill w-sm" data-slot="priorityDateYear"></span> 年 <span class="fill w-sm" data-slot="priorityDateMonth"></span> 月 <span class="fill w-sm" data-slot="priorityDateDay"></span> 日</td>
           </tr>
           <tr>
-            <td colspan="20">授权公告日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
-            <td colspan="20">实用新型名称：<span class="fill w-lg"></span></td>
+            <td colspan="20">授权公告日：<span class="fill w-sm" data-slot="grantDateYear"></span> 年 <span class="fill w-sm" data-slot="grantDateMonth"></span> 月 <span class="fill w-sm" data-slot="grantDateDay"></span> 日</td>
+            <td colspan="20">实用新型名称：<span class="fill w-lg" data-slot="inventionTitle"></span></td>
           </tr>
           <tr>
-            <td colspan="23">专利权人：<span class="fill w-lg"></span></td>
-            <td colspan="17">请求人：<span class="fill w-lg"></span></td>
+            <td colspan="23">专利权人：<span class="fill w-lg" data-slot="patentee"></span></td>
+            <td colspan="17">请求人：<span class="fill w-lg" data-slot="requester"></span></td>
           </tr>
           <tr>
-            <td colspan="40">请求日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
+            <td colspan="40">请求日：<span class="fill w-sm" data-slot="requestDateYear"></span> 年 <span class="fill w-sm" data-slot="requestDateMonth"></span> 月 <span class="fill w-sm" data-slot="requestDateDay"></span> 日</td>
           </tr>
           <tr>
-            <td colspan="20">评价报告总计 <span class="fill w-sm"></span> 页</td>
-            <td colspan="20"><span class="cb"></span>附有报告中引用的各相关文件的副本 <span class="fill w-sm"></span>份。</td>
+            <td colspan="20">评价报告总计 <span class="fill w-sm" data-slot="totalPages"></span> 页</td>
+            <td colspan="20"><span class="cb" data-slot="attachedCopies:attached"></span>附有报告中引用的各相关文件的副本 <span class="fill w-sm" data-slot="attachedCopiesCount"></span>份。</td>
           </tr>
         </tbody>
       </table>
 
       <div class="sec">
         <div class="sec-title">评价所针对的文本</div>
-        <div class="opt"><span class="cb"></span><span class="txt">与授权公告一并公布的专利文件</span></div>
-        <div class="opt"><span class="cb"></span><span class="txt">由生效的无效宣告请求审查决定维持有效的专利文件，其中涉及第 <span class="fill w-sm"></span> 号无效宣告请求审查决定</span></div>
+        <div class="opt"><span class="cb" data-slot="evalTarget:granted"></span><span class="txt">与授权公告一并公布的专利文件</span></div>
+        <div class="opt"><span class="cb" data-slot="evalTarget:maintained"></span><span class="txt">由生效的无效宣告请求审查决定维持有效的专利文件，其中涉及第 <span class="fill w-sm" data-slot="invalidDecisionNo"></span> 号无效宣告请求审查决定</span></div>
       </div>
 
       <div class="sec">
         <div class="sec-title">检索针对的权利要求</div>
-        <div class="opt"><span class="cb"></span><span class="txt">全部权利要求 <span class="fill w-sm"></span>；</span></div>
-        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为其主题不符合专利法第 2 条第 3 款的规定；</span></div>
-        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为其主题属于专利法第 5 条或第 25 条规定的范围；</span></div>
-        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为其主题不具备实用性；</span></div>
-        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为说明书未对其主题作出清楚、完整的说明，以致于所属技术领域的技术人员不能实现。</span></div>
-        <div class="opt sub"><span class="cb"></span><span class="txt fill-row"><span>权利要求</span><span class="fill w-sm"></span><span>未被检索，因为</span><span class="fill as-end"></span><span>。</span></span></div>
+        <div class="opt"><span class="cb" data-slot="searchScope:all"></span><span class="txt">全部权利要求 <span class="fill w-sm" data-slot="allClaimsRange"></span>；</span></div>
+        <div class="opt sub"><span class="cb" data-slot="searchScope:art2"></span><span class="txt">权利要求 <span class="fill" data-slot="art2NotSearchedClaims"></span> 未被检索，因为其主题不符合专利法第 2 条第 3 款的规定；</span></div>
+        <div class="opt sub"><span class="cb" data-slot="searchScope:art5_25"></span><span class="txt">权利要求 <span class="fill" data-slot="art5NotSearchedClaims"></span> 未被检索，因为其主题属于专利法第 5 条或第 25 条规定的范围；</span></div>
+        <div class="opt sub"><span class="cb" data-slot="searchScope:utility"></span><span class="txt">权利要求 <span class="fill" data-slot="notSearchedUtilityClaims"></span> 未被检索，因为其主题不具备实用性；</span></div>
+        <div class="opt sub"><span class="cb" data-slot="searchScope:enablement"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为说明书未对其主题作出清楚、完整的说明，以致于所属技术领域的技术人员不能实现。</span></div>
+        <div class="opt sub"><span class="cb" data-slot="searchScope:other"></span><span class="txt fill-row"><span>权利要求</span><span class="fill w-sm" data-slot="otherNotSearchedClaims"></span><span>未被检索，因为</span><span class="fill as-end" data-slot="otherNotSearchedReason"></span><span>。</span></span></div>
       </div>
     </div>
   </div>
@@ -201,18 +201,18 @@
   <div class="page-body">
     <div class="form-box box-standalone">
       <div class="part part-first">
-        <div class="part-label">A. 主题的分类（IPC）　<span class="fill w-lg"></span></div>
+        <div class="part-label">A. 主题的分类（IPC）　<span class="fill w-lg" data-slot="ipcClass"></span></div>
       </div>
 
       <div class="part">
         <div class="part-label">B. 检索领域</div>
-        <div class="part-value"><span class="fill w-full"></span></div>
+        <div class="part-value" data-slot="searchField"><span class="fill w-full"></span></div>
       </div>
 
       <div class="part">
         <div class="part-label">C. 在检索时查阅的电子数据库（数据库的名称和/或使用的检索式）</div>
-        <div class="part-value"><span class="fill w-full"></span></div>
-        <div class="part-value"><span class="fill w-full"></span></div>
+        <div class="part-value" data-slot="databases"><span class="fill w-full"></span></div>
+        <div class="part-value" data-slot="databases"><span class="fill w-full"></span></div>
       </div>
 
       <div class="part">
@@ -233,10 +233,10 @@
           </thead>
           <tbody>
             <!-- 数据行：按相关文件条数复制本行；超出本页时勾选下面一行并转到续页 I -->
-            <tr><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td></tr>
+            <tr data-slot="relatedDocuments"><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td></tr>
           </tbody>
         </table>
-        <div class="opt" style="margin-top:1mm"><span class="cb"></span><span class="txt">相关文件，参见续页 I。</span></div>
+        <div class="opt" style="margin-top:1mm"><span class="cb" data-slot="moreDocuments:continued"></span><span class="txt">相关文件，参见续页 I。</span></div>
       </div>
 
       <div class="part">
@@ -271,45 +271,45 @@
     <div class="form-box box-standalone">
       <div class="concl">
         <div class="part-label">1. 初步结论：</div>
-        <div class="opt"><span class="cb"></span><span class="txt">全部权利要求 <span class="fill"></span> 未发现存在不符合授予专利权条件的缺陷。</span></div>
-        <div class="opt"><span class="cb"></span><span class="txt">全部权利要求 <span class="fill"></span> 不符合授予专利权条件。</span></div>
-        <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill w-sm"></span> 不符合授予专利权条件，权利要求 <span class="fill"></span> 未发现存在不符合授予专利权条件的缺陷。</span></div>
+        <div class="opt"><span class="cb" data-slot="prelimConclusion:allSound"></span><span class="txt">全部权利要求 <span class="fill" data-slot="soundClaimsRange"></span> 未发现存在不符合授予专利权条件的缺陷。</span></div>
+        <div class="opt"><span class="cb" data-slot="prelimConclusion:allDefective"></span><span class="txt">全部权利要求 <span class="fill" data-slot="defectiveClaimsRange"></span> 不符合授予专利权条件。</span></div>
+        <div class="opt"><span class="cb" data-slot="prelimConclusion:partial"></span><span class="txt">权利要求 <span class="fill w-sm" data-slot="partialDefectiveClaims"></span> 不符合授予专利权条件，权利要求 <span class="fill" data-slot="partialSoundClaims"></span> 未发现存在不符合授予专利权条件的缺陷。</span></div>
 
         <div class="part-label" style="margin-top:1mm">具体结论如下：</div>
         <div class="concl-sub">
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 属于专利法第 5 条规定的不授予专利权的范围。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 属于专利法第 25 条规定的不授予专利权的范围。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 2 条第 3 款的规定。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不具备专利法第 22 条第 4 款规定的实用性。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">说明书不符合专利法第 26 条第 3 款的规定。</span></div>
+          <div class="opt"><span class="cb" data-slot="scopeConclusion:art5"></span><span class="txt">权利要求 <span class="fill" data-slot="art5Claims"></span> 属于专利法第 5 条规定的不授予专利权的范围。</span></div>
+          <div class="opt"><span class="cb" data-slot="scopeConclusion:art25"></span><span class="txt">权利要求 <span class="fill" data-slot="art25Claims"></span> 属于专利法第 25 条规定的不授予专利权的范围。</span></div>
+          <div class="opt"><span class="cb" data-slot="scopeConclusion:art2"></span><span class="txt">权利要求 <span class="fill" data-slot="art2SubjectClaims"></span> 不符合专利法第 2 条第 3 款的规定。</span></div>
+          <div class="opt"><span class="cb" data-slot="scopeConclusion:utility224"></span><span class="txt">权利要求 <span class="fill" data-slot="utilityDefectClaims"></span> 不具备专利法第 22 条第 4 款规定的实用性。</span></div>
+          <div class="opt"><span class="cb" data-slot="scopeConclusion:spec263"></span><span class="txt">说明书不符合专利法第 26 条第 3 款的规定。</span></div>
         </div>
 
         <hr class="inner-rule">
 
         <div class="concl-sub">
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 具备专利法第 22 条第 2 款规定的新颖性。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不具备专利法第 22 条第 2 款规定的新颖性。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 具备专利法第 22 条第 3 款规定的创造性。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不具备专利法第 22 条第 3 款规定的创造性。</span></div>
+          <div class="opt"><span class="cb" data-slot="noveltyConclusion:novel"></span><span class="txt">权利要求 <span class="fill" data-slot="noveltyYesClaims"></span> 具备专利法第 22 条第 2 款规定的新颖性。</span></div>
+          <div class="opt"><span class="cb" data-slot="noveltyConclusion:no"></span><span class="txt">权利要求 <span class="fill" data-slot="noveltyNoClaims"></span> 不具备专利法第 22 条第 2 款规定的新颖性。</span></div>
+          <div class="opt"><span class="cb" data-slot="inventiveConclusion:yes"></span><span class="txt">权利要求 <span class="fill" data-slot="inventiveYesClaims"></span> 具备专利法第 22 条第 3 款规定的创造性。</span></div>
+          <div class="opt"><span class="cb" data-slot="inventiveConclusion:no"></span><span class="txt">权利要求 <span class="fill" data-slot="inventiveNoClaims"></span> 不具备专利法第 22 条第 3 款规定的创造性。</span></div>
         </div>
 
         <hr class="inner-rule">
 
         <div class="concl-sub">
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 26 条第 4 款的规定。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法实施细则第 20 条第 2 款的规定。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 33 条或实施细则第 43 条第 1 款的规定。</span></div>
-          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 9 条的规定。</span></div>
+          <div class="opt"><span class="cb" data-slot="clarityConclusion:art264"></span><span class="txt">权利要求 <span class="fill" data-slot="art264Claims"></span> 不符合专利法第 26 条第 4 款的规定。</span></div>
+          <div class="opt"><span class="cb" data-slot="clarityConclusion:rules202"></span><span class="txt">权利要求 <span class="fill" data-slot="rules202Claims"></span> 不符合专利法实施细则第 20 条第 2 款的规定。</span></div>
+          <div class="opt"><span class="cb" data-slot="clarityConclusion:art33"></span><span class="txt">权利要求 <span class="fill" data-slot="art33Claims"></span> 不符合专利法第 33 条或实施细则第 43 条第 1 款的规定。</span></div>
+          <div class="opt"><span class="cb" data-slot="clarityConclusion:art9"></span><span class="txt">权利要求 <span class="fill" data-slot="art9Claims"></span> 不符合专利法第 9 条的规定。</span></div>
         </div>
       </div>
 
       <div class="opinion">
         <div class="part-label">2. 专利权评价意见：</div>
         <!-- 逐条填入评价意见；正文超出本页时勾选下一行，并转到续页 II 继续 -->
-        <p class="indent"><span class="fill w-full"></span></p>
-        <p class="indent"><span class="fill w-full"></span></p>
+        <p class="indent" data-slot="opinion"><span class="fill w-full"></span></p>
+        <p class="indent" data-slot="opinion"><span class="fill w-full"></span></p>
 
-        <p class="item-gap"><span class="cb" style="margin-right:1.5mm"></span>专利权评价意见，参见续页 II。</p>
+        <p class="item-gap"><span class="cb" data-slot="moreOpinion:continued" style="margin-right:1.5mm"></span>专利权评价意见，参见续页 II。</p>
       </div>
     </div>
 
@@ -320,9 +320,9 @@
       <tbody>
         <tr>
           <td class="stamp">专利权评价报告<br>专用章</td>
-          <td>审查员：<span class="fill w-sm"></span></td>
-          <td>审核员：<span class="fill w-sm"></span></td>
-          <td>完成日期：<br><span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
+          <td>审查员：<span class="fill w-sm" data-slot="examiner"></span></td>
+          <td>审核员：<span class="fill w-sm" data-slot="reviewer"></span></td>
+          <td>完成日期：<br><span class="fill w-sm" data-slot="completionDateYear"></span> 年 <span class="fill w-sm" data-slot="completionDateMonth"></span> 月 <span class="fill w-sm" data-slot="completionDateDay"></span> 日</td>
         </tr>
       </tbody>
     </table>
@@ -341,9 +341,9 @@
       <div class="cont-head">专利权评价意见，续页 II</div>
       <div class="opinion" style="border-top:0">
         <!-- 逐段填入评价意见正文；需多张续页时复制本页整块与页眉 -->
-        <p class="indent"><span class="fill w-full"></span></p>
-        <p class="indent"><span class="fill w-full"></span></p>
-        <p class="indent"><span class="fill w-full"></span></p>
+        <p class="indent" data-slot="opinionContinued"><span class="fill w-full"></span></p>
+        <p class="indent" data-slot="opinionContinued"><span class="fill w-full"></span></p>
+        <p class="indent" data-slot="opinionContinued"><span class="fill w-full"></span></p>
       </div>
     </div>
   </div>

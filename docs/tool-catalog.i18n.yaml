@@ -438,8 +438,8 @@
   en: 5ad102b013042c68
   zh: 5ad102b013042c68
 /tool-schema-catalog/deepseek-ai-dsh-patent-document/render-patent-document:
-  en: 473f8444e98e3606
-  zh: 92c7c48ab4c8bc98
+  en: 60c12c62cfa5cb35
+  zh: f5790616a022b01d
 /tool-schema-catalog/deepseek-ai-dsh-patent-document/verify-deliverable:
   en: ce967cb10057f426
   zh: 37d8598004603b2a
@@ -447,8 +447,8 @@
   en: b4acc0441e4efa93
   zh: b4acc0441e4efa93
 /tool-schema-catalog/deepseek-ai-dsh-patent-filing/build-patent-filing:
-  en: b2ea5a979bf60a9a
-  zh: d63cdb5f49d62842
+  en: 730ec97ed58d4925
+  zh: db546744c8b9bf97
 /tool-schema-catalog/deepseek-ai-dsh-patent-filing/verify-patent-filing:
   en: 6dfbaea8b51a15a0
   zh: 6762e8e486219b22

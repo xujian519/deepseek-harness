@@ -34,7 +34,20 @@ describe('validateContent', () => {
   })
 
   it('rejects an empty figure list', () => {
-    expect(() => validateContent(content({ figures: [] }))).toThrow(/第 1 张即摘要附图/)
+    expect(() => validateContent(content({ figures: [] }))).toThrow(/figures 附图（不能为空） 至少要有 1 项/)
+  })
+
+  it('accepts an abstract figure index inside the figure list and defaults nothing', () => {
+    const input = content({ figures: ['/tmp/fig1.png', '/tmp/fig2.png'], abstractFigureIndex: 1 })
+    expect(validateContent(input).abstractFigureIndex).toBe(1)
+    expect(validateContent(content()).abstractFigureIndex).toBeUndefined()
+  })
+
+  it('rejects an abstract figure index outside the figure list or not an integer', () => {
+    const two = { figures: ['/tmp/fig1.png', '/tmp/fig2.png'] }
+    expect(() => validateContent(content({ ...two, abstractFigureIndex: 2 }))).toThrow(/0\.\.1 的整数/)
+    expect(() => validateContent(content({ ...two, abstractFigureIndex: -1 }))).toThrow(/不是有效附图下标/)
+    expect(() => validateContent(content({ ...two, abstractFigureIndex: 0.5 }))).toThrow(/不是有效附图下标/)
   })
 
   it('rejects a heading or paragraph without text', () => {
