@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_OUTPUT_DIR, renderPatentDocument } from '@deepseek-ai/dsh-patent-document'
-import type { SpecDraft } from '@deepseek-ai/dsh-patent-core'
+import { validateTemplateDraft, type SpecDraft, type TemplateDraft } from '@deepseek-ai/dsh-patent-core'
+import { FORM_TEMPLATE_SCHEMAS } from '../src/document/draftSchema/index.ts'
 import { fakeSubprocess, successHandle, unusedSubprocess } from './helpers.ts'
 
 // Deterministic render-side seams: Chrome discovery and the template source
@@ -779,7 +780,7 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
     }
   })
 
-  it('未迁移模板传 draft 时报错并说明仅 claims-spec 可用', async () => {
+  it('未迁移模板传 SpecDraft 时报错并说明可用的草案模板', async () => {
     const dir = makeTempDir()
     try {
       await expect(renderPatentDocument(
@@ -793,7 +794,7 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
         },
         process.cwd(),
         { subprocess: unusedSubprocess() },
-      )).rejects.toThrow(/尚未接入受控草案：draft 目前仅支持 claims-spec/)
+      )).rejects.toThrow(/不接受 SpecDraft 草案/)
     } finally {
       cleanup(dir)
     }
@@ -814,6 +815,140 @@ describe('renderPatentDocument claims-spec 受控草案', () => {
         process.cwd(),
         { subprocess: unusedSubprocess() },
       )).rejects.toThrow(/draft 与 sections 互斥/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+})
+
+describe('renderPatentDocument 表单模板受控草案', () => {
+  function exampleDraft(template: 'right-evaluation-report' | 'search-report-form'): TemplateDraft {
+    const raw = JSON.parse(readFileSync(
+      `packages/patent/patent-document/assets/templates/patent/${template}/assets/example-draft.json`,
+      'utf8',
+    )) as unknown
+    return validateTemplateDraft(raw, FORM_TEMPLATE_SCHEMAS[template])
+  }
+
+  it('search-report-form 用 templateDraft 渲染并填充槽位', async () => {
+    const dir = makeTempDir()
+    try {
+      const result = await renderPatentDocument(
+        {
+          template: 'search-report-form',
+          outputName: 'form-draft',
+          outputDir: dir,
+          format: 'html',
+          sections: {},
+          templateDraft: exampleDraft('search-report-form'),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      expect(result.warnings).toEqual([])
+      const html = readFileSync(result.htmlPath, 'utf8')
+      expect(html).toContain('报告编号：<span class="fill">SR-2026-0001</span>')
+      expect(html).toContain('检索人：<span class="fill">王磊</span>')
+      expect(html).not.toContain('data-slot')
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('表单模板传 sections 报错并指向 draft', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(renderPatentDocument(
+        {
+          template: 'right-evaluation-report',
+          outputName: 'form-sections',
+          outputDir: dir,
+          format: 'html',
+          sections: { note: '<p>旧路径</p>' },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/sections 已停用：right-evaluation-report 请改用受控草案参数 draft/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('draft 与 templateDraft 互斥', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(renderPatentDocument(
+        {
+          template: 'right-evaluation-report',
+          outputName: 'both-drafts',
+          outputDir: dir,
+          format: 'html',
+          sections: {},
+          draft: {
+            meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+            claims: ['一种装置，其特征在于，包括本体。'],
+            abstract: ['摘要正文。'],
+            figureFiles: ['fig1.svg'],
+            drawingDescriptions: ['整体结构示意图'],
+            sections: {
+              technicalField: [{ kind: 'paragraph', text: '本发明属于机械领域。' }],
+              background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],
+              summary: [{ kind: 'paragraph', text: '本发明提供一种装置。' }],
+              drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }],
+              embodiment: [{ kind: 'paragraph', text: '下面结合附图说明。' }],
+            },
+          } satisfies SpecDraft,
+          templateDraft: exampleDraft('right-evaluation-report'),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/draft 与 templateDraft 互斥/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('未迁移模板传 templateDraft 报错并列出表单模板', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(renderPatentDocument(
+        {
+          template: 'oa-response',
+          outputName: 'wrong-template',
+          outputDir: dir,
+          format: 'html',
+          sections: {},
+          templateDraft: exampleDraft('right-evaluation-report'),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/表单草案目前仅支持 right-evaluation-report、search-report-form/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+})
+
+describe('renderPatentDocument 表单草案与 sections 互斥', () => {
+  it('templateDraft 与 sections 同时传入时报错', async () => {
+    const dir = makeTempDir()
+    try {
+      const raw = JSON.parse(readFileSync(
+        'packages/patent/patent-document/assets/templates/patent/search-report-form/assets/example-draft.json',
+        'utf8',
+      )) as unknown
+      await expect(renderPatentDocument(
+        {
+          template: 'search-report-form',
+          outputName: 'draft-and-sections',
+          outputDir: dir,
+          format: 'html',
+          sections: { note: '<p>旧路径</p>' },
+          templateDraft: validateTemplateDraft(raw, FORM_TEMPLATE_SCHEMAS['search-report-form']),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/sections 已停用：search-report-form 请改用受控草案参数 draft/)
     } finally {
       cleanup(dir)
     }

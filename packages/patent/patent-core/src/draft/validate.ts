@@ -14,6 +14,7 @@ import {
   type SpecDraft,
   type SpecDraftMeta,
   type SpecPartId,
+  type TemplateChoiceOption,
   type TemplateDraft,
   type TemplateDraftSchema,
 } from './types.ts'
@@ -327,11 +328,55 @@ export function validateSpecDraft(input: unknown): SpecDraft {
   }
 }
 
+/** 列出选项集合：`id（label）` 逐项。 */
+function availableOptions(options: readonly TemplateChoiceOption[]): string {
+  return available(options.map(option => `${option.id}（${option.label}）`))
+}
+
+/** 校验 choice 槽位值；单选接受字符串，多选接受字符串数组（字符串视同单项）。 */
+function validateChoiceValue(
+  value: unknown,
+  path: string,
+  slot: { options?: readonly TemplateChoiceOption[]; multiple?: boolean },
+  violations: string[],
+): string | string[] | undefined {
+  const raw: unknown[] = Array.isArray(value) ? value : [value]
+  if (Array.isArray(value) && slot.multiple !== true) {
+    violations.push(`${path} 是单选槽位，不接受数组（可选项：${slot.options === undefined ? '未声明' : availableOptions(slot.options)}）`)
+    return undefined
+  }
+  if (raw.length === 0) {
+    violations.push(`${path} 至少选择一项`)
+    return undefined
+  }
+  const selected: string[] = []
+  let valid = true
+  for (const [index, item] of raw.entries()) {
+    const text = requireNonEmptyString(item, `${path}[${index}]`, violations)
+    if (text === undefined) {
+      valid = false
+      continue
+    }
+    if (slot.options !== undefined && !slot.options.some(option => option.id === text)) {
+      violations.push(`${path} 未知选项 ${JSON.stringify(text)}（可选项：${availableOptions(slot.options)}）`)
+      valid = false
+      continue
+    }
+    selected.push(text)
+  }
+  if (!valid) return undefined
+  return slot.multiple === true ? selected : selected[0]
+}
+
+/**
+ * 校验文本/选项槽位映射；返回窄化后的映射。
+ * text 槽值为非空字符串；choice 槽值为选中项 id（多选为 id 数组），未知选项报错并列出可选项。
+ */
 function validateTemplateFields(
   value: unknown,
   schema: TemplateDraftSchema | undefined,
   violations: string[],
-): Record<string, string> | undefined {
+): TemplateDraft['fields'] | undefined {
   if (value === undefined) {
     if (schema?.fields !== undefined) {
       for (const [id, slot] of Object.entries(schema.fields)) {
@@ -346,18 +391,28 @@ function validateTemplateFields(
     return undefined
   }
   let valid = true
-  const fields: Record<string, string> = {}
+  const fields: Record<string, string | string[]> = {}
   for (const [id, fieldValue] of Object.entries(record)) {
-    if (schema !== undefined && (schema.fields === undefined || !Object.hasOwn(schema.fields, id))) {
+    const slot = schema?.fields?.[id]
+    if (schema !== undefined && slot === undefined) {
       violations.push(`fields.${id} 未知槽位（可用项：${available(Object.keys(schema.fields ?? {}))}）`)
       valid = false
       continue
     }
-    const text = requireNonEmptyString(fieldValue, `fields.${id}`, violations)
-    if (text === undefined) {
-      valid = false
+    if (slot?.kind === 'choice') {
+      const selected = validateChoiceValue(fieldValue, `fields.${id}`, slot, violations)
+      if (selected === undefined) {
+        valid = false
+      } else {
+        fields[id] = selected
+      }
     } else {
-      fields[id] = text
+      const text = requireNonEmptyString(fieldValue, `fields.${id}`, violations)
+      if (text === undefined) {
+        valid = false
+      } else {
+        fields[id] = text
+      }
     }
   }
   if (schema?.fields !== undefined) {
@@ -369,6 +424,58 @@ function validateTemplateFields(
     }
   }
   return valid ? fields : undefined
+}
+
+/**
+ * 校验数据行槽位值：非空行数组，每行非空且单元格非空字符串，各行等宽且宽度等于 columns。
+ * @param value - 待校验的行数组（unknown）。
+ * @param path - 违规消息中的位置前缀。
+ * @param columns - 注册表声明的列数。
+ * @param violations - 违规收集器。
+ * @returns 窄化后的行数组；存在违规返回 undefined。
+ */
+function validateRows(value: unknown, path: string, columns: number | undefined, violations: string[]): string[][] | undefined {
+  const array = readNonEmptyArray(value, path, violations, '至少一行')
+  if (array === undefined) return undefined
+  const rows: string[][] = []
+  let width: number | undefined
+  let valid = true
+  array.forEach((item, index) => {
+    const row = readStringList(item, `${path}[${index}]`, violations, '至少一列')
+    if (row === undefined) {
+      valid = false
+      return
+    }
+    if (width === undefined) {
+      width = row.length
+    } else if (row.length !== width) {
+      violations.push(`${path}[${index}] 列数 ${row.length} 与首行列数 ${width} 不一致`)
+      valid = false
+      return
+    }
+    rows.push(row)
+  })
+  if (columns !== undefined && width !== undefined && width !== columns) {
+    violations.push(`${path} 列数 ${width} 与模板列数 ${columns} 不一致`)
+    valid = false
+  }
+  return valid ? rows : undefined
+}
+
+/**
+ * 校验 blocks 章节槽位值；模板草案不支持表格块（表格仅 claims-spec 支持）。
+ */
+function validateTemplateBlocks(value: unknown, path: string, violations: string[]): DraftBlock[] | undefined {
+  const blocks = validateBlocks(value, path, violations)
+  if (blocks === undefined) return undefined
+  let valid = true
+  for (const [index, block] of blocks.entries()) {
+    if (block.kind === 'table') {
+      violations.push(`${path}[${index}] 表格块仅 claims-spec 支持：表单模板用 rows 数据行槽位`)
+      valid = false
+    }
+  }
+  return valid ? blocks : undefined
 }
 
 function validateTemplateSections(
@@ -407,7 +514,26 @@ function validateTemplateSections(
         valid = false
       }
     }
-    const blocks = validateBlocks(record.blocks, `sections[${index}].blocks`, violations)
+    const slot = id === undefined ? undefined : schema?.sections?.[id]
+    if (slot?.kind === 'rows') {
+      if (record.blocks !== undefined) {
+        violations.push(`sections.${id} 是数据行槽位，不接受 blocks`)
+        valid = false
+      }
+      const rows = validateRows(record.rows, `sections.${index}.rows`, slot.columns, violations)
+      if (id === undefined || rows === undefined) {
+        valid = false
+      } else {
+        sections.push({ id, rows })
+      }
+      return
+    }
+    if (record.rows !== undefined) {
+      violations.push(`sections.${id} 是正文槽位，不接受 rows（数据行请用 rows 类槽位）`)
+      valid = false
+      return
+    }
+    const blocks = validateTemplateBlocks(record.blocks, `sections[${index}].blocks`, violations)
     if (id === undefined || blocks === undefined) {
       valid = false
     } else {

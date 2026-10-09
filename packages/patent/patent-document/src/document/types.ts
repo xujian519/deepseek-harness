@@ -3,7 +3,7 @@
  * @module @deepseek-ai/dsh-patent-document/document/types
  */
 
-import type { SpecDraft } from '@deepseek-ai/dsh-patent-core'
+import type { SpecDraft, TemplateDraft } from '@deepseek-ai/dsh-patent-core'
 
 /** 受 manifest.json 支持的模板 id。 */
 export type DocumentTemplateId =
@@ -42,7 +42,13 @@ export type DocumentRenderInput = {
    * 转换器生成。claims-spec 必填；其余模板接入前传 draft 会抛错。
    */
   draft?: SpecDraft
-  /** 按元素 id 注入的 HTML 内容（innerHTML）；claims-spec 已停用，其余模板暂用。 */
+  /**
+   * 表单模板（right-evaluation-report / search-report-form）受控草案
+   * （已通过 validateTemplateDraft + 注册表 schema 校验）：text/choice/rows/blocks
+   * 槽位按 data-slot 注入。与 draft 互斥；表单模板下 sections 必须为空。
+   */
+  templateDraft?: TemplateDraft
+  /** 按元素 id 注入的 HTML 内容（innerHTML）；claims-spec 与表单模板已停用，其余模板暂用。 */
   sections: Record<string, string>
   /** 内联品牌覆盖（优先级高于 brandPath）。 */
   brand?: DocumentBrand

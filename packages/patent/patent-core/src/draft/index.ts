@@ -14,9 +14,12 @@ export {
   type SpecDraft,
   type SpecDraftMeta,
   type SpecPartId,
+  type TemplateChoiceOption,
   type TemplateDraft,
   type TemplateDraftSchema,
   type TemplateDraftSection,
+  type TemplateFieldSlot,
+  type TemplateSectionSlot,
 } from './types.ts'
 export {
   numberedFigureDescriptions,

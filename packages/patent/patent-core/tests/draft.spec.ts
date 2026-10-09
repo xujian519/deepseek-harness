@@ -401,6 +401,57 @@ describe('validateTemplateDraft', () => {
     const schema = { sections: { analysis: { required: true }, conclusion: { required: true } } }
     expectTemplateViolation({ sections: [] }, schema, 'analysis', 'conclusion')
   })
+
+  it('choice 槽位按可选项校验单选值，未知选项列出可选项', () => {
+    const schema = {
+      fields: {
+        evalTarget: {
+          required: true,
+          kind: 'choice' as const,
+          options: [
+            { id: 'granted', label: '与授权公告一并公布的专利文件' },
+            { id: 'maintained', label: '由无效宣告请求审查决定维持有效的专利文件' },
+          ],
+        },
+      },
+    }
+    const draft = { fields: { evalTarget: 'granted' }, sections: [] }
+    expect(validateTemplateDraft(draft, schema).fields).toEqual({ evalTarget: 'granted' })
+    expectTemplateViolation({ fields: { evalTarget: 'unknown' }, sections: [] }, schema, '未知选项 "unknown"', 'granted（与授权公告一并公布的专利文件）')
+    expectTemplateViolation({ fields: { evalTarget: 1 }, sections: [] }, schema, 'fields.evalTarget[0] 必须是字符串')
+    expectTemplateViolation({ sections: [] }, schema, 'fields.evalTarget 缺失')
+  })
+
+  it('choice 槽位多选接受数组、单选拒绝数组', () => {
+    const multiple = { fields: { scope: { kind: 'choice' as const, multiple: true, options: [{ id: 'a', label: '甲' }, { id: 'b', label: '乙' }] } } }
+    const draft = { fields: { scope: ['a', 'b'] }, sections: [] }
+    expect(validateTemplateDraft(draft, multiple).fields).toEqual({ scope: ['a', 'b'] })
+    // 多选槽位也接受单字符串（视同单项）。
+    expect(validateTemplateDraft({ fields: { scope: 'a' }, sections: [] }, multiple).fields).toEqual({ scope: ['a'] })
+    const single = { fields: { scope: { kind: 'choice' as const, options: [{ id: 'a', label: '甲' }] } } }
+    expectTemplateViolation({ fields: { scope: ['a'] }, sections: [] }, single, '单选槽位', '不接受数组')
+    expectTemplateViolation({ fields: { scope: [] }, sections: [] }, multiple, '至少选择一项')
+    const noOptions = { fields: { scope: { kind: 'choice' as const } } }
+    expectTemplateViolation({ fields: { scope: ['a'] }, sections: [] }, noOptions, '单选槽位', '未声明')
+  })
+
+  it('rows 槽位校验列数与非空单元格', () => {
+    const schema = { sections: { relatedDocuments: { required: true, kind: 'rows' as const, columns: 2 } } }
+    const draft = { sections: [{ id: 'relatedDocuments', rows: [['X', 'CN101234567A'], ['Y', 'CN2345678B']] }] }
+    expect(validateTemplateDraft(draft, schema).sections).toEqual(draft.sections)
+    expectTemplateViolation({ sections: [{ id: 'relatedDocuments', rows: [['X']] }] }, schema, '列数 1 与模板列数 2 不一致')
+    expectTemplateViolation({ sections: [{ id: 'relatedDocuments', rows: [['X', 'A'], ['Y']] }] }, schema, '列数 1 与首行列数 2 不一致')
+    expectTemplateViolation({ sections: [{ id: 'relatedDocuments', rows: [] }] }, schema, '至少一行')
+    expectTemplateViolation({ sections: [{ id: 'relatedDocuments', rows: [['X', '']] }] }, schema, 'sections.0.rows[0][1] 为空')
+    expectTemplateViolation({ sections: [{ id: 'relatedDocuments', blocks: [{ kind: 'paragraph', text: 'x' }] }] }, schema, '数据行槽位，不接受 blocks')
+  })
+
+  it('正文槽位拒绝 rows 与表格块', () => {
+    const schema = { sections: { analysis: { required: true } } }
+    expectTemplateViolation({ sections: [{ id: 'analysis', rows: [['X']] }] }, schema, '正文槽位，不接受 rows')
+    const tableBlock = { sections: [{ id: 'analysis', blocks: [{ kind: 'table', name: 't', header: ['h'], rows: [['c']] }] }] }
+    expectTemplateViolation(tableBlock, schema, '表格块仅 claims-spec 支持')
+  })
 })
 
 function expectTemplateViolation(input: unknown, ...fragments: string[]): void

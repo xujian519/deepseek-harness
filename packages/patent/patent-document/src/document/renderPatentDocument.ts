@@ -16,7 +16,8 @@ import { applyParagraphNumbering } from './paragraphNumbering.ts'
 import { DEFAULT_PDF_TIMEOUT_MS, renderPdf } from './pdfRenderer.ts'
 import { readTemplateHtml } from './templateResolver.ts'
 import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './types.ts'
-import { renderSpecDraftSections } from './draftConverter/index.ts'
+import { FORM_TEMPLATE_IDS, isFormTemplateId } from './draftSchema/index.ts'
+import { injectTemplateDraft, renderSpecDraftSections } from './draftConverter/index.ts'
 
 /** 缺省输出目录（相对 cwd，取代 Sati 的 .sati/documents）。 */
 export const DEFAULT_OUTPUT_DIR = '.dsh/documents'
@@ -174,7 +175,7 @@ function injectSections(
 function resolveSections(input: DocumentRenderInput): Record<string, string> {
   if (input.draft !== undefined) {
     if (input.template !== 'claims-spec') {
-      throw new DocumentRenderError(`模板 ${input.template} 尚未接入受控草案：draft 目前仅支持 claims-spec，请仍用 sections`)
+      throw new DocumentRenderError(`模板 ${input.template} 不接受 SpecDraft 草案：draft（claims-spec 结构）仅支持 claims-spec；right-evaluation-report 与 search-report-form 请用 draft 传表单草案（fields + sections 槽位）`)
     }
     if (Object.keys(input.sections).length > 0) {
       throw new DocumentRenderError('draft 与 sections 互斥：claims-spec 请只传 draft（结构化草案）')
@@ -184,7 +185,30 @@ function resolveSections(input: DocumentRenderInput): Record<string, string> {
   if (input.template === 'claims-spec') {
     throw new DocumentRenderError('sections 已停用：claims-spec 请改用受控草案参数 draft（结构化块，不再传 innerHTML）')
   }
+  if (isFormTemplateId(input.template)) {
+    throw new DocumentRenderError(`sections 已停用：${input.template} 请改用受控草案参数 draft（fields 文本/选项槽位 + sections 章节/数据行槽位）`)
+  }
   return input.sections
+}
+
+/**
+ * 校验表单模板草案分支的互斥约束并执行注入。
+ * @param html - 模板 HTML（品牌注入后）。
+ * @param input - 渲染输入。
+ * @returns 注入表单草案后的 HTML。
+ */
+function resolveTemplateDraft(html: string, input: DocumentRenderInput): string {
+  if (input.templateDraft === undefined) return html
+  if (input.draft !== undefined) {
+    throw new DocumentRenderError('draft 与 templateDraft 互斥：一次渲染只传一份草案')
+  }
+  if (!isFormTemplateId(input.template)) {
+    throw new DocumentRenderError(`模板 ${input.template} 尚未接入受控草案：表单草案目前仅支持 ${FORM_TEMPLATE_IDS.join('、')}`)
+  }
+  if (Object.keys(input.sections).length > 0) {
+    throw new DocumentRenderError(`sections 已停用：${input.template} 请改用受控草案参数 draft（fields 文本/选项槽位 + sections 章节/数据行槽位）`)
+  }
+  return injectTemplateDraft(html, input.template, input.templateDraft)
 }
 
 /**
@@ -217,10 +241,13 @@ export async function renderPatentDocument(
 
   let html = readTemplateHtml(input.template)
   html = injectBrandCss(html, buildBrandStyle(brand))
-  const injected = injectSections(html, resolveSections(input))
-  html = injected.html
-  if (injected.skippedIds.length > 0) {
-    warnings.push(`以下 section id 未命中模板，内容已忽略: ${injected.skippedIds.join(', ')}`)
+  html = resolveTemplateDraft(html, input)
+  if (input.templateDraft === undefined) {
+    const injected = injectSections(html, resolveSections(input))
+    html = injected.html
+    if (injected.skippedIds.length > 0) {
+      warnings.push(`以下 section id 未命中模板，内容已忽略: ${injected.skippedIds.join(', ')}`)
+    }
   }
   // 段落编号由模板通过 data-paragraph-numbering 声明；引擎把编号写成字面文本，
   // 使 PDF 与下游 HTML→docx 转制读到同一串字符。

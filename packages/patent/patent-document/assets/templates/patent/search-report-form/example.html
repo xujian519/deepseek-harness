@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>专利检索报告（表格式）— 示例</title>
+<title>专利检索报告（表格式）</title>
 <style>
   /* ============================================================
    * 专利检索报告（表格式）— 文书骨架。
@@ -12,7 +12,6 @@
    * 值位一律用 .fill（横线长度随内容伸缩）；表格行数与列宽随内容。
    * A/B/C/D/E 分区对齐表格 220701 的检索记录部分。
    * 刻意复刻官方检索记录版式，使用黑白表格线，不套用 tokens.css 品牌色。
-   * 本文件为填充示例，样式与 assets/template.html 一致；示例数据均为虚构。
    * ============================================================ */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { font-size: 10.5pt; }
@@ -71,7 +70,7 @@
   }
   .fill.w-sm { min-width: 8mm; }
   .fill.w-lg { min-width: 30mm; }
-  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; }
+  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; white-space: normal; }
   .fill.as-end { flex: 1 1 24mm; }
   .opt .txt.fill-row { display: flex; align-items: baseline; gap: 1mm; flex-wrap: wrap; }
 
@@ -144,43 +143,43 @@
         </colgroup>
         <tbody>
           <tr>
-            <td colspan="5">报告编号：SR-2026-0001</td>
-            <td colspan="7">检索日期：2026 年 10 月 08 日</td>
-            <td colspan="8">检索截止日：2026 年 10 月 08 日</td>
+            <td colspan="5">报告编号：<span class="fill">SR-2026-0001</span></td>
+            <td colspan="7">检索日期：<span class="fill w-sm">2026</span> 年 <span class="fill w-sm">10</span> 月 <span class="fill w-sm">08</span> 日</td>
+            <td colspan="8">检索截止日：<span class="fill w-sm">2026</span> 年 <span class="fill w-sm">10</span> 月 <span class="fill w-sm">08</span> 日</td>
           </tr>
           <tr>
-            <td colspan="10">申请号/专利号：ZL2022209876543</td>
-            <td colspan="10">申请日：2022 年 03 月 15 日</td>
+            <td colspan="10">申请号/专利号：<span class="fill">ZL2022209876543</span></td>
+            <td colspan="10">申请日：<span class="fill w-sm">2022</span> 年 <span class="fill w-sm">03</span> 月 <span class="fill w-sm">15</span> 日</td>
           </tr>
           <tr>
-            <td colspan="12">发明名称：一种带式输送机的自动张紧机构</td>
-            <td colspan="8">专利类型：实用新型</td>
+            <td colspan="12">发明名称：<span class="fill w-lg">一种带式输送机的自动张紧机构</span></td>
+            <td colspan="8">专利类型：<span class="fill w-sm">实用新型</span></td>
           </tr>
           <tr>
-            <td colspan="12">专利权人/申请人：宁波华驰输送设备有限公司</td>
-            <td colspan="8">委托方：宁波华驰输送设备有限公司</td>
+            <td colspan="12">专利权人/申请人：<span class="fill w-lg">宁波华驰输送设备有限公司</span></td>
+            <td colspan="8">委托方：<span class="fill w-lg">宁波华驰输送设备有限公司</span></td>
           </tr>
           <tr>
-            <td colspan="10">检索人：<span class="fill w-sm"></span></td>
-            <td colspan="10">审核人：<span class="fill w-sm"></span></td>
+            <td colspan="10">检索人：<span class="fill">王磊</span></td>
+            <td colspan="10">审核人：<span class="fill">陈静</span></td>
           </tr>
         </tbody>
       </table>
 
       <div class="part">
         <div class="part-label">A. 主题的分类（IPC / CPC）</div>
-        <div class="part-value">B65G 23/44（带式输送机的张紧装置；张紧辊的支承与调节）</div>
+        <div class="part-value"><span class="fill w-lg">B65G 23/44（带式输送机的张紧装置；张紧辊的支承与调节）</span></div>
       </div>
 
       <div class="part">
         <div class="part-label">B. 检索领域</div>
-        <div class="part-value">B65G23/44, B65G23/06, B65G23/00, B65G15/60, B65G21/14, B65G43/02</div>
+        <div class="part-value"><span class="fill w-full">B65G23/44, B65G23/06, B65G23/00, B65G15/60, B65G21/14, B65G43/02</span></div>
       </div>
 
       <div class="part">
         <div class="part-label">C. 在检索时查阅的电子数据库（数据库的名称和/或使用的检索式）</div>
-        <div class="part-value">CNABS, DWPI, SIPOABS, 中国期刊网全文数据库：</div>
-        <div class="part-value tight">输送带, 张紧, 张紧辊, 张紧装置, 配重, 缓冲, 输送机, belt conveyor, tension, take-up, tensioning roller, belt tensioner</div>
+        <div class="part-value"><span class="fill w-full">CNABS, DWPI, SIPOABS, 中国期刊网全文数据库：</span></div><div class="part-value"><span class="fill w-full">输送带, 张紧, 张紧辊, 张紧装置, 配重, 缓冲, 输送机, belt conveyor, tension, take-up, tensioning roller, belt tensioner</span></div>
+
       </div>
 
       <div class="part">
@@ -200,14 +199,8 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td>Y</td><td class="l">CN213456789 U</td><td>2021.06.22</td><td>B65G 23/44</td><td>说明书具体实施方式、附图 1-5</td><td>1、5</td></tr>
-            <tr><td>Y</td><td class="l">CN214567890 U</td><td>2021.11.05</td><td>B65G 23/44</td><td>说明书具体实施方式、附图 1-4</td><td>1、5</td></tr>
-            <tr><td>A</td><td class="l">CN112345678 A</td><td>2021.03.09</td><td>B65G 23/44</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN113456789 A</td><td>2021.09.28</td><td>B65G 15/60</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN211234567 U</td><td>2020.08.11</td><td>B65G 21/14</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN110987654 A</td><td>2019.12.17</td><td>B65G 23/44</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">CN208765432 U</td><td>2019.04.26</td><td>B65G 23/06</td><td>全文</td><td>1-8</td></tr>
-            <tr><td>A</td><td class="l">KR1020150123456 A</td><td>2015.11.04</td><td>B65G 23/44</td><td>全文</td><td>1-8</td></tr>
+            <!-- 数据行：按相关文件条数复制本行；超出本页时勾选下面一行并转到附页 -->
+            <tr><td><span class="fill w-full">Y</span></td><td><span class="fill w-full">CN213456789 U</span></td><td><span class="fill w-full">2021.06.22</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">说明书具体实施方式、附图 1-5</span></td><td><span class="fill w-full">1、5</span></td></tr><tr><td><span class="fill w-full">Y</span></td><td><span class="fill w-full">CN214567890 U</span></td><td><span class="fill w-full">2021.11.05</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">说明书具体实施方式、附图 1-4</span></td><td><span class="fill w-full">1、5</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN112345678 A</span></td><td><span class="fill w-full">2021.03.09</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN113456789 A</span></td><td><span class="fill w-full">2021.09.28</span></td><td><span class="fill w-full">B65G 15/60</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN211234567 U</span></td><td><span class="fill w-full">2020.08.11</span></td><td><span class="fill w-full">B65G 21/14</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN110987654 A</span></td><td><span class="fill w-full">2019.12.17</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN208765432 U</span></td><td><span class="fill w-full">2019.04.26</span></td><td><span class="fill w-full">B65G 23/06</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">KR1020150123456 A</span></td><td><span class="fill w-full">2015.11.04</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr>
           </tbody>
         </table>
         <div class="opt" style="margin-top:1mm"><span class="cb"></span><span class="txt">相关文件，参见附页。</span></div>
@@ -230,8 +223,8 @@
   </div>
 
   <div class="doc-foot">
-    <div>SR-2026-0001 · 机密</div>
-    <div>第 1 页　共 2 页</div>
+    <div><span class="fill w-lg">SR-2026-0001</span> · 机密</div>
+    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 
@@ -248,8 +241,9 @@
     <div class="form-box">
       <div class="part part-first">
         <div class="part-label">E. 检索结论</div>
-        <div class="part-value">本次检索在 IPC B65G 23/44 及其相邻分类号下，以「输送带 / 张紧辊 / 张紧臂 / 配重 / 缓冲」为核心要素，覆盖 CNABS、DWPI、SIPOABS 及中国期刊网全文数据库，共命中并筛选出 8 篇相关文件：</div>
-        <div class="part-value tight">其中 2 篇 Y 类文件（CN213456789 U、CN214567890 U）分别公开了螺杆调节式张紧结构与弹簧随动式张紧结构，二者结合可影响权利要求 1、5 的创造性；其余 6 篇 A 类文件作为背景技术，未单独公开权利要求的全部技术特征。</div>
+        <!-- 逐段填入检索结论 -->
+        <div class="part-value"><span class="fill w-full">本次检索在 IPC B65G 23/44 及其相邻分类号下，以「输送带 / 张紧辊 / 张紧臂 / 配重 / 缓冲」为核心要素，覆盖 CNABS、DWPI、SIPOABS 及中国期刊网全文数据库，共命中并筛选出 8 篇相关文件：</span></div><div class="part-value"><span class="fill w-full">其中 2 篇 Y 类文件（CN213456789 U、CN214567890 U）分别公开了螺杆调节式张紧结构与弹簧随动式张紧结构，二者结合可影响权利要求 1、5 的创造性；其余 6 篇 A 类文件作为背景技术，未单独公开权利要求的全部技术特征。</span></div>
+
       </div>
 
       <div class="part">
@@ -260,10 +254,10 @@
             <tr><th>类型</th><th>篇数</th><th>占比</th><th>对本专利的影响</th></tr>
           </thead>
           <tbody>
-            <tr><td>X</td><td class="num">0</td><td class="num">0%</td><td class="l">—</td></tr>
-            <tr><td>Y</td><td class="num">2</td><td class="num">25%</td><td class="l">组合影响权利要求 1、5 的创造性</td></tr>
-            <tr><td>A</td><td class="num">6</td><td class="num">75%</td><td class="l">背景技术，不单独破坏新颖性 / 创造性</td></tr>
-            <tr><td>合计</td><td class="num">8</td><td class="num">100%</td><td class="l">—</td></tr>
+            <tr><td>X</td><td class="num"><span class="fill w-sm">0</span></td><td class="num"><span class="fill w-sm">0%</span></td><td class="l"><span class="fill w-full">—</span></td></tr>
+            <tr><td>Y</td><td class="num"><span class="fill w-sm">2</span></td><td class="num"><span class="fill w-sm">25%</span></td><td class="l"><span class="fill w-full">组合影响权利要求 1、5 的创造性</span></td></tr>
+            <tr><td>A</td><td class="num"><span class="fill w-sm">6</span></td><td class="num"><span class="fill w-sm">75%</span></td><td class="l"><span class="fill w-full">背景技术，不单独破坏新颖性 / 创造性</span></td></tr>
+            <tr><td>合计</td><td class="num"><span class="fill w-sm">8</span></td><td class="num"><span class="fill w-sm">100%</span></td><td class="l">—</td></tr>
           </tbody>
         </table>
       </div>
@@ -276,10 +270,8 @@
             <tr><th>轮次</th><th>数据库</th><th>检索式</th><th>命中数</th><th>执行日期</th></tr>
           </thead>
           <tbody>
-            <tr><td>R1</td><td>CNABS</td><td class="l">(输送带 OR belt conveyor) AND (张紧 OR tension) AND (张紧辊 OR tensioning roller)</td><td class="num">312</td><td>2026.10.08</td></tr>
-            <tr><td>R2</td><td>DWPI</td><td class="l">B65G23/44 AND (take-up OR tensioner) AND (conveyor belt)</td><td class="num">184</td><td>2026.10.08</td></tr>
-            <tr><td>R3</td><td>SIPOABS</td><td class="l">B65G23/06 AND 滚筒 AND 张紧</td><td class="num">46</td><td>2026.10.08</td></tr>
-            <tr><td>R4</td><td>中国期刊网</td><td class="l">输送带 &lt;AND&gt; 自动张紧</td><td class="num">11</td><td>2026.10.08</td></tr>
+            <!-- 数据行：按检索轮次复制本行 -->
+            <tr><td><span class="fill w-sm">R1</span></td><td><span class="fill w-full">CNABS</span></td><td class="l"><span class="fill w-full">(输送带 OR belt conveyor) AND (张紧 OR tension) AND (张紧辊 OR tensioning roller)</span></td><td class="num"><span class="fill w-sm">312</span></td><td><span class="fill w-full">2026.10.08</span></td></tr><tr><td><span class="fill w-sm">R2</span></td><td><span class="fill w-full">DWPI</span></td><td class="l"><span class="fill w-full">B65G23/44 AND (take-up OR tensioner) AND (conveyor belt)</span></td><td class="num"><span class="fill w-sm">184</span></td><td><span class="fill w-full">2026.10.08</span></td></tr><tr><td><span class="fill w-sm">R3</span></td><td><span class="fill w-full">SIPOABS</span></td><td class="l"><span class="fill w-full">B65G23/06 AND 滚筒 AND 张紧</span></td><td class="num"><span class="fill w-sm">46</span></td><td><span class="fill w-full">2026.10.08</span></td></tr><tr><td><span class="fill w-sm">R4</span></td><td><span class="fill w-full">中国期刊网</span></td><td class="l"><span class="fill w-full">输送带 &lt;AND&gt; 自动张紧</span></td><td class="num"><span class="fill w-sm">11</span></td><td><span class="fill w-full">2026.10.08</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -295,7 +287,7 @@
     <table class="sign-table">
       <colgroup><col style="width:33.4%"><col style="width:33.3%"><col style="width:33.3%"></colgroup>
       <tbody>
-        <tr><td>检索人：<span class="fill"></span></td><td>审核人：<span class="fill"></span></td><td>日期：<span class="fill w-sm">2026 年 10 月 08 日</span></td></tr>
+        <tr><td>检索人：<span class="fill">王磊</span></td><td>审核人：<span class="fill">陈静</span></td><td>日期：<span class="fill w-sm">2026</span> 年 <span class="fill w-sm">10</span> 月 <span class="fill w-sm">08</span> 日</td></tr>
       </tbody>
     </table>
 
@@ -305,8 +297,8 @@
   </div>
 
   <div class="doc-foot">
-    <div>SR-2026-0001 · 机密</div>
-    <div>第 2 页　共 2 页</div>
+    <div><span class="fill w-lg">SR-2026-0001</span> · 机密</div>
+    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 

@@ -4,7 +4,7 @@
 （`dsh-patent-document` 的 `draftSchema/`）的事实源：注册表槽位与本文档一一对应，
 一致性测试逐条锁定。行号为 `template.html` 中的行号。
 
-统计口径（2026-10-09）：fill 类 55 个 + 勾选项 27 个 + 章节槽位 9 个 = 91 个 `data-slot`。
+统计口径（2026-10-09，页码移出后）：fill 类 42 种 47 个 + 勾选项 27 个 + 章节槽位 5 种 9 个 = 83 处 `data-slot`。
 
 ## 文本槽位（`.fill` → `text`）
 
@@ -26,7 +26,6 @@
 | `art5NotSearchedClaims` | L185 | 未被检索：第 5 条或第 25 条 |
 | `notSearchedUtilityClaims` | L186 | 未被检索：实用性 |
 | `otherNotSearchedClaims` / `otherNotSearchedReason` | L188 | 其他未被检索的项号与理由 |
-| `pageNo` / `pageTotal` | L195/264/333/353 | 页脚页码（四处同一值，转换器全部填充） |
 | `ipcClass` | L204 | A. 主题分类（IPC） |
 | `soundClaimsRange` | L274 | 初步结论：未发现缺陷的权利要求 |
 | `defectiveClaimsRange` | L275 | 初步结论：不符合授权条件的权利要求 |
@@ -64,6 +63,8 @@
 | `opinionContinued` | blocks | L344–346 | 评价意见续页 II；草案不给该槽时保留空骨架页 |
 
 ## 纯展示元素（无槽位，逐条理由）
+
+- 页脚页码 `第 N 页　共 M 页`（L195/264/333/353）：逐页页脚在静态 HTML 中各不相同，单一草案值无法表达；页码在打印/定稿时由人工或分页流程填写，与签名块「人工补」约定一致。
 
 - 表头/分区标题/图例（L176、L208、L213、L219、L243–251、L273、L278、L307、L341）：文书固定文字，不由模型填写。
 - `spec263` 选项（L284）无配套 fill：结论针对说明书整体，不涉及权利要求项号。

@@ -52,9 +52,12 @@ export type {
   SpecDraft,
   SpecDraftMeta,
   SpecPartId,
+  TemplateChoiceOption,
   TemplateDraft,
   TemplateDraftSchema,
   TemplateDraftSection,
+  TemplateFieldSlot,
+  TemplateSectionSlot,
 } from './draft/index.ts'
 
 // Prompt-injection isolation for untrusted text spliced into LLM prompts.

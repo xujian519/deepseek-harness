@@ -287,3 +287,105 @@ describe('render_patent_document tool', () => {
     }
   })
 })
+
+describe('render_patent_document tool 表单草案分发', () => {
+  const srpDraft = {
+    fields: {
+      reportNo: 'SR-2026-0001',
+      searchDateYear: '2026', searchDateMonth: '10', searchDateDay: '08',
+      applicationNo: 'ZL2022209876543',
+      inventionTitle: '一种带式输送机的自动张紧机构',
+      patentee: '宁波华驰输送设备有限公司',
+      searcher: '王磊', reviewer: '陈静',
+      ipcClass: 'B65G 23/44', footerFirm: 'SR-2026-0001',
+      distXCount: '0', distXRatio: '0%', distXImpact: '—',
+      distYCount: '2', distYRatio: '25%', distYImpact: '组合影响权利要求 1、5 的创造性',
+      distACount: '6', distARatio: '75%', distAImpact: '背景技术',
+      distTotalCount: '8', distTotalRatio: '100%',
+      reportDateYear: '2026', reportDateMonth: '10', reportDateDay: '08',
+    },
+    sections: [
+      { id: 'searchField', blocks: [{ kind: 'paragraph', text: 'B65G23/44' }] },
+      { id: 'databases', blocks: [{ kind: 'paragraph', text: 'CNABS' }] },
+      {
+        id: 'relatedDocuments',
+        rows: [['Y', 'CN213456789 U', '2021.06.22', 'B65G 23/44', '说明书全文', '1、5']],
+      },
+      { id: 'conclusion', blocks: [{ kind: 'paragraph', text: '共筛选出 8 篇相关文件。' }] },
+      {
+        id: 'searchRounds',
+        rows: [['R1', 'CNABS', '输送带 AND 张紧', '312', '2026.10.08']],
+      },
+    ],
+  }
+
+  it('executes a search-report-form render from a form draft', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-tool-'))
+    try {
+      const tool = createRenderPatentDocumentTool({ subprocess })
+      const value = (await tool.execute(
+        {
+          template: 'search-report-form',
+          outputName: 'form-draft',
+          outputDir: dir,
+          format: 'html',
+          draft: srpDraft,
+        },
+        { signal: new AbortController().signal } as never,
+      )) as { htmlPath: string; warnings: string[] }
+      expect(existsSync(value.htmlPath)).toBe(true)
+      const html = readFileSync(value.htmlPath, 'utf8')
+      expect(html).toContain('报告编号：<span class="fill">SR-2026-0001</span>')
+      expect(html).toContain('<span class="fill w-sm">R1</span>')
+      expect(html).not.toContain('data-slot')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an invalid form draft with the slot-listing validation message', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const tool = createRenderPatentDocumentTool({ subprocess })
+    await expect(tool.execute(
+      {
+        template: 'search-report-form',
+        outputName: 'bad-form-draft',
+        format: 'html',
+        draft: { fields: { reportNo: 'X', unknownSlot: 'y' }, sections: [] },
+      },
+      { signal: new AbortController().signal } as never,
+    )).rejects.toThrow(/fields.unknownSlot 未知槽位/)
+  })
+
+  it('rejects an unknown choice option listing available options', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const tool = createRenderPatentDocumentTool({ subprocess })
+    await expect(tool.execute(
+      {
+        template: 'right-evaluation-report',
+        outputName: 'bad-choice',
+        format: 'html',
+        draft: {
+          fields: { evalTarget: 'notAnOption' },
+          sections: [],
+        },
+      },
+      { signal: new AbortController().signal } as never,
+    )).rejects.toThrow(/未知选项 "notAnOption".*granted/)
+  })
+
+  it('rejects draft for a template that is not migrated yet', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const tool = createRenderPatentDocumentTool({ subprocess })
+    await expect(tool.execute(
+      {
+        template: 'oa-response',
+        outputName: 'not-migrated',
+        format: 'html',
+        draft: srpDraft,
+      },
+      { signal: new AbortController().signal } as never,
+    )).rejects.toThrow(/尚未接入受控草案：draft 目前支持 claims-spec、right-evaluation-report、search-report-form/)
+  })
+})

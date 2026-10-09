@@ -84,26 +84,59 @@ export interface SpecDraft {
   sections: Record<SpecPartId, DraftBlock[]>
 }
 
-/** 模板草案的一个章节槽位：骨架元素 id + 块序列。 */
-export interface TemplateDraftSection {
-  /** 模板骨架中的槽位 id。 */
+/** 选项槽位的一个可选项；id 对应模板 `data-slot="<组>:<id>"` 的选项后缀。 */
+export interface TemplateChoiceOption {
+  /** 选项 id（草案中引用）。 */
   id: string
-  /** 槽位内容块；≥1 个非空块。 */
-  blocks: DraftBlock[]
+  /** 选项的人类可读标签（错误消息列出可选项时展示）。 */
+  label: string
 }
+
+/** 文本/选项槽位的 schema 声明。 */
+export interface TemplateFieldSlot {
+  /** 是否必填。 */
+  required?: boolean
+  /**
+   * 槽位类别：`text`（默认）填充 `.fill` 文本；`choice` 渲染 `.cb` 勾选状态，
+   * 草案值是选中项的选项 id（多选为 id 数组）。
+   */
+  kind?: 'text' | 'choice'
+  /** `choice` 槽位的可选项集合。 */
+  options?: readonly TemplateChoiceOption[]
+  /** `choice` 槽位是否允许多选（草案值为数组）；缺省单选。 */
+  multiple?: boolean
+}
+
+/** 章节槽位的 schema 声明。 */
+export interface TemplateSectionSlot {
+  /** 是否必填。 */
+  required?: boolean
+  /**
+   * 槽位类别：`blocks`（默认）正文块序列；`rows` 表格数据行
+   * （草案值为等宽字符串数组，列宽由模板的行模板决定）。
+   */
+  kind?: 'blocks' | 'rows'
+  /** `rows` 槽位的列数；每行宽度必须等于 columns。 */
+  columns?: number
+}
+
+/** 模板草案的一个章节槽位：骨架元素 id + 块序列或数据行（二者恰居其一）。 */
+export type TemplateDraftSection =
+  | { /** 模板骨架中的槽位 id。 */ id: string; /** 槽位内容块；≥1 个非空块；表格块仅 claims-spec 支持。 */ blocks: DraftBlock[]; rows?: never }
+  | { /** 模板骨架中的槽位 id。 */ id: string; /** 数据行（rows 槽位）；≥1 行，各行等宽且单元格非空。 */ rows: string[][]; blocks?: never }
 
 /** 其余文书模板受控草案。 */
 export interface TemplateDraft {
-  /** 文本槽位值（文本槽与选项槽共用此映射）；键为槽位 id，值非空。 */
-  fields?: Record<string, string>
+  /** 文本/选项槽位值；键为槽位 id，text 值为非空字符串，choice 值为选中项 id（多选为数组）。 */
+  fields?: Record<string, string | string[]>
   /** 章节槽位；槽位 id 不得重复。 */
   sections: TemplateDraftSection[]
 }
 
 /** 模板草案的槽位 schema（由 patent-document 的注册表提供）。 */
 export interface TemplateDraftSchema {
-  /** 文本/选项槽位；值标记是否必填。 */
-  fields?: Readonly<Record<string, { required?: boolean }>>
-  /** 章节槽位；值标记是否必填。 */
-  sections?: Readonly<Record<string, { required?: boolean }>>
+  /** 文本/选项槽位；值声明类别与必填。 */
+  fields?: Readonly<Record<string, TemplateFieldSlot>>
+  /** 章节槽位；值声明类别与必填。 */
+  sections?: Readonly<Record<string, TemplateSectionSlot>>
 }

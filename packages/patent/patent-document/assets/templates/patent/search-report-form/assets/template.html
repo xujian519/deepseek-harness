@@ -70,7 +70,7 @@
   }
   .fill.w-sm { min-width: 8mm; }
   .fill.w-lg { min-width: 30mm; }
-  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; }
+  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; white-space: normal; }
   .fill.as-end { flex: 1 1 24mm; }
   .opt .txt.fill-row { display: flex; align-items: baseline; gap: 1mm; flex-wrap: wrap; }
 
@@ -224,7 +224,7 @@
 
   <div class="doc-foot">
     <div><span class="fill w-lg" data-slot="footerFirm"></span> · 机密</div>
-    <div>第 <span class="fill w-sm" data-slot="pageNo"></span> 页　共 <span class="fill w-sm" data-slot="pageTotal"></span> 页</div>
+    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 
@@ -298,7 +298,7 @@
 
   <div class="doc-foot">
     <div><span class="fill w-lg" data-slot="footerFirm"></span> · 机密</div>
-    <div>第 <span class="fill w-sm" data-slot="pageNo"></span> 页　共 <span class="fill w-sm" data-slot="pageTotal"></span> 页</div>
+    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
   </div>
 </div>
 

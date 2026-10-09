@@ -42,11 +42,13 @@ template:
 
 ## 工作流
 
-1. 读 `references/conventions.md`、`references/checklist.md` 与 `references/citation-log.md`。
-2. 复制 `assets/template.html` 为输出文件。
-3. 填充：著录项 → 评价所针对的文本 → 检索针对的权利要求 → A/B/C/D/E 分区 → 初步结论 → 专利权评价意见 → 落款。
-4. D 表按相关文件条数复制数据行；评价意见超出第 3 页时复制续页 II 整块与页眉，内容不足一页时删除该页。
-5. 删除模板占位，按 `references/checklist.md` 自查后定稿。
+1. 读 `references/conventions.md`、`references/checklist.md` 与 `references/citation-log.md`；槽位命名以 `references/slots.md` 为准。
+2. 用 `render_patent_document` 渲染：template 传 `right-evaluation-report`，draft 传表单草案——`fields` 填文本槽（日期按年/月/日三个槽位）与选项槽（choice 值传选中项的选项 id，多选组传 id 数组，如 `searchScope: ["all"]`、`inventiveConclusion: ["yes", "no"]`）；`sections` 传 blocks 槽位（searchField/databases/opinion/opinionContinued，paragraph 每段一行、list 每项一行）与 rows 槽位（relatedDocuments 六列等宽字符串数组）。槽位清单与必填项以草案校验报错为准。
+3. 续页策略：评价意见超出第 3 页时把后续段落放进 `opinionContinued`（续页 II 骨架自动填充，不足一页时定稿删除该页）；D 表条数多时勾 `moreDocuments: ["continued"]`。
+4. 页脚页码、专用章与审查员/审核员签名不由草案驱动：页码与签章在定稿时人工处理（审查员/审核员/完成日期有槽位但非必填）。
+5. 按 `references/checklist.md` 自查后定稿。
+
+`assets/example-draft.json` 是完整示例草案，`example.html` 由它渲染生成，可作为结构参照。
 
 ## 输出契约
 

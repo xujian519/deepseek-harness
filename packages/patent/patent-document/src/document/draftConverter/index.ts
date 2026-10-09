@@ -9,3 +9,4 @@
 export { escapeHtmlText } from './escape.ts'
 export { renderBlocks, type TableCaptionCounter } from './blocks.ts'
 export { renderSpecDraftSections, type SpecDraftSectionMap } from './specDraft.ts'
+export { injectTemplateDraft } from './templateDraft.ts'
