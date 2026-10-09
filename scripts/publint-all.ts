@@ -193,6 +193,19 @@ function isBrowserBundleFormatFalsePositive(message: Message): boolean {
     || /(^|\/)\.\/(client|worker)$/.test(exportKey)
 }
 
+/**
+ * A `package.json` shipped inside a skill's `templates/` tree is example data the
+ * creator copies to a real package root, where the field is honored. Node never
+ * resolves through the published copy, so the nested-manifest warning reports a
+ * condition that cannot occur here.
+ */
+function isSkillTemplateManifestFalsePositive(message: Message): boolean {
+  if (message.code !== 'NESTED_PACKAGE_JSON_FIELD_IGNORED') return false
+  const filePath = (message.args as { filePath?: string; actualFilePath?: string }).actualFilePath
+    ?? (message.args as { filePath?: string }).filePath ?? ''
+  return /(^|\/)skills\/[^/]+\/templates\//.test(filePath)
+}
+
 async function runPublint(target: PackageTarget): Promise<PublintResult> {
   try {
     const files = publicationFiles(target)
@@ -202,7 +215,8 @@ async function runPublint(target: PackageTarget): Promise<PublintResult> {
       pack: { files },
     })
     const manifest = result.pkg as Record<string, unknown>
-    const messages = result.messages.filter(message => !isBrowserBundleFormatFalsePositive(message))
+    const messages = result.messages.filter(message =>
+      !isBrowserBundleFormatFalsePositive(message) && !isSkillTemplateManifestFalsePositive(message))
     return messages.some(message => message.type === 'error') || closureViolations.length > 0
       ? { path: target.path, status: 'failed', messages, closureViolations, manifest }
       : { path: target.path, status: 'passed', messages, closureViolations, manifest }
