@@ -95,7 +95,7 @@ export interface Config {
    * re-read, so replacing a certificate takes a reload. Omitted or null listens
    * over plain HTTP.
    */
-  tls?: TlsConfig
+  tls?: TlsConfig | null
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */

@@ -43,3 +43,13 @@ fork 的 `ptc-runtime-python` 仍未吸收该版本的 sandbox 支持与 stdin b
 - **保留 fork 的 `startContinuable` 调用点，与该版本的 spec 夹具各自为政。** 否决：该版本整体替换了 continuation 管理器，fork 的调用点无法对它运行。把调用方与其桩一起迁移，才是让合并后的树自洽的做法。
 - **记录新门禁的失败，而不是满足它们。** 对隔离类门禁否决：每一条都指名该版本确实移除的依赖，跟随它只花两行清单改动。`publint` 的过滤是唯一的例外，且它很窄——点名一个消息 code 与一种路径形态，而不是全局关掉一条规则。
 - **把 persistence 记录反向串链。** 否决：fork 的记录更早、先被提交，所以该版本的记录是它的后继；而且无论哪种顺序，既有 schema 快照都描述不了合并后的树——这正是新记录无论如何都要存在的原因。
+
+## Testing
+
+`pnpm run test` 报出 49,913 个通过中的 5 个失败、1 个预期失败与 217 个跳过。其中三个在本机于本次同步之前就已经是红的，且不属于本分支的面：`packages/util/http-proxy/tests/install.spec.ts`（此处无法解析的 `origin.test` 查询，单独跑也失败）、`packages/subprocess/subprocess-local/tests/spawn-runner.spec.ts`（调用方 shell 导出了 `NoDefaultCurrentDirectoryInExePath`，CI 没有该变量），以及 `packages/client/ui-trajectory/tests/views.client.spec.tsx`。另有两个是本同步记录在案、而非在此修复的残差：该 trajectory 用例与 `packages/client/ui-trajectory/tests/table.client.spec.tsx`，二者都在用该版本的请求状态模型断言 fork 抽出的 `RecordInspector`，且都经构建后的 client bundle 挂载插件，因此只改源码而不重建到不了它们。首轮报出的另外 21 个文件都在本次同步中修复：`patent-teams` 62 例、`self-evolve` 26 例、`subagent` 后代列举 8 例、`ci-workflow` 8 例、工具目录 5 例，外加 Decision 一节点名的打包、session 与连接 spec。
+
+`pnpm run test:snapshot` 在 session、sdk、acp、web 四条道上重放 204 个无密钥用例，跳过 2 个。两个压缩场景保持红色，因为它们的重放脚本只提供三次模型调用，而 fork 的组合需要第四次；重录需要带 `DEEPSEEK_API_KEY` 跑 `pnpm run test:snapshot:record`。它们在同步前的 fork 树上同样是红的，所以成因是组合而非本次合并。
+
+`pnpm run typecheck` 在两个编译面上都退出 0，`pnpm run lint` 退出 0 并只余一条非致命的 unused-disable 警告，`pnpm run build` 退出 0 并记录 371 个 client 产物。`pnpm run constraints` 以家族统一版本通过，`pnpm exec tsx scripts/release/verify.ts --family dsh` 解析出 379 个成员，版本 `0.2.1-alpha.2`，发布顺序已解析。
+
+`pnpm run doc-sync` 报 49 门全过，`pnpm run hygiene` 报 20 门全过。这两组在本次同步修复之前都是红的，且失败落在此同步负责的材料上：11 道文档门失败于过期的生成物与该版本移动的路径，5 道 hygiene 门失败于该版本新增的隔离检查。`pnpm run duplication` 报全仓 0 处克隆。

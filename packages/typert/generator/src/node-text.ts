@@ -90,7 +90,7 @@ export function declarationText(
 function classShape(node: ts.ClassDeclaration): ts.ClassDeclaration {
   const nonPublic = (member: ts.ClassElement): boolean => {
     if (ts.isClassStaticBlockDeclaration(member)) return true
-    if ('name' in member && member.name !== undefined && ts.isPrivateIdentifier(member.name)) return true
+    if ('name' in member && ts.isPrivateIdentifier(member.name)) return true
     return (ts.canHaveModifiers(member) ? ts.getModifiers(member) : undefined)?.some(modifier =>
       modifier.kind === ts.SyntaxKind.PrivateKeyword || modifier.kind === ts.SyntaxKind.ProtectedKeyword) ?? false
   }
