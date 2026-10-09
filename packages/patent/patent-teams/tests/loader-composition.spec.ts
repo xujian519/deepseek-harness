@@ -17,6 +17,9 @@ import { createScope } from '@deepseek-ai/dsh-scope'
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import FsService from '@deepseek-ai/dsh-fs'
+import SessionProjection from '@deepseek-ai/dsh-session-projection'
+import WorkingDirectory from '@deepseek-ai/dsh-working-directory'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -38,6 +41,9 @@ async function boot(): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-patent-teams-loader-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
+    "- name: '@deepseek-ai/dsh-fs'",
+    "- name: '@deepseek-ai/dsh-session-projection'",
+    "- name: '@deepseek-ai/dsh-working-directory'",
     "- name: '@deepseek-ai/dsh-subagent'",
     "- name: '@deepseek-ai/dsh-tools'",
     "- name: '@deepseek-ai/dsh-system-prompt'",
@@ -52,6 +58,9 @@ async function boot(): Promise<Context> {
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
+    ['@deepseek-ai/dsh-fs', FsService],
+    ['@deepseek-ai/dsh-session-projection', SessionProjection],
+    ['@deepseek-ai/dsh-working-directory', WorkingDirectory],
     ['@deepseek-ai/dsh-subagent', SubagentRuntime],
     ['@deepseek-ai/dsh-tools', ToolRuntime],
     ['@deepseek-ai/dsh-system-prompt', SystemPrompt],

@@ -690,10 +690,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
     requires: ['ctx.tools', 'ctx.fs'],
     writes: ['tool/call', 'tool/result'],
     async mount(ctx) {
-      // The tool resolves declared files through the filesystem seam at
-      // execute time; registration itself needs only the registry and the
-      // bare local provider.
-      await ctx.plugin(LocalFileSystem)
       await ctx.plugin(DocumentDeliver)
     },
     note:

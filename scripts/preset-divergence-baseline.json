@@ -22,19 +22,19 @@
       "standard.patch.yml": "34268d526f"
     },
     "persona": {
-      "cordis.patch.yml": "6a9677523b",
+      "cordis.patch.yml": "128bdee840",
       "document.patch.yml": "d8fc233d50",
       "minimal.patch.yml": "cc5f870f42",
       "patent.patch.yml": "0bfb66cf66",
-      "ptc.patch.yml": "c08a89a5c5",
-      "standard.patch.yml": "c8337a7653"
+      "ptc.patch.yml": "b5a7fe963b",
+      "standard.patch.yml": "3255d0a919"
     },
     "plan-mode": {
-      "cordis.patch.yml": "c71838b84f",
+      "cordis.patch.yml": "fff5e9684e",
       "document.patch.yml": "f20f111abc",
       "patent.patch.yml": "f45ef1a894",
-      "ptc.patch.yml": "c71838b84f",
-      "standard.patch.yml": "bf863789c8"
+      "ptc.patch.yml": "fff5e9684e",
+      "standard.patch.yml": "b155ff30d8"
     },
     "skill-filesystem": {
       "cordis.patch.yml": "1ae627441e",
@@ -97,12 +97,6 @@
       "ptc.patch.yml": "472a1e4609",
       "standard.patch.yml": "472a1e4609"
     },
-    "tool-ralph": {
-      "cordis.patch.yml": "c42b440c47",
-      "document.patch.yml": "48404eefb9",
-      "ptc.patch.yml": "c42b440c47",
-      "standard.patch.yml": "c42b440c47"
-    },
     "tool-result-pruner": {
       "cordis.patch.yml": "85baf4c126",
       "document.patch.yml": "1bc2659fb5",
@@ -118,23 +112,11 @@
       "standard.patch.yml": "d132cb2a6d"
     },
     "tool-subagent": {
-      "cordis.patch.yml": "e38590675f",
+      "cordis.patch.yml": "b61b5afbd7",
       "document.patch.yml": "1db355f62b",
       "patent.patch.yml": "1db355f62b",
-      "ptc.patch.yml": "e38590675f",
-      "standard.patch.yml": "e38590675f"
-    },
-    "tool-subagent-claude-code": {
-      "cordis.patch.yml": "2d7faa37b3",
-      "document.patch.yml": "32ba0daebc",
-      "ptc.patch.yml": "2d7faa37b3",
-      "standard.patch.yml": "2d7faa37b3"
-    },
-    "tool-subagent-codex": {
-      "cordis.patch.yml": "01fc710f7c",
-      "document.patch.yml": "91207bd2fe",
-      "ptc.patch.yml": "01fc710f7c",
-      "standard.patch.yml": "01fc710f7c"
+      "ptc.patch.yml": "b61b5afbd7",
+      "standard.patch.yml": "b61b5afbd7"
     },
     "tool-subagent-control": {
       "cordis.patch.yml": "3d9b0c534b",
@@ -144,11 +126,11 @@
       "standard.patch.yml": "3d9b0c534b"
     },
     "tool-subagent-fork": {
-      "cordis.patch.yml": "b0658107e2",
+      "cordis.patch.yml": "e75e6d7630",
       "document.patch.yml": "151876b9b3",
       "patent.patch.yml": "f7fdd4b57b",
-      "ptc.patch.yml": "b0658107e2",
-      "standard.patch.yml": "b0658107e2"
+      "ptc.patch.yml": "e75e6d7630",
+      "standard.patch.yml": "e75e6d7630"
     },
     "tool-subagent-list-agents": {
       "cordis.patch.yml": "9d73757b44",

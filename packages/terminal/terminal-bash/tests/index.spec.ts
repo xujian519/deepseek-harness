@@ -625,6 +625,7 @@ describe('BashTerminalBackend startup rollback', () => {
 
   it('rejects a pwsh bootstrap the caller cancels between retries', async () => {
     const ctx = new Context()
+    provideWorkingDirectoryFixture(ctx)
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })

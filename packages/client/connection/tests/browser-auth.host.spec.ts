@@ -162,7 +162,9 @@ describe('BrowserAuth', () => {
     expect(denied.state.status).toBe(401)
 
     const tls = exchange(restarted, authority, true)
-    expect(tls.state.headers?.['set-cookie']).toContain('; Secure')
+    // The fork can evict excess cookies in the same response, so `set-cookie` is an
+    // array; `exchange` already reduces it to the minted session cookie.
+    expect(tls.setCookie).toContain('; Secure')
     expect(restarted.isAuthenticated(request('/', authority, { cookie: tls.cookie }), true)).toBe(true)
     expect(restarted.isAuthenticated(request('/', authority, { cookie: tls.cookie }))).toBe(false)
     const tlsName = tls.cookie.slice(0, tls.cookie.indexOf('='))

@@ -125,7 +125,9 @@ describe('plugin records', () => {
     expect(heard.map(event => event.type)).toEqual(['plugin:test/state'])
     expect(session.seq).toBe(1)
     expect(warnings).toEqual([
-      'session "observed-record": session/event listener threw: Error: session append cannot reenter while another append is being published',
+      // The fork's containment renderer is `errorMessage` (docs/TECH_DEBT.md), so the
+      // line carries the message without an `Error: ` prefix.
+      'session "observed-record": session/event listener threw: session append cannot reenter while another append is being published',
     ])
     await ctx.fiber.dispose()
   })

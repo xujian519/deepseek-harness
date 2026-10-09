@@ -69,7 +69,11 @@ import { assertSubagentMaxDepth } from './depth.ts'
 import { createActivationObserver, createLifecycleEmitter } from './lifecycle.ts'
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentManager from './manager.ts'
-import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
+import {
+  DEFAULT_COLD_READ_CONCURRENCY,
+  listChildren as listSubagentChildren,
+  listDescendants as listSubagentDescendants,
+} from './list-children.ts'
 import type { SubagentDescendantListEntry } from './list-children.ts'
 import { installSubagentArchiveAdmission } from './archive-admission.ts'
 import type { SubagentCatalogEntry } from './projection-types.ts'
@@ -180,8 +184,10 @@ interface BrowserPromptSource {
   readonly clientTimeZone?: string
 }
 
-/** Host configuration for continuable subagent capacity. */
+/** Host configuration for continuable subagent capacity and cold-read concurrency. */
 export interface Config {
+  /** Maximum concurrent cold Session observations issued by one descendant listing; defaults to 4. */
+  coldReadConcurrency: Volatile<number>
   /** Maximum live children sharing uninterrupted continuable parent links; defaults to 8. */
   maxActiveSubagents: Volatile<number>
   /** Default delegation depth for tools without an explicit limit; defaults to 1. */
@@ -193,6 +199,7 @@ export class SubagentRuntime extends TypertRemoteService {
   static Config = z.object({
     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1).volatile(),
     maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8).volatile(),
+    coldReadConcurrency: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_COLD_READ_CONCURRENCY).volatile(),
   })
   static inject = ['workingDirectory']
   private providers = new Map<string, SubagentProvider>()
@@ -421,7 +428,7 @@ export class SubagentRuntime extends TypertRemoteService {
    * @throws SessionQueryError when the root catalog cannot be read.
    */
   listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]> {
-    return listSubagentDescendants(this.ctx, rootSessionId, signal)
+    return listSubagentDescendants(this.ctx, rootSessionId, signal, this.config.coldReadConcurrency.get())
   }
 
   /**

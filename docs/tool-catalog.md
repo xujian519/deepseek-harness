@@ -25,6 +25,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-present` | `present` | `ctx.workingDirectory`, `ctx.tools`, `ctx.fs`, `ctx.sessionProjections` | `tool/call`, `deliverables/presented after a successful final result`, `tool/result` | - | Deliveries belong to the calling Session; Web ui-deliverables supplies source-file opening and cards. |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.workingDirectory`, `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs for run_in_background and the job-backed foreground path` | `tool/call`, `tool/result` | - | The pwsh tool is the PowerShell-dialect consumer of the bash executor seam for Windows compositions (a PowerShell executor such as `@deepseek-ai/dsh-pwsh-local` backs `ctx.shell`); it mirrors the bash tool call-for-call minus sandbox controls — `run_in_background` runs register with the generic `ctx.jobs` runtime and are collected/stopped through the `job_*` tools, and the managed `DSH_*` environment comes from `@deepseek-ai/dsh-shell-env`. Each call runs in a fresh process (no persistent PTY session), with native `C:\...` paths and `$env:NAME` variables. |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_inspect_list`, `cordis_inspect_query` | `ctx.tools`, `ctx.cordisInspect` | `tool/call`, `tool/result` | - | Creator mode provides two read-only runtime inspection tools. The Cordis host runner supplies the inspection registry; Client queries require a connected page. Author persistent changes as bundles and install them with plugin_manager. |
+| `@deepseek-ai/dsh-tool-plugin-market` | `market_plugin_preview`, `market_plugin_search`, `market_source_list` | `ctx.tools`, `ctx.systemPrompt`, `ctx.pluginMarket` | `tool/call`, `tool/result` | - | The market toolset reads `ctx.pluginMarket` from `@deepseek-ai/dsh-host-plugin-market`, which always serves a bundled offline catalog (`builtin-deepseek`) from memory and a user-registered HTTPS source through the market's restricted fetch. In the standard preset the tools are visible to every agent session; installation stays an operator action on the `dsh plugin` CLI, never a model call. |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.workingDirectory`, `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent bash tool; deployment composition supplies the PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.workingDirectory`, `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent pwsh tool, the Windows counterpart of the persistent bash tool; deployment composition supplies a pwsh-dialect PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`, `ctx.fs` | `tool/call`, `fs/observed after view presence/absence, edit absence, or successful mutation`, `tool/result` | - | Standalone view/create/unique literal replace/line insert tool over the filesystem seam; it composes with any shell or terminal API. |
@@ -36,17 +37,31 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.workingDirectory`, `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
 | `@deepseek-ai/dsh-tool-skill` | `skill` | `ctx.workingDirectory`, `ctx.tools`, `ctx.agents`, `ctx.skills` | `tool/call`, `tool/result`, `user/message replacement catalogs via agent.inject()` | - | - |
+| `@deepseek-ai/dsh-tool-self-evolve` | `self_evolve_inspect_patterns`, `self_evolve_now` | `ctx.tools`, `ctx.systemPrompt`, `ctx.selfEvolve`, `ctx.agents` | `tool/call`, `tool/result`, `self-evolve/start|end brackets when a loop runs` | - | Two tools drive the self-evolve seam: `self_evolve_inspect_patterns` reads the session’s projected failure patterns, and `self_evolve_now` starts one explicit loop. The base provider targets L1-skill and L2-context; L3-workflow and L4-harness requests produce no proposals yet. |
 | `@deepseek-ai/dsh-tool-session-query` | `session_event_read`, `session_event_search`, `session_event_trace`, `session_search`, `session_trace` | `ctx.tools`, `ctx.systemPrompt`, `ctx.sessionQuery`, `a calling Agent for workspace authority` | `tool/call`, `tool/result` | - | The five read-only tools hide provider cursors and authorize every result from the immutable calling agent session. The package is opt-in; compositions that need enforced deadlines or bounded inline output also mount the generic timeout or spill policies. |
 | `@deepseek-ai/dsh-tool-subagent` | `list_subagent_models`, `subagent` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `ctx.llm for model discovery and selected-route validation` | `tool/call`, `tool/result`, `child session events through the chosen provider` | `subagent`, `subagent_fork` | The registered delegation name is the load-time `toolName` config (default `subagent`); the default schema above has model selection off, while the discovery schema is shown as the fixed companion available in an enabled Session. Web presets sample the Plugins preference for each new top-level Session and preserve that decision for its child Sessions; `subagent_fork` remains fixed-route. Each instance selects its backend through `provider` and reads model-selection settings through `modelSelectionSettings`. Every delegation returns a child id promptly; local children accept follow-ups, while external backends report their single execution automatically. |
 | `@deepseek-ai/dsh-tool-subagent-control` | `interrupt_agent`, `list_agents`, `send_message` | `ctx.tools`, `ctx.subagents`, `ctx.agents and ctx.sessionProjections (list_agents only)` | `tool/call`, `tool/result`, `child session events through ctx.subagents` | - | The globally named discovery, interruption, and local-message tools over managed subagents: provider-bound `tool-subagent` instances register distinct delegation tools, while this package registers `send_message` and `interrupt_agent` once, plus `list_agents` from its separately loaded `/list-agents` plugin (whose catalog rows use the sessionProjections and live Agent registries). |
 | `@deepseek-ai/dsh-tool-jobs` | `job_kill`, `job_list`, `job_output` | `ctx.tools`, `ctx.jobs`, `ctx.systemPrompt` | `tool/call`, `tool/result`, `user/message via agent.inject() for background completion notices` | - | The kind-agnostic background-job controller: background bash commands and PTY sends are read, listed, and killed through the same three tools. Loading the plugin attaches the controller that arms producers' `ctx.jobs.start()`. |
 | `@deepseek-ai/dsh-experimental-tool-agent-team` | `interrupt_agent`, `list_agents`, `send_message`, `spawn_teammate`, `team_task_create`, `team_task_get`, `team_task_list`, `team_task_update`, `wait_agent` | `ctx.tools`, `ctx.systemPrompt`, `ctx.agentTeams`, `an exact live Team member Agent` | `tool/call`, `team/member`, `team/task`, `agent/inbox/spliced`, `user/message on inbox claim`, `tool/result` | - | All nine tools are scoped to implicit Team Leads and durable teammates. The shipped dsh-base bundle keeps the package disabled; the documented Agent Teams profile patch enables it while disabling the legacy continuable-child control names. |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
+| `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
+| `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
+| `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
+| `@deepseek-ai/dsh-patent-document` | `render_patent_document`, `verify_deliverable` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
+| `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`, `verify_patent_filing` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, rewriting source paragraph numbers in order; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, claim count, continuous numbering, and surviving internal marks. |
+| `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
+| `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure. |
+| `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`, `tool/result` | - | law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted. |
+| `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
+| `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section. |
+| `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-working-directory` | `working_directory` | `ctx.tools`, `ctx.workingDirectory` | `tool/call`, `working-directory/change`, `user context for directory changes`, `tool/result` | - | Reads or changes the calling Session directory. Existing shells and processes retain their own directories; origin metadata and permission roots stay fixed. |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | `create_worktree` | `ctx.tools`, `ctx.worktrees`, `a calling Agent` | `tool/call`, `Git branch and checkout`, `working-directory/change`, `tool/result` | - | Explicit experimental composition only. Creates a new branch and checkout from a pinned local commit under existing write permissions, then changes the Session directory. Leaving retains the branch and checkout. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
+| `@deepseek-ai/dsh-macos-tools` | `macos_app`, `macos_clipboard_get`, `macos_clipboard_set`, `macos_notify`, `macos_open_path`, `macos_open_url`, `macos_speak` | `ctx.tools`, `ctx.approval (one-time consent for open/clipboard-read/app launch+quit; absent fails closed)` | `tool/call`, `tool/result`, `approval/asked + approval/decided for gated calls` | - | Seven macOS native tools over system CLIs (open/reveal, browser URLs, clipboard read/write, notifications, speech, app control); every spawn is an absolute executable with an argv array, never a shell string. |
 
 <a id="deepseek-aidsh-plugin-manager"></a>
 
@@ -782,6 +797,80 @@ Run a read-only query declared by an Inspect Provider. platform, provider, and m
 Source: [`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)
 
 Creator mode provides two read-only runtime inspection tools. The Cordis host runner supplies the inspection registry; Client queries require a connected page. Author persistent changes as bundles and install them with plugin_manager.
+
+<a id="deepseek-aidsh-tool-plugin-market"></a>
+
+## `@deepseek-ai/dsh-tool-plugin-market`
+
+### `market_plugin_preview`
+
+Preview a package reference (`name@version`) against the npm registry without touching any profile. It reports whether the reference resolved to a real, non-deprecated release; any rejection reasons; the lifecycle scripts the package declares; and whether its engines constraints accept the running Node. Call this Tool before recommending an install, and when a search entry carries a pinned version use exactly that version string. Preview is read-only and never installs.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "ref": {
+      "type": "string",
+      "description": "Package reference as `name@version`, e.g. @deepseek-ai/dsh-tool-bash@0.1.2-alpha.1."
+    }
+  },
+  "required": [
+    "ref"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-plugin-market/src/index.ts`](../packages/extensions/tool-plugin-market/src/index.ts)
+
+### `market_plugin_search`
+
+Search one catalog source for plugins. When sourceId is omitted the bundled DeepSeek catalog is queried; pass an explicit source id from market_source_list to search a user-registered catalog. Filter with q (free text), category, and capability. The result is a page of entries, each with the exact npm package name, pinned version, description, capability labels, and the source it came from. Search is read-only: use market_plugin_preview to check a package against the registry, and keep installation on the dsh plugin CLI — do not claim a package was installed.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "sourceId": {
+      "type": "string",
+      "description": "Source id from market_source_list; defaults to the bundled catalog."
+    },
+    "q": {
+      "type": "string",
+      "description": "Free-text search term."
+    },
+    "category": {
+      "type": "string",
+      "description": "Exact category label to filter by."
+    },
+    "capability": {
+      "type": "string",
+      "description": "Exact capability label to filter by."
+    },
+    "limit": {
+      "type": "number",
+      "description": "Maximum entries to return (the source may clamp it)."
+    }
+  }
+}
+```
+
+Source: [`packages/extensions/tool-plugin-market/src/index.ts`](../packages/extensions/tool-plugin-market/src/index.ts)
+
+### `market_source_list`
+
+List every catalog source currently available to the plugin market, including the host-bundled DeepSeek catalog and any user-registered HTTPS catalogs. Each entry shows its stable source id, provider id, display name, whether it is the bundled offline catalog, and the query parameters it accepts. Call this Tool before market_plugin_search when you do not already know a valid source id; a source id is required by search unless you rely on the bundled catalog default.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/extensions/tool-plugin-market/src/index.ts`](../packages/extensions/tool-plugin-market/src/index.ts)
+
+The market toolset reads `ctx.pluginMarket` from `@deepseek-ai/dsh-host-plugin-market`, which always serves a bundled offline catalog (`builtin-deepseek`) from memory and a user-registered HTTPS source through the market's restricted fetch. In the standard preset the tools are visible to every agent session; installation stays an operator action on the `dsh plugin` CLI, never a model call.
 
 <a id="deepseek-aidsh-tool-bash-persistent"></a>
 
@@ -1776,6 +1865,52 @@ Load the full instructions for a skill. Call it before acting on a task that nam
 
 Source: [`packages/skill/tool-skill/src/index.ts`](../packages/skill/tool-skill/src/index.ts)
 
+<a id="deepseek-aidsh-tool-self-evolve"></a>
+
+## `@deepseek-ai/dsh-tool-self-evolve`
+
+### `self_evolve_inspect_patterns`
+
+Read the projected failure-pattern state for the current session. Returned entries are ranked by occurrence count; each cites the durable session seqs of the events that back the pattern. Call this tool before self_evolve_now so you can target real patterns rather than guessing.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/self-evolve/tool-self-evolve/src/index.ts`](../packages/self-evolve/tool-self-evolve/src/index.ts)
+
+### `self_evolve_now`
+
+Initiate one explicit self-evolve loop for the current session: mine the projected failure patterns, propose narrow edits for the requested levels, and commit proposals that pass the provider's validation gate. `levels` defaults to skill and prompt-section edits (L1-skill, L2-context). L3-workflow and L4-harness are accepted for forward compatibility but the base provider produces no proposals for those levels yet.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "levels": {
+      "type": "array",
+      "description": "Edit surfaces this loop may target. Defaults to the two narrowest surfaces. The base provider implements L1-skill and L2-context only; L3-workflow and L4-harness produce no proposals until advanced providers land.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "L1-skill",
+          "L2-context",
+          "L3-workflow",
+          "L4-harness"
+        ]
+      }
+    }
+  }
+}
+```
+
+Source: [`packages/self-evolve/tool-self-evolve/src/index.ts`](../packages/self-evolve/tool-self-evolve/src/index.ts)
+
+Two tools drive the self-evolve seam: `self_evolve_inspect_patterns` reads the session’s projected failure patterns, and `self_evolve_now` starts one explicit loop. The base provider targets L1-skill and L2-context; L3-workflow and L4-harness requests produce no proposals yet.
+
 <a id="deepseek-aidsh-tool-session-query"></a>
 
 ## `@deepseek-ai/dsh-tool-session-query`
@@ -2513,7 +2648,7 @@ All nine tools are scoped to implicit Team Leads and durable teammates. The ship
 
 ### `todo_write`
 
-Record and update a task list to plan multi-step work and show progress; skip it for trivial single-step tasks. Add one todo per concrete step before you start. While work remains, keep the todos being worked on `in_progress`, several only when work runs in parallel. Mark each todo `completed` as soon as it is done.
+Record and update a task list to plan multi-step work and show progress; skip it for trivial single-step tasks. Add one todo per concrete step before you start. While work remains, keep the todos being worked on `in_progress`, several only when work runs in parallel. Mark a todo `completed` the moment it is done (do not batch completions), and allow no `in_progress` item only once all work is complete. Skip the list for trivial single-step tasks. Statuses: `pending` (not started), `in_progress` (being worked on now), `completed` (finished). Optionally attach short `tags` (1-3 lowercase category or component names, e.g. `docs`, `release`) to tasks that belong to a category; omit them when a tag adds nothing.
 
 ```json
 {
@@ -2538,6 +2673,13 @@ Record and update a task list to plan multi-step work and show progress; skip it
               "in_progress",
               "completed"
             ]
+          },
+          "tags": {
+            "type": "array",
+            "description": "Optional short category labels (1-3, lowercase), e.g. [\"docs\"].",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -2556,6 +2698,4377 @@ Record and update a task list to plan multi-step work and show progress; skip it
 Source: [`packages/todo/tool-todo/src/index.ts`](../packages/todo/tool-todo/src/index.ts)
 
 todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task.
+
+<a id="deepseek-aidsh-methodology"></a>
+
+## `@deepseek-ai/dsh-methodology`
+
+### `triz`
+
+- TRIZ inventive problem solving: the 40 inventive principles and the 39x39 Altshuller contradiction matrix
+- Call with no arguments to list all 39 engineering parameters and 40 principles
+- Call with an improving and a worsening parameter number (1-39) to read that matrix cell and its recommended principles
+- Use for technical contradictions, trade-offs, and patent design-around
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "improving": {
+      "type": "integer",
+      "description": "Improving engineering parameter number (1-39). Omit it together with worsening to list the full catalog."
+    },
+    "worsening": {
+      "type": "integer",
+      "description": "Worsening engineering parameter number (1-39). Provide it only together with improving."
+    }
+  }
+}
+```
+
+Source: [`packages/patent/methodology/src/index.ts`](../packages/patent/methodology/src/index.ts)
+
+triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section.
+
+<a id="deepseek-aidsh-tool-literature"></a>
+
+## `@deepseek-ai/dsh-tool-literature`
+
+### `paper_download`
+
+- Downloads one academic paper PDF identified by `db` + `id` (from `paper_search`)
+- Prefers the source's direct PDF link (arXiv extra.pdf / OpenAlex pdf_url / Semantic Scholar openAccessPdf), verified by PDF magic and minimum size
+- When the direct link fails (403/404/HTML shell), falls back to ego opening the record page and extracting the PDF link
+- Saves as `<outputDir>/<id>.pdf` (default `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`)
+
+Usage notes:
+  - Call `paper_search` first to obtain a `db` id and paper `id`
+  - `pdfUrl` overrides the connector-resolved link (diagnostics / manual retry)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "db": {
+      "type": "string",
+      "description": "Database id (from paper_list_sources)"
+    },
+    "id": {
+      "type": "string",
+      "description": "Paper id from a paper_search hit"
+    },
+    "pdfUrl": {
+      "type": "string",
+      "description": "Direct PDF link override (skips connector resolution)"
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "Output directory; default <cwd>/论文原文/YYYY-MM-DD"
+    },
+    "timeoutMs": {
+      "type": "number",
+      "description": "Whole-call timeout (ms); default 60000, max 300000"
+    }
+  },
+  "required": [
+    "db",
+    "id"
+  ]
+}
+```
+
+Source: [`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
+
+### `paper_list_sources`
+
+- Lists the scholarly literature databases available to search via `paper_search`
+- Returns each source's id, name, and description
+- Call this first to discover which `db` id to pass to `paper_search`
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "domain": {
+      "type": "string",
+      "description": "Optional domain filter (currently only 'literature')"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
+
+### `paper_search`
+
+- Searches scholarly literature databases (arXiv, OpenAlex, Semantic Scholar, Crossref) — free, no API key required
+- Pass a `db` id (from `paper_list_sources`) and a `query`
+- Returns normalized hits: id, title, summary, and URL
+- Use for academic papers, preprints, DOI metadata, and research literature
+
+Usage notes:
+  - Call `paper_list_sources` first to discover available `db` ids
+  - Fielded queries are supported by arXiv (e.g. `ti:transformer AND cat:cs.LG`) and OpenAlex
+  - This tool is read-only and does not modify files
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "db": {
+      "type": "string",
+      "description": "Database id to search (from paper_list_sources, e.g. 'arxiv', 'openalex', 'semantic-scholar', 'crossref')"
+    },
+    "query": {
+      "type": "string",
+      "description": "Search query in the database's native syntax. Be specific; arXiv supports fielded syntax like `ti:transformer`."
+    },
+    "limit": {
+      "type": "number",
+      "description": "Max results (1-50, default 10)"
+    }
+  },
+  "required": [
+    "db",
+    "query"
+  ]
+}
+```
+
+Source: [`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
+
+paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid.
+
+<a id="deepseek-aidsh-document-deliver"></a>
+
+## `@deepseek-ai/dsh-document-deliver`
+
+### `document_deliver`
+
+登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。
+
+工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±20% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "description": "本次交付的全部成品文件与格式（至少一个）；path 为工作区相对路径（或绝对路径），如 out/report.html",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "工作区相对路径（或绝对路径）"
+          },
+          "format": {
+            "type": "string",
+            "description": "成品导出格式",
+            "enum": [
+              "markdown",
+              "html",
+              "pdf",
+              "docx",
+              "pptx",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "format"
+        ]
+      }
+    },
+    "gate": {
+      "type": "object",
+      "description": "质量门结果：P0 全过才允许登记",
+      "additionalProperties": false,
+      "properties": {
+        "p0": {
+          "type": "array",
+          "description": "已通过并核验的 P0 自检项（每项一句话）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "p1": {
+          "type": "array",
+          "description": "已满足的 P1 自检项（无则省略）",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "p0"
+      ]
+    },
+    "brief_ref": {
+      "type": "string",
+      "description": "本次交付依据的 brief 文件路径（如 brief.md），可省略"
+    },
+    "style": {
+      "type": "string",
+      "description": "核验所用的书写风格名（如 assistant-neutral、patent-standard）；省略时用本部署配置的默认风格"
+    },
+    "char_budget": {
+      "type": "integer",
+      "description": "全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅"
+    }
+  },
+  "required": [
+    "files",
+    "gate"
+  ]
+}
+```
+
+Source: [`packages/document/document-deliver/src/index.ts`](../packages/document/document-deliver/src/index.ts)
+
+document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge.
+
+<a id="deepseek-aidsh-patent-tools"></a>
+
+## `@deepseek-ai/dsh-patent-tools`
+
+### `add_patent_figure_references`
+
+为已有 SVG 附图追加专利参考标号：按组件文本匹配标注，输出 *_annotated.svg（不改动原图）。默认在匹配文本末尾内嵌「 (标号)」；leader_lines=true 时改用引线模式，标号置于组件外侧并以引线相连（仅 Graphviz/同构节点组 SVG 支持）。用户提供了自绘流程图/框图或已渲染 SVG，需要补标记、与说明书标号对齐时使用。
+
+匹配规则：子串匹配（大小写不敏感）；每个文本元素至多命中一个参考；同名组件出现在多个位置时全部同号标注；未命中的参考列为警告返回。
+
+标号形式：非阿拉伯数字标号（如 S101）按《专利审查指南》第一部分第一章 4.3「附图标记应当使用阿拉伯数字编号」返回警告（照常标注）。
+
+引线模式：标号置于组件轮廓外侧，引线避开图内已绘的边线与箭头，并在越出画布时扩展画布使之完整可见；无可放置位置或缺轮廓时退化为内嵌标号并警告。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "svg_path": {
+      "type": "string",
+      "description": "SVG 图片路径（工作区相对或绝对路径）"
+    },
+    "references": {
+      "type": "array",
+      "description": "参考标号表",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "图内组件文本（子串匹配）"
+          },
+          "numeral": {
+            "type": "string",
+            "description": "参考标号（如 20、101）"
+          }
+        },
+        "required": [
+          "label",
+          "numeral"
+        ]
+      }
+    },
+    "output_filename": {
+      "type": "string",
+      "description": "输出文件名（不含扩展名，默认 <原名>_annotated）"
+    },
+    "leader_lines": {
+      "type": "boolean",
+      "description": "true 时改用引线模式（标号置于组件外侧并以引线相连）；默认 false 内嵌「 (标号)」"
+    }
+  },
+  "required": [
+    "svg_path",
+    "references"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `analyze_patent_figure`
+
+分析专利说明书附图（多模态）：把图片随请求发送给配置的附图模型（imageModel，须声明图片输入），识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文，提升图文对齐准确率。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "image_path": {
+      "type": "string",
+      "description": "附图图片路径（工作区相对或绝对路径，支持 jpg/png/gif/webp）"
+    },
+    "figure_number": {
+      "type": "number",
+      "description": "附图编号（默认 1，用于附图说明「图N」）"
+    },
+    "claim_context": {
+      "type": "string",
+      "description": "权利要求或技术方案文本（图文对齐，可显著提高组件识别准确率）"
+    },
+    "invention_name": {
+      "type": "string",
+      "description": "发明名称（用于附图说明模板，如「一种供热管道电位采集装置」）"
+    }
+  },
+  "required": [
+    "image_path"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `claim_chart_build`
+
+构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "description": "场景模式：infringement=侵权（被控产品，支持 doe）/invalidity=无效/oa-response=审查意见答复/reexamination=复审/patentability=撰写前可专利性",
+      "enum": [
+        "infringement",
+        "invalidity",
+        "oa-response",
+        "reexamination",
+        "patentability"
+      ]
+    },
+    "claim_text": {
+      "type": "string",
+      "description": "权利要求原文（需拆分的权利要求，可含多条）"
+    },
+    "targets": {
+      "type": "array",
+      "description": "映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}。id 原样出现在 pin-cite 里（格式 [文档id 段[xxxx] 图n]，如 [D1 段[0032] 图3]），可含空格如 \"产品 A\"；source_path 指向该目标的文本文件时按段号/逐字引用核对引用，源文无 [xxxx] 段号标记（如 Google Patents 转存文本）时只核对逐字引用。",
+      "items": {}
+    },
+    "case_id": {
+      "type": "string",
+      "description": "案卷 ID（提供时结果落盘 data/cases/<case_id>/outputs/）"
+    },
+    "risk": {
+      "description": "侵权模式的评分事实（可选）：{defenses: (high|medium|low)[], remedyExposureRatio: 0–1, estoppelApplied?, dedicationApplied?, equivalents?: 等同三要素认定记录[]}。不提供时不计算风险等级；评分只用这些可复核事实，工具不接受直接给出的分数或等级。"
+    }
+  },
+  "required": [
+    "mode",
+    "claim_text",
+    "targets"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `draft_claims`
+
+根据技术交底书或技术方案撰写权利要求书草案（机械/电学/化学/软件四领域）。当用户要求撰写权利要求、写权利要求书时使用，避免自行手写权利要求文本。输出独立权利要求 + 从属权利要求 + 形式校验报告。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "invention_name": {
+      "type": "string",
+      "description": "发明名称"
+    },
+    "tech_domain": {
+      "type": "string",
+      "description": "技术领域（为空时自动识别）",
+      "enum": [
+        "mechanical",
+        "electrical",
+        "chemical",
+        "software",
+        "general"
+      ]
+    },
+    "technical_features": {
+      "type": "array",
+      "description": "必要技术特征列表（用于独立权利要求）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "optional_features": {
+      "type": "array",
+      "description": "附加/可选技术特征列表（用于从属权利要求）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prior_art": {
+      "type": "string",
+      "description": "最接近现有技术描述（可选，用于前序部分）"
+    },
+    "max_claims": {
+      "type": "integer",
+      "description": "本次撰写指令给定的权利要求项数上限（可选）。超过上限判 error——指令给定的上限是验收条件，不得以申请附加费起征线为由放宽"
+    }
+  },
+  "required": [
+    "invention_name",
+    "technical_features"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `draft_specification`
+
+根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分）。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "发明名称（不超过 25 字）"
+    },
+    "tech_domain": {
+      "type": "string",
+      "description": "技术领域（为空时自动识别）",
+      "enum": [
+        "mechanical",
+        "electrical",
+        "chemical",
+        "software",
+        "general"
+      ]
+    },
+    "patent_type": {
+      "type": "string",
+      "description": "专利类型：发明或实用新型（默认 invention）",
+      "enum": [
+        "invention",
+        "utility_model"
+      ]
+    },
+    "technical_problem": {
+      "type": "string",
+      "description": "要解决的技术问题（可选）"
+    },
+    "technical_solution": {
+      "type": "string",
+      "description": "技术方案描述（可选）"
+    },
+    "beneficial_effects": {
+      "type": "string",
+      "description": "有益效果（可选）"
+    },
+    "background": {
+      "type": "string",
+      "description": "背景技术/现有技术描述（可选）"
+    },
+    "drawing_descriptions": {
+      "type": "array",
+      "description": "附图说明（可选，如 \"图1为本发明实施例的整体结构示意图\"）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "figure_analysis": {
+      "type": "array",
+      "description": "附图智能分析结果（可选，未提供 drawing_descriptions 时自动生成附图说明）",
+      "items": {}
+    },
+    "embodiments": {
+      "type": "array",
+      "description": "具体实施方式（可选，可多个实施例）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "has_drawings": {
+      "type": "boolean",
+      "description": "是否有附图（实用新型必须有附图）"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `evaluate_evidence`
+
+对专利证据做确定性三性判定（相关性/合法性/真实性）与类型特定检查（电子证据/互联网公开/使用公开四要件/域外证据/公知常识），输出综合评分、举证责任分配与实际适用的证据规则。在 OA 答复、无效宣告论证引用证据前调用，可提前发现证据缺陷。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "snippet": {
+      "type": "string",
+      "description": "待判定证据描述（原文摘录）。"
+    },
+    "sourceUri": {
+      "type": "string",
+      "description": "来源 URI，如 web:https://example.com/page、patent:CN123、file:///path。判定平台可信度与证据类型。"
+    },
+    "docVersion": {
+      "type": "string",
+      "description": "证据日期，如 2023-01-02、2023年1月、20230102、Jan 15, 2023。"
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "内容哈希（真实性/完整性校验）。"
+    },
+    "direction": {
+      "type": "string",
+      "description": "证据方向。",
+      "enum": [
+        "supporting",
+        "contradicting",
+        "neutral"
+      ]
+    },
+    "claimRefs": {
+      "type": "array",
+      "description": "绑定的结论 id 列表。",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidenceType": {
+      "type": "string",
+      "description": "显式证据类型（缺省按 sourceUri 推断）。",
+      "enum": [
+        "general",
+        "foreign_language",
+        "overseas",
+        "electronic",
+        "witness_testimony",
+        "expert_opinion",
+        "common_knowledge",
+        "notarial_certificate",
+        "burden_of_proof",
+        "standard_of_proof",
+        "prior_art_date",
+        "procedural",
+        "internet_publication",
+        "public_use",
+        "design_comparison"
+      ]
+    },
+    "filingDate": {
+      "type": "string",
+      "description": "专利申请日（公开日是否早于申请日）。"
+    },
+    "caseType": {
+      "type": "string",
+      "description": "案件类型：invalidation / infringement / new_product_method。"
+    },
+    "notarized": {
+      "type": "boolean",
+      "description": "域外证据已公证（EVI-011 条件）。"
+    },
+    "legalized": {
+      "type": "boolean",
+      "description": "域外证据已认证（EVI-011 条件）。"
+    },
+    "translated": {
+      "type": "boolean",
+      "description": "外文证据已附中文译本（EVI-011 条件）。"
+    },
+    "witnessDisclosed": {
+      "type": "boolean",
+      "description": "证人利害关系已披露（EVI-012 条件）。"
+    },
+    "isWellKnown": {
+      "type": "boolean",
+      "description": "待证事实为公知常识（EVI-013 条件）。"
+    },
+    "isUncontested": {
+      "type": "boolean",
+      "description": "待证事实无争议（EVI-013 条件）。"
+    },
+    "deadlineDefined": {
+      "type": "boolean",
+      "description": "举证期限已定义（EVI-051 条件）。"
+    },
+    "submissionWithinDeadline": {
+      "type": "boolean",
+      "description": "证据在期限内提交（EVI-051 条件）。"
+    },
+    "collectionLegal": {
+      "type": "boolean",
+      "description": "证据收集主体/程序/形式合法（EVI-002 条件）。"
+    },
+    "supportingCount": {
+      "type": "number",
+      "description": "支持性证据已计数（EVI-030 证明标准条件）。"
+    },
+    "contradictingCount": {
+      "type": "number",
+      "description": "矛盾证据已计数（EVI-030 证明标准条件）。"
+    },
+    "custodyChainTraceable": {
+      "type": "boolean",
+      "description": "证据保管链可追溯（EVI-050 条件）。"
+    },
+    "integrityVerified": {
+      "type": "boolean",
+      "description": "证据完整性已核验（EVI-050 条件）。"
+    }
+  },
+  "required": [
+    "snippet"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `flexible_plan`
+
+Flexible plan for patent cases (stage-level HITL). create: build a plan (optional IPC technical-field inference from the disclosure text). run: execute unconfirmed stages (pending + rolled_back) via the atom registry with LLM + prior-art search, exactly like patent_workflow_run. confirm / rollback: freeze or redo one stage; add / remove / reorder: edit stages at runtime; complete / abandon: finish the plan. Plans persist by caseId across calls (unlike patent_plan_task, which is stateless). confirmed stages are frozen, so confirm fixes the output; autoConfirm=true confirms all successful stages at the end of a run.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Operation: create | get | run | confirm | rollback | add | remove | reorder | complete | abandon.",
+      "enum": [
+        "create",
+        "get",
+        "run",
+        "confirm",
+        "rollback",
+        "add",
+        "remove",
+        "reorder",
+        "complete",
+        "abandon"
+      ]
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Plan key (required for every operation; persists by this id)."
+    },
+    "caseType": {
+      "type": "string",
+      "description": "Orchestration type, e.g. invalidation / infringement / drafting (create)."
+    },
+    "inputText": {
+      "type": "string",
+      "description": "Case input text (create persists it for later runs; run can override it)."
+    },
+    "technicalField": {
+      "type": "string",
+      "description": "Explicit technical field (create; else inferred from inputText)."
+    },
+    "stages": {
+      "type": "array",
+      "description": "Stage definitions (create).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "chain",
+              "react",
+              "sub_agent"
+            ]
+          },
+          "atom": {
+            "type": "string",
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
+          },
+          "params": {
+            "type": "object",
+            "description": "Static params passed to the stage handler.",
+            "additionalProperties": true
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraintIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "articleJudgments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "goal",
+          "strategy"
+        ]
+      }
+    },
+    "stage": {
+      "type": "object",
+      "description": "Single stage definition (add).",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "chain",
+            "react",
+            "sub_agent"
+          ]
+        },
+        "atom": {
+          "type": "string",
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
+        },
+        "params": {
+          "type": "object",
+          "description": "Static params passed to the stage handler.",
+          "additionalProperties": true
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraintIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "articleJudgments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "goal",
+        "strategy"
+      ]
+    },
+    "stageId": {
+      "type": "string",
+      "description": "Target stage id (confirm / rollback / remove)."
+    },
+    "stageIds": {
+      "type": "array",
+      "description": "New stage order (reorder, must include all ids).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reason": {
+      "type": "string",
+      "description": "Abandon reason, kept for audit (abandon)."
+    },
+    "maxResults": {
+      "type": "number",
+      "description": "Max prior-art search results for run (default 5)."
+    },
+    "autoConfirm": {
+      "type": "boolean",
+      "description": "When true, run confirms all successful (non-degraded) stages at the end."
+    }
+  },
+  "required": [
+    "action",
+    "caseId"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `generate_patent_figure`
+
+生成专利风格附图：流程图（方法步骤）、状态图（状态+转移条件）、系统框图（组件+连接）、组件层级图，以及直接绘制 SVG 的电路图、曲线图/坐标图、剖视图（含剖面线与剖切符号）、时序图、外观设计六面视图排布；另有内置模板与原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。
+
+标号体系：每图独立 100 系列（FIG.1=100-199、FIG.2=200-299，默认步进 2，可调）；同一组件跨图出现时用 numerals 显式传入沿用同号，或声明 figure_family 自动续号（同名组件沿用既有标号、新组件取空闲号；缺省每图独立编号）。
+
+图型推断：figure_type 缺省时从唯一结构输入推断（steps→流程图、states→状态图、blocks→框图、tree→层级图、dot→原始 DOT、template→模板）；同时提供多个结构输入或全空时须显式指定 figure_type。
+
+多面板：panels 一次生成 FIG.1A/1B 等多张面板（每面板独立文件 figN+后缀，如 A → fig1A.svg），全部面板组件共享一条连续标号系列，附图说明合并输出。
+
+色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用黑色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用；target_office="pct" 时 semantic 被拒绝（PCT 实施细则 11.13(a) 规定附图不得着色）。
+
+输出格式：默认 svg。png/pdf 在需要落版（给了 target_office）时走「先出 SVG → 落版 → 渲染复核 → 文字转路径 → 用本机 Inkscape 导出」的全链，故落版、复核与引线标号对它们同样生效；本机没有 Inkscape 时退回渲染器直接出图，并给出「落版与复核未生效」的警告。直绘图型（电路/曲线/剖视/时序/外观）只有 SVG 一条绘图通路，导出 png/pdf 同样需要 Inkscape。含中文的图导出 pdf 时要先开启文字转路径（Config.figureTextToPath）——Inkscape 对个别未转路径的中文字形会写出缺 xref 的不完整 PDF，工具检出后按导出失败处理，不交出半成品。
+
+落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。fit_to_page=false 时只核算尺寸、不改写画布。
+
+引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
+
+剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
+
+CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_path（STEP/IGES/BREP）与剖切平面 plane（origin 平面内一点、normal 法向、可选 reference 图面「向右」基准）即由本机 FreeCAD 切出闭合轮廓与剖面线；返回的提示里给出切出的材料区域清单（净面积与图面范围），parts 仍按区域逐个给 label、hatch 与 stroke_width_mm，并用 anchor（落在该区域内的一个图面坐标点）把它与区域对上——区域顺序由 OCCT 决定，不能用序号对。剖面线由模型按区域（含孔）精确裁出，孔里不会被打上；source.scale 缩放图面（默认 1），labels/centerlines/cutting_marks 请给同一比例下的图面坐标。给 part_size_mm 会与模型包围盒比对，不符即报错（挡住模型单位读错导致的整体比例错误）。需要本机安装 FreeCAD 1.1+。
+
+图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。
+
+本机未安装 Graphviz 时返回 setup_required 与安装引导。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "figure_type": {
+      "type": "string",
+      "description": "图型；缺省时从唯一结构输入推断（steps→flowchart、states→state_diagram、blocks→block_diagram、tree→component_hierarchy、circuit/plot/sections/sequence/appearance_views→同名图型、dot→raw_dot、template→template），多输入或无输入须显式指定",
+      "enum": [
+        "flowchart",
+        "state_diagram",
+        "block_diagram",
+        "component_hierarchy",
+        "circuit",
+        "plot",
+        "cross_section",
+        "sequence_diagram",
+        "appearance_view",
+        "raw_dot",
+        "template"
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "description": "流程图步骤（figure_type=flowchart 时必填）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "步骤标识（[A-Za-z0-9_-]，自动清洗）"
+          },
+          "label": {
+            "type": "string",
+            "description": "步骤显示文本"
+          },
+          "shape": {
+            "type": "string",
+            "description": "box（默认）/ellipse/diamond/parallelogram/cylinder",
+            "enum": [
+              "box",
+              "ellipse",
+              "diamond",
+              "parallelogram",
+              "cylinder"
+            ]
+          },
+          "next": {
+            "type": "array",
+            "description": "后继：字符串 id，或 {id,label}（判断分支必须带边标签）",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "next"
+        ]
+      }
+    },
+    "states": {
+      "type": "array",
+      "description": "状态图状态（figure_type=state_diagram 时必填）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "状态标识（[A-Za-z0-9_-]，自动清洗）"
+          },
+          "label": {
+            "type": "string",
+            "description": "状态名（initial 伪状态填空串）"
+          },
+          "kind": {
+            "type": "string",
+            "description": "normal（默认，圆角框）/initial（实心小圆，无标号）/final（双圆框）",
+            "enum": [
+              "normal",
+              "initial",
+              "final"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "description": "状态转移（state_diagram；端点必须存在于 states）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "转移条件（简短词语，可选）"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    "circuit": {
+      "type": "object",
+      "description": "电路图输入（figure_type=circuit 时必填）：元件按网格行列放置，连线正交走线，T 形结点画实心连接点",
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "description": "电气符号种类",
+                "enum": [
+                  "resistor",
+                  "capacitor",
+                  "inductor",
+                  "diode",
+                  "battery",
+                  "ground",
+                  "switch",
+                  "lamp",
+                  "npn_transistor",
+                  "voltage_source"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "元件名（简短词）"
+              },
+              "col": {
+                "type": "integer",
+                "description": "网格列（0 起）"
+              },
+              "row": {
+                "type": "integer",
+                "description": "网格行（0 起）"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "col",
+              "row"
+            ]
+          }
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          }
+        },
+        "cell_width_mm": {
+          "type": "number",
+          "description": "单元格宽（毫米），默认 18"
+        },
+        "cell_height_mm": {
+          "type": "number",
+          "description": "单元格高（毫米），默认 14"
+        }
+      },
+      "required": [
+        "components",
+        "connections"
+      ]
+    },
+    "plot": {
+      "type": "object",
+      "description": "曲线图/坐标图输入（figure_type=plot 时必填）：坐标轴 + 刻度 + 单位 + 多条序列（用标记形状区分，不用颜色）",
+      "additionalProperties": false,
+      "properties": {
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "marker": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "circle",
+                  "square",
+                  "triangle"
+                ]
+              }
+            },
+            "required": [
+              "points"
+            ]
+          }
+        },
+        "x_label": {
+          "type": "string"
+        },
+        "y_label": {
+          "type": "string"
+        },
+        "x_unit": {
+          "type": "string"
+        },
+        "y_unit": {
+          "type": "string"
+        },
+        "x_range": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "y_range": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "tick_count": {
+          "type": "integer",
+          "description": "每轴刻度数（2..11），默认 5"
+        },
+        "show_grid": {
+          "type": "boolean",
+          "description": "是否画网格线，默认 false"
+        },
+        "width_mm": {
+          "type": "number",
+          "description": "画布宽（毫米），默认 120"
+        },
+        "height_mm": {
+          "type": "number",
+          "description": "画布高（毫米），默认 80"
+        }
+      },
+      "required": [
+        "series",
+        "x_label",
+        "y_label"
+      ]
+    },
+    "sections": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outline": {
+              "type": "array",
+              "description": "外轮廓顶点对数组（[[x,y],…]）",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            },
+            "parts": {
+              "type": "array",
+              "description": "被剖切零件轮廓（同一零件的多个轮廓各给一段）",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "零件名（数字落在轮廓包围盒右上角之外，自轮廓重心引细实线相连；同一零件由多个轮廓拼成时不要用本字段，用 labels 指定唯一标号落点）"
+                  },
+                  "outline": {
+                    "type": "array",
+                    "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）；给了 source 时不要给本字段（轮廓由模型切出）",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "anchor": {
+                    "type": "array",
+                    "description": "落在本零件所属材料区域内的图面坐标点（毫米，已含 scale）：给 source 时必填，用它把本项与模型切出的材料区域对上（区域顺序由 OCCT 决定，不能按序号对）",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "hatch": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "angle_deg": {
+                            "type": "number",
+                            "description": "剖面线倾角（度），默认 45"
+                          },
+                          "spacing_mm": {
+                            "type": "number",
+                            "description": "剖面线间距（毫米），默认 3"
+                          },
+                          "direction": {
+                            "type": "string",
+                            "description": "相邻零件取相反方向或不同间距以区分",
+                            "enum": [
+                              "forward",
+                              "backward"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "none"
+                        ]
+                      }
+                    ],
+                    "description": "剖面线参数；\"none\" 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。缺省按 45°/3mm 打剖面线"
+                  },
+                  "stroke_width_mm": {
+                    "type": "number",
+                    "description": "该零件轮廓的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4）；缺省用顶层 stroke_width_mm"
+                  }
+                }
+              }
+            },
+            "source": {
+              "type": "object",
+              "description": "剖切来源：从 CAD 模型切出零件轮廓（含孔）与剖面线，代替手写坐标；给出时 parts 只给 label、hatch、stroke_width_mm 与 anchor，不要给 outline",
+              "additionalProperties": false,
+              "properties": {
+                "model_path": {
+                  "type": "string",
+                  "description": "模型文件路径（STEP/IGES/BREP），工作区相对或绝对"
+                },
+                "plane": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "origin": {
+                      "type": "array",
+                      "description": "剖切平面上的一点（毫米，模型坐标）",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "normal": {
+                      "type": "array",
+                      "description": "剖切平面法向（任意非零长度，模型坐标）；观察者位于法向正侧，沿 −normal 方向看剖切面",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reference": {
+                      "type": "array",
+                      "description": "图面「向右」参考方向（任意非零、与法向不平行）；缺省按 +X → +Y → +Z 取第一个可用轴。它决定视图绕法向的旋转，要复现同一张图就显式给出",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "required": [
+                    "origin",
+                    "normal"
+                  ]
+                },
+                "scale": {
+                  "type": "number",
+                  "description": "图面比例（默认 1）：切出的轮廓与剖面线坐标乘以它；labels/centerlines/cutting_marks 请按同一比例给图面坐标"
+                },
+                "part_size_mm": {
+                  "type": "array",
+                  "description": "零件整体尺寸（毫米，三个数，顺序无关）：与模型包围盒比对，不符即报错。STEP/IGES/BREP 的单位声明不一致会让图面比例整体错，给出它才能挡住（不核对就画出一张比例错的图）",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "model_path",
+                "plane"
+              ]
+            },
+            "labels": {
+              "type": "array",
+              "description": "引线标号：数字置于零件轮廓之外并以引线相连（一个零件由多个轮廓拼成时用本字段，避免每个轮廓各画一处标号）",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "标号文本（阿拉伯数字）"
+                  },
+                  "at": {
+                    "type": "array",
+                    "description": "数字视觉中心落点（毫米），应在零件轮廓之外",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "from": {
+                    "type": "array",
+                    "description": "引线起点：零件上的指称点（毫米）；给出时自该点画细实线到数字外框，数字不被线条贯穿",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": [
+                  "text",
+                  "at",
+                  "from"
+                ]
+              }
+            },
+            "centerlines": {
+              "type": "array",
+              "description": "中心线（细点划线）：轴类零件的轴线；不要用细长多边形伪造",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              }
+            },
+            "cutting_marks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "剖切标记字母（如 A）"
+                  },
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "arrow": {
+                    "type": "string",
+                    "description": "投射方向",
+                    "enum": [
+                      "left",
+                      "right",
+                      "up",
+                      "down"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "from",
+                  "to",
+                  "arrow"
+                ]
+              }
+            },
+            "label_font_size_mm": {
+              "type": "number",
+              "description": "图面字号（毫米），默认 3.5；附图标记与剖切字母同用"
+            },
+            "stroke_width_mm": {
+              "type": "number",
+              "description": "轮廓与剖切位置线的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4），默认 0.5"
+            },
+            "thin_stroke_width_mm": {
+              "type": "number",
+              "description": "剖面线、中心线与引线的细实线线宽（毫米），不小于 0.18，默认 0.25"
+            },
+            "padding_mm": {
+              "type": "number",
+              "description": "画布留白（毫米），默认 4"
+            }
+          },
+          "required": [
+            "parts"
+          ]
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联。复杂件用 sections.source 从 CAD 模型（STEP/IGES/BREP）切出轮廓与剖面线，parts 只给 label/hatch/anchor"
+    },
+    "sequence": {
+      "type": "object",
+      "description": "时序图输入（figure_type=sequence_diagram 时必填）：参与者生命线 + 消息箭线",
+      "additionalProperties": false,
+      "properties": {
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ]
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "description": "默认 sync",
+                "enum": [
+                  "sync",
+                  "return",
+                  "async"
+                ]
+              },
+              "activate": {
+                "type": "boolean",
+                "description": "是否在目标生命线上画激活条，默认 false"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "label"
+            ]
+          }
+        },
+        "box_width_mm": {
+          "type": "number",
+          "description": "参与者盒宽（毫米），默认 30"
+        },
+        "message_spacing_mm": {
+          "type": "number",
+          "description": "消息垂直间距（毫米），默认 10"
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 5"
+        }
+      },
+      "required": [
+        "participants",
+        "messages"
+      ]
+    },
+    "appearance_views": {
+      "type": "object",
+      "description": "外观设计视图排布输入（figure_type=appearance_view 时必填）：把调用方提供的六面视图片段按第一角投影排布并统一比例、逐视图标注视图名称",
+      "additionalProperties": false,
+      "properties": {
+        "views": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "视图名（六面正投影视图）",
+                "enum": [
+                  "主视图",
+                  "后视图",
+                  "左视图",
+                  "右视图",
+                  "俯视图",
+                  "仰视图"
+                ]
+              },
+              "body": {
+                "type": "string",
+                "description": "调用方提供的视图片段（毫米坐标 SVG 片段）"
+              },
+              "width_mm": {
+                "type": "number"
+              },
+              "height_mm": {
+                "type": "number"
+              },
+              "note": {
+                "type": "string",
+                "description": "备注（写入结果 warnings，不落图面；如省略视图的原因）"
+              }
+            },
+            "required": [
+              "name",
+              "body",
+              "width_mm",
+              "height_mm"
+            ]
+          }
+        },
+        "extras": {
+          "type": "array",
+          "description": "额外单元格（立体图/使用状态参考图）",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "width_mm": {
+                "type": "number"
+              },
+              "height_mm": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "name",
+              "body",
+              "width_mm",
+              "height_mm"
+            ]
+          }
+        },
+        "cell_mm": {
+          "type": "number",
+          "description": "单元格最大边长（毫米），默认 60"
+        },
+        "caption_gap_mm": {
+          "type": "number",
+          "description": "视图名与图形的间距（毫米），默认 3"
+        },
+        "caption_font_mm": {
+          "type": "number",
+          "description": "视图名字高（毫米），默认 3.5"
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 8"
+        },
+        "first_angle": {
+          "type": "boolean",
+          "description": "默认 true：按中国第一角投影排布；false 为第三角"
+        }
+      },
+      "required": [
+        "views"
+      ]
+    },
+    "blocks": {
+      "type": "array",
+      "description": "框图块（figure_type=block_diagram 时必填）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "块名（\\n 换行）"
+          },
+          "type": {
+            "type": "string",
+            "description": "input/output/process/storage/decision/default",
+            "enum": [
+              "input",
+              "output",
+              "process",
+              "storage",
+              "decision",
+              "default"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "connections": {
+      "type": "array",
+      "description": "框图连接（block_diagram）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "数据流说明（可选）"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    "tree": {
+      "type": "array",
+      "description": "组件层级树（component_hierarchy，任意深度）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "template": {
+      "type": "string",
+      "description": "内置模板（figure_type=template 时必填）：simple_flowchart/system_block/method_steps/component_hierarchy",
+      "enum": [
+        "simple_flowchart",
+        "system_block",
+        "method_steps",
+        "component_hierarchy"
+      ]
+    },
+    "dot": {
+      "type": "string",
+      "description": "原始 Graphviz DOT（figure_type=raw_dot）；须自包含：不接受 image/shapefile/fontpath 等文件引用属性"
+    },
+    "panels": {
+      "type": "array",
+      "description": "多面板模式：一次生成多张共享标号系列的面板（fig1A/fig1B…）；与顶层结构输入互斥，列表不可为空",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "suffix": {
+            "type": "string",
+            "description": "面板后缀（字母/数字/下划线/连字符；写入 figN+后缀，如 A → fig1A.svg）"
+          },
+          "figure_type": {
+            "type": "string",
+            "description": "面板图型；缺省从该面板唯一结构输入推断",
+            "enum": [
+              "flowchart",
+              "state_diagram",
+              "block_diagram",
+              "component_hierarchy",
+              "raw_dot",
+              "template"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "description": "面板流程步骤",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "步骤标识（[A-Za-z0-9_-]，自动清洗）"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "步骤显示文本"
+                },
+                "shape": {
+                  "type": "string",
+                  "description": "box（默认）/ellipse/diamond/parallelogram/cylinder",
+                  "enum": [
+                    "box",
+                    "ellipse",
+                    "diamond",
+                    "parallelogram",
+                    "cylinder"
+                  ]
+                },
+                "next": {
+                  "type": "array",
+                  "description": "后继：字符串 id，或 {id,label}（判断分支必须带边标签）",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "next"
+              ]
+            }
+          },
+          "states": {
+            "type": "array",
+            "description": "面板状态图状态",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "状态标识（[A-Za-z0-9_-]，自动清洗）"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "状态名（initial 伪状态填空串）"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "normal（默认，圆角框）/initial（实心小圆，无标号）/final（双圆框）",
+                  "enum": [
+                    "normal",
+                    "initial",
+                    "final"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "description": "面板状态转移",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "转移条件（简短词语，可选）"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "description": "面板框图块",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "块名（\\n 换行）"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "input/output/process/storage/decision/default",
+                  "enum": [
+                    "input",
+                    "output",
+                    "process",
+                    "storage",
+                    "decision",
+                    "default"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "connections": {
+            "type": "array",
+            "description": "面板框图连接（blocks 面板）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "数据流说明（可选）"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            }
+          },
+          "tree": {
+            "type": "array",
+            "description": "面板组件层级树",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "template": {
+            "type": "string",
+            "description": "面板内置模板",
+            "enum": [
+              "simple_flowchart",
+              "system_block",
+              "method_steps",
+              "component_hierarchy"
+            ]
+          },
+          "dot": {
+            "type": "string",
+            "description": "面板原始 DOT（须自包含：不接受 image/shapefile/fontpath 等文件引用属性）"
+          },
+          "numerals": {
+            "type": "object",
+            "description": "面板显式标号（组件 id → 标号；标号可为字符串或数字，其他类型会被拒绝；优先于顶层 numerals）",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "suffix"
+        ]
+      }
+    },
+    "figure_number": {
+      "type": "integer",
+      "description": "图号，默认 1（决定标号系列起点）"
+    },
+    "invention_name": {
+      "type": "string",
+      "description": "发明名称（附图说明模板句）"
+    },
+    "numerals": {
+      "type": "object",
+      "description": "显式标号（组件 id → 标号；标号可为字符串或数字，其他类型会被拒绝；跨图同件同号续接）",
+      "additionalProperties": true
+    },
+    "numeral_start": {
+      "type": "integer",
+      "description": "自动标号系列起点覆盖"
+    },
+    "numeral_step": {
+      "type": "integer",
+      "description": "标号步进，默认 2"
+    },
+    "figure_family": {
+      "type": "string",
+      "description": "发明家族标识（跨图续号）：声明后同名组件沿用既有标号、新组件续接空闲号；缺省每图独立编号"
+    },
+    "style": {
+      "type": "string",
+      "description": "色彩策略，默认 grayscale",
+      "enum": [
+        "grayscale",
+        "semantic"
+      ]
+    },
+    "filename": {
+      "type": "string",
+      "description": "输出文件名（不含扩展名）"
+    },
+    "format": {
+      "type": "string",
+      "description": "输出格式，默认 svg；png/pdf 在给定 target_office（或图型只有 SVG 通路）时经本机 Inkscape 从 SVG 全链导出，缺 Inkscape 时退回渲染器直接出图",
+      "enum": [
+        "svg",
+        "png",
+        "pdf"
+      ]
+    },
+    "engine": {
+      "type": "string",
+      "description": "布局引擎，默认 dot",
+      "enum": [
+        "dot",
+        "neato",
+        "fdp",
+        "circo",
+        "twopi",
+        "sfdp"
+      ]
+    },
+    "page_size": {
+      "type": "string",
+      "description": "页面尺寸（提交规格）；默认取部署配置",
+      "enum": [
+        "a4",
+        "letter"
+      ]
+    },
+    "orient": {
+      "type": "string",
+      "description": "页面方向；默认 portrait，取部署配置",
+      "enum": [
+        "portrait",
+        "landscape"
+      ]
+    },
+    "dpi": {
+      "type": "integer",
+      "description": "渲染分辨率（png 栅格生效）；默认取部署配置"
+    },
+    "margin": {
+      "type": "number",
+      "description": "页边距（厘米，四边同值）；默认取部署配置"
+    },
+    "leader_lines": {
+      "type": "boolean",
+      "description": "引线标号（数字置于部件外侧并以引线相连，仅 SVG 生效）；默认框图/层级图开启、流程图关闭"
+    },
+    "target_office": {
+      "type": "string",
+      "description": "目标法域：给定时按该法域的 A4 幅面、页边距、图号写法（图1/Fig. 1/FIG. 1）把图形落版为固定幅面附图页，并核算落版字高与色彩合规；png/pdf 需经 Inkscape 全链导出才会落版",
+      "enum": [
+        "cnipa",
+        "pct",
+        "uspto"
+      ]
+    },
+    "figure_count": {
+      "type": "integer",
+      "description": "本案附图总数（默认 1）：两幅以上才逐幅标注图号（中国指南 4.3、PCT 11.13(k)、37 CFR 1.84(u)）"
+    },
+    "sheet_index": {
+      "type": "integer",
+      "description": "附图页序号，默认 1"
+    },
+    "sheet_total": {
+      "type": "integer",
+      "description": "附图页总数，默认 1（PCT/USPTO 页码写作「序号/总数」）"
+    },
+    "caption": {
+      "type": "string",
+      "description": "图号文字覆盖（缺省按目标法域生成；panels 模式自动追加面板后缀，如 图1A / Fig. 1A）"
+    },
+    "fit_to_page": {
+      "type": "boolean",
+      "description": "默认 true：把图形落版到目标法域幅面（SVG，或经 Inkscape 全链导出的 png/pdf）；false 时只核算尺寸、不改写画布"
+    },
+    "caption_font_mm": {
+      "type": "number",
+      "description": "图号字高（毫米，默认 4）；目标法域对图面文字有最小字高要求时用它调大，须为正数"
+    },
+    "caption_gap_mm": {
+      "type": "number",
+      "description": "图号与图形之间的间距（毫米，默认 3），须为正数"
+    },
+    "sheet_font_mm": {
+      "type": "number",
+      "description": "附图页页码字高（毫米，默认 3），须为正数"
+    },
+    "rotate_deg": {
+      "type": "integer",
+      "description": "落版时把图形绕绘图区中心顺时针旋转的角度（默认 0）：横长的图形配竖向版心时用 90，落版宽高随之互换；图号仍落在图形正下方",
+      "enum": [
+        0,
+        90,
+        180,
+        270
+      ]
+    },
+    "require_explicit_hatch": {
+      "type": "boolean",
+      "description": "剖视图（cross_section）专用，默认 false：true 时每个轮廓都必须显式给出 hatch（不被剖切的写 \"none\"），否则报错；缺省时未给的轮廓套用默认 45°/3 毫米并返回提示"
+    },
+    "require_cutting_marks": {
+      "type": "boolean",
+      "description": "剖视图（cross_section）专用，默认 false：true 时必须有剖切位置符号（sections.cutting_marks：剖切标记字母 + 剖切位置线 + 投射方向），否则报错；缺省时未给只作提示返回（剖切平面与对称面重合且视图在标准位置时可省略，GB/T 4458.6）"
+    },
+    "persist_index": {
+      "type": "boolean",
+      "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `generate_structure_figure`
+
+从 3D 模型生成专利结构线稿附图：用本机 FreeCAD（TechDraw）把 STEP/IGES/BREP 投影为多视图黑白线稿 SVG（等轴测/三视图等），件号以引线锚定到真实顶点投影，输出到工作区 patent/figures/，返回标号映射表与「图N是…的结构示意图」附图说明。需要机械结构真实投影（而非示意框图）时使用。
+
+默认关闭：结构线稿依赖本机 FreeCAD，需先设 Config.structureFigureEnabled=true；未开启或未安装 freecadcmd 时返回 setup_required 与配置/安装引导。
+
+视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（细实线，FreeCAD 1.1.3 实测隐藏线 0.35 毫米、可见线 0.7 毫米，输出不含 stroke-dasharray，不是虚线）。
+
+线宽与线型：line_width_mm 取 GB/T 4457.4 线宽系列之一改写可见线线宽，hidden_line_style="dashed" 把隐藏线画成虚线；缺省两者都不改写，输出与 FreeCAD 原始投影一致。
+
+件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?, model?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
+
+装配体：model_paths 传多个模型文件时，所有零件投影到同一张图（TechDraw 一次投影处理零件之间的遮挡），callouts[].model 指明该件号属于第几个零件（0 起，对应 model_paths 的顺序），脚本按该零件的真实几何核对锚点确实落在它上面，偏离超过 0.5 毫米即报错；装配体下每个件号都必须写明归属，以免标号指错零件。
+
+局部放大：details 传 [{base, center:[x,y,z], radius_mm, scale?, reference?}]，把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的圆形区域按 scale（缺省 2）放大成一张独立视图（fig{N}_detail{M}.svg），并在 base 视图上画出该窗口的圆与标号。窗口按模型坐标给出，故与视图朝向、投影比例无关；base 必须是本次 views 里的视图，放大视图随 paths/manifest 一并返回（manifest 里该视图带 kind="detail" 与 base/center3d/radiusMm/scale/reference）。
+
+批量：model_path 传目录时，对目录内每个受支持模型各出一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效），多个零件要合成一张图时改用 model_paths。
+
+产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "model_path": {
+      "type": "string",
+      "description": "模型文件路径（STEP/IGES/BREP），或其目录（批量：目录内每个受支持模型各出一图）；与 model_paths 二选一"
+    },
+    "model_paths": {
+      "type": "array",
+      "description": "装配体：多个模型文件一起投影成一张图（每个文件一个零件）；与 model_path 二选一",
+      "items": {
+        "type": "string"
+      }
+    },
+    "views": {
+      "type": "array",
+      "description": "请求视图，缺省 iso/front/top/right",
+      "items": {
+        "type": "string",
+        "enum": [
+          "iso",
+          "front",
+          "rear",
+          "top",
+          "bottom",
+          "left",
+          "right"
+        ]
+      }
+    },
+    "scale": {
+      "type": "number",
+      "description": "TechDraw 投影比例（正数）；缺省取部署配置或 1"
+    },
+    "show_hidden": {
+      "type": "boolean",
+      "description": "绘制隐藏线（细实线，实测 0.35 毫米；不是虚线），默认 false"
+    },
+    "line_width_mm": {
+      "type": "number",
+      "description": "可见线线宽（毫米），须取 GB/T 4457.4 线宽系列之一；缺省保持 FreeCAD 输出的 0.7 毫米档",
+      "enum": [
+        0.13,
+        0.18,
+        0.25,
+        0.35,
+        0.5,
+        0.7,
+        1,
+        1.4,
+        2
+      ]
+    },
+    "hidden_line_style": {
+      "type": "string",
+      "description": "隐藏线线型，默认 solid（FreeCAD 原始细实线）；dashed 时按线宽加 stroke-dasharray 画成虚线",
+      "enum": [
+        "solid",
+        "dashed"
+      ]
+    },
+    "callouts": {
+      "type": "array",
+      "description": "件号锚定 [{numeral, point3d:[x,y,z], label?, model?}]；model 为所属零件下标，装配体下必填；目录批量不支持",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "numeral": {
+            "type": "string",
+            "description": "参考标号（阿拉伯数字字符串）"
+          },
+          "point3d": {
+            "type": "array",
+            "description": "锚定的模型 3D 坐标 [x,y,z]（毫米，与模型单位一致）",
+            "items": {
+              "type": "number"
+            }
+          },
+          "label": {
+            "type": "string",
+            "description": "可选部件名称（写入标号表/manifest，不进图面像素）"
+          },
+          "model": {
+            "type": "integer",
+            "description": "该件号所属零件在输入模型列表中的下标（0 起）；给定时核对锚点确实落在该零件上（偏离超过 0.5 毫米即报错）。装配体（model_paths）下必填"
+          }
+        },
+        "required": [
+          "numeral",
+          "point3d"
+        ]
+      }
+    },
+    "details": {
+      "type": "array",
+      "description": "局部放大视图 [{base, center:[x,y,z], radius_mm, scale?, reference?}]：把 base 视图上以模型坐标 center 为圆心、radius_mm 为半径的区域放大成独立视图；目录批量不支持",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "base": {
+            "type": "string",
+            "description": "窗口所在的基视图，必须是本次 views 里的视图",
+            "enum": [
+              "iso",
+              "front",
+              "rear",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ]
+          },
+          "center": {
+            "type": "array",
+            "description": "窗口圆心的模型 3D 坐标 [x,y,z]（毫米，与模型单位一致）",
+            "items": {
+              "type": "number"
+            }
+          },
+          "radius_mm": {
+            "type": "number",
+            "description": "窗口半径（模型毫米），必须为正"
+          },
+          "scale": {
+            "type": "number",
+            "description": "放大倍数（正数），缺省 2"
+          },
+          "reference": {
+            "type": "string",
+            "description": "窗口标号（如「Ⅰ」），缺省该细节的序号"
+          }
+        },
+        "required": [
+          "base",
+          "center",
+          "radius_mm"
+        ]
+      }
+    },
+    "figure_number": {
+      "type": "integer",
+      "description": "图号（正整数），默认 1（批量时作为起始图号）"
+    },
+    "invention_name": {
+      "type": "string",
+      "description": "发明名称（附图说明模板句）"
+    },
+    "target_office": {
+      "type": "string",
+      "description": "目标法域：给定时把每个视图 SVG 落版到该法域的 A4 幅面与页边距，并返回落版尺寸（仅 SVG 产物生效）",
+      "enum": [
+        "cnipa",
+        "pct",
+        "uspto"
+      ]
+    },
+    "sheet_index": {
+      "type": "integer",
+      "description": "附图页序号，默认 1"
+    },
+    "sheet_total": {
+      "type": "integer",
+      "description": "附图页总数，默认 1"
+    },
+    "caption": {
+      "type": "string",
+      "description": "图号文字（如「图1」）；缺省不落图号——多视图如何编号由调用方按整案附图顺序决定"
+    },
+    "fit_to_page": {
+      "type": "boolean",
+      "description": "默认 true：落版到目标法域幅面；false 时只核算尺寸"
+    },
+    "persist_index": {
+      "type": "boolean",
+      "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `knowledge_note_save`
+
+把项目专利产出（OA 答复要点、无效分析结论、检索心得）沉淀为知识笔记，后续检索可召回。用于定稿后建议沉淀：如 knowledge_note_save({title, content, project})。同一内容重复保存会自动跳过（幂等）。
+
+注意：dsh 的知识库写 API（knowledge.db personal_note 层）尚未接入，当前落为案卷目录下的笔记文件。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "笔记标题（≤200 字符，作为检索索引词）"
+    },
+    "content": {
+      "type": "string",
+      "description": "笔记正文（≤20,000 字符）"
+    },
+    "project": {
+      "type": "string",
+      "description": "来源项目标签（可选，参与幂等与检索过滤）"
+    }
+  },
+  "required": [
+    "title",
+    "content"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `law_search`
+
+检索部署的外接 IP 知识库（knowledge.db 全文索引）里的规范原文：scope=law 取法律法规条文，scope=guideline 取《专利审查指南》全文。 这是**规则**的检索通道：`law_verify` 只按随包索引判定引用形式与是否转录（指南条文未转录时判「未核验」），指南条文要在这里取原文并把 sourcePath（语料内路径）记为引文来源；判例全文另有 patent_case_search。 命中为空不得下任何结论；引用格式：`<名称>` + `<条号/节号>` + `<sourcePath>`。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（如 说明书 附图标记、有益效果、计算机程序 技术方案）"
+    },
+    "scope": {
+      "type": "string",
+      "description": "语料范围：law=法律法规条文（缺省），guideline=《专利审查指南》全文",
+      "enum": [
+        "law",
+        "guideline"
+      ]
+    },
+    "level": {
+      "type": "string",
+      "description": "法律层级过滤（法律/行政法规/司法解释/部门规章…），对法规条文生效"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    },
+    "include_content": {
+      "type": "boolean",
+      "description": "是否附命中片段（默认 true，截断约 800 字）"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `parse_office_action`
+
+确定性解析审查意见通知书（不调用模型）：识别驳回类型（专利法 22.2 新颖性、22.3 创造性、26.3 公开不充分、26.4 不清楚或不支持、33 条修改超范围、形式缺陷；未识别到具体条款时为 other）、引用文献与相关性类别（X/Y/A/E/P，本文书自身号码不计）、涉及的权利要求（权利要求1至3 与 第1-5项 两类区间展开为逐个编号）、审查员论点。用于答复前先拿到结构化事实：先按主驳回类型定答复主策略，再逐条处理。输出只反映通知书原文的措辞，不判断驳回是否成立，也不起草答复。文献未标注相关性类别时不推断类别。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "审查意见通知书正文（含驳回条款与引用文献的原文）。"
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_analysis_report`
+
+生成标准化的专利分析报告：从权利要求抽取技术特征（类型/重要性），进行 IPC 分类，给出清晰度与完整性等确定性评分，并结合 LLM 对新颖性与技术强度补分，输出创新性洞察与专家考量。适合在评估提案、对比现有技术或提交人工复核前生成结构化分析基线。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patent_id": {
+      "type": "string",
+      "description": "专利号（可选）"
+    },
+    "title": {
+      "type": "string",
+      "description": "发明名称"
+    },
+    "abstract": {
+      "type": "string",
+      "description": "摘要"
+    },
+    "claims": {
+      "type": "array",
+      "description": "权利要求（权 1 起）",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "claims"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_case_search`
+
+检索本地专利判例全文（无效复审决定/专利判决，knowledge.db，FTS5 BM25 优先）。用于无效宣告分析、OA 答复时检索相似在先决定的理由论证与证据认定。支持 doc_type（case=无效决定/judgment=判决）与 court（法院）过滤。默认排除 wiki 审查标准卡片（审查标准请用 patent_wiki_search）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（如 创造性 三步法、技术启示、区别特征 预料不到的效果）"
+    },
+    "doc_type": {
+      "type": "string",
+      "description": "文档类型过滤：case=无效复审决定，judgment=专利判决（缺省全部）",
+      "enum": [
+        "case",
+        "judgment"
+      ]
+    },
+    "court": {
+      "type": "string",
+      "description": "审理法院过滤（子串匹配，如 最高人民法院）"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    },
+    "include_content": {
+      "type": "boolean",
+      "description": "是否附命中片段（默认 true，截断约 800 字）"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_eval`
+
+评估专利相关产出的质量（报告/检索/流程/引用/综合）。返回结构化评分和通过/失败判定。支持 5 种评估模式（report/retrieval/workflow/citations/comprehensive），在提交人工复核前使用可提前发现质量问题。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "description": "评估模式: report(分析报告质量) / retrieval(检索覆盖度) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)",
+      "enum": [
+        "report",
+        "retrieval",
+        "workflow",
+        "citations",
+        "comprehensive"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "description": "待评估的内容文本（报告正文/检索关键词列表/工作流步骤/引文列表等）"
+    },
+    "required_citations": {
+      "type": "array",
+      "description": "要求必须包含的法条引用列表（如 [\"第二十二条第二款\", \"第二十二条第三款\"]）",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "mode"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_kg_query`
+
+查询专利知识图谱节点（判例/审查规则/法条/概念）。三种模式：① query 关键词检索（FTS5，附相似/引用关系标注）；② id 按节点 id 展开详情与相似/引用邻居；③ node_type 按类型浏览（Case/SupremeCourtJudgment/RegionalCourtJudgment/GuidelineRule/Clause/WikiCard/Concept，支持 Judgment/LawArticle 别名）。与 patent_wiki_search（wiki 卡片正文）和 law_search（法条原文）互补。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "关键词检索（如 创造性 三步法、Bolar例外、禁止反悔）；与 id 二选一"
+    },
+    "id": {
+      "type": "string",
+      "description": "节点 id（如 CASE_005）；返回节点详情 + 相似/引用邻居；与 query 二选一，id 优先"
+    },
+    "node_type": {
+      "type": "string",
+      "description": "按节点类型浏览（Case/SupremeCourtJudgment/RegionalCourtJudgment/GuidelineRule/Clause/WikiCard/Concept；Judgment=最高法院+地方法院判决，LawArticle=法条条款）"
+    },
+    "expand": {
+      "type": "boolean",
+      "description": "关键词命中后是否做关系扩展（相似/引用），默认 true"
+    },
+    "include_content": {
+      "type": "boolean",
+      "description": "是否附节点正文片段（默认 false，截断约 600 字）"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_legal_status`
+
+- Queries patent legal status (Active / Expired / Abandoned) and estimated expiration from Google Patents
+- Batch: pass 1-20 patent numbers; individual failures are reported per-patent without aborting the batch
+- Returns title, status, estimated expiration, filing/grant dates, applicant, inventor, and status event history
+
+Usage notes:
+  - Read-only; makes one network request per patent (concurrency 4 by default)
+  - For CNIPA (China) legal-status transactions use the cnipa-query skill instead
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patents": {
+      "type": "array",
+      "description": "Patent numbers (1-20), e.g. ['US11452699B2', 'US2668287A']",
+      "items": {
+        "type": "string"
+      }
+    },
+    "maxConcurrency": {
+      "type": "number",
+      "description": "Max concurrent requests (default 4)"
+    }
+  },
+  "required": [
+    "patents"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_metadata`
+
+- Fetches patent metadata from Google Patents by patent number (e.g. US11452699B2)
+- Returns structured data: title, inventors, assignees, dates, legal status, estimated expiration, abstract, PDF URL, classifications, citations
+- Validates and normalizes the patent number automatically; a CN application number keeps its 12-digit form (CN202122978405.0 → CN202122978405) and full-width characters, whitespace, and - / : separators fold away
+- Use for patent due diligence, prior-art detail lookup, legal status checks
+
+Usage notes:
+  - Read-only; makes one network request per patent
+  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used
+  - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number
+  - A 'not found' result (patent does not exist) is returned as data with success:false — not an error
+  - A transient upstream failure (HTTP 503, dropped connection) is retried twice; a failure that outlives the retries names the channel, the upstream error, and the attempts made
+  - Non-fatal parse warnings (fields the page structure left empty) are listed under 警告 in the rendered result
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patent": {
+      "type": "string",
+      "description": "Patent number, e.g. 'US11452699B2'. Validated and normalized (uppercase, no spaces, no - / : separators; a CN application check digit is dropped)."
+    },
+    "timeout": {
+      "type": "number",
+      "description": "Request timeout in ms (default 30000)"
+    },
+    "returnAbstract": {
+      "type": "boolean",
+      "description": "Include abstract (default true)"
+    },
+    "returnLegal": {
+      "type": "boolean",
+      "description": "Include legal status (default true)"
+    }
+  },
+  "required": [
+    "patent"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_pdf_download`
+
+从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）在浏览器内取回 PDF 响应体（复用登录态），取不到时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。
+
+Usage notes:
+  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下
+  - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）
+  - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍 429 时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patents": {
+      "type": "array",
+      "description": "专利公开号列表（1-50 篇）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "输出目录（绝对或相对当前工作目录）；默认 <cwd>/专利原文/YYYY-MM-DD"
+    },
+    "pageTimeoutSec": {
+      "type": "number",
+      "description": "每页打开超时（秒），默认 20"
+    },
+    "downloadTimeoutMs": {
+      "type": "number",
+      "description": "每篇取回 PDF 响应体的超时（毫秒），默认 60000"
+    },
+    "timeoutMs": {
+      "type": "number",
+      "description": "整体执行超时（毫秒）；默认 clamp(篇数 × (pageTimeoutSec × 1000 + downloadTimeoutMs) + 15000, 60000, 300000)，上限 300000"
+    },
+    "record": {
+      "type": "boolean",
+      "description": "是否截图留证（默认 false）"
+    },
+    "force": {
+      "type": "boolean",
+      "description": "忽略 MANIFEST 断点续传，强制重下全部（默认 false）"
+    }
+  },
+  "required": [
+    "patents"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_plan_task`
+
+Human-in-the-loop plan state machine for patent tasks. transition: whitelist-checked state changes (planning → awaiting_approval → executing → awaiting_feedback → replanning → finished). sync: turn plan steps into ordered tasks with blockedBy deps. replan: hash-compare completed steps for incremental resume. Fail-closed on illegal transitions and missing semantic preconditions (executing needs tasks, replanning needs feedback). Stateless: pass the current state on every call.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Operation: transition | sync | replan.",
+      "enum": [
+        "transition",
+        "sync",
+        "replan"
+      ]
+    },
+    "currentState": {
+      "type": "string",
+      "description": "Current state (required for transition)."
+    },
+    "to": {
+      "type": "string",
+      "description": "Target state (required for transition)."
+    },
+    "planSteps": {
+      "type": "array",
+      "description": "Plan steps (sync/replan).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "previousTasks": {
+      "type": "array",
+      "description": "Previous task list (replan, optional: preserve completed steps).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "description": "Current task list (transition to executing, required: sync first).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "feedback": {
+      "type": "string",
+      "description": "Feedback driving replanning (transition to replanning, required)."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_search`
+
+- Searches Google Patents by keyword or boolean query (e.g. '(phase change OR PCM) AND thermal', 'assignee:(Samsung) after:20200101')
+- Returns structured hits: patent number, title, assignee, publication date, abstract, URL
+- Use for prior-art search, novelty pre-screening, competitor/assignee analysis
+
+Usage notes:
+  - Read-only; query syntax follows Google Patents search grammar
+  - Follow up with patent_metadata to fetch full details of a specific hit
+  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used instead of inferring one from a hit URL
+  - A network failure is reported as an error naming that channel; a genuine zero-result search returns empty hits
+  - A transient upstream failure (timeout, dropped connection) is retried twice; a failure that outlives the retries names the channel, the upstream error, and the attempts made
+  - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query in Google Patents syntax: keywords, phrases, boolean (AND/OR/NOT), fielded (assignee:/inventor:), date ranges (after:/before:)."
+    },
+    "limit": {
+      "type": "number",
+      "description": "Max hits (1-50, default 10)"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_wiki_search`
+
+检索专利 wiki 知识卡片（说明书/权利要求/撰写/附图四目录），用于撰写说明书、权利要求书时查询充分公开、实施例、数值范围、以说明书为依据等撰写标准。支持 dir 目录过滤（specification/claims/drafting/figures）与 include_body 正文片段。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出卡片，条数受 limit 约束）"
+    },
+    "dir": {
+      "type": "string",
+      "description": "目录过滤：specification=说明书、claims=权利要求、drafting=撰写、figures=附图（缺省全部）",
+      "enum": [
+        "specification",
+        "claims",
+        "drafting",
+        "figures"
+      ]
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    },
+    "include_body": {
+      "type": "boolean",
+      "description": "是否附带卡片正文片段（默认 false）"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_worker_validate`
+
+Validate a patent worker output against its declared contract (required fields). Missing hard-contract fields mark the output degraded (never interrupts); soft-contract gaps are reported separately. Returns the pass/degraded verdict plus the missing hard/soft field lists. Use for contract-level quality review of patent products (technical analysis, search report, novelty/inventiveness analysis, OA response, quality report, figure deliverable).
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "workerName": {
+      "type": "string",
+      "description": "Worker name from the built-in catalog (e.g. patent-technical-analyzer, patent-novelty-analyzer, quality_checker)."
+    },
+    "outputText": {
+      "type": "string",
+      "description": "Output text to validate against the worker contract."
+    }
+  },
+  "required": [
+    "workerName",
+    "outputText"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_workflow`
+
+Run a declarative patent workflow (recap mode): validate the manifest, assemble per-stage outputs into a structured result with degraded-step marking and a summary, then persist the record. Built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_reexamination_v1, patent_infringement_v1. Supply outputs keyed by stage id; missing stages are marked degraded. No LLM call — this tool finalizes text the agent already produced. Use to finalize multi-stage patent analyses (novelty / disclosure / inventiveness / ...) with a single verifiable result record.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "manifestId": {
+      "type": "string",
+      "description": "Workflow manifest id. Defaults to 'patent_novelty_v1'."
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Optional case id for result records; when provided the run persists under `<caseDir>/workflow-runs/`."
+    },
+    "outputs": {
+      "type": "array",
+      "description": "Per-stage outputs keyed by stage id. Missing stages are marked degraded.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "stageId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stageId",
+          "text"
+        ]
+      }
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_workflow_run`
+
+Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port. A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "manifestId": {
+      "type": "string",
+      "description": "Workflow manifest id. Defaults to 'patent_disclosure_v1'."
+    },
+    "graph": {
+      "type": "string",
+      "description": "Domain graph to run end-to-end (takes precedence over manifestId).",
+      "enum": [
+        "novelty",
+        "inventiveness",
+        "enablement",
+        "citation-check"
+      ]
+    },
+    "resumeCheckpointId": {
+      "type": "string",
+      "description": "Graph checkpoint id from a previous interrupted run; resumes from it."
+    },
+    "approveCheckpointId": {
+      "type": "string",
+      "description": "Graph checkpoint id to grant and resume past (approves the gate)."
+    },
+    "approveStageIds": {
+      "type": "array",
+      "description": "Manifest stage ids of already-approved approval gates (e.g. ['review_gate']); skipped on rerun.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Optional case id enabling run/checkpoint persistence."
+    },
+    "input": {
+      "type": "string",
+      "description": "Initial material consumed by the extract atoms."
+    },
+    "claims": {
+      "type": "string",
+      "description": "Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material."
+    },
+    "chartTargets": {
+      "type": "string",
+      "description": "claim-chart target objects JSON (default empty)."
+    },
+    "maxResults": {
+      "type": "number",
+      "description": "Max prior-art search results (default 5)."
+    },
+    "priorArt": {
+      "type": "string",
+      "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Manifest path only: register the run as a background job and return its id immediately (collect with job_output, stop with job_kill) instead of holding the turn until every stage finishes. Defaults to false."
+    }
+  },
+  "required": [
+    "input"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `recognize_chemical_structure`
+
+识别化学式/化学结构：从化学结构图（图片模式，多模态模型两步分析 + RDKit 校验）或文档文本（文本模式，正则候选 → LLM 复核/化合物名称转 SMILES → RDKit 校验）中提取多候选 SMILES、分子式与化合物名称。当交底书/说明书/权利要求含化学结构式（含 Markush 广义结构）、分子式或化合物名称需要转 SMILES 时使用。注意：本工具不直接解析 PDF——图片模式输入须为已导出的图片（jpeg/png/gif/webp），文本模式可传 PDF 文本层提取结果。
+
+本构建未接入化学识别引擎：识别流水线（VLM 两步法、name→SMILES、RDKit 校验）属后续工作，调用返回 needHumanReview=true 的不可用结果。需要化学结构解析时改走人工复核或外部工具链，不要靠本工具产出 SMILES。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "image_path": {
+      "type": "string",
+      "description": "化学结构图图片路径（工作区相对或绝对路径，支持 jpg/png/gif/webp；PDF 页请先导出为图片）"
+    },
+    "text": {
+      "type": "string",
+      "description": "文档文本片段（说明书/权利要求）或单独的化合物名称（name→SMILES）"
+    },
+    "mode": {
+      "type": "string",
+      "description": "识别模式：image 走图片两步法；text 走文本三级流水线；auto 按输入分派（默认）",
+      "enum": [
+        "image",
+        "text",
+        "auto"
+      ]
+    },
+    "claim_context": {
+      "type": "string",
+      "description": "权利要求或技术方案文本（图文对齐，可提高识别准确率）"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `rule_check`
+
+Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match / quote repetition) against the given text and return violations with severity, action and legal basis. Most rules declare an applicability premise: a rule whose premise does not match the text reports nothing, so a document is only checked against the subjects it actually discusses (an answer that never touches novelty draws no novelty-completeness findings). Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions). Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance), 'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed), a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement' (the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish), or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides). Every result ends with an 评估输入 line giving the character count and digest of the text this run actually read: keep that line when you transcribe the result, so a later run can show whether it read the same text.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The text to check."
+    },
+    "scope": {
+      "type": "string",
+      "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `search_patent_figure`
+
+检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由 analyze_patent_figure 写入（见 Config.figureIndexFile）。当前仅关键词检索（向量/语义检索未接入）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出已分析附图，条数受 limit 约束）"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `triz_contradiction_analysis`
+
+交底书侧的技术矛盾分析与参数完备性检查（发明人侧用途）。从技术交底书识别「改善某工程参数的同时牺牲另一工程参数」的技术矛盾，落格到 TRIZ 39x39 经典矛盾矩阵取推荐发明原理，并列出交底书提到但未给出取值的工程参数（缺现状值／目标值／单位／测量口径）。两处用途：① 方案生成——按推荐原理给出可替代的手段方向；② 交底书补强——把缺口清单交发明人补充。识别由模型完成，编号合法性（1-39）、矩阵落格与证据定位由程序判定：evidence 必须在交底书原文中逐字定位，否则该条矛盾被丢弃并计入 dropped_for_evidence。本工具不产出审查语义的技术问题表述，也不构成法律结论；创造性三步法第二步的「实际解决的技术问题」必须相对区别特征确定且不含解决手段，不得由本工具的产物代填。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "技术交底书或技术方案原文（矛盾与缺口都从这段文本识别，证据需可在其中逐字定位）。"
+    },
+    "focus": {
+      "type": "string",
+      "description": "可选关注方向，收窄识别范围（如「节拍」「良率」「温差」）。"
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `validate_specification`
+
+验证专利说明书是否符合撰写要求（确定性规则，无 LLM 调用）。
+- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节，且顺序符合《专利法实施细则》第二十条
+- 标题集合：说明书只允许上述五部分标题（正文内的「要解决的技术问题／技术方案／有益效果／实施例一／替代实施方式」等一律不是标题）
+- 附图引用形式：说明书记载标记不加括号（指南第二部分第二章 §2.2.6）、图号写作图1、段落编号提示
+- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词、摘要附图、摘要不得使用标题
+- 模糊表述、附图说明与图引用一致性、实施例存在性
+- 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例
+- 独立权利要求之间的单一性（A31.1，传 claim_units 时）
+- 权项—实施例覆盖矩阵（A26.3/A26.4，传 coverage_entries 时；覆盖度由 features 与 embodiment_refs 计算，不接受调用方给定的覆盖度结论）
+- 效果数据定量性、化学领域产物表征数据（tech_domain=chemical 时）
+
+用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。
+
+注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。
+
+结果末尾的「评估输入」给出本次实际读到的各文本字段的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "说明书全文（markdown，含章节标题）"
+    },
+    "title": {
+      "type": "string",
+      "description": "发明名称（可选，单独校验长度）"
+    },
+    "abstract": {
+      "type": "string",
+      "description": "摘要（可选，校验长度/关键词/摘要附图）"
+    },
+    "claims": {
+      "type": "string",
+      "description": "权利要求书全文（可选，用于特征覆盖比对）"
+    },
+    "tech_domain": {
+      "type": "string",
+      "description": "技术领域（chemical 时附加化学表征数据校验）",
+      "enum": [
+        "mechanical",
+        "electrical",
+        "chemical",
+        "software",
+        "general"
+      ]
+    },
+    "figure_analysis": {
+      "type": "array",
+      "description": "附图智能分析结果（可选）：提供时执行图文一致性校验",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "usable": {
+            "type": "boolean",
+            "description": "分析结果是否可用（组件提取成功）"
+          },
+          "components": {
+            "type": "array",
+            "description": "识别的组件列表",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "refNumber": {
+                  "type": "string",
+                  "description": "附图标记号（与图面标号一致）"
+                }
+              },
+              "required": [
+                "refNumber"
+              ]
+            }
+          }
+        },
+        "required": [
+          "usable"
+        ]
+      }
+    },
+    "claim_units": {
+      "type": "array",
+      "description": "结构化权利要求（可选）：提供时执行独立权利要求单一性自检（A31.1）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "number",
+            "description": "权利要求编号（与权利要求书一致）"
+          },
+          "kind": {
+            "type": "string",
+            "description": "独立或从属权利要求（仅独立权利要求进入单一性比较）",
+            "enum": [
+              "independent",
+              "dependent"
+            ]
+          },
+          "preamble": {
+            "type": "string",
+            "description": "前序部分，如\"一种智能门锁\""
+          },
+          "characterized": {
+            "type": "string",
+            "description": "\"其特征在于\"之后的特征部分"
+          }
+        },
+        "required": [
+          "number",
+          "kind",
+          "preamble"
+        ]
+      }
+    },
+    "coverage_entries": {
+      "type": "array",
+      "description": "权项—实施例覆盖条目（可选）：提供时计算覆盖矩阵，逐特征判定是否有实施例支持",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "description": "权利要求标识，形如 claim_1"
+          },
+          "features": {
+            "type": "array",
+            "description": "该权利要求的技术特征",
+            "items": {
+              "type": "string"
+            }
+          },
+          "embodiment_refs": {
+            "type": "array",
+            "description": "支持该权利要求的实施例原文片段",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "claim_id",
+          "features",
+          "embodiment_refs"
+        ]
+      }
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `verify_patent_figure`
+
+复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、文字与图线净距不足、中心线（点划线）被同位置的实线覆盖、两个图元叠压（闭合轮廓包围盒部分相交）、相邻零件剖面线难以区分（方向与间距都分不清）、内容越出画布。
+
+量测在矢量源上进行（线段位置、线宽与字号即渲染输入），不需要栅格化器：根元素的画布尺寸、viewBox 与 preserveAspectRatio 先解析成用户单位到毫米的映射，元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 `<g>` 继承的 text-anchor 与行内 style），故落版页、拼版页与 px 级用户单位的导出文件同一口径量测。不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现：没有它时才等于逐类量测过。
+
+净距判据（text_clearance_mm，默认 1.5 毫米）来自实测：剖切面上密布剖面线时，标号或零件名贴住剖面线带、轴线便读不出。判据把文字外框外扩该净距后与图元线段求交——绘图侧标注为引线（data-dsh-role="leader"）的线段、以及落在更晚绘制的不透明白填充之下的线段不参与（前者本来就止于文字外框，后者图面上看不见）。电路图、曲线图这类「文字贴着符号放」的图型按本判据会大量播报，复核它们时传 text_clearance_mm: 0 关闭。
+
+叠压判据（图元×图元）取闭合轮廓的包围盒：相交区两轴都超过 0.2 毫米且任一方的包围盒不严格包含另一方才算叠压——只擦边接触（共边）与有意嵌套（型腔内画零件、模块内画子模块）不报；绘图侧标注同一材料分组（data-dsh-hatch-group 同号）的轮廓是同一零件的几段，不互相判叠压。
+
+构造层级判据只在同时给出 hierarchy（出图时声明的父标记 → 直接子标记）与 claims（权利要求书正文）时生效：权利要求写出的归属（如「恒电位控制单元31的输入端311」）必须与声明的层级一致，否则报出矛盾。两端标记都必须是声明过的节点，权利要求序号与图号因此不参与。
+
+与 generate_patent_figure 的返回值配合使用：生成后按本工具复核，把 findings 当作必须处理的图面缺陷。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "svg_path": {
+      "type": "string",
+      "description": "SVG 图片路径（工作区相对或绝对路径）"
+    },
+    "text_clearance_mm": {
+      "type": "number",
+      "description": "标号净距（毫米），默认 1.5，0 表示不判该判据；文字外框外扩这么多后与图元线段相交即报"
+    },
+    "min_font_mm": {
+      "type": "number",
+      "description": "字高下限（毫米），本部署的内控口径（法条只要求缩小到三分之二仍能分辨）：给出时，字高低于它的文字逐处报出；不给则不判"
+    },
+    "hierarchy": {
+      "type": "array",
+      "description": "出图时声明的图内构造层级（父标记 → 直接子标记），与 claims 同时给出时判「图内层级 ↔ 权项构造层级」是否一致",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parent": {
+            "type": "string"
+          },
+          "child": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "parent",
+          "child"
+        ]
+      }
+    },
+    "claims": {
+      "type": "string",
+      "description": "权利要求书正文：与 hierarchy 同时给出时，核对其中的归属表述（如「控制单元31的输入端311」）与声明的图内层级是否一致"
+    }
+  },
+  "required": [
+    "svg_path"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `workbench_link_patent_case`
+
+把专利案件目录桥接进个人工作台任务树（幂等）：确保 patent_* 类型字典项；找到或创建根任务（标题=案号，source=patent，workspace_path=案件目录）与 L1–L5 五个阶段子任务；读取案件目录的 _matter-log.md，把阶段进展投影为子任务状态。投影优先级：显式 stages 入参 > _matter-log 解析 > 保持现状。_matter-log 解析为行级启发式：一行同时含 L1–L5 阶段码与完成词（完成/通过/✅/已交付/归档）记 done，含进行词（进行/开始/推进/启动）记 doing，后行覆盖前行；一行多阶段共用该行判定。只经工作台 HTTP API 写任务；不写案件目录任何文件；不修改根任务状态（避免级联完成子任务）。工作台插件未挂载或 web 服务不可用时失败（setup_required）。dryRun 只算投影不写。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "caseNumber": {
+      "type": "string",
+      "description": "案件编号（同时是案件目录名与根任务标题）。"
+    },
+    "caseRoot": {
+      "type": "string",
+      "description": "案件根目录覆盖（默认取插件配置 workbenchCaseRoot）。"
+    },
+    "stages": {
+      "type": "array",
+      "description": "显式阶段状态（可选，优先于 _matter-log 解析）。",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "dryRun": {
+      "type": "boolean",
+      "description": "只计算投影，不写入（默认 false）。"
+    }
+  },
+  "required": [
+    "caseNumber"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document.
+
+<a id="deepseek-aidsh-patent-document"></a>
+
+## `@deepseek-ai/dsh-patent-document`
+
+### `render_patent_document`
+
+Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, litigation pleading, right-evaluation report, or search report form) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "template": {
+      "type": "string",
+      "description": "Template id to render (one of the eleven shipped patent templates).",
+      "enum": [
+        "patentability-opinion",
+        "search-report",
+        "oa-response",
+        "claims-spec",
+        "invalidation-opinion",
+        "rectification-response",
+        "re-examination-request",
+        "infringement-opinion",
+        "litigation-pleading",
+        "right-evaluation-report",
+        "search-report-form"
+      ]
+    },
+    "outputName": {
+      "type": "string",
+      "description": "Output filename stem (no extension); letters, digits, underscore, hyphen, dot, parentheses, Chinese characters, circled numerals (①–⑳), and common Chinese punctuation (a Chinese draft name is accepted as written). No spaces, no path separators, no \"..\"."
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Optional case id; when given the result lands in data/cases/<caseId>/outputs/ instead of the default directory."
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "Optional explicit output directory (overrides caseId and the default directory)."
+    },
+    "format": {
+      "type": "string",
+      "description": "Output format: html, pdf, or both (default both).",
+      "enum": [
+        "html",
+        "pdf",
+        "both"
+      ]
+    },
+    "sections": {
+      "type": "object",
+      "description": "Record of element id -> HTML innerHTML content to inject into the template.",
+      "additionalProperties": true
+    },
+    "brand": {
+      "type": "object",
+      "description": "Optional inline brand overrides (keys map to the --sati-doc-* CSS variables, e.g. firm, accent).",
+      "additionalProperties": true
+    },
+    "brandPath": {
+      "type": "string",
+      "description": "Optional path to a theme.json whose documents.patent namespace supplies brand overrides."
+    }
+  },
+  "required": [
+    "template",
+    "outputName"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
+
+### `verify_deliverable`
+
+核对交付件与案卷主路径的一致性并输出交付清单（确定性规则，无 LLM 调用）。
+- 逐字节比对每件申请文件的案卷主路径与交付版：不一致即报错——读者打开主路径必须看到本次交付版，旧版要先归档
+- 记录每件的 SHA-256 与 mtime，供交付报告引用
+- 给定渲染件时，核对渲染晚于全部输入件（文本与附图），交付时序倒挂即报错
+- 给定 requirements 时逐条核对：每条要求必须给出证据文件，缺证据或证据文件不存在即报错，并把核对表随结果返回（交付报告直接引用它，不要用「已按要求复核」这类概括句代替）
+
+用法：交付前调用。传 artifacts（role + canonical_path + delivered_path 一组或多组），有附图传 figures，有渲染件传 rendered，有用户或案卷要求时传 requirements（requirement 用指令原话 + evidence 文件路径）；返回 passed、manifest、requirements 核对表与 violations，未通过不得交付。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "artifacts": {
+      "type": "array",
+      "description": "待核对的一组或多组申请文件（主路径 ↔ 交付版）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "文件角色，如「权利要求书」"
+          },
+          "canonical_path": {
+            "type": "string",
+            "description": "案卷主路径（读者优先打开的那份）"
+          },
+          "delivered_path": {
+            "type": "string",
+            "description": "本次交付版路径"
+          }
+        },
+        "required": [
+          "role",
+          "canonical_path",
+          "delivered_path"
+        ]
+      }
+    },
+    "figures": {
+      "type": "array",
+      "description": "本次交付的附图文件路径（可选）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rendered": {
+      "type": "string",
+      "description": "本次交付的渲染件路径（可选；给定后核对渲染晚于全部输入件）"
+    },
+    "requirements": {
+      "type": "array",
+      "description": "本次交付必须交代的每条要求及其证据（可选）；给出后随结果返回逐条核对表",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirement": {
+            "type": "string",
+            "description": "用户或案卷要求的原话（不要转述）"
+          },
+          "evidence": {
+            "type": "array",
+            "description": "该要求的证据文件路径（工具结论、成品文件等）；留空即按未满足报错",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "requirement",
+          "evidence"
+        ]
+      }
+    }
+  },
+  "required": [
+    "artifacts"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
+
+render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.
+
+<a id="deepseek-aidsh-patent-filing"></a>
+
+## `@deepseek-ai/dsh-patent-filing`
+
+### `build_patent_filing`
+
+把结构化内容按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书段落编号由本工具按 spec 顺序写入，源稿已带 `[NNNN]` 时先剥后写；源稿编号与本工具的序号不一致会报错而不是静默覆盖。 附图按图序传入，第 1 张进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "object",
+      "description": "申请文件的结构化内容",
+      "additionalProperties": false,
+      "properties": {
+        "abstract": {
+          "type": "array",
+          "description": "说明书摘要正文段（不含「摘要附图」标注——摘要附图是独立的一节，由 figures[0] 承载）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "claims": {
+          "type": "array",
+          "description": "权利要求项，按项序排列（含项号，如「1. 一种……」）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "specification": {
+          "type": "array",
+          "description": "说明书主体，按文档顺序：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "h3/h4 为法定部分标题，p 为正文段，table 为表格",
+                "enum": [
+                  "h3",
+                  "h4",
+                  "p",
+                  "table"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "description": "h3/h4/p 的文本"
+              },
+              "rows": {
+                "type": "array",
+                "description": "table 的行列；首行为表头，各行必须等宽",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "figures": {
+          "type": "array",
+          "description": "附图路径，按图序排列（第 1 张即摘要附图）；支持 .svg 源件与 .png/.jpg/.jpeg 位图",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "abstract",
+        "claims",
+        "specification",
+        "figures"
+      ]
+    },
+    "outputName": {
+      "type": "string",
+      "description": "输出文件名主干（不含扩展名），如「②件_权利要求书与说明书」；不得含路径分隔符、`..` 或首尾空白"
+    },
+    "caseId": {
+      "type": "string",
+      "description": "可选案卷号；给出后成品落在 data/cases/<案卷号>/outputs/ 而不是缺省目录"
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "可选显式输出目录（优先于案卷号与缺省目录）"
+    }
+  },
+  "required": [
+    "content",
+    "outputName"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-filing/src/index.ts`](../packages/patent/patent-filing/src/index.ts)
+
+### `verify_patent_filing`
+
+对一件申请文件 .docx 跑体例与内容断言：分节数、各节页眉、行距、首行缩进、字号、是否出现非黑色文字（Word 内置标题样式会带蓝色）、说明书五部分是否齐备、每一节是否都承载了内容（空节意味着内容没落进那一节，而分节数、页眉与编号连续性都不会报）、权利要求项数、`[NNNN]` 段落编号是否从 1 起连续、各节实际承载的段落与图片数、以及内部复核痕迹是否清除。 同时核对成品体例与模板反解体例是否一致——模板漂移会报错。 这些是模型看不出来的静默缺陷，交付前必须跑；断言不通过时 `errors` 逐条给出实测值。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "docx": {
+      "type": "string",
+      "description": "待验收的申请文件 .docx 路径"
+    }
+  },
+  "required": [
+    "docx"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-filing/src/index.ts`](../packages/patent/patent-filing/src/index.ts)
+
+build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, rewriting source paragraph numbers in order; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, claim count, continuous numbering, and surviving internal marks.
+
+<a id="deepseek-aidsh-patent-deadline"></a>
+
+## `@deepseek-ai/dsh-patent-deadline`
+
+### `patent_deadlines`
+
+- Computes the Chinese patent statutory and designated deadlines of one case: priority window and its restoration, priority-claim addition/correction, application fee, substantive-examination request, voluntary amendment, registration and divisional filing, patent term, annual fees with the six-month surcharge window, PCT national-phase entry, reexamination, office-action and invalidation responses, and term-compensation requests.
+- Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.
+- Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to "omit" for the un-rolled criterion, which reports each period's own end date; both dates are always returned, with rawDueDate holding the un-rolled one.
+- Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.
+- Deadlines that start at a notice's delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice's delivery date is supplied; they are never approximated from the filing date.
+
+Usage notes:
+  - Dates are YYYY-MM-DD. Supply the notices the case actually received, with how each was delivered.
+  - Read-only and offline; makes no network request.
+  - Results are decision support, not a filing instruction: verify against the notice and the current 审查指南 before acting.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patentType": {
+      "type": "string",
+      "description": "Patent category",
+      "enum": [
+        "invention",
+        "utility-model",
+        "design"
+      ]
+    },
+    "filingDate": {
+      "type": "string",
+      "description": "Application date (international filing date for a PCT case)"
+    },
+    "claimsPriority": {
+      "type": "boolean",
+      "description": "Whether the case claims priority, as stated by the agent or the human handling the case"
+    },
+    "priorityDate": {
+      "type": "string",
+      "description": "Earliest priority date; required when claimsPriority is true"
+    },
+    "isPctNationalPhase": {
+      "type": "boolean",
+      "description": "Whether the case is a PCT application entering the Chinese national phase"
+    },
+    "authorizationPublicationDate": {
+      "type": "string",
+      "description": "Grant publication date (授权公告日)"
+    },
+    "marketingApprovalDate": {
+      "type": "string",
+      "description": "Date the drug obtained marketing approval in China"
+    },
+    "notices": {
+      "type": "array",
+      "description": "Notices received, with their delivery",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "Which document was delivered",
+            "enum": [
+              "office-action-first",
+              "office-action-subsequent",
+              "substantive-exam-notice",
+              "rejection-decision",
+              "grant-notice",
+              "reexamination-notice",
+              "invalidation-transfer"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "description": "How it was delivered; omitted means electronic (dispatch date is the delivery date)",
+            "enum": [
+              "electronic",
+              "postal",
+              "personal",
+              "publication"
+            ]
+          },
+          "dispatchDate": {
+            "type": "string",
+            "description": "Dispatch date on the notice (electronic/postal)"
+          },
+          "enteredDate": {
+            "type": "string",
+            "description": "Day it entered the electronic system, when evidenced later than dispatch"
+          },
+          "actualReceiptDate": {
+            "type": "string",
+            "description": "Actual receipt date, when evidenced"
+          },
+          "handedOverDate": {
+            "type": "string",
+            "description": "Hand-over date for direct delivery"
+          },
+          "publicationDate": {
+            "type": "string",
+            "description": "Announcement date for service by publication"
+          },
+          "designatedMonths": {
+            "type": "number",
+            "description": "Months the notice itself designates"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      }
+    },
+    "restDayRule": {
+      "type": "string",
+      "description": "apply (default) rolls an end date off a rest day; omit reports the period's own end date",
+      "enum": [
+        "apply",
+        "omit"
+      ]
+    }
+  },
+  "required": [
+    "patentType",
+    "filingDate",
+    "claimsPriority"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-deadline/src/index.ts`](../packages/patent/patent-deadline/src/index.ts)
+
+patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record.
+
+<a id="deepseek-aidsh-patent-fees"></a>
+
+## `@deepseek-ai/dsh-patent-fees`
+
+### `patent_fees`
+
+- Prices the official fees of one Chinese patent case against the fee index shipped with this deployment: the items the case owes, how many units of each, whether a fee reduction applies, the annual-fee tier of each year, and the surcharge on a late annual fee.
+- Report the case facts the index counts with (claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths). A fact the priced items need but the call omits comes back under pending, naming the input, rather than being guessed.
+- Announce every step of the case in triggers. A step you do not name is not priced at all, so a grant or a procedure left out reads as "no fee" — this list is the report's coverage, not a hint.
+- Money is reported only from transcribed amounts. Each line carries amountStatus: verified (amount and its verification date are recorded), unverified (amount recorded, verification date is not), or unrecorded (no amount yet). With the shipped index every item is unrecorded, so lines carry applicability and counts and no figures.
+- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. Never fill in a missing amount yourself and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.
+- annuityYears is the list of patent years to price; it comes from patent_deadlines, which owns the dates. lateMonths is the number of started months of delay, likewise from that tool.
+- This is arithmetic over an index, not a fee quote: the index carries a fee item's structure, and its amounts stay unverified until a person transcribes them from the official fee standard. Confirm any amount against the official announcement before invoicing a client.
+
+Usage notes:
+  - Read-only, offline, and makes no network request.
+  - An empty lines array means no indexed item matched the named triggers and patent type.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patentType": {
+      "type": "string",
+      "description": "Patent type of the case",
+      "enum": [
+        "invention",
+        "utility-model",
+        "design"
+      ]
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Steps of this case, e.g. [\"filing\",\"substantive-examination\"]",
+      "items": {
+        "type": "string",
+        "enum": [
+          "filing",
+          "substantive-examination",
+          "grant-registration",
+          "annual-fee",
+          "reexamination",
+          "invalidation",
+          "evaluation-report",
+          "restoration",
+          "extension",
+          "record-change",
+          "pct-grace"
+        ]
+      }
+    },
+    "claims": {
+      "type": "number",
+      "description": "Total claim count, for the claim-count surcharge"
+    },
+    "specificationPages": {
+      "type": "number",
+      "description": "Specification page count, for the page-count surcharge"
+    },
+    "priorityClaims": {
+      "type": "number",
+      "description": "Number of priority claims made"
+    },
+    "annuityYears": {
+      "type": "array",
+      "description": "Patent years to price, 1-based, taken from patent_deadlines",
+      "items": {
+        "type": "number"
+      }
+    },
+    "extensionMonths": {
+      "type": "number",
+      "description": "Months of extension requested"
+    },
+    "lateMonths": {
+      "type": "number",
+      "description": "Started months of delay on the annual fee"
+    },
+    "reduction": {
+      "type": "object",
+      "description": "The fee reduction the case qualifies for",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "individual",
+            "enterprise"
+          ]
+        },
+        "filed": {
+          "type": "boolean",
+          "description": "Whether the reduction record was filed"
+        }
+      },
+      "required": [
+        "kind",
+        "filed"
+      ]
+    }
+  },
+  "required": [
+    "patentType",
+    "triggers"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-fees/src/index.ts`](../packages/patent/patent-fees/src/index.ts)
+
+patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure.
+
+<a id="deepseek-aidsh-patent-law"></a>
+
+## `@deepseek-ai/dsh-patent-law`
+
+### `law_verify`
+
+- Checks law citations against the law index shipped with this deployment: 《专利法》《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path.
+- Each citation is decided as 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验, and an article beyond an article ceiling that has itself not been verified also comes back as 未核验.
+- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error, so a typo surfaces instead of being skipped.
+- Pass proposition when a citation is offered in support of a specific claim, so a cited article whose topics do not support that claim is reported as 与所引命题不符.
+- This checks citation form and index membership, not legal correctness of the actual text: the index carries transcribed text only after a person records the transcription source. An article that is 未核验 still has to be verified against an official source (patent_case_search / cnlaw / web_fetch on the official page) before it is relied on.
+
+Usage notes:
+  - Read-only, offline, and makes no network request.
+  - A result with no findings means no citation was recognized, not that the text is correct.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text whose citations are extracted and checked"
+    },
+    "references": {
+      "type": "array",
+      "description": "References to check as written, e.g. 专利法第22条第3款 / 审查指南第二部分第四章3.2.1.1",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposition": {
+      "type": "string",
+      "description": "What the citations are offered in support of"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-law/src/index.ts`](../packages/patent/patent-law/src/index.ts)
+
+law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted.
+
+<a id="deepseek-aidsh-writing-patterns"></a>
+
+## `@deepseek-ai/dsh-writing-patterns`
+
+### `query_writing_patterns`
+
+- Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a `<writing_skills>` block
+- A pattern covers one situation with ordered steps and the rules to follow or avoid: claim drafting, specification drafting, disclosure drafting, IPC strategy, embodiment writing, and office-action replies on inventiveness, novelty, and clarity
+- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed, capped by `limit`
+- Selection is lexical and offline: the tool picks patterns, it does not judge the case. Apply the returned steps to the passage being written
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "Pattern category: oa_inventiveness (OA 答复-创造性), oa_novelty (OA 答复-新颖性), oa_clarity (OA 答复-不清楚), claim_drafting (权利要求撰写), spec_drafting (说明书撰写), disclosure (技术交底书), invalidation (无效请求), ipc_strategy (IPC 策略), embodiment (具体实施方式)",
+      "enum": [
+        "oa_inventiveness",
+        "oa_novelty",
+        "oa_clarity",
+        "claim_drafting",
+        "spec_drafting",
+        "disclosure",
+        "invalidation",
+        "ipc_strategy",
+        "embodiment"
+      ]
+    },
+    "query": {
+      "type": "string",
+      "description": "Search keywords; when set, the call searches by keyword instead of matching case features"
+    },
+    "features": {
+      "type": "array",
+      "description": "Technical features or keywords of the case, e.g. [\"创造性三步法\", \"功能性限定\"]",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of patterns to return; defaults to 5"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/writing-patterns/src/index.ts)
+
+query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call.
+
+<a id="deepseek-aidsh-doc-template"></a>
+
+## `@deepseek-ai/dsh-doc-template`
+
+### `list_doc_templates`
+
+- Lists the document templates this deployment can render, with each template's variables, so a `render_doc_template` call can supply them.
+- Filters are optional and combine: category, domain, language, and a case-insensitive query over the name, title, description, and use-when text.
+- Every template also reports the formats it supports. A template that does not list `docx` cannot be rendered to DOCX.
+
+Usage notes:
+  - Read-only and offline; reads the packaged template assets and any configured override directories.
+  - Call this before `render_doc_template`: required variables and their types are only reported here.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "Exact category filter, e.g. claims"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Exact domain filter, e.g. patent"
+    },
+    "language": {
+      "type": "string",
+      "description": "Exact language filter, e.g. zh-CN"
+    },
+    "query": {
+      "type": "string",
+      "description": "Case-insensitive substring over name, title, description, and use-when"
+    }
+  }
+}
+```
+
+Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc-template/src/index.ts)
+
+### `render_doc_template`
+
+- Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.
+- Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.
+- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: write `content` to the delivered file, because a file written from `markdown` loses both.
+- Variables the template does not declare are ignored, and a placeholder with no supplied value is left in the document and reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.
+
+Usage notes:
+  - Offline; renders the packaged template assets, the configured override directories, and the packaged styles.
+  - A template that declares a writing style carries that style's disclaimer into the rendered document when the deployment enabled disclaimers.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "template": {
+      "type": "string",
+      "description": "Template name from list_doc_templates"
+    },
+    "variables": {
+      "type": "object",
+      "description": "Variable values keyed by variable name, without the {{}} wrapping; values are strings",
+      "additionalProperties": true
+    },
+    "format": {
+      "type": "string",
+      "description": "Output format: markdown, html, or docx (default markdown)",
+      "enum": [
+        "markdown",
+        "html",
+        "docx"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "description": "Document title override; defaults to the template title"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or attorney, written into the HTML metadata"
+    },
+    "date": {
+      "type": "string",
+      "description": "Document date, written into the HTML metadata"
+    },
+    "filename": {
+      "type": "string",
+      "description": "Suggested file name stem without extension; defaults to the template name"
+    }
+  },
+  "required": [
+    "template"
+  ]
+}
+```
+
+Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc-template/src/index.ts)
+
+list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section.
+
+<a id="deepseek-aidsh-patent-teams"></a>
+
+## `@deepseek-ai/dsh-patent-teams`
+
+### `patent_teams_add_member`
+
+Add a durable continuable member. By default it snapshots the captain's current LLM route and effort. Supply provider/model only for an explicitly requested role-specific route; a changed provider or model automatically uses the target model's default effort. Set reasoning_effort only to request one of the target model's supported ids explicitly (or "default" to force its default). The member waits for messages, works on assigned tasks, and can message the team.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique member name inside the team."
+    },
+    "role": {
+      "type": "string",
+      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator, illustrator, document-specialist)."
+    },
+    "provider": {
+      "type": "string",
+      "description": "Optional LLM provider route. Use only when the user explicitly requests a different provider; requires model."
+    },
+    "model": {
+      "type": "string",
+      "description": "Optional model override. Omit for the captain's current model (or the configured memberModel default)."
+    },
+    "reasoning_effort": {
+      "type": "string",
+      "description": "Optional reasoning effort override: one of the target model's supported effort ids, or \"default\" to force its default. When omitted, the captain's effort is inherited only for the same provider/model; a changed route uses the target default."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_archive`
+
+List this workspace's archived teams (kept by patent_teams_delete), or show one archived team's members and tasks in detail. Read-only.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "team_id": {
+      "type": "string",
+      "description": "Optional archived team id to show in detail; omit to list archived teams."
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_claim_task`
+
+Claim one ready task for a member (or yourself). A member cannot own a second unfinished task. The returned attempt_id is required for that member's updates and becomes stale after retry/reassignment.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "The task id to claim."
+    },
+    "assignee": {
+      "type": "string",
+      "description": "Member to claim for (captain only; defaults to the task's assignee). Member names only — \"captain\" is not a member; omit it to claim as the captain."
+    }
+  },
+  "required": [
+    "task_id"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_create`
+
+Create a new PatentTeams team: you (the calling agent) become the captain. A captain leads one team at a time; create tasks and members afterwards with patent_teams_add_member and patent_teams_create_task.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name for the new team (used as its stable id)."
+    },
+    "description": {
+      "type": "string",
+      "description": "Team purpose / the goal the team will work on."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_create_task`
+
+Create a task in your team's task list. Tasks can depend on other tasks (dependencies): a task is only claimable once every dependency is completed. Optionally assign it to a member, who still claims it before working.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "Brief title for the task."
+    },
+    "description": {
+      "type": "string",
+      "description": "What needs to be done, in detail."
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Task ids this task depends on (must be completed before this task can be claimed).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assignee": {
+      "type": "string",
+      "description": "Optional member name this task is intended for. Member names only: the captain is not a member, so never pass \"captain\" here — use reassign_task(assignee=\"captain\") to move a task to the captain."
+    },
+    "worker": {
+      "type": "string",
+      "description": "Optional worker contract the task output is validated against on completion (e.g. patent-search-commander, patent-oa-writer)."
+    }
+  },
+  "required": [
+    "subject"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_delete`
+
+End your team: interrupts all members (best effort) and archives the team's state directory (team file, tasks, mailboxes). Use when the team's work is done or abandoned.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_reassign_task`
+
+Atomically retry, reassign, or let the captain take over any unfinished/failed task. The old attempt is revoked before its member is interrupted, so late updates cannot overwrite the new owner. Use assignee="captain" for captain takeover.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "Task to retry/reassign."
+    },
+    "assignee": {
+      "type": "string",
+      "description": "Active member name, or \"captain\" for captain takeover."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why the task is being retried or reassigned."
+    }
+  },
+  "required": [
+    "task_id",
+    "assignee"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_remove_member`
+
+Remove a member safely: revoke its current attempts, return all unfinished owned tasks to the shared pending pool, interrupt its live turn, and mark it removed.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the member to remove."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_send_message`
+
+Send a message to the captain or to a teammate. Messages go straight into the recipient's mailbox; when the captain agent is online the plugin also schedules live delivery (member recipients get the message as their next turn; a running captain sees it at the nearest model step). No relay is involved: teammates talk to each other directly.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "to": {
+      "type": "string",
+      "description": "Recipient: \"captain\" or a member name."
+    },
+    "content": {
+      "type": "string",
+      "description": "The message text."
+    },
+    "from": {
+      "type": "string",
+      "description": "Sender (defaults to the caller: the captain, or the calling member)."
+    }
+  },
+  "required": [
+    "to",
+    "content"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_status`
+
+Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Poll this to watch progress.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_update_task`
+
+Update a task status/output. Members must supply the current attempt_id returned by claim_task; stale attempts are rejected after takeover/reassignment. Terminal results are immutable. A captain must use reassign_task(assignee="captain") before updating member-owned work.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "The task id to update."
+    },
+    "status": {
+      "type": "string",
+      "description": "New status. Legal moves: pending→claimed, claimed→in_progress, in_progress→completed. A claimed task must enter in_progress before it can be completed; terminal statuses (completed/failed/cancelled) have no way out.",
+      "enum": [
+        "in_progress",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "output": {
+      "type": "string",
+      "description": "Result summary; set when completing or failing."
+    },
+    "attempt_id": {
+      "type": "string",
+      "description": "Current execution capability returned by claim_task (required for members when present on the task)."
+    }
+  },
+  "required": [
+    "task_id"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts.
 
 <a id="deepseek-aidsh-tool-working-directory"></a>
 
@@ -2771,3 +7284,178 @@ Search the web for current information. Returns an optional summary answer and a
 Source: [`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
 
 web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.
+
+<a id="deepseek-aidsh-macos-tools"></a>
+
+## `@deepseek-ai/dsh-macos-tools`
+
+### `macos_app`
+
+Launch, activate, or quit a macOS application by name, bundle id, or absolute/~-rooted .app path. Launching and quitting ask the user for approval; activating only brings a running app to the front.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "launch starts the application; activate brings a running application to the front; quit asks a running application to quit.",
+      "enum": [
+        "launch",
+        "activate",
+        "quit"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "description": "Application name (Safari), bundle id (com.apple.Safari), or .app path."
+    }
+  },
+  "required": [
+    "action",
+    "name"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_clipboard_get`
+
+Read the current macOS clipboard text. The clipboard may hold secrets, so every read asks the user for one-time approval first.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_clipboard_set`
+
+Replace the macOS clipboard text with the given text, overwriting its previous content.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text to place on the clipboard."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_notify`
+
+Post a macOS system notification with a title, an optional message, and an optional sound.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Notification title."
+    },
+    "message": {
+      "type": "string",
+      "description": "Notification body (optional)."
+    },
+    "sound": {
+      "type": "boolean",
+      "description": "Play a notification sound (default false)."
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_open_path`
+
+Open a file or folder with its default macOS application, or reveal it in Finder. Opening hands the path to its default application and asks the user for approval; revealing only selects it in Finder.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Absolute or ~-rooted file or folder path."
+    },
+    "reveal": {
+      "type": "boolean",
+      "description": "true to select the path in Finder instead of opening it (default false)."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_open_url`
+
+Open a URL in the user's default browser. Bare hosts default to https; only http and https URLs are allowed.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "URL to open, e.g. https://example.com or example.com."
+    }
+  },
+  "required": [
+    "url"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_speak`
+
+Speak text aloud with macOS text-to-speech (the say command).
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text to speak."
+    },
+    "voice": {
+      "type": "string",
+      "description": "Voice name (e.g. Tingting, Samantha); defaults to the system voice."
+    },
+    "rate": {
+      "type": "integer",
+      "description": "Words per minute, between 80 and 500 (default 175)."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+Seven macOS native tools over system CLIs (open/reveal, browser URLs, clipboard read/write, notifications, speech, app control); every spawn is an absolute executable with an argv array, never a shell string.

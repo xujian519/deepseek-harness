@@ -589,15 +589,19 @@ export function RecordInspector({
               )}
               {selectedRequestInfo.error !== undefined && (
                 <div>
-                  <dt>{t('details.error')}</dt>
-                  <dd className={css.error}>{requestErrorMessage(selectedRequestInfo, t)}</dd>
+                  <dt>{t(selectedRequestState !== 'error' && selectedRequestInfo.retry !== undefined
+                    ? 'details.lastAttemptError'
+                    : 'details.error')}</dt>
+                  <dd className={selectedRequestState === 'error' ? css.error : undefined}>
+                    {requestErrorMessage(selectedRequestInfo, t)}
+                  </dd>
                 </div>
               )}
               {selectedRequestInfo.retry !== undefined && (
                 <div>
                   <dt>{t('details.retry')}</dt>
                   <dd>
-                    {t('details.scheduled')} {selectedRequestInfo.maxRetries === undefined
+                    {selectedRequestInfo.maxRetries === undefined
                       ? selectedRequestInfo.retry
                       : t('request.retryProgress', {
                         retry: selectedRequestInfo.retry,
