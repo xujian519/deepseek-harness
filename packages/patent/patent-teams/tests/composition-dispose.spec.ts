@@ -26,7 +26,7 @@ function makeSubagentsStub(): Record<string, unknown> {
   return {
     getProvider: () => undefined,
     list: () => [],
-    startContinuable: async () => { throw new Error('unused') },
+    startActivation: async () => { throw new Error('unused') },
     listChildren: guardProbe.listChildren,
     listDescendants: guardProbe.listDescendants,
     sendMessage: guardProbe.sendMessage,

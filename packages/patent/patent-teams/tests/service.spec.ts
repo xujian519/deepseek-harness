@@ -54,7 +54,7 @@ interface Harness {
   stateDir: string
   agents: Map<string, Agent>
   sendMessage: ReturnType<typeof vi.fn>
-  startContinuable: Mock<(spec: never) => Promise<{ childId: SessionId; messageId: string }>>
+  startActivation: Mock<(spec: never) => Promise<{ childId: SessionId; messageId: string }>>
   interrupted: string[]
   steered: unknown[]
   setFollowup(impl: (...args: never[]) => Promise<unknown>): void
@@ -82,7 +82,7 @@ async function makeService(options: {
     start: async () => { throw new Error('unused') },
     prepareContinuable: async () => ({}),
   }
-  const startContinuable = vi.fn(async (spec: never) => {
+  const startActivation = vi.fn(async (spec: never) => {
     started.push(spec)
     return { childId: SessionId(`member-${++childSeq}`), messageId: 'msg' }
   })
@@ -91,7 +91,7 @@ async function makeService(options: {
   ctx.provide('subagents', {
     getProvider: (name: string) => (name === 'spawn' ? provider : undefined),
     list: () => ['spawn'],
-    startContinuable,
+    startActivation,
     sendMessage,
     interrupt: (id: string) => { interrupted.push(id) },
     listChildren: async () => [],
@@ -111,7 +111,7 @@ async function makeService(options: {
     stateDir,
     agents,
     sendMessage,
-    startContinuable,
+    startActivation,
     interrupted,
     steered: [],
     setFollowup(impl) {
@@ -233,7 +233,7 @@ describe('addMember', () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
-    h.startContinuable.mockImplementationOnce(async () => {
+    h.startActivation.mockImplementationOnce(async () => {
       // From inside the spawn: the team lock must be free for other callers.
       const task = await h.ctx.patentTeams.createTask(captain, { subject: 'concurrent work' })
       expect(task.task_id).toBe('t1')
@@ -250,7 +250,7 @@ describe('addMember', () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
-    h.startContinuable.mockImplementationOnce(async () => {
+    h.startActivation.mockImplementationOnce(async () => {
       await rm(join(h.workspace, h.stateDir, 'alpha'), { recursive: true, force: true })
       return { childId: SessionId('member-1'), messageId: 'msg' }
     })
@@ -264,7 +264,7 @@ describe('addMember', () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
-    h.startContinuable.mockImplementationOnce(async () => {
+    h.startActivation.mockImplementationOnce(async () => {
       // The child goes live before its team record is persisted; the observer
       // scans, finds nothing, and caches the id as outside every team.
       h.ctx.emit('agent/status', { agent: fakeAgent('member-1', h.workspace), status: 'running' })

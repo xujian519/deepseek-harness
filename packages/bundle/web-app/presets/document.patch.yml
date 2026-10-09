@@ -263,14 +263,12 @@
                 config:
                   provider: spawn
                   toolName: subagent
-                  backgroundMode: continuable
 
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: fork
                   toolName: subagent_fork
-                  backgroundMode: continuable
 
               # Production dsh does not install these optional providers. Install the
               # matching Bundle in this Profile and restart the Host, then copy this
@@ -282,7 +280,6 @@
                 config:
                   provider: codex
                   toolName: subagent_codex
-                  backgroundMode: one-shot
                   maxDepth: provider-managed
 
               - id: tool-subagent-claude-code
@@ -291,7 +288,6 @@
                 config:
                   provider: claude-code
                   toolName: subagent_claude_code
-                  backgroundMode: one-shot
                   maxDepth: provider-managed
 
               - id: workflow-ptc
@@ -301,12 +297,6 @@
 
               - id: tool-workflow
                 name: '@deepseek-ai/dsh-tool-workflow'
-
-              - id: tool-ralph
-                name: '@deepseek-ai/dsh-tool-ralph'
-                config:
-                  subagentProvider: spawn
-                  maxRounds: 64
 
           # ── remaining model-facing rows ─────────────────────────────────────────────
 

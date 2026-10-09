@@ -31,7 +31,7 @@ Every PTY refusal is now routable, and the closing family reads the same in the 
 
 ## Testing
 
-`packages/terminal/terminal`, `packages/terminal/terminal-bash`, and `packages/terminal/tool-terminal` cover the retyped refusals: the two empty-argument cases assert `TypeError` with their message, and the closing and exited cases assert `SESSION_CLOSING` and `SESSION_EXITED` through `toThrow(expect.objectContaining({ code }))`. The idempotent-kill case now asserts that the caller's own reason reaches the backend instead of asserting the removed default. Full `pnpm run typecheck`, `pnpm run lint`, and the two persistent-shell tool suites pass.
+`packages/terminal/terminal`, `packages/terminal/terminal-bash`, and `packages/experimental/tool-terminal` cover the retyped refusals: the two empty-argument cases assert `TypeError` with their message, and the closing and exited cases assert `SESSION_CLOSING` and `SESSION_EXITED` through `toThrow(expect.objectContaining({ code }))`. The idempotent-kill case now asserts that the caller's own reason reaches the backend instead of asserting the removed default. Full `pnpm run typecheck`, `pnpm run lint`, and the two persistent-shell tool suites pass.
 
 ## Related
 

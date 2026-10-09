@@ -47,7 +47,7 @@ Failure classification is unchanged for a missing Session, an unreadable backend
 ## Testing
 
 - `pnpm exec vitest run packages/session-query/session-query/tests` — 101 passed.
-- `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 passed across the model-facing tool, the session-reference context plugin, and the SQLite backend.
+- `pnpm exec vitest run packages/experimental/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 passed across the model-facing tool, the session-reference context plugin, and the SQLite backend.
 - New case `observes one stored session per cold read instead of listing the corpus` asserts a cold point read performs zero listings and one `stat`, that the signal reaches the observation, and that an absent id is still reported as `SESSION_QUERY_SESSION_NOT_FOUND`.
 - New case `refuses a stored log this build cannot read instead of reporting it absent` drives the backend's own asymmetry (a listing that omits a structurally foreign header, a single-id observation that refuses it) and asserts the refusal reaches the caller as `SESSION_QUERY_PERSISTENCE_FAILED` with that refusal as its cause, and that the corpus listing still reports the Session as absent.
 - Negative control: restoring the listing preflight in `borrow` fails that case (and ten other cases in the suite) with `expected [AbortSignal] to deeply equal []`; keeping the preflight while the id observation still runs afterwards fails it with `expected { code: 'SESSION_QUERY_PERSISTENCE_FAILED' }` against the reported `SESSION_QUERY_SESSION_NOT_FOUND`.

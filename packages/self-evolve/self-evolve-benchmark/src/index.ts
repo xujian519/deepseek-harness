@@ -151,9 +151,14 @@ function parseJsonObject(result: SubagentResult, label: string): Record<string, 
 function createSubagentExecuteCase(ctx: Context): ExecuteCase {
   return async (request) => {
     const { subagents, parent } = requireForkRuntime(ctx, request.sessionId, 'execution')
-    const run = await subagents.start('fork', {
-      prompt: [textMessage(executePrompt(request))],
-      parent,
+    const run = await subagents.startActivation({
+      provider: 'fork',
+      label: 'self-evolve-benchmark',
+      delivery: 'caller',
+      request: {
+        prompt: [textMessage(executePrompt(request))],
+        parent,
+      },
       signal: request.signal,
     })
     try {
@@ -162,7 +167,7 @@ function createSubagentExecuteCase(ctx: Context): ExecuteCase {
         throw new Error(`self-evolve-benchmark: execution subagent ended ${result.stopReason}`)
       }
       const outcome: ExecuteCaseResult = { output: finalOutputText(result) }
-      outcome.sessionId = run.id
+      outcome.sessionId = run.childId
       return outcome
     } finally {
       await run.dispose()
@@ -174,9 +179,14 @@ function createSubagentExecuteCase(ctx: Context): ExecuteCase {
 function createSubagentEvaluateCase(ctx: Context): EvaluateCase {
   return async (request) => {
     const { subagents, parent } = requireForkRuntime(ctx, request.sessionId, 'evaluation')
-    const run = await subagents.start('fork', {
-      prompt: [textMessage(evaluatorPrompt(request))],
-      parent,
+    const run = await subagents.startActivation({
+      provider: 'fork',
+      label: 'self-evolve-benchmark',
+      delivery: 'caller',
+      request: {
+        prompt: [textMessage(evaluatorPrompt(request))],
+        parent,
+      },
       signal: request.signal,
     })
     try {
@@ -204,9 +214,14 @@ function createSubagentEvaluateCase(ctx: Context): EvaluateCase {
 function createProposeCandidate(ctx: Context): ProposeCandidate {
   return async (options) => {
     const { subagents, parent } = requireForkRuntime(ctx, options.sessionId, 'optimization')
-    const run = await subagents.start('fork', {
-      prompt: [textMessage(proposePrompt(options))],
-      parent,
+    const run = await subagents.startActivation({
+      provider: 'fork',
+      label: 'self-evolve-benchmark',
+      delivery: 'caller',
+      request: {
+        prompt: [textMessage(proposePrompt(options))],
+        parent,
+      },
       signal: options.signal,
     })
     try {
@@ -229,9 +244,14 @@ function createProposeCandidate(ctx: Context): ProposeCandidate {
 function createApplyCandidate(ctx: Context): ApplyCandidate {
   return async (options) => {
     const { subagents, parent } = requireForkRuntime(ctx, options.sessionId, 'optimization')
-    const run = await subagents.start('fork', {
-      prompt: [textMessage(applyPrompt(options))],
-      parent,
+    const run = await subagents.startActivation({
+      provider: 'fork',
+      label: 'self-evolve-benchmark',
+      delivery: 'caller',
+      request: {
+        prompt: [textMessage(applyPrompt(options))],
+        parent,
+      },
       signal: options.signal,
     })
     try {

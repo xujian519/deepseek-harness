@@ -70,7 +70,7 @@ async function makeService(options: {
       prepareContinuable: async () => ({}),
     }),
     list: () => ['spawn'],
-    startContinuable: (() => {
+    startActivation: (() => {
       let seq = 0
       return async () => ({ childId: SessionId(`member-${++seq}`), messageId: 'msg' })
     })(),

@@ -88,7 +88,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 
-export { Session } from './session.ts'
+export { Session, appendPluginRecord, pluginRecordOf } from './session.ts'
 
 /** A fork source: either the live session object or its live store id. */
 export type SessionForkSource = Session | SessionId

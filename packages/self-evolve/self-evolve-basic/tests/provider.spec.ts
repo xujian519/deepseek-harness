@@ -634,12 +634,19 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
   function forkSubagents(ctx: Context, child: Session): void {
     ctx.provide('subagents', {
       getProvider: () => ({}),
-      start: async () => ({
+      startActivation: async () => ({
+        childId: child.id,
         result: Promise.resolve({ stopReason: 'completed', output: [] }),
-        localAgent: { session: child },
         dispose: async () => {},
       }),
     } as never)
+    // The engine resolves the replayed Agent from the activation's child id, so
+    // the child must be reachable through `agents` alongside whatever
+    // `provideServices` installed for the parent. `provide` registers once, so
+    // the existing stub is widened in place instead of re-registered.
+    const agents = ctx.get('agents') as { get(id: SessionId): unknown }
+    const installed = agents.get.bind(agents)
+    agents.get = (id: SessionId) => (id === child.id ? { session: child } : installed(id))
   }
 
   it('replayCase forks a child and folds only its own events after the end-seed (P1.2)', async () => {
@@ -1823,9 +1830,9 @@ describe('replay and held-out edge surfaces', () => {
   function failingFork(ctx: Context, stopReason: string, child?: Session): void {
     ctx.provide('subagents', {
       getProvider: () => ({}),
-      start: async () => ({
+      startActivation: async () => ({
+        childId: child?.id ?? SessionId('fork-child'),
         result: Promise.resolve({ stopReason, output: [] }),
-        ...(child !== undefined ? { localAgent: { session: child } } : {}),
         dispose: async () => {},
       }),
     } as never)

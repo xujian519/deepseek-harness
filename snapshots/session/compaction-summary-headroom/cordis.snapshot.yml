@@ -1,5 +1,11 @@
-# The summary output cap inherits the 1,800-token headroom. A 1,000-token
-# request output reservation lowers the proactive trigger to 5,720 tokens.
+# The summary output cap inherits the 1,565-token headroom. A 1,000-token
+# request output reservation lowers the proactive trigger to 6,017 tokens —
+# midway between this tree's history (6,151) and its condensed replacement
+# (5,883); the headroom is recalibrated for this tree's tool-schema budget,
+# as compaction-output-reserve records.
+
+- id: agent-instructions
+  disabled: true
 
 - id: llm-deepseek
   name: '@deepseek-ai/dsh-llm-deepseek-api-key'
@@ -15,7 +21,7 @@
   name: '@deepseek-ai/dsh-compaction-basic'
   config:
     thresholdRatio: 0.8
-    headroomTokens: 1800
+    headroomTokens: 1565
     retainTokens: 20
 
 - insert:
@@ -27,5 +33,7 @@
             name: DeepSeek
             models:
               - id: deepseek-v4-flash
-                contextWindow: 8520
+                contextWindow: 8582
                 defaultMaxTokens: 1000
+    - id: compaction-working-directory
+      name: '../../../packages/test-support/session-snapshot/tests/fixtures/compaction-working-directory.ts'

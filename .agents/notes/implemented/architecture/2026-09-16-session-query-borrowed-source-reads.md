@@ -70,7 +70,7 @@ Borrowed events are read-only in the strong sense: a live owner's are deeply fro
 ## Testing
 
 - `pnpm exec vitest run packages/session-query/session-query/tests` — 101 passed.
-- `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 passed across the model-facing tool, the session-reference context plugin that consumes `readSurface`, and the SQLite backend.
+- `pnpm exec vitest run packages/experimental/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 passed across the model-facing tool, the session-reference context plugin that consumes `readSurface`, and the SQLite backend.
 - New case `copies only the returned window instead of the whole log` asserts the clone count per endpoint with a spy on `structuredClone`: at most one detach per returned event plus the header, and fewer than 1.5 detach passes for `readSession`. It also asserts the returned window is still a detached copy that leaves the session untouched.
 - Negative control: reintroducing the removed bulk clone into `borrowLive` fails that case with `expected 203 to be less than or equal to 3`.
 - Coverage for `packages/session-query/session-query/src/corpus.ts` and `src/index.ts` is 100% under the package's own tests.

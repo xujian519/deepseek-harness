@@ -31,7 +31,7 @@ Issue #100 把这一族记为台账 L4。其「同族包一致带消息前缀」
 
 ## Testing
 
-`packages/terminal/terminal`、`packages/terminal/terminal-bash` 与 `packages/terminal/tool-terminal` 覆盖了改类型的拒绝：两处空入参用例断言 `TypeError` 及其消息，关闭与退出两处用 `toThrow(expect.objectContaining({ code }))` 断言 `SESSION_CLOSING` 与 `SESSION_EXITED`。幂等 kill 用例改为断言调用方自己的原因到达后端，而不再断言被删除的默认值。`pnpm run typecheck`、`pnpm run lint` 与两个持久 shell 工具套件全部通过。
+`packages/terminal/terminal`、`packages/terminal/terminal-bash` 与 `packages/experimental/tool-terminal` 覆盖了改类型的拒绝：两处空入参用例断言 `TypeError` 及其消息，关闭与退出两处用 `toThrow(expect.objectContaining({ code }))` 断言 `SESSION_CLOSING` 与 `SESSION_EXITED`。幂等 kill 用例改为断言调用方自己的原因到达后端，而不再断言被删除的默认值。`pnpm run typecheck`、`pnpm run lint` 与两个持久 shell 工具套件全部通过。
 
 ## Related
 

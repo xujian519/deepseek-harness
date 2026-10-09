@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join, relative, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import type { TestContext } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { runScenario, snapshotSpillRoot, type AgentUnderTest, type InputStep } from '../src/harness.ts'
 import { launchAcpTestAgent } from '../src/launcher.ts'
@@ -74,6 +75,21 @@ async function scenario(behavior: object): Promise<{ dir: string; fixtureFile: s
   tempDirs.push(dir)
   await writeFile(join(dir, 'behavior.json'), JSON.stringify(behavior))
   return { dir, fixtureFile: join(dir, 'session.jsonl') }
+}
+
+/** Keep immutable-log diagnostics independent of initial filesystem harvest latency. */
+function isolateDiagnosticTimeout(onTestFinished: TestContext['onTestFinished']): void {
+  const waitFor = vi.waitFor
+  const wait = vi.spyOn(vi, 'waitFor')
+  onTestFinished(() => { wait.mockRestore() })
+  wait.mockImplementation(async (callback, options) => {
+    if (typeof options !== 'object' || options.timeout !== 20) return waitFor(callback, options)
+    try {
+      return await callback()
+    } catch (error) {
+      return waitFor(() => { throw error }, options)
+    }
+  })
 }
 
 const boot: InputStep[] = [{ op: 'initialize' }, { op: 'newSession' }]
@@ -993,9 +1009,18 @@ describe('runScenario', () => {
   })
 
   it.each([
+    { label: 'turn-start', step: { op: 'waitForTurnStart', timeoutMs: 20 }, expected: 'did not persist turn/start within 20ms' },
+    { label: 'goal', step: { op: 'waitForGoalPhase', phase: 'blocked', timeoutMs: 20 },
+      expected: 'did not persist goal phase "blocked" within 20ms' },
     { label: 'session', step: { op: 'waitForTurnEnd', timeoutMs: 20 }, expected: 'did not persist turn/end within 20ms' },
+    { label: 'inbox', step: { op: 'waitForInboxMessage', text: 'missing', timeoutMs: 20 },
+      expected: 'did not persist expected inbox message within 20ms' },
     { label: 'child', step: { op: 'waitForSubagentTurnEnd', child: 2, timeoutMs: 20 },
       expected: 'subagent child #2 did not persist closed turn 1 within 20ms' },
+    { label: 'title', step: { op: 'waitForTitleAfterTurnEnd', timeoutMs: 20 },
+      expected: 'did not persist session/title after turn/end within 20ms' },
+    { label: 'event', step: { op: 'waitForEventAfterTurnEnd', type: 'user/message', timeoutMs: 20 },
+      expected: 'did not persist user/message after turn/end within 20ms' },
   ] satisfies { label: string; step: InputStep; expected: string }[])
   ('identifies the $label wait when its first log harvest outlasts the deadline', async ({ step, expected }) => {
     const { fixtureFile } = await scenario({})
@@ -1138,7 +1163,8 @@ describe('runScenario', () => {
     )).rejects.toThrow(/subagent child #2 did not persist closed turn 1 within 20ms/)
   })
 
-  it('waitForTitleAfterTurnEnd times out when the title precedes the boundary', { timeout: 20_000 }, async () => {
+  it('waitForTitleAfterTurnEnd times out when the title precedes the boundary', { timeout: 20_000 }, async ({ onTestFinished }) => {
+    isolateDiagnosticTimeout(onTestFinished)
     const { fixtureFile } = await scenario({
       prompt: 'hang-until-cancel',
       persistLogsOnCancel: true,

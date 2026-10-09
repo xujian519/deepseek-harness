@@ -586,6 +586,8 @@ class FaceAnalyzer {
   private readonly graph: TypeGraph
   private readonly sourceFiles = new Map<string, ts.SourceFile>()
   private readonly exportsByPackage = new Map<string, ExportRecord[]>()
+  /** Registration lookup per source path; the registration set is fixed per analyzer. */
+  private readonly registrationByFile = new Map<string, PackageRegistration | undefined>()
   /** Remote/RPC contract analysis, over the graph this face mints ids in. */
   private readonly remote: RemoteAnalyzer
 
@@ -1078,9 +1080,12 @@ class FaceAnalyzer {
   }
 
   private registrationForFile(file: string): PackageRegistration | undefined {
+    if (this.registrationByFile.has(file)) return this.registrationByFile.get(file)
     const path = realPath(file)
-    return this.allRegistrations
+    const registration = this.allRegistrations
       .find(registration => registration.face === this.face && isWithin(path, registration.root))
+    this.registrationByFile.set(file, registration)
+    return registration
   }
 
   private location(node: ts.Node): SourceLocation {

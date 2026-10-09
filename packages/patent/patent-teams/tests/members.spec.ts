@@ -89,7 +89,7 @@ function makeSubagentsStub(overrides: Record<string, unknown> = {}): Record<stri
   return {
     getProvider: () => undefined,
     list: () => [],
-    startContinuable: async () => ({ childId: SessionId('child-1'), messageId: 'msg-1' }),
+    startActivation: async () => ({ childId: SessionId('child-1'), messageId: 'msg-1' }),
     sendMessage: async () => 'message-1',
     interrupt: () => {},
     listChildren: async () => [],
@@ -314,7 +314,7 @@ describe('spawnMember', () => {
     ctx.provide('subagents', makeSubagentsStub({
       getProvider: () => provider(),
       list: () => ['spawn'],
-      startContinuable: async (spec: unknown) => {
+      startActivation: async (spec: unknown) => {
         started.push(spec)
         return { childId: SessionId('child-1'), messageId: 'msg-1' }
       },
@@ -354,7 +354,7 @@ describe('spawnMember', () => {
     let captured: { request: { maxDepth?: number } } | undefined
     ctx.provide('subagents', makeSubagentsStub({
       getProvider: () => provider(),
-      startContinuable: async (spec: never) => {
+      startActivation: async (spec: never) => {
         captured = spec
         return { childId: SessionId('child-1'), messageId: 'msg-1' }
       },

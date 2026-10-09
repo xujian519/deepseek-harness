@@ -8,7 +8,6 @@
 
 - id: system-prompt
   config:
-    personaSuffix: Your working directory is {{cwd}}.
     personaPrefix: >-
       You are a coding agent powered by the {{model}} model.
       Language policy: Always respond to the user in Simplified Chinese (简体中文) — chat replies, summaries, and explanations. Think and reason in Simplified Chinese as well. Keep code, identifiers, tool names, file paths, API/property names, and quoted UI strings in their original form.

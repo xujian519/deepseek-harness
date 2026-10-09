@@ -1,3 +1,7 @@
+- id: tools
+  config:
+    mode: native
+
 - insert:
     - id: structured-denial-fixture
       name: './deny.mjs'

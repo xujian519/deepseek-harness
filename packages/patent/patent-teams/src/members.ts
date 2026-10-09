@@ -301,9 +301,10 @@ export async function spawnMember(
   // The route rides the creation request: the manager seeds it into the
   // child's durable descriptor, so fresh composition and cold resume both
   // restore provider/model without a per-child setup hook.
-  const start = await ctx.subagents.startContinuable({
+  const start = await ctx.subagents.startActivation({
     provider: config.provider,
     label,
+    delivery: 'parent',
     request: {
       prompt: [{ type: 'text', text: memberWelcome(team) }],
       parent: captain,

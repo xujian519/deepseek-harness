@@ -18,7 +18,7 @@ These gaps were tracked as Issue #81.
 
 ## Decision
 
-Both bridges now share the same three mechanisms, implemented symmetrically in `packages/hooks/hooks-claude-code/src/index.ts` and `packages/hooks/hooks-codex/src/index.ts`:
+Both bridges now share the same three mechanisms, implemented symmetrically in `packages/experimental/hooks-claude-code/src/index.ts` and `packages/experimental/hooks-codex/src/index.ts`:
 
 ### Session-start delivery gate
 
@@ -56,7 +56,7 @@ The new `maxStopContinuations` field appears in both bridge configs and their ge
 
 ## Testing
 
-`npx vitest run packages/hooks/hooks-claude-code/tests/bridge.spec.ts packages/hooks/hooks-codex/tests/bridge.spec.ts` covers the three behaviors on both bridges:
+`npx vitest run packages/experimental/hooks-claude-code/tests/bridge.spec.ts packages/experimental/hooks-codex/tests/bridge.spec.ts` covers the three behaviors on both bridges:
 
 - A `UserPromptSubmit` hook returning `{"continue": false}` cancels the run.
 - A blocking `Stop` hook that never self-limits is cancelled after `maxStopContinuations` forced continuations.
@@ -67,6 +67,6 @@ The existing test harness helper accepts an optional `pluginConfig` partial so t
 
 ## Related
 
-- [Claude Code hook bridge](../../../../packages/hooks/hooks-claude-code/README.md) — user-facing contract for the affected bridge.
-- [Codex hook bridge](../../../../packages/hooks/hooks-codex/README.md) — user-facing contract for the affected bridge.
+- [Claude Code hook bridge](../../../../packages/experimental/hooks-claude-code/README.md) — user-facing contract for the affected bridge.
+- [Codex hook bridge](../../../../packages/experimental/hooks-codex/README.md) — user-facing contract for the affected bridge.
 - [Interception extension points](../../archived/feature/2026-06-30-interception-extension-points.md) — the typed Decision surface the bridges map onto.

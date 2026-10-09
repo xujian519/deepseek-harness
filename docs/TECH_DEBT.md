@@ -436,7 +436,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 ### M4. hooks 桥行为缺口(每个都有 TODO,但直接影响用户)
 
-- **位置**:`packages/hooks/hooks-claude-code/src/index.ts:189,205,269`(hooks-codex 镜像 `:172,187,257`)
+- **位置**:`packages/experimental/hooks-claude-code/src/index.ts:189,205,269`(hooks-codex 镜像 `:172,187,257`)
 - **问题**:
   - `merged.stop` 只记日志,无 run 级 halt——hook 请求停止但 agent 继续跑
   - `TODO(stop-loop-guard)`——Stop hook 反复强制 continue 无上限,无限循环风险
@@ -463,7 +463,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | `packages/host/apiproxy/src/api-proxy.ts` | 3744(69 方法) | 整个 BFF API 代理单体 |
 | `packages/typert/generator/src/analyzer.ts` | 3113 | TypeScript 项目分析器(53 个顶层符号) |
 | `packages/core/tools/src/index.ts` | 1955 | ToolRuntime + registry + 调度器 + 水印 + 守卫 + Config 投影 |
-| `packages/subagent/subagent/src/continuation.ts` | 1483 | ChildLock、Activation/Materialization、drain、coldResume、dispose 全挤在一个类 |
+| `packages/subagent/subagent/src/manager.ts`(探查时为 fork 的 `continuation.ts`,该文件已随上游 v0.2.1-alpha.2 的 manager 重构删除) | 1475 | ChildLock、Activation/Materialization、drain、coldResume、dispose 全挤在一个类 |
 | `packages/extensions/cordis-host-runner/src/index.ts` | 1274 | Dynamic Plugin 服务 |
 | `packages/client/ui-slots/src/index.ts` | 1192 | — |
 | `packages/core/session/src/index.ts` | 904 | session 服务 + 事件词汇 |

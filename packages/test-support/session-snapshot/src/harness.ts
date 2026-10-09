@@ -68,12 +68,14 @@ const WAIT_POLL_INTERVAL_MS = 10
  * `waitForInboxMessage` waits for inserted inbox text containing a scenario marker.
  * `waitForSubagentTurnEnd` waits until one background child has persisted a
  * closed model-work turn after its own descriptor; child progress has no ACP
- * update to wait on. Failures identify the child, turn, and deadline even if
- * the first log read is still pending; the underlying failure is retained as cause.
+ * update to wait on.
  * `waitForTitleAfterTurnEnd` additionally waits for a later durable title.
  * `waitForEventAfterTurnEnd` waits until a complete record of the given event
  * type follows the latest closed turn — for scenarios whose asserted state
  * (e.g. a goal pause) is appended only after cancellation reaches idle.
+ * Session-log wait timeouts identify the session or child and deadline even
+ * if the first log read is still pending; they retain the underlying failure
+ * as cause. Child waits also name the requested turn.
  * A standalone `cancel` may also wait for a cwd-relative readiness marker.
  * Waits that accept a `timeoutMs` default to 10s.
  */

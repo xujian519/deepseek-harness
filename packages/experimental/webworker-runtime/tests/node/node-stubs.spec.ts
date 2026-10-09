@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { notAvailableError, notImplementedFail } from '../../src/node/notImplementedFail.ts'
 import * as childProcess from '../../src/node/builtin_modules/implemented/child_process.ts'
 import * as dnsPromises from '../../src/node/builtin_modules/mock/dns/promises.ts'
+import * as https from '../../src/node/builtin_modules/mock/https.ts'
 import * as net from '../../src/node/builtin_modules/mock/net.ts'
 import * as sqlite from '../../src/node/builtin_modules/mock/sqlite.ts'
 import * as stream from '../../src/node/builtin_modules/implemented/stream.ts'
@@ -38,6 +39,7 @@ const quiet = (): void => { vi.spyOn(console, 'error').mockImplementation(() => 
 /** Symbols that refuse when called. */
 const CALLED: [string, Record<string, unknown>, readonly string[]][] = [
   ['node:dns/promises', dnsPromises, ['lookup']],
+  ['node:https', https, ['createServer']],
   ['node:net', net, ['createServer', 'connect']],
   ['node:sqlite', sqlite, ['backup']],
   ['node:vm', vm, ['createContext', 'runInContext', 'runInNewContext', 'runInThisContext', 'isContext']],
@@ -50,7 +52,7 @@ const CALLED: [string, Record<string, unknown>, readonly string[]][] = [
   ['got', got.default, ['post']],
   ['@deepseek-ai/pi-ai', piAi, [
     'createProvider', 'createModels', 'openAICompletionsApi', 'openAIResponsesApi', 'anthropicMessagesApi',
-    'isContextOverflow', 'getSupportedThinkingLevels', 'cloudflareStreams', 'withOpenCodeSessionHeader',
+    'isContextOverflow', 'getSupportedThinkingLevels', 'builtinModels',
   ]],
 ]
 
@@ -139,13 +141,6 @@ describe('replaced external packages', () => {
   it('answers the values callers read without invoking anything', () => {
     // The ripgrep binary path is read as data by its consumer.
     expect(typeof ripgrep.rgPath).toBe('string')
-    // The pi-ai collection is built and mutated during catalog reads; a route
-    // that resolved would already have failed on the refusing provider factory.
-    const models = piAi.builtinModels()
-    expect(() => { models.clearProviders() }).not.toThrow()
-    expect(() => { models.setProvider({ id: 'openai' }) }).not.toThrow()
-    expect(models.getModels('openai')).toEqual([])
-    expect(models.getModel('openai', 'gpt-4.1')).toBeUndefined()
   })
 })
 
@@ -175,8 +170,6 @@ describe('node:os', () => {
 
   it('reports no per-core facts and no network interfaces', () => {
     expect(os.cpus()).toEqual([])
-    // The worker webserver binds the loopback literal, so a LAN address is never
-    // derived — and an empty record keeps it out of the trust snapshot.
     expect(os.networkInterfaces()).toEqual({})
     expect(os.availableParallelism()).toBeGreaterThanOrEqual(1)
   })
