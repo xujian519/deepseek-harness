@@ -59,16 +59,15 @@ describe('validateChildFrame', () => {
       .toEqual({ type: 'done', error: { kind: 'invalid-output', message: 'lossy' } })
     expect(validateChildFrame({ type: 'done', error: { kind: 'output-limit', message: 'big' } }))
       .toEqual({ type: 'done', error: { kind: 'output-limit', message: 'big' } })
-    expect(validateChildFrame({ type: 'done', error: { kind: 'timeout', message: 'CPU time exhausted' } }))
-      .toEqual({ type: 'done', error: { kind: 'timeout', message: 'CPU time exhausted' } })
     expect(validateChildFrame({ type: 'done', value: 1, error: { kind: 'exception', message: 'boom' } }))
       .toEqual({ type: 'done', value: 1, error: { kind: 'exception', message: 'boom' } })
     // A `value: undefined` field is dropped (JSON never carries it, but a forged
     // shape might; the rebuild coalesces to the absent case).
     expect(validateChildFrame({ type: 'done', value: undefined })).toEqual({ type: 'done' })
-    // Unknown failure kinds cannot become runtime outcomes.
+    // A missing or unrecognized kind drops the frame: the child always sends
+    // one of the three, so anything else is a forgery.
     expect(validateChildFrame({ type: 'done', error: { message: 'boom' } })).toBeUndefined()
-    expect(validateChildFrame({ type: 'done', error: { kind: 'unknown', message: 'x' } })).toBeUndefined()
+    expect(validateChildFrame({ type: 'done', error: { kind: 'timeout', message: 'x' } })).toBeUndefined()
   })
 
   it('rejects malformed done frames', () => {
