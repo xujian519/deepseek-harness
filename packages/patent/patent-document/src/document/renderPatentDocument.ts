@@ -16,6 +16,7 @@ import { applyParagraphNumbering } from './paragraphNumbering.ts'
 import { DEFAULT_PDF_TIMEOUT_MS, renderPdf } from './pdfRenderer.ts'
 import { readTemplateHtml } from './templateResolver.ts'
 import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './types.ts'
+import { renderSpecDraftSections } from './draftConverter/index.ts'
 
 /** 缺省输出目录（相对 cwd，取代 Sati 的 .sati/documents）。 */
 export const DEFAULT_OUTPUT_DIR = '.dsh/documents'
@@ -165,6 +166,28 @@ function injectSections(
 }
 
 /**
+ * 解析本次渲染的槽位注入映射：claims-spec 走受控草案（转换器生成结构），
+ * 其余模板暂走 sections；两者互斥，未迁移模板传 draft 明确报错。
+ * @param input - 渲染输入。
+ * @returns 元素 id → innerHTML 映射。
+ */
+function resolveSections(input: DocumentRenderInput): Record<string, string> {
+  if (input.draft !== undefined) {
+    if (input.template !== 'claims-spec') {
+      throw new DocumentRenderError(`模板 ${input.template} 尚未接入受控草案：draft 目前仅支持 claims-spec，请仍用 sections`)
+    }
+    if (Object.keys(input.sections).length > 0) {
+      throw new DocumentRenderError('draft 与 sections 互斥：claims-spec 请只传 draft（结构化草案）')
+    }
+    return { ...renderSpecDraftSections(input.draft) }
+  }
+  if (input.template === 'claims-spec') {
+    throw new DocumentRenderError('sections 已停用：claims-spec 请改用受控草案参数 draft（结构化块，不再传 innerHTML）')
+  }
+  return input.sections
+}
+
+/**
  * 渲染并落盘专利文书（HTML，可选 PDF）。
  * @param input - 渲染输入。
  * @param cwd - 相对路径基准目录。
@@ -194,7 +217,7 @@ export async function renderPatentDocument(
 
   let html = readTemplateHtml(input.template)
   html = injectBrandCss(html, buildBrandStyle(brand))
-  const injected = injectSections(html, input.sections)
+  const injected = injectSections(html, resolveSections(input))
   html = injected.html
   if (injected.skippedIds.length > 0) {
     warnings.push(`以下 section id 未命中模板，内容已忽略: ${injected.skippedIds.join(', ')}`)

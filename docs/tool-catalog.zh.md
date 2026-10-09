@@ -6050,7 +6050,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
 
 ### `render_patent_document`
 
-从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见、诉讼文书、专利权评价报告或表格式检索报告）渲染为磁盘文件。选择模板 id 与 outputName；以 id → innerHTML 记录的形式传入 sections 填充模板插槽。写出 HTML 文件，默认还通过无头 Chrome 生成 PDF（format：html、pdf 或 both，默认 both）。返回写入的文件路径及任何告警或 PDF 失败原因（PDF 失败时 HTML 仍存在）。
+从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表、无效意见、补正书、复审请求书、侵权比对意见、诉讼文书、专利权评价报告或表格式检索报告）渲染为磁盘文件。选择模板 id 与 outputName；以 id → innerHTML 记录的形式传入 sections 填充模板插槽。claims-spec 申请文件改传受控草案（draft 参数）：结构化 JSON，含著录项 meta、不带项号的 claims、多段 abstract、每幅附图一条 drawingDescriptions，以及按五部分组织的 paragraph/list/table 块——标题、权项编号、图号与表题全部由结构生成，不由模型撰写。写出 HTML 文件，默认还通过无头 Chrome 生成 PDF（format：html、pdf 或 both，默认 both）。返回写入的文件路径及任何告警或 PDF 失败原因（PDF 失败时 HTML 仍存在）。
 
 ```json
 {
@@ -6096,7 +6096,12 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
     },
     "sections": {
       "type": "object",
-      "description": "Record of element id -> HTML innerHTML content to inject into the template.",
+      "description": "Record of element id -> HTML innerHTML content to inject into the template. Not for claims-spec, which requires draft instead.",
+      "additionalProperties": true
+    },
+    "draft": {
+      "type": "object",
+      "description": "Controlled draft (structured JSON). Required for the claims-spec template: meta (title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, one drawingDescriptions entry per figure, and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks. Tables are allowed only in embodiment and are captioned automatically. Other templates do not accept draft yet.",
       "additionalProperties": true
     },
     "brand": {

@@ -18,8 +18,75 @@ describe('render_patent_document tool', () => {
     expect(parameters.properties).toHaveProperty('template')
     expect(parameters.properties).toHaveProperty('outputName')
     expect(parameters.properties).toHaveProperty('sections')
+    expect(parameters.properties).toHaveProperty('draft')
     expect(typeof tool.output.render).toBe('function')
     expect(typeof tool.execute).toBe('function')
+  })
+
+  it('executes a claims-spec render from a controlled draft', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-tool-'))
+    try {
+      const tool = createRenderPatentDocumentTool({ subprocess })
+      const value = (await tool.execute(
+        {
+          template: 'claims-spec',
+          outputName: 'spec-draft',
+          outputDir: dir,
+          format: 'html',
+          draft: {
+            meta: { title: '一种装置', applicant: '示例申请人', inventor: '示例发明人', agent: '示例代理', date: '2026-10-09' },
+            claims: ['一种装置，其特征在于，包括示例部件。'],
+            abstract: ['本发明公开一种装置。'],
+            figureFiles: ['fig1.svg'],
+            drawingDescriptions: ['整体结构示意图'],
+            sections: {
+              technicalField: [{ kind: 'paragraph', text: '本发明属于示例领域。' }],
+              background: [{ kind: 'paragraph', text: '现有技术存在不足。' }],
+              summary: [{ kind: 'paragraph', text: '本发明提供一种装置。' }],
+              drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }],
+              embodiment: [{ kind: 'paragraph', text: '下面结合附图说明。' }],
+            },
+          },
+        },
+        { signal: new AbortController().signal } as never,
+      )) as { htmlPath: string; warnings: string[] }
+
+      expect(existsSync(value.htmlPath)).toBe(true)
+      const html = readFileSync(value.htmlPath, 'utf8')
+      expect(html).toContain('<h3>技术领域</h3><p>本发明属于示例领域。</p>')
+      expect(html).toContain('<span class="claim-num">1.</span>一种装置')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an invalid draft with the slot-listing validation message', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const tool = createRenderPatentDocumentTool({ subprocess })
+    await expect(tool.execute(
+      {
+        template: 'claims-spec',
+        outputName: 'bad-draft',
+        format: 'html',
+        draft: { claims: ['1. 自带项号的一种装置'] },
+      },
+      { signal: new AbortController().signal } as never,
+    )).rejects.toThrow(/claims\[0\] 自带项号/)
+  })
+
+  it('rejects legacy sections for claims-spec by name', async () => {
+    const subprocess = fakeSubprocess(() => successHandle()).runtime
+    const tool = createRenderPatentDocumentTool({ subprocess })
+    await expect(tool.execute(
+      {
+        template: 'claims-spec',
+        outputName: 'legacy-sections',
+        format: 'html',
+        sections: { 'meta-title': '旧用法' },
+      },
+      { signal: new AbortController().signal } as never,
+    )).rejects.toThrow(/sections 已停用：claims-spec 请改用受控草案参数 draft/)
   })
 
   it('renders the canonical result as pure model-facing prose', () => {

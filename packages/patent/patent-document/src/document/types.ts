@@ -3,6 +3,8 @@
  * @module @deepseek-ai/dsh-patent-document/document/types
  */
 
+import type { SpecDraft } from '@deepseek-ai/dsh-patent-core'
+
 /** 受 manifest.json 支持的模板 id。 */
 export type DocumentTemplateId =
   | 'patentability-opinion'
@@ -35,7 +37,12 @@ export type DocumentRenderInput = {
   outputDir?: string
   /** 输出格式：html / pdf / both（默认 both）。 */
   format?: RenderFormat
-  /** 按元素 id 注入的 HTML 内容（innerHTML）。 */
+  /**
+   * claims-spec 受控草案（已通过 validateSpecDraft）：标题、权项编号与表题由
+   * 转换器生成。claims-spec 必填；其余模板接入前传 draft 会抛错。
+   */
+  draft?: SpecDraft
+  /** 按元素 id 注入的 HTML 内容（innerHTML）；claims-spec 已停用，其余模板暂用。 */
   sections: Record<string, string>
   /** 内联品牌覆盖（优先级高于 brandPath）。 */
   brand?: DocumentBrand

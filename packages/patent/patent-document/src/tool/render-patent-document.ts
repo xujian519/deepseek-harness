@@ -7,6 +7,7 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { validateSpecDraft, type SpecDraft } from '@deepseek-ai/dsh-patent-core'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { DocumentRenderError } from '../document/errors.ts'
@@ -29,7 +30,7 @@ const TEMPLATE_IDS = [
 ] as const
 
 const DESCRIPTION = [
-  'Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, litigation pleading, right-evaluation report, or search report form) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).',
+  'Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, litigation pleading, right-evaluation report, or search report form) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. The claims-spec filing document instead takes a controlled draft (the draft parameter): structured JSON with bibliographic meta, unnumbered claims, multi-paragraph abstract, one drawingDescriptions entry per figure, and the five specification parts as paragraph/list/table blocks — headings, claim numbers, figure numbers, and table captions are generated from the structure, never authored. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).',
 ].join('\n')
 /** 输出 canonical 值的 JSON schema（与 DocumentRenderResult 对应）。 */
 const RESULT_SCHEMA = {
@@ -123,7 +124,12 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
       sections: {
         type: 'object',
         additionalProperties: true,
-        description: 'Record of element id -> HTML innerHTML content to inject into the template.',
+        description: 'Record of element id -> HTML innerHTML content to inject into the template. Not for claims-spec, which requires draft instead.',
+      },
+      draft: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Controlled draft (structured JSON). Required for the claims-spec template: meta (title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, one drawingDescriptions entry per figure, and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks. Tables are allowed only in embodiment and are captioned automatically. Other templates do not accept draft yet.',
       },
       brand: {
         type: 'object',
@@ -142,6 +148,11 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
     async execute(args, exec) {
       const sections = coerceStringRecord(args.sections, 'sections')
       const brand = args.brand === undefined ? undefined : coerceStringRecord(args.brand, 'brand')
+      let draft: SpecDraft | undefined
+      if (args.draft !== undefined) {
+        // validateSpecDraft 的契约是只抛 DraftValidationError（消息已列出可用槽位），直接传播。
+        draft = validateSpecDraft(args.draft)
+      }
       const result = await renderPatentDocument(
         {
           template: args.template,
@@ -150,6 +161,7 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
           ...(args.outputDir !== undefined ? { outputDir: args.outputDir } : {}),
           ...(args.format !== undefined ? { format: args.format } : {}),
           sections,
+          ...(draft !== undefined ? { draft } : {}),
           ...(brand !== undefined ? { brand } : {}),
           ...(args.brandPath !== undefined ? { brandPath: args.brandPath } : {}),
         },

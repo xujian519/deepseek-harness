@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_OUTPUT_DIR, renderPatentDocument } from '@deepseek-ai/dsh-patent-document'
+import type { SpecDraft } from '@deepseek-ai/dsh-patent-core'
 import { fakeSubprocess, successHandle, unusedSubprocess } from './helpers.ts'
 
 // Deterministic render-side seams: Chrome discovery and the template source
@@ -685,6 +686,134 @@ describe('renderPatentDocument', () => {
           expect(html).toContain(value)
         }
       }
+    } finally {
+      cleanup(dir)
+    }
+  })
+})
+
+describe('renderPatentDocument claims-spec 受控草案', () => {
+  /** 最小可渲染 claims-spec 草案（与 draft-converter 用例同形）。 */
+  function draft(): SpecDraft {
+    return {
+      meta: { title: '一种智能保温杯', applicant: '示例科技有限公司', inventor: '张三', agent: 'XX 事务所', date: '2026-10-09' },
+      claims: ['一种智能保温杯，其特征在于，包括杯体。'],
+      abstract: ['本发明公开一种智能保温杯。'],
+      figureFiles: ['fig1.svg'],
+      drawingDescriptions: ['整体结构示意图'],
+      sections: {
+        technicalField: [{ kind: 'paragraph', text: '本发明属于日用品领域。' }],
+        background: [{ kind: 'paragraph', text: '现有保温杯无法显示水温。' }],
+        summary: [{ kind: 'paragraph', text: '本发明提供一种智能保温杯。' }],
+        drawingDescriptions: [{ kind: 'list', items: ['整体结构示意图'] }],
+        embodiment: [{ kind: 'paragraph', text: '下面结合附图说明。' }],
+      },
+    }
+  }
+
+  it('claims-spec 传 draft 渲染：结构由转换器生成，非落款无占位符', async () => {
+    const dir = makeTempDir()
+    try {
+      const result = await renderPatentDocument(
+        {
+          template: 'claims-spec',
+          outputName: 'spec-draft',
+          outputDir: dir,
+          format: 'html',
+          sections: {},
+          draft: draft(),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      expect(existsSync(result.htmlPath)).toBe(true)
+      const html = readFileSync(result.htmlPath, 'utf8')
+      expect(html).toContain('<h3>技术领域</h3><p>本发明属于日用品领域。</p>')
+      expect(html).toContain('<span class="claim-num">1.</span>一种智能保温杯')
+      expect(html).toContain('<li>图1为整体结构示意图。</li>')
+      expect(html).toContain('图 <span class="mono">1</span>')
+      // 非落款区域不得残留占位符（落款签名块除外）。
+      const body = html.split('<div class="doc-closing">')[0] ?? ''
+      expect(body).not.toContain('________')
+      expect(body).not.toContain('<h4')
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('claims-spec 传 sections 时点名拒绝并指向 draft', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(renderPatentDocument(
+        {
+          template: 'claims-spec',
+          outputName: 'spec-old',
+          outputDir: dir,
+          format: 'html',
+          sections: { 'meta-title': '旧用法' },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/sections 已停用：claims-spec 请改用受控草案参数 draft/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('claims-spec 缺 draft 与 sections 时同样拒绝', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(renderPatentDocument(
+        {
+          template: 'claims-spec',
+          outputName: 'spec-empty',
+          outputDir: dir,
+          format: 'html',
+          sections: {},
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/sections 已停用：claims-spec 请改用受控草案参数 draft/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('未迁移模板传 draft 时报错并说明仅 claims-spec 可用', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(renderPatentDocument(
+        {
+          template: 'patentability-opinion',
+          outputName: 'opinion-draft',
+          outputDir: dir,
+          format: 'html',
+          sections: {},
+          draft: draft(),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/尚未接入受控草案：draft 目前仅支持 claims-spec/)
+    } finally {
+      cleanup(dir)
+    }
+  })
+
+  it('draft 与 sections 同传时报互斥错误', async () => {
+    const dir = makeTempDir()
+    try {
+      await expect(renderPatentDocument(
+        {
+          template: 'claims-spec',
+          outputName: 'spec-both',
+          outputDir: dir,
+          format: 'html',
+          sections: { 'meta-title': '多余' },
+          draft: draft(),
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )).rejects.toThrow(/draft 与 sections 互斥/)
     } finally {
       cleanup(dir)
     }
