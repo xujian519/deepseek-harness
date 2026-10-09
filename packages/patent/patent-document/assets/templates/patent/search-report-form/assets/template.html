@@ -143,43 +143,43 @@
         </colgroup>
         <tbody>
           <tr>
-            <td colspan="5">报告编号：<span class="fill"></span></td>
-            <td colspan="7">检索日期：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
-            <td colspan="8">检索截止日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
+            <td colspan="5">报告编号：<span class="fill" data-slot="reportNo"></span></td>
+            <td colspan="7">检索日期：<span class="fill w-sm" data-slot="searchDateYear"></span> 年 <span class="fill w-sm" data-slot="searchDateMonth"></span> 月 <span class="fill w-sm" data-slot="searchDateDay"></span> 日</td>
+            <td colspan="8">检索截止日：<span class="fill w-sm" data-slot="cutoffDateYear"></span> 年 <span class="fill w-sm" data-slot="cutoffDateMonth"></span> 月 <span class="fill w-sm" data-slot="cutoffDateDay"></span> 日</td>
           </tr>
           <tr>
-            <td colspan="10">申请号/专利号：<span class="fill"></span></td>
-            <td colspan="10">申请日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
+            <td colspan="10">申请号/专利号：<span class="fill" data-slot="applicationNo"></span></td>
+            <td colspan="10">申请日：<span class="fill w-sm" data-slot="applicationDateYear"></span> 年 <span class="fill w-sm" data-slot="applicationDateMonth"></span> 月 <span class="fill w-sm" data-slot="applicationDateDay"></span> 日</td>
           </tr>
           <tr>
-            <td colspan="12">发明名称：<span class="fill w-lg"></span></td>
-            <td colspan="8">专利类型：<span class="fill w-sm"></span></td>
+            <td colspan="12">发明名称：<span class="fill w-lg" data-slot="inventionTitle"></span></td>
+            <td colspan="8">专利类型：<span class="fill w-sm" data-slot="patentType"></span></td>
           </tr>
           <tr>
-            <td colspan="12">专利权人/申请人：<span class="fill w-lg"></span></td>
-            <td colspan="8">委托方：<span class="fill w-lg"></span></td>
+            <td colspan="12">专利权人/申请人：<span class="fill w-lg" data-slot="patentee"></span></td>
+            <td colspan="8">委托方：<span class="fill w-lg" data-slot="client"></span></td>
           </tr>
           <tr>
-            <td colspan="10">检索人：<span class="fill"></span></td>
-            <td colspan="10">审核人：<span class="fill"></span></td>
+            <td colspan="10">检索人：<span class="fill" data-slot="searcher"></span></td>
+            <td colspan="10">审核人：<span class="fill" data-slot="reviewer"></span></td>
           </tr>
         </tbody>
       </table>
 
       <div class="part">
         <div class="part-label">A. 主题的分类（IPC / CPC）</div>
-        <div class="part-value"><span class="fill w-lg"></span></div>
+        <div class="part-value"><span class="fill w-lg" data-slot="ipcClass"></span></div>
       </div>
 
       <div class="part">
         <div class="part-label">B. 检索领域</div>
-        <div class="part-value"><span class="fill w-full"></span></div>
+        <div class="part-value" data-slot="searchField"><span class="fill w-full"></span></div>
       </div>
 
       <div class="part">
         <div class="part-label">C. 在检索时查阅的电子数据库（数据库的名称和/或使用的检索式）</div>
-        <div class="part-value"><span class="fill w-full"></span></div>
-        <div class="part-value tight"><span class="fill w-full"></span></div>
+        <div class="part-value" data-slot="databases"><span class="fill w-full"></span></div>
+        <div class="part-value tight" data-slot="databases"><span class="fill w-full"></span></div>
       </div>
 
       <div class="part">
@@ -200,10 +200,10 @@
           </thead>
           <tbody>
             <!-- 数据行：按相关文件条数复制本行；超出本页时勾选下面一行并转到附页 -->
-            <tr><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td></tr>
+            <tr data-slot="relatedDocuments"><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td></tr>
           </tbody>
         </table>
-        <div class="opt" style="margin-top:1mm"><span class="cb"></span><span class="txt">相关文件，参见附页。</span></div>
+        <div class="opt" style="margin-top:1mm"><span class="cb" data-slot="moreDocuments:continued"></span><span class="txt">相关文件，参见附页。</span></div>
       </div>
 
       <div class="part">
@@ -223,8 +223,8 @@
   </div>
 
   <div class="doc-foot">
-    <div><span class="fill w-lg"></span> · 机密</div>
-    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+    <div><span class="fill w-lg" data-slot="footerFirm"></span> · 机密</div>
+    <div>第 <span class="fill w-sm" data-slot="pageNo"></span> 页　共 <span class="fill w-sm" data-slot="pageTotal"></span> 页</div>
   </div>
 </div>
 
@@ -242,8 +242,8 @@
       <div class="part part-first">
         <div class="part-label">E. 检索结论</div>
         <!-- 逐段填入检索结论 -->
-        <div class="part-value"><span class="fill w-full"></span></div>
-        <div class="part-value tight"><span class="fill w-full"></span></div>
+        <div class="part-value" data-slot="conclusion"><span class="fill w-full"></span></div>
+        <div class="part-value tight" data-slot="conclusion"><span class="fill w-full"></span></div>
       </div>
 
       <div class="part">
@@ -254,10 +254,10 @@
             <tr><th>类型</th><th>篇数</th><th>占比</th><th>对本专利的影响</th></tr>
           </thead>
           <tbody>
-            <tr><td>X</td><td class="num"><span class="fill w-sm"></span></td><td class="num"><span class="fill w-sm"></span></td><td class="l"><span class="fill w-full"></span></td></tr>
-            <tr><td>Y</td><td class="num"><span class="fill w-sm"></span></td><td class="num"><span class="fill w-sm"></span></td><td class="l"><span class="fill w-full"></span></td></tr>
-            <tr><td>A</td><td class="num"><span class="fill w-sm"></span></td><td class="num"><span class="fill w-sm"></span></td><td class="l"><span class="fill w-full"></span></td></tr>
-            <tr><td>合计</td><td class="num"><span class="fill w-sm"></span></td><td class="num"><span class="fill w-sm"></span></td><td class="l">—</td></tr>
+            <tr><td>X</td><td class="num"><span class="fill w-sm" data-slot="distXCount"></span></td><td class="num"><span class="fill w-sm" data-slot="distXRatio"></span></td><td class="l"><span class="fill w-full" data-slot="distXImpact"></span></td></tr>
+            <tr><td>Y</td><td class="num"><span class="fill w-sm" data-slot="distYCount"></span></td><td class="num"><span class="fill w-sm" data-slot="distYRatio"></span></td><td class="l"><span class="fill w-full" data-slot="distYImpact"></span></td></tr>
+            <tr><td>A</td><td class="num"><span class="fill w-sm" data-slot="distACount"></span></td><td class="num"><span class="fill w-sm" data-slot="distARatio"></span></td><td class="l"><span class="fill w-full" data-slot="distAImpact"></span></td></tr>
+            <tr><td>合计</td><td class="num"><span class="fill w-sm" data-slot="distTotalCount"></span></td><td class="num"><span class="fill w-sm" data-slot="distTotalRatio"></span></td><td class="l">—</td></tr>
           </tbody>
         </table>
       </div>
@@ -271,7 +271,7 @@
           </thead>
           <tbody>
             <!-- 数据行：按检索轮次复制本行 -->
-            <tr><td><span class="fill w-sm"></span></td><td><span class="fill w-full"></span></td><td class="l"><span class="fill w-full"></span></td><td class="num"><span class="fill w-sm"></span></td><td><span class="fill w-full"></span></td></tr>
+            <tr data-slot="searchRounds"><td><span class="fill w-sm"></span></td><td><span class="fill w-full"></span></td><td class="l"><span class="fill w-full"></span></td><td class="num"><span class="fill w-sm"></span></td><td><span class="fill w-full"></span></td></tr>
           </tbody>
         </table>
       </div>
@@ -287,7 +287,7 @@
     <table class="sign-table">
       <colgroup><col style="width:33.4%"><col style="width:33.3%"><col style="width:33.3%"></colgroup>
       <tbody>
-        <tr><td>检索人：<span class="fill"></span></td><td>审核人：<span class="fill"></span></td><td>日期：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td></tr>
+        <tr><td>检索人：<span class="fill" data-slot="searcher"></span></td><td>审核人：<span class="fill" data-slot="reviewer"></span></td><td>日期：<span class="fill w-sm" data-slot="reportDateYear"></span> 年 <span class="fill w-sm" data-slot="reportDateMonth"></span> 月 <span class="fill w-sm" data-slot="reportDateDay"></span> 日</td></tr>
       </tbody>
     </table>
 
@@ -297,8 +297,8 @@
   </div>
 
   <div class="doc-foot">
-    <div><span class="fill w-lg"></span> · 机密</div>
-    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+    <div><span class="fill w-lg" data-slot="footerFirm"></span> · 机密</div>
+    <div>第 <span class="fill w-sm" data-slot="pageNo"></span> 页　共 <span class="fill w-sm" data-slot="pageTotal"></span> 页</div>
   </div>
 </div>
 
