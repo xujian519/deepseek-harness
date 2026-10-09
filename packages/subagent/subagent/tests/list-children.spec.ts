@@ -650,6 +650,19 @@ describe('SubagentRuntime.listDescendants', () => {
     expect(open).not.toHaveBeenCalled()
   })
 
+  it('keeps a historical one-shot descendant label through the authoritative fold', async () => {
+    const { ctx, parent } = await setup([])
+    const childId = await authorChild(ctx, 'one-shot-label-child', {
+      parentSession: parent.id,
+      origin: 'subagent',
+    }, childEvents({ version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'one-shot', provider: 'spawn', label: 'finished once' }))
+
+    await expect(ctx.subagents.listDescendants(parent.id)).resolves.toEqual([{
+      kind: 'child', id: childId, label: 'finished once', mode: 'one-shot',
+      activity: 'inactive', hasChildren: false, parentId: parent.id, depth: 1,
+    }])
+  })
+
   it.each([
     ['absent', () => ({ asOfSeq: SessionSeq(0), values: {} })],
     ['null', () => ({ asOfSeq: SessionSeq(0), values: { subagent: null } })],

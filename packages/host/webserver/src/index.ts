@@ -108,8 +108,8 @@ const DEFAULT_COMPRESSION = 'none' as const
 const DEFAULT_COMPRESSION_LEVEL = 1
 const DEFAULT_COMPRESSION_THRESHOLD_BYTES = 1024
 
-/** The config shape once the compression defaults have been applied. */
-type ResolvedConfig = ResolvedShape<Config>
+/** The config shape once the compression defaults have been applied; `tls` has no schema default. */
+type ResolvedConfig = ResolvedShape<Config, 'tls'>
 
 type NodeMiddleware = (
   req: IncomingMessage,
@@ -268,6 +268,9 @@ export class WebServer extends Service {
     }).required(),
     port: z.natural().max(65535).required(),
     // An omitted object must not become `{}` and fail the required pair fields.
+    // `.default(undefined)` only marks the field nullable, so schemastery returns
+    // whatever the caller passed — including an explicit `undefined` — and `tls`
+    // stays a defaultless key at the assert below.
     tls: z.object({
       certFile: z.string().required(),
       keyFile: z.string().required(),
@@ -298,7 +301,7 @@ export class WebServer extends Service {
 
   constructor(ctx: Context, private config: Config) {
     super(ctx, 'webServer')
-    const resolved = assertResolvedConfig<Config>('host/webserver', config)
+    const resolved = assertResolvedConfig<Config, 'tls'>('host/webserver', config, ['tls'])
     // Schemastery passes an explicit `tls: null` through; only a real object serves TLS.
     this.tlsConfig = resolved.tls ?? undefined
     this.gzip = resolved.compression === 'gzip' ? createGzipMiddleware(resolved) : undefined
