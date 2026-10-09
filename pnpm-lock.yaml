@@ -378,6 +378,9 @@ importers:
       '@deepseek-ai/dsh-patent-fees':
         specifier: workspace:*
         version: link:../../packages/patent/patent-fees
+      '@deepseek-ai/dsh-patent-filing':
+        specifier: workspace:*
+        version: link:../../packages/patent/patent-filing
       '@deepseek-ai/dsh-patent-knowledge':
         specifier: workspace:*
         version: link:../../packages/patent/patent-knowledge
