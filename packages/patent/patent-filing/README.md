@@ -30,7 +30,7 @@ build_patent_filing takes a controlled `draft` (the same `SpecDraft` the `render
 
 The five sections are the statutory ones: 说明书摘要, 摘要附图, 权利要求书, 说明书, 说明书附图. Figures enter the document in `draft.figureFiles` order — the first becomes the abstract drawing, and all of them fill the drawing section one per page. A `.svg` source is rasterized through headless Chrome first; `.png`, `.jpg`, and `.jpeg` are used as they are.
 
-Section headings, claim item numbers, figure captions, and table captions are generated from the draft structure, never authored: `contentFromDraft` maps the five specification parts to the statutory `h3` headings, prefixes claims with their item numbers, rewrites drawing-description list items as `图N为……；/。` paragraphs, and emits `表 N · 名称` caption paragraphs before each table — the same algorithm the HTML channel runs, so the two channels cannot diverge. The engine then writes `[0001]`-style paragraph numbers itself and strips any source numbering a paragraph text still carries.
+Section headings, claim item numbers, figure captions, and table captions are generated from the draft structure, never authored: `contentFromDraft` maps the five specification parts to the statutory `h3` headings, prefixes claims with their item numbers, rewrites drawing-description list items as `图N为……；/。` paragraphs, and emits `表 N · 名称` caption paragraphs before each table — the same algorithm the HTML channel runs, so the two channels cannot diverge. The engine then writes `[0001]`-style paragraph numbers itself (caption paragraphs are excluded: they neither carry nor occupy a number) and strips any source numbering a paragraph text still carries.
 
 ## Draft mapping
 

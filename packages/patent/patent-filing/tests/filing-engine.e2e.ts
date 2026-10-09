@@ -70,6 +70,8 @@ describe.skipIf(interpreter === undefined)('filing engine end to end', () => {
         { kind: 'p', text: '图1为装置的立体图；图2为装置的剖视图。' },
         { kind: 'h3', text: '具体实施方式' },
         { kind: 'p', text: '下面结合附图对本发明作进一步说明。' },
+        // 表题段（contentFromDraft 的产物形态）：不进入 [NNNN] 编号序列。
+        { kind: 'p', text: '表 1 · 部位标记表' },
         { kind: 'table', rows: [['部位', '标记'], ['本体', '1'], ['控制器', '2']] },
       ] as { kind: 'h3' | 'p' | 'table'; text?: string; rows?: string[][] }[],
       figures: [join(work, 'fig1.png'), join(work, 'fig2.png')],
@@ -87,7 +89,9 @@ describe.skipIf(interpreter === undefined)('filing engine end to end', () => {
     ])
     expect(built.figures).toHaveLength(2)
     expect(built.templateStyle).toMatchObject({ sectionCount: 5, sizePt: 12, lineSpacing: 1.5 })
-    expect(built.numberingTotal).toBeGreaterThan(0)
+    // 说明书共 6 个段落（5 个正文段 + 1 个表题段）：只有正文段进入 [NNNN] 序列，
+    // 表题段不编号也不占号（D8 统一规则；修复前这里会得到 6）。
+    expect(built.numberingTotal).toBe(5)
     await expect(readFile(built.docxPath)).resolves.toBeInstanceOf(Buffer)
 
     const verifyOptions: VerifyEngineOptions = { ...common }

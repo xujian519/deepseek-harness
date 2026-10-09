@@ -46,6 +46,10 @@ from style import resolve_style, template_style
 
 WP = qn("w:p")
 
+# 表题段形态：由 contentFromDraft 按「表 N · 名称」生成。表题不进入 [NNNN] 段落编号序列
+# （不编号也不占号），与 HTML 通道的 <caption> 一致。
+CAPTION_PATTERN = re.compile(r"^表 \d+ · ")
+
 
 # --------------------------------------------------------------------------- 体例原语
 
@@ -301,7 +305,7 @@ def build(spec: dict, content: dict, template_path: Path, out_path: Path) -> dic
                     tpl.insert(anchor, paragraph(style, node["text"], bold=heading_bold))
                 else:
                     text = node["text"]
-                    if sec.get("numbering") == "paragraph":
+                    if sec.get("numbering") == "paragraph" and not CAPTION_PATTERN.match(text):
                         numbering += 1
                         expected = f"[{numbering:04d}]"
                         # 上游渲染引擎也会写编号。先剥后写，既幂等，也让本引擎保持
