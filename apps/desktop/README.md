@@ -194,6 +194,8 @@ The welcome window follows system appearance with the design’s Platform light/
 
 ## Package
 
+Every target requires a reverse-DNS `DSH_DESKTOP_APP_ID`. A release keeps the official `DeepSeek Harness` name and the brand icons in `apps/desktop/assets` unless the packaging environment brands it: `DSH_DESKTOP_PRODUCT_NAME` replaces the application name (at most 64 characters, no control characters or path separators), and `DSH_DESKTOP_ICON_DIR` replaces the icon directory, which must then hold `icon.icns` and `icon.ico`. Artifact names stay on the fixed `deepseek-harness` template, so branding never reaches an update feed.
+
 <a id="release-versions"></a>
 
 ### Release versions

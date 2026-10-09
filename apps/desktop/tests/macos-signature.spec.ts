@@ -51,17 +51,25 @@ describe('desktop macOS release signature', () => {
       'com.apple.security.cs.disable-library-validation', 'com.apple.security.device.audio-input']) {
       expect(entitlements).toContain(`<key>${key}</key>\n    <true/>`)
     }
-    expect(config.extraResources).toHaveLength(2)
+    expect(config.extraResources).toHaveLength(3)
     expect(config.extraResources[0]?.to).toBe('runtime')
     expect(portablePath(config.extraResources[0]?.from ?? '')).toContain('/.desktop-build/targets/mac-arm64/runtime')
+    // The Office engine is a spawned native tree, so it ships beside the
+    // archive where Node's resolution from inside it reaches ordinary files.
+    const engine = config.extraResources[1]
+    expect(engine?.to).toBe('node_modules/@deepseek-ai')
+    expect(portablePath(engine?.from ?? '')).toContain('/.desktop-build/targets/mac-arm64/dsh/node_modules/@deepseek-ai')
+    expect(engine?.filter).toEqual(['libreoffice-kit-*/**'])
     const [dshFiles, dshNodeModules] = config.files.slice(-2)
     if (!dshFiles || !dshNodeModules || typeof dshFiles === 'string' || typeof dshNodeModules === 'string') {
       throw new Error('desktop DSH resources must use electron-builder file mappings')
     }
     expect(portablePath(dshFiles.from)).toContain('/.desktop-build/targets/mac-arm64/dsh')
     expect(dshFiles.to).toBe('dsh')
+    expect(dshFiles.filter).toEqual(['**/*', '!**/@deepseek-ai/libreoffice-kit-*/**'])
     expect(portablePath(dshNodeModules.from)).toContain('/.desktop-build/targets/mac-arm64/dsh/node_modules')
     expect(dshNodeModules.to).toBe('dsh/node_modules')
+    expect(dshNodeModules.filter).toEqual(['**/*', '!@deepseek-ai/libreoffice-kit-*/**'])
     expect(config.asarUnpack).toEqual(expect.arrayContaining([
       '**/*.{node,dylib,dll,so,exe}',
       '**/@vscode/ripgrep-*/bin/rg',
@@ -72,7 +80,8 @@ describe('desktop macOS release signature', () => {
         identity: RELEASE_ENVIRONMENT.DSH_DESKTOP_MACOS_SIGNING_IDENTITY,
         forceCodeSigning: true,
         notarize: true,
-        signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
+        signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)',
+          '/Contents/Resources/node_modules/@deepseek-ai(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
       },
       dmg: {
         sign: true,

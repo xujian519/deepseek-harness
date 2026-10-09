@@ -196,6 +196,8 @@ Desktop 在 Host 启动后、打开工作区前检查模型 API Key 引用是否
 
 ## 打包
 
+所有目标都要求通过 `DSH_DESKTOP_APP_ID` 提供反向域名形式的应用 ID。除非打包环境另行指定品牌，发布保留官方 `DeepSeek Harness` 名称与 `apps/desktop/assets` 中的品牌图标：`DSH_DESKTOP_PRODUCT_NAME` 替换应用名称（至多 64 个字符，不得含控制字符或路径分隔符），`DSH_DESKTOP_ICON_DIR` 替换图标目录，该目录届时必须包含 `icon.icns` 与 `icon.ico`。产物名保持固定的 `deepseek-harness` 模板，因此品牌信息不会进入更新源。
+
 <a id="release-versions"></a>
 
 ### 发布版本
