@@ -184,6 +184,7 @@ bundle 不在仓库里，**任何仓内门禁在结构上都看不到它**。按
 | #408 | chore(docs): make the ledger's four counters machine-checked | #392 |
 | #409 | fix(patent): run the patent-oas gold gate on a recorded baseline | #395 |
 | #411 | fix(ci): read the archived issue workflows and run the policy suite | 本节末「一处已收尾的红态」（原「未立案」） |
+| #412 | fix(ci): run the four static gates no lane reached | 本节末「同族的其余四个门禁」 |
 
 #404 与 #405 以官方 stack #406 一起落地（`gh stack merge` 全有或全无）；其余各自独立合并。本文件不记提交标识——`verify-repository-references` 拒绝在维护文件里出现仓库提交 id——每个 PR 页上留有其合并提交与逐条验证命令。
 
@@ -217,6 +218,8 @@ bundle 不在仓库里，**任何仓内门禁在结构上都看不到它**。按
 
 接进车道才暴露第二层，它解释了这批红为什么长期没人看见：套件另有 5 条用例把仓库路径写死成 `deepseek-harness/deepseek-harness`，而实现按 `GITHUB_REPOSITORY` 参数化并在**模块加载时**读取该变量，于是 runner 给出的 fork slug 让这 5 条红——本机不设该变量才回落 `config.json` 的默认值而全绿。给工作流步骤加 `env:` 无效（GitHub 保留 `GITHUB_*` 名，首次接线即因此失败），改为套件自己在加载被测模块前钉住该值，四个本地模块随之改为动态导入。以宿主未设、fork slug、canonical 三种取值复跑均为 51/0；修前 fork 取值为 46/5。
 
-### 同类观察（未处理）
+### 同族的其余四个门禁（PR #412）
 
-上游的 PR 车道是 `check:ci:static`（归档在 `.github/workflows-disabled/ci.yml`），等于 `ciSharedStaticGates` + 完整文档聚合 + `verify-module-graph`；本 fork 的 `ci-fork.yml` 从不调用它。落在 `hygiene` 聚合里的那一半仍在运行，余下四个没有任何车道：`verify-self-evolve-eval`、`verify-ipc-standards-source`、`verify-package-meta` 只注册在 `ciSharedStaticGates`，`test:approval-policy` 还出现在 `check-all` 这个本地排练模式。四者在本机均绿、keyless、不读构建产物，与 #409 / #411 处理过的两条同属一族；是照样逐一接进必过车道，还是整段改用 `check:ci:static`（需要构建与文档站点构建），留给下一轮决定。
+上游的 PR 车道是 `check:ci:static`（归档在 `.github/workflows-disabled/ci.yml`），等于 `ciSharedStaticGates` + 完整文档聚合 + `verify-module-graph`；本 fork 的 `ci-fork.yml` 从不调用它。落在 `hygiene` 聚合里的那一半仍在运行，余下四个没有任何车道：`verify-self-evolve-eval`、`verify-ipc-standards-source`、`verify-package-meta` 只注册在 `ciSharedStaticGates`，`test:approval-policy` 还出现在 `check-all` 这个本地排练模式。四者在本机均绿、keyless、不读构建产物，取向为**逐一接进必过车道**（与 #409 / #411 同一写法），由 `scripts/ci-workflow.spec.ts` 钉住。
+
+接线时暴露出 `verify-ipc-standards-source` 在 runner 上根本不可能通过：它的默认源库根是本仓的上级目录，而该目录在 Actions 的检出上级必然存在，于是它走全量回源、对 138 张卡片全报缺失，而不是走它自己文档承诺的「源库不可用则只校验路径格式」。改为用源库目录本身（`宝宸知识库`）判定默认根是否可用；显式配置时的配置错误语义不变（目录不存在、或存在但不含源库，都仍失败）。三种根取值与模拟 CI 目录结构下的行为见 PR #412。
