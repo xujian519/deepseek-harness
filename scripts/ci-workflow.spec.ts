@@ -925,6 +925,17 @@ describe('fork CI workflow', () => {
       .toContainEqual(expect.objectContaining({ run: 'pnpm run verify-patent-oas-gold' }))
   })
 
+  // The issue-management suite asserts the fork's issue and pull-request
+  // templates and the structure of the upstream workflows the fork archives
+  // under `workflows-disabled/`; no lane ran it, so its failures stayed
+  // invisible. The required lane carries it, not an advisory job.
+  it('runs the issue-management policy suite in the required lane', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'node-checks')
+    if (!Array.isArray(job.steps)) throw new TypeError('node-checks must define steps')
+    expect(job.steps.filter(isRecord))
+      .toContainEqual(expect.objectContaining({ run: 'pnpm run test:issue-management' }))
+  })
+
   // The real-render smoke suites skip themselves when `dot` is missing, so a
   // lane that runs the suite without provisioning reads green over skipped
   // render coverage; `figure-graphviz-ci-signal.spec.ts` fails there instead.
