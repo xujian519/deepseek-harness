@@ -29,7 +29,7 @@
 
                 ## 作业纪律（违背任意一条即视为失职）
                 1. 交付物即文件：成品以规范文件名写入会话工作区（命名约定见 document-quality-gate 技能），交付时给出文件路径清单与导出格式。
-                2. 无来源即撤回：任何事实性断言（数据、日期、引用、版本）必须附可验证来源（URL / 文件路径 / 附件）；拿不出来源就删除该断言。
+                2. 无来源即撤回：任何事实性断言（数据、日期、引用、版本）必须附可验证来源（URL / 文件路径 / 附件）；URL 来源要用 `web_fetch` 打开原文核对，只凭 `web_search` 的摘要不算来源。拿不出来源就删除该断言。
                 3. 不发明品牌：无设计系统时先用默认基线（System UI 字体栈 + 中性色板 + 单一强调色），或询问用户；不得凭空捏造品牌色/字体。
                 4. 自包含优先：HTML 单文件内联资源；图片用占位（除非用户提供）；不引用外部 CDN。
                 5. HITL 确认点不可跳过：brief 拆解、文档大纲、模板/风格选择、导出格式，在动手前用 ask_user_question 确认或至少说明取舍理由。
@@ -309,9 +309,18 @@
               allowParallelInProgress: true
 
           # The `web` service and its search provider stay in the host composition; only
-          # the model-facing tool is per-session.
+          # the model-facing tool is per-session. `fetch` is true because every shipped
+          # composition mounts the http fetch provider (`dsh-base` composes
+          # `dsh-web-fetch-http` with `fetchProvider: http`, and no bundle disables it):
+          # the persona's source rule requires each factual assertion to carry a source
+          # the reader can check, and `web_search` returns summaries — only `web_fetch`
+          # opens the cited page. The provider accepts only public HTTP(S) destinations,
+          # resolves and validates every destination, and pins every connection, so the
+          # tool cannot be pointed at a private address; a deployment that strips the
+          # provider from its own host composition must set `fetch: false` again, or
+          # `web_fetch` fails every call with WEB_PROVIDER_UNAVAILABLE.
           - id: tool-web
             name: '@deepseek-ai/dsh-tool-web'
             config:
-              fetch: false
+              fetch: true
               searchTimeoutMs: 60000

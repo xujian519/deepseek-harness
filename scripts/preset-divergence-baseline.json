@@ -23,9 +23,9 @@
     },
     "persona": {
       "cordis.patch.yml": "128bdee840",
-      "document.patch.yml": "d8fc233d50",
+      "document.patch.yml": "07fef4f229",
       "minimal.patch.yml": "cc5f870f42",
-      "patent.patch.yml": "c49213e312",
+      "patent.patch.yml": "d4db5ce65d",
       "ptc.patch.yml": "b5a7fe963b",
       "standard.patch.yml": "3255d0a919"
     },
@@ -141,14 +141,14 @@
     },
     "tool-todo": {
       "cordis.patch.yml": "b47093e288",
-      "document.patch.yml": "ed2d4c90ee",
+      "document.patch.yml": "a5fad262cb",
       "patent.patch.yml": "271ab73bdd",
       "ptc.patch.yml": "b47093e288",
       "standard.patch.yml": "b47093e288"
     },
     "tool-web": {
       "cordis.patch.yml": "73f227d8e9",
-      "document.patch.yml": "09d366928f",
+      "document.patch.yml": "f5389a5a05",
       "patent.patch.yml": "6d1ff9647d",
       "ptc.patch.yml": "73f227d8e9",
       "standard.patch.yml": "ee66c15cda"
