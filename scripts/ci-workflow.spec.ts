@@ -936,6 +936,21 @@ describe('fork CI workflow', () => {
       .toContainEqual(expect.objectContaining({ run: 'pnpm run test:issue-management' }))
   })
 
+  // Upstream runs these four leaves from `check:ci:static`, which no fork
+  // workflow calls, so they reached no lane at all. Each is keyless and reads no
+  // built artifact; the required lane carries them.
+  it('runs the static gates the fork has no aggregate for', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'node-checks')
+    if (!Array.isArray(job.steps)) throw new TypeError('node-checks must define steps')
+    const runs = job.steps.filter(isRecord).map(step => String(step.run))
+    expect(runs).toEqual(expect.arrayContaining([
+      'pnpm run verify-self-evolve-eval',
+      'pnpm run verify-ipc-standards-source',
+      'pnpm run verify-package-meta',
+      'pnpm run test:approval-policy',
+    ]))
+  })
+
   // The real-render smoke suites skip themselves when `dot` is missing, so a
   // lane that runs the suite without provisioning reads green over skipped
   // render coverage; `figure-graphviz-ci-signal.spec.ts` fails there instead.

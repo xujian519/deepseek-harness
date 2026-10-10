@@ -58,6 +58,23 @@ jobs:
         # Keyless and unbuilt.
         run: pnpm run test:issue-management
 
+      # Upstream runs these four leaves from `check:ci:static`, which no fork
+      # workflow calls, so they reached no lane at all. Each is keyless and reads
+      # no built artifact; the required lane carries them like the gates above.
+      - name: Self-evolve eval decision
+        run: pnpm run verify-self-evolve-eval
+
+      - name: IPC standards source
+        # Without the local source library this checks the cards' source paths and
+        # reports the payload check as unexecuted.
+        run: pnpm run verify-ipc-standards-source
+
+      - name: Package metadata
+        run: pnpm run verify-package-meta
+
+      - name: Weighted approval policy
+        run: pnpm run test:approval-policy
+
       - name: Build the native system addon
         # Session V3 persistence flocks the JSONL log through the
         # node-addon-system host addon; the durable-session lanes refuse to
