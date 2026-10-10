@@ -209,9 +209,9 @@ export const DISCLAIMER_SEPARATOR = '\n\n---\n\n'
 
 /**
  * Category order used when listing templates, from the upstream `DocIndex`
- * ordering, extended with the patent-report category the shipped templates use.
+ * ordering, restricted to the categories this deployment ships.
  */
-export const TEMPLATE_CATEGORY_ORDER = ['patent-report', 'specification', 'claims', 'oa-response', 'disclosure'] as const
+export const TEMPLATE_CATEGORY_ORDER = ['specification', 'claims', 'oa-response', 'disclosure'] as const
 
 /** Failure kinds a `DocTemplateError` reports. */
 export const TEMPLATE_ERROR_CODES = [

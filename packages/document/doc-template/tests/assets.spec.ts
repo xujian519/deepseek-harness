@@ -17,9 +17,8 @@ function categoriesOf(category: string): string[] {
 }
 
 describe('shipped template assets', () => {
-  it('ships the seventeen templates of the five introduced categories', () => {
-    expect(TEMPLATES).toHaveLength(17)
-    expect(categoriesOf('patent-report')).toHaveLength(5)
+  it('ships the twelve templates of the four introduced categories', () => {
+    expect(TEMPLATES).toHaveLength(12)
     expect(categoriesOf('specification')).toHaveLength(4)
     expect(categoriesOf('claims')).toHaveLength(3)
     expect(categoriesOf('oa-response')).toHaveLength(3)
@@ -28,6 +27,7 @@ describe('shipped template assets', () => {
 
   it('ships no template of the categories this batch leaves out', () => {
     expect(TEMPLATES.filter(template => template.category === 'legal')).toEqual([])
+    expect(TEMPLATES.filter(template => template.category === 'patent-report')).toEqual([])
     expect(TEMPLATES.filter(template => template.domain !== 'patent')).toEqual([])
   })
 
@@ -41,27 +41,19 @@ describe('shipped template assets', () => {
     }
   })
 
-  it('resolves every declared style to a loaded style', () => {
-    // Only the patent-report templates declare a style upstream; the plain
-    // Markdown templates render without a disclaimer.
-    for (const template of TEMPLATES) {
-      if (template.styleName === '') continue
-      expect(findStyleByName(STYLES, template.styleName)).toBeDefined()
-    }
-    expect(TEMPLATES.filter(template => template.styleName === '')).toHaveLength(12)
-    expect(categoriesOf('patent-report').every(name => TEMPLATES.find(template => template.name === name)?.styleName === 'patent-standard')).toBe(true)
-  })
-
-  it('maps every styled template category to a disclaimer its style declares', () => {
-    // A category absent from the map falls back to the domain disclaimer, so
-    // every shipped category needs its own entry naming a declared disclaimer.
+  it('declares no style, so no shipped template resolves a disclaimer', () => {
+    // The styled corpus this package was ported from is not part of the shipped
+    // batch. The loop keeps style and disclaimer resolution checked for a styled
+    // template a deployment adds later.
     for (const template of TEMPLATES) {
       if (template.styleName === '') continue
       const style = findStyleByName(STYLES, template.styleName)
+      expect(style, template.name).toBeDefined()
       const key = DISCLAIMER_CATEGORY_KEYS[template.category]
       expect(key, `${template.name} (${template.category})`).toBeDefined()
       expect(style?.sections.disclaimers.get(key ?? ''), template.name).toBeDefined()
     }
+    expect(TEMPLATES.filter(template => template.styleName !== '')).toEqual([])
   })
 
   it('declares only formats a renderer produces', () => {
@@ -71,13 +63,11 @@ describe('shipped template assets', () => {
     }
   })
 
-  it('offers the DOCX deliverable for the plain Markdown templates only', () => {
-    // The patent-report bodies carry HTML blocks (`<div class="doc-meta">`), which
-    // a DOCX package cannot reproduce, so those templates stay Markdown and HTML.
+  it('offers the DOCX deliverable for every shipped template', () => {
+    // The bodies carrying HTML blocks, which a DOCX package cannot reproduce,
+    // left with the patent-report category; every remaining body is Markdown.
     for (const template of TEMPLATES) {
-      const htmlStyled = template.category === 'patent-report'
-      expect(template.supportedFormats).toContain('markdown')
-      expect(template.supportedFormats.includes('docx')).toBe(!htmlStyled)
+      expect(template.supportedFormats).toEqual(['markdown', 'html', 'docx'])
     }
   })
 

@@ -4,10 +4,10 @@
  * wraps, raw HTML passed through); this rewrite uses `marked` with the same
  * options. Heading anchor ids are not generated, because `marked` dropped them.
  *
- * Raw HTML passes through, which the patent-report templates rely on for their
- * metadata blocks. That is why a variable substituted into HTML output is
- * escaped first: the value comes from the model, and the template's own markup
- * must survive while an injected element must not.
+ * Raw HTML in a template body passes through, as it did upstream. That is why a
+ * variable substituted into HTML output is escaped first: the value comes from
+ * the model, and the template's own markup must survive while an injected
+ * element must not.
  * @module @deepseek-ai/dsh-doc-template/renderers/html
  */
 

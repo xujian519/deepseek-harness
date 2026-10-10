@@ -23,6 +23,7 @@ import {
 } from '../src/tool/render-doc-template.ts'
 import { createListDocTemplatesTool } from '../src/tool/list-doc-templates.ts'
 import { createRenderDocTemplateTool } from '../src/tool/render-doc-template.ts'
+import { STYLED_TEMPLATE_VARIABLES, styledTemplateRoot } from './styled-template.ts'
 
 let roots: string[] = []
 
@@ -67,15 +68,16 @@ function textOf(result: { content: readonly { type: string; text?: string }[] })
   return result.content.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
 }
 
-const REQUIRED_SEARCH_REPORT = {
-  firm_name: '某所',
+const SIMPLIFIED_DISCLOSURE_VARIABLES = {
   invention_title: '图像处理',
-  search_type: '新颖性',
-  search_strategy: 's',
-  databases_covered: 'd',
-  key_hits: 'k',
-  analysis: 'a',
-  conclusion: 'c',
+  existing_problems: 'p',
+  tech_solution: 's',
+  tech_effects: 'e',
+  innovation_1: 'i1',
+  innovation_2: 'i2',
+  innovation_3: 'i3',
+  figures: 'f',
+  notes: 'n',
 }
 
 describe('toTemplateFilter', () => {
@@ -93,13 +95,8 @@ describe('toTemplateFilter', () => {
 describe('listDocTemplates', () => {
   it('orders the catalog by category then name', () => {
     const catalog = listDocTemplates(storeOf(), {})
-    expect(catalog.count).toBe(17)
+    expect(catalog.count).toBe(12)
     expect(catalog.templates.map(template => template.name)).toEqual([
-      'claims-spec',
-      'invalidation-opinion',
-      'oa-response-sati',
-      'patentability-opinion',
-      'search-report',
       'chemical-spec',
       'electrical-spec',
       'mechanical-spec',
@@ -115,8 +112,9 @@ describe('listDocTemplates', () => {
     ])
   })
 
-  it('reports each template with its effective language, style, formats, and variables', () => {
-    const searchReport = listDocTemplates(storeOf(), { query: 'search-report' }).templates[0]
+  it('reports each template with its effective language, style, formats, and variables', async () => {
+    const store = storeOf([templatesDirectory(), await styledTemplateRoot()])
+    const searchReport = listDocTemplates(store, { query: 'search-report' }).templates[0]
     expect(searchReport).toMatchObject({
       name: 'search-report',
       category: 'patent-report',
@@ -126,20 +124,31 @@ describe('listDocTemplates', () => {
       style: 'patent-standard',
       formats: ['markdown', 'html'],
     })
-    expect(searchReport?.variables[0]).toEqual({ name: 'firm_name', type: 'string', required: true, description: '机构名称' })
-    expect(searchReport?.variables[9]).toEqual({
-      name: 'conclusion',
-      type: 'multiline',
-      required: true,
-      description: '检索结论',
-    })
-    expect(searchReport?.variables[10]).toEqual({
-      name: 'disclaimer',
-      type: 'string',
-      required: false,
-      default: '本报告由 AI 辅助生成，不构成正式法律意见。检索结果可能存在遗漏，仅供人工复核。',
-      description: '免责声明',
-    })
+    expect(searchReport?.variables.map(definition => definition.name)).toEqual([
+      'firm_name',
+      'doc_no',
+      'case_no',
+      'invention_title',
+      'search_type',
+      'search_strategy',
+      'databases_covered',
+      'key_hits',
+      'analysis',
+      'conclusion',
+      'disclaimer',
+    ])
+    expect(searchReport?.variables.filter(definition => definition.required).map(definition => definition.name)).toEqual([
+      'firm_name',
+      'invention_title',
+      'search_type',
+      'search_strategy',
+      'databases_covered',
+      'key_hits',
+      'analysis',
+      'conclusion',
+    ])
+    expect(searchReport?.variables.find(definition => definition.name === 'disclaimer'))
+      .toMatchObject({ required: false, default: '本报告由 AI 辅助生成，不构成正式法律意见。检索结果可能存在遗漏，仅供人工复核。' })
   })
 
   it('applies the model filters', () => {
@@ -201,21 +210,21 @@ describe('renderTemplateList', () => {
 
 describe('renderDocTemplate', () => {
   it('renders with the template defaults for format, title, and file name', () => {
-    const value = renderDocTemplate(storeOf(), { template: 'search-report', variables: REQUIRED_SEARCH_REPORT })
+    const value = renderDocTemplate(storeOf(), { template: 'simplified-disclosure', variables: SIMPLIFIED_DISCLOSURE_VARIABLES })
     expect(value).toMatchObject({
-      template: 'search-report',
+      template: 'simplified-disclosure',
       format: 'markdown',
-      fileName: 'search-report.md',
+      fileName: 'simplified-disclosure.md',
       encoding: 'utf8',
-      residual: ['doc_no', 'case_no'],
+      residual: [],
       warnings: [],
     })
   })
 
   it('carries the format and metadata overrides into the document', () => {
     const value = renderDocTemplate(storeOf(), {
-      template: 'search-report',
-      variables: REQUIRED_SEARCH_REPORT,
+      template: 'simplified-disclosure',
+      variables: SIMPLIFIED_DISCLOSURE_VARIABLES,
       format: 'html',
       title: '自定义',
       author: '甲',
@@ -225,7 +234,7 @@ describe('renderDocTemplate', () => {
     expect(value.fileName).toBe('out.html')
     expect(value.content).toContain('<h1>自定义</h1>')
     expect(value.content).toContain('content="甲"')
-    expect(value.markdown).toContain('**机构：** 某所')
+    expect(value.markdown).toContain('图像处理')
   })
 
   it('keeps a type mismatch as a warning and still renders the document', async () => {
@@ -292,9 +301,9 @@ describe('list_doc_templates tool', () => {
     const result = await execute(ctx, 'list_doc_templates', {})
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect(textOf(result)).toContain('17 document templates')
-    expect(textOf(result)).toContain('- [patent-report] search-report — 专利检索报告')
-    expect((result.value as { count: number }).count).toBe(17)
+    expect(textOf(result)).toContain('12 document templates')
+    expect(textOf(result)).toContain('- [specification] chemical-spec — 化学领域说明书')
+    expect((result.value as { count: number }).count).toBe(12)
   })
 
   it('reports no match and rejects malformed arguments', async () => {
@@ -309,10 +318,10 @@ describe('list_doc_templates tool', () => {
 
 describe('render_doc_template tool', () => {
   it('renders a document through the registry and reports its residual placeholders', async () => {
-    const ctx = await host()
+    const ctx = await host([templatesDirectory(), await styledTemplateRoot()])
     const result = await execute(ctx, 'render_doc_template', {
       template: 'search-report',
-      variables: REQUIRED_SEARCH_REPORT,
+      variables: STYLED_TEMPLATE_VARIABLES,
       format: 'html',
       title: '交付件',
       author: '代理人甲',
@@ -331,7 +340,7 @@ describe('render_doc_template tool', () => {
   })
 
   it('fails the call when a required variable is missing', async () => {
-    const ctx = await host()
+    const ctx = await host([templatesDirectory(), await styledTemplateRoot()])
     const result = await execute(ctx, 'render_doc_template', { template: 'search-report', variables: {} })
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('缺少必填变量：firm_name')
@@ -345,11 +354,11 @@ describe('render_doc_template tool', () => {
   })
 
   it('fails the call when the template or the format is not supported', async () => {
-    const ctx = await host()
+    const ctx = await host([templatesDirectory(), await styledTemplateRoot()])
     expect((await execute(ctx, 'render_doc_template', { template: 'nope', variables: {} })).isError).toBe(true)
     const unsupported = await execute(ctx, 'render_doc_template', {
       template: 'search-report',
-      variables: REQUIRED_SEARCH_REPORT,
+      variables: STYLED_TEMPLATE_VARIABLES,
       format: 'docx',
     })
     expect(unsupported.isError).toBe(true)

@@ -371,6 +371,24 @@ describe('patent preset composition', () => {
     expect(discipline).not.toContain('实测')
   })
 
+  it('keeps patent deliverables on the controlled-draft channel only', () => {
+    // The 2026-10-10 scan found the same five document names in two template
+    // systems: @deepseek-ai/dsh-doc-template's variable-substitution assets and
+    // this preset's controlled-draft templates. The patent-report assets were
+    // removed and the controlled draft is the only content source, so a name
+    // reappearing on both sides is a regression this case catches.
+    const docTemplateNames = globSync('packages/document/doc-template/assets/templates/**/*.md', { cwd: REPO_ROOT })
+      .map(relative => /^name:\s*(\S+)\s*$/mu.exec(readFileSync(join(REPO_ROOT, relative), 'utf8'))?.[1])
+      .filter((name): name is string => name !== undefined)
+    const controlledDraftTemplates = (JSON.parse(readFileSync(
+      join(REPO_ROOT, 'packages/patent/patent-document/assets/templates/patent/manifest.json'),
+      'utf8',
+    )) as { templates?: string[] }).templates ?? []
+    expect(docTemplateNames.length).toBeGreaterThan(0)
+    expect(controlledDraftTemplates.length).toBeGreaterThan(0)
+    expect(docTemplateNames.filter(name => controlledDraftTemplates.includes(name))).toEqual([])
+  })
+
   it('sends the model to the cnlaw declaration instead of a literal endpoint', async () => {
     // The base's endpoints are deployment Config, rendered into the prompt by
     // dsh-patent-law; a port spelled out here would survive a deployment that
