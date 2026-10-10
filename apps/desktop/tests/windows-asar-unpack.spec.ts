@@ -277,6 +277,18 @@ it('verifies archived bytes against the preparation descriptor', async () => {
   await expect(verifyRuntimeArchive(archive, expected)).rejects.toThrow('ASAR integrity')
 })
 
+it('accepts a prepared file the package places beside the archive', async () => {
+  const input = await fixture(false)
+  const expected = await seal(input)
+  const relative = ['node_modules', 'foo', 'companion.json']
+  const beside = join(input.resources, ...relative)
+  await mkdir(dirname(beside), { recursive: true })
+  await writeFile(beside, await readFile(join(input.source, ...relative)))
+  await rm(join(input.source, ...relative))
+  await packageFixture(input)
+  await expect(verifyRuntimeArchive(join(input.resources, 'app.asar'), expected)).resolves.toBeUndefined()
+})
+
 it.each(['sharedPackages', 'release', 'files'] as const)('rejects changed archived descriptor %s', async (field) => {
   const input = await fixture(false)
   const expected = await seal(input)
@@ -286,13 +298,16 @@ it.each(['sharedPackages', 'release', 'files'] as const)('rejects changed archiv
   await expect(verifyRuntimeArchive(join(input.resources, 'app.asar'), expected)).rejects.toThrow('archived descriptor differs')
 })
 
-it.each(['missing', 'extra'] as const)('rejects %s archived files', async (state) => {
+it.each([
+  ['missing', 'prepared file is absent from the application'],
+  ['extra', 'unexpected ASAR entry'],
+] as const)('rejects %s archived files', async (state, message) => {
   const input = await fixture(false)
   const expected = await seal(input)
   if (state === 'missing') await rm(join(input.source, 'node_modules/foo/companion.json'))
   else await writeFile(join(input.source, 'extra.json'), '{}')
   await packageFixture(input)
-  await expect(verifyRuntimeArchive(join(input.resources, 'app.asar'), expected)).rejects.toThrow('ASAR integrity')
+  await expect(verifyRuntimeArchive(join(input.resources, 'app.asar'), expected)).rejects.toThrow(message)
 })
 
 it.each(['directory', 'extra'] as const)('rejects an unpacked %s without a matching file record', async (state) => {

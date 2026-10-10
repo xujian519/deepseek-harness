@@ -9,6 +9,7 @@ import { downloadArtifact } from '@electron/get'
 import extractZip from 'extract-zip'
 import { readPrimaryRuntime } from '../../../packages/skill/tool-workspace-dependencies/src/index.ts'
 import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
+import { resolveDesktopProductName } from './desktop-release-environment.mjs'
 import { packagingStep } from './packaging-step.mjs'
 import { preparePrimaryRuntime } from './prepare-primary-runtime.ts'
 import { prepareDesktopCli } from './prepare-cli.ts'
@@ -33,11 +34,11 @@ async function prepareElectron({ platform, arch }: DesktopTarget): Promise<strin
   }).trim()
 }
 
-function prepareCli({ platform, arch }: DesktopTarget): void {
+function prepareCli({ platform, arch }: DesktopTarget, productName: string): void {
   cpSync(join(import.meta.dirname, 'node-bin'), join(RUNTIME_ROOT, 'bin'), { recursive: true })
   chmodSync(join(RUNTIME_ROOT, 'bin', 'node'), 0o755)
   const cli = join(RUNTIME_ROOT, 'cli')
-  prepareDesktopCli(cli, platform)
+  prepareDesktopCli(cli, platform, productName)
   if (platform === 'darwin') {
     const minimumVersion = execFileSync('/usr/libexec/PlistBuddy', [
       '-c', 'Print LSMinimumSystemVersion', join(BUILD_PATHS.electron, 'Electron.app', 'Contents', 'Info.plist'),
@@ -51,6 +52,7 @@ function prepareCli({ platform, arch }: DesktopTarget): void {
 async function main(): Promise<void> {
   const { values } = parseArgs({ options: { 'defer-primary-runtime-smoke': { type: 'boolean', default: false } } })
   const target = desktopTargetPlatform(resolveDesktopBuildTarget())
+  const productName = resolveDesktopProductName(process.env)
   rmSync(RUNTIME_ROOT, { recursive: true, force: true })
   mkdirSync(RUNTIME_ROOT, { recursive: true })
   const nodeVersion = await prepareElectron(target)
@@ -58,7 +60,7 @@ async function main(): Promise<void> {
     () => preparePrimaryRuntime({ deferSmoke: values['defer-primary-runtime-smoke'] }))
   const { pnpm } = await readPrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime'))
   if (pnpm === undefined) throw new Error('desktop runtime: primary-runtime manifest has no pnpm version')
-  await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'prepare:cli', async () => { prepareCli(target) })
+  await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'prepare:cli', async () => { prepareCli(target, productName) })
   writeFileSync(join(RUNTIME_ROOT, 'versions.json'), `${JSON.stringify({
     schemaVersion: 1,
     node: nodeVersion,
