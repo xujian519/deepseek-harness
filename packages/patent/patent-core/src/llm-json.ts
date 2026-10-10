@@ -38,14 +38,24 @@ export function tryParseJson(raw: string): Record<string, unknown> | undefined {
 }
 
 /**
+ * 判断值是否为 JSON 对象（非 null、非数组）。
+ *
+ * 需要抛错语义的调用方用本守卫判定并抛自己的错误类型，不要复制这段条件：
+ * `dsh-patent-filing` 的引擎报告解析是同一判定的抛错版。
+ * @param value - 待判定的值。
+ * @returns 值是否为 JSON 对象。
+ */
+export function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
  * 读取一个 JSON 对象；其它形状返回 undefined。
  * @param value - 待窄化的值（LLM 输出或工具输出的 JSON 值）。
  * @returns 对象形状的值，或 undefined。
  */
 export function asJsonRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
+  return isJsonRecord(value) ? value : undefined
 }
 
 /**

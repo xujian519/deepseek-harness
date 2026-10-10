@@ -29,6 +29,7 @@ export type { CreateLlmModelPortOptions } from './model-port.ts'
 export {
   asJsonArray,
   asJsonRecord,
+  isJsonRecord,
   readJsonNumber,
   readJsonString,
   readJsonStringArray,
@@ -42,6 +43,7 @@ export {
   DraftValidationError,
   SPEC_PART_HEADINGS,
   SPEC_PART_ORDER,
+  formatTableCaption,
   numberedFigureDescriptions,
   validateSpecDraft,
   validateTemplateDraft,
