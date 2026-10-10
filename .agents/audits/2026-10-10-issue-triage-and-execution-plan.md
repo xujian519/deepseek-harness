@@ -168,7 +168,7 @@ bundle 不在仓库里，**任何仓内门禁在结构上都看不到它**。按
 
 ## 7. 落地记录（2026-10-10 后续会话）
 
-§2 的 16 条里 14 条已闭合。#391 的仓内面为零（改动在用户级 bundle，证据在 issue 评论），#322 仍是开放项（见本节末）。
+§2 的 16 条里 15 条已闭合；#391 的仓内面为零（改动在用户级 bundle，证据在 issue 评论）。#322 已闭合，但其通用做法仍未做（见本节末）。
 
 ### 合并的 PR
 
@@ -183,6 +183,7 @@ bundle 不在仓库里，**任何仓内门禁在结构上都看不到它**。按
 | #407 | refactor(patent): give patent deliverables one content channel | #384 |
 | #408 | chore(docs): make the ledger's four counters machine-checked | #392 |
 | #409 | fix(patent): run the patent-oas gold gate on a recorded baseline | #395 |
+| #411 | fix(ci): read the archived issue workflows and run the policy suite | 本节末「一处已收尾的红态」（原「未立案」） |
 
 #404 与 #405 以官方 stack #406 一起落地（`gh stack merge` 全有或全无）；其余各自独立合并。本文件不记提交标识——`verify-repository-references` 拒绝在维护文件里出现仓库提交 id——每个 PR 页上留有其合并提交与逐条验证命令。
 
@@ -202,11 +203,20 @@ bundle 不在仓库里，**任何仓内门禁在结构上都看不到它**。按
 - **#392 → 更正数字 + 加机械兜底门禁（PR #408）**：`pnpm run verify-tech-debt-counters` 逐行复算台账里带标记的声明表，值不一致、行格式不合、多出一行（无复算定义）、门禁有一项而台账未声明都失败；挂在 `doc-quick`，因此 CI 的必过车道 `node-checks` 会跑它。结构债两项复用 `report-structure.ts` 的同一函数，标记计数经 `git ls-files` 只读 tracked 文件（原命令会命中本机构建残留），门禁自身的两个源文件不计入标记计数。负控制：把 `v8 ignore` 改回 1204、或把 `@ts-expect-error` 写成含门禁自身的 145，都变红。
 - **#395 → 真跑一次落基线 + 进 CI（PR #409）**：4 case × 1 次 = 24 次 agent 调用产出基线（聚合 97.95，17 个节点全部过门槛），记录只含逐维度分数；`ci-fork.yml` 的**必过** `node-checks` 直接运行该门禁——新开一个不在 ruleset 必过集里的 job 只是建议性信号，解决不了「没人跑、读绿」这个失效形态。
 
-### 仍未做 / 新观察（登记，不在本轮）
+### 仍未做（登记，不在本轮）
 
 - #391 的另外三项与 3 份 `.bak`（仓外用户级资产，不进本仓 PR）。
 - #322「给基线每条记录补理由」的通用做法：本轮只把两侧理由写进各自的 preset 注释。
 - #398 建议 4（preset/persona 里经验性断言要可复算或写明推断）——需要单独立一条撰写规则。
 - #409 的基线没有 `provider`/`modelId`（采集器只在调用方传 `--provider`/`--model` 时写），换模型后的运行只能在 profile 层面可比。
 - 09-27 节的历史计数保留为当日实测；当前值由 #408 的门禁机检。
-- **新观察（未立案）**：`pnpm run test:issue-management` 在 master 上就有 3 条失败，原因是它读 `.github/workflows/issue-policy.yml` 与 `issue-lifecycle.yml`——这两个文件在本 fork 不存在。它只挂在 `ciSharedStaticGates`（`ci-primary`/`ci-static`/`hygiene`），而这些聚合没有任何工作流调用，所以红态不可见；与 #383 / #395 同一族（门禁存在但无人跑）。本报告只登记，不随这批处理。
+
+### 一处已收尾的红态（PR #411）
+
+`pnpm run test:issue-management` 曾在本 fork 的 master 上稳定红 3 条——它读 `.github/workflows/issue-policy.yml` 与 `issue-lifecycle.yml`，而这两个工作流在本 fork 归档于 `.github/workflows-disabled/`；同一族的 `scripts/ci-workflow.spec.ts` 早已用 `loadArchivedWorkflow` 改指归档，只有这个套件漏了。它此前只挂在 `ciSharedStaticGates`（`ci-primary`/`ci-static`/`hygiene`），而这些聚合没有任何工作流调用，所以红态不可见；与 #383 / #395 同一族（门禁存在但无人跑）。按 #395 的取向收尾：三处读取改指归档并具名（三处负控制各自命中对应用例），README 的两个同类死链一并改指并重录配对，套件接进必过车道 `node-checks`，由 `scripts/ci-workflow.spec.ts` 钉住该步。
+
+接进车道才暴露第二层，它解释了这批红为什么长期没人看见：套件另有 5 条用例把仓库路径写死成 `deepseek-harness/deepseek-harness`，而实现按 `GITHUB_REPOSITORY` 参数化并在**模块加载时**读取该变量，于是 runner 给出的 fork slug 让这 5 条红——本机不设该变量才回落 `config.json` 的默认值而全绿。给工作流步骤加 `env:` 无效（GitHub 保留 `GITHUB_*` 名，首次接线即因此失败），改为套件自己在加载被测模块前钉住该值，四个本地模块随之改为动态导入。以宿主未设、fork slug、canonical 三种取值复跑均为 51/0；修前 fork 取值为 46/5。
+
+### 同类观察（未处理）
+
+上游的 PR 车道是 `check:ci:static`（归档在 `.github/workflows-disabled/ci.yml`），等于 `ciSharedStaticGates` + 完整文档聚合 + `verify-module-graph`；本 fork 的 `ci-fork.yml` 从不调用它。落在 `hygiene` 聚合里的那一半仍在运行，余下四个没有任何车道：`verify-self-evolve-eval`、`verify-ipc-standards-source`、`verify-package-meta` 只注册在 `ciSharedStaticGates`，`test:approval-policy` 还出现在 `check-all` 这个本地排练模式。四者在本机均绿、keyless、不读构建产物，与 #409 / #411 处理过的两条同属一族；是照样逐一接进必过车道，还是整段改用 `check:ci:static`（需要构建与文档站点构建），留给下一轮决定。

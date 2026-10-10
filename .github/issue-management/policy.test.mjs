@@ -5,15 +5,22 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { api, graphql, initializeIssueStartDate, issueSnapshot } from './github.mjs'
-import { auditIssue, initializePullRequestStartDates, repairIssueLabels, runLifecycle } from './lifecycle.mjs'
-import {
+// The scripts under test capture the repository identity from
+// `GITHUB_REPOSITORY` as they load, and the expected REST paths below name the
+// canonical repository; a step's `env:` cannot carry a `GITHUB_*` name, so the
+// suite pins it itself. Every local module loads dynamically, after the pin, so
+// no case depends on the host's value.
+process.env.GITHUB_REPOSITORY = 'deepseek-harness/deepseek-harness'
+
+const { api, graphql, initializeIssueStartDate, issueSnapshot } = await import('./github.mjs')
+const { auditIssue, initializePullRequestStartDates, repairIssueLabels, runLifecycle } = await import('./lifecycle.mjs')
+const {
   lifecyclePullRequestSnapshot,
   pullRequestSnapshot,
   runPullRequestCheck,
   runPullRequestPreflight,
-} from './pull-request.mjs'
-import {
+} = await import('./pull-request.mjs')
+const {
   nextResolvingIssueStatus,
   parseReferences,
   projectDate,
@@ -22,7 +29,17 @@ import {
   requiresPullRequestPolicy,
   validateIssue,
   validatePullRequest,
-} from './rules.mjs'
+} = await import('./rules.mjs')
+
+/**
+ * Read an upstream issue workflow the fork keeps archived under
+ * `workflows-disabled/`. These assertions document the vendored pipeline rather
+ * than a fork run, so each archived read is named at its call site.
+ * @param file - Workflow file name under the archive directory.
+ * @returns The workflow source text.
+ */
+const archivedWorkflow = (file) =>
+  readFileSync(new URL(`../workflows-disabled/${file}`, import.meta.url), 'utf8')
 
 const projectGraphqlData = ({
   projectItem = true,
@@ -892,7 +909,7 @@ test('performs no lifecycle requests for removed signals or title-only edits', a
 })
 
 test('keeps trusted preflight before token minting and required policy unconditional', () => {
-  const source = readFileSync(new URL('../workflows/issue-policy.yml', import.meta.url), 'utf8')
+  const source = archivedWorkflow('issue-policy.yml')
   const job = source.slice(source.indexOf('  policy:'))
   assert.ok(job.includes('    name: Issue policy'))
   assert.ok(!job.slice(0, job.indexOf('    steps:')).includes('    if:'))
@@ -917,7 +934,7 @@ test('keeps trusted preflight before token minting and required policy unconditi
 test('runs trusted rollout selection with absent and present capability markers', { skip: process.platform === 'win32' ? 'The policy workflow executes under hosted Ubuntu bash' : false }, (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-policy-rollout-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
-  const source = readFileSync(new URL('../workflows/issue-policy.yml', import.meta.url), 'utf8')
+  const source = archivedWorkflow('issue-policy.yml')
   const script = source.split('        run: |\n')[1].split('      - name: Create Project read token')[0]
     .split('\n').map((line) => line.slice(10)).join('\n')
   assert.deepEqual(JSON.parse(readFileSync(new URL('./selective-preflight.json', import.meta.url), 'utf8')), { version: 1 })
@@ -957,7 +974,7 @@ test('runs trusted rollout selection with absent and present capability markers'
 })
 
 test('allocates lifecycle runners only for relevant reviews and PR body edits', () => {
-  const source = readFileSync(new URL('../workflows/issue-lifecycle.yml', import.meta.url), 'utf8')
+  const source = archivedWorkflow('issue-lifecycle.yml')
   const issues = source.split('  issues:')[1].split('  pull_request:')[0]
   const pulls = source.split('  pull_request:')[1].split('  pull_request_review:')[0]
   const actions = (block) => [...block.matchAll(/^      - (\w+)$/gm)].map((match) => match[1])
