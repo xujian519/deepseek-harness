@@ -133,7 +133,7 @@ async function acceptBaseline(
  * 运行门禁的默认动作,或按 `--write` / `--accept` / `--run` 走对应分支。
  *
  * @param args 命令行参数(不含 `node` 与脚本路径)。
- * @returns 进程退出码;基线未记录而无 `--accept` 时为 1。
+ * @returns 进程退出码;`--run` 的记录未过门槛,或基线未记录而无 `--accept` 时为 1。
  */
 export async function main(args: string[]): Promise<number> {
   const gold = await loadGold(exampleDir)
@@ -170,6 +170,15 @@ export async function main(args: string[]): Promise<number> {
   console.log(
     `verify-patent-oas-gold: DAG ${Object.keys(space.nodes).length} 节点 / ${gold.length} case(${domainSummary});node minScore=${config.thresholds.node.minScore} maxDrop=${config.thresholds.node.maxDrop},case minScore=${config.thresholds.case.minScore},aggregate minScore=${config.thresholds.aggregate.minScore}`,
   )
+  if (flaggedRun !== undefined) {
+    // 无基线时 evaluateRun 只按绝对下限判定,低于下限的记录仍要在此报出并归因。
+    const verdict = evaluateRun(space, config, flaggedRun.run, baseline)
+    console.log(formatVerdict(verdict))
+    if (!verdictPassed(verdict)) {
+      console.error(`verify-patent-oas-gold: ${flaggedRun.label} 未通过门槛`)
+      return 1
+    }
+  }
   if (baseline === undefined) {
     console.error(
       `verify-patent-oas-gold: 基线未记录(${config.baselinePath});回归层无从比对,本门禁不放行。`
@@ -178,14 +187,6 @@ export async function main(args: string[]): Promise<number> {
     return 1
   }
   console.log(`verify-patent-oas-gold: 基线已记录 ${baseline.recordedAt};基线自身满足门槛。`)
-  if (flaggedRun !== undefined) {
-    const verdict = evaluateRun(space, config, flaggedRun.run, baseline)
-    console.log(formatVerdict(verdict))
-    if (!verdictPassed(verdict)) {
-      console.error(`verify-patent-oas-gold: ${flaggedRun.label} 未通过门槛`)
-      return 1
-    }
-  }
   return 0
 }
 
