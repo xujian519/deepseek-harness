@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Pkg from '../src/index.ts'
+import { STYLED_TEMPLATE_VARIABLES, styledTemplateRoot } from './styled-template.ts'
 
 let roots: string[] = []
 
@@ -58,7 +59,7 @@ describe('@deepseek-ai/dsh-doc-template plugin surface', () => {
     expect(Pkg.OUTPUT_FORMATS).toEqual(['markdown', 'html', 'docx'])
     expect(Pkg.VAR_TYPES).toEqual(['string', 'multiline', 'number', 'bool'])
     expect(Pkg.FALLBACK_FORMAT).toBe('markdown')
-    expect(Pkg.TEMPLATE_CATEGORY_ORDER[0]).toBe('patent-report')
+    expect(Pkg.TEMPLATE_CATEGORY_ORDER[0]).toBe('specification')
     expect(Pkg.DISCLAIMER_PREFIX).toBe('> ⚠️ ')
     expect(Pkg.DEFAULT_TEMPLATE_LANGUAGE).toBe('zh-CN')
     expect(Pkg.FORMAT_EXTENSIONS.docx).toBe('.docx')
@@ -152,12 +153,12 @@ describe('@deepseek-ai/dsh-doc-template plugin surface', () => {
   it('drops the disclaimer when the deployment disables it', async () => {
     // The patent-report bodies carry their own `> ⚠️ {{disclaimer}}` line, so the
     // check is the style's own disclaimer text rather than the marker.
-    const { ctx } = await install({ includeDisclaimer: false })
+    const { ctx } = await install({ templateDirs: [await styledTemplateRoot()], includeDisclaimer: false })
     const result = await ctx.tools.execute({
       signal: new AbortController().signal,
       callId: 'render_doc_template' as never,
       name: 'render_doc_template',
-      arguments: { template: 'search-report', variables: { firm_name: 'x', invention_title: 'y', search_type: 'z', search_strategy: 's', databases_covered: 'd', key_hits: 'k', analysis: 'a', conclusion: 'c' } },
+      arguments: { template: 'search-report', variables: STYLED_TEMPLATE_VARIABLES },
     })
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')

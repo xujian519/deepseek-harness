@@ -27,7 +27,7 @@ kind: "package-reference"
 <a id="template-assets"></a>
 ## 模板资产
 
-十七个模板随包分发在 `assets/templates/` 下，按目录分组：`patent/`（5，类别 `patent-report`）、`specification/`（4）、`claims/`（3）、`oa-response/`（3）、`disclosure/`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内。
+十二个模板随包分发在 `assets/templates/` 下，按目录分组：`specification/`（4）、`claims/`（3）、`oa-response/`（3）、`disclosure/`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内，专利域自己的交付文书也不在——那些由 [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.zh.md) 从受控草稿成文，而不是走变量替换资产。
 
 front-matter 字段如下，读取自上游模板约定：
 
@@ -50,7 +50,7 @@ front-matter 字段如下，读取自上游模板约定：
 <a id="list_doc_templates-tool"></a>
 ## list_doc_templates 工具
 
-`list_doc_templates` 按类别顺序（patent-report、specification、claims、oa-response、disclosure）再按名称返回可渲染的模板及其变量模式。可选过滤项 `category`、`domain`、`language`、`query` 可任意组合；`query` 是不区分大小写的子串匹配，作用在名称、标题、描述与适用场景文本上。模板的语言取自身声明的 `language`，未声明时取部署默认语言。
+`list_doc_templates` 按类别顺序（specification、claims、oa-response、disclosure）再按名称返回可渲染的模板及其变量模式。可选过滤项 `category`、`domain`、`language`、`query` 可任意组合；`query` 是不区分大小写的子串匹配，作用在名称、标题、描述与适用场景文本上。模板的语言取自身声明的 `language`，未声明时取部署默认语言。
 
 <a id="render_doc_template-tool"></a>
 ## render_doc_template 工具
@@ -146,7 +146,6 @@ Schemastery 配置，所有字段可选。
 ## 已知局限与延期工作
 
 - **十二个模板未声明变量** — claims、specification、oa-response、disclosure 的上游资产在正文里给了 `填写指引` 段而不是 `vars` 块，因此 `list_doc_templates` 对它们报告「无变量」，渲染时它们的占位符进入残余列表。模型依据残余列表或资产自带的填写指引补齐；把指引转写成 `vars` 声明属于待办，而不是在这里凭空发明。
-- **patent-report 模板只渲染 Markdown 与 HTML** — 它们的正文带 HTML 元数据块（`<div class="doc-meta">`、`<div class="callout">`），DOCX 包无法还原，因此 `docx` 被有意排除在它们的 `formats` 之外。其余十二个模板三种格式都支持。
 - **同名只保留一个模板** — store 对每个名字只保留一项，语言变体需要各自的名字，这台上游 store 已说明。因此 `findByNameAndLanguage` 是在唯一一项上做过滤，而不是在多个变体之间选择。
 - **模板版本漂移只报告不处理** — `listConflicts` 会指出版本与首次加载不一致的覆盖项；目前没有消费者，也不会合并或降级任何模板。
 - **`systemPromptForTemplate` 目前没有消费者** — [`@deepseek-ai/dsh-doc-style`](../doc-style/README.zh.md) 的模板上下文投影已可用，但本包注入的是不带模板上下文的 `systemPrompt`，渲染路径只用到 `toRenderStyle` 与 `disclaimerFor`。

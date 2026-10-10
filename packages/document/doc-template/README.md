@@ -27,7 +27,7 @@ English | [中文](README.zh.md)
 <a id="template-assets"></a>
 ## Template assets
 
-Seventeen templates ship under `assets/templates/`, grouped by directory: `patent/` (5, category `patent-report`), `specification/` (4), `claims/` (3), `oa-response/` (3), and `disclosure/` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch.
+Twelve templates ship under `assets/templates/`, grouped by directory: `specification/` (4), `claims/` (3), `oa-response/` (3), and `disclosure/` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch, and neither is the patent domain's own deliverables — those render from a controlled draft in [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.md) instead of a variable-substitution asset.
 
 Front-matter fields, read from the upstream template contract:
 
@@ -50,7 +50,7 @@ A variable's `type` is one of `string`, `multiline`, `number`, or `bool`; an abs
 <a id="list_doc_templates-tool"></a>
 ## list_doc_templates tool
 
-`list_doc_templates` returns the renderable templates with their variable schema, in category order (patent-report, specification, claims, oa-response, disclosure) and then by name. The optional filters `category`, `domain`, `language`, and `query` combine; `query` is a case-insensitive substring matched against the name, title, description, and use-when text. The language of a template is its declared `language`, or the deployment default when it declares none.
+`list_doc_templates` returns the renderable templates with their variable schema, in category order (specification, claims, oa-response, disclosure) and then by name. The optional filters `category`, `domain`, `language`, and `query` combine; `query` is a case-insensitive substring matched against the name, title, description, and use-when text. The language of a template is its declared `language`, or the deployment default when it declares none.
 
 <a id="render_doc_template-tool"></a>
 ## render_doc_template tool
@@ -145,7 +145,6 @@ Append-only; the listing follows the reusable request prefix and does not invali
 ## Known Limitations and Deferred Work
 
 - **Twelve templates declare no variables** — the claims, specification, oa-response, and disclosure assets upstream carry a `填写指引` section in their bodies instead of a `vars` block, so `list_doc_templates` reports no variables for them and a render reports their placeholders as residual. The model fills them from the residual list or from the asset's own guidance; transcribing the guidance into `vars` declarations is deferred rather than invented here.
-- **The patent-report templates render to Markdown and HTML only** — their bodies carry HTML metadata blocks (`<div class="doc-meta">`, `<div class="callout">`), which a DOCX package cannot reproduce, so `docx` is deliberately absent from their `formats`. The other twelve render to all three formats.
 - **Only one template per name** — a store keeps one entry per name, so a language variant needs its own name, as the upstream store documented. `findByNameAndLanguage` therefore filters the single entry rather than selecting among variants.
 - **Template version drift is reported, not resolved** — `listConflicts` names an override whose version differs from the first-loaded one; nothing consumes it yet, and no template is merged or downgraded.
 - **`systemPromptForTemplate` has no consumer yet** — the template-context projection of [`@deepseek-ai/dsh-doc-style`](../doc-style/README.md) is available, but the style guide this package injects is the template-free one (`systemPrompt`) and the render path uses `toRenderStyle` and `disclaimerFor` only.

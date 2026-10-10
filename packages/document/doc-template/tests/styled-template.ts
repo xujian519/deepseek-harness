@@ -1,4 +1,15 @@
----
+// The `search-report` asset of the removed `patent-report` corpus, kept as the
+// one fixture that declares a `style` and `vars`. The shipped templates declare
+// neither, so the engine cases that need a styled, variable-declaring template
+// (style disclaimer, variable validation, unsupported format, HTML stylesheet,
+// residual reporting) compose this root beside the packaged one.
+
+import { mkdtemp, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+/** The front matter and body of the styled, variable-declaring fixture template. */
+export const STYLED_TEMPLATE_TEXT = `---
 name: search-report
 title: 专利检索报告
 category: patent-report
@@ -107,3 +118,35 @@ vars:
 ---
 
 > ⚠️ {{disclaimer}}
+`
+
+/** Values satisfying the fixture's required set; `doc_no` and `case_no` stay residual. */
+export const STYLED_TEMPLATE_VARIABLES: Readonly<Record<string, string>> = {
+  firm_name: '某所',
+  invention_title: '图像处理',
+  search_type: '新颖性',
+  search_strategy: 'S1=(图像处理) AND S2=(神经网络)',
+  databases_covered: 'CNKI、DWPI',
+  key_hits: 'CN123456A',
+  analysis: '命中文献未揭示全部技术特征。',
+  conclusion: '具备新颖性。',
+}
+
+/** Root written once per test process; `undefined` before the first call. */
+let rootPromise: Promise<string> | undefined
+
+/**
+ * Write the styled fixture into one memoized temporary directory.
+ * @returns the absolute asset root holding `search-report.md`.
+ */
+export function styledTemplateRoot(): Promise<string> {
+  rootPromise ??= writeRoot()
+  return rootPromise
+}
+
+/** Create the fixture root and write the template asset into it. */
+async function writeRoot(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-doc-template-styled-'))
+  await writeFile(join(root, 'search-report.md'), STYLED_TEMPLATE_TEXT)
+  return root
+}

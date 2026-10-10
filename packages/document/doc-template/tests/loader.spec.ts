@@ -34,7 +34,7 @@ async function writeTemplate(root: string, relativePath: string, name: string): 
 describe('loadTemplateDirectory', () => {
   it('loads the packaged templates in path order', () => {
     const templates = loadTemplateDirectory(templatesDirectory())
-    expect(templates).toHaveLength(17)
+    expect(templates).toHaveLength(12)
     expect(templates.map(template => template.name)).toEqual([
       'apparatus-claim',
       'method-claim',
@@ -44,11 +44,6 @@ describe('loadTemplateDirectory', () => {
       'clarity-amendment',
       'inventiveness-defense',
       'novelty-defense',
-      'claims-spec',
-      'invalidation-opinion',
-      'oa-response-sati',
-      'patentability-opinion',
-      'search-report',
       'chemical-spec',
       'electrical-spec',
       'mechanical-spec',

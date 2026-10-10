@@ -73,15 +73,16 @@ function textOf(result: { content: readonly { type: string; text?: string }[] })
   return result.content.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
 }
 
-const SEARCH_REPORT_VARIABLES = {
-  firm_name: '某所',
+const SIMPLIFIED_DISCLOSURE_VARIABLES = {
   invention_title: '图像处理',
-  search_type: '新颖性',
-  search_strategy: 's',
-  databases_covered: 'd',
-  key_hits: 'k',
-  analysis: 'a',
-  conclusion: 'c',
+  existing_problems: 'p',
+  tech_solution: 's',
+  tech_effects: 'e',
+  innovation_1: 'i1',
+  innovation_2: 'i2',
+  innovation_3: 'i3',
+  figures: 'f',
+  notes: 'n',
 }
 
 describe('doc-template real Loader composition through cordis.yml', () => {
@@ -97,19 +98,21 @@ describe('doc-template real Loader composition through cordis.yml', () => {
     const result = await execute(ctx, 'list_doc_templates', {})
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect((result.value as { count: number }).count).toBe(17)
-    expect(textOf(result)).toContain('- [patent-report] search-report — 专利检索报告')
+    expect((result.value as { count: number }).count).toBe(12)
+    expect(textOf(result)).toContain('- [specification] chemical-spec — 化学领域说明书')
   }, 30_000)
 
-  it('renders a packaged template with its style disclaimer through the booted composition', async () => {
+  it('renders a packaged template through the booted composition', async () => {
     const ctx = await boot()
-    const missing = await execute(ctx, 'render_doc_template', { template: 'search-report', variables: {} })
-    expect(missing.isError).toBe(true)
-    const result = await execute(ctx, 'render_doc_template', { template: 'search-report', variables: SEARCH_REPORT_VARIABLES })
+    // A packaged template declares no variables, so an empty map substitutes
+    // nothing and leaves the placeholders residual instead of failing the call.
+    const empty = await execute(ctx, 'render_doc_template', { template: 'simplified-disclosure', variables: {} })
+    expect(empty.isError).toBe(false)
+    const result = await execute(ctx, 'render_doc_template', { template: 'simplified-disclosure', variables: SIMPLIFIED_DISCLOSURE_VARIABLES })
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect(textOf(result)).toContain('> ⚠️ 本文书由 AI 辅助生成')
-    expect(textOf(result)).toContain('**机构：** 某所')
+    expect(textOf(result)).toContain('发明名称')
+    expect(textOf(result)).toContain('图像处理')
   }, 30_000)
 
   it('honours a configured template root through the Loader', async () => {
@@ -124,6 +127,6 @@ describe('doc-template real Loader composition through cordis.yml', () => {
     if (result.isError) throw new Error('expected success')
     const names = (result.value as { templates: { name: string }[] }).templates.map(template => template.name)
     expect(names).toContain('only')
-    expect(names).toContain('search-report')
+    expect(names).toContain('simplified-disclosure')
   }, 30_000)
 })

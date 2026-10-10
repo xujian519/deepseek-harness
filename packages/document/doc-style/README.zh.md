@@ -77,7 +77,7 @@ kind: "package-reference"
 
 - **`systemPromptForTemplate` 目前没有消费者** — [`@deepseek-ai/dsh-doc-template`](../doc-template/README.zh.md) 用到 `toRenderStyle`（内部调用 `disclaimerFor`）以及（部署指定 `styleGuide` 时）`systemPrompt`；模板上下文投影在等一个消费者，这也是它没有配套接线的原因。
 - **`stylesForDomain` 目前没有消费者** — 渲染文档按名称选定样式，因此没有人按领域查询已加载的样式集合；按领域的查询在等一个跨领域组合样式的消费者。
-- **免责声明映射是照抄而非推导** — 类别键与 `<domain>_analysis` 回退被抄进 `DISCLAIMER_CATEGORY_KEYS`，其中包含随包模板新增的 `patent-report` 键，因此以后新增的类别需要自己的条目，而不是推导出来的键。
+- **免责声明映射是照抄而非推导** — 类别键与 `<domain>_analysis` 回退被抄进 `DISCLAIMER_CATEGORY_KEYS`，因此新增的类别需要自己的条目，而不是推导出来的键。
 - **没有类别落到 `prior_art`** — 专利风格为检索结果声明了 `prior_art` 免责文本，但没有任何模板类别映射到它，因此检索报告拿到的是撰写类免责声明。
 - **只有 `style` 能选中样式** — 模板在 front-matter 里点名样式；渲染期没有按领域选择样式的机制，因此未声明样式的模板渲染时不带免责声明。
 - **方向性并未强制** — 加载的 `tone.perspective` 与 `citation.style` 只作为取值被校验，没有任何东西拿文档去比对它们。[`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.zh.md) 只核验其中唯一能机械化的一项——`anti_patterns` 词表，按资产声明的严重级别判定；其余方向要强制执行就得读懂文档含义，本包不提供。

@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/patent.md
 /patent:
-  en: 65f4d58604d42ac9
-  zh: 1b2e3be91f8880e6
+  en: 53578287855410c2
+  zh: 715caa66ac81d66e
 /patent/the-modelport-contract:
   en: 38320e59303e342b
   zh: b6af9ebec6f7f1e3

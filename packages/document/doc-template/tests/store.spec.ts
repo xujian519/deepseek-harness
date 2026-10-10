@@ -12,6 +12,7 @@ import { loadStyles, stylesDirectory, type DocumentStyle } from '@deepseek-ai/ds
 import { templatesDirectory } from '../src/asset-location.ts'
 import { RendererRegistry } from '../src/renderer-registry.ts'
 import { createTemplateStore, type TemplateStoreOptions } from '../src/store.ts'
+import { STYLED_TEMPLATE_VARIABLES, styledTemplateRoot } from './styled-template.ts'
 
 let roots: string[] = []
 
@@ -37,18 +38,6 @@ async function writeTemplate(root: string, relativePath: string, frontmatter: st
 /** The packaged styles, loaded the way the plugin loads them. */
 const PACKAGED_STYLES: readonly DocumentStyle[] = loadStyles([stylesDirectory()])
 
-/** The variables that satisfy the required set of the packaged search-report template. */
-const SEARCH_REPORT_VARIABLES = {
-  firm_name: '某所',
-  invention_title: '图像处理',
-  search_type: '新颖性',
-  search_strategy: 's',
-  databases_covered: 'd',
-  key_hits: 'k',
-  analysis: 'a',
-  conclusion: 'c',
-}
-
 /** Build a store over the packaged assets plus any overrides. */
 function storeOf(overrides: Partial<TemplateStoreOptions> = {}) {
   return createTemplateStore({
@@ -60,13 +49,18 @@ function storeOf(overrides: Partial<TemplateStoreOptions> = {}) {
   })
 }
 
+/** A store over the packaged assets plus the styled, variable-declaring fixture root. */
+async function styledStore(overrides: Partial<TemplateStoreOptions> = {}) {
+  return storeOf({ templateDirs: [templatesDirectory(), await styledTemplateRoot()], ...overrides })
+}
+
 describe('TemplateStore construction', () => {
   it('loads the packaged templates and their declared language', () => {
     const store = storeOf()
-    expect(store.count).toBe(17)
-    expect(store.allTemplates).toHaveLength(17)
-    expect(store.findByName('search-report')?.language).toBe('zh-CN')
-    expect(store.languageOf(store.findByName('search-report')!)).toBe('zh-CN')
+    expect(store.count).toBe(12)
+    expect(store.allTemplates).toHaveLength(12)
+    expect(store.findByName('simplified-disclosure')?.language).toBe('zh-CN')
+    expect(store.languageOf(store.findByName('simplified-disclosure')!)).toBe('zh-CN')
   })
 
   it('applies the configured default language to a template that declares none', async () => {
@@ -87,22 +81,22 @@ describe('TemplateStore construction', () => {
 
   it('lets a later root override a template of the same name', async () => {
     const root = await tempDir()
-    await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "2.0.0"\n', '覆盖后的正文')
+    await writeTemplate(root, 'simplified-disclosure.md', 'name: simplified-disclosure\nversion: "2.0"\n', '覆盖后的正文')
     const store = storeOf({ templateDirs: [templatesDirectory(), root] })
-    expect(store.count).toBe(17)
-    expect(store.findByName('search-report')?.version).toBe('2.0.0')
-    expect(store.findByName('search-report')?.body).toBe('覆盖后的正文')
+    expect(store.count).toBe(12)
+    expect(store.findByName('simplified-disclosure')?.version).toBe('2.0')
+    expect(store.findByName('simplified-disclosure')?.body).toBe('覆盖后的正文')
     expect(store.listConflicts()).toEqual([
-      { templateName: 'search-report', packagedVersion: '1.0.0', overrideVersion: '2.0.0', severity: 'info' },
+      { templateName: 'simplified-disclosure', packagedVersion: '1.0', overrideVersion: '2.0', severity: 'info' },
     ])
   })
 
   it('reports an override that compares older than the packaged version as a warning', async () => {
     const root = await tempDir()
-    await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "0.9.0"\n')
+    await writeTemplate(root, 'simplified-disclosure.md', 'name: simplified-disclosure\nversion: "0.9"\n')
     const store = storeOf({ templateDirs: [templatesDirectory(), root] })
     expect(store.listConflicts()).toEqual([
-      { templateName: 'search-report', packagedVersion: '1.0.0', overrideVersion: '0.9.0', severity: 'warn' },
+      { templateName: 'simplified-disclosure', packagedVersion: '1.0', overrideVersion: '0.9', severity: 'warn' },
     ])
   })
 
@@ -110,35 +104,35 @@ describe('TemplateStore construction', () => {
     // A code-unit string comparison orders '10.0.0' before '1.0.0' and would
     // call this upgrade a downgrade.
     const root = await tempDir()
-    await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "10.0.0"\n')
+    await writeTemplate(root, 'simplified-disclosure.md', 'name: simplified-disclosure\nversion: "10.0.0"\n')
     const newer = storeOf({ templateDirs: [templatesDirectory(), root] })
     expect(newer.listConflicts()).toEqual([
-      { templateName: 'search-report', packagedVersion: '1.0.0', overrideVersion: '10.0.0', severity: 'info' },
+      { templateName: 'simplified-disclosure', packagedVersion: '1.0', overrideVersion: '10.0.0', severity: 'info' },
     ])
     // The same two segments in the downgrade direction: 1.0.0 overriding 10.0.0
     // is older by the same rule, not newer as a string comparison claims.
     const downgradedRoot = await tempDir()
-    await writeTemplate(downgradedRoot, 'search-report.md', 'name: search-report\nversion: "1.0.0"\n')
+    await writeTemplate(downgradedRoot, 'simplified-disclosure.md', 'name: simplified-disclosure\nversion: "1.0.0"\n')
     const newerRoot = await tempDir()
-    await writeTemplate(newerRoot, 'search-report.md', 'name: search-report\nversion: "10.0.0"\n')
+    await writeTemplate(newerRoot, 'simplified-disclosure.md', 'name: simplified-disclosure\nversion: "10.0.0"\n')
     const downgraded = storeOf({ templateDirs: [newerRoot, downgradedRoot] })
     expect(downgraded.listConflicts()).toEqual([
-      { templateName: 'search-report', packagedVersion: '10.0.0', overrideVersion: '1.0.0', severity: 'warn' },
+      { templateName: 'simplified-disclosure', packagedVersion: '10.0.0', overrideVersion: '1.0.0', severity: 'warn' },
     ])
   })
 
   it('treats a missing version segment as zero, so a shorter override is not a downgrade', async () => {
     const root = await tempDir()
-    await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "1.0"\n')
+    await writeTemplate(root, 'simplified-disclosure.md', 'name: simplified-disclosure\nversion: "1"\n')
     expect(storeOf({ templateDirs: [templatesDirectory(), root] }).listConflicts()).toEqual([
-      { templateName: 'search-report', packagedVersion: '1.0.0', overrideVersion: '1.0', severity: 'info' },
+      { templateName: 'simplified-disclosure', packagedVersion: '1.0', overrideVersion: '1', severity: 'info' },
     ])
   })
 
   it('reports no conflict when every template keeps its first-loaded version', async () => {
     const root = await tempDir()
     await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "1.0.0"\n')
-    expect(storeOf({ templateDirs: [templatesDirectory(), root] }).listConflicts()).toEqual([])
+    expect(storeOf({ templateDirs: [templatesDirectory(), await styledTemplateRoot(), root] }).listConflicts()).toEqual([])
     expect(storeOf().listConflicts()).toEqual([])
   })
 })
@@ -165,18 +159,19 @@ describe('TemplateStore listing and lookup', () => {
     ])
     expect(store.list({ category: 'legal' })).toEqual([])
     expect(store.list({ domain: 'legal' })).toEqual([])
-    expect(store.list({ domain: 'patent' })).toHaveLength(17)
-    expect(store.list({ language: 'zh-CN' })).toHaveLength(17)
+    expect(store.list({ domain: 'patent' })).toHaveLength(12)
+    expect(store.list({ language: 'zh-CN' })).toHaveLength(12)
     expect(store.list({ language: 'en-US' })).toEqual([])
   })
 
   it('searches the name, title, description, and use-when text', () => {
-    expect(store.list({ query: 'SEARCH-REPORT' }).map(template => template.name)).toEqual(['search-report'])
-    expect(store.list({ query: '检索报告' }).map(template => template.name)).toEqual(['search-report'])
+    expect(store.list({ query: 'SIMPLIFIED-DISCLOSURE' }).map(template => template.name)).toEqual(['simplified-disclosure'])
+    expect(store.list({ query: '创造性争辩模板' }).map(template => template.name)).toEqual(['inventiveness-defense'])
+    expect(store.list({ query: '系统级' }).map(template => template.name)).toEqual(['system-claim'])
     expect(store.list({ query: '装置' }).map(template => template.name)).toEqual(['apparatus-claim'])
     expect(store.list({ query: '不需要检索时' })).toEqual([])
-    expect(store.list({ query: '  ' })).toHaveLength(17)
-    expect(store.list()).toHaveLength(17)
+    expect(store.list({ query: '  ' })).toHaveLength(12)
+    expect(store.list()).toHaveLength(12)
   })
 
   it('searches the use-when text of a template that declares one', async () => {
@@ -187,11 +182,11 @@ describe('TemplateStore listing and lookup', () => {
   })
 
   it('finds a template by name and by name plus language', () => {
-    expect(store.findByName('search-report')?.category).toBe('patent-report')
+    expect(store.findByName('simplified-disclosure')?.category).toBe('disclosure')
     expect(store.findByName('nope')).toBeUndefined()
-    expect(store.findByNameAndLanguage('search-report', '')?.name).toBe('search-report')
-    expect(store.findByNameAndLanguage('search-report', 'zh-CN')?.name).toBe('search-report')
-    expect(store.findByNameAndLanguage('search-report', 'en-US')).toBeUndefined()
+    expect(store.findByNameAndLanguage('simplified-disclosure', '')?.name).toBe('simplified-disclosure')
+    expect(store.findByNameAndLanguage('simplified-disclosure', 'zh-CN')?.name).toBe('simplified-disclosure')
+    expect(store.findByNameAndLanguage('simplified-disclosure', 'en-US')).toBeUndefined()
     expect(store.findByNameAndLanguage('nope', 'zh-CN')).toBeUndefined()
   })
 
@@ -201,8 +196,8 @@ describe('TemplateStore listing and lookup', () => {
 })
 
 describe('TemplateStore.render', () => {
-  it('renders a Markdown document with the template title and the style disclaimer', () => {
-    const outcome = storeOf().render({ template: 'search-report', variables: SEARCH_REPORT_VARIABLES })
+  it('renders a Markdown document with the template title and the style disclaimer', async () => {
+    const outcome = (await styledStore()).render({ template: 'search-report', variables: STYLED_TEMPLATE_VARIABLES })
     expect(outcome.format).toBe('markdown')
     expect(outcome.fileName).toBe('search-report.md')
     expect(outcome.mimeType).toBe('text/markdown')
@@ -225,10 +220,10 @@ describe('TemplateStore.render', () => {
     expect(outcome.residual).toEqual(['机构名称', 'doc-no'])
   })
 
-  it('renders HTML with the escaped variables, the author metadata, and the patent stylesheet', () => {
-    const outcome = storeOf().render({
+  it('renders HTML with the escaped variables, the author metadata, and the patent stylesheet', async () => {
+    const outcome = (await styledStore()).render({
       template: 'search-report',
-      variables: { ...SEARCH_REPORT_VARIABLES, firm_name: '<b>某所</b>', invention_title: '图像处理 & 检索' },
+      variables: { ...STYLED_TEMPLATE_VARIABLES, firm_name: '<b>某所</b>', invention_title: '图像处理 & 检索' },
       format: 'html',
       author: '代理人甲',
       date: '2026-01-01',
@@ -254,7 +249,7 @@ describe('TemplateStore.render', () => {
   })
 
   it('returns the injection-free body in markdown while content carries title and disclaimer', async () => {
-    const packaged = storeOf().render({ template: 'search-report', variables: SEARCH_REPORT_VARIABLES })
+    const packaged = (await styledStore()).render({ template: 'search-report', variables: STYLED_TEMPLATE_VARIABLES })
     // The delivered text is the injected body: the style disclaimer precedes it.
     expect(packaged.markdown.startsWith('# 专利检索报告')).toBe(true)
     expect(packaged.content.endsWith(packaged.markdown)).toBe(true)
@@ -315,13 +310,15 @@ describe('TemplateStore.render', () => {
     expect(() => storeOf().render({ template: 'nope', variables: {} })).toThrow(/未找到模板 "nope"/)
   })
 
-  it('fails loud on an unsupported format', () => {
-    expect(() => storeOf().render({ template: 'search-report', variables: { firm_name: 'x' }, format: 'docx' }))
+  it('fails loud on an unsupported format', async () => {
+    const store = await styledStore()
+    expect(() => store.render({ template: 'search-report', variables: { firm_name: 'x' }, format: 'docx' }))
       .toThrow(/不支持 docx 格式（支持 markdown\/html）/)
   })
 
-  it('fails loud on a missing required variable', () => {
-    expect(() => storeOf().render({ template: 'search-report', variables: {} }))
+  it('fails loud on a missing required variable', async () => {
+    const store = await styledStore()
+    expect(() => store.render({ template: 'search-report', variables: {} }))
       .toThrow(/缺少必填变量：firm_name、invention_title/)
   })
 
@@ -332,16 +329,16 @@ describe('TemplateStore.render', () => {
       .toThrow(/声明的样式 "no-such-style" 未加载/)
   })
 
-  it('fails loud when the format has no renderer', () => {
-    const store = storeOf({ renderers: new RendererRegistry() })
-    expect(() => store.render({ template: 'search-report', variables: SEARCH_REPORT_VARIABLES }))
+  it('fails loud when the format has no renderer', async () => {
+    const store = await styledStore({ renderers: new RendererRegistry() })
+    expect(() => store.render({ template: 'search-report', variables: STYLED_TEMPLATE_VARIABLES }))
       .toThrow(/没有注册 markdown 格式的渲染器/)
   })
 
-  it('renders through a renderer registered by a consumer', () => {
+  it('renders through a renderer registered by a consumer', async () => {
     const registry = new RendererRegistry()
     registry.register({ format: 'markdown', render: () => '自定义渲染' })
-    const store = storeOf({ renderers: registry, includeDisclaimer: false })
-    expect(store.render({ template: 'search-report', variables: SEARCH_REPORT_VARIABLES }).content).toBe('自定义渲染')
+    const store = await styledStore({ renderers: registry, includeDisclaimer: false })
+    expect(store.render({ template: 'search-report', variables: STYLED_TEMPLATE_VARIABLES }).content).toBe('自定义渲染')
   })
 })
