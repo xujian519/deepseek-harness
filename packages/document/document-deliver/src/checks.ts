@@ -22,7 +22,7 @@
  * @module @deepseek-ai/dsh-document-deliver/checks
  */
 
-import type { AntiPattern, DocumentStyle } from '@deepseek-ai/dsh-doc-style'
+import { placeholderBracePattern, type AntiPattern, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
 
 /** Every check this module can report. */
 export const DOCUMENT_CHECK_IDS = [
@@ -89,7 +89,7 @@ export const DEFAULT_LENGTH_TOLERANCE = 0.2
 
 /** Residual placeholder forms: the unfilled-variable braces plus the marker list the quality gate names. */
 const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
-  /\{\{[^{}\n]{1,80}\}\}/gu,
+  placeholderBracePattern(),
   /\[(?:TBD|TODO|REPLACE|PLACEHOLDER|XXX)\]/giu,
   /lorem ipsum/giu,
   /(?:待补充|待填写|此处填写)/gu,
