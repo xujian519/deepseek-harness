@@ -1,5 +1,5 @@
 ---
-description: "Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 31 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, TRIZ contradiction analysis, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract)."
+description: "Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 32 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, TRIZ contradiction analysis, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract)."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 31 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, TRIZ contradiction analysis, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract).
+Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 32 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, TRIZ contradiction analysis, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract).
 
 ## Table of Contents
 

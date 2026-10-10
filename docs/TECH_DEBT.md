@@ -302,6 +302,8 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 ## 2026-09-27 更新(三模式与全仓技术债扫描:专利模式、文档模式、专利自媒体模式规划态)
 
+> 本节的结构债、`v8 ignore`、`@ts-expect-error` 计数与 `packages/patent/` 包数是 2026-09-27 的实测快照；2026-10-10 的复测值（182/71、1135、140、16）在同日节的「台账计数过期」条，两处口径见该条的复算命令。
+
 - **范围与基线**:`master` HEAD(2026-09-27;短 sha 见 #312–#328 各单正文),工作树干净。全仓机械面 + 三个模式的代码面;专利自媒体模式**在仓内不存在**(无 preset、无技能、无包,全仓 `自媒体` 仅 3 处命中且均为证据可信度分类串),按规划态处理为缺口清单。报告:`.agents/audits/2026-09-27-repo-scan.md`;分诊与批次矩阵:`.agents/audits/2026-09-27-issue-triage-and-execution-plan.md`;**新开 17 条 issue #312–#328**(#311 号在本仓不可解析,自 #312 起;此前 #207–#292 全部 CLOSED)。代码零改动。
 - **门禁基线(本机实跑)**:`pnpm run lint` 0/0(6249 文件 / 90 规则);`pnpm run typecheck` 通过;`pnpm run duplication` 仓库级 0 克隆 + 收紧域 81 对与基线一致;`npx vitest run packages/patent packages/document` 270 文件 3776 通过 / 2 跳过;`pnpm run test:snapshot -t patent` 11 通过。
 - **本轮最重的结论:专利域两条门禁链互相引用对方的覆盖**。`patent-workflow/src/output-gate.ts` 的 `PatentOutputGate`(373 行)与 `quality-gate.ts:415` 的 `processPatentOutput` 除测试外**零调用点**;而 `patent-rule/src/runtime/patent-compliance.ts:236` 的 `selectGateRules()` 以「已由关键词门禁(quality-gate 镜像词表)处理」为由排除 `PAT-RISK-001`(免责声明)/`PAT-APPROVAL-001`(结论审批)/`PAT-ABS-001`(绝对化)。已接线的只有 `RuleOutputGate`(挂 `tools/post-execute`,规则集已剔除 `PAT-*`)。即 preset persona 声称的「输出前强制质量门禁与免责声明」在代码上不成立(#312)。同重的第二处是**文档模式交付路径自相矛盾**:渲染侧 `doc-template/src/vars.ts:24` 用 ASCII `\w`、门禁侧 `document-deliver/src/checks.ts:84` 用 `[^{}\n]{1,80}`,实测 `{{机构名称}}`/`{{doc-no}}` 的 `residual` 为空而门禁命中,且这两个形式既不被替换也不被报告(#314);免责声明映射表缺 `patent-report` 类,5 个撰写/报告类模板拿到「分析」类声明(#319)。
@@ -360,7 +362,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:
 
-- **src 零 `any`、零 `@ts-ignore`、零未注释空 catch**(截至 2026-09-27 实测:`@ts-ignore` 1 处、`@ts-expect-error` 129 处,均在 tests;src 内 0)
+- **src 零 `any`、零 `@ts-ignore`、零未注释空 catch**(截至 2026-10-10 实测:`@ts-ignore` 1 处、`@ts-expect-error` 140 处,均在 tests;src 内 0)
 - 每个包都有 `./invariant`,依赖方向干净(util 全零依赖、无 spine 反向依赖),内部依赖全部 `workspace:^` 无版本漂移
 - 生成文件(api-catalog.ts 等)有 freshness gate,非债务;lib/ 构建产物未被 git 跟踪
 - 模范实现:`sdk/protocol/src/transport.ts`、`sdk/client/src/dispose.ts`、acp quiesce、session-persistence per-session 串行链与 retire drain
