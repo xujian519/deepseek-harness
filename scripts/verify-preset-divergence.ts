@@ -9,6 +9,11 @@
  * baseline entry that no longer diverges all fail, so a copied row that was
  * forgotten or edited on one side cannot stay silent.
  *
+ * Block comparison only sees row ids two or more presets carry, so a preset
+ * that dropped a whole row would stay silent. The second report covers that:
+ * against the preset carrying the most row ids, it lists the row ids every
+ * other preset lacks, and a gap the baseline does not record fails.
+ *
  * A block is the raw text from its `- id:` line to the line before the next
  * `- id:` line, comments and blank lines included — the same slice a maintainer
  * copies. Run `pnpm run verify-preset-divergence --list` to print the current
@@ -40,10 +45,12 @@ export interface PresetSources {
 /** One row id's divergence: the block hash each preset that carries the id has. */
 export type Divergence = ReadonlyMap<string, string>
 
-/** Baseline document: row id to the preset hashes recorded for it. */
+/** Baseline document: divergent row blocks, and the row-id gap of each preset. */
 export interface PresetDivergenceBaseline {
   /** Recorded divergent row ids. */
   readonly rows: Readonly<Record<string, Readonly<Record<string, string>>>>
+  /** Recorded row-id gaps: preset file name to the row ids the reference carries and it does not. */
+  readonly rowSets: Readonly<Record<string, readonly string[]>>
 }
 
 /** Comparison of a recorded baseline against the current divergence report. */
@@ -117,6 +124,72 @@ export function presetDivergences(presets: readonly PresetSources[]): Map<string
   return divergences
 }
 
+/** One preset's row-id gap against the reference preset. */
+export interface RowSetReference {
+  /** File name of the preset carrying the most row ids. */
+  readonly reference: string
+  /** Preset file name to the row ids the reference carries and that preset does not. */
+  readonly gaps: ReadonlyMap<string, readonly string[]>
+}
+
+/**
+ * Report each preset's row-id gap against the preset carrying the most row ids.
+ *
+ * {@link presetDivergences} compares the blocks of row ids two or more presets
+ * carry, so a preset that dropped a whole row leaves nothing for it to compare
+ * and the gate stays silent. This is the other half: which rows the reference
+ * carries and another preset does not.
+ * @param presets - the shipped presets with their raw text.
+ * @returns the reference preset and every preset's missing row ids.
+ */
+export function presetRowSetGaps(presets: readonly PresetSources[]): RowSetReference {
+  const ids = new Map(presets.map(preset => [preset.file, [...presetRowBlocks(preset.source).keys()]]))
+  const best = [...ids].sort(([fileA, a], [fileB, b]) => b.length - a.length || fileA.localeCompare(fileB))[0]
+  if (best === undefined) throw new Error('verify-preset-divergence: no preset carries a row')
+  const carried = new Set(best[1])
+  const gaps = new Map<string, readonly string[]>()
+  for (const [file, rowIds] of [...ids].sort(([left], [right]) => left.localeCompare(right))) {
+    const present = new Set(rowIds)
+    gaps.set(file, [...carried].filter(id => !present.has(id)).sort())
+  }
+  return { reference: best[0], gaps }
+}
+
+/** Comparison of the recorded row-id gaps against the current ones. */
+export interface RowSetDiff {
+  /** Row ids a preset no longer carries that the baseline does not record. */
+  readonly added: readonly { readonly file: string; readonly id: string }[]
+  /** Recorded gaps whose row id the preset carries again. */
+  readonly stale: readonly { readonly file: string; readonly id: string }[]
+}
+
+/**
+ * Compare the recorded row-id gaps against the current ones.
+ * @param recorded - the baseline's `rowSets` section.
+ * @param current - {@link presetRowSetGaps} result.
+ * @returns gaps to reject and recorded gaps that went stale.
+ */
+export function diffRowSets(
+  recorded: Readonly<Record<string, readonly string[]>>,
+  current: RowSetReference,
+): RowSetDiff {
+  const added: { file: string; id: string }[] = []
+  const stale: { file: string; id: string }[] = []
+  for (const [file, missing] of [...current.gaps].sort(([left], [right]) => left.localeCompare(right))) {
+    const known = new Set(recorded[file] ?? [])
+    for (const id of missing) {
+      if (!known.has(id)) added.push({ file, id })
+    }
+  }
+  for (const file of Object.keys(recorded).sort()) {
+    const present = new Set(current.gaps.get(file) ?? [])
+    for (const id of recorded[file] ?? []) {
+      if (!present.has(id)) stale.push({ file, id })
+    }
+  }
+  return { added, stale }
+}
+
 /**
  * Compare the recorded baseline against the current divergence report.
  * @param baseline - the checked-in baseline.
@@ -159,23 +232,33 @@ export function diffDivergences(
  */
 export function parseBaseline(source: string): PresetDivergenceBaseline {
   const parsed: unknown = JSON.parse(source)
-  if (typeof parsed !== 'object' || parsed === null || typeof (parsed as { rows?: unknown }).rows !== 'object') {
-    throw new Error('verify-preset-divergence: the baseline must be an object carrying a rows record')
+  const document = typeof parsed === 'object' && parsed !== null
+    ? parsed as { rows?: unknown; rowSets?: unknown }
+    : undefined
+  if (document === undefined
+    || typeof document.rows !== 'object' || document.rows === null
+    || typeof document.rowSets !== 'object' || document.rowSets === null) {
+    throw new Error('verify-preset-divergence: the baseline must be an object carrying rows and rowSets records')
   }
-  return parsed as PresetDivergenceBaseline
+  return document as PresetDivergenceBaseline
 }
 
 /**
  * Render the baseline document with sorted keys.
  * @param current - {@link presetDivergences} result.
+ * @param rowSets - {@link presetRowSetGaps} result.
  * @returns the JSON text to check in.
  */
-export function renderBaseline(current: ReadonlyMap<string, Divergence>): string {
+export function renderBaseline(current: ReadonlyMap<string, Divergence>, rowSets: RowSetReference): string {
   const rows: Record<string, Record<string, string>> = {}
   for (const [id, hashes] of [...current].sort(([left], [right]) => left.localeCompare(right))) {
     rows[id] = Object.fromEntries([...hashes].sort(([left], [right]) => left.localeCompare(right)))
   }
-  return `${JSON.stringify({ rows }, null, 2)}\n`
+  const gaps: Record<string, readonly string[]> = {}
+  for (const [file, ids] of [...rowSets.gaps].sort(([left], [right]) => left.localeCompare(right))) {
+    gaps[file] = ids
+  }
+  return `${JSON.stringify({ rows, rowSets: gaps }, null, 2)}\n`
 }
 
 /**
@@ -194,8 +277,9 @@ if (process.argv[1] !== undefined && import.meta.filename === resolve(process.ar
   const presets = loadPresets(ROOT)
   if (presets.length === 0) throw new Error('verify-preset-divergence: no shipped preset was scanned')
   const current = presetDivergences(presets)
+  const rowSets = presetRowSetGaps(presets)
   if (process.argv.includes('--write')) {
-    writeFileSync(resolve(ROOT, BASELINE_PATH), renderBaseline(current))
+    writeFileSync(resolve(ROOT, BASELINE_PATH), renderBaseline(current, rowSets))
     process.stdout.write(`verify-preset-divergence: recorded ${String(current.size)} divergent row id(s) in ${BASELINE_PATH}.\n`)
   }
   else {
@@ -204,9 +288,17 @@ if (process.argv[1] !== undefined && import.meta.filename === resolve(process.ar
         process.stdout.write(`${id}:\n`)
         for (const [file, hash] of hashes) process.stdout.write(`  ${file.padEnd(20)} ${hash}\n`)
       }
+      process.stdout.write(`row-set gaps against ${rowSets.reference}:\n`)
+      for (const [file, missing] of rowSets.gaps) {
+        if (missing.length === 0) continue
+        process.stdout.write(`  ${file.padEnd(20)} missing ${missing.join(', ')}\n`)
+      }
     }
-    const diff = diffDivergences(parseBaseline(readFileSync(resolve(ROOT, BASELINE_PATH), 'utf8')), current)
-    if (diff.added.length > 0 || diff.changed.length > 0 || diff.stale.length > 0) {
+    const baseline = parseBaseline(readFileSync(resolve(ROOT, BASELINE_PATH), 'utf8'))
+    const diff = diffDivergences(baseline, current)
+    const rowDiff = diffRowSets(baseline.rowSets, rowSets)
+    if (diff.added.length > 0 || diff.changed.length > 0 || diff.stale.length > 0
+      || rowDiff.added.length > 0 || rowDiff.stale.length > 0) {
       process.stderr.write('verify-preset-divergence: divergences outside the baseline:\n')
       for (const id of diff.added) {
         process.stderr.write(`  ${id}: new divergence\n`)
@@ -214,8 +306,19 @@ if (process.argv[1] !== undefined && import.meta.filename === resolve(process.ar
       }
       for (const entry of diff.changed) process.stderr.write(`  ${entry.id}: ${entry.detail}\n`)
       for (const id of diff.stale) process.stderr.write(`  ${id}: no longer diverges; drop its baseline entry\n`)
+      for (const gap of rowDiff.added) {
+        process.stderr.write(
+          `  ${gap.file}: no longer carries ${gap.id} (reference ${rowSets.reference}); restore the row or record the gap\n`,
+        )
+      }
+      for (const gap of rowDiff.stale) {
+        process.stderr.write(`  ${gap.file}: carries ${gap.id} again; drop the recorded gap\n`)
+      }
       process.exit(1)
     }
-    process.stdout.write(`verify-preset-divergence: ${String(current.size)} recorded divergence(s) match ${String(presets.length)} preset(s).\n`)
+    process.stdout.write(
+      `verify-preset-divergence: ${String(current.size)} recorded divergence(s) and `
+      + `${String([...rowSets.gaps.values()].flat().length)} recorded row-set gap(s) match ${String(presets.length)} preset(s).\n`,
+    )
   }
 }
