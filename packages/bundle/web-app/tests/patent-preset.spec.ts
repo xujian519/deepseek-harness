@@ -353,6 +353,24 @@ describe('patent preset composition', () => {
     expect(closureTemplates).not.toContain('right-evaluation-report')
   })
 
+  it('states the team-channel discipline from the mounting rows, not an unrecorded test', async () => {
+    // The persona excluded the generic send_message while quoting an observation
+    // ("实测直接报「active teammate … not found」") that no file recorded and that
+    // no shipped combination reproduces by construction: the preset does not mount
+    // the agent-team package, and the generic name is registered by
+    // subagent-control against managed subagents. The reason is checkable here.
+    const rows = await patentRows()
+    const named = rows.filter((row): row is PresetRow & { name: string } => typeof row.name === 'string')
+    const mounted = named.map(row => packageOf(row.name))
+    expect(mounted).not.toContain('@deepseek-ai/dsh-experimental-tool-agent-team')
+    expect(mounted).toContain('@deepseek-ai/dsh-tool-subagent-control')
+    const text = personaPrefix(rows.find(row => row.id === 'persona'))
+    const discipline = text.split('\n').find(line => line.includes('协调通道唯一'))
+    expect(discipline, 'the persona must keep the team-coordination discipline').toBeDefined()
+    expect(discipline).toContain('@deepseek-ai/dsh-tool-subagent-control')
+    expect(discipline).not.toContain('实测')
+  })
+
   it('sends the model to the cnlaw declaration instead of a literal endpoint', async () => {
     // The base's endpoints are deployment Config, rendered into the prompt by
     // dsh-patent-law; a port spelled out here would survive a deployment that
