@@ -826,6 +826,7 @@ function docSyncLeafGates(options: {
     pnpmScript('agent-preset-config', 'verify-agent-preset-config', { label: 'agent preset config', quick: true }),
     pnpmScript('preset-tool-refs', 'verify-preset-tool-refs', { label: 'preset tool references', quick: true }),
     pnpmScript('preset-divergence', 'verify-preset-divergence', { label: 'preset divergence baseline', quick: true }),
+    pnpmScript('tech-debt-counters', 'verify-tech-debt-counters', { label: 'tech debt counters', quick: true }),
     pnpmScript('patent-team-roster', 'verify-patent-team-roster', { label: 'patent team roster', quick: true }),
     pnpmScript('patent-document-output', 'verify-patent-document-output', { label: 'patent document output', quick: true }),
   ]
