@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   hasExtractablePayload,
+  sourceLibraryPresent,
   verifyCardSources,
 } from './verify-ipc-standards-source.ts'
 
@@ -85,5 +86,20 @@ describe('verifyCardSources', () => {
     // 这是 21 张空壳的成因形态:主页面清空、内容搬到子页。载荷被子页承载即通过。
     const problems = verifyCardSources([{ id: 'A', source: VALID }], () => [CORE_ONLY, PAYLOAD])
     expect(problems).toEqual([])
+  })
+})
+
+describe('sourceLibraryPresent', () => {
+  it('源库目录在根之下时视为可用', () => {
+    expect(sourceLibraryPresent(makeSourceTree({ [VALID]: PAYLOAD }))).toBe(true)
+  })
+
+  it('根存在但没有源库目录时视为不可用', () => {
+    // CI 的形态:默认根是检出的上级目录,它必然存在,源库却不在。
+    expect(sourceLibraryPresent(makeSourceTree({}))).toBe(false)
+  })
+
+  it('根不存在时视为不可用', () => {
+    expect(sourceLibraryPresent(join(tmpdir(), 'ipc-absent-root'))).toBe(false)
   })
 })

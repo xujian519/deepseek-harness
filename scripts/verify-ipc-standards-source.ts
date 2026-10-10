@@ -10,9 +10,9 @@
  * <memory-context> 中只剩裸标题行,既占预算又让模型误读为该 IPC 部已提供审查
  * 标准。源库在本地演进,本门禁在回源核对时把该形态挡下。
  *
- * 源库根由 `DSH_IPC_STANDARDS_SOURCE_ROOT` 指定。未指定或目录不存在时只判定
- * 第 1 条,并如实报告「源库不可用」而不是静默通过;显式指定却指向无效路径时
- * 失败——那属于配置错误。
+ * 源库根由 `DSH_IPC_STANDARDS_SOURCE_ROOT` 指定。显式指定却指向无效路径时失败
+ * ——那属于配置错误;未指定时默认取本仓同级目录,该目录下没有源库目录
+ * (`宝宸知识库`)时只判定第 1 条,并如实报告「源库不可用」而不是静默通过。
  *
  * 用法:
  *   tsx scripts/verify-ipc-standards-source.ts
@@ -29,6 +29,9 @@ const SOURCE_PREFIX = '宝宸知识库/Wiki/'
 
 /** 拆分子页的命名片段,与源库的组织方式一致。 */
 const SPLIT_MARKER = '-拆分-'
+
+/** 源库目录名,即每个 source 的首段。 */
+const SOURCE_LIBRARY_DIR = SOURCE_PREFIX.split('/')[0] ?? ''
 
 /** 卡片在资产中的最小字段集:回源核对只需要 id 与 source。 */
 export type IpcStandardsCard = {
@@ -134,25 +137,39 @@ function makeVariantReader(sourceRoot: string): (source: string) => readonly str
   }
 }
 
+/**
+ * 默认源库根之下是否真的存在源库目录。
+ *
+ * 未指定 `DSH_IPC_STANDARDS_SOURCE_ROOT` 时默认根取本仓同级目录;CI 的检出上级
+ * 必然存在,只看该目录是否存在会把「源库不可用」判成可用,从而对全部卡片报
+ * 缺失并停在必过车道上。故判定源库目录本身。
+ *
+ * @param sourceRoot - 默认源库根目录。
+ * @returns 源库目录存在于该根之下时为 true。
+ */
+export function sourceLibraryPresent(sourceRoot: string): boolean {
+  return existsSync(join(sourceRoot, SOURCE_LIBRARY_DIR))
+}
+
 function main(): number {
   const repoRoot = resolve(import.meta.dirname, '..')
   const cards = loadCards(resolve(repoRoot, ASSET_PATH))
 
   const configuredRoot = process.env.DSH_IPC_STANDARDS_SOURCE_ROOT
+  const configured = configuredRoot !== undefined && configuredRoot !== ''
   // source 形如 `宝宸知识库/Wiki/复审无效/…`，首段是源库目录名而非 sourceRoot 之下
   // 的子目录，故默认根取本仓同级目录。
-  const sourceRoot = configuredRoot === undefined || configuredRoot === ''
-    ? resolve(repoRoot, '..')
-    : resolve(configuredRoot)
+  const sourceRoot = configured ? resolve(configuredRoot) : resolve(repoRoot, '..')
 
-  if (!existsSync(sourceRoot)) {
-    if (configuredRoot !== undefined && configuredRoot !== '') {
-      console.error(
-        `verify-ipc-standards-source: DSH_IPC_STANDARDS_SOURCE_ROOT 指向的目录不存在: ${sourceRoot}`,
-      )
-      return 1
-    }
-    // 未配置源库时只判定路径格式,并说明载荷核对未执行。
+  if (configured && !existsSync(sourceRoot)) {
+    console.error(
+      `verify-ipc-standards-source: DSH_IPC_STANDARDS_SOURCE_ROOT 指向的目录不存在: ${sourceRoot}`,
+    )
+    return 1
+  }
+
+  if (!configured && !sourceLibraryPresent(sourceRoot)) {
+    // 未指定源库时只判定路径格式,并说明载荷核对未执行。
     const formatOnly = verifyCardSources(cards, () => ['占位'])
     const malformed = formatOnly.filter(p => p.kind === 'malformed-source')
     if (malformed.length > 0) {
@@ -161,7 +178,7 @@ function main(): number {
     }
     console.log(
       'verify-ipc-standards-source: 源库不可用(未设置 DSH_IPC_STANDARDS_SOURCE_ROOT,'
-      + `默认位置 ${sourceRoot} 亦不存在),仅校验 ${cards.length} 张卡片的 source 路径格式;`
+      + `默认位置 ${sourceRoot} 下无 ${SOURCE_LIBRARY_DIR}),仅校验 ${cards.length} 张卡片的 source 路径格式;`
       + '载荷核对未执行。',
     )
     return 0
