@@ -302,7 +302,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 ## 2026-09-27 更新(三模式与全仓技术债扫描:专利模式、文档模式、专利自媒体模式规划态)
 
-> 本节的结构债、`v8 ignore`、`@ts-expect-error` 计数与 `packages/patent/` 包数是 2026-09-27 的实测快照；2026-10-10 的复测值（182/71、1135、140、16）在同日节的「台账计数过期」条，两处口径见该条的复算命令。
+> 本节的结构债、`v8 ignore`、`@ts-expect-error` 计数与 `packages/patent/` 包数是 2026-09-27 的实测快照；当前值在同日节的「台账计数已改为可机检」条（由 `pnpm run verify-tech-debt-counters` 复算并比对），两处口径见该条的复算命令。
 
 - **范围与基线**:`master` HEAD(2026-09-27;短 sha 见 #312–#328 各单正文),工作树干净。全仓机械面 + 三个模式的代码面;专利自媒体模式**在仓内不存在**(无 preset、无技能、无包,全仓 `自媒体` 仅 3 处命中且均为证据可信度分类串),按规划态处理为缺口清单。报告:`.agents/audits/2026-09-27-repo-scan.md`;分诊与批次矩阵:`.agents/audits/2026-09-27-issue-triage-and-execution-plan.md`;**新开 17 条 issue #312–#328**(#311 号在本仓不可解析,自 #312 起;此前 #207–#292 全部 CLOSED)。代码零改动。
 - **门禁基线(本机实跑)**:`pnpm run lint` 0/0(6249 文件 / 90 规则);`pnpm run typecheck` 通过;`pnpm run duplication` 仓库级 0 克隆 + 收紧域 81 对与基线一致;`npx vitest run packages/patent packages/document` 270 文件 3776 通过 / 2 跳过;`pnpm run test:snapshot -t patent` 11 通过。
@@ -353,7 +353,18 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **外置自媒体 bundle 的漂移与缺口(1 条,复核 #328 指针)**:`~/.dsh/local-bundles/patent-media/cordis.patch.yml` 最后修改 09-23,早于 10-09 的上游同步。**7 个 `standard` 顶层行整行缺失**;仍挂 `@deepseek-ai/dsh-tool-ralph`(experimental,`:289-293`)而仓内两个 preset 都已撤下该行;`backgroundMode` 族字段与仓内三个 preset **方向相反**(bundle 有、仓内无),**不是单侧落后而是无人对齐**;4 个图像技能无任何可执行出口(preset 未挂图像生成工具,正文无具体命令/脚本/API 名);仍缺广告法/专利标识标注的合规载体(`patent-media-compliance` 自述只约束小红书账号);3 份 `.bak` 残留在活跃技能目录。
 - **机制靠注释维持(2 条)**:①`doc-template/src/vars.ts:24-25` 的 `EXTRACTION_PATTERN` 与 `document-deliver/src/checks.ts:90-92` 的 `PLACEHOLDER_PATTERNS[0]` 是同一正则的两份字面量,对齐只在注释里(**#314 的修法是复制而非共享,#327 那次同理**),任何一侧单独改动都会静默复现 #314;②`patent.patch.yml:80` 对模型下硬纪律「不要用通用 `send_message`……(**实测**直接报「active teammate … not found」)」,与 `standard.patch.yml` 侧**逐字相同**、两处都标「实测」而**没有一处记录该实测**——需先核实 `@deepseek-ai/dsh-experimental-tool-agent-team` 是否真的某条装配路径可达(`docs/tool-catalog.md:45` 明写 base 组合保持其 disabled)。
 - **受控草稿的代码异味(1 条,本轮新增)**:表题编号两条通道各写一份字面量,而两处模块注释都断言「**两通道表题不可能分叉**」——HTML 侧 `patent-document/.../draftConverter/blocks.ts:33` 与 docx 侧 `patent-filing/.../filing/fromDraft.ts:30` 各自产出 `表 N · 名称`,计数器类型也各定义一份;对照同族的附图说明编号**是**共享的(两侧都取 `patent-core` 的 `numberedFigureDescriptions`)。同族另有两处重复:`patent-filing/src/filing/engine.ts:237-243` 的 `obj()` 与已导出的 `patent-core/src/llm-json.ts:45` `asJsonRecord` 同义;`patent-document/src/document/templateResolver.ts:53-54` 用 `JSON.parse(raw) as TemplateManifest` 把磁盘 JSON 裸断言(字段全可选,错误退化为「未知模板 …(可用: 无)」)。
-- **台账计数过期(1 条)**:`docs/TECH_DEBT.md:310` 的 173/67 → **182/71**、`:313` 的 `v8 ignore` 1204 → **1135**(`packages/*/*/src` 下 `.ts`;计入 `.tsx` 为 1357)、`:307`/`:333` 的 `@ts-expect-error` 129 → **140**、覆盖率豁免注释的「15 个 patent 包」→ **16**(新增 `patent-filing`)。四个计数已由 2026-10-10 的后续会话用 `git grep`(只读 tracked 文件)复算:结构债 182/71、`patent` 包数 16、`@ts-expect-error` 的 140(须用 `.ts`+`.tsx` 口径)均成立,`v8 ignore` 的记载值 1391 **无法复现**(实测 1135);原命令 `grep -rn … packages apps scripts --include=*.ts` 会命中本机 `apps/desktop/.desktop-build/**` 构建残留里的 `node_modules`(实测虚高到 256)。
+- **台账计数已改为可机检(1 条,已收口)**:本条原先是「四个计数过期」的记录——09-27 节的 173/67、`v8 ignore` 1204、`@ts-expect-error` 129、`packages/patent/` 包数 15 全部不再成立。这四个计数是本仓判断结构债与抑制标记「恶化还是收敛」的唯一量化面,却由人手写,过期了无人发现。现在下表每一行都由 `pnpm run verify-tech-debt-counters` 复算并比对:数值不一致、多出一行、少一行都失败;该门禁挂在 `test:docs`(`doc-quick`),因而在 CI 的 `node-checks` 里执行。结构债两项调用 `scripts/report-structure.ts` 的同一函数(`pnpm run report:structure` 打印的就是它),两个标记计数经 `git ls-files` 只读 tracked 文件后逐行统计(与 `git grep -h … | wc -l` 同值:`v8 ignore` 为 1135 行 / 384 文件),门禁自身的两个源文件不计入标记计数:这两个文件里的字面量正是被统计的标记文本本身,不是抑制点。原命令 `grep -rn … packages apps scripts --include=*.ts` 会命中本机 `apps/desktop/.desktop-build/**` 构建残留里的 `node_modules`(实测虚高到 256),记载的 `v8 ignore = 1391` 也无法复现(实测 1135,计入 `src` 下 `.tsx` 为 1357)。09-27 节的数字保留为当日实测,不再代表当前。
+
+<!-- tech-debt-counters:start -->
+| 计数 | 值 |
+| --- | --- |
+| `structure.long-functions` | 182 |
+| `structure.large-files` | 71 |
+| `lint.v8-ignore` | 1135 |
+| `lint.ts-expect-error` | 140 |
+| `packages.patent-directories` | 16 |
+<!-- tech-debt-counters:end -->
+
 - **本轮就地更正本报告自身的两处口径**(保留痕迹):①`preset-divergence-baseline.json` 的 `rows` 分区是 **24** 个 id(早期草稿记为 22),覆盖 `cordis.patch.yml`/`document.patch.yml`/`minimal.patch.yml`/`patent.patch.yml`/`ptc.patch.yml`/`standard.patch.yml` 六个文件;②`patent-document` 磁盘上是 **11** 个模板目录(早期草稿记为 13),与 `TEMPLATE_IDS`(`render-patent-document.ts:19-31`)和 `manifest.json:15-27` 三处一致。
 - **未证实项(关闭前须重跑)**:`lint`/`typecheck` 在 `build:lib:host` 的失败归属;门禁红绿基线本轮全未跑;上表四个计数;`law_search` 的实际调用面;受控草稿与 `patent-document`/`patent-filing` 之间的契约细节(**本轮专利域包面深潜未完成,是下一轮第一优先**);`verify-patent-*` 三份门禁的断言面;`agent-team` 包在装配路径上的启用状态;`docs/subsystems/patent.md` 是否同缺 `patent-filing`;自媒体所需的广告法/专利标识资料是否存在于仓外。
 - **归档**:已由 2026-10-10 的后续会话执行 `bash .agents/audits/2026-10-10-file-issues.sh`(幂等,按标题去重),16 条全部创建为 **#383–#398**,编号已回填分诊表。

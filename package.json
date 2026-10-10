@@ -132,6 +132,7 @@
     "verify-preset-tool-refs": "tsx scripts/verify-preset-tool-refs.ts",
     "verify-preset-divergence": "tsx scripts/verify-preset-divergence.ts",
     "preset-divergence:baseline": "tsx scripts/verify-preset-divergence.ts --write",
+    "verify-tech-debt-counters": "tsx scripts/verify-tech-debt-counters.ts",
     "verify-patent-team-roster": "tsx scripts/verify-patent-team-roster.ts",
     "verify-patent-document-output": "tsx scripts/verify-patent-document-output.ts",
     "verify-patent-oas-gold": "tsx scripts/verify-patent-oas-gold.ts",
