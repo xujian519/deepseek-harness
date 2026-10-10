@@ -34,6 +34,7 @@ export type {
   ToneSection,
   VoiceSection,
 } from './types.ts'
+export { placeholderBracePattern } from './placeholders.ts'
 export { parseStyleAsset } from './parse.ts'
 export { loadStyleFile, loadStyles, styleDirectories } from './load.ts'
 export { stylesDirectory } from './asset-location.ts'

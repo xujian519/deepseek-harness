@@ -14,26 +14,32 @@ import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './coverage-exemp
 import { COVERAGE_PARTITIONS_ENV, parseCoveragePartitionCount } from './coverage-partitions.ts'
 import { pnpmInvocation } from './pnpm-invocation.ts'
 
+/**
+ * Every aggregate the gate runner exposes, in the order the CLI error lists
+ * them. The parser and the mode type both read this list, so a name cannot
+ * exist in the type while the parser rejects it.
+ */
+export const MODES = [
+  'ci-primary',
+  'ci-linux-primary',
+  'ci-static',
+  'ci-lint-contracts-ready',
+  'ci-coverage',
+  'ci-unit',
+  'ci-bench',
+  'ci-consumers',
+  'ci-windows-blocking',
+  'ci-windows-complete',
+  'ci-windows-observational-ready',
+  'node-compat',
+  'check-all',
+  'hygiene',
+  'doc-sync',
+  'doc-quick',
+] as const
+
 /** A named aggregate exposed by the gate runner. */
-export type Mode =
-  | 'ci-primary'
-  | 'ci-linux-primary'
-  | 'ci-static'
-  | 'ci-lint-contracts-ready'
-  | 'ci-coverage'
-  | 'ci-unit'
-  | 'ci-bench'
-  | 'ci-snapshot'
-  | 'ci-artifacts'
-  | 'ci-consumers'
-  | 'ci-windows-blocking'
-  | 'ci-windows-complete'
-  | 'ci-windows-observational-ready'
-  | 'node-compat'
-  | 'check-all'
-  | 'hygiene'
-  | 'doc-sync'
-  | 'doc-quick'
+export type Mode = (typeof MODES)[number]
 
 type GateResultStatus = 'passed' | 'failed' | 'skipped'
 type GateState = 'pending' | 'running' | GateResultStatus
@@ -129,30 +135,17 @@ export function cliGateOptions(failFast: boolean): RunGatesOptions {
   return { failFast, forwardProcessSignals: failFast }
 }
 
-function parseMode(raw: string | undefined): Mode {
-  switch (raw) {
-    case 'ci-primary':
-    case 'ci-linux-primary':
-    case 'ci-static':
-    case 'ci-lint-contracts-ready':
-    case 'ci-coverage':
-    case 'ci-unit':
-    case 'ci-bench':
-    case 'ci-consumers':
-    case 'ci-windows-blocking':
-    case 'ci-windows-complete':
-    case 'ci-windows-observational-ready':
-    case 'node-compat':
-    case 'check-all':
-    case 'hygiene':
-    case 'doc-sync':
-    case 'doc-quick':
-      return raw
-    default:
-      throw new Error(
-        `run-gates: expected mode ci-primary | ci-linux-primary | ci-static | ci-lint-contracts-ready | ci-coverage | ci-unit | ci-bench | ci-consumers | ci-windows-blocking | ci-windows-complete | ci-windows-observational-ready | node-compat | check-all | hygiene | doc-sync | doc-quick, got ${JSON.stringify(raw)}.`,
-      )
+/**
+ * Resolve the aggregate named by the first CLI argument.
+ * @param raw - first CLI argument, or undefined when the caller passed none.
+ * @returns the named aggregate.
+ */
+export function parseMode(raw: string | undefined): Mode {
+  const mode = MODES.find(candidate => candidate === raw)
+  if (mode === undefined) {
+    throw new Error(`run-gates: expected mode ${MODES.join(' | ')}, got ${JSON.stringify(raw)}.`)
   }
+  return mode
 }
 
 /**
@@ -284,10 +277,6 @@ export function gatesForMode(selected: Mode): Gate[] {
       return ciUnitGates()
     case 'ci-bench':
       return [pnpmExec('bench', ['tsx', 'scripts/run-ci-bench.ts'], { label: 'performance benchmarks' })]
-    case 'ci-snapshot':
-      return [ciBuildGate(), snapshotGate()]
-    case 'ci-artifacts':
-      return ciArtifactGates()
     case 'ci-consumers':
       return ciConsumerGates()
     case 'ci-windows-blocking':
@@ -482,18 +471,6 @@ function ciStaticGates(options: { ownsBuild: boolean }): Gate[] {
       docsBuildScript: 'docs:build:mpa',
     }),
     pnpmScript('module-graph', 'verify-module-graph', { label: 'module graph' }),
-  ]
-}
-
-function ciArtifactGates(): Gate[] {
-  return [
-    ciBuildGate(),
-    pnpmScript('publint', 'publint', { needs: ['build'] }),
-    pnpmScript('node-next-types', 'verify-node-next-types', {
-      label: 'node-next types',
-      needs: ['build'],
-    }),
-    builtBinSmokeGate(),
   ]
 }
 

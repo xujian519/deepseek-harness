@@ -302,6 +302,8 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 ## 2026-09-27 更新(三模式与全仓技术债扫描:专利模式、文档模式、专利自媒体模式规划态)
 
+> 本节的结构债、`v8 ignore`、`@ts-expect-error` 计数与 `packages/patent/` 包数是 2026-09-27 的实测快照；2026-10-10 的复测值（182/71、1135、140、16）在同日节的「台账计数过期」条，两处口径见该条的复算命令。
+
 - **范围与基线**:`master` HEAD(2026-09-27;短 sha 见 #312–#328 各单正文),工作树干净。全仓机械面 + 三个模式的代码面;专利自媒体模式**在仓内不存在**(无 preset、无技能、无包,全仓 `自媒体` 仅 3 处命中且均为证据可信度分类串),按规划态处理为缺口清单。报告:`.agents/audits/2026-09-27-repo-scan.md`;分诊与批次矩阵:`.agents/audits/2026-09-27-issue-triage-and-execution-plan.md`;**新开 17 条 issue #312–#328**(#311 号在本仓不可解析,自 #312 起;此前 #207–#292 全部 CLOSED)。代码零改动。
 - **门禁基线(本机实跑)**:`pnpm run lint` 0/0(6249 文件 / 90 规则);`pnpm run typecheck` 通过;`pnpm run duplication` 仓库级 0 克隆 + 收紧域 81 对与基线一致;`npx vitest run packages/patent packages/document` 270 文件 3776 通过 / 2 跳过;`pnpm run test:snapshot -t patent` 11 通过。
 - **本轮最重的结论:专利域两条门禁链互相引用对方的覆盖**。`patent-workflow/src/output-gate.ts` 的 `PatentOutputGate`(373 行)与 `quality-gate.ts:415` 的 `processPatentOutput` 除测试外**零调用点**;而 `patent-rule/src/runtime/patent-compliance.ts:236` 的 `selectGateRules()` 以「已由关键词门禁(quality-gate 镜像词表)处理」为由排除 `PAT-RISK-001`(免责声明)/`PAT-APPROVAL-001`(结论审批)/`PAT-ABS-001`(绝对化)。已接线的只有 `RuleOutputGate`(挂 `tools/post-execute`,规则集已剔除 `PAT-*`)。即 preset persona 声称的「输出前强制质量门禁与免责声明」在代码上不成立(#312)。同重的第二处是**文档模式交付路径自相矛盾**:渲染侧 `doc-template/src/vars.ts:24` 用 ASCII `\w`、门禁侧 `document-deliver/src/checks.ts:84` 用 `[^{}\n]{1,80}`,实测 `{{机构名称}}`/`{{doc-no}}` 的 `residual` 为空而门禁命中,且这两个形式既不被替换也不被报告(#314);免责声明映射表缺 `patent-report` 类,5 个撰写/报告类模板拿到「分析」类声明(#319)。
@@ -326,11 +328,41 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **修法(PR #339,分支 `fix/benchmark-transient-heap-budget`)**:`read-event` 的瞬时期望值由 72 MB(参考机中位数)改为 91 MB(托管上沿向上取整),预算随之 90 → 114 MB(仍只叠加共享 1.25 波动余量,未对内存套用时间倍率);`read-surface` 保持 128 MB 参考机期望值。改动前的分配量 128.6 MB 仍高于 114 MB,「拒绝改动前读取成本」的对照用例继续成立,并新增一条按上述两组托管样本断言的校准用例(钉住 `READ_EVENT_TRANSIENT_BUDGET_MB === 114`);两条预算常量上提为 `READ_EVENT_TRANSIENT_BUDGET_MB`/`READ_SURFACE_TRANSIENT_BUDGET_MB`,与时间预算的写法对齐。
 - **校准依据落回**归属 Agent Note `2026-09-16-session-query-borrowed-source-reads` 的 Verdict 行与负向控制段;中英双语对与 `.i18n.yaml` 已重录。**未动**:共享 `CI_TIME_SCALE`、`PERFORMANCE_BUDGET_HEADROOM`,以及其余 8 个 benchmark 组的预算。
 
+## 2026-10-10 更新(三模式技术债扫描:专利域、文档模式、专利自媒体模式)
+
+- **范围与基线**:`master` HEAD(PR #382 合并后),工作树干净。三个模式 + 三模式共享的 preset / 门禁机械面。报告:`.agents/audits/2026-10-10-repo-scan.md`;分诊与批次矩阵:`.agents/audits/2026-10-10-issue-triage-and-execution-plan.md`;归档脚本:`.agents/audits/2026-10-10-file-issues.sh`(**16 条 issue 正文**)。代码零改动。
+- **本轮门禁基线未取(必须如实记录)**:扫描中途宿主沙箱失效,此后**所有 shell 调用**返回 `sandbox-exec: data object length 71529 exceeds maximum (65535)`(退出 65);宿主升级重试与换工作目录同样失败,属会话级沙箱配置超 64 KiB 上限,写本报告前复测仍失败。因此 `lint` / `typecheck` / `duplication` / `test:docs` / `test:snapshot` / `test:coverage` / `report:structure` **本轮全未跑**;`lint` 与 `typecheck` 失效前起过一次,均停在 `build:lib:host`(→ `scripts/build-devtools.ts:50` 的 tsdown postBuild),**无法区分本机环境与 master 真实失败**,记为未证实项,不进 issue。
+- **上一轮(#312–#328,全 CLOSED)的修复绝大部分存活**:#312 输出门禁仍未接线(=已删)、#317 `patent-data` 的 `Config` 仍在、#319 `patent-report` 映射仍在、#320 三字段仍零命中、#321 `ask_user` 仍零命中。#314 语义已对齐但机制未对齐(见下);#322 存活但有盲区(见下)。
+- **三个模式的现状(行数按统一口径手工数出:顶层行 = `config.plugins` 下缩进 10 空格的 `- id:`,嵌套行 = group 内缩进 14 空格)**:
+
+  | | 专利模式 | 文档模式 | 自媒体模式(仓外) | standard |
+  |---|---|---|---|---|
+  | 位置 | `presets/patent.patch.yml`(`order: 5`) | `presets/document.patch.yml`(`order: 6`) | `~/.dsh/local-bundles/patent-media/cordis.patch.yml`(`order: 7`) | `presets/standard.patch.yml`(`order: 1`) |
+  | 顶层/嵌套/装配行 | 27 / 17 / **44** | 19 / 12 / **31** | 16 / 13 / **29** | 23 / 10 / **33** |
+  | `tool-web` | `fetch: true` + 10 行理由 | `fetch: false`,无理由 | `fetch: false`,人设写成已知限制 | `fetch: true` |
+  | `tool-ralph` | 已撤下(只留注释 `:218-219`) | 已撤下(PR #381 的 `fix(sync)` 提交) | **仍挂载**(`:289-293`) | 从未挂载 |
+  | `backgroundMode: continuable` | 无 | 无 | **有**(`:250`/`:257`) | 无 |
+  | 领域包 | `packages/patent/` **16** 个 | `packages/document/` 5 个 | 复用上两者 | — |
+
+  `standard` 独有而在其余三个模式整行缺失的 6 个顶层行:`time-context` / `tool-schedule` / `command-goal` / `tool-plugin-market` / `present` / `tool-plugin-manager`;第 7 个 `openviking` 在 patent 存在但 `disabled: true`,在 document 与自媒体 bundle 缺。
+- **门禁自身不可达 / 看不见(4 条)**:①**`check:ci:snapshot` 与 `check:ci:artifacts` 必然抛错**——`package.json:99-100` 映射了、`run-gates.ts:18-36` 的 `Mode` 与 `:268-290` 的 `gatesForMode` 都实现了,唯独 `:132-156` 的 `parseMode` 没有 case,落 `default` 抛。判定为上轮 #326 收口的**同步回退面**;叠加新证据:`ci-fork.yml` 的 8 个 job 无一调用它们,故「必然抛错」在 CI 上不可见。②**`verify-preset-divergence` 看不到「整行缺失」**(`verify-preset-divergence.ts:109-116` 的 `if (files.length < 2) continue` 按 row id 求交集),基线 `preset-divergence-baseline.json` 的 `rows` 分区 **24** 个 id 无一覆盖上述缺失行;后果最重的是 `time-context` 缺失使三个模式都拿不到当前日期,而三者都以日期敏感为核心纪律。③**`verify-preset-tool-refs` 忽略 `config` 级工具裁剪**(只认 `disabled === true`,`:123`/`:126`),而 `tool-web` 的 `Config.search`/`Config.fetch` 是真实注册开关(`tool-web/src/index.ts:81-86`)——`fetch: false` 已把 `web_fetch` 从模型目录摘掉,门禁仍算作已挂载。④**`verify-patent-oas-gold` 在默认状态下静默休眠**(`scripts/verify-patent-oas-gold.ts:166-170` 基线缺失时只打印一行并以 0 退出;`config.baselinePath` 不在仓库里),叠加 CI 无 job 调用,构成假绿门禁。
+- **同一平台事实两个结论、只有一侧有理由(1 条)**:`patent.patch.yml:436-451` 为 `fetch: true` 写了 10 行理由(核心论据「每个随包组合都挂了 http fetch provider」),`document.patch.yml:311-317` 是同一份 `tool-web` 行、相反取值、**一个字没提 fetch**;而文档模式 persona(`:32`)与两个技能都要求「每个事实性断言必须附可验证来源(URL / 文件路径)」——唯一能打开来源页面的工具不在目录里。差异已被基线记为三个哈希,但哈希不承载理由。
+- **专利权属面两套模板体系并存(1 条)**:`doc-template` 的 17 个 Markdown 模板(变量替换,`render_doc_template`)与 `patent-document` 的 **11** 个模板目录(受控草稿,`render_patent_document`)在 claims-spec / invalidation-opinion / patentability-opinion / search-report / oa-response 五类同名,**两条路径都在目录里**;受控草稿改造(PR #380 系列,含 `the controlled draft is the only content channel`)只搬到一侧,「唯一内容通道」在仓内并不唯一。
+- **文档与代码相反(3 条)**:`patent.md:77` 断言「`legalSearch` 没有模型可见工具」,而 `patent-tools/src/index.ts:559-564` 注册的 `law_search` 正接在 `legalSearch`/`guidelineSearch` 上且 persona(`patent.patch.yml:35`/`:58`)当主通道用;`patent-tools` 工具计数 `patent.md:14` = **30**、`index.ts:2`/`:527` = **31**、`docs/tool-catalog.md:50`(生成真源)= **32**,且 `patent.md:14` 的枚举漏 10 个;`doc-template/README.md:30` 说 17 个模板都在 `assets/templates/patent/`(实际只有 5 个,**#327 修过一次,方向修反了**)。
+- **专利域清单与计数(4 条,本轮新增)**:①`patent.md:9` 写「mounts thirteen further plugins」并实列 13 个 bullet,却漏了在 `patent.patch.yml:389-390` 有独立装配行、且是本模式唯一原生写 DOCX 的 `patent-filing`,`self-evolve-benchmark` 也只在 `:27` 正文出现;②专利域模型可见工具总数 **36**(`patent-tools` 32 + `patent-document` 2 + `patent-filing` 2)在 README 无处可查;③`patent-law/README.md:61` 写《专利法》**37**/82、`patent.md:79` 写 **36**/82(37 与磁盘 `articles` 一致);④`docs/patent-workbench-tasks.md:13`「10 个 `dsh-patent-*`」、`:15`「12 包」,磁盘 **16** 包,且两处内部也不自洽。
+- **外置自媒体 bundle 的漂移与缺口(1 条,复核 #328 指针)**:`~/.dsh/local-bundles/patent-media/cordis.patch.yml` 最后修改 09-23,早于 10-09 的上游同步。**7 个 `standard` 顶层行整行缺失**;仍挂 `@deepseek-ai/dsh-tool-ralph`(experimental,`:289-293`)而仓内两个 preset 都已撤下该行;`backgroundMode` 族字段与仓内三个 preset **方向相反**(bundle 有、仓内无),**不是单侧落后而是无人对齐**;4 个图像技能无任何可执行出口(preset 未挂图像生成工具,正文无具体命令/脚本/API 名);仍缺广告法/专利标识标注的合规载体(`patent-media-compliance` 自述只约束小红书账号);3 份 `.bak` 残留在活跃技能目录。
+- **机制靠注释维持(2 条)**:①`doc-template/src/vars.ts:24-25` 的 `EXTRACTION_PATTERN` 与 `document-deliver/src/checks.ts:90-92` 的 `PLACEHOLDER_PATTERNS[0]` 是同一正则的两份字面量,对齐只在注释里(**#314 的修法是复制而非共享,#327 那次同理**),任何一侧单独改动都会静默复现 #314;②`patent.patch.yml:80` 对模型下硬纪律「不要用通用 `send_message`……(**实测**直接报「active teammate … not found」)」,与 `standard.patch.yml` 侧**逐字相同**、两处都标「实测」而**没有一处记录该实测**——需先核实 `@deepseek-ai/dsh-experimental-tool-agent-team` 是否真的某条装配路径可达(`docs/tool-catalog.md:45` 明写 base 组合保持其 disabled)。
+- **受控草稿的代码异味(1 条,本轮新增)**:表题编号两条通道各写一份字面量,而两处模块注释都断言「**两通道表题不可能分叉**」——HTML 侧 `patent-document/.../draftConverter/blocks.ts:33` 与 docx 侧 `patent-filing/.../filing/fromDraft.ts:30` 各自产出 `表 N · 名称`,计数器类型也各定义一份;对照同族的附图说明编号**是**共享的(两侧都取 `patent-core` 的 `numberedFigureDescriptions`)。同族另有两处重复:`patent-filing/src/filing/engine.ts:237-243` 的 `obj()` 与已导出的 `patent-core/src/llm-json.ts:45` `asJsonRecord` 同义;`patent-document/src/document/templateResolver.ts:53-54` 用 `JSON.parse(raw) as TemplateManifest` 把磁盘 JSON 裸断言(字段全可选,错误退化为「未知模板 …(可用: 无)」)。
+- **台账计数过期(1 条)**:`docs/TECH_DEBT.md:310` 的 173/67 → **182/71**、`:313` 的 `v8 ignore` 1204 → **1135**(`packages/*/*/src` 下 `.ts`;计入 `.tsx` 为 1357)、`:307`/`:333` 的 `@ts-expect-error` 129 → **140**、覆盖率豁免注释的「15 个 patent 包」→ **16**(新增 `patent-filing`)。四个计数已由 2026-10-10 的后续会话用 `git grep`(只读 tracked 文件)复算:结构债 182/71、`patent` 包数 16、`@ts-expect-error` 的 140(须用 `.ts`+`.tsx` 口径)均成立,`v8 ignore` 的记载值 1391 **无法复现**(实测 1135);原命令 `grep -rn … packages apps scripts --include=*.ts` 会命中本机 `apps/desktop/.desktop-build/**` 构建残留里的 `node_modules`(实测虚高到 256)。
+- **本轮就地更正本报告自身的两处口径**(保留痕迹):①`preset-divergence-baseline.json` 的 `rows` 分区是 **24** 个 id(早期草稿记为 22),覆盖 `cordis.patch.yml`/`document.patch.yml`/`minimal.patch.yml`/`patent.patch.yml`/`ptc.patch.yml`/`standard.patch.yml` 六个文件;②`patent-document` 磁盘上是 **11** 个模板目录(早期草稿记为 13),与 `TEMPLATE_IDS`(`render-patent-document.ts:19-31`)和 `manifest.json:15-27` 三处一致。
+- **未证实项(关闭前须重跑)**:`lint`/`typecheck` 在 `build:lib:host` 的失败归属;门禁红绿基线本轮全未跑;上表四个计数;`law_search` 的实际调用面;受控草稿与 `patent-document`/`patent-filing` 之间的契约细节(**本轮专利域包面深潜未完成,是下一轮第一优先**);`verify-patent-*` 三份门禁的断言面;`agent-team` 包在装配路径上的启用状态;`docs/subsystems/patent.md` 是否同缺 `patent-filing`;自媒体所需的广告法/专利标识资料是否存在于仓外。
+- **归档**:已由 2026-10-10 的后续会话执行 `bash .agents/audits/2026-10-10-file-issues.sh`(幂等,按标题去重),16 条全部创建为 **#383–#398**,编号已回填分诊表。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:
 
-- **src 零 `any`、零 `@ts-ignore`、零未注释空 catch**(截至 2026-09-27 实测:`@ts-ignore` 1 处、`@ts-expect-error` 129 处,均在 tests;src 内 0)
+- **src 零 `any`、零 `@ts-ignore`、零未注释空 catch**(截至 2026-10-10 实测:`@ts-ignore` 1 处、`@ts-expect-error` 140 处,均在 tests;src 内 0)
 - 每个包都有 `./invariant`,依赖方向干净(util 全零依赖、无 spine 反向依赖),内部依赖全部 `workspace:^` 无版本漂移
 - 生成文件(api-catalog.ts 等)有 freshness gate,非债务;lib/ 构建产物未被 git 跟踪
 - 模范实现:`sdk/protocol/src/transport.ts`、`sdk/client/src/dispose.ts`、acp quiesce、session-persistence per-session 串行链与 retire drain

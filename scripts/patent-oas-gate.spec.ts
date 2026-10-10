@@ -336,15 +336,21 @@ describe('判定与归因', () => {
 })
 
 describe('门禁进程', () => {
-  it('基线缺席时报休眠、记录后报已记录,两种状态都以 0 退出', () => {
+  it('基线缺席时拒绝放行、记录后报已记录', () => {
     // 基线一旦按 README 记录下来,这条用例必须继续成立,而不是因为「下一步动作」变红。
     const recorded = existsSync(resolve(root, config.baselinePath))
     const result = runGate()
     expect(result.error).toBeUndefined()
     expect(result.signal).toBeNull()
-    expect(result.status, String(result.stderr)).toBe(0)
     expect(String(result.stdout)).toContain('17 节点')
-    expect(String(result.stdout)).toContain(recorded ? '基线已记录' : '回归层休眠')
+    if (recorded) {
+      expect(result.status, String(result.stderr)).toBe(0)
+      expect(String(result.stdout)).toContain('基线已记录')
+      return
+    }
+    expect(result.status, String(result.stderr)).toBe(1)
+    expect(String(result.stderr)).toContain('基线未记录')
+    expect(String(result.stderr)).toContain('--accept')
   })
 
   it('基线路径越出仓库即被判定', () => {

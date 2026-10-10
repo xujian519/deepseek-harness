@@ -27,7 +27,7 @@ kind: "package-reference"
 <a id="template-assets"></a>
 ## 模板资产
 
-十七个模板随包分发在 `assets/templates/patent/` 下，分属五个类别：`patent-report`（5）、`specification`（4）、`claims`（3）、`oa-response`（3）、`disclosure`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内。
+十七个模板随包分发在 `assets/templates/` 下，按目录分组：`patent/`（5，类别 `patent-report`）、`specification/`（4）、`claims/`（3）、`oa-response/`（3）、`disclosure/`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内。
 
 front-matter 字段如下，读取自上游模板约定：
 

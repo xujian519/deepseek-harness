@@ -2,8 +2,9 @@
  * src/filing/fromDraft — SpecDraft → FilingContent 的确定性映射。
  *
  * docx 通道与 HTML 通道（dsh-patent-document 的 draftConverter）消费同一份受控草案：
- * 权项项号（「1. 」前缀）、附图说明的「图N为……；/。」、表题「表 N · 名称」与摘要附图号
- * 都按草案决定，两通道成文不可能分叉。内容模型没有列表节点，列表块落成逐项正文段。
+ * 权项项号（「1. 」前缀）、附图说明的「图N为……；/。」、表题（取自 patent-core 的
+ * formatTableCaption，HTML 通道读同一函数）与摘要附图号都按草案决定，两通道同形。
+ * 内容模型没有列表节点，列表块落成逐项正文段。
  * 入参必须是已通过 validateSpecDraft 的草案（tool JSON 边界在校验处收窄）。
  * @module @deepseek-ai/dsh-patent-filing/filing/fromDraft
  */
@@ -11,6 +12,7 @@
 import {
   SPEC_PART_HEADINGS,
   SPEC_PART_ORDER,
+  formatTableCaption,
   numberedFigureDescriptions,
   type DraftBlock,
   type SpecDraft,
@@ -27,7 +29,7 @@ interface CaptionCounter {
 function tableNodes(block: Extract<DraftBlock, { kind: 'table' }>, counter: CaptionCounter): SpecificationNode[] {
   counter.count += 1
   return [
-    { kind: 'p', text: `表 ${counter.count} · ${block.name}` },
+    { kind: 'p', text: formatTableCaption(counter.count, block.name) },
     { kind: 'table', rows: [block.header, ...block.rows] },
   ]
 }

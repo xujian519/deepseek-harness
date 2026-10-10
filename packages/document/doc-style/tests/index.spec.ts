@@ -33,6 +33,7 @@ describe('@deepseek-ai/dsh-doc-style package surface', () => {
     expect(typeof Pkg.disclaimerFor).toBe('function')
     expect(typeof Pkg.stylesForDomain).toBe('function')
     expect(typeof Pkg.findStyleByName).toBe('function')
+    expect(typeof Pkg.placeholderBracePattern).toBe('function')
   })
 
   it('projects a packaged style end to end', () => {

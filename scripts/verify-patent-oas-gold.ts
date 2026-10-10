@@ -7,8 +7,9 @@
  *   2. 门槛策略可满足(金标摘要已记录且相符、门槛取值合法、已记录的基线自身不低于门槛);
  *   3. 若给出 run 记录(`--run <path>`),按门槛判定它是否回退,失败按节点归因。
  *
- * 基线未记录时第三件事无从判定,脚本如实报告「回归层休眠」而不是静默通过——与
- * scripts/verify-self-evolve-eval.ts 对未落地的评估记录取同一姿态。
+ * 基线未记录时第三件事无从判定:门禁以非 0 退出并打印记录基线的命令,而不是静默通过。
+ * 「休眠」与「通过」必须在退出码上分开,否则「有脚本 + `verify-*` 命名 + exit 0」会被
+ * 读成已接线,而它其实一次也没比对过。
  *
  * 用法:
  *   tsx scripts/verify-patent-oas-gold.ts [--run <run.json>]
@@ -56,7 +57,7 @@ async function writeGoldDigest(cases: readonly GoldCase[]): Promise<void> {
 }
 
 /**
- * 读取基线记录;文件不存在表示尚未记录,不是错误。
+ * 读取基线记录;文件不存在表示尚未记录,由调用方决定是否放行。
  *
  * @param baselinePath 基线文件绝对路径。
  * @returns 基线记录,或 undefined。
@@ -128,7 +129,13 @@ async function acceptBaseline(
   console.log(`verify-patent-oas-gold: 已把 ${record.label} 落为基线(${config.baselinePath},聚合 ${verdict.aggregateScore.toFixed(2)})`)
 }
 
-async function main(args: string[]): Promise<number> {
+/**
+ * 运行门禁的默认动作,或按 `--write` / `--accept` / `--run` 走对应分支。
+ *
+ * @param args 命令行参数(不含 `node` 与脚本路径)。
+ * @returns 进程退出码;`--run` 的记录未过门槛,或基线未记录而无 `--accept` 时为 1。
+ */
+export async function main(args: string[]): Promise<number> {
   const gold = await loadGold(exampleDir)
   const space = await loadProblemSpace(problemSpacePath)
   const config = await loadGateConfig(gatePath)
@@ -163,12 +170,8 @@ async function main(args: string[]): Promise<number> {
   console.log(
     `verify-patent-oas-gold: DAG ${Object.keys(space.nodes).length} 节点 / ${gold.length} case(${domainSummary});node minScore=${config.thresholds.node.minScore} maxDrop=${config.thresholds.node.maxDrop},case minScore=${config.thresholds.case.minScore},aggregate minScore=${config.thresholds.aggregate.minScore}`,
   )
-  if (baseline === undefined) {
-    console.log(`verify-patent-oas-gold: 基线未记录(${config.baselinePath});回归层休眠——记录一次实测后本门禁才比对分数。`)
-  } else {
-    console.log(`verify-patent-oas-gold: 基线已记录 ${baseline.recordedAt};基线自身满足门槛。`)
-  }
   if (flaggedRun !== undefined) {
+    // 无基线时 evaluateRun 只按绝对下限判定,低于下限的记录仍要在此报出并归因。
     const verdict = evaluateRun(space, config, flaggedRun.run, baseline)
     console.log(formatVerdict(verdict))
     if (!verdictPassed(verdict)) {
@@ -176,6 +179,14 @@ async function main(args: string[]): Promise<number> {
       return 1
     }
   }
+  if (baseline === undefined) {
+    console.error(
+      `verify-patent-oas-gold: 基线未记录(${config.baselinePath});回归层无从比对,本门禁不放行。`
+      + '先跑 `pnpm run gate:patent-oas` 产出一次实测,再按它打印的 `--accept <run.json>` 落基线。',
+    )
+    return 1
+  }
+  console.log(`verify-patent-oas-gold: 基线已记录 ${baseline.recordedAt};基线自身满足门槛。`)
   return 0
 }
 

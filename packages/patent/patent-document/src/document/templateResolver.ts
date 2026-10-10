@@ -32,11 +32,12 @@ export function getTemplateRoot(): string {
   return fileURLToPath(candidates[0])
 }
 
-/** manifest.json 结构。 */
+/**
+ * manifest.json 的模板清单。渲染器只读 `templates`；`renders` / `page` 没有消费者，
+ * 不再声明，`as` 断言随之消失：字段不再全可选，结构不对在解析处就报错。
+ */
 type TemplateManifest = {
-  templates?: string[]
-  renders?: { default?: string; supported?: string[] }
-  page?: { size?: string; margins?: Record<string, string> }
+  templates: string[]
 }
 
 let manifestCache: TemplateManifest | undefined
@@ -51,9 +52,43 @@ export function readTemplateManifest(): TemplateManifest {
   const path = join(root, 'manifest.json')
   if (manifestCache !== undefined && manifestCachePath === path) return manifestCache
   const raw = readFileSync(path, 'utf8')
-  manifestCache = JSON.parse(raw) as TemplateManifest
+  manifestCache = parseTemplateManifest(raw, path)
   manifestCachePath = path
   return manifestCache
+}
+
+/**
+ * 解析并校验 manifest.json；结构不对时报错指向该文件，而不是把「未知模板（可用: 无）」
+ * 当成模板名问题。
+ * @param raw - manifest.json 文本。
+ * @param path - 文件绝对路径，用于报错定位。
+ * @returns 校验后的 manifest。
+ */
+function parseTemplateManifest(raw: string, path: string): TemplateManifest {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error: unknown) {
+    // JSON.parse 只抛 SyntaxError，String() 保留它的名称与消息。
+    throw new DocumentRenderError(`${path}: manifest.json 不是合法 JSON（${String(error)}）`)
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new DocumentRenderError(`${path}: manifest.json 不是 JSON 对象`)
+  }
+  const templates = (parsed as Record<string, unknown>).templates
+  if (!isStringArray(templates)) {
+    throw new DocumentRenderError(`${path}: manifest.json 的 templates 必须是字符串数组`)
+  }
+  return { templates }
+}
+
+/**
+ * 判断值是否为字符串数组。
+ * @param value - 待判定的值。
+ * @returns 值是否为字符串数组。
+ */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string')
 }
 
 /**
@@ -64,7 +99,7 @@ export function readTemplateManifest(): TemplateManifest {
 export function resolveTemplate(template: DocumentTemplateId): { root: string; htmlPath: string } {
   const root = getTemplateRoot()
   const manifest = readTemplateManifest()
-  const available = manifest.templates ?? []
+  const available = manifest.templates
   if (!available.includes(template)) {
     throw new DocumentRenderError(`未知模板 "${template}"（可用: ${available.join(', ') || '无'}）`)
   }

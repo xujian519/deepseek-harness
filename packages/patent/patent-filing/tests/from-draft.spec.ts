@@ -42,6 +42,35 @@ function specDraft(overrides: Partial<SpecDraft> = {}): SpecDraft {
   }
 }
 
+describe('表题跨通道对位', () => {
+  it('同一份草案在 HTML 与 docx 两条通道产出同一串表题', () => {
+    const draft = specDraft()
+    draft.sections.embodiment = [
+      { kind: 'table', name: '参数表', header: ['k'], rows: [['v']] },
+      { kind: 'paragraph', text: '中间段。' },
+      { kind: 'table', name: '部件表', header: ['k'], rows: [['x']] },
+    ]
+    const html = Object.values(renderSpecDraftSections(draft)).join('')
+    const htmlCaptions = [...html.matchAll(/<caption>([\s\S]*?)<\/caption>/gu)].map(match => match[1] ?? '')
+    const filingCaptions = contentFromDraft(draft).specification
+      .filter(node => node.kind === 'p' && node.text?.startsWith('表 ') === true)
+      .map(node => node.text ?? '')
+    expect(htmlCaptions).toEqual(['表 1 · 参数表', '表 2 · 部件表'])
+    expect(filingCaptions).toEqual(htmlCaptions)
+  })
+
+  it('HTML 通道转义表名、docx 通道原样，序号与格式仍同形', () => {
+    const draft = specDraft()
+    draft.sections.embodiment = [
+      { kind: 'table', name: 'a<b>', header: ['k'], rows: [['v']] },
+    ]
+    const html = Object.values(renderSpecDraftSections(draft)).join('')
+    expect(html).toContain('<caption>表 1 · a&lt;b&gt;</caption>')
+    expect(contentFromDraft(draft).specification.map(node => node.text ?? ''))
+      .toContain('表 1 · a<b>')
+  })
+})
+
 describe('contentFromDraft', () => {
   it('摘要与附图路径按原样传递', () => {
     const content = contentFromDraft(specDraft())

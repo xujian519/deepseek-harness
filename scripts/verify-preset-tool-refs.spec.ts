@@ -19,6 +19,7 @@ const CATALOG = [
   '| --- | --- | --- | --- | --- | --- |',
   '| `@deepseek-ai/dsh-tool-fs` | `edit`, `read`, `read_image`, `write` | `ctx.tools` | `tool/call` | - | - |',
   '| `@deepseek-ai/dsh-tool-subagent` | `subagent` | `ctx.tools` | `tool/call` | `subagent_fork` | - |',
+  '| `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools` | `tool/call` | - | - |',
 ].join('\n')
 
 /** One corpus entry over a preset YAML and an optional skill file. */
@@ -87,6 +88,18 @@ describe('mountedToolNames', () => {
     ].join('\n')
     expect(mountedToolNames(preset, parseToolCatalog(CATALOG))).toEqual(new Set(['edit', 'read', 'read_image', 'write']))
   })
+
+  it('drops a tool the row config turns off and keeps the rest of the package', () => {
+    const preset = [
+      '- insert:',
+      "    - name: '@deepseek-ai/dsh-tool-web'",
+      '      config:',
+      '        fetch: false',
+      '        searchTimeoutMs: 60000',
+      '',
+    ].join('\n')
+    expect(mountedToolNames(preset, parseToolCatalog(CATALOG))).toEqual(new Set(['web_search']))
+  })
 })
 
 describe('toolReferences', () => {
@@ -134,6 +147,18 @@ describe('findToolRefViolations', () => {
       new Map([['source_path', 'patent evidence field']]),
     )
     expect(violations).toEqual(['skills/a/probe/SKILL.md:1: `foo_bar` is not a tool preset a mounts'])
+  })
+
+  it('reports a reference to a tool the preset config turned off', () => {
+    const presetSource = [
+      '- insert:',
+      "    - name: '@deepseek-ai/dsh-tool-web'",
+      '      config:',
+      '        fetch: false',
+      '',
+    ].join('\n')
+    expect(findToolRefViolations(CATALOG, [corpusOf('document', presetSource, 'call `web_fetch` here')]))
+      .toEqual(['skills/document/probe/SKILL.md:1: `web_fetch` is not a tool preset document mounts'])
   })
 
   it('scans the preset YAML itself, not only its skills', () => {

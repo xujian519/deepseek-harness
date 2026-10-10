@@ -1,12 +1,12 @@
 /**
  * src/document/draftConverter/blocks — DraftBlock 序列的确定性 HTML 生成。
  *
- * 块只产生 p/ul/ol/table 四种结构；表格表题按调用方传入的计数器全文档连续编号
- * （「表 N · 名称」），与 docx 通道使用同一算法，两通道表题不可能分叉。
+ * 块只产生 p/ul/ol/table 四种结构；表格表题按调用方传入的计数器全文档连续编号，
+ * 文本取自 patent-core 的 formatTableCaption，docx 通道读同一函数，两通道同形。
  * @module @deepseek-ai/dsh-patent-document/document/draftConverter/blocks
  */
 
-import type { DraftBlock } from '@deepseek-ai/dsh-patent-core'
+import { formatTableCaption, type DraftBlock } from '@deepseek-ai/dsh-patent-core'
 import { escapeHtmlText } from './escape.ts'
 
 /** 表题计数器；一次草案渲染共用一个实例，保证全文档连续编号。 */
@@ -30,7 +30,7 @@ function renderBlock(block: DraftBlock, captionCounter: TableCaptionCounter): st
   const body = block.rows
     .map(row => `<tr>${row.map(cell => `<td>${escapeHtmlText(cell)}</td>`).join('')}</tr>`)
     .join('')
-  return `<table><caption>表 ${captionCounter.count} · ${escapeHtmlText(block.name)}</caption>`
+  return `<table><caption>${escapeHtmlText(formatTableCaption(captionCounter.count, block.name))}</caption>`
     + `<thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`
 }
 

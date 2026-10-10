@@ -9,6 +9,8 @@
  * @module @deepseek-ai/dsh-doc-template/vars
  */
 
+import { placeholderBracePattern } from '@deepseek-ai/dsh-doc-style'
+
 import {
   assertNever,
   type DocTemplate,
@@ -21,8 +23,8 @@ import {
 /** Placeholder pattern for substitution: a variable name of word characters between double braces. */
 const PLACEHOLDER_PATTERN = /\{\{\w+\}\}/gu
 
-/** Placeholder pattern for extraction: any non-empty content between double braces, matching the quality gate. */
-const EXTRACTION_PATTERN = /\{\{[^{}\n]{1,80}\}\}/gu
+/** Placeholder pattern for extraction: the shared residual form the quality gate also rejects. */
+const EXTRACTION_PATTERN = placeholderBracePattern()
 
 /**
  * The constraints of one template's variables, indexed for lookup.

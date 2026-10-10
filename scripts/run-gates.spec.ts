@@ -7,6 +7,8 @@ import {
   defaultConcurrency,
   formatGateResultReason,
   gatesForMode,
+  MODES,
+  parseMode,
   parsePidPpidLines,
   runGate,
   runGates,
@@ -162,6 +164,19 @@ function withNodeVersion<T>(version: string, action: () => T): T {
   Object.defineProperty(process.versions, 'node', { ...original, value: version })
   try { return action() } finally { Object.defineProperty(process.versions, 'node', original) }
 }
+
+describe('gate runner modes', () => {
+  it('parses exactly the aggregates the mode type names', () => {
+    // Mode is derived from MODES, so the parser, the type, and the CLI error
+    // text read one list; this pins the list the fork actually exposes.
+    for (const mode of MODES) expect(parseMode(mode)).toBe(mode)
+    const exposed: readonly string[] = MODES
+    expect(exposed).not.toContain('ci-snapshot')
+    expect(() => parseMode('ci-snapshot')).toThrow(/expected mode/)
+    expect(() => parseMode('ci-artifacts')).toThrow(/expected mode/)
+    expect(() => parseMode(undefined)).toThrow(/expected mode/)
+  })
+})
 
 describe('CI worker allocation', () => {
   it.each([1, 2, 4, 8, 16, 64])('shares a %i CPU coverage budget without multiplying pools', (cpus) => {

@@ -25,4 +25,5 @@ export {
   numberedFigureDescriptions,
   type NumberedFigureDescription,
 } from './figureDescriptions.ts'
+export { formatTableCaption } from './tableCaption.ts'
 export { DraftValidationError, validateSpecDraft, validateTemplateDraft } from './validate.ts'

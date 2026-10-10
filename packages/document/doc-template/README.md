@@ -27,7 +27,7 @@ English | [中文](README.zh.md)
 <a id="template-assets"></a>
 ## Template assets
 
-Seventeen templates ship under `assets/templates/patent/`, in five categories: `patent-report` (5), `specification` (4), `claims` (3), `oa-response` (3), and `disclosure` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch.
+Seventeen templates ship under `assets/templates/`, grouped by directory: `patent/` (5, category `patent-report`), `specification/` (4), `claims/` (3), `oa-response/` (3), and `disclosure/` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch.
 
 Front-matter fields, read from the upstream template contract:
 

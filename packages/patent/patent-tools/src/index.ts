@@ -1,5 +1,5 @@
 /**
- * Function plugin registering the 31 model-facing patent tools ported from Sati:
+ * Function plugin registering the 32 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * office-action parsing, drafting, specification validation, evidence judgment,
  * rule check, figure analysis + generation, PDF download, chemical recognition,
@@ -524,7 +524,7 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
 }
 
 /**
- * Register the 31 patent tools.
+ * Register the 32 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */

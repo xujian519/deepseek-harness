@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, isAbsolute, join, resolve } from 'node:path'
-import { assertSafeId, caseOutputsDir } from '@deepseek-ai/dsh-patent-core'
+import { assertSafeId, caseOutputsDir, isJsonRecord } from '@deepseek-ai/dsh-patent-core'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { PatentFilingError } from '../types.ts'
 import type { FilingBuildResult, FilingContent, FilingVerifyResult, SectionTally, SubprocessSpawner, TemplateStyle } from '../types.ts'
@@ -234,9 +234,9 @@ function num(source: Record<string, JsonValue>, key: string, where: string): num
   return value
 }
 
-/** 断言 JSON 值是对象。 */
+/** 断言 JSON 值是对象；判定复用 patent-core 的守卫，抛错类型留在这里。 */
 function obj(value: JsonValue, where: string): Record<string, JsonValue> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isJsonRecord(value)) {
     throw new PatentFilingError(`${where} 不是 JSON 对象`)
   }
   return value

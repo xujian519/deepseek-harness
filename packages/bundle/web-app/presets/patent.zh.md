@@ -6,15 +6,16 @@
 
 ## 挂载内容
 
-除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 另挂载 13 个插件——专利域的服务与工具，以及专利技能会调用的文献与方法学两行：
+除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 另挂载 14 个插件——专利域的服务与工具，以及专利技能会调用的文献与方法学两行（装配清单见 `presets/patent.patch.yml`）：
 
 - `@deepseek-ai/dsh-patent-data` — 数据接缝（ctx.patentData：nuo 检索 provider 工厂 + ego-browser 会话运行器）。patent_pdf_download 经该服务运行其 ego-browser 下载适配器。
 - `@deepseek-ai/dsh-patent-knowledge` — knowledge.db 查询服务（ctx.patentKnowledge：caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify）。
 - `@deepseek-ai/dsh-patent-workflow` — 执行管线服务（ctx.patentWorkflow：runWorkflow / runPlantask / approve / reject）。
-- `@deepseek-ai/dsh-patent-tools` — 30 个模型工具：检索、元数据、法律状态、判例/wiki/图谱查询、权利要求对照表、审查意见解析、TRIZ 矛盾分析、撰写、分析报告、证据判断、规则检查、附图生成、PDF 下载、知识笔记，以及工作流/计划状态机。
+- `@deepseek-ai/dsh-patent-tools` — 32 个模型工具：检索、元数据、法律状态、判例/wiki/图谱查询、法条原文检索、权利要求对照表、审查意见解析、TRIZ 矛盾分析、撰写、说明书校验、分析报告、证据判断、规则检查、附图分析与生成、化学结构识别、PDF 下载、知识笔记、工作台案件关联，以及工作流/计划状态机（权威清单见 `docs/tool-catalog.md`）。
 - `@deepseek-ai/dsh-patent-teams` — 持久多智能体团队服务（ctx.patentTeams），提供十一个 `patent_teams_*` 工具；`qualityGate: true` 时运行组合完成门禁。
 - `@deepseek-ai/dsh-patent-rule` — 规则引擎、tools/post-execute 输出门禁、EVI-011 证据守卫。
 - `@deepseek-ai/dsh-patent-document` — render_patent_document。
+- `@deepseek-ai/dsh-patent-filing` — build_patent_filing / verify_patent_filing：把一个 CNIPA 申请文件（摘要、摘要附图、权利要求书、说明书、说明书附图）装配成 DOCX，其排版由随包模板反推，并逐项核对成品与该模板一致。
 - `@deepseek-ai/dsh-patent-deadline` — patent_deadlines：案件的法定与指定期限，含专利法实施细则的期限与送达规则，以及随包节假日日历用于届满日顺延。
 - `@deepseek-ai/dsh-patent-fees` — patent_fees：逐项按本包随包的费用索引为案件计价（申请、实审、授权、年费与各项程序费用），按各费种的计数基准计数量——每件、超过免费基数的每项权利要求、每页、每项优先权要求、每个专利年度、每请求月数——并在索引登记了减缴时按案件适用的减缴计算。金额已按官方收费标准随包转录，因此工具会给出合计；只有适用项没有金额时才扣住合计——随包索引里这仍是说明书附加费与延长期限请求费两项，因为它们按条目模型承载不了的分档收费。
 - `@deepseek-ai/dsh-patent-law` — law_verify：逐条把法条引用对照本包随包的法规索引判定（《专利法》《专利法实施细则》按条，《专利审查指南》按归一化节路径），并把已索引但未转录的条目报「未核验」而不是放行。两部法律（法规）的条文已随包转录——每个条目带着所引条文的文本、抄录的文书与版本、以及抄录日期——条数上限也已核验，因此编造的条号判「条号超出有效范围」、索引未覆盖的有效条号判「索引中不存在」，两者都不是通过。指南章节只索引、未转录，因此指南引用始终是「未核验」：引用必须经官方来源核验的纪律没有变，只是未核验的条目不再可能被读成已核验。
@@ -54,7 +55,7 @@
 
 ## 知识库策略
 
-按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文优先经本部署声明的 cnlaw 底座（见「前置条件」；端点即 `patent-law` 的 Config 字段）核验并保留 source_path 溯源，部署声明无底座时经 patent_case_search 加 web_fetch 核验权威来源。两条通道之前先跑 `law_verify`：它固定引用形式并说明随包索引收录与不收录什么，因此索引支撑不了的引用会被查证而不是凭记忆引用。工作目录 `99-知识库/` 仍作为项目级沉淀，用 fs-search / grep 先查本地再上网。
+按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，随包的法条与指南原文经 law_search（选择法规或指南集合并返回对应条文/节文本及其来源）查询。法条原文优先经本部署声明的 cnlaw 底座（见「前置条件」；端点即 `patent-law` 的 Config 字段）核验并保留 source_path 溯源，部署声明无底座时经 patent_case_search 加 web_fetch 核验权威来源。两条通道之前先跑 `law_verify`：它固定引用形式并说明随包索引收录与不收录什么，因此索引支撑不了的引用会被查证而不是凭记忆引用。工作目录 `99-知识库/` 仍作为项目级沉淀，用 fs-search / grep 先查本地再上网。
 
 这修订了 docs/patent-mode-design.md §9（原为无引擎文件库）。`99-知识库/` 仍作项目沉淀；变化在于系统知识现在有了引擎。
 
@@ -74,9 +75,9 @@ OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openv
 
 ## Known Limitations and Deferred Work
 
-- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具。`law_verify` 覆盖的是引用形式与索引收录，不是法条原文：它判定某条是否在索引内，并在某部署把条目转录之后判定所引命题是否与其相符。法条原文优先经部署声明的 cnlaw 底座核验（可选增强，缺席由声明段写明，见前置条件）——挂载时走 MCP 工具，否则按声明段给出的端点走 REST（curl）；没有底座时经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。发货组合挂载 http fetch provider（只接受公网 HTTP(S) 目的地，逐个解析、校验并固定连接），web_fetch 无需部署改动即可用。
+- 法条检索由 `law_search` 承担，它从 knowledge.db 取法规与《专利审查指南》原文（`ctx.patentKnowledge.legalSearch` / `guidelineSearch`）。`law_verify` 覆盖的是引用形式与索引收录，不是法条原文：它判定某条是否在索引内，并在某部署把条目转录之后判定所引命题是否与其相符。法条原文优先经部署声明的 cnlaw 底座核验（可选增强，缺席由声明段写明，见前置条件）——挂载时走 MCP 工具，否则按声明段给出的端点走 REST（curl）；没有底座时经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。发货组合挂载 http fetch provider（只接受公网 HTTP(S) 目的地，逐个解析、校验并固定连接），web_fetch 无需部署改动即可用。
 - 随包费用索引只给条目模型表达得了的部分定价：金额取自国家知识产权局缴费服务指南附件 2，逐项记下抄录的文书与抄录日期，减缴比例（个人 85%、企业 70%）也一并记录，价格因专利类型而不同的费种拆成不同条目。仍有两个费种不带金额——说明书附加费与延长期限请求费按分档收费（按页区间、按次数），模型没有承载它的字段——因此碰到其中任一项就不会给出合计。金额是标准的机械抄录，不是复核：没有人回读过副本，开票前应再核对一次。
-- 随包法条文本是官方修订文本的机械抄录，不是复核：「已核验」的含义是该条存在、所引命题与该条主题词相符，不含"由具备资质者回读过副本"。覆盖面也是部分的——《专利法》索引 82 条中的 36 条、《专利法实施细则》149 条中的 26 条——因此一条存在但未被索引的条文会报「索引中不存在」，仍须查证原文。《专利审查指南》索引只有主题词，每条指南引用始终是「未核验」。原按 2008 年修正编号 62/69/70 收录的《专利法》主题词，已改到 2020 年文本承载它们的 67/75/77 条；62 条改按 2020 年文本的主题（强制许可使用费）。
+- 随包法条文本是官方修订文本的机械抄录，不是复核：「已核验」的含义是该条存在、所引命题与该条主题词相符，不含"由具备资质者回读过副本"。覆盖面也是部分的——《专利法》索引 82 条中的 37 条、《专利法实施细则》149 条中的 26 条——因此一条存在但未被索引的条文会报「索引中不存在」，仍须查证原文。《专利审查指南》索引只有主题词，每条指南引用始终是「未核验」。原按 2008 年修正编号 62/69/70 收录的《专利法》主题词，已改到 2020 年文本承载它们的 67/75/77 条；62 条改按 2020 年文本的主题（强制许可使用费）。
 - patent_pdf_download 在宿主机有可用 ego-browser（ego lite，仅 macOS，且在 PATH 上）时在浏览器内取回 PDF 响应体（CDP `Network.getResponseBody`）；取不到时退回抓页面 CDN 链接 + HTTP 下载，整批仍能下载。两个通道都失败时按篇报告错误，不中断整批。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - patent-oa-response 与 patent-reexamination 属本仓新增技能，非移植：步骤顺序跟随 patent_oa_response_v1 / patent_reexamination_v1 manifest，期限一律由 patent_deadlines 给出，但两者均未经实务对照现行《专利审查指南》复核。复审技能对实用新型命中的创造性理由按现行口径保留、并把专利权类型单独输出（不静默删除理由）；该口径在工作台计划中仍标注为待确认项。
