@@ -1,0 +1,147 @@
+{
+  "benchmarkId": "patent-oas",
+  "recordedAt": "2026-10-10T08:22:23.376Z",
+  "runsPerCase": 1,
+  "cases": [
+    {
+      "caseId": "claim-drafting",
+      "dimensions": [
+        {
+          "index": 1,
+          "label": "独立权利要求的必要技术特征",
+          "points": 30,
+          "score": 100
+        },
+        {
+          "index": 2,
+          "label": "保护范围适中",
+          "points": 20,
+          "score": 96
+        },
+        {
+          "index": 3,
+          "label": "从属权利要求布局",
+          "points": 20,
+          "score": 100
+        },
+        {
+          "index": 4,
+          "label": "引用关系与层次",
+          "points": 15,
+          "score": 100
+        },
+        {
+          "index": 5,
+          "label": "形式与说明书支持",
+          "points": 15,
+          "score": 78
+        }
+      ]
+    },
+    {
+      "caseId": "infringement-comparison",
+      "dimensions": [
+        {
+          "index": 1,
+          "label": "逐特征比对完整性",
+          "points": 35,
+          "score": 100
+        },
+        {
+          "index": 2,
+          "label": "等同原则运用",
+          "points": 25,
+          "score": 100
+        },
+        {
+          "index": 3,
+          "label": "结论明确性",
+          "points": 20,
+          "score": 100
+        },
+        {
+          "index": 4,
+          "label": "风险定级",
+          "points": 10,
+          "score": 100
+        },
+        {
+          "index": 5,
+          "label": "法律依据",
+          "points": 10,
+          "score": 100
+        }
+      ]
+    },
+    {
+      "caseId": "novelty-creative",
+      "dimensions": [
+        {
+          "index": 1,
+          "label": "新颖性单独对比",
+          "points": 25,
+          "score": 100
+        },
+        {
+          "index": 2,
+          "label": "区别技术特征认定",
+          "points": 20,
+          "score": 100
+        },
+        {
+          "index": 3,
+          "label": "实际解决的技术问题",
+          "points": 15,
+          "score": 100
+        },
+        {
+          "index": 4,
+          "label": "结合启示分析",
+          "points": 20,
+          "score": 92
+        },
+        {
+          "index": 5,
+          "label": "结论与法条依据",
+          "points": 20,
+          "score": 100
+        }
+      ]
+    },
+    {
+      "caseId": "oa-answer",
+      "dimensions": [
+        {
+          "index": 1,
+          "label": "区别特征认定",
+          "points": 30,
+          "score": 100
+        },
+        {
+          "index": 2,
+          "label": "实际解决的技术问题",
+          "points": 20,
+          "score": 95
+        },
+        {
+          "index": 3,
+          "label": "技术启示分析",
+          "points": 20,
+          "score": 100
+        },
+        {
+          "index": 4,
+          "label": "结论与法律依据",
+          "points": 15,
+          "score": 100
+        },
+        {
+          "index": 5,
+          "label": "检索策略与答复格式",
+          "points": 15,
+          "score": 90
+        }
+      ]
+    }
+  ]
+}
