@@ -6,7 +6,8 @@
  * freshness-gated catalog that boots every tool plugin; the mounted set comes
  * from the preset's own plugin entries, plus each row's load-time `toolName`
  * and the shipped aliases the catalog records, while a row the preset disables
- * contributes nothing. A backticked name that no
+ * contributes nothing and a row whose own config turns a registration off
+ * drops that tool. A backticked name that no
  * mounted tool and no {@link EXEMPT_REFERENCES} entry accounts for fails the
  * gate, so a renamed or invented tool cannot stay in model-facing skill text.
  *
@@ -103,13 +104,69 @@ export function parseToolCatalog(source: string): Map<string, ReadonlySet<string
   return catalog
 }
 
+/** One plugin config switch that decides whether the package registers a cataloged tool. */
+export interface ConfigToolSwitch {
+  /** The plugin config key, as the preset writes it. */
+  readonly key: string
+  /** The cataloged tool the package registers only while the switch is on. */
+  readonly tool: string
+}
+
+/**
+ * The config switches that decide tool registration, per package.
+ *
+ * The catalog lists what a package can register; a preset that turns a switch
+ * off mounts only the rest, so the mounted set subtracts it. This is the one
+ * place that records which config keys carry that power — a package whose
+ * config only tunes limits does not belong here.
+ */
+const CONFIG_TOOL_SWITCHES: ReadonlyMap<string, readonly ConfigToolSwitch[]> = new Map([
+  // web/tool-web/src/index.ts calls applyWebSearchTool / applyWebFetchTool only
+  // while search / fetch resolve true, so a preset writing `fetch: false`
+  // removes `web_fetch` from the model-facing set.
+  ['@deepseek-ai/dsh-tool-web', [
+    { key: 'search', tool: 'web_search' },
+    { key: 'fetch', tool: 'web_fetch' },
+  ]],
+])
+
+/**
+ * The cataloged tools one plugin entry's own config turns off.
+ * @param entry - the plugin entry carrying `name` and, optionally, `config`.
+ * @param packageName - the entry's package name.
+ * @param configSwitches - config keys that remove a tool, per package.
+ * @returns the tools this entry's config turns off.
+ */
+function switchedOffTools(
+  entry: Record<string, unknown>,
+  packageName: string,
+  configSwitches: ReadonlyMap<string, readonly ConfigToolSwitch[]>,
+): Set<string> {
+  const off = new Set<string>()
+  const switches = configSwitches.get(packageName)
+  if (switches === undefined) return off
+  const config = entry.config
+  if (typeof config !== 'object' || config === null) return off
+  const values = new Map(Object.entries(config))
+  for (const item of switches) {
+    if (values.get(item.key) === false) off.add(item.tool)
+  }
+  return off
+}
+
 /**
  * Resolve the tool names one preset mounts.
  * @param presetSource - the preset YAML text.
  * @param catalog - {@link parseToolCatalog} result.
- * @returns the mounted tool names, including every load-time `toolName` value.
+ * @param configSwitches - config keys that remove a tool, per package.
+ * @returns the mounted tool names, including every load-time `toolName` value
+ * and excluding the tools a row's own config turns off.
  */
-export function mountedToolNames(presetSource: string, catalog: ReadonlyMap<string, ReadonlySet<string>>): Set<string> {
+export function mountedToolNames(
+  presetSource: string,
+  catalog: ReadonlyMap<string, ReadonlySet<string>>,
+  configSwitches: ReadonlyMap<string, readonly ConfigToolSwitch[]> = CONFIG_TOOL_SWITCHES,
+): Set<string> {
   const names = new Set<string>()
   const visit = (value: unknown): void => {
     if (Array.isArray(value)) {
@@ -117,13 +174,17 @@ export function mountedToolNames(presetSource: string, catalog: ReadonlyMap<stri
       return
     }
     if (typeof value !== 'object' || value === null) return
+    const entry = value as Record<string, unknown>
     // A row the preset disables mounts nothing, neither its own tools nor a
     // nested child's; `!!js` conditions arrive evaluated, so a platform-off row
     // is skipped exactly as the load skips it.
-    if ((value as Record<string, unknown>).disabled === true) return
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (entry.disabled === true) return
+    for (const [key, item] of Object.entries(entry)) {
       if (typeof item === 'string' && key === 'name') {
-        for (const tool of catalog.get(item) ?? []) names.add(tool)
+        const off = switchedOffTools(entry, item, configSwitches)
+        for (const tool of catalog.get(item) ?? []) {
+          if (!off.has(tool)) names.add(tool)
+        }
       }
       if (typeof item === 'string' && key === 'toolName' && item.length > 0) names.add(item)
       visit(item)
