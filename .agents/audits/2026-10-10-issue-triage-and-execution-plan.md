@@ -17,28 +17,30 @@ bash .agents/audits/2026-10-10-file-issues.sh
 
 前置（当时均满足）：`gh` 已认证为 `xujian519`（scopes 含 `repo`），`area/*` 与 `kind/*` 八个标签均已在仓库中存在，`REPO=xujian519/deepseek-harness`（脚本第 15 行）与目标仓一致。
 
+> 本批的落地记录（合并的 PR、批次落点、两条「先决定」项的取向、仍未做项）见 §7。
+
 ## 2. 16 条一览（按脚本内的顺序）
 
 「证据」列区分**本人逐行直读核实**（V）与**子代理实跑、本人未复算**（S）。本轮两条 S 条目（#10 / #12）已由 2026-10-10 的后续会话按复现命令重跑：`182 / 71`、`1135`、`140`、`16`、`37` 为当前实测值（原记载的 `v8 ignore = 1391` 无法复现），详见 §3 批次 A 与 §6。
 
 | # | 标题（脚本内） | 标签 | 优先级 | 证据 | 依赖 | GitHub |
 |---|---|---|---|---|---|---|
-| 1 | run-gates 的两个模式在 CLI 上不可达 | area/infra, kind/bug-fix | **P1** | V | 需决定（删/恢复） | #383 |
-| 2 | 专利文书两套模板体系并存 | area/patent, kind/cleanup | P2 | V | 需决定（收口方向） | #384 |
-| 3 | verify-preset-divergence 只比较 ≥2 preset 都携带的 row id | area/infra, kind/techdebt | P2 | V | — | #385 |
-| 4 | verify-preset-tool-refs 忽略 config 级工具裁剪 | area/infra, kind/techdebt | P2 | V | — | #386 |
-| 5 | 文档模式与自媒体模式关掉 web_fetch | area/document, kind/cleanup | P2 | V | 需决定（开/不开） | #387 |
-| 6 | patent-tools 的工具计数三处不一致 | area/patent, kind/doc | P2 | V | — | #388 |
-| 7 | patent.md:77 断言「legalSearch 没有模型可见工具」 | area/patent, kind/doc | P2 | V | — | #389 |
-| 8 | 文档模式契约与文档瑕疵批次 | area/document, kind/doc | P3 | V | — | #390 |
-| 9 | 专利自媒体模式：外置 bundle 的装配行集已落后 | area/patent, kind/techdebt | P2 | V | 需决定（ralph 去留） | #391 |
-| 10 | 台账与注释的机械计数过期批次 | area/docs, kind/doc | P3 | V（已复算 2026-10-10） | — | #392 |
-| 11 | patent.md 的装配清单与磁盘不符 | area/patent, kind/doc | P2 | V | — | #393 |
-| 12 | patent-law 的《专利法》索引覆盖度 37 vs 36 | area/patent, kind/doc | P2 | V（计数已复算：37） | — | #394 |
-| 13 | verify-patent-oas-gold 在基线未记录时静默休眠并 exit 0 | area/patent, kind/techdebt | P2 | V | 需决定（进不进 CI） | #395 |
-| 14 | 文档与依赖清单未覆盖 patent-filing | area/patent, kind/doc | P2 | V | 与 #11 同批 | #396 |
-| 15 | 受控草稿的两条渲染通道各写一份表题/对象窄化实现 | area/patent, kind/techdebt | P3 | V | — | #397 |
-| 16 | 以「实测」为据的 preset 断言没有可复算出处 | area/infra, kind/doc | P3 | V（形态已定：不可达） | — | #398 |
+| 1 | run-gates 的两个模式在 CLI 上不可达 | area/infra, kind/bug-fix | **P1** | V | 需决定（删/恢复） | #383 → PR #401 |
+| 2 | 专利文书两套模板体系并存 | area/patent, kind/cleanup | P2 | V | 需决定（收口方向） | #384 → PR #407 |
+| 3 | verify-preset-divergence 只比较 ≥2 preset 都携带的 row id | area/infra, kind/techdebt | P2 | V | — | #385 → PR #401 |
+| 4 | verify-preset-tool-refs 忽略 config 级工具裁剪 | area/infra, kind/techdebt | P2 | V | — | #386 → PR #401 |
+| 5 | 文档模式与自媒体模式关掉 web_fetch | area/document, kind/cleanup | P2 | V | 需决定（开/不开） | #387 → PR #405 |
+| 6 | patent-tools 的工具计数三处不一致 | area/patent, kind/doc | P2 | V | — | #388 → PR #399 |
+| 7 | patent.md:77 断言「legalSearch 没有模型可见工具」 | area/patent, kind/doc | P2 | V | — | #389 → PR #399 |
+| 8 | 文档模式契约与文档瑕疵批次 | area/document, kind/doc | P3 | V | — | #390 → PR #400 |
+| 9 | 专利自媒体模式：外置 bundle 的装配行集已落后 | area/patent, kind/techdebt | P2 | V | 需决定（ralph 去留） | #391 → 仓外（见 §7） |
+| 10 | 台账与注释的机械计数过期批次 | area/docs, kind/doc | P3 | V（已复算 2026-10-10） | — | #392 → PR #408 |
+| 11 | patent.md 的装配清单与磁盘不符 | area/patent, kind/doc | P2 | V | — | #393 → PR #399 |
+| 12 | patent-law 的《专利法》索引覆盖度 37 vs 36 | area/patent, kind/doc | P2 | V（计数已复算：37） | — | #394 → PR #399 |
+| 13 | verify-patent-oas-gold 在基线未记录时静默休眠并 exit 0 | area/patent, kind/techdebt | P2 | V | 需决定（进不进 CI） | #395 → PR #409 |
+| 14 | 文档与依赖清单未覆盖 patent-filing | area/patent, kind/doc | P2 | V | 与 #11 同批 | #396 → PR #399 |
+| 15 | 受控草稿的两条渲染通道各写一份表题/对象窄化实现 | area/patent, kind/techdebt | P3 | V | — | #397 → PR #402 |
+| 16 | 以「实测」为据的 preset 断言没有可复算出处 | area/infra, kind/doc | P3 | V（形态已定：不可达） | — | #398 → PR #404 |
 
 > 标签 `area/*` 与 `kind/*` 需已在仓库里存在，否则 `gh issue create --label` 会失败并中断（脚本设了 `set -e`）。首次执行前可先 `gh label list --repo xujian519/deepseek-harness`；缺失时脚本会停在该条，补标签后重跑即可（已建的会自动 skip）。
 
@@ -159,4 +161,52 @@ bundle 不在仓库里，**任何仓内门禁在结构上都看不到它**。按
 
 **已核实并销案（2026-10-10 后续会话）**：`lint`/`typecheck` 的 `build:lib:host` 归属——`pnpm run lint` 完整通过（含 `build:lib:host`，0 errors），当时的中断是会话级沙箱故障而非仓库失败；`docs/subsystems/patent.md` 确认同缺 `patent-filing`；`agent-team` 包在随包组合下不可达；§3.9 的四个计数已复算。
 
+
+四个机械计数已由 `pnpm run verify-tech-debt-counters` 机检（PR #408），`patent-oas` 基线已记录入仓（PR #409）；其余各项仍是本清单。
+
 **仍未证实、需下一轮补的**：受控草稿契约与 11 个模板 `SKILL.md` 的逐项一致性（**下一轮第一优先**）；`verify-patent-document-output` / `verify-patent-team-roster` 的断言面；自媒体所需的广告法/专利标识资料是否存在于仓外。
+
+## 7. 落地记录（2026-10-10 后续会话）
+
+§2 的 16 条里 14 条已闭合。#391 的仓内面为零（改动在用户级 bundle，证据在 issue 评论），#322 仍是开放项（见本节末）。
+
+### 合并的 PR
+
+| PR | 标题 | 覆盖 |
+|---|---|---|
+| #399 | docs(audits): record the 2026-10-10 three-mode scan and align the reported counts | #388 #389 #393 #394 #396；#390 的 README 面、#392 的文本面 |
+| #400 | refactor(document): give the double-brace placeholder one definition | #390 |
+| #401 | fix(gates): close the three blind spots and drop the unreachable modes | #383 #385 #386；#395 的退出码面 |
+| #402 | refactor(patent): share the table caption, the JSON guard, and the manifest parse | #397 |
+| #404 | docs(patent): state the team-channel reason from the mounting rows | #398 |
+| #405 | fix(document): mount web_fetch so the source rule can open what it cites | #387 |
+| #407 | refactor(patent): give patent deliverables one content channel | #384 |
+| #408 | chore(docs): make the ledger's four counters machine-checked | #392 |
+| #409 | fix(patent): run the patent-oas gold gate on a recorded baseline | #395 |
+
+#404 与 #405 以官方 stack #406 一起落地（`gh stack merge` 全有或全无）；其余各自独立合并。本文件不记提交标识——`verify-repository-references` 拒绝在维护文件里出现仓库提交 id——每个 PR 页上留有其合并提交与逐条验证命令。
+
+### 批次落点
+
+- **批次 A（文档口径）** → #399 + #400（占位符正则收敛到一处定义在 #400）。
+- **批次 B（门禁可达性）** → #401，取向为**删除**：`ci-fork.yml` 无 job 调用那两个模式，恢复解析只让命令「能跑」而仍无人跑，与 #326 原决定一致。
+- **批次 C（门禁盲区）** #385 / #386 → #401；#395 → 退出码在 #401、基线与 CI 车道在 #409。
+- **批次 D（模板收口）** → #407：删掉 A 侧五个专利模板资产，受控草稿成为唯一内容源，机检用例钉住边界。
+- **批次 E（fetch 取向）** → #405：**开**，仓内文档模式与 patent 侧取同一结论。
+- **批次 F（受控草稿去重）** → #402：共享表题编号与 JSON 窄化，`templateResolver` 改为校验后 fail-loud。
+- **批次 G（仓外自媒体 bundle）** → **仓外完成**：四个技能的 description 与正文改写为可执行通道（`generate_image`/`edit_image` + 本地 ComfyUI + `z-image-turbo`），实跑证据（1024×1024、8-bit RGB、598 KB、95.2 s）贴在 #391；行集对齐、`tool-ralph` 去留、广告法与专利标识标注的合规载体、3 份 `.bak` 仍未做。
+- **批次 H（实测断言出处）** → #404：`patent.patch.yml:80` 的理由改为事实陈述 + 对位用例。
+
+### 两条「先决定」项的取向
+
+- **#392 → 更正数字 + 加机械兜底门禁（PR #408）**：`pnpm run verify-tech-debt-counters` 逐行复算台账里带标记的声明表，值不一致、行格式不合、多出一行（无复算定义）、门禁有一项而台账未声明都失败；挂在 `doc-quick`，因此 CI 的必过车道 `node-checks` 会跑它。结构债两项复用 `report-structure.ts` 的同一函数，标记计数经 `git ls-files` 只读 tracked 文件（原命令会命中本机构建残留），门禁自身的两个源文件不计入标记计数。负控制：把 `v8 ignore` 改回 1204、或把 `@ts-expect-error` 写成含门禁自身的 145，都变红。
+- **#395 → 真跑一次落基线 + 进 CI（PR #409）**：4 case × 1 次 = 24 次 agent 调用产出基线（聚合 97.95，17 个节点全部过门槛），记录只含逐维度分数；`ci-fork.yml` 的**必过** `node-checks` 直接运行该门禁——新开一个不在 ruleset 必过集里的 job 只是建议性信号，解决不了「没人跑、读绿」这个失效形态。
+
+### 仍未做 / 新观察（登记，不在本轮）
+
+- #391 的另外三项与 3 份 `.bak`（仓外用户级资产，不进本仓 PR）。
+- #322「给基线每条记录补理由」的通用做法：本轮只把两侧理由写进各自的 preset 注释。
+- #398 建议 4（preset/persona 里经验性断言要可复算或写明推断）——需要单独立一条撰写规则。
+- #409 的基线没有 `provider`/`modelId`（采集器只在调用方传 `--provider`/`--model` 时写），换模型后的运行只能在 profile 层面可比。
+- 09-27 节的历史计数保留为当日实测；当前值由 #408 的门禁机检。
+- **新观察（未立案）**：`pnpm run test:issue-management` 在 master 上就有 3 条失败，原因是它读 `.github/workflows/issue-policy.yml` 与 `issue-lifecycle.yml`——这两个文件在本 fork 不存在。它只挂在 `ciSharedStaticGates`（`ci-primary`/`ci-static`/`hygiene`），而这些聚合没有任何工作流调用，所以红态不可见；与 #383 / #395 同一族（门禁存在但无人跑）。本报告只登记，不随这批处理。
