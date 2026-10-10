@@ -24,7 +24,7 @@ Status: implemented
 
 **实测采集是一个独立、可注入的运行器。** `scripts/run-patent-oas.ts`(`pnpm run gate:patent-oas`)每次调用起一个 `dsh --profile` 进程,与 `self-evolve-eval` 的 campaign 运行器同形;编排放在 `scripts/patent-oas-run-core.ts` 的 `RunAgents` 接缝之后,CLI 提供真实子进程作为该接缝的实现。每次运行把 agent state 复制成该次运行私有的目录,执行者在副本里工作,金标的 `patent-state/` 始终只读;每个 case 一个执行者把 `deliverable.md` 写在这份副本里,每个 rubric 维度一个评估者在自己的调用目录里写出 `score.json`,因此评估者只看到一个维度、永远看不到整份 rubric。交付物在被复制进这么多条提示词之前先做字节上限检查;`--dry-run` 只打印计划与逐 case 维度数、不花掉任何一次调用;`--timeout-ms` 与 `--budget-ms` 分别限单次调用与整次采集。运行器不是门禁叶:它需要 key、没有 key 时跳过,而拒绝「与金标不符的记录」的始终是门禁。
 
-**基线未记录时,回归层如实报告休眠。** `--accept <record.json>` 先校验一次 run 记录,拒绝把已经不满足自己门槛的记录提升为基线,否则把它复制到 `packages/self-evolve/evaluation/patent-oas-baseline.json`。该文件不存在期间,门禁打印「回归层休眠」并以 0 退出——与 `scripts/verify-self-evolve-eval.ts` 面对缺失的评估记录时的姿态一致。`--run <record.json>` 按同一套门槛判定任意 run 记录,并把每处失败归因到对应的问题空间节点。
+**基线缺失时门禁失败,而不是读绿。** `--accept <record.json>` 先校验一次 run 记录,拒绝把已经不满足自己门槛的记录提升为基线,否则把它复制到 `packages/self-evolve/evaluation/patent-oas-baseline.json`。该文件不存在期间,门禁打印记录基线的命令并以 1 退出:退出码必须把「没比对过」与「比对通过」分开,因此它没有沿用 `scripts/verify-self-evolve-eval.ts` 面对缺失评估记录时的跳过姿态。`--run <record.json>` 按同一套门槛判定任意 run 记录,并把每处失败归因到对应的问题空间节点。
 
 ## Alternatives considered
 
@@ -47,6 +47,6 @@ Status: implemented
 ## Consequences
 
 - `pnpm run verify-patent-oas-gold` 现在会因下列情形失败:rubric 维度没有映射、映射权重不等于该维度满分、映射到未声明的节点或没有观测面的节点、先决关系成环、rubric 满分合计不为 100、金标摘要过期或未记录、门槛取值越界、逐节点覆盖指向不存在的节点、基线无法满足自己的门槛、run 记录的维度与金标不符,以及——基线记录之后——任何节点、case 或聚合超过各自门槛。
-- 与已记录基线的回归比对在第一次 keyed 运行被接受之前保持休眠;本仓从未记录过 `patent-oas` 的真实运行。采集链路本身已实现,除模型调用之外的一切都通过注入接缝在无 key 环境下被验证。
-- 验证:`scripts/patent-oas-gate.spec.ts` 跑 32 条用例、`scripts/patent-oas-run.spec.ts` 跑 30 条,合起来覆盖每条拒绝路径各一条负例、CLI 退出码、经桩接缝驱动的整条采集链路,以及真实子进程接缝的超时与非零退出路径;门禁挂在 `ciSharedStaticGates`,因此进入 `ci-primary`、`ci-static` 与 `hygiene`。
+- 与基线的回归比对跑在一次已记录的 keyed 实测上:2026-10-10、`headless` profile、24 次 agent 调用、聚合 97.95,记录落在 `packages/self-evolve/evaluation/patent-oas-baseline.json`。记录里没有 `provider`/`modelId`(采集器只在调用方传参时才写),因此换模型后的运行只能在 profile 层面可比。
+- 验证:`scripts/patent-oas-gate.spec.ts` 跑 32 条用例、`scripts/patent-oas-run.spec.ts` 跑 30 条,合起来覆盖每条拒绝路径各一条负例、CLI 退出码、经桩接缝驱动的整条采集链路,以及真实子进程接缝的超时与非零退出路径;门禁挂在 `ciSharedStaticGates`,因此进入 `ci-primary`、`ci-static` 与 `hygiene`,而本 fork 承载静态门禁的那条必过车道 `node-checks` 直接运行 `pnpm run verify-patent-oas-gold`——那些聚合没有任何工作流调用。
 - case 层门槛来自实测到的摊薄效应,不是为了对称:spec 里那一幕在 case 层失败、在每个节点上通过,正是只有节点层的门禁会漏掉的形状。

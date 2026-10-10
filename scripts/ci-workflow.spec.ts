@@ -915,6 +915,16 @@ describe('CI workflow', () => {
 })
 
 describe('fork CI workflow', () => {
+  // The patent-oas gold gate refuses to pass while no baseline is recorded, so
+  // nothing but a lane that runs it tells a passing regression layer from an
+  // absent one; the required lane carries it, not an advisory job.
+  it('runs the patent-oas gold gate in the required lane', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'node-checks')
+    if (!Array.isArray(job.steps)) throw new TypeError('node-checks must define steps')
+    expect(job.steps.filter(isRecord))
+      .toContainEqual(expect.objectContaining({ run: 'pnpm run verify-patent-oas-gold' }))
+  })
+
   // The real-render smoke suites skip themselves when `dot` is missing, so a
   // lane that runs the suite without provisioning reads green over skipped
   // render coverage; `figure-graphviz-ci-signal.spec.ts` fails there instead.

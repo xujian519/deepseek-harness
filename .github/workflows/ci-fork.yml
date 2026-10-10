@@ -42,6 +42,13 @@ jobs:
       - name: Duplication
         run: pnpm run duplication
 
+      - name: Patent OAS gold gate
+        # The gate refuses to pass while the repository carries no recorded
+        # baseline, so only a lane that runs it separates a passing regression
+        # layer from an absent one. It reads the checked-in gold standard,
+        # problem-space DAG, thresholds, and baseline: no key, no build.
+        run: pnpm run verify-patent-oas-gold
+
       - name: Build the native system addon
         # Session V3 persistence flocks the JSONL log through the
         # node-addon-system host addon; the durable-session lanes refuse to
