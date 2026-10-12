@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
@@ -172,7 +172,7 @@ describe('tools/post-execute output gate', () => {
     expect(downstreamCalled).toBe(true)
   })
 
-  it('logs warn-level hits and passes the result through', async () => {
+  it('carries warn-level hits as context for the next request and passes the result through', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     const warnSpy = vi.spyOn(ctx.logger, 'warn')
     let downstreamCalled = false
@@ -186,6 +186,80 @@ describe('tools/post-execute output gate', () => {
     expect(downstreamCalled).toBe(true)
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('命中 warn 级规则 TEST-WARN'))
     warnSpy.mockRestore()
+    const [context] = result.additionalContexts ?? []
+    expect(context).toBeDefined()
+    const text = (context?.content ?? [])
+      .map(block => block.type === 'text' ? block.text : '')
+      .join('')
+    expect(text).toContain('TEST-WARN')
+    expect(text).toContain('测试提示')
+    expect(text).toContain('WARNWORD')
+    expect(context?.source.kind).toBe('patent-rule-gate')
+  })
+
+  it('keeps a downstream block decision and its own context, with the warn context first', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    const downstream = createUserMessage({
+      content: [{ type: 'text', text: '下游上下文' }],
+      source: { kind: 'user' },
+    })
+    ctx.on('tools/post-execute', async (_exec, _result, next) => {
+      await next()
+      return { kind: 'block', feedback: [{ type: 'text', text: '下游拦截' }], additionalContexts: [downstream] }
+    })
+    ctx.tools.register(deliveryTool('render_patent_document', '包含 WARNWORD 的文档'))
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(true)
+    expect(result.error?.message).toBe('下游拦截')
+    const contexts = result.additionalContexts ?? []
+    expect(contexts.map(context => context.source.kind)).toEqual(['patent-rule-gate', 'user'])
+  })
+
+  it('adds warn context to a block-level hit of the same result', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    ctx.tools.register(deliveryTool('render_patent_document', 'BLOCKWORD 与 WARNWORD 同现'))
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(true)
+    expect(result.error?.message).toMatch(/TEST-BLOCK/)
+    const [context] = result.additionalContexts ?? []
+    const text = (context?.content ?? [])
+      .map(block => block.type === 'text' ? block.text : '')
+      .join('')
+    expect(text).toContain('TEST-WARN')
+  })
+
+  it('adds warn context to a review-level hit that fails closed', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    ctx.tools.register(deliveryTool('validate_specification', 'REVIEWWORD 与 WARNWORD 同现'))
+    const result = await ctx.tools.execute(exec('validate_specification'))
+    expect(result.isError).toBe(true)
+    expect(result.error?.message).toMatch(/无审批通道/)
+    const [context] = result.additionalContexts ?? []
+    const text = (context?.content ?? [])
+      .map(block => block.type === 'text' ? block.text : '')
+      .join('')
+    expect(text).toContain('TEST-WARN')
+  })
+
+  it('attaches no context when only log-level or no rule fires', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    ctx.tools.register(deliveryTool('render_patent_document', '普通文档，无命中'))
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(false)
+    expect(result.additionalContexts ?? []).toHaveLength(0)
+  })
+
+  it('injects warn context from the shipped rule set', async () => {
+    const ctx = await mount({})
+    ctx.tools.register(deliveryTool('draft_claims', '本方案毫无疑问优于现有技术。'))
+    const result = await ctx.tools.execute(exec('draft_claims'))
+    expect(result.isError).toBe(false)
+    const [context] = result.additionalContexts ?? []
+    const text = (context?.content ?? [])
+      .map(block => block.type === 'text' ? block.text : '')
+      .join('')
+    expect(text).toContain('PAT-ABS-001')
+    expect(context?.source).toMatchObject({ kind: 'patent-rule-gate', form: 'notice' })
   })
 
   it('apply without gateToolNames falls back to the default delivery tools', async () => {

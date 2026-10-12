@@ -1,0 +1,35 @@
+# Test-only patch over the shipped headless profile. The production bundle
+# layers own the agent services, tools, persistence plugin, and defaults.
+- id: headless-startup
+  disabled: true
+
+- id: headless-runner
+  disabled: true
+
+- id: agent-loop
+  config:
+    agents:
+      - id: main
+        provider: patent-rule-warn-mock
+        model: patent-rule-warn-mock
+        cwd: !!js process.cwd()
+
+- id: session-persistence-jsonl
+  config:
+    root: './.sessions'
+    compression: none
+
+- insert:
+    - id: patent-rule-warn-mock-llm
+      name: './mock-llm.ts'
+
+    - id: patent-rule-warn-probe
+      name: './warn-probe.ts'
+
+    # The probe tool is the only gated tool here, so a warn-level hit on its
+    # result is the whole observed surface.
+    - id: patent-rule
+      name: '@deepseek-ai/dsh-patent-rule'
+      config:
+        gateToolNames:
+          - patent_warn_probe

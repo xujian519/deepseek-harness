@@ -14,7 +14,9 @@
  *   warning). A block-level violation returns
  *   `{ kind: 'block' }`; a review-level violation fires `ctx.get('approval')`
  *   and accepts only on `'allowed-once'` (fail-closed with no answerer, no
- *   agent, or `approvalDisabled`); warn/log violations pass through unchanged.
+ *   agent, or `approvalDisabled`). A warn-level hit cannot rewrite the result
+ *   the model has already received, so its findings ride the decision as
+ *   `additionalContexts` for the next request; `log` hits stay in the log.
  * - A declared structural gate ({@link Config.structuralGate}) denies a
  *   delivery-tool call before dispatch when the artifact text in its arguments
  *   violates a named absence-based rule: those rules cannot judge a tool
@@ -35,6 +37,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { PostToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 // Type-only: makes `ctx.get('approval')` resolve to the ApprovalService
 // augmentation. The seam stays optional at runtime.
@@ -51,7 +55,7 @@ import {
   selectGateRules,
   type GateCheckType,
 } from './runtime/patent-compliance.ts'
-import { RuleOutputGate } from './runtime/output-gate.ts'
+import { formatViolation, RuleOutputGate } from './runtime/output-gate.ts'
 import {
   deliveryGateMissing,
   DeliveryAttemptLedger,
@@ -67,6 +71,14 @@ import {
   type StructuralGateEntry,
   type StructuralGatePlan,
 } from './runtime/structural-gate.ts'
+
+// This plugin's own producer identity for the context it injects. MessageSourceMap
+// is merge-extensible: consumers fall through `kind`s they do not know.
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'patent-rule-gate': { kind: 'patent-rule-gate' } & ContextFormed
+  }
+}
 
 // Public library API: the rule engine, loaders, pack assembler, and guards the
 // rule_check tool and workflow consumers import alongside the plugin surface.
@@ -287,6 +299,46 @@ function hitSummary(result: RuleOutputGateResult): string {
 }
 
 /**
+ * Build the model-visible context for warn-level hits of one gated tool result.
+ *
+ * A warn hit cannot rewrite the result the model already received, so the
+ * finding is carried on the decision instead: the loop admits it at the next
+ * step, which both shows it to the model and records it in the session log.
+ * @param result - gate outcome for the tool result text.
+ * @param toolName - gated tool that produced the result.
+ * @returns the context to attach, or `undefined` when no warn-level rule fired.
+ */
+function warnContext(result: RuleOutputGateResult, toolName: string): UserMessage | undefined {
+  const warn = result.violations.filter(violation => violation.action === 'warn')
+  if (warn.length === 0) return undefined
+  const lines = warn.map(formatViolation)
+  const ids = [...new Set(warn.map(v => v.ruleId))]
+  return createUserMessage({
+    content: [{
+      type: 'text',
+      text: '⚠️ 专利合规提示（warn 级）：' + toolName + ' 的产出命中以下规则，'
+        + '请在后续修改中处理：\n' + lines.join('\n'),
+    }],
+    source: {
+      kind: 'patent-rule-gate',
+      form: 'notice',
+      summary: boundContextSummary(toolName + ' 命中 warn 级规则 ' + ids.join(', ')),
+    },
+  })
+}
+
+/**
+ * Attach the warn context to a decision without changing that decision.
+ * @param decision - this plugin's own block decision, or the decision the rest of the waterfall returned.
+ * @param warn - context from {@link warnContext}, if any.
+ * @returns the same decision with the context prepended to its own contexts.
+ */
+function attachWarn(decision: PostToolDecision, warn: UserMessage | undefined): PostToolDecision {
+  if (warn === undefined) return decision
+  return { ...decision, additionalContexts: [warn, ...decision.additionalContexts ?? []] }
+}
+
+/**
  * Register the patent-rule contribution.
  * @param ctx - registrant context carrying the tool registry.
  * @param config - validated {@link Config}.
@@ -347,24 +399,29 @@ export function apply(ctx: Context, config: Config): void {
     if (text.trim().length === 0) return next()
 
     const gateResult = gate.process(text)
+    const warn = warnContext(gateResult, exec.name)
     if (gateResult.blockHits.length > 0) {
-      return {
+      return attachWarn({
         kind: 'block',
         feedback: [{ type: 'text', text: '专利输出门禁拦截 ' + exec.name + '：命中强制规则 ' + hitSummary(gateResult) }],
-      }
+      }, warn)
     }
-    // warn/log 命中不改变结果文本：门禁只硬拦截 block、经审批放行 review；
-    // warn 命中记日志，避免"计算后丢弃"的静默。
-    if (gateResult.warnHits.length > 0) {
+    // warn/log 命中不改变结果文本：门禁只硬拦截 block、经审批放行 review。
+    // warn 级命中改写不了模型已收到的结果，改为随决策附到下一次请求（模型可见且入日志）；
+    // log 级只留日志，避免"计算后丢弃"的静默。
+    if (warn !== undefined) {
       ctx.logger.warn('patent-rule: ' + exec.name + ' 命中 warn 级规则 ' + gateResult.warnHits.join(', '))
     }
-    if (gateResult.reviewHits.length === 0) return next()
+    if (gateResult.reviewHits.length === 0) return attachWarn(await next(), warn)
 
     const reason = '专利输出门禁请求审批 ' + exec.name + '：命中待审规则 ' + hitSummary(gateResult)
     const approval = ctx.get('approval')
     // fail-closed：无审批通道（未配/无 agent/approvalDisabled）时按拦截处理。
     if (approvalDisabled || exec.agent === undefined || approval === undefined) {
-      return { kind: 'block', feedback: [{ type: 'text', text: reason + '（无审批通道，按拦截处理）' }] }
+      return attachWarn({
+        kind: 'block',
+        feedback: [{ type: 'text', text: reason + '（无审批通道，按拦截处理）' }],
+      }, warn)
     }
     const outcome = await approval.request({
       agent: exec.agent,
@@ -374,8 +431,11 @@ export function apply(ctx: Context, config: Config): void {
       signal: exec.signal,
     })
     if (outcome !== 'allowed-once') {
-      return { kind: 'block', feedback: [{ type: 'text', text: reason + '（审批未通过，按拦截处理）' }] }
+      return attachWarn({
+        kind: 'block',
+        feedback: [{ type: 'text', text: reason + '（审批未通过，按拦截处理）' }],
+      }, warn)
     }
-    return next()
+    return attachWarn(await next(), warn)
   })
 }

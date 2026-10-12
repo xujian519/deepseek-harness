@@ -334,6 +334,17 @@
               - id: patent-rule
                 name: '@deepseek-ai/dsh-patent-rule'
                 config:
+                  # 输出门禁覆盖面按「结果里有没有可判定的成文」取。generate_patent_figure 的结果带附图标记
+                  # 元件清单全文（真实样本 3.4KB），是既有四个交付工具之外唯一有实质文本的注册工具；
+                  # 2026-10-12 用 82 条真实调用结果回放默认 keyword_blocklist 子集为 0 命中，纳入不产生噪声。
+                  # patent_eval 的 41 条样本有 2 条命中 PAT-ABS-001，命中处都是「0 处绝对化表述」这类
+                  # 评审计数字样（元层面误报），故暂不纳入。本键是全量替换，须连同默认四个工具一起列出。
+                  gateToolNames:
+                    - render_patent_document
+                    - draft_claims
+                    - draft_specification
+                    - validate_specification
+                    - generate_patent_figure
                   # 交付前置门禁：把「交付前必须跑过哪些闸门」从 persona 纪律变成执行点。
                   # 此前纪律只写在 persona 里，而「跑过并通过」与「没跑」在调用记录上无法
                   # 区分：2026-10-03 语料核查中，13 个渲染过交付件的会话里只有 2 个在首次
