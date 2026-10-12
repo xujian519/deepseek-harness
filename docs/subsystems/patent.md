@@ -279,7 +279,7 @@ Source: [`packages/patent/patent-teams/src/service.ts`](../../packages/patent/pa
 
 ### `ctx.patentWorkflow` — `PatentWorkflow`
 
-PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow). Approval is an optional seam read via ctx.get('approval'); storage-backed file products are caller-provided stores (see the package README).
+PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow), which runs workflow manifests, drives the plantask HITL state machine, and holds the case-docket issue schema whose blocking and terminal grades the state machine's transition guards enforce. `Config.maxRounds` bounds the replanning rounds one case may spend. Approval is an optional seam read via ctx.get('approval'); storage-backed file products are caller-provided stores (see the package README).
 
 ```ts cordis-catalog
 /**

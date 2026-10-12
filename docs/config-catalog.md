@@ -3135,7 +3135,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:237`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:254`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -3230,6 +3230,26 @@ export type FigureRendererMode = 'wasm' | 'cli'
 export type StructureViewName = (typeof STRUCTURE_VIEWS)[number]
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-tools -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-workflow -->
+<a id="deepseek-aidsh-patent-workflow"></a>
+
+## `@deepseek-ai/dsh-patent-workflow`
+
+- `source`: [`packages/patent/patent-workflow/src/index.ts:48`](../packages/patent/patent-workflow/src/index.ts)
+
+```ts config-catalog
+/** Plugin config. */
+export interface Config {
+  /**
+   * 一个案卷允许的规划轮次上限。达到上限后反馈不再驱动重规划，计划只能收在
+   * 终态（finished）。轮次按 caseId 累计，计划收到终态时清零；0 表示一次重规划
+   * 都不允许。
+   */
+  maxRounds?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-workflow -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-permission-presets -->
 <a id="deepseek-aidsh-permission-presets"></a>
@@ -5804,7 +5824,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-lsp` | — | [`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts) |
 | `@deepseek-ai/dsh-mcp-resources` | `tools` | [`packages/mcp/mcp-resources/src/index.ts`](../packages/mcp/mcp-resources/src/index.ts) |
 | `@deepseek-ai/dsh-otel` | — | [`packages/telemetry/otel/src/index.ts`](../packages/telemetry/otel/src/index.ts) |
-| `@deepseek-ai/dsh-patent-workflow` | — | [`packages/patent/patent-workflow/src/index.ts`](../packages/patent/patent-workflow/src/index.ts) |
 | `@deepseek-ai/dsh-sandbox-ssh` | `ssh` | [`packages/ssh/sandbox-ssh/src/index.ts`](../packages/ssh/sandbox-ssh/src/index.ts) |
 | `@deepseek-ai/dsh-self-evolve-app` | — | [`packages/bundle/self-evolve-app/src/index.ts`](../packages/bundle/self-evolve-app/src/index.ts) |
 | `@deepseek-ai/dsh-session` | — | [`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts) |
