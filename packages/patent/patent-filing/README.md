@@ -43,7 +43,7 @@ verify_patent_filing takes one `docx` path and returns `passed`, the failing ass
 <a id="filing-assets"></a>
 ## Filing assets
 
-Three assets ship at the package root and are resolved through `import.meta.url` in both the source and the bundled execution layout:
+Three assets ship at the package root and are resolved through `import.meta.url` in both the source and the bundled execution layout. A packaged desktop app keeps them outside `app.asar` (`asarUnpack` in `apps/desktop`): the Python child process reads the engine, template, and spec from the real filesystem, so resolution targets the sibling `app.asar.unpacked/` tree and fails when the assets are left packed instead of handing the child process a path it cannot open:
 
 | Asset | Role |
 |---|---|

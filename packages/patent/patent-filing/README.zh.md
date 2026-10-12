@@ -45,7 +45,7 @@ verify_patent_filing 接收一个 `docx` 路径，返回 `passed`、未通过的
 <a id="filing-assets"></a>
 ## 随包资产
 
-三份资产随包分发在包根，源码与打包两种执行位置都用 `import.meta.url` 定位：
+三份资产随包分发在包根，源码与打包两种执行位置都用 `import.meta.url` 定位。桌面打包时资产留在 `app.asar` 之外（`apps/desktop` 的 `asarUnpack`）：引擎、模板与 spec 都由 Python 子进程经真实文件系统读取，因此解析落在并列的 `app.asar.unpacked/`；资产未解包则解析失败，而不是把子进程读不到的路径交出去：
 
 | 资产 | 职责 |
 |---|---|

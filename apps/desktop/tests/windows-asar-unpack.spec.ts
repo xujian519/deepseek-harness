@@ -254,6 +254,32 @@ it.each([false, true])('keeps the complete Office engine outside ASAR with exter
   }
 })
 
+it.each([false, true])('keeps the patent-filing assets outside ASAR with external source=%s', async (external) => {
+  const input = await fixture(external)
+  // The filing engine, template, and spec are read by a Python child process, which
+  // resolves paths against the real filesystem and cannot open an archive entry.
+  const pkg = join('node_modules', '@deepseek-ai', 'dsh-patent-filing')
+  const files = ['assets/engine/render_figures.py', 'assets/engine/build.py', 'assets/TEMPLATE-IDENTITY.md']
+  for (const file of files) {
+    const path = join(input.source, pkg, file)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, 'filing asset fixture')
+  }
+  const code = join(input.source, pkg, 'lib/index.js')
+  await mkdir(dirname(code), { recursive: true })
+  await writeFile(code, 'filing code fixture')
+  const config = unsignedWindowsConfig('com.example.patent-filing', input.source)
+  input.config.asarUnpack = [...config.asarUnpack]
+  await packageFixture(input)
+  const archive = await readAsar(join(input.resources, 'app.asar'))
+  expect(archive.getFile(join('dsh', pkg, 'lib/index.js')).unpacked).not.toBe(true)
+  for (const file of files) {
+    const path = join('dsh', pkg, file)
+    expect(archive.getFile(path, false).unpacked).toBe(true)
+    expect(await readFile(join(input.resources, 'app.asar.unpacked', path), 'utf8')).toBe('filing asset fixture')
+  }
+})
+
 async function seal(input: Awaited<ReturnType<typeof fixture>>): Promise<DesktopRuntimeDescriptor> {
   const descriptor: DesktopRuntimeDescriptor = {
     schemaVersion: 1,
