@@ -5265,7 +5265,7 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
   "properties": {
     "mode": {
       "type": "string",
-      "description": "评估模式: report(分析报告质量) / retrieval(检索覆盖度) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)",
+      "description": "评估模式: report(分析报告质量) / retrieval(检索式形态) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)",
       "enum": [
         "report",
         "retrieval",

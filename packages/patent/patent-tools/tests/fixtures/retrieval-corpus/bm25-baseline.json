@@ -1,0 +1,96 @@
+{
+  "engine": "node:sqlite 的 FTS5（tokenize=trigram）：MATCH 表达式由 queries.json 的 terms 经 joinFtsOrTerms 构建，排序按 bm25 升序、同分按文档 id 升序——与 dsh-patent-knowledge 的检索同栈。",
+  "note": "这是\"当前基线\"，不是\"合格线\"：数值由 tests/ir-metrics.spec.ts 重算核对，排序由 FTS5 产出、指标由 src/eval/ir-metrics.ts 从排序算出。",
+  "ndcgK": 5,
+  "queries": {
+    "q01": {
+      "ranking": [
+        "doc-01",
+        "doc-03"
+      ],
+      "rankOfFirstRelevant": 1,
+      "reciprocalRank": 1,
+      "ndcgAtK": 1
+    },
+    "q02": {
+      "ranking": [
+        "doc-04",
+        "doc-07"
+      ],
+      "rankOfFirstRelevant": 1,
+      "reciprocalRank": 1,
+      "ndcgAtK": 1
+    },
+    "q03": {
+      "ranking": [
+        "doc-06",
+        "doc-05"
+      ],
+      "rankOfFirstRelevant": 2,
+      "reciprocalRank": 0.5,
+      "ndcgAtK": 0.63093
+    },
+    "q04": {
+      "ranking": [
+        "doc-09",
+        "doc-10"
+      ],
+      "rankOfFirstRelevant": 1,
+      "reciprocalRank": 1,
+      "ndcgAtK": 1
+    },
+    "q05": {
+      "ranking": [
+        "doc-08",
+        "doc-11"
+      ],
+      "rankOfFirstRelevant": 1,
+      "reciprocalRank": 1,
+      "ndcgAtK": 1
+    },
+    "q06": {
+      "ranking": [],
+      "rankOfFirstRelevant": null,
+      "reciprocalRank": 0,
+      "ndcgAtK": 0
+    },
+    "q07": {
+      "ranking": [
+        "doc-02",
+        "doc-07"
+      ],
+      "rankOfFirstRelevant": 1,
+      "reciprocalRank": 1,
+      "ndcgAtK": 1
+    },
+    "q08": {
+      "ranking": [
+        "doc-11"
+      ],
+      "rankOfFirstRelevant": 1,
+      "reciprocalRank": 1,
+      "ndcgAtK": 1
+    },
+    "q09": {
+      "ranking": [
+        "doc-07",
+        "doc-05",
+        "doc-04",
+        "doc-02",
+        "doc-01"
+      ],
+      "rankOfFirstRelevant": 2,
+      "reciprocalRank": 0.5,
+      "ndcgAtK": 0.624051
+    },
+    "q10": {
+      "ranking": [],
+      "rankOfFirstRelevant": null,
+      "reciprocalRank": 0,
+      "ndcgAtK": 0
+    }
+  },
+  "aggregate": {
+    "meanReciprocalRank": 0.7
+  }
+}
