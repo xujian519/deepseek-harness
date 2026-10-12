@@ -263,7 +263,7 @@ describe('patent preset composition', () => {
   })
 
   it('keeps the patent-data provider and its consumer enabled in one realm', async () => {
-    const rows = await patentRows() as Array<PresetRow & { config?: { nuoRequestChannel?: unknown } }>
+    const rows = await patentRows() as Array<PresetRow & { config?: { nuoRequestChannel?: unknown; cniprEnabled?: unknown } }>
     const provider = rows.find(row => row.id === 'patent-data')
     const consumer = rows.find(row => row.id === 'patent-tools')
 
@@ -279,6 +279,10 @@ describe('patent preset composition', () => {
     // The nuo browser path turns itself on wherever `ego-browser` is installed on
     // macOS, and search returns zero hits behind a non-fatal warning there.
     expect(provider?.config?.nuoRequestChannel).toBe('native')
+    // The preset is the deployment that uses the channel: it ships the ego lite login
+    // this row's CNIPR channel reuses. A deployment without one leaves it off and keeps
+    // its own channel instead.
+    expect(provider?.config?.cniprEnabled).toBe(true)
   })
 
   it('enables the model-facing web tool with its fetch channel', async () => {
