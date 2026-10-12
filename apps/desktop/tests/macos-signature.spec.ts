@@ -73,6 +73,9 @@ describe('desktop macOS release signature', () => {
     expect(config.asarUnpack).toEqual(expect.arrayContaining([
       '**/*.{node,dylib,dll,so,exe}',
       '**/@vscode/ripgrep-*/bin/rg',
+      // The filing engine is read by a Python child process, so its assets need
+      // to exist as ordinary files rather than archive entries.
+      '**/node_modules/@deepseek-ai/dsh-patent-filing/assets/**',
     ]))
     expect(config).toMatchObject({
       appId: RELEASE_ENVIRONMENT.DSH_DESKTOP_APP_ID,

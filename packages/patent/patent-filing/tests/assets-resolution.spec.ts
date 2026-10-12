@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { interpreterRel, pathNames, resolveAssetRoot } from '@deepseek-ai/dsh-patent-filing'
+import { join, sep } from 'node:path'
+import { interpreterRel, pathNames, resolveAssetRoot, unpackedFsPath } from '@deepseek-ai/dsh-patent-filing'
 import { PatentFilingError } from '@deepseek-ai/dsh-patent-filing'
 
 describe('resolveAssetRoot', () => {
@@ -29,6 +29,26 @@ describe('resolveAssetRoot', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('unpackedFsPath', () => {
+  const resources = join(sep, 'Applications', 'DSH.app', 'Contents', 'Resources')
+  const modulePath = ['dsh', 'node_modules', '@deepseek-ai', 'dsh-patent-filing', 'assets']
+
+  it('rewrites a packaged module path to its unpacked sibling', () => {
+    expect(unpackedFsPath(join(resources, 'app.asar', ...modulePath)))
+      .toBe(join(resources, 'app.asar.unpacked', ...modulePath))
+  })
+
+  it('leaves an already unpacked path unchanged', () => {
+    const unpacked = join(resources, 'app.asar.unpacked', ...modulePath)
+    expect(unpackedFsPath(unpacked)).toBe(unpacked)
+  })
+
+  it('leaves a path outside the archive unchanged', () => {
+    const sourcePath = join(resources, 'packages', 'patent', 'patent-filing', 'assets')
+    expect(unpackedFsPath(sourcePath)).toBe(sourcePath)
   })
 })
 
