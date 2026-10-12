@@ -38,6 +38,7 @@ const EXECUTABLE_SOURCE_ALLOWLIST = new Map<string, string>([
   ['packages/experimental/webworker-packer/bin.js', 'build-only wrapper'],
   ['packages/experimental/webworker-packer/src/bin.ts', 'build-only implementation'],
   ['packages/patent/patent-knowledge/src/bin.ts', 'patent knowledge data bootstrap CLI'],
+  ['packages/patent/patent-rule/tests/fixtures/warn-driver.ts', 'test-only subprocess driver'],
   ['packages/sdk/client/tests/fake-runtime.ts', 'test-only SDK runtime peer'],
   ['packages/self-evolve/self-evolve-benchmark/examples/patent-oas/seed.mjs', 'benchmark example seed script'],
   ['packages/session/session-telemetry-otel/tests/fixtures/driver.ts', 'test-only subprocess driver'],
