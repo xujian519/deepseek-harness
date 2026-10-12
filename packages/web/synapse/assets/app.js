@@ -32,7 +32,9 @@ const CAMERA_INSET_Y = 56
 const state = {
   summaries: [], workspace: null, activeId: null, mode: 'canvas', zoom: 1, currentDsh: null, sidebarCollapsed: false,
   dshWorkspaces: [], selectedDshWorkspaceId: null,
-  historyBySession: new Map(), historyRequests: new Map(), historyHasMore: new Map(), pendingReplies: new Map(), pendingRpc: new Map(), liveReplies: new Map(),
+  historyBySession: new Map(), historyRequests: new Map(), historyHasMore: new Map(), historyRevisions: new Map(),
+  threadCache: new Map(), threadOwners: new Map(), workspaceRevisions: new Map(),
+  pendingReplies: new Map(), pendingRpc: new Map(), liveReplies: new Map(),
   draft: null, error: '', workspaceLoad: 0, branchAnchors: new Map(savedBranchAnchors), cardPositions: new Map(savedCardPositions), collapsedCardIds: new Set(savedCollapsedCards),
   dragging: false, canvasGesture: false, canvasRefreshAfter: 0, canvasViewInitialized: false, canvasCamera: { x: 0, y: 0 },
   expandedMessageIds: new Set(),
@@ -140,6 +142,9 @@ async function loadThreadHistory(thread, renderAfter = true, { beforeSeq, limit 
         const existing = state.historyBySession.get(sessionId) ?? []
         state.historyBySession.set(sessionId, beforeSeq === undefined ? messages : [...messages, ...existing])
         state.historyHasMore.set(sessionId, hasMore)
+        // The newest page tracks the thread's own revision, so a poll reloads
+        // this history only once the thread produced something new.
+        if (beforeSeq === undefined) state.historyRevisions.set(sessionId, thread.updatedAt)
       }
       // The history is the full, denoised record; the projected store copy is
       // only the canvas summary, so a thread that already loaded history
@@ -182,19 +187,51 @@ function workspaceChoices() {
   return state.summaries.map(workspace => ({ id: workspace.id, title: workspace.title, path: workspace.cwd, sessionIds: [], source: 'projection' }))
 }
 
-async function threadsForDshWorkspace(workspace) {
-  if (workspace.sessionIds.length === 0) return []
-  const requested = new Set(workspace.sessionIds)
-  const summaries = state.summaries
-  const projections = []
+// A canvas workspace plan is re-read only when its summary moved. The store
+// keeps every session the map has ever projected, so re-fetching all of them on
+// each poll transfers the whole canvas and allocates it inside the host process.
+function workspaceRevision(summary) {
+  return `${summary.updatedAt}|${summary.threadCount}`
+}
+
+async function refreshThreadCache() {
+  const listed = new Set(state.summaries.map(summary => summary.id))
+  for (const id of [...state.workspaceRevisions.keys()]) {
+    if (listed.has(id)) continue
+    state.workspaceRevisions.delete(id)
+    for (const [sessionId, owner] of [...state.threadOwners]) {
+      if (owner !== id) continue
+      state.threadOwners.delete(sessionId)
+      state.threadCache.delete(sessionId)
+    }
+  }
+  const stale = state.summaries.filter(summary => state.workspaceRevisions.get(summary.id) !== workspaceRevision(summary))
   // Bound concurrent workspace fetches: an unbounded Promise.all over every
   // summary exhausts the renderer request budget as the workspace count grows,
   // surfacing as net::ERR_INSUFFICIENT_RESOURCES.
-  for (let i = 0; i < summaries.length; i += 5) {
-    const batch = summaries.slice(i, i + 5)
-    projections.push(...await Promise.all(batch.map(summary => api(`/synapse/api/workspaces/${summary.id}`))))
+  for (let i = 0; i < stale.length; i += 5) {
+    const batch = stale.slice(i, i + 5)
+    await Promise.all(batch.map(async (summary) => {
+      const projection = await api(`/synapse/api/workspaces/${summary.id}`)
+      state.workspaceRevisions.set(summary.id, workspaceRevision(summary))
+      for (const [sessionId, owner] of [...state.threadOwners]) {
+        if (owner !== summary.id) continue
+        state.threadOwners.delete(sessionId)
+        state.threadCache.delete(sessionId)
+      }
+      for (const thread of projection.workspace.threads) {
+        if (thread.dshSessionId === null) continue
+        state.threadOwners.set(thread.dshSessionId, summary.id)
+        state.threadCache.set(thread.dshSessionId, thread)
+      }
+    }))
   }
-  return projections.flatMap(projection => projection.workspace.threads.filter(thread => requested.has(thread.dshSessionId)))
+}
+
+async function threadsForDshWorkspace(workspace) {
+  if (workspace.sessionIds.length === 0) return []
+  await refreshThreadCache()
+  return workspace.sessionIds.map(sessionId => state.threadCache.get(sessionId)).filter(thread => thread !== undefined)
 }
 
 async function openDshWorkspace(id, { renderAfter = true } = {}) {
@@ -211,11 +248,12 @@ async function openDshWorkspace(id, { renderAfter = true } = {}) {
   state.activeId = currentThread?.id ?? (state.workspace.threads.some(thread => thread.id === state.activeId) ? state.activeId : state.workspace.threads[0]?.id ?? null)
   if (currentThread !== undefined) revealConversationThread(conversationCards(state.workspace.threads), currentThread.id)
   if (renderAfter && canReplaceView()) render()
-  // Bound concurrent history loads: an unbounded Promise.all over every thread
-  // exhausts the renderer request budget as the thread count grows, surfacing as
-  // net::ERR_INSUFFICIENT_RESOURCES.
-  for (let index = 0; index < state.workspace.threads.length; index += 5) {
-    const batch = state.workspace.threads.slice(index, index + 5)
+  // Reload only the histories whose thread moved; the rest already hold the
+  // newest page for their revision. Batched for the renderer request budget.
+  const pending = state.workspace.threads.filter(thread =>
+    thread.dshSessionId !== null && state.historyRevisions.get(thread.dshSessionId) !== thread.updatedAt)
+  for (let index = 0; index < pending.length; index += 5) {
+    const batch = pending.slice(index, index + 5)
     await Promise.all(batch.map(thread => loadThreadHistory(thread, false)))
   }
   if (renderAfter && load === state.workspaceLoad && canReplaceView()) render()
@@ -284,6 +322,7 @@ async function archiveThread(thread) {
   await api(`/synapse/api/threads/${thread.id}`, { method: 'DELETE' })
   state.historyBySession.delete(thread.dshSessionId)
   state.historyHasMore.delete(thread.dshSessionId)
+  state.historyRevisions.delete(thread.dshSessionId)
   if (state.workspace !== null) {
     const removed = new Set([thread.id])
     for (let changed = true; changed;) {

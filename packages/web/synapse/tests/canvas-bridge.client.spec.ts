@@ -15,7 +15,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 interface BridgeState {
-  dshWorkspaces: Array<{ id: string }>
+  dshWorkspaces: Array<{ id: string; title: string; path: string | null; sessionIds: string[] }>
   currentDsh: { id: string } | null
   selectedDshWorkspaceId: string | null
   liveReplies: Map<string, { running: boolean; text: string }>
@@ -31,6 +31,10 @@ interface BridgeState {
   activeId: string | null
   historyBySession: Map<string, Array<{ at: string; id: string; kind: string; sourceSeq: number; text: string }>>
   historyHasMore: Map<string, boolean>
+  historyRevisions: Map<string, string>
+  threadCache: Map<string, unknown>
+  threadOwners: Map<string, string>
+  workspaceRevisions: Map<string, string>
 }
 
 interface BridgeExports {
@@ -38,6 +42,9 @@ interface BridgeExports {
   dshRpc(type: string, payload?: Record<string, unknown>): Promise<unknown>
   settleRpc(requestId: string, value?: unknown, error?: unknown): void
   renderThread(): string
+  refreshThreadCache(): Promise<void>
+  threadsForDshWorkspace(workspace: { sessionIds: string[] }): Promise<Array<{ dshSessionId: string }>>
+  openDshWorkspace(id: string): Promise<boolean>
   // The asset is an untyped static script whose runtime state is foreign, so
   // only the fields this test reads or writes are declared here.
   state: BridgeState
@@ -45,6 +52,8 @@ interface BridgeExports {
 
 let bridge: BridgeExports
 let posted: Array<{ message: Record<string, unknown>; origin: string }> = []
+let fetchHandler: (url: string) => unknown = () => ({ workspaces: [] })
+let fetched: string[] = []
 
 const parentStub = {
   postMessage(message: Record<string, unknown>, origin: string): void {
@@ -52,11 +61,10 @@ const parentStub = {
   },
 }
 
-const fakeFetch = async (): Promise<{ ok: true; status: number; json: () => Promise<{ workspaces: [] }> }> => ({
-  ok: true,
-  status: 200,
-  json: async () => ({ workspaces: [] }),
-})
+const fakeFetch = async (url: string): Promise<{ ok: true; status: number; json: () => Promise<unknown> }> => {
+  fetched.push(url)
+  return { ok: true, status: 200, json: async () => fetchHandler(url) }
+}
 
 function lastPost(): { message: Record<string, unknown>; origin: string } {
   const entry = posted[posted.length - 1]
@@ -66,6 +74,8 @@ function lastPost(): { message: Record<string, unknown>; origin: string } {
 
 function resetBridgeState(): void {
   posted = []
+  fetched = []
+  fetchHandler = () => ({ workspaces: [] })
   bridge.state.dshWorkspaces = []
   bridge.state.currentDsh = null
   bridge.state.selectedDshWorkspaceId = null
@@ -78,6 +88,11 @@ function resetBridgeState(): void {
   bridge.state.canvasRefreshAfter = 0
   bridge.state.error = ''
   bridge.state.summaries = []
+  bridge.state.threadCache = new Map()
+  bridge.state.threadOwners = new Map()
+  bridge.state.workspaceRevisions = new Map()
+  bridge.state.historyBySession = new Map()
+  bridge.state.historyRevisions = new Map()
 }
 
 function dispatch(type: string, payload: Record<string, unknown>): void {
@@ -100,6 +115,9 @@ beforeAll(async () => {
   Object.defineProperty(window, 'requestAnimationFrame', { configurable: true, value: () => 0 })
   Object.defineProperty(window, 'setInterval', { configurable: true, value: () => 0 })
   Object.defineProperty(window, 'clearInterval', { configurable: true, value: () => {} })
+  // jsdom has no CSS.escape, which the canvas card selectors and the CSS.escape
+  // calls in the render path need.
+  Object.defineProperty(window, 'CSS', { configurable: true, value: { escape: (value: string) => value } })
   globalThis.fetch = fakeFetch as unknown as typeof fetch
   if (typeof globalThis.crypto?.randomUUID !== 'function') {
     Object.defineProperty(globalThis.crypto, 'randomUUID', {
@@ -112,7 +130,7 @@ beforeAll(async () => {
   app.id = 'app'
   document.body.appendChild(app)
 
-  window.eval(`${source}\n;globalThis.__synapse = { post, dshRpc, settleRpc, state, renderThread }`)
+  window.eval(`${source}\n;globalThis.__synapse = { post, dshRpc, settleRpc, state, renderThread, refreshThreadCache, threadsForDshWorkspace, openDshWorkspace }`)
   bridge = (globalThis as unknown as { __synapse: BridgeExports }).__synapse
 })
 
@@ -194,5 +212,64 @@ describe('assets/app.js canvas bridge', () => {
     expect(bridge.renderThread()).toContain('load-earlier')
     bridge.state.historyHasMore.set('s-1', false)
     expect(bridge.renderThread()).not.toContain('load-earlier')
+  })
+
+  it('fetches a workspace projection once per summary revision', async () => {
+    resetBridgeState()
+    fetchHandler = (url) => {
+      if (url.endsWith('/w1')) return { workspace: { id: 'w1', threads: [{ id: 't1', dshSessionId: 's-1', updatedAt: 't1', messages: [] }] } }
+      if (url.endsWith('/w2')) return { workspace: { id: 'w2', threads: [{ id: 't2', dshSessionId: 's-2', updatedAt: 't2', messages: [] }] } }
+      return {}
+    }
+    bridge.state.summaries = [
+      { id: 'w1', updatedAt: 'a', threadCount: 1 },
+      { id: 'w2', updatedAt: 'b', threadCount: 1 },
+    ]
+    const threads = await bridge.threadsForDshWorkspace({ sessionIds: ['s-1'] })
+    expect(fetched).toEqual(['/synapse/api/workspaces/w1', '/synapse/api/workspaces/w2'])
+    expect(threads.map(thread => thread.dshSessionId)).toEqual(['s-1'])
+    // Unchanged summaries: the cache answers without another request, which is
+    // what keeps the one-second poll off the whole canvas.
+    await bridge.threadsForDshWorkspace({ sessionIds: ['s-1', 's-2'] })
+    expect(fetched).toHaveLength(2)
+    // One summary moves: only that workspace is re-read.
+    bridge.state.summaries = [
+      { id: 'w1', updatedAt: 'a2', threadCount: 1 },
+      { id: 'w2', updatedAt: 'b', threadCount: 1 },
+    ]
+    await bridge.threadsForDshWorkspace({ sessionIds: ['s-1'] })
+    expect(fetched).toHaveLength(3)
+    expect(fetched[2]).toBe('/synapse/api/workspaces/w1')
+    // A structure change (thread removed) also moves the revision.
+    bridge.state.summaries = [{ id: 'w1', updatedAt: 'a2', threadCount: 0 }, { id: 'w2', updatedAt: 'b', threadCount: 1 }]
+    fetchHandler = url => (url.endsWith('/w1') ? { workspace: { id: 'w1', threads: [] } } : {})
+    expect(await bridge.threadsForDshWorkspace({ sessionIds: ['s-1'] })).toEqual([])
+    expect(bridge.state.threadCache.has('s-1')).toBe(false)
+    // A workspace the store no longer lists drops its cached threads too.
+    bridge.state.summaries = []
+    await bridge.refreshThreadCache()
+    expect(bridge.state.threadCache.has('s-2')).toBe(false)
+  })
+
+  it('reloads a thread history only when its revision changed', async () => {
+    resetBridgeState()
+    const thread = { id: 't9', dshSessionId: 's-9', title: '会话', updatedAt: 'r1', messages: [] }
+    fetchHandler = url => (url.includes('/sessions/')
+      ? { messages: [{ kind: 'user', text: '问', sourceSeq: 1, at: new Date().toISOString(), id: 'h1' }], hasMore: false }
+      : { workspace: { id: 'w1', threads: [thread] } })
+    bridge.state.dshWorkspaces = [{ id: 'w1', title: '工作区一', path: '/w1', sessionIds: ['s-9'] }]
+    bridge.state.summaries = [{ id: 'w1', updatedAt: 'a', threadCount: 1 }]
+    await bridge.openDshWorkspace('w1')
+    expect(fetched.filter(url => url.includes('/history'))).toHaveLength(1)
+    // Nothing moved: the poll re-opens the workspace without another history request.
+    await bridge.openDshWorkspace('w1')
+    expect(fetched.filter(url => url.includes('/history'))).toHaveLength(1)
+    expect(fetched.filter(url => url.includes('/workspaces/'))).toHaveLength(1)
+    // The thread produced something: its history reloads, and the newest page
+    // re-anchors to the new revision.
+    thread.updatedAt = 'r2'
+    bridge.state.summaries = [{ id: 'w1', updatedAt: 'a2', threadCount: 1 }]
+    await bridge.openDshWorkspace('w1')
+    expect(fetched.filter(url => url.includes('/history'))).toHaveLength(2)
   })
 })

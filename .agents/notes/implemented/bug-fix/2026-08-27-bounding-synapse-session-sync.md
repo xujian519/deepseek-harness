@@ -50,10 +50,12 @@ The timer is cleared on dispose. `removedSessionIds` is computed from the final 
 
 **Keep microtask coalescing; add no debounce.** Rejected because the burst spans macro tasks, not a single microtask batch: several list changes in one tick are merged, but changes across ticks each POST separately, which is exactly the team-task pattern.
 
-**Backend batch or rate-limit.** Rejected because the burst is a front-end scheduling problem; the backend `store.syncSessions` replay is already revision-keyed and cheap.
+**Backend batch or rate-limit.** Rejected because the burst is a front-end scheduling problem; the backend `store.syncSessions` replay is already revision-keyed and cheap. The persisted-session baseline the sync endpoint also triggers is the expensive half, and it is bounded on its own terms in the [retention-window note](2026-10-10-synapse-canvas-retention-window.md): overlapping scans coalesce into one, and a session the live store still holds is never re-read from its log.
 
 **Raise the renderer request budget / tune Chromium.** Rejected as neither a tunable in this repo nor a fix for the closed sync→workspaces→sync feedback.
 
 ## Consequences
 
 Sync POSTs are now bounded to roughly one per 300 ms of session/workspace churn instead of one per subscription fire, so the renderer no longer trips `net::ERR_INSUFFICIENT_RESOURCES`. The total sync payload is unchanged — the debounce still sends the final full session set. This complements, and does not replace, the earlier fetch-side batching of workspace-detail and thread-history loads: that change bounded how many detail requests were in flight, this one bounds how often the session sync is pushed.
+
+A POST no longer re-reads the log of the session it is syncing: the baseline leaves attached sessions to the live event stream, so a sync during a long running turn costs one directory listing plus the summaries, not a re-parse and re-projection of the growing log.

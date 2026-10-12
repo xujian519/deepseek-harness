@@ -8,6 +8,11 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Session } from '@deepseek-ai/dsh-session'
+import {
+  MAX_PROCESS_FIELD_LENGTH,
+  MAX_THREAD_MESSAGES,
+  PROJECTION_TRUNCATED_SUFFIX,
+} from '../src/projection.ts'
 import { WorkspaceStore, type SessionRow } from '../src/store.ts'
 
 function tempFile(prefix: string): string {
@@ -39,6 +44,9 @@ describe('WorkspaceStore', () => {
     expect(saved.threads[0]?.dshSessionId).toBe('session-1')
     expect(saved.threads[0]?.messages[0]?.text).toBe('确定使用已有 Web Server')
     expect(await readFile(dataFile, 'utf8')).toMatch(/"version": ?4/)
+    // The chunked writer emits the same bytes one stringify would.
+    const raw = await readFile(dataFile, 'utf8')
+    expect(raw).toBe(`${JSON.stringify(JSON.parse(raw))}\n`)
   })
 
   it('projects committed events once, folds tool process, and keeps fork lineage', async () => {
@@ -184,5 +192,96 @@ describe('WorkspaceStore', () => {
     warn.mockRestore()
     const summaries = await new WorkspaceStore(dataFile).list()
     expect(summaries.map(w => w.title)).toEqual(['外部板'])
+  })
+
+  it('caps the folded tool payload of a projected card', async () => {
+    const store = new WorkspaceStore(tempFile('dsh-synapse-process-cap'))
+    const long = 'x'.repeat(MAX_PROCESS_FIELD_LENGTH + 50)
+    await store.projectSession(session('session-cap', [
+      { type: 'assistant/message', seq: 0, time: 1, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '开始' }] } } },
+      { type: 'tool/call', seq: 1, time: 2, data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: long } },
+      { type: 'tool/result', seq: 2, time: 3, data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: long }] } } },
+    ]))
+    const [workspace] = await store.list()
+    const graph = await store.get(workspace!.id)
+    const entry = graph.threads[0]?.messages[0]?.process?.[0]
+    expect(entry?.arguments).toHaveLength(MAX_PROCESS_FIELD_LENGTH + PROJECTION_TRUNCATED_SUFFIX.length)
+    expect(entry?.result).toContain(PROJECTION_TRUNCATED_SUFFIX)
+  })
+
+  it('windows a long projected session and never resurrects dropped cards on replay', async () => {
+    const store = new WorkspaceStore(tempFile('dsh-synapse-window'))
+    const crowded = session('session-long', Array.from({ length: MAX_THREAD_MESSAGES + 5 }, (_, index) => ({
+      type: 'user/message', seq: index, time: index + 1, data: { content: [{ type: 'text', text: `问 ${String(index)}` }] },
+    })))
+    await store.projectSession(crowded)
+    const [workspace] = await store.list()
+    const first = await store.get(workspace!.id)
+    const messages = first.threads[0]?.messages ?? []
+    expect(messages).toHaveLength(MAX_THREAD_MESSAGES)
+    expect(messages[0]?.sourceSeq).toBe(5)
+    // Replaying the whole log again projects into the same window.
+    await store.projectSession(crowded)
+    const replayed = await store.get(workspace!.id)
+    expect(replayed.threads[0]?.messages).toHaveLength(MAX_THREAD_MESSAGES)
+    expect(replayed.threads[0]?.messages[0]?.sourceSeq).toBe(5)
+  })
+
+  it('trims an oversized stored canvas once on load and leaves manual notes alone', async () => {
+    const dataFile = tempFile('dsh-synapse-compact')
+    const oversized = (prefix: string, count: number) => ({
+      id: `w-${prefix}`,
+      kind: prefix === 'dsh' ? 'dsh' : 'manual',
+      cwd: prefix === 'dsh' ? '/work/legacy' : null,
+      title: '遗留画布',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      threads: [{
+        id: `t-${prefix}`,
+        title: '会话',
+        parentId: null,
+        sourceParentSessionId: null,
+        sourceSeedLength: null,
+        dshSessionId: `session-${prefix}`,
+        dshSessionTitle: null,
+        color: '#0f766e',
+        position: { x: 0, y: 0 },
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        messages: Array.from({ length: count }, (_, index) => ({
+          id: `${prefix}-${String(index)}`,
+          kind: 'assistant',
+          text: '答',
+          at: '2026-01-01T00:00:00.000Z',
+          sourceSeq: index,
+          process: [{ callId: `c${String(index)}`, name: 'bash', arguments: 'y'.repeat(3_000), result: null, error: null }],
+        })),
+      }],
+    })
+    const over = MAX_THREAD_MESSAGES + 7
+    await writeFile(dataFile, JSON.stringify({
+      version: 4,
+      hiddenSessionIds: [],
+      workspaces: [oversized('dsh', over), oversized('manual', over)],
+    }), 'utf8')
+
+    const store = new WorkspaceStore(dataFile)
+    await store.ready
+    const summaries = await store.list()
+    const dsh = await store.get(summaries.find(item => item.kind === 'dsh')!.id)
+    const manual = await store.get(summaries.find(item => item.kind === 'manual')!.id)
+    expect(dsh.threads[0]?.messages).toHaveLength(MAX_THREAD_MESSAGES)
+    // Only the newest cards keep their folded process; both fields are capped.
+    const clamped = dsh.threads[0]?.messages.at(-1)?.process?.[0]?.arguments
+    expect(clamped).toHaveLength(MAX_PROCESS_FIELD_LENGTH + PROJECTION_TRUNCATED_SUFFIX.length)
+    expect(dsh.threads[0]?.messages[0]?.process).toBeUndefined()
+    expect(manual.threads[0]?.messages).toHaveLength(over)
+    // The trimmed state is what the next start reads back.
+    const compacted = await readFile(dataFile, 'utf8')
+    expect(JSON.parse(compacted)).toMatchObject({ version: 4 })
+    const reloaded = new WorkspaceStore(dataFile)
+    await reloaded.ready
+    const reread = await reloaded.get(dsh.id)
+    expect(reread.threads[0]?.messages).toHaveLength(MAX_THREAD_MESSAGES)
   })
 })

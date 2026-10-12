@@ -285,4 +285,63 @@ describe('host apply', () => {
     await api.handler(makeRequest('GET', '/synapse/api/sessions/s-page/history?beforeSeq=0'), badSeq.res)
     expect(badSeq.status()).toBe(400)
   })
+
+  it('leaves an attached session to the live stream and replays only the cold ones', async () => {
+    const events = [
+      { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '冷会话的问题' }], source: { kind: 'user' } } },
+    ]
+    const opened: string[] = []
+    const persistence = {
+      list: async () => [
+        { header: { id: 's-attached', cwd: '/tmp/attached' }, revision: 'r1' },
+        { header: { id: 's-cold', cwd: '/tmp/cold' }, revision: 'r1' },
+      ],
+      open: async (id: string) => {
+        opened.push(id)
+        return { read: async () => ({ eventState: 'detached', events }), close: async () => {} }
+      },
+    }
+    const attached = sessionStub('s-attached', [
+      { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '活会话的问题' }], source: { kind: 'user' } } },
+    ])
+    const { routes } = boot({}, [attached], persistence)
+    const api = route(routes, 'prefix', '/synapse/api')
+    // The cold session's persisted log is the only one the baseline may read:
+    // the attached session's turn belongs to the live session/event stream.
+    await vi.waitFor(async () => {
+      const list = makeResponse()
+      await api.handler(makeRequest('GET', '/synapse/api/workspaces'), list.res)
+      const workspaces = (list.json() as { workspaces: { kind: string }[] }).workspaces
+      expect(workspaces.filter(item => item.kind === 'dsh')).toHaveLength(2)
+    }, { timeout: 5_000, interval: 20 })
+    expect(opened).toEqual(['s-cold'])
+  })
+
+  it('coalesces overlapping baseline replays triggered by the sync endpoint', async () => {
+    let scans = 0
+    const releases: (() => void)[] = []
+    const persistence = {
+      list: async () => {
+        scans += 1
+        if (scans > 1) await new Promise<void>((resolve) => { releases.push(resolve) })
+        return []
+      },
+      open: async () => ({ read: async () => ({ eventState: 'detached', events: [] }), close: async () => {} }),
+    }
+    const { routes } = boot({}, [], persistence)
+    const api = route(routes, 'prefix', '/synapse/api')
+    await vi.waitFor(() => { expect(scans).toBe(1) }, { timeout: 5_000, interval: 10 })
+    const sync = async (): Promise<void> => {
+      const out = makeResponse()
+      await api.handler(makeRequest('POST', '/synapse/api/sessions/sync', { sessions: [], removedSessionIds: [] }), out.res)
+      expect(out.status()).toBe(200)
+    }
+    await sync()
+    expect(scans).toBe(2)
+    // The second sync arrives while the first scan is still running: it joins
+    // that run instead of starting a parallel full-log read.
+    await sync()
+    expect(scans).toBe(2)
+    for (const release of releases) release()
+  })
 })

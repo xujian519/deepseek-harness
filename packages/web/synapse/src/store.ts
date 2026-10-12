@@ -6,15 +6,18 @@
  * @module @deepseek-ai/dsh-host-synapse
  */
 
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Position, ProjectedMessage, Thread, Workspace, WorkspaceState, WorkspaceSummary } from './types.ts'
 import {
   TOPIC_COLORS,
+  canvasFloorSeq,
   foldToolProcessInto,
   projectableEvent,
+  retainCanvasCards,
+  retainCanvasState,
   sessionCwd,
   sessionTitle,
   sessionTitleOf,
@@ -26,6 +29,31 @@ import { normalizeState, type LegacyWorkspaceRecord } from './migration.ts'
 /** Pick the next palette color; the fallback covers an empty table. */
 function topicColor(index: number): string {
   return TOPIC_COLORS[index % TOPIC_COLORS.length] ?? '#3478f6'
+}
+
+/**
+ * Write the canvas state as JSON, one workspace at a time.
+ *
+ * The document is the whole canvas, and a heavy one is hundreds of megabytes:
+ * serializing it in a single `JSON.stringify` holds the state, its complete
+ * JSON text, and that text's UTF-8 buffer in the Host heap at once, which is
+ * what a long-lived desktop session runs out of. Chunking keeps the largest
+ * transient at one workspace, and the bytes written stay identical to
+ * `JSON.stringify(state)`.
+ * @param path Destination file.
+ * @param state The canvas state to write.
+ */
+async function writeState(path: string, state: WorkspaceState): Promise<void> {
+  const handle = await open(path, 'w')
+  try {
+    await handle.write(`{"version":${String(state.version)},"hiddenSessionIds":${JSON.stringify(state.hiddenSessionIds)},"workspaces":[`)
+    for (const [index, workspace] of state.workspaces.entries()) {
+      await handle.write(`${index === 0 ? '' : ','}${JSON.stringify(workspace)}`)
+    }
+    await handle.write(']}\n')
+  } finally {
+    await handle.close()
+  }
 }
 
 /** Longest allowed canvas title (session, thread, or workspace). */
@@ -362,6 +390,7 @@ export class WorkspaceStore {
       for (const event of events) {
         if (event.seq >= replayFrom) this.projectEventInto(workspace, thread, event)
       }
+      retainCanvasCards(thread)
       return structuredClone(thread)
     }, { deferred: true })
   }
@@ -377,6 +406,7 @@ export class WorkspaceStore {
       const workspace = this.dshWorkspace(sessionCwd(session), workspaceTitleFallback)
       const thread = this.dshThread(workspace, threadSource(session))
       this.projectEventInto(workspace, thread, event)
+      retainCanvasCards(thread)
       return structuredClone(thread)
     }, { deferred: true })
   }
@@ -393,11 +423,14 @@ export class WorkspaceStore {
       const workspace = this.dshWorkspace(sessionCwd(session), workspaceTitleFallback)
       const thread = this.dshThread(workspace, threadSource(session))
       for (const event of events) this.projectEventInto(workspace, thread, event)
+      retainCanvasCards(thread)
       return structuredClone(thread)
     }, { deferred: true })
   }
 
   /** Load the canvas graph from disk, creating an empty state on first run.
+   * A file written before the retention window existed is trimmed once here,
+   * so an already-oversized canvas comes back inside the window.
    * @returns The loaded (or freshly created) state promise. */
   async load(): Promise<void> {
     await mkdir(dirname(this.dataFile), { recursive: true })
@@ -405,8 +438,9 @@ export class WorkspaceStore {
       const parsed = JSON.parse(await readFile(this.dataFile, 'utf8')) as LegacyWorkspaceRecord
       const { state, migrated } = normalizeState(parsed)
       this.state = state
+      const retained = retainCanvasState(state)
       this.lastKnownMtime = await this.fileMtime()
-      if (migrated) await this.save()
+      if (migrated || retained) await this.save()
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw new Error(`synapse: cannot read ${this.dataFile}: ${(error as Error).message}`)
@@ -483,7 +517,7 @@ export class WorkspaceStore {
     await this.acquireLock()
     try {
       const temporaryFile = `${this.dataFile}.${process.pid}.tmp`
-      await writeFile(temporaryFile, `${JSON.stringify(this.state)}\n`, 'utf8')
+      await writeState(temporaryFile, this.state)
       await rename(temporaryFile, this.dataFile)
       this.lastKnownMtime = (await stat(this.dataFile)).mtimeMs
     } finally {
@@ -633,6 +667,10 @@ export class WorkspaceStore {
   }
 
   private projectEventInto(workspace: Workspace, thread: Thread, event: SessionEvent): void {
+    // A replay that starts below the retained window would re-add the cards the
+    // window dropped and push the window forward on every pass.
+    const floor = canvasFloorSeq(thread)
+    if (floor !== undefined && event.seq < floor) return
     const title = sessionTitleOf(event)
     if (title !== null) {
       thread.title = title.slice(0, MAX_TITLE_LENGTH)
@@ -670,11 +708,9 @@ export class WorkspaceStore {
     }
   }
 
-  /**
-   * Fold one tool call or result into the assistant message of its own
+  /** Fold one tool call or result into the assistant message of its own
    * turn/step, keyed by `callId`, so a tool invocation never becomes a
-   * separate canvas card, then stamp the thread as touched.
-   */
+   * separate canvas card, then stamp the thread as touched. */
   private foldToolProcess(thread: Thread, event: SessionEvent): void {
     if (event.type !== 'tool/call' && event.type !== 'tool/result') return
     foldToolProcessInto(thread.messages, event)
