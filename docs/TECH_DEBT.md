@@ -369,6 +369,19 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **未证实项(关闭前须重跑)**:`lint`/`typecheck` 在 `build:lib:host` 的失败归属;门禁红绿基线本轮全未跑;上表四个计数;`law_search` 的实际调用面;受控草稿与 `patent-document`/`patent-filing` 之间的契约细节(**本轮专利域包面深潜未完成,是下一轮第一优先**);`verify-patent-*` 三份门禁的断言面;`agent-team` 包在装配路径上的启用状态;`docs/subsystems/patent.md` 是否同缺 `patent-filing`;自媒体所需的广告法/专利标识资料是否存在于仓外。
 - **归档**:已由 2026-10-10 的后续会话执行 `bash .agents/audits/2026-10-10-file-issues.sh`(幂等,按标题去重),16 条全部创建为 **#383–#398**,编号已回填分诊表。
 
+## 2026-10-13 更新(专利/文档模式调整取向:#420 全六段落地)
+
+- **范围与基线**:本批次相对 `master` 为 8 个提交(含本节,按 GitHub 原生 stack 拆成逐段 PR),工作树干净。承载 issue **#420** 的五条待办。补篇报告:`.agents/audits/2026-10-13-document-gate-ruling-and-benchmark-triage.md`;上游评审:`.agents/audits/2026-10-12-patent-document-mode-review.md`。
+- **已收口**:
+  - **交付型模式基线(待办 1)**:新增声明式 `scripts/preset-mode-baseline.json` 与 `verify-preset-mode-baseline` 门禁(挂 `docSyncLeafGates`,故 `test:docs` / `doc-sync` / `check:ci:static` / `check:all` 都覆盖)。`patent` 与 `document` 各补 `time-context` / `command-goal` / `tool-schedule` 三行(顶层 27→30、19→22),`tool-plugin-market` / `present` / `tool-plugin-manager`(专利侧)与再加 `openviking`(文档侧)判为有意缺失并逐条写明理由;`personaMaxChars` 与逐文件 `class` 声明同落一份文件(preset 集合闭合:新增 preset 未登记即失败)。这是本节之上两条记录——「6 个缺失整行」与「`verify-preset-divergence` 看不到整行缺失」——的收口面。`verify-preset-tool-refs` 同期扩到解析 preset 自己的 `deliveryGate` / `structuralGate` 声明里的工具名。
+  - **专利 persona 减重(待办 2)**:正文 16,588 → **9,177** 字符(门禁上限 12,000),作业手册段迁入拥有它的技能或工具描述,部署可变字面量退出正文。见 `.agents/notes/implemented/architecture/2026-10-12-persona-carries-identity-not-mechanics.md`。
+  - **09-30 的 P0-1 与 P0-2(待办 3)**:交付物的取代链与「每轮留档」成为可拒绝条件(`matter_log_append` 单一写者 + 两个交付工具的 `deliveryGate` 前置);案卷问题条目字段化(六类 `kind` → 处置映射、三档 `blocking`)与 `maxRounds` 进 `Config`(默认 3,耗尽写进 run 结果)。见 `.agents/notes/implemented/architecture/2026-10-12-matter-log-supersede-chain-gate.md` 与 `...-case-docket-issue-grades-and-round-cap.md`。
+  - **检索质量度量门(待办 4)**:`patent-tools/src/eval/ir-metrics.ts`(rank-of-first-relevant / MRR / nDCG)+ 仓库自撰 12 篇语料与 10 条查询集 + **实测**的 FTS5 bm25 基线 + 判别力测试(退化排序必须显著更差);`patent_eval` 的 `retrieval` 维度改名为「检索式形态」并写明它不度量检索结果质量(判分行为未动)。见 `.agents/notes/implemented/architecture/2026-10-13-retrieval-quality-metric-gate.md`。
+  - **文档模式的交付门强度(待办 5 的前半)**:**裁决为有意弱于专利模式**——门禁绑定的只有「前置调用早于被门禁调用」,专利模式两半都齐(前置是留档这一中间动作,被门禁的调用是该域唯一被认可的产出路径),而 `document_deliver` 是终结性声明(字节先写好、其后无工具被调用),没有后置调用可供绑定。裁决正文与两条被否决的更强路线(把落盘收进工具、在轮次边界做回复级检查)写入 `packages/document/document-deliver/README.md` 已知限制第 2 条(双语,配对记录已重录),`packages/bundle/web-app/presets/document.md` 放一行指针。**代码零改动**。
+- **明确不做(逐条理由见补篇 §2)**:09-30 的 P0-3(跨调用引证一致性与分值重算,阈值须先重新标定)、P1-4 的分段计划一等产物(只借产物形态,论文代码与数据均未发布)、P1-5(两套公开标注是英文 USPTO/EPO,须换 CNIPA 口径;Patent-CE 为非商用)、P1-7(须先裁决与 `dsh-ip-wiki` 决策 D13 的冲突;评测门只满足其半个前置)、P2-8(EPO 阈值两处来源矛盾、OPS 条款禁再分发、PatZilla 为 AGPL)、P2-9(其数字基线来自英文 USPTO)、P3-10(分支/恢复当前无消费方)、P3-11(落点在仓外 `dsh-ip-wiki`);P1-4 的「审查循环无上界」已由本轮的 `maxRounds` 覆盖,P3-12 的检索式语义契约**已具备**(`patent_search` 的 `query` 描述已写明接受 Google Patents 语法,第二通道关键词-only 由随包 usage note 说明),P3-12 余两条留后。
+- **文档模式的观测面本轮不新增**:跨会话历史、搜索与批量导出仍归延期的 document-workbench v2;专利侧 `.dsh/reports/patent-optimization/` 本就是仓外产物,仓内不新增聚合面。
+- **未证实项**:文档侧「交付物未登记」的发生率未测(只证明没有任何东西拒绝它);`agent/turn-stopping` 路线只在机制层被否决,未实机验证;09-30 的英文语料未取回复核分布。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:
