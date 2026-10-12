@@ -47,7 +47,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `matter_log_append`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`, `verify_deliverable` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
 | `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`, `verify_patent_filing` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, rewriting source paragraph numbers in order; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, claim count, continuous numbering, and surviving internal marks. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
@@ -5079,6 +5079,76 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
   },
   "required": [
     "query"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `matter_log_append`
+
+把本轮作业写进案卷的只追加事件日志 _matter-log.md（案件的唯一事实源），并登记本轮的取代关系。
+- 每次撰写、修订、交付、门禁都在这里留档：写清改了什么、为什么、是否影响保护点（changes 字段），并列出本轮产物（artifacts，须已存在）
+- 取代关系显式登记：supersedes 列出本轮产物取代的既有文件。交付物一律另存新文件，禁止覆盖上一轮
+- 确定性判定，拒绝：产物不存在、产物路径与取代路径相同（原地覆盖）、supersedes 指向日志中没有的路径（凭空的取代链）、同一旧版被取代两次（取代链分叉）、撰写/修订轮复用已有产物路径
+- 条目只追加，既有行不改写；每条同时记本地时间与 UTC
+
+用法：出件前调用 matter_log_append({case_dir, action, artifacts, changes, supersedes?, approver?})。交付前置门禁要求本会话成功留档过，才允许 render_patent_document / build_patent_filing。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "case_dir": {
+      "type": "string",
+      "description": "案件目录（内含 _matter-log.md；相对当前工作目录或绝对路径）"
+    },
+    "action": {
+      "type": "string",
+      "description": "本轮动作",
+      "enum": [
+        "建案",
+        "检索",
+        "分析",
+        "撰写",
+        "门禁",
+        "修订",
+        "交付",
+        "归档"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "description": "本轮产物文件路径（须已存在）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "changes": {
+      "type": "string",
+      "description": "本轮改了什么、为什么、是否影响保护点（留档段正文）"
+    },
+    "supersedes": {
+      "type": "array",
+      "description": "被本轮产物取代的既有产物路径（可选）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "approver": {
+      "type": "string",
+      "description": "审批人（ask_user_question 确认者，可选）"
+    },
+    "note": {
+      "type": "string",
+      "description": "附加备注（可选）"
+    }
+  },
+  "required": [
+    "case_dir",
+    "action",
+    "artifacts",
+    "changes"
   ]
 }
 ```

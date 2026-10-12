@@ -309,7 +309,7 @@ describe('patent preset composition', () => {
     expect(row?.disabled).toBeUndefined()
   })
 
-  it('gates a delivery render on the gate runs the persona requires', async () => {
+  it('gates a delivery render on the gate runs and the round archival the persona requires', async () => {
     // The delivery discipline also lives in the persona prefix; this declaration is
     // what makes it an execution point. A required tool whose package the preset does
     // not mount, or a template id the renderer does not ship, leaves a gate that looks
@@ -321,18 +321,22 @@ describe('patent preset composition', () => {
 
     const [compliance, filing, closure] = gate ?? []
     expect(compliance?.tool).toBe('render_patent_document')
-    expect(compliance?.requires).toEqual(['rule_check', 'law_verify'])
+    expect(compliance?.requires).toEqual(['rule_check', 'law_verify', 'matter_log_append'])
     // The DOCX that goes to the office is a deliverable too, and it carries no argument
     // to narrow a gate on, so its entry applies to the tool unconditionally.
     expect(filing?.tool).toBe('build_patent_filing')
-    expect(filing?.requires).toEqual(['rule_check', 'law_verify'])
+    expect(filing?.requires).toEqual(['rule_check', 'law_verify', 'matter_log_append'])
     expect(filing?.whenArgs).toBeUndefined()
     expect(closure?.tool).toBe('render_patent_document')
     expect(closure?.requires).toEqual(['patent_workflow_run'])
 
     // Every gated tool, and every tool a gate requires, comes from a build package this
-    // preset enables: rule_check and patent_workflow_run from patent-tools, law_verify
-    // from patent-law, and the two gated tools from patent-document and patent-filing.
+    // preset enables: rule_check, patent_workflow_run and matter_log_append from
+    // patent-tools, law_verify from patent-law, and the two gated tools from
+    // patent-document and patent-filing. A prerequisite no mounted package registers is
+    // the worst shape a gate can take: it denies every delivery forever while every
+    // other check stays green, which is why scripts/verify-preset-tool-refs also
+    // resolves these names against the mounted tool set.
     for (const id of ['patent-tools', 'patent-law', 'patent-document', 'patent-filing']) {
       const mounted = rows.find(entry => entry.id === id)
       expect(mounted?.name).toBe(`@deepseek-ai/dsh-${id}`)

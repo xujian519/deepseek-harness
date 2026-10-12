@@ -367,10 +367,13 @@
                     # 所有交付渲染与提交格式成文：合规规则库逐条 + 法条引用形式与索引收录，各一次。
                     # build_patent_filing 写出的正是交给 CNIPA 的申请文件 docx，与渲染件同属交付物；
                     # 它没有可据以收窄的入参（无 template），因此这一条按工具无条件生效。
+                    # matter_log_append 让「每轮必须留档」成为可拒绝条件：本轮改了什么、为什么、
+                    # 是否影响保护点，以及本轮产物取代了哪个旧版，都要先以只追加条目落进
+                    # _matter-log.md（案件唯一事实源），交付件才允许落盘。
                     - tool: render_patent_document
-                      requires: [rule_check, law_verify]
+                      requires: [rule_check, law_verify, matter_log_append]
                     - tool: build_patent_filing
-                      requires: [rule_check, law_verify]
+                      requires: [rule_check, law_verify, matter_log_append]
                     # 分析类与撰写类产物另须收口；补正（rectification-response）
                     # 无 manifest 入口，以替换页逐项核验记录替代，故按模板收窄。
                     # right-evaluation-report 是行政机关文书：转制件只把既有报告排成模板版式，
