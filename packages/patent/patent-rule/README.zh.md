@@ -26,7 +26,7 @@ kind: "package-reference"
 <a id="output-gate"></a>
 ## 输出门禁
 
-对 `gateToolNames` 中每个交付物工具（默认 `render_patent_document`、`draft_claims`、`draft_specification`、`validate_specification`）的结果，插件将 `gateCheckTypes` 选定的规则子集（`selectGateRules`；默认 `keyword_blocklist`，含 compliance 的 PAT-RISK-001 / PAT-APPROVAL-001 / PAT-ABS-001）经 `RuleOutputGate` 评估。block 级违规返回 block 决策。review 级违规发起 `ctx.get('approval')` 请求，仅在 `allowed-once` 时放行；无答案者、无 agent 或 `approvalDisabled` 开启时 fail-closed。warn/log 违规原样放行。非匹配工具经 `next()` 委托。
+对 `gateToolNames` 中每个交付物工具（默认 `render_patent_document`、`draft_claims`、`draft_specification`、`validate_specification`）的结果，插件将 `gateCheckTypes` 选定的规则子集（`selectGateRules`；默认 `keyword_blocklist`，含 compliance 的 PAT-RISK-001 / PAT-APPROVAL-001 / PAT-ABS-001）经 `RuleOutputGate` 评估。block 级违规返回 block 决策。review 级违规发起 `ctx.get('approval')` 请求，仅在 `allowed-once` 时放行；无答案者、无 agent 或 `approvalDisabled` 开启时 fail-closed。warn 级命中不改写结果文本（模型已收到该结果），而是随决策以 `additionalContexts` 附到下一步，使命中既到达模型又进入会话日志，同时也写 `ctx.logger.warn`；`log` 级只留日志。非匹配工具经 `next()` 委托。
 
 检查族按语义分两类。`keyword_blocklist`、`pattern_analysis`、`citation_analysis`、`quote_repetition` 是命中即违规族——命中一处即一条违规，对任意文本成立，部署可把 `gateCheckTypes` 扩到全部四族。`structural_analysis` 与 `synonym_match` 是缺失即违规族——缺失一个要素即一条违规，而工具结果的散文天然缺失大量期望要素，故它们不进结果门禁；在 `gateCheckTypes` 里点名该族会在加载期告警并拒绝，而不是装上一道海量误报的门禁。其执行点是下面的制品结构门禁。
 
