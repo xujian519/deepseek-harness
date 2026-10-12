@@ -454,3 +454,39 @@ describe('patent preset composition', () => {
     expect(cnlawEndpointLiterals('cnlaw 服务（:8001 图谱 + Neo4j 7687）')).toEqual([':8001', '7687'])
   })
 })
+
+/**
+ * A patent case is date-bound: the deadlines, the annual-fee year, and the
+ * renewal dates in a search report all follow from the filing and notice dates,
+ * so the mode needs the clock row, and the reminders that follow those dates
+ * need the schedule tools. `command-goal` pairs with `tool-goal` on the preset
+ * plane — the web patch ships that row disabled and leaves the human command to
+ * the preset — so mounting the tool without the command ships half the pair.
+ * `scripts/preset-mode-baseline.json` holds every delivery mode to the shared
+ * row set; this spec keeps the three rows named here from disappearing behind a
+ * policy edit.
+ */
+describe('patent preset delivery rows', () => {
+  const SCHEDULE_TOOLS = ['schedule_create', 'schedule_delete', 'schedule_list', 'schedule_update']
+
+  it('mounts the clock, the reminder tools, and the goal command beside the goal tool', async () => {
+    const rows = new Map((await patentRows()).flatMap(row => (typeof row.id === 'string' ? [[row.id, row] as const] : [])))
+    for (const [id, name] of [
+      ['time-context', '@deepseek-ai/dsh-time-context'],
+      ['tool-schedule', '@deepseek-ai/dsh-tool-schedule'],
+      ['command-goal', '@deepseek-ai/dsh-command-goal'],
+      ['tool-goal', '@deepseek-ai/dsh-tool-goal'],
+    ] as const) {
+      expect(rows.get(id)?.name, `${id} row`).toBe(name)
+      expect(rows.get(id)?.disabled, `${id} row`).toBeUndefined()
+    }
+  })
+
+  it('keeps a delegated child off the reminder tools', async () => {
+    const rows = new Map((await patentRows()).flatMap(row => (typeof row.id === 'string' ? [[row.id, row] as const] : [])))
+    for (const id of ['tool-subagent', 'tool-subagent-fork']) {
+      const config = rows.get(id)?.config as { toolFilter?: { deny?: string[] } } | undefined
+      expect(config?.toolFilter?.deny, `${id} toolFilter.deny`).toEqual(SCHEDULE_TOOLS)
+    }
+  })
+})

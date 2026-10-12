@@ -2,8 +2,8 @@
   "rows": {
     "agent-instructions": {
       "cordis.patch.yml": "bec4a41f82",
-      "document.patch.yml": "a1f251a137",
-      "patent.patch.yml": "8057231335",
+      "document.patch.yml": "8179385488",
+      "patent.patch.yml": "6c49266e16",
       "ptc.patch.yml": "bec4a41f82",
       "standard.patch.yml": "bec4a41f82"
     },
@@ -13,6 +13,13 @@
       "patent.patch.yml": "aff31e4dcd",
       "ptc.patch.yml": "c72e6939a7",
       "standard.patch.yml": "c72e6939a7"
+    },
+    "command-goal": {
+      "cordis.patch.yml": "83b93b724a",
+      "document.patch.yml": "fa3e9c3a0c",
+      "patent.patch.yml": "45fcbe2056",
+      "ptc.patch.yml": "83b93b724a",
+      "standard.patch.yml": "83b93b724a"
     },
     "compaction-basic": {
       "cordis.patch.yml": "34268d526f",
@@ -42,6 +49,13 @@
       "patent.patch.yml": "dfe4d3f371",
       "ptc.patch.yml": "6932bc5e48",
       "standard.patch.yml": "6932bc5e48"
+    },
+    "time-context": {
+      "cordis.patch.yml": "84b7ba8963",
+      "document.patch.yml": "28e764c7af",
+      "patent.patch.yml": "2adfe106f9",
+      "ptc.patch.yml": "84b7ba8963",
+      "standard.patch.yml": "84b7ba8963"
     },
     "tool-ask-user": {
       "cordis.patch.yml": "f4001ff26a",
@@ -80,8 +94,8 @@
     },
     "tool-jobs": {
       "cordis.patch.yml": "c6b0f62bce",
-      "document.patch.yml": "69280f511a",
-      "patent.patch.yml": "3403b011c8",
+      "document.patch.yml": "bc8d6f65c9",
+      "patent.patch.yml": "7911e129f9",
       "ptc.patch.yml": "c6b0f62bce",
       "standard.patch.yml": "c6b0f62bce"
     },
@@ -104,17 +118,24 @@
       "ptc.patch.yml": "85baf4c126",
       "standard.patch.yml": "85baf4c126"
     },
+    "tool-schedule": {
+      "cordis.patch.yml": "6da634189a",
+      "document.patch.yml": "fe81d76ef6",
+      "patent.patch.yml": "cf7914fc59",
+      "ptc.patch.yml": "6da634189a",
+      "standard.patch.yml": "6da634189a"
+    },
     "tool-skill": {
       "cordis.patch.yml": "d132cb2a6d",
       "document.patch.yml": "a2662fb981",
-      "patent.patch.yml": "3dde91ac1b",
+      "patent.patch.yml": "9da42c1fdc",
       "ptc.patch.yml": "d132cb2a6d",
       "standard.patch.yml": "d132cb2a6d"
     },
     "tool-subagent": {
       "cordis.patch.yml": "b61b5afbd7",
-      "document.patch.yml": "2a916d7eda",
-      "patent.patch.yml": "2a916d7eda",
+      "document.patch.yml": "3c86f8e770",
+      "patent.patch.yml": "3c86f8e770",
       "ptc.patch.yml": "b61b5afbd7",
       "standard.patch.yml": "b61b5afbd7"
     },
@@ -127,8 +148,8 @@
     },
     "tool-subagent-fork": {
       "cordis.patch.yml": "e75e6d7630",
-      "document.patch.yml": "98bf1182da",
-      "patent.patch.yml": "69e3fbf193",
+      "document.patch.yml": "99fe8d59c2",
+      "patent.patch.yml": "5be24c2ecb",
       "ptc.patch.yml": "e75e6d7630",
       "standard.patch.yml": "e75e6d7630"
     },
@@ -214,6 +235,7 @@
     "minimal.patch.yml": [
       "agent-instructions",
       "command-compact",
+      "command-goal",
       "compaction",
       "compaction-basic",
       "delegation",
@@ -237,6 +259,7 @@
       "self-evolve",
       "self-evolve-benchmark",
       "skill-filesystem",
+      "time-context",
       "tool-ask-user",
       "tool-bash",
       "tool-fs",
@@ -246,6 +269,7 @@
       "tool-literature",
       "tool-pwsh",
       "tool-result-pruner",
+      "tool-schedule",
       "tool-skill",
       "tool-subagent",
       "tool-subagent-control",
