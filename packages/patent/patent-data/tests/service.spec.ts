@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import PatentData, {
+  CniprChannel,
   cachedSearchPatents,
   DEFAULT_EGO_COMMAND_NAME,
   DEFAULT_EGO_MAX_OUTPUT_BYTES,
@@ -104,7 +105,32 @@ describe('PatentData service', () => {
       maxTimeoutMs: DEFAULT_EGO_MAX_TIMEOUT_MS,
       maxOutputBytes: DEFAULT_EGO_MAX_OUTPUT_BYTES,
       nuoRequestChannel: 'auto',
+      cniprEnabled: false,
     })
+  })
+
+  it('builds a CNIPR channel where the deployment enabled it', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    await ctx.plugin(PatentData, { cniprEnabled: true })
+    try {
+      const channel = ctx.patentData.createCniprChannel({ cwd: '/tmp', timeoutMs: 60_000 })
+      expect(channel).toBeInstanceOf(CniprChannel)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('returns no CNIPR channel while the deployment leaves it disabled', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    await ctx.plugin(PatentData)
+    try {
+      // undefined 是「本部署没有打开这条通道」：消费方据此按号回退，而不是拿到一个必然失败的对象。
+      expect(ctx.patentData.createCniprChannel()).toBeUndefined()
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 
   it('builds sessions over the configured command, deadlines, and output cap', async () => {

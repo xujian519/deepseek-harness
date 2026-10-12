@@ -21,8 +21,9 @@ import {
 } from './ego-session.ts'
 import { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
 import { applyNuoRequestChannel } from './nuo-channel.ts'
+import { CniprChannel } from './cnipr-channel.ts'
 import { NUO_REQUEST_CHANNELS } from './types.ts'
-import type { CreateNuoSearchProviderOptions, EgoSessionOptions, NuoRequestChannel } from './types.ts'
+import type { CniprChannelOverrides, CreateNuoSearchProviderOptions, EgoSessionOptions, NuoRequestChannel } from './types.ts'
 
 export { createNuoSearchProvider } from './search-provider.ts'
 export {
@@ -45,7 +46,27 @@ export {
 } from './ego-session.ts'
 export { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
 export { applyNuoRequestChannel, NUO_EGO_BROWSER_ENV } from './nuo-channel.ts'
-export { NUO_REQUEST_CHANNELS } from './types.ts'
+export { CniprChannel, CniprChannelError } from './cnipr-channel.ts'
+export { CNIPR_LEGAL_TAG, CNIPR_PDF_TAG, CNIPR_TASK_SPACE, buildCniprLegalScript, buildCniprPdfLinksScript } from './cnipr-script.ts'
+export {
+  CNIPR_BASE_URL,
+  CNIPR_LOGIN_HINT_PATTERN,
+  CNIPR_NUMBER_KINDS,
+  CNIPR_PDF_URL_PATTERN,
+  CNIPR_RESULT_APP_NUMBER_PATTERN,
+  alignCniprResults,
+  classifyCniprNumber,
+  normalizeCniprAppNumber,
+  normalizeCniprPdfUrls,
+  parseCniprLegalRecords,
+  planCniprLegalQueries,
+  planCniprPdfRequests,
+  readCniprLegalPayload,
+  readCniprPdfLinksPayload,
+  readCniprScriptFailure,
+} from './cnipr-receipt.ts'
+export type { CniprNumberKind } from './cnipr-receipt.ts'
+export { CNIPR_FAILURE_CODES, NUO_REQUEST_CHANNELS } from './types.ts'
 // Persistence/path helpers live in dsh-patent-core (single home); re-exported
 // here so the data seam keeps its historical public surface.
 export { JsonFileStore, SAFE_ID_PATTERN, assertSafeId, atomicWriteJson } from '@deepseek-ai/dsh-patent-core'
@@ -57,6 +78,17 @@ export {
   caseWorkflowRunsDir,
 } from '@deepseek-ai/dsh-patent-core'
 export type {
+  CniprCallOptions,
+  CniprChannelOptions,
+  CniprChannelOverrides,
+  CniprEgoSession,
+  CniprFailureCode,
+  CniprLegalQuery,
+  CniprLegalRecord,
+  CniprLegalStatusItem,
+  CniprPdfLinkItem,
+  CniprScriptFailure,
+  CniprScriptFailureCode,
   CreateNuoSearchProviderOptions,
   EgoAvailability,
   EgoRunOptions,
@@ -96,6 +128,13 @@ export interface Config {
    * vendored engine in it, not just this service.
    */
   nuoRequestChannel?: NuoRequestChannel
+  /**
+   * 是否让本部署经 CNIPR（search.cnipr.com）取中国专利全文与法律状态（默认 false）。
+   * 通道复用 ego lite 的 CNIPR 登录态，因此没有该登录态的部署打开它只会得到
+   * `login_required`；关闭时 {@link PatentData.createCniprChannel} 返回 undefined，
+   * 消费方据此按号回退到 nuo 引擎，并在结果里点名实际服务的通道。
+   */
+  cniprEnabled?: boolean
 }
 
 /**
@@ -121,13 +160,16 @@ export class PatentData extends Service {
     maxTimeoutMs: z.natural().default(DEFAULT_EGO_MAX_TIMEOUT_MS),
     maxOutputBytes: z.natural().default(DEFAULT_EGO_MAX_OUTPUT_BYTES),
     nuoRequestChannel: z.union(NUO_REQUEST_CHANNELS).default('auto'),
+    cniprEnabled: z.boolean().default(false),
   })
 
   private readonly egoDefaults: ResolvedEgoDefaults
+  private readonly cniprEnabled: boolean
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'patentData')
     this.egoDefaults = resolveEgoDefaults(config)
+    this.cniprEnabled = config.cniprEnabled ?? false
     applyNuoRequestChannel(config.nuoRequestChannel ?? 'auto')
   }
 
@@ -153,6 +195,17 @@ export class PatentData extends Service {
         maxOutputBytes: this.egoDefaults.maxOutputBytes,
       }),
     })
+  }
+
+  /**
+   * Build a CNIPR channel over an ego-browser session, or nothing when this deployment
+   * has not enabled the channel (`Config.cniprEnabled`, default false).
+   * @param options - optional per-channel overrides; a channel option replaces the same-named field the service resolved.
+   * @returns the channel, or undefined while CNIPR is disabled.
+   */
+  createCniprChannel(options?: CniprChannelOverrides): CniprChannel | undefined {
+    if (!this.cniprEnabled) return undefined
+    return new CniprChannel({ session: this.createEgoSession(), ...options })
   }
 }
 
