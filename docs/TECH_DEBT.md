@@ -360,7 +360,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | --- | --- |
 | `structure.long-functions` | 182 |
 | `structure.large-files` | 71 |
-| `lint.v8-ignore` | 1135 |
+| `lint.v8-ignore` | 1136 |
 | `lint.ts-expect-error` | 140 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
