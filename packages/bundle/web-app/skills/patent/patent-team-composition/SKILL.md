@@ -176,7 +176,9 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 
 两条配套纪律：
 
-- 通道：派工、追问、催办一律走 `patent_teams_send_message`，状态变更走 `patent_teams_claim_task` / `patent_teams_update_task`。插件已对成员隐藏通用 `send_message`，派工文本不必再交代通道；captain 自己也不要用它——该通道的消息不进团队邮箱、不产生 `patent-teams/*` 事件，看板看不到。
+- 通道：派工、追问、催办一律走 `patent_teams_send_message`，状态变更走 `patent_teams_claim_task` / `patent_teams_update_task`。插件已对成员隐藏通用 `send_message`，派工文本不必再交代通道；captain 自己也不要用它——通用 `send_message` 由 `@deepseek-ai/dsh-tool-subagent-control` 注册、解析对象是受控 subagent，它送出的消息既不进团队邮箱、也不进团队事件日志与看板，等于没有记录。
+- 被阻塞的任务不催办：依赖未全部完成的任务成员 claim 不了（插件报 blocked），此时下发派工消息或催办只会换来「未 claim、待命」的空转回执；依赖完成后先 `patent_teams_status` 确认状态，再派工。
+- 团队规模宁小勿大：只有「多角色互证能实质降低风险」的案子才组队（全流程撰写、OA 答复、无效／复审、侵权比对）；任务数少、单一技能通路（单纯形式复核、单幅附图重绘）自己做或 fork 一个子代理即可。本所一次 7 人团队 + 15 任务 + 13 条裁决 + 51 条消息的产出仍被用户否，规模不是质量。
 - 收敛：同一条纪律连续两次被成员违反，先检查任务描述与 `role` 是否错配（角色契约才是纪律的载体），再补派工文本。不要把纪律在派工文本里越写越长。
 
 ## 任务状态与角色约束

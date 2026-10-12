@@ -30,6 +30,29 @@ description: 事实核验闸门：法条引用先用 law_verify 对照随包法�
 
 引用形式（条/款/项、指南节路径）的归一交给 `law_verify`，不要手工写条号；`law_verify` 只回答"该条是否在索引内、已转录的条文是否支撑该命题"，不代替对法条原文的查证。
 
+## 核验通道、检索式与引用格式
+
+**通道优先级。** 端点一律取系统提示的 cnlaw 声明段，不要假设端口；该段声明为未启用时不得尝试任何本机端点，直接走右列的兜底通道。
+
+| 需求 | 首选 | 兜底 |
+|---|---|---|
+| 法规条文与《专利审查指南》全文 | `law_search`：`scope=law` 取律法规条文、`scope=guideline` 取指南全文（命名空间 `审查指南_md/…`），命中返回 `name`/`level`/`sourcePath` 与片段，`sourcePath` 即引文出处 | cnlaw 语义检索 → `web_fetch` 官方原文 |
+| 规则卡片与「规则→法条」关系 | `patent_kg_query`（`node_type=GuidelineRule` / `Clause`） | `patent_wiki_search` |
+| 判例全文 | `patent_case_search` | cnlaw 判例通道（见下） |
+| 创造性四步证据包 | `cnlaw_inventive_step`（调用式见 `inventive-step-analysis`） | — |
+| IPC 定位 | `<cnlaw 图谱端点>/api/cnlaw/ipc/sections` 与 `/api/cnlaw/ipc/tree?parent=<IPC 代码>` | — |
+
+**cnlaw 的 REST 面**（MCP 未覆盖的部分；图谱与案件工具的 MCP 调用式见 `inventive-step-analysis`）：
+
+- 语义检索：`curl -sG "<cnlaw 语义检索端点>/search" --data-urlencode "q=…" --data-urlencode "k=5"`，返回 `{full_name, number, text, status, domain, category, tier, source_path}`。
+- 判例按理由/结论/类型定向：`<cnlaw 语义检索端点>/search/decisions`，参数 `q`、`ground`（法条片断，如 `第22条第3款`）、`ipc`（分类前缀，仅决定）、`result`（结论）、`case_type`（复审/无效/民事/行政）、`k`；判决用 `/search/judgments`（`ground` / `result` / `case_type`）。
+- 图谱精确集合：`<cnlaw 图谱端点>/api/cnlaw/graph/ground`（`article` / `law` / `ipc` / `k`）与 `/api/cnlaw/graph/patent`（`pn`）。
+- 案件决策链：`<cnlaw 图谱端点>/api/cnlaw/case/<案号>`、`…/chain`、`…/similar`（`scenario` / `k`）；写入用 `POST …/case/<案号>/decision`，字段同 MCP 版。
+
+**引用次序与格式。** 检索与引用按权威度排序：法条法规（`tier=1`）→ 审查指南（`tier=2`）→ 判例（`tier=3`，复审无效决定 `/search/decisions`、判决 `/search/judgments`）→ 书籍（`tier=4`，仅作背景说明，不作法规依据）；冲突以高权威为准。每处法条断言必须带 `full_name`（含条号）与 `source_path`；命中为空的检索不得下任何结论，也不得把命中改写成「已核验」。判例引用格式：`<决定号/案号> + <结论> + <法律依据> + <IPC> + <决定要点(若有)> + <source_path>`，来源标注 cnlaw。
+
+**规则原文不落地。** 法规条文与《专利审查指南》全文一律从外接 IP 知识库与 cnlaw 取，不在案卷里留本地副本、不凭记忆；cnlaw 不可用时才退回 `patent_case_search` / `patent_kg_query` 与 `web_fetch` 官方原文。
+
 ## Fail-Closed
 
 - 任何一类存在未溯源断言 → 门禁不过，交付物打回。

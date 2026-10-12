@@ -50,7 +50,7 @@
     },
     "patent.patch.yml": {
       "class": "delivery",
-      "personaMaxChars": 15498,
+      "personaMaxChars": 12000,
       "requiredRows": [
         "persona",
         "agent-instructions",

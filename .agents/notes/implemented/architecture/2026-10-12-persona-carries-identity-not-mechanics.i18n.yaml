@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-12-persona-carries-identity-not-mechanics.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-12-persona-carries-identity-not-mechanics.md
+/agent-note-preset-personas-carry-identity-and-routing-not-tool-mechanics:
+  en: 1ec075c45baf069a
+  zh: b46d150faf2cbdca
+/agent-note-preset-personas-carry-identity-and-routing-not-tool-mechanics/problem:
+  en: 3283e883e4a8e6ed
+  zh: ac4669d6f6099e8c
+/agent-note-preset-personas-carry-identity-and-routing-not-tool-mechanics/decision:
+  en: 0ef22a9608a615c0
+  zh: bbaadf390a213bc5
+/agent-note-preset-personas-carry-identity-and-routing-not-tool-mechanics/alternatives-considered:
+  en: ebb8d45f92c4acfb
+  zh: e2d1eb6d46f9d95a
+/agent-note-preset-personas-carry-identity-and-routing-not-tool-mechanics/consequences:
+  en: b35984e17ecba61c
+  zh: cbaca00ab960b887
