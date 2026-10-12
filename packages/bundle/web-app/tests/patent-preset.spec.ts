@@ -358,7 +358,7 @@ describe('patent preset composition', () => {
   })
 
   it('states the team-channel discipline from the mounting rows, not an unrecorded test', async () => {
-    // The persona excluded the generic send_message while quoting an observation
+    // The mode excluded the generic send_message while quoting an observation
     // ("实测直接报「active teammate … not found」") that no file recorded and that
     // no shipped combination reproduces by construction: the preset does not mount
     // the agent-team package, and the generic name is registered by
@@ -368,9 +368,9 @@ describe('patent preset composition', () => {
     const mounted = named.map(row => packageOf(row.name))
     expect(mounted).not.toContain('@deepseek-ai/dsh-experimental-tool-agent-team')
     expect(mounted).toContain('@deepseek-ai/dsh-tool-subagent-control')
-    const text = personaPrefix(rows.find(row => row.id === 'persona'))
-    const discipline = text.split('\n').find(line => line.includes('协调通道唯一'))
-    expect(discipline, 'the persona must keep the team-coordination discipline').toBeDefined()
+    const skill = readFileSync(join(PATENT_SKILLS, 'patent-team-composition', 'SKILL.md'), 'utf8')
+    const discipline = skill.split('\n').find(line => line.includes('patent_teams_send_message'))
+    expect(discipline, 'the skill must keep the team-coordination channel discipline').toBeDefined()
     expect(discipline).toContain('@deepseek-ai/dsh-tool-subagent-control')
     expect(discipline).not.toContain('实测')
   })
@@ -405,15 +405,17 @@ describe('patent preset composition', () => {
   it('keeps the evidence check and the conditional figure route the zero-call audit added', async () => {
     // The 2026-10-03 zero-call audit gave evaluate_evidence its first route and
     // narrowed add_patent_figure_references to self-drawn or external SVG input.
-    // Both rules live only in this persona prefix — no other file states them — so
-    // a rewrite that drops either one leaves every other gate green.
-    const text = personaPrefix((await patentRows()).find(row => row.id === 'persona'))
-    expect(text).toContain('`evaluate_evidence`')
-    expect(text).toContain('自绘或外部来源的 SVG')
-    expect(text).toContain('`.sati/figures-index.json`')
+    // The audit's first route is still persona text; the figure route and the
+    // index backing search_patent_figure now sit in the skills the persona points
+    // at, so this asserts over the mode's whole model-visible text — a rewrite
+    // that drops either rule leaves every other gate green.
+    const voice = await patentVoice()
+    expect(voice).toContain('`evaluate_evidence`')
+    expect(voice).toContain('自绘或外部来源的 SVG')
+    expect(voice).toContain('`.sati/figures-index.json`')
     // The persona states the model's task; the guard's name and wiring are
     // deployment implementation detail, not prompt content (packages/AGENTS.md).
-    expect(text).not.toContain('EVI-011')
+    expect(personaPrefix((await patentRows()).find(row => row.id === 'persona'))).not.toContain('EVI-011')
   })
 
   it('names a figure-analysis route the shipped catalog declares image-capable', async () => {
@@ -452,6 +454,69 @@ describe('patent preset composition', () => {
     expect(cnlawEndpointLiterals('curl -sG "http://127.0.0.1:8100/search" -d q=…'))
       .toEqual(['127.0.0.1:8100'])
     expect(cnlawEndpointLiterals('cnlaw 服务（:8001 图谱 + Neo4j 7687）')).toEqual([':8001', '7687'])
+  })
+})
+
+/** The `patent` preset's own persona prefix, or `''` when the row carries none. */
+async function patentPersona(): Promise<string> {
+  return personaPrefix((await patentRows()).find(row => row.id === 'persona'))
+}
+
+/** The mode's shipped model-visible text: its persona prefix plus every bundled skill. */
+async function patentVoice(): Promise<string> {
+  const skills = globSync('**/*.md', { cwd: PATENT_SKILLS })
+    .map(relative => readFileSync(join(PATENT_SKILLS, relative), 'utf8'))
+  return [await patentPersona(), ...skills].join('\n')
+}
+
+/**
+ * The persona's nine work disciplines, each anchored on the phrase that carries
+ * its meaning. No recorded session replays the persona text and no other gate
+ * reads it, so this list is what keeps a rewrite from dropping a discipline
+ * quietly; adding or removing a discipline means editing this list.
+ */
+const PATENT_DISCIPLINES: readonly (readonly [string, string])[] = [
+  ['检索先于结论', '检索先于结论'],
+  ['单独对比与三步法', '单独对比原则'],
+  ['法条引用核验', '`law_verify`'],
+  ['逐特征比对', '逐特征比对'],
+  ['输出即证据', '输出即证据'],
+  ['HITL 确认点', 'HITL 确认点不可跳过'],
+  ['无来源即撤回', '无来源即撤回'],
+  ['指令即验收条件', '指令（验收条件）'],
+  ['工具问题必须处置', '工具发现的问题必须处置'],
+]
+
+/** The disciplines whose anchor phrase `text` does not carry. */
+function missingDisciplines(text: string): string[] {
+  return PATENT_DISCIPLINES.filter(([, anchor]) => !text.includes(anchor)).map(([name]) => name)
+}
+
+describe('patent persona disciplines', () => {
+  it('keeps every work discipline the persona states', async () => {
+    expect(missingDisciplines(await patentPersona())).toEqual([])
+  })
+
+  it('reports a discipline when its anchor is absent', () => {
+    // The case above passes on any persona only if the detector actually finds a
+    // missing anchor.
+    expect(missingDisciplines('')).toEqual(PATENT_DISCIPLINES.map(([name]) => name))
+    expect(missingDisciplines('检索先于结论')).toEqual([
+      '单独对比与三步法',
+      '法条引用核验',
+      '逐特征比对',
+      '输出即证据',
+      'HITL 确认点',
+      '无来源即撤回',
+      '指令即验收条件',
+      '工具问题必须处置',
+    ])
+  })
+
+  it('keeps the mandatory disclaimer verbatim', async () => {
+    expect(await patentPersona()).toContain(
+      '本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。',
+    )
   })
 })
 

@@ -20,7 +20,7 @@ description: 创造性（A22.3）三步法的证据搜集例程：调用 cnlaw_i
 1. **取证据包**：调用 `cnlaw_inventive_step(claim=<技术方案>, field=<IPC前缀>, k=<每步条数,默认5>)`。IPC 尽量给全（用 ipc 树 `<cnlaw 图谱端点>/api/cnlaw/ipc/sections` 与 `.../tree?parent=<IPC 代码>`（如 H01M）定位，端点取系统提示的 cnlaw 声明段），证据才精准。
 2. **按步吃透**：对每步，先看 `excerpt`（判例/指南片段），再用 `web_fetch` 打开 `source_path` 对应的原文核验（本地路径同样可直接读），**不信摘要**。
 3. **标引用**：论证里每步的论断，挂上对应证据的 `case_number + 法条/指南 + source_path`。`citation_verified=false` 的条目标注「来源待核」，不得当作确证引用。
-4. **补强/筛掉**：若某步证据不足（如技术问题缺指南表述），用 `cnlaw_graph_ground(article=专利法第22条第3款, ipc=<领域>)` 补 `based_on` 判例，或 `cnlaw_case_similar(scenario)` 找相似审理场景。
+4. **补强/筛掉**：若某步证据不足（如技术问题缺指南表述），用 `cnlaw_graph_ground(article=专利法第22条第3款, ipc=<领域>)` 补 `based_on` 判例，或 `cnlaw_case_similar(scenario)` 找相似审理场景；按专利号追它的 `involves` 决定/判决用 `cnlaw_graph_patent(pn=<公开号>)`。这些工具的 REST 兜底形式，以及 cnlaw 的其它面（语义检索、判例定向、案件决策链），见 `patent-fact-check` 技能。
 5. **可选落审计链**：把四步各记一条 `cnlaw_case_record(case_id, category=<区别特征与技术问题|技术启示|结论>, reasoning=<该步论证链>， source_paths=<证据路径>)`，串成可审计决策链（case_get/case_chain 读回）。
 
 ## 2. 硬规则

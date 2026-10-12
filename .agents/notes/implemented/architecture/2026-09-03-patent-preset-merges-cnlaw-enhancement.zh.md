@@ -13,7 +13,7 @@ Status: implemented
 发货版 `patent` preset 现在成为唯一专利模式，按超集方式吸收本地增强的全部价值：
 
 - 人设纪律 3（引用核验）与检索行改为优先本机 cnlaw REST 底座——`:8100 /search`、`/search/decisions`、`/search/judgments`，带 `source_path` 溯源与权威度排序 法条/法规 > 审查指南 > 判例(复审无效决定/判决) > 书籍，并保留 cnlaw 不可用时回退 `patent_case_search` / `patent_kg_query` 的显式兜底。输出纪律增加证据附录行（full_name + 条号/案号 + source_path，缺 source_path 按纪律 7 撤回）；既有成品交付约定行（md → docx tracked changes）保留。
-- 工具段新增四个 cnlaw 用法段落：法条/指南核验、按理由判例定向检索（`ground` / `ipc` / `result` / `case_type`）、图谱导航（`:8001/api/cnlaw/graph/ground` 可选 `ipc`、`/graph/patent`，Neo4j 支撑）、案件决策链（`POST /api/cnlaw/case/<id>/decision`，按步序读取与 `/chain`）。
+- 工具段新增四个 cnlaw 用法段落：法条/指南核验、按理由判例定向检索（`ground` / `ipc` / `result` / `case_type`）、图谱导航（`:8001/api/cnlaw/graph/ground` 可选 `ipc`、`/graph/patent`，Neo4j 支撑）、案件决策链（`POST /api/cnlaw/case/<id>/decision`，按步序读取与 `/chain`）。这四个段落与检索通道表现已移进承载它们的技能——通道、REST 调用式与引用格式在 `patent-fact-check`，图谱与按案调用式在 `inventive-step-analysis`，通道表与 PDF 降级链在 `patent-prior-art-search`——人设保留纪律并指向各技能（[理由](2026-10-12-persona-carries-identity-not-mechanics.zh.md)）。
 - 技能新增 `inventive-step-analysis`（创造性三步法证据包），`patent-prior-art-search` 改为 cnlaw 通道策略版（CNIPR → CN 专利检索/PDF、CNIPA → 官方状态核验、Google Patents → 外国/全球、`web_search` → 文献、`patent_search` → 本地备选，双源交叉核验）。其余十一个技能保留发货版内容，含案件治理三技能（`patent-matter` / `patent-fact-check` / `patent-compliance-review`）。
 - 双语 README 在前置条件中把 cnlaw 底座记录为可选增强，并相应更新知识库策略与第一条 Known Limitation。
 - 合并后删除所属机器上的用户 root `patent-cnlaw` preset；该删除是环境操作，不属于本仓库变更。
@@ -29,5 +29,5 @@ cnlaw 底座保持可选而非硬依赖：人设与 README 都写明回退路径
 ## Consequences
 
 - preset 现在在模型可见纪律中公布 cnlaw 端点；从不运行 semantica-cnlaw 的部署只付出回退路径成本（无硬启动依赖——REST 调用在使用时才发生，按纪律文本回退）。
-- 人设纪律约增加 1.2 KB 提示词（四个 cnlaw 段落加证据附录行），在 64 KB `agent-instructions` 上限内。
+- 该增强合并时，人设纪律约增加 1.2 KB 提示词（四个 cnlaw 段落加证据附录行），在 64 KB `agent-instructions` 上限内。那四个段落此后已移进技能，请求时成本只在案件载入承载它们的技能时才付；人设正文上限由 `scripts/preset-mode-baseline.json` 卡住。
 - 增强现在随仓库版本发布而非本地快照：重建桌面 app 后，选择器只显示一个 `patent` 条目，内含合并后的超集；用户环境 `default: patent` 保持不变。
