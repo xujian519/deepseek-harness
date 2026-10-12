@@ -241,6 +241,10 @@ export { slopGateAtom, SlopGateHandler, SLOP_GATE_PASS_THRESHOLD } from './atoms
 export { buildSlopRevisionHint } from './internal/retry-hints.ts'
 export type { EvaluatedText } from './internal/evaluated-input.ts'
 
+// 检索质量度量是纯算术库：语料与基线排序是测试资产，这里只发布指标函数。
+export { meanReciprocalRank, ndcgAtK, rankOfFirstRelevant } from './eval/ir-metrics.ts'
+export type { RankedQuery, RelevanceJudgments } from './eval/ir-metrics.ts'
+
 // render_patent_document is owned by dsh-patent-document; re-export for library consumers.
 export { createRenderPatentDocumentTool, renderDocumentResult }
 

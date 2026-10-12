@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-13-retrieval-quality-metric-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-13-retrieval-quality-metric-gate.md
+/agent-note-a-metric-gate-for-retrieval-quality-measured-on-an-in-repo-corpus:
+  en: a70a48301dd4d2fc
+  zh: bd7fdc543ee38fff
+/agent-note-a-metric-gate-for-retrieval-quality-measured-on-an-in-repo-corpus/problem:
+  en: d20ad04b48336bee
+  zh: 6901b0bc1b7e756d
+/agent-note-a-metric-gate-for-retrieval-quality-measured-on-an-in-repo-corpus/decision:
+  en: 3ac9cdc708adec55
+  zh: deba74cc36443eaa
+/agent-note-a-metric-gate-for-retrieval-quality-measured-on-an-in-repo-corpus/alternatives-considered:
+  en: 5f8361187bcc428a
+  zh: 9befc0af14b9fd50
+/agent-note-a-metric-gate-for-retrieval-quality-measured-on-an-in-repo-corpus/consequences:
+  en: 362cb1539c482faa
+  zh: f5f8f0e504bf178e
+/agent-note-a-metric-gate-for-retrieval-quality-measured-on-an-in-repo-corpus/testing:
+  en: e1ec25f457c52daf
+  zh: a35b4bbc5dab5133

@@ -418,12 +418,12 @@ describe('patent_eval deeper paths', () => {
     expect(evaluatePatentContent('workflow', statute, []).details['流程完整性']?.score).toBe(0)
   })
 
-  it('scores retrieval keyword counts at every threshold', () => {
+  it('scores the retrieval query form at every threshold', () => {
     const two = evaluatePatentContent('retrieval', 'a b', [])
-    expect(two.details['关键词覆盖']?.score).toBe(0.5)
+    expect(two.details['关键词条数']?.score).toBe(0.5)
     const none = evaluatePatentContent('retrieval', '   ', [])
-    expect(none.details['关键词覆盖']?.score).toBe(0)
-    expect(none.details['关键词覆盖']?.passed).toBe(false)
+    expect(none.details['关键词条数']?.score).toBe(0)
+    expect(none.details['关键词条数']?.passed).toBe(false)
   })
 
   it('scores citation coverage with and without a required list', () => {
