@@ -48,3 +48,4 @@ export OPEN_DESIGN_DIR="$PWD/open-design"
 - **`document-word` 依赖用户级 `officecli` 技能**——preset 无法内置；缺失时回退 Markdown。
 - **OpenDesign 技能为可选**——未设置 `OPEN_DESIGN_DIR` 时使用内置基线模板，模板多样性降低但交付不被阻塞。
 - **`document_deliver` 只登记不转换**——工具仅校验声明的文件存在于会话工作区；PDF 导出或二进制转换仍需要相应管线步骤（打印动作 / officecli），工作区外保存的文件无法登记。
+- **不设交付门，与专利模式不同**——专利模式在规则、法条与留档三次运行成功前拒绝渲染与成文工具；本 preset 完全不声明 `deliveryGate`，会话可以在交付物未登记的情况下结束。字节在 `document_deliver` 被调用之前就已写好，其后没有工具会被调用，因此没有「后置调用」可供前置条件去先行。后果、被否决的两条设计与工具实际保证的部分记在[工具包 README](../../../document/document-deliver/README.zh.md)。
