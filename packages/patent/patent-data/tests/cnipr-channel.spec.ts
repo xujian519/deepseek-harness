@@ -16,11 +16,11 @@ function fakeSession(output: string, overrides: Partial<CniprEgoSession> = {}): 
       runs.push({ script, options })
       return { output, exitCode: 0, timedOut: false }
     },
-    extractTaggedJson: (raw: string, tag: string) => {
+    extractTaggedJson: (raw: string, tag: string): unknown => {
       const prefix = `EGO_${tag}:`
       const idx = raw.indexOf(prefix)
       if (idx < 0) return null
-      return JSON.parse(raw.slice(idx + prefix.length)) as unknown
+      return JSON.parse(raw.slice(idx + prefix.length))
     },
     ...overrides,
   }

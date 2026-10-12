@@ -18,19 +18,32 @@
 import { scrapePatent as scrapePatentImpl } from '@deepseek-ai/nuo-patent'
 import type { ScrapeResult } from '@deepseek-ai/nuo-patent'
 import { DEFAULT_EGO_TIMEOUT_MS, cachedScrapePatent, classifyCniprNumber } from '@deepseek-ai/dsh-patent-data'
-import type { CniprChannel, PatentData } from '@deepseek-ai/dsh-patent-data'
+import type { CniprChannel } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../error.ts'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
 import type { EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult, RunEgo } from './patent-pdf-download.ts'
 import { createEgoDownloadRunner } from './patent-pdf-download-ego.ts'
+import type { EgoSessionSeam } from './patent-pdf-download-ego.ts'
+
+/**
+ * The patent-data surface this channel reads: the ego session for the Google leg
+ * and the optional CNIPR channel. `PatentData` satisfies it structurally, and a
+ * test injects a stand-in with the same two factories.
+ */
+export type PatentDataSeam = {
+  /** Build the ego-browser session the Google leg runs its script over. */
+  createEgoSession: () => EgoSessionSeam
+  /** The CNIPR channel, or undefined while the deployment leaves `cniprEnabled` off. */
+  createCniprChannel: () => Pick<CniprChannel, 'pdfLinks'> | undefined
+}
 
 /**
  * Late-bound lookup for the patent-data service. Production passes
  * `() => ctx.get('patentData')`; a lookup that captures the service during
  * `apply()` freezes whatever the sibling row had published by then.
- * @returns the service, or undefined while it is not mounted in the caller's scope.
+ * @returns the service surface, or undefined while it is not mounted in the caller's scope.
  */
-export type PatentDataLookup = () => PatentData | undefined
+export type PatentDataLookup = () => PatentDataSeam | undefined
 
 /** Page-scrape seam for the browser-free channel (production: the LRU-cached nuo scrape). */
 export type PatentScrape = (
@@ -102,7 +115,7 @@ export function createDownloadChannelRunner(
   deps: DownloadChannelDeps = {},
 ): RunEgo {
   const scrapeRunner = createScrapeChannelRunner(deps)
-  const googleChannel = async (patentData: PatentData | undefined, request: EgoDownloadRequest): Promise<EgoDownloadResult> => {
+  const googleChannel = async (patentData: PatentDataSeam | undefined, request: EgoDownloadRequest): Promise<EgoDownloadResult> => {
     if (patentData === undefined) return scrapeRunner(request)
     try {
       return await createEgoDownloadRunner(patentData.createEgoSession())(request)
@@ -118,7 +131,7 @@ export function createDownloadChannelRunner(
     const warnings: string[] = []
     const items: EgoDownloadItem[] = []
     const served = new Set<string>()
-    const cnipr: CniprChannel | undefined = patentData?.createCniprChannel()
+    const cnipr: Pick<CniprChannel, 'pdfLinks'> | undefined = patentData?.createCniprChannel()
     const cnNumbers = cnipr === undefined
       ? []
       : request.patents.filter(patent => classifyCniprNumber(patent) === 'pub')

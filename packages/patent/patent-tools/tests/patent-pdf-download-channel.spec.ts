@@ -8,6 +8,7 @@ import type { ScrapeResult } from '@deepseek-ai/nuo-patent'
 import PatentData from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../src/error.ts'
 import { createDownloadChannelRunner, createScrapeChannelRunner } from '../src/tool/patent-pdf-download-channel.ts'
+import type { PatentDataSeam } from '../src/tool/patent-pdf-download-channel.ts'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from '../src/tool/internal/upstream-channel.ts'
 import type { EgoDownloadRequest } from '../src/tool/patent-pdf-download.ts'
 import type { EgoSessionSeam } from '../src/tool/patent-pdf-download-ego.ts'
@@ -45,9 +46,9 @@ function scrapeResult(pdfUrl: string | null, errorMessage = ''): ScrapeResult {
   }
 }
 
-/** Patent-data stand-in exposing only the surface the channel uses. */
-function patentDataWith(session: EgoSessionSeam, cnipr?: Pick<CniprChannel, 'pdfLinks'>): PatentData {
-  return { createEgoSession: () => session, createCniprChannel: () => cnipr } as unknown as PatentData
+/** Patent-data stand-in exposing only the surface the channel reads. */
+function patentDataWith(session: EgoSessionSeam, cnipr?: Pick<CniprChannel, 'pdfLinks'>): PatentDataSeam {
+  return { createEgoSession: () => session, createCniprChannel: () => cnipr }
 }
 
 function egoSession(overrides: Partial<EgoSessionSeam> = {}): EgoSessionSeam {
