@@ -47,6 +47,7 @@ apps/desktop/resources/
 .dsh-build/
 # Local harness state and agent reports (not source)
 .dsh/
+.dsh-work/
 .build/
 .dsh-report/
 .playwright-mcp/
