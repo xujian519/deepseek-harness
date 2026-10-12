@@ -47,22 +47,36 @@ export {
 export { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
 export { applyNuoRequestChannel, NUO_EGO_BROWSER_ENV } from './nuo-channel.ts'
 export { CniprChannel, CniprChannelError } from './cnipr-channel.ts'
-export { CNIPR_LEGAL_TAG, CNIPR_PDF_TAG, CNIPR_TASK_SPACE, buildCniprLegalScript, buildCniprPdfLinksScript } from './cnipr-script.ts'
+export {
+  CNIPR_LEGAL_TAG,
+  CNIPR_PDF_TAG,
+  CNIPR_SEARCH_TAG,
+  CNIPR_TASK_SPACE,
+  buildCniprLegalScript,
+  buildCniprPdfLinksScript,
+  buildCniprSearchScript,
+} from './cnipr-script.ts'
 export {
   CNIPR_BASE_URL,
   CNIPR_LOGIN_HINT_PATTERN,
   CNIPR_NUMBER_KINDS,
   CNIPR_PDF_URL_PATTERN,
   CNIPR_RESULT_APP_NUMBER_PATTERN,
+  CNIPR_SEARCH_MAX_HITS,
+  CNIPR_SEARCH_PAGE_SIZE,
   alignCniprResults,
   classifyCniprNumber,
   normalizeCniprAppNumber,
+  normalizeCniprDate,
   normalizeCniprPdfUrls,
   parseCniprLegalRecords,
+  parseCniprSearchTotal,
   planCniprLegalQueries,
   planCniprPdfRequests,
+  planCniprSearchRequest,
   readCniprLegalPayload,
   readCniprPdfLinksPayload,
+  readCniprSearchPayload,
   readCniprScriptFailure,
 } from './cnipr-receipt.ts'
 export type { CniprNumberKind } from './cnipr-receipt.ts'
@@ -89,6 +103,10 @@ export type {
   CniprPdfLinkItem,
   CniprScriptFailure,
   CniprScriptFailureCode,
+  CniprSearchHit,
+  CniprSearchOptions,
+  CniprSearchRequest,
+  CniprSearchResult,
   CreateNuoSearchProviderOptions,
   EgoAvailability,
   EgoRunOptions,

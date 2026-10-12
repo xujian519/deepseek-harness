@@ -20,12 +20,21 @@ export const CNIPR_PDF_TAG = 'CNIPR_PDFLINKS'
 /** 法律状态脚本的回传标签。 */
 export const CNIPR_LEGAL_TAG = 'CNIPR_LEGAL'
 
+/** 关键词检索脚本的回传标签。 */
+export const CNIPR_SEARCH_TAG = 'CNIPR_SEARCH'
+
 /** 按名复用的任务空间；同一空间复用登录态与标签页，故两次调用之间不做登录。 */
 export const CNIPR_TASK_SPACE = 'sati-patent-cnipr'
 
-/** 脚本回传一行载荷：`console.log` 的输出在 ego 里走 stderr，会话把两路合并后再解析。 */
-function emit(tag: string): string {
-  return `console.log(${JSON.stringify(`EGO_${tag}:`)} + JSON.stringify({ items, error: failure }))`
+/**
+ * 脚本回传一行载荷：`console.log` 的输出在 ego 里走 stderr，会话把两路合并后再解析。
+ * @param tag - 回传标签。
+ * @param extra - `items` 与 `error` 之外还要回传的字段名（检索脚本用它回传结果页总数）。
+ * @returns 该脚本末尾的载荷输出语句。
+ */
+function emit(tag: string, extra = ''): string {
+  const fields = ['items', ...(extra === '' ? [] : [extra]), 'error: failure']
+  return `console.log(${JSON.stringify(`EGO_${tag}:`)} + JSON.stringify({ ${fields.join(', ')} }))`
 }
 
 /**
@@ -191,5 +200,79 @@ try {
   failure = failureOf(error, 'page_state')
 }
 ${emit(CNIPR_LEGAL_TAG)}
+`
+}
+
+/**
+ * 生成关键词检索脚本：主页检索框提交后读结果页，按需翻页。
+ *
+ * 结果页本身发布了标题、申请人、公开日与摘要，因此检索不需要逐条取详情页。每页 10 条是
+ * 本部署账号下页面的固定值——页面可选的 20/30 条受站点等级校验（实测被拒回 10 条），
+ * 所以「取更多」只能靠站点自身的分页（提交检索表单的 `start` 字段，L1 可用）。页数由
+ * 包内的 `planCniprSearchRequest` 决定，脚本只按给定页数读取，不自行判断要几页。
+ * @param query - 检索词（调用方已确认不含 Google 专有的字段语法）。
+ * @param pages - 要读取的结果页数。
+ * @returns 交给 `ego-browser nodejs` 的脚本体。
+ */
+export function buildCniprSearchScript(query: string, pages: number): string {
+  return `${sharedPreamble()}
+const query = ${JSON.stringify(query)}
+const pages = ${JSON.stringify(pages)}
+const readPage = (args) => {
+  const header = document.querySelector('#slideselect')
+  const rows = Array.from(document.querySelectorAll('div.g_item'))
+  return {
+    header: header ? header.innerText : null,
+    items: rows.map((row, index) => {
+      const box = row.querySelector('input[name="recordno"]')
+      const patti = row.querySelector('li[name="patti"]')
+      const cont = row.querySelector('div.g_cont')
+      return {
+        cursor: args.offset + index,
+        number: box ? box.getAttribute('pnm') : null,
+        title: patti ? patti.getAttribute('title') : null,
+        text: cont ? cont.innerText : row.innerText,
+      }
+    }),
+  }
+}
+const turnToPage = async (page, target) => {
+  const moved = await page.evaluate((wanted) => {
+    const link = Array.from(document.querySelectorAll('#pagination_top a'))
+      .find(anchor => anchor.innerText.trim() === String(wanted))
+    if (!link) return false
+    link.click()
+    return true
+  }, target)
+  if (!moved) return false
+  await waitForState(page, () => page.waitForFunction((wanted) => {
+    const marker = document.querySelector('#startPage')
+    return !!marker && marker.value === String(wanted)
+  }, target, { timeout: 30000 }), '第 ' + target + ' 页')
+  await waitForState(page, () => page.waitForSelector('div.g_item', { timeout: 20000 }), '第 ' + target + ' 页记录')
+  return true
+}
+const items = []
+let header = null
+let failure
+try {
+  const task = await taskSpace(${JSON.stringify(CNIPR_TASK_SPACE)})
+  const page = task.page('p1')
+  await openHome(page)
+  await waitForState(page, () => page.fill('input[name="q"]', query, { clearFirst: true }), 'CNIPR 检索框')
+  await waitForState(page, () => page.click('#search-btn', { timeout: 15000 }), 'CNIPR 检索提交')
+  await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: 45000 }), '检索结果页')
+  await waitForState(page, () => page.waitForSelector('#detailSearch', { timeout: 30000 }), '结果页详情表单')
+  for (let index = 1; index <= pages; index += 1) {
+    if (index > 1 && !(await turnToPage(page, index))) break
+    const read = await page.evaluate(readPage, { offset: items.length })
+    if (header === null) header = read.header
+    if (read.items.length === 0) break
+    items.push(...read.items)
+  }
+} catch (error) {
+  failure = failureOf(error, 'page_state')
+}
+${emit(CNIPR_SEARCH_TAG, 'header')}
 `
 }

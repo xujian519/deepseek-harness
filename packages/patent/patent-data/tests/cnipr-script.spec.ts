@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest'
 import {
   CNIPR_LEGAL_TAG,
   CNIPR_PDF_TAG,
+  CNIPR_SEARCH_TAG,
   CNIPR_TASK_SPACE,
   buildCniprLegalScript,
   buildCniprPdfLinksScript,
+  buildCniprSearchScript,
 } from '@deepseek-ai/dsh-patent-data'
 
 describe('buildCniprPdfLinksScript', () => {
@@ -72,5 +74,46 @@ describe('buildCniprLegalScript', () => {
     expect(script).toContain('input[type=submit][value=检索]')
     expect(script).toContain('/doLegalSearch/')
     expect(script).toContain('法律状态检索结果')
+  })
+})
+
+describe('buildCniprSearchScript', () => {
+  it('embeds the query and page count without a request file', () => {
+    const script = buildCniprSearchScript('石墨烯电池', 3)
+    expect(script).toContain('"石墨烯电池"')
+    expect(script).toContain('const pages = 3')
+    expect(script).toContain(`taskSpace("${CNIPR_TASK_SPACE}")`)
+    expect(script).toContain(`EGO_${CNIPR_SEARCH_TAG}:`)
+    expect(script).toContain('header')
+    // 不读请求文件：参数一律内嵌（ego 只从 stdin 收脚本、不继承环境变量、不接受 argv）。
+    expect(script).not.toContain('/tmp/dsh-cnipr-request.json')
+  })
+
+  it('searches from the home box and reads the result rows', () => {
+    const script = buildCniprSearchScript('石墨烯电池', 1)
+    expect(script).toContain('欢迎您')
+    expect(script).toContain("page.fill('input[name=\"q\"]', query, { clearFirst: true })")
+    expect(script).toContain("page.click('#search-btn'")
+    expect(script).toContain('/doOverviewSearch4Index/')
+    expect(script).toContain('#detailSearch')
+    // 结果行本身带全部字段，因此只读结果页，不逐条取详情页。
+    expect(script).not.toContain('doDetailSearch')
+    expect(script).toContain("querySelectorAll('div.g_item')")
+    expect(script).toContain("getAttribute('pnm')")
+    expect(script).toContain('#slideselect')
+  })
+
+  it('turns pages through the site pagination and stops when there is no next page', () => {
+    const script = buildCniprSearchScript('石墨烯电池', 3)
+    // 每页 10 条是页面固定值（20/30 条受站点等级校验），取更多只能翻页。
+    expect(script).toContain('#pagination_top a')
+    expect(script).toContain('#startPage')
+    expect(script).toContain('if (!moved) return false')
+    expect(script).toContain('if (index > 1 && !(await turnToPage(page, index))) break')
+    expect(script).toContain('if (read.items.length === 0) break')
+  })
+
+  it('never finishes the shared task space', () => {
+    expect(buildCniprSearchScript('q', 1)).not.toContain('task.finish')
   })
 })

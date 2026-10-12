@@ -5463,7 +5463,8 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 Usage notes:
   - Read-only; query syntax follows Google Patents search grammar
   - Follow up with patent_metadata to fetch full details of a specific hit
-  - One call reads one channel, named in the result and in any failure, so a report cites the channel it actually used instead of inferring one from a hit URL
+  - The result names the channel that served it and every failure names the channel it failed on, so a report cites the channel it actually used instead of inferring one from a hit URL
+  - 当 Google Patents 通道失败、抛错或零命中时，部署启用 CNIPR 通道会再检索一次，结果里的 channel 写明这次实际由谁服务；CNIPR 只做关键词检索，命中含公开(公告)号、标题、申请人、公开日与摘要，没有 URL 与优先权，且带 assignee:/after:/CL: 这类字段语法的查询不咨询它
   - A network failure is reported as an error naming that channel; a genuine zero-result search returns empty hits
   - A transient upstream failure (timeout, dropped connection) is retried twice; a failure that outlives the retries names the channel, the upstream error, and the attempts made
   - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result

@@ -195,3 +195,74 @@ describe('CniprChannel run gating', () => {
     expect(runs[0]?.options).toMatchObject({ cwd: process.cwd() })
   })
 })
+
+describe('CniprChannel.search', () => {
+  const rowText = '申请号： CN201922356571.X 公开(公告)号： CN211350734U 公开(公告)日： 2020.08.25 '
+    + '申请(专利权)人： 上海碳源汇谷新材料科技有限公司 分类号： H01M2/10(2006.01) 摘要：本实用新型属于石墨烯电池技术领域。 机器翻译'
+  const searchPayload = {
+    header: '全部655件专利',
+    items: [
+      { cursor: 0, number: 'CN211350734U', title: '一种稳定性高的石墨烯电池', text: rowText },
+      { cursor: 1, number: 'CN110611065A', title: '一种电动自行车高体积能量的易更换石墨烯电池', text: rowText },
+    ],
+  }
+
+  it('reads the result page rows and the page total in one run', async () => {
+    const { session, runs } = fakeSession(tagged('CNIPR_SEARCH', searchPayload))
+    const channel = new CniprChannel({ session })
+
+    const result = await channel.search('石墨烯电池')
+
+    expect(result.total).toBe(655)
+    expect(result.hits).toEqual([
+      {
+        patent: 'CN211350734U',
+        title: '一种稳定性高的石墨烯电池',
+        assignee: '上海碳源汇谷新材料科技有限公司',
+        publicationDate: '2020-08-25',
+        abstract: '本实用新型属于石墨烯电池技术领域。',
+      },
+      {
+        patent: 'CN110611065A',
+        title: '一种电动自行车高体积能量的易更换石墨烯电池',
+        assignee: '上海碳源汇谷新材料科技有限公司',
+        publicationDate: '2020-08-25',
+        abstract: '本实用新型属于石墨烯电池技术领域。',
+      },
+    ])
+    // 结果页自带全部字段，因此一次检索只跑一个脚本。
+    expect(runs).toHaveLength(1)
+    expect(runs[0]?.script).toContain('"石墨烯电池"')
+    expect(runs[0]?.script).toContain('const pages = 1')
+  })
+
+  it('plans the page count from the requested limit and truncates to it', async () => {
+    const { session, runs } = fakeSession(tagged('CNIPR_SEARCH', searchPayload))
+    const channel = new CniprChannel({ session })
+
+    const result = await channel.search('石墨烯电池', { limit: 1 })
+
+    expect(result.hits).toHaveLength(1)
+    expect(runs[0]?.script).toContain('const pages = 1')
+
+    await channel.search('石墨烯电池', { limit: 25 })
+    expect(runs[1]?.script).toContain('const pages = 3')
+  })
+
+  it('fails loud when the page stops publishing the result total', async () => {
+    const { session } = fakeSession(tagged('CNIPR_SEARCH', { header: null, items: [] }))
+    const channel = new CniprChannel({ session })
+
+    await expect(channel.search('石墨烯电池')).rejects.toMatchObject({ code: 'page_state' })
+  })
+
+  it('classifies a script-level failure and a missing receipt', async () => {
+    const login = fakeSession(tagged('CNIPR_SEARCH', { items: [], error: { code: 'login_required', message: '未检测到 CNIPR 登录态' } }))
+    await expect(new CniprChannel({ session: login.session }).search('q'))
+      .rejects.toMatchObject({ code: 'login_required', detail: '未检测到 CNIPR 登录态' })
+
+    const empty = fakeSession('unrelated output')
+    await expect(new CniprChannel({ session: empty.session }).search('q'))
+      .rejects.toMatchObject({ code: 'receipt_missing' })
+  })
+})

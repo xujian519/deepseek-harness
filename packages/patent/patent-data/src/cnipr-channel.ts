@@ -8,13 +8,15 @@
  * @module @deepseek-ai/dsh-patent-data/cnipr-channel
  */
 
-import { CNIPR_LEGAL_TAG, CNIPR_PDF_TAG, buildCniprLegalScript, buildCniprPdfLinksScript } from './cnipr-script.ts'
+import { CNIPR_LEGAL_TAG, CNIPR_PDF_TAG, CNIPR_SEARCH_TAG, buildCniprLegalScript, buildCniprPdfLinksScript, buildCniprSearchScript } from './cnipr-script.ts'
 import {
   alignCniprResults,
   planCniprLegalQueries,
   planCniprPdfRequests,
+  planCniprSearchRequest,
   readCniprLegalPayload,
   readCniprPdfLinksPayload,
+  readCniprSearchPayload,
 } from './cnipr-receipt.ts'
 import type {
   CniprCallOptions,
@@ -23,6 +25,8 @@ import type {
   CniprFailureCode,
   CniprLegalStatusItem,
   CniprPdfLinkItem,
+  CniprSearchOptions,
+  CniprSearchResult,
 } from './types.ts'
 
 /** 脚本没有回传收据时附在原因里的输出长度（诊断用，避免把整段输出塞进错误）。 */
@@ -106,6 +110,24 @@ export class CniprChannel {
     const read = readCniprLegalPayload(payload)
     if (read.failure !== undefined) throw new CniprChannelError(read.failure.code, read.failure.message)
     return alignCniprResults(numbers, [...read.items, ...unsupported], cniprLegalMissing)
+  }
+
+  /**
+   * 关键词检索：结果页直接发布标题、申请人、公开日与摘要，故一次检索只做页面导航，
+   * 不逐条取详情页。
+   * @param query - 检索词（调用方已确认不含 Google 专有的字段语法）。
+   * @param options - 期望条数、取消信号与期限覆盖。
+   * @returns 总数与命中；条数按 {@link planCniprSearchRequest} 收敛后截断。
+   */
+  async search(query: string, options: CniprSearchOptions = {}): Promise<CniprSearchResult> {
+    const request = planCniprSearchRequest(options.limit)
+    const payload = await this.run(buildCniprSearchScript(query, request.pages), CNIPR_SEARCH_TAG, options)
+    const read = readCniprSearchPayload(payload)
+    if (read.failure !== undefined) throw new CniprChannelError(read.failure.code, read.failure.message)
+    if (read.total === null) {
+      throw new CniprChannelError('page_state', 'CNIPR 检索结果页未给出「全部 N 件专利」总数：页面结构可能已变化')
+    }
+    return { total: read.total, hits: read.hits.slice(0, request.limit) }
   }
 
   /** 运行一个脚本并取回未校验的载荷；通道级失败在这里分类。 */
