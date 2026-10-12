@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CONFIDENCE, DEFAULT_RESAMPLES, bootstrapCi, summarize, validateResults, wilsonCi } from '../src/score.ts'
+import { DEFAULT_CONFIDENCE, DEFAULT_RESAMPLES, bootstrapCi, mcnemarExact, summarize, validateResults, wilsonCi } from '../src/score.ts'
 import type { EvalResults, TaskOutcome } from '../src/types.ts'
 
 function results(tasks: TaskOutcome[]): EvalResults {
@@ -150,5 +150,39 @@ describe('validateResults', () => {
   it('carries a typed baseline error into the outcome', () => {
     const parsed = validateResults({ tasks: [{ taskId: 'a', baselinePassed: true, evolvedPassed: false, baselineError: 'env: clone failed' }] })
     expect(parsed.tasks[0]?.baselineError).toBe('env: clone failed')
+  })
+
+  it('keeps a typed subset digest and drops a non-string one', () => {
+    const base = { tasks: [{ taskId: 'a', baselinePassed: true, evolvedPassed: false }] }
+    expect(validateResults({ ...base, subsetDigest: 'abc123' }).subsetDigest).toBe('abc123')
+    expect(validateResults({ ...base, subsetDigest: 7 }).subsetDigest).toBeUndefined()
+  })
+})
+
+describe('mcnemarExact', () => {
+  it('no discordant pairs carries no information', () => {
+    expect(mcnemarExact(0, 0)).toEqual({ pValue: 1, discordant: 0 })
+  })
+
+  it('a single discordant pair cannot reject the null', () => {
+    // 2 × P(X ≤ 0) = 2 × 0.5 = 1
+    expect(mcnemarExact(1, 0)).toEqual({ pValue: 1, discordant: 1 })
+  })
+
+  it('is symmetric in wins and losses', () => {
+    expect(mcnemarExact(9, 1).pValue).toBeCloseTo(mcnemarExact(1, 9).pValue, 12)
+  })
+
+  it('matches the exact lower-tail sum on a small sample', () => {
+    // n = 10, smaller = 1: 2 × (P(0) + P(1)) = 2 × 11/1024
+    expect(mcnemarExact(1, 9).pValue).toBeCloseTo(0.021484375, 12)
+  })
+
+  it('caps the doubled lower tail at 1', () => {
+    expect(mcnemarExact(3, 3).pValue).toBe(1)
+  })
+
+  it('rejects the null for a large one-sided split', () => {
+    expect(mcnemarExact(30, 0).pValue).toBeLessThan(1e-6)
   })
 })

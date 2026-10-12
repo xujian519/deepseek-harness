@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DEFAULT_SUBSET_SIZE, decodeTestIds, loadTaskManifest, normalizeSwebenchInstances, selectSubset } from '../src/subset.ts'
+import { DEFAULT_SUBSET_SIZE, decodeTestIds, loadTaskManifest, normalizeSwebenchInstances, selectSubset, selectSubsetWithReserve } from '../src/subset.ts'
 import type { EvalTask } from '../src/types.ts'
 
 function tasks(count: number, offset = 0): EvalTask[] {
@@ -128,6 +128,44 @@ describe('selectSubset', () => {
       { instanceId: 'a__b-1', repo: 'a/b', baseCommit: 'c', failToPass: [], passToPass: [] },
     ]
     expect(() => selectSubset(source, 1, 1)).toThrow(/no FAIL_TO_PASS ids/)
+  })
+})
+
+describe('selectSubsetWithReserve', () => {
+  it('returns a reserve disjoint from the subset', () => {
+    const { subset, reserve } = selectSubsetWithReserve(tasks(200), 7, 60, 60)
+    expect(subset).toHaveLength(60)
+    expect(reserve).toHaveLength(60)
+    const chosen = new Set(subset.map(task => task.instanceId))
+    expect(reserve.every(task => !chosen.has(task.instanceId))).toBe(true)
+  })
+
+  it('reproduces both slices from the seed', () => {
+    const first = selectSubsetWithReserve(tasks(200), 7, 60, 60)
+    const second = selectSubsetWithReserve(tasks(200), 7, 60, 60)
+    expect(second.subset.map(task => task.instanceId)).toEqual(first.subset.map(task => task.instanceId))
+    expect(second.reserve.map(task => task.instanceId)).toEqual(first.reserve.map(task => task.instanceId))
+  })
+
+  it('keeps the subset identical to selectSubset for the same seed', () => {
+    const { subset } = selectSubsetWithReserve(tasks(200), 7, 60, 60)
+    expect(subset.map(task => task.instanceId)).toEqual(selectSubset(tasks(200), 7, 60).map(task => task.instanceId))
+  })
+
+  it('defaults to an empty reserve', () => {
+    expect(selectSubsetWithReserve(tasks(200), 7, 60).reserve).toEqual([])
+  })
+
+  it('clamps to the manifest without reserving when it holds no extra tasks', () => {
+    const { subset, reserve } = selectSubsetWithReserve(tasks(30), 7, 60, 10)
+    expect(subset).toHaveLength(30)
+    expect(reserve).toEqual([])
+  })
+
+  it('returns a shorter reserve when the manifest cannot fill it', () => {
+    const { subset, reserve } = selectSubsetWithReserve(tasks(100), 7, 60, 60)
+    expect(subset).toHaveLength(60)
+    expect(reserve).toHaveLength(40)
   })
 })
 

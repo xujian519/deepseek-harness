@@ -1,0 +1,357 @@
+{
+  "formatVersion": 2,
+  "roots": [
+    {
+      "key": "event:self-evolve/validated",
+      "kind": "event",
+      "event": "self-evolve/validated",
+      "surface": false,
+      "digest": "87d6299014acfdb8a84a84cc478128e733a759ef37a7f104e8c2ece52854f242",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 27,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 28,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "outcome",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "proposalId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "runId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              23
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "confidence",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "deconstructedScores",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "diagnostic",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "heldInPassed",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "heldOutPassed",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "kind",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "nextRoundSuggestion",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "reason",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "regressions",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "replayEvidence",
+                "type": 17,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "activatesWhenCorrect",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "clarity",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "noRegressionIntroduced",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "safety",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "rejected"
+          },
+          {
+            "kind": "union",
+            "types": [
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "apply-failed"
+          },
+          {
+            "kind": "literal",
+            "value": "approval-denied"
+          },
+          {
+            "kind": "literal",
+            "value": "held-in-failed"
+          },
+          {
+            "kind": "literal",
+            "value": "held-out-regression"
+          },
+          {
+            "kind": "literal",
+            "value": "low-confidence"
+          },
+          {
+            "kind": "literal",
+            "value": "rate-limited"
+          },
+          {
+            "kind": "literal",
+            "value": "verifier-unavailable"
+          },
+          {
+            "kind": "array",
+            "element": 6
+          },
+          {
+            "kind": "array",
+            "element": 18
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "coversPatternIds",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "note",
+                "type": 6,
+                "optional": true
+              },
+              {
+                "name": "passed",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "verifierSignal",
+                "type": 6,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              20,
+              21
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "held-in"
+          },
+          {
+            "kind": "literal",
+            "value": "held-out"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "confidence",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "deconstructedScores",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "heldInPassed",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "heldOutPassed",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "nextRoundSuggestion",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "regressions",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "replayEvidence",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "activatesWhenCorrect",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "clarity",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "noRegressionIntroduced",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "safety",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "accepted"
+          },
+          {
+            "kind": "tuple",
+            "elements": []
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "self-evolve/validated"
+          }
+        ]
+      }
+    }
+  ],
+  "types": []
+}

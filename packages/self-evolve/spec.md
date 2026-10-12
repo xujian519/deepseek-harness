@@ -16,7 +16,7 @@
 
 **非目标**：本方案不宣称"RSI / 递归自我改进已经跑通"。我们只宣称"跑通最小工程闭环 + 在 60 题离线子集上提供统计显著性证据或证伪"。
 
-**回滚条件**：Phase 1 验证结束后，若净胜分 95% 置信区间跨零（无法排除随机性），立即回滚范围：默认关闭、仅保留 L1-skill、不做 P2/P3/P4。
+**回滚条件**：Phase 1 验证结束后，若精确 McNemar 检验未能以（按重用次数调整后的）显著性水平拒绝原假设，或实测净胜分未达到预注册的最小效应量（默认 0.05），立即回滚范围：默认关闭、仅保留 L1-skill、不做 P2/P3/P4。
 
 ---
 
@@ -40,9 +40,9 @@
 
 | 风险 | 缓解机制 | 配置/回滚 |
 |---|---|---|
-| **弱/模糊评估器导致 Verifier 错判**（SWE-bench 假阳/假阴） | Held-In + Held-Out 使用双 verifier：① 项目内 `dsh test`；② 独立 `git diff --stat` + `build`。两者都 pass 才认定 held-in pass；单边 pass 视为"不确定"，直接 reject，不计入 regressions。**现状**：决策函数已接线（`_verifyHeldInCase` + 信号收集钩子），workspace verifier 已实现（P1.9b，git 净增量 + build 健康）；未配置 `workspaceVerifier.buildCommand` 时信号不可用，退化为弱路径并如实标注。 | `requireDualVerification: boolean`（默认 true，已实现） |
+| **弱/模糊评估器导致 Verifier 错判**（SWE-bench 假阳/假阴） | Held-In + Held-Out 使用双 verifier：① 项目内 `dsh test`；② 独立 `git diff --stat` + `build`。两者都 pass 才认定 held-in pass；单边 pass 视为"不确定"，直接 reject，不计入 regressions。**现状**：决策函数已接线（`_verifyHeldInCase` + 信号收集钩子），workspace verifier 已实现（P1.9b，git 净增量 + build 健康）。任一维度无信号（held-in / held-out / judge）都按弱路径 0.3 计，聚合置信度必然低于任何正阈值，提案以 `verifier-unavailable` 显式拒绝——与"评判不佳"的 `low-confidence` 区分，避免把验证器缺失污染成提案质量反馈。默认 bundle 三个维度均无信号，故不产生任何提交。 | `requireDualVerification: boolean`（默认 true，已实现） |
 | **负面结果被丢弃** | rejected proposal 的 `nextRoundSuggestion` + `diagnostic` + `deconstructedScores` 结构化写入 `$DSH_HOME/self-evolve/negative-results.jsonl`（append-only）。proposer prompt 前缀附加"过去 N 次类似尝试为何失败"的 3 条摘要。**现状**：持久化 + 读取 API + 模板 proposer 前缀已实现；LLM 版前缀（P3.2，`proposerTarget` 路由）已实现，prompt 前缀条数仍为硬常量 3（`negativeResultsMaxContextItems` 未配置化，属开放债，见 tasks.md E.3）。 | Phase 1 实现，可配置 `negativeResultsMaxContextItems: number`（当前常量 3，待配置化） |
-| **短期解决 vs 长期 prompt 膨胀** | 每个 L2 proposal 带"最小生效字节数"声明；累计新增文本每超过 2K 阈值，由独立 pruning job 把过去 7 天 usage count=0 的 section 归档。 | `maxPromptInflationBytesPerWeek: number`（E.2，已实现，默认 2048，见 P1.9） |
+| **短期解决 vs 长期 prompt 膨胀** | 每个 L2 proposal 带 `estimatedBytes` 声明（按 UTF-8 字节）；存活 L2 片段总量超阈值时，由 pruning job 归档并撤销 effect。**现状**：预算按 UTF-8 字节计量（已修正原先用 UTF-16 `length` 的口径），但归档顺序是**注册时间最旧优先**——"过去 7 天 usage count=0"这一基于使用情况的判据**尚未实现**，代码注释中已如实标注为按年龄近似。 | `maxPromptInflationBytesPerWeek: number`（E.2，已实现，默认 2048，见 P1.9） |
 | **多样性坍缩** | 每会话提案上限 `maxProposalsPerLoop`；跨会话 global KB 去重相似 causalSignature。 | 已配置（`maxProposalsPerLoop` 生效；global KB 去重属 P4） |
 | **Validator 漂移** | patternId 基于 `(level, verifierTier, causalSignature)` 稳定化；验证结果与 pattern 绑定而非与 summary 绑定。 | 已实现 |
 | **Token 爆炸** | idle/pressure 触发 rate limiting；Step-Reflection 延后到 P3 稳定后。 | 已配置（含 24h 自主循环上限 `maxDailyLoopsPerSession`） |
@@ -72,16 +72,16 @@
 
 ### P1：Validator（Phase 1 完成）
 
-> **提交可达性（诚实声明）**：基座 provider 的 workspace verifier 已实现（P1.9b），但只有配置 `workspaceVerifier.buildCommand` 且工作区为 git 仓库时才产生信号；否则 held-in 恒走弱路径 0.3，`minAcceptConfidence` 默认 0.5 在弱路径下不可达，因此默认基座 bundle 中每轮循环"挖掘→提案→保守拒绝"，**不会产生任何 commit**（L3/L4 路径基座亦不产提案）。启用工作区验证器是显式组合步骤；提交路径在配置后可达。
+> **提交可达性（诚实声明）**：三个验证维度各有前置条件——held-in 工作区验证器（P1.9b）需要 git 工作区 + `workspaceVerifier.buildCommand`；judge 需要 `validatorTarget`；held-out 需要**本会话内**存在相似的、非 supporting 的历史事件。任一维度缺失都会把聚合置信度压到弱路径 0.3 及以下，在 `minAcceptConfidence` 默认 0.5 下不可达，提案以 `verifier-unavailable` 拒绝。默认基座 bundle 三维度均无信号，因此每轮循环"挖掘→提案→拒绝"，**不会产生任何 commit**（L3/L4 路径基座亦不产提案）。三项全部配置后提交路径才可达。
 
-- [x] Held-In 双 verifier 决策接线（`requireDualVerification` 默认 true；fork 重放收集器 P1.2；workspace 信号 P1.9b：git 净增量 + build 健康，需配置 `workspaceVerifier.buildCommand` 才产生）。
+- [x] Held-In 双 verifier 决策接线（`requireDualVerification` 默认 true；fork 重放收集器 P1.2——通过需子代理正常结束、**至少调用过一次工具**、且未重新触发原 pattern；workspace 信号 P1.9b：git 净增量 + build 健康，需配置 `workspaceVerifier.buildCommand` 才产生）。
 - [x] Held-Out 相似历史重放（P1.3，`sessionQuery.searchEvents` + fork 重放，弱路径 0.3）。
 - [x] LLM judge（P1.4，`validatorTarget` 路由，4 维度评分；与 proposerTarget 同路由拒绝加载）。
 - [x] L1 skill 持久化（P1.5，`ctx.fs` 写 `<project>/.dsh/skills/`）；failedProposals 回写（P1.6）。
 - [x] negative results 持久化 + 读取 + 模板 proposer 前缀（P1.7b/P1.8）。
 - [x] Champion-Challenger 归档与回滚（P1.8）；prompt 膨胀 pruning（P1.9，`estimatedBytes` + `maxPromptInflationBytesPerWeek`）。
-- [ ] 60 题离线子集 baseline + 净胜分 95% CI 评估（含 CI 跨零自动停开关）；Phase 1 snapshot 录制（需 key 环境）。
-  - [x] 评估脚手架（P1.10a）：`@deepseek-ai/dsh-self-evolve-eval`——确定性子集、配对结果 schema、bootstrap 95% CI、决策记录与 `verify-self-evolve-eval` CI 停开关；实机双跑待 keyed+docker 环境。
+- [ ] 60 题离线子集 baseline + 精确 McNemar 决策评估（含未达标自动停开关）；Phase 1 snapshot 录制（需 key 环境）。
+  - [x] 评估脚手架（P1.10a）：`@deepseek-ai/dsh-self-evolve-eval`——确定性子集（含不相交留存池）、配对结果 schema、精确 McNemar 检验 + 预注册最小效应量、重用收紧显著性水平、决策记录与 `verify-self-evolve-eval` 停开关；实机双跑待 keyed+docker 环境。
 
 ### P3：L3 + L4 审批（Phase 2 完成）
 

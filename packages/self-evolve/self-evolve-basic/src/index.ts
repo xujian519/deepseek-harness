@@ -174,10 +174,15 @@ function caseContextText(session: Session, lastSeq: number): string {
   return window.map(event => `[${event.seq}] ${event.type}`).join(' → ')
 }
 
-/** Fold a fork child's own events (after the end-seed marker) into pattern ids. */
-function classifyChildSession(session: Session): string[] {
+/**
+ * Fold a fork child's own events (after the end-seed marker) into pattern ids
+ * and a tool-call count. Both are read from durable events, so the replay
+ * verdict rests on what the child did rather than on its own account of it.
+ */
+function foldChildSession(session: Session): { retriggeredPatternIds: string[]; toolCalls: number } {
   let state = failurePatternsProjectionDefinition.init()
   let afterSeed = false
+  let toolCalls = 0
   // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
   for (const event of session.snapshotEvents()) {
     if (event.type === 'session/end-seed') {
@@ -185,9 +190,10 @@ function classifyChildSession(session: Session): string[] {
       continue
     }
     if (!afterSeed) continue
+    if (event.type === 'tool/call') toolCalls += 1
     state = failurePatternsProjectionDefinition.apply(state, event)
   }
-  return Object.keys(state.patterns)
+  return { retriggeredPatternIds: Object.keys(state.patterns), toolCalls }
 }
 
 /** Plain text of one content block, or null for non-text blocks. */
@@ -275,7 +281,7 @@ function parseLlmProposals(text: string): EvolveProposal[] {
           sectionName: candidate.sectionName,
           sectionText,
           order: typeof candidate.order === 'number' ? candidate.order : SECTION_ORDER_PATCH,
-          estimatedBytes: sectionText.length,
+          estimatedBytes: utf8Bytes(sectionText),
         },
       })
     }
@@ -331,12 +337,44 @@ const REFLECTION_MAX_INPUT_CHARS = 2048
 const REFLECTION_MAX_OUTPUT_TOKENS = 512
 /** Rolling window for the cross-session global pattern merge (P4.2). */
 const GLOBAL_PATTERN_WINDOW_MS = 24 * 60 * 60 * 1000
-/** Structural scores for smoke and dual-verified acceptances (P1.4 LLM judge replaces these). */
-const SMOKE_SCORES: ValidationScores = {
+/**
+ * Scores recorded for an L4 proposal that entered the approval pipeline.
+ *
+ * The aggregate confidence gate does not evaluate L4: activation settles
+ * asynchronously through `dynamicCordisRunner`, and the human approval flow —
+ * not a confidence score — authorizes the change. These values record "not
+ * evaluated", not "evaluated favourably". The pinned `confidence: 1` on that
+ * outcome exists only because the accepted variant requires a number, and is
+ * never evidence of proposal quality.
+ */
+const L4_APPROVAL_SCORES: ValidationScores = {
   activatesWhenCorrect: 1,
   clarity: 1,
   noRegressionIntroduced: 1,
   safety: 1,
+}
+
+/**
+ * Scores substituted when the LLM judge returned no signal (no
+ * `validatorTarget`, or the llm service is absent). Capping every dimension at
+ * the weak rate keeps a missing judge from reading as a favourable one, which
+ * is what scoring it 1.0 would do.
+ */
+const WEAK_VALIDATION_SCORES: ValidationScores = {
+  activatesWhenCorrect: WEAK_VERIFIER_RATE,
+  clarity: WEAK_VERIFIER_RATE,
+  noRegressionIntroduced: WEAK_VERIFIER_RATE,
+  safety: WEAK_VERIFIER_RATE,
+}
+
+/**
+ * UTF-8 byte length of a string. Prompt-inflation accounting is configured in
+ * bytes (`maxPromptInflationBytesPerWeek`, `L2-context.estimatedBytes`), so it
+ * cannot use `String.length`: that counts UTF-16 code units and understates
+ * non-ASCII text by up to 3×, silently widening the budget.
+ */
+function utf8Bytes(text: string): number {
+  return Buffer.byteLength(text, 'utf8')
 }
 
 /** One append-only negative-result row (P1.7b, 翁荔挑战 4). */
@@ -419,6 +457,7 @@ function resolveConfig(config: BasicSelfEvolveConfig): ResolvedBasicSelfEvolveCo
     requireDualVerification: config.requireDualVerification ?? true,
     minAcceptConfidence: config.minAcceptConfidence ?? 0.5,
     maxHeldOutCases: config.maxHeldOutCases ?? 5,
+    heldOutSessionIds: config.heldOutSessionIds ?? [],
     minHeldOutPassRate: config.minHeldOutPassRate ?? 0.6,
     maxPromptInflationBytesPerWeek: config.maxPromptInflationBytesPerWeek ?? 2048,
     l4ReapprovalHours: config.l4ReapprovalHours ?? 24,
@@ -483,6 +522,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     requireDualVerification: z.boolean().default(true),
     minAcceptConfidence: z.number().step(0.01).min(0).max(1).default(0.5),
     maxHeldOutCases: z.number().step(1).min(0).max(10).default(5),
+    heldOutSessionIds: z.array(z.string()),
     minHeldOutPassRate: z.number().step(0.01).min(0).max(1).default(0.6),
     maxPromptInflationBytesPerWeek: z.number().step(1).min(0).default(2048),
     l4ReapprovalHours: z.number().step(0.5).min(0).default(24),
@@ -742,7 +782,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
           sectionName,
           sectionText,
           order: SECTION_ORDER_PATCH,
-          estimatedBytes: sectionText.length,
+          estimatedBytes: utf8Bytes(sectionText),
         },
       }
       out.push(proposal)
@@ -765,7 +805,9 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
    * @param proposal - the candidate being validated.
    * @param caseText - description of the failing case to re-attempt.
    * @param signal - cancels the fork and its turn work.
-   * @returns replay exit code and retriggered pattern ids, or `null` when unavailable.
+   * @returns replay exit code and retriggered pattern ids, or `null` when
+   *   unavailable. A non-zero exit code means the child did not complete, made
+   *   no tool call, or re-triggered a failure pattern.
    */
   protected async replayCase(
     agent: SelfEvolveAgentContext,
@@ -783,7 +825,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       request: {
         prompt: [{
           type: 'text',
-          text: `你正在验证一个自进化修补提案，请如实重放以下失败场景并应用修补方案，完成一次验证执行。\n失败场景：${caseText}\n修补方案：${candidateText(proposal)}\n请按修补方案重新执行原本失败的操作，完成后用一句话说明结果。`,
+          text: `你正在验证一个自进化修补提案，请如实重放以下失败场景并应用修补方案，完成一次验证执行。\n失败场景：${caseText}\n修补方案：${candidateText(proposal)}\n请按修补方案实际执行原本失败的操作（必须真的调用工具执行，只描述结果不算验证），完成后用一句话说明结果。`,
         }],
         parent,
       },
@@ -791,10 +833,15 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     })
     try {
       const result = await run.result
-      const exitCode = result.stopReason === 'completed' ? 0 : 1
       const replayAgent = this.ctx.agents.get(run.childId)
-      const retriggeredPatternIds = replayAgent === undefined ? [] : classifyChildSession(replayAgent.session)
-      return { exitCode, retriggeredPatternIds }
+      const folded = replayAgent === undefined
+        ? { retriggeredPatternIds: [], toolCalls: 0 }
+        : foldChildSession(replayAgent.session)
+      // A child that called no tool never re-attempted the failure, so a
+      // "completed" run without a tool call is an empty replay rather than a
+      // fix; it fails the gate alongside incomplete runs.
+      const exitCode = result.stopReason === 'completed' && folded.toolCalls > 0 ? 0 : 1
+      return { exitCode, retriggeredPatternIds: folded.retriggeredPatternIds }
     } finally {
       await run.dispose()
     }
@@ -1012,11 +1059,13 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   }
 
   /**
-   * Held-out signal for one proposal (P1.3): search the current session's
-   * history for events matching the pattern summary (up to
-   * `maxHeldOutCases`), and replay each similar case with the candidate.
-   * Returns `null` when sessionQuery is unavailable or no similar case is
-   * found (weak path applies).
+   * Held-out signal for one proposal (P1.3): search for events matching the
+   * pattern summary (up to `maxHeldOutCases`) and replay each similar case
+   * with the candidate. Sources are `heldOutSessionIds` when configured,
+   * otherwise the proposing session — a same-source probe is
+   * self-confirmation, which the config docstring and the package README both
+   * state. Returns `null` when sessionQuery is unavailable or no similar case
+   * is found, leaving the dimension unmeasured rather than passing.
    */
   protected async collectHeldOutSignal(
     agent: SelfEvolveAgentContext,
@@ -1025,18 +1074,30 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     signal: AbortSignal,
   ): Promise<{ passed: number; cases: number } | null> {
     const sessionQuery = this.ctx.get('sessionQuery')
-    const session = this.ctx.sessions.get(SessionId(agent.sessionId))
-    if (sessionQuery === undefined || session === undefined) return null
-    const page = await sessionQuery.searchEvents({
-      sessionId: session.id,
-      query: pattern.summary,
-      limit: this.config.maxHeldOutCases,
-    }, { signal })
-    this.chargeBudget(pattern.summary.length + page.items.length * 200)
-    const hits = page.items.filter(hit => !pattern.supportingSeqs.includes(hit.seq))
-    if (hits.length === 0) return null
+    if (sessionQuery === undefined || this.ctx.sessions.get(SessionId(agent.sessionId)) === undefined) return null
+    const sources: string[] = this.config.heldOutSessionIds.length > 0
+      ? this.config.heldOutSessionIds
+      : [agent.sessionId]
+    const hits: { seq: number; snippet: string }[] = []
+    for (const source of sources) {
+      const page = await sessionQuery.searchEvents({
+        sessionId: SessionId(source),
+        query: pattern.summary,
+        limit: this.config.maxHeldOutCases,
+      }, { signal })
+      this.chargeBudget(pattern.summary.length + page.items.length * 200)
+      for (const hit of page.items) {
+        // The supporting seqs are the evidence that minted this pattern, so
+        // replaying them would re-test the same events. Seq numbers are
+        // session-local, so the filter applies only to that same session.
+        if (source === agent.sessionId && pattern.supportingSeqs.includes(hit.seq)) continue
+        hits.push({ seq: hit.seq, snippet: hit.snippet })
+      }
+    }
+    const selected = hits.slice(0, this.config.maxHeldOutCases)
+    if (selected.length === 0) return null
     let passed = 0
-    for (const hit of hits) {
+    for (const hit of selected) {
       if (signal.aborted) throw new DOMException('aborted', 'AbortError')
       const replay = await this.replayCase(
         agent,
@@ -1046,13 +1107,14 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       )
       if (replay !== null && replay.exitCode === 0 && replay.retriggeredPatternIds.length === 0) passed += 1
     }
-    return { passed, cases: hits.length }
+    return { passed, cases: selected.length }
   }
 
   /**
    * LLM judge (P1.4): four fixed-dimension structural scores for the candidate
    * given the replay evidence. Returns `null` when no `validatorTarget` is
-   * configured or the llm service is unavailable, so structural scores apply.
+   * configured or the llm service is unavailable; the caller then treats the
+   * judge dimension as missing (weak rate) instead of scoring it favourably.
    */
   protected async _judge(
     proposal: EvolveProposal,
@@ -1086,9 +1148,16 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
    * Validate one proposal through the Phase 1 pipeline: held-in dual
    * verification (when both signals are available), held-out similarity
    * replay, the LLM judge, and the aggregate confidence gate
-   * `min(scores) × heldInRate × heldOutRate`. Missing dimensions degrade to
-   * the weak rate (0.3), so unverifiable proposals are rejected
-   * conservatively instead of committing on trust.
+   * `min(scores) × heldInRate × heldOutRate`.
+   *
+   * A dimension with no signal is capped at the weak rate (0.3) and recorded
+   * in `weakDimensions`. Because any single weak dimension puts `confidence`
+   * at or below 0.3 — under every positive threshold — such a proposal is
+   * rejected as `verifier-unavailable` before the threshold comparison runs,
+   * which distinguishes "the verifiers never judged this" from
+   * `low-confidence` ("the verifiers judged it badly"). The check is ordered
+   * first on purpose: lowering `minAcceptConfidence` must not convert missing
+   * evidence into an acceptance.
    */
   protected async validateProposal(
     agent: SelfEvolveAgentContext,
@@ -1102,6 +1171,11 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const patterns = await this.readPatterns(agent.sessionId)
     const addressed = patterns.find(pattern => pattern.patternId === proposal.addressesPatternIds[0])
     const evidence: ReplayEvidence[] = []
+    // Dimensions that produced no signal. Any single one caps `confidence` at
+    // the weak rate, which `minAcceptConfidence` can never accept — so a
+    // rejection driven by this list means "could not be judged", never
+    // "judged badly".
+    const weakDimensions: string[] = []
 
     let heldInRate: number | null = null
     if (this.config.requireDualVerification) {
@@ -1136,6 +1210,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         heldInRate = 1
       } else {
         heldInRate = WEAK_VERIFIER_RATE
+        weakDimensions.push('held-in')
         evidence.push({
           kind: 'held-in',
           coversPatternIds: proposal.addressesPatternIds,
@@ -1148,11 +1223,13 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
     let heldOutPassed = 0
     let heldOutRate = WEAK_VERIFIER_RATE
+    let heldOutMeasured = false
     if (addressed !== undefined) {
       const heldOut = await this.collectHeldOutSignal(agent, proposal, addressed, signal)
-      if (heldOut !== null) {
+      if (heldOut !== null && heldOut.cases > 0) {
+        heldOutMeasured = true
         heldOutPassed = heldOut.passed
-        heldOutRate = heldOut.cases > 0 ? heldOut.passed / heldOut.cases : WEAK_VERIFIER_RATE
+        heldOutRate = heldOut.passed / heldOut.cases
         evidence.push({
           kind: 'held-out',
           coversPatternIds: proposal.addressesPatternIds,
@@ -1162,7 +1239,8 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         })
       }
     }
-    if (heldOutRate === WEAK_VERIFIER_RATE) {
+    if (!heldOutMeasured) {
+      weakDimensions.push('held-out')
       evidence.push({
         kind: 'held-out',
         coversPatternIds: proposal.addressesPatternIds,
@@ -1172,11 +1250,29 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       })
     }
 
-    const scores = (await this._judge(proposal, evidence, signal)) ?? SMOKE_SCORES
+    const judged = await this._judge(proposal, evidence, signal)
+    if (judged === null) weakDimensions.push('judge')
+    const scores = judged ?? WEAK_VALIDATION_SCORES
     const confidence = Math.min(scores.activatesWhenCorrect, scores.clarity, scores.noRegressionIntroduced, scores.safety)
       * (heldInRate ?? 1)
       * heldOutRate
     const heldInPassed = heldInRate === 1 ? 1 : 0
+    if (weakDimensions.length > 0) {
+      return {
+        kind: 'rejected',
+        reason: 'verifier-unavailable',
+        heldInPassed,
+        heldOutPassed,
+        regressions: [],
+        deconstructedScores: scores,
+        confidence,
+        replayEvidence: evidence,
+        diagnostic: `验证信号不可用（${weakDimensions.join(' + ')}）：缺失维度按弱路径 ${WEAK_VERIFIER_RATE} 计，`
+          + `聚合置信度上限为 ${WEAK_VERIFIER_RATE}，低于阈值 ${this.config.minAcceptConfidence}，保守拒绝。`,
+        nextRoundSuggestion: '先让验证器可用（配置 workspaceVerifier.buildCommand 与 validatorTarget，'
+          + '或提供可命中的 held-out 语料），再重新提案。',
+      }
+    }
     if (confidence >= this.config.minAcceptConfidence) {
       return {
         kind: 'accepted',
@@ -1262,7 +1358,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       heldInPassed: 0,
       heldOutPassed: 0,
       regressions: [],
-      deconstructedScores: SMOKE_SCORES,
+      deconstructedScores: L4_APPROVAL_SCORES,
       confidence: 1,
       replayEvidence: [{
         kind: 'held-in',
@@ -1520,7 +1616,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   protected async pruneInflatedSections(): Promise<void> {
     const budget = this.config.maxPromptInflationBytesPerWeek
     let total = 0
-    for (const section of this.liveSections.values()) total += section.text.length
+    for (const section of this.liveSections.values()) total += utf8Bytes(section.text)
     if (total <= budget) return
     const ordered = [...this.liveSections.entries()].sort((a, b) => a[1].registeredAt - b[1].registeredAt)
     for (const [name, section] of ordered) {
@@ -1528,7 +1624,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       await this.archiveSection(name, section.text)
       section.dispose()
       this.liveSections.delete(name)
-      total -= section.text.length
+      total -= utf8Bytes(section.text)
     }
   }
 

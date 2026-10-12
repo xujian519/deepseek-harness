@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-12-self-evolve-eval-decision-rule.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-10-12-self-evolve-eval-decision-rule.md
+/agent-note-self-evolve-evaluation-decision-rule:
+  en: a88d2b78a712f35e
+  zh: 7141046d4617cbc5
+/agent-note-self-evolve-evaluation-decision-rule/problem:
+  en: c7899e7d784e0b1f
+  zh: f99143236b3bab05
+/agent-note-self-evolve-evaluation-decision-rule/decision:
+  en: 91bc551b546428ae
+  zh: 9aa3e894060cc401
+/agent-note-self-evolve-evaluation-decision-rule/alternatives-considered:
+  en: 7f53b7a022427eb1
+  zh: 292a2a49133f1e15
+/agent-note-self-evolve-evaluation-decision-rule/consequences:
+  en: 3091f51aece10a8b
+  zh: e489c4407f306b6c

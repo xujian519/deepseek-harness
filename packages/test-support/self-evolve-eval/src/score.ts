@@ -11,7 +11,7 @@
  * @module @deepseek-ai/dsh-self-evolve-eval/score
  */
 
-import type { ConfidenceInterval, EvalResults, EvalSummary, TaskOutcome } from './types.ts'
+import type { ConfidenceInterval, EvalResults, EvalSummary, McnemarResult, TaskOutcome } from './types.ts'
 import { mulberry32 } from './subset.ts'
 
 /** Default bootstrap resamples. */
@@ -127,6 +127,32 @@ export function wilsonCi(passes: number, n: number, confidence = DEFAULT_CONFIDE
   return { low: Math.max(0, center - halfWidth), high: Math.min(1, center + halfWidth) }
 }
 
+/**
+ * Two-sided exact McNemar test over the discordant pairs of a paired binary
+ * design. Under the null hypothesis each discordant pair is a fair coin, so
+ * the smaller count follows `Binomial(wins + losses, 0.5)`; the p-value is
+ * twice that lower tail, capped at 1.
+ *
+ * Terms accumulate in log space so a plausible subset size stays representable
+ * instead of underflowing `0.5^n`.
+ *
+ * @param wins - tasks the evolved run resolved and the baseline did not.
+ * @param losses - tasks the baseline resolved and the evolved run did not.
+ * @returns the two-sided p-value and the discordant-pair count.
+ */
+export function mcnemarExact(wins: number, losses: number): McnemarResult {
+  const discordant = wins + losses
+  if (discordant === 0) return { pValue: 1, discordant: 0 }
+  const smaller = Math.min(wins, losses)
+  let logTerm = discordant * Math.log(0.5)
+  let tail = Math.exp(logTerm)
+  for (let k = 1; k <= smaller; k += 1) {
+    logTerm += Math.log(discordant - k + 1) - Math.log(k)
+    tail += Math.exp(logTerm)
+  }
+  return { pValue: Math.min(1, 2 * tail), discordant }
+}
+
 /** Two-sided z for a confidence level (standard normal quantile, few steps of Newton from a table seed). */
 function zForConfidence(confidence: number): number {
   const tail = (1 - confidence) / 2
@@ -183,5 +209,7 @@ export function validateResults(raw: unknown): EvalResults {
   const seed = typeof record.seed === 'number' ? record.seed : 0
   const subsetSize = typeof record.subsetSize === 'number' ? record.subsetSize : validated.length
   const generatedAt = typeof record.generatedAt === 'number' ? record.generatedAt : Date.now()
-  return { seed, subsetSize, generatedAt, tasks: validated }
+  const results: EvalResults = { seed, subsetSize, generatedAt, tasks: validated }
+  if (typeof record.subsetDigest === 'string') results.subsetDigest = record.subsetDigest
+  return results
 }

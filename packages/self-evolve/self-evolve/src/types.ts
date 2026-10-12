@@ -124,6 +124,14 @@ export type ProposalValidationOutcome =
       | 'approval-denied'
       | 'rate-limited'
       | 'low-confidence'
+      /**
+       * At least one verification dimension produced no signal, so the
+       * aggregate confidence could never reach `minAcceptConfidence`.
+       * Distinct from `low-confidence`: the proposal was not judged badly, it
+       * could not be judged at all. Consumers that feed rejections back to a
+       * proposer must not read this as a defect in the proposal.
+       */
+      | 'verifier-unavailable'
     heldInPassed?: number
     heldOutPassed?: number
     regressions: string[]

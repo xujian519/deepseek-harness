@@ -2015,7 +2015,7 @@ export interface Config {
    * re-read, so replacing a certificate takes a reload. Omitted or null listens
    * over plain HTTP.
    */
-  tls?: TlsConfig
+  tls?: TlsConfig | null
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */
@@ -2798,7 +2798,7 @@ export interface AutoCommitConfig {
 ## `@deepseek-ai/dsh-patent-data`
 
 - `inject`: `subprocess`
-- `source`: [`packages/patent/patent-data/src/index.ts:80`](../packages/patent/patent-data/src/index.ts)
+- `source`: [`packages/patent/patent-data/src/index.ts:130`](../packages/patent/patent-data/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2827,6 +2827,13 @@ export interface Config {
    * vendored engine in it, not just this service.
    */
   nuoRequestChannel?: NuoRequestChannel
+  /**
+   * 是否让本部署经 CNIPR（search.cnipr.com）取中国专利全文与法律状态（默认 false）。
+   * 通道复用 ego lite 的 CNIPR 登录态，因此没有该登录态的部署打开它只会得到
+   * `login_required`；关闭时 {@link PatentData.createCniprChannel} 返回 undefined，
+   * 消费方据此按号回退到 nuo 引擎，并在结果里点名实际服务的通道。
+   */
+  cniprEnabled?: boolean
 }
 
 /** One nuo request channel: see {@link NUO_REQUEST_CHANNELS}. */
@@ -3004,7 +3011,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:191`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:203`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3680,7 +3687,9 @@ export interface BasicSelfEvolveConfig {
   }
   /**
    * Provider/model target routed for the validation LLM judge (P1.4). Absent
-   * disables the judge (structural scores only). When set, it MUST differ from
+   * leaves the judge dimension without a signal: it is capped at the weak rate
+   * and every proposal is rejected as `verifier-unavailable`, so a deployment
+   * that wants commits must set this. When set, it MUST differ from
    * `proposerTarget` — load-time validation rejects identical targets so the
    * judge cannot drift with the proposer (Validator 漂移防护).
    */
@@ -3692,16 +3701,27 @@ export interface BasicSelfEvolveConfig {
   }
   /**
    * Minimum aggregate confidence for an accepted proposal:
-   * `min(deconstructedScores) × heldInRate × heldOutRate`. The weak path
-   * (verifier signals or held-out unavailable) caps each missing rate at 0.3,
-   * so unverifiable proposals are rejected conservatively instead of
-   * committing on trust.
+   * `min(deconstructedScores) × heldInRate × heldOutRate`. Every dimension
+   * without a signal (held-in, held-out, or the LLM judge) is capped at 0.3,
+   * so one missing dimension puts the product at or below 0.3 — under every
+   * positive threshold. Such proposals are rejected as `verifier-unavailable`
+   * before this comparison runs, so raising or lowering the threshold never
+   * turns missing evidence into an acceptance.
    */
   minAcceptConfidence?: number
   /**
    * Maximum held-out cases searched and replayed per proposal (P1.3).
    */
   maxHeldOutCases?: number
+  /**
+   * Session ids whose history supplies held-out cases (P1.3). Set this to
+   * sessions the proposing loop did not steer: a candidate judged against the
+   * proposing session's own log is scored on the same events that produced the
+   * pattern, which is self-confirmation rather than an independent probe.
+   * Absent, the probe falls back to the proposing session and the held-out
+   * dimension stays same-source.
+   */
+  heldOutSessionIds?: string[]
   /**
    * Held-out pass-rate threshold (P1.3): a proposal whose similar-history
    * replays pass at or above this ratio counts as held-out-passed; below it
@@ -3747,10 +3767,11 @@ export interface BasicSelfEvolveConfig {
   maxBudgetCharsPerLoop?: number
   /**
    * Held-In dual verification gate (翁荔挑战 1). When true, proposals are
-   * rejected unless BOTH the replay and workspace verifiers pass; the base
-   * provider's collectors return `null` until P1.2/P1.3 infrastructure lands,
-   * so the gate degrades to the bracket-smoke validator (honest, no fake
-   * acceptances are produced by the dual check).
+   * rejected unless BOTH the replay and workspace verifiers pass. When either
+   * collector returns `null` — no fork provider, not a git work tree, no
+   * `workspaceVerifier.buildCommand`, no shell service — the dimension is
+   * *missing* rather than passing: it caps `confidence` at the weak rate and
+   * the proposal is rejected as `verifier-unavailable`.
    */
   requireDualVerification?: boolean
   /**

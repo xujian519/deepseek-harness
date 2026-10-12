@@ -19,15 +19,15 @@
 ## P1 Validator（Phase 1）
 
 - [x] P1.1 `ProposalValidationOutcome` 扩展：`deconstructedScores` / `confidence` / `replayEvidence[]` / `nextRoundSuggestion`；reject reason 新增 `low-confidence`。
-- [x] P1.1b Held-In 双 Verifier 决策接线：`requireDualVerification`（默认 true）+ `_verifyHeldInCase`；T+F / F+F → rejected 且 regressions=[]；信号缺失按弱路径 0.3 计。
-- [x] P1.2 Held-In replay 验证：`replayCase` 经 `ctx.subagents` 的 `fork` provider 重放失败场景（child 继承父历史前缀，end-seed 后的事件用失败投影折叠检测重触发 patternId）；基础设施缺失时返回 null 走弱路径。
-- [x] P1.3 Held-Out 跨会话构造：`collectHeldOutSignal` 用 `sessionQuery.searchEvents` 搜索相似历史并逐个重放；无 sessionQuery / 无命中 → null 弱路径。**注意**：workspace verifier（Verifier B：`git diff --stat` + build）仍为基础 `collectWorkspaceSignal` 钩子（子类实现）。
-- [x] P1.4 Deconstructed LLM-Judge：`_judge` 经 `validatorTarget` 路由 4 维度打分（0-1 钳制，JSON 解析失败退化为结构分）；`validatorTarget ≠ proposerTarget` 加载期校验。
+- [x] P1.1b Held-In 双 Verifier 决策接线：`requireDualVerification`（默认 true）+ `_verifyHeldInCase`；T+F / F+F → rejected 且 regressions=[]；任一维度缺失信号按弱路径 0.3 计，并以 `verifier-unavailable` 拒绝（该判定优先于阈值比较，降阈值不能把缺失证据变成验收）。
+- [x] P1.2 Held-In replay 验证：`replayCase` 经 `ctx.subagents` 的 `fork` provider 重放失败场景（child 继承父历史前缀；end-seed 后的事件一次性折叠为"重新触发的 patternId"与"工具调用次数"）；通过需子代理正常结束**且至少调用过一次工具**且未重触发原 pattern（空转的 "completed" 不算通过）；基础设施缺失时返回 null 走弱路径。
+- [x] P1.3 Held-Out 相似历史重放：`collectHeldOutSignal` 用 `sessionQuery.searchEvents` 在**提案会话自身**的历史中搜索相似事件（`sessionId: session.id`，排除该模式的 supporting seqs）并逐个重放；无 sessionQuery / 无命中 / cases=0 → 该维度无信号。**注意**：此处并非"跨会话"构造，无法提供独立分布；新会话中集中的失败模式常常零命中。
+- [x] P1.4 Deconstructed LLM-Judge：`_judge` 经 `validatorTarget` 路由 4 维度打分（0-1 钳制）；未配置 `validatorTarget` 或 llm 不可用时返回 null，该维度按弱路径 0.3 计（**不再回退满分**）；`validatorTarget ≠ proposerTarget` 加载期校验。
 - [x] P1.5 L1 skill 持久化：applyCommit 经 `ctx.fs` 写 `<project>/.dsh/skills/<name>/SKILL.md`（frontmatter name/description/whenToUse）；fs 缺失时仅运行时注册。
 - [x] P1.6 Validator reject 回写：`readPatterns` 把最近失败注入每个模式的 `verifierMeta.failedProposals`（源自 negative-results 日志）。
 - [x] P1.7b 负面结果沉淀：`persistNegativeResult` + `readNegativeResults` + 模板 proposer 前缀。
 - [x] P1.8 Champion-Challenger：提交前归档 champion 到 `$DSH_HOME/self-evolve/archive/<patternId>/`；同一模式连续 2 次 rejection 自动回滚最新 champion。
-- [x] P1.9 L2 `estimatedBytes` 声明 + pruning job：`maxPromptInflationBytesPerWeek`（默认 2048）超限时把最旧 section 归档到 `$DSH_HOME/self-evolve/l2-archive/` 并 disposer 撤销（7 天 0 调用按注册时间近似，最旧优先）。
+- [x] P1.9 L2 `estimatedBytes` 声明 + pruning job：`maxPromptInflationBytesPerWeek`（默认 2048，按 **UTF-8 字节**计量）超限时把最旧 section 归档到 `$DSH_HOME/self-evolve/l2-archive/` 并 disposer 撤销（7 天 0 调用按注册时间近似，最旧优先）。
 - [ ] P1.7 Phase 1 snapshot 录制（需 API key 的 keyless 录制，待 `pnpm run test:snapshot:record` 环境）。
 - [x] P1.9b Workspace verifier 具体实现：`captureWorkspaceBaseline`（重放前 git 基线）+ `collectWorkspaceSignal`（重放后净脏增量 `git diff HEAD --numstat`/未跟踪行数，排除 `.dsh/`，+ `buildCommand` 健康判定）；未配置 `workspaceVerifier.buildCommand`、非 git 仓库或 shell 服务缺失时退化为弱路径。`_verifyHeldInCase` 新增 `build-failed` 原因；`validateProposal` 改为顺序采集（先重放、后工作区检查）。
 - [x] P1.10a 评估脚手架（PR11/P1-14 支撑）：`packages/test-support/self-evolve-eval`——确定性 `selectSubset`（seed 可复现）、配对 `results.json` schema 与 `validateResults`、`summarize`/`bootstrapCi`（10k 重采样分位数 95% CI）/`wilsonCi`、`decide`/决策记录 I/O、CLI（subset/score/decide --write）+ `verify-self-evolve-eval` CI 停开关（记录为 rollback 时门禁失败）；单测覆盖确定性、评分、区间与决策路径。

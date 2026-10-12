@@ -127,8 +127,36 @@ function rowField(row: Record<string, unknown>, keys: readonly string[]): string
  * @throws when a selected task has no `failToPass` id.
  */
 export function selectSubset(tasks: EvalTask[], seed: number, count = DEFAULT_SUBSET_SIZE): EvalTask[] {
+  return selectSubsetWithReserve(tasks, seed, count).subset
+}
+
+/**
+ * Select a subset and a disjoint reserve from one manifest in a single
+ * deterministic pass: both slices come from the same shuffle, so the seed
+ * reproduces them and they never overlap.
+ *
+ * The reserve exists because a fixed evaluation set cannot be consumed
+ * repeatedly without consequence — candidates proposed against the same
+ * feedback adaptively overfit it ([REUSE](https://arxiv.org/abs/2609.33180)).
+ * Retire a consumed subset and evaluate the next candidate on tasks the search
+ * has not seen.
+ *
+ * @param tasks - the normalized task list.
+ * @param seed - sampling seed; the campaign records it with the results.
+ * @param count - subset size (default 60). Clamped to the task list length.
+ * @param reserveCount - reserve size (default 0); the reserve is shorter when
+ *   the manifest does not hold that many remaining tasks.
+ * @returns the subset and the disjoint reserve, each in shuffled order.
+ * @throws when a selected task has no `failToPass` id.
+ */
+export function selectSubsetWithReserve(
+  tasks: EvalTask[],
+  seed: number,
+  count = DEFAULT_SUBSET_SIZE,
+  reserveCount = 0,
+): { subset: EvalTask[]; reserve: EvalTask[] } {
   const sorted = [...tasks].sort((a, b) => a.instanceId.localeCompare(b.instanceId))
-  if (sorted.length <= count) return assertScorable(sorted)
+  if (sorted.length <= count) return { subset: assertScorable(sorted), reserve: [] }
   const random = mulberry32(seed)
   // Fisher-Yates shuffle of the sorted list.
   for (let index = sorted.length - 1; index > 0; index -= 1) {
@@ -140,7 +168,9 @@ export function selectSubset(tasks: EvalTask[], seed: number, count = DEFAULT_SU
     sorted[index] = swapTarget
     sorted[swapWith] = current
   }
-  return assertScorable(sorted.slice(0, count))
+  const subset = assertScorable(sorted.slice(0, count))
+  const reserve = sorted.slice(count, count + reserveCount)
+  return { subset, reserve: reserve.length === 0 ? [] : assertScorable(reserve) }
 }
 
 /**

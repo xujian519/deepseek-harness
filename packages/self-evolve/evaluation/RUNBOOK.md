@@ -48,10 +48,14 @@ sha256sum swebench-verified.jsonl        # record this + the HF revision into RE
 pnpm eval:self-evolve subset \
   --manifest swebench-verified.jsonl \
   --seed 20260821 \
-  --out packages/self-evolve/evaluation/subset.json
+  --count 60 --reserve 60 \
+  --out packages/self-evolve/evaluation/subset.json \
+  --reserve-out packages/self-evolve/evaluation/reserve.json
 ```
 
-Pass criteria: exactly 60 items; re-running produces a byte-identical `subset.json` (determinism); every row carries `instanceId/repo/baseCommit/failToPass/passToPass` with a non-empty `failToPass`.
+Pass criteria: exactly 60 items; re-running produces a byte-identical `subset.json` (determinism); every row carries `instanceId/repo/baseCommit/failToPass/passToPass` with a non-empty `failToPass`. The command also prints `subsetDigest=…`; record it with the run.
+
+The reserve is a second, disjoint slice of tasks the subset does not contain. Keep it for the confirmation run: candidates proposed against the subset's feedback adaptively overfit it ([REUSE](https://arxiv.org/abs/2609.33180)), so once a subset has been consumed more than once, retire it and evaluate the next candidate against the reserve.
 
 ## 3. Smoke pilot — 5 tasks, both arms
 
@@ -104,11 +108,16 @@ Pass criteria: `results.json` has exactly 60 task rows matching `subset.json`, a
 
 ```sh
 pnpm eval:self-evolve score  --results packages/self-evolve/evaluation/results.json
-pnpm eval:self-evolve decide --results packages/self-evolve/evaluation/results.json --write
+pnpm eval:self-evolve decide --results packages/self-evolve/evaluation/results.json \
+  --subset packages/self-evolve/evaluation/subset.json \
+  --prior-reuses 0 \
+  --write
 pnpm run verify-self-evolve-eval
 ```
 
-Decision rule (spec P1-10): `continue` **only** when the bootstrap 95% CI low bound is strictly `> 0`; `rollback` when the CI crosses zero (randomness cannot be excluded) or lies at/below zero (harm evidence). `--write` persists `eval-decision.json` (default path), which is exactly what the gate reads.
+Decision rule (spec P1-10): `continue` requires **both** a two-sided exact McNemar p-value below the significance level and an observed `winRateDelta` at or above the pre-registered minimum effect (`--min-effect`, default 0.05). Everything else is `rollback`. A percentile bootstrap over paired binary outcomes carries too little power at this subset size to serve as the gate, and "the interval excludes zero" would admit effects too small to matter; the interval is still recorded, as description rather than as the criterion.
+
+Reuse tightens the level: `--prior-reuses N` divides the significance level by `N + 1`, because repeatedly proposing candidates against one fixed subset inflates the false-promotion rate. Pass the number of decisions already recorded against the same `subsetDigest`. `--write` persists `eval-decision.json` (default path), which is exactly what the gate reads; `--subset` records the digest the decision covered.
 
 ## 6. Commit the artifacts
 

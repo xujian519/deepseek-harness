@@ -18,11 +18,11 @@
   en: 6f63fde745743beb
   zh: b4efb9bb0c8e01f1
 /deepseek-ai-dsh-self-evolve-basic/configuration:
-  en: a4db05eab3ac2b6d
-  zh: 728d4bd3ce0a2eb0
+  en: 60d6ddd17d221afe
+  zh: d9491ec1ed2cd39d
 /deepseek-ai-dsh-self-evolve-basic/validation-pipeline-phase-1:
-  en: 8864c8a2e30fc76b
-  zh: 4a01e50f46806f4e
+  en: 2f11c3bfd32988e0
+  zh: a9d7d62d450e0606
 /deepseek-ai-dsh-self-evolve-basic/negative-results-p1-7b:
   en: d3bc6b680a123240
   zh: 803a1d80c5edd28d
@@ -42,8 +42,8 @@
   en: 1401559f4d4f0bdc
   zh: 8f4267ffd1a3bde5
 /deepseek-ai-dsh-self-evolve-basic/known-limitations-and-deferred-work:
-  en: 806365a955187885
-  zh: faced587c5a68b62
+  en: 0d74dcbab4abe269
+  zh: 8ea4cc372bfdebc1
 /deepseek-ai-dsh-self-evolve-basic/known-limitations-and-deferred-work/dev-note:
   en: 0a1253c6f7b5e8b9
   zh: 9f56528562c7c914

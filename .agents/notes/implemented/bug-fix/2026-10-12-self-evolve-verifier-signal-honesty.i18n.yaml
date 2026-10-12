@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-12-self-evolve-verifier-signal-honesty.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-12-self-evolve-verifier-signal-honesty.md
+/agent-note-self-evolve-verifier-signal-honesty:
+  en: 4e144c7521dd4c18
+  zh: 97df4fd645e6bdda
+/agent-note-self-evolve-verifier-signal-honesty/problem:
+  en: bd0c84f874c80e91
+  zh: 0290a99def17865b
+/agent-note-self-evolve-verifier-signal-honesty/decision:
+  en: c4995c5ce68cd2fd
+  zh: 327d5c7d361c3d2a
+/agent-note-self-evolve-verifier-signal-honesty/alternatives-considered:
+  en: aa0decd87025e6a4
+  zh: 60b52937e1e96087
+/agent-note-self-evolve-verifier-signal-honesty/consequences:
+  en: eea8469bfa0664c4
+  zh: debf6fe26b79649f
