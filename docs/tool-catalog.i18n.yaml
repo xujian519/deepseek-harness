@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 824bfd70a1185a2b
-  zh: 9c939c7b0c3a4091
+  en: b9159d1c7f5f1fe1
+  zh: ba3fa23589c5d9b7
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -371,6 +371,9 @@
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/law-search:
   en: 247b6134600cb509
   zh: b6fefd313659f708
+/tool-schema-catalog/deepseek-ai-dsh-patent-tools/matter-log-append:
+  en: 16efd1198beec321
+  zh: 17ba169a6cfb114b
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/parse-office-action:
   en: 4b476be1df0b82c8
   zh: 2dfa6b6ac7c4d3b9

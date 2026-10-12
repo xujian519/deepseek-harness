@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-12-matter-log-supersede-chain-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-12-matter-log-supersede-chain-gate.md
+/agent-note-the-case-log-s-supersede-chain-as-a-delivery-prerequisite:
+  en: 4e32ef4ede713677
+  zh: 72afd8b383fd78b1
+/agent-note-the-case-log-s-supersede-chain-as-a-delivery-prerequisite/problem:
+  en: b23711fbb966d788
+  zh: 1412111f10295d9f
+/agent-note-the-case-log-s-supersede-chain-as-a-delivery-prerequisite/decision:
+  en: b8629a2b46cbe72f
+  zh: e9ba151fa61957e4
+/agent-note-the-case-log-s-supersede-chain-as-a-delivery-prerequisite/alternatives-considered:
+  en: 364d2aa16ae3e295
+  zh: 5c020b78815ac90b
+/agent-note-the-case-log-s-supersede-chain-as-a-delivery-prerequisite/consequences:
+  en: 13be88b85cf61be2
+  zh: af2004a1f20ca83a
+/agent-note-the-case-log-s-supersede-chain-as-a-delivery-prerequisite/testing:
+  en: 5dcd0a1be64d38ef
+  zh: a61046c1ee2e7cb1
