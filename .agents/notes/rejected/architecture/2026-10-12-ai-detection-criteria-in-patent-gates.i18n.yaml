@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for 2026-10-12-ai-detection-criteria-in-patent-gates.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/rejected/architecture/2026-10-12-ai-detection-criteria-in-patent-gates.md
+/agent-note-statistical-ai-text-detection-in-the-patent-gates:
+  en: 73c604be5636801f
+  zh: d8bc33d194e0f6b4
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/problem:
+  en: 05f546503abdadb9
+  zh: 05d5b4503a6d2f2d
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/proposal:
+  en: c7369d741c60a9f3
+  zh: 1885ee7049dcd937
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/why-it-is-rejected:
+  en: ab7e16e66ec9d8ef
+  zh: 70436ea72fdc651e
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/alternatives-considered:
+  en: 6119e2aff3b6be5a
+  zh: 6119e2aff3b6be5a
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/alternatives-considered/a-process-traceability-adopted:
+  en: c72c22f67969ac41
+  zh: 3a9356ad63f019ad
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/alternatives-considered/b-statistical-text-criteria-rejected:
+  en: 92ac16f881ea5d9e
+  zh: bdcd8057912157c2
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/alternatives-considered/c-a-trained-domain-classifier-rejected:
+  en: 4921e2581c168d42
+  zh: 933ff97f1f052735
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/alternatives-considered/d-phrase-the-criterion-in-stop-patent-slop-prose-rejected:
+  en: 8abad81929b3bd0f
+  zh: 169cb7d062bc2b23
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/acceptance-criteria:
+  en: 440c149a7db0484e
+  zh: c54b0d8de162a68e
+/agent-note-statistical-ai-text-detection-in-the-patent-gates/risks:
+  en: 448aec59e1cb7484
+  zh: 5c36c0e5543c47af
