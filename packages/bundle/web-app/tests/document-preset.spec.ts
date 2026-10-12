@@ -88,3 +88,36 @@ describe('document preset style pairing', () => {
     expect(gateStyle).toBe(guideStyle)
   })
 })
+
+/**
+ * A delivery mode mounts the clock row (the persona's "unsourced facts are
+ * withdrawn" rule covers the dates and versions a document carries), the
+ * reminder tools, and both halves of the goal pair: `command-goal` with
+ * `tool-goal`, since the web patch ships its own `command-goal` row disabled and
+ * leaves the human command to the preset. `scripts/preset-mode-baseline.json`
+ * holds every delivery mode to the shared row set; this spec keeps the rows
+ * named here from disappearing behind a policy edit.
+ */
+describe('document preset delivery rows', () => {
+  const SCHEDULE_TOOLS = ['schedule_create', 'schedule_delete', 'schedule_list', 'schedule_update']
+
+  it('mounts the clock, the reminder tools, and the goal command beside the goal tool', async () => {
+    for (const [id, name] of [
+      ['time-context', '@deepseek-ai/dsh-time-context'],
+      ['tool-schedule', '@deepseek-ai/dsh-tool-schedule'],
+      ['command-goal', '@deepseek-ai/dsh-command-goal'],
+      ['tool-goal', '@deepseek-ai/dsh-tool-goal'],
+    ] as const) {
+      const row = await rowOf(id)
+      expect(row?.name, `${id} row`).toBe(name)
+      expect(row?.disabled, `${id} row`).toBeUndefined()
+    }
+  })
+
+  it('keeps a delegated child off the reminder tools', async () => {
+    for (const id of ['tool-subagent', 'tool-subagent-fork']) {
+      const config = configOf(await rowOf(id)) as { toolFilter?: { deny?: string[] } }
+      expect(config.toolFilter?.deny, `${id} toolFilter.deny`).toEqual(SCHEDULE_TOOLS)
+    }
+  })
+})

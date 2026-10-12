@@ -102,6 +102,14 @@
             config:
               maxBytes: 65536
 
+          # ── clock ───────────────────────────────────────────────────────────────────
+
+          # persona 的期限纪律要求模型知道「今天」（答复期限、复审请求期限、年费年度
+          # 都按日期算），没有此行时只能绕道跑 `date`。插件在 agent/pre-step 追加一条
+          # 带来源的时间快照 user 消息，模型可见且入会话日志。
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+
           # ── shell ───────────────────────────────────────────────────────────────────
 
           # `shell-env` stays in the HOST composition; both shell tools consume the host
@@ -132,6 +140,11 @@
           - id: tool-jobs
             name: '@deepseek-ai/dsh-tool-jobs'
 
+          # 期限与年费提醒的排程载体：答复期限提醒、年费到期提醒都靠它落成持久排程。
+          # 只挂模型可见的排程工具；排程 REGISTRY 与触发器留在 host 平面。
+          - id: tool-schedule
+            name: '@deepseek-ai/dsh-tool-schedule'
+
           # ── skills ──────────────────────────────────────────────────────────────────
 
           # The skill REGISTRY lives in the host composition and is layered per scope;
@@ -151,6 +164,12 @@
             name: '@deepseek-ai/dsh-tool-skill'
 
           # ── goals ───────────────────────────────────────────────────────────────────
+
+          # The host patch disables its own `command-goal` row ("presets own the human
+          # command and model-facing tool"), so a preset mounting only `tool-goal` ships
+          # the goal tool without the `/goal` entry point. Both rows, or neither.
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
 
           # Only the model-facing tool; the goal SERVICE and driver stay on the host plane.
           - id: tool-goal
@@ -234,12 +253,24 @@
                 config:
                   provider: spawn
                   toolName: subagent
+                  toolFilter:
+                    deny:
+                      - schedule_create
+                      - schedule_delete
+                      - schedule_list
+                      - schedule_update
 
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: fork
                   toolName: subagent_fork
+                  toolFilter:
+                    deny:
+                      - schedule_create
+                      - schedule_delete
+                      - schedule_list
+                      - schedule_update
 
               - id: workflow-ptc
                 name: '@deepseek-ai/dsh-workflow-ptc'
