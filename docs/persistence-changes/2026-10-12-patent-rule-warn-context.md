@@ -52,7 +52,7 @@ Older readers: `MessageSourceMap` is merge-extensible and no consumer switches o
 <a id="verification"></a>
 ## Verification
 
-pnpm exec vitest run packages/patent/patent-rule/tests/post-execute.spec.ts: 15 tests passed; the suite asserts the injected context text and its `source.kind`, that a downstream block decision still wins, that a block-level hit of the same result keeps the warn context, that no context is attached without a warn hit, and that a hit of the shipped rule set (PAT-ABS-001) injects one. pnpm exec vitest run packages/patent/patent-rule/tests: 289 tests passed.
+pnpm exec vitest run packages/patent/patent-rule/tests/post-execute.spec.ts: 16 tests passed; the suite asserts the injected context text and its `source.kind`, that a downstream block decision still wins while keeping its own context behind the injected one, that a block-level hit and a fail-closed review-level hit of the same result keep the warn context, that no context is attached without a warn hit, and that a hit of the shipped rule set (PAT-ABS-001) injects one. pnpm exec vitest run packages/patent/patent-rule/tests: 291 tests passed. pnpm exec vitest run --config vitest.e2e.config.ts packages/patent/patent-rule/tests/warn-context.e2e.ts: 1 test passed; it boots the headless profile through the Loader with a probe tool and a scripted adapter, then asserts the warn context is spliced into the inbox and admitted as the second step's model input ahead of that step's reply, with the gated result left successful.
 
 <a id="dev-note"></a>
 ## Dev Note

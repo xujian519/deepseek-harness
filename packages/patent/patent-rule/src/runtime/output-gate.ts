@@ -91,7 +91,14 @@ export class RuleOutputGate implements RuleOutputGateInterface {
   }
 }
 
-function formatViolation(v: RuleViolation): string {
+/**
+ * 渲染一条违规的单行文本——结果门禁的追加区块与 warn 级上下文共用同一条格式。
+ *
+ * 违规文本可能夹带被判定结果的命中片段，所有字段都经转义后才进入提示。
+ * @param v 待渲染的违规。
+ * @returns 形如 `- [规则 id] 规则名：说明` 的一行，附命中片段、位置与依据。
+ */
+export function formatViolation(v: RuleViolation): string {
   const basis = v.legalBasis ? `（依据：${escapeXml(v.legalBasis)}）` : ''
   const evidence = v.evidence.length > 0 ? ` — 命中「${v.evidence.map(escapeXml).join('」「')}」` : ''
   const where = v.line !== undefined && v.matchedSentence !== undefined

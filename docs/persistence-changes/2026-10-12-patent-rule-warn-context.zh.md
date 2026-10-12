@@ -52,7 +52,7 @@ changes:
 <a id="verification"></a>
 ## 验证
 
-pnpm exec vitest run packages/patent/patent-rule/tests/post-execute.spec.ts：15 个测试通过；用例断言注入上下文的文本及其 `source.kind`、下游 block 决策仍然生效、同一结果的 block 级命中保留 warn 上下文、无 warn 命中时不附任何上下文、以及随包规则集命中（PAT-ABS-001）时确实注入。pnpm exec vitest run packages/patent/patent-rule/tests：289 个测试通过。
+pnpm exec vitest run packages/patent/patent-rule/tests/post-execute.spec.ts：16 个测试通过；用例断言注入上下文的文本及其 `source.kind`、下游 block 决策仍然生效且其自带上下文排在注入项之后、同一结果的 block 级命中与 fail-closed 的 review 级命中都保留 warn 上下文、无 warn 命中时不附任何上下文、以及随包规则集命中（PAT-ABS-001）时确实注入。pnpm exec vitest run packages/patent/patent-rule/tests：291 个测试通过。pnpm exec vitest run --config vitest.e2e.config.ts packages/patent/patent-rule/tests/warn-context.e2e.ts：1 个测试通过；该用例经 Loader 启动 headless profile，挂一个探针工具与一段脚本化适配器，断言 warn 上下文被 splice 进收件箱、并在第二步作为模型输入先于该步回复被接纳，同时被门禁的结果保持成功。
 
 <a id="dev-note"></a>
 ## 开发备注

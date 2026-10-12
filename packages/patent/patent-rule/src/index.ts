@@ -55,7 +55,7 @@ import {
   selectGateRules,
   type GateCheckType,
 } from './runtime/patent-compliance.ts'
-import { RuleOutputGate } from './runtime/output-gate.ts'
+import { formatViolation, RuleOutputGate } from './runtime/output-gate.ts'
 import {
   deliveryGateMissing,
   DeliveryAttemptLedger,
@@ -298,9 +298,6 @@ function hitSummary(result: RuleOutputGateResult): string {
   return ids.length > 0 ? ids.join(', ') + label : '(none)'
 }
 
-/** Warn-level findings one injected context expands, before it only counts the rest. */
-const WARN_CONTEXT_MAX_RULES = 8
-
 /**
  * Build the model-visible context for warn-level hits of one gated tool result.
  *
@@ -314,20 +311,13 @@ const WARN_CONTEXT_MAX_RULES = 8
 function warnContext(result: RuleOutputGateResult, toolName: string): UserMessage | undefined {
   const warn = result.violations.filter(violation => violation.action === 'warn')
   if (warn.length === 0) return undefined
-  const shown = warn.slice(0, WARN_CONTEXT_MAX_RULES)
-  const lines = shown.map((v) => {
-    const basis = v.legalBasis === undefined ? '' : '（依据：' + v.legalBasis + '）'
-    return '- [' + v.ruleId + '] ' + v.ruleName + '：' + v.message + basis
-  })
-  const omitted = warn.length > shown.length
-    ? '\n（另有 ' + String(warn.length - shown.length) + ' 条 warn 级命中未展开）'
-    : ''
+  const lines = warn.map(formatViolation)
   const ids = [...new Set(warn.map(v => v.ruleId))]
   return createUserMessage({
     content: [{
       type: 'text',
       text: '⚠️ 专利合规提示（warn 级）：' + toolName + ' 的产出命中以下规则，'
-        + '请在后续修改中处理：\n' + lines.join('\n') + omitted,
+        + '请在后续修改中处理：\n' + lines.join('\n'),
     }],
     source: {
       kind: 'patent-rule-gate',
@@ -338,16 +328,13 @@ function warnContext(result: RuleOutputGateResult, toolName: string): UserMessag
 }
 
 /**
- * Fold the warn context onto a downstream decision, keeping that decision.
- * @param decision - decision returned by the rest of the waterfall.
+ * Attach the warn context to a decision without changing that decision.
+ * @param decision - this plugin's own block decision, or the decision the rest of the waterfall returned.
  * @param warn - context from {@link warnContext}, if any.
  * @returns the same decision with the context prepended to its own contexts.
  */
 function attachWarn(decision: PostToolDecision, warn: UserMessage | undefined): PostToolDecision {
   if (warn === undefined) return decision
-  if (decision.kind === 'block') {
-    return { ...decision, additionalContexts: [warn, ...decision.additionalContexts ?? []] }
-  }
   return { ...decision, additionalContexts: [warn, ...decision.additionalContexts ?? []] }
 }
 
@@ -414,11 +401,10 @@ export function apply(ctx: Context, config: Config): void {
     const gateResult = gate.process(text)
     const warn = warnContext(gateResult, exec.name)
     if (gateResult.blockHits.length > 0) {
-      return {
+      return attachWarn({
         kind: 'block',
         feedback: [{ type: 'text', text: '专利输出门禁拦截 ' + exec.name + '：命中强制规则 ' + hitSummary(gateResult) }],
-        ...warn === undefined ? {} : { additionalContexts: [warn] },
-      }
+      }, warn)
     }
     // warn/log 命中不改变结果文本：门禁只硬拦截 block、经审批放行 review。
     // warn 级命中改写不了模型已收到的结果，改为随决策附到下一次请求（模型可见且入日志）；
@@ -432,11 +418,10 @@ export function apply(ctx: Context, config: Config): void {
     const approval = ctx.get('approval')
     // fail-closed：无审批通道（未配/无 agent/approvalDisabled）时按拦截处理。
     if (approvalDisabled || exec.agent === undefined || approval === undefined) {
-      return {
+      return attachWarn({
         kind: 'block',
         feedback: [{ type: 'text', text: reason + '（无审批通道，按拦截处理）' }],
-        ...warn === undefined ? {} : { additionalContexts: [warn] },
-      }
+      }, warn)
     }
     const outcome = await approval.request({
       agent: exec.agent,
@@ -446,11 +431,10 @@ export function apply(ctx: Context, config: Config): void {
       signal: exec.signal,
     })
     if (outcome !== 'allowed-once') {
-      return {
+      return attachWarn({
         kind: 'block',
         feedback: [{ type: 'text', text: reason + '（审批未通过，按拦截处理）' }],
-        ...warn === undefined ? {} : { additionalContexts: [warn] },
-      }
+      }, warn)
     }
     return attachWarn(await next(), warn)
   })
