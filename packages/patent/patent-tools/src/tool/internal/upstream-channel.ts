@@ -12,6 +12,12 @@
 export const GOOGLE_PATENTS_CHANNEL = 'Google Patents（nuo 引擎）'
 
 /**
+ * CNIPR 通道的模型可见名称：中国专利全文与法律状态的第二个通道，经 ego lite 登录态
+ * 访问 search.cnipr.com（`@deepseek-ai/dsh-patent-data` 的 CNIPR 通道）。
+ */
+export const CNIPR_CHANNEL = 'CNIPR（中国知识产权网）'
+
+/**
  * 上游以 429/503 答复被限流或过载的请求；nuo 把 HTTP 类失败的原文放进 detail
  * （`HTTP <status>[ …]`），因此这一族可以按状态码认出来，与超时、断连分开措辞。
  */

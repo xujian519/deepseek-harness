@@ -21,6 +21,7 @@
  */
 
 import { PatentToolError } from '../error.ts'
+import { GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
 import type { EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult, RunEgo } from './patent-pdf-download.ts'
 
 /** Task-space name for the patent PDF download space (sati-<domain>, matching EgoBrowserSession.taskSpaceName). */
@@ -178,6 +179,7 @@ export function createEgoDownloadRunner(session: EgoSessionSeam): RunEgo {
     const items: EgoDownloadItem[] = payload.items.map(item => ({
       patent: item.patent,
       status: item.status === 'ok' ? 'ok' : 'fallback',
+      channel: GOOGLE_PATENTS_CHANNEL,
       ...(item.path === undefined ? {} : { path: item.path }),
       ...(item.pdfUrl === undefined ? {} : { pdfUrl: item.pdfUrl }),
       ...(item.error === undefined ? {} : { error: item.error }),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -7,6 +7,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { createPatentSearchTool, baseNumber, dedupeByFamily } from '../src/tool/patent-search.ts'
 import { createPatentMetadataTool } from '../src/tool/patent-metadata.ts'
 import { createPatentLegalStatusTool } from '../src/tool/patent-legal-status.ts'
+import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from '../src/tool/internal/upstream-channel.ts'
 import type { PatentData } from '@deepseek-ai/nuo-patent'
 
 const signal = new AbortController().signal
@@ -302,9 +303,14 @@ describe('patent_metadata', () => {
 })
 
 describe('patent_legal_status', () => {
+  const activeRecord = {
+    patent_number: 'US1A', title: 'T', status: 'Active', ifi_status: 'x', estimated_expiration: '2030',
+    filing_date: '2010', grant_date: '2012', applicant: 'A', inventor: 'I', events_summary: [], url: 'u',
+  }
+
   it('maps a batch result', async () => {
     const tool = createPatentLegalStatusTool({
-      checker: { checkBatch: async () => ({ 'US1A': { patent_number: 'US1A', title: 'T', status: 'Active', ifi_status: 'x', estimated_expiration: '2030', filing_date: '2010', grant_date: '2012', applicant: 'A', inventor: 'I', events_summary: [], url: 'u' } }) },
+      checker: { checkBatch: async () => ({ 'US1A': activeRecord }) },
     })
     const ctx = await ctxWith(tool)
     const result = await execute(ctx, 'patent_legal_status', { patents: ['US1A'] }, 'l-1')
@@ -312,5 +318,82 @@ describe('patent_legal_status', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('US1A')
     expect(text(result)).toContain('Active')
+    expect(text(result)).toContain(`通道：${GOOGLE_PATENTS_CHANNEL}`)
+  })
+
+  it('retries numbers the engine could not answer through CNIPR', async () => {
+    const tool = createPatentLegalStatusTool({
+      checker: { checkBatch: async () => ({ 'CN2023113560975': { ...activeRecord, patent_number: 'CN2023113560975', status: 'UNKNOWN', error: 'HTTP 503' } }) },
+      cnipr: () => ({
+        legalStatus: async () => [{
+          number: 'CN2023113560975',
+          appNumber: '202311356097.5',
+          total: 2,
+          records: [
+            { app_number: '202311356097.5', announce_date: '2023.12.12', status: '公开', status_info: '公开' },
+            { app_number: '202311356097.5', announce_date: '2023.12.29', status: '实质审查的生效', status_info: '实质审查的生效' },
+          ],
+        }],
+      }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_legal_status', { patents: ['CN2023113560975'] }, 'l-cnipr')
+    const rendered = text(result)
+    expect(result.isError).toBe(false)
+    // 状态取公告日最新的一条（2023.12.29 的实质审查生效，而不是 2023.12.12 的公开），
+    // 通道点名 CNIPR，nuo 通道的失败原因不再承担这一篇的结论。
+    expect(rendered).toContain('实质审查的生效')
+    expect(rendered).not.toContain('(公开)')
+    expect(rendered).toContain(`通道：${CNIPR_CHANNEL}`)
+    expect(rendered).not.toContain('HTTP 503')
+  })
+
+  it('keeps the engine result when the CNIPR channel has no records for the number', async () => {
+    const tool = createPatentLegalStatusTool({
+      checker: { checkBatch: async () => ({ 'CN2023113560975': { ...activeRecord, patent_number: 'CN2023113560975', status: 'UNKNOWN', error: 'HTTP 503' } }) },
+      cnipr: () => ({ legalStatus: async () => [{ number: 'CN2023113560975', appNumber: '', total: null, records: [], error: '未检索到申请号' }] }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_legal_status', { patents: ['CN2023113560975'] }, 'l-cnipr-miss')
+    const rendered = text(result)
+    expect(rendered).toContain('HTTP 503')
+    expect(rendered).toContain(`通道：${GOOGLE_PATENTS_CHANNEL}`)
+  })
+
+  it('reports an unusable CNIPR channel without dropping the engine results', async () => {
+    const tool = createPatentLegalStatusTool({
+      checker: { checkBatch: async () => ({ 'CN2023113560975': { ...activeRecord, patent_number: 'CN2023113560975', status: 'UNKNOWN' } }) },
+      cnipr: () => ({ legalStatus: async () => { throw new Error('CNIPR 通道失败（login_required）：未检测到 CNIPR 登录态') } }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_legal_status', { patents: ['CN2023113560975'] }, 'l-cnipr-down')
+    const rendered = text(result)
+    expect(result.isError).toBe(false)
+    expect(rendered).toContain('## 通道告警')
+    expect(rendered).toContain(`${CNIPR_CHANNEL}不可用`)
+    expect(rendered).toContain('未检测到 CNIPR 登录态')
+    expect(rendered).toContain(`只有 ${GOOGLE_PATENTS_CHANNEL} 的结果`)
+  })
+
+  it('does not consult CNIPR for numbers the engine already answered', async () => {
+    const legalStatus = vi.fn(async () => [])
+    const tool = createPatentLegalStatusTool({
+      checker: { checkBatch: async () => ({ 'US1A': activeRecord }) },
+      cnipr: () => ({ legalStatus }),
+    })
+    const ctx = await ctxWith(tool)
+    await execute(ctx, 'patent_legal_status', { patents: ['US1A'] }, 'l-no-retry')
+    expect(legalStatus).not.toHaveBeenCalled()
+  })
+
+  it('runs without a CNIPR lookup at all', async () => {
+    const tool = createPatentLegalStatusTool({
+      checker: { checkBatch: async () => ({ 'US1A': activeRecord }) },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_legal_status', { patents: ['US1A', 'US2A'] }, 'l-plain')
+    expect(result.isError).toBe(false)
+    // 缺失结果的号按 UNKNOWN 报出，不因缺第二个通道而报错。
+    expect(text(result)).toContain('US2A')
   })
 })

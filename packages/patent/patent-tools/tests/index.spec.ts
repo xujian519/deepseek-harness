@@ -257,6 +257,8 @@ describe('patent-tools plugin wiring', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     ctx.provide('patentData', {
+      // 本部署未启用 CNIPR 段：createCniprChannel() 返回 undefined。
+      createCniprChannel: () => undefined,
       createEgoSession: () => ({
         checkAvailability: () => ({ ok: true }),
         runScript: async () => ({

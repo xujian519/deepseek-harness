@@ -94,6 +94,8 @@ export type PatentDownloadItem = {
   networkErrorCode?: string
   /** 限流建议等待时长（毫秒，由 Retry-After 推测），供模型决定何时重试。 */
   retryAfterMs?: number
+  /** 产出该篇的通道名；报告据此写明原文取白哪个通道，不必从 pdfUrl 反推。 */
+  channel: string
 }
 
 /** Output of the patent_pdf_download tool. */
@@ -103,22 +105,31 @@ export type PatentPdfDownloadOutput = {
   outputDir: string
   /** record=true 且截图成功时的证据目录路径。 */
   recorded?: string
+  /** 通道级告警（某通道被咨询过但未能服务，或某篇无直链而改走另一通道）。 */
+  warnings: string[]
 }
 
-/** 单篇 ego-browser 下载结果（脚本侧只产生 ok / fallback）。 */
+/** 单篇下载结果（脚本侧只产生 ok / fallback）；`channel` 是实际服务的通道。 */
 export type EgoDownloadItem = {
   patent: string
   status: 'ok' | 'fallback'
   path?: string
   pdfUrl?: string
   error?: string
+  /** 产出该篇的通道名（见 internal/upstream-channel.ts 的通道常量）。 */
+  channel: string
 }
 
-/** ego-browser 批量下载结果。 */
+/** 批量下载结果。 */
 export type EgoDownloadResult = {
   items: EgoDownloadItem[]
   /** 截图证据目录路径（record=true 且成功时）。 */
   recorded?: string
+  /**
+   * 模型可见的告警：某个通道被咨询过但没能服务（例如 CNIPR 登录态失效），
+   * 说明该篇由哪个通道接手，避免把通道不可用读成「不需要第二个通道」。
+   */
+  warnings?: string[]
 }
 
 /** 传给注入的 ego-browser runner 的批量下载参数。 */
@@ -143,6 +154,11 @@ export type PatentManifestEntry = {
   size?: number
   sha1?: string
   ts: number
+  /**
+   * 产出该篇的通道（见 internal/upstream-channel.ts 的通道常量）。续传时据此点名通道；
+   * 本字段之前写下的条目没有它，那时既记不住也回不了头——缺省表示「该条未记录通道」。
+   */
+  channel?: string
 }
 
 /** Injected patent-PDF-download dependencies. */
@@ -298,10 +314,16 @@ async function fetchPdfFallback(
       ...(item.path === undefined ? {} : { path: item.path }),
       ...(item.pdfUrl === undefined ? {} : { pdfUrl: item.pdfUrl }),
       method: 'browser',
+      channel: item.channel,
     }
   }
   if (!item.pdfUrl) {
-    return { patent: item.patent, status: 'failed', ...(item.error === undefined ? {} : { error: item.error }) }
+    return {
+      patent: item.patent,
+      status: 'failed',
+      channel: item.channel,
+      ...(item.error === undefined ? {} : { error: item.error }),
+    }
   }
   // 闭包须捕获已收窄的 URL；属性访问在闭包内不被窄化。
   const pdfUrl: string = item.pdfUrl
@@ -315,6 +337,7 @@ async function fetchPdfFallback(
     patent: item.patent,
     status: 'failed',
     pdfUrl,
+    channel: item.channel,
     ...(networkErrorCode === undefined ? {} : { networkErrorCode }),
     ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
     error: `${base}fetch fallback failed: ${reason}`,
@@ -357,6 +380,7 @@ async function fetchPdfFallback(
       path: target,
       pdfUrl,
       method: 'http',
+      channel: item.channel,
       durationMs: Date.now() - start,
     }
   } catch (fetchErr) {
@@ -379,7 +403,10 @@ const METHOD_LABELS: Record<string, string> = {
   skip: '（已下载，跳过）',
 }
 
-/** Render the canonical download value into model-facing prose. */
+/**
+ * Render the canonical download value into model-facing prose. 每行点名通道：报告写「原文
+ * 取自哪个通道」时据此引用，不必从 pdfUrl 反推是谁给的直链。
+ */
 function renderPdfDownload(value: PatentPdfDownloadOutput): string {
   const lines: string[] = [
     `下载完成：${value.summary.ok}/${value.summary.total} 成功，${value.summary.failed} 失败`,
@@ -387,16 +414,21 @@ function renderPdfDownload(value: PatentPdfDownloadOutput): string {
   ]
   if (value.recorded) lines.push(`截图留证：${value.recorded}`)
   for (const r of value.results) {
+    // 通道未知只发生在旧 MANIFEST 的续传条目上：那时省略该子句，不编一个通道名。
+    const channelNote = r.channel === '' ? '' : ` · 通道：${r.channel}`
     if (r.status === 'failed') {
       const retry = r.pdfUrl ? `；可手动重试：${r.pdfUrl}` : ''
-      lines.push(`- ${r.patent}: 失败（${r.error ?? 'unknown'}${retry}）`)
+      lines.push(`- ${r.patent}: 失败（${r.error ?? 'unknown'}${retry}）${channelNote}`)
     } else {
       /* v8 ignore next -- fallback results always carry a method for ok items. */
       const method = METHOD_LABELS[r.method ?? ''] ?? ''
-      lines.push(`- ${r.patent}: ${r.path ?? 'ok'}${method}`)
+      lines.push(`- ${r.patent}: ${r.path ?? 'ok'}${method}${channelNote}`)
     }
   }
-  return lines.join('\n')
+  const warningLines = value.warnings.length > 0
+    ? ['', '## 通道告警', ...value.warnings.map(w => `- ${w}`)]
+    : []
+  return [...lines, ...warningLines].join('\n')
 }
 
 const ITEM_SCHEMA = {
@@ -412,14 +444,16 @@ const ITEM_SCHEMA = {
     durationMs: { type: 'number' },
     networkErrorCode: { type: 'string' },
     retryAfterMs: { type: 'number' },
+    channel: { type: 'string', required: true },
   },
 } as const
 
 const DESCRIPTION = [
-  '从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）在浏览器内取回 PDF 响应体（复用登录态），取不到时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。',
+  '批量下载专利 PDF。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。通道按号族选择并逐篇点名：中国公开(公告)号在部署启用时先走 CNIPR（经 ego lite 登录态取全文直链，`http://pic.cnipr.com/...`）；其余号以及 CNIPR 未能服务的号走 Google Patents——优先经 ego-browser（ego lite）在浏览器内取回 PDF 响应体，取不到时提取 CDN PDF 链接后用 HTTP 直接下载落盘。每篇结果为 status=ok（带 path、method 与 channel）或 status=failed（带 error 与 channel，且保留 pdfUrl 供手动重试）；失败不中断其余专利。',
   '',
   'Usage notes:',
-  '  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下',
+  '  - 每篇的 channel 是实际产出该篇的通道；某通道被咨询过但未能服务时，结果另在 warnings 里点名，报告据此区分「换通道」与「同通道重试」',
+  '  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下；续传条目的 channel 取自 MANIFEST 记录（本字段之前写下的条目没有记录，输出里该篇不带通道）',
   '  - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）',
   '  - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍 429 时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试',
 ].join('\n')
@@ -460,6 +494,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
           },
           outputDir: { type: 'string', required: true },
           recorded: { type: 'string' },
+          warnings: { type: 'array', required: true, items: { type: 'string' } },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderPdfDownload(value) }],
@@ -501,7 +536,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
         for (const patent of patents) {
           const entry = manifest.get(patent)
           if (entry?.path && entry.size !== undefined && (await fileSizeMatches(entry.path, entry.size))) {
-            skipped.push({ patent, status: 'ok', path: entry.path, method: 'skip' })
+            skipped.push({ patent, status: 'ok', path: entry.path, method: 'skip', channel: entry.channel ?? '' })
           } else {
             pending.push(patent)
           }
@@ -509,7 +544,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
       }
       if (pending.length === 0) {
         const summary = { total: patents.length, ok: patents.length, failed: 0 }
-        return { results: skipped, summary, outputDir }
+        return { results: skipped, summary, outputDir, warnings: [] }
       }
 
       let egoResult: EgoDownloadResult
@@ -565,6 +600,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
               size: st.size,
               sha1: await sha1OfFile(r.path),
               ts: Date.now(),
+              channel: r.channel,
             })
           } catch {
             // 续传记录失败不影响本次下载结果
@@ -578,6 +614,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
         results: allResults,
         summary,
         outputDir,
+        warnings: egoResult.warnings ?? [],
         ...(egoResult.recorded === undefined ? {} : { recorded: egoResult.recorded }),
       }
     },

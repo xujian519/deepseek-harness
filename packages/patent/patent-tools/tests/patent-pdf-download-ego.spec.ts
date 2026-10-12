@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { buildDownloadScript, createEgoDownloadRunner } from '../src/tool/patent-pdf-download-ego.ts'
+import { GOOGLE_PATENTS_CHANNEL } from '../src/tool/internal/upstream-channel.ts'
 import type { EgoDownloadRequest } from '../src/tool/patent-pdf-download.ts'
 
 function request(overrides: Partial<EgoDownloadRequest> = {}): EgoDownloadRequest {
@@ -83,7 +84,9 @@ describe('createEgoDownloadRunner', () => {
     }))
     const result = await runner(request())
     expect(seen).toEqual({ cwd: '/tmp/patent-pdf', timeoutMs: 180_000 })
-    expect(result.items).toEqual([{ patent: 'US11452699B2', status: 'ok', path: '/tmp/patent-pdf/US11452699B2.pdf' }])
+    expect(result.items).toEqual([{
+      patent: 'US11452699B2', status: 'ok', path: '/tmp/patent-pdf/US11452699B2.pdf', channel: GOOGLE_PATENTS_CHANNEL,
+    }])
     expect(result.recorded).toBe('/tmp/patent-pdf/evidence')
   })
 
@@ -122,7 +125,9 @@ describe('createEgoDownloadRunner', () => {
       runScript: async () => ({ output: 'EGO_DOWNLOAD:{"items":[{"patent":"US11452699B2","status":"fallback","pdfUrl":"https://cdn/x.pdf","error":"no intercept"}]}', exitCode: 0, timedOut: false }),
     }))
     const result = await runner(request())
-    expect(result.items).toEqual([{ patent: 'US11452699B2', status: 'fallback', pdfUrl: 'https://cdn/x.pdf', error: 'no intercept' }])
+    expect(result.items).toEqual([{
+      patent: 'US11452699B2', status: 'fallback', pdfUrl: 'https://cdn/x.pdf', error: 'no intercept', channel: GOOGLE_PATENTS_CHANNEL,
+    }])
   })
 
   it('forwards the caller abort signal', async () => {
