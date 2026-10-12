@@ -42,6 +42,12 @@ export interface EvalResults {
   subsetSize: number
   /** Wall-clock generation time (epoch ms). */
   generatedAt: number
+  /**
+   * Digest of the evaluated subset, when the campaign recorded one. Repeated
+   * decisions against the same digest must declare their reuse count so the
+   * significance level can be tightened.
+   */
+  subsetDigest?: string
   /** Per-task paired outcomes, one entry per task. */
   tasks: TaskOutcome[]
 }
@@ -74,16 +80,43 @@ export interface ConfidenceInterval {
   confidence: number
 }
 
-/** Recorded continue/rollback decision (the CI stop-switch payload). */
+/** Exact McNemar test outcome over a paired design's discordant pairs. */
+export interface McnemarResult {
+  /** Two-sided exact p-value under the null hypothesis of no effect. */
+  pValue: number
+  /** Discordant pairs (`wins + losses`); 0 means the test carries no information. */
+  discordant: number
+}
+
+/**
+ * Recorded continue/rollback decision (the CI stop-switch payload).
+ * `verify-self-evolve-eval` reads only `recommended`; the remaining fields
+ * exist so a decision can be audited and its criterion version identified.
+ */
 export interface EvalDecision {
+  /**
+   * Version of the decision rule. Bump when the rule changes: records produced
+   * under different versions are not comparable.
+   */
+  criterionVersion: number
   /** Decision timestamp (epoch ms). */
   settledAt: number
   /** Summary the decision was computed from. */
   summary: EvalSummary
-  /** Bootstrap confidence interval for `winRateDelta`. */
+  /** Descriptive bootstrap interval for `winRateDelta`; reported, not gating. */
   ci: ConfidenceInterval
+  /** Exact McNemar test over the discordant pairs. */
+  mcnemar: McnemarResult
+  /** Significance level actually applied, after any reuse adjustment. */
+  alpha: number
+  /** Pre-registered minimum absolute win-rate delta required to continue. */
+  minEffect: number
+  /** Prior decisions recorded against the same subset digest. */
+  priorReuses: number
+  /** Digest of the evaluated subset, when the campaign recorded one. */
+  subsetDigest?: string
   /** True when the confidence interval spans zero (randomness cannot be excluded). */
   crossesZero: boolean
-  /** `continue` on strictly positive evidence; `rollback` otherwise. */
+  /** `continue` only on significant, materially large positive evidence. */
   recommended: 'continue' | 'rollback'
 }

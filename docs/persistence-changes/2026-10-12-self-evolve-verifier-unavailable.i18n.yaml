@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-12-self-evolve-verifier-unavailable.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-10-12-self-evolve-verifier-unavailable.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-10-12-self-evolve-verifier-unavailable:
+  en: 799518a37402d9b7
+  zh: 7e5b4592597532e7
+/2026-10-12-self-evolve-verifier-unavailable/summary:
+  en: f46e1afc37ffefde
+  zh: 8b2052b80d1bc260
+/2026-10-12-self-evolve-verifier-unavailable/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-10-12-self-evolve-verifier-unavailable/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-10-12-self-evolve-verifier-unavailable/compatibility:
+  en: 5de791dc713a8966
+  zh: de37efaad2f33499
+/2026-10-12-self-evolve-verifier-unavailable/verification:
+  en: 0ad8d44677776831
+  zh: c1941ee82c65d32a
+/2026-10-12-self-evolve-verifier-unavailable/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

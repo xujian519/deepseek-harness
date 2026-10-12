@@ -7310,7 +7310,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ProposalValidationOutcome',
-    declaration: 'export type ProposalValidationOutcome = {\n    kind: \'accepted\';\n    heldInPassed: number;\n    heldOutPassed: number;\n    regressions: [\n    ];\n    deconstructedScores: ValidationScores;\n    confidence: number;\n    replayEvidence: ReplayEvidence[];\n    nextRoundSuggestion: string;\n} | {\n    kind: \'rejected\';\n    reason: \'held-in-failed\' | \'held-out-regression\' | \'apply-failed\' | \'approval-denied\' | \'rate-limited\' | \'low-confidence\';\n    heldInPassed?: number;\n    heldOutPassed?: number;\n    regressions: string[];\n    diagnostic: string;\n    deconstructedScores?: Partial<ValidationScores>;\n    confidence?: number;\n    replayEvidence?: ReplayEvidence[];\n    nextRoundSuggestion: string;\n};',
+    declaration: 'export type ProposalValidationOutcome = {\n    kind: \'accepted\';\n    heldInPassed: number;\n    heldOutPassed: number;\n    regressions: [\n    ];\n    deconstructedScores: ValidationScores;\n    confidence: number;\n    replayEvidence: ReplayEvidence[];\n    nextRoundSuggestion: string;\n} | {\n    kind: \'rejected\';\n    reason: \'held-in-failed\' | \'held-out-regression\' | \'apply-failed\' | \'approval-denied\' | \'rate-limited\' | \'low-confidence\' | \'verifier-unavailable\';\n    heldInPassed?: number;\n    heldOutPassed?: number;\n    regressions: string[];\n    diagnostic: string;\n    deconstructedScores?: Partial<ValidationScores>;\n    confidence?: number;\n    replayEvidence?: ReplayEvidence[];\n    nextRoundSuggestion: string;\n};',
   },
   {
     name: 'ProposeCandidate',

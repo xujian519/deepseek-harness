@@ -16,7 +16,7 @@ import type { BasicSelfEvolveConfig, TriggerPolicy, WorkspaceBaseline, Workspace
 import { failurePatternsProjectionDefinition } from '@deepseek-ai/dsh-self-evolve'
 import type { EvolveLevel, EvolveProposal, FailurePattern, SelfEvolveAgentContext } from '@deepseek-ai/dsh-self-evolve'
 import type { Agent, RequestErrorAction } from '@deepseek-ai/dsh-agent'
-import type { ProposalValidationOutcome, ReplayEvidence } from '@deepseek-ai/dsh-self-evolve/types'
+import type { ProposalValidationOutcome, ReplayEvidence, ValidationScores } from '@deepseek-ai/dsh-self-evolve/types'
 
 function sessionFactory(): Session {
   return Session.create(SessionId(`test-${Math.random().toString(36).slice(2, 10)}`))
@@ -87,6 +87,14 @@ function baseConfig(overrides: Partial<BasicSelfEvolveConfig> = {}): BasicSelfEv
     maxDirtyLinesAddedPerCommit: 2,
     ...overrides,
   }
+}
+
+/** Judge scores that clear every dimension; lets a test exercise the other two dimensions. */
+const PASSING_SCORES: ValidationScores = {
+  activatesWhenCorrect: 1,
+  clarity: 1,
+  noRegressionIntroduced: 1,
+  safety: 1,
 }
 
 /** Subclass exposing protected hooks and injecting verifier signals. */
@@ -257,19 +265,38 @@ describe('parseDirtyDelta (P1.9b)', () => {
 })
 
 describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
-  async function signalEngine(overrides: Partial<BasicSelfEvolveConfig> = {}): Promise<{ engine: SignalEngine; patternId: string }> {
+  /**
+   * Build an engine whose verifier hooks are injected. Passing `judgeScores`
+   * additionally mounts a validator LLM so the judge dimension yields a real
+   * signal; without it the judge is missing and every outcome is rejected as
+   * `verifier-unavailable`.
+   */
+  async function signalEngine(
+    overrides: Partial<BasicSelfEvolveConfig> = {},
+    judgeScores?: ValidationScores,
+  ): Promise<{ engine: SignalEngine; patternId: string }> {
     const ctx = new Context()
     const session = sessionFactory()
     appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
     appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
     provideServices(ctx, session)
-    const engine = new SignalEngine(ctx, baseConfig(overrides), session)
+    if (judgeScores !== undefined) {
+      ctx.provide('llm', {
+        stream: async function* () {
+          yield { type: 'text-delta', index: 0, text: JSON.stringify(judgeScores) }
+        },
+      } as never)
+    }
+    const engine = new SignalEngine(ctx, baseConfig({
+      ...(judgeScores === undefined ? {} : { validatorTarget: { provider: 'deepseek', model: 'judge' } }),
+      ...overrides,
+    }), session)
     const [pattern] = await engine.readPatterns(session.id)
     return { engine, patternId: pattern!.patternId }
   }
 
   it('both verifiers pass + held-out passes → accepted with heldInPassed=1', async () => {
-    const { engine, patternId } = await signalEngine()
+    const { engine, patternId } = await signalEngine({}, PASSING_SCORES)
     engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
     engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
@@ -314,7 +341,7 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
   })
 
   it('noDirtyFallback with a healthy build → accepted regardless of dirty lines (P1.9b)', async () => {
-    const { engine, patternId } = await signalEngine()
+    const { engine, patternId } = await signalEngine({}, PASSING_SCORES)
     engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
     engine.workspace = { dirtyLines: 999, noDirtyFallback: true, buildHealthy: true }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
@@ -322,7 +349,7 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
   })
 
   it('requireDualVerification=false → held-in is not required but confidence still gates', async () => {
-    const { engine, patternId } = await signalEngine({ requireDualVerification: false })
+    const { engine, patternId } = await signalEngine({ requireDualVerification: false }, PASSING_SCORES)
     engine.replay = { exitCode: 3, retriggeredPatternIds: [patternId] }
     engine.workspace = { dirtyLines: 99, noDirtyFallback: false, buildHealthy: true }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
@@ -330,22 +357,47 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
     if (outcome.kind === 'accepted') expect(outcome.heldInPassed).toBe(0)
   })
 
-  it('verifier signals unavailable → conservative low-confidence rejection (weak path 0.3)', async () => {
+  it('verifier signals unavailable → verifier-unavailable, not low-confidence (weak path 0.3)', async () => {
     const { engine, patternId } = await signalEngine()
     engine.replay = null
     engine.workspace = null
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
     expect(outcome.kind).toBe('rejected')
     if (outcome.kind === 'rejected') {
-      expect(outcome.reason).toBe('low-confidence')
-      expect(outcome.diagnostic).toContain('低于阈值')
+      expect(outcome.reason).toBe('verifier-unavailable')
+      expect(outcome.diagnostic).toContain('验证信号不可用')
+      expect(outcome.diagnostic).toContain('held-in')
       expect(outcome.replayEvidence?.some(row => row.note?.includes('弱路径'))).toBe(true)
       expect(outcome.regressions).toEqual([])
+      // Missing signal rather than a bad score: the aggregate cannot exceed the weak rate.
+      expect(outcome.confidence).toBeLessThanOrEqual(0.3)
     }
   })
 
-  it('held-out pass rate below 0.6 lowers confidence below the gate', async () => {
+  it('a missing judge is not scored favourably → verifier-unavailable despite passing verifiers', async () => {
     const { engine, patternId } = await signalEngine()
+    engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
+    const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
+    expect(outcome.kind).toBe('rejected')
+    if (outcome.kind === 'rejected') {
+      expect(outcome.reason).toBe('verifier-unavailable')
+      expect(outcome.diagnostic).toContain('judge')
+      expect(outcome.confidence).toBeLessThanOrEqual(0.3)
+    }
+  })
+
+  it('lowering minAcceptConfidence does not turn a missing signal into an acceptance', async () => {
+    const { engine, patternId } = await signalEngine({ minAcceptConfidence: 0 })
+    engine.replay = null
+    engine.workspace = null
+    const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
+    expect(outcome.kind).toBe('rejected')
+    if (outcome.kind === 'rejected') expect(outcome.reason).toBe('verifier-unavailable')
+  })
+
+  it('held-out pass rate below 0.6 lowers confidence below the gate', async () => {
+    const { engine, patternId } = await signalEngine({}, PASSING_SCORES)
     engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
     engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
     engine.heldOut = { passed: 1, cases: 3 }
@@ -631,6 +683,13 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
     return child
   }
 
+  /** A fork child that completes and calls one tool, so a replay counts it as exercised. */
+  function replayChild(id: string): Session {
+    const child = Session.create(SessionId(id), [])
+    child.append('tool/call', { turn: 1, step: 1, callId: `${id}-call` as never, name: 'bash', arguments: '{}' })
+    return child
+  }
+
   function forkSubagents(ctx: Context, child: Session): void {
     ctx.provide('subagents', {
       getProvider: () => ({}),
@@ -676,8 +735,11 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
     appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
     appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
     provideServices(ctx, session, { session })
-    // Replays succeed when the fork child completes without new failures.
-    forkSubagents(ctx, Session.create(SessionId('child-clean'), []))
+    // A replay passes when the child completes, calls a tool (so it actually
+    // re-attempted the surface), and re-triggers no failure pattern.
+    const cleanChild = Session.create(SessionId('child-clean'), [])
+    cleanChild.append('tool/call', { turn: 1, step: 1, callId: 'ok1' as never, name: 'bash', arguments: '{}' })
+    forkSubagents(ctx, cleanChild)
     ctx.provide('sessionQuery', {
       searchEvents: async () => ({
         items: [
@@ -703,6 +765,70 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
     const engine = new ProbeEngine(ctx, baseConfig())
     const [pattern] = await engine.readPatterns(session.id)
     expect(await engine.heldOut(agentFor(session), proposal(), pattern!, new AbortController().signal)).toBeNull()
+  })
+
+  it('heldOutSessionIds routes the probe to the configured sessions (P1.3)', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session, { session })
+    forkSubagents(ctx, replayChild('child-foreign'))
+    const queried: string[] = []
+    ctx.provide('sessionQuery', {
+      searchEvents: async ({ sessionId }: { sessionId: string }) => {
+        queried.push(sessionId)
+        return { items: [{ seq: 4, snippet: 'an unseen failure', type: 'tool/result' }] }
+      },
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig({ heldOutSessionIds: ['foreign-session'] }))
+    const [pattern] = await engine.readPatterns(session.id)
+    const target = proposal({ addressesPatternIds: [pattern!.patternId] })
+    const signal = await engine.heldOut(agentFor(session), target, pattern!, new AbortController().signal)
+    expect(queried).toEqual(['foreign-session'])
+    expect(signal).toEqual({ passed: 1, cases: 1 })
+  })
+
+  it('does not apply the owning session supporting-seq filter to a foreign source', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session, { session })
+    forkSubagents(ctx, replayChild('child-foreign'))
+    ctx.provide('sessionQuery', {
+      // Seq numbers are session-local: this hit shares a number with a
+      // supporting seq but is a different event in a different session.
+      searchEvents: async () => ({ items: [{ seq: 1, snippet: 'same number, another session', type: 'tool/result' }] }),
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig({ heldOutSessionIds: ['foreign-session'] }))
+    const [pattern] = await engine.readPatterns(session.id)
+    expect(pattern!.supportingSeqs).toContain(1)
+    const target = proposal({ addressesPatternIds: [pattern!.patternId] })
+    const signal = await engine.heldOut(agentFor(session), target, pattern!, new AbortController().signal)
+    expect(signal).toEqual({ passed: 1, cases: 1 })
+  })
+
+  it('merges several held-out sources and caps the case count', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session, { session })
+    forkSubagents(ctx, replayChild('child-merged'))
+    ctx.provide('sessionQuery', {
+      searchEvents: async ({ sessionId }: { sessionId: string }) => ({
+        items: [
+          { seq: 1, snippet: `${sessionId} one`, type: 'tool/result' },
+          { seq: 2, snippet: `${sessionId} two`, type: 'tool/result' },
+        ],
+      }),
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig({ heldOutSessionIds: ['a', 'b'], maxHeldOutCases: 3 }))
+    const [pattern] = await engine.readPatterns(session.id)
+    const target = proposal({ addressesPatternIds: [pattern!.patternId] })
+    const signal = await engine.heldOut(agentFor(session), target, pattern!, new AbortController().signal)
+    expect(signal).toEqual({ passed: 3, cases: 3 })
   })
 
   it('_judge parses the four-dimension scores from the validator LLM (P1.4)', async () => {
@@ -766,6 +892,35 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
       expect(disposed).toContain('old-section')
       const archived = await readFile(join(dir, 'self-evolve', 'l2-archive', 'old-section.md'), 'utf8')
       expect(archived).toContain('xxxx')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('prompt-inflation budget counts UTF-8 bytes, not UTF-16 code units', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-prune-bytes-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      const disposed: string[] = []
+      const systemPrompt = {
+        section: (section: { name: string }) => {
+          return () => { disposed.push(section.name) }
+        },
+      }
+      provideServices(ctx, session, undefined, systemPrompt)
+      // 5 CJK characters = 5 UTF-16 code units but 15 UTF-8 bytes. A `.length`
+      // budget of 10 keeps this section; a byte budget evicts it.
+      const engine = new ProbeEngine(ctx, baseConfig({ maxPromptInflationBytesPerWeek: 10 }))
+      const agent = agentFor(session)
+      await engine.commit(agent, proposal({
+        proposalId: 'p-cjk',
+        candidate: { kind: 'L2-context', sectionName: 'cjk-section', sectionText: '上下文膨胀', order: 260, estimatedBytes: 15 },
+      }))
+      expect('上下文膨胀'.length).toBeLessThan(10)
+      await engine.prune()
+      expect(disposed).toContain('cjk-section')
     } finally {
       vi.unstubAllEnvs()
     }
@@ -1848,14 +2003,26 @@ describe('replay and held-out edge surfaces', () => {
     expect(replay?.exitCode).toBe(1)
   })
 
-  it('a fork without a local agent reports no retriggered patterns', async () => {
+  it('a fork without a local agent reports no retriggered patterns and fails the gate', async () => {
     const ctx = new Context()
     const session = sessionFactory()
     provideServices(ctx, session, { session })
     failingFork(ctx, 'completed')
     const engine = new ProbeEngine(ctx, baseConfig())
     const replay = await engine.replay(agentFor(session), proposal(), 'case', new AbortController().signal)
-    expect(replay).toEqual({ exitCode: 0, retriggeredPatternIds: [] })
+    expect(replay).toEqual({ exitCode: 1, retriggeredPatternIds: [] })
+  })
+
+  it('a completed child that never called a tool fails the replay', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    // The child reports completion without exercising anything: an empty
+    // replay is not evidence of a fix.
+    failingFork(ctx, 'completed', Session.create(SessionId('child-idle'), []))
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const replay = await engine.replay(agentFor(session), proposal(), 'case', new AbortController().signal)
+    expect(replay).toEqual({ exitCode: 1, retriggeredPatternIds: [] })
   })
 
   it('a fork child without an end-seed marker contributes no patterns', async () => {
@@ -2002,21 +2169,36 @@ describe('validateProposal and validateL4Proposal edges', () => {
     const [pattern] = await engine.readPatterns(session.id)
     const outcome = await engine.validate(proposal({ addressesPatternIds: [pattern!.patternId] }))
     expect(outcome.kind).toBe('rejected')
-    if (outcome.kind === 'rejected') expect(outcome.diagnostic).toContain('heldOut=0.30')
+    if (outcome.kind === 'rejected') {
+      expect(outcome.reason).toBe('verifier-unavailable')
+      expect(outcome.diagnostic).toContain('held-out')
+    }
   })
 
-  it('without dual verification the confidence gate uses heldIn=1 in the diagnostic', async () => {
+  it('without dual verification the confidence gate counts heldIn as 1', async () => {
     const ctx = new Context()
     const session = sessionFactory()
     appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
     appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
     provideServices(ctx, session)
-    const engine = new SignalEngine(ctx, baseConfig({ requireDualVerification: false }), session)
-    engine.heldOut = null
+    ctx.provide('llm', {
+      stream: async function* () {
+        yield { type: 'text-delta', index: 0, text: '{"activatesWhenCorrect":0.4,"clarity":0.4,"noRegressionIntroduced":0.4,"safety":0.4}' }
+      },
+    } as never)
+    const engine = new SignalEngine(ctx, baseConfig({
+      requireDualVerification: false,
+      validatorTarget: { provider: 'deepseek', model: 'judge' },
+    }), session)
+    engine.heldOut = { passed: 1, cases: 1 }
     const [pattern] = await engine.readPatterns(session.id)
     const outcome = await engine.validate(proposal({ addressesPatternIds: [pattern!.patternId] }))
+    // held-in is skipped, so it counts as 1: 0.4 × 1 × 1 = 0.4 < 0.5.
     expect(outcome.kind).toBe('rejected')
-    if (outcome.kind === 'rejected') expect(outcome.diagnostic).toContain('heldIn=1')
+    if (outcome.kind === 'rejected') {
+      expect(outcome.reason).toBe('low-confidence')
+      expect(outcome.diagnostic).toContain('heldIn=1')
+    }
   })
 
   it('validateL4Proposal throws for non-L4 candidates', async () => {

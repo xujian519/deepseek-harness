@@ -48,10 +48,14 @@ sha256sum swebench-verified.jsonl        # 将此 sha256 与 HF revision 记入 
 pnpm eval:self-evolve subset \
   --manifest swebench-verified.jsonl \
   --seed 20260821 \
-  --out packages/self-evolve/evaluation/subset.json
+  --count 60 --reserve 60 \
+  --out packages/self-evolve/evaluation/subset.json \
+  --reserve-out packages/self-evolve/evaluation/reserve.json
 ```
 
-验收：恰好 60 项；重跑得到字节一致的 `subset.json`（确定性）；每行含 `instanceId/repo/baseCommit/failToPass/passToPass` 且 `failToPass` 非空。
+验收：恰好 60 项；重跑得到字节一致的 `subset.json`（确定性）；每行含 `instanceId/repo/baseCommit/failToPass/passToPass` 且 `failToPass` 非空。命令还会打印 `subsetDigest=…`，请随本次运行一并记录。
+
+留存池（reserve）是**与子集不相交**的另一批任务。把它留给确认轮：针对同一子集的反馈反复提出候选，会让搜索自适应地过拟合该子集（[REUSE](https://arxiv.org/abs/2609.33180)），因此子集被消费超过一次后，应把它退役，改用留存池评估下一个候选。
 
 ## 3. Smoke 试点 — 5 任务、双臂（先 dry-run）
 
@@ -104,11 +108,16 @@ pnpm eval:self-evolve campaign \
 
 ```sh
 pnpm eval:self-evolve score  --results packages/self-evolve/evaluation/results.json
-pnpm eval:self-evolve decide --results packages/self-evolve/evaluation/results.json --write
+pnpm eval:self-evolve decide --results packages/self-evolve/evaluation/results.json \
+  --subset packages/self-evolve/evaluation/subset.json \
+  --prior-reuses 0 \
+  --write
 pnpm run verify-self-evolve-eval
 ```
 
-决策规则（spec P1-10）：`continue` **仅当** bootstrap 95% CI 低界**严格 `> 0`**； 当 CI 跨零（随机性无法排除）或在零以下（损伤证据）→ `rollback`。`--write` 持久化 `eval-decision.json`（默认路径），这正是门禁读取的文件。
+决策规则（spec P1-10）：`continue` 需要**同时**满足——双侧精确 McNemar p 值低于显著性水平，**且**实测 `winRateDelta` 达到预注册的最小效应量（`--min-effect`，默认 0.05）。其余一律 `rollback`。在这个子集规模下，配对二值结果上的百分位 bootstrap 功效不足，不足以充当门禁，而"区间不含零"会放行小到没有实际意义的效应；区间仍会被记录，但只作描述，不再作为判据。
+
+重用会收紧显著性水平：`--prior-reuses N` 把显著性水平除以 `N + 1`，因为针对同一个固定子集反复提出候选会抬高假晋升率。请传入同一 `subsetDigest` 上已记录的决策次数。`--write` 持久化 `eval-decision.json`（默认路径），这正是门禁读取的文件；`--subset` 记录本次决策覆盖的子集摘要。
 
 ## 6. 入库产物
 

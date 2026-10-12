@@ -34,7 +34,7 @@ fork 在完整保留其专利、self-evolve、桌面、better-sidebar、插件�
 
 fork 的 `ptc-runtime-python` 仍未吸收该版本的 sandbox 支持与 stdin bootstrap。fork 把该运行时拆成 `config`／`supervisor`／`output-ledger`／`frame-reader` 四个模块，而该版本保留了单个 `index.ts` 并向其加入了文件限制策略；合并保留了 fork 的拆分与该版本的 `py/` 脚本，二者并不相容。该包被恢复到 fork 自身自洽的状态，`snapshots/session/ptc-python-read-only` 被删除，因为该场景演练的是该版本的只读 sandbox 语义。把该版本的限制能力吸收进拆分后的运行时，是另一项改动。
 
-`packages/subagent/subagent/src/continuation.ts` 已不存在：该版本的托管 activation 重写用 `manager.ts` 取代了它。债务台账的上帝文件清单与拆分计划 note 现在指名后继者。
+subagent 包的 `src/continuation.ts` 已不存在：该版本的托管 activation 重写用 `manager.ts` 取代了它。债务台账的上帝文件清单与拆分计划 note 现在指名后继者。
 
 ## Alternatives considered
 

@@ -9,11 +9,11 @@
  *
  * The base provider targets L1-skill and L2-context only; L3-workflow and
  * L4-harness requests are accepted by the tool but produce no proposals until
- * the advanced providers land. Proposal validation requires the held-in dual
- * verifier; the workspace half is active only when the profile configures
- * `workspaceVerifier.buildCommand` for the basic provider, so base proposals
- * are conservatively rejected and no commits occur without it; the prompt
- * section states that honestly instead of over-promising.
+ * the advanced providers land. Validation needs a fork replay, a workspace
+ * check (`workspaceVerifier.buildCommand`), an LLM judge (`validatorTarget`),
+ * and a held-out hit; a deployment missing any of them rejects every proposal
+ * and commits nothing. The prompt section states that instead of
+ * over-promising.
  *
  * @module @deepseek-ai/dsh-tool-self-evolve
  */
@@ -32,7 +32,7 @@ const PROMPT_SECTION_TEXT
 - Call self_evolve_inspect_patterns to read failure patterns observed for this session.
 - Call self_evolve_now with an explicit level list to start one loop.
 - The base provider targets L1-skill and L2-context only; requesting L3-workflow or L4-harness produces no proposals yet.
-- Proposal validation requires the held-in dual verifier (fork replay + workspace check). The workspace check is active only when the profile configures workspaceVerifier.buildCommand for the basic provider; without it the loop degrades to the conservative weak path and no commits occur — treat any commit as experimental.
+- Proposal validation covers a fork replay, a workspace check, an LLM judge, and a held-out replay. Each needs its own prerequisite (workspaceVerifier.buildCommand, validatorTarget, similar history); any dimension left without a signal rejects the proposal, so an under-configured profile commits nothing — treat any commit as experimental.
 - Do not fabricate failure patterns or proposals. The projection-driven pattern view is the authoritative source; inspect it before making any proposal-level claims.`
 
 export const name = 'tool-self-evolve'

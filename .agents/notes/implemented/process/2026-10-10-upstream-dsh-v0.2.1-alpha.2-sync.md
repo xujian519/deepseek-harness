@@ -34,7 +34,7 @@ Three divergences now need attention at each release, unchanged from the previou
 
 The fork's `ptc-runtime-python` still does not carry the release's sandbox support or its stdin bootstrap. The fork split that runtime into `config`/`supervisor`/`output-ledger`/`frame-reader` modules while the release kept one `index.ts` and added a file-confinement policy to it; the merge kept the fork's split and the release's `py/` scripts, which do not fit it. The package is restored to the fork's own consistent state and `snapshots/session/ptc-python-read-only` is removed, because that scenario exercises the release's read-only sandbox semantics. Absorbing the release's confinement into the split runtime is its own change.
 
-`packages/subagent/subagent/src/continuation.ts` no longer exists: the release's managed-activation rewrite replaced it with `manager.ts`. The debt ledger's god-file inventory and the split plan note now name the successor.
+The subagent package's `src/continuation.ts` no longer exists: the release's managed-activation rewrite replaced it with `manager.ts`. The debt ledger's god-file inventory and the split plan note now name the successor.
 
 ## Alternatives considered
 

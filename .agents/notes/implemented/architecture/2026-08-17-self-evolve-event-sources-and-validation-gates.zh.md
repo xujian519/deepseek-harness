@@ -19,10 +19,10 @@ self-evolve 能力在计划（spec.md/tasks.md/check_list.md，对齐《自进�
 
 - **分类 `tool/result` 而非 `tool/error`。** 投影现在折叠 `tool/call` 身份（callId → name，state 内有界映射，`stateVersion` 2 → 3），并分类 `tool/result` 失败面：shell 退出/信号标记解析为 `subprocess-exit` tier，签名 `exit=N:stderr前缀` / `signal=S:stderr前缀`；`isError` 结果退化为 `tool-runtime` tier，键为 `error.name`。`tool/error` 会话事件声明移除（无生产者；bash 非零退出是渲染标记而非错误事件）。
 - **追加 `agent/request-error` 会话事件。** `self-evolve-basic` 提供方在 waterfall 监听器中追加 `{provider, statusCode, error: {code, name, message}}`（取自 `LlmFailure`），并总是通过 `next()` 让渡。声明保留在 `dsh-self-evolve`；catalog 重新生成以纳入它与 `self-evolve/*` 事件。
-- **双 verifier 决策接线。** `requireDualVerification`（默认 true）门控 `validateProposal`：当 `collectReplaySignal` 与 `collectWorkspaceSignal` 都返回信号时由 `_verifyHeldInCase` 裁决（混合失败或双失败 → rejected 且 `regressions: []`）；基础收集器返回 `null`（P1.2 重放 / P1.3 工作区基础设施尚未构建），门退化为 bracket smoke 验证器并明确标注，而非伪造验收。
+- **双 verifier 决策接线。** `requireDualVerification`（默认 true）门控 `validateProposal`：当 `collectReplaySignal` 与 `collectWorkspaceSignal` 都返回信号时由 `_verifyHeldInCase` 裁决（混合失败或双失败 → rejected 且 `regressions: []`）；无法产生信号的收集器返回 `null`。该 `null` 最初按临时折中落到 bracket smoke 分数上；[验证信号诚实性](../bug-fix/2026-10-12-self-evolve-verifier-signal-honesty.zh.md) 后来把该兜底替换为显式的 `verifier-unavailable` 拒绝。
 - **负面结果（P1.7b）。** 拒绝按每行一条 JSON 追加到 `$DSH_HOME/self-evolve/negative-results.jsonl`（`persistNegativeResult`），`readNegativeResults(patternId, limit)` 读回，模板 proposer 把每个模式最近 3 条被拒记录摘要进生成的 section 文本。
 - **速率限制修复。** `maxDailyLoopsPerSession` 现在以 24h 滚动窗口门控自主触发器（`idle-maintenance`/`pressure`/`validation-retry`）；循环启动时写入 `lastStartByTrigger`，使 `minIntervalMs` 真正生效。
-- **如实声明。** 工具提示片段、工具描述、README（中英）、seam JSDoc 均说明：基础提供方只实现 L1/L2，验证在 P1.2/P1.3 落地前是 P0 bracket smoke，尚无 L4 审批路径。idle 监听器改为记录日志而非吞错误。
+- **如实声明。** 工具提示片段、工具描述、README（中英）、seam JSDoc 均说明：基础提供方只实现 L1/L2，尚无 L4 审批路径。把验证描述为"P1.2/P1.3 落地前是 P0 bracket smoke"的措辞，已在这些验证器落地、缺失信号路径改为显式拒绝之后被取代（[验证信号诚实性](../bug-fix/2026-10-12-self-evolve-verifier-signal-honesty.zh.md)）。idle 监听器改为记录日志而非吞错误。
 - **测试。** 四个文件共 47 个测试：投影（tool/result 分类、签名稳定、工具名配对）、invariant 括号（9 例）、provider（双验证、每日上限、minInterval、负面结果、request-error 生产者、`eligiblePatterns` 阈值上抬）、工具消费者注册与执行。
 - **catalog 与 patent 修复。** `gen-persistence-catalog` 现在通过：self-evolve 会话事件去掉 `@mode` 标签（日志事件没有调度模式）并重新生成 catalog；既有 `patent/plantask`/`patent/workflow-run` 声明的 `@mode` 违规以同样方式修复。
 
@@ -38,6 +38,6 @@ self-evolve 能力在计划（spec.md/tasks.md/check_list.md，对齐《自进�
 
 - `pnpm exec tsc -b packages/self-evolve/*` 与 `pnpm exec vitest run packages/self-evolve/` 通过（47 测试）；子树 staged oxlint 干净；tsdown bundle 构建成功；`verify-persistence-catalog` 绿，`KNOWN_SESSION_EVENT_TYPES` 包含 `agent/request-error` 与全部六个 `self-evolve/*` 事件。
 - 投影持久状态新增 `toolCalls`，`stateVersion` 升至 3；v2 状态无法反序列化（未发布，无兼容承诺）。
-- 模型可见文本改为低承诺：基础提供方对 L3/L4 不产出提案，验证在 P1.2/P1.3 前如实标注为 bracket smoke。
+- 模型可见文本保持低承诺：基础提供方对 L3/L4 不产出提案。验证的"P0 bracket smoke"标注不再适用——[验证信号诚实性](../bug-fix/2026-10-12-self-evolve-verifier-signal-honesty.zh.md) 已把它替换为三个逐维度前置条件与 `verifier-unavailable` 结果。
 - 仍延后（roadmap gate）：P1.2 重放 verifier、P1.3 工作区 verifier、P1.4 LLM judge、P1.9 60 题 SWE-bench 评估与 CI 跨零自动停开关、P2/P3/P4 阶段、`p0-bracket` keyless snapshot；`verify-translation-pairing` 全库仍因既有 patent 配对而红。
 - `gen-persistence-catalog` 同时解除了待提交共享文件的阻塞；patent `@mode` 修复是两行声明清理，无行为变化。

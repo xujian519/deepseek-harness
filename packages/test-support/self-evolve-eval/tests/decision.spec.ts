@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { decide, readDecision, recordDecision } from '../src/decision.ts'
+import { DECISION_CRITERION_VERSION, decide, readDecision, recordDecision } from '../src/decision.ts'
 import type { EvalResults, TaskOutcome } from '../src/types.ts'
 
 function results(tasks: TaskOutcome[]): EvalResults {
@@ -37,6 +37,48 @@ describe('decide', () => {
     expect(decision.summary.netWin).toBe(1)
     expect(decision.ci.resamples).toBeGreaterThan(0)
     expect(decision.settledAt).toBeGreaterThan(0)
+  })
+
+  it('records the applied criterion, thresholds, and test result', () => {
+    const decision = decide(results([outcome('a', false, true)]), { seed: 1 })
+    expect(decision.criterionVersion).toBe(DECISION_CRITERION_VERSION)
+    expect(decision.alpha).toBe(0.05)
+    expect(decision.minEffect).toBe(0.05)
+    expect(decision.priorReuses).toBe(0)
+    expect(decision.mcnemar.discordant).toBe(1)
+  })
+
+  it('an effect that is significant but below the pre-registered minimum is rolled back', () => {
+    // 1000 tasks with 40 wins: delta = 0.04 while the p-value is ~1e-12.
+    const tasks = Array.from({ length: 1000 }, (_, index) => outcome(`w${index}`, false, index < 40))
+    const decision = decide(results(tasks), { seed: 1 })
+    expect(decision.mcnemar.pValue).toBeLessThan(0.05)
+    expect(decision.summary.winRateDelta).toBeLessThan(0.05)
+    expect(decision.recommended).toBe('rollback')
+  })
+
+  it('an effect above the minimum but not significant is rolled back', () => {
+    // 3 wins, 0 losses: delta = 1.0 but p = 2 × 0.5³ = 0.25.
+    const tasks = Array.from({ length: 3 }, (_, index) => outcome(`w${index}`, false, true))
+    const decision = decide(results(tasks), { seed: 1 })
+    expect(decision.summary.winRateDelta).toBeGreaterThanOrEqual(0.05)
+    expect(decision.mcnemar.pValue).toBeGreaterThan(0.05)
+    expect(decision.recommended).toBe('rollback')
+  })
+
+  it('a declared reuse tightens the significance level', () => {
+    // 6 wins, 0 losses: p = 2 × 0.5⁶ = 0.03125. Significant at 0.05, not at 0.05/3.
+    const tasks = Array.from({ length: 6 }, (_, index) => outcome(`w${index}`, false, true))
+    expect(decide(results(tasks), { seed: 1 }).recommended).toBe('continue')
+    const reused = decide(results(tasks), { seed: 1, priorReuses: 2 })
+    expect(reused.alpha).toBeCloseTo(0.05 / 3, 12)
+    expect(reused.recommended).toBe('rollback')
+  })
+
+  it('carries the subset digest from the results, and accepts an override', () => {
+    const withDigest: EvalResults = { ...results([outcome('a', false, true)]), subsetDigest: 'digest-a' }
+    expect(decide(withDigest, { seed: 1 }).subsetDigest).toBe('digest-a')
+    expect(decide(withDigest, { seed: 1, subsetDigest: 'digest-b' }).subsetDigest).toBe('digest-b')
   })
 })
 
@@ -89,5 +131,14 @@ describe('decision record I/O', () => {
     const dir = await mkdtemp(join(tmpdir(), 'self-evolve-decision-'))
     tempDirs.push(dir)
     await expect(readDecision(dir)).rejects.toThrow()
+  })
+
+  it('refuses a record written under another criterion version', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-decision-'))
+    tempDirs.push(dir)
+    const path = join(dir, 'stale.json')
+    const decision = decide(results([outcome('a', false, true)]), { seed: 1 })
+    await writeFile(path, JSON.stringify({ ...decision, criterionVersion: DECISION_CRITERION_VERSION - 1 }))
+    await expect(readDecision(path)).rejects.toThrow(/criterion version/)
   })
 })

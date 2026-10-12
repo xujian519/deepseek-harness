@@ -13,13 +13,14 @@
  * @module @deepseek-ai/dsh-self-evolve-eval/cli
  */
 
+import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { runCampaign } from './campaign/orchestrate.ts'
 import { resolveSourceLaunchAnchors } from './campaign/source-launch.ts'
-import { decide, recordDecision } from './decision.ts'
+import { DEFAULT_ALPHA, DEFAULT_MIN_EFFECT, decide, recordDecision } from './decision.ts'
 import { bootstrapCi, summarize, validateResults } from './score.ts'
-import { DEFAULT_SUBSET_SIZE, loadTaskManifest, selectSubset } from './subset.ts'
+import { DEFAULT_SUBSET_SIZE, loadTaskManifest, selectSubsetWithReserve } from './subset.ts'
 import type { EvalResults } from './types.ts'
 
 /** Default artifact directory, relative to the repository root. */
@@ -29,9 +30,9 @@ export const DEFAULT_DECISION_PATH = join(DEFAULT_EVAL_DIR, 'eval-decision.json'
 
 function usage(): void {
   console.log('self-evolve-eval: P1-10 evaluation scaffold')
-  console.log('  subset  --manifest <json|jsonl> --seed <n> [--count 60] --out <subset.json>')
+  console.log('  subset  --manifest <json|jsonl> --seed <n> [--count 60] [--reserve <n> --reserve-out <path>] --out <subset.json>')
   console.log('  score   --results <results.json> [--seed <n>]')
-  console.log('  decide  --results <results.json> [--seed <n>] [--write] [--out <path>]')
+  console.log('  decide  --results <results.json> [--seed <n>] [--subset <subset.json>] [--alpha <p>] [--min-effect <d>] [--prior-reuses <n>] [--write] [--out <path>]')
   console.log('  campaign --manifest <jsonl> --subset <subset.json> --results <results.json> --stats <stats.jsonl> \\')
   console.log('           --work-dir <dir> [--arm both|baseline|evolved] [--profile headless] [--env-tool uv|venv] \\')
   console.log('           [--dsh-entry <bin.ts>] [--tsx-import <absolute hook path>] [--build-command <template>] [--python <v>] \\')
@@ -70,13 +71,28 @@ async function main(): Promise<void> {
       const manifest = requireArg('--manifest')
       const seed = Number(requireArg('--seed'))
       const count = Number(arg('--count') ?? String(DEFAULT_SUBSET_SIZE))
+      const reserveCount = Number(arg('--reserve') ?? '0')
       const out = requireArg('--out')
       if (!Number.isInteger(seed) || seed < 0) throw new Error('self-evolve-eval: --seed must be a non-negative integer')
       if (!Number.isInteger(count) || count < 1) throw new Error('self-evolve-eval: --count must be a positive integer')
+      if (!Number.isInteger(reserveCount) || reserveCount < 0) throw new Error('self-evolve-eval: --reserve must be a non-negative integer')
       const tasks = await loadTaskManifest(resolve(manifest))
-      const subset = selectSubset(tasks, seed, count)
+      const { subset, reserve } = selectSubsetWithReserve(tasks, seed, count, reserveCount)
+      const subsetJson = `${JSON.stringify(subset, null, 2)}\n`
       await writeJson(resolve(out), subset)
       console.log(`self-evolve-eval: selected ${subset.length} task(s) from ${tasks.length} with seed ${seed} → ${out}`)
+      // The digest identifies the exact subset bytes a decision was taken on, so
+      // repeated decisions against it can declare their reuse count.
+      console.log(`self-evolve-eval: subsetDigest=${sha256(subsetJson)}`)
+      if (reserveCount > 0) {
+        if (reserve.length < reserveCount) {
+          throw new Error(`self-evolve-eval: --reserve ${reserveCount} requested but only ${reserve.length} task(s) remain after the subset`)
+        }
+        const reserveOut = arg('--reserve-out')
+        if (reserveOut === null) throw new Error('self-evolve-eval: --reserve requires --reserve-out')
+        await writeJson(resolve(reserveOut), reserve)
+        console.log(`self-evolve-eval: reserved ${reserve.length} unseen task(s) → ${reserveOut}`)
+      }
       return
     }
     case 'score': {
@@ -87,8 +103,20 @@ async function main(): Promise<void> {
     }
     case 'decide': {
       const results = validateResults(JSON.parse(await readFile(resolve(requireArg('--results')), 'utf8')))
-      const decision = decide(results, { seed: Number(arg('--seed') ?? 0) })
+      const subsetArg = arg('--subset')
+      const subsetDigest = subsetArg === null
+        ? undefined
+        : sha256(await readFile(resolve(subsetArg), 'utf8'))
+      const decision = decide(results, {
+        seed: Number(arg('--seed') ?? 0),
+        alpha: Number(arg('--alpha') ?? String(DEFAULT_ALPHA)),
+        minEffect: Number(arg('--min-effect') ?? String(DEFAULT_MIN_EFFECT)),
+        priorReuses: Number(arg('--prior-reuses') ?? '0'),
+        ...(subsetDigest === undefined ? {} : { subsetDigest }),
+      })
       printScore(results, decision.ci.low, decision.ci.high, decision.ci.resamples)
+      console.log(`self-evolve-eval: mcnemar p=${decision.mcnemar.pValue.toExponential(3)} over ${decision.mcnemar.discordant} discordant pair(s)`)
+      console.log(`self-evolve-eval: alpha=${decision.alpha} minEffect=${decision.minEffect} priorReuses=${decision.priorReuses}`)
       console.log(`self-evolve-eval: crossesZero=${decision.crossesZero} recommended=${decision.recommended}`)
       if (has('--write')) {
         const out = resolve(arg('--out') ?? DEFAULT_DECISION_PATH)
@@ -177,6 +205,11 @@ function printScore(results: EvalResults, low: number, high: number, resamples: 
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+/** Lowercase SHA-256 of a string; identifies the exact subset bytes a decision covered. */
+function sha256(text: string): string {
+  return createHash('sha256').update(text).digest('hex')
 }
 
 async function entry(): Promise<void> {

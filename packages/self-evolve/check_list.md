@@ -25,16 +25,16 @@
 
 | # | 项目 | 验收 | Yes/No |
 |---|---|---|---|
-| P1-1 | `requireDualVerification` 配置生效 | 双信号 T+F / F+F → rejected 且 regressions=[]；信号缺失按弱路径 0.3 计并保守拒绝（不再 smoke 放行） | ☑ |
-| P1-2 | Held-In replay 验证（P1.2） | `replayCase` 经 fork provider 重放；child 仅 end-seed 后事件参与折叠；基础设施缺失 → null 弱路径 | ☑ |
-| P1-3 | Held-Out 跨会话（P1.3） | `collectHeldOutSignal` 搜索相似历史并逐个重放；无 sessionQuery / 无命中 → null；通过率 ≥ 0.6 达标 | ☑ |
-| P1-4 | LLM judge（P1.4） | `_judge` 4 维度 0-1 钳制；无 validatorTarget → 结构分；validatorTarget=proposerTarget → 加载抛错 | ☑ |
+| P1-1 | `requireDualVerification` 配置生效 | 双信号 T+F / F+F → rejected 且 regressions=[]；任一维度缺失信号 → rejected 且 reason=`verifier-unavailable`（不再 smoke 放行） | ☑ |
+| P1-2 | Held-In replay 验证（P1.2） | `replayCase` 经 fork provider 重放；child 仅 end-seed 后事件参与折叠；通过需 completed + **≥1 次工具调用** + 未重触发 pattern；基础设施缺失 → null 弱路径 | ☑ |
+| P1-3 | Held-Out 相似历史重放（P1.3） | `collectHeldOutSignal` 在本会话历史中搜索相似事件（排除 supporting seqs）并逐个重放；无 sessionQuery / 无命中 / cases=0 → 无信号；通过率 ≥ 0.6 达标 | ☑ |
+| P1-4 | LLM judge（P1.4） | `_judge` 4 维度 0-1 钳制；无 validatorTarget → 该维度无信号（弱路径 0.3，不再给满分）；validatorTarget=proposerTarget → 加载抛错 | ☑ |
 | P1-5 | L1 skill 持久化（P1.5） | applyCommit 经 `ctx.fs` 写 `<project>/.dsh/skills/<name>/SKILL.md`（frontmatter 三键） | ☑ |
 | P1-6 | failedProposals 回写（P1.6） | `readPatterns` 输出含 `verifierMeta.failedProposals`（源自 negative-results） | ☑ |
 | P1-7 | Negative results 写入 `$DSH_HOME/self-evolve/negative-results.jsonl` | reject 次数 = jsonl 行数（临时 DSH_HOME 实测） | ☑ |
 | P1-8 | Champion-Challenger 回滚（P1.8） | 连续 2 次同 patternId rejection → 最新 champion 经 owning seam 恢复（单测） | ☑ |
-| P1-9 | Prompt 膨胀 pruning（P1.9） | 超 `maxPromptInflationBytesPerWeek` → 最旧 section 归档到 l2-archive/ 且 disposer 撤销（单测） | ☑ |
-| P1-10 | 60 题离线子集净胜分 95% CI | 提供 evaluation report，CI 不跨零；CI 跨零自动停开关 | ☐ |
+| P1-9 | Prompt 膨胀 pruning（P1.9） | 超 `maxPromptInflationBytesPerWeek`（按 UTF-8 字节）→ 最旧 section 归档到 l2-archive/ 且 disposer 撤销（单测，含多字节用例） | ☑ |
+| P1-10 | 60 题离线子集净胜分（精确 McNemar） | 提供 evaluation report：McNemar p < 调整后 α 且 delta ≥ minEffect；未达标自动停开关 | ☐ |
 | P1-11 | Phase 1 snapshot 录制 | `pnpm run test:snapshot:record -- -t p1-validator`（需 key 环境） | ☐ |
 
 ## Gate-P3：L3 + L4 审批
