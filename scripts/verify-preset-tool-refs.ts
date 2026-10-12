@@ -1,6 +1,7 @@
 /**
  * Verify that the tool names a shipped preset's text and skills reference in
- * backticks are tools that preset mounts.
+ * backticks — and the tool names its own gate declarations name — are tools
+ * that preset mounts.
  *
  * Known names come from the package map of `docs/tool-catalog.md`, the
  * freshness-gated catalog that boots every tool plugin; the mounted set comes
@@ -10,6 +11,9 @@
  * drops that tool. A backticked name that no
  * mounted tool and no {@link EXEMPT_REFERENCES} entry accounts for fails the
  * gate, so a renamed or invented tool cannot stay in model-facing skill text.
+ * A name a `deliveryGate` / `structuralGate` declaration carries fails the same
+ * way: an unresolvable prerequisite denies the guarded call in every session
+ * while the rest of the declaration looks healthy.
  *
  * Only backticked lowercase snake_case names carrying an underscore are
  * checked; that is the form a tool reference takes here, and it keeps prose
@@ -164,6 +168,33 @@ function switchedOffTools(
 }
 
 /**
+ * Flatten a preset's YAML into the object nodes a gate declaration can live on.
+ *
+ * Both readers below — the mounted tool set and the gate-declared names — walk
+ * the same tree with the same rule (a row the preset disables contributes
+ * nothing, and `!!js` conditions arrive evaluated, so a platform-off row is
+ * skipped exactly as the load skips it), so the walk exists once here.
+ * @param presetSource - the preset YAML text.
+ * @returns every object node outside a disabled row, in document order.
+ */
+export function presetRowRecords(presetSource: string): Record<string, unknown>[] {
+  const records: Record<string, unknown>[] = []
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    if (typeof value !== 'object' || value === null) return
+    const record = value as Record<string, unknown>
+    if (record.disabled === true) return
+    records.push(record)
+    for (const item of Object.values(record)) visit(item)
+  }
+  visit(loadCordisYaml(presetSource))
+  return records
+}
+
+/**
  * Resolve the tool names one preset mounts.
  * @param presetSource - the preset YAML text.
  * @param catalog - {@link parseToolCatalog} result.
@@ -177,34 +208,20 @@ export function mountedToolNames(
   configSwitches: ReadonlyMap<string, readonly ConfigToolSwitch[]> = CONFIG_TOOL_SWITCHES,
 ): Set<string> {
   const names = new Set<string>()
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item)
-      return
-    }
-    if (typeof value !== 'object' || value === null) return
-    const entry = value as Record<string, unknown>
-    // A row the preset disables mounts nothing, neither its own tools nor a
-    // nested child's; `!!js` conditions arrive evaluated, so a platform-off row
-    // is skipped exactly as the load skips it.
-    if (entry.disabled === true) return
-    for (const [key, item] of Object.entries(entry)) {
-      if (typeof item === 'string' && key === 'name') {
-        const off = switchedOffTools(entry, item, configSwitches)
-        for (const tool of catalog.get(item) ?? []) {
-          if (!off.has(tool)) names.add(tool)
-        }
+  for (const record of presetRowRecords(presetSource)) {
+    if (typeof record.name === 'string') {
+      const off = switchedOffTools(record, record.name, configSwitches)
+      for (const tool of catalog.get(record.name) ?? []) {
+        if (!off.has(tool)) names.add(tool)
       }
-      if (typeof item === 'string' && key === 'toolName' && item.length > 0) names.add(item)
-      visit(item)
     }
+    if (typeof record.toolName === 'string' && record.toolName.length > 0) names.add(record.toolName)
   }
-  visit(loadCordisYaml(presetSource))
   return names
 }
 
 /**
- * Collect the backticked tool-shaped names of one file.
+ * Collect the tool-shaped names of one file.
  * @param source - the file text.
  * @returns every backticked lowercase snake_case name carrying an underscore.
  */
@@ -220,11 +237,56 @@ export function toolReferences(source: string): ToolReference[] {
 }
 
 /**
+ * One tool name a preset's gate declaration names.
+ *
+ * A gate that names a tool no mounted package registers is the worst shape a
+ * declaration can take: it denies the guarded call in every session while every
+ * other check stays green, because the name is valid YAML and a valid string.
+ * These names therefore resolve against the mounted set too, not just the
+ * backticked prose references.
+ */
+export interface GateToolReference {
+  /** The declaration that named it, e.g. `deliveryGate.requires`. */
+  readonly source: string
+  /** The tool name. */
+  readonly name: string
+}
+
+/**
+ * Collect the tool names one preset's gate declarations name: the tool a
+ * delivery gate guards, the prerequisites it requires, and the tool a
+ * structural gate guards.
+ * @param presetSource - the preset YAML text.
+ * @returns every gate-declared tool name, in declaration order.
+ */
+export function gateToolReferences(presetSource: string): GateToolReference[] {
+  const references: GateToolReference[] = []
+  const push = (source: string, value: unknown): void => {
+    if (typeof value === 'string' && value.length > 0) references.push({ source, name: value })
+  }
+  const gatesOf = (record: Record<string, unknown>, key: string): Record<string, unknown>[] => {
+    const declared = record[key]
+    if (!Array.isArray(declared)) return []
+    return declared.filter((gate): gate is Record<string, unknown> => typeof gate === 'object' && gate !== null)
+  }
+  for (const record of presetRowRecords(presetSource)) {
+    for (const gate of gatesOf(record, 'deliveryGate')) {
+      push('deliveryGate.tool', gate.tool)
+      for (const required of Array.isArray(gate.requires) ? gate.requires : []) {
+        push('deliveryGate.requires', required)
+      }
+    }
+    for (const gate of gatesOf(record, 'structuralGate')) push('structuralGate.tool', gate.tool)
+  }
+  return references
+}
+
+/**
  * Check every backticked tool reference in a preset corpus.
  * @param catalogSource - text of `docs/tool-catalog.md`.
  * @param corpus - one entry per shipped preset.
  * @param exemptReferences - exempt names, each mapped to its reason.
- * @returns one diagnostic per reference no mounted tool and no exemption accounts for.
+ * @returns one diagnostic per name no mounted tool and no exemption accounts for.
  */
 export function findToolRefViolations(
   catalogSource: string,
@@ -243,6 +305,12 @@ export function findToolRefViolations(
           `${file.path}:${String(reference.line)}: \`${reference.name}\` is not a tool preset ${entry.preset} mounts`,
         )
       }
+    }
+    for (const reference of gateToolReferences(entry.presetFile.source)) {
+      if (mounted.has(reference.name)) continue
+      violations.push(
+        `${entry.presetFile.path}: ${reference.source} names ${reference.name}, which preset ${entry.preset} does not mount`,
+      )
     }
   }
   return violations
@@ -285,7 +353,8 @@ if (process.argv[1] !== undefined && import.meta.filename === resolve(process.ar
   const corpus = loadPresetCorpus(ROOT)
   const references = corpus.reduce(
     (sum, entry) => sum
-      + [entry.presetFile, ...entry.skillFiles].reduce((fileSum, file) => fileSum + toolReferences(file.source).length, 0),
+      + [entry.presetFile, ...entry.skillFiles].reduce((fileSum, file) => fileSum + toolReferences(file.source).length, 0)
+      + gateToolReferences(entry.presetFile.source).length,
     0,
   )
   if (corpus.length === 0 || references === 0) {
