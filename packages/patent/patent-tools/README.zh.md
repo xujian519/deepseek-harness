@@ -23,7 +23,7 @@ kind: "package-reference"
 
 | 工具 | 类别 | 数据源 / 引擎 |
 | --- | --- | --- |
-| `patent_search` | 检索 | `@deepseek-ai/dsh-patent-data`（nuo `searchPatents`，LRU 缓存） |
+| `patent_search` | 检索 | `@deepseek-ai/dsh-patent-data`（nuo `searchPatents`，LRU 缓存；引擎失败或零命中时另走 CNIPR 通道） |
 | `patent_metadata` | 检索 | `@deepseek-ai/dsh-patent-data`（nuo `scrapePatent`，LRU 缓存） |
 | `patent_legal_status` | 检索 | `@deepseek-ai/dsh-patent-data`（nuo `LegalStatusChecker`，引擎答不出的号另走 CNIPR 通道） |
 | `law_search` | 知识 | `ctx.patentKnowledge.legalSearch` / `.guidelineSearch`（knowledge.db FTS5，语料为 `law_article` 与 `guideline_rule` 两类文档，`scope` 选语料） |
@@ -109,7 +109,7 @@ Schemastery 配置，所有字段可选。
 
 #### 模型所见
 
-32 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推。两者对瞬时上游失败（超时、连接断开）各按带界退避重试两次，退避耗尽仍失败时报告已尝试次数。`patent_pdf_download` 逐篇点名通道（`Google Patents（nuo 引擎）` 或 `CNIPR（中国知识产权网）`），并在 `warnings` 里列出「被咨询过但未能服务」的通道，使回退可见、不与被接手的那篇混为一谈；续传条目的通道取自 MANIFEST 的记录。`patent_legal_status` 逐篇点名通道，并把引擎答不出的号经 CNIPR 重查一次；该通道也没有记录时保留引擎给出的原因。
+32 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推；`patent_search` 还在引擎失败或零命中时经 CNIPR 再检索一次（带 `assignee:` 这类 Google 字段语法的查询不咨询该通道），并点名本次实际服务的通道。两者对瞬时上游失败（超时、连接断开）各按带界退避重试两次，退避耗尽仍失败时报告已尝试次数。`patent_pdf_download` 逐篇点名通道（`Google Patents（nuo 引擎）` 或 `CNIPR（中国知识产权网）`），并在 `warnings` 里列出「被咨询过但未能服务」的通道，使回退可见、不与被接手的那篇混为一谈；续传条目的通道取自 MANIFEST 的记录。`patent_legal_status` 逐篇点名通道，并把引擎答不出的号经 CNIPR 重查一次；该通道也没有记录时保留引擎给出的原因。
 
 #### Token 影响
 

@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-data/README.md
 /:
-  en: 1855ea575f6f0686
-  zh: 30563c69f233fc1a
+  en: 53a2d8d94bfb9f60
+  zh: d4346b8c75b5874f
 /deepseek-ai-dsh-patent-data:
   en: fc8f90822af1ae2f
   zh: 0e838135fc20b6e1
@@ -24,8 +24,8 @@
   en: ffc91f8448dd0f8f
   zh: fa07b0055127c1f0
 /deepseek-ai-dsh-patent-data/service/createcniprchannel-options:
-  en: 9c480120e194801b
-  zh: d1561fd32a0b1fe6
+  en: 55646d1a5de90f59
+  zh: 21f79a7afac0c545
 /deepseek-ai-dsh-patent-data/configuration:
   en: 75acf5a58ee8b8ed
   zh: 0c9342804d30e207
@@ -36,8 +36,8 @@
   en: aea4bc8ad7771295
   zh: 55a9c3df422c90db
 /deepseek-ai-dsh-patent-data/known-limitations-and-deferred-work:
-  en: 131368ff0d091258
-  zh: 954cb7f58e68fb77
+  en: 918e7432a45b8b1d
+  zh: 12bed436ffc1da39
 /deepseek-ai-dsh-patent-data/known-limitations-and-deferred-work/dev-note:
   en: 0a1253c6f7b5e8b9
   zh: 312f7a63f4de2b91

@@ -119,6 +119,41 @@ export interface CniprLegalQuery {
   pubNumber?: string
 }
 
+/** CNIPR 检索结果页里的一条命中；字段值域与页面发布的内容一致。 */
+export interface CniprSearchHit {
+  /** 公开(公告)号；结果行以 `pnm` 属性发布，缺失时回退到行内「公开(公告)号：」字段。 */
+  patent: string
+  /** 标题；取自结果行标题元素的 `title` 属性，不含序号与关键词高亮。 */
+  title: string
+  /** 申请(专利权)人；联合申请按页面原样给出。 */
+  assignee: string
+  /** 公开(公告)日，已由页面写法 `YYYY.MM.DD` 归一为 `YYYY-MM-DD`。 */
+  publicationDate: string
+  /** 摘要原文（页面的关键词高亮是标记，取文本时已消失）。 */
+  abstract: string
+}
+
+/** 一次 CNIPR 关键词检索的结果。 */
+export interface CniprSearchResult {
+  /** 页面分类导航给出的「全部 N 件专利」；零命中页输出 0，故 0 是真实零命中。 */
+  total: number
+  hits: CniprSearchHit[]
+}
+
+/** 一次检索请求的执行计划：归一后的条数与要读取的结果页数。 */
+export interface CniprSearchRequest {
+  /** 归一后的期望条数（1..30）。 */
+  limit: number
+  /** 要读取的结果页数（1..3）。 */
+  pages: number
+}
+
+/** 一次 CNIPR 检索调用的可选项。 */
+export interface CniprSearchOptions extends CniprCallOptions {
+  /** 期望命中条数；通道按每页 10 条翻页取满，单次上限 30。 */
+  limit?: number
+}
+
 /** CNIPR 通道消费的 ego 会话面；`EgoBrowserSession` 结构性满足它。 */
 export interface CniprEgoSession {
   /** 可用性检查；非 ok 时通道以 setup_required 失败。 */

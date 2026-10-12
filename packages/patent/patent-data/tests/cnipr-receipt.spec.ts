@@ -5,13 +5,17 @@ import {
   alignCniprResults,
   classifyCniprNumber,
   normalizeCniprAppNumber,
+  normalizeCniprDate,
   normalizeCniprPdfUrls,
   parseCniprLegalRecords,
+  parseCniprSearchTotal,
   planCniprLegalQueries,
   planCniprPdfRequests,
+  planCniprSearchRequest,
   readCniprLegalPayload,
   readCniprPdfLinksPayload,
   readCniprScriptFailure,
+  readCniprSearchPayload,
 } from '@deepseek-ai/dsh-patent-data'
 
 describe('normalizeCniprAppNumber', () => {
@@ -208,5 +212,112 @@ describe('readCniprLegalPayload', () => {
     expect(readCniprLegalPayload({ items: 'nope' })).toEqual({ items: [] })
     expect(readCniprLegalPayload({ items: [], error: { code: 'page_state', message: '等检索结果页失败' } }).failure)
       .toEqual({ code: 'page_state', message: '等检索结果页失败' })
+  })
+})
+
+describe('planCniprSearchRequest', () => {
+  it('defaults to one page and clamps to the channel ceiling', () => {
+    expect(planCniprSearchRequest()).toEqual({ limit: 10, pages: 1 })
+    expect(planCniprSearchRequest(1)).toEqual({ limit: 1, pages: 1 })
+    expect(planCniprSearchRequest(10)).toEqual({ limit: 10, pages: 1 })
+    expect(planCniprSearchRequest(11)).toEqual({ limit: 11, pages: 2 })
+    expect(planCniprSearchRequest(30)).toEqual({ limit: 30, pages: 3 })
+    // 上限而非无限翻页：超过 30 的请求收敛到 3 页，由调用方在 warnings 里说明截断。
+    expect(planCniprSearchRequest(50)).toEqual({ limit: 30, pages: 3 })
+    expect(planCniprSearchRequest(0)).toEqual({ limit: 10, pages: 1 })
+    expect(planCniprSearchRequest(-5)).toEqual({ limit: 10, pages: 1 })
+    expect(planCniprSearchRequest(10.7)).toEqual({ limit: 10, pages: 1 })
+  })
+})
+
+describe('parseCniprSearchTotal', () => {
+  it('reads the classified-navigation total, including the zero-hit page', () => {
+    expect(parseCniprSearchTotal('全部655件专利')).toBe(655)
+    expect(parseCniprSearchTotal('全部 0 件专利')).toBe(0)
+  })
+
+  it('returns null when the marker is absent', () => {
+    expect(parseCniprSearchTotal('所有分类 >')).toBeNull()
+    expect(parseCniprSearchTotal('')).toBeNull()
+  })
+})
+
+describe('normalizeCniprDate', () => {
+  it('normalizes the page date to the hyphenated form', () => {
+    expect(normalizeCniprDate('2020.08.25')).toBe('2020-08-25')
+    expect(normalizeCniprDate(' 2020-08-25 ')).toBe('2020-08-25')
+  })
+
+  it('returns anything else as-is rather than dropping it', () => {
+    expect(normalizeCniprDate('2020.8.5')).toBe('2020.8.5')
+    expect(normalizeCniprDate('')).toBe('')
+  })
+})
+
+describe('readCniprSearchPayload', () => {
+  // 结果行原文取自 2026-10-12 真机探测（搜索「石墨烯电池」第一条）。
+  const rowText = '申请号： CN201922356571.X 申请日： 2019.12.25 公开(公告)号： CN211350734U 公开(公告)日： 2020.08.25 '
+    + '同日申请： 分案原申请号： 申请(专利权)人： 上海碳源汇谷新材料科技有限公司 '
+    + '分类号： H01M2/10(2006.01);H01M10/48(2006.01) 优先权： 摘要：本实用新型属于石墨烯电池技术领域。 机器翻译'
+
+  it('maps the rows, the total, and the clean title attribute', () => {
+    const read = readCniprSearchPayload({
+      header: '全部655件专利',
+      items: [
+        { cursor: 0, number: 'CN211350734U', title: '一种稳定性高的石墨烯电池', text: rowText },
+      ],
+    })
+    expect(read.total).toBe(655)
+    expect(read.hits).toEqual([{
+      patent: 'CN211350734U',
+      title: '一种稳定性高的石墨烯电池',
+      assignee: '上海碳源汇谷新材料科技有限公司',
+      publicationDate: '2020-08-25',
+      abstract: '本实用新型属于石墨烯电池技术领域。',
+    }])
+  })
+
+  it('falls back to the labelled publication number and drops rows with no number', () => {
+    const read = readCniprSearchPayload({
+      header: '全部2件专利',
+      items: [
+        { cursor: 0, number: null, title: null, text: rowText },
+        // 勾选框没给号、行文本里也没有「公开(公告)号」：这一行结构不完整，丢弃而不是编一个号。
+        { cursor: 1, number: null, title: '无号的行', text: '申请号： CN201922356571.X 摘要：无公开号' },
+        { cursor: 2, number: 'CN1A', title: null, text: '公开(公告)号： CN1A' },
+      ],
+    })
+    expect(read.hits.map(hit => hit.patent)).toEqual(['CN211350734U', 'CN1A'])
+    // 缺标题留空，不用行内其它文本顶替；缺标签字段同样留空。
+    expect(read.hits[1]?.title).toBe('')
+    expect(read.hits[1]?.assignee).toBe('')
+    expect(read.hits[1]?.publicationDate).toBe('')
+    expect(read.hits[1]?.abstract).toBe('')
+  })
+
+  it('keeps a row whose text is missing, taking the number from the attribute alone', () => {
+    const read = readCniprSearchPayload({
+      header: '全部1件专利',
+      items: [{ cursor: 0, number: 'CN1A', title: '标题' }],
+    })
+    expect(read.hits).toEqual([{
+      patent: 'CN1A',
+      title: '标题',
+      assignee: '',
+      publicationDate: '',
+      abstract: '',
+    }])
+  })
+
+  it('reports a null total when the page stops publishing it', () => {
+    expect(readCniprSearchPayload({ items: [] }).total).toBeNull()
+    expect(readCniprSearchPayload({ header: '', items: [] }).total).toBeNull()
+    expect(readCniprSearchPayload({ header: '全部0件专利', items: [] })).toEqual({ total: 0, hits: [] })
+  })
+
+  it('treats a non-object payload as empty and carries a script-level failure', () => {
+    expect(readCniprSearchPayload(undefined)).toEqual({ total: null, hits: [] })
+    expect(readCniprSearchPayload({ header: '全部2件专利', items: [], error: { code: 'login_required', message: '未检测到登录态' } }))
+      .toEqual({ total: 2, hits: [], failure: { code: 'login_required', message: '未检测到登录态' } })
   })
 })

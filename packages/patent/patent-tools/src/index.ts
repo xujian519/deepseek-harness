@@ -78,7 +78,7 @@ export type { PatentToolErrorCode } from './error.ts'
 export { checkImageCapability, resolveImageInputModalities } from './figure/image-capability.ts'
 export type { ImageCapabilityDecision, ModelInfoQuery } from './figure/image-capability.ts'
 export { createPatentSearchTool, baseNumber, dedupeByFamily } from './tool/patent-search.ts'
-export type { PatentSearchInput, PatentSearchOutput, PatentSearchHitItem, PatentSearchDeps } from './tool/patent-search.ts'
+export type { PatentSearchInput, PatentSearchOutput, PatentSearchHitItem, PatentSearchDeps, CniprSearchLookup } from './tool/patent-search.ts'
 export { createPatentMetadataTool } from './tool/patent-metadata.ts'
 export type { PatentMetadataInput, PatentMetadataOutput, PatentMetadataDeps } from './tool/patent-metadata.ts'
 export { createPatentLegalStatusTool } from './tool/patent-legal-status.ts'
@@ -545,11 +545,14 @@ export function apply(ctx: Context, config: Config): void {
   const knowledge = ctx.get('patentKnowledge')
 
   // Search / metadata / legal status: default to the nuo engine (no service needed).
-  // Legal status adds the CNIPR channel as a retry for numbers the nuo engine could not
-  // answer; the lookup is late-bound because patent-data declares inject:['subprocess']
+  // Search and legal status add the CNIPR channel as a second channel for what the nuo
+  // engine could not answer (a failed or zero-hit search, an unanswered legal status);
+  // the lookup is late-bound because patent-data declares inject:['subprocess']
   // and therefore activates one dependency hop after this tools-only consumer. The channel
   // is undefined while the deployment leaves patent-data's cniprEnabled off.
-  ctx.tools.register(createPatentSearchTool())
+  ctx.tools.register(createPatentSearchTool({
+    cnipr: () => ctx.get('patentData')?.createCniprChannel(),
+  }))
   ctx.tools.register(createPatentMetadataTool())
   ctx.tools.register(createPatentLegalStatusTool({
     cnipr: () => ctx.get('patentData')?.createCniprChannel(),

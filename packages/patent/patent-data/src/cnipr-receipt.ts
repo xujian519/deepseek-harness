@@ -15,6 +15,8 @@ import type {
   CniprPdfLinkItem,
   CniprScriptFailure,
   CniprScriptFailureCode,
+  CniprSearchHit,
+  CniprSearchRequest,
 } from './types.ts'
 
 /** 详情页 HTML 里的全文 PDF 直链模式；页内抽取与包内归一化共用这一处定义。 */
@@ -37,6 +39,27 @@ const LEGAL_RECORD_PATTERN = new RegExp([
   '\\s+法律状态信息[：:]\\s*([\\s\\S]*?)',
   '(?=\\s*(?:申请号[：:]|共\\s*\\d+\\s*条记录|知识产权出版社|$))',
 ].join(''), 'giu')
+
+/** 结果页的「全部 N 件专利」；零命中页同样输出该标记（实测 `全部0件专利`）。 */
+const SEARCH_TOTAL_PATTERN = /全部\s*(\d+)\s*件/u
+
+/** 结果行里带标签的字段：公开(公告)号、公开(公告)日、申请人、摘要。 */
+const SEARCH_FIELD_PATTERNS = {
+  publicationNumber: /公开\(公告\)号[：:]\s*(\S+)/u,
+  publicationDate: /公开\(公告\)日[：:]\s*([\d.]+)/u,
+  assignee: /申请\(专利权\)人[：:]\s*([\s\S]*?)(?=\s*(?:分类号|优先权|摘要|发明\(设计\)人)[：:]|$)/u,
+  abstract: /摘要[：:]\s*([\s\S]*?)(?:\s*机器翻译)?$/u,
+} as const
+
+/** 检索结果页每页条数：本部署账号下页面固定该值。 */
+export const CNIPR_SEARCH_PAGE_SIZE = 10
+
+/**
+ * 单次检索的条数上限（3 页 × 10 条）。这是上限而非可配置项：页面可选的每页 20/30 条
+ * 受站点等级校验（实测本部署账号 `checkCommonAuth()` 返回 `4003`，被拒回 10 条），
+ * 因此「取更多」只能靠翻页，而每多一页就是向后端多要一次检索。
+ */
+export const CNIPR_SEARCH_MAX_HITS = 30
 
 /**
  * 检索结果页里第一条记录的申请号（用于公开(公告)号 → 申请号）。脚本以它的 `source`
@@ -148,6 +171,55 @@ export function planCniprLegalQueries(numbers: readonly string[]): { queries: Cn
     else unsupported.push({ number, appNumber: '', total: null, records: [], error: 'CNIPR 通道只处理中国申请号与公开(公告)号' })
   }
   return { queries, unsupported }
+}
+
+/**
+ * 规划一次检索：把期望条数收敛到本通道能服务的范围，并换算成结果页数。
+ * 页数由这里决定而不是由脚本自行判断，脚本只按给定的页数读取。
+ * @param limit - 调用方期望的条数；缺省为 {@link CNIPR_SEARCH_PAGE_SIZE}。
+ * @returns 归一后的条数（1..{@link CNIPR_SEARCH_MAX_HITS}）与要读取的页数。
+ */
+export function planCniprSearchRequest(limit?: number): CniprSearchRequest {
+  const wanted = limit !== undefined && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : CNIPR_SEARCH_PAGE_SIZE
+  const normalized = Math.min(wanted, CNIPR_SEARCH_MAX_HITS)
+  return { limit: normalized, pages: Math.ceil(normalized / CNIPR_SEARCH_PAGE_SIZE) }
+}
+
+/**
+ * 把页面的公开日归一为 `YYYY-MM-DD`：工具的两个检索通道共用同一字段语义，报告里的日期
+ * 不该因来源不同而写法不同。
+ * @param raw - 页面原样的日期。
+ * @returns 归一后的日期；不是 `YYYY.MM.DD` / `YYYY-MM-DD` 形态时原样返回（不丢弃、不编造）。
+ */
+export function normalizeCniprDate(raw: string): string {
+  const trimmed = raw.trim()
+  const match = /^(\d{4})[./-](\d{2})[./-](\d{2})$/u.exec(trimmed)
+  return match === null ? trimmed : `${group(match, 1)}-${group(match, 2)}-${group(match, 3)}`
+}
+
+/**
+ * 解析结果页分类导航给出的总数。
+ * @param header - `#slideselect` 的文本（如 `全部655件专利`）。
+ * @returns 总数；文本不含该标记时为 null（页面结构变化，由通道 fail loud）。
+ */
+export function parseCniprSearchTotal(header: string): number | null {
+  const match = SEARCH_TOTAL_PATTERN.exec(header.replace(/\s+/gu, ' '))
+  return match === null ? null : Number(group(match, 1))
+}
+
+/**
+ * 解析一条结果行的标签字段。结果行只有带标签的字段有稳定锚点，因此逐字段取；缺哪个字段
+ * 就留空，不拿行内其它文本顶替。
+ * @param text - 结果行的 innerText。
+ * @returns 公开(公告)号、公开(公告)日、申请人与摘要的原文。
+ */
+function parseCniprSearchRowText(text: string): { publicationNumber: string; publicationDate: string; assignee: string; abstract: string } {
+  return {
+    publicationNumber: SEARCH_FIELD_PATTERNS.publicationNumber.exec(text)?.[1]?.trim() ?? '',
+    publicationDate: SEARCH_FIELD_PATTERNS.publicationDate.exec(text)?.[1]?.trim() ?? '',
+    assignee: SEARCH_FIELD_PATTERNS.assignee.exec(text)?.[1]?.trim() ?? '',
+    abstract: SEARCH_FIELD_PATTERNS.abstract.exec(text)?.[1]?.trim() ?? '',
+  }
 }
 
 /**
@@ -296,4 +368,40 @@ export function readCniprPdfLinksPayload(payload: unknown): { items: CniprPdfLin
  */
 export function readCniprLegalPayload(payload: unknown): { items: CniprLegalStatusItem[]; failure?: CniprScriptFailure } {
   return readCniprPayload(payload, readLegalItem)
+}
+
+/** 脚本回传的检索条目：公开号与标题是干净的属性，其余字段在行文本里。 */
+type SearchPayloadItem = {
+  cursor?: unknown
+  number?: unknown
+  title?: unknown
+  text?: unknown
+}
+
+/** 映射一条检索条目：无公开号的丢弃（结果行必然发布该号，缺了说明行结构不完整）。 */
+function readSearchItem(record: SearchPayloadItem & Record<string, unknown>): CniprSearchHit | undefined {
+  const text = asString(record.text) ?? ''
+  const fields = parseCniprSearchRowText(text)
+  const patent = (asString(record.number) ?? fields.publicationNumber).trim()
+  if (patent === '') return undefined
+  return {
+    patent,
+    title: (asString(record.title) ?? '').replace(/\s+/gu, ' ').trim(),
+    assignee: fields.assignee.replace(/\s+/gu, ' '),
+    publicationDate: normalizeCniprDate(fields.publicationDate),
+    abstract: fields.abstract.replace(/\s+/gu, ' '),
+  }
+}
+
+/**
+ * 校验并映射脚本回传的检索载荷：脚本回传结果行原文与分类导航文本，字段在这里解析。
+ * @param payload - 脚本回传的载荷（未校验）。
+ * @returns 总数（分类导航缺失该标记时为 null）、命中，以及脚本级失败。
+ */
+export function readCniprSearchPayload(payload: unknown): { total: number | null; hits: CniprSearchHit[]; failure?: CniprScriptFailure } {
+  const read = readCniprPayload(payload, readSearchItem)
+  const root = asRecord(payload)
+  const header = root === undefined ? undefined : asString(root.header)
+  const total = header === undefined ? null : parseCniprSearchTotal(header)
+  return { total, hits: read.items, ...(read.failure === undefined ? {} : { failure: read.failure }) }
 }

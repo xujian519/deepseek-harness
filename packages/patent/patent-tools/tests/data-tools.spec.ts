@@ -132,6 +132,133 @@ describe('patent_search', () => {
   })
 })
 
+describe('patent_search through the CNIPR channel', () => {
+  const googleEmpty = { query: '石墨烯电池', total: 0, hits: [], warnings: [] }
+  const cnpirHit = {
+    patent: 'CN211350734U',
+    title: '一种稳定性高的石墨烯电池',
+    assignee: '上海碳源汇谷新材料科技有限公司',
+    publicationDate: '2020-08-25',
+    abstract: '本实用新型属于石墨烯电池技术领域。',
+  }
+
+  it('serves a zero-hit engine search through CNIPR and names the channel', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => googleEmpty,
+      cnipr: () => ({ search: async () => ({ total: 655, hits: [cnpirHit] }) }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: '石墨烯电池' }, 's-cnipr-empty')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    expect(out).toContain('CN211350734U')
+    expect(out).toContain(`channel: ${CNIPR_CHANNEL}`)
+    // CNIPR 不发布 URL：缺席的字段整行不渲染，不留一个空 URL 行。
+    expect(out).not.toContain('**url**:')
+  })
+
+  it('serves a failed engine search through CNIPR instead of failing the call', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => ({ query: 'q', total: 0, hits: [], warnings: ['检索失败: fetch failed'] }),
+      searchRetryDelaysMs: [],
+      cnipr: () => ({ search: async () => ({ total: 1, hits: [cnpirHit] }) }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-cnipr-failure')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain(`channel: ${CNIPR_CHANNEL}`)
+  })
+
+  it('serves a thrown engine error through CNIPR', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => { throw new Error('socket hang up') },
+      cnipr: () => ({ search: async () => ({ total: 1, hits: [cnpirHit] }) }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-cnipr-thrown')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain(`channel: ${CNIPR_CHANNEL}`)
+  })
+
+  it('does not consult CNIPR when the engine already answered', async () => {
+    const cniprSearch = vi.fn(async () => ({ total: 0, hits: [] }))
+    const tool = createPatentSearchTool({
+      search: async () => ({ query: 'q', total: 1, hits: [{ patent: 'US1A', title: 't', assignee: 'a', publication_date: '2023-01-01', priority_date: '', abstract: '', url: 'u' }], warnings: [] }),
+      cnipr: () => ({ search: cniprSearch }),
+    })
+    const ctx = await ctxWith(tool)
+    await execute(ctx, 'patent_search', { query: 'q' }, 's-no-second-channel')
+    expect(cniprSearch).not.toHaveBeenCalled()
+  })
+
+  it('skips CNIPR for Google field syntax and records why', async () => {
+    const cniprSearch = vi.fn(async () => ({ total: 1, hits: [cnpirHit] }))
+    const tool = createPatentSearchTool({
+      search: async () => googleEmpty,
+      cnipr: () => ({ search: cniprSearch }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'assignee:(Samsung) after:20200101' }, 's-syntax')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(cniprSearch).not.toHaveBeenCalled()
+    expect(text(result)).toContain('字段语法（assignee:）')
+  })
+
+  it('reports an unusable CNIPR channel without dropping the engine outcome', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => googleEmpty,
+      cnipr: () => ({ search: async () => { throw new Error('CNIPR 通道失败（login_required）：未检测到 CNIPR 登录态') } }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: '石墨烯电池' }, 's-cnipr-down')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    expect(out).toContain('## 警告')
+    expect(out).toContain(`${CNIPR_CHANNEL}不可用`)
+    expect(out).toContain('未检测到 CNIPR 登录态')
+  })
+
+  it('keeps the upstream failure when the second channel also misses, and names it', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => ({ query: 'q', total: 0, hits: [], warnings: ['检索失败: HTTP 503'] }),
+      searchRetryDelaysMs: [],
+      cnipr: () => ({ search: async () => ({ total: 0, hits: [] }) }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-cnipr-miss')
+    expect(result.isError).toBe(true)
+    const out = text(result)
+    expect(out).toContain('HTTP 503')
+    expect(out).toContain(`${CNIPR_CHANNEL}也未命中`)
+  })
+
+  it('warns that CNIPR truncates above its per-call ceiling', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => googleEmpty,
+      cnipr: () => ({ search: async () => ({ total: 655, hits: [cnpirHit] }) }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: '石墨烯电池', limit: 50 }, 's-truncate')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('上限 30 条')
+  })
+
+  it('runs without a CNIPR lookup at all', async () => {
+    const tool = createPatentSearchTool({ search: async () => googleEmpty })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-plain')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain(`channel: ${GOOGLE_PATENTS_CHANNEL}`)
+  })
+})
+
 describe('patent_metadata', () => {
   it('maps a successful scrape', async () => {
     const tool = createPatentMetadataTool({

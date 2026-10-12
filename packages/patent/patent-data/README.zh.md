@@ -1,5 +1,5 @@
 ---
-description: "专利数据接缝（`ctx.patentData`）的 Service Definition：基于 vendored [`@deepseek-ai/nuo-patent`](../../../vendor/nuo-patent/README.md) 引擎的 LRU 缓存检索 provider 工厂、结构化元数据映射、专利结果缓存、基于注入 subprocess 服务的 ego-browser 反爬会话 runner，以及经该会话取中国专利全文与法律状态的 CNIPR（search.cnipr.com）通道，外加从 Sati 移植的持久化与案例路径助手。模型可见面全部由消费方负责；本包只解析并提供专利数据。"
+description: "专利数据接缝（`ctx.patentData`）的 Service Definition：基于 vendored [`@deepseek-ai/nuo-patent`](../../../vendor/nuo-patent/README.md) 引擎的 LRU 缓存检索 provider 工厂、结构化元数据映射、专利结果缓存、基于注入 subprocess 服务的 ego-browser 反爬会话 runner，以及经该会话取中国专利全文、法律状态与关键词检索的 CNIPR（search.cnipr.com）通道，外加从 Sati 移植的持久化与案例路径助手。模型可见面全部由消费方负责；本包只解析并提供专利数据。"
 kind: "package-reference"
 ---
 
@@ -33,7 +33,7 @@ kind: "package-reference"
 
 ### createCniprChannel(options?)
 
-基于一个 ego-browser 会话构造 CNIPR 通道；部署将 `Config.cniprEnabled` 保持关闭时返回空——消费方于是自己对每个号使用原有通道，而不是拿一个只会失败的对象。通道自己判号码形态（`classifyCniprNumber`）：公开(公告)号（`CN122072823A`）取全文 PDF 直链，申请号（`202311356097.5` / `2023113560975`，校验位前补小数点）取法律状态记录，其余形态按条目报「本通道不处理」。两种能力都经注入的会话执行一个生成的脚本（`cnipr-script.ts`）、在本包内解析收据（`cnipr-receipt.ts`），并按名复用同一个任务空间，使 ego lite 的登录态与标签页跨调用延续。号码级失败（查不到该号、解析不出申请号）是条目结果；通道级失败（无 ego-browser、超期限、无收据、登录态失效）抛带分类码的 `CniprChannelError`，由调用方按码路由。
+基于一个 ego-browser 会话构造 CNIPR 通道；部署将 `Config.cniprEnabled` 保持关闭时返回空——消费方于是自己对每个号使用原有通道，而不是拿一个只会失败的对象。通道自己判号码形态（`classifyCniprNumber`）：公开(公告)号（`CN122072823A`）取全文 PDF 直链，申请号（`202311356097.5` / `2023113560975`，校验位前补小数点）取法律状态记录，关键词查询取结果页的记录行，其余形态按条目报「本通道不处理」。三种能力都经注入的会话执行一个生成的脚本（`cnipr-script.ts`）、在本包内解析收据（`cnipr-receipt.ts`），并按名复用同一个任务空间，使 ego lite 的登录态与标签页跨调用延续。号码级失败（查不到该号、解析不出申请号）是条目结果；通道级失败（无 ego-browser、超期限、无收据、登录态失效）抛带分类码的 `CniprChannelError`，由调用方按码路由。
 
 <a id="configuration"></a>
 ## 配置
@@ -77,8 +77,8 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 
 - **外部 `ego-browser` CLI 依赖** — 反爬抓取路径需要外部 `ego-browser`（ego-lite）CLI 已安装且在 PATH 上（仅 macOS）；本包不随附任何 ego-browser 脚本资产（Sati 的 `skills/ego-browser/` 仅含 learnings），因此站点反爬升级在本包之外维护。
 - **装了 JSON 查看器扩展时，nuo 的浏览器路径会让检索失效** — macOS 上只要装了该 CLI，`fetchHtml` 就优先走 ego 浏览器，因此「不设 `NUO_PATENT_EGO_BROWSER`」不等于留在原生 fetch。该路径下浏览器里的 JSON 查看器扩展会把搜索 XHR 的 `application/json` 响应渲染成 HTML：`parseSearchResultsJson` 拿不到 JSON，HTML 回退也解析不出命中，`patent_search` 只带一条非致命告警返回零命中。2026-10-03 在同一代理下实测：三个查询经浏览器路径均零命中，改走原生 fetch 后各 10 条命中。检索必须可用的部署设 `nuoRequestChannel: native`（专利 preset 已设）；该选择是进程级的，因为 nuo 只以环境变量暴露它。
-- **CNIPR 通道的范围与维护** — 该通道经 ego lite 操作 `search.cnipr.com`，因此需要那份登录态，也继承平台限制：站点声明不支持爬取，故通道按普通页面交互逐号取，从不批量、不并发。它的页面契约（搜索框、详情检索 POST、法律状态表单、`pic.cnipr.com/pdfcn/...` 直链模式）属于站点：站点一变，第一次调用就以 `page_state` 暴露，而不是静默返回空答案——收据要么解析得出，要么解析不出。法律状态记录来自结果页文本；页面上没有记录时计数为 null，不编造 0。
-- **消费方接线** — 检索 provider 工厂与 ego-session runner 由 `dsh-patent-tools` 消费（patent_search/metadata/legal_status 与 patent_pdf_download）；CNIPR 通道由 `patent_pdf_download`（中国全文）与 `patent_legal_status`（中国法律状态记录）消费。缓存、映射、持久化与路径模块保持库导出供这些消费方使用。
+- **CNIPR 通道的范围与维护** — 该通道经 ego lite 操作 `search.cnipr.com`，因此需要那份登录态，也继承平台限制：站点声明不支持爬取，故通道按普通页面交互逐号取，从不批量、不并发。它的页面契约（搜索框、详情检索 POST、法律状态表单、结果行字段、`pic.cnipr.com/pdfcn/...` 直链模式）属于站点：站点一变，第一次调用就以 `page_state` 暴露，而不是静默返回空答案——收据要么解析得出，要么解析不出。法律状态记录来自结果页文本；页面上没有记录时计数为 null，不编造 0。检索直接读结果行（行上已带标题、申请人、公开日与摘要，因此不必逐条取详情页）；页面每页十条，其 20/30 条选项对本部署账号等级会被拒，故更大的 `limit` 靠翻站点自身的分页来取，单次上限三页。
+- **消费方接线** — 检索 provider 工厂与 ego-session runner 由 `dsh-patent-tools` 消费（patent_search/metadata/legal_status 与 patent_pdf_download）；CNIPR 通道由 `patent_pdf_download`（中国全文）、`patent_legal_status`（中国法律状态记录）与 `patent_search`（引擎失败或零命中时的中国关键词检索）消费。缓存、映射、持久化与路径模块保持库导出供这些消费方使用。
 
 ### 开发备注
 

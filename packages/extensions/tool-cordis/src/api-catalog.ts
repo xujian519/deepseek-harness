@@ -5518,7 +5518,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CniprChannel',
-    declaration: 'export class CniprChannel {\n    constructor(options: CniprChannelOptions);\n    async pdfLinks(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprPdfLinkItem[]>;\n    async legalStatus(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprLegalStatusItem[]>;\n}',
+    declaration: 'export class CniprChannel {\n    constructor(options: CniprChannelOptions);\n    async pdfLinks(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprPdfLinkItem[]>;\n    async legalStatus(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprLegalStatusItem[]>;\n    async search(query: string, options: CniprSearchOptions = {}): Promise<CniprSearchResult>;\n}',
   },
   {
     name: 'CniprChannelOptions',
@@ -5543,6 +5543,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CniprPdfLinkItem',
     declaration: 'export interface CniprPdfLinkItem {\n    number: string;\n    urls: string[];\n    unexamined: boolean;\n    authorized: boolean;\n    error?: string;\n}',
+  },
+  {
+    name: 'CniprSearchHit',
+    declaration: 'export interface CniprSearchHit {\n    patent: string;\n    title: string;\n    assignee: string;\n    publicationDate: string;\n    abstract: string;\n}',
+  },
+  {
+    name: 'CniprSearchOptions',
+    declaration: 'export interface CniprSearchOptions extends CniprCallOptions {\n    limit?: number;\n}',
+  },
+  {
+    name: 'CniprSearchResult',
+    declaration: 'export interface CniprSearchResult {\n    total: number;\n    hits: CniprSearchHit[];\n}',
   },
   {
     name: 'CollectedOutput',
