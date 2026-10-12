@@ -9,13 +9,35 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 // Loads tool-todo's SessionEventMap augmentation so 'todo/write' joins the union.
 import type {} from '@deepseek-ai/dsh-tool-todo'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { ProjectedMessage, ToolProcessEntry } from './types.ts'
+import type { ProjectedMessage, Thread, ToolProcessEntry, WorkspaceState } from './types.ts'
 
 /** Projected message text cap: longer replies truncate with a marker pointing
  * at the detail view instead of silently cutting mid-sentence. */
 export const MAX_PROJECTION_LENGTH = 8_000
+/** Folded tool-process field cap: one call's arguments or result is card detail
+ * and both can carry a whole file or document; the detail view keeps the full text. */
+export const MAX_PROCESS_FIELD_LENGTH = 1_000
+/** Canvas card window per projected thread: older cards drop off once a session
+ * exceeds it. The canvas is a derived summary of recent work, and the whole log
+ * stays one `GET /synapse/api/sessions/<id>/history` away. */
+export const MAX_THREAD_MESSAGES = 200
+/** Canvas tool-fold window per thread: only the newest cards keep their folded
+ * tool process. Process entries are append-only and dominate a long session's
+ * payload, so folding them for every card a session ever had is what makes the
+ * durable canvas outgrow the Host heap. */
+export const MAX_THREAD_PROCESS_MESSAGES = 20
 /** Marker appended to a truncated projection, pointing at the detail view. */
 export const PROJECTION_TRUNCATED_SUFFIX = '\n——…（详情查看全文）'
+
+/**
+ * Truncate one projected display string to a canvas cap.
+ * @param text The display text.
+ * @param maxLength The cap in characters.
+ * @returns The text, or its head followed by {@link PROJECTION_TRUNCATED_SUFFIX}.
+ */
+export function clampProjectedText(text: string, maxLength: number): string {
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength)}${PROJECTION_TRUNCATED_SUFFIX}`
+}
 /** Topic palette cycling per thread, mirroring the canvas card colors. */
 export const TOPIC_COLORS = ['#0f766e', '#2563eb', '#be123c', '#7c3aed', '#b45309'] as const
 
@@ -55,8 +77,7 @@ export function contentText(content: readonly ContentBlock[] | undefined): strin
 function noteProjection(kind: ProjectedMessage['kind'], text: string): { kind: ProjectedMessage['kind']; text: string } | null {
   const normalized = text.trim()
   if (normalized === '') return null
-  if (normalized.length <= MAX_PROJECTION_LENGTH) return { kind, text: normalized }
-  return { kind, text: `${normalized.slice(0, MAX_PROJECTION_LENGTH)}${PROJECTION_TRUNCATED_SUFFIX}` }
+  return { kind, text: clampProjectedText(normalized, MAX_PROJECTION_LENGTH) }
 }
 
 /** Project one event to a card payload, or null when the event is not
@@ -143,6 +164,84 @@ export function foldToolProcessInto(messages: readonly ToolProcessHost[], event:
     entry.result = outcome
     entry.error = error
   }
+}
+
+/**
+ * Apply the canvas retention window to one projected thread in place: keep the
+ * newest {@link MAX_THREAD_MESSAGES} cards, drop the folded tool process of
+ * cards older than the newest {@link MAX_THREAD_PROCESS_MESSAGES}, and clamp
+ * every surviving process field to {@link MAX_PROCESS_FIELD_LENGTH}.
+ *
+ * This is the single home of the canvas payload bounds, so a file written
+ * before the window existed is trimmed by the same rule as a live projection.
+ * The window is idempotent: the same cards arrive in `seq` order on a replay,
+ * and {@link canvasFloorSeq} keeps the dropped prefix dropped.
+ * @param thread The canvas thread to trim.
+ * @returns True when anything was dropped or clamped.
+ */
+export function retainCanvasCards(thread: Pick<Thread, 'messages'>): boolean {
+  let changed = false
+  if (thread.messages.length > MAX_THREAD_MESSAGES) {
+    thread.messages = thread.messages.slice(-MAX_THREAD_MESSAGES)
+    changed = true
+  }
+  const foldFrom = thread.messages.length - MAX_THREAD_PROCESS_MESSAGES
+  for (let index = 0; index < thread.messages.length; index++) {
+    const message = thread.messages[index]
+    if (message === undefined || message.process === undefined) continue
+    if (index < foldFrom) {
+      delete message.process
+      changed = true
+      continue
+    }
+    for (const entry of message.process) {
+      // Both fields are loose in data written before the canvas types were
+      // strict: an absent one is nothing to clamp.
+      if (typeof entry.arguments === 'string') {
+        const clamped = clampProjectedText(entry.arguments, MAX_PROCESS_FIELD_LENGTH)
+        if (clamped !== entry.arguments) {
+          entry.arguments = clamped
+          changed = true
+        }
+      }
+      if (typeof entry.result === 'string') {
+        const clamped = clampProjectedText(entry.result, MAX_PROCESS_FIELD_LENGTH)
+        if (clamped !== entry.result) {
+          entry.result = clamped
+          changed = true
+        }
+      }
+    }
+  }
+  return changed
+}
+
+/**
+ * The lowest `seq` a replay may still project into a windowed thread: the
+ * `seq` of its oldest retained card. A replay of the whole log would otherwise
+ * re-add the dropped prefix on every pass and push the window forward.
+ * @param thread The canvas thread to read.
+ * @returns The floor `seq`, or undefined when the thread holds no source card.
+ */
+export function canvasFloorSeq(thread: Pick<Thread, 'messages'>): number | undefined {
+  return thread.messages[0]?.sourceSeq
+}
+
+/**
+ * Apply {@link retainCanvasCards} to every projected thread of a loaded state.
+ *
+ * Only `dsh` workspaces are trimmed: their cards are derived from session logs.
+ * A manual board carries user-authored notes, which nothing can reconstruct.
+ * @param state The loaded canvas state, trimmed in place.
+ * @returns True when anything was dropped.
+ */
+export function retainCanvasState(state: WorkspaceState): boolean {
+  let changed = false
+  for (const workspace of state.workspaces) {
+    if (workspace.kind !== 'dsh') continue
+    for (const thread of workspace.threads) if (retainCanvasCards(thread)) changed = true
+  }
+  return changed
 }
 
 /** Options for paging the detail-view history. */

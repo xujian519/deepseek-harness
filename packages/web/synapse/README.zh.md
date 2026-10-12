@@ -40,8 +40,10 @@ Web 组合以行 `synapse` 挂载本包，以行 `synapse-client` 挂载 `@deeps
 <a id="canvas-data"></a>
 ## 画布数据
 
-- 画布基线从 `SessionPersistence` 重放冷态恢复会话（按 revision 去重，重复便宜），叠加 live `session/created`/`session/event` 流与浏览器会话同步；fork 子会话跳过其继承的种子前缀，根会话从 seq 0 回放（此处的 `session/end-seed` 只是持久化快照边界，不是谱系裁剪）。
+- 画布基线从 `SessionPersistence` 重放冷态恢复会话（按 revision 去重，重复便宜），叠加 live `session/created`/`session/event` 流与浏览器会话同步；fork 子会话跳过其继承的种子前缀，根会话从 seq 0 回放（此处的 `session/end-seed` 只是持久化快照边界，不是谱系裁剪）。仍被 live SessionStore 持有的会话交给该 live 流：基线绝不重复读取会话仍在追加的日志。
 - 只有人类提问成为问题卡：user-role 注入（工作区指令、技能目录、运行时上下文快照）按 `source.kind` 识别并留在画布之外；空白会话（无人类提问）被跳过。
+- **画布是保留视图，不是归档。** 每个投影线程只保留最新 `MAX_THREAD_MESSAGES` 张卡片（200 张）；只有最新 `MAX_THREAD_PROCESS_MESSAGES` 张卡片（20 张）保留折叠的工具过程，且每个留存 `arguments`/`result` 都截断到 `MAX_PROCESS_FIELD_LENGTH`（1,000 字符）。该窗口是幂等的——重放无法把已丢弃的卡片放回——并对窗口出现之前写入的 `workspaces.json` 生效一次。手动画板永不裁剪：其便签由用户撰写，只有投影卡片才是会话日志的派生物。
+- 存储逐工作区写入 `workspaces.json`，大画布不会再整体变成单个 JSON 字符串及其 UTF-8 缓冲。
 - `GET /synapse/api/sessions/<id>/history` 分页返回详情消息列表（`?limit`/`?beforeSeq`；默认先展示最近的消息，按需加载更早的段落），数据源为 `SessionPersistence.inspect`。不截断、工具过程折叠、注入上下文标记为 `context`。
 - 地图文档以严格的 `Content-Security-Policy`（同源 script/style、`frame-ancestors 'self'`）返回，每个 `/synapse` 响应都带 `X-Content-Type-Options: nosniff`。
 - 第二个 `dsh web` 实例写同一 `workspaces.json` 时不再被静默覆盖：自上次读取后文件 mtime 变化即重载磁盘状态并丢弃本地增量，同时大声告警（投影可从会话日志重建；手动布局是损失）。

@@ -29,14 +29,25 @@ for (let i = 0; i < summaries.length; i += 5) {
 
 At most five `api` calls are now in flight at any moment; the slice order is deterministic, so the projection `flatMap` filter below is unchanged. No workspace is re-fetched within one pass, and the function no longer floods the renderer.
 
+The scheduling bound was not enough on its own. The function still ran on every one-second map poll, and the poll re-opened the workspace whenever any summary moved — so a running session re-read all 37 workspace projections, and `structuredClone`d and re-stringified each one inside the Host, every second ([retention-window note](2026-10-10-synapse-canvas-retention-window.md)). The batching below now sits inside a revision cache:
+
+```js
+async function refreshThreadCache() {
+  const stale = state.summaries.filter(summary => state.workspaceRevisions.get(summary.id) !== workspaceRevision(summary))
+  for (let i = 0; i < stale.length; i += 5) { /* batch of 5, cache each thread by sessionId */ }
+}
+```
+
+`workspaceRevision(summary)` is the summary's `updatedAt|threadCount`, so an unchanged workspace is served from the session→thread cache, and a store-side structural change (a created, removed, or archived session) still invalidates it. The function still scans every summary — threads stay distributed across workspaces — but it fetches only the ones that moved.
+
 ## Alternatives considered
 
 **A backend batch endpoint returning every workspace in one response.** Rejected because it changes the host API surface for a view-local problem; the front-end already fetches per-id, and the fix belongs to scheduling, not to the wire contract.
 
-**Fetch only the current workspace's detail.** Rejected because the function deliberately scans all projections to find threads that belong to the requested `sessionIds` — the threads are distributed across workspaces, so a single-detail fetch would miss them without a schema change.
+**Fetch only the current workspace's detail.** Rejected because the function deliberately scans all projections to find threads that belong to the requested `sessionIds` — the threads are distributed across workspaces, so a single-detail fetch would miss them without a schema change. The revision cache keeps that scan and removes the repeated transfer instead.
 
 **No change; tolerate the failed fetches.** Rejected because the resource exhaustion degrades the session-map surface and can precede a renderer crash.
 
 ## Consequences
 
-The workspace-detail requests are spread over time instead of fired all at once, so the renderer no longer trips `net::ERR_INSUFFICIENT_RESOURCES`; the "Failed to fetch" toast on the session-map view is gone. The total number of requests is unchanged (the function still reads every summary), and the batch loop introduces a small sequentialization cost that is negligible next to the per-request latency.
+The workspace-detail requests are spread over time instead of fired all at once, and only the workspaces whose summary moved are requested at all, so the renderer no longer trips `net::ERR_INSUFFICIENT_RESOURCES`, and one poll costs one workspace projection instead of the whole canvas. The first load still reads every summary, since no revision is known yet. The map now holds the fetched projections in the renderer between polls, which is what replaces the re-fetch.

@@ -151,13 +151,17 @@ export function apply(ctx: Context, config: SynapseConfig): void {
   // re-projected exactly once per durable log change, and the store's
   // sourceSeq guard makes repeats cheap.
   const projectedRevisions = new Map<string, string>()
-  const replayPersistedBaseline = async (): Promise<void> => {
+  const runPersistedBaseline = async (): Promise<void> => {
     try {
       const snapshots = await ctx.sessionPersistence.list()
+      // An attached session is projected by the live stream below, which owns
+      // its whole turn already. Re-reading its log here would repeat that work
+      // on every browser sync, and the log it reads is the growing one.
+      const attached = new Set(ctx.sessions.list().map(session => String(session.id)))
       for (const snapshot of snapshots) {
         const key = String(snapshot.header.id)
         const revision = String(snapshot.revision)
-        if (projectedRevisions.get(key) === revision) continue
+        if (attached.has(key) || projectedRevisions.get(key) === revision) continue
         const events = await readPersistedEvents(ctx.sessionPersistence, snapshot.header.id)
         // Blank sessions stay out of the canvas (the browser list skips them
         // too). For a forked child the persisted log carries the parent seed;
@@ -182,6 +186,14 @@ export function apply(ctx: Context, config: SynapseConfig): void {
     } catch (error) {
       reportProjectionFailure(error)
     }
+  }
+  // One baseline at a time: the browser sync endpoint calls this on every
+  // debounced list change, and a concurrent second scan would repeat the same
+  // full-log reads and re-projections while the first is still running.
+  let baselineRun: Promise<void> | undefined
+  const replayPersistedBaseline = (): Promise<void> => {
+    baselineRun ??= runPersistedBaseline().catch(reportProjectionFailure).finally(() => { baselineRun = undefined })
+    return baselineRun
   }
   // Buffer live events per session and flush them in one write per microtask,
   // so a burst of turn events coalesces into a single save instead of N.

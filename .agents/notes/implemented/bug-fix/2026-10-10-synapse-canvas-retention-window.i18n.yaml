@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-10-synapse-canvas-retention-window.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-10-synapse-canvas-retention-window.md
+/agent-note-bound-the-retained-synapse-canvas-and-its-persistence-write:
+  en: 383a47e5448761c2
+  zh: 3238df7a6a3d3349
+/agent-note-bound-the-retained-synapse-canvas-and-its-persistence-write/problem:
+  en: 4f8647229e512edb
+  zh: 997f87495b4ab7e9
+/agent-note-bound-the-retained-synapse-canvas-and-its-persistence-write/decision:
+  en: 06979ee0733635ea
+  zh: 575dcd188829c017
+/agent-note-bound-the-retained-synapse-canvas-and-its-persistence-write/alternatives-considered:
+  en: 62c4e656a23cc9df
+  zh: b9ffc1c1605379a2
+/agent-note-bound-the-retained-synapse-canvas-and-its-persistence-write/consequences:
+  en: 04f1eba74f0cb8f9
+  zh: 560a8977e9b14fa5

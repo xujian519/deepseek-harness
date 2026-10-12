@@ -5,17 +5,26 @@
 import { describe, expect, it } from 'vitest'
 import type { Session } from '@deepseek-ai/dsh-session'
 import {
+  MAX_PROCESS_FIELD_LENGTH,
+  MAX_THREAD_MESSAGES,
+  MAX_THREAD_PROCESS_MESSAGES,
+  canvasFloorSeq,
+  clampProjectedText,
   contentText,
+  foldToolProcessInto,
   isRuntimeContextText,
   projectableEvent,
   sessionCwd,
   projectHistory,
+  retainCanvasCards,
+  retainCanvasState,
   sessionIsBlank,
   sessionLiveStart,
   sessionTitle,
   titleFromText,
   workspaceTitle,
 } from '../src/projection.ts'
+import type { ProjectedMessage, Thread, Workspace, WorkspaceState } from '../src/types.ts'
 
 function event(type: string, data: unknown, seq = 0, time = 1): never {
   return { type, seq, time, data } as never
@@ -64,6 +73,143 @@ describe('projectableEvent', () => {
     const projection = projectableEvent(event('user/message', { content: [{ type: 'text', text: long }] }))
     expect(projection?.text.length).toBeLessThan(8_020)
     expect(projection?.text).toContain('（详情查看全文）')
+  })
+})
+
+describe('clampProjectedText', () => {
+  it('keeps a text within the cap whole and marks a longer one', () => {
+    expect(clampProjectedText('短文本', 10)).toBe('短文本')
+    expect(clampProjectedText('12345', 3)).toBe('123\n——…（详情查看全文）')
+  })
+})
+
+describe('foldToolProcessInto', () => {
+  it('folds a call and its result into the assistant card, keyed by callId', () => {
+    const messages: ProjectedMessage[] = [
+      { id: 'm1', kind: 'assistant', text: '答', at: '2026-01-01T00:00:00.000Z', turn: 1, step: 1, process: [] },
+    ]
+    foldToolProcessInto(messages, event('tool/call', { turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{"cmd":"pnpm test"}' }))
+    expect(messages[0]?.process?.[0]).toMatchObject({ callId: 'c1', name: 'bash', arguments: '{"cmd":"pnpm test"}', result: null })
+    // A repeated call rewrites the same entry instead of adding one.
+    foldToolProcessInto(messages, event('tool/call', { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: '{"file":"a"}' }))
+    expect(messages[0]?.process).toHaveLength(1)
+    expect(messages[0]?.process?.[0]?.name).toBe('read')
+    foldToolProcessInto(messages, event('tool/result', {
+      turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: 'ok' }] },
+    }))
+    expect(messages[0]?.process?.[0]?.result).toBe('ok')
+  })
+
+  it('folds an orphan result into the turn card and drops an unmatched event', () => {
+    const messages: ProjectedMessage[] = [
+      { id: 'm1', kind: 'assistant', text: '答', at: '2026-01-01T00:00:00.000Z', turn: 1, step: 1, process: [] },
+    ]
+    foldToolProcessInto(messages, event('tool/result', {
+      turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'orphan' }, content: [{ type: 'text', text: '顺带' }] },
+    }))
+    expect(messages[0]?.process?.[0]).toMatchObject({ callId: 'orphan', name: '工具调用', arguments: null, result: '顺带' })
+    // No assistant card carries that turn/step: nothing to fold into.
+    foldToolProcessInto(messages, event('tool/call', { turn: 9, step: 1, callId: 'c9', name: 'bash', arguments: '{}' }))
+    expect(messages[0]?.process).toHaveLength(1)
+  })
+})
+
+describe('retainCanvasCards', () => {
+  function card(index: number, extra: Partial<ProjectedMessage> = {}): ProjectedMessage {
+    return { id: `m${index}`, kind: 'assistant', text: `答${index}`, at: '2026-01-01T00:00:00.000Z', sourceSeq: index, ...extra }
+  }
+
+  it('drops the oldest cards beyond the window and keeps the rest in order', () => {
+    const thread = { messages: Array.from({ length: MAX_THREAD_MESSAGES + 3 }, (_, index) => card(index)) }
+    expect(retainCanvasCards(thread)).toBe(true)
+    expect(thread.messages).toHaveLength(MAX_THREAD_MESSAGES)
+    expect(thread.messages[0]?.sourceSeq).toBe(3)
+    expect(thread.messages.at(-1)?.sourceSeq).toBe(MAX_THREAD_MESSAGES + 2)
+    // A second pass over an already-windowed thread is a no-op.
+    expect(retainCanvasCards(thread)).toBe(false)
+    expect(canvasFloorSeq(thread)).toBe(3)
+    expect(canvasFloorSeq({ messages: [] })).toBeUndefined()
+  })
+
+  it('drops the folded tool process of cards older than the process window', () => {
+    const kept = MAX_THREAD_PROCESS_MESSAGES + 2
+    const thread = {
+      messages: Array.from({ length: kept }, (_, index) => card(index, {
+        process: [{ callId: `c${index}`, name: 'bash', arguments: '{}', result: 'ok', error: null }],
+      })),
+    }
+    expect(retainCanvasCards(thread)).toBe(true)
+    expect(thread.messages[0]?.process).toBeUndefined()
+    expect(thread.messages[1]?.process).toBeUndefined()
+    expect(thread.messages.at(-1)?.process).toHaveLength(1)
+    expect(retainCanvasCards(thread)).toBe(false)
+  })
+
+  it('clamps a surviving process field and leaves one inside the cap whole', () => {
+    const long = 'x'.repeat(MAX_PROCESS_FIELD_LENGTH + 5)
+    const thread = {
+      messages: [card(0, {
+        process: [
+          { callId: 'c1', name: 'read', arguments: long, result: 'ok', error: null },
+          { callId: 'c2', name: 'read', arguments: null, result: null, error: 'X: e' },
+        ],
+      })],
+    }
+    expect(retainCanvasCards(thread)).toBe(true)
+    expect(thread.messages[0]?.process?.[0]?.arguments).toBe('x'.repeat(MAX_PROCESS_FIELD_LENGTH) + '\n——…（详情查看全文）')
+    expect(thread.messages[0]?.process?.[0]?.result).toBe('ok')
+    expect(thread.messages[0]?.process?.[1]?.error).toBe('X: e')
+    // Nothing left to clamp or drop.
+    expect(retainCanvasCards(thread)).toBe(false)
+  })
+})
+
+describe('retainCanvasState', () => {
+  function thread(id: string, count: number): Thread {
+    return {
+      id,
+      title: '会话',
+      parentId: null,
+      sourceParentSessionId: null,
+      sourceSeedLength: null,
+      dshSessionId: id,
+      dshSessionTitle: null,
+      color: '#0f766e',
+      position: { x: 0, y: 0 },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: Array.from({ length: count }, (_, index) => ({
+        id: `${id}-${index}`, kind: 'assistant', text: '答', at: '2026-01-01T00:00:00.000Z', sourceSeq: index,
+      })),
+    }
+  }
+  function workspace(kind: Workspace['kind'], count: number): Workspace {
+    return {
+      id: `w-${kind}`,
+      kind,
+      cwd: kind === 'dsh' ? '/work' : null,
+      title: '板',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      threads: [thread(`t-${kind}`, count)],
+    }
+  }
+
+  it('windows projected workspaces and leaves manual boards untouched', () => {
+    const state: WorkspaceState = {
+      version: 4,
+      hiddenSessionIds: [],
+      workspaces: [workspace('dsh', MAX_THREAD_MESSAGES + 5), workspace('manual', MAX_THREAD_MESSAGES + 5)],
+    }
+    expect(retainCanvasState(state)).toBe(true)
+    expect(state.workspaces[0]?.threads[0]?.messages).toHaveLength(MAX_THREAD_MESSAGES)
+    // Manual notes are user-authored, not derived: never dropped.
+    expect(state.workspaces[1]?.threads[0]?.messages).toHaveLength(MAX_THREAD_MESSAGES + 5)
+  })
+
+  it('reports no change for a state already inside the window', () => {
+    const state: WorkspaceState = { version: 4, hiddenSessionIds: [], workspaces: [workspace('dsh', 1)] }
+    expect(retainCanvasState(state)).toBe(false)
   })
 })
 
