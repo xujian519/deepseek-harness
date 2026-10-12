@@ -55,6 +55,105 @@ export interface PatentCacheOptions {
   maxEntries?: number
 }
 
+/**
+ * CNIPR 通道的失败分类。`setup_required` 与 `timeout` 由通道判定，`receipt_missing`
+ * 表示脚本没有回传可解析的收据，`login_required` 与 `page_state` 由脚本自己回传。
+ */
+export const CNIPR_FAILURE_CODES = ['setup_required', 'timeout', 'receipt_missing', 'login_required', 'page_state'] as const
+
+/** One CNIPR channel failure: see {@link CNIPR_FAILURE_CODES}. */
+export type CniprFailureCode = (typeof CNIPR_FAILURE_CODES)[number]
+
+/** 脚本自身能回传的两类失败（其余由通道侧判定）。 */
+export type CniprScriptFailureCode = Extract<CniprFailureCode, 'login_required' | 'page_state'>
+
+/** 脚本回传的失败：分类 + 可读原因。 */
+export interface CniprScriptFailure {
+  code: CniprScriptFailureCode
+  message: string
+}
+
+/** 一条号码的全文 PDF 直链结果（CNIPR 检索通道）。 */
+export interface CniprPdfLinkItem {
+  /** 请求里原样的号。 */
+  number: string
+  /** 已归一化为 `http://` 的全文 PDF 直链（去重后）；`pic.cnipr.com` 仅 HTTP 可达。 */
+  urls: string[]
+  /** 该号在 CNIPR 是否属发明申请公布。 */
+  unexamined: boolean
+  /** 该号在 CNIPR 是否属发明授权公告。 */
+  authorized: boolean
+  /** 该号单条失败的原因（不中断同批其余号）。 */
+  error?: string
+}
+
+/** CNIPR 法律状态结果页里的一条记录。 */
+export interface CniprLegalRecord {
+  app_number: string
+  announce_date: string
+  status: string
+  status_info: string
+}
+
+/** 一条号码的法律状态结果。 */
+export interface CniprLegalStatusItem {
+  number: string
+  /** 实际查询用的申请号（由公开(公告)号查询时经结果页解析得出）。 */
+  appNumber: string
+  /** 由公开(公告)号解析出申请号时，记录原公开(公告)号。 */
+  resolvedFrom?: string
+  /** 页面上的「共 N 条记录」；零命中的结果页不输出该标记，此时为 null。 */
+  total: number | null
+  records: CniprLegalRecord[]
+  /** 该号单条失败的原因（不中断同批其余号）。 */
+  error?: string
+}
+
+/** 一次法律状态查询的目标：申请号或公开(公告)号，由调用方按号形态给出。 */
+export interface CniprLegalQuery {
+  /** 请求里原样的号（结果里回填）。 */
+  number: string
+  /** 申请号（`app` 形态时给出）。 */
+  appNumber?: string
+  /** 公开(公告)号（`pub` 形态时给出）；脚本先按它检索出申请号。 */
+  pubNumber?: string
+}
+
+/** CNIPR 通道消费的 ego 会话面；`EgoBrowserSession` 结构性满足它。 */
+export interface CniprEgoSession {
+  /** 可用性检查；非 ok 时通道以 setup_required 失败。 */
+  checkAvailability: () => { ok: boolean; reason?: string }
+  /** 以 stdin 运行一个脚本并收集输出。 */
+  runScript: (script: string, options: { cwd: string; timeoutMs?: number; signal?: AbortSignal }) => Promise<{
+    output: string
+    exitCode: number | null
+    timedOut: boolean
+  }>
+  /** 取输出里第一条 `EGO_<tag>:<json>` 载荷。 */
+  extractTaggedJson: (output: string, tag: string) => unknown
+}
+
+/** 构造一个 CNIPR 通道的选项。 */
+export interface CniprChannelOptions {
+  /** 注入的 ego 会话（生产：`ctx.patentData.createEgoSession()`）。 */
+  session: CniprEgoSession
+  /** 单次脚本运行的期限（毫秒）；缺省取会话自己的默认期限，并受其硬上限约束。 */
+  timeoutMs?: number
+  /** 脚本运行的工作目录（默认 `process.cwd()`）；脚本不落盘，它只作子进程 cwd。 */
+  cwd?: string
+}
+
+/** 构造 CNIPR 通道时可覆盖的字段；服务按 Config 解析出其余字段。 */
+export type CniprChannelOverrides = Omit<CniprChannelOptions, 'session'>
+
+/** 一次 CNIPR 通道调用的可选项。 */
+export interface CniprCallOptions {
+  /** 取消信号；脚本运行随之中断。 */
+  signal?: AbortSignal
+  /** 覆盖本次运行的期限（毫秒），缺省取通道的 `timeoutMs`。 */
+  timeoutMs?: number
+}
+
 /** One collected ego-browser run: merged/truncated output plus stream and exit facts. */
 export interface EgoScriptResult {
   /** stdout+stderr merged and truncated to the session's output cap. */

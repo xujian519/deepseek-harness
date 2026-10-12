@@ -981,6 +981,8 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   CreateNuoSearchProviderOptions: 'service-local search provider options are owned by packages/patent/patent-data/src/index.ts',
   EgoBrowserSession: 'service-local ego-browser session runner is owned by packages/patent/patent-data/src/index.ts',
   EgoSessionOptions: 'service-local ego-session options are owned by packages/patent/patent-data/src/index.ts',
+  CniprChannel: 'service-local CNIPR channel is owned by packages/patent/patent-data/src/cnipr-channel.ts',
+  CniprChannelOverrides: 'service-local CNIPR channel overrides are owned by packages/patent/patent-data/src/types.ts',
   StageProvider: 'patent workflow search-stage contract is owned by packages/patent/patent-core/src/types.ts',
   PatentAgent: 'patent workflow agent face is owned by packages/patent/patent-workflow/src/types.ts',
   PlantaskRunOptions: 'patent workflow plantask-run options are owned by packages/patent/patent-workflow/src/types.ts',

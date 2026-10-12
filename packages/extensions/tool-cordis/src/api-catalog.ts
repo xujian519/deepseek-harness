@@ -1776,6 +1776,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'options', description: 'session options; each one overrides the same-named Config field, and a runner overrides the subprocess-backed default.' }],
         returns: 'the ego-browser session.',
       },
+      {
+        signature: 'createCniprChannel(options?: CniprChannelOverrides): CniprChannel | undefined',
+        description: 'Build a CNIPR channel over an ego-browser session, or nothing when this deployment has not enabled the channel (`Config.cniprEnabled`, default false).',
+        parameters: [{ name: 'options', description: 'optional per-channel overrides; a channel option replaces the same-named field the service resolved.' }],
+        returns: 'the channel, or undefined while CNIPR is disabled.',
+      },
     ],
   },
   {
@@ -5505,6 +5511,38 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ClientArtifactBaseline',
     declaration: 'export interface ClientArtifactBaseline {\n    readonly path: string;\n    readonly mtimeMs: number;\n    readonly ctimeMs: number;\n    readonly size: number;\n}',
+  },
+  {
+    name: 'CniprCallOptions',
+    declaration: 'export interface CniprCallOptions {\n    signal?: AbortSignal;\n    timeoutMs?: number;\n}',
+  },
+  {
+    name: 'CniprChannel',
+    declaration: 'export class CniprChannel {\n    constructor(options: CniprChannelOptions);\n    async pdfLinks(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprPdfLinkItem[]>;\n    async legalStatus(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprLegalStatusItem[]>;\n}',
+  },
+  {
+    name: 'CniprChannelOptions',
+    declaration: 'export interface CniprChannelOptions {\n    session: CniprEgoSession;\n    timeoutMs?: number;\n    cwd?: string;\n}',
+  },
+  {
+    name: 'CniprChannelOverrides',
+    declaration: 'export type CniprChannelOverrides = Omit<CniprChannelOptions, \'session\'>;',
+  },
+  {
+    name: 'CniprEgoSession',
+    declaration: 'export interface CniprEgoSession {\n    checkAvailability: () => {\n        ok: boolean;\n        reason?: string;\n    };\n    runScript: (script: string, options: {\n        cwd: string;\n        timeoutMs?: number;\n        signal?: AbortSignal;\n    }) => Promise<{\n        output: string;\n        exitCode: number | null;\n        timedOut: boolean;\n    }>;\n    extractTaggedJson: (output: string, tag: string) => unknown;\n}',
+  },
+  {
+    name: 'CniprLegalRecord',
+    declaration: 'export interface CniprLegalRecord {\n    app_number: string;\n    announce_date: string;\n    status: string;\n    status_info: string;\n}',
+  },
+  {
+    name: 'CniprLegalStatusItem',
+    declaration: 'export interface CniprLegalStatusItem {\n    number: string;\n    appNumber: string;\n    resolvedFrom?: string;\n    total: number | null;\n    records: CniprLegalRecord[];\n    error?: string;\n}',
+  },
+  {
+    name: 'CniprPdfLinkItem',
+    declaration: 'export interface CniprPdfLinkItem {\n    number: string;\n    urls: string[];\n    unexamined: boolean;\n    authorized: boolean;\n    error?: string;\n}',
   },
   {
     name: 'CollectedOutput',

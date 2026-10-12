@@ -8,7 +8,7 @@
 
 除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 另挂载 14 个插件——专利域的服务与工具，以及专利技能会调用的文献与方法学两行（装配清单见 `presets/patent.patch.yml`）：
 
-- `@deepseek-ai/dsh-patent-data` — 数据接缝（ctx.patentData：nuo 检索 provider 工厂 + ego-browser 会话运行器）。patent_pdf_download 经该服务运行其 ego-browser 下载适配器。
+- `@deepseek-ai/dsh-patent-data` — 数据接缝（ctx.patentData：nuo 检索 provider 工厂 + ego-browser 会话运行器 + CNIPR 通道；本 preset 经 `cniprEnabled` 打开该通道，用 ego lite 在 search.cnipr.com 的登录态取中国专利全文与法律状态）。patent_pdf_download 经该服务运行其 ego-browser 下载适配器，中国公开(公告)号走 CNIPR 通道；patent_legal_status 把引擎答不出的号经该通道重查一次。
 - `@deepseek-ai/dsh-patent-knowledge` — knowledge.db 查询服务（ctx.patentKnowledge：caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify）。
 - `@deepseek-ai/dsh-patent-workflow` — 执行管线服务（ctx.patentWorkflow：runWorkflow / runPlantask / approve / reject）。
 - `@deepseek-ai/dsh-patent-tools` — 32 个模型工具：检索、元数据、法律状态、判例/wiki/图谱查询、法条原文检索、权利要求对照表、审查意见解析、TRIZ 矛盾分析、撰写、说明书校验、分析报告、证据判断、规则检查、附图分析与生成、化学结构识别、PDF 下载、知识笔记、工作台案件关联，以及工作流/计划状态机（权威清单见 `docs/tool-catalog.md`）。

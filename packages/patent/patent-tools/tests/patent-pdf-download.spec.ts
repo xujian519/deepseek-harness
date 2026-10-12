@@ -8,9 +8,13 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import { createPatentPdfDownloadTool, normalizePatentNumber } from '../src/tool/patent-pdf-download.ts'
+import { GOOGLE_PATENTS_CHANNEL } from '../src/tool/internal/upstream-channel.ts'
 import { PatentToolError } from '../src/error.ts'
 
 const signal = new AbortController().signal
+
+/** 这些用例注入的 runner 扮演 Google Patents 腿；生产由通道 runner 标注每篇的通道。 */
+const GOOGLE = GOOGLE_PATENTS_CHANNEL
 
 async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
   const ctx = new Context()
@@ -44,7 +48,7 @@ async function runHangingFallback(dir: string, args: Record<string, unknown>, ad
     init?.signal?.addEventListener('abort', () => { reject(new Error('aborted at the attempt deadline')) }, { once: true })
   })
   const tool = createPatentPdfDownloadTool({
-    runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+    runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
     resolveOutputDir: () => dir,
     fetchImpl: hanging,
     fetchFallbackRetry: { maxRetries: 0 },
@@ -68,7 +72,7 @@ describe('patent_pdf_download', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'ok', path: join(dir, 'US1A.pdf') }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'ok', path: join(dir, 'US1A.pdf') }] }),
         resolveOutputDir: () => dir,
       })
       const ctx = await ctxWith(tool)
@@ -90,7 +94,7 @@ describe('patent_pdf_download', () => {
         runEgo: async (request) => {
           budgets.push(request.timeoutMs)
           return {
-            items: request.patents.map(p => ({ patent: p, status: 'ok' as const, path: join(dir, `${p}.pdf`) })),
+            items: request.patents.map(p => ({ channel: GOOGLE, patent: p, status: 'ok' as const, path: join(dir, `${p}.pdf`) })),
           }
         },
         resolveOutputDir: () => dir,
@@ -134,7 +138,7 @@ describe('patent_pdf_download', () => {
         arrayBuffer: async () => new TextEncoder().encode(body).buffer,
       })) as unknown as typeof fetch
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf', error: 'no intercept' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf', error: 'no intercept' }] }),
         resolveOutputDir: () => dir,
         fetchImpl,
       })
@@ -230,7 +234,7 @@ describe('patent_pdf_download', () => {
     const temp = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'ok', path: join(temp, 'out', 'US1A.pdf') }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'ok', path: join(temp, 'out', 'US1A.pdf') }] }),
         cwd: temp,
       })
       const ctx = await ctxWith(tool)
@@ -247,7 +251,7 @@ describe('patent_pdf_download', () => {
     const temp = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'ok', path: join(temp, '专利原文', 'x', 'US1A.pdf') }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'ok', path: join(temp, '专利原文', 'x', 'US1A.pdf') }] }),
         cwd: temp,
       })
       const ctx = await ctxWith(tool)
@@ -317,7 +321,7 @@ describe('patent_pdf_download', () => {
         [wrongMagic, 'pf-4'],
       ] as const) {
         const tool = createPatentPdfDownloadTool({
-          runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+          runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
           resolveOutputDir: () => dir,
           fetchImpl,
         })
@@ -330,7 +334,7 @@ describe('patent_pdf_download', () => {
       }
 
       const noUrl = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback' }] }),
         resolveOutputDir: () => dir,
       })
       const ctxN = await ctxWith(noUrl)
@@ -347,7 +351,7 @@ describe('patent_pdf_download', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {
       const nonFunction = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
         resolveOutputDir: () => dir,
         fetchImpl: 42 as unknown as typeof fetch,
       })
@@ -360,7 +364,7 @@ describe('patent_pdf_download', () => {
       // No fetchImpl injected: globalThis.fetch is used; a refused localhost
       // connection fails without touching the network.
       const defaultFetch = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'http://127.0.0.1:1/x.pdf' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'http://127.0.0.1:1/x.pdf' }] }),
         resolveOutputDir: () => dir,
         fetchFallbackRetry: { maxRetries: 0 },
       })
@@ -394,7 +398,7 @@ describe('patent_pdf_download', () => {
       expect(resultB.isError).toBe(true)
 
       const recorded = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'ok', path: join(dir, 'US1A.pdf') }], recorded: join(dir, 'recording.webm') }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'ok', path: join(dir, 'US1A.pdf') }], recorded: join(dir, 'recording.webm') }),
         resolveOutputDir: () => dir,
       })
       const ctxC = await ctxWith(recorded)
@@ -438,7 +442,7 @@ describe('patent_pdf_download', () => {
       const tool = createPatentPdfDownloadTool({
         runEgo: async () => {
           downloads.push('ran')
-          return { items: [{ patent: 'US2A', status: 'ok', path: join(dir, 'US2A.pdf') }] }
+          return { items: [{ channel: GOOGLE, patent: 'US2A', status: 'ok', path: join(dir, 'US2A.pdf') }] }
         },
         resolveOutputDir: () => dir,
       })
@@ -455,7 +459,7 @@ describe('patent_pdf_download', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'ok', pdfUrl: 'https://cdn/x.pdf' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'ok', pdfUrl: 'https://cdn/x.pdf' }] }),
         resolveOutputDir: () => dir,
       })
       const ctx = await ctxWith(tool)
@@ -472,7 +476,7 @@ describe('patent_pdf_download', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', error: 'no intercept' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', error: 'no intercept' }] }),
         resolveOutputDir: () => dir,
       })
       const ctx = await ctxWith(tool)
@@ -491,7 +495,7 @@ describe('patent_pdf_download', () => {
     try {
       const nullType = (async () => ({ ok: true, status: 200, statusText: 'OK', headers: { get: () => null }, arrayBuffer: async () => new TextEncoder().encode('%PDF-1.4 ' + 'x'.repeat(600)).buffer })) as unknown as typeof fetch
       const toolA = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
         resolveOutputDir: () => dirA,
         fetchImpl: nullType,
       })
@@ -503,7 +507,7 @@ describe('patent_pdf_download', () => {
 
       const throws = (async () => { throw 'fetch-boom' }) as unknown as typeof fetch
       const toolB = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf', error: 'intercept failed' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf', error: 'intercept failed' }] }),
         resolveOutputDir: () => dirB,
         fetchImpl: throws,
         fetchFallbackRetry: { maxRetries: 0 },
@@ -582,7 +586,7 @@ describe('patent_pdf_download', () => {
   it('uses the runner resolved by resolveRunner', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {
-      const resolved = vi.fn(async () => ({ items: [{ patent: 'US1A', status: 'ok' as const, path: join(dir, 'US1A.pdf') }] }))
+      const resolved = vi.fn(async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'ok' as const, path: join(dir, 'US1A.pdf') }] }))
       const tool = createPatentPdfDownloadTool({
         runEgo: async () => { throw new Error('default runner must not run') },
         resolveRunner: () => resolved,
@@ -637,7 +641,7 @@ describe('patent_pdf_download', () => {
         return new Response(body, { status: 200, headers: { 'content-type': 'application/pdf' } })
       }) as unknown as typeof fetch
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
         resolveOutputDir: () => dir,
         fetchImpl,
         fetchFallbackRetry: { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 5 },
@@ -658,7 +662,7 @@ describe('patent_pdf_download', () => {
     try {
       const badBody = (async () => ({ ok: true, status: 200, statusText: 'OK', headers: { get: () => 'application/pdf' }, arrayBuffer: async () => { throw 'body-boom' } })) as unknown as typeof fetch
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
         resolveOutputDir: () => dir,
         fetchImpl: badBody,
         fetchFallbackRetry: { maxRetries: 0 },
@@ -678,7 +682,7 @@ describe('patent_pdf_download', () => {
     try {
       const rateLimited = (async () => ({ ok: false, status: 429, statusText: 'Too Many Requests', headers: { get: (name: string) => (name.toLowerCase() === 'retry-after' ? '5' : null) }, arrayBuffer: async () => new ArrayBuffer(0) })) as unknown as typeof fetch
       const tool = createPatentPdfDownloadTool({
-        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
         resolveOutputDir: () => dir,
         fetchImpl: rateLimited,
         fetchFallbackRetry: { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 5 },

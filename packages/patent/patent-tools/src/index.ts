@@ -82,7 +82,7 @@ export type { PatentSearchInput, PatentSearchOutput, PatentSearchHitItem, Patent
 export { createPatentMetadataTool } from './tool/patent-metadata.ts'
 export type { PatentMetadataInput, PatentMetadataOutput, PatentMetadataDeps } from './tool/patent-metadata.ts'
 export { createPatentLegalStatusTool } from './tool/patent-legal-status.ts'
-export type { PatentLegalStatusInput, PatentLegalStatusOutput, PatentLegalStatusItem, PatentLegalStatusDeps } from './tool/patent-legal-status.ts'
+export type { PatentLegalStatusInput, PatentLegalStatusOutput, PatentLegalStatusItem, PatentLegalStatusDeps, CniprLegalStatusLookup } from './tool/patent-legal-status.ts'
 export { createPatentCaseSearchTool } from './tool/patent-case-search.ts'
 export { createLawSearchTool } from './tool/law-search.ts'
 export type { LawSearchInput, LawSearchOutput, LawSearchScope, LawSearchDeps } from './tool/law-search.ts'
@@ -189,7 +189,7 @@ export { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
 export type { PatentPdfDownloadInput, PatentPdfDownloadOutput, PatentPdfDownloadDeps, RunEgo, EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult } from './tool/patent-pdf-download.ts'
 export type { EgoSessionSeam } from './tool/patent-pdf-download-ego.ts'
 export { createDownloadChannelRunner, createScrapeChannelRunner } from './tool/patent-pdf-download-channel.ts'
-export type { DownloadChannelDeps, PatentDataLookup, PatentScrape } from './tool/patent-pdf-download-channel.ts'
+export type { DownloadChannelDeps, PatentDataLookup, PatentDataSeam, PatentScrape } from './tool/patent-pdf-download-channel.ts'
 export { createRecognizeChemicalStructureTool, resolveChemicalSourceKey } from './tool/recognize-chemical-structure.ts'
 export type { RecognizeChemicalStructureInput, RecognizeChemicalStructureDeps, ChemicalStructureResult, ChemicalSmilesCandidate } from './tool/recognize-chemical-structure.ts'
 export { createFlexiblePlanTool, ATOM_PARAM_DESCRIPTION } from './tool/patent-flexible-plan.ts'
@@ -545,9 +545,15 @@ export function apply(ctx: Context, config: Config): void {
   const knowledge = ctx.get('patentKnowledge')
 
   // Search / metadata / legal status: default to the nuo engine (no service needed).
+  // Legal status adds the CNIPR channel as a retry for numbers the nuo engine could not
+  // answer; the lookup is late-bound because patent-data declares inject:['subprocess']
+  // and therefore activates one dependency hop after this tools-only consumer. The channel
+  // is undefined while the deployment leaves patent-data's cniprEnabled off.
   ctx.tools.register(createPatentSearchTool())
   ctx.tools.register(createPatentMetadataTool())
-  ctx.tools.register(createPatentLegalStatusTool())
+  ctx.tools.register(createPatentLegalStatusTool({
+    cnipr: () => ctx.get('patentData')?.createCniprChannel(),
+  }))
 
   // Knowledge tools: wire ctx.patentKnowledge when present, else fail loud at execute.
   if (knowledge !== undefined) {
