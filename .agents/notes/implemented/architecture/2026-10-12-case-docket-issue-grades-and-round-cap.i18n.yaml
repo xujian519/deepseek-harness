@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-12-case-docket-issue-grades-and-round-cap.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-12-case-docket-issue-grades-and-round-cap.md
+/agent-note-the-case-docket-s-blocking-grades-and-the-planning-round-cap:
+  en: 78e98b2c196c8911
+  zh: 4dbde6da9fe7f63f
+/agent-note-the-case-docket-s-blocking-grades-and-the-planning-round-cap/problem:
+  en: 8d4090df5ae1fd58
+  zh: 430046c04738e67d
+/agent-note-the-case-docket-s-blocking-grades-and-the-planning-round-cap/decision:
+  en: aa7a191b408eaa28
+  zh: 80a859e657b62089
+/agent-note-the-case-docket-s-blocking-grades-and-the-planning-round-cap/alternatives-considered:
+  en: ce4a3f911af54aa9
+  zh: fb99f4d4241789ca
+/agent-note-the-case-docket-s-blocking-grades-and-the-planning-round-cap/consequences:
+  en: 098e56253e774982
+  zh: 5837470c2ff4824a
+/agent-note-the-case-docket-s-blocking-grades-and-the-planning-round-cap/testing:
+  en: c83b95a1b7c59510
+  zh: 2faa61cdfc685f8e

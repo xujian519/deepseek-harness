@@ -1937,9 +1937,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'patentWorkflow',
-    summary: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow).',
-    description: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow). Approval is an optional seam read via ctx.get(\'approval\'); storage-backed file products are caller-provided stores (see the package README).',
+    summary: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow), which runs workflow manifests, drives the plantask HITL state machine, and holds the case-docket issue schema whose blocking and terminal grades the state machine\'s transition guards enforce.',
+    description: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow), which runs workflow manifests, drives the plantask HITL state machine, and holds the case-docket issue schema whose blocking and terminal grades the state machine\'s transition guards enforce. `Config.maxRounds` bounds the replanning rounds one case may spend. Approval is an optional seam read via ctx.get(\'approval\'); storage-backed file products are caller-provided stores (see the package README).',
     methods: [
+      {
+        signature: 'readonly config: ResolvedConfig',
+        description: '已解析的插件配置。',
+        parameters: [],
+      },
       {
         signature: 'async runWorkflow( manifest: WorkflowManifest, wctx: WorkflowContext, executor?: StageExecutor, options?: WorkflowRunOptions, agent?: PatentAgent, ): Promise<WorkflowRunResult>',
         description: 'Run a workflow manifest via the ported executor. When an agent is given, the run result is appended to its session as a patent/workflow-run event.',
@@ -7102,7 +7107,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PlantaskRunResult',
-    declaration: 'export interface PlantaskRunResult {\n    caseId: string;\n    state: PlanTaskState;\n    tasks: PlanTask[];\n    toRun: string[];\n    approvalOutcome?: PatentApprovalOutcome;\n    feedback?: string;\n}',
+    declaration: 'export interface PlantaskRunResult {\n    caseId: string;\n    state: PlanTaskState;\n    tasks: PlanTask[];\n    toRun: string[];\n    approvalOutcome?: PatentApprovalOutcome;\n    feedback?: string;\n    roundCapExhausted?: boolean;\n}',
   },
   {
     name: 'PlanTaskState',

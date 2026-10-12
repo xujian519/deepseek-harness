@@ -2013,7 +2013,7 @@ export interface Config {
    * re-read, so replacing a certificate takes a reload. Omitted or null listens
    * over plain HTTP.
    */
-  tls?: TlsConfig
+  tls?: TlsConfig | null
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */
@@ -2796,7 +2796,7 @@ export interface AutoCommitConfig {
 ## `@deepseek-ai/dsh-patent-data`
 
 - `inject`: `subprocess`
-- `source`: [`packages/patent/patent-data/src/index.ts:80`](../packages/patent/patent-data/src/index.ts)
+- `source`: [`packages/patent/patent-data/src/index.ts:130`](../packages/patent/patent-data/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2825,6 +2825,13 @@ export interface Config {
    * vendored engine in it, not just this service.
    */
   nuoRequestChannel?: NuoRequestChannel
+  /**
+   * 是否让本部署经 CNIPR（search.cnipr.com）取中国专利全文与法律状态（默认 false）。
+   * 通道复用 ego lite 的 CNIPR 登录态，因此没有该登录态的部署打开它只会得到
+   * `login_required`；关闭时 {@link PatentData.createCniprChannel} 返回 undefined，
+   * 消费方据此按号回退到 nuo 引擎，并在结果里点名实际服务的通道。
+   */
+  cniprEnabled?: boolean
 }
 
 /** One nuo request channel: see {@link NUO_REQUEST_CHANNELS}. */
@@ -3128,7 +3135,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:237`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:254`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -3223,6 +3230,26 @@ export type FigureRendererMode = 'wasm' | 'cli'
 export type StructureViewName = (typeof STRUCTURE_VIEWS)[number]
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-tools -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-workflow -->
+<a id="deepseek-aidsh-patent-workflow"></a>
+
+## `@deepseek-ai/dsh-patent-workflow`
+
+- `source`: [`packages/patent/patent-workflow/src/index.ts:48`](../packages/patent/patent-workflow/src/index.ts)
+
+```ts config-catalog
+/** Plugin config. */
+export interface Config {
+  /**
+   * 一个案卷允许的规划轮次上限。达到上限后反馈不再驱动重规划，计划只能收在
+   * 终态（finished）。轮次按 caseId 累计，计划收到终态时清零；0 表示一次重规划
+   * 都不允许。
+   */
+  maxRounds?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-workflow -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-permission-presets -->
 <a id="deepseek-aidsh-permission-presets"></a>
@@ -5783,7 +5810,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-lsp` | — | [`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts) |
 | `@deepseek-ai/dsh-mcp-resources` | `tools` | [`packages/mcp/mcp-resources/src/index.ts`](../packages/mcp/mcp-resources/src/index.ts) |
 | `@deepseek-ai/dsh-otel` | — | [`packages/telemetry/otel/src/index.ts`](../packages/telemetry/otel/src/index.ts) |
-| `@deepseek-ai/dsh-patent-workflow` | — | [`packages/patent/patent-workflow/src/index.ts`](../packages/patent/patent-workflow/src/index.ts) |
 | `@deepseek-ai/dsh-sandbox-ssh` | `ssh` | [`packages/ssh/sandbox-ssh/src/index.ts`](../packages/ssh/sandbox-ssh/src/index.ts) |
 | `@deepseek-ai/dsh-self-evolve-app` | — | [`packages/bundle/self-evolve-app/src/index.ts`](../packages/bundle/self-evolve-app/src/index.ts) |
 | `@deepseek-ai/dsh-session` | — | [`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts) |

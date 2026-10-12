@@ -1,0 +1,40 @@
+{
+  "kinds": [
+    {
+      "kind": "machine_format",
+      "disposition": "application_fix",
+      "blocking": "none",
+      "criteria": "机检或形式缺陷：格式、编号、引用关系、著录项目——改申请文件即可闭合，不必先问人。"
+    },
+    {
+      "kind": "substantive",
+      "disposition": "application_fix",
+      "blocking": "none",
+      "criteria": "可由修改或争辩克服的实质缺陷：对比文件组合、创造性说理、支持性、单一性——下一轮派工就是闭合手段，因此不拦住派工。"
+    },
+    {
+      "kind": "evidence_gap",
+      "disposition": "ask_human",
+      "blocking": "blocking",
+      "criteria": "证据或事实缺口：缺公开日、缺法律状态、需授权才能取的原文或检索——本人无法闭合，须拿到答案后才能派工。"
+    },
+    {
+      "kind": "scope_strategy",
+      "disposition": "ask_human",
+      "blocking": "none",
+      "criteria": "范围或策略取舍：独权边界、从权布局、是否分案、是否提复审——要问人，但默认不拦住写作（人已明确要求改独权却未说明怎么改时，把该条升为 blocking）。"
+    },
+    {
+      "kind": "insufficient_disclosure",
+      "disposition": "ask_human",
+      "blocking": "terminal",
+      "criteria": "无修改依据的不可克服缺陷：说明书未充分公开、修改超出原始记载范围（专利法第26条第3款、第33条）——改不动，本轮只能收在终态并交人裁决。"
+    },
+    {
+      "kind": "noise",
+      "disposition": "ignore",
+      "blocking": "none",
+      "criteria": "非可执行项：措辞偏好、与本案无关的观察、重复条目——只留痕。"
+    }
+  ]
+}

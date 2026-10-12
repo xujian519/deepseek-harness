@@ -23,9 +23,13 @@
   },
   "files": [
     "lib/index.js",
+    "assets",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:~"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-patent-core": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",

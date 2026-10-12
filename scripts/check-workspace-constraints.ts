@@ -259,6 +259,9 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // The fee index (one YAML file) ships as a package-root asset resolved via
   // import.meta.url.
   '@deepseek-ai/dsh-patent-fees': ['assets'],
+  // The case-issue disposition table (issue-dispositions.json) ships as a
+  // package-root asset resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-workflow': ['assets'],
   // The document template corpus (17 template files) ships as package-root
   // assets resolved via import.meta.url.
   '@deepseek-ai/dsh-doc-template': ['assets'],
