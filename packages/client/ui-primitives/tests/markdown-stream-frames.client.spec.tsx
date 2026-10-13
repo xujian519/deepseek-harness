@@ -71,15 +71,17 @@ describe('coalesced streaming frames', () => {
 describe('a reply that streams as one growing top-level block', () => {
   /** One paragraph: no blank line can close it, so every frame re-parses all of it. */
   const BLOCK = Array.from({ length: 4_000 }, (_, index) => `Paragraph line ${index}. `).join('')
-  const HEAD = BLOCK.slice(0, 400)
 
   it('delivers a held-back frame when the reply pauses, with no further chunk', async () => {
-    const view = render(<MarkdownText text={HEAD} streaming />)
-    view.rerender(<MarkdownText text={BLOCK} streaming />)
+    // The gate's clock is the case's, so the block's frame is the measured one
+    // and the chunk after it is held back, on every host and under any load.
+    const gate = steppingGate()
+    const view = render(<MarkdownText text={BLOCK} streaming frameGate={gate} />)
     const rendered = view.container.innerHTML
-    view.rerender(<MarkdownText text={`${BLOCK}tail`} streaming />)
+    view.rerender(<MarkdownText text={`${BLOCK}tail`} streaming frameGate={gate} />)
     // The block's re-parse outran the frame budget, so this chunk shows the frame before it.
     expect(view.container.innerHTML).toBe(rendered)
+    // No further chunk arrives, so the owner's retry tick is what lands the text.
     const fresh = render(<MarkdownText text={`${BLOCK}tail`} streaming />)
     const expected = fresh.container.innerHTML
     fresh.unmount()
@@ -89,10 +91,10 @@ describe('a reply that streams as one growing top-level block', () => {
   }, 20_000)
 
   it('renders the settled text in full while a frame is held back', () => {
-    const view = render(<MarkdownText text={HEAD} streaming />)
-    view.rerender(<MarkdownText text={BLOCK} streaming />)
+    const gate = steppingGate()
+    const view = render(<MarkdownText text={BLOCK} streaming frameGate={gate} />)
     const rendered = view.container.innerHTML
-    view.rerender(<MarkdownText text={`${BLOCK}tail`} streaming />)
+    view.rerender(<MarkdownText text={`${BLOCK}tail`} streaming frameGate={gate} />)
     expect(view.container.innerHTML).toBe(rendered)
     view.rerender(<MarkdownText text={`${BLOCK}tail`} />)
     const settled = render(<MarkdownText text={`${BLOCK}tail`} />)

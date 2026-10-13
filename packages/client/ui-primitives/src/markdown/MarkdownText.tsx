@@ -6,6 +6,7 @@
 import { memo, useEffect, useMemo, useReducer, useRef } from 'react'
 import clsx from 'clsx'
 import { renderSettled, StreamingRenderer } from './streaming-renderer.ts'
+import { StreamFrameGate } from './stream-frame-gate.ts'
 import type { MarkdownFileMentions, MarkdownLabels, MarkdownPathImages } from './render.tsx'
 import 'katex/dist/katex.min.css'
 import css from './MarkdownText.module.css'
@@ -41,7 +42,7 @@ export type { MarkdownCodeLabels, MarkdownFileMentions, MarkdownLabels, Markdown
  * absolute HTTP(S) images render directly.
  */
 export const MarkdownText = memo(function MarkdownText({
-  text, streaming = false, labels, fileMentions, pathImages, variant = 'body',
+  text, streaming = false, labels, fileMentions, pathImages, variant = 'body', frameGate,
 }: {
   text: string
   streaming?: boolean
@@ -49,18 +50,26 @@ export const MarkdownText = memo(function MarkdownText({
   fileMentions?: MarkdownFileMentions | undefined
   pathImages?: MarkdownPathImages | undefined
   variant?: 'body' | 'compact'
+  /**
+   * Frame admission for a streaming reply's open tail block. Product renders
+   * leave it unset; a caller that passes one owns its clock, which lets a test
+   * pin which frame is held back instead of measuring the host's parse cost.
+   */
+  frameGate?: StreamFrameGate | undefined
 }) {
   const streamRef = useRef<StreamingRenderer | null>(null)
   const streamLabelsRef = useRef<MarkdownLabels>(labels)
+  const streamGateRef = useRef<StreamFrameGate | undefined>(frameGate)
   const [frameTick, retryFrame] = useReducer((tick: number): number => tick + 1, 0)
   const children = useMemo(() => {
     if (!streaming) {
       streamRef.current = null
       return renderSettled(text, labels, fileMentions, pathImages)
     }
-    if (streamRef.current === null || streamLabelsRef.current !== labels) {
-      streamRef.current = new StreamingRenderer(labels)
+    if (streamRef.current === null || streamLabelsRef.current !== labels || streamGateRef.current !== frameGate) {
+      streamRef.current = new StreamingRenderer(labels, frameGate)
       streamLabelsRef.current = labels
+      streamGateRef.current = frameGate
     }
     return streamRef.current.render(text)
   }, [text, streaming, labels, fileMentions, pathImages, frameTick])
