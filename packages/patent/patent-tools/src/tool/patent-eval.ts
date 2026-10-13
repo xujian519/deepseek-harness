@@ -89,7 +89,7 @@ function averageScores(dims: PatentEvalDimension[]): number {
 /** Non-comprehensive mode → summary-line label. */
 const MODE_LABELS: Record<Exclude<PatentEvalMode, 'comprehensive'>, string> = {
   report: '报告质量',
-  retrieval: '检索覆盖度',
+  retrieval: '检索式形态',
   workflow: '流程完整性',
   citations: '引用合规性',
 }
@@ -160,13 +160,24 @@ function evaluateReport(text: string): Record<string, PatentEvalDimension> {
   return dims
 }
 
+/**
+ * retrieval 模式只判检索式的形态：词条数（≥3 记满分、≥1 记半分），不看结果里相关
+ * 文献排在第几条。它因此不是检索质量度量——检索质量由 `eval/ir-metrics.ts` 的指标
+ * （rank of first relevant 等）度量，两者的分数不可互推。
+ */
 function evaluateRetrieval(text: string): Record<string, PatentEvalDimension> {
   const trimmed = text.trim()
   const keywords = trimmed.split(/\s+/).filter(Boolean)
   let keywordScore = 0
   if (keywords.length >= 3) keywordScore = 1.0
   else if (keywords.length >= 1) keywordScore = 0.5
-  return { 关键词覆盖: { score: keywordScore, passed: keywordScore >= 0.5, details: `检索式含 ${keywords.length} 个关键词/分类号` } }
+  return {
+    关键词条数: {
+      score: keywordScore,
+      passed: keywordScore >= 0.5,
+      details: `检索式含 ${keywords.length} 个关键词/分类号（只判检索式形态，不判检索结果质量）`,
+    },
+  }
 }
 
 /**
@@ -219,7 +230,7 @@ function runComprehensiveEval(text: string, required: string[]): PatentEvalOutpu
     ...evaluateCitations(text, required),
   }
   const weights: Record<string, number> = {
-    结构完整性: 0.15, 表达质量: 0.1, 内容充分性: 0.15, 关键词覆盖: 0.2,
+    结构完整性: 0.15, 表达质量: 0.1, 内容充分性: 0.15, 关键词条数: 0.2,
     流程完整性: 0.15, 引用合规性: 0.15, 引用格式: 0.1,
   }
   let weightedSum = 0
@@ -286,7 +297,7 @@ export function createPatentEvalTool(): ToolDefinition {
     name: 'patent_eval',
     description: DESCRIPTION,
     parameters: {
-      mode: { type: 'string', required: true, enum: ['report', 'retrieval', 'workflow', 'citations', 'comprehensive'], description: '评估模式: report(分析报告质量) / retrieval(检索覆盖度) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)' },
+      mode: { type: 'string', required: true, enum: ['report', 'retrieval', 'workflow', 'citations', 'comprehensive'], description: '评估模式: report(分析报告质量) / retrieval(检索式形态) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)' },
       content: { type: 'string', description: '待评估的内容文本（报告正文/检索关键词列表/工作流步骤/引文列表等）' },
       required_citations: { type: 'array', items: { type: 'string' }, description: '要求必须包含的法条引用列表（如 ["第二十二条第二款", "第二十二条第三款"]）' },
     },

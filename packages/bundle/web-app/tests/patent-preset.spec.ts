@@ -309,7 +309,7 @@ describe('patent preset composition', () => {
     expect(row?.disabled).toBeUndefined()
   })
 
-  it('gates a delivery render on the gate runs the persona requires', async () => {
+  it('gates a delivery render on the gate runs and the round archival the persona requires', async () => {
     // The delivery discipline also lives in the persona prefix; this declaration is
     // what makes it an execution point. A required tool whose package the preset does
     // not mount, or a template id the renderer does not ship, leaves a gate that looks
@@ -321,18 +321,22 @@ describe('patent preset composition', () => {
 
     const [compliance, filing, closure] = gate ?? []
     expect(compliance?.tool).toBe('render_patent_document')
-    expect(compliance?.requires).toEqual(['rule_check', 'law_verify'])
+    expect(compliance?.requires).toEqual(['rule_check', 'law_verify', 'matter_log_append'])
     // The DOCX that goes to the office is a deliverable too, and it carries no argument
     // to narrow a gate on, so its entry applies to the tool unconditionally.
     expect(filing?.tool).toBe('build_patent_filing')
-    expect(filing?.requires).toEqual(['rule_check', 'law_verify'])
+    expect(filing?.requires).toEqual(['rule_check', 'law_verify', 'matter_log_append'])
     expect(filing?.whenArgs).toBeUndefined()
     expect(closure?.tool).toBe('render_patent_document')
     expect(closure?.requires).toEqual(['patent_workflow_run'])
 
     // Every gated tool, and every tool a gate requires, comes from a build package this
-    // preset enables: rule_check and patent_workflow_run from patent-tools, law_verify
-    // from patent-law, and the two gated tools from patent-document and patent-filing.
+    // preset enables: rule_check, patent_workflow_run and matter_log_append from
+    // patent-tools, law_verify from patent-law, and the two gated tools from
+    // patent-document and patent-filing. A prerequisite no mounted package registers is
+    // the worst shape a gate can take: it denies every delivery forever while every
+    // other check stays green, which is why scripts/verify-preset-tool-refs also
+    // resolves these names against the mounted tool set.
     for (const id of ['patent-tools', 'patent-law', 'patent-document', 'patent-filing']) {
       const mounted = rows.find(entry => entry.id === id)
       expect(mounted?.name).toBe(`@deepseek-ai/dsh-${id}`)
@@ -358,7 +362,7 @@ describe('patent preset composition', () => {
   })
 
   it('states the team-channel discipline from the mounting rows, not an unrecorded test', async () => {
-    // The persona excluded the generic send_message while quoting an observation
+    // The mode excluded the generic send_message while quoting an observation
     // ("实测直接报「active teammate … not found」") that no file recorded and that
     // no shipped combination reproduces by construction: the preset does not mount
     // the agent-team package, and the generic name is registered by
@@ -368,9 +372,9 @@ describe('patent preset composition', () => {
     const mounted = named.map(row => packageOf(row.name))
     expect(mounted).not.toContain('@deepseek-ai/dsh-experimental-tool-agent-team')
     expect(mounted).toContain('@deepseek-ai/dsh-tool-subagent-control')
-    const text = personaPrefix(rows.find(row => row.id === 'persona'))
-    const discipline = text.split('\n').find(line => line.includes('协调通道唯一'))
-    expect(discipline, 'the persona must keep the team-coordination discipline').toBeDefined()
+    const skill = readFileSync(join(PATENT_SKILLS, 'patent-team-composition', 'SKILL.md'), 'utf8')
+    const discipline = skill.split('\n').find(line => line.includes('patent_teams_send_message'))
+    expect(discipline, 'the skill must keep the team-coordination channel discipline').toBeDefined()
     expect(discipline).toContain('@deepseek-ai/dsh-tool-subagent-control')
     expect(discipline).not.toContain('实测')
   })
@@ -405,15 +409,17 @@ describe('patent preset composition', () => {
   it('keeps the evidence check and the conditional figure route the zero-call audit added', async () => {
     // The 2026-10-03 zero-call audit gave evaluate_evidence its first route and
     // narrowed add_patent_figure_references to self-drawn or external SVG input.
-    // Both rules live only in this persona prefix — no other file states them — so
-    // a rewrite that drops either one leaves every other gate green.
-    const text = personaPrefix((await patentRows()).find(row => row.id === 'persona'))
-    expect(text).toContain('`evaluate_evidence`')
-    expect(text).toContain('自绘或外部来源的 SVG')
-    expect(text).toContain('`.sati/figures-index.json`')
+    // The audit's first route is still persona text; the figure route and the
+    // index backing search_patent_figure now sit in the skills the persona points
+    // at, so this asserts over the mode's whole model-visible text — a rewrite
+    // that drops either rule leaves every other gate green.
+    const voice = await patentVoice()
+    expect(voice).toContain('`evaluate_evidence`')
+    expect(voice).toContain('自绘或外部来源的 SVG')
+    expect(voice).toContain('`.sati/figures-index.json`')
     // The persona states the model's task; the guard's name and wiring are
     // deployment implementation detail, not prompt content (packages/AGENTS.md).
-    expect(text).not.toContain('EVI-011')
+    expect(personaPrefix((await patentRows()).find(row => row.id === 'persona'))).not.toContain('EVI-011')
   })
 
   it('names a figure-analysis route the shipped catalog declares image-capable', async () => {
@@ -452,5 +458,104 @@ describe('patent preset composition', () => {
     expect(cnlawEndpointLiterals('curl -sG "http://127.0.0.1:8100/search" -d q=…'))
       .toEqual(['127.0.0.1:8100'])
     expect(cnlawEndpointLiterals('cnlaw 服务（:8001 图谱 + Neo4j 7687）')).toEqual([':8001', '7687'])
+  })
+})
+
+/** The `patent` preset's own persona prefix, or `''` when the row carries none. */
+async function patentPersona(): Promise<string> {
+  return personaPrefix((await patentRows()).find(row => row.id === 'persona'))
+}
+
+/** The mode's shipped model-visible text: its persona prefix plus every bundled skill. */
+async function patentVoice(): Promise<string> {
+  const skills = globSync('**/*.md', { cwd: PATENT_SKILLS })
+    .map(relative => readFileSync(join(PATENT_SKILLS, relative), 'utf8'))
+  return [await patentPersona(), ...skills].join('\n')
+}
+
+/**
+ * The persona's nine work disciplines, each anchored on the phrase that carries
+ * its meaning. No recorded session replays the persona text and no other gate
+ * reads it, so this list is what keeps a rewrite from dropping a discipline
+ * quietly; adding or removing a discipline means editing this list.
+ */
+const PATENT_DISCIPLINES: readonly (readonly [string, string])[] = [
+  ['检索先于结论', '检索先于结论'],
+  ['单独对比与三步法', '单独对比原则'],
+  ['法条引用核验', '`law_verify`'],
+  ['逐特征比对', '逐特征比对'],
+  ['输出即证据', '输出即证据'],
+  ['HITL 确认点', 'HITL 确认点不可跳过'],
+  ['无来源即撤回', '无来源即撤回'],
+  ['指令即验收条件', '指令（验收条件）'],
+  ['工具问题必须处置', '工具发现的问题必须处置'],
+]
+
+/** The disciplines whose anchor phrase `text` does not carry. */
+function missingDisciplines(text: string): string[] {
+  return PATENT_DISCIPLINES.filter(([, anchor]) => !text.includes(anchor)).map(([name]) => name)
+}
+
+describe('patent persona disciplines', () => {
+  it('keeps every work discipline the persona states', async () => {
+    expect(missingDisciplines(await patentPersona())).toEqual([])
+  })
+
+  it('reports a discipline when its anchor is absent', () => {
+    // The case above passes on any persona only if the detector actually finds a
+    // missing anchor.
+    expect(missingDisciplines('')).toEqual(PATENT_DISCIPLINES.map(([name]) => name))
+    expect(missingDisciplines('检索先于结论')).toEqual([
+      '单独对比与三步法',
+      '法条引用核验',
+      '逐特征比对',
+      '输出即证据',
+      'HITL 确认点',
+      '无来源即撤回',
+      '指令即验收条件',
+      '工具问题必须处置',
+    ])
+  })
+
+  it('keeps the mandatory disclaimer verbatim', async () => {
+    expect(await patentPersona()).toContain(
+      '本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。',
+    )
+  })
+})
+
+/**
+ * A patent case is date-bound: the deadlines, the annual-fee year, and the
+ * renewal dates in a search report all follow from the filing and notice dates,
+ * so the mode needs the clock row, and the reminders that follow those dates
+ * need the schedule tools. `command-goal` pairs with `tool-goal` on the preset
+ * plane — the web patch ships that row disabled and leaves the human command to
+ * the preset — so mounting the tool without the command ships half the pair.
+ * `scripts/preset-mode-baseline.json` holds every delivery mode to the shared
+ * row set; this spec keeps the three rows named here from disappearing behind a
+ * policy edit.
+ */
+describe('patent preset delivery rows', () => {
+  const SCHEDULE_TOOLS = ['schedule_create', 'schedule_delete', 'schedule_list', 'schedule_update']
+
+  it('mounts the clock, the reminder tools, and the goal command beside the goal tool', async () => {
+    const rows = new Map((await patentRows()).flatMap(row => (typeof row.id === 'string' ? [[row.id, row] as const] : [])))
+    for (const [id, name] of [
+      ['time-context', '@deepseek-ai/dsh-time-context'],
+      ['tool-schedule', '@deepseek-ai/dsh-tool-schedule'],
+      ['command-goal', '@deepseek-ai/dsh-command-goal'],
+      ['tool-goal', '@deepseek-ai/dsh-tool-goal'],
+    ] as const) {
+      expect(rows.get(id)?.name, `${id} row`).toBe(name)
+      expect(rows.get(id)?.disabled, `${id} row`).toBeUndefined()
+    }
+  })
+
+  it('keeps a delegated child off the reminder tools', async () => {
+    const rows = new Map((await patentRows()).flatMap(row => (typeof row.id === 'string' ? [[row.id, row] as const] : [])))
+    for (const id of ['tool-subagent', 'tool-subagent-fork']) {
+      const config = rows.get(id)?.config as { toolFilter?: { deny?: string[] } } | undefined
+      expect(config?.toolFilter?.deny, `${id} toolFilter.deny`).toEqual(SCHEDULE_TOOLS)
+    }
   })
 })

@@ -51,6 +51,14 @@
             config:
               maxBytes: 65536
 
+          # ── clock ───────────────────────────────────────────────────────────────────
+
+          # persona 的「无来源即撤回」把人设要求的页脚版本与日期、事实性断言的来源
+          # 都算在交付质量里，模型需要知道「今天」：没有此行时只能绕道跑 `date`。
+          # 插件在 agent/pre-step 追加一条带来源的时间快照 user 消息，模型可见且入日志。
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+
           # ── shell ───────────────────────────────────────────────────────────────────
 
           # `shell-env` stays in the HOST composition: `apps/cli/src/web.ts` injects it to
@@ -91,6 +99,11 @@
           # chooses is whether its agent can collect and stop background work at all.
           - id: tool-jobs
             name: '@deepseek-ai/dsh-tool-jobs'
+
+          # 长报告与手册的交付提醒（章节交付、审阅回访、发布窗口）落在持久排程上。
+          # 只挂模型可见的排程工具；排程 REGISTRY 与触发器留在 host 平面。
+          - id: tool-schedule
+            name: '@deepseek-ai/dsh-tool-schedule'
 
           # ── skills ──────────────────────────────────────────────────────────────────
 
@@ -160,12 +173,17 @@
 
           # ── goals ───────────────────────────────────────────────────────────────────
 
-          # Only the model-facing tool. The goal SERVICE, its session driver, and the
-          # `/goal` command stay on the host plane: the Gateway serves the goal domain as
-          # Remote endpoints whose receiver comes from a generated descriptor, so it
-          # resolves `goals` on the host and an entry-local realm here would hide it. The
-          # registry is keyed by session anyway, so one host instance serves every
-          # session. What a preset chooses is whether its agent can call the goal tool.
+          # The host patch disables its own `command-goal` row and leaves the command to
+          # the preset ("presets own the human command and model-facing tool"). The goal
+          # SERVICE and its session driver stay on the host plane: the Gateway serves the
+          # goal domain as Remote endpoints whose receiver comes from a generated
+          # descriptor, so it resolves `goals` on the host and an entry-local realm here
+          # would hide it. The registry is keyed by session anyway, so one host instance
+          # serves every session. What a preset chooses is whether its agent can call the
+          # goal tool and whether its user gets the `/goal` command.
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+
           - id: tool-goal
             name: '@deepseek-ai/dsh-tool-goal'
 
@@ -263,12 +281,24 @@
                 config:
                   provider: spawn
                   toolName: subagent
+                  toolFilter:
+                    deny:
+                      - schedule_create
+                      - schedule_delete
+                      - schedule_list
+                      - schedule_update
 
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: fork
                   toolName: subagent_fork
+                  toolFilter:
+                    deny:
+                      - schedule_create
+                      - schedule_delete
+                      - schedule_list
+                      - schedule_update
 
               # Production dsh does not install these optional providers. Install the
               # matching Bundle in this Profile and restart the Host, then copy this

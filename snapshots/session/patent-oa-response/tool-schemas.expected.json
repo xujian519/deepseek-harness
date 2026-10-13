@@ -2310,6 +2310,65 @@
       }
     },
     {
+      "name": "matter_log_append",
+      "description": "把本轮作业写进案卷的只追加事件日志 _matter-log.md（案件的唯一事实源），并登记本轮的取代关系。\n- 每次撰写、修订、交付、门禁都在这里留档：写清改了什么、为什么、是否影响保护点（changes 字段），并列出本轮产物（artifacts，须已存在）\n- 取代关系显式登记：supersedes 列出本轮产物取代的既有文件。交付物一律另存新文件，禁止覆盖上一轮\n- 确定性判定，拒绝：产物不存在、产物路径与取代路径相同（原地覆盖）、supersedes 指向日志中没有的路径（凭空的取代链）、同一旧版被取代两次（取代链分叉）、撰写/修订轮复用已有产物路径\n- 条目只追加，既有行不改写；每条同时记本地时间与 UTC\n\n用法：出件前调用 matter_log_append({case_dir, action, artifacts, changes, supersedes?, approver?})。交付前置门禁要求本会话成功留档过，才允许 render_patent_document / build_patent_filing。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "case_dir": {
+            "type": "string",
+            "description": "案件目录（内含 _matter-log.md；相对当前工作目录或绝对路径）"
+          },
+          "action": {
+            "type": "string",
+            "description": "本轮动作",
+            "enum": [
+              "建案",
+              "检索",
+              "分析",
+              "撰写",
+              "门禁",
+              "修订",
+              "交付",
+              "归档"
+            ]
+          },
+          "artifacts": {
+            "type": "array",
+            "description": "本轮产物文件路径（须已存在）",
+            "items": {
+              "type": "string"
+            }
+          },
+          "changes": {
+            "type": "string",
+            "description": "本轮改了什么、为什么、是否影响保护点（留档段正文）"
+          },
+          "supersedes": {
+            "type": "array",
+            "description": "被本轮产物取代的既有产物路径（可选）",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approver": {
+            "type": "string",
+            "description": "审批人（ask_user_question 确认者，可选）"
+          },
+          "note": {
+            "type": "string",
+            "description": "附加备注（可选）"
+          }
+        },
+        "required": [
+          "case_dir",
+          "action",
+          "artifacts",
+          "changes"
+        ]
+      }
+    },
+    {
       "name": "parse_office_action",
       "description": "确定性解析审查意见通知书（不调用模型）：识别驳回类型（专利法 22.2 新颖性、22.3 创造性、26.3 公开不充分、26.4 不清楚或不支持、33 条修改超范围、形式缺陷；未识别到具体条款时为 other）、引用文献与相关性类别（X/Y/A/E/P，本文书自身号码不计）、涉及的权利要求（权利要求1至3 与 第1-5项 两类区间展开为逐个编号）、审查员论点。用于答复前先拿到结构化事实：先按主驳回类型定答复主策略，再逐条处理。输出只反映通知书原文的措辞，不判断驳回是否成立，也不起草答复。文献未标注相关性类别时不推断类别。",
       "parameters": {
@@ -2515,7 +2574,7 @@
         "properties": {
           "mode": {
             "type": "string",
-            "description": "评估模式: report(分析报告质量) / retrieval(检索覆盖度) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)",
+            "description": "评估模式: report(分析报告质量) / retrieval(检索式形态) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)",
             "enum": [
               "report",
               "retrieval",

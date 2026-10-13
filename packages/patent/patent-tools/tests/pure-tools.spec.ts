@@ -58,7 +58,7 @@ describe('patent_eval', () => {
     const result = await execute(ctx, 'patent_eval', { mode: 'retrieval', content: 'a b c' }, 'e-1')
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect(text(result)).toContain('检索覆盖度')
+    expect(text(result)).toContain('检索式形态')
   })
 })
 

@@ -214,6 +214,32 @@ describe('tools/guard 交付前置门禁', () => {
     expect(result.error?.message).toMatch(/rule_check、law_verify/)
   })
 
+  // 反例注入：patent preset 声明的交付门禁以 matter_log_append 为前置（案卷留档），
+  // 未留档即渲染必须被拒并点名该缺步。用例驱动真实的门禁判定，而不是复述声明文本。
+  it('rejects a delivery render whose round was not archived', async () => {
+    const ctx = await mount({
+      deliveryGate: [{ tool: 'render_patent_document', requires: ['rule_check', 'law_verify', 'matter_log_append'] }],
+    })
+    ctx.tools.register(documentTool())
+    ctx.tools.register(okTool('rule_check'))
+    ctx.tools.register(okTool('law_verify'))
+    ctx.tools.register(okTool('matter_log_append'))
+
+    const denied = await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)
+    expect(denied.isError).toBe(true)
+    expect(denied.error?.message).toMatch(/matter_log_append/)
+
+    // 另两道闸门跑过后仍被拒：缺的正是留档这一步。
+    expect((await call(ctx, 'rule_check', {}, AGENT)).isError).toBe(false)
+    expect((await call(ctx, 'law_verify', {}, AGENT)).isError).toBe(false)
+    const stillDenied = await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)
+    expect(stillDenied.isError).toBe(true)
+    expect(stillDenied.error?.message).toMatch(/交付前置门禁拒绝 render_patent_document.*matter_log_append/s)
+
+    expect((await call(ctx, 'matter_log_append', {}, AGENT)).isError).toBe(false)
+    expect((await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)).isError).toBe(false)
+  })
+
   it('前置调用成功返回后放行', async () => {
     const ctx = await mount({ deliveryGate: [{ tool: 'render_patent_document', requires: ['rule_check'] }] })
     ctx.tools.register(documentTool())

@@ -1,0 +1,43 @@
+# Agent Note: The case docket's blocking grades and the planning-round cap
+
+Status: implemented
+
+English | [中文](2026-10-12-case-docket-issue-grades-and-round-cap.zh.md)
+
+## Problem
+
+A patent case had no first-class "issue item". A review returned prose; the case checklist was hand-ticked, and a wrong tick was caught by nothing. Four consequences followed from that. There was no closed vocabulary for what a case problem is, so no mapping from a problem's kind to how it is closed. There was no way to say that a problem must be answered before further work is dispatched, as distinct from one that the next round amends. A plan could be re-planned without bound. And the state machine had no basis on which to refuse dispatch while a question was open.
+
+The 2026-09-30 benchmark (`2026-09-30-patent-domain-external-benchmark.md`, item P0-2) named the first three gaps and warned about the fourth's design: a binary blocking flag is the easy version and the wrong one, because it stalls the pipeline on every question asked, including the questions whose answer is not needed yet.
+
+## Decision
+
+- `@deepseek-ai/dsh-patent-workflow` gains `docket-issue.ts`: one case problem is `{ id, summary, kind, disposition, status, blocking, round_opened }` plus an optional `anchor`. `kind` is a closed six-value vocabulary in TypeScript (`machine_format`, `substantive`, `evidence_gap`, `scope_strategy`, `insufficient_disclosure`, `noise`); `assets/issue-dispositions.json` maps each kind to a default disposition and a default blocking grade, validated at load by `loadIssueDispositions()` — every kind exactly once, values in vocabulary, criteria non-empty — which throws `IssueDispositionError`. `resolveDocketIssue(draft, round, dispositions)` fills an omitted disposition or grade from the kind's row, sets `status: 'open'`, and stamps `round_opened`; an item's own value overrides the row.
+- `blocking` has three grades. `none` does not hold up dispatch, `blocking` holds it up until the item closes, and `terminal` lets the round end only in a terminal state.
+- The shipped defaults follow what closing an item actually costs, which is what keeps the third grade from becoming a stall: an amendable defect is `application_fix` with `none`, because the next round's dispatch is how it gets closed; an evidence gap is `ask_human` with `blocking`, because nobody on this side of the conversation can close it; a defect no amendment can cure (insufficient disclosure, or an amendment outside the original disclosure, 专利法第26条第3款 and 第33条) is `ask_human` with `terminal`; a scope or strategy choice is `ask_human` with `none`, since asking is right but holding up the drafting is not.
+- The invariants are three pure predicates: `openBlockingIssues` (open and not `none`), `openTerminalIssues` (open and `terminal`), and `roundCapReached`. The plantask state machine runs them in its transition guards: entering `executing` is refused while a blocking item is open, and entering `replanning` is refused while a terminal item is open or the round cap is reached. A refused transition throws `PlanTaskSemanticError` naming the items, exactly as the existing guards do. `finished` already had no outgoing edge, so "a terminal state cannot dispatch again" needed no new edge.
+- The round cap is `Config.maxRounds`, `z.natural()` with its default resolved once by `resolveWorkflowConfig`. At the cap a rejection no longer drives `replanning`: the plan goes to `finished` and `PlantaskRunResult.roundCapExhausted` is set. Rounds count per `caseId` in the service and clear when a plan reaches `finished`, so a case can be planned again from scratch.
+- The machine reads a case's items from `PlanTaskTransitionContext.issues`. Omitting them means the case has no registered items and the guards do not refuse on that basis — the contract the existing callers already satisfy, since they predate the docket.
+- `CheckerIssue` and `parseCheckerVerdict` are unchanged. They keep describing what a checker worker outputs and stay separate from the workflow's own record of an item.
+
+## Alternatives considered
+
+- **Widening `CheckerIssue`, the sibling schema, to the docket's fields.** It would have given one schema on the model-JSON boundary. It lost on two counts. `checker-verdict.ts` declares its schema as a port of a checker verdict, and its role as the model's machine-readable review outcome whose effect on a task is the caller's decision — while `status` and `round_opened` are the workflow's to write and not the model's to know. And the merged field set names two facts twice: `summary` beside `description`, and `blocking` beside `severity`, whose three grades map onto the same trichotomy.
+- **Counting rounds from the session log** — the events already record each state, so a count would be durable and survive a restart. It lost because the synchronous readers (`snapshotEvents`, `ownEvents`) are deprecated with new calls prohibited, and a package that owns no session read path cannot reach the live state without taking a dependency on the surface store.
+- **Letting the state machine own the docket** (`openIssue` / `closeIssue` on the machine, guards reading its own field). It would remove the omitted-`issues` case entirely. It lost because the machine instance is parked in the service's private `pending` map, so a docket it owned would be unreachable from any producer, while the transition context is the input every caller of the machine already passes.
+- **Recording the exhaustion in the `patent/plantask` event.** The fact lands on the run result instead. The event is a declared persistence type, whose change carries an acknowledgement record; the exhaustion is a run outcome for the caller, not a state the log has to reproduce.
+
+## Consequences
+
+- The item-based refusals bite only where a caller supplies `issues`. Nothing in this package yet turns a review's issue list into docket items, so the shipped `runPlantask` path passes none and its refusals are unexercised. The producing surface belongs to the patent tool layer, which owns model-facing inputs.
+- `maxRounds` is counted per process, not in the log: a restart clears the counter, and the transcript does not carry the count. A plan that reaches `finished` also clears its registration, so the cap bounds one planning cycle rather than a case.
+- The docket is not persisted. No durable record carries the item list yet, so an item's history is only as long-lived as whoever holds it.
+- The round-cap exhaustion is not in the session log. The `patent/plantask` event records the `finished` state, and a reader comparing it against the case's rounds cannot tell a capped finish from any other.
+- `@deepseek-ai/dsh-patent-workflow` gains a `Config` it previously lacked, a runtime dependency on `@deepseek-ai/schemastery`, and `assets/` in its published `files`.
+- Re-planning the cap's location later is cheap: the guard is one predicate call and the policy is one config field.
+
+## Testing
+
+- Unit, `packages/patent/patent-workflow/tests/docket-issue.spec.ts` (11 cases): the shipped asset covers the vocabulary exactly with in-vocabulary values and non-empty criteria; the defaults keep amendable defects non-blocking and evidence gaps blocking; the parser rejects a missing array, a missing row, an unknown kind, out-of-vocabulary values, empty criteria, and a duplicate row, naming the source; `resolveDocketIssue` fills defaults, honors an item's override, carries the anchor, and refuses a kind the table lacks; the predicates separate the three grades and ignore closed items; `roundCapReached` is false below the cap and true at and above it, including `maxRounds: 0`.
+- Machine, `packages/patent/patent-workflow/tests/plantask.spec.ts`: `blocking 禁止派工` — an open blocking item and an open terminal item each refuse `executing` and the message names the item, a closed one, a non-blocking one, and no docket at all each let it through; `轮次上限封顶` — a rejection at the cap is refused with the cap in the message, one below the cap replans, and a terminal item refuses `replanning`.
+- Service, `packages/patent/patent-workflow/tests/service.spec.ts`: three rejections for one case each land in `replanning` with no exhaustion flag, the fourth lands in `finished` with `roundCapExhausted: true`, and the case can be planned again afterwards; `maxRounds: 0` finishes on the first rejection; `approve` is unaffected by a cap of zero.

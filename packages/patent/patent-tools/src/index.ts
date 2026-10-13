@@ -59,6 +59,7 @@ import { DEFAULT_FREECAD_RENDER_TIMEOUT_MS, renderSectionGeometry, renderSection
 import type { SectionSourcePorts } from './figure/section-source.ts'
 import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 import { createVerifyPatentFigureTool } from './tool/verify-patent-figure.ts'
+import { createMatterLogAppendTool } from './tool/matter-log-append.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
 import { createDownloadChannelRunner } from './tool/patent-pdf-download-channel.ts'
 import { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
@@ -220,9 +221,29 @@ export type { PatentWorkerValidateInput, PatentWorkerValidateOutput } from './to
 export { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 export type { KnowledgeNoteSaveInput, KnowledgeNoteSaveOutput, KnowledgeNoteSaveDeps, KnowledgeNote } from './tool/knowledge-note-save.ts'
 export { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
+export {
+  createMatterLogAppendTool,
+  matterLogDefects,
+  matterStamps,
+  parseMatterEntries,
+  renderMatterEntry,
+  MATTER_ACTIONS,
+  MATTER_LOG_FILE,
+} from './tool/matter-log-append.ts'
+export type {
+  MatterAction,
+  MatterLogAppendResult,
+  MatterLogDefect,
+  MatterLogEntry,
+  MatterLogRequest,
+} from './tool/matter-log-append.ts'
 export { slopGateAtom, SlopGateHandler, SLOP_GATE_PASS_THRESHOLD } from './atoms/slop-gate.ts'
 export { buildSlopRevisionHint } from './internal/retry-hints.ts'
 export type { EvaluatedText } from './internal/evaluated-input.ts'
+
+// 检索质量度量是纯算术库：语料与基线排序是测试资产，这里只发布指标函数。
+export { meanReciprocalRank, ndcgAtK, rankOfFirstRelevant } from './eval/ir-metrics.ts'
+export type { RankedQuery, RelevanceJudgments } from './eval/ir-metrics.ts'
 
 // render_patent_document is owned by dsh-patent-document; re-export for library consumers.
 export { createRenderPatentDocumentTool, renderDocumentResult }
@@ -764,4 +785,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createKnowledgeNoteSaveTool({
     writeNote: createNoteFileWriter(resolveNoteDir(config)),
   }))
+
+  // 案卷留档的唯一写入口：交付前置门禁要求它先成功，交付件才允许落盘。
+  ctx.tools.register(createMatterLogAppendTool())
 }

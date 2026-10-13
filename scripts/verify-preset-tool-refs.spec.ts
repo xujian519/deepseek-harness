@@ -17,6 +17,7 @@ const root = resolve(import.meta.dirname, '..')
 const CATALOG = [
   '| Tool package | Model-visible names | Requires | Writes / affects | Shipped aliases | Deployment note |',
   '| --- | --- | --- | --- | --- | --- |',
+  '| `@deepseek-ai/dsh-patent-document` | `render_patent_document`, `verify_deliverable` | `ctx.tools` | `tool/call` | - | - |',
   '| `@deepseek-ai/dsh-tool-fs` | `edit`, `read`, `read_image`, `write` | `ctx.tools` | `tool/call` | - | - |',
   '| `@deepseek-ai/dsh-tool-subagent` | `subagent` | `ctx.tools` | `tool/call` | `subagent_fork` | - |',
   '| `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools` | `tool/call` | - | - |',
@@ -166,6 +167,54 @@ describe('findToolRefViolations', () => {
     expect(findToolRefViolations(CATALOG, [corpusOf('a', preset)])).toEqual([
       'presets/a.patch.yml:4: `foo_bar` is not a tool preset a mounts',
     ])
+  })
+
+  it('reports a gate prerequisite no mounted package registers', () => {
+    // A prerequisite that names nothing denies the guarded call in every session
+    // while the declaration still reads as valid YAML, so it resolves here too.
+    const preset = [
+      FS_PRESET,
+      "    - name: '@deepseek-ai/dsh-patent-document'",
+      "    - name: '@deepseek-ai/dsh-patent-rule'",
+      '      config:',
+      '        deliveryGate:',
+      "          - tool: 'render_patent_document'",
+      '            requires: [write, matter_log_appends]',
+      '',
+    ].join('\n')
+    expect(findToolRefViolations(CATALOG, [corpusOf('a', preset)])).toEqual([
+      'presets/a.patch.yml: deliveryGate.requires names matter_log_appends, which preset a does not mount',
+    ])
+  })
+
+  it('accepts a gate whose guarded tool and prerequisites are all mounted', () => {
+    const preset = [
+      FS_PRESET,
+      "    - name: '@deepseek-ai/dsh-patent-document'",
+      "    - name: '@deepseek-ai/dsh-patent-rule'",
+      '      config:',
+      '        deliveryGate:',
+      "          - tool: 'render_patent_document'",
+      '            requires: [write, edit]',
+      '',
+    ].join('\n')
+    expect(findToolRefViolations(CATALOG, [corpusOf('a', preset)])).toEqual([])
+  })
+
+  it('ignores a gate a row the preset disables declares', () => {
+    // A disabled row contributes no tools and no gate: the plugin never applies,
+    // so judging its declaration would report a gate that cannot exist.
+    const preset = [
+      FS_PRESET,
+      "    - name: '@deepseek-ai/dsh-patent-rule'",
+      '      disabled: true',
+      '      config:',
+      '        deliveryGate:',
+      "          - tool: 'render_patent_document'",
+      '            requires: [write]',
+      '',
+    ].join('\n')
+    expect(findToolRefViolations(CATALOG, [corpusOf('a', preset)])).toEqual([])
   })
 
   it('fails loud on an empty catalog package map', () => {

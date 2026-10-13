@@ -201,6 +201,60 @@ describe('PatentWorkflow service', () => {
     }
   })
 
+  it('轮次上限封顶：第 maxRounds+1 次反馈把计划收在终态并回报耗尽', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      const agent = makeAgent('plantask-cap')
+      for (const [idx, feedback] of ['第1次', '第2次', '第3次'].entries()) {
+        await ctx.patentWorkflow.runPlantask(agent, 'case-cap', [`步骤${idx + 1}`], { autoApprove: false })
+        const rejected = ctx.patentWorkflow.reject('case-cap', feedback)
+        expect(rejected.state).toBe('replanning')
+        expect(rejected.roundCapExhausted).toBeUndefined()
+      }
+
+      await ctx.patentWorkflow.runPlantask(agent, 'case-cap', ['步骤4'], { autoApprove: false })
+      const capped = ctx.patentWorkflow.reject('case-cap', '第4次')
+      expect(capped.state).toBe('finished')
+      expect(capped.roundCapExhausted).toBe(true)
+      expect(capped.approvalOutcome).toBe('rejected')
+
+      // 封顶时登记清零：同一案卷可重新起一轮。
+      const again = await ctx.patentWorkflow.runPlantask(agent, 'case-cap', ['步骤5'], { autoApprove: false })
+      expect(again.state).toBe('awaiting_approval')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('maxRounds 为 0 时首次反馈直接收在终态', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow, { maxRounds: 0 })
+    try {
+      const agent = makeAgent('plantask-cap-zero')
+      await ctx.patentWorkflow.runPlantask(agent, 'case-zero', ['步骤A'], { autoApprove: false })
+      const capped = ctx.patentWorkflow.reject('case-zero', '不批')
+      expect(capped.state).toBe('finished')
+      expect(capped.roundCapExhausted).toBe(true)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('approve 不受轮次上限影响', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow, { maxRounds: 0 })
+    try {
+      const agent = makeAgent('plantask-cap-approve')
+      await ctx.patentWorkflow.runPlantask(agent, 'case-approve', ['步骤A'], { autoApprove: false })
+      const approved = ctx.patentWorkflow.approve('case-approve')
+      expect(approved.state).toBe('executing')
+      expect(approved.roundCapExhausted).toBeUndefined()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('approve/reject on a case without a pending plantask throw', async () => {
     const ctx = new Context()
     await ctx.plugin(PatentWorkflow)

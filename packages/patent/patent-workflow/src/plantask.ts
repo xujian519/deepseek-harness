@@ -5,8 +5,13 @@
  *   - 白名单迁移矩阵，非法迁移抛错（fail-closed）
  *   - 计划步骤哈希化映射为任务 + blockedBy 顺序依赖
  *   - 反馈 → 重规划 → 哈希比对已完成步骤 → 增量续跑（只执行未完成步骤）
+ *   - 语义守卫读案卷问题条目与轮次上限：未闭合的阻塞条目拦住派工，终态条目与
+ *     已达上限的轮次把本轮收在终态
  */
 
+import { openBlockingIssues, openTerminalIssues, roundCapReached, type DocketIssue } from './docket-issue.ts'
+
+/** 计划状态机的状态；合法迁移见 {@link TRANSITIONS}。 */
 export type PlanTaskState =
   | 'planning'
   | 'awaiting_approval'
@@ -47,6 +52,20 @@ export type PlanTaskTransitionContext = {
   tasks?: readonly PlanTask[]
   /** 重规划反馈（to=replanning 时必需且非空：反馈驱动重规划）。 */
   feedback?: string
+  /**
+   * 案卷当前的问题条目。省略表示该案卷未登记条目，守卫不据此拒绝；给出时按
+   * 不变量拒绝派工与重规划。
+   */
+  issues?: readonly DocketIssue[]
+  /** 已完成的规划轮次（与 maxRounds 同时给出时校验轮次上限）。 */
+  rounds?: number
+  /** 允许的规划轮次上限。 */
+  maxRounds?: number
+}
+
+/** 守卫拒绝串里列出的条目 id。 */
+function issueIds(issues: readonly DocketIssue[]): string {
+  return issues.map(issue => issue.id).join(', ')
 }
 
 /**
@@ -54,10 +73,21 @@ export type PlanTaskTransitionContext = {
  * 数据表驱动，新增状态守卫无需改动 transition 本体。
  */
 const SEMANTIC_GUARDS: Partial<Record<PlanTaskState, (ctx: PlanTaskTransitionContext) => string | undefined>> = {
-  executing: ctx =>
-    ctx.tasks !== undefined && ctx.tasks.length > 0 ? undefined : 'executing 前必须先 sync 计划步骤（tasks 非空）',
-  replanning: ctx =>
-    ctx.feedback !== undefined && ctx.feedback.trim() !== '' ? undefined : 'replanning 必须有反馈（feedback 非空）',
+  executing: (ctx) => {
+    if (ctx.tasks === undefined || ctx.tasks.length === 0) return 'executing 前必须先 sync 计划步骤（tasks 非空）'
+    const blocking = openBlockingIssues(ctx.issues ?? [])
+    if (blocking.length > 0) return `executing 前必须先闭合阻塞条目：${issueIds(blocking)}`
+    return undefined
+  },
+  replanning: (ctx) => {
+    if (ctx.feedback === undefined || ctx.feedback.trim() === '') return 'replanning 必须有反馈（feedback 非空）'
+    const terminal = openTerminalIssues(ctx.issues ?? [])
+    if (terminal.length > 0) return `存在升级为终态的条目，本轮只能收在终态：${issueIds(terminal)}`
+    if (ctx.rounds !== undefined && ctx.maxRounds !== undefined && roundCapReached(ctx.rounds, ctx.maxRounds)) {
+      return `规划轮次已达上限 ${ctx.maxRounds}，本轮只能收在终态`
+    }
+    return undefined
+  },
 }
 
 /** 计划状态机：只允许白名单内迁移，并强制迁移前置条件（语义守卫）。 */

@@ -6,7 +6,7 @@
 
 ## 挂载内容
 
-除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 另挂载 14 个插件——专利域的服务与工具，以及专利技能会调用的文献与方法学两行（装配清单见 `presets/patent.patch.yml`）：
+除专利作业所需的标准编码行（shell、文件、jobs、提醒、skills、goals 与 `/goal` 命令、计划模式、压缩、委托、web，以及告诉模型今天日期的时钟行）外，本 preset 另挂载 14 个插件——专利域的服务与工具，以及专利技能会调用的文献与方法学两行（装配清单见 `presets/patent.patch.yml`）：
 
 - `@deepseek-ai/dsh-patent-data` — 数据接缝（ctx.patentData：nuo 检索 provider 工厂 + ego-browser 会话运行器 + CNIPR 通道；本 preset 经 `cniprEnabled` 打开该通道，用 ego lite 在 search.cnipr.com 的登录态取中国专利全文与法律状态）。patent_pdf_download 经该服务运行其 ego-browser 下载适配器，中国公开(公告)号走 CNIPR 通道；patent_legal_status 把引擎答不出的号经该通道重查一次。
 - `@deepseek-ai/dsh-patent-knowledge` — knowledge.db 查询服务（ctx.patentKnowledge：caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify）。
@@ -22,6 +22,8 @@
 - `@deepseek-ai/dsh-writing-patterns` — 基于随包撰写/答复模式语料的 query_writing_patterns，以及承载编译后 `<writing_skills>` 块的系统提示段。
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
 - `@deepseek-ai/dsh-methodology` — triz 工具。
+
+相对 `standard` 携带的行集，本 preset 有意省略三行——`tool-plugin-market`、`present` 与 `tool-plugin-manager`。三者都属部署面或 UI 面，不是办案的一步：交付物由 `render_patent_document` / `build_patent_filing` 声明，交付前置门禁把它们扣在规则检查、法条核验与本轮留档（`matter_log_append`）上，另开一条声明通道就会落在那道门禁之外。`scripts/preset-mode-baseline.json` 逐条记下理由，并把每个交付型模式扣在同一份共享行集上。
 
 专利服务放在 isolate 领域（patentData / patentKnowledge / patentWorkflow / patentTeams）内，与 patent-tools 共享该领域，使后者的 ctx.get('patentData') / ctx.get('patentKnowledge') 解析到本 preset 的实例而非宿主实例。省略 tool-ralph（一个案子用 goal / todo / workflow，而非 fresh-agent 迭代）；tool-web 开启 fetch，因为所有发货组合都挂载 http fetch provider（`dsh-base` 以 `fetchProvider: http` 组合 `dsh-web-fetch-http`，且没有任何 bundle 禁用它），先验证后引用因此可以打开来源页核验，而不是只信摘要。
 
@@ -71,7 +73,7 @@ OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openv
 
 ## Model Experience
 
-模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、`patent-law` 按本部署 Config 渲染的 cnlaw 声明段（端点，或本部署没有底座的声明）、15 个预设内技能，以及专利工具（含 `law_verify`，其描述写明未核验的条文永不报成已核验；含 `patent_fees`，按随包金额计价案件应缴的费种，仅在某适用项没有金额时才拒绝给出合计）加标准编码工具。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
+模型看到：中文专利代理人设（专业身份、九条作业纪律、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、`patent-law` 按本部署 Config 渲染的 cnlaw 声明段（端点，或本部署没有底座的声明）、15 个预设内技能，以及专利工具（含 `law_verify`，其描述写明未核验的条文永不报成已核验；含 `patent_fees`，按随包金额计价案件应缴的费种，仅在某适用项没有金额时才拒绝给出合计）加标准编码工具。人设只承载身份、九条纪律与案型路由；通道调用式、检索式与引用格式都在路由行点名的技能里，只有案子真的载入该技能时才付这部分成本，且 `scripts/preset-mode-baseline.json` 给人设正文设了上限，增长必须是一次有意的改动。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
 
 ## Known Limitations and Deferred Work
 

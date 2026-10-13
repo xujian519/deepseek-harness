@@ -352,7 +352,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-patent-rule` | yes | Patent compliance rule engine and output gates for the DeepSeek Harness: YAML rule packs, evaluation, EVI-011 evidence guards, and post-execute gating |
 | `@deepseek-ai/dsh-patent-teams` | yes | Durable multi-agent team capability for patent workflow: captain-led teams, dependency-aware tasks, mailbox messaging, and an event-driven shared-task scheduler, surfaced as the patent_teams_* tools. |
 | `@deepseek-ai/dsh-patent-tools` | yes | Model-facing patent tool set for the DeepSeek Harness: search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart, drafting, evidence judgment, rule check, and the workflow/plan tools, ported from Sati |
-| `@deepseek-ai/dsh-patent-workflow` | no | Patent execution pipeline: workflow/plantask state machine with HITL approval wiring for the DeepSeek Harness |
+| `@deepseek-ai/dsh-patent-workflow` | yes | Patent execution pipeline: workflow/plantask state machine with HITL approval wiring for the DeepSeek Harness |
 | `@deepseek-ai/dsh-tool-literature` | yes | Model-facing literature tools for the DeepSeek Harness: arXiv, OpenAlex, Semantic Scholar, and Crossref connectors |
 | `@deepseek-ai/dsh-writing-patterns` | yes | Writing-pattern library for patent drafting and office-action replies for the DeepSeek Harness: a packaged YAML pattern corpus with lexical search and match, a deterministic <writing_skills> compiler, the four-dimension quality evaluation, a system-prompt section, and the query_writing_patterns tool |
 

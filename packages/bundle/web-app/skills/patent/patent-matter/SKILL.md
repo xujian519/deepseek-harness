@@ -11,7 +11,7 @@ description: 专利案件管理：七级工作目录 + 两个跟踪文件、L1�
 
 1. 目录：`patent-workspace/<案号>/` 下建七级目录（`00-交底书` / `01-检索` / `02-对比文件` / `03-分析` / `04-撰写` / `05-答复` / `99-知识库`；目录命名与落盘规则详见 patent-workspace-layout 技能），加 `_case-registry.md` 与 `_matter-log.md` 两个跟踪文件。
 2. 注册：`_case-registry.md` 追加一行（案号、状态、阶段产物索引）。
-3. 初始化事件日志 `_matter-log.md`，首行记录建案（时间、动作=建案、产物=目录骨架、审批人=用户）。
+3. 初始化事件日志 `_matter-log.md`：`matter_log_append({case_dir, action: '建案', artifacts: [案件目录], changes: '建案，交底书已入 00-交底书/。', approver: '用户'})`——日志由该工具独占写入，首次调用即建案。
 4. 建案即生成 `_checklist.md`，按案型勾选（见下表）：勾选即证据，未勾选项不得进入交付。
 
 ## 案件检查单（`_checklist.md`）
@@ -26,7 +26,7 @@ description: 专利案件管理：七级工作目录 + 两个跟踪文件、L1�
 | 撰写 | 要素拆分、权利要求布局（HITL）、说明书五部分、validate_specification | `03-分析/`、`04-撰写/` |
 | 收口 | `patent_workflow_run`（按案型 manifest）留下 stage 记录 | 工作流 run 记录 |
 | 闸门 | `rule_check`（patent-compliance-review）+ 法条/日期/数字核验（patent-fact-check） | 门禁结论 |
-| 交付 | patent-quality-gate 通过、`render_patent_document` 渲染、`_matter-log.md` 登记、工作台桥接 | `05-交付/` 或对应目录产物 |
+| 交付 | patent-quality-gate 通过、`render_patent_document` 渲染、`matter_log_append` 登记（含取代链）、工作台桥接 | `05-交付/` 或对应目录产物 |
 
 案型差异：答复案把"撰写"换成 OA 解析 + 逐权项修改对照（`patent_oa_response_v1`）；检索/无效/复审/侵权案把"撰写"换成对应技能的分析流程与要素级比对，收口用该案型 manifest；补正案无 manifest 入口，以替换页逐项核验清单替代收口行。
 
@@ -45,16 +45,20 @@ description: 专利案件管理：七级工作目录 + 两个跟踪文件、L1�
 
 ## 事件日志（_matter-log.md，只追加）
 
-每条记录字段：时间（ISO）/ 动作（建案/检索/分析/撰写/门禁/交付/归档）/ 产物（文件路径）/ 审批人（ask_user_question 确认者）/ 备注（可选）。
+日志的唯一写入口是 `matter_log_append({case_dir, action, artifacts, changes, supersedes?, approver?})`，条目字段由它固定，不手写日志行。
+
+- `action` 取 建案/检索/分析/撰写/门禁/修订/交付/归档；`changes` 写清本轮改了什么、为什么、是否影响保护点——这就是交付回合要交代的留档内容。
+- `artifacts` 是本轮产物（须已存在，日志记事实不记计划）；撰写/修订轮必须用新路径另存新文件，禁止覆盖上一轮。
+- `supersedes` 显式登记本轮产物取代的既有文件：一个旧版只能有一个取代者（取代链不得分叉），被取代的旧版先归档，再让新路径成为读者打开的那一份。
+- 条目只追加：既有行不改写；发现记录错误时追加更正行（`action=修订`，在 `changes` 里写明更正了什么）。
+- 交付前置门禁要求本会话成功留档过，才允许 `render_patent_document` / `build_patent_filing`——未留档的回合交付不了件。
 
 示例：
 
 ```
-2026-08-19T21:00:00+08:00 | 建案 | patent-workspace/CN2026-0001/ 目录骨架 | 用户 | 交底书已入 00-交底书/
-2026-08-19T21:15:00+08:00 | 检索 | 01-检索/2026-08-19_硅基负极.md | 用户(检索式确认) | 命中 D1/D2
+2026-08-19T21:00:00+08:00 | UTC 2026-08-19T13:00:00.000Z | 建案 | 产物 patent-workspace/CN2026-0001/ | 取代 — | 用户 | 建案，交底书已入 00-交底书/
+2026-08-19T21:15:00+08:00 | UTC 2026-08-19T13:15:00.000Z | 检索 | 产物 01-检索/2026-08-19_硅基负极.md | 取代 — | 用户(检索式确认) | 三通道检索完成，命中 D1/D2，未覆盖清单见文末
 ```
-
-禁止覆写或删除历史行；发现记录错误追加更正行。
 
 ## 审计链
 
@@ -67,4 +71,5 @@ description: 专利案件管理：七级工作目录 + 两个跟踪文件、L1�
 
 - 一个案子注册一个 goal（跨轮持续推进）。
 - 流水线阶段用 todo 跟踪，阶段产物即 todo 完成标准。
+- 个人工作台桥接：用户的工作台（侧边栏「工作台」：日历/任务树/知识库/日报周报）挂载时，建案后或用户要求把案件纳入工作台时调用 `workbench_link_patent_case(caseNumber=案号)` 幂等桥接——根任务=案号、L1–L5 阶段子任务（`source=patent`），阶段状态按 `_matter-log.md` 投影。投影是单向的：案件状态的唯一事实源仍是 `_matter-log.md` 与案卷文件，不得经工作台反向改写；工作台通用协作规则（草稿确认、AI 验收闭环、任务共享记忆、排程提案）以插件注入的工作台指南段为准，其中执行完成一律提交验收申请，不得直接把任务标记为完成/取消。
 - 关键 HITL 点（按 persona 纪律 6，非穷举）：检索式确认（L2 前，见 patent-prior-art-search）、权利要求布局确认（L3 plan-mode 获批时）、答复策略确认（L4）、无效理由组合确认（L5，见 patent-invalidity）、交付放行确认（门禁后，见 patent-quality-gate）。

@@ -140,4 +140,10 @@ export interface PlantaskRunResult {
   toRun: string[]
   approvalOutcome?: PatentApprovalOutcome
   feedback?: string
+  /**
+   * The plan reached a terminal state because the case's planning rounds hit
+   * `Config.maxRounds`: the feedback could not drive another replanning round.
+   * Absent on every other outcome.
+   */
+  roundCapExhausted?: boolean
 }

@@ -6,7 +6,22 @@ import {
   hashStep,
   replanTasks,
   syncPlanToTasks,
+  type DocketIssue,
 } from '@deepseek-ai/dsh-patent-workflow'
+
+/** 一条 open 条目；默认不阻塞，按用例逐项改档位。 */
+function issue(overrides: Partial<DocketIssue> = {}): DocketIssue {
+  return {
+    id: 'issue-1',
+    summary: '示例',
+    kind: 'machine_format',
+    disposition: 'application_fix',
+    status: 'open',
+    blocking: 'none',
+    round_opened: 1,
+    ...overrides,
+  }
+}
 
 describe('plantask state machine', () => {
   it('follows the allowed transition chain', () => {
@@ -45,6 +60,50 @@ describe('plantask state machine', () => {
     expect(() => sm.transition('replanning', { feedback: '   ' })).toThrow(PlanTaskSemanticError)
     sm.transition('replanning', { feedback: '对比文件 D3 需纳入' })
     expect(sm.state).toBe('replanning')
+  })
+
+  it('blocking 禁止派工：存在未闭合的阻塞条目时拒绝进入 executing', () => {
+    const tasks = syncPlanToTasks(['步骤A']).tasks
+    const blocked = new PlanTaskStateMachine('awaiting_approval')
+    expect(() => blocked.transition('executing', { tasks, issues: [issue({ blocking: 'blocking' })] }))
+      .toThrow(/executing 前必须先闭合阻塞条目：issue-1/)
+
+    // 升级为终态的条目同属未闭合的阻塞条目，同样拦住派工。
+    const terminal = new PlanTaskStateMachine('awaiting_approval')
+    expect(() => terminal.transition('executing', { tasks, issues: [issue({ blocking: 'terminal' })] }))
+      .toThrow(/issue-1/)
+
+    // 条目闭合后放行；未登记条目与不阻塞的条目不拦。
+    const closed = new PlanTaskStateMachine('awaiting_approval')
+    closed.transition('executing', { tasks, issues: [issue({ blocking: 'blocking', status: 'closed' })] })
+    expect(closed.state).toBe('executing')
+
+    const unregistered = new PlanTaskStateMachine('awaiting_approval')
+    unregistered.transition('executing', { tasks, issues: [issue()] })
+    expect(unregistered.state).toBe('executing')
+
+    const noDocket = new PlanTaskStateMachine('awaiting_approval')
+    noDocket.transition('executing', { tasks })
+    expect(noDocket.state).toBe('executing')
+  })
+
+  it('轮次上限封顶：已达上限的反馈只能收在终态，不再重规划', () => {
+    const capped = new PlanTaskStateMachine('awaiting_feedback')
+    expect(() => capped.transition('replanning', { feedback: '再改一版', rounds: 3, maxRounds: 3 }))
+      .toThrow(/规划轮次已达上限 3，本轮只能收在终态/)
+
+    const underCap = new PlanTaskStateMachine('awaiting_feedback')
+    underCap.transition('replanning', { feedback: '再改一版', rounds: 2, maxRounds: 3 })
+    expect(underCap.state).toBe('replanning')
+
+    // 终态条目也拦住重规划：本轮只能收在终态。
+    const terminal = new PlanTaskStateMachine('awaiting_feedback')
+    expect(() => terminal.transition('replanning', {
+      feedback: '再改一版',
+      rounds: 0,
+      maxRounds: 3,
+      issues: [issue({ blocking: 'terminal' })],
+    })).toThrow(/存在升级为终态的条目，本轮只能收在终态：issue-1/)
   })
 
   it('syncPlanToTasks builds ordered task list with blockedBy dependencies', () => {

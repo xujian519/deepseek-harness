@@ -1,0 +1,98 @@
+{
+  "authority": "standard.patch.yml",
+  "modes": {
+    "cordis.patch.yml": {
+      "class": "utility"
+    },
+    "document.patch.yml": {
+      "class": "delivery",
+      "personaMaxChars": 1820,
+      "requiredRows": [
+        "persona",
+        "agent-instructions",
+        "time-context",
+        "tool-bash",
+        "tool-pwsh",
+        "tool-fs",
+        "tool-fs-search",
+        "tool-jobs",
+        "tool-schedule",
+        "skill-filesystem",
+        "tool-skill",
+        "command-goal",
+        "tool-goal",
+        "planning",
+        "plan-mode",
+        "compaction",
+        "compaction-basic",
+        "command-compact",
+        "tool-result-pruner",
+        "delegation",
+        "tool-subagent-control",
+        "tool-subagent-list-agents",
+        "tool-subagent",
+        "tool-subagent-fork",
+        "workflow-ptc",
+        "tool-workflow",
+        "tool-ask-user",
+        "tool-todo",
+        "tool-web"
+      ],
+      "explainedAbsences": {
+        "tool-plugin-market": "Read-only plugin catalog browsing over the host `pluginMarket` service. Installing or removing a plugin is a deployment action taken through the `dsh plugin` CLI, not a step of producing a document.",
+        "present": "`present` declares an arbitrary accessible file as a deliverable for the client UI. This mode declares its deliverables through `document_deliver`, which carries the deterministic check results the document studio renders; a second declaration channel would split that state.",
+        "tool-plugin-manager": "The plugin-manager tools write profile configuration; the host patch ships this row disabled and a document delivery has no profile-editing step.",
+        "openviking": "Opt-in external memory over an HTTP service this composition does not run. The row is carried by `standard` alone; a document delivery is grounded in the files and sources the user supplies, not in recalled session history."
+      }
+    },
+    "minimal.patch.yml": {
+      "class": "utility"
+    },
+    "patent.patch.yml": {
+      "class": "delivery",
+      "personaMaxChars": 12000,
+      "requiredRows": [
+        "persona",
+        "agent-instructions",
+        "time-context",
+        "tool-bash",
+        "tool-pwsh",
+        "tool-fs",
+        "tool-fs-search",
+        "tool-jobs",
+        "tool-schedule",
+        "skill-filesystem",
+        "tool-skill",
+        "command-goal",
+        "tool-goal",
+        "planning",
+        "plan-mode",
+        "compaction",
+        "compaction-basic",
+        "command-compact",
+        "tool-result-pruner",
+        "delegation",
+        "tool-subagent-control",
+        "tool-subagent-list-agents",
+        "tool-subagent",
+        "tool-subagent-fork",
+        "workflow-ptc",
+        "tool-workflow",
+        "tool-ask-user",
+        "tool-todo",
+        "tool-web"
+      ],
+      "explainedAbsences": {
+        "tool-plugin-market": "Read-only plugin catalog browsing over the host `pluginMarket` service. Installing or removing a plugin is a deployment action for the firm's operator, not a step of prosecuting a case.",
+        "present": "`present` declares an arbitrary accessible file as a deliverable for the client UI. This mode declares its deliverables through `render_patent_document` and `build_patent_filing`, both of which the delivery gate holds to the rule and citation runs; a second declaration channel would sit outside that gate.",
+        "tool-plugin-manager": "The plugin-manager tools write profile configuration; the host patch ships this row disabled and a patent filing has no profile-editing step."
+      }
+    },
+    "ptc.patch.yml": {
+      "class": "utility"
+    },
+    "standard.patch.yml": {
+      "class": "utility"
+    }
+  }
+}
