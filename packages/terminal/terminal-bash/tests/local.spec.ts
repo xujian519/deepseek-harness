@@ -98,6 +98,24 @@ async function waitForOutput(operation: TerminalSendOperation, expected: string,
   expect(output).toContain(expected)
 }
 
+// A sent operation stops collecting output at its settle, which a loaded host
+// reaches before the child's own output lands: an `inferred_idle` settle keeps
+// only the command echo, and the /dev/tty case settles on the read its child
+// blocks in right after printing. Retained scrollback is appended for every
+// delivered chunk, so these cases wait for the rendered line there instead of
+// in the settled window.
+async function waitForRendered(
+  ctx: Context, agent: Agent, sessionId: TerminalSessionId, expected: string, timeoutMs = 20_000,
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs
+  let text = ''
+  while (!text.includes(expected) && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 100))
+    text = ctx.terminals.read(agent, sessionId, { offset: 0, count: 40 }).text
+  }
+  return text
+}
+
 // A send the test interrupts settles when bash returns to its prompt, so the
 // kernel may publish the foreground handoff on either side of the silence
 // bound. `handoffGraceMs` widens the window that wins the exact attribution but
@@ -180,24 +198,25 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
   }, 20_000)
 
   it.skipIf(process.platform !== 'linux')('recognizes a foreground read opened through /dev/tty', async () => {
-    // The child is a second `bash -c` spawn, so the shared 2s `waitForOutput`
-    // window sizes its first print for an idle host. The bounds move together,
-    // as that helper's own note requires: the silence tier stays above the
-    // window, so an inference cannot settle the send before a late print lands,
-    // and the send bound stays above the tier, so that settle is reached
-    // instead of rejected.
+    // The child is a second `bash -c` spawn, so its first print needs the slack
+    // of a loaded host. The bounds move together: the silence tier stays above
+    // that print, so a late print still lands before an inference settles the
+    // send, and the send bound stays above the tier, so a host that never sees
+    // the read reaches that settle instead of a rejected send.
     const { ctx, root, agent } = await harness('danger-full-access', {
       idleSilenceMs: 10_000,
       timeoutMs: 15_000,
     })
     const created = await ctx.terminals.spawn(agent, { type: 'shell' })
     const readerPidFile = join(root, 'tty-reader.pid')
+    const ready = 'WAITING'
+    // The interactive shell echoes the submitted line, so the marker is spliced
+    // in the command: only the child's own print can contain it.
+    const command = `bash -c 'exec </dev/tty; printf "%s" "$BASHPID" > "$1"; printf "WAIT%s\\n" ING; read -r answer; printf "ANSWER=%s\\n" "$answer"' dsh "${readerPidFile}"`
+    expect(command).not.toContain(ready)
 
-    const waiting = ctx.terminals.startSend(agent, created.sessionId, {
-      text: `bash -c 'exec </dev/tty; printf "%s" "$BASHPID" > "$1"; printf "WAITING\\n"; read -r answer; printf "ANSWER=%s\\n" "$answer"' dsh "${readerPidFile}"`,
-      submit: true,
-    })
-    await waitForOutput(waiting, 'WAITING', 8_000)
+    const waiting = ctx.terminals.startSend(agent, created.sessionId, { text: command, submit: true })
+    expect(await waitForRendered(ctx, agent, created.sessionId, ready, 8_000)).toContain(ready)
     const result = await waiting.done
     const readerPid = Number(readFileSync(readerPidFile, 'utf8'))
     expect(readerPid).toBeGreaterThan(0)
@@ -328,23 +347,6 @@ const hasPwsh = spawnSync(
 ).status === 0
 
 describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
-  // A send settles inferred_idle when the 3000ms silence bound elapses. On a
-  // loaded CI host the command echo resets the silence clock, and the execution
-  // output alone can miss the bound — the settle snapshot then holds only the
-  // echo. Poll the live scrollback instead, so the assertion waits for the
-  // rendered line rather than the timing window.
-  async function waitForRendered(
-    ctx: Context, agent: Agent, sessionId: TerminalSessionId, expected: string, timeoutMs = 20_000,
-  ): Promise<string> {
-    const deadline = Date.now() + timeoutMs
-    let text = ''
-    while (!text.includes(expected) && Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      text = ctx.terminals.read(agent, sessionId, { offset: 0, count: 40 }).text
-    }
-    return text
-  }
-
   it.each([false, true])('bootstraps a persistent pwsh, persists state, and scrubs secrets (hold command: %s)', async (holdCommand) => {
     const previous = process.env.DSH_TEST_SECRET
     process.env.DSH_TEST_SECRET = 'must-not-leak'
