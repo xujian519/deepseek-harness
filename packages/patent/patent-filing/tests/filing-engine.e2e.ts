@@ -117,9 +117,10 @@ describe.skipIf(interpreter === undefined)('filing engine end to end', () => {
     ])
     expect(built.figures).toHaveLength(2)
     expect(built.templateStyle).toMatchObject({ sectionCount: 5, sizePt: 12, lineSpacing: 1.5 })
-    // 说明书共 6 个段落（5 个正文段 + 1 个表题段）：只有正文段进入 [NNNN] 序列，
-    // 表题段不编号也不占号（D8 统一规则；修复前这里会得到 6）。
-    expect(built.numberingTotal).toBe(5)
+    // spec 的说明书节声明 numbering: none（《专利法实施细则》第二十条不要求段落编号下的
+    // 体例选择），故说明书各段不写 [NNNN]，编号总数为 0。段落本身照写：5 个正文段、
+    // 1 个表题段，外加表格。
+    expect(built.numberingTotal).toBe(0)
     await expect(readFile(built.docxPath)).resolves.toBeInstanceOf(Buffer)
 
     const verifyOptions: VerifyEngineOptions = { ...common }

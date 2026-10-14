@@ -57,6 +57,6 @@ describe('packaged assets', () => {
     // 段落编号连续性断言曾因 spec 缺 continuity 键而成为死代码；这里钉住它保持生效。
     expect(spec.assertions.continuity).toBe(true)
     expect(spec.assertions.numbering_pattern).toBe('^\\[(\\d{4})\\]')
-    expect(spec.style).toMatchObject({ size_pt: 12, line_spacing: 1.5, first_line_indent: 0 })
+    expect(spec.style).toMatchObject({ size_pt: 12, line_spacing: 1.5, first_line_indent: 24 })
   })
 })
