@@ -16,7 +16,7 @@ const DESCRIPTION = [
   '把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。',
   '草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure、五部分 sections 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。',
   '正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。',
-  '说明书段落编号由本工具按 spec 顺序写入；正文里已带 `[NNNN]` 的会先剥后写，编号与段落顺序不一致会报错而不是静默覆盖。',
+  '说明书是否写 `[NNNN]` 段落编号由 spec 的 numbering 声明决定：声明 paragraph 时按 spec 顺序写入，正文里已带编号的先剥后写、与段落顺序不一致会报错而不是静默覆盖；随包 spec 声明 none，说明书不写段落编号——没有法条要求它。',
   '附图按图序传入 draft.figureFiles，其中 draft.abstractFigure 指定的那张（缺省第 1 张）进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。',
 ].join(' ')
 

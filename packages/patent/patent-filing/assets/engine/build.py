@@ -24,6 +24,11 @@
       "abstractFigureIndex": 0
     }
 
+``spec`` 可选键 ``specification_title`` 声明说明书名称的取法（``from`` 取 content 的哪个序列、
+``pattern`` 的第 1 个捕获组即名称、``max_chars`` 上限、``section`` 落在哪一节）：给出时在该节
+最前面写名称行（左右居中、显式零缩进）并在其后空一行，名称行不占段落编号
+（《专利审查指南》第一部分第一章 4.2）。
+
 ``abstractFigureIndex`` 是可选字段：声明 ``figure_index_from`` 的单图节（本 spec 的「摘要附图」）
 按它取图，缺省回落到 spec 的 ``figure_index``。
 
@@ -57,21 +62,30 @@ CAPTION_PATTERN = re.compile(r"^表 \d+ · ")
 
 # --------------------------------------------------------------------------- 体例原语
 
-def _pPr(style: dict, align: str | None = None):
-    """段落属性：对齐 + 行距 + 首行缩进，全部取自模板反解的体例。"""
+def _pPr(style: dict, align: str | None = None, indent: bool = True):
+    """段落属性：行距 + 首行缩进 + 对齐，全部取自模板反解的体例。
+
+    子元素顺序遵循 ECMA-376 的 ``CT_PPr`` 序列（spacing → ind → jc）。此前把 ``w:jc``
+    写在最前，schema 层不合规；Word 的容错度本机无从实测，不该由成品来赌。
+
+    ``indent=False`` 写**显式零缩进**：模板 Normal 样式自带
+    ``<w:ind w:firstLine="560" w:firstLineChars="200"/>``，整段不写 ``w:ind`` 的段落会
+    继承该值而被静默推右，故顶格段（如说明书名称行）必须显式写 0。
+    """
     pPr = OxmlElement("w:pPr")
-    if align:
-        jc = OxmlElement("w:jc")
-        jc.set(qn("w:val"), align)
-        pPr.append(jc)
     sp = OxmlElement("w:spacing")
     sp.set(qn("w:line"), str(int(round(style["line_spacing"] * 240))))
     sp.set(qn("w:lineRule"), "auto")
     pPr.append(sp)
     ind = OxmlElement("w:ind")
-    ind.set(qn("w:firstLine"), str(int(round(style["first_line_indent"] * 20))))
+    ind.set(qn("w:firstLine"),
+            str(int(round(style["first_line_indent"] * 20))) if indent else "0")
     ind.set(qn("w:firstLineChars"), "0")
     pPr.append(ind)
+    if align:
+        jc = OxmlElement("w:jc")
+        jc.set(qn("w:val"), align)
+        pPr.append(jc)
     return pPr
 
 
@@ -94,9 +108,10 @@ def _rPr(style: dict, bold: bool = False, size_pt: float | None = None):
     return rPr
 
 
-def paragraph(style: dict, text: str = "", *, bold=False, align=None, size_pt=None):
+def paragraph(style: dict, text: str = "", *, bold=False, align=None, size_pt=None,
+              indent=True):
     p = OxmlElement("w:p")
-    p.append(_pPr(style, align))
+    p.append(_pPr(style, align, indent))
     if text:
         run = OxmlElement("w:r")
         run.append(_rPr(style, bold, size_pt))
@@ -108,9 +123,20 @@ def paragraph(style: dict, text: str = "", *, bold=False, align=None, size_pt=No
     return p
 
 
-def table(style: dict, rows: list[list[str]]):
+def table(style: dict, rows: list[list[str]], width_twips: int | None = None):
+    """一个表格：网格定义 + 表宽 + 全框线 + 首行表头。
+
+    ``w:tblGrid`` 是 Word 与 python-docx 都读的网格定义（缺它时 python-docx 取
+    ``table.columns`` 直接抛 ``InvalidXmlError``），按等宽列写入；``width_twips`` 给出时
+    同时写表宽（``w:tblW``）。
+    """
     tbl = OxmlElement("w:tbl")
     pr = OxmlElement("w:tblPr")
+    if width_twips is not None and rows:
+        tbl_w = OxmlElement("w:tblW")
+        tbl_w.set(qn("w:w"), str(int(width_twips)))
+        tbl_w.set(qn("w:type"), "dxa")
+        pr.append(tbl_w)
     borders = OxmlElement("w:tblBorders")
     for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
         e = OxmlElement(f"w:{side}")
@@ -120,6 +146,20 @@ def table(style: dict, rows: list[list[str]]):
         borders.append(e)
     pr.append(borders)
     tbl.append(pr)
+    if rows:
+        columns = len(rows[0])
+        grid = OxmlElement("w:tblGrid")
+        if width_twips is not None and columns:
+            base, rest = divmod(int(width_twips), columns)
+            widths = [base] * columns
+            widths[-1] += rest
+        else:
+            widths = [0] * columns
+        for width in widths:
+            col = OxmlElement("w:gridCol")
+            col.set(qn("w:w"), str(width))
+            grid.append(col)
+        tbl.append(grid)
     for r_i, row in enumerate(rows):
         tr = OxmlElement("w:tr")
         for cell in row:
@@ -200,7 +240,10 @@ class Template:
 
     def add_picture(self, anchor, image: Path, width_cm: float, style: dict):
         holder = OxmlElement("w:p")
-        holder.append(_pPr(style, "center"))
+        # 图片段写**显式零缩进**：居中内容若带首行缩进，渲染器会把整幅图右移一个缩进量。
+        # t63 受控 A/B（同一份 docx，只把含 w:drawing 的段落 firstLine 480→0）：LibreOffice
+        # 实测图位 x 由 123.05 pt 变为 99.05 pt，差值恰为 24.00 pt（＝480 twips）。
+        holder.append(_pPr(style, "center", indent=False))
         self.insert(anchor, holder)
         Paragraph(holder, self.doc).add_run().add_picture(str(image), width=Cm(width_cm))
 
@@ -278,7 +321,83 @@ def validate_spec(spec: dict, content: dict) -> re.Pattern:
                     raise SystemExit(
                         f"spec {where} 的 content 节点 kind {node.get('kind')!r} 未定义；可用：{'、'.join(NODE_KINDS)}"
                     )
+    title = spec.get("specification_title")
+    if title is not None:
+        if not isinstance(title, dict):
+            raise SystemExit("spec 的 specification_title 不是对象")
+        for key in ("from", "pattern"):
+            if key not in title:
+                raise SystemExit(f"spec 的 specification_title 缺 {key}")
+        if title["from"] not in content:
+            raise SystemExit(
+                f"spec 的 specification_title.from {title['from']!r} 不在 content 里"
+            )
+        try:
+            title_pattern = re.compile(title["pattern"])
+        except re.error as exc:
+            raise SystemExit(f"spec 的 specification_title.pattern 不是合法正则：{exc}")
+        if title_pattern.groups != 1:
+            raise SystemExit("spec 的 specification_title.pattern 必须恰好含 1 个捕获组")
+        index = next(
+            (i for i, sec in enumerate(spec["sections"])
+             if sec["key"] == title.get("section", "specification")),
+            None,
+        )
+        if index is None:
+            raise SystemExit(
+                f"spec 的 specification_title.section {title.get('section', 'specification')!r}"
+                " 不在 spec 的节里"
+            )
     return numbering
+
+
+def specification_title(spec: dict, content: dict) -> str | None:
+    """说明书名称（spec 声明 ``specification_title`` 时），否则 ``None``。
+
+    名称由 ``pattern`` 的第 1 个捕获组决定，取自 ``from`` 指明的正文序列的第 1 项——本 spec
+    取权利要求第 1 项，使**说明书名称与权利要求 1 的主题名称必然一致**（《专利法实施细则》
+    第二十条第一款要求名称与请求书一致，这里是它的可执行化）。取不到、为空或超过
+    ``max_chars`` 一律报错：名称是法定记载事项，不能静默回落成"没有名称"。
+
+    Args:
+        spec: 文书 spec。
+        content: 结构化内容模型。
+
+    Returns:
+        名称文本；spec 未声明该键时 ``None``。
+    """
+    rule = spec.get("specification_title")
+    if rule is None:
+        return None
+    source = content[rule["from"]]
+    first = source[0] if source else ""
+    found = re.compile(rule["pattern"]).search(first)
+    if found is None:
+        raise SystemExit(
+            f"spec 的 specification_title.pattern {rule['pattern']!r} 在 "
+            f"content.{rule['from']}[0] {first[:40]!r} 上不匹配，说明书名称无法确定"
+        )
+    title = found.group(1).strip()
+    limit = int(rule.get("max_chars", 25))
+    if not title or len(title) > limit:
+        raise SystemExit(
+            f"说明书名称 {title!r} 为空或超过 spec 声明的 max_chars={limit}，"
+            "请核对 spec.specification_title"
+        )
+    return title
+
+
+def table_width_twips(doc) -> int:
+    """文档首节的版心宽度（twips）：页宽减左右页边距；取不到时 0。
+
+    1 twip = 635 EMU；模板实测 11906 − 1800 × 2 = 8306。
+    """
+    try:
+        section = doc.sections[0]
+        usable = section.page_width - section.left_margin - section.right_margin
+    except (IndexError, TypeError, ValueError):
+        return 0
+    return int(usable // 635) if usable else 0
 
 
 def build(spec: dict, content: dict, template_path: Path, out_path: Path) -> dict:
@@ -306,6 +425,9 @@ def build(spec: dict, content: dict, template_path: Path, out_path: Path) -> dic
     upstream_seen = 0
     upstream_mismatch: list[str] = []
     heading_bold = spec["heading_bold"]
+    title = specification_title(spec, content)
+    title_section = (spec.get("specification_title") or {}).get("section", "specification")
+    table_width = table_width_twips(tpl.doc)
 
     for i, sec in enumerate(spec["sections"]):
         anchor = tpl.clear(i)
@@ -318,10 +440,16 @@ def build(spec: dict, content: dict, template_path: Path, out_path: Path) -> dic
                 added["paragraphs"] += 1
 
         elif kind == "mixed":
+            if title is not None and sec["key"] == title_section:
+                # 《审查指南》第一部分第一章 4.2：说明书第一页第一行写明发明名称（左右居中、
+                # 前面不冠"名称"字样），名称与正文之间空一行；名称行不占段落编号。
+                tpl.insert(anchor, paragraph(style, title, align="center", indent=False))
+                tpl.insert(anchor, paragraph(style, ""))
+                added["paragraphs"] += 1
             for node in content[sec["from"]]:
                 node_kind = node["kind"]
                 if node_kind == "table":
-                    tpl.insert(anchor, table(style, node["rows"]))
+                    tpl.insert(anchor, table(style, node["rows"], table_width))
                 elif node_kind in ("h3", "h4"):
                     tpl.insert(anchor, paragraph(style, node["text"], bold=heading_bold))
                 else:

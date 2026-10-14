@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: b9159d1c7f5f1fe1
-  zh: ba3fa23589c5d9b7
+  en: 4e97db90a9598dc8
+  zh: 0bc8228ffb8071a2
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -450,11 +450,11 @@
   en: b4acc0441e4efa93
   zh: b4acc0441e4efa93
 /tool-schema-catalog/deepseek-ai-dsh-patent-filing/build-patent-filing:
-  en: 730ec97ed58d4925
-  zh: db546744c8b9bf97
+  en: 435fea8683730031
+  zh: 36742517bb6179bc
 /tool-schema-catalog/deepseek-ai-dsh-patent-filing/verify-patent-filing:
-  en: 6dfbaea8b51a15a0
-  zh: 6762e8e486219b22
+  en: 42af27bdf1f67f71
+  zh: 66c8d548ebb1c494
 /tool-schema-catalog/deepseek-ai-dsh-patent-deadline:
   en: ba0d1ad10812e2db
   zh: ba0d1ad10812e2db

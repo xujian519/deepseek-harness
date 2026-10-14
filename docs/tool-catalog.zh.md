@@ -54,7 +54,7 @@
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
 | `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`matter_log_append`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`、`verify_deliverable` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
-| `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`、`verify_patent_filing` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）按随包模板的体例成文为一件 DOCX，并按顺序重写源稿的段落编号；verify_patent_filing 就同一模板对成品跑体例与内容断言（分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、权项数、编号连续性、残留内部痕迹）。 |
+| `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`、`verify_patent_filing` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）按随包模板的体例成文为一件 DOCX，段落编号按 spec 的节声明执行；verify_patent_filing 就同一模板对成品跑体例与内容断言（分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、说明书名称、权项数、按节声明生效的编号连续性、残留内部痕迹）。 |
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计。 |
@@ -6286,7 +6286,7 @@ render_patent_document renders patent deliverables (claims/specification/search 
 
 ### `build_patent_filing`
 
-把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure、五部分 sections 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书段落编号由本工具按 spec 顺序写入；正文里已带 `[NNNN]` 的会先剥后写，编号与段落顺序不一致会报错而不是静默覆盖。 附图按图序传入 draft.figureFiles，其中 draft.abstractFigure 指定的那张（缺省第 1 张）进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
+把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure、五部分 sections 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书是否写 `[NNNN]` 段落编号由 spec 的 numbering 声明决定：声明 paragraph 时按 spec 顺序写入，正文里已带编号的先剥后写、与段落顺序不一致会报错而不是静默覆盖；随包 spec 声明 none，说明书不写段落编号——没有法条要求它。 附图按图序传入 draft.figureFiles，其中 draft.abstractFigure 指定的那张（缺省第 1 张）进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
 
 ```json
 {
@@ -6321,7 +6321,7 @@ render_patent_document renders patent deliverables (claims/specification/search 
 
 ### `verify_patent_filing`
 
-对一件申请文件 .docx 跑体例与内容断言：分节数、各节页眉、行距、首行缩进、字号、是否出现非黑色文字（Word 内置标题样式会带蓝色）、说明书五部分是否齐备、权利要求项数、`[NNNN]` 段落编号是否从 1 起连续、各节实际承载的段落与图片数、以及内部复核痕迹是否清除。 同时核对成品体例与模板反解体例是否一致——模板漂移会报错。 这些是模型看不出来的静默缺陷，交付前必须跑；断言不通过时 `errors` 逐条给出实测值。
+对一件申请文件 .docx 跑体例与内容断言：分节数、各节页眉、行距、首行缩进（图片段与说明书名称行按顶格核对）、字号、是否出现非黑色文字（Word 内置标题样式会带蓝色）、说明书五部分是否齐备、说明书名称（spec 声明 specification_title 时：首行等于权利要求 1 的主题名称、左右居中、其后空一行）、每一节是否都承载了内容（空节意味着内容没落进那一节，而分节数、页眉与编号连续性都不会报）、权利要求项数、`[NNNN]` 段落编号是否从 1 起连续（按 spec 的 numbering 声明生效，没有节声明编号时该断言无主体）、各节实际承载的段落与图片数、以及内部复核痕迹是否清除。 同时核对成品体例与模板反解体例是否一致——模板漂移会报错。 这些是模型看不出来的静默缺陷，交付前必须跑；断言不通过时 `errors` 逐条给出实测值。
 
 ```json
 {
@@ -6340,7 +6340,7 @@ render_patent_document renders patent deliverables (claims/specification/search 
 
 来源：[`packages/patent/patent-filing/src/index.ts`](../packages/patent/patent-filing/src/index.ts)
 
-build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）成文为一件 DOCX，其体例由随包模板反解而来，并按顺序重写源稿的段落编号；verify_patent_filing 就同一模板对成品跑断言——分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、各节是否都承载了内容、权项数、编号连续性与残留的内部痕迹。
+build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）成文为一件 DOCX，其体例由随包模板反解而来，段落编号按 spec 的节声明执行；verify_patent_filing 就同一模板对成品跑断言——分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、说明书名称、各节是否都承载了内容、权项数、按节声明生效的编号连续性与残留的内部痕迹。
 
 <a id="deepseek-aidsh-patent-deadline"></a>
 

@@ -739,7 +739,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(PatentFiling, { pythonPath: process.execPath })
     },
     note:
-      'build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, rewriting source paragraph numbers in order; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, claim count, continuous numbering, and surviving internal marks.',
+      'build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, with paragraph numbering following the spec\'s per-section declaration; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, the specification title, claim count, numbering continuity where a section declares it, and surviving internal marks.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-deadline',
