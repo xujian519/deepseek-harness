@@ -101,7 +101,7 @@ async function fixture(external: boolean) {
   return { root, appDir, source, resources, config, context, names }
 }
 
-async function packageFixture(input: Awaited<ReturnType<typeof fixture>>) {
+async function packageFixture(input: Awaited<ReturnType<typeof fixture>>, omit: ReadonlySet<string> = new Set()) {
   const destination = join(input.resources, 'app')
   const matchers = getFileMatchers(input.config, 'asarUnpack', destination, {
     defaultSrc: input.appDir, globalOutDir: dirname(input.resources), customBuildOptions: {},
@@ -120,9 +120,12 @@ async function packageFixture(input: Awaited<ReturnType<typeof fixture>>) {
     }
   }
   await visit(mapping.from)
+  // The application's own mappings drop the packages it deploys beside the archive.
+  const archived = files.filter(file => !omit.has(file))
   await new AsarPackager({ info: { getWorkspaceRoot: async () => input.root } }, {
     defaultDestination: destination, resourcePath: input.resources, options: {}, unpackPattern: matchers[0]!.createFilter(),
-  }).pack([{ src: mapping.from, destination: join(destination, 'dsh'), files, metadata }])
+  }).pack([{ src: mapping.from, destination: join(destination, 'dsh'), files: archived,
+    metadata: new Map([...metadata].filter(([file]) => !omit.has(file))) }])
 }
 
 it.each([false, true])('unpacks PE files through builder source patterns (external=%s)', async (external) => {
@@ -375,4 +378,51 @@ it.skipIf(process.platform === 'win32')('rejects group-only executable files who
   const expected = await seal(input)
   await packageFixture(input)
   await expect(verifyRuntimeArchive(join(input.resources, 'app.asar'), expected)).rejects.toThrow('ASAR integrity')
+})
+
+/**
+ * Place the Office engine's PE file in the prepared tree and, when requested, beside the archive.
+ * @param input - Packaged fixture whose archive omits the engine, as the application's mappings do.
+ * @param beside - Whether the deployment places the prepared bytes beside the archive.
+ * @returns The engine's prepared path relative to the dsh root.
+ */
+async function officeEngine(
+  input: Awaited<ReturnType<typeof fixture>>,
+  beside: 'identical' | 'changed' | 'absent',
+) {
+  const engine = join('node_modules', '@deepseek-ai', 'libreoffice-kit-win32-x64', 'bin', 'libreoffice-kit.exe')
+  const prepared = join(input.source, engine)
+  await mkdir(dirname(prepared), { recursive: true })
+  const pe = Buffer.alloc(128)
+  pe.writeUInt16LE(0x5a4d, 0)
+  pe.writeUInt32LE(64, 0x3c)
+  pe.writeUInt32LE(0x4550, 64)
+  await writeFile(prepared, pe)
+  await packageFixture(input, new Set([prepared]))
+  if (beside === 'absent') return engine
+  const placed = join(input.resources, engine)
+  await mkdir(dirname(placed), { recursive: true })
+  await writeFile(placed, beside === 'changed' ? 'changed' : pe)
+  return engine
+}
+
+it('collects the Office engine among the PE files it verifies', async () => {
+  const input = await fixture(false)
+  const engine = await officeEngine(input, 'absent')
+  // The engine sits in the prepared tree, so collection sees it even though the
+  // application's mappings keep it out of the archive.
+  expect(await prepareWindowsAsarUnpack(input.context, input.source)).toContain(engine)
+})
+
+it('accepts the Office engine the application deploys beside the archive', async () => {
+  const input = await fixture(false)
+  const engine = await officeEngine(input, 'identical')
+  await expect(verifyWindowsAsarUnpack(input.source, input.resources, [engine])).resolves.toBeUndefined()
+})
+
+it.each(['absent', 'changed'] as const)('rejects the Office engine when it is %s beside the archive', async (state) => {
+  const input = await fixture(false)
+  const engine = await officeEngine(input, state)
+  await expect(verifyWindowsAsarUnpack(input.source, input.resources, [engine]))
+    .rejects.toThrow(state === 'absent' ? 'absent from the application' : 'beside-archive PE bytes changed')
 })

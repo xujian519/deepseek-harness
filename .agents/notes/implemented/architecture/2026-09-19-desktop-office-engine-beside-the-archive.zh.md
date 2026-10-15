@@ -37,11 +37,13 @@ Office 预览在打包应用中可用；源码安装不受影响。
 
 引擎包退出归档的完整性记录。它在 macOS 上仍是已签名的运行时文件，仍在运行时描述符的最终清单里，并由安装包检查器与准备输入比对。
 
-fork 与上游的分叉体现在两处 `files` 过滤器、`resources/node_modules` 映射、macOS 签名器忽略清单，以及检查器的归档旁清单合并。引擎的解析走的是从归档向父目录的 Node 遍历，因此未来 Electron 或 Node 若改变归档路径解析，最先失效的会是这一处放置。
+fork 与上游的分叉体现在两处 `files` 过滤器、`resources/node_modules` 映射、macOS 签名器忽略清单，以及两个检查器各自应用的归档旁处理：运行时清单比对与 Windows ASAR 解包检查。引擎的解析走的是从归档向父目录的 Node 遍历，因此未来 Electron 或 Node 若改变归档路径解析，最先失效的会是这一处放置。
 
 ## Testing
 
 `npx vitest run apps/desktop/tests/macos-signature.spec.ts apps/desktop/tests/installed-update-package-content.spec.ts` 钉住排除过滤器、资源映射、签名器忽略项，以及「包交付在归档旁边」时的运行时比对，包括字节被改与包缺失两种情况。
+
+`npx vitest run apps/desktop/tests/windows-asar-unpack.spec.ts` 为 Windows PE 文件钉住同一处放置：解包检查接受归档省略、而其准备字节原样位于归档旁的引擎，同时仍然拒绝内联、链接、缺失或字节被改的文件。
 
 一次打包的 macOS arm64 目录构建（未签名，对已准备的目标树执行 `electron-builder --dir`）在 `ELECTRON_RUN_AS_NODE=1` 下通过打包的 kit 转换一个真实 DOCX：引擎解析到 `Contents/Resources/node_modules/@deepseek-ai/libreoffice-kit-darwin-arm64`，转换产出的 PDF 与仓库自带引擎完全相同的 355612 字节。改动前的包对同一探针报告 `Installed LibreOfficeKit executable is not executable`。
 
