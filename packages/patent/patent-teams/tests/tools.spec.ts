@@ -5,6 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import { describe, expect, it, vi } from 'vitest'
 import { TeamApprovalError } from '../src/approval.ts'
 import { registerPatentTeamsTools, type PatentTeamsToolOptions } from '../src/tools.ts'
@@ -354,7 +355,7 @@ describe('patent_teams_wait', () => {
 describe('approval gates', () => {
   /** An approval service whose request resolves with `outcome`. */
   function answerWith(outcome: 'allowed-once' | 'rejected' | 'cancelled') {
-    const request = vi.fn(async () => outcome)
+    const request = vi.fn(async (_ask: ApprovalRequest) => outcome)
     return { request }
   }
 
@@ -372,13 +373,13 @@ describe('approval gates', () => {
 
     await tools.get('patent_teams_create')!.execute({ name: 'Alpha', description: 'goal' } as never, call)
 
-    expect(approval.request).toHaveBeenCalledWith(expect.objectContaining({
-      agent: call.agent,
-      toolName: 'patent_teams_create',
-      callId: 'call-1',
-      reason: expect.stringContaining('创建专利团队「Alpha」（目标：goal）'),
-      signal: call.signal,
-    }))
+    expect(approval.request).toHaveBeenCalledTimes(1)
+    const asked = approval.request.mock.calls[0]![0]
+    expect(asked.agent).toBe(call.agent)
+    expect(asked.toolName).toBe('patent_teams_create')
+    expect(asked.callId).toBe('call-1')
+    expect(asked.reason).toContain('创建专利团队「Alpha」（目标：goal）')
+    expect(asked.signal).toBe(call.signal)
     expect(service.create).toHaveBeenCalledWith(call.agent, 'Alpha', 'goal')
   })
 
