@@ -6,6 +6,9 @@
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
+    - tab "Deliverables"
+    - tab "Board"
+    - tab "Teams"
 - navigation "Turn navigation":
   - button "Jump to turn 1"
   - button "Jump to turn 2"
