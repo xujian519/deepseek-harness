@@ -5068,11 +5068,18 @@ describe('PythonPtcRuntime — hostile peer', () => {
     // check complete (~460 MB alone) and report output-limit. On Darwin (no
     // RLIMIT_AS) the value is over budget too, so output-limit holds either way;
     // the OOM the reorder prevents is the Linux-only failure.
+    //
+    // `maxWallMs` is 120s, not the 20s this case alone needs: writing and returning
+    // ~33M astral chars costs 19.3s on the coverage lane's four-core hosted runner,
+    // leaving 0.7s of headroom, so load that adds more than that reported `timeout`
+    // instead of the memory verdict. The ceiling is a hang detector, not a speed
+    // claim, and it stays under the case budget below, so an overrun still reports
+    // `output-limit` rather than Vitest's timeout.
     const { runtime } = await setup({
       maxLogBytes: 32 * 1024 * 1024,
       maxValueBytes: 32 * 1024 * 1024,
       addressSpaceMb: 512,
-      maxWallMs: 20_000,
+      maxWallMs: 120_000,
     })
     const result = await runtime.run(runtime.resolve({
       program: [
@@ -5083,7 +5090,7 @@ describe('PythonPtcRuntime — hostile peer', () => {
       bindings: [],
     }))
     expect(result.error?.kind).toBe('output-limit')
-  }, 30_000)
+  }, 180_000)
 
   it('checks and encodes a wide completion value in O(depth), not O(width)', async () => {
     // A wide flat list serializes to ~2 bytes per element but the pre-fix walk
