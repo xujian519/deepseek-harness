@@ -31,11 +31,14 @@ import {
   teamLockKey,
   withTeamLock,
 } from './team-lock.ts'
+import type { TeamActivity } from './team-activity.ts'
 import type { TeamMember, TeamTask } from './types.ts'
 
 /** Scheduler configuration: where team state lives on disk. */
 export interface SchedulerConfig {
   readonly stateDir: string
+  /** Waiter registry woken on every member status edge this scheduler mirrors. */
+  readonly activity: TeamActivity
 }
 
 /** The team scheduler: serialized, ready-work dispatch to idle members. */
@@ -343,6 +346,7 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
       if (current.status === next) return
       current.status = next
       await writeTeam(stateRoot, fresh)
+      config.activity.notify(fresh.id)
     })
     if (status === 'idle') await runtime.kickMember(workspace, member.teamId, member.memberName)
   }

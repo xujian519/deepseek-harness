@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 4e97db90a9598dc8
-  zh: 0bc8228ffb8071a2
+  en: 639b93a1386dcc35
+  zh: 271f6342079b1ca6
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -519,11 +519,14 @@
   en: 82f5302f6d7de6fc
   zh: 82f5302f6d7de6fc
 /tool-schema-catalog/deepseek-ai-dsh-patent-teams/patent-teams-status:
-  en: 0c3d3a118212c439
-  zh: 0c3d3a118212c439
+  en: 4e07f0050ec84b2d
+  zh: 4e07f0050ec84b2d
 /tool-schema-catalog/deepseek-ai-dsh-patent-teams/patent-teams-update-task:
-  en: 346ec6dcbbf5acb3
-  zh: f164f97ee966ceef
+  en: c454acac58bb8d88
+  zh: c454acac58bb8d88
+/tool-schema-catalog/deepseek-ai-dsh-patent-teams/patent-teams-wait:
+  en: 5c4142708fac223b
+  zh: eab9c149345927fc
 /tool-schema-catalog/deepseek-ai-dsh-tool-working-directory:
   en: 1bdc4627ca4fff29
   zh: 1bdc4627ca4fff29

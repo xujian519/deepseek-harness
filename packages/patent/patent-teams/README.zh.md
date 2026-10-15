@@ -24,7 +24,7 @@ kind: "package-reference"
 ## 挂载内容
 
 - `ctx.patentTeams` — `PatentTeamsService`：团队增删改查、带 attempt 撤销的任务状态机、成员生命周期（spawn/interrupt/retire）、邮箱持久化、删除时归档、调度器 kick。
-- 十一个 `patent_teams_*` 工具：`create`、`add_member`、`remove_member`、`create_task`、`reassign_task`、`claim_task`、`update_task`、`send_message`、`status`、`archive`、`delete`。
+- 十二个 `patent_teams_*` 工具：`create`、`add_member`、`remove_member`、`create_task`、`reassign_task`、`claim_task`、`update_task`、`send_message`、`wait`、`status`、`archive`、`delete`。
 - 一段系统提示用法段落（`patent-teams:usage`，默认 order 117），教授队长协议。
 
 <a id="configuration"></a>
@@ -63,7 +63,7 @@ kind: "package-reference"
 
 #### 模型所见
 
-插件挂载时，用法段落是固定的系统提示贡献，另加[工具目录](../../../docs/tool-catalog.zh.md)中的十一个工具 schema。
+插件挂载时，用法段落是固定的系统提示贡献，另加[工具目录](../../../docs/tool-catalog.zh.md)中的十二个工具 schema。
 
 ##### 本字段逐字文本（如需）
 
@@ -72,17 +72,17 @@ When the user asks to run something with PatentTeams (e.g. "use PatentTeams to d
 1. Call patent_teams_create with a team name and the goal as description. You become the captain and may lead one team at a time.
 2. Call patent_teams_add_member once per role the goal needs (researcher, engineer, reviewer, ...). Members are durable subagents: they wait for your messages, then work a full turn. By default a member on your current provider/model snapshots your current reasoning effort; a member routed to a different provider or model automatically uses that target model's default effort. Never ask the user to choose these per member; only pass provider/model when the user explicitly requests a different route for that role, and reasoning_effort only when the user explicitly requests a particular effort ("default" explicitly selects the target model's default).
 3. Break the goal into tasks with patent_teams_create_task and wire dependencies. Assign role-specific work when useful; unassigned ready work belongs to the shared pool. The scheduler automatically claims one ready task for each truly idle member and wakes it, including across later rounds.
-4. Lead by delegation: monitor with patent_teams_status, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Do not duplicate a teammate's work merely because its turn is slow.
+4. Lead by delegation: assign work with patent_teams_create_task, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Then wait with patent_teams_wait and re-read patent_teams_status when it returns — the wait blocks until a task moves, a teammate reports, or a member starts or stops working, so never sleep, poll, or loop on status to pass the time. Do not duplicate a teammate's work merely because its turn is slow.
 5. If work is blocked, stale, or needs takeover, always call patent_teams_reassign_task first. Reassign to another idle member, or use assignee=captain before doing it yourself. Reassignment revokes the old attempt and waits for that member to quiesce, preventing late results from overwriting the new attempt.
-6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Poll status until every required task is terminal and every member is idle/ready.
+6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Keep dispatching and waiting until every required task is terminal and every member is idle/ready.
 7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it. Deleted teams stay reviewable read-only through patent_teams_archive.
 
-Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_status, patent_teams_archive, patent_teams_delete
+Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_wait, patent_teams_status, patent_teams_archive, patent_teams_delete
 ```
 
 #### Token 影响
 
-固定：一个用法段落（约 2.4 KB）加十一个工具 schema。数据相关部分（团队状态载荷、任务指派提示、成员报告）有界：状态渲染最多 10 条邮箱警告，任务输出在状态与归档渲染中截断至 300 字符，收件箱预览 200。
+固定：一个用法段落（约 2.7 KB）加十二个工具 schema。数据相关部分（团队状态载荷、任务指派提示、成员报告）有界：状态渲染最多 10 条邮箱警告，任务输出在状态与归档渲染中截断至 300 字符，收件箱预览 200。
 
 #### KV Cache 影响
 
@@ -95,6 +95,7 @@ Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member,
 - **单进程串行** — 状态为文件持久化，在单个 DSH 进程内串行操作；多进程同时修改同一团队不保证一致。成员状态观察者维护进程内成员索引（由 `add_member`、`remove_member`、`delete` 维护），无关代理的状态事件不再触发状态目录全量扫描。
 - **一队长一活跃团队** — 队长须先结束当前团队才能创建新团队。
 - **实时投递尽力而为** — 接收方代理离线时消息留存在邮箱，在下一状态边界重试。
+- **等待限于本进程** — `patent_teams_wait` 只观察本进程广播的变化，其他 DSH 进程改动团队时，等待方只能在自己的超时点上醒来。等待本身没有持久状态：调用随进程结束，无论如何都要在返回后重读团队状态。
 
 ### 开发备注
 

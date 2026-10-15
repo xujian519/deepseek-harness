@@ -1,4 +1,4 @@
-// Tool registration: all eleven patent_teams_* tools register through a stub
+// Tool registration: all twelve patent_teams_* tools register through a stub
 // tools registry and route parsed args to a fake service; render output is
 // asserted directly, including the rich status snapshot text.
 import { Context } from '@deepseek-ai/cordis'
@@ -26,6 +26,7 @@ function makeService() {
     claimTask: vi.fn(async () => ({ task_id: 't1', status: 'claimed', assignee: 'alice', attempt: 1, attempt_id: 'a1' })),
     updateTask: vi.fn(async () => ({ task_id: 't1', status: 'completed', output: 'done', attempt: 1, attempt_id: 'a1' })),
     sendMessage: vi.fn(async () => ({ message_id: 'm1', from: 'alice', to: 'captain', delivered: 'mailbox' })),
+    wait: vi.fn(async () => ({ timed_out: false })),
     status: vi.fn(async () => sampleStatus()),
     archive: vi.fn(async () => sampleArchiveDetail()),
     delete: vi.fn(async () => ({ deleted: true, team_name: 'Alpha' })),
@@ -106,6 +107,7 @@ describe('registerPatentTeamsTools', () => {
       'patent_teams_claim_task',
       'patent_teams_update_task',
       'patent_teams_send_message',
+      'patent_teams_wait',
       'patent_teams_status',
       'patent_teams_archive',
       'patent_teams_delete',
@@ -304,5 +306,39 @@ describe('registerPatentTeamsTools', () => {
       task_id: 't1', status: 'completed', attempt: 1, gate_rejections: 2, output: 'done',
     }).map(block => block.text).join('\n')
     expect(text).toContain('累计被打回 2 次')
+  })
+})
+
+describe('patent_teams_wait', () => {
+  it('defaults the timeout and forwards the caller to the service', async () => {
+    const ctx = new Context()
+    const service = makeService()
+    const tools = register(ctx, service)
+    const signal = new AbortController().signal
+    const agent = makeAgent()
+    const result = await tools.get('patent_teams_wait')!.execute({} as never, { agent, signal })
+    expect(service.wait).toHaveBeenCalledWith(agent, 30_000, signal)
+    expect(result).toEqual({ timed_out: false })
+    expect(tools.get('patent_teams_wait')!.output.render({}, result)[0]!.text)
+      .toBe('Team change observed. Re-read patent_teams_status for the authoritative state.')
+  })
+
+  it('forwards an explicit timeout', async () => {
+    const ctx = new Context()
+    const service = makeService()
+    const tools = register(ctx, service)
+    await tools.get('patent_teams_wait')!.execute(
+      { timeout_ms: 600_000 } as never,
+      { agent: makeAgent(), signal: new AbortController().signal },
+    )
+    expect(service.wait).toHaveBeenCalledWith(expect.anything(), 600_000, expect.anything())
+  })
+
+  it('explains a timeout as a decision point, not a reason to wait again', async () => {
+    const tool = register(new Context(), makeService()).get('patent_teams_wait')!
+    const [rendered] = tool.output.render({}, { timed_out: true })
+    expect(rendered!.text).toContain('No team change within the wait window')
+    expect(tool.parameters).toHaveProperty('properties.timeout_ms')
+    expect(tool.description).toContain('Captain only')
   })
 })

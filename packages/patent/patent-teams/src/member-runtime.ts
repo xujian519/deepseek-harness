@@ -25,6 +25,7 @@ import {
 import type { TeamScheduler } from './scheduler.ts'
 import { CAPTAIN_KEY, invalidateTaskAttempt, recordRetiredMemberIds, writeTeam } from './state.ts'
 import { captainTeam, freshCaptainTeam, requireAddableMember, requireMember } from './team-access.ts'
+import type { TeamActivity } from './team-activity.ts'
 import { sanitizeKey, teamLockKey, withTeamLock } from './team-lock.ts'
 import type { TeamMember, TeamState } from './types.ts'
 
@@ -49,6 +50,8 @@ export interface MemberOpsHost {
   readonly maxMembers: number
   /** Scheduler that dispatches work the roster change leaves ready. */
   readonly scheduler: TeamScheduler
+  /** Waiter registry woken after each committed roster change. */
+  readonly activity: TeamActivity
 }
 
 /** Arguments of one `patent_teams_add_member` call. */
@@ -182,6 +185,7 @@ export async function addMember(
         name: member.name,
         ...member.role !== undefined ? { role: member.role } : {},
       })
+      host.activity.notify(fresh.id)
       return {
         member_name: member.name,
         member_id: member.id,
@@ -245,6 +249,7 @@ export async function removeMember(
       teamId: PatentTeamsTeamId(fresh.id),
       memberId: SessionId(member.id),
     })
+    host.activity.notify(fresh.id)
     return { member: { ...member }, requeued }
   })
   // v8 ignore next -- every persisted member was spawned, so the id is never empty

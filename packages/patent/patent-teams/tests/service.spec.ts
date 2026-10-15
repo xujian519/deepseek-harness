@@ -1343,3 +1343,58 @@ describe('role contract and quality gate', () => {
     expect(team?.tasks[0]?.status).toBe('completed')
   })
 })
+
+describe('wait', () => {
+  it('wakes the captain as soon as a task is created', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    const pending = h.ctx.patentTeams.wait(captain, 60_000, new AbortController().signal)
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search' })
+    await expect(pending).resolves.toEqual({ timed_out: false })
+  })
+
+  it('wakes the captain when a member reports status', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    const pending = h.ctx.patentTeams.wait(captain, 60_000, new AbortController().signal)
+    const alice = fakeAgent('member-1', h.workspace)
+    h.ctx.emit('agent/status', { agent: alice, status: 'running' })
+    await expect(pending).resolves.toEqual({ timed_out: false })
+  })
+
+  it('reports a timeout when nothing changes', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await expect(h.ctx.patentTeams.wait(captain, 10_000, new AbortController().signal))
+      .resolves.toEqual({ timed_out: true })
+  }, 20_000)
+
+  it('rejects an out-of-range timeout without waiting', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await expect(h.ctx.patentTeams.wait(captain, 9_999, new AbortController().signal))
+      .rejects.toThrow('timeout_ms must be an integer from 10000 through 3600000')
+    await expect(h.ctx.patentTeams.wait(captain, 3_600_001, new AbortController().signal))
+      .rejects.toThrow('timeout_ms must be an integer from 10000 through 3600000')
+  })
+
+  it('fails loud for a caller without a team', async () => {
+    const h = await makeService()
+    await expect(h.ctx.patentTeams.wait(fakeAgent('stranger', h.workspace), 10_000, new AbortController().signal))
+      .rejects.toThrow()
+  })
+
+  it('rejects a member caller, which the scheduler wakes instead', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await expect(h.ctx.patentTeams.wait(fakeAgent('member-1', h.workspace), 10_000, new AbortController().signal))
+      .rejects.toThrow()
+  })
+})

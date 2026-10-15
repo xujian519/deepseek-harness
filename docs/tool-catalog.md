@@ -55,7 +55,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`, `tool/result` | - | law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted. |
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section. |
-| `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
+| `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task`, `patent_teams_wait` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-working-directory` | `working_directory` | `ctx.tools`, `ctx.workingDirectory` | `tool/call`, `working-directory/change`, `user context for directory changes`, `tool/result` | - | Reads or changes the calling Session directory. Existing shells and processes retain their own directories; origin metadata and permission roots stay fixed. |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | `create_worktree` | `ctx.tools`, `ctx.worktrees`, `a calling Agent` | `tool/call`, `Git branch and checkout`, `working-directory/change`, `tool/result` | - | Explicit experimental composition only. Creates a new branch and checkout from a pinned local commit under existing write permissions, then changes the Session directory. Leaving retains the branch and checkout. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
@@ -7026,7 +7026,7 @@ Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-
 
 ### `patent_teams_status`
 
-Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Poll this to watch progress.
+Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Read it before dispatching and again after patent_teams_wait returns; it is a point-in-time snapshot, so never poll it in a loop.
 
 ```json
 {
@@ -7071,6 +7071,24 @@ Update a task status/output. Members must supply the current attempt_id returned
   "required": [
     "task_id"
   ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_wait`
+
+Wait until the team's next change — a task transition, a teammate report, a roster change, or a member starting or stopping work — and return as soon as it happens. Captain only. After every dispatch, call this once instead of polling: it blocks until work moves, so a timeout means nothing moved in that window (dispatch, take over, or ask the user — do not wait again for the same thing). It never wakes a member. Team state is durable and authoritative: re-read patent_teams_status when the wait returns.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "timeout_ms": {
+      "type": "integer",
+      "description": "Wait duration in milliseconds, from 10000 through 3600000. Defaults to 30000."
+    }
+  }
 }
 ```
 

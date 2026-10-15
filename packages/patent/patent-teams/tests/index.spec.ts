@@ -93,6 +93,7 @@ describe('apply', () => {
       'patent_teams_claim_task',
       'patent_teams_update_task',
       'patent_teams_send_message',
+      'patent_teams_wait',
       'patent_teams_status',
       'patent_teams_archive',
       'patent_teams_delete',
@@ -102,6 +103,7 @@ describe('apply', () => {
     }
     expect(sections[0]!.text).toContain('you are the captain of a multi-agent team')
     expect(sections[0]!.text).toContain('patent_teams_reassign_task first')
+    expect(sections[0]!.text).toContain('never sleep, poll, or loop on status')
   })
 
   it('uses the default prompt-section order when not configured', () => {
