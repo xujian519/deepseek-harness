@@ -291,6 +291,19 @@ describe('patent preset composition', () => {
     expect(toolWeb?.config?.fetch).toBe(true)
   })
 
+  it('routes the team flow through the approval seam the persona names', async () => {
+    // The persona and the team skill state the two decisions the user keeps (a team is
+    // created and a case is closed only with the user); these two rows are what turns
+    // them into refusals instead of instructions, so a deployment edit that drops them
+    // would leave the discipline stated everywhere and enforced nowhere.
+    const rows = await patentRows() as Array<PresetRow & { config?: { approveCreation?: unknown; approveClosure?: unknown } }>
+    const row = rows.find(entry => entry.id === 'patent-teams')
+    expect(row?.name).toBe('@deepseek-ai/dsh-patent-teams')
+    expect(row?.disabled).toBeUndefined()
+    expect(row?.config?.approveCreation).toBe(true)
+    expect(row?.config?.approveClosure).toBe(true)
+  })
+
   it('mounts the law index checker the fact-check gate calls', async () => {
     // The persona and the fact-check / quality-gate skills instruct the model to run
     // law_verify first; without this row the tool is absent from the session.
@@ -521,6 +534,33 @@ describe('patent persona disciplines', () => {
     expect(await patentPersona()).toContain(
       '本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。',
     )
+  })
+})
+
+/**
+ * The persona's work-mode routing. The team flow is opt-in — the default is
+ * single-session execution scoped to what the user asked for — and the skill
+ * that routing names carries the confirmation points a team must keep. No
+ * recorded session replays the persona text, so these anchors are what keep a
+ * rewrite from quietly making the team the default again.
+ */
+describe('patent work-mode routing', () => {
+  it('defaults to the intent-driven flow and gates the team flow on a user instruction', async () => {
+    const persona = await patentPersona()
+    expect(persona).toContain('流程二 · 意图驱动（默认）')
+    expect(persona).toContain('流程一 · 专利团队（需用户明确指示）')
+    expect(persona).toContain('未获用户明确指示不得组建团队')
+  })
+
+  it('states the team trigger and the confirmation points in the skill it names', () => {
+    const skill = readFileSync(join(PATENT_SKILLS, 'patent-team-composition', 'SKILL.md'), 'utf8')
+    const description = /^description:\s*(.+)$/mu.exec(skill)?.[1] ?? ''
+    // The description is what the model sees before loading the skill: a team
+    // that reads as the standing route for complex cases gets built on that
+    // reading alone.
+    expect(description).toContain('仅在用户明确要求组队时使用')
+    expect(skill).toContain('## 人工确认点（captain 不得单方收口）')
+    expect(skill).toContain('组队方案先确认')
   })
 })
 

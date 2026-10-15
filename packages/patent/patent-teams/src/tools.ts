@@ -14,6 +14,7 @@ import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { defaultRoleContracts } from '@deepseek-ai/dsh-patent-workflow'
 import { callingAgent, type PatentTeamsArchive, type PatentTeamsService, type PatentTeamsStatus } from './service.ts'
+import { requireTeamApproval } from './approval.ts'
 import { TEAM_WAIT_DEFAULT_MS, TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS } from './team-activity.ts'
 
 /** Render the status snapshot as compact text for the model. */
@@ -91,26 +92,39 @@ function renderArchive(archive: PatentTeamsArchive): string {
 }
 
 /**
+ * The `Config` values this tool layer acts on. The service owns the rest of the
+ * configuration; these two decide whether a mutation asks for a user decision first.
+ */
+export interface PatentTeamsToolOptions {
+  /** Ask the approval answerers for a decision on the team plan before creating the team. */
+  readonly approveCreation: boolean
+  /** Ask for a decision before archiving the team (the captain's close of the case). */
+  readonly approveClosure: boolean
+}
+
+/**
  * Register every `patent_teams_*` tool into the shared tools registry.
  *
  * The four sections run in one fixed order: the registry emits its schemas in
  * insertion order, and that order is the catalog the model sees.
  * @param ctx - the plugin context (injects `tools`); `ctx.patentTeams` must be mounted.
+ * @param options - the approval switches this layer gates on.
  */
-export function registerPatentTeamsTools(ctx: Context): void {
+export function registerPatentTeamsTools(ctx: Context, options: PatentTeamsToolOptions): void {
   const teams: PatentTeamsService = ctx.patentTeams
-  registerTeamAndMemberTools(ctx, teams)
+  registerTeamAndMemberTools(ctx, teams, options)
   registerTaskOwnershipTools(ctx, teams)
   registerTaskAttemptTools(ctx, teams)
-  registerReportAndArchiveTools(ctx, teams)
+  registerReportAndArchiveTools(ctx, teams, options)
 }
 
 /**
  * 团队与成员装配：建队（调用方成为队长）、加成员、移成员。
  * @param ctx - the plugin context (injects `tools`).
  * @param teams - the mounted patent teams service the tools delegate to.
+ * @param options - the approval switches this layer gates on.
  */
-function registerTeamAndMemberTools(ctx: Context, teams: PatentTeamsService): void {
+function registerTeamAndMemberTools(ctx: Context, teams: PatentTeamsService, options: PatentTeamsToolOptions): void {
   ctx.tools.register(defineTool({
     name: 'patent_teams_create',
     description: 'Create a new PatentTeams team: you (the calling agent) become the captain. A captain leads one team at a time; create tasks and members afterwards with patent_teams_add_member and patent_teams_create_task.',
@@ -134,6 +148,15 @@ function registerTeamAndMemberTools(ctx: Context, teams: PatentTeamsService): vo
       }],
     },
     async execute(args, exec) {
+      if (options.approveCreation) {
+        await requireTeamApproval(ctx, {
+          agent: callingAgent(exec),
+          toolName: 'patent_teams_create',
+          callId: exec.callId,
+          reason: `创建专利团队「${args.name}」${args.description === undefined ? '' : `（目标：${args.description}）`}：团队方案（成员与任务分工）需用户确认后建队`,
+          signal: exec.signal,
+        })
+      }
       return teams.create(callingAgent(exec), args.name, args.description)
     },
   }))
@@ -352,7 +375,7 @@ function registerTaskAttemptTools(ctx: Context, teams: PatentTeamsService): void
  * @param ctx - the plugin context (injects `tools`).
  * @param teams - the mounted patent teams service the tools delegate to.
  */
-function registerReportAndArchiveTools(ctx: Context, teams: PatentTeamsService): void {
+function registerReportAndArchiveTools(ctx: Context, teams: PatentTeamsService, options: PatentTeamsToolOptions): void {
   ctx.tools.register(defineTool({
     name: 'patent_teams_send_message',
     description: 'Send a message to the captain or to a teammate. Messages go straight into the recipient\'s mailbox; when the captain agent is online the plugin also schedules live delivery (member recipients get the message as their next turn; a running captain sees it at the nearest model step). No relay is involved: teammates talk to each other directly.',
@@ -472,6 +495,15 @@ function registerReportAndArchiveTools(ctx: Context, teams: PatentTeamsService):
       }],
     },
     async execute(_args, exec) {
+      if (options.approveClosure) {
+        await requireTeamApproval(ctx, {
+          agent: callingAgent(exec),
+          toolName: 'patent_teams_delete',
+          callId: exec.callId,
+          reason: '收口并归档当前专利团队：案件交付需用户放行，队长不得单方收口',
+          signal: exec.signal,
+        })
+      }
       return teams.delete(callingAgent(exec), exec.signal)
     },
   }))

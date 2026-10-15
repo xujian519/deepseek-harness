@@ -23,6 +23,8 @@ describe('Config schema', () => {
       promptSectionOrder: 117,
       qualityGate: false,
       passThreshold: 0.7,
+      approveCreation: false,
+      approveClosure: false,
     })
   })
 
@@ -36,6 +38,8 @@ describe('Config schema', () => {
       promptSectionOrder: 5,
       qualityGate: true,
       passThreshold: 0.9,
+      approveCreation: true,
+      approveClosure: true,
     })).toEqual({
       stateDir: 'state',
       memberProvider: 'fork',
@@ -45,6 +49,8 @@ describe('Config schema', () => {
       promptSectionOrder: 5,
       qualityGate: true,
       passThreshold: 0.9,
+      approveCreation: true,
+      approveClosure: true,
     })
     expect(() => Config({ maxMembers: 0 })).toThrow()
     expect(() => Config({ memberMaxDepth: -1 })).toThrow()
