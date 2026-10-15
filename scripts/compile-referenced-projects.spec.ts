@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { aggregateCheckArgs, buildHostContracts, buildLibraryArtifacts, compileReferencedProjects } from './compile-referenced-projects.ts'
+import {
+  aggregateBuildArgs,
+  aggregateCheckArgs,
+  buildHostContracts,
+  buildLibraryArtifacts,
+  compileReferencedProjects,
+  referencedProjectsCompilerArgs,
+} from './compile-referenced-projects.ts'
 import { runCiBench } from './run-ci-bench.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 import { setPublishedFiles, writeTypertWorkspace } from './typert-workspace.fixture.ts'
@@ -315,6 +322,16 @@ describe('package project compilation', () => {
     expect(invalid.status).not.toBe(0)
     expect(invalid.stdout).toContain('aggregate.ts(1,14): error TS2322')
     expect(artifacts(leaf)).not.toEqual({})
+  })
+
+  it.each(['host', 'client'] as const)('gives every %s compile an explicit heap limit', (face) => {
+    const { root } = fixture()
+    const commands = [referencedProjectsCompilerArgs(root, face), aggregateCheckArgs(face), aggregateBuildArgs(face)]
+
+    for (const args of commands) {
+      const limits = args.filter(argument => argument.startsWith('--max-old-space-size='))
+      expect(limits, args.join(' ')).toHaveLength(1)
+    }
   })
 
   it('reports missing package declarations without compiling references', () => {
