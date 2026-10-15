@@ -109,8 +109,11 @@ export function aggregateBuildArgs(face: 'host' | 'client'): string[] {
   return [...hostHeapArgs(face), fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-b', `tsconfig.${face}.json`]
 }
 
+// The fork's Host aggregate covers its own package groups on top of the release's, and peaks near
+// 5.5 GB on a cold tree; upstream's 4096 exhausts the heap. The fork's host build face already
+// raises the same program to 6144 (package.json `build:lib:host`).
 function hostHeapArgs(face: 'host' | 'client'): string[] {
-  return face === 'host' ? ['--max-old-space-size=4096'] : []
+  return face === 'host' ? ['--max-old-space-size=6144'] : []
 }
 
 /**
