@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-15-patent-team-opt-in-approval.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-15-patent-team-opt-in-approval.md
+/agent-note-the-patent-team-flow-is-opt-in-and-creating-or-closing-a-team-is-a-user-decision:
+  en: 74c6d05a64ae9c83
+  zh: 4022ac19bcffeefa
+/agent-note-the-patent-team-flow-is-opt-in-and-creating-or-closing-a-team-is-a-user-decision/problem:
+  en: 245745059f02490f
+  zh: 8e505fbe928fbd4f
+/agent-note-the-patent-team-flow-is-opt-in-and-creating-or-closing-a-team-is-a-user-decision/decision:
+  en: 8752c2d858c27f75
+  zh: 0f44ba9d9dfa7cb0
+/agent-note-the-patent-team-flow-is-opt-in-and-creating-or-closing-a-team-is-a-user-decision/alternatives-considered:
+  en: 7f5f8054761aec5c
+  zh: 4a39746429a70a63
+/agent-note-the-patent-team-flow-is-opt-in-and-creating-or-closing-a-team-is-a-user-decision/consequences:
+  en: eec649477eda691d
+  zh: c0d1a8304645c9be
+/agent-note-the-patent-team-flow-is-opt-in-and-creating-or-closing-a-team-is-a-user-decision/deferred:
+  en: 6637f6749f71f31b
+  zh: b5eac7d88594e9d7

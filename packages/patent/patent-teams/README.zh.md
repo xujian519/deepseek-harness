@@ -39,7 +39,11 @@ kind: "package-reference"
     memberMaxDepth: 1            # member delegation depth cap (0 forbids delegation)
     maxMembers: 8                # team size cap
     promptSectionOrder: 117      # usage-section order
+    approveCreation: false       # ask the approval answerers before creating a team
+    approveClosure: false        # ask the approval answerers before archiving the team
 ```
+
+十二个工具中有两个决定的是案件本身而不是案内的工作：`patent_teams_create` 开队、`patent_teams_delete` 收口。打开 `approveCreation` 或 `approveClosure` 后，工具在改动发生前先向本部署的 `approval` 服务索取一次决策——用户决定因此站在队长与案件两端之间：队长负责推进工作，但不单方决定「该不该组队」与「案件是否做完」。请求写明工具、具体调用与理由（建队时为队名与目标，收口时为关闭案件），审计配对由审批服务自己写入。开启开关但部署没有应答者时按拒绝处理、不放行：本模块抛 `TeamApprovalError` 并点明结果（`rejected`、`cancelled` 或 `unavailable`），模型看到的是这次调用失败。两个开关默认均为 `false`；patent 预设两个都打开。
 
 <a id="state-model"></a>
 ## 状态模型
@@ -96,6 +100,7 @@ Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member,
 - **一队长一活跃团队** — 队长须先结束当前团队才能创建新团队。
 - **实时投递尽力而为** — 接收方代理离线时消息留存在邮箱，在下一状态边界重试。
 - **等待限于本进程** — `patent_teams_wait` 只观察本进程广播的变化，其他 DSH 进程改动团队时，等待方只能在自己的超时点上醒来。等待本身没有持久状态：调用随进程结束，无论如何都要在返回后重读团队状态。
+- **审批开关的可用性取决于本部署的应答者** — 打开 `approveCreation` 或 `approveClosure` 后，没有挂载应答者、或审批策略为 `never` 的部署会拒绝该调用（`unavailable` / `rejected`），而不是照旧建队或收口。这是刻意的失败关闭方向，也是两个开关出包时都关着的原因：打开开关的部署必须同时组合一个应答者。
 
 ### 开发备注
 

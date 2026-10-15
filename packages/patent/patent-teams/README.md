@@ -37,7 +37,11 @@ Durable multi-agent teams for patent workflow: one captain-led team of continuab
     memberMaxDepth: 1            # member delegation depth cap (0 forbids delegation)
     maxMembers: 8                # team size cap
     promptSectionOrder: 117      # usage-section order
+    approveCreation: false       # ask the approval answerers before creating a team
+    approveClosure: false        # ask the approval answerers before archiving the team
 ```
+
+Two of the twelve tools decide the case rather than the work inside it: `patent_teams_create` opens a team, and `patent_teams_delete` closes it. With `approveCreation` or `approveClosure` on, the tool asks the deployment's `approval` service for one decision before the mutation runs, so a user decision stands between the captain and both ends of a case — the captain leads the work but does not decide alone that a team should exist or that the case is finished. The request names the tool, the exact call, and the reason (the team name and goal on create; the closure on delete), and the approval service writes its own audit pair. A deployment that turns a switch on without an answerer is refused rather than waved through: the seam raises `TeamApprovalError` naming the outcome (`rejected`, `cancelled`, or `unavailable`), and the model sees the failed call. Both switches default to `false`; the patent preset turns both on.
 
 ## State model
 
@@ -90,6 +94,7 @@ Prefix-stable: the usage section is constant for a given mount, so it does not i
 - **One active team per captain** — a captain must end its current team before creating another.
 - **Live delivery is best-effort** — if the recipient agent is offline, messages stay durable in the mailbox and are retried at the next status boundary.
 - **Waits are in-process** — `patent_teams_wait` observes changes announced by this process only, so a team edited by another DSH process wakes the waiter on its own timeout instead. Nothing about a wait is durable; the call ends with its process, and the caller re-reads team state after it returns either way.
+- **An approval switch is only as available as the deployment's answerer** — with `approveCreation` or `approveClosure` on, a deployment that mounts no answerer, or whose approval policy is `never`, refuses the gated call (`unavailable` / `rejected`) instead of creating or closing the team. That is the fail-closed direction on purpose, and it is the reason both switches ship off: a deployment that turns one on must also compose an answerer.
 
 ### Dev Note
 

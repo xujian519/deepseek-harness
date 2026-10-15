@@ -3,9 +3,12 @@
 // asserted directly, including the rich status snapshot text.
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import { describe, expect, it, vi } from 'vitest'
-import { registerPatentTeamsTools } from '../src/tools.ts'
+import { TeamApprovalError } from '../src/approval.ts'
+import { registerPatentTeamsTools, type PatentTeamsToolOptions } from '../src/tools.ts'
 import type { PatentTeamsArchive, PatentTeamsStatus } from '../src/service.ts'
 
 interface ToolDefinition {
@@ -13,7 +16,7 @@ interface ToolDefinition {
   description: string
   parameters: Record<string, unknown>
   output: { schema: unknown; render: (args: unknown, value: unknown) => Array<{ type: string; text: string }> }
-  execute: (args: never, exec: { agent?: Agent; signal: AbortSignal }) => Promise<unknown>
+  execute: (args: never, exec: { agent?: Agent; signal: AbortSignal; callId?: ToolCallId }) => Promise<unknown>
 }
 
 function makeService() {
@@ -81,7 +84,11 @@ function makeAgent(id = 'captain-1'): Agent {
   return { id } as unknown as Agent
 }
 
-function register(ctx: Context, service: ReturnType<typeof makeService>): Map<string, ToolDefinition> {
+function register(
+  ctx: Context,
+  service: ReturnType<typeof makeService>,
+  options: PatentTeamsToolOptions = { approveCreation: false, approveClosure: false },
+): Map<string, ToolDefinition> {
   const tools = new Map<string, ToolDefinition>()
   ctx.provide('tools', {
     register: (definition: ToolDefinition) => {
@@ -90,7 +97,7 @@ function register(ctx: Context, service: ReturnType<typeof makeService>): Map<st
     },
   } as never)
   ctx.provide('patentTeams', service as never)
-  registerPatentTeamsTools(ctx)
+  registerPatentTeamsTools(ctx, options)
   return tools
 }
 
@@ -340,5 +347,88 @@ describe('patent_teams_wait', () => {
     expect(rendered!.text).toContain('No team change within the wait window')
     expect(tool.parameters).toHaveProperty('properties.timeout_ms')
     expect(tool.description).toContain('Captain only')
+  })
+})
+
+// The two approval switches: the mutation asks the mounted answerer first, proceeds
+// only on a grant, and stays ask-free while the deployment leaves the switch off.
+describe('approval gates', () => {
+  /** An approval service whose request resolves with `outcome`. */
+  function answerWith(outcome: 'allowed-once' | 'rejected' | 'cancelled') {
+    const request = vi.fn(async (_ask: ApprovalRequest) => outcome)
+    return { request }
+  }
+
+  function exec() {
+    return { agent: makeAgent(), signal: new AbortController().signal, callId: ToolCallId('call-1') }
+  }
+
+  it('asks the answerer before creating a team and proceeds on a grant', async () => {
+    const ctx = new Context()
+    const approval = answerWith('allowed-once')
+    ctx.provide('approval', approval as never)
+    const service = makeService()
+    const tools = register(ctx, service, { approveCreation: true, approveClosure: false })
+    const call = exec()
+
+    await tools.get('patent_teams_create')!.execute({ name: 'Alpha', description: 'goal' } as never, call)
+
+    expect(approval.request).toHaveBeenCalledTimes(1)
+    const asked = approval.request.mock.calls[0]![0]
+    expect(asked.agent).toBe(call.agent)
+    expect(asked.toolName).toBe('patent_teams_create')
+    expect(asked.callId).toBe('call-1')
+    expect(asked.reason).toContain('创建专利团队「Alpha」（目标：goal）')
+    expect(asked.signal).toBe(call.signal)
+    expect(service.create).toHaveBeenCalledWith(call.agent, 'Alpha', 'goal')
+  })
+
+  it('does not create the team when the answerer refuses', async () => {
+    const ctx = new Context()
+    ctx.provide('approval', answerWith('rejected') as never)
+    const service = makeService()
+    const tools = register(ctx, service, { approveCreation: true, approveClosure: false })
+
+    await expect(tools.get('patent_teams_create')!.execute({ name: 'Alpha' } as never, exec()))
+      .rejects.toBeInstanceOf(TeamApprovalError)
+    expect(service.create).not.toHaveBeenCalled()
+  })
+
+  it('never asks while the deployment leaves the creation switch off', async () => {
+    const ctx = new Context()
+    const approval = answerWith('allowed-once')
+    ctx.provide('approval', approval as never)
+    const service = makeService()
+    const tools = register(ctx, service)
+
+    await tools.get('patent_teams_create')!.execute({ name: 'Alpha' } as never, exec())
+
+    expect(approval.request).not.toHaveBeenCalled()
+    expect(service.create).toHaveBeenCalled()
+  })
+
+  it('asks before closing the team and leaves it open when the answerer refuses', async () => {
+    const ctx = new Context()
+    const approval = answerWith('cancelled')
+    ctx.provide('approval', approval as never)
+    const service = makeService()
+    const tools = register(ctx, service, { approveCreation: false, approveClosure: true })
+
+    await expect(tools.get('patent_teams_delete')!.execute({} as never, exec()))
+      .rejects.toBeInstanceOf(TeamApprovalError)
+    expect(approval.request).toHaveBeenCalledWith(expect.objectContaining({ toolName: 'patent_teams_delete' }))
+    expect(service.delete).not.toHaveBeenCalled()
+  })
+
+  it('closes the team on a grant', async () => {
+    const ctx = new Context()
+    ctx.provide('approval', answerWith('allowed-once') as never)
+    const service = makeService()
+    const tools = register(ctx, service, { approveCreation: false, approveClosure: true })
+    const call = exec()
+
+    await tools.get('patent_teams_delete')!.execute({} as never, call)
+
+    expect(service.delete).toHaveBeenCalledWith(call.agent, call.signal)
   })
 })

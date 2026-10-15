@@ -3155,6 +3155,18 @@ export interface Config {
    * rule gate — never by the composite score alone.
    */
   passThreshold?: number
+  /**
+   * Ask the deployment's approval answerers for a decision on the team plan before
+   * `patent_teams_create` creates the team (deployment choice; default `false`). A
+   * deployment that turns it on without an answerer refuses the create instead of
+   * creating an unapproved team.
+   */
+  approveCreation?: boolean
+  /**
+   * Ask for a decision before `patent_teams_delete` archives the team: the captain
+   * leads a case but does not close it alone (default `false`).
+   */
+  approveClosure?: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-teams -->

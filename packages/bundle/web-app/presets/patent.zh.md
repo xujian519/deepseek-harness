@@ -12,7 +12,7 @@
 - `@deepseek-ai/dsh-patent-knowledge` — knowledge.db 查询服务（ctx.patentKnowledge：caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify）。
 - `@deepseek-ai/dsh-patent-workflow` — 执行管线服务（ctx.patentWorkflow：runWorkflow / runPlantask / approve / reject）。
 - `@deepseek-ai/dsh-patent-tools` — 32 个模型工具：检索、元数据、法律状态、判例/wiki/图谱查询、法条原文检索、权利要求对照表、审查意见解析、TRIZ 矛盾分析、撰写、说明书校验、分析报告、证据判断、规则检查、附图分析与生成、化学结构识别、PDF 下载、知识笔记、工作台案件关联，以及工作流/计划状态机（权威清单见 `docs/tool-catalog.md`）。
-- `@deepseek-ai/dsh-patent-teams` — 持久多智能体团队服务（ctx.patentTeams），提供十二个 `patent_teams_*` 工具；`qualityGate: true` 时运行组合完成门禁。
+- `@deepseek-ai/dsh-patent-teams` — 持久多智能体团队服务（ctx.patentTeams），提供十二个 `patent_teams_*` 工具；`qualityGate: true` 时运行组合完成门禁，`approveCreation` / `approveClosure` 打开时把团队的两个案件级决定——建队与收口——交给本部署的 `approval` 服务判定，未获放行时直接拒绝该调用（结果名 `rejected` / `cancelled` / `unavailable`），不会创建或关闭用户未允许的团队。
 - `@deepseek-ai/dsh-patent-rule` — 规则引擎、tools/post-execute 输出门禁、EVI-011 证据守卫。
 - `@deepseek-ai/dsh-patent-document` — render_patent_document。
 - `@deepseek-ai/dsh-patent-filing` — build_patent_filing / verify_patent_filing：把一个 CNIPA 申请文件（摘要、摘要附图、权利要求书、说明书、说明书附图）装配成 DOCX，其排版由随包模板反推，并逐项核对成品与该模板一致。
@@ -49,7 +49,7 @@
 - patent-compliance-review
 - patent-document-polish
 
-`patent-team-composition` 是持久团队组建模板：本会话已挂载 dsh-patent-teams 插件（patent_teams_* 工具），案件按覆盖专利全生命周期的七个场景角色包选择——立案包（案件管理员 / 检索员 / 技术专家 / 撰写员 / 文档专员）、撰写包（检索员 / 撰写员 / 对立审查员 / 技术专家 / 申请人代理 / 制图员 / 文档专员）、答复审查意见包（同撰写七角色）、补正包（撰写员 / 形式审查员 / 制图员 / 文档专员）、复审包（检索员 / 撰写员 / 对立审查员 / 申请人代理 / 制图员 / 合议组 / 文档专员）、无效宣告包（检索员 / 撰写员 / 技术专家 / 无效请求人 / 专利权人 / 合议组 / 文档专员）、侵权诉讼包（检索员 / 撰写员 / 技术专家 / 专利权人 / 被告代理人 / 裁判 / 文档专员，另可选技术调查官），由当前会话任 captain 统一调度；制图员（`illustrator`）负责附图与附图标记表（细则第二十一条第二款图文双向一致的唯一标记源），文档专员（`document-specialist`）负责收口前的正式文档输出（场景→模板映射、矫正、美化），两者均不改实体结论；仅当插件被禁用时回退单会话 + subagent_fork 专家互评。复审、无效与诉讼包采用"立场配对 + 中立裁判"的对抗结构。
+`patent-team-composition` 是持久团队组建模板，且团队流程是可选路径：人设的作业模式路由把单会话意图驱动设为默认，只有用户在该轮明确要求组队时才允许建队，因此案件复杂本身不构成建队理由。获得该指示后，本会话已挂载 dsh-patent-teams 插件（patent_teams_* 工具），案件按覆盖专利全生命周期的七个场景角色包选择——立案包（案件管理员 / 检索员 / 技术专家 / 撰写员 / 文档专员）、撰写包（检索员 / 撰写员 / 对立审查员 / 技术专家 / 申请人代理 / 制图员 / 文档专员）、答复审查意见包（同撰写七角色）、补正包（撰写员 / 形式审查员 / 制图员 / 文档专员）、复审包（检索员 / 撰写员 / 对立审查员 / 申请人代理 / 制图员 / 合议组 / 文档专员）、无效宣告包（检索员 / 撰写员 / 技术专家 / 无效请求人 / 专利权人 / 合议组 / 文档专员）、侵权诉讼包（检索员 / 撰写员 / 技术专家 / 专利权人 / 被告代理人 / 裁判 / 文档专员，另可选技术调查官），由当前会话任 captain 统一调度；制图员（`illustrator`）负责附图与附图标记表（细则第二十一条第二款图文双向一致的唯一标记源），文档专员（`document-specialist`）负责收口前的正式文档输出（场景→模板映射、矫正、美化），两者均不改实体结论；仅当插件被禁用时回退单会话 + subagent_fork 专家互评。复审、无效与诉讼包采用"立场配对 + 中立裁判"的对抗结构。团队是增加人工确认点而不是减少：成员名单与任务 DAG 在 `patent_teams_create` 前与用户确认，每个环节的关键产出在下一任务开始前给用户过目，策略取舍权留给用户，收口与文档渲染由用户放行——captain 不得单方收口；两种模式可在案件进行中互相切换，切换前先向用户交代已完成与未决的部分。建队与收口在这里不是指令而是执行点：该行的 `approveCreation` / `approveClosure` 把 `patent_teams_create` 与 `patent_teams_delete` 交给本部署的 `approval` 服务判定，未获放行的建队或收口在调用处即失败。
 
 `patent-document-polish` 是正式文档输出规范：按场景选择模板（专利性意见/检索报告/OA 答复/权要+说明书/补正书/复审请求书/无效意见/侵权比对意见/诉讼文书），矫正（术语一致性、法条引用格式与出处、数字/日期/期限、编号层级、文书称谓）与美化（模板渲染、品牌注入、A4 版式、md 起草 → html/pdf 或 docx），交付放行与质量门禁收口合并为一次确认。
 
@@ -73,7 +73,7 @@ OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openv
 
 ## Model Experience
 
-模型看到：中文专利代理人设（专业身份、九条作业纪律、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、`patent-law` 按本部署 Config 渲染的 cnlaw 声明段（端点，或本部署没有底座的声明）、15 个预设内技能，以及专利工具（含 `law_verify`，其描述写明未核验的条文永不报成已核验；含 `patent_fees`，按随包金额计价案件应缴的费种，仅在某适用项没有金额时才拒绝给出合计）加标准编码工具。人设只承载身份、九条纪律与案型路由；通道调用式、检索式与引用格式都在路由行点名的技能里，只有案子真的载入该技能时才付这部分成本，且 `scripts/preset-mode-baseline.json` 给人设正文设了上限，增长必须是一次有意的改动。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
+模型看到：中文专利代理人设（专业身份、九条作业纪律、默认单会话意图驱动、仅在用户明确指示时才启用团队流程的作业模式路由、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、`patent-law` 按本部署 Config 渲染的 cnlaw 声明段（端点，或本部署没有底座的声明）、15 个预设内技能，以及专利工具（含 `law_verify`，其描述写明未核验的条文永不报成已核验；含 `patent_fees`，按随包金额计价案件应缴的费种，仅在某适用项没有金额时才拒绝给出合计）加标准编码工具。人设只承载身份、九条纪律、作业模式与案型路由；通道调用式、检索式与引用格式都在路由行点名的技能里，只有案子真的载入该技能时才付这部分成本，且 `scripts/preset-mode-baseline.json` 给人设正文设了上限，增长必须是一次有意的改动。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
 
 ## Known Limitations and Deferred Work
 
