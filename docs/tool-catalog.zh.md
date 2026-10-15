@@ -59,7 +59,7 @@
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计。 |
 | `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`、`tool/result` | - | law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行。 |
-| `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
+| `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task`, `patent_teams_wait` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-working-directory` | `working_directory` | `ctx.tools`、`ctx.workingDirectory` | `tool/call`、`working-directory/change`、`user context for directory changes`、`tool/result` | - | 读取或更改调用方 Session 的目录。既有的 shell 与进程保留各自目录；来源元数据与权限根保持不变。 |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | `create_worktree` | `ctx.tools`、`ctx.worktrees`、`a calling Agent` | `tool/call`、`Git branch and checkout`、`working-directory/change`、`tool/result` | - | 仅在显式实验性组合中启用。从固定的本地提交创建新分支与检出（受既有写权限约束），随后更改 Session 目录。离开时保留分支与检出。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
@@ -7030,7 +7030,7 @@ Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-
 
 ### `patent_teams_status`
 
-Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Poll this to watch progress.
+Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Read it before dispatching and again after patent_teams_wait returns; it is a point-in-time snapshot, so never poll it in a loop.
 
 ```json
 {
@@ -7075,6 +7075,24 @@ Update a task status/output. Members must supply the current attempt_id returned
   "required": [
     "task_id"
   ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_wait`
+
+Wait until the team's next change — a task transition, a teammate report, a roster change, or a member starting or stopping work — and return as soon as it happens. Captain only. After every dispatch, call this once instead of polling: it blocks until work moves, so a timeout means nothing moved in that window (dispatch, take over, or ask the user — do not wait again for the same thing). It never wakes a member. Team state is durable and authoritative: re-read patent_teams_status when the wait returns.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "timeout_ms": {
+      "type": "integer",
+      "description": "Wait duration in milliseconds, from 10000 through 3600000. Defaults to 30000."
+    }
+  }
 }
 ```
 

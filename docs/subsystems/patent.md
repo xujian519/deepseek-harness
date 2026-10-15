@@ -241,6 +241,18 @@ async updateTask( agent: Agent, args: UpdateTaskArgs, signal?: AbortSignal, ): P
 async sendMessage( agent: Agent, args: { to: string; content: string; from?: string }, signal: AbortSignal, ): Promise<{ message_id: string from: string to: string delivered: 'live' | 'wake' | 'mailbox' }>
 
 /**
+ * Wait for the team's next committed change: a task transition, a mailbox
+ * delivery, a roster change, or a member status edge. The captain leads by
+ * waiting on work instead of polling for it. A wait observes announcements
+ * only, so durable team state stays authoritative — re-read it after waking.
+ * @param agent - the calling captain.
+ * @param timeoutMs - bounded wait from {@link TEAM_WAIT_MIN_MS} through {@link TEAM_WAIT_MAX_MS}.
+ * @param signal - caller cancellation for this wait only.
+ * @returns whether the wait ended by timeout rather than by a change.
+ */
+async wait(agent: Agent, timeoutMs: number, signal: AbortSignal): Promise<{ timed_out: boolean }>
+
+/**
  * Team snapshot: members with live activity and tasks with status, assignee,
  * dependencies, and output. Captains also see every team mailbox; members
  * see only their own inbox. Reading as captain acknowledges the captain

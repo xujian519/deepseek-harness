@@ -36,6 +36,7 @@ import {
   requireTask,
   withParticipant,
 } from './team-access.ts'
+import type { TeamActivity } from './team-activity.ts'
 import { teamLockKey, withTeamLock } from './team-lock.ts'
 import {
   TERMINAL_TASK_STATUSES,
@@ -58,6 +59,8 @@ export interface TaskOpsHost {
   readonly stateDir: string
   /** Scheduler that dispatches tasks these operations leave ready. */
   readonly scheduler: TeamScheduler
+  /** Waiter registry woken after each committed task transition. */
+  readonly activity: TeamActivity
   /** Run the composite quality gate on contract-backed task completion. */
   readonly qualityGate: boolean
   /** Comprehensive-eval score below which the gate reports the composite score as advisory. */
@@ -249,6 +252,7 @@ export async function createTask(
       ...task.assignee !== undefined ? { assignee: task.assignee } : {},
       ...task.worker !== undefined ? { worker: task.worker } : {},
     })
+    host.activity.notify(fresh.id)
     return {
       task_id: task.id,
       subject: task.subject,
@@ -333,6 +337,7 @@ export async function reassignTask(
       ...args.reason === undefined ? {} : { output: `Reassigned: ${args.reason}` },
       ...attemptFields(task),
     })
+    host.activity.notify(fresh.id)
   })
   if (quiescenceError !== undefined) {
     // v8 ignore next -- waitForMemberIdle only rejects with Errors, so the non-Error wrap is defensive
@@ -429,6 +434,7 @@ export async function claimTask(
       assignee: task.assignee,
       ...attemptFields(task),
     })
+    host.activity.notify(fresh.id)
     // v8 ignore start -- the freshly claimed task always has assignee/attempt
     return {
       task_id: task.id,
@@ -512,6 +518,7 @@ export async function updateTask(
             failures: gate.failures,
             feedback: gate.feedback,
           })
+          host.activity.notify(fresh.id)
           // v8 ignore start -- the entry check bound this call to the task's current attempt, and a bounced
           // submission keeps that attempt: only the status falls back from claimed to in_progress above
           return {
@@ -546,6 +553,7 @@ export async function updateTask(
       ...task.output !== undefined ? { output: task.output } : {},
       ...attemptFields(task),
     })
+    host.activity.notify(fresh.id)
     if (validated !== undefined) {
       appendTeamEvent(host.ctx, captainSessionOf(host.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-validated', {
         ...taskRef(fresh, task),

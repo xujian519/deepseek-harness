@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
 import { installTeamScheduler } from '../src/scheduler.ts'
+import { TeamActivity } from '../src/team-activity.ts'
 import {
   appendMailbox,
   createMessage,
@@ -96,7 +97,7 @@ async function makeHarness(options?: {
     sendMessage,
     interrupt: () => {},
   } as never)
-  const scheduler = installTeamScheduler(ctx, { stateDir })
+  const scheduler = installTeamScheduler(ctx, { stateDir, activity: new TeamActivity() })
   return { ctx, workspace, stateDir, scheduler, live }
 }
 

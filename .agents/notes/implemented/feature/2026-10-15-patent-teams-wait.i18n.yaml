@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-15-patent-teams-wait.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-15-patent-teams-wait.md
+/agent-note-patentteams-captain-waits-on-team-changes-instead-of-polling:
+  en: cfcd6e19b131da62
+  zh: 12badc01413f2394
+/agent-note-patentteams-captain-waits-on-team-changes-instead-of-polling/problem:
+  en: 30eb57ef496ce8e4
+  zh: 4e6c20ad372a5cce
+/agent-note-patentteams-captain-waits-on-team-changes-instead-of-polling/decision:
+  en: 4176b271426e564d
+  zh: 8acb0824b7ee3444
+/agent-note-patentteams-captain-waits-on-team-changes-instead-of-polling/alternatives-considered:
+  en: 9d243327996259f6
+  zh: 602bfc8be3ba4736
+/agent-note-patentteams-captain-waits-on-team-changes-instead-of-polling/consequences:
+  en: 6a98505fb9c5fce5
+  zh: 443f5d4fd0950d19

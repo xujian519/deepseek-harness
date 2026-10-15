@@ -74,6 +74,7 @@ import {
   stateRootFor,
   withParticipant,
 } from './team-access.ts'
+import { TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS, TeamActivity } from './team-activity.ts'
 import { sanitizeKey, teamLockKey, withTeamLock } from './team-lock.ts'
 import type { TeamState } from './types.ts'
 
@@ -140,6 +141,7 @@ function steerCaptainReport(
 export class PatentTeamsService extends Service {
   private readonly config: PatentTeamsConfig
   private readonly scheduler: TeamScheduler
+  private readonly activity = new TeamActivity()
   private readonly tasks: TaskOpsHost
   private readonly members: MemberOpsHost
 
@@ -150,11 +152,12 @@ export class PatentTeamsService extends Service {
   constructor(ctx: Context, config: PatentTeamsConfig) {
     super(ctx, 'patentTeams')
     this.config = config
-    this.scheduler = installTeamScheduler(ctx, { stateDir: config.stateDir })
+    this.scheduler = installTeamScheduler(ctx, { stateDir: config.stateDir, activity: this.activity })
     this.tasks = {
       ctx,
       stateDir: config.stateDir,
       scheduler: this.scheduler,
+      activity: this.activity,
       qualityGate: config.qualityGate,
       passThreshold: config.passThreshold,
     }
@@ -166,7 +169,9 @@ export class PatentTeamsService extends Service {
       ...config.memberMaxDepth === undefined ? {} : { memberMaxDepth: config.memberMaxDepth },
       maxMembers: config.maxMembers,
       scheduler: this.scheduler,
+      activity: this.activity,
     }
+    ctx.effect(() => () => { this.activity.close() })
   }
 
   /**
@@ -358,6 +363,7 @@ export class PatentTeamsService extends Service {
           content: args.content,
           ts: message.ts,
         })
+        this.activity.notify(fresh.id)
         return { kind: 'captain' as const, fresh, identity, message, from }
       }
       const recipient = requireMember(fresh, to)
@@ -371,6 +377,7 @@ export class PatentTeamsService extends Service {
         content: args.content,
         ts: message.ts,
       })
+      this.activity.notify(fresh.id)
       return { kind: 'member' as const, fresh, identity, message, from, recipient }
     })
 
@@ -419,6 +426,25 @@ export class PatentTeamsService extends Service {
       to: prepared.recipient.name,
       delivered,
     }
+  }
+
+  /**
+   * Wait for the team's next committed change: a task transition, a mailbox
+   * delivery, a roster change, or a member status edge. The captain leads by
+   * waiting on work instead of polling for it. A wait observes announcements
+   * only, so durable team state stays authoritative — re-read it after waking.
+   * @param agent - the calling captain.
+   * @param timeoutMs - bounded wait from {@link TEAM_WAIT_MIN_MS} through {@link TEAM_WAIT_MAX_MS}.
+   * @param signal - caller cancellation for this wait only.
+   * @returns whether the wait ended by timeout rather than by a change.
+   */
+  async wait(agent: Agent, timeoutMs: number, signal: AbortSignal): Promise<{ timed_out: boolean }> {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < TEAM_WAIT_MIN_MS || timeoutMs > TEAM_WAIT_MAX_MS) {
+      throw new Error(`patent_teams_wait: timeout_ms must be an integer from ${TEAM_WAIT_MIN_MS} through ${TEAM_WAIT_MAX_MS}`)
+    }
+    const { team } = await captainTeam(agent, this.config.stateDir)
+    const { timedOut } = await this.activity.wait(team.id, timeoutMs, signal)
+    return { timed_out: timedOut }
   }
 
   /**

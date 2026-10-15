@@ -14,6 +14,7 @@ import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { defaultRoleContracts } from '@deepseek-ai/dsh-patent-workflow'
 import { callingAgent, type PatentTeamsArchive, type PatentTeamsService, type PatentTeamsStatus } from './service.ts'
+import { TEAM_WAIT_DEFAULT_MS, TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS } from './team-activity.ts'
 
 /** Render the status snapshot as compact text for the model. */
 function renderStatus(team: PatentTeamsStatus): string {
@@ -382,8 +383,37 @@ function registerReportAndArchiveTools(ctx: Context, teams: PatentTeamsService):
   }))
 
   ctx.tools.register(defineTool({
+    name: 'patent_teams_wait',
+    description: 'Wait until the team\'s next change — a task transition, a teammate report, a roster change, or a member starting or stopping work — and return as soon as it happens. Captain only. After every dispatch, call this once instead of polling: it blocks until work moves, so a timeout means nothing moved in that window (dispatch, take over, or ask the user — do not wait again for the same thing). It never wakes a member. Team state is durable and authoritative: re-read patent_teams_status when the wait returns.',
+    parameters: {
+      timeout_ms: {
+        type: 'integer',
+        description: `Wait duration in milliseconds, from ${TEAM_WAIT_MIN_MS} through ${TEAM_WAIT_MAX_MS}. Defaults to ${TEAM_WAIT_DEFAULT_MS}.`,
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          timed_out: { type: 'boolean', required: true },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: value.timed_out
+          ? 'No team change within the wait window. Re-read patent_teams_status: nothing advanced on its own, so decide the next dispatch or hand the decision to the user.'
+          : 'Team change observed. Re-read patent_teams_status for the authoritative state.',
+      }],
+    },
+    async execute(args, exec) {
+      return teams.wait(callingAgent(exec), args.timeout_ms ?? TEAM_WAIT_DEFAULT_MS, exec.signal)
+    },
+  }))
+
+  ctx.tools.register(defineTool({
     name: 'patent_teams_status',
-    description: 'Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Poll this to watch progress.',
+    description: 'Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Read it before dispatching and again after patent_teams_wait returns; it is a point-in-time snapshot, so never poll it in a loop.',
     parameters: {},
     output: {
       schema: { type: 'object', additionalProperties: true, properties: {} },

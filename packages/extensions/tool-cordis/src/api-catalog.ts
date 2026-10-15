@@ -1941,6 +1941,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the message identity and delivery path.',
       },
       {
+        signature: 'async wait(agent: Agent, timeoutMs: number, signal: AbortSignal): Promise<{ timed_out: boolean }>',
+        description: 'Wait for the team\'s next committed change: a task transition, a mailbox delivery, a roster change, or a member status edge. The captain leads by waiting on work instead of polling for it. A wait observes announcements only, so durable team state stays authoritative — re-read it after waking.',
+        parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'timeoutMs', description: 'bounded wait from {@link TEAM_WAIT_MIN_MS} through {@link TEAM_WAIT_MAX_MS}.' }, { name: 'signal', description: 'caller cancellation for this wait only.' }],
+        returns: 'whether the wait ended by timeout rather than by a change.',
+      },
+      {
         signature: 'async status(agent: Agent, signal?: AbortSignal): Promise<PatentTeamsStatus>',
         description: 'Team snapshot: members with live activity and tasks with status, assignee, dependencies, and output. Captains also see every team mailbox; members see only their own inbox. Reading as captain acknowledges the captain inbox and schedules idle members.',
         parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling and the team lock.' }],

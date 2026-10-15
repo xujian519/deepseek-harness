@@ -23,7 +23,7 @@ Durable multi-agent teams for patent workflow: one captain-led team of continuab
 ## What it mounts
 
 - `ctx.patentTeams` — the `PatentTeamsService`: team CRUD, task state machine with attempt revocation, member lifecycle (spawn/interrupt/retire), mailbox persistence, archive-on-delete, and scheduler kicks.
-- Eleven `patent_teams_*` tools: `create`, `add_member`, `remove_member`, `create_task`, `reassign_task`, `claim_task`, `update_task`, `send_message`, `status`, `archive`, `delete`.
+- Twelve `patent_teams_*` tools: `create`, `add_member`, `remove_member`, `create_task`, `reassign_task`, `claim_task`, `update_task`, `send_message`, `wait`, `status`, `archive`, `delete`.
 - One system-prompt usage section (`patent-teams:usage`, default order 117) teaching the captain protocol.
 
 ## Configuration
@@ -58,7 +58,7 @@ Every state mutation appends one `patent-teams/*` event to the captain's session
 
 #### What the model sees
 
-The usage section is a fixed system-prompt contribution whenever this plugin is mounted, plus the eleven tool schemas in the [generated tool catalog](../../../docs/tool-catalog.md).
+The usage section is a fixed system-prompt contribution whenever this plugin is mounted, plus the twelve tool schemas in the [generated tool catalog](../../../docs/tool-catalog.md).
 
 ##### Verbatim text for this field, when needed
 
@@ -67,17 +67,17 @@ When the user asks to run something with PatentTeams (e.g. "use PatentTeams to d
 1. Call patent_teams_create with a team name and the goal as description. You become the captain and may lead one team at a time.
 2. Call patent_teams_add_member once per role the goal needs (researcher, engineer, reviewer, ...). Members are durable subagents: they wait for your messages, then work a full turn. By default a member on your current provider/model snapshots your current reasoning effort; a member routed to a different provider or model automatically uses that target model's default effort. Never ask the user to choose these per member; only pass provider/model when the user explicitly requests a different route for that role, and reasoning_effort only when the user explicitly requests a particular effort ("default" explicitly selects the target model's default).
 3. Break the goal into tasks with patent_teams_create_task and wire dependencies. Assign role-specific work when useful; unassigned ready work belongs to the shared pool. The scheduler automatically claims one ready task for each truly idle member and wakes it, including across later rounds.
-4. Lead by delegation: monitor with patent_teams_status, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Do not duplicate a teammate's work merely because its turn is slow.
+4. Lead by delegation: assign work with patent_teams_create_task, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Then wait with patent_teams_wait and re-read patent_teams_status when it returns — the wait blocks until a task moves, a teammate reports, or a member starts or stops working, so never sleep, poll, or loop on status to pass the time. Do not duplicate a teammate's work merely because its turn is slow.
 5. If work is blocked, stale, or needs takeover, always call patent_teams_reassign_task first. Reassign to another idle member, or use assignee=captain before doing it yourself. Reassignment revokes the old attempt and waits for that member to quiesce, preventing late results from overwriting the new attempt.
-6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Poll status until every required task is terminal and every member is idle/ready.
+6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Keep dispatching and waiting until every required task is terminal and every member is idle/ready.
 7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it. Deleted teams stay reviewable read-only through patent_teams_archive.
 
-Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_status, patent_teams_archive, patent_teams_delete
+Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_wait, patent_teams_status, patent_teams_archive, patent_teams_delete
 ```
 
 #### Token effect
 
-Fixed: one usage section (approximately 2.4 KB) plus the eleven tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings, task output is truncated to 300 characters in status and archive renders, inbox previews to 200.
+Fixed: one usage section (approximately 2.7 KB) plus the twelve tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings, task output is truncated to 300 characters in status and archive renders, inbox previews to 200.
 
 #### KV Cache effect
 
@@ -89,6 +89,7 @@ Prefix-stable: the usage section is constant for a given mount, so it does not i
 - **Single-process serialization** — state is file-backed and serialized within one DSH process; concurrent processes editing the same team are not coordinated. The member status observer keeps an in-process membership index (fed by `add_member`, `remove_member`, and `delete`) so unrelated agents' status events do not rescan the state directory.
 - **One active team per captain** — a captain must end its current team before creating another.
 - **Live delivery is best-effort** — if the recipient agent is offline, messages stay durable in the mailbox and are retried at the next status boundary.
+- **Waits are in-process** — `patent_teams_wait` observes changes announced by this process only, so a team edited by another DSH process wakes the waiter on its own timeout instead. Nothing about a wait is durable; the call ends with its process, and the caller re-reads team state after it returns either way.
 
 ### Dev Note
 
