@@ -37,11 +37,13 @@ Office previews work in the packaged application; source installs are unchanged.
 
 The engine package leaves the archive's integrity record. It remains a signed runtime file on macOS, stays in the runtime descriptor's final inventory, and is compared against prepared inputs by the installed-update verifier.
 
-The fork diverges from upstream in the two `files` filters, the `resources/node_modules` mapping, the macOS signer's ignore list, and the verifier's beside-archive inventory. The engine resolves through Node's parent-directory walk out of the archive, so a future Electron or Node change to archive-path resolution would invalidate the placement before it invalidated anything else.
+The fork diverges from upstream in the two `files` filters, the `resources/node_modules` mapping, the macOS signer's ignore list, and the beside-archive handling both verifiers apply: the runtime inventory comparison and the Windows ASAR unpack check. The engine resolves through Node's parent-directory walk out of the archive, so a future Electron or Node change to archive-path resolution would invalidate the placement before it invalidated anything else.
 
 ## Testing
 
 `npx vitest run apps/desktop/tests/macos-signature.spec.ts apps/desktop/tests/installed-update-package-content.spec.ts` pins the exclusion filters, the resource mapping, the signer's ignore entry, and the runtime comparison for a package delivered beside the archive, including changed bytes and a missing package.
+
+`npx vitest run apps/desktop/tests/windows-asar-unpack.spec.ts` pins the same placement for Windows PE files: the unpack check accepts the engine the archive omits while its prepared bytes sit unchanged beside the archive, and still rejects an inline, linked, absent, or changed file.
 
 A packaged macOS arm64 directory build (unsigned, `electron-builder --dir` over the prepared target tree) converts a real DOCX through the packaged kit under `ELECTRON_RUN_AS_NODE=1`: the engine resolves to `Contents/Resources/node_modules/@deepseek-ai/libreoffice-kit-darwin-arm64`, and the conversion produces the same 355612-byte PDF as the repository's own engine. The pre-change package reports `Installed LibreOfficeKit executable is not executable` for the same probe.
 
