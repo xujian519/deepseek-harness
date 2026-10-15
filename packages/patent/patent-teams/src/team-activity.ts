@@ -18,6 +18,11 @@ export const TEAM_WAIT_MAX_MS = 3_600_000
 /** `timeout_ms` used when the caller omits it. */
 export const TEAM_WAIT_DEFAULT_MS = 30_000
 
+// Deliberately mirrors packages/experimental/agent-team/src/activity.ts: the
+// experimental package rules bar a release package from depending on an
+// experimental one, so this package cannot reuse that copy. Sinking the
+// primitive into util/ stays deferred.
+/* jscpd:ignore-start */
 /** One registered waiter, released at most once. */
 interface Waiter {
   readonly resolve: () => void
@@ -102,3 +107,4 @@ export class TeamActivity {
     this.waiters.clear()
   }
 }
+/* jscpd:ignore-end */

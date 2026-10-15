@@ -35,7 +35,7 @@ Status: implemented
 
 `@deepseek-ai/dsh-patent-teams` 新增 `patent_teams_wait`（队长专用），底层是 `TeamActivity` 等待注册表；同时重写每一处轮询导向的指令。
 
-**原语**（`src/team-activity.ts`，对齐 `@deepseek-ai/dsh-agent-team` 的 `TeamActivity`）：按团队 id 分桶的一次性 waiter，提供 `wait(teamId, timeoutMs, signal)`、`notify(teamId)`，以及处置时的 `close()`。`timeout_ms` 取 10 000 至 3 600 000 的整数，默认 30 000；服务校验范围，并拒绝没有队长团队的调用方。
+**原语**（`src/team-activity.ts`，对齐 `@deepseek-ai/dsh-experimental-agent-team` 的 `TeamActivity`）：按团队 id 分桶的一次性 waiter，提供 `wait(teamId, timeoutMs, signal)`、`notify(teamId)`，以及处置时的 `close()`。`timeout_ms` 取 10 000 至 3 600 000 的整数，默认 30 000；服务校验范围，并拒绝没有队长团队的调用方。这份对齐是有意的，并带 `jscpd:ignore` 标记：[实验包规则](../../../../packages/experimental/AGENTS.md)禁止发布包依赖实验包，所以本包无法复用实验包里的那份实现，把该原语下沉到 `util/` 一事保持待办。
 
 **通告点**是已提交的变更，每个都在自己的 `writeTeam`/`appendMailbox` 与事件记录之后触发——建任务、认领、更新（含质量门禁打回）、改派、成员增删、双向邮箱投递，以及调度器镜像进名册的成员状态边沿。
 

@@ -35,7 +35,7 @@ Three artifacts taught it to. The `patent_teams_status` description ended with *
 
 `@deepseek-ai/dsh-patent-teams` gains `patent_teams_wait` (captain only), backed by a `TeamActivity` waiter registry, and every poll-shaped instruction is rewritten.
 
-**The primitive** (`src/team-activity.ts`, mirroring `@deepseek-ai/dsh-agent-team`'s `TeamActivity`): one-shot waiters bucketed by team id, with `wait(teamId, timeoutMs, signal)`, `notify(teamId)`, and `close()` on disposal. `timeout_ms` is an integer from 10 000 through 3 600 000, defaulting to 30 000; the service validates the range and rejects callers without a captain team.
+**The primitive** (`src/team-activity.ts`, mirroring `@deepseek-ai/dsh-experimental-agent-team`'s `TeamActivity`): one-shot waiters bucketed by team id, with `wait(teamId, timeoutMs, signal)`, `notify(teamId)`, and `close()` on disposal. `timeout_ms` is an integer from 10 000 through 3 600 000, defaulting to 30 000; the service validates the range and rejects callers without a captain team. The mirror is deliberate and carries a `jscpd:ignore` marker: [the experimental package rules](../../../../packages/experimental/AGENTS.md) bar a release package from depending on an experimental one, so this package cannot reuse the experimental copy, and sinking the primitive into `util/` stays deferred.
 
 **The announcement points** are the committed mutations, each firing after its `writeTeam`/`appendMailbox` and event record — task create, claim, update (including a quality-gate bounce), reassign, member add/remove, mailbox delivery in either direction, and the member status edge the scheduler mirrors into the roster.
 
