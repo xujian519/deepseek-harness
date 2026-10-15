@@ -193,6 +193,8 @@ export function createElectronBuilderConfig(
       extendInfo: {
         CFBundleLocalizations: ['en', 'zh_CN'],
         NSMicrophoneUsageDescription: 'DeepSeek Harness uses your microphone to transcribe speech into message drafts.',
+        // macOS denies an Apple event to another application unless the bundle declares why it sends one.
+        NSAppleEventsUsageDescription: 'DeepSeek Harness sends Apple events only for the actions you request, such as bringing an application to the front or quitting it.',
       },
       // Ad-hoc signing keeps the modified Electron executable runnable without a Developer ID.
       identity: unsigned ? '-' : macOSSigning?.signingIdentity,
