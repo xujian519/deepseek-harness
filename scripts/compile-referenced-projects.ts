@@ -49,7 +49,7 @@ export function runPnpmCommand(root: string, args: readonly string[]): void {
  * @param root - Repository root containing the aggregate tsconfig.
  * @param face - Independent compiler face whose package projects are emitted.
  * @param mode - Check package types by default; benchmark emission defers diagnostics to required full builds.
- * @returns Arguments for `process.execPath`, including the heap limit the Host face needs.
+ * @returns Arguments for `process.execPath`, including the heap limit the face's program needs.
  * @throws If the aggregate configuration is invalid, has no references, or can emit files.
  */
 export function referencedProjectsCompilerArgs(
@@ -78,7 +78,7 @@ export function referencedProjectsCompilerArgs(
     throw new Error(`compile-referenced-projects: ${configPath} requires noEmit: true to exclude its aggregate program`)
   }
   return [
-    ...hostHeapArgs(face),
+    ...faceHeapArgs(face),
     fileURLToPath(import.meta.resolve('typescript/bin/tsc')),
     '-b',
     ...mode === 'benchmark-emit' ? ['--noCheck'] : [],
@@ -95,7 +95,7 @@ export function referencedProjectsCompilerArgs(
  * @returns Arguments for `process.execPath`, run from the repository root.
  */
 export function aggregateCheckArgs(face: 'host' | 'client'): string[] {
-  return [...hostHeapArgs(face), fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-p', `tsconfig.${face}.json`]
+  return [...faceHeapArgs(face), fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-p', `tsconfig.${face}.json`]
 }
 
 /**
@@ -106,14 +106,19 @@ export function aggregateCheckArgs(face: 'host' | 'client'): string[] {
  * @returns Arguments for `process.execPath`, run from the repository root.
  */
 export function aggregateBuildArgs(face: 'host' | 'client'): string[] {
-  return [...hostHeapArgs(face), fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-b', `tsconfig.${face}.json`]
+  return [...faceHeapArgs(face), fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-b', `tsconfig.${face}.json`]
 }
 
-// The fork's Host aggregate covers its own package groups on top of the release's, and peaks near
-// 5.5 GB on a cold tree; upstream's 4096 exhausts the heap. The fork's host build face already
-// raises the same program to 6144 (package.json `build:lib:host`).
-function hostHeapArgs(face: 'host' | 'client'): string[] {
-  return face === 'host' ? ['--max-old-space-size=6144'] : []
+// Every aggregate carries an explicit heap limit because the default Node derives from the host's
+// memory outgrows the program on a small runner: the fork's Host aggregate covers its own package
+// groups on top of the release's and peaks near 5.5 GB on a cold tree, above the release's 4096,
+// so it takes the 6144 that package.json's `build:lib:host` already gives the same program; the
+// Client aggregate loads every referenced declaration at once and peaks near 2.5 GB, above the
+// 2048 MB default of a 7 GB host such as GitHub's macOS arm64 runner.
+const FACE_HEAP_LIMITS = { host: 6144, client: 4096 } as const satisfies Record<'host' | 'client', number>
+
+function faceHeapArgs(face: 'host' | 'client'): string[] {
+  return [`--max-old-space-size=${FACE_HEAP_LIMITS[face]}`]
 }
 
 /**
