@@ -69,6 +69,18 @@ function ensureNativeWatchLive(dir: string): void {
   fs.watch(dir).close()
 }
 
+/**
+ * Whether Chokidar has installed the native watch for `dir`. `getWatched()`
+ * reports a directory as soon as Chokidar starts re-reading it, which is before
+ * it installs that directory's watch; the closer registry it fills afterwards is
+ * the only signal that a write into the directory can be reported at all.
+ */
+function isArmed(watcher: FSWatcher, dir: string): boolean {
+  const closers: unknown = Reflect.get(watcher, '_closers')
+  if (!(closers instanceof Map)) throw new Error('Chokidar no longer exposes its armed-watch registry as `_closers`.')
+  return closers.has(dir)
+}
+
 /** Poll `test` every 10 ms under the calling case's effective budget. */
 async function eventually(test: () => boolean, message: string, budget: number): Promise<void> {
   const deadline = Date.now() + budget
@@ -105,10 +117,24 @@ describe('HMR exact config paths', () => {
       return watcher.add(paths)
     }
     const observed: string[] = []
+    // The case budget fires before eventually() can name the pending step.
+    test.onTestFailed(() => { console.error(`refresh observed ${JSON.stringify(observed)}`) })
     await watchConfig(ctx, filename, {}, () => { observed.push(readFileSync(filename, 'utf8')) })
     const watchedEntries = () => Object.values(watcher.getWatched()).flat()
     expect(watchedEntries()).not.toContain('package.json.lock')
     expect(watchedEntries()).not.toContain('unrelated')
+    // Chokidar arms a directory it discovers after registration only once it has
+    // re-read that directory, so a level created inside that window is lost for
+    // good by a watcher that reports per directory rather than per tree: inotify
+    // does, and darwin's recursive FSEvents stream is what hides this on macOS.
+    // Create the missing levels one at a time and wait for each watch before
+    // creating the next, so the config write always lands under an armed parent.
+    const canonical = realpathSync(dir)
+    for (const parts of missingParents ? [['later'], ['later', 'nested']] : []) {
+      mkdirSync(join(dir, ...parts))
+      const armed = join(canonical, ...parts)
+      await eventually(() => isArmed(watcher, armed), `watcher never armed ${armed}`, test.task.timeout)
+    }
     ensureNativeWatchLive(dir)
     await writeFileAtomic(filename, 'created', { mode: 0o600 })
     await eventually(() => observed.includes('created'), 'created config was not observed', test.task.timeout)
