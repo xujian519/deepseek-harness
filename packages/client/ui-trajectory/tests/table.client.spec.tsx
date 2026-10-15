@@ -1,16 +1,23 @@
 // @vitest-environment jsdom
 /** Trajectory ledger selection, details, status, and fold behavior. */
 
-import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { ComponentProps } from 'react'
-import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { afterAll, afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import { useState, type ComponentProps, type ReactNode } from 'react'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
+import type { MessageImageLoader, MessageImagesOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { TrajectoryTable as LocalizedTrajectoryTable } from '../src/client/TrajectoryTable.tsx'
 import { deriveTrajectoryLayout, type TrajectoryTurnModel } from '../src/client/layout.ts'
 import { trajectoryRecordId } from '../src/client/trajectory-record.ts'
 import { t, tZh } from './locale.client.ts'
 
-const renderImagesStub: RenderMessageImages = ({ images }) => (
+const loadImage: MessageImageLoader = async () => 'blob:trajectory'
+const renderNoImages: PropsRenderSlots<'conversation.trajectory.images'>['renderSlot'] = () => null
+
+const RecordImages = ({ images }: MessageImagesOwnerProps) => (
   <div data-testid="record-images" data-count={images.length}>
     {images.map((image, index) => (
       <span
@@ -21,9 +28,38 @@ const renderImagesStub: RenderMessageImages = ({ images }) => (
   </div>
 )
 
+async function imageSlotFixture() {
+  const runtime = await SlotTestRuntime.create()
+  onTestFinished(() => runtime.dispose())
+  await runtime.sessions.add({ id: 'trajectory-images' })
+  const session = runtime.sessions.retainFor(runtime.ctx, SessionId('trajectory-images'))
+  type Seats = PropsRenderSlots<'conversation.trajectory.images'>
+  const captured: { seats?: Seats; setContent?: (content: ReactNode) => void } = {}
+  await runtime.root.declare({ 'conversation.trajectory.images': { kind: 'single', scope: 'session' } }, function TestRoot(props) {
+    const [content, setContent] = useState<ReactNode>(null)
+    captured.seats = props
+    captured.setContent = setContent
+    const { SessionProvider } = props
+    return <SessionProvider session={session}>{content}</SessionProvider>
+  })
+  runtime.slots.register({ name: 'conversation.trajectory.images' }, RecordImages)
+  const view = runtime.renderRoot()
+  const { seats, setContent } = captured
+  if (seats === undefined || setContent === undefined) throw new Error('trajectory image fixture root did not render')
+  return {
+    renderSlot: seats.renderSlot,
+    render: (content: ReactNode) => {
+      act(() => { setContent(content) })
+      return view
+    },
+  }
+}
+
+type TableProps = ComponentProps<typeof LocalizedTrajectoryTable>
+
 function TrajectoryTable(
-  props: Omit<ComponentProps<typeof LocalizedTrajectoryTable>, 't' | 'renderImages'>
-    & { renderImages?: RenderMessageImages },
+  props: Omit<TableProps, 't' | 'renderSlot' | 'loadImage'>
+    & Partial<Pick<TableProps, 'renderSlot' | 'loadImage'>>,
 ) {
   const inferred: Array<NonNullable<typeof props.requestNumbers>[number] & { firstIndex: number }> = []
   for (const turn of props.turns) {
@@ -57,13 +93,19 @@ function TrajectoryTable(
     .map(({ firstIndex: _firstIndex, ...request }, index) => ({ ...request, number: index + 1 }))
   return (
     <LocalizedTrajectoryTable
-      renderImages={renderImagesStub}
+      renderSlot={renderNoImages} loadImage={loadImage}
       {...props}
       requestNumbers={requestNumbers}
       t={t}
     />
   )
 }
+
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo')
+})
 
 /**
  * How long this file waits out the virtual ledger's scroll-idle timer before
@@ -76,12 +118,6 @@ function TrajectoryTable(
  * delay than the debounce, this wait always expires after it.
  */
 const SCROLL_IDLE_DRAIN_MS = 400
-
-afterEach(() => {
-  cleanup()
-  vi.restoreAllMocks()
-  Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo')
-})
 
 // Drains the scroll-idle timer the ledger arms on scroll. The drained
 // notification re-renders a table this file has already unmounted, so waiting
@@ -184,7 +220,7 @@ describe('TrajectoryTable', () => {
     render(
       <LocalizedTrajectoryTable
         t={tZh}
-        renderImages={renderImagesStub}
+        renderSlot={renderNoImages} loadImage={loadImage}
         turns={TURNS}
         collapsedTurns={new Set<number>()}
         onToggleTurn={() => {}}
@@ -290,6 +326,36 @@ describe('TrajectoryTable', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Preview' }))
     fireEvent.click(screen.getByRole('button', { name: 'Thinking' }))
     expect(screen.getByRole('button', { name: 'Thinking' }).getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('renders thinking as compact Markdown while keeping answer typography separate', () => {
+    const turns: readonly TrajectoryTurnModel[] = [{
+      turn: 1,
+      groups: [{
+        title: 'Step 1',
+        cells: [{
+          index: 1,
+          kind: 'message',
+          text: 'Answer',
+          outputDetail: '# Answer heading\n\nAnswer body.',
+          thinkingDetail: '# Thinking heading\n\nReasoning **emphasis**.',
+          timeSeconds: 1,
+        }],
+      }],
+    }]
+    render(<TrajectoryTable turns={turns} {...FOLD_PROPS} />)
+    fireEvent.click(screen.getByRole('row', { name: /ASSISTANT/ }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Preview' }))
+
+    expect(screen.getByRole('heading', { name: 'Thinking heading' })
+      .closest('[data-markdown-variant="compact"]')).not.toBeNull()
+    expect(screen.getByText('emphasis').tagName).toBe('STRONG')
+    expect(screen.getByRole('heading', { name: 'Answer heading' })
+      .closest('[data-markdown-variant="compact"]')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thinking' }))
+    expect(screen.queryByRole('heading', { name: 'Thinking heading' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Answer heading' })).toBeTruthy()
   })
 
   it('opens thinking on another record after collapsing the selected record', () => {
@@ -951,7 +1017,7 @@ describe('TrajectoryTable', () => {
     }]
     const table = (status: 'running' | 'complete' | 'error') => (
       <LocalizedTrajectoryTable
-        turns={turns} {...FOLD_PROPS} t={translate} renderImages={renderImagesStub}
+        turns={turns} {...FOLD_PROPS} t={translate} renderSlot={renderNoImages} loadImage={loadImage}
         requestNumbers={[{
           turn: 1, step: 1, group: 'Step 1', number: 1, status,
           error: 'upstream 503', errorCode: 'SERVER', retry: 1, maxRetries: 2,
@@ -1091,57 +1157,75 @@ describe('TrajectoryTable', () => {
     expect(screen.getByText('value:')).toBeTruthy()
   })
 
-  it('renders user image attachments through the shared gallery in the details panel', () => {
+  it.each([['English', t, 'Attachments', 'Image 1', 'Summary', 'Preview', 'Raw'],
+    ['Chinese', tZh, '附件', '图片 1', '概述', '预览', '原始内容']] as const)(
+    'keeps mixed attachments ordered and raw fields complete in %s',
+    async (_locale, translate, listLabel, imageLabel, summaryTab, previewTab, rawTab) => {
+      const attachment = {
+        attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
+        mediaType: 'image/png' as const,
+        bytes: 68,
+        width: 40,
+        height: 800,
+        originalDimensions: { width: 400, height: 8000 },
+      }
+      const file = {
+        attachmentId: AttachmentId(`sha256:${'b'.repeat(64)}`),
+        name: `${'long-filename-'.repeat(12)}.txt`,
+        bytes: 0,
+      }
+      const content = [
+        { type: 'text' as const, text: '**before**' },
+        { type: 'image' as const, attachment },
+        { type: 'text' as const, text: 'after' },
+        { type: 'file' as const, attachment: file },
+        { type: 'image' as const, attachment },
+      ]
+      const turns = deriveTrajectoryLayout({
+        nodes: [{ kind: 'user', seq: 1, time: 1000, source: { kind: 'user' }, content }],
+        partial: null,
+        runningCalls: [],
+      }, translate)
+      const { render, renderSlot: slotRenderer } = await imageSlotFixture()
+      const renderSlot = vi.fn((name: 'conversation.trajectory.images', owner: object) => slotRenderer(name, owner as MessageImagesOwnerProps))
+      const view = render(<LocalizedTrajectoryTable turns={turns} {...FOLD_PROPS} t={translate}
+        renderSlot={renderSlot} loadImage={loadImage} />)
+      fireEvent.click(view.container.querySelector('[data-trajectory-row-key]')!)
+      for (const tab of [summaryTab, previewTab]) {
+        fireEvent.click(screen.getByRole('tab', { name: tab }))
+        const list = screen.getByRole('list', { name: listLabel })
+        const names = [...list.querySelectorAll('[title]')].map(el => el.getAttribute('title'))
+        expect(names).toEqual([imageLabel, file.name, imageLabel.replace('1', '2')])
+        expect(within(list).getByText('TXT · 0B')).toBeTruthy()
+        expect(within(list).getAllByText('image/png · 68B · 40 × 800')).toHaveLength(2)
+        expect(renderSlot).toHaveBeenCalledWith('conversation.trajectory.images', {
+          images: [{ attachment, label: imageLabel }], align: 'start', thumbnail: true, loadImage,
+        })
+      }
+      fireEvent.click(screen.getByRole('tab', { name: rawTab }))
+      expect(screen.queryByTestId('record-images')).toBeNull()
+      const disclosures = [...view.container.querySelectorAll('details')]
+      expect(disclosures).toHaveLength(3)
+      expect(disclosures.every(el => !el.open)).toBe(true)
+      expect(disclosures.map((el): unknown => JSON.parse(el.querySelector('pre')!.textContent)))
+        .toEqual([content[1], content[3], content[4]])
+      const blocks = [...disclosures[0]!.parentElement!.children]
+      expect(blocks.map(el => el.tagName)).toEqual(['SECTION', 'DETAILS', 'SECTION', 'DETAILS', 'DETAILS'])
+      expect(blocks[0]!.querySelector('pre')!.textContent).toBe('**before**')
+      expect(blocks[2]!.querySelector('pre')!.textContent).toBe('after')
+    },
+  )
+
+  it('renders a tool-result image through the shared gallery in the Result tab', async () => {
+    const { render, renderSlot } = await imageSlotFixture()
     const attachment = {
-      attachmentId: `sha256:${'a'.repeat(64)}`,
-      mediaType: 'image/png',
-      bytes: 68,
-      width: 640,
-      height: 320,
-      name: 'screenshot.png',
-    } as unknown as NonNullable<
-      NonNullable<TrajectoryTurnModel['groups'][number]['cells'][number]['sourceBlocks']>[number]['attachment']
-    >
-    const turns: readonly TrajectoryTurnModel[] = [{
-      turn: 1,
-      groups: [{
-        title: 'Message',
-        cells: [{
-          index: 1,
-          kind: 'user',
-          text: 'Images ×2',
-          sourceBlocks: [
-            { type: 'image', content: '', attachment },
-            { type: 'image', content: '', attachment },
-          ],
-          timeSeconds: 0,
-        }],
-      }],
-    }]
-
-    render(<TrajectoryTable turns={turns} {...FOLD_PROPS} />)
-    fireEvent.click(screen.getByRole('row', { name: /USER/ }))
-
-    const preview = screen.getAllByTestId('record-images')
-    expect(preview.length).toBeGreaterThan(0)
-    expect(preview[0]?.getAttribute('data-count')).toBe('2')
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw' }))
-    const rawGalleries = screen.getAllByTestId('record-images')
-    expect(rawGalleries).toHaveLength(2)
-    expect(rawGalleries[0]?.querySelector('[data-attachment-id]')?.getAttribute('data-attachment-id'))
-      .toBe(String(attachment.attachmentId))
-  })
-
-  it('renders a tool-result image through the shared gallery in the Result tab', () => {
-    const attachment = {
-      attachmentId: `sha256:${'b'.repeat(64)}`,
+      attachmentId: AttachmentId(`sha256:${'b'.repeat(64)}`),
       mediaType: 'image/png',
       bytes: 68,
       width: 320,
       height: 640,
       name: 'capture.png',
-    } as unknown as NonNullable<
+    } satisfies NonNullable<
       NonNullable<TrajectoryTurnModel['groups'][number]['cells'][number]['outputBlocks']>[number]['attachment']
     >
     const turns: readonly TrajectoryTurnModel[] = [{
@@ -1159,7 +1243,7 @@ describe('TrajectoryTable', () => {
       }],
     }]
 
-    render(<TrajectoryTable turns={turns} {...FOLD_PROPS} />)
+    render(<TrajectoryTable turns={turns} {...FOLD_PROPS} renderSlot={renderSlot} />)
     fireEvent.click(screen.getByRole('row', { name: /TOOL/ }))
     fireEvent.click(screen.getByRole('tab', { name: 'Result' }))
 
@@ -1169,15 +1253,16 @@ describe('TrajectoryTable', () => {
       .toBe(String(attachment.attachmentId))
   })
 
-  it('keeps the failure name beside an image-only error result', () => {
+  it('keeps the failure name beside an image-only error result', async () => {
+    const { render, renderSlot } = await imageSlotFixture()
     const attachment = {
-      attachmentId: `sha256:${'c'.repeat(64)}`,
+      attachmentId: AttachmentId(`sha256:${'c'.repeat(64)}`),
       mediaType: 'image/png',
       bytes: 68,
       width: 320,
       height: 320,
       name: 'failed.png',
-    } as unknown as NonNullable<
+    } satisfies NonNullable<
       NonNullable<TrajectoryTurnModel['groups'][number]['cells'][number]['outputBlocks']>[number]['attachment']
     >
     const turns: readonly TrajectoryTurnModel[] = [{
@@ -1196,7 +1281,7 @@ describe('TrajectoryTable', () => {
       }],
     }]
 
-    render(<TrajectoryTable turns={turns} {...FOLD_PROPS} />)
+    render(<TrajectoryTable turns={turns} {...FOLD_PROPS} renderSlot={renderSlot} />)
     fireEvent.click(screen.getByRole('row', { name: /TOOL/ }))
     fireEvent.click(screen.getByRole('tab', { name: 'Result' }))
 

@@ -176,15 +176,17 @@ export class WorkspaceRegistry extends Service {
   private readonly entities = new Map<WorkspaceId, WorkspaceEntity>()
   private readonly headers = new Map<SessionId, SessionHeader>()
   private readonly sessionPaths = new Map<SessionId, string>()
+  private readonly missingSessionPaths = new Set<SessionId>()
   private readonly invalidSessionPaths = new Map<SessionId, string>()
   private operationTail: Promise<void> = Promise.resolve()
 
   private readonly host: WorkspaceEntityHost = {
     table: () => this.requireTable(),
-    sessionPath: id => this.sessionPaths.get(id),
+    candidateMatches: (id, path) => this.sessionPaths.get(id) === path || this.missingSessionPaths.has(id),
     readSessionHeader: id => this.readSessionHeader(id),
     rememberSessionPath: (id, path) => {
       this.sessionPaths.set(id, path)
+      this.missingSessionPaths.delete(id)
       this.invalidSessionPaths.delete(id)
     },
   }
@@ -222,18 +224,18 @@ export class WorkspaceRegistry extends Service {
    * path is canonicalized through `fs.realpath`; a relative, nonexistent, or
    * non-directory path rejects. Repeated calls for the same canonical path
    * return the existing entity without changing its title.
-   * A newly created workspace is prepended to the durable registry order and
-   * derives its title from the path's final segment.
+   * A newly created workspace is prepended to the durable registry order.
    * Different canonical paths may share a display title.
    * @param path - Existing directory to own, in a fully qualified path spelling.
+   * @param title - Display title used only when a new record is created.
    * @returns the existing or newly durable workspace.
    */
-  async create(path: string): Promise<Workspace> {
+  async create(path: string, title?: string): Promise<Workspace> {
     const canonical = await realpathNormalize(path)
     if (!(await stat(canonical)).isDirectory()) {
       throw new Error(`cannot create a workspace at '${canonical}': path is not a directory`)
     }
-    return await this.enqueueOperation(() => this.createCanonical(canonical))
+    return await this.enqueueOperation(() => this.createCanonical(canonical, title))
   }
 
   /**
@@ -788,6 +790,7 @@ export class WorkspaceRegistry extends Service {
   private async replaceHeaderIndex(headers: readonly SessionHeader[]): Promise<void> {
     this.headers.clear()
     this.sessionPaths.clear()
+    this.missingSessionPaths.clear()
     this.invalidSessionPaths.clear()
     await this.indexHeaders(headers)
   }
@@ -799,6 +802,7 @@ export class WorkspaceRegistry extends Service {
   private async indexHeader(header: SessionHeader): Promise<void> {
     this.headers.set(header.id, header)
     this.sessionPaths.delete(header.id)
+    this.missingSessionPaths.delete(header.id)
     if (header.cwd === undefined) {
       this.invalidSessionPaths.set(header.id, 'header has no cwd')
       return
@@ -811,7 +815,11 @@ export class WorkspaceRegistry extends Service {
       }
       this.sessionPaths.set(header.id, path)
       this.invalidSessionPaths.delete(header.id)
-    } catch {
+    } catch (error) {
+      if (fullyQualifiedWorkspacePath(header.cwd)
+        && error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        this.missingSessionPaths.add(header.id)
+      }
       this.invalidSessionPaths.set(header.id, `cwd '${header.cwd}' does not resolve`)
     }
   }
@@ -832,8 +840,8 @@ export class WorkspaceRegistry extends Service {
     for (const entity of this.entities.values()) {
       const record = this.requireTable().get(entity.id) as WorkspaceRecord
       for (const sessionId of record.sessionIds) {
+        if (this.host.candidateMatches(sessionId, record.path)) continue
         const path = this.sessionPaths.get(sessionId)
-        if (path === record.path) continue
         const reason = this.invalidSessionPaths.get(sessionId)
           ?? (this.headers.has(sessionId)
             ? `canonical cwd '${path}' differs from workspace path '${record.path}'`

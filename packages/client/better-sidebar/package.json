@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-better-sidebar",
   "description": "DSH web plugin: a VSCode-like right sidebar (explorer / editor / terminal / git / browser), isolated per conversation session. Exposes a client service for other client plugins to register sidebar tabs and file viewers",
-  "version": "0.2.1-alpha.2",
+  "version": "0.2.1-alpha.3",
   "publishConfig": {
     "access": "public"
   },
@@ -90,8 +90,6 @@
     "@deepseek-ai/dsh-util-crypto": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@types/node": "^22.0.0",
-    "@types/react": "~18.3.1",
-    "@types/react-dom": "~18.3.1",
     "@types/ws": "^8.5.10",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",

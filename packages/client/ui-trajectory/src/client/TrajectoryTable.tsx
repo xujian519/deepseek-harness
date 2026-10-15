@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TrajectoryCellProps } from './trajectory-record.ts'
@@ -83,7 +84,9 @@ export interface TrajectoryTableProps {
   /** Trajectory locale seat. */
   t: TrajectoryTranslate
   /** Slot-backed durable image renderer shared with the Chat gallery. */
-  renderImages: RenderMessageImages
+  renderSlot: PropsRenderSlots<'conversation.trajectory.images'>['renderSlot']
+  /** Session-bound loader for durable message image attachments. */
+  loadImage: MessageImageLoader
   /** Session-global request numbers for the request groups visible in this context. */
   requestNumbers?: readonly TrajectoryRequestNumber[]
   /** Grouped records in display order. */
@@ -137,7 +140,8 @@ export interface TrajectoryTableProps {
 export function TrajectoryTable({
   t,
   stringWrapping,
-  renderImages,
+  renderSlot,
+  loadImage,
   requestNumbers: sessionRequestNumbers,
   turns,
   streamingCells = [],
@@ -687,7 +691,8 @@ export function TrajectoryTable({
       </div>
       <RecordInspector
         t={t}
-        renderImages={renderImages}
+        renderSlot={renderSlot}
+        loadImage={loadImage}
         allRecords={allRecords}
         currentRecord={currentRecord}
         requestNumbers={requestNumbers}

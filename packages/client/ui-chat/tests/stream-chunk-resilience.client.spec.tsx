@@ -14,7 +14,8 @@ import type { AssistantChatData, ChatConversationViewNode } from '../src/client/
 import { assistantDefinition } from '../src/client/conversation-nodes/assistant.ts'
 import { chatViewDefinition } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
 import { unknownFallbackDefinition } from '../src/client/conversation-nodes/fallback.ts'
-import { AssistantMarkdown, type AssistantMarkdownProps } from '../src/client/chat/AssistantMarkdown.tsx'
+import { AssistantMarkdown } from '../src/client/chat/AssistantMarkdown.tsx'
+import type { ChatNodeOwnerProps } from '../src/client/contract/slots.ts'
 import { useSearchableHidden } from '../src/client/chat/searchable-hidden.ts'
 import { useDisclosure } from '../src/client/chat/use-disclosure.ts'
 import { useDetailedPresentation } from './presentation-fixture.client.ts'
@@ -125,7 +126,7 @@ describe('stream-chunk resilience', () => {
 
   it('renders malformed assistant blocks without throwing', () => {
     const t = makeTranslate(zh, commonZh)
-    const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
+    const loadImage: ChatNodeOwnerProps['loadImage'] = async () => 'blob:chat'
     const blocks = [
       { kind: 'text', text: undefined },
       { kind: 'reasoning', text: undefined },
@@ -139,7 +140,7 @@ describe('stream-chunk resilience', () => {
           usePresentation={useDetailedPresentation}
           blocks={blocks}
           streaming={false}
-          renderMessageImages={renderMessageImages}
+          loadImage={loadImage}
           t={t}
         />,
       ),

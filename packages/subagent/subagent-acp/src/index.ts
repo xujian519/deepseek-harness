@@ -74,12 +74,14 @@ type ResolvedConfig = Required<Config>
 
 /**
  * The ACP provider. Advertises NO start-time capabilities: an out-of-process
- * child cannot honor `agentOptions`/`outputSchema`/`maxDepth`/`toolFilter`/
- * `persona` (the service rejects a request needing any before `start` runs).
+ * child cannot honor `agentOptions`/`agentPreset`/`outputSchema`/`maxDepth`/
+ * `toolFilter`/`persona`. The service rejects a request needing any before
+ * execution starts.
  */
 class AcpProvider implements SubagentProvider {
   readonly capabilities: SubagentCapabilities = {
     agentOptions: false,
+    agentPreset: false,
     outputSchema: false,
     depthLimit: false,
     toolFilter: false,

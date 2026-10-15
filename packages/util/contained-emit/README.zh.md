@@ -89,7 +89,7 @@ invokeContained(ctx, 'jobs: onJobsChanged', listeners, [owner], errorMessage)
 <a id="further-exploration"></a>
 ## 进一步探索
 
-- [防御模式](../../../docs/defensive-patterns.zh.md)——本循环实现的受控要求。
+- [防御模式](../../../docs/defensive-patterns/general.zh.md)——本循环实现的受控要求。
 - [Agent Note：abort-race 原语](../../../.agents/notes/implemented/architecture/2026-08-30-abortable-abort-race-sink.zh.md)——`dsh-timeout` 中相关的 promise 对信号原语。
 
 -----

@@ -16,6 +16,7 @@ import { z } from 'zod'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { EvolveLevel, FailurePattern, FailurePatternsProjection } from './types.ts'
 
 /** Projection-unit key registered under `ctx.sessionProjections`. */
@@ -31,7 +32,7 @@ const failurePatternSchema = z.object({
   summary: z.string(),
   supportingSeqs: z.array(z.number().int().nonnegative()),
   occurrences: z.number().int().positive(),
-  verifierMeta: z.record(z.string(), z.unknown()),
+  verifierMeta: z.record(z.string(), z.json()),
 }).strict()
 
 const failurePatternsStateSchema = z.object({
@@ -67,7 +68,48 @@ type ClassifiedFailure = {
   verifierTier: VerifierTier
   causalSignature: string
   summary: string
-  verifierMeta: Record<string, unknown>
+  verifierMeta: Record<string, JsonValue>
+}
+
+/**
+ * Project one classifier's verifier metadata onto the JSON the
+ * `failure-patterns` projection carries to Remote consumers. Values come from
+ * session-event payloads, which are JSON by construction: an absent member is
+ * dropped the way serialization drops it, and any value outside JSON (a bigint,
+ * a symbol) falls back to its string form — a function to its name — so the
+ * record stays wire-serializable.
+ * @param entries - the metadata fields to project.
+ * @returns the same keys holding JSON values.
+ */
+export function verifierMetadata(entries: Record<string, unknown>): Record<string, JsonValue> {
+  const projected: Record<string, JsonValue> = {}
+  for (const [key, value] of Object.entries(entries)) {
+    if (value === undefined) continue
+    projected[key] = jsonMember(value)
+  }
+  return projected
+}
+
+/** One nested verifier-metadata value, with `undefined` rendered as `null` the way JSON arrays are. */
+function jsonMember(value: unknown): JsonValue {
+  switch (typeof value) {
+    case 'undefined':
+    case 'object':
+      if (value === null || value === undefined) return null
+      if (Array.isArray(value)) return value.map(jsonMember)
+      return verifierMetadata({ ...value as Record<string, unknown> })
+    case 'string':
+    case 'boolean':
+      return value
+    case 'number':
+      return Number.isFinite(value) ? value : String(value)
+    case 'bigint':
+    case 'symbol':
+      return value.toString()
+    /* v8 ignore next -- a function cannot reach a session-event payload */
+    default:
+      return String(value)
+  }
 }
 
 function toNarrowLevel(tier: VerifierTier): EvolveLevel {
@@ -204,11 +246,11 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
           verifierTier: 'subprocess-exit',
           causalSignature: shell.signature,
           summary: `tool ${toolName ?? 'unknown-tool'} ${detail}`,
-          verifierMeta: {
+          verifierMeta: verifierMetadata({
             tool: toolName,
             ...(shell.kind === 'exit' ? { exitCode: shell.exitCode } : { signal: shell.signal }),
             stderrPrefix: shell.stderrPrefix,
-          },
+          }),
         }
       }
       const errorData = data.error
@@ -220,7 +262,7 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
           verifierTier: 'tool-runtime',
           causalSignature: name,
           summary: `tool ${toolName ?? 'unknown-tool'} error: ${name}`,
-          verifierMeta: { tool: toolName, error: errorData, text },
+          verifierMeta: verifierMetadata({ tool: toolName, error: errorData, text }),
         }
       }
       return null
@@ -237,7 +279,7 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
         verifierTier: 'llm-provider',
         causalSignature,
         summary: 'llm request failed after retries',
-        verifierMeta: { provider: data.provider, model: data.model, code, status, name, error: data.error },
+        verifierMeta: verifierMetadata({ provider: data.provider, model: data.model, code, status, name, error: data.error }),
       }
     }
     case 'compaction/end': {
@@ -249,7 +291,7 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
         verifierTier: 'tool-runtime',
         causalSignature: errorNamePrefix(error) || 'compaction-error',
         summary: 'compaction did not finish cleanly',
-        verifierMeta: { error },
+        verifierMeta: verifierMetadata({ error }),
       }
     }
     case 'self-evolve/end': {
@@ -264,7 +306,7 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
         verifierTier: 'agent-loop',
         causalSignature,
         summary: 'prior self-evolve loop failed',
-        verifierMeta: { error: raw },
+        verifierMeta: verifierMetadata({ error: raw }),
       }
     }
     default:

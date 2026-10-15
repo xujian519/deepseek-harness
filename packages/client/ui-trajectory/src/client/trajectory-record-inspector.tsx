@@ -16,7 +16,8 @@ import {
   writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   DetailTab,
   ParentRecords,
@@ -63,7 +64,9 @@ export interface RecordInspectorProps {
   /** Trajectory locale seat. */
   t: TrajectoryTranslate
   /** Slot-backed durable image renderer shared with the Chat gallery. */
-  renderImages: RenderMessageImages
+  renderSlot: PropsRenderSlots<'conversation.trajectory.images'>['renderSlot']
+  /** Session-bound loader for durable message image attachments. */
+  loadImage: MessageImageLoader
   /** Ledger records before fold and search projection, read for request and hierarchy lookup. */
   allRecords: readonly TableRecord[]
   /** Apply the streaming overlay to a template record. */
@@ -320,7 +323,8 @@ function ProgramOutput({ record, stringWrapping, onOpen, t }: {
  */
 export function RecordInspector({
   t,
-  renderImages,
+  renderSlot,
+  loadImage,
   allRecords,
   currentRecord,
   requestNumbers,
@@ -732,7 +736,7 @@ export function RecordInspector({
               >
                 <MarkdownRecordContent
                   record={selected}
-                  renderImages={renderImages}
+                  renderSlot={renderSlot} loadImage={loadImage}
                   rendered
                   thinkingExpanded={thinkingExpanded}
                   onThinkingExpandedChange={onThinkingExpandedChange}
@@ -868,7 +872,7 @@ export function RecordInspector({
                       <OverviewSection label={t('tab.preview')} onOpen={() => { onActivateTab('rendered') }}>
                         <MarkdownRecordContent
                           record={selected}
-                          renderImages={renderImages}
+                          renderSlot={renderSlot} loadImage={loadImage}
                           rendered
                           preview
                           thinkingExpanded={thinkingExpanded}
@@ -883,12 +887,12 @@ export function RecordInspector({
                     <>
                       {selected.cell.inputDetail && (
                         <OverviewSection label={t('tab.payload')} onOpen={() => { onActivateTab('input') }}>
-                          <RecordPayload record={selected} direction="input" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                          <RecordPayload record={selected} direction="input" preview renderSlot={renderSlot} loadImage={loadImage} stringWrapping={stringWrapping} t={t} />
                         </OverviewSection>
                       )}
                       {selected.cell.outputDetail && (
                         <OverviewSection label={t('tab.result')} onOpen={() => { onActivateTab('output') }}>
-                          <RecordPayload record={selected} direction="output" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                          <RecordPayload record={selected} direction="output" preview renderSlot={renderSlot} loadImage={loadImage} stringWrapping={stringWrapping} t={t} />
                         </OverviewSection>
                       )}
                       <OverviewSection label={t('tab.schema')} onOpen={() => { onActivateTab('schema') }}>
@@ -917,7 +921,7 @@ export function RecordInspector({
         {!promptSelected && selected !== undefined && activeTab === 'rendered' && (
           <MarkdownRecordContent
             record={selected}
-            renderImages={renderImages}
+            renderSlot={renderSlot} loadImage={loadImage}
             rendered
             thinkingExpanded={thinkingExpanded}
             onThinkingExpandedChange={onThinkingExpandedChange}
@@ -928,7 +932,7 @@ export function RecordInspector({
         {!promptSelected && selected !== undefined && activeTab === 'raw' && (
           <MarkdownRecordContent
             record={selected}
-            renderImages={renderImages}
+            renderSlot={renderSlot} loadImage={loadImage}
             rendered={false}
             thinkingExpanded={thinkingExpanded}
             onThinkingExpandedChange={onThinkingExpandedChange}
@@ -941,7 +945,7 @@ export function RecordInspector({
         )}
         {!promptSelected && selected !== undefined && activeTab === 'input' && (
           selectedProgram === undefined
-            ? <RecordPayload record={selected} direction="input" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+            ? <RecordPayload record={selected} direction="input" renderSlot={renderSlot} loadImage={loadImage} stringWrapping={stringWrapping} t={t} />
             : (
               <ProgramInput
                 key={`input:${trajectoryRecordId(selected.cell)}`}
@@ -954,7 +958,7 @@ export function RecordInspector({
         )}
         {!promptSelected && selected !== undefined && activeTab === 'output' && (
           selectedProgram === undefined
-            ? <RecordPayload record={selected} direction="output" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+            ? <RecordPayload record={selected} direction="output" renderSlot={renderSlot} loadImage={loadImage} stringWrapping={stringWrapping} t={t} />
             : <ProgramOutput record={selected} stringWrapping={stringWrapping} t={t} />
         )}
         {!promptSelected && selected !== undefined && activeTab === 'schema' && (

@@ -22,7 +22,13 @@ import type { SelfEvolveRunId } from './brand.ts'
 
 export type { SelfEvolveResult, FailurePattern, EvolveProposal, EvolveLevel, EvolveTrigger, SelfEvolveAgentContext } from './types.ts'
 export { SelfEvolveRunId, FailurePatternId, EvolveProposalId } from './brand.ts'
-export { failurePatternsProjectionDefinition, FAILURE_PATTERNS_PROJECTION_KEY, extractText, parseShellMarkers } from './failure-projection.ts'
+export {
+  failurePatternsProjectionDefinition,
+  FAILURE_PATTERNS_PROJECTION_KEY,
+  extractText,
+  parseShellMarkers,
+  verifierMetadata,
+} from './failure-projection.ts'
 export type { FailurePatternsState, ShellFailureMark } from './failure-projection.ts'
 
 declare module '@deepseek-ai/cordis' {

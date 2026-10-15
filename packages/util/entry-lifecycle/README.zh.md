@@ -88,7 +88,7 @@ function announce(entry: Entry): void {
 <a id="further-exploration"></a>
 ## 进一步探索
 
-- [防御模式](../../../docs/defensive-patterns.zh.md)——本状态机实现的发布与销毁顺序规则。
+- [防御模式](../../../docs/defensive-patterns/general.zh.md)——本状态机实现的发布与销毁顺序规则。
 - [受控派发](../contained-emit/README.zh.md)——`util/` 中同族的原语，让每个监听器都运行、不因一次失败饿死其余监听器。
 
 -----

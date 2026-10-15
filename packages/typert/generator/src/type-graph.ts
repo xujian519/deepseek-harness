@@ -156,6 +156,15 @@ export class TypeGraph {
   }
 
   /**
+   * Read one stored node model.
+   * @param id - Node id returned by an earlier store.
+   * @returns The node model, or undefined when the id was never stored.
+   */
+  public node(id: TypeNodeId): TypeNodeModel | undefined {
+    return this.nodes.get(id)
+  }
+
+  /**
    * Store one node under an id the caller minted.
    * @param id - Node id the caller allocated.
    * @param model - Node model without its id.
