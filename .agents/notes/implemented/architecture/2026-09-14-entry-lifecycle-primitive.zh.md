@@ -8,7 +8,7 @@ Status: implemented
 
 `dsh-agent` 与 `dsh-session` 各自持有同一份条目生命周期状态机。`AgentEntry` 与 `SessionEntry` 都带 `announced`/`announcing`/`detachRequested`——session 侧还多一个 `appending`——且两侧注册表都跑同样四步：把条目插入为存活状态、公告它的创建、把在创建派发仍在调用监听器期间到达的移除延后、只对已公告的条目发出配对的销毁边。两份副本连抛出的句子都相同：`` `<kind> "<id>" was already announced` ``。
 
-两侧已经开始分叉。`dsh-session` 在它的 append 发布打开期间延后移除，这是 agent 注册表没有对应物的第二个派发窗口；两侧各自的一次性 detach 闭包又用自己的措辞重述了延后规则（[`core/agent/src/index.ts`](../../../../packages/core/agent/src/index.ts) 用 `entry.announcing`，[`core/session/src/index.ts`](../../../../packages/core/session/src/index.ts) 用 `entry.announcing || entry.appending`）。对顺序规则的任何修正都必须落地两次，这正是[防御模式](../../../../docs/defensive-patterns.zh.md)所称「在两侧都遵守契约」的漂移温床。
+两侧已经开始分叉。`dsh-session` 在它的 append 发布打开期间延后移除，这是 agent 注册表没有对应物的第二个派发窗口；两侧各自的一次性 detach 闭包又用自己的措辞重述了延后规则（[`core/agent/src/index.ts`](../../../../packages/core/agent/src/index.ts) 用 `entry.announcing`，[`core/session/src/index.ts`](../../../../packages/core/session/src/index.ts) 用 `entry.announcing || entry.appending`）。对顺序规则的任何修正都必须落地两次，这正是[防御模式](../../../../docs/defensive-patterns/general.zh.md)所称「在两侧都遵守契约」的漂移温床。
 
 ## Decision
 

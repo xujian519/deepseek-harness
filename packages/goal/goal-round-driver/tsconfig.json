@@ -28,6 +28,9 @@
     },
     {
       "path": "../../util/value"
+    },
+    {
+      "path": "../../subagent/subagent"
     }
   ]
 }

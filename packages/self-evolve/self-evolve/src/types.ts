@@ -17,6 +17,7 @@
  */
 
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { SelfEvolveRunId } from './brand.ts'
 
 export type { SelfEvolveRunId }
@@ -52,8 +53,12 @@ export interface FailurePattern {
   supportingSeqs: number[]
   /** Number of distinct occurrences this pattern describes within this session. */
   occurrences: number
-  /** Structured verifier metadata; schema is owner-specific per level. */
-  verifierMeta: Record<string, unknown>
+  /**
+   * Structured verifier metadata; schema is owner-specific per level. Values
+   * must be JSON: the `failure-patterns` projection that carries this pattern
+   * reaches Remote consumers through `SessionSummary.projections`.
+   */
+  verifierMeta: Record<string, JsonValue>
 }
 
 /** Durable view used as the `SessionProjectionMap['failure-patterns']` contract. */

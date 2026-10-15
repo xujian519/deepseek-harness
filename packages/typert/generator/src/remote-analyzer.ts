@@ -18,10 +18,12 @@ import type {
   RemoteTypeImportModel,
   SymbolId,
   TypeNodeId,
+  TypeNodeModel,
   TypertFace,
 } from './model.ts'
 import { isStandardLibraryFile, realPath } from './module-path.ts'
 import {
+  documentationOf,
   hasModifier,
   isRemoteSegment,
   memberName,
@@ -154,6 +156,7 @@ export class RemoteAnalyzer {
     if ((method.typeParameters?.length ?? 0) > 0) {
       this.graph.fail(method, 'generic Remote methods are not supported')
     }
+    const documentation = documentationOf(method)
     const methodName = method.name.text
     const exportedMethod = invocation.exportName ?? methodName
 
@@ -223,7 +226,8 @@ export class RemoteAnalyzer {
       }
       if (wires.has(modeled.wire)) this.graph.fail(parameter, `duplicate Remote wire field ${modeled.wire}`)
       wires.add(modeled.wire)
-      parameters.push(modeled)
+      const description = documentation.tags.find(tag => tag.name === 'param' && tag.argument === modeled.name)?.comment?.replace(/^[-—–]\s*/, '')
+      parameters.push({ ...modeled, ...(description === undefined ? {} : { description }) })
     }
 
     let receiver: InvocationModel['invocation'] = { kind: 'direct' }
@@ -282,6 +286,7 @@ export class RemoteAnalyzer {
         ),
       }
     return {
+      ...documentation,
       id: `${registration.name}#${binding.namespace}/${exportedMethod}`,
       service: binding.service,
       namespace: binding.namespace,
@@ -390,6 +395,37 @@ export class RemoteAnalyzer {
     return { service, namespace, site }
   }
 
+  /**
+   * Read the options object of `@Remote` or `@RemoteScope`. `resources`
+   * accepts any expression: its readers run only at runtime, where the
+   * Gateway reads them from the prototype descriptor, so generation records
+   * nothing for them.
+   */
+  private remoteOptions(
+    argument: ts.Expression,
+    decorator: 'Remote' | 'RemoteScope',
+  ): { readonly exportName?: string; readonly mode?: 'stream' } {
+    const requirement = decorator === 'Remote'
+      ? 'Remote() options require name, mode: "stream", or resources'
+      : 'RemoteScope() options require name or resources'
+    if (!ts.isObjectLiteralExpression(argument) || argument.properties.length === 0) this.graph.fail(argument, requirement)
+    let options: { readonly exportName?: string; readonly mode?: 'stream' } = {}
+    for (const property of argument.properties) {
+      if (!ts.isPropertyAssignment(property)) this.graph.fail(property, `${decorator}() options must use named values`)
+      const name = memberName(property.name)
+      if (decorator === 'Remote' && name === 'mode' && stringLiteralValue(property.initializer) === 'stream') {
+        options = { ...options, mode: 'stream' }
+      } else if (name === 'name') {
+        const value = stringLiteralValue(property.initializer)
+        if (value === undefined || !isRemoteSegment(value)) this.graph.fail(property, `${decorator}() name must be an endpoint segment`)
+        options = { ...options, exportName: value }
+      } else if (name !== 'resources') {
+        this.graph.fail(property, requirement)
+      }
+    }
+    return options
+  }
+
   private remoteMarker(
     member: ts.ClassElement,
   ):
@@ -417,16 +453,7 @@ export class RemoteAnalyzer {
           }
           marker = { kind: 'direct', exportName }
         } else {
-          if (!ts.isObjectLiteralExpression(argument) || argument.properties.length !== 1) {
-            this.graph.fail(argument, 'Remote() options must contain exactly mode: "stream"')
-          }
-          const [property] = argument.properties
-          if (property === undefined) this.graph.fail(argument, 'Remote() options must contain exactly mode: "stream"')
-          const mode = ts.isPropertyAssignment(property) && memberName(property.name) === 'mode'
-            ? stringLiteralValue(property.initializer)
-            : undefined
-          if (mode !== 'stream') this.graph.fail(property, 'Remote() options must contain exactly mode: "stream"')
-          marker = { kind: 'direct', mode }
+          marker = { kind: 'direct', ...this.remoteOptions(argument, 'Remote') }
         }
       } else if (ts.isCallExpression(expression)
         && this.graph.isTypeMetaSymbol(expression.expression, 'RemoteScope')) {
@@ -437,12 +464,17 @@ export class RemoteAnalyzer {
         if (context === undefined || !isRemoteSegment(context)) {
           this.graph.fail(expression.arguments[0] ?? expression, 'RemoteScope() key must be a string literal containing only RPC endpoint segment characters')
         }
-        const exportArgument = expression.arguments[1]
-        const exportName = exportArgument === undefined ? undefined : stringLiteralValue(exportArgument)
-        if (exportArgument !== undefined && (exportName === undefined || !isRemoteSegment(exportName))) {
-          this.graph.fail(exportArgument, 'RemoteScope() name must be a string literal containing only RPC endpoint segment characters')
+        const option = expression.arguments[1]
+        const exportName = option === undefined ? undefined : stringLiteralValue(option)
+        if (option === undefined || exportName !== undefined) {
+          if (exportName !== undefined && !isRemoteSegment(exportName)) {
+            this.graph.fail(option ?? expression, 'RemoteScope() name must be a string literal containing only RPC endpoint segment characters')
+          }
+          marker = { kind: 'context', context, ...exportName === undefined ? {} : { exportName } }
+        } else {
+          const options = this.remoteOptions(option, 'RemoteScope')
+          marker = { kind: 'context', context, ...options.exportName === undefined ? {} : { exportName: options.exportName } }
         }
-        marker = { kind: 'context', context, ...exportName === undefined ? {} : { exportName } }
       } else {
         continue
       }
@@ -693,6 +725,12 @@ export class RemoteAnalyzer {
           completed.set(type, id)
           return id
         }
+        const alias = type.aliasSymbol
+        const aliasDeclaration = alias === undefined ? undefined : preferredDeclaration(this.graph.resolveSymbol(alias))
+        if (alias?.name === 'JsonValue' && aliasDeclaration !== undefined
+          && this.registrationForFile(aliasDeclaration.getSourceFile().fileName)?.name === '@deepseek-ai/dsh-util-values') {
+          return add({ kind: 'keyword', name: 'unknown', json: true })
+        }
         const flags = type.flags
         if (this.isRemoteByteArray(type)) {
           return add({ kind: 'reference', name: 'Uint8Array', target: { kind: 'standard', name: 'Uint8Array' }, arguments: [] })
@@ -725,9 +763,22 @@ export class RemoteAnalyzer {
           const value = (type as ts.Type & { readonly intrinsicName?: string }).intrinsicName === 'true'
           return add({ kind: 'literal', value, text: String(value) })
         }
-        if (type.isUnionOrIntersection()) {
+        if (type.isIntersection()) {
+          const material = type.types.filter(member => !this.isRemotePhantomConstraint(member))
+          if (material.length === 1) {
+            const projected = convert(material[0] as ts.Type)
+            const { id: _projectedId, ...value } = this.graph.node(projected) as TypeNodeModel
+            return add(value)
+          }
+          // Object intersections contribute one request object; closing each operand
+          // separately would reject fields declared by its sibling operands.
+          if (!material.every(member => (member.flags & ts.TypeFlags.Object) !== 0
+            && !this.checker.isArrayType(member) && !this.checker.isTupleType(member))) {
+            return add({ kind: 'intersection', types: material.map(convert) })
+          }
+        } else if (type.isUnion()) {
           return add({
-            kind: (flags & ts.TypeFlags.Union) !== 0 ? 'union' : 'intersection',
+            kind: 'union',
             types: type.types.map(convert),
           })
         }
@@ -772,7 +823,7 @@ export class RemoteAnalyzer {
           const propertyType = this.checker.getTypeOfSymbolAtLocation(property, declaration ?? authoredType)
           const symbolKey = property.getName()
           members.push({
-            ...EMPTY_DOCUMENTATION,
+            ...(declaration === undefined ? EMPTY_DOCUMENTATION : documentationOf(declaration)),
             id: `${id}#${symbolKey}`,
             name: symbolKey,
             ...(symbolKey.startsWith('__@') ? { computed: 'symbol' as const } : {}),

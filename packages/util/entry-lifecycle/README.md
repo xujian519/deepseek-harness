@@ -88,7 +88,7 @@ Removal follows the creation a listener may have observed: `announce` claims the
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [Defensive patterns](../../../docs/defensive-patterns.md) — the publication and teardown ordering rules this state machine implements.
+- [Defensive patterns](../../../docs/defensive-patterns/general.md) — the publication and teardown ordering rules this state machine implements.
 - [Contained dispatch](../contained-emit/README.md) — the sibling `util/` primitive that runs every listener without letting one failure starve the rest.
 
 -----

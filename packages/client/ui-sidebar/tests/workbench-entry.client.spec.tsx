@@ -42,6 +42,7 @@ function mountRootedShell({ appRoot = true }: { appRoot?: boolean } = {}) {
       useShortcuts={selector => selector([])}
       usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
       useResource={useResource} useWorkspaces={neverHook}
+      useRemoteAccess={neverHook} useSessionAccess={neverHook} useWorkspaceAccess={neverHook}
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}

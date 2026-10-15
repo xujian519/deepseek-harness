@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-root",
-  "version": "0.2.1-alpha.2",
+  "version": "0.2.1-alpha.3",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -48,11 +48,11 @@
     "upload:latest:win:x64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:latest:win:x64",
     "clean": "tsx scripts/clean.ts",
     "change-scope": "tsx scripts/change-scope.ts",
-    "typecheck": "npm run build:lib:host && npm run typecheck:contracts-ready",
+    "typecheck": "tsx scripts/build.ts --scope typecheck",
     "typecheck:contracts-ready": "tsc -b tsconfig.client.json",
-    "lint": "npm run build:lib:host && npm run lint:contracts-ready",
+    "lint": "tsx scripts/compile-referenced-projects.ts host-contracts && npm run lint:contracts-ready",
     "lint:contracts-ready": "tsx scripts/run-oxlint.ts .",
-    "lint:fix": "npm run build:lib:host && npm run lint:fix:contracts-ready",
+    "lint:fix": "tsx scripts/compile-referenced-projects.ts host-contracts && npm run lint:fix:contracts-ready",
     "lint:fix:contracts-ready": "tsx scripts/run-oxlint.ts --config .oxlintrc.staged.json packages/typert/generator/tests/fixtures/type-model --fix && tsx scripts/run-oxlint.ts . --fix",
     "duplication": "tsx scripts/duplication-gate.ts",
     "duplication:baseline": "tsx scripts/duplication-gate.ts --write",
@@ -103,7 +103,7 @@
     "check:ci:windows-observational-ready": "tsx scripts/run-gates.ts ci-windows-observational-ready",
     "check:node-compat": "tsx scripts/run-gates.ts node-compat",
     "publint": "tsx scripts/publint-all.ts",
-    "doc-typecheck": "npm run build:lib:host && npm run doc-typecheck:contracts-ready",
+    "doc-typecheck": "tsx scripts/compile-referenced-projects.ts host-contracts && npm run doc-typecheck:contracts-ready",
     "doc-typecheck:contracts-ready": "tsx scripts/doc-typecheck.ts",
     "verify-md-wrap": "tsx scripts/verify-md-wrap.ts",
     "verify-md-links": "tsx scripts/verify-md-links.ts",
@@ -230,7 +230,13 @@
     "postinstall": "node scripts/install-lefthook.mjs",
     "gen-official-bundle-catalog": "tsx scripts/gen-official-bundle-catalog.ts",
     "verify-official-bundle-catalog": "tsx scripts/gen-official-bundle-catalog.ts --check",
-    "verify-product-use": "tsx scripts/verify-product-use.ts"
+    "verify-product-use": "tsx scripts/verify-product-use.ts",
+    "build:artifacts": "tsx scripts/build.ts --scope artifacts",
+    "build:check": "tsx scripts/build.ts --scope check",
+    "check:ci:snapshot": "tsx scripts/run-gates.ts ci-snapshot",
+    "check:ci:artifacts": "tsx scripts/run-gates.ts ci-artifacts",
+    "gen-provider-data": "tsx packages/llm/llm-pi-ai/scripts/gen-provider-data.ts",
+    "verify-provider-data": "tsx packages/llm/llm-pi-ai/scripts/gen-provider-data.ts --check"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:*",
@@ -301,6 +307,10 @@
     "vite": "8.2.2",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.11",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@deepseek-ai/dsh-cua": "workspace:*",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "~18.3.0",
+    "@deepseek-ai/dsh-experimental-cua-macos": "workspace:*"
   }
 }

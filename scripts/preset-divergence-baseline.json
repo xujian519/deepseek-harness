@@ -10,6 +10,7 @@
     "command-compact": {
       "cordis.patch.yml": "c72e6939a7",
       "document.patch.yml": "aff31e4dcd",
+      "minimal.patch.yml": "c72e6939a7",
       "patent.patch.yml": "aff31e4dcd",
       "ptc.patch.yml": "c72e6939a7",
       "standard.patch.yml": "c72e6939a7"
@@ -21,9 +22,18 @@
       "ptc.patch.yml": "83b93b724a",
       "standard.patch.yml": "83b93b724a"
     },
+    "compaction": {
+      "cordis.patch.yml": "d19e50f6cb",
+      "document.patch.yml": "d19e50f6cb",
+      "minimal.patch.yml": "6210f72039",
+      "patent.patch.yml": "d19e50f6cb",
+      "ptc.patch.yml": "d19e50f6cb",
+      "standard.patch.yml": "d19e50f6cb"
+    },
     "compaction-basic": {
       "cordis.patch.yml": "34268d526f",
       "document.patch.yml": "1e2edb1d69",
+      "minimal.patch.yml": "34268d526f",
       "patent.patch.yml": "1e2edb1d69",
       "ptc.patch.yml": "34268d526f",
       "standard.patch.yml": "34268d526f"
@@ -74,6 +84,7 @@
     "tool-fs": {
       "cordis.patch.yml": "eac4eb155e",
       "document.patch.yml": "630bf4b5e9",
+      "minimal.patch.yml": "7d9ea77daa",
       "patent.patch.yml": "630bf4b5e9",
       "ptc.patch.yml": "eac4eb155e",
       "standard.patch.yml": "eac4eb155e"
@@ -133,11 +144,11 @@
       "standard.patch.yml": "d132cb2a6d"
     },
     "tool-subagent": {
-      "cordis.patch.yml": "b61b5afbd7",
+      "cordis.patch.yml": "cf47f743a7",
       "document.patch.yml": "3c86f8e770",
       "patent.patch.yml": "3c86f8e770",
-      "ptc.patch.yml": "b61b5afbd7",
-      "standard.patch.yml": "b61b5afbd7"
+      "ptc.patch.yml": "cf47f743a7",
+      "standard.patch.yml": "cf47f743a7"
     },
     "tool-subagent-control": {
       "cordis.patch.yml": "3d9b0c534b",
@@ -147,11 +158,11 @@
       "standard.patch.yml": "3d9b0c534b"
     },
     "tool-subagent-fork": {
-      "cordis.patch.yml": "e75e6d7630",
+      "cordis.patch.yml": "a0bca0cb97",
       "document.patch.yml": "99fe8d59c2",
       "patent.patch.yml": "5be24c2ecb",
-      "ptc.patch.yml": "e75e6d7630",
-      "standard.patch.yml": "e75e6d7630"
+      "ptc.patch.yml": "a0bca0cb97",
+      "standard.patch.yml": "a0bca0cb97"
     },
     "tool-subagent-list-agents": {
       "cordis.patch.yml": "9d73757b44",
@@ -234,10 +245,7 @@
     ],
     "minimal.patch.yml": [
       "agent-instructions",
-      "command-compact",
       "command-goal",
-      "compaction",
-      "compaction-basic",
       "delegation",
       "methodology",
       "openviking",
@@ -262,7 +270,6 @@
       "time-context",
       "tool-ask-user",
       "tool-bash",
-      "tool-fs",
       "tool-fs-search",
       "tool-goal",
       "tool-jobs",

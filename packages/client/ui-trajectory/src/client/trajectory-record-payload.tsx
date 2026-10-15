@@ -4,7 +4,8 @@
 
 import { JsonTree, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { AssistantRequestConfig, RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { AssistantRequestConfig, MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TrajectorySourceBlock } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
@@ -42,14 +43,16 @@ function ToolOutputBlocks({
   error,
   errorDetail,
   preview,
-  renderImages,
+  renderSlot,
+  loadImage,
 }: {
   blocks: readonly TrajectorySourceBlock[]
   error: boolean
   /** Failure name and code preserved beside image-only error content. */
   errorDetail?: string | undefined
   preview: boolean
-  renderImages: RenderMessageImages
+  renderSlot: PropsRenderSlots<'conversation.trajectory.images'>['renderSlot']
+  loadImage: MessageImageLoader
 }) {
   return (
     <div className={[
@@ -64,7 +67,11 @@ function ToolOutputBlocks({
         block.attachment !== undefined
           ? (
             <div className={css.messageImages} key={index}>
-              {renderImages({ images: [{ attachment: block.attachment }], align: 'start' })}
+              {renderSlot('conversation.trajectory.images', {
+                images: [{ attachment: block.attachment }],
+                align: 'start',
+                loadImage,
+              })}
             </div>
           )
           : block.content !== ''
@@ -79,14 +86,16 @@ export function RecordPayload({
   record,
   direction,
   preview = false,
-  renderImages,
+  renderSlot,
+  loadImage,
   stringWrapping,
   t,
 }: {
   record: TableRecord
   direction: 'input' | 'output'
   preview?: boolean
-  renderImages: RenderMessageImages
+  renderSlot: PropsRenderSlots<'conversation.trajectory.images'>['renderSlot']
+  loadImage: MessageImageLoader
   stringWrapping: JsonTreeProps['stringWrapping']
   t: TrajectoryTranslate
 }) {
@@ -127,7 +136,8 @@ export function RecordPayload({
         error={error}
         errorDetail={error ? value : undefined}
         preview={preview}
-        renderImages={renderImages}
+        renderSlot={renderSlot}
+        loadImage={loadImage}
       />
     )
   }

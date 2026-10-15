@@ -40,6 +40,16 @@ export interface ParsedConfig {
   readonly parsed: ts.ParsedCommandLine
 }
 
+/** One face aggregate tsconfig reduced to what program construction reads. */
+export interface AggregateConfig {
+  /** Absolute config path. */
+  readonly path: string
+  /** The aggregate's effective compiler options. */
+  readonly options: ts.CompilerOptions
+  /** The package projects the aggregate references. */
+  readonly projectReferences: readonly ts.ProjectReference[]
+}
+
 /** One package face registration discovered from an aggregate tsconfig. */
 export interface PackageRegistration {
   /** The face whose aggregate references this package project. */

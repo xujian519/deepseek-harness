@@ -27,6 +27,7 @@ function invocation(id: string, namespace: string, method: string, line: number)
     method,
     invocation: { kind: 'direct' },
     parameters: [],
+    tags: [],
     result: BOUNDARY,
     location: { file: 'packages/other/src/index.ts', line, column: 3 },
   }

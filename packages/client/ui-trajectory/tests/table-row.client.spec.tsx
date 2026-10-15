@@ -8,7 +8,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { TrajectoryTable } from '../src/client/TrajectoryTable.tsx'
 import * as presentation from '../src/client/trajectory-record-presentation.tsx'
 import type { TrajectoryCellProps } from '../src/client/trajectory-record.ts'
@@ -30,7 +31,8 @@ const EMPTY_ASSISTANTS: ReadonlySet<string> = new Set()
 const NOOP = () => {}
 const ROW_COUNT = 6
 
-const renderImages: RenderMessageImages = () => null
+const renderSlot: PropsRenderSlots<'conversation.trajectory.images'>['renderSlot'] = () => null
+const loadImage: MessageImageLoader = async () => 'blob:table-row'
 
 function messageCell(index: number): TrajectoryCellProps {
   return {
@@ -64,7 +66,8 @@ function table(props: Partial<ComponentProps<typeof TrajectoryTable>> = {}) {
   return (
     <TrajectoryTable
       t={t}
-      renderImages={renderImages}
+      renderSlot={renderSlot}
+      loadImage={loadImage}
       turns={TURNS}
       collapsedTurns={EMPTY_TURNS}
       onToggleTurn={NOOP}

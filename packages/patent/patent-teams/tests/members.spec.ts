@@ -386,7 +386,7 @@ describe('spawnMember', () => {
     const ctx = new Context()
     ctx.provide('subagents', makeSubagentsStub({
       getProvider: () => provider({
-        capabilities: { persona: false, toolFilter: true, outputSchema: false, depthLimit: false, agentOptions: false },
+        capabilities: { persona: false, toolFilter: true, agentPreset: false, outputSchema: false, depthLimit: false, agentOptions: false },
       }),
     }) as never)
     const member: TeamMember = { ...validMember, id: '' }
@@ -398,7 +398,7 @@ describe('spawnMember', () => {
     const ctx = new Context()
     ctx.provide('subagents', makeSubagentsStub({
       getProvider: () => provider({
-        capabilities: { persona: true, toolFilter: false, outputSchema: false, depthLimit: false, agentOptions: true },
+        capabilities: { persona: true, toolFilter: false, agentPreset: false, outputSchema: false, depthLimit: false, agentOptions: true },
       }),
     }) as never)
     const member: TeamMember = { ...validMember, id: '' }

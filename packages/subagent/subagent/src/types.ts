@@ -122,10 +122,21 @@ export interface SubagentRunEndInfo {
  */
 export interface SubagentCapabilities {
   readonly agentOptions: boolean
+  /** Supports selecting a preset independently of the parent's composition. */
+  readonly agentPreset: boolean
   readonly outputSchema: boolean
   readonly depthLimit: boolean
-  readonly toolFilter: boolean
-  readonly persona: boolean
+  /**
+   * Supports a per-child tool restriction. Omitted means unsupported: this
+   * capability is a deployment extension upstream does not advertise, so a
+   * provider that does not name it is treated as rejecting the request.
+   */
+  readonly toolFilter?: boolean
+  /**
+   * Supports a per-child persona section. Omitted means unsupported, on the
+   * same terms as {@link SubagentCapabilities.toolFilter}.
+   */
+  readonly persona?: boolean
 }
 
 /**
@@ -136,6 +147,12 @@ export interface SubagentCapabilities {
 export interface SubagentStartRequest {
   /** Initial child directory; relative paths resolve against the parent's current directory. Omitted inherits that directory at start. */
   readonly cwd?: string
+  /**
+   * Independent preset id; omission joins the parent's current generation.
+   * Requires a provider with `capabilities.agentPreset` that does not inherit
+   * parent context.
+   */
+  readonly agentPreset?: string
   /** Optional short display label persisted with a session-backed child. */
   readonly label?: string
   /** Content delivered as the child's user message. */

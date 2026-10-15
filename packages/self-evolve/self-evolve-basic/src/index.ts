@@ -28,6 +28,7 @@ import {
   parseShellMarkers,
   SelfEvolveEngine,
   SelfEvolveRunId,
+  verifierMetadata,
 } from '@deepseek-ai/dsh-self-evolve'
 import type {
   EvolveLevel,
@@ -727,7 +728,11 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         enriched.push(globalOccurrences > 0 ? { ...pattern, occurrences } : pattern)
         continue
       }
-      enriched.push({ ...pattern, occurrences, verifierMeta: { ...pattern.verifierMeta, failedProposals: failed } })
+      enriched.push({
+        ...pattern,
+        occurrences,
+        verifierMeta: verifierMetadata({ ...pattern.verifierMeta, failedProposals: failed }),
+      })
     }
     return enriched
   }

@@ -27,6 +27,9 @@ export const PATTERNS = ['packages/**/*.ts', 'packages/**/*.tsx']
 export const isExcluded = (p: string): boolean =>
   p.includes('/lib/') || p.endsWith('.d.ts') || p.startsWith('vendor/')
 
+/** A non-first `lib` segment puts `/lib/` in every path below the directory, so the walker skips it. */
+const isExcludedDirectory = (dir: string): boolean => dir.split('/').slice(1).includes('lib')
+
 /**
  * Root-relative Markdown path token, excluding trailing prose. A token reached
  * through a `./`/`../` chain stays in scope because it resolves against the
@@ -55,7 +58,7 @@ export function findViolations(absPath: string, scanRoot: string = root): Violat
 }
 
 if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
-  const files = uniqueRepoFiles(root, PATTERNS, isExcluded)
+  const files = uniqueRepoFiles(root, PATTERNS, isExcluded, isExcludedDirectory)
   const all = files.flatMap(file => findViolations(file.abs))
   const checked = files.length
 

@@ -89,7 +89,7 @@ Each callback is invoked inside its own `try` block, and `Promise.resolve(return
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [Defensive patterns](../../../docs/defensive-patterns.md) — the containment requirements this loop implements.
+- [Defensive patterns](../../../docs/defensive-patterns/general.md) — the containment requirements this loop implements.
 - [Agent Note: the abort-race primitive](../../../.agents/notes/implemented/architecture/2026-08-30-abortable-abort-race-sink.md) — the related promise-versus-signal primitive in `dsh-timeout`.
 
 -----

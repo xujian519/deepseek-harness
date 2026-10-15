@@ -24,37 +24,33 @@ export interface RunCodeFlavor {
 }
 
 /**
+ * Build one language's flavor text. It names only the call rules this package
+ * owns: the runtime supplies evaluation syntax, output rules, and state
+ * retention through {@link PtcRuntime.executionInstructions}, which the
+ * transport appends to this description.
+ * @param language - the runtime's language name, as `PtcRuntime.language` spells it.
+ * @returns that language's schema text.
+ */
+function runCodeFlavor(language: string): RunCodeFlavor {
+  return {
+    description: `Execute a ${language} program against the available tools. Takes two required arguments: `
+      + '`description`, a short summary of what the program does, and `code`, the program to execute. '
+      + 'Call tools as `await tools.name(args)` per the declarations in the system prompt. '
+      + 'Curate the program output. Image-bearing subtool results are attached after the run.',
+    codeDescription: `The ${language} program to execute, following this tool's execution instructions.`,
+  }
+}
+
+/**
  * The TypeScript flavor: the fallback for a schema read with no runtime
  * mounted ({@link resolveFlavor} owns which readers reach that). A real
  * assembly always resolves a runtime first, so the model never sees this
  * fallback outside its own language.
  */
-export const TYPESCRIPT_FLAVOR: RunCodeFlavor = {
-  description:
-    'Execute a TypeScript program against the available tools. Takes two required '
-    + 'arguments: `description`, a short summary of what the program does, and `code`, '
-    + 'the BODY of an async function (erasable syntax only; top-level `await` and '
-    + '`return` work). Call tools as `await tools.name(args)` per the declarations in the system '
-    + 'prompt. Only what you print or return is program output — curate it. Image-bearing '
-    + 'subtool results are attached after the run.',
-  codeDescription: 'The program: the body of an async TypeScript function.',
-}
+export const TYPESCRIPT_FLAVOR = runCodeFlavor('TypeScript')
 
-/**
- * The Python flavor: the body of an async function, top-level `await` and
- * `return`, answer via `print` and/or the returned value, matching
- * {@link ./py-types.ts}'s SDK instructions.
- */
-const PYTHON_FLAVOR: RunCodeFlavor = {
-  description:
-    'Execute a Python program against the available tools. Takes two required '
-    + 'arguments: `description`, a short summary of what the program does, and `code`, '
-    + 'the BODY of an async function (top-level `await` and `return` work). Call tools as '
-    + '`await tools.name(args)` per the declarations in the system prompt. Use '
-    + '`print(...)` and/or `return <value>` for program output — curate it. Image-bearing '
-    + 'subtool results are attached after the run.',
-  codeDescription: 'The program: the body of an async Python function.',
-}
+/** The Python flavor, matching {@link ./py-types.ts}'s SDK instructions. */
+const PYTHON_FLAVOR = runCodeFlavor('Python')
 
 /**
  * The languages PTC mode ships a presentation for. Both per-language tables —

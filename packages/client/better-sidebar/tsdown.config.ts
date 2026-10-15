@@ -327,7 +327,7 @@ function chunkBundle(name: string, face: 'client' | undefined): UserConfig {
 }
 
 /** The node-half lib: bundles the tsc-emitted lib/types entries (shared preset shape). */
-const lib = clientLibrary(PLUGIN_ID, ['lib/types/index.js'])
+const lib = clientLibrary(import.meta.dirname, ['lib/types/index.js'])
 
 export default ((inlineConfig: Pick<UserConfig, 'env'>): UserConfig[] => {
   const face = buildFace(inlineConfig.env?.DSH_BUILD_FACE)

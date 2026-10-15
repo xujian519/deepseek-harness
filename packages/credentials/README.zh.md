@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-`credentials/` 组让配置引用机密的名字，而不嵌入机密值。使用 `credentials/` 存储、查询和移除凭据；使用 `credentials-local/` 将凭据私密地存储在本机，并支持按次运行的环境覆盖；当需要向人询问以获取凭据时，使用 `authorization/`。`deepseek-account/` 与 `deepseek-account-platform/` 这一对把 DeepSeek 登录状态保存在同一个本机存储中，供 Client、API 与模型消费方使用。轮换后的存储值会作用于下一次模型请求，而 `DEEPSEEK_API_KEY=… dsh` 在该次运行中优先。配置文件只包含凭据名称；本地机密值只有同一 OS 用户可读。
+`credentials/` 组让配置引用机密的名字，而不嵌入机密值。使用 `credentials/` 存储、查询和移除凭据；使用 `credentials-local/` 将凭据私密地存储在本机，并以环境作为后备来源；当需要向人询问以获取凭据时，使用 `authorization/`。`deepseek-account/` 与 `deepseek-account-platform/` 这一对把 DeepSeek 登录状态保存在同一个本机存储中，供 Client、API 与模型消费方使用。轮换后的存储值会作用于下一次模型请求，且存储值优先于 `DEEPSEEK_API_KEY=… dsh`。配置文件只包含凭据名称；本地机密值只有同一 OS 用户可读。
 
 ## 目录
 
@@ -27,7 +27,7 @@ kind: "package-group"
 | 包 | 角色 | ctx 键 |
 |---|---|---|
 | [`credentials/`](credentials/README.zh.md) | 在运行时存储、查询与移除机密，而配置只写名字 | `ctx.credentials` |
-| [`credentials-local/`](credentials-local/README.zh.md) | 默认本机存储：一个私有 YAML 文件，环境覆盖优先 | 注册 `ctx.credentials` |
+| [`credentials-local/`](credentials-local/README.zh.md) | 默认本机存储：一个私有 YAML 文件，优先于环境后备来源 | 注册 `ctx.credentials` |
 | [`authorization/`](authorization/README.zh.md) | 由插件拥有、通过询问人来取得凭据的 flow | `ctx.authorization` |
 | [`deepseek-account/`](deepseek-account/README.zh.md) | 由 Platform 实现、Remote 控制器与模型消费方共享的账号服务定义 | `ctx.deepseekAccount` |
 | [`deepseek-account-platform/`](deepseek-account-platform/README.zh.md) | Platform 账号实现：浏览器登录、存储的授权、资料与余额读取，以及退出登录 | 注册 `ctx.deepseekAccount` |
