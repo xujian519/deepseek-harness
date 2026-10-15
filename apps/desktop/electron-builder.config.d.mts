@@ -26,6 +26,7 @@ export interface DesktopElectronBuilderConfig {
     readonly extendInfo: {
       readonly CFBundleLocalizations: readonly ['en', 'zh_CN']
       readonly NSMicrophoneUsageDescription: string
+      readonly NSAppleEventsUsageDescription: string
     }
     readonly entitlements: string
     readonly entitlementsInherit: string
