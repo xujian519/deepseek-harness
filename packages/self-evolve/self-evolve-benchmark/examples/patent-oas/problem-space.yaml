@@ -16,6 +16,10 @@
 #
 # 不在这里登记的东西:没有观测面的前置概念(如「最接近的现有技术选取」)只以边出现,
 # 不立为节点——立了也无法打分,会制造「有节点无分数」的假覆盖。
+#
+# 测量协议(前后对比的样本量/阈值/预算预注册)见 .agents/notes/implemented/process/
+# 2026-10-16-patent-eval-measurement-protocol.md;采集器缺省 --runs=3,run 记录可携带
+# cost/tokens 用量汇总(甲8/丙2 裁决)。
 
 benchmarkId: patent-oas
 

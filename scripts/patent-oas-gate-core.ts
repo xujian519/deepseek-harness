@@ -134,6 +134,15 @@ export interface RunRecord {
   modelId?: string
   /** 每个 case 的运行次数。 */
   runsPerCase: number
+  /**
+   * 全部调用累计的 provider 报告成本(USD);未报告时省略。
+   *
+   * 本记录是采集证据,故存合计值(直接对应预算);引擎计分板的 `cost` 是按运行取均值,
+   * 两者口径不同、不要求相等。
+   */
+  cost?: number
+  /** 全部调用累计的 token 使用;未报告时省略。 */
+  tokens?: { input: number; output: number }
   /** 逐 case 的原始观测。 */
   cases: RunCase[]
 }
@@ -445,6 +454,15 @@ export async function loadRunRecord(path: string): Promise<RunRecord> {
   if (provider !== undefined) record.provider = provider
   const modelId = optionalString(parsed, 'modelId', path)
   if (modelId !== undefined) record.modelId = modelId
+  if (parsed.cost !== undefined) record.cost = requireNumber(parsed, 'cost', path)
+  if (parsed.tokens !== undefined) {
+    const tokens = parsed.tokens
+    if (typeof tokens !== 'object' || tokens === null) throw new Error(`patent-oas-gate-core: ${path}: tokens 必须是对象`)
+    record.tokens = {
+      input: requireNumber(tokens as Record<string, unknown>, 'input', `${path}: tokens`),
+      output: requireNumber(tokens as Record<string, unknown>, 'output', `${path}: tokens`),
+    }
+  }
   return record
 }
 
@@ -602,6 +620,12 @@ export function validateRunRecord(
     problems.push(`${label}: benchmarkId "${run.benchmarkId}" 与问题空间 "${space.benchmarkId}" 不一致`)
   }
   if (!Number.isInteger(run.runsPerCase) || run.runsPerCase < 1) problems.push(`${label}: runsPerCase 必须是正整数`)
+  if (run.cost !== undefined && (!Number.isFinite(run.cost) || run.cost < 0)) problems.push(`${label}: cost 必须是非负数`)
+  if (run.tokens !== undefined
+    && (!Number.isFinite(run.tokens.input) || run.tokens.input < 0
+      || !Number.isFinite(run.tokens.output) || run.tokens.output < 0)) {
+    problems.push(`${label}: tokens.input 与 tokens.output 必须是非负数`)
+  }
   const seen = new Set<string>()
   for (const runCase of run.cases) {
     if (seen.has(runCase.caseId)) problems.push(`${label}: case "${runCase.caseId}" 重复出现`)
