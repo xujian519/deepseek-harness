@@ -1,7 +1,7 @@
 /**
  * Host Remote owner for the open plugin-catalog discovery seam. It projects
- * the read-only face of `ctx.pluginMarket` — source listing, catalog search,
- * and install preview — onto the generated `ctx.remote.pluginMarket`
+ * the read-only face of `ctx.pluginCatalog` — source listing, catalog search,
+ * and install preview — onto the generated `ctx.remote.pluginCatalog`
  * namespace. Installs stay with the `dsh plugin` CLI: this controller exposes
  * no write, so a browser session can discover and preview but never mutate a
  * profile.
@@ -19,26 +19,26 @@ export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host owner of the generated `pluginMarket` Remote namespace. */
+    /** Host owner of the generated `pluginCatalog` Remote namespace. */
     pluginMarketController: PluginMarketController
   }
 }
 
 /**
- * Host service backing the generated `ctx.remote.pluginMarket` namespace.
- * Every method is a read-only projection of the `ctx.pluginMarket` seam: the
+ * Host service backing the generated `ctx.remote.pluginCatalog` namespace.
+ * Every method is a read-only projection of the `ctx.pluginCatalog` seam: the
  * catalog stays discoverable from a browser while installs and uninstalls
  * remain the profile CLI's owner.
  */
 export class PluginMarketController extends TypertRemoteService {
   /**
-   * Register the `pluginMarket` namespace. It stays registered when no
+   * Register the `pluginCatalog` namespace. It stays registered when no
    * provider is mounted so each call returns an actionable missing-provider
    * diagnostic instead of the namespace silently being absent.
    * @param ctx - Host context where the plugin-market provider may be mounted.
    */
   constructor(ctx: Context) {
-    super(ctx, 'pluginMarketController', { namespace: 'pluginMarket' })
+    super(ctx, 'pluginMarketController', { namespace: 'pluginCatalog' })
   }
 
   /**
@@ -88,7 +88,7 @@ export class PluginMarketController extends TypertRemoteService {
 
   /** Resolve the optional provider or report how to supply it. */
   private market(): PluginMarket {
-    const market = this.ctx.get('pluginMarket')
+    const market = this.ctx.get('pluginCatalog')
     if (market === undefined) {
       throw new RemoteError(
         'gateway/internal',

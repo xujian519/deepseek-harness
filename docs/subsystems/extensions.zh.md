@@ -280,7 +280,7 @@ Source: [`packages/experimental/inspector/src/index.ts`](../../packages/experime
 
 ### `ctx.pluginMarketController` — `PluginMarketController`
 
-Host service backing the generated `ctx.remote.pluginMarket` namespace. Every method is a read-only projection of the `ctx.pluginMarket` seam: the catalog stays discoverable from a browser while installs and uninstalls remain the profile CLI's owner.
+Host service backing the generated `ctx.remote.pluginCatalog` namespace. Every method is a read-only projection of the `ctx.pluginCatalog` seam: the catalog stays discoverable from a browser while installs and uninstalls remain the profile CLI's owner.
 
 ```ts cordis-catalog
 /**

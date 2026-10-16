@@ -31,7 +31,7 @@ const PREVIEW: InstallPreview = {
   compatible: true,
 }
 
-/** A minimal in-memory `ctx.pluginMarket` recording the calls it receives. */
+/** A minimal in-memory `ctx.pluginCatalog` recording the calls it receives. */
 class FakeMarket extends PluginMarket {
   sources: readonly PluginMarketSource[] = []
   listSourcesError: unknown = undefined
@@ -82,16 +82,16 @@ class FakeMarket extends PluginMarket {
 
 async function boot(fake: FakeMarket) {
   const ctx = new Context()
-  ctx.provide('pluginMarket', fake)
+  ctx.provide('pluginCatalog', fake)
   await ctx.plugin(PluginMarketController)
   return { ctx, market: fake }
 }
 
 describe('the plugin-market Remote namespace a discovery page calls', () => {
-  it('publishes the pluginMarket namespace from its own service key', async () => {
+  it('publishes the pluginCatalog namespace from its own service key', async () => {
     const { ctx } = await boot(new FakeMarket(new Context()))
     expect(ctx.pluginMarketController.typertRemote.serviceKey).toBe('pluginMarketController')
-    expect(ctx.pluginMarketController.typertRemote.namespace).toBe('pluginMarket')
+    expect(ctx.pluginMarketController.typertRemote.namespace).toBe('pluginCatalog')
     expect(remoteMethods(ctx.pluginMarketController).map(method => method.method)).toEqual([
       'listSources',
       'search',

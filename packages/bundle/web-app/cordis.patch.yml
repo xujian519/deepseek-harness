@@ -342,9 +342,9 @@
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
 
-    # Read-only plugin-market discovery tab in Plugins settings.
-    - id: ui-plugin-market
-      name: '@deepseek-ai/dsh-client-ui-plugin-market'
+    # Read-only plugin-catalog discovery tab in Plugins settings.
+    - id: ui-plugin-catalog
+      name: '@deepseek-ai/dsh-client-ui-plugin-catalog'
 
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'

@@ -717,9 +717,6 @@
     "12a2d457945d43a02ab415318a8f6744ef620abd1fe272e12a164fa4ff476289": 1,
     "37d0e226122b7a3a4253e22583da5c77cc3690554dc959c74bf570589f3224fd": 1
   },
-  "packages/client/hmr/src/client/index.ts": {
-    "c680fd791fbbade1ee77c9fff0289e5106cacf1574ea0ccd5d2a218e62a44262": 1
-  },
   "packages/client/hmr/tests/node-half.client.spec.ts": {
     "46197efe57255c9d92d64476470c89d0602c7333bf98ad75509bf43c1b357a3b": 1
   },
@@ -930,7 +927,7 @@
   "packages/client/ui-plan/tests/plan-resource.client.spec.ts": {
     "fa53d5cd55d87b522c83a98968e3a2bf933b1cc1b84d2f009e79d6c702099786": 1
   },
-  "packages/client/ui-plugin-market/tests/browser-plugin.client.spec.tsx": {
+  "packages/client/ui-plugin-catalog/tests/browser-plugin.client.spec.tsx": {
     "04984a2ce1486250236e638e0197da0a1a840855ed3975c59130a85358c7e5fe": 1,
     "5eeeaf2da1d8539cf3016ea080ef7aa8a0bff03f712888bbbe7d25b4fc2bb60d": 1
   },
@@ -1646,7 +1643,7 @@
   "packages/extensions/tool-plugin-market/src/index.ts": {
     "3d27d3c2a3fb6985503c8234ef13aa7b32bc13a866fb48dd5fdbae9aa2425473": 1,
     "40ded694c438ab6e13731cc22841de33289d6baa614086a1491e917429d7d154": 1,
-    "69cec7a2a8b94e58356e57373fdb39cdbe775a4edf4a176a4b193fa8308a8c6d": 1
+    "95cafeb7c33068ac630b0c4cba79f55e8c64db65394dca71c44415992265c8bd": 1
   },
   "packages/extensions/tool-plugin-market/tests/discovery.spec.ts": {
     "e320aebe4b137b680c3cf312627cc873098efc6194bcbe87449b93a8880d8d9f": 1

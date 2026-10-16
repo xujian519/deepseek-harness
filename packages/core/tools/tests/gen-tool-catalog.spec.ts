@@ -36,7 +36,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'patent_deadlines', 'patent_eval', 'patent_fees', 'patent_kg_query', 'patent_legal_status', 'patent_metadata', 'patent_pdf_download', 'patent_plan_task',
       'patent_search', 'patent_teams_add_member', 'patent_teams_archive', 'patent_teams_claim_task', 'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete', 'patent_teams_reassign_task',
       'patent_teams_remove_member', 'patent_teams_send_message', 'patent_teams_status', 'patent_teams_update_task', 'patent_teams_wait', 'patent_wiki_search', 'patent_worker_validate', 'patent_workflow', 'patent_workflow_run',
-      'plugin_manager', 'present', 'pwsh', 'pwsh', 'query_writing_patterns', 'ralph', 'read', 'read_image',
+      'plugin_manager', 'plugin_market', 'present', 'pwsh', 'pwsh', 'query_writing_patterns', 'ralph', 'read', 'read_image',
       'read_mcp_resource', 'recognize_chemical_structure', 'render_doc_template', 'render_patent_document', 'rule_check', 'run_code', 'schedule_create', 'schedule_delete',
       'schedule_list', 'schedule_update', 'search_patent_figure', 'self_evolve_inspect_patterns', 'self_evolve_now', 'send_message', 'send_message', 'session_event_read',
       'session_event_search', 'session_event_trace', 'session_search', 'session_trace', 'skill', 'spawn_teammate', 'stagehand_act', 'stagehand_extract',

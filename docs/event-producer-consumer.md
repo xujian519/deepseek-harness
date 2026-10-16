@@ -66,6 +66,7 @@ This matrix shows which packages dispatch each harness-owned event and which pac
 | `plugin-manager/changed` | `emit` | [`packages/boot/plugin-manager/src/types.ts:269`](../packages/boot/plugin-manager/src/types.ts) | [`plugin-manager`](../packages/boot/plugin-manager) (`emit`) | `remotes` |
 | `plugin-manager/install-log` | `emit` | [`packages/boot/plugin-manager/src/types.ts:275`](../packages/boot/plugin-manager/src/types.ts) | [`plugin-manager`](../packages/boot/plugin-manager) (`emit`) | `remotes` |
 | `plugin-manager/install-state` | `emit` | [`packages/boot/plugin-manager/src/types.ts:282`](../packages/boot/plugin-manager/src/types.ts) | [`plugin-manager`](../packages/boot/plugin-manager) (`emit`) | `remotes` |
+| `plugin-market/changed` | `emit` | [`packages/boot/plugin-market/src/types.ts:136`](../packages/boot/plugin-market/src/types.ts) | [`plugin-market`](../packages/boot/plugin-market) (`emit`) | `remotes` |
 | `schedule/changed` | `emit` | [`packages/schedule/schedule/src/types.ts:478`](../packages/schedule/schedule/src/types.ts) | [`schedule`](../packages/schedule/schedule) (`emit`) | `remotes` |
 | `self-evolve-loop/end` | `emit` | [`packages/self-evolve/self-evolve/src/index.ts:53`](../packages/self-evolve/self-evolve/src/index.ts) | [`self-evolve-basic`](../packages/self-evolve/self-evolve-basic) (`emit`) | - |
 | `self-evolve-loop/start` | `emit` | [`packages/self-evolve/self-evolve/src/index.ts:46`](../packages/self-evolve/self-evolve/src/index.ts) | [`self-evolve-basic`](../packages/self-evolve/self-evolve-basic) (`emit`) | - |
@@ -111,7 +112,7 @@ This matrix shows which packages dispatch each harness-owned event and which pac
 | `internal/service` | - | `gateway` |
 | `internal/status` | - | [`agent`](../packages/core/agent), `inspector`, `translator`, [`web`](../packages/web/web) |
 | `internal/update` | - | [`app-boot`](../packages/boot/app-boot) |
-| `loader/volatile-update` | - | [`cua`](../packages/experimental/cua), [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai), [`openviking`](../packages/memory/openviking), `product-analytics`, `speech-to-text` |
+| `loader/volatile-update` | - | [`cua`](../packages/experimental/cua), [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai), [`openviking`](../packages/memory/openviking), [`plugin-market`](../packages/boot/plugin-market), `product-analytics`, `speech-to-text` |
 | `slots/changed` | `ui-renderer` (`emit`) | - |
 <!-- END GENERATED event-producer-consumer:undeclared -->
 

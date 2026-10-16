@@ -85,7 +85,7 @@
     - id: plugin-package-inventory-deepseek
       name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
 
-    # Open plugin catalog seam (ctx.pluginMarket): source registration, catalog
+    # Open plugin catalog seam (ctx.pluginCatalog): source registration, catalog
     # search, and npm preview. Mounted in read-only DISCOVERY mode here —
     # registered sources persist under $DSH_HOME, while install/uninstall reject
     # with install-unavailable and stay on the `dsh plugin` CLI, whose

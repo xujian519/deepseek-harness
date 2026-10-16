@@ -1,5 +1,5 @@
 ---
-description: "开放插件目录缝隙（`ctx.pluginMarket`）：用户注册的 HTTPS 目录源、目录搜索，以及带快照/回滚与持久 receipt 的受管安装管线。远程目录载荷一律视为不可信输入——按 `docs/schemas/` 下的 wire schema 校验，并经受限 HTTPS 客户端获取。"
+description: "开放插件目录缝隙（`ctx.pluginCatalog`）：用户注册的 HTTPS 目录源、目录搜索，以及带快照/回滚与持久 receipt 的受管安装管线。远程目录载荷一律视为不可信输入——按 `docs/schemas/` 下的 wire schema 校验，并经受限 HTTPS 客户端获取。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-开放插件目录缝隙（`ctx.pluginMarket`）：用户注册的 HTTPS 目录源、目录搜索，以及带快照/回滚与持久 receipt 的受管安装管线。远程目录载荷一律视为不可信输入——按 `docs/schemas/` 下的 wire schema 校验，并经受限 HTTPS 客户端获取。
+开放插件目录缝隙（`ctx.pluginCatalog`）：用户注册的 HTTPS 目录源、目录搜索，以及带快照/回滚与持久 receipt 的受管安装管线。远程目录载荷一律视为不可信输入——按 `docs/schemas/` 下的 wire schema 校验，并经受限 HTTPS 客户端获取。
 
 
 ## 目录

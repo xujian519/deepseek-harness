@@ -1,5 +1,5 @@
 /**
- * Tests for the ctx.pluginMarket provider: source persistence, catalog
+ * Tests for the ctx.pluginCatalog provider: source persistence, catalog
  * search wiring, and the preview-gated install pipeline with stub fetch and
  * a stub package-manager runner.
  */
@@ -202,7 +202,7 @@ describe('install pipeline', () => {
     const ctx = new Context()
     const { apply } = await import('../src/provider.ts')
     await ctx.plugin(apply, { profileDir: dir })
-    const added = await ctx.pluginMarket.addSource('https://example.dev/manifest.json')
+    const added = await ctx.pluginCatalog.addSource('https://example.dev/manifest.json')
     expect(added.providerId).toBe('example.dev')
     await ctx.fiber.dispose()
   })
@@ -237,7 +237,7 @@ describe('install pipeline', () => {
     const { apply } = await import('../src/provider.ts')
     const sourceFile = join(dir, 'override-sources.json')
     await ctx.plugin(apply, { profileDir: dir, sourceFile, registry: 'https://mirror.example' })
-    await ctx.pluginMarket.addSource('https://example.dev/manifest.json')
+    await ctx.pluginCatalog.addSource('https://example.dev/manifest.json')
     expect(readSources(sourceFile)).toHaveLength(1)
     await ctx.fiber.dispose()
   })
@@ -295,7 +295,7 @@ describe('read-only discovery mode', () => {
     const ctx = new Context()
     const { apply } = await import('../src/provider.ts')
     await ctx.plugin(apply, { profileDir: dir, runPnpm })
-    const added = await ctx.pluginMarket.addSource('https://example.dev/manifest.json')
+    const added = await ctx.pluginCatalog.addSource('https://example.dev/manifest.json')
     expect(added.providerId).toBe('example.dev')
     await ctx.fiber.dispose()
   })

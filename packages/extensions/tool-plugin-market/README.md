@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tool-plugin-market` gives the model three read-only tools over the live `ctx.pluginMarket` seam that the host composition mounts: list the catalog sources available to the current session, search one catalog for plugins, and preview a package reference against the npm registry before any install. Every verb is read-only — nothing here installs a package, edits a profile, or changes `cordis.yml`; installation stays on the operator-driven `dsh plugin` CLI. It also registers a system-prompt section that teaches the discovery workflow, and reads the host `pluginMarket` service that `@deepseek-ai/dsh-host-plugin-market/provider` provides in DISCOVERY mode.
+`dsh-tool-plugin-market` gives the model three read-only tools over the live `ctx.pluginCatalog` seam that the host composition mounts: list the catalog sources available to the current session, search one catalog for plugins, and preview a package reference against the npm registry before any install. Every verb is read-only — nothing here installs a package, edits a profile, or changes `cordis.yml`; installation stays on the operator-driven `dsh plugin` CLI. It also registers a system-prompt section that teaches the discovery workflow, and reads the host `pluginCatalog` service that `@deepseek-ai/dsh-host-plugin-market/provider` provides in DISCOVERY mode.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin on the agent preset that should let the model discover and evaluate plugins. It is agent-plane: it registers the three tool schemas and the `tool:plugin-market` prompt section into the preset's scoped tool layer, and resolves the `pluginMarket` service the host composition already provides. The `packages/bundle/web-app/presets/standard.patch.yml` preset mounts it by default.
+Mount this plugin on the agent preset that should let the model discover and evaluate plugins. It is agent-plane: it registers the three tool schemas and the `tool:plugin-market` prompt section into the preset's scoped tool layer, and resolves the `pluginCatalog` service the host composition already provides. The `packages/bundle/web-app/presets/standard.patch.yml` preset mounts it by default.
 
 ### Minimal composition
 
@@ -36,7 +36,7 @@ Mount this plugin on the agent preset that should let the model discover and eva
 - name: '@deepseek-ai/dsh-tool-plugin-market'
 ```
 
-The host row must run before the agent preset so `pluginMarket` exists at injection time. The standard preset carries the tool row; the host provider is part of the base composition.
+The host row must run before the agent preset so `pluginCatalog` exists at injection time. The standard preset carries the tool row; the host provider is part of the base composition.
 
 ### What the tools do
 
@@ -66,7 +66,7 @@ This section explains the design behind the tools; the observable behavior is fu
 
 ### Design philosophy
 
-The toolset is a thin, model-facing layer over the `pluginMarket` service. It adds only the model-facing judgments: explicit source resolution (an unknown source id fails loud rather than silently searching the wrong catalog), a bundled-catalog default so discovery works out of the box, and a require-agent guard so a tool call cannot run outside a real session. All three verbs are read-only by construction — they never reach the install path.
+The toolset is a thin, model-facing layer over the `pluginCatalog` service. It adds only the model-facing judgments: explicit source resolution (an unknown source id fails loud rather than silently searching the wrong catalog), a bundled-catalog default so discovery works out of the box, and a require-agent guard so a tool call cannot run outside a real session. All three verbs are read-only by construction — they never reach the install path.
 
 ### Source map
 
@@ -77,7 +77,7 @@ The toolset is a thin, model-facing layer over the `pluginMarket` service. It ad
 
 ### How a call flows
 
-Each tool's `execute` first asserts an Agent-backed session, then reads the source list, resolves the target source (explicit id → bundled catalog → first registered source → fail loud), and delegates the read to `ctx.pluginMarket.listSources` / `ctx.pluginMarket.search` / `ctx.pluginMarket.preview`. The bundled catalog never fetches its endpoint — `searchBuiltinCatalog` is a pure in-memory filter — while a user-registered HTTPS source goes through the market's restricted fetch.
+Each tool's `execute` first asserts an Agent-backed session, then reads the source list, resolves the target source (explicit id → bundled catalog → first registered source → fail loud), and delegates the read to `ctx.pluginCatalog.listSources` / `ctx.pluginCatalog.search` / `ctx.pluginCatalog.preview`. The bundled catalog never fetches its endpoint — `searchBuiltinCatalog` is a pure in-memory filter — while a user-registered HTTPS source goes through the market's restricted fetch.
 
 </details>
 
@@ -88,7 +88,7 @@ Each tool's `execute` first asserts an Agent-backed session, then reads the sour
 
 Read these pages when the package-level contract is not enough.
 
-- [Plugin market](../../host/plugin-market/README.md) — the `ctx.pluginMarket` service seam, the wire schema, the restricted fetch, and npm preview the tools read through.
+- [Plugin market](../../host/plugin-market/README.md) — the `ctx.pluginCatalog` service seam, the wire schema, the restricted fetch, and npm preview the tools read through.
 - [Bundled catalog](../../../packages/host/plugin-market/src/builtin-catalog.ts) — the always-available offline catalog snapshot search defaults to.
 - [Tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-plugin-market) — the exact tool schemas the model receives.
 
