@@ -449,6 +449,69 @@ describe('agent loop', () => {
     expect(agent.session.snapshotEvents().filter(e => e.type === 'turn/start')).toHaveLength(0)
   })
 
+  it('runs a waking send that lands after the driver took its last inbox claim', async () => {
+    const adapter = new MockAdapter([textResponse('first turn'), textResponse('wake reply')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('last-claim-window'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+    let statusAtSend: string | undefined
+    let delivered = false
+    // The window this pins: the driver's claim found the inbox empty and the
+    // phase is still `running`, because the idle transition follows the promise
+    // resolution. A microtask queued while the final `turn/end` is appended runs
+    // before the driver's `while (await turn())` continuation resumes, so the
+    // waking send below lands exactly inside it — as a settle notice does when
+    // its own async chain resolves beside the parent's turn end.
+    ctx.on('session/event', (session, event) => {
+      if (session !== agent.session || event.type !== 'turn/end' || delivered) return
+      delivered = true
+      queueMicrotask(() => {
+        statusAtSend = agent.status
+        send(agent, 'wake after the last claim')
+      })
+    })
+
+    send(agent, 'first prompt')
+    await agent.whenIdle()
+
+    expect(statusAtSend, 'the send lands while the driver is still running').toBe('running')
+    expect(userTexts(agent)).toEqual(['first prompt', 'wake after the last claim'])
+    expect(adapter.requests).toHaveLength(2)
+    expect(agent.inbox.nextTurn).toHaveLength(0)
+    expect(agent.inbox.nextStep).toHaveLength(0)
+  })
+
+  it('leaves injected context in the same window pending for the next wake', async () => {
+    const adapter = new MockAdapter([textResponse('first turn')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('last-claim-window-inject'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+    let delivered = false
+    ctx.on('session/event', (session, event) => {
+      if (session !== agent.session || event.type !== 'turn/end' || delivered) return
+      delivered = true
+      queueMicrotask(() => {
+        agent.inject(createUserMessage({
+          content: [{ type: 'text', text: 'staged context' }],
+          source: { kind: 'test' },
+        }))
+      })
+    })
+
+    send(agent, 'first prompt')
+    await agent.whenIdle()
+
+    // Injected context never wakes the driver, in this window as anywhere else.
+    expect(userTexts(agent)).toEqual(['first prompt'])
+    expect(adapter.requests).toHaveLength(1)
+    expect(agent.inbox.nextStep.map(message => message.content[0]))
+      .toEqual([{ type: 'text', text: 'staged context' }])
+  })
+
   it('runs a simple turn: queued message → model → idle, with ordered events', async () => {
     const adapter = new MockAdapter([textResponse('hello there')])
     const ctx = await harness(adapter)

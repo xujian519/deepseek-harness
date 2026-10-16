@@ -47,7 +47,19 @@ type Phase =
     lastTurn: number
     wakeRequested: boolean
   }
-  | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean }
+  | {
+    kind: 'running'
+    abort: AbortController
+    turn: number
+    step: number
+    wakeRequested: boolean
+    /**
+     * Set once this activity's claim found the inbox empty: no step boundary
+     * remains to claim a waking send that arrives before the idle transition, so
+     * it latches for the idle replay instead of staying parked.
+     */
+    claimsClosed: boolean
+  }
 
 type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }>
 
@@ -213,11 +225,14 @@ export class ReactLoopAgent implements Agent {
    */
   private wakeDriver(wakeAfterAbort = false): void {
     if (this.phase.kind !== 'idle') {
-      // Maintenance and aborted drivers cannot deliver the wake: latch it for
-      // replay at convergence. Live drivers claim queued work themselves;
+      // Maintenance, aborting drivers, and a running driver past its last inbox
+      // claim cannot deliver the wake: latch it for replay at convergence. A live
+      // driver inside its step boundaries claims queued work itself;
       // disposal never latches, so teardown waits on no model turn.
       const reason = abortedCancelCause(this.phase.abort.signal)
-      if (reason?.kind !== 'disposed' && (this.phase.kind === 'maintenance' || wakeAfterAbort)) {
+      const claimsClosed = this.phase.kind === 'running' && this.phase.claimsClosed
+      if (reason?.kind !== 'disposed'
+        && (this.phase.kind === 'maintenance' || wakeAfterAbort || claimsClosed)) {
         this.phase.wakeRequested = true
       }
       return
@@ -230,6 +245,7 @@ export class ReactLoopAgent implements Agent {
       turn: this.phase.lastTurn,
       step: 0,
       wakeRequested: false,
+      claimsClosed: false,
     })
     this.loopCtx.agents.withInitiator(this, () => this.kick()).then(driver.resolve, driver.reject)
   }
@@ -389,10 +405,17 @@ export class ReactLoopAgent implements Agent {
         this.throwError(error)
       }
     }
-    if (!this.inbox.hasPending) return false
+    if (!this.inbox.hasPending) {
+      // This activity has taken its last claim, so a waking send arriving before
+      // the idle transition has no step boundary left to claim it and must latch
+      // instead of staying parked.
+      phase.claimsClosed = true
+      return false
+    }
     phase.abort = new AbortController()
     // A fresh controller makes a latch set on the old one stale: the live driver claims the queue itself.
     phase.wakeRequested = false
+    phase.claimsClosed = false
     phase.step = 0
     return true
   }
