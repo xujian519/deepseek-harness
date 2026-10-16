@@ -6,9 +6,15 @@
  * `runGraphWithCheckpoints` with approval-gate resume/approve.
  *
  * Rule-gate deviation: the manifest path's deterministic rule-gate section is
- * dropped (Sati's RuleEngine + defaultPatentRules live in
- * `@deepseek-ai/dsh-patent-rule`); `checkSection` renders empty. The graph
- * path keeps its internal rule_gate node (dsh-patent-core's checker).
+ * dropped (Sati's RuleEngine + defaultPatentRules); deterministic compliance
+ * runs in `@deepseek-ai/dsh-patent-rule`'s three gates — output (tool results),
+ * artifact structural (declared tool-call arguments), and delivery
+ * (`rule_check` + `law_verify` before render) — and `checkSection` renders
+ * empty (the carrier stays for the ported text contract). The graph path keeps
+ * its internal rule_gate node (dsh-patent-core's checker). See
+ * `.agents/notes/implemented/architecture/2026-09-28-patent-output-gating-runs-on-the-rule-gate.md`
+ * and
+ * `.agents/notes/implemented/architecture/2026-10-03-patent-delivery-gate-enforces-gate-runs.md`.
  * @module @deepseek-ai/dsh-patent-tools/tool/patent-workflow-run
  */
 
