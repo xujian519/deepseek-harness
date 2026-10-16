@@ -8,7 +8,8 @@
 # 两类都可用确定性规则判定，故落为本文件：作用于 rule_check 显式自检（答复作业
 # scope）与制品结构门禁（render_patent_document × template=oa-response；PR-OA-007
 # 自 2026-10-16 审阅甲7 裁决起以 block 级执行），不进输出门禁（输出门禁只取
-# keyword_blocklist，见 selectGateRules）。
+# keyword_blocklist，见 selectGateRules）。PR-OA-008/009 属双输入族（rule_check 的
+# notice 入参 + 答复正文），单文本评估跳过。
 # 未核验的条号按语义命名，不写未核验条号。
 
 version: "1.0"
@@ -103,3 +104,31 @@ rules:
             # 否定式（未记载／没有记载／无法记载）不得计入判准依据，以字符类显式排除。
             - "说明书(?:的)?第[^。；\\n]{1,20}?(?:段|页|栏)[^。；\\n未不没无]{0,8}?(?:记载|公开|内容)"
             - "说明书[^。；\\n未不没无]{0,8}?(?:记载|公开)"
+
+  # ---------------------------------------------------------------------------
+  # 法条/理由双向覆盖（双输入：通知书解析结果 + 答复正文）
+  # 依据：2026-10-16 审阅甲8/B5 裁决；论文 10 的 Finding 3/4（漏答与自造理由）。
+  # ---------------------------------------------------------------------------
+  pr_oa_ground_coverage:
+    id: PR-OA-008
+    name: 答复—驳回理由覆盖
+    domain: patent_oa_response
+    phase: 输出
+    severity: major
+    action: warn
+    legalBasis: 答复撰写规范：答复须逐条回应通知书指出的驳回理由
+    description: 通知书提出的每条驳回理由（简称）须在答复中覆盖；漏答即以本条提示补答。按简称核验，覆盖不等于论证成立
+    check:
+      type: notice_ground_coverage
+
+  pr_oa_unraised_statute:
+    id: PR-OA-009
+    name: 答复—未提条款引用
+    domain: patent_oa_response
+    phase: 输出
+    severity: major
+    action: warn
+    legalBasis: 答复撰写规范：引用通知书未提出的驳回条款须说明来源，避免自造理由
+    description: 答复引用的驳回条款（22.2/22.3/26.3/26.4/33）不在通知书援引范围内时提示说明来源；通知书未识别到具体条款时不评估
+    check:
+      type: unraised_statute_citation

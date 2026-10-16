@@ -27,7 +27,7 @@ kind: "package-reference"
 <a id="template-assets"></a>
 ## 模板资产
 
-十二个模板随包分发在 `assets/templates/` 下，按目录分组：`specification/`（4）、`claims/`（3）、`oa-response/`（3）、`disclosure/`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内，专利域自己的交付文书也不在——那些由 [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.zh.md) 从受控草稿成文，而不是走变量替换资产。
+十二个模板随包分发在 `assets/templates/` 下，按目录分组：`specification/`（4）、`claims/`（3）、`oa-response/`（3）、`disclosure/`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内，专利域自己的交付文书也不在——那些由 [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.zh.md) 从受控草稿成文，而不是走变量替换资产。`oa-response/` 类别仅面向文档模式：三条模板是通用变量替换骨架，不是专利答复通道——针对真实通知书的答复由 `@deepseek-ai/dsh-patent-document` 的受控草稿成文，专利预设不挂 doc-template 行。
 
 front-matter 字段如下，读取自上游模板约定：
 

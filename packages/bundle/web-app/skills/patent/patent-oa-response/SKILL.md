@@ -11,7 +11,7 @@ description: 审查意见答复：通知书确定性解析（驳回类型/引用
 
 - 先定答复期限：用 patent_deadlines 取本次答复期限——给出 patentType、filingDate、claimsPriority，并把收到的通知书放进 notices（如 {kind: 'office-action-first', dispatchDate: '…'}）；期限的月数与起算口径由该工具按现行细则与指南给出，不要自行写死月数或口算，也不要因为材料里没写送达日就按申请日估算。
 - 用 patent_workflow_run（manifestId=patent_oa_response_v1；input=通知书正文，claims=权利要求书）跑解析与撰写：parse 阶段为确定性解析，claim-chart 阶段（mode=oa-response）以解析出的引用文献为目标逐要素映射到权利要求（目标自动派生，无需手传 chartTargets），response-plan 阶段把逐理由策略、必答段落与逐权项修改对照拼成计划骨架，draft 阶段读到解析结果、对照表与答复计划。人工确认门会暂停运行，放行时重新调用并带上 approveStageIds。
-- 只做解析时用 parse_office_action（text=通知书正文）：返回驳回类型（按首现位置排序去重）、引用文献与相关性类别、涉及权项、审查员论点。未标注相关性类别的文献不推断类别；涉及权项是同句共现、不是审查员的权威对应，须人工核对；解析不判定理由是否成立。
+- 只做解析时用 parse_office_action（text=通知书正文）：返回驳回类型（按首现位置排序去重）、引用文献与相关性类别、涉及权项、审查员论点。未标注相关性类别的文献不推断类别；涉及权项是同句共现、不是审查员的权威对应，须人工核对；解析不判定理由是否成立。同一文献在不同位置的标注不一致时，结果含解析冲突（冲突源/候选值/采用依据），不静默取单一结论，须人工核对后再采用。
 - 用 patent_wiki_search / patent_case_search 取对应驳回类型的审查标准与在先答复案例；法条、指南、判例的原文按纪律核验后引用，不凭记忆写条号。
 - 正式出件用官方标准表格：正文写 100014 附页，表格用 100012 意见陈述书（模板库 `~/.dsh/patent-ops/templates/cnipa-标准表格/`）；口径见模板 `oa-response` 的 `references/conventions.md` §8。
 
@@ -40,4 +40,4 @@ description: 审查意见答复：通知书确定性解析（驳回类型/引用
 
 答复策略、修改范围与是否放弃答复先 ask_user_question 确认再起草；结论附免责声明；交付前经 patent-quality-gate。
 
-起草完成后、交付前用 rule_check（scope: 'patent-oa-response'）自检：该 scope 只评估本作业的规则域，规则的适用前提让未讨论主题的完整性检查保持沉默，故命中即针对本文书。逐条处置命中——改正文或在不采纳说明里写明理由；PR-OA-005（计数式论证）与 PR-OA-006（重复引证）命中即为第 8 条失守，须改写论证而不是调整措辞。
+起草完成后、交付前用 rule_check（scope: 'patent-oa-response'，notice 传通知书正文）自检：该 scope 只评估本作业的规则域，规则的适用前提让未讨论主题的完整性检查保持沉默，故命中即针对本文书。逐条处置命中——改正文或在不采纳说明里写明理由；PR-OA-005（计数式论证）与 PR-OA-006（重复引证）命中即为第 8 条失守，须改写论证而不是调整措辞。提供 notice 时另评估双输入规则——PR-OA-008（驳回理由覆盖）与 PR-OA-009（未提条款引用）；未提供 notice 时工具会显式列出未评估的双输入规则。

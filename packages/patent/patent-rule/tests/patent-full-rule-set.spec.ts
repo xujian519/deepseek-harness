@@ -16,10 +16,10 @@ import {
 } from '@deepseek-ai/dsh-patent-rule'
 
 describe('patent full rule set', () => {
-  it('loadPatentFullRuleSet merges compliance + nuo assets + merged gap assets (4 + 96 + 20 = 120 rules)', () => {
+  it('loadPatentFullRuleSet merges compliance + nuo assets + merged gap assets (4 + 96 + 22 = 122 rules)', () => {
     const loaded = loadPatentFullRuleSet()
     expect(loaded.source).not.toBeNull()
-    expect(loaded.ruleSet.rules.length).toBe(120)
+    expect(loaded.ruleSet.rules.length).toBe(122)
     const ids = new Set(loaded.ruleSet.rules.map(r => r.id))
     expect(ids.has('PAT-RISK-001')).toBe(true)
     expect(ids.has('CON-COMP-0101')).toBe(true)
@@ -65,7 +65,7 @@ describe('patent full rule set', () => {
     const patent = loadPatentComplianceRuleSet()
     const full = loadPatentFullRuleSet()
     expect(patent.ruleSet.rules.length).toBe(4)
-    expect(full.ruleSet.rules.length).toBe(120)
+    expect(full.ruleSet.rules.length).toBe(122)
   })
 
   it('loadActivationOverrides parses 90 patches with no warnings', () => {
@@ -350,6 +350,13 @@ describe('patent full rule set', () => {
     expect(byId.get('PR-OA-007')?.action).toBe('block')
     expect(byId.get('PR-OA-005')?.check.type).toBe('pattern_analysis')
     expect(byId.get('PR-OA-006')?.check).toEqual({ type: 'quote_repetition', minLength: 12, minOccurrences: 2 })
+    // 甲8/B5（2026-10-16）：008/009 为双输入族规则（rule_check 的 notice 入参 + 答复正文）。
+    expect(byId.get('PR-OA-008')?.check.type).toBe('notice_ground_coverage')
+    expect(byId.get('PR-OA-009')?.check.type).toBe('unraised_statute_citation')
+    for (const id of ['PR-OA-008', 'PR-OA-009']) {
+      expect(byId.get(id)?.domain).toBe('patent_oa_response')
+      expect(byId.get(id)?.action).toBe('warn')
+    }
     // 答复形式规则不进输出门禁（门禁只取 keyword_blocklist）
     expect(selectGateRules(ruleSet).rules.some(r => r.id === 'PR-OA-006')).toBe(false)
   })

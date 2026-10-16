@@ -379,6 +379,10 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
       message = `重复引证：同一引文重复出现（${[...new Set(evidence)].slice(0, 3).map(truncate).join('；')}）`
       break
     }
+    case 'notice_ground_coverage':
+    case 'unraised_statute_citation':
+      // 双输入检查族：需要通知书解析结果，单文本评估跳过（由 evaluateDualRule 执行）。
+      return null
     /* v8 ignore next -- closed-union backstop; the compiler rejects a new check type here. */
     default:
       assertNever(check, 'rule check type')

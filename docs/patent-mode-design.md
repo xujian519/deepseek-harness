@@ -11,6 +11,8 @@
 
 > **当前状态（2026-09-22 上游 v0.1.7-alpha.1 同步后）**：preset 随上游改为声明式。专利模式正本是 `packages/bundle/web-app/presets/patent.patch.yml` —— `@deepseek-ai/dsh-web-app` bundle 内一条 id 为 `patent` 的 `@deepseek-ai/dsh-agent-preset` 声明，随应用安装交付；不再存在 preset 目录，也不再读取 `$DSH_HOME/.agent-presets` 用户根，用户自建或覆盖经 bundle patch 安装（见 `editing-cordis-compositions` 技能）。下文凡写 `packages/preset/agent-presets/presets/patent/` 或 `~/.dsh/.agent-presets/patent/` 之处，均指该声明。
 
+> **当前状态（2026-10-16 答复审查意见域审阅后）**：审查意见答复已落地为 `patent-oa-response` 技能与 `patent_oa_response_v1` 工作流 manifest（parse → claim-chart → response-plan → draft → approval），交付经 `render_patent_document`（template=oa-response）受控草稿渲染；下文 L4 的「docx 成品」为历史设计口径，正式出件按 100012/100014 表格（见模板 `references/conventions.md` §8）。本文保留 2026-08-25 / 2026-09-22 两版状态为设计史。
+
 ---
 
 ## 1. 核心结论
@@ -310,7 +312,7 @@ patent-workspace/
 | 检索 | `patent-prior-art-search`（新写） | `google-patents-search`、`cnipa-query`、`patent-download` | tool-web、bash、jobs |
 | 新颖性/创造性 | `patent-novelty-inventiveness`（改写自 Sati） | `patent-drafting-general`（法条映射） | web、fs、ask_user |
 | 撰写 | —（不新写） | `patent-drafting-general` + 四领域技能、`_shared/patent-law-baseline-2024.md` | fs、officecli/document-processing |
-| 审查意见答复 | （Phase 2 视需要新写） | `patent-drafting-general`（33 条修改依据） | web、fs、ask_user |
+| 审查意见答复 | （Phase 2 视需要新写）〔已落地：`patent-oa-response` + `patent_oa_response_v1`，2026-10-16〕 | `patent-drafting-general`（33 条修改依据） | web、fs、ask_user |
 | 侵权比对 | `patent-infringement`（改写自 Sati） | `patent-comparison` | web、fs |
 | 无效宣告 | `patent-invalidity`（改写自 Sati） | `court-trip`、`patent-download` | web、fs |
 | 质量门禁 | `patent-quality-gate`（新写） | 各技能内置清单 | ask_user、subagent_fork |
@@ -368,7 +370,7 @@ HITL 确认点、风险与备选方案。
 
 **L3 撰写**：plan-mode 出布局（独立权利要求 + 从属分层，HITL 确认）→ `patent-drafting-general` 七要素撰写 → 四领域技能按需 → docx 成品（officecli）→ 门禁：`patent-quality-gate`（缺陷检查清单 + 法条核验 + 互评）。
 
-**L4 审查意见答复**：OA 通知书 → 问题识别（A22.2/22.3/26.3/26.4/33 等）→ 修改方案（33 条修改依据预检）→ 答复意见书（docx）→ 门禁：修改不超范围核对 + 法条核验 → HITL 放行。
+**L4 审查意见答复**：OA 通知书 → 问题识别（A22.2/22.3/26.3/26.4/33 等）→ 修改方案（33 条修改依据预检）→ 答复意见书〔已落地：受控草稿渲染 HTML/PDF，正式出件按 100012/100014 表格〕→ 门禁：修改不超范围核对 + 法条核验 → HITL 放行。
 
 **L5 侵权 / 无效（按需）**：侵权：技术特征分解 → 全面覆盖 + 等同逐项比对 → `04-撰写/XX_权利要求.md` 对照 → 报告。无效：理由地图 → 证据收集（`patent-invalidity`）→ 组合与成功率分级 → HITL 确认理由组合 → 请求书草稿。
 

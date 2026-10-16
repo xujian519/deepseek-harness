@@ -67,7 +67,15 @@ export interface AgentInvocation {
  * 实现必须让 agent 在其 `cwd` 内产出本次调用要求的文件;未能产出时由编排层报错,
  * 因为「agent 没写出产物」与「产物内容不合法」是两种不同的失败。
  */
-export type RunAgents = (invocation: AgentInvocation) => Promise<void>
+/** 一次调用的用量(执行器与评估者进程报告多少算多少)。 */
+export interface RunCallUsage {
+  /** 该次调用的成本(USD,provider 报告);未报告时省略。 */
+  cost?: number
+  /** 该次调用的 token 使用;未报告时省略。 */
+  tokens?: { input: number; output: number }
+}
+
+export type RunAgents = (invocation: AgentInvocation) => Promise<RunCallUsage | void>
 
 /** 一次采集的计划:要跑哪些 case、每个 case 几次、总共多少次调用。 */
 export interface RunPlan {
@@ -326,6 +334,20 @@ interface DimensionAccumulator {
 export async function collectRunRecord(options: CollectRunOptions): Promise<RunRecord> {
   const plan = planRun(options)
   const cases: RunCase[] = []
+  // 用量汇总:接缝报告多少算多少;一次都没有报告时记录里不出现这两个字段。
+  const usageTotals = { cost: 0, costSeen: false, input: 0, output: 0, tokensSeen: false }
+  const addUsage = (reported: void | RunCallUsage): void => {
+    if (reported === undefined) return
+    if (reported.cost !== undefined) {
+      usageTotals.cost += reported.cost
+      usageTotals.costSeen = true
+    }
+    if (reported.tokens !== undefined) {
+      usageTotals.input += reported.tokens.input
+      usageTotals.output += reported.tokens.output
+      usageTotals.tokensSeen = true
+    }
+  }
   for (const { caseId } of plan.cases) {
     const goldCase = options.gold.find(entry => entry.caseId === caseId)
     if (goldCase === undefined) throw new Error(`case "${caseId}" 不在金标中`)
@@ -337,7 +359,11 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
       await mkdir(base, { recursive: true })
       await cp(options.agentStateDir, agentStatePath, { recursive: true })
       const executorLabel = `${caseId} run ${run} 执行者`
-      await options.runAgents({ cwd: agentStatePath, prompt: executorPrompt(agentStatePath, goldCase.statement), label: executorLabel })
+      addUsage(await options.runAgents({
+        cwd: agentStatePath,
+        prompt: executorPrompt(agentStatePath, goldCase.statement),
+        label: executorLabel,
+      }))
       const deliverable = await readArtifact(join(agentStatePath, DELIVERABLE_FILENAME), executorLabel)
       if (deliverable.trim() === '') throw new Error(`${executorLabel}: ${DELIVERABLE_FILENAME} 为空`)
       const bytes = Buffer.byteLength(deliverable, 'utf8')
@@ -348,11 +374,11 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         const scoreDir = join(base, `dim-${accumulator.dimension.index}`)
         await mkdir(scoreDir, { recursive: true })
         const evaluatorLabel = `${caseId} run ${run} 维度 ${accumulator.dimension.index} 评估者`
-        await options.runAgents({
+        addUsage(await options.runAgents({
           cwd: scoreDir,
           prompt: evaluatorPrompt(goldCase.statement, accumulator.dimension, deliverable),
           label: evaluatorLabel,
-        })
+        }))
         accumulator.scores.push(parseScore(await readArtifact(join(scoreDir, SCORE_FILENAME), evaluatorLabel), evaluatorLabel))
       }
     }
@@ -374,6 +400,8 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
   }
   if (options.provider !== undefined) record.provider = options.provider
   if (options.modelId !== undefined) record.modelId = options.modelId
+  if (usageTotals.costSeen) record.cost = Math.round(usageTotals.cost * 1e6) / 1e6
+  if (usageTotals.tokensSeen) record.tokens = { input: usageTotals.input, output: usageTotals.output }
   return record
 }
 
@@ -452,7 +480,8 @@ export function parseRunnerOptions(args: readonly string[], context: RunnerPathC
   const options: RunnerOptions = {
     profile: flagValue(args, '--profile') ?? 'headless',
     caseIds: flagValues(args, '--case'),
-    runs: runsText === undefined ? 1 : Number(runsText),
+    // 缺省 3:前后对比必须有多轮样本(B7 测量协议),单轮只作冒烟。
+    runs: runsText === undefined ? 3 : Number(runsText),
     patchPaths: flagValues(args, '--patch').map(path => resolve(context.cwd, path)),
     outPath: resolve(context.cwd, flagValue(args, '--out') ?? join(base, 'run.json')),
     workDir: resolve(context.cwd, flagValue(args, '--work-dir') ?? join(base, 'work')),

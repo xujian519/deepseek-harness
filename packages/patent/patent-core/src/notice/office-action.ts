@@ -14,6 +14,8 @@
  *   权威对应，见 `CitedReference.claimsAffected`。
  * - 审查员论点按码位截取。上游以字节下标切分中文正文，可切出半个字符。
  * - 权项区间带宽度与编号上限，异常区间不展开。
+ * - 同一文献的多处相关性标注不一致时列入 `parseConflicts`（冲突源/候选值/采用依据），
+ *   按首现标注继续输出，不静默取单一结论。
  */
 
 /**
@@ -192,6 +194,22 @@ export type CitedReference = {
   claimsAffected: number[]
 }
 
+/** 一处解析冲突：同一字段在正文不同位置出现不同取值；解析按确定性规则继续输出，但把冲突显式列出。 */
+export type ParseConflict = {
+  /** 冲突源（字段与对象，如 `引用文献 CN112345678A 的相关性类别`）。 */
+  source: string
+  /** 正文出现过的候选取值，按出现顺序去重；未标注写 `未标注`。 */
+  candidates: string[]
+  /** 采用的取值与依据（按首现标注继续输出；解析不裁定冲突，须人工核对）。 */
+  basis: string
+}
+
+/** 引用文献扫描结果：去重后的引用与检出的解析冲突。 */
+export type CitationScan = {
+  citations: CitedReference[]
+  conflicts: ParseConflict[]
+}
+
 /** 通知书的结构化解析结果。 */
 export type ParsedOfficeAction = {
   /** 主驳回类型：`rejectionTypes` 的首项；未识别到具体条款时为 `other`。 */
@@ -203,6 +221,8 @@ export type ParsedOfficeAction = {
   affectedClaims: number[]
   /** 审查员论点句，最多 5 条；无标记命中时为空数组。 */
   examinerArguments: string[]
+  /** 解析冲突（同一字段多处取值不一致）；无冲突时为空数组。 */
+  parseConflicts: ParseConflict[]
 }
 
 /**
@@ -353,30 +373,62 @@ function isSelfReference(text: string, match: RegExpExecArray): boolean {
 }
 
 /**
- * 提取正文引用的对比文件，按首次出现顺序去重。
+ * 扫描正文引用的对比文件与相关性标注冲突。
  *
  * 本文书自身的公开号/申请号按 `SELF_REFERENCE_BEFORE` / `SELF_REFERENCE_AFTER` 排除：
  * 它们出现在通知书抬头，不是审查员引用的对比文件，落进 `citations` 会被下游当成比对对象。
+ * 同一文献号出现多次时，各次标注按出现顺序收集；取值不一致（含"未标注与标注并存"）即列
+ * 一条 `parseConflicts`，引用仍按首现标注继续——解析不裁定哪一处为准，交由人工核对。
  * @param text - 通知书正文。
- * @returns 引用文献；每项的相关性取文献号之后的标注，权项取同句共现，见 `CitedReference`。
+ * @returns 去重后的引用文献（相关性取首现标注、权项取同句共现）与冲突列表。
  */
-export function extractCitations(text: string): CitedReference[] {
+export function scanCitations(text: string): CitationScan {
   const seen = new Set<string>()
   const citations: CitedReference[] = []
+  const occurrences = new Map<string, { first: CitationRelevancy | undefined; candidates: string[] }>()
   for (const match of eachMatch(text, PATENT_NUMBER)) {
     const documentNumber = capture(match, 0)
-    if (seen.has(documentNumber)) continue
     if (isSelfReference(text, match)) continue
+    const relevancy = citationRelevancy(text, match.index + documentNumber.length)
+    const display = relevancy === undefined ? '未标注' : `${relevancy} 类`
+    const recorded = occurrences.get(documentNumber)
+    if (recorded === undefined) {
+      occurrences.set(documentNumber, { first: relevancy, candidates: [display] })
+    } else if (!recorded.candidates.includes(display)) {
+      recorded.candidates.push(display)
+    }
+    if (seen.has(documentNumber)) continue
     seen.add(documentNumber)
     const reference: CitedReference = {
       documentNumber,
       claimsAffected: extractAffectedClaims(enclosingSegment(text, match.index)),
     }
-    const relevancy = citationRelevancy(text, match.index + documentNumber.length)
     if (relevancy !== undefined) reference.relevancy = relevancy
     citations.push(reference)
   }
-  return citations
+  const conflicts: ParseConflict[] = []
+  for (const [documentNumber, recorded] of occurrences) {
+    if (recorded.candidates.length <= 1) continue
+    const chosen = recorded.first === undefined ? '未标注' : `${recorded.first} 类`
+    conflicts.push({
+      source: `引用文献 ${documentNumber} 的相关性类别`,
+      candidates: recorded.candidates,
+      basis: `按首现标注继续（${chosen}）；解析不裁定标注冲突，须人工核对`,
+    })
+  }
+  return { citations, conflicts }
+}
+
+/**
+ * 提取正文引用的对比文件，按首次出现顺序去重。
+ *
+ * 标注冲突不在此处丢弃：`scanCitations` 的 `parseConflicts` 单独示出，本函数只保留引用面
+ * （下游既有的文献清单消费者照旧）。
+ * @param text - 通知书正文。
+ * @returns 引用文献；每项的相关性取文献号之后的标注，权项取同句共现，见 `CitedReference`。
+ */
+export function extractCitations(text: string): CitedReference[] {
+  return scanCitations(text).citations
 }
 
 /**
@@ -433,12 +485,14 @@ export function extractExaminerArguments(text: string): string[] {
  */
 export function parseOfficeAction(text: string): ParsedOfficeAction {
   const rejectionTypes = detectRejectionTypes(text)
+  const { citations, conflicts } = scanCitations(text)
   return {
     rejectionType: rejectionTypes[0] ?? 'other',
     rejectionTypes,
-    citations: extractCitations(text),
+    citations,
     affectedClaims: extractAffectedClaims(text),
     examinerArguments: extractExaminerArguments(text),
+    parseConflicts: conflicts,
   }
 }
 
@@ -472,6 +526,12 @@ export function formatOfficeActionSummary(parsed: ParsedOfficeAction): string {
   const lines = [`驳回类型: ${grounds}`, `影响权利要求: ${claims}`, `引用文献: ${citations}`]
   if (parsed.examinerArguments.length > 0) {
     lines.push(`审查员论点: ${parsed.examinerArguments.join(' ')}`)
+  }
+  if (parsed.parseConflicts.length > 0) {
+    lines.push('解析冲突（解析不裁定，须人工核对）:')
+    for (const conflict of parsed.parseConflicts) {
+      lines.push(`- ${conflict.source}：候选值 ${conflict.candidates.join('、')}（${conflict.basis}）`)
+    }
   }
   return lines.join('\n')
 }

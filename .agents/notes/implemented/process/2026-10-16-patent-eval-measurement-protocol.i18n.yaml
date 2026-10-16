@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-16-patent-eval-measurement-protocol.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-10-16-patent-eval-measurement-protocol.md
+/agent-note-a-pre-registered-measurement-protocol-for-llm-scored-before-after-comparisons:
+  en: 05ea237195f4b3ba
+  zh: 13420a87f5c74bde
+/agent-note-a-pre-registered-measurement-protocol-for-llm-scored-before-after-comparisons/problem:
+  en: 8d3e17530caf609b
+  zh: 0c58347caf2bf9e5
+/agent-note-a-pre-registered-measurement-protocol-for-llm-scored-before-after-comparisons/decision:
+  en: 0ff11604f994eb65
+  zh: bd601d55e7f331ac
+/agent-note-a-pre-registered-measurement-protocol-for-llm-scored-before-after-comparisons/alternatives-considered:
+  en: ee06a20d685ba00d
+  zh: ad50c6fef90269f3
+/agent-note-a-pre-registered-measurement-protocol-for-llm-scored-before-after-comparisons/consequences:
+  en: 885617ffd32ea761
+  zh: 44c10f1026f8ed87
