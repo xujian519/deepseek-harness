@@ -25,19 +25,25 @@ export interface RunCodeFlavor {
 
 /**
  * Build one language's flavor text. It names only the call rules this package
- * owns: the runtime supplies evaluation syntax, output rules, and state
- * retention through {@link PtcRuntime.executionInstructions}, which the
- * transport appends to this description.
+ * owns: the runtime supplies evaluation syntax and state retention through
+ * {@link PtcRuntime.executionInstructions}, which the transport appends to this
+ * description. A language whose SDK promises a different program format
+ * overrides the wording through `execution`.
  * @param language - the runtime's language name, as `PtcRuntime.language` spells it.
+ * @param execution - the program-format wording for this flavor; defaults to the whole-program phrasing shared by every language.
  * @returns that language's schema text.
  */
-function runCodeFlavor(language: string): RunCodeFlavor {
+function runCodeFlavor(language: string, execution = {
+  programDescription: 'the program to execute',
+  outputInstruction: 'Curate the program output.',
+  codeDescription: `The ${language} program to execute, following this tool's execution instructions.`,
+}): RunCodeFlavor {
   return {
     description: `Execute a ${language} program against the available tools. Takes two required arguments: `
-      + '`description`, a short summary of what the program does, and `code`, the program to execute. '
+      + `\`code\`, ${execution.programDescription}, and \`description\`, a short summary of what the program does. `
       + 'Call tools as `await tools.name(args)` per the declarations in the system prompt. '
-      + 'Curate the program output. Image-bearing subtool results are attached after the run.',
-    codeDescription: `The ${language} program to execute, following this tool's execution instructions.`,
+      + `${execution.outputInstruction} Image-bearing subtool results are attached after the run.`,
+    codeDescription: execution.codeDescription,
   }
 }
 
@@ -48,6 +54,17 @@ function runCodeFlavor(language: string): RunCodeFlavor {
  * fallback outside its own language.
  */
 export const TYPESCRIPT_FLAVOR = runCodeFlavor('TypeScript')
+
+/**
+ * The TypeScript flavor for a runtime whose `programFormat` is
+ * `function-body`: the `code` parameter carries the body of an async function
+ * rather than a whole program, so both model-facing strings say so.
+ */
+const TYPESCRIPT_FUNCTION_FLAVOR = runCodeFlavor('TypeScript', {
+  programDescription: 'the BODY of an async function (erasable syntax only; top-level `await` and `return` work)',
+  outputInstruction: 'Only what you print or return is program output — curate it.',
+  codeDescription: 'The program: the body of an async TypeScript function.',
+})
 
 /** The Python flavor, matching {@link ./py-types.ts}'s SDK instructions. */
 const PYTHON_FLAVOR = runCodeFlavor('Python')
@@ -102,5 +119,6 @@ export function resolveFlavor(peekRuntime: () => PtcRuntime | undefined): RunCod
     const known = Object.keys(RUN_CODE_FLAVORS).map(name => JSON.stringify(name)).join(', ')
     throw new Error(`dsh-tools: no run_code schema flavor registered for runtime language ${JSON.stringify(runtime.language)} (known: ${known})`)
   }
-  return flavor
+  return runtime.language === 'typescript' && runtime.programFormat === 'function-body'
+    ? TYPESCRIPT_FUNCTION_FLAVOR : flavor
 }

@@ -144,7 +144,7 @@ const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
   },
   'ptc-turn': {
     expectedFinalResponse: 'CODE_ONE+CODE_TWO',
-    expectedTools: { run_code: ['description', 'code'] },
+    expectedTools: { run_code: ['code', 'description'] },
   },
   'subagent-spawn-in-process': {
     patches: [fileURLToPath(new URL('./subagent-spawn-in-process/runtime.cordis.yml', import.meta.url))],
