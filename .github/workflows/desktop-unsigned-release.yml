@@ -115,7 +115,9 @@ jobs:
           mkdir -p "$archive_directory"
           archive="$archive_directory/deepseek-harness-${version}-mac-arm64-unsigned.zip"
           ditto -c -k --sequesterRsrc --keepParent "$application" "$archive"
-          shasum -a 256 "$archive" > "$archive.sha256"
+          # The digest names the archive alone, because a downloader verifies the pair with
+          # `shasum -a 256 -c` from the directory the two files landed in, not this build tree.
+          ( cd "$archive_directory" && shasum -a 256 "$(basename "$archive")" ) > "$archive.sha256"
           ls -l "$archive"
           {
             echo "ARCHIVE=$archive"
