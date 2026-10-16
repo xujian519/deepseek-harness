@@ -7,8 +7,15 @@
  *
  * Rule-gate note: Sati's `runRuleGate` helper (RuleEngine + defaultPatentRules)
  * is deliberately NOT ported. The dsh rule engine lives in
- * `@deepseek-ai/dsh-patent-rule` (out of scope here), so the workflow tools
- * render an empty `checkSection` instead. See the port report.
+ * `@deepseek-ai/dsh-patent-rule`, which carries deterministic compliance
+ * through its three gates: the output gate (tool results, post-execute), the
+ * artifact structural gate (declared tool-call arguments, pre-execute), and the
+ * delivery gate (`rule_check` + `law_verify` before render). The workflow tools
+ * render an empty `checkSection`; the carrier stays for the ported text
+ * contract. See
+ * `.agents/notes/implemented/architecture/2026-09-28-patent-output-gating-runs-on-the-rule-gate.md`
+ * and
+ * `.agents/notes/implemented/architecture/2026-10-03-patent-delivery-gate-enforces-gate-runs.md`.
  * @module @deepseek-ai/dsh-patent-tools/tool/internal/workflow-helpers
  */
 

@@ -7,6 +7,8 @@ description: 合规审查闸门：用 dsh-patent-rule 的 rule_check 工具与�
 
 对权利要求书、说明书、答复意见逐条运行规则引擎，任何规则未过即打回，不交付。
 
+确定性执行点：`dsh-patent-rule` 的同一规则库在三个时机自动执行——结果门禁（工具结果产出后）、制品结构门禁（交付工具调用前，按声明入参取制品文本）、交付前置门禁（渲染/成文前要求本会话成功跑过 `rule_check` 与 `law_verify`）。本技能的 `rule_check` 即交付前置门禁要求的其中一环。
+
 ## 流程
 
 1. 用 rule_check 工具（patent-tools 注册，dsh-patent-rule 规则引擎）对产物运行规则检查（规则库：dsh-patent-rule 专利域规则，覆盖撰写合规/法条对应/缺陷模式）。

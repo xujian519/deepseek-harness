@@ -63,6 +63,7 @@
     "@deepseek-ai/dsh-patent-knowledge": "workspace:*",
     "@deepseek-ai/dsh-patent-rule": "workspace:*",
     "@deepseek-ai/dsh-patent-workflow": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-subprocess": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*",
     "@deepseek-ai/dsh-tool-jobs": "workspace:*",
