@@ -77,6 +77,14 @@ interface DeliveryGateDeclaration {
   whenArgs?: { template?: string[] }
 }
 
+/** One `structuralGate` entry as the `patent` preset declares it. */
+interface StructuralGateDeclaration {
+  tool?: string
+  textArgs?: string[]
+  ruleIds?: string[]
+  whenArgs?: { template?: string }
+}
+
 /** The persona text a row declares, or `''` when the row carries none. */
 function personaPrefix(row: PresetRow | undefined): string {
   const config = row?.config
@@ -372,6 +380,29 @@ describe('patent preset composition', () => {
     expect(closureTemplates).toContain('search-report-form')
     expect(closureTemplates).not.toContain('rectification-response')
     expect(closureTemplates).not.toContain('right-evaluation-report')
+  })
+
+  it('arms the artifact structural gate on the 26.3 criteria rule the rule assets ship', async () => {
+    // The structural gate denies a render before it runs; PR-OA-007 must exist in
+    // the shipped rule assets and stay block-level, or the declaration looks armed
+    // and never fires. This is the first rule that enters through render arguments.
+    const rows = await patentRows()
+    const row = rows.find(entry => entry.id === 'patent-rule')
+    const gate = (row?.config as { structuralGate?: StructuralGateDeclaration[] } | undefined)?.structuralGate
+    expect(gate).toHaveLength(1)
+    const [artifact] = gate ?? []
+    expect(artifact?.tool).toBe('render_patent_document')
+    expect(artifact?.whenArgs).toEqual({ template: 'oa-response' })
+    expect(artifact?.textArgs).toEqual(['draft'])
+    expect(artifact?.ruleIds).toEqual(['PR-OA-007'])
+    const ruleAssets = yaml.load(readFileSync(
+      join(REPO_ROOT, 'packages/patent/patent-rule/assets/rules/patent/oa-response-form.yaml'),
+      'utf8',
+    )) as { rules?: Record<string, { id?: string; action?: string }> }
+    const shipped = new Map(Object.values(ruleAssets.rules ?? {}).map(rule => [rule.id, rule.action]))
+    for (const ruleId of artifact?.ruleIds ?? []) {
+      expect(shipped.get(ruleId), `structuralGate.${ruleId} 未随规则资产以 block 级发布`).toBe('block')
+    }
   })
 
   it('states the team-channel discipline from the mounting rows, not an unrecorded test', async () => {

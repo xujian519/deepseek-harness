@@ -402,6 +402,18 @@
                           - infringement-opinion
                           - litigation-pleading
                           - claims-spec
+                  # 制品结构门禁（2026-10-16 审阅甲7 裁决）：把「26.3 判准落位」从
+                  # warn 自检升级为渲染前的执行点——判定的是本次调用的 `draft` 入参，
+                  # 命中 block 级规则即拒绝渲染。规则 id 取自随包的 patent-full 规则集，
+                  # 找不到会告警并忽略该条（fail-safe：不半截生效）。
+                  structuralGate:
+                    - tool: render_patent_document
+                      whenArgs:
+                        template: oa-response
+                      ruleIds:
+                        - PR-OA-007
+                      textArgs:
+                        - draft
 
           # ── patent rule / document / literature / methodology ───────────────────────
 

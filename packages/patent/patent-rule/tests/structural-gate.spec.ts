@@ -305,3 +305,40 @@ describe('tools/pre-execute 制品结构门禁', () => {
     warnSpy.mockRestore()
   })
 })
+
+describe('OA 答复的制品结构门禁：PR-OA-007（2026-10-16 审阅甲7）', () => {
+  const entry: StructuralGateEntry = {
+    tool: 'render_patent_document',
+    textArgs: ['draft'],
+    ruleIds: ['PR-OA-007'],
+    whenArgs: { template: 'oa-response' },
+  }
+  const plan = PatentRule.resolveStructuralGate(PatentRule.loadPatentFullRuleSet().ruleSet, [entry])
+  const oaRule = PatentRule.loadPatentFullRuleSet().ruleSet.rules.find(rule => rule.id === 'PR-OA-007')
+
+  it('26.3 答复缺判准落位（三项判准全缺）→ 拒绝', () => {
+    const violations = PatentRule.structuralGateViolations(plan, 'render_patent_document', {
+      template: 'oa-response',
+      draft: '说明书未记载相关技术手段，本申请符合专利法第二十六条第三款的规定。',
+    })
+    expect(violations.map(violation => violation.ruleId)).toEqual(['PR-OA-007'])
+    expect(violations[0]?.action).toBe('block')
+  })
+
+  it('三项判准齐全的合规答复 → 放行', () => {
+    const violations = PatentRule.structuralGateViolations(plan, 'render_patent_document', {
+      template: 'oa-response',
+      draft: '说明书第[0032]段记载了滤芯的活性炭配比与成型方法；对于本领域技术人员而言，能够实现该技术方案，符合专利法第二十六条第三款的规定。',
+    })
+    expect(violations).toEqual([])
+  })
+
+  it('判据修复：插词写法（第N段记载）计入依据，否定式（未记载）不计入', () => {
+    if (oaRule === undefined) throw new Error('规则集缺少 PR-OA-007')
+    const base = '本领域技术人员认为该方案。符合专利法第二十六条第三款的规定。'
+    const negative = PatentRule.evaluateText(`说明书第3段未记载相关特征。${base}`, { rules: [oaRule] })
+    expect(negative.violations.map(violation => violation.ruleId)).toEqual(['PR-OA-007'])
+    const interpolated = PatentRule.evaluateText(`说明书第3段记载了相关特征。${base}`, { rules: [oaRule] })
+    expect(interpolated.violations).toEqual([])
+  })
+})
