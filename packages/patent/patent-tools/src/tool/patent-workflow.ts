@@ -6,9 +6,15 @@
  * registry disables atom execution.
  *
  * Deterministic rule-gate deviation: Sati's dual-track checker (RuleEngine +
- * defaultPatentRules) is not ported here (it lives in
- * `@deepseek-ai/dsh-patent-rule`), so the rule-gate section is dropped and
- * `checkSection` renders empty. See the port report.
+ * defaultPatentRules) is not ported here. Its responsibilities live in
+ * `@deepseek-ai/dsh-patent-rule`'s three gates — output (tool results,
+ * post-execute), artifact structural (declared tool-call arguments,
+ * pre-execute), and delivery (`rule_check` + `law_verify` before render) — so
+ * the recap path drops the rule-gate section and `checkSection` renders empty;
+ * the carrier stays for the ported text contract. See
+ * `.agents/notes/implemented/architecture/2026-09-28-patent-output-gating-runs-on-the-rule-gate.md`
+ * and
+ * `.agents/notes/implemented/architecture/2026-10-03-patent-delivery-gate-enforces-gate-runs.md`.
  * @module @deepseek-ai/dsh-patent-tools/tool/patent-workflow
  */
 

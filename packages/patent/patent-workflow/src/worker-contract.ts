@@ -332,6 +332,12 @@ function analysisWorkers(): WorkerContract[] {
 function prosecutionWorkers(): WorkerContract[] {
   return [
     {
+      /**
+       * 口径锚点（2026-10-16 审阅甲6）：确定性执行面＝manifest
+       * `patent_oa_response_v1`（`patent_workflow_run` 的阶段记录＝收口依据）；
+       * `patent-oa-writer`＝团队组装面作业角色（产出按 requiredFields 校验）。
+       * 两者并行、互不派发：worker 不派发 manifest，manifest 不派发 worker。
+       */
       name: 'patent-oa-writer',
       tier: 'work',
       description: '审查意见答复：解析 OA、制定策略、撰写意见陈述书',

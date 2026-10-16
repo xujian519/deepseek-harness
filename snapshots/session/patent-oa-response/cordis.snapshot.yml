@@ -64,3 +64,33 @@
 
     - id: patent-rule
       name: '@deepseek-ai/dsh-patent-rule'
+      config:
+        # 与 shipped `patent` preset 同形的门禁声明（preset 是 agent 平面，headless
+        # 组合不挂 preset，故在此按同一声明组装，门禁行为才能被录制与回放）：
+        # 交付前置门禁 + 制品结构门禁。
+        deliveryGate:
+          - tool: render_patent_document
+            requires: [rule_check, law_verify, matter_log_append]
+          - tool: build_patent_filing
+            requires: [rule_check, law_verify, matter_log_append]
+          - tool: render_patent_document
+            requires: [patent_workflow_run]
+            whenArgs:
+              template:
+                - patentability-opinion
+                - search-report
+                - search-report-form
+                - oa-response
+                - invalidation-opinion
+                - re-examination-request
+                - infringement-opinion
+                - litigation-pleading
+                - claims-spec
+        structuralGate:
+          - tool: render_patent_document
+            whenArgs:
+              template: oa-response
+            ruleIds:
+              - PR-OA-007
+            textArgs:
+              - draft
