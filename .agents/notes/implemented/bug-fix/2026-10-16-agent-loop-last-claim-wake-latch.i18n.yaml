@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-10-16-agent-loop-last-claim-wake-latch.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-16-agent-loop-last-claim-wake-latch.md
+/agent-note-latch-a-waking-send-that-lands-after-the-driver-s-last-inbox-claim:
+  en: 5a5eaf70f366d021
+  zh: 394e1ac3a152902e
+/agent-note-latch-a-waking-send-that-lands-after-the-driver-s-last-inbox-claim/problem:
+  en: 37df74d61fbec91f
+  zh: 0db20603a0ae451f
+/agent-note-latch-a-waking-send-that-lands-after-the-driver-s-last-inbox-claim/decision:
+  en: 221118de1c3900a6
+  zh: 6e0ba23db87496db
+/agent-note-latch-a-waking-send-that-lands-after-the-driver-s-last-inbox-claim/consequences:
+  en: 49943c1659219944
+  zh: 367bda42bdbb48a2
+/agent-note-latch-a-waking-send-that-lands-after-the-driver-s-last-inbox-claim/alternatives-considered:
+  en: a1a7ff9984f9fa28
+  zh: d966ca77cb9e69cc
+/agent-note-latch-a-waking-send-that-lands-after-the-driver-s-last-inbox-claim/testing:
+  en: df503cc41768cc6d
+  zh: 6756f644275464b6
+/agent-note-latch-a-waking-send-that-lands-after-the-driver-s-last-inbox-claim/related:
+  en: 196717a7a5032728
+  zh: 18f4661d79d246f2
