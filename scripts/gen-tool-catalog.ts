@@ -73,6 +73,8 @@ import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import type PluginManager from '@deepseek-ai/dsh-plugin-manager'
 import * as PluginManagerTools from '@deepseek-ai/dsh-plugin-manager/tools'
+import type PluginMarket from '@deepseek-ai/dsh-plugin-market'
+import * as PluginMarketTools from '@deepseek-ai/dsh-plugin-market/tools'
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
 import McpResources from '@deepseek-ai/dsh-mcp-resources'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
@@ -226,6 +228,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
   },
   {
+    pkg: '@deepseek-ai/dsh-plugin-market',
+    dir: 'plugin-market',
+    source: 'packages/boot/plugin-market/src/tools.ts',
+    requires: ['ctx.tools', 'ctx.pluginMarket'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // Schema harvest never fetches an index.
+      ctx.provide('pluginMarket', {} as PluginMarket)
+      await ctx.plugin(PluginMarketTools)
+    },
+  },
+  {
     pkg: '@deepseek-ai/dsh-mcp-resources',
     dir: 'mcp-resources',
     source: 'packages/mcp/mcp-resources/src/tools.ts',
@@ -357,7 +371,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
     pkg: '@deepseek-ai/dsh-tool-plugin-market',
     dir: 'tool-plugin-market',
     source: 'packages/extensions/tool-plugin-market/src/index.ts',
-    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.pluginMarket'],
+    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.pluginCatalog'],
     writes: ['tool/call', 'tool/result'],
     async mount(ctx) {
       await ctx.plugin(HostPluginMarketProvider, {
@@ -366,7 +380,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(ToolPluginMarket)
     },
     note:
-      'The market toolset reads `ctx.pluginMarket` from `@deepseek-ai/dsh-host-plugin-market`, which always serves a bundled offline catalog (`builtin-deepseek`) from memory and a user-registered HTTPS source through the market\'s restricted fetch. In the standard preset the tools are visible to every agent session; installation stays an operator action on the `dsh plugin` CLI, never a model call.',
+      'The market toolset reads `ctx.pluginCatalog` from `@deepseek-ai/dsh-host-plugin-market`, which always serves a bundled offline catalog (`builtin-deepseek`) from memory and a user-registered HTTPS source through the market\'s restricted fetch. In the standard preset the tools are visible to every agent session; installation stays an operator action on the `dsh plugin` CLI, never a model call.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-bash-persistent',

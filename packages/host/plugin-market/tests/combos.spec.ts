@@ -99,29 +99,29 @@ function stubFetch(): void {
 describe('real Loader composition', () => {
   // First real-Loader resolution after the host/client program split is slow
   // enough to trip the default 5s budget on cold caches.
-  it('mounts plugin-market from a composition and exposes a read-only ctx.pluginMarket', { timeout: 60_000 }, async () => {
+  it('mounts plugin-market from a composition and exposes a read-only ctx.pluginCatalog', { timeout: 60_000 }, async () => {
     const sourceFile = join(await mkdtemp(join(tmpdir(), 'dsh-plugin-market-src-')), 'sources.json')
     const loaded = await loadYaml(sourceFile)
     stubFetch()
 
-    expect(loaded.pluginMarket).toBeInstanceOf(provider.MarketProvider)
+    expect(loaded.pluginCatalog).toBeInstanceOf(provider.MarketProvider)
     // The bundled catalog is present out of the box; no network source yet.
-    expect((await loaded.pluginMarket.listSources()).map(source => source.providerId)).toEqual(['builtin-deepseek'])
+    expect((await loaded.pluginCatalog.listSources()).map(source => source.providerId)).toEqual(['builtin-deepseek'])
     // The bundled source serves its entries from memory, and cannot be removed.
-    const builtinPage = await loaded.pluginMarket.search('builtin-deepseek', { q: 'bash' })
+    const builtinPage = await loaded.pluginCatalog.search('builtin-deepseek', { q: 'bash' })
     expect(builtinPage.items[0]).toMatchObject({ package: '@deepseek-ai/dsh-tool-bash' })
-    await expect(loaded.pluginMarket.removeSource('builtin-deepseek')).rejects.toMatchObject({ code: 'source-invalid' })
+    await expect(loaded.pluginCatalog.removeSource('builtin-deepseek')).rejects.toMatchObject({ code: 'source-invalid' })
 
     // Source registration and catalog search work in read-only mode.
-    const added = await loaded.pluginMarket.addSource('https://example.dev/manifest.json')
-    const page = await loaded.pluginMarket.search(added.id, { q: 'plugin' })
+    const added = await loaded.pluginCatalog.addSource('https://example.dev/manifest.json')
+    const page = await loaded.pluginCatalog.search(added.id, { q: 'plugin' })
     expect(page.items[0]).toMatchObject({ package: 'dsh-p1' })
-    expect((await loaded.pluginMarket.preview('dsh-p1@1.0.0')).verified).toBe(true)
+    expect((await loaded.pluginCatalog.preview('dsh-p1@1.0.0')).verified).toBe(true)
 
     // The write boundary is refused: no profileDir is supplied to the row.
-    await expect(loaded.pluginMarket.install(added.id, 'dsh-p1@1.0.0'))
+    await expect(loaded.pluginCatalog.install(added.id, 'dsh-p1@1.0.0'))
       .rejects.toMatchObject({ code: 'install-unavailable' })
-    await expect(loaded.pluginMarket.listInstallations())
+    await expect(loaded.pluginCatalog.listInstallations())
       .rejects.toMatchObject({ code: 'install-unavailable' })
   })
 })

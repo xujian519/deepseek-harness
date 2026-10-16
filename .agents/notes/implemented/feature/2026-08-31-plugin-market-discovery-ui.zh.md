@@ -12,9 +12,9 @@ Status: implemented
 
 用**只读 Remote controller** 把能力间隔桥接到浏览器，并把投影放进现有的**插件设置 tab**，让发现可以在产品内完成，而所有写入仍留在 CLI。
 
-- [`@deepseek-ai/dsh-api-plugin-market-controller`](../../../../packages/api/plugin-market-controller/README.zh.md) 继承 `TypertRemoteService`，命名空间为 `pluginMarket`，只转发只读动词 `listSources` / `search` / `preview`。它把 host 的 `PluginMarketError` 投射为 `TypertRemoteFailure` 业务码，并在未挂载 provider 时报告可执行的配置错误。
-- [`@deepseek-ai/dsh-client-ui-plugin-market`](../../../../packages/client/ui-plugin-market/README.zh.md) 注册一个 `settings.plugins.tab` 条目（`id: 'market'`，`order: 30`）。它列出目录源，用 `q` / `category` / `capability` 搜索选中的源，并预检一个 `name@version` 引用。所有文案都走 typed locale 字典；组件只消费注入的纯函数，不直接触碰 `ctx` 或 Remote。
-- `@deepseek-ai/dsh-api-remotes` 挂载该 controller（`pluginMarketRemote`），令浏览器通过 `ctx.remote.pluginMarket` 解析到与 CLI 动词相同的命名空间。
+- [`@deepseek-ai/dsh-api-plugin-market-controller`](../../../../packages/api/plugin-market-controller/README.zh.md) 继承 `TypertRemoteService`，命名空间为 `pluginCatalog`，只转发只读动词 `listSources` / `search` / `preview`。它把 host 的 `PluginMarketError` 投射为 `TypertRemoteFailure` 业务码，并在未挂载 provider 时报告可执行的配置错误。
+- [`@deepseek-ai/dsh-client-ui-plugin-catalog`](../../../../packages/client/ui-plugin-catalog/README.zh.md) 注册一个 `settings.plugins.tab` 条目（`id: 'catalog'`，`order: 30`）。它列出目录源，用 `q` / `category` / `capability` 搜索选中的源，并预检一个 `name@version` 引用。所有文案都走 typed locale 字典；组件只消费注入的纯函数，不直接触碰 `ctx` 或 Remote。
+- `@deepseek-ai/dsh-api-remotes` 挂载该 controller（`pluginCatalogRemote`），令浏览器通过 `ctx.remote.pluginCatalog` 解析到与 CLI 动词相同的命名空间。
 
 两者都从构造上保持只读：没有任何方法能写入 profile、编辑 `cordis.yml` 或安装包。安装与卸载仍保留在操作者驱动的 `dsh plugin` CLI。
 
@@ -30,4 +30,4 @@ controller 与 UI 从 `@deepseek-ai/dsh-host-plugin-market/types` 导入 plugin-
 
 ## 结果与代价
 
-Web UI 中的操作者现在可以枚举目录源、搜索其中一个、并预检一个钉定，而无需动用终端，复用的正是 CLI 与模型工具所驱动的同一个能力间隔。每个动词在构造上只读，因此浏览器会话无法写入 profile 或安装包——写入路径仍留在操作者驱动的 CLI。代价是新增一个投射 `pluginMarket` 命名空间的 Remote controller、web-app 组合里多一个依赖，以及一个刻意只读的 UI tab：没有安装/卸载 affordance，也没有添加的计划。初始目录源是内置离线的 `builtin-deepseek` 快照；公开 HTTPS 源仍是 host 包 README 中追踪的未完成项。
+Web UI 中的操作者现在可以枚举目录源、搜索其中一个、并预检一个钉定，而无需动用终端，复用的正是 CLI 与模型工具所驱动的同一个能力间隔。每个动词在构造上只读，因此浏览器会话无法写入 profile 或安装包——写入路径仍留在操作者驱动的 CLI。代价是新增一个投射 `pluginCatalog` 命名空间的 Remote controller、web-app 组合里多一个依赖，以及一个刻意只读的 UI tab：没有安装/卸载 affordance，也没有添加的计划。初始目录源是内置离线的 `builtin-deepseek` 快照；公开 HTTPS 源仍是 host 包 README 中追踪的未完成项。

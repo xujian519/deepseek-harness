@@ -124,7 +124,7 @@
               searchTimeoutMs: 60000
           # Read-only plugin catalog tools: list catalog sources, search one
           # catalog, and preview a package against the npm registry. They read
-          # the host `pluginMarket` service; installation stays on the
+          # the host `pluginCatalog` service; installation stays on the
           # `dsh plugin` CLI, so no profile is written from here.
           - id: tool-plugin-market
             name: '@deepseek-ai/dsh-tool-plugin-market'

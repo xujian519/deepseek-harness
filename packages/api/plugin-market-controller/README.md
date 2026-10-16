@@ -1,5 +1,5 @@
 ---
-description: "Host Remote owner for the open plugin-catalog discovery surface: it projects the read-only plugin-market seam onto the generated pluginMarket namespace for browser discovery and preview."
+description: "Host Remote owner for the open plugin-catalog discovery surface: it projects the read-only plugin-market seam onto the generated pluginCatalog namespace for browser discovery and preview."
 kind: "package-reference"
 ---
 # Plugin Market Controller
@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-api-plugin-market-controller` exposes the generated `ctx.remote.pluginMarket` namespace for browser plugin discovery. It forwards only the read-only face of the `ctx.pluginMarket` seam — source listing, source catalog search, and install preview — into the browser. Installs and uninstalls stay with the `dsh plugin` profile CLI: this controller exposes no write, so a browser session can discover and preview a plugin but never mutate a profile. When the plugin-market provider is absent, the namespace stays registered and returns an actionable configuration error instead of silently being missing.
+`@deepseek-ai/dsh-api-plugin-market-controller` exposes the generated `ctx.remote.pluginCatalog` namespace for browser plugin discovery. It forwards only the read-only face of the `ctx.pluginCatalog` seam — source listing, source catalog search, and install preview — into the browser. Installs and uninstalls stay with the `dsh plugin` profile CLI: this controller exposes no write, so a browser session can discover and preview a plugin but never mutate a profile. When the plugin-market provider is absent, the namespace stays registered and returns an actionable configuration error instead of silently being missing.
 
 
 ## Table of Contents
@@ -23,7 +23,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this package as a Loader entry in a profile that serves a browser plugin-discovery surface (the `dsh-web-app` bundle does). The entry registers the `pluginMarket` namespace independently of its provider, so a missing provider produces a named `internal` failure at invocation rather than an absent namespace. Its generated descriptors enter the strict Typert registry.
+Mount this package as a Loader entry in a profile that serves a browser plugin-discovery surface (the `dsh-web-app` bundle does). The entry registers the `pluginCatalog` namespace independently of its provider, so a missing provider produces a named `internal` failure at invocation rather than an absent namespace. Its generated descriptors enter the strict Typert registry.
 
 `listSources()` returns every catalog source the Host has registered, including a `builtin` marker the browser uses to distinguish an offline bundled directory from a network one. `search(sourceId, query)` forwards a `CatalogQuery` to one source and returns a `CatalogPage` whose entries each carry the `source` providerId; unsupported query fields are dropped by the provider. `preview(ref)` checks a `name@version` reference against the registry and returns an `InstallPreview` without touching the profile.
 

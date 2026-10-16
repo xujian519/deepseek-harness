@@ -1,6 +1,6 @@
 /**
  * Host-bundled catalog: a small fixed set of real DeepSeek Harness packages
- * served as an always-available source so `ctx.pluginMarket` works out of the
+ * served as an always-available source so `ctx.pluginCatalog` works out of the
  * box without a registered online source. The data is a release-bundled
  * snapshot — it refreshes with each publish, never over the network. Entries
  * get the bundled source's providerId in `source` at query time; search is a

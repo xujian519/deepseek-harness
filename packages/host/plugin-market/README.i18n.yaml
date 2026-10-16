@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/host/plugin-market/README.md
 /:
-  en: c373c5efc455f090
-  zh: d7336d189f4ea8d9
+  en: 3f4baa6dd92a79cf
+  zh: baac8f89c7c67101
 /deepseek-ai-dsh-host-plugin-market:
   en: f9f7fc5e21ffc464
   zh: be95bf89466c71bb
 /deepseek-ai-dsh-host-plugin-market/summary:
-  en: 330f1f9d6e0195e3
-  zh: 6b714bfbf4cb072b
+  en: fb04c0c5156f2dff
+  zh: 66af932d234f2bc3
 /deepseek-ai-dsh-host-plugin-market/table-of-contents:
   en: 7e21bd971e121dbd
   zh: a5a11c3d849d6458

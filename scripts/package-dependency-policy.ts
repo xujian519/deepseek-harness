@@ -61,16 +61,18 @@ const SAFE_HOST_DEPENDENCY_EXPORTS = {
   '@deepseek-ai/dsh-subagent/client': ['snapshotSubagentDescriptor'],
   '@deepseek-ai/dsh-timeout': ['MAX_TIMER_DELAY_MS'],
   '@deepseek-ai/dsh-tools': ['defineTool'],
-  '@deepseek-ai/dsh-value': ['assertResolvedConfig', 'errorMessage', 'isPlainObject', 'isRecord'],
+  '@deepseek-ai/dsh-value': ['assertResolvedConfig', 'errorMessage', 'isAbortError', 'isPlainObject', 'isRecord', 'toError'],
   '@deepseek-ai/schemastery': ['default'],
 } as const satisfies HostDependencyExports
 
 /** Runtime exports that require every consumer to resolve the provider's shared peer instance. */
 const PEER_REQUIRED_HOST_EXPORTS = {
-  '@deepseek-ai/dsh-settings': ['SettingsConflictError'],
+  // `instanceof` checks need the translator's own class instance.
+  '@deepseek-ai/dsh-experimental-translator': ['TranslationError'],
   '@deepseek-ai/dsh-scope': ['carrierKeyOf', 'createScope', 'scopeOf', 'scopeTarget'],
   '@deepseek-ai/dsh-session': ['SESSION_FORMAT_VERSION'],
   '@deepseek-ai/dsh-session-persistence': ['SessionPersistenceNotFoundError'],
+  '@deepseek-ai/dsh-settings': ['SettingsConflictError'],
 } as const satisfies HostDependencyExports
 
 /** Exact import specifier to reviewed runtime exports. */
@@ -107,18 +109,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Whether a package manifest declares a dynamically loaded Client entry. */
 export function hasClientDeclaration(dshField: unknown): boolean {
   return isRecord(dshField) && Object.hasOwn(dshField, 'client')
-}
-
-/** Whether the repository policy flattens one package's non-Cordis peers. */
-export function usesFlattenedPackageDependencies(
-  manifestPath: string,
-  packageName: string,
-  dshField: unknown,
-  policy: PackageDependencyPolicy = PACKAGE_DEPENDENCY_POLICY,
-): boolean {
-  if (!manifestPath.startsWith('packages/') || manifestPath.startsWith('packages/experimental/')) return false
-  if (policy.hostPackages.includes(packageName)) return true
-  if (manifestPath.startsWith('packages/client/')) return true
-  const included = hasClientDeclaration(dshField) || policy.clientFaceInclude.includes(packageName)
-  return included && !policy.clientFaceExclude.includes(packageName)
 }

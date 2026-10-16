@@ -94,7 +94,7 @@
     ".dagNode: border-radius: 10px",
     ".feedIcon: border-radius: 7px"
   ],
-  "ui-plugin-market/src/client/PluginMarketTab.module.css": [
+  "ui-plugin-catalog/src/client/PluginCatalogTab.module.css": [
     ".field input, .field select: border-radius: 8px",
     ".button: border-radius: 8px",
     ".card: border-radius: 10px",

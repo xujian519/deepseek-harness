@@ -1,7 +1,7 @@
 /**
  * Tests for the bundled catalog: the in-memory source list and the pure
  * `searchBuiltinCatalog` filter (free text, category, capability, page clamp)
- * that backs `ctx.pluginMarket` out of the box without a network source.
+ * that backs `ctx.pluginCatalog` out of the box without a network source.
  */
 
 import { describe, expect, it } from 'vitest'
