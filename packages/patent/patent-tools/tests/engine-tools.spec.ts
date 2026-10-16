@@ -82,6 +82,48 @@ describe('rule_check', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('无违规')
   })
+
+  const dualRules: RuleSet = {
+    rules: [
+      { id: 'PR-OA-008', name: '答复—驳回理由覆盖', severity: 'major', action: 'warn', check: { type: 'notice_ground_coverage' } },
+      { id: 'PR-OA-009', name: '答复—未提条款引用', severity: 'major', action: 'warn', domain: 'patent_oa_response', check: { type: 'unraised_statute_citation' } },
+      { id: 'PR-OA-099', name: '域外规则', severity: 'minor', action: 'warn', domain: 'unrelated_domain', check: { type: 'unraised_statute_citation' } },
+    ],
+  }
+
+  it('evaluates the dual-input rules against the supplied notice', async () => {
+    const tool = createRuleCheckTool({ loader: () => dualRules, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const notice = '权利要求 1-2 不具备创造性，不符合专利法第22条第3款的规定；权利要求 3 的保护范围不清楚，不符合专利法第26条第4款的规定。'
+    const response = '关于创造性：对比文件 1 与 2 的结合无技术启示。本申请符合专利法第26条第3款的规定。'
+    const result = await execute(ctx, 'rule_check', { text: response, scope: 'patent-oa-response', notice }, 'r-6')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('PR-OA-008')
+    expect(text(result)).toContain('PR-OA-009')
+    expect(text(result)).not.toContain('PR-OA-099')
+    expect(text(result)).toContain(`评估输入: text ${response.length} 字 · `)
+    expect(text(result)).toContain(`notice ${notice.length} 字 · `)
+  })
+
+  it('lists the dual-input rules it did not evaluate when notice is missing', async () => {
+    const tool = createRuleCheckTool({ loader: () => dualRules, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'rule_check', { text: '答复正文。', scope: 'patent-oa-response' }, 'r-7')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('双输入规则未评估（未提供 notice）: PR-OA-008、PR-OA-009')
+    expect(text(result)).not.toContain('PR-OA-099')
+  })
+
+  it('keeps the dual-input filter working without a job scope', async () => {
+    const tool = createRuleCheckTool({ loader: () => dualRules, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'rule_check', { text: '答复正文。', scope: 'patent' }, 'r-8')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('PR-OA-008、PR-OA-009、PR-OA-099')
+  })
 })
 
 describe('evaluate_evidence', () => {

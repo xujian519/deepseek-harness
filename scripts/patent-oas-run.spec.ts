@@ -42,6 +42,7 @@ import {
   writeRunRecord,
   type AgentInvocation,
   type RunAgents,
+  type RunCallUsage,
 } from './patent-oas-run-core.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -82,6 +83,8 @@ interface StubOptions {
   omitScore?: boolean
   /** 污染分数文件内容,用来验证解析失败路径。 */
   scoreBody?: string
+  /** 接缝每次调用报告的用量;缺省不报告(记录里不出现 cost/tokens)。 */
+  usage?: RunCallUsage
 }
 
 /** 造一个桩接缝:按契约把产物写进调用目录,并记录每次调用。 */
@@ -90,13 +93,14 @@ function stubAgents(options: StubOptions = {}): { runAgents: RunAgents; calls: A
   const runAgents: RunAgents = async (invocation) => {
     calls.push(invocation)
     if (invocation.prompt.includes(SCORE_FILENAME)) {
-      if (options.omitScore === true) return
+      if (options.omitScore === true) return options.usage
       const body = options.scoreBody ?? JSON.stringify({ score: options.scoreFor?.(invocation.label, calls.length) ?? 90 })
       writeFileSync(join(invocation.cwd, SCORE_FILENAME), body, 'utf8')
-      return
+      return options.usage
     }
-    if (options.omitDeliverable === true) return
+    if (options.omitDeliverable === true) return options.usage
     writeFileSync(join(invocation.cwd, DELIVERABLE_FILENAME), options.deliverable ?? '交付物正文', 'utf8')
+    return options.usage
   }
   return { runAgents, calls }
 }
@@ -195,10 +199,10 @@ describe('分数解析', () => {
 })
 
 describe('选项解析', () => {
-  it('缺省为 headless / runs=1 / 产物落 .artifacts', () => {
+  it('缺省为 headless / runs=3 / 产物落 .artifacts', () => {
     const options = parseRunnerOptions([], { root: '/repo', cwd: '/repo', stamp: 'T' })
     expect(options.profile).toBe('headless')
-    expect(options.runs).toBe(1)
+    expect(options.runs).toBe(3)
     expect(options.caseIds).toEqual([])
     expect(options.timeoutMs).toBe(600_000)
     expect(options.outPath).toBe('/repo/.artifacts/patent-oas/T/run.json')
@@ -320,6 +324,22 @@ describe('编排', () => {
     })
     expect(record.runsPerCase).toBe(2)
     expect(first(record.cases).dimensions.every(entry => entry.score === 70)).toBe(true)
+  })
+
+  it('汇总接缝报告的 cost/tokens 到记录', async () => {
+    const { record, calls } = await collect({
+      caseIds: ['oa-answer'],
+      runsPerCase: 2,
+      usage: { cost: 0.01, tokens: { input: 100, output: 40 } },
+    })
+    expect(record.cost).toBeCloseTo(0.01 * calls.length, 6)
+    expect(record.tokens).toEqual({ input: 100 * calls.length, output: 40 * calls.length })
+  })
+
+  it('接缝未报告用量时记录不含 cost/tokens', async () => {
+    const { record } = await collect({ caseIds: ['oa-answer'] })
+    expect(record.cost).toBeUndefined()
+    expect(record.tokens).toBeUndefined()
   })
 
   it('agent 没写出交付物时点名失败', async () => {

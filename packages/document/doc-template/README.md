@@ -27,7 +27,7 @@ English | [中文](README.zh.md)
 <a id="template-assets"></a>
 ## Template assets
 
-Twelve templates ship under `assets/templates/`, grouped by directory: `specification/` (4), `claims/` (3), `oa-response/` (3), and `disclosure/` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch, and neither is the patent domain's own deliverables — those render from a controlled draft in [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.md) instead of a variable-substitution asset.
+Twelve templates ship under `assets/templates/`, grouped by directory: `specification/` (4), `claims/` (3), `oa-response/` (3), and `disclosure/` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch, and neither is the patent domain's own deliverables — those render from a controlled draft in [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.md) instead of a variable-substitution asset. The `oa-response/` category is document-mode only: its three templates are generic variable-substitution skeletons, not the patent response channel — a reply to a real office action renders from `dsh-patent-document`'s controlled draft, and the patent preset mounts no doc-template row.
 
 Front-matter fields, read from the upstream template contract:
 

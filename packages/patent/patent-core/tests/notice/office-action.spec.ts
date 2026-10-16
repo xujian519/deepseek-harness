@@ -194,6 +194,7 @@ describe('parseOfficeAction', () => {
       citations: [],
       affectedClaims: [],
       examinerArguments: [],
+      parseConflicts: [],
     })
   })
 })
@@ -209,6 +210,7 @@ describe('formatOfficeActionSummary', () => {
       ],
       affectedClaims: [1, 2, 3],
       examinerArguments: ['审查员认为该方案显而易见。'],
+      parseConflicts: [],
     }
     expect(formatOfficeActionSummary(parsed)).toBe(
       [
@@ -227,10 +229,53 @@ describe('formatOfficeActionSummary', () => {
       citations: [],
       affectedClaims: [],
       examinerArguments: [],
+      parseConflicts: [],
     }
     expect(formatOfficeActionSummary(parsed)).toBe(
       ['驳回类型: 未识别到具体驳回条款', '影响权利要求: 无', '引用文献: 无'].join('\n'),
     )
+  })
+})
+
+describe('parseConflicts', () => {
+  it('同一文献标注不一致时不静默取单一结论', () => {
+    const parsed = parseOfficeAction(
+      '对比文件 CN112345678A（X 类）公开了权利要求 1 的前序特征；'
+      + '对比文件 CN112345678A（A 类）属于一般背景技术。',
+    )
+    expect(parsed.citations).toEqual([
+      { documentNumber: 'CN112345678A', relevancy: 'X', claimsAffected: [1] },
+    ])
+    expect(parsed.parseConflicts).toEqual([
+      {
+        source: '引用文献 CN112345678A 的相关性类别',
+        candidates: ['X 类', 'A 类'],
+        basis: '按首现标注继续（X 类）；解析不裁定标注冲突，须人工核对',
+      },
+    ])
+  })
+
+  it('未标注与标注并存同样计入冲突并保留首现取值', () => {
+    const parsed = parseOfficeAction(
+      '对比文件 CN112345678A 公开了权利要求 1 的前序特征；对比文件 CN112345678A（Y 类）与其它文件结合。',
+    )
+    expect(parsed.citations[0]?.relevancy).toBeUndefined()
+    expect(parsed.parseConflicts).toEqual([
+      {
+        source: '引用文献 CN112345678A 的相关性类别',
+        candidates: ['未标注', 'Y 类'],
+        basis: '按首现标注继续（未标注）；解析不裁定标注冲突，须人工核对',
+      },
+    ])
+  })
+
+  it('标注一致或无重复出现时不产生冲突', () => {
+    expect(parseOfficeAction('对比文件 CN112345678A（X 类）公开了权利要求 1。').parseConflicts).toEqual([])
+    expect(
+      parseOfficeAction(
+        '对比文件 CN112345678A（X 类）公开了权利要求 1；对比文件 CN112345678A（X 类）属于现有技术。',
+      ).parseConflicts,
+    ).toEqual([])
   })
 })
 

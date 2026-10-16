@@ -99,6 +99,12 @@ export {
   validateRuleSet,
 } from './runtime/RuleLoader.ts'
 export {
+  DUAL_INPUT_CHECK_TYPES,
+  evaluateDualRule,
+  isDualInputCheck,
+  type DualInputRuleInput,
+} from './runtime/dual-input.ts'
+export {
   checkSynonymRequirements,
   hasNegationContext,
   loadSynonymsAsset,

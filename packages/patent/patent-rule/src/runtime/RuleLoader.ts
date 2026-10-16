@@ -34,6 +34,8 @@ const CHECK_TYPES: readonly RuleCheckType[] = [
   'citation_analysis',
   'synonym_match',
   'quote_repetition',
+  'notice_ground_coverage',
+  'unraised_statute_citation',
 ]
 
 /**
@@ -358,6 +360,11 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
       }
       return { type, minLength, minOccurrences }
     }
+    case 'notice_ground_coverage':
+      // 双输入检查族：无参数，形状即类型；被判定的输入由 rule_check 的 notice 携带。
+      return { type }
+    case 'unraised_statute_citation':
+      return { type }
     /* v8 ignore next -- closed-union backstop; the compiler rejects a new check type here. */
     default:
       return assertNever(type, 'rule check type')
