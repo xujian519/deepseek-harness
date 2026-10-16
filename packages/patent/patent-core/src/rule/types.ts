@@ -27,6 +27,8 @@ export type RuleCheckType =
   | 'citation_analysis'
   | 'synonym_match'
   | 'quote_repetition'
+  | 'notice_ground_coverage'
+  | 'unraised_statute_citation'
 
 /**
  * keyword_blocklist — 关键词黑名单。
@@ -135,6 +137,26 @@ export type QuoteRepetitionCheck = {
   minOccurrences?: number
 }
 
+/**
+ * notice_ground_coverage — 双输入检查：答复正文对通知书各条驳回理由的覆盖。
+ *
+ * 需要「通知书解析结果 + 答复正文」两项输入（`rule_check` 的 `notice` 入参）；
+ * 单文本评估一律跳过（`evaluateRule` 返回 null），由 `evaluateDualRule` 执行。
+ */
+export type NoticeGroundCoverageCheck = {
+  type: 'notice_ground_coverage'
+}
+
+/**
+ * unraised_statute_citation — 双输入检查：答复引用通知书未提出的驳回条款。
+ *
+ * 与 {@link NoticeGroundCoverageCheck} 同属双输入族（判据需要通知书已提条款作对照）；
+ * 通知书未识别到具体条款时不评估，避免把"没解析出来"当成"没提出"。
+ */
+export type UnraisedStatuteCitationCheck = {
+  type: 'unraised_statute_citation'
+}
+
 /** 全部检查类型的判别联合（tagged enum）。 */
 export type RuleCheck =
   | KeywordBlocklistCheck
@@ -143,6 +165,8 @@ export type RuleCheck =
   | CitationAnalysisCheck
   | SynonymMatchCheck
   | QuoteRepetitionCheck
+  | NoticeGroundCoverageCheck
+  | UnraisedStatuteCitationCheck
 
 /** 单条宪法规则（对齐 BCIP ConstitutionalRule）。 */
 export type ConstitutionalRule = {

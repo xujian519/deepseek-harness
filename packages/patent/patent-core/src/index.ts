@@ -71,6 +71,7 @@ export type {
   ConstitutionalRule,
   KeywordBlocklistCheck,
   LoadedRuleSet,
+  NoticeGroundCoverageCheck,
   PatternAnalysisCheck,
   QuoteRepetitionCheck,
   RuleAction,
@@ -87,6 +88,7 @@ export type {
   StructuralElement,
   SynonymMatchCheck,
   SynonymRequirement,
+  UnraisedStatuteCitationCheck,
 } from './rule/types.ts'
 export {
   DEFAULT_NEGATION_WINDOW,

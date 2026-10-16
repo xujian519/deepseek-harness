@@ -8,7 +8,9 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import {
+  evaluateDualRule,
   evaluateText,
+  isDualInputCheck,
   loadPatentComplianceRuleSet,
   loadPatentElectricalRuleSet,
   loadPatentFullRuleSet,
@@ -18,7 +20,8 @@ import {
   summarizeRulePackLayers,
 } from '@deepseek-ai/dsh-patent-rule'
 import type { RulePackLoadResult } from '@deepseek-ai/dsh-patent-rule'
-import type { RuleSet } from '@deepseek-ai/dsh-patent-core'
+import { parseOfficeAction } from '@deepseek-ai/dsh-patent-core'
+import type { RuleSet, RuleViolation } from '@deepseek-ai/dsh-patent-core'
 import type { SynonymMap } from '@deepseek-ai/dsh-patent-rule'
 import { PatentToolError } from '../error.ts'
 import { evaluatedTexts, EVALUATED_TEXT_SCHEMA, renderEvaluatedTexts } from '../internal/evaluated-input.ts'
@@ -30,6 +33,11 @@ export type RuleCheckInput = {
   text: string
   /** Rule-set scope (default "patent" = bundled patent compliance rules). */
   scope?: string
+  /**
+   * 通知书正文（可选）：提供时就地确定性解析，并评估双输入规则（PR-OA-008 驳回理由
+   * 覆盖、PR-OA-009 未提条款引用）；未提供时这些规则不评估，结果中显式列出。
+   */
+  notice?: string
 }
 
 /** One rule violation rendered for the tool output. */
@@ -56,6 +64,8 @@ export type RuleCheckOutput = {
   /** Layered pack summary (scope=pack only). */
   packHeader?: string
   packWarnings?: string[]
+  /** 因未提供 `notice` 而未评估的双输入规则 id。 */
+  dualInputSkipped?: string[]
 }
 
 /** Injectables mirroring Sati's RuleCheckDeps (tests override; defaults use the bundled assets). */
@@ -82,6 +92,7 @@ const DESCRIPTION = [
   "a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement'",
   "(the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish),",
   "or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).",
+  'With the office-action notice at hand, a job scope also takes notice=通知书正文: the two dual-input rules (PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用) then run against the response; without notice they are listed as unevaluated.',
   'Every result ends with an 评估输入 line giving the character count and digest of the text this run actually read: keep that line when you transcribe the result, so a later run can show whether it read the same text.',
 ].join(' ')
 
@@ -90,8 +101,11 @@ function renderRuleCheck(value: RuleCheckOutput): string {
   const header = value.packHeader !== undefined ? `${value.packHeader}\n` : ''
   const warnings = value.packWarnings !== undefined && value.packWarnings.length > 0 ? `\n加载警告: ${value.packWarnings.join('；')}` : ''
   const evaluated = renderEvaluatedTexts(value.evaluated)
+  const skipped = value.dualInputSkipped !== undefined && value.dualInputSkipped.length > 0
+    ? `\n双输入规则未评估（未提供 notice）: ${value.dualInputSkipped.join('、')}`
+    : ''
   // `text` is a required input, so an evaluation always reports at least one identity.
-  const trailer = `${warnings}\n${evaluated}`
+  const trailer = `${warnings}${skipped}\n${evaluated}`
   if (value.violations.length === 0) {
     return `${header}rule_check(${value.scope}): 无违规${trailer}`
   }
@@ -165,6 +179,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
     parameters: {
       text: { type: 'string', required: true, description: 'The text to check.' },
       scope: { type: 'string', description: "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml." },
+      notice: { type: 'string', description: '通知书正文（可选）：提供时就地确定性解析，并评估双输入规则 PR-OA-008/009；未提供时结果中显式列出未评估项。' },
     },
     output: {
       schema: {
@@ -176,6 +191,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
           evaluated: { type: 'array', required: true, items: EVALUATED_TEXT_SCHEMA },
           packHeader: { type: 'string' },
           packWarnings: { type: 'array', items: { type: 'string' } },
+          dualInputSkipped: { type: 'array', items: { type: 'string' } },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderRuleCheck(value) }],
@@ -191,12 +207,33 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
       // 故缓存与 pack 路径不受 scope 影响）。
       const domains = patentCaseDomains(scope)
       const evaluation = evaluateText(args.text, ruleSet, synonymsCache, domains === undefined ? undefined : { domain: domains })
+      // 双输入规则（PR-OA-008/009 一族）：只在提供 notice 时评估；未提供则显式列出，
+      // 不静默跳过——否则「跑了 rule_check」与「双输入规则没跑」在结果上无法区分。
+      const dualRules = ruleSet.rules.filter(rule =>
+        isDualInputCheck(rule.check.type)
+        && (domains === undefined || rule.domain === undefined || domains.includes(rule.domain)))
+      const noticeText = args.notice?.trim() ?? ''
+      const dualViolations: RuleViolation[] = []
+      let dualInputSkipped: string[] | undefined
+      let evaluatedNotice: string | undefined
+      if (dualRules.length > 0) {
+        if (noticeText.length === 0) {
+          dualInputSkipped = dualRules.map(rule => rule.id)
+        } else {
+          const notice = parseOfficeAction(noticeText)
+          evaluatedNotice = noticeText
+          for (const rule of dualRules) {
+            const found = evaluateDualRule(rule, { notice, response: args.text })
+            if (found !== null) dualViolations.push(found)
+          }
+        }
+      }
       const packHeader = pack !== null
         ? `规则分层: ${summarizeRulePackLayers(pack.layers)}（清单: ${pack.manifestPath ?? '无，默认 rules/base'}）`
         : undefined
       return {
         scope,
-        violations: evaluation.violations.map(v => ({
+        violations: [...evaluation.violations, ...dualViolations].map(v => ({
           ruleId: v.ruleId,
           ruleName: v.ruleName,
           severity: v.severity,
@@ -207,7 +244,11 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
           ...(v.line !== undefined ? { line: v.line } : {}),
           ...(v.matchedSentence !== undefined ? { matchedSentence: v.matchedSentence } : {}),
         })),
-        evaluated: evaluatedTexts({ text: args.text }),
+        evaluated: evaluatedTexts({
+          text: args.text,
+          ...(evaluatedNotice !== undefined ? { notice: evaluatedNotice } : {}),
+        }),
+        ...(dualInputSkipped !== undefined ? { dualInputSkipped } : {}),
         ...(packHeader !== undefined ? { packHeader } : {}),
         ...(pack !== null && pack.warnings.length > 0 ? { packWarnings: pack.warnings } : {}),
       }
