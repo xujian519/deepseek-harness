@@ -1,43 +1,20 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
-import yaml from 'js-yaml'
 import { expect, it } from 'vitest'
 import { loadDesktopPackageEnvironment, validateDesktopPackageEnvironment } from '../apps/desktop/scripts/desktop-package-environment.mjs'
+import { expectSharedDispatchContract, loadReleaseWorkflow, stepOf } from './desktop-unsigned-release-workflow.ts'
 
 const root = resolve(import.meta.dirname, '..')
-const workflow = yaml.load(readFileSync(resolve(root, '.github/workflows/desktop-unsigned-windows-release.yml'), 'utf8')) as {
-  on: { workflow_dispatch: { inputs: Record<string, { type?: string; required?: boolean; default?: unknown }> } }
-  permissions: Record<string, string>
-  concurrency: { group: string; 'cancel-in-progress': boolean }
-  jobs: Record<string, {
-    'runs-on': string
-    'timeout-minutes': number
-    defaults: { run: { shell: string } }
-    steps: Array<{
-      name?: string
-      uses?: string
-      run?: string
-      if?: string
-      env?: Record<string, string>
-      with?: Record<string, unknown>
-    }>
-  }>
-}
+const workflow = loadReleaseWorkflow('desktop-unsigned-windows-release.yml')
 const job = workflow.jobs['win-x64']!
-const step = (name: string) => job.steps.find(candidate => candidate.name === name)!
+const step = (name: string) => stepOf(job, name)
 const WINDOWS = { platform: 'win32', arch: 'x64' } as const
 
 it('publishes only on manual dispatch to a GitHub-hosted Windows runner', () => {
-  expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
-  expect(Object.keys(workflow.on.workflow_dispatch.inputs).sort()).toEqual(['draft', 'tag'])
-  expect(workflow.on.workflow_dispatch.inputs.draft!.default).toBe(false)
-  expect(workflow.permissions).toEqual({ contents: 'write' })
-  expect(workflow.concurrency).toEqual({ group: '${{ github.workflow }}-${{ github.ref }}', 'cancel-in-progress': false })
+  expectSharedDispatchContract(workflow, job)
   expect(job['runs-on']).toBe('windows-latest')
-  expect(job.defaults.run.shell).toBe('pwsh')
-  expect(job.steps.find(candidate => candidate.uses?.startsWith('actions/checkout@'))?.with)
-    .toMatchObject({ 'persist-credentials': false })
+  expect(job.defaults!.run.shell).toBe('pwsh')
 })
 
 it('passes dispatch inputs and repository variables through the step environment', () => {
@@ -46,11 +23,6 @@ it('passes dispatch inputs and repository variables through the step environment
     expect(candidate.run ?? '').not.toContain('${{ vars.')
   }
   expect(step('Write the packaging environment').env?.UPDATE_ORIGIN).toBe('${{ vars.DSH_MANDATORY_UPDATE_ORIGIN }}')
-  expect(step('Publish the release').env).toMatchObject({
-    GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
-    REQUESTED_TAG: '${{ inputs.tag }}',
-    DRAFT: '${{ inputs.draft }}',
-  })
 })
 
 it('writes a packaging environment that the unsigned Windows target accepts', () => {
