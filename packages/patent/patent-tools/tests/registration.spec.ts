@@ -44,7 +44,7 @@ const EXPECTED_TOOLS = [
 ]
 
 /**
- * Atoms a complete composition registers: patent-core's 14 built-ins plus
+ * Atoms a complete composition registers: patent-core's 15 built-ins plus
  * `slop-gate` (registered by this package, not by registerBuiltinAtoms).
  */
 const REGISTERED_ATOMS = [
@@ -61,6 +61,7 @@ const REGISTERED_ATOMS = [
   'novelty',
   'oa-parse',
   'reasoning',
+  'response-plan',
   'search',
   'slop-gate',
 ]

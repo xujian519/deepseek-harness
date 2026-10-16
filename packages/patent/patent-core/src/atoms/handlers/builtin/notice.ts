@@ -1,13 +1,16 @@
 /**
- * 程序文书域原子：oa-parse（审查意见通知书解析）与 grounds（程序法定理由识别）。
+ * 程序文书域原子：oa-parse（审查意见通知书解析）、grounds（程序法定理由识别）与
+ * response-plan（答复计划骨架）。
  *
- * 两个原子都是 `notice/` 纯函数的声明式包装：读工作流 state 里的文书正文，输出结构化事实，
- * 全程不调用模型，也不判定理由是否成立。原子只负责把确定性内核接进工作流，解析口径归
- * `notice/office-action.ts` 与 `notice/grounds.ts`。
+ * 三个原子都是确定性内核的声明式包装：读工作流 state 里的文书与解析产出，输出结构化事实
+ * 或骨架，全程不调用模型，也不判定理由是否成立。原子只负责把确定性内核接进工作流，解析
+ * 口径归 `notice/office-action.ts` 与 `notice/grounds.ts`，计划口径归 `response/plan.ts`。
  *
  * 输入约定：正文取工作流材料 `input`（`patent_workflow_run.input` 与 `flexible_plan.inputText`
  * 都映射到该键）；`grounds` 另需显式的 `ground_program` 选定理由表——正文里同时出现无效与
- * 复审措辞时无从推断，故不做猜测，缺失或非法取值一律降级并说明取值域。
+ * 复审措辞时无从推断，故不做猜测，缺失或非法取值一律降级并说明取值域。`response-plan`
+ * 读 parse 阶段写出的 `office_action`；独立权项检测取调用方另传的 `claims`，缺该键时独立
+ * 权项编号留空，由计划缺口提示人工确认。
  */
 
 import { type Atom } from '../../atom.ts'
@@ -25,6 +28,11 @@ import {
   type GroundFinding,
   type PatentSubject,
 } from '../../../notice/grounds.ts'
+import {
+  buildResponsePlan,
+  detectIndependentClaims,
+  formatResponsePlan,
+} from '../../../response/plan.ts'
 import { degraded } from './llm.ts'
 
 /** oa-parse 原子：审查意见通知书结构化解析。 */
@@ -136,6 +144,48 @@ export class GroundsHandler implements StageHandler {
       grounds: JSON.stringify(findings),
       grounds_summary: summarizeGrounds(findings),
       ...(subject !== undefined ? { patent_subject: subject } : {}),
+    }
+  }
+}
+
+/** response-plan 原子：答复计划骨架（策略/必答段落/逐权项修改对照/缺口）。 */
+export const responsePlanAtom: Atom = {
+  name: 'response-plan',
+  description: '答复计划骨架：策略摘要、逐理由必答段落、逐权项修改对照与缺口（纯函数，不调用模型）',
+  category: 'compare',
+  inputSchema: ['office_action', 'claims'],
+  outputSchema: ['response_plan', 'response_plan_summary'],
+}
+
+/** response-plan 执行器：把通知书解析结果拼装为起草阶段的输入层骨架。 */
+export class ResponsePlanHandler implements StageHandler {
+  readonly name = 'response-plan'
+  readonly category = 'compare' as const
+
+  /**
+   * 由 `office_action` 拼装答复计划；解析产出缺失或不可读时降级。
+   * @param input - 阶段执行输入（state 携带解析产出与权利要求书）。
+   * @returns `response_plan`（输入层文本）与 `response_plan_summary`（策略摘要）两键。
+   */
+  // oxlint-disable-next-line typescript/require-await -- StageHandler contract requires async execute
+  async execute(input: StageExecuteInput): Promise<PipelineState> {
+    const state = input.state
+    const raw = getStateString(state, 'office_action')
+    if (raw.trim().length === 0) {
+      return degraded('response-plan', '缺少解析结果（state.office_action 未提供）')
+    }
+    let notice: ParsedOfficeAction
+    try {
+      notice = JSON.parse(raw) as ParsedOfficeAction
+    } catch {
+      return degraded('response-plan', '解析结果不可读（office_action 不是合法 JSON）')
+    }
+    const plan = buildResponsePlan(notice, {
+      independentClaims: detectIndependentClaims(getStateString(state, 'claims')),
+    })
+    return {
+      response_plan: formatResponsePlan(plan),
+      response_plan_summary: plan.strategySummary,
     }
   }
 }

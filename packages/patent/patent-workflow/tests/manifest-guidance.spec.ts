@@ -38,6 +38,7 @@ describe('内置 manifest 的阶段法律指引（guidance）', () => {
     expect(draft).toContain('最核心的驳回理由')
     expect(draft).toContain('纯争辩')
     expect(draft).toContain('放弃答复')
+    expect(draft).toContain('机器默认')
     expect(draft).toContain('A33')
     expect(draft).toContain('禁止编造实验数据')
     expect(draft).toContain('事实 → 规则 → 论证')

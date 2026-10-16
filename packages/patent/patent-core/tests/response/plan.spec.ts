@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseOfficeAction } from '../../src/notice/office-action.ts'
-import { buildResponsePlan } from '../../src/response/plan.ts'
+import { buildResponsePlan, detectIndependentClaims, formatResponsePlan } from '../../src/response/plan.ts'
 
 // 逐权项修改对照表取自 Mady domains/workflows/patent/oa_response.go:120-200（MIT，同作者）；
 // 偏离项：逐权项出行（上游只按最靠前的权项编号判动作）、修改对象不明时报缺口、无理由时不造骨架。
@@ -118,5 +118,42 @@ describe('buildResponsePlan', () => {
     const plan = buildResponsePlan(notice, { independentClaims: [1] })
     expect(plan.amendmentRows.map(row => row.ground)).toEqual(['clarity'])
     expect(plan.sections.map(section => section.ground)).toEqual(['inventiveness', 'clarity'])
+  })
+})
+
+describe('detectIndependentClaims', () => {
+  it('按行首编号切分，含引用措辞的条按从属处理', () => {
+    const text = [
+      '1. 一种过滤装置，包括壳体和滤芯。',
+      '2. 根据权利要求1所述的过滤装置，其特征在于所述滤芯含有活性炭。',
+      '3. 根据权利要求1或2所述的过滤装置，其特征在于所述壳体为圆柱形。',
+      '4. 一种制造过滤装置的方法，包括提供壳体与滤芯的步骤。',
+    ].join('\n')
+    expect(detectIndependentClaims(text)).toEqual([1, 4])
+  })
+
+  it('无法切分时不作判定（返回空数组，由缺口提示人工确认）', () => {
+    expect(detectIndependentClaims('')).toEqual([])
+    expect(detectIndependentClaims('权利要求1不具备创造性。')).toEqual([])
+  })
+})
+
+describe('formatResponsePlan', () => {
+  it('渲染策略摘要、必答段落、逐权项修改对照与修改权项', () => {
+    const plan = buildResponsePlan(parseOfficeAction(MIXED), { independentClaims: [1] })
+    const text = formatResponsePlan(plan)
+    expect(text).toContain('【答复计划（机器骨架；逐项落实，不作法律结论）】')
+    expect(text).toContain('策略摘要：创造性→争辩、不清楚→修改')
+    expect(text).toContain('- 创造性（争辩）：最接近的现有技术；区别技术特征与实际解决的技术问题；技术启示（非显而易见）')
+    expect(text).toContain('- 权利要求1（独立）：澄清限定（依据：专利法第26条第4款（清楚））')
+    expect(text).toContain('- 权利要求2（从属）：从属引用调整')
+    expect(text).toContain('拟修改权项：1、2')
+  })
+
+  it('无驳回理由时明示段落须人工判读并带缺口', () => {
+    const plan = buildResponsePlan(parseOfficeAction('本通知书随文送达，请核实。'), { independentClaims: [1] })
+    const text = formatResponsePlan(plan)
+    expect(text).toContain('- （未识别到具体驳回条款，段落须人工判读）')
+    expect(text).toContain('缺口（须人工确认）：')
   })
 })

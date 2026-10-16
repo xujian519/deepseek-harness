@@ -4,6 +4,9 @@
  * 流程：LLM 产出要素拆分 + 逐行映射 → element-validator / mapping-machine /
  * pin-cite-validator（源文可读时）三关校验 → 非法打回重做（≤2 次，重做
  * prompt 附校验错误清单）→ gap 检测 → caseId 可用时落盘 json+md。
+ *
+ * OA 答复（mode=oa-response）未手传 `chart_targets` 时，目标由解析产出（state 的
+ * `office_action`）确定性派生：映射对象即审查员引用的对比文件，不再依赖调用方手工构造。
  */
 
 import { readFileSync } from 'node:fs'
@@ -27,6 +30,7 @@ import {
   type PinCiteCheckResult,
 } from '../../../claim-chart/runtime/pin-cite-validator.ts'
 import { loadClaimChart, saveClaimChart } from '../../../claim-chart/runtime/store.ts'
+import type { ParsedOfficeAction } from '../../../notice/office-action.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
 
@@ -141,6 +145,35 @@ function parseTargets(raw: string): TargetsParseResult {
 }
 
 /**
+ * 由通知书解析产出派生 claim-chart 目标：审查员引用的对比文件逐项成为 prior-art 目标。
+ *
+ * OA 答复的映射对象就是通知书引用的对比文件，来源即 parse 阶段的确定性产出；派生目标
+ * 未提供文献正文（无 sourcePath），行内 quote/pinCite 留空串是既定的"未提供源文"语义。
+ * 解析产出不可读或没有引用文献时返回空列表，回落"只拆要素"语义——缺目标由上游解析
+ * 质量承担，不在此兜底造目标。
+ * @param officeActionJson - parse 阶段写入 state 的 `office_action` JSON。
+ * @returns 对比文件目标列表（按解析顺序去重）；不可解析时为空列表。
+ */
+export function deriveOfficeActionTargets(officeActionJson: string): ChartTarget[] {
+  if (officeActionJson.trim().length === 0) return []
+  let parsed: ParsedOfficeAction
+  try {
+    parsed = JSON.parse(officeActionJson) as ParsedOfficeAction
+  } catch {
+    return []
+  }
+  if (!Array.isArray(parsed.citations)) return []
+  const targets: ChartTarget[] = []
+  const seen = new Set<string>()
+  for (const citation of parsed.citations) {
+    if (seen.has(citation.documentNumber)) continue
+    seen.add(citation.documentNumber)
+    targets.push({ id: citation.documentNumber, kind: 'prior-art' })
+  }
+  return targets
+}
+
+/**
  * 字段级形状防御：LLM 输出 malformed（缺字段 / 类型错误 / null 项）时返回
  * 错误清单，让非法输出回到打回重做路径，而不是在校验器内 TypeError 崩溃
  * （element-validator 的 stripWhitespace、mapping-machine 的 mapping 访问等）。
@@ -249,11 +282,14 @@ export class ClaimChartHandler implements StageHandler {
     if (claim.trim().length === 0) {
       return degraded('claim-chart', '权利要求为空')
     }
-    const targetsRes = parseTargets(getStateString(state, 'chart_targets'))
-    if (targetsRes.error) return degraded('claim-chart', targetsRes.error)
-    const targets = targetsRes.targets
     const modeRaw = getStateString(state, 'chart_mode') || 'invalidity'
     const mode = (CHART_MODES.includes(modeRaw) ? modeRaw : 'invalidity') as ChartMode
+    const targetsRes = parseTargets(getStateString(state, 'chart_targets'))
+    if (targetsRes.error) return degraded('claim-chart', targetsRes.error)
+    // 显式传入的目标优先；OA 答复未传时由解析产出派生（见 deriveOfficeActionTargets）。
+    const targets = targetsRes.targets.length === 0 && mode === 'oa-response'
+      ? deriveOfficeActionTargets(getStateString(state, 'office_action'))
+      : targetsRes.targets
 
     // 预读目标源文件一次（重做 attempt 间复用，避免循环内重复 I/O）；
     // 读取失败不缓存，由 validateChart 对引用该源的每行报"源文件不可读"。
