@@ -111,9 +111,14 @@
       "standard.patch.yml": "c6b0f62bce"
     },
     "tool-plugin-manager": {
-      "cordis.patch.yml": "93f56287ea",
-      "ptc.patch.yml": "1342f807d6",
+      "cordis.patch.yml": "689227cb3b",
+      "ptc.patch.yml": "d66d1ee2d1",
       "standard.patch.yml": "296018e07d"
+    },
+    "tool-plugin-market": {
+      "cordis.patch.yml": "b3bef6e6d7",
+      "ptc.patch.yml": "c37b03f7c1",
+      "standard.patch.yml": "f79b9e8961"
     },
     "tool-pwsh": {
       "cordis.patch.yml": "472a1e4609",
@@ -183,7 +188,7 @@
       "document.patch.yml": "f5389a5a05",
       "patent.patch.yml": "6d1ff9647d",
       "ptc.patch.yml": "73f227d8e9",
-      "standard.patch.yml": "ee66c15cda"
+      "standard.patch.yml": "72e583f2ce"
     },
     "tool-workflow": {
       "cordis.patch.yml": "0898baaf9f",

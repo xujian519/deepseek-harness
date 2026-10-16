@@ -12,7 +12,7 @@ The service-side action was already present; what was missing is the model-facin
 
 ## Decision
 
-Ship [`@deepseek-ai/dsh-tool-plugin-market`](../../../../packages/extensions/tool-plugin-market/README.md): three read-only tools over the live `ctx.pluginMarket` seam that the host composition mounts, plus one system-prompt section teaching the workflow.
+Ship [`@deepseek-ai/dsh-tool-plugin-market`](../../../../packages/extensions/tool-plugin-market/README.md): three read-only tools over the live `ctx.pluginCatalog` seam that the host composition mounts, plus one system-prompt section teaching the workflow.
 
 | Tool | Contract |
 |---|---|

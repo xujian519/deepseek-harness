@@ -8,7 +8,7 @@ import userQuestionsRemote from '@deepseek-ai/dsh-user-questions/remote'
 import commandsRemote from '@deepseek-ai/dsh-commands/remote'
 import accountRemote from '@deepseek-ai/dsh-api-account-controller/remote'
 import settingsControllerRemote from '@deepseek-ai/dsh-api-settings-controller/remote'
-import pluginMarketRemote from '@deepseek-ai/dsh-api-plugin-market-controller/remote'
+import pluginCatalogRemote from '@deepseek-ai/dsh-api-plugin-market-controller/remote'
 import officeToPdfRemote from '@deepseek-ai/dsh-office-to-pdf/remote'
 import goalsRemote from '@deepseek-ai/dsh-goal/remote'
 import scheduleRemote from '@deepseek-ai/dsh-schedule/remote'
@@ -40,6 +40,11 @@ export type {
 } from '@deepseek-ai/dsh-plugin-manager/types'
 export type {} from '@deepseek-ai/dsh-plugin-manager/remote'
 export type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
+export type {} from '@deepseek-ai/dsh-plugin-market/remote'
+export type {
+  MarketCompatibility, MarketIndexSummary, MarketInstallation, MarketInstallationStatus, MarketListingEntry, MarketListingVersion,
+  MarketQuery, MarketSearchResult, MarketSort,
+} from '@deepseek-ai/dsh-plugin-market/types'
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type {} from '@deepseek-ai/dsh-agent-preset-registry/remote'
 export type {} from '@deepseek-ai/dsh-user-questions/remote'
@@ -188,7 +193,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
     for (const contribution of [
       productAnalyticsRemote,
       agentPresetsRemote, commandsRemote, settingsControllerRemote, accountRemote, goalsRemote, llmRemote, dynamicRemote, scheduleRemote,
-      pluginInventoryRemote, pluginManagerRemote, pluginMarketRemote, pluginRegistryProbeRemote, messageFeedbackRemote,
+      pluginInventoryRemote, pluginManagerRemote, pluginCatalogRemote, pluginRegistryProbeRemote, messageFeedbackRemote,
       sessionFeedbackRemote, fileUploadsRemote, sessionReferencesRemote,
       permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,
       officeToPdfRemote, userQuestionsRemote,

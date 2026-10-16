@@ -1,5 +1,5 @@
 /**
- * Service Definition for the `ctx.pluginMarket` capability seam: open plugin
+ * Service Definition for the `ctx.pluginCatalog` capability seam: open plugin
  * catalog discovery and managed installation. Sources are user-registered
  * HTTPS catalog endpoints speaking the catalog protocol (docs/schemas); every
  * remote payload is untrusted input validated against the wire schemas.
@@ -30,17 +30,17 @@ export class PluginMarketError extends Error {
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Open plugin catalog and managed-installation service. */
-    pluginMarket: PluginMarket
+    pluginCatalog: PluginMarket
   }
 }
 
 /**
  * Abstract plugin-market service. Subclass, implement the methods, and load
- * the subclass as a plugin — it registers as `ctx.pluginMarket`.
+ * the subclass as a plugin — it registers as `ctx.pluginCatalog`.
  */
 export abstract class PluginMarket extends Service {
   constructor(ctx: Context) {
-    super(ctx, 'pluginMarket')
+    super(ctx, 'pluginCatalog')
   }
 
   /**

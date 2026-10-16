@@ -12,7 +12,7 @@ Status: implemented
 
 ## 决策
 
-交付 [`@deepseek-ai/dsh-tool-plugin-market`](../../../../packages/extensions/tool-plugin-market/README.zh.md)：在宿主组合挂载的实时 `ctx.pluginMarket` 间隔之上提供三个只读工具，外加一段教流程的系统提示词章节。
+交付 [`@deepseek-ai/dsh-tool-plugin-market`](../../../../packages/extensions/tool-plugin-market/README.zh.md)：在宿主组合挂载的实时 `ctx.pluginCatalog` 间隔之上提供三个只读工具，外加一段教流程的系统提示词章节。
 
 | 工具 | 契约 |
 |---|---|

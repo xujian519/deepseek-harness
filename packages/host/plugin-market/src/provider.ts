@@ -1,5 +1,5 @@
 /**
- * Default `ctx.pluginMarket` provider: persists registered catalog sources
+ * Default `ctx.pluginCatalog` provider: persists registered catalog sources
  * under the profile, and composes the catalog client with the managed install
  * pipeline. Directory defaults come from the provider config so the same
  * package serves both the web host and the CLI.
@@ -47,7 +47,7 @@ export const Config: z<ProviderConfig> = z.object({
 /** The sources file name under the profile. */
 export const SOURCES_FILE = '.dsh-plugin-market/sources.json'
 
-/** The provider implementation behind `ctx.pluginMarket`. */
+/** The provider implementation behind `ctx.pluginCatalog`. */
 export class MarketProvider extends PluginMarket {
   private readonly sourcesPath: string
   private readonly ownedProfileDir: string | undefined
@@ -233,7 +233,7 @@ export const name = '@deepseek-ai/dsh-host-plugin-market'
 export const inject: string[] = []
 
 /**
- * Mount the provider as `ctx.pluginMarket` from a `cordis.yml` row. Folds the
+ * Mount the provider as `ctx.pluginCatalog` from a `cordis.yml` row. Folds the
  * loader's empty-sentinel config into an explicit {@link ProviderConfig}: an
  * empty `profileDir` is omitted so a web-host row gets read-only discovery.
  */

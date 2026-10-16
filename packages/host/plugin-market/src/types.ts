@@ -1,5 +1,5 @@
 /**
- * Pure type vocabulary for the `ctx.pluginMarket` capability seam, imported by
+ * Pure type vocabulary for the `ctx.pluginCatalog` capability seam, imported by
  * `./types` consumers so a browser or tool faces the same wire contracts the
  * Host emits without pulling the Host service implementation.
  * @module @deepseek-ai/dsh-host-plugin-market/types

@@ -1,5 +1,5 @@
 ---
-description: "Read-only plugin discovery tab in Web Plugins settings for the dsh web client: catalog sources, search, and install preview over the plugin-market Remote."
+description: "Discover tab of the Web Plugins page: search configured plugin market indexes, read an entry, and install it."
 kind: "package-reference"
 ---
 
@@ -9,14 +9,12 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-plugin-market` contributes the read-only **Plugin market** tab to the Web Settings Plugins section. The tab lazily calls the `ctx.remote.pluginMarket` namespace the first time it is selected and renders a source picker, a search form, and an install-preview control. It lists the catalog sources the Host has registered (marking built-in ones), searches one source by free text, category, and capability, and previews a `name@version` reference against the registry — all without touching a profile. Loading, empty, no-match, preview, and generic failure states stay local to the mounted component, and a failed source read can be retried without exposing transport details.
-
+Discover is the second tab of the **Plugins** page, after **Installed**. It lists the bundles that plugin market indexes offer; users manage index sources, switch between markets, search, filter by category and label, sort, open an entry's page, and install an entry after confirming it. The Host [`pluginMarket`](../../boot/plugin-market/README.md) service fetches and validates indexes; this package only presents them.
 
 ## Table of Contents
 
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
@@ -26,86 +24,49 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Open the Plugins section in Settings and select the **Plugin market** tab to discover plugins the Host can reach. The tab reads no Remote during plugin activation — selecting it for the first time mounts the component and lazily calls `ctx.remote.pluginMarket.listSources()` through `api-remotes`.
+Open **Plugins** and select **Discover**. With no index source, the tab shows an empty state whose **Add index source** button opens the **Index sources** dialog. The dialog lists each source by market title, or by host before the first read, with its URL, the error of its last failed read, and a remove button, and keeps a notice that indexes come from third parties. A refused URL keeps the draft and says why: an unsupported scheme, credentials, or fragment; a URL already listed; or a deployment that cannot save sources. A newly added source becomes the selected market.
 
-### Listing catalog sources
+The toolbar holds the market menu, which switches markets and ends with **Manage index sources…**; the search field; a **Labels** menu with multi-select checkmarks when the market declares labels; the **Sort** menu; and a refresh button. Category pills, with **All** first, follow when the market declares categories.
 
-The source picker lists every source the Host has registered; a built-in source carries a `Built-in` suffix. With no source registered the section shows a local empty hint.
+Each card shows the icon, localized title, label tags, a one-line description, and the default version, author, and publish date, with one action: **Install** for an installable entry; a disabled **Install** whose tooltip says no version is compatible with the running DSH when the plugin has no default version and its highest version is neither compatible nor exempted; or **Installed**, **Update available**, or **Provided by DSH**, which switches to the Installed tab and opens that bundle's page when that tab lists it. Selecting a card opens the entry's page with its full description, compatibility notice, and the default version's facts: author; homepage and source code repository, as links that open in a new tab, with the package directory beside the repository; the npm package and registry, or the Git repository, full commit, and directory; publish date; category; labels; and market. A **Versions** list follows in descending SemVer order; each row tags the recommended, prerelease, installed, incompatible, and exempted versions and offers **Install** for any other version installation accepts, except for a bundle DSH provides. The page's back link returns to the list with its search, filters, and sort intact.
 
-### Searching a source
+**Install** chooses the default version and opens a confirmation dialog with the entry's icon, title, that version, the author, its source facts, an exemption notice when one applies, and a trust notice. Confirming opens the Plugins install dialog at its check screen with the entry's exact spec and registry; there is no spec form, and a refusal offers **Retry**. The registry an entry names applies to that install only.
 
-Select a source and enter free text, a category, or a capability, then search. Empty filters are omitted from the Catalog query, and the results are rendered as compact cards in a two-column grid, each showing the plugin name, package reference, description, source tag, and capability/ category tags. A local free-text box filters the fetched page further without another Remote call.
+The Host [`pluginMarket.search`](../../boot/plugin-market/README.md#use-this-package) matches, filters, orders, and pages; the tab sends the search text 250 ms after typing stops. Search matches names, authors, keywords, and every language of titles, descriptions, categories, and labels, fuzzily. Label filters must all match. **Sort** offers **Best match** while there is search text, **Default order**, **Publish date**, and each declared sort key, which starts in its declared direction; a directed sort adds a row that reverses it. Typing switches **Default order** to **Best match**, and clearing the text switches back. Categories, labels, and sort keys are listed by localized title. The list loads 50 entries and adds 50 with each **Show more**.
 
-### Previewing a reference
-
-Either the preview button on a card or the dedicated `name@version` input calls `ctx.remote.pluginMarket.preview()` to check the reference against the registry. A verified reference shows its version; a rejected one shows a failure seat. Preview never installs.
-
-### Retrying a failed read
-
-A failed source read renders a generic failure state inside the tab; retrying re-runs the lazy `listSources()` call without exposing transport details.
+Reading a market shows card skeletons. A failed read shows a short sentence with **Retry**, the Host's reason appears under the source in **Index sources**, and keeps the market's last listing; a failed read of the source list shows **Retry** in place of the tab. Discover re-reads sources on `plugin-market/changed` and connection reset, and recomputes installation status on `plugin-manager/changed`.
 
 -----
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-<details>
-<summary>Implementation internals — click to expand</summary>
-
-The tab is a read-only projection of Host-owned plugin-market state; it performs no Remote read during plugin activation and takes the source list on first selection.
-
-### Registration
-
-The browser plugin registers one localized `settings.plugins.tab` contribution with id `market` and order `30`. The Plugins section owns the navigation entry and tab chrome. Registration uses `ctx.slots.inject()`, so it follows late tab declaration, redeclaration, locale changes, and teardown without importing the section owner. Contributions are registered through a throttle over `ctx.slots.register`.
-
-### Remote face
-
-`inject` declares `slots`, `locale`, `remote`, and `remote.pluginMarket`. The injected face wraps the three read-only Remote methods — `listSources`, `search`, and `preview` — and throws a shallow `pluginMarket.<method> failed: <code>: <message>` error when a Remote returns `ok: false`, so the component never handles the transport envelope.
-
-### Rendering
-
-The component takes only the injected functions and locale key set; it holds no `ctx`. It models source loading as a `ViewState` union (loading / error / ready), search results as a `CatalogPage`, and preview as a `PreviewState` union (idle / pending / rejected / ready). A `current` flag guards each async result against post-unmount stale writes, and the failure seat exposes no transport detail.
-
-</details>
-
------
-
-<a id="further-exploration"></a>
-## Further Exploration
-
-These pages cover the settings section, the Remote surface, and the Host-side seam.
-
-- [ui-settings-plugins](../ui-settings-plugins/README.md) — the Plugins section this tab registers into.
-- [ui-settings](../ui-settings/README.md) — the domain base declaring `settings.plugins.tab`.
-- [api-remotes](../../api/remotes/README.md) — the Remote BFF surface behind `pluginMarket.*`.
-- [plugin-market-controller](../../api/plugin-market-controller/README.md) — the Host controller projecting the read-only seam onto `pluginMarket`.
-- [plugin-market](../../host/plugin-market/README.md) — the Host-side catalog and install-preview seam this tab renders.
+The plugin registers the `discover` entry, labelled **Discover**, into `plugins.tab`, the tab slot that [`ui-plugin-manager`](../ui-plugin-manager/README.md) declares; the owner props provide `install({ spec, registry?, title, version })` and `openPackage(name)`; Discover passes the entry's localized title and the chosen version. A React-free controller owns source reads, source edits, and the selected index's query and loaded pages in a snapshot store; selecting another market starts from the initial query. Later pages send the first page's `fetchedAt`, and a page from a replaced document reloads the list once; a second replacement fails the read. The listing keeps the query its results answer, so the empty-state wording follows the shown results while a new query loads or after it fails, and **Retry** repeats the read that failed: the first pages of a query or the next page. A change to the profile's bundles reloads every loaded page to refresh installation status, and a filter or sort key the index no longer declares leaves the query. The unsent search text, the open entry, and the confirmation are component state. Pure helpers in `presentation.ts` derive the query order from the text, drop undeclared ids, order declarations with `Intl.Collator` in the active UI language, and list source facts. Icons load lazily with `referrerpolicy="no-referrer"` and fall back to the default artwork.
 
 -----
 
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as the package is a browser-side discovery projection that registers nothing model-facing.
+None, as this package renders Host data in the browser and adds nothing to model requests.
 
 #### KV Cache effect
 
-None; this package neither assembles nor sends a provider request.
+None.
 
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
 
-These limits define the freshness and reach of the discovery view; they are current package constraints.
-
-- **One source list per Settings mount or retry** — the tab does not subscribe to catalog changes or automatically refetch after reconnect; switching tabs preserves the current source list, while reopening Settings obtains a new one.
-- **Read-only discovery, no install** — this tab never installs or uninstalls a plugin; `dsh plugin install` stays CLI-only. The browser only discovers and previews.
-- **Public HTTPS catalog sources remain to be wired** — the shipped composition supplies a built-in offline catalog source, so discovery works without a network catalog endpoint, but a remote HTTPS `dsh-plugin` directory is still future work.
+- **No upgrade action** — an available update is shown as a status only.
+- **Remote icons** — URL icons are requested by the browser, which discloses the user's IP address to the image host. When the Web UI is served over HTTPS, the browser blocks or upgrades `http:` icons from an `http:` index, and a failed icon shows the default artwork.
 
 <a id="dev-note"></a>
 ### Dev Note
 
 <details>
 <summary>Working context for maintainers — click to expand</summary>
+
+None.
 
 </details>

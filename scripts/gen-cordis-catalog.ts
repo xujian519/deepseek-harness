@@ -59,6 +59,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   productAnalytics: 'product-telemetry.md',
   connection: 'web-server.md',
   pluginManager: 'boot.md',
+  pluginMarket: 'boot.md',
   pluginRegistryProbe: 'boot.md',
   configEditor: 'boot.md',
   profileContext: 'boot.md',
@@ -179,7 +180,7 @@ export const SERVICE_PAGE: Record<string, string> = {
  * to a model as `cordis_runtime_inspect what:"client"`).
  */
 export const SERVICE_WALK_EXEMPTIONS: Record<string, string> = {
-  pluginMarket: 'not a subsystems-catalog service: the open plugin-market capability seam — packages/host/plugin-market/README.md owns the contract',
+  pluginCatalog: 'not a subsystems-catalog service: the open plugin-catalog capability seam — packages/host/plugin-market/README.md owns the contract',
   invocation: 'not a service: per-call accessor (RemoteInvocation | undefined) the Gateway derives for each Remote call — packages/api/gateway/README.md owns the contract',
   webTerminals: 'client-side terminal view models — packages/api/terminal-controller/README.md owns the API',
   appReady: 'not a service: launcher-provided successful-startup signal — packages/boot/cmdline/README.md owns the launcher contract',
@@ -233,6 +234,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'app-boot': 'boot.md',
   hmr: 'boot.md',
   'plugin-manager': 'boot.md',
+  'plugin-market': 'boot.md',
   'agent': 'core.md',
   'agent-loop': 'core.md',
   'agent-preset': 'core.md',
@@ -316,6 +318,11 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   ProfileReconciliation: 'boot.md',
   PluginInfo: 'boot.md',
   BundleInfo: 'boot.md',
+  MarketIndexSummary: 'boot.md',
+  MarketListingEntry: 'boot.md',
+  MarketQuery: 'boot.md',
+  MarketSearchResult: 'boot.md',
+  MarketSort: 'boot.md',
   ChangeResult: 'boot.md',
   InstallBundleOptions: 'boot.md',
   PluginEntryId: 'boot.md',

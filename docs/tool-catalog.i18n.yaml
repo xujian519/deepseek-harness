@@ -9,14 +9,20 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 639b93a1386dcc35
-  zh: 271f6342079b1ca6
+  en: 8c00ad251280ae88
+  zh: 51c1f5bd222e353a
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager/plugin-manager:
-  en: 55b6f02a3ef555cf
-  zh: fcf8dabe6fdf19d0
+  en: 2fbe2e5b88e81a54
+  zh: 4fb978b1c414410c
+/tool-schema-catalog/deepseek-ai-dsh-plugin-market:
+  en: 1ec7b4cbc3d98e28
+  zh: 1ec7b4cbc3d98e28
+/tool-schema-catalog/deepseek-ai-dsh-plugin-market/plugin-market:
+  en: ecb8ee73c7bc68b8
+  zh: 59af75c81d7d529d
 /tool-schema-catalog/deepseek-ai-dsh-mcp-resources:
   en: dd78bd55ec83a539
   zh: dd78bd55ec83a539
@@ -105,7 +111,7 @@
   en: 9ac6d9edaf40a304
   zh: c642814d4edd119b
 /tool-schema-catalog/deepseek-ai-dsh-tool-plugin-market/market-source-list:
-  en: 2bde9a72b204447f
+  en: 1832435e460a29e6
   zh: 179f9195e9333a78
 /tool-schema-catalog/deepseek-ai-dsh-tool-bash-persistent:
   en: bdd9e88c49029e05

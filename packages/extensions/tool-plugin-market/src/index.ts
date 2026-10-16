@@ -15,7 +15,7 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { PLUGIN_MARKET_SYSTEM_PROMPT } from './prompt.ts'
 
 export const name = 'tool-plugin-market'
-export const inject = ['tools', 'systemPrompt', 'pluginMarket']
+export const inject = ['tools', 'systemPrompt', 'pluginCatalog']
 
 function requireAgent(exec: ToolExecution): Agent {
   if (exec.agent === undefined) throw new Error('plugin-market tools require an Agent-backed session')
@@ -28,7 +28,7 @@ function requireAgent(exec: ToolExecution): Agent {
  * model-visible read still works when no bundled source is present.
  */
 async function resolveSource(ctx: Context, sourceId?: string): Promise<string> {
-  const sources = await ctx.pluginMarket.listSources()
+  const sources = await ctx.pluginCatalog.listSources()
   if (sourceId !== undefined) {
     if (!sources.some(source => source.id === sourceId)) {
       throw new Error(`no catalog source "${sourceId}"; call market_source_list first`)
@@ -65,7 +65,7 @@ export function apply(ctx: Context): void {
     },
     execute(_args, exec): Promise<JsonValue> {
       requireAgent(exec)
-      return ctx.pluginMarket.listSources().then(sources => sources.map(source => ({
+      return ctx.pluginCatalog.listSources().then(sources => sources.map(source => ({
         id: String(source.id),
         providerId: source.providerId,
         name: source.name,
@@ -99,7 +99,7 @@ export function apply(ctx: Context): void {
     async execute(args, exec) {
       requireAgent(exec)
       const sourceId = await resolveSource(ctx, args.sourceId)
-      const page = await ctx.pluginMarket.search(sourceId, {
+      const page = await ctx.pluginCatalog.search(sourceId, {
         ...args.q === undefined ? {} : { q: args.q },
         ...args.category === undefined ? {} : { category: args.category },
         ...args.capability === undefined ? {} : { capability: args.capability },
@@ -126,7 +126,7 @@ export function apply(ctx: Context): void {
     },
     async execute(args, exec) {
       requireAgent(exec)
-      return await ctx.pluginMarket.preview(args.ref) as unknown as JsonValue
+      return await ctx.pluginCatalog.preview(args.ref) as unknown as JsonValue
     },
   }))
 }

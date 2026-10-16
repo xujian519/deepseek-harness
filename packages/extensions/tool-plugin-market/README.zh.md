@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-plugin-market` 给模型提供三个作用于宿主组合挂载的 `ctx.pluginMarket` 间隔的只读工具：列出当前会话可用的目录源、在某个目录里搜索插件、以及在安装前针对 npm 仓库预检一个包引用。每个动词都只读——本包不安装任何包、不改配置、不编辑任何 profile；安装仍由操作者驱动的 `dsh plugin` CLI 负责。它还注册一个教发现工作流的系统提示词章节，并读取由 `@deepseek-ai/dsh-host-plugin-market/provider` 以 DISCOVERY 模式提供的宿主 `pluginMarket` 服务。
+`dsh-tool-plugin-market` 给模型提供三个作用于宿主组合挂载的 `ctx.pluginCatalog` 间隔的只读工具：列出当前会话可用的目录源、在某个目录里搜索插件、以及在安装前针对 npm 仓库预检一个包引用。每个动词都只读——本包不安装任何包、不改配置、不编辑任何 profile；安装仍由操作者驱动的 `dsh plugin` CLI 负责。它还注册一个教发现工作流的系统提示词章节，并读取由 `@deepseek-ai/dsh-host-plugin-market/provider` 以 DISCOVERY 模式提供的宿主 `pluginCatalog` 服务。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-把本插件挂载到「应当让模型能发现并评估插件」的 agent 预设上。它属于 agent 平面：把三个工具 schema 与 `tool:plugin-market` 提示词章节注册进预设的 scoped 工具层，并解析宿主组合已经提供的 `pluginMarket` 服务。`packages/bundle/web-app/presets/standard.patch.yml` 预设默认挂载它。
+把本插件挂载到「应当让模型能发现并评估插件」的 agent 预设上。它属于 agent 平面：把三个工具 schema 与 `tool:plugin-market` 提示词章节注册进预设的 scoped 工具层，并解析宿主组合已经提供的 `pluginCatalog` 服务。`packages/bundle/web-app/presets/standard.patch.yml` 预设默认挂载它。
 
 ### 最小组合
 
@@ -36,7 +36,7 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-tool-plugin-market'
 ```
 
-宿主行必须先于 agent 预设运行，这样注入时 `pluginMarket` 已存在。standard 预设携带工具行；宿主 provider 属于 base 组合。
+宿主行必须先于 agent 预设运行，这样注入时 `pluginCatalog` 已存在。standard 预设携带工具行；宿主 provider 属于 base 组合。
 
 ### 工具能做什么
 
@@ -66,7 +66,7 @@ kind: "package-reference"
 
 ### 设计理念
 
-工具集是 `pluginMarket` 服务上方薄薄的一层模型面向面。它只叠加模型面向的判断：显式的源解析（未知 source id 会大声失败，而不是悄悄搜错目录）、内置目录默认值让发现开箱即用，以及 require-agent 守卫防止工具调用跑出真实会话。三个动词在构造上就只读——它们从不触及安装路径。
+工具集是 `pluginCatalog` 服务上方薄薄的一层模型面向面。它只叠加模型面向的判断：显式的源解析（未知 source id 会大声失败，而不是悄悄搜错目录）、内置目录默认值让发现开箱即用，以及 require-agent 守卫防止工具调用跑出真实会话。三个动词在构造上就只读——它们从不触及安装路径。
 
 ### 源码地图
 
@@ -77,7 +77,7 @@ kind: "package-reference"
 
 ### 一次调用的流程
 
-每个工具的 `execute` 先断言一个 Agent-backed 会话，再读取源列表、解析目标源（显式 id → 内置目录 → 第一个注册源 → 大声失败），并把读取委托给 `ctx.pluginMarket.listSources` / `ctx.pluginMarket.search` / `ctx.pluginMarket.preview`。内置目录从不抓取它的 endpoint——`searchBuiltinCatalog` 是纯内存过滤；而用户注册的 HTTPS 源走市场的受限 fetch。
+每个工具的 `execute` 先断言一个 Agent-backed 会话，再读取源列表、解析目标源（显式 id → 内置目录 → 第一个注册源 → 大声失败），并把读取委托给 `ctx.pluginCatalog.listSources` / `ctx.pluginCatalog.search` / `ctx.pluginCatalog.preview`。内置目录从不抓取它的 endpoint——`searchBuiltinCatalog` 是纯内存过滤；而用户注册的 HTTPS 源走市场的受限 fetch。
 
 </details>
 
@@ -88,7 +88,7 @@ kind: "package-reference"
 
 当包级约定不够用时阅读以下页面。
 
-- [插件市场](../../host/plugin-market/README.zh.md)——工具读取所经过的 `ctx.pluginMarket` 服务间隔、wire schema、受限 fetch 与 npm 预检。
+- [插件市场](../../host/plugin-market/README.zh.md)——工具读取所经过的 `ctx.pluginCatalog` 服务间隔、wire schema、受限 fetch 与 npm 预检。
 - [内置目录](../../../packages/host/plugin-market/src/builtin-catalog.ts)——搜索默认命中的始终可用的离线目录快照。
 - [工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-plugin-market)——模型收到的确切工具 schema。
 

@@ -131,7 +131,7 @@ describe('tool-plugin-market tool bodies', () => {
 
   it('market_source_list maps a source without description and builtin flag', async () => {
     const { ctx } = await setup()
-    vi.spyOn(ctx.pluginMarket, 'listSources').mockResolvedValue([bareSource('bare.dev')])
+    vi.spyOn(ctx.pluginCatalog, 'listSources').mockResolvedValue([bareSource('bare.dev')])
     const result = await call(ctx, 'market_source_list', {}, fakeAgent(ctx))
     expect(result.isError).toBe(false)
     const value = result.value as Array<Record<string, unknown>>
@@ -179,8 +179,8 @@ describe('tool-plugin-market tool bodies', () => {
 
   it('market_plugin_search picks the first source when nothing is bundled', async () => {
     const { ctx } = await setup()
-    vi.spyOn(ctx.pluginMarket, 'listSources').mockResolvedValue([bareSource('custom.dev')])
-    vi.spyOn(ctx.pluginMarket, 'search').mockResolvedValue({ items: [] })
+    vi.spyOn(ctx.pluginCatalog, 'listSources').mockResolvedValue([bareSource('custom.dev')])
+    vi.spyOn(ctx.pluginCatalog, 'search').mockResolvedValue({ items: [] })
     const result = await call(ctx, 'market_plugin_search', {}, fakeAgent(ctx))
     expect(result.isError).toBe(false)
     expect((result.value as { sourceId: string }).sourceId).toBe('custom.dev')
@@ -188,7 +188,7 @@ describe('tool-plugin-market tool bodies', () => {
 
   it('market_plugin_search fails loud when no source is available', async () => {
     const { ctx } = await setup()
-    vi.spyOn(ctx.pluginMarket, 'listSources').mockResolvedValue([])
+    vi.spyOn(ctx.pluginCatalog, 'listSources').mockResolvedValue([])
     const result = await call(ctx, 'market_plugin_search', {}, fakeAgent(ctx))
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('no catalog source registered')
