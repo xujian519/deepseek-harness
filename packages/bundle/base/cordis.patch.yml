@@ -91,7 +91,7 @@
     # with install-unavailable and stay on the `dsh plugin` CLI, whose
     # profile-managed runner owns the write path (no profileDir is supplied to
     # the row, so the provider never drives a package manager from this process).
-    - id: plugin-market
+    - id: plugin-catalog
       name: '@deepseek-ai/dsh-host-plugin-market/provider'
       config:
         sourceFile: !!js dshHomePath('plugin-market/sources.json')
