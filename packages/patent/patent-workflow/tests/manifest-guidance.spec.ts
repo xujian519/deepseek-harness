@@ -27,7 +27,7 @@ const stageOf = (manifestId: string, stageId: string): string | undefined => {
 }
 
 describe('内置 manifest 的阶段法律指引（guidance）', () => {
-  it('OA 答复：parse 定为确定性原子；draft 含驳回类型对照表、策略决策树与 A33 限制', () => {
+  it('OA 答复：parse 定为确定性原子；draft 含驳回类型对照表、策略决策树、三层论证纪律与 A33 限制', () => {
     const manifest = builtinPatentManifests.find(m => m.id === 'patent_oa_response_v1')
     const parse = manifest?.stages.find(s => s.id === 'parse')
     expect(parse?.guidance).toBeUndefined()
@@ -40,6 +40,10 @@ describe('内置 manifest 的阶段法律指引（guidance）', () => {
     expect(draft).toContain('放弃答复')
     expect(draft).toContain('A33')
     expect(draft).toContain('禁止编造实验数据')
+    expect(draft).toContain('事实 → 规则 → 论证')
+    expect(draft).toContain('争点')
+    expect(draft).toContain('不以通知书审查意见项号铺陈')
+    expect(draft).not.toContain('逐条答复每项被驳')
   })
 
   it('创造性：closest 缺证据推断规则，diff 技术问题纪律，hint 软件与组合方案边界条件', () => {

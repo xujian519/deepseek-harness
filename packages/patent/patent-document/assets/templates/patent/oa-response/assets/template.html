@@ -255,7 +255,7 @@
 
   <section id="position" aria-label="总体立场">
     <h2>一、总体立场</h2>
-    <p id="position-summary">申请人恳请审查员重新考虑并撤销/修改第 <span class="mono">____</span> 条审查意见，理由如下……</p>
+    <p id="position-summary">申请人恳请审查员重新考虑上述审查意见，理由如下……</p>
     <div class="callout">
       <div class="callout-title">答复要点</div>
       <ol id="position-points">
@@ -264,9 +264,9 @@
     </div>
   </section>
 
-  <section id="amendments" aria-label="修改说明">
-    <h2>二、权利要求修改说明</h2>
-    <p>针对审查意见，申请人对权利要求书进行了如下修改：</p>
+  <section id="amendments" aria-label="本次修改">
+    <h2>二、本次修改</h2>
+    <p>针对审查意见通知书指出的缺陷，申请人对申请文件作出如下修改；修改依据在第四部分以 R 编号列明。</p>
     <table>
       <caption>表 1 · 权利要求修改对照</caption>
       <thead>
@@ -274,7 +274,7 @@
           <th style="width:10%">权利要求</th>
           <th style="width:35%">修改前</th>
           <th style="width:35%">修改后</th>
-          <th style="width:20%">修改依据 / 解决问题</th>
+          <th style="width:20%">修改依据 / 解决的技术问题</th>
         </tr>
       </thead>
       <tbody id="amendment-table">
@@ -293,35 +293,41 @@
     </div>
   </section>
 
-  <section id="arguments" aria-label="争辩意见">
-    <h2>三、争辩意见</h2>
-
-    <h3>3.1 关于新颖性审查意见的争辩</h3>
-    <h4>审查意见要点</h4>
-    <p id="arg-nov-oa">审查员认为权 1 的 X 特征被 D1 公开。</p>
-    <h4>答复要点</h4>
-    <p id="arg-nov-reply">________</p>
-    <h4>事实与证据分析</h4>
-    <p id="arg-nov-evidence">________</p>
-    <h4>法条适用与结论</h4>
-    <p id="arg-nov-conclusion">________</p>
-
-    <h3>3.2 关于创造性审查意见的争辩</h3>
-    <h4>审查意见要点</h4>
-    <p id="arg-inv-oa">审查员认为权 1 的 X 区别特征属于公知常识，D1+D2 结合具备技术启示。</p>
-    <h4>答复要点</h4>
-    <p id="arg-inv-reply">________</p>
-    <h4>事实与证据分析</h4>
-    <p id="arg-inv-evidence">________</p>
-    <h4>法条适用与结论</h4>
-    <p id="arg-inv-conclusion">________</p>
-
-    <h3>3.3 关于其他审查意见的争辩</h3>
-    <p id="arg-other"></p>
+  <section id="facts" aria-label="本案事实">
+    <h2>三、本案事实</h2>
+    <p>本部分只陈述可核验的事实并注明出处，不作评价；对事实的评价见第五部分。每项事实控制在两句以内，只保留与争点相关的特征。</p>
+    <h3>3.1 申请文件记载的事实</h3>
+    <div id="facts-application"></div>
+    <h3>3.2 对比文件公开的事实</h3>
+    <div id="facts-prior-art"></div>
   </section>
 
-  <section id="evidence" aria-label="证据清单">
-    <h2>四、证据清单</h2>
+  <section id="rules" aria-label="适用规则">
+    <h2>四、适用规则</h2>
+    <p>逐条列明本案据以论证的规则，注明法条条款号或《专利审查指南》节号。未核验来源的规则不得作为断言依据：随包索引对指南只登记节号、未转录原文，需要逐字引用指南时应另行提供经核验的文本来源。第五部分以 R 编号回指本部分。</p>
+    <div id="rules-body"></div>
+  </section>
+
+  <section id="arguments" aria-label="意见陈述">
+    <h2>五、意见陈述</h2>
+    <p>本部分按争点组织论证，每条论证回指第三部分的事实编号（F/P）与第四部分的规则编号（R）。审查意见项号只在需要定位时以括注出现，不作小节标题。</p>
+    <h3>5.1 关于新颖性</h3>
+    <div id="argument-novelty"></div>
+    <h3>5.2 关于创造性</h3>
+    <div id="argument-inventiveness"></div>
+    <h3>5.3 其他争点</h3>
+    <div id="argument-other"></div>
+  </section>
+
+  <section id="formalities" aria-label="其他缺陷的处理">
+    <h2>六、其他缺陷的处理</h2>
+    <p>形式缺陷、笔误、附图标记、摘要撰写等不进入论证主线的缺陷，在此逐项列明处理方式与依据。</p>
+    <div id="formalities-body"></div>
+  </section>
+
+  <section id="evidence" aria-label="证据与引用">
+    <h2>七、证据与引用</h2>
+    <h3>7.1 证据清单</h3>
     <table>
       <caption>表 2 · 证据与对比文件清单</caption>
       <thead>
@@ -341,10 +347,8 @@
         </tr>
       </tbody>
     </table>
-  </section>
 
-  <section id="citation-log" aria-label="引用日志">
-    <h2>五、引用日志</h2>
+    <h3>7.2 引用日志</h3>
     <p>来源类型与置信度取值见 <span class="mono">references/citation-log.md</span>。</p>
     <table>
       <caption>表 3 · 关键断言溯源</caption>
@@ -368,7 +372,7 @@
   </section>
 
   <section id="conclusion" aria-label="结论与请求">
-    <h2>六、结论与请求</h2>
+    <h2>八、结论与请求</h2>
     <p id="conclusion-text">综上所述，修改后的权利要求具备新颖性、创造性和实用性，符合专利法及其实施细则的相关规定。恳请审查员撤销/修改上述审查意见，继续审查并授予专利权。</p>
   </section>
 

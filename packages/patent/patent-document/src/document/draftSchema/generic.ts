@@ -123,7 +123,13 @@ const SEARCH_REPORT: TemplateSlotRegistry = {
   ],
 }
 
-/** oa-response 的草案注册表。 */
+/**
+ * oa-response 的草案注册表。
+ *
+ * 论证骨架按「事实 → 规则 → 论证」组织：facts-* 只承载可核验的事实，
+ * rules-body 承载据以论证的规则，argument-* 按争点承载论证并回指事实与规则。
+ * 审查意见项号不作为小节标题，只作定位括注。
+ */
 const OA_RESPONSE: TemplateSlotRegistry = {
   fields: {
     'meta-appno': req,
@@ -133,15 +139,6 @@ const OA_RESPONSE: TemplateSlotRegistry = {
     'meta-response-date': req,
     'meta-agent': req,
     'position-summary': req,
-    'arg-nov-oa': req,
-    'arg-nov-reply': req,
-    'arg-nov-evidence': req,
-    'arg-nov-conclusion': req,
-    'arg-inv-oa': req,
-    'arg-inv-reply': req,
-    'arg-inv-evidence': req,
-    'arg-inv-conclusion': req,
-    'arg-other': opt,
     'conclusion-text': req,
     'footer-case': req,
     'footer-date': req,
@@ -149,17 +146,26 @@ const OA_RESPONSE: TemplateSlotRegistry = {
   sections: {
     'doc-number': { ...BLOCKS, ...req },
     'position-points': { ...BLOCKS, ...req },
-    'amended-claim-1': { ...BLOCKS, ...req },
     'amendment-table': { ...rows(4), ...req },
+    'amended-claim-1': { ...BLOCKS, ...req },
+    'facts-application': { ...BLOCKS, ...req },
+    'facts-prior-art': { ...BLOCKS, ...req },
+    'rules-body': { ...BLOCKS, ...req },
+    'argument-novelty': { ...BLOCKS, ...req },
+    'argument-inventiveness': { ...BLOCKS, ...req },
+    'argument-other': { ...BLOCKS, ...opt },
+    'formalities-body': { ...BLOCKS, ...opt },
     'evidence-table': { ...rows(6), ...req },
     'citation-table': { ...rows(6), ...req },
   },
   staticElements: [
-    { marker: 'id="position"', reason: '答辩立场骨架包装：含分区标题与 position-summary/position-points 槽位' },
-    { marker: 'id="amendments"', reason: '修改说明骨架包装：含分区标题与 amended-claim-1/amendment-table 槽位' },
-    { marker: 'id="arguments"', reason: '争辩意见骨架包装：含分区标题与 arg-* 槽位' },
-    { marker: 'id="evidence"', reason: '证据清单骨架包装：含分区标题与 evidence-table 槽位' },
-    { marker: 'id="citation-log"', reason: '引用日志骨架包装：含分区标题与 citation-table 槽位' },
+    { marker: 'id="position"', reason: '总体立场骨架包装：含分区标题与 position-summary/position-points 槽位' },
+    { marker: 'id="amendments"', reason: '本次修改骨架包装：含分区标题与 amendment-table/amended-claim-1 槽位' },
+    { marker: 'id="facts"', reason: '本案事实骨架包装：含分区标题与 facts-application/facts-prior-art 槽位' },
+    { marker: 'id="rules"', reason: '适用规则骨架包装：含分区标题与 rules-body 槽位' },
+    { marker: 'id="arguments"', reason: '意见陈述骨架包装：含分区标题与 argument-* 槽位' },
+    { marker: 'id="formalities"', reason: '其他缺陷处理骨架包装：含分区标题与 formalities-body 槽位' },
+    { marker: 'id="evidence"', reason: '证据与引用骨架包装：含分区标题与 evidence-table/citation-table 槽位' },
     { marker: 'id="conclusion"', reason: '结论请求骨架包装：含分区标题与 conclusion-text 槽位' },
   ],
 }
