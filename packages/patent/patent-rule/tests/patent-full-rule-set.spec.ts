@@ -341,10 +341,13 @@ describe('patent full rule set', () => {
   it('答复形式规则（PR-OA-005/006/007）随 patent-full 一并加载，且只作用于答复域', () => {
     const { ruleSet } = loadPatentFullRuleSet()
     const byId = new Map(ruleSet.rules.map(r => [r.id, r]))
-    for (const id of ['PR-OA-005', 'PR-OA-006', 'PR-OA-007']) {
+    for (const id of ['PR-OA-005', 'PR-OA-006']) {
       expect(byId.get(id)?.domain).toBe('patent_oa_response')
       expect(byId.get(id)?.action).toBe('warn')
     }
+    // 甲7 裁决（2026-10-16）：007 升级 block，由制品结构门禁在 render 前执行。
+    expect(byId.get('PR-OA-007')?.domain).toBe('patent_oa_response')
+    expect(byId.get('PR-OA-007')?.action).toBe('block')
     expect(byId.get('PR-OA-005')?.check.type).toBe('pattern_analysis')
     expect(byId.get('PR-OA-006')?.check).toEqual({ type: 'quote_repetition', minLength: 12, minOccurrences: 2 })
     // 答复形式规则不进输出门禁（门禁只取 keyword_blocklist）
