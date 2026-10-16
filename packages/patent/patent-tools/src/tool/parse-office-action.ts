@@ -7,7 +7,9 @@
  *
  * The tool reports the notice's own wording only. It does not decide whether a
  * rejection is well founded and does not draft a response; unmarked references
- * carry no relevance class rather than a default one.
+ * carry no relevance class rather than a default one, and conflicting
+ * annotations on the same reference become explicit parse conflicts instead of
+ * silently picking one.
  * @module @deepseek-ai/dsh-patent-tools/tool/parse-office-action
  */
 
@@ -42,6 +44,7 @@ const DESCRIPTION = [
   '涉及的权利要求（权利要求1至3 与 第1-5项 两类区间展开为逐个编号）、审查员论点。',
   '用于答复前先拿到结构化事实：先按主驳回类型定答复主策略，再逐条处理。',
   '输出只反映通知书原文的措辞，不判断驳回是否成立，也不起草答复。文献未标注相关性类别时不推断类别。',
+  '同一文献在正文不同位置的相关性标注不一致时，结果列入解析冲突（冲突源、候选值、采用依据），不静默取单一结论，须人工核对。',
 ].join('')
 
 /**
