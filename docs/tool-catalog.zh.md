@@ -595,19 +595,19 @@ ask_user_question 默认保持原有阻塞行为；设置 `mode: timed` 后才�
 
 ### `run_code`
 
-针对可用工具执行 TypeScript 程序。接受两个必填参数：`description`，简要说明该程序做什么；以及 `code`，要执行的程序。请根据系统提示词中的声明，以 `await tools.name(args)` 形式调用工具。请筛选程序输出。含图片的子工具结果会在运行结束后附加。
+针对可用工具执行 TypeScript 程序。接受两个必填参数：`code`，要执行的程序；以及 `description`，简要说明该程序做什么。请根据系统提示词中的声明，以 `await tools.name(args)` 形式调用工具。请筛选程序输出。含图片的子工具结果会在运行结束后附加。
 
 ```json
 {
   "type": "object",
   "properties": {
-    "description": {
-      "type": "string",
-      "description": "Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). Provide `description` before `code` in the arguments. Examples: \"Count TODO markers across packages\"; \"Read failing test and its fixture\"; \"Rename config key in every cordis.yml\"."
-    },
     "code": {
       "type": "string",
       "description": "The TypeScript program to execute, following this tool's execution instructions."
+    },
+    "description": {
+      "type": "string",
+      "description": "Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). Examples: \"Count TODO markers across packages\"; \"Read failing test and its fixture\"; \"Rename config key in every cordis.yml\"."
     },
     "timeoutMs": {
       "type": "number",
@@ -627,8 +627,8 @@ ask_user_question 默认保持原有阻塞行为；设置 `mode: timed` 后才�
     }
   },
   "required": [
-    "description",
-    "code"
+    "code",
+    "description"
   ]
 }
 ```
@@ -3455,7 +3455,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
           },
           "params": {
             "type": "object",
@@ -3513,7 +3513,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
         },
         "params": {
           "type": "object",
@@ -5210,7 +5210,7 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
 
 ### `parse_office_action`
 
-确定性解析审查意见通知书（不调用模型）：识别驳回类型（专利法 22.2 新颖性、22.3 创造性、26.3 公开不充分、26.4 不清楚或不支持、33 条修改超范围、形式缺陷；未识别到具体条款时为 other）、引用文献与相关性类别（X/Y/A/E/P，本文书自身号码不计）、涉及的权利要求（权利要求1至3 与 第1-5项 两类区间展开为逐个编号）、审查员论点。用于答复前先拿到结构化事实：先按主驳回类型定答复主策略，再逐条处理。输出只反映通知书原文的措辞，不判断驳回是否成立，也不起草答复。文献未标注相关性类别时不推断类别。
+确定性解析审查意见通知书（不调用模型）：识别驳回类型（专利法 22.2 新颖性、22.3 创造性、26.3 公开不充分、26.4 不清楚或不支持、33 条修改超范围、形式缺陷；未识别到具体条款时为 other）、引用文献与相关性类别（X/Y/A/E/P，本文书自身号码不计）、涉及的权利要求（权利要求1至3 与 第1-5项 两类区间展开为逐个编号）、审查员论点。用于答复前先拿到结构化事实：先按主驳回类型定答复主策略，再逐条处理。输出只反映通知书原文的措辞，不判断驳回是否成立，也不起草答复。文献未标注相关性类别时不推断类别。同一文献在正文不同位置的相关性标注不一致时，结果列入解析冲突（冲突源、候选值、采用依据），不静默取单一结论，须人工核对。
 
 ```json
 {
@@ -5833,7 +5833,7 @@ Usage notes:
 
 ### `rule_check`
 
-对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。每条结果末尾的「评估输入」给出本次实际读到的文本的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
+对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。手头已有通知书正文时，作业 scope 还可传 notice=通知书正文：两条双输入规则（PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用）随该通知书一并评估答复；未提供 notice 时，这两条在结果中显式列为未评估。每条结果末尾的「评估输入」给出本次实际读到的文本的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
 
 ```json
 {
@@ -5846,6 +5846,10 @@ Usage notes:
     "scope": {
       "type": "string",
       "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
+    },
+    "notice": {
+      "type": "string",
+      "description": "通知书正文（可选）：提供时就地确定性解析，并评估双输入规则 PR-OA-008/009；未提供时结果中显式列出未评估项。"
     }
   },
   "required": [

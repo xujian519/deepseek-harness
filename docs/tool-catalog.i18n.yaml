@@ -66,8 +66,8 @@
   en: 76fbbf0fe38aef10
   zh: 76fbbf0fe38aef10
 /tool-schema-catalog/deepseek-ai-dsh-tools/run-code:
-  en: d03bca78d96757a7
-  zh: a8c10e37a6e777e8
+  en: a2368a9d8136276e
+  zh: 230bffa45aa24e44
 /tool-schema-catalog/deepseek-ai-dsh-plan-mode:
   en: b500b530845e26a9
   zh: b500b530845e26a9
@@ -381,8 +381,8 @@
   en: 16efd1198beec321
   zh: 17ba169a6cfb114b
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/parse-office-action:
-  en: 4b476be1df0b82c8
-  zh: 2dfa6b6ac7c4d3b9
+  en: cb3b8c8c7892b020
+  zh: 152ebee78da9ed89
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/patent-analysis-report:
   en: 62aa46d834b55eb8
   zh: 490101ad2c499809
@@ -426,8 +426,8 @@
   en: d23cf293a4051b66
   zh: 1d8fbb3adc4c7be1
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/rule-check:
-  en: 2538f8494f373576
-  zh: d07d8c88ef98312b
+  en: 49990b3e810053ec
+  zh: 842505eb5468b6c2
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/search-patent-figure:
   en: e952950dd3a02826
   zh: ecc3c6b0f7b1df69
