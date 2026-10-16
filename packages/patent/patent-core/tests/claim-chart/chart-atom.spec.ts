@@ -554,3 +554,75 @@ it('未提供源文的目标在提示里标注，其行留空 quote/pinCite 即�
   const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
   expect(doc.rows.map(row => row.pinCite)).toEqual(['', '', ''])
 })
+
+it('oa-response 模式：未手传 chart_targets 时由 office_action 派生对比文件目标', async () => {
+  let prompt = ''
+  const provider: StageProvider = {
+    callLLM: async (p: string) => {
+      prompt = p
+      return JSON.stringify({
+        elements: [{ id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' }],
+        rows: [{ elementId: '1a', targetId: 'CN112345678A', quote: '', pinCite: '', mapping: 'anticipation' }],
+      })
+    },
+  }
+  const handler = new ClaimChartHandler()
+  const state = await handler.execute({
+    state: {
+      claim: CLAIM,
+      chart_mode: 'oa-response',
+      office_action: JSON.stringify({
+        rejectionType: 'inventiveness',
+        rejectionTypes: ['inventiveness'],
+        citations: [{ documentNumber: 'CN112345678A', relevancy: 'Y', claimsAffected: [1] }],
+        affectedClaims: [1],
+        examinerArguments: [],
+      }),
+    },
+    provider,
+  })
+  expect(prompt).toContain('CN112345678A')
+  const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
+  expect(doc.targets).toEqual([{ id: 'CN112345678A', kind: 'prior-art' }])
+  expect(doc.mode).toBe('oa-response')
+})
+
+it('oa-response 模式：手传 chart_targets 优先（派生不覆盖显式输入）', async () => {
+  const provider: StageProvider = { callLLM: async () => JSON.stringify(goodChart()) }
+  const handler = new ClaimChartHandler()
+  const state = await handler.execute({
+    state: {
+      claim: CLAIM,
+      chart_mode: 'oa-response',
+      chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', title: '对比文件1' }]),
+      office_action: JSON.stringify({
+        rejectionType: 'inventiveness',
+        rejectionTypes: ['inventiveness'],
+        citations: [{ documentNumber: 'CN112345678A', claimsAffected: [1] }],
+        affectedClaims: [1],
+        examinerArguments: [],
+      }),
+    },
+    provider,
+  })
+  const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
+  expect(doc.targets.map(target => target.id)).toEqual(['D1'])
+})
+
+it('oa-response 模式：无解析产出时回落"只拆要素"（不造目标）', async () => {
+  let prompt = ''
+  const provider: StageProvider = {
+    callLLM: async (p: string) => {
+      prompt = p
+      return JSON.stringify({ elements: (goodChart() as { elements: unknown[] }).elements, rows: [] })
+    },
+  }
+  const handler = new ClaimChartHandler()
+  const state = await handler.execute({
+    state: { claim: CLAIM, chart_mode: 'oa-response' },
+    provider,
+  })
+  expect(prompt).toContain('只拆分要素')
+  const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
+  expect(doc.targets).toEqual([])
+})

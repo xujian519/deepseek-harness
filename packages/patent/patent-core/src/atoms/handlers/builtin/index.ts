@@ -8,7 +8,7 @@
  * - draft.ts：draft-claims（权利要求草稿）
  * - gate.ts：approval-gate（人机审批门）
  * - chart.ts：claim-chart（要素级证据网格）
- * - notice.ts：oa-parse（通知书解析）/ grounds（程序法定理由识别）
+ * - notice.ts：oa-parse（通知书解析）/ grounds（程序法定理由识别）/ response-plan（答复计划骨架）
  * - coverage.ts：coverage（侵权全面覆盖与等同一致性核验）
  */
 
@@ -56,6 +56,8 @@ export {
   OaParseHandler,
   groundsAtom,
   GroundsHandler,
+  responsePlanAtom,
+  ResponsePlanHandler,
   GROUND_PROGRAMS,
   type GroundProgram,
 } from './notice.ts'

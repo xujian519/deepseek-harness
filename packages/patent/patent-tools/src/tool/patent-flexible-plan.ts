@@ -146,7 +146,7 @@ export const ATOM_PARAM_DESCRIPTION = [
   'Atom name to auto-execute this stage. Available atoms:',
   'approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability),',
   'compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness,',
-  'grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate.',
+  'grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate.',
 ].join(' ')
 
 /** Stage JSON schema shared by create's stages list and add's single stage. */

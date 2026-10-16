@@ -2,7 +2,7 @@
  * src/patent/response — 答复与复审请求的准备段 barrel。
  *
  * - strategy.ts：答复策略、修改动作、意见陈述段落、法条依据四张闭集对照表。
- * - plan.ts：由通知书解析结果拼装答复计划（逐理由段落 + 逐权项修改对照 + 缺口）。
+ * - plan.ts：由通知书解析结果拼装答复计划（逐理由段落 + 逐权项修改对照 + 缺口），并提供独立权项保守检测与输入层文本渲染。
  * - reexamination.ts：复审四段准备（对比表、A33 论证、质疑预演、口审时间线）。
  *
  * 三个文件都不调用模型：输出是必须逐项落实的结构化骨架与缺口，不是答复正文，也不对
@@ -25,6 +25,8 @@ export {
 
 export {
   buildResponsePlan,
+  detectIndependentClaims,
+  formatResponsePlan,
   type ClaimAmendmentRow,
   type ResponsePlan,
   type ResponsePlanGap,

@@ -1,8 +1,10 @@
 flowchart TD
   parse["解析审查意见通知书（确定性）：驳回类型、引用文献、涉及权项、审查员论点"]
-  claim-chart["权利要求要素级映射到审查员引用对比文件（mode=oa-response）"]
-  draft["撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果与 claim-chart）"]
+  claim-chart["权利要求要素级映射到审查员引用对比文件（mode=oa-response；目标由解析产出自动派生）"]
+  response-plan["答复计划骨架（逐理由策略与必答段落、逐权项修改对照、缺口；确定性）"]
+  draft["撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart 与答复计划）"]
   approval["人工确认答复书"]
   parse --> claim-chart
-  claim-chart --> draft
+  claim-chart --> response-plan
+  response-plan --> draft
   draft --> approval

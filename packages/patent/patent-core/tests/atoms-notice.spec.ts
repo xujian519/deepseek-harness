@@ -95,3 +95,41 @@ describe('grounds 原子', () => {
     expect(String(out._error)).toContain('程序文书正文为空')
   })
 })
+
+describe('response-plan 原子', () => {
+  const OA_INVENTIVENESS = [
+    '权利要求1-5不具备创造性，不符合专利法第22条第3款的规定。',
+    '对比文件1（CN112345678A，Y类）公开了权利要求1的前序特征。',
+  ].join('\n')
+
+  it('由解析产出拼装计划骨架（策略摘要与必答段落）', async () => {
+    const parsed = await run('oa-parse', { input: OA_INVENTIVENESS })
+    const out = await run('response-plan', {
+      office_action: parsed.office_action,
+      claims: '1. 一种装置，包括壳体。\n2. 根据权利要求1所述的装置，其特征在于还包括滤芯。',
+    })
+    const text = String(out.response_plan)
+    expect(text).toContain('策略摘要：创造性→争辩')
+    expect(text).toContain('- 创造性（争辩）：最接近的现有技术')
+    expect(String(out.response_plan_summary)).toBe('创造性→争辩')
+  })
+
+  it('修改类理由：独立/从属检测进入逐权项修改对照', async () => {
+    const parsed = await run('oa-parse', {
+      input: '权利要求1和权利要求2的保护范围不清楚，不符合专利法第26条第4款的规定。',
+    })
+    const out = await run('response-plan', {
+      office_action: parsed.office_action,
+      claims: '1. 一种装置，包括壳体。\n2. 根据权利要求1所述的装置，其特征在于还包括滤芯。',
+    })
+    const text = String(out.response_plan)
+    expect(text).toContain('- 权利要求1（独立）：澄清限定')
+    expect(text).toContain('- 权利要求2（从属）：从属引用调整')
+  })
+
+  it('缺少解析产出时降级（不猜计划）', async () => {
+    const out = await run('response-plan', { claims: '1. 一种装置。' })
+    expect(String(out._error)).toContain('[response-plan]')
+    expect(String(out._error)).toContain('缺少解析结果')
+  })
+})

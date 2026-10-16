@@ -90,8 +90,20 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
     }
   })
 
-  it('OA 答复：draft 消费解析结果与 claim-chart（描述里的"消费"由 consumes 兑现）', () => {
-    expect(stageOf('patent_oa_response_v1', 'draft')?.consumes).toEqual(['parse', 'claim-chart'])
+  it('OA 答复：response-plan 交确定性原子，排 claim-chart 之后、draft 之前', () => {
+    const plan = stageOf('patent_oa_response_v1', 'response-plan')
+    expect(plan?.atom).toBe('response-plan')
+    expect(plan?.guidance).toBeUndefined()
+    expect(indexOf('patent_oa_response_v1', 'claim-chart')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'response-plan'),
+    )
+    expect(indexOf('patent_oa_response_v1', 'response-plan')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'draft'),
+    )
+  })
+
+  it('OA 答复：draft 消费解析结果、claim-chart 与答复计划（描述里的"消费"由 consumes 兑现）', () => {
+    expect(stageOf('patent_oa_response_v1', 'draft')?.consumes).toEqual(['parse', 'claim-chart', 'response-plan'])
   })
 
   it('创造性：三步法后一阶段消费前一阶段的产出', () => {
