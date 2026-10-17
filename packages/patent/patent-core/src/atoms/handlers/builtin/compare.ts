@@ -24,6 +24,7 @@ export const compareAtom: Atom = {
   category: 'compare',
   inputSchema: ['claim', 'prior_art', 'comparison_scope'],
   outputSchema: ['claim_chart', 'diff_features'],
+  usesModel: true,
 }
 
 const COMPARE_SCHEMA = {
@@ -106,6 +107,7 @@ export const noveltyAtom: Atom = {
   category: 'compare',
   inputSchema: ['features', 'prior_art', 'novelty_scope'],
   outputSchema: ['novelty_result', 'novelty_conclusion', 'evidence_coverage'],
+  usesModel: true,
 }
 
 const NOVELTY_SCHEMA = {

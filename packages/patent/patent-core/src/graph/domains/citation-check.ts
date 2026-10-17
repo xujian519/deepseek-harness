@@ -15,46 +15,18 @@
  * @module @deepseek-ai/dsh-patent-core/graph/domains/citation-check
  */
 
-import { GraphBuilder, type GraphNode } from '../index.ts'
-import type { GraphState } from '../types.ts'
+import { GraphBuilder } from '../engine.ts'
+import type { GraphNode, GraphState } from '../types.ts'
 import { getStateArray, getStateString } from '../state.ts'
+import { extractCitationIds, extractDocIds } from '../../citation-ids.ts'
 
-/** 专利号正则（国家代码 2 位 + 1-14 位数字 + 可选类型后缀）。
- * 已知误匹配面（对齐 Sati 决策"仅提取专利号"）：ZL 前缀的中国实用新型
- * （"ZL201311234567.X" 会截掉 ".X" 后缀）、自由文本中的 "IP2022" 类 token；
- * 引用侧与文档侧共用同一提取器，接地判定仍自洽，仅可能产生个别误报"未接地"。 */
-export const PATENT_NUMBER_RE = /[A-Z]{2}\d{1,14}[A-Z]?\d*/g
+export { PATENT_NUMBER_RE, extractCitationIds, extractDocIds } from '../../citation-ids.ts'
 
-/** 文档标识正则（对比文件2 / 证据1 / D3；D 标识前后须为非字母数字字符，兼容 JSON 键内提取）。 */
-const DOC_LABEL_RES = [/(?:对比文件|证据)\s*(\d+)/g, /(?:^|[^\p{L}\p{N}])D(\d+)(?=$|[^\p{L}\p{N}])/gu]
-
-/** 从文本提取引用标识：专利号优先；无专利号时归一文档标识（对比文件2 → D2）。
- * @param text - 要提取的引用文本（结论/检索命中拼接）。
- * @returns 去重后的引用标识列表。
- */
-export function extractCitationIds(text: string): string[] {
-  const ids: string[] = []
-  for (const m of text.matchAll(PATENT_NUMBER_RE)) ids.push(m[0])
-  if (ids.length > 0) return [...new Set(ids)]
-  for (const re of DOC_LABEL_RES) {
-    for (const m of text.matchAll(re)) {
-      const n = m[1]
-      /* v8 ignore next -- both DOC_LABEL_RES patterns carry exactly one mandatory group, so n is always defined. */
-      if (n !== undefined) ids.push(`D${n}`)
-    }
-  }
-  return [...new Set(ids)]
-}
-
-/** 从单篇检索命中提取标识（title + url + 可选 patent 字段）。
- * @param doc - 检索命中条目（对象字段任意）。
- * @returns 从该命中提取的引用标识列表。
- */
-export function extractDocIds(doc: unknown): string[] {
-  if (doc === null || typeof doc !== 'object') return []
-  const record = doc as Record<string, unknown>
-  const parts = [record.title, record.url, record.patent].filter(v => typeof v === 'string').join(' ')
-  return extractCitationIds(parts)
+/** 读取 prior-art-filter 保留的原始检索位次（D1、D2……）。 */
+function originalDocLabel(doc: unknown): string | undefined {
+  if (doc === null || typeof doc !== 'object') return undefined
+  const label = (doc as Record<string, unknown>).dLabel
+  return typeof label === 'string' && /^D\d+$/.test(label.trim()) ? label.trim() : undefined
 }
 
 /** 引用真实性校验结果。 */
@@ -74,12 +46,22 @@ function isGrounded(refId: string, docIds: string[]): boolean {
 }
 
 /** 校验引用真实性：refTexts 中提取的引用标识须全部在 docs 中接地。
+ * 给出 `receiptCitationIds` 时，D 标号改为对照证据台账的 prior-art 收据精确匹配，
+ * 使结论引用与运行持久化的 `D<n>` 收据使用同一标号来源；专利号仍按检索命中接地。
  * 无法校验（无引用标识 / 无检索命中标识）时放行并写说明，不误报。
- * @param opts - 引用文本与检索命中。
+ * @param opts - 引用文本、检索命中与台账收据标号。
  * @returns 接地判定与报告。
  */
-export function checkCitations(opts: { refTexts: readonly string[]; docs: readonly unknown[] }): CitationCheckResult {
+export function checkCitations(opts: {
+  refTexts: readonly string[]
+  docs: readonly unknown[]
+  /** 证据台账中 prior-art 收据的 `citationId`；提供时 D 标号按此精确接地。 */
+  receiptCitationIds?: readonly string[]
+}): CitationCheckResult {
   const { refTexts, docs } = opts
+  const receiptIds = opts.receiptCitationIds !== undefined && opts.receiptCitationIds.length > 0
+    ? new Set(opts.receiptCitationIds)
+    : undefined
   if (docs.length === 0) {
     return { grounded: true, uncited: [], report: '引用真实性校验：检索结果为空，跳过硬校验' }
   }
@@ -92,21 +74,42 @@ export function checkCitations(opts: { refTexts: readonly string[]; docs: readon
     }
   }
   // 每篇检索命中按数组顺序附带位置标号 D<n>，使「对比文件N」引用可与仅带专利号的
-  // prior_art 一一对应（防系统性误报未接地）；仅当该篇能提取出真实标识时才追加，
-  // 无标识的检索结果仍走下方「无法校验放行」。
+  // prior_art 一一对应（防系统性误报未接地）；prior-art-filter 保留的原始位次优先，
+  // 避免过滤缩短数组后把 D2 误认成 D1。
   const docIds = docs.flatMap((doc, index) => {
     const ids = extractDocIds(doc)
-    return ids.length > 0 ? [...ids, `D${index + 1}`] : ids
+    return ids.length > 0 ? [...ids, originalDocLabel(doc) ?? `D${index + 1}`] : ids
   })
-  if (docIds.length === 0) {
+  if (docIds.length === 0 && receiptIds === undefined) {
     return {
       grounded: true,
       uncited: [],
       report: '引用真实性校验：检索结果无法提取标识（无专利号/文档标识），跳过硬校验',
     }
   }
-  const uncited = refIds.filter(refId => !isGrounded(refId, docIds))
+  const uncited: string[] = []
+  const unverifiable: string[] = []
+  for (const refId of refIds) {
+    if (/^D\d+$/.test(refId) && receiptIds !== undefined) {
+      if (!receiptIds.has(refId)) uncited.push(refId)
+      continue
+    }
+    // 台账存在收据、但检索命中无法提取该引用对应的标识：无法校验，放行不误报。
+    if (docIds.length === 0) {
+      unverifiable.push(refId)
+      continue
+    }
+    if (!isGrounded(refId, docIds)) uncited.push(refId)
+  }
   if (uncited.length === 0) {
+    if (unverifiable.length > 0) {
+      const verified = refIds.filter(refId => !unverifiable.includes(refId))
+      return {
+        grounded: true,
+        uncited: [],
+        report: `引用真实性校验：可校验引用全部接地（${verified.join('、')}）；无法校验的引用已放行: ${unverifiable.join('、')}`,
+      }
+    }
     return { grounded: true, uncited: [], report: `引用真实性校验：引用全部接地（${refIds.join('、')}）` }
   }
   return {

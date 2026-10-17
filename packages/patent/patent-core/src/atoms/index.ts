@@ -83,6 +83,48 @@ export {
   checkPfeConsistency,
   type PfeConsistencyViolationId,
   type PfeConsistencyViolation,
+  citationCheckAtom,
+  CitationCheckHandler,
+  DEFAULT_CITATION_REF_TEXT_KEYS,
+  DEFAULT_CITATION_PRIOR_ART_KEY,
+  timeBaselineAtom,
+  TimeBaselineHandler,
+  priorArtFilterAtom,
+  PriorArtFilterHandler,
+  A24_EXCEPTION_LABELS,
+  type A24Exception,
+  DEFAULT_PRIOR_ART_PUBLICATION_DATE_KEY,
+  DEFAULT_PRIOR_ART_A24_EXCEPTION_KEY,
+  conflictingApplicationAtom,
+  ConflictingApplicationHandler,
+  DEFAULT_CONFLICTING_APPLICATIONS_KEY,
+  DEFAULT_TARGET_DATE_KEY,
+  DEFAULT_TARGET_FILING_DATE_KEY,
+  numericRangeAtom,
+  NumericRangeHandler,
+  DEFAULT_NUMERIC_RANGE_CLAIM_TEXT_KEYS,
+  DEFAULT_NUMERIC_RANGE_FALLBACK_TEXT_KEYS,
+  DEFAULT_NUMERIC_RANGE_PRIOR_ART_KEY,
+  problemCheckAtom,
+  ProblemCheckHandler,
+  DEFAULT_PROBLEM_DIFF_TEXT_KEYS,
+  DEFAULT_PROBLEM_FEATURE_KEYS,
+  type ProblemCheckViolation,
+  amendmentBasisAtom,
+  AmendmentBasisHandler,
+  DEFAULT_AMENDMENT_AMENDED_TEXT_KEYS,
+  DEFAULT_AMENDMENT_ORIGINAL_TEXT_KEYS,
+  type AmendmentBasisViolation,
+  evidenceCheckAtom,
+  EvidenceCheckHandler,
+  DEFAULT_EVIDENCE_KEY,
+  DEFAULT_EVIDENCE_DEADLINE_KEY,
+  DEFAULT_EVIDENCE_REFERENCE_DATE_KEY,
+  DEFAULT_EVIDENCE_FILING_DATE_KEY,
+  DEFAULT_EVIDENCE_PRIORITY_DATE_KEY,
+  type EvidenceCheckSeverity,
+  type EvidenceCheckViolation,
+  type EvidenceCheckPending,
 } from './handlers/builtin/index.ts'
 
 import { globalAtomRegistry } from './atom.ts'
@@ -107,6 +149,14 @@ export function registerBuiltinAtoms(): void {
   globalAtomRegistry.register(builtin.responsePlanAtom)
   globalAtomRegistry.register(builtin.coverageAtom)
   globalAtomRegistry.register(builtin.pfeConsistencyAtom)
+  globalAtomRegistry.register(builtin.citationCheckAtom)
+  globalAtomRegistry.register(builtin.timeBaselineAtom)
+  globalAtomRegistry.register(builtin.priorArtFilterAtom)
+  globalAtomRegistry.register(builtin.conflictingApplicationAtom)
+  globalAtomRegistry.register(builtin.numericRangeAtom)
+  globalAtomRegistry.register(builtin.problemCheckAtom)
+  globalAtomRegistry.register(builtin.amendmentBasisAtom)
+  globalAtomRegistry.register(builtin.evidenceCheckAtom)
 
   globalStageHandlerRegistry.register(new builtin.SearchHandler())
   globalStageHandlerRegistry.register(new builtin.ExtractHandler())
@@ -124,4 +174,12 @@ export function registerBuiltinAtoms(): void {
   globalStageHandlerRegistry.register(new builtin.ResponsePlanHandler())
   globalStageHandlerRegistry.register(new builtin.CoverageHandler())
   globalStageHandlerRegistry.register(new builtin.PfeConsistencyHandler())
+  globalStageHandlerRegistry.register(new builtin.CitationCheckHandler())
+  globalStageHandlerRegistry.register(new builtin.TimeBaselineHandler())
+  globalStageHandlerRegistry.register(new builtin.PriorArtFilterHandler())
+  globalStageHandlerRegistry.register(new builtin.ConflictingApplicationHandler())
+  globalStageHandlerRegistry.register(new builtin.NumericRangeHandler())
+  globalStageHandlerRegistry.register(new builtin.ProblemCheckHandler())
+  globalStageHandlerRegistry.register(new builtin.AmendmentBasisHandler())
+  globalStageHandlerRegistry.register(new builtin.EvidenceCheckHandler())
 }

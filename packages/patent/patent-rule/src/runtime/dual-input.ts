@@ -35,10 +35,18 @@ export function isDualInputCheck(type: RuleCheckType): boolean {
   return (DUAL_INPUT_CHECK_TYPES as readonly string[]).includes(type)
 }
 
+/**
+ * 双输入规则实际读取的通知书字段。
+ *
+ * 只有驳回理由参与判定；收窄类型让调用方可以直接传 `oa-parse` 的解析结果，
+ * 不必构造解析器的全部字段。
+ */
+export type OfficeActionRejections = Pick<ParsedOfficeAction, 'rejectionTypes'>
+
 /** 双输入规则评估的输入。 */
 export type DualInputRuleInput = {
-  /** `parseOfficeAction` 的解析结果。 */
-  notice: ParsedOfficeAction
+  /** 通知书解析结果（只消费驳回理由）。 */
+  notice: OfficeActionRejections
   /** 被检文本（答复正文）。 */
   response: string
 }

@@ -43,6 +43,7 @@ export const claimChartAtom: Atom = {
   category: 'compare',
   inputSchema: ['claim', 'chart_targets', 'chart_mode'],
   outputSchema: ['claim_chart_doc', 'gap_list'],
+  usesModel: true,
 }
 
 const CHART_MODES: readonly string[] = ['infringement', 'invalidity', 'oa-response', 'reexamination', 'patentability']
@@ -176,6 +177,30 @@ export function deriveOfficeActionTargets(officeActionJson: string): ChartTarget
 }
 
 /**
+ * 可专利性模式未显式传 `chart_targets` 时，从过滤后的 `prior_art` 派生映射目标：
+ * 检索命中就是 claim chart 的对比文件。`D<n>` 标号与过滤报告、证据台账一致；
+ * 缺标号的条目按 1 基序号补 `D<n>`，同一标号只保留一个目标。
+ * @param priorArt - `prior_art` 状态值（检索命中数组）。
+ * @returns 去重后的对比文件目标；非数组输入返回空数组。
+ */
+export function derivePriorArtTargets(priorArt: unknown): ChartTarget[] {
+  if (!Array.isArray(priorArt)) return []
+  const targets: ChartTarget[] = []
+  const seen = new Set<string>()
+  priorArt.forEach((entry, index) => {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return
+    const record = entry as Record<string, unknown>
+    const rawLabel = typeof record.dLabel === 'string' ? record.dLabel.trim() : ''
+    const id = /^D\d+$/.test(rawLabel) ? rawLabel : `D${index + 1}`
+    if (seen.has(id)) return
+    seen.add(id)
+    const rawTitle = typeof record.title === 'string' ? record.title.trim() : ''
+    targets.push(rawTitle.length > 0 ? { id, kind: 'prior-art', title: rawTitle } : { id, kind: 'prior-art' })
+  })
+  return targets
+}
+
+/**
  * 字段级形状防御：LLM 输出 malformed（缺字段 / 类型错误 / null 项）时返回
  * 错误清单，让非法输出回到打回重做路径，而不是在校验器内 TypeError 崩溃
  * （element-validator 的 stripWhitespace、mapping-machine 的 mapping 访问等）。
@@ -288,10 +313,15 @@ export class ClaimChartHandler implements StageHandler {
     const mode = (CHART_MODES.includes(modeRaw) ? modeRaw : 'invalidity') as ChartMode
     const targetsRes = parseTargets(getStateString(state, 'chart_targets'))
     if (targetsRes.error) return degraded('claim-chart', targetsRes.error)
-    // 显式传入的目标优先；OA 答复未传时由解析产出派生（见 deriveOfficeActionTargets）。
-    const targets = targetsRes.targets.length === 0 && mode === 'oa-response'
-      ? deriveOfficeActionTargets(getStateString(state, 'office_action'))
-      : targetsRes.targets
+    // 显式传入的目标优先；OA 答复由解析产出派生，可专利性由过滤后的检索命中派生。
+    const targets =
+      targetsRes.targets.length > 0
+        ? targetsRes.targets
+        : mode === 'oa-response'
+          ? deriveOfficeActionTargets(getStateString(state, 'office_action'))
+          : mode === 'patentability'
+            ? derivePriorArtTargets(state['prior_art'])
+            : []
 
     // 预读目标源文件一次（重做 attempt 间复用，避免循环内重复 I/O）；
     // 读取失败不缓存，由 validateChart 对引用该源的每行报"源文件不可读"。

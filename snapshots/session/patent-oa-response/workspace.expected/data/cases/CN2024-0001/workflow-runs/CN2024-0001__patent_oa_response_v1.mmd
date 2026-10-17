@@ -3,8 +3,14 @@ flowchart TD
   claim-chart["权利要求要素级映射到审查员引用对比文件（mode=oa-response；目标由解析产出自动派生）"]
   response-plan["答复计划骨架（逐理由策略与必答段落、逐权项修改对照、缺口；确定性）"]
   draft["撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart 与答复计划）"]
+  response_check["答复合规检查（PR-OA-007/008/009：26.3 判准落位、驳回理由覆盖、未提条款引用）"]
+  amendment_basis["修改依据检查（A33：修改后权利要求的新增技术特征须记载于原说明书或原权利要求书）"]
+  legal_gaps["法条缺口汇总：答复规范检查与修改依据检查对应法条的通过/未通过/未评估状态"]
   approval["人工确认答复书"]
   parse --> claim-chart
   claim-chart --> response-plan
   response-plan --> draft
-  draft --> approval
+  draft --> response_check
+  response_check --> amendment_basis
+  amendment_basis --> legal_gaps
+  legal_gaps --> approval

@@ -6,6 +6,7 @@
  */
 
 import type { Citation, PatentSearchResult } from '@deepseek-ai/nuo-patent'
+import type { SerialQueue } from './serial-queue.ts'
 
 /**
  * The channel nuo requests travel over. `native` uses the plain fetch, `browser`
@@ -158,9 +159,10 @@ export interface CniprSearchOptions extends CniprCallOptions {
 export interface CniprEgoSession {
   /** 可用性检查；非 ok 时通道以 setup_required 失败。 */
   checkAvailability: () => { ok: boolean; reason?: string }
-  /** 以 stdin 运行一个脚本并收集输出。 */
+  /** 以 stdin 运行一个脚本并收集输出；`stderr` 原样保留，供合并输出被截断时找回收据。 */
   runScript: (script: string, options: { cwd: string; timeoutMs?: number; signal?: AbortSignal }) => Promise<{
     output: string
+    stderr?: string
     exitCode: number | null
     timedOut: boolean
   }>
@@ -172,18 +174,26 @@ export interface CniprEgoSession {
 export interface CniprChannelOptions {
   /** 注入的 ego 会话（生产：`ctx.patentData.createEgoSession()`）。 */
   session: CniprEgoSession
+  /**
+   * 驱动同一任务空间的通道共用的串行队列。服务传入自己的实例；
+   * 直接构造通道时缺省为本通道私有队列，多个通道之间不串行。
+   */
+  queue?: SerialQueue
   /** 单次脚本运行的期限（毫秒）；缺省取会话自己的默认期限，并受其硬上限约束。 */
   timeoutMs?: number
   /** 脚本运行的工作目录（默认 `process.cwd()`）；脚本不落盘，它只作子进程 cwd。 */
   cwd?: string
 }
 
-/** 构造 CNIPR 通道时可覆盖的字段；服务按 Config 解析出其余字段。 */
-export type CniprChannelOverrides = Omit<CniprChannelOptions, 'session'>
+/** 构造 CNIPR 通道时可覆盖的字段；服务拥有会话与串行队列。 */
+export type CniprChannelOverrides = Omit<CniprChannelOptions, 'session' | 'queue'>
 
 /** 一次 CNIPR 通道调用的可选项。 */
 export interface CniprCallOptions {
-  /** 取消信号；脚本运行随之中断。 */
+  /**
+   * 取消信号；获得执行权后立即检查，已取消则不启动脚本。
+   * 排队等待期间不占用脚本期限，取消要等到前一个脚本结束才返回。
+   */
   signal?: AbortSignal
   /** 覆盖本次运行的期限（毫秒），缺省取通道的 `timeoutMs`。 */
   timeoutMs?: number
@@ -226,13 +236,13 @@ export interface EgoSessionOptions {
   maxTimeoutMs?: number
   /** Home directory used to locate `~/.local/bin` (default os.homedir()). */
   homeDir?: string
-  /** Extra PATH directories (default `[<home>/.local/bin]`). */
+  /** Extra PATH directories for the spawn env and the availability probe (default `[<home>/.local/bin]`). */
   pathEntries?: string[]
-  /** Soft cap in bytes for the merged output (default 500_000). */
+  /** Soft cap in bytes for the merged output; truncation keeps whole UTF-8 characters (default 500_000). */
   maxOutputBytes?: number
   /** Platform override (default process.platform). */
   platform?: NodeJS.Platform
-  /** Environment override (default process.env). */
+  /** Environment override for the probe, availability check, and script runs (default process.env). */
   env?: NodeJS.ProcessEnv
   /** Spawn runner seam (defaults to the subprocess-backed runner). */
   runner?: EgoSpawnRunner

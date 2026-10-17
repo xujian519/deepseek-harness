@@ -87,6 +87,30 @@ it('search：空结果与长查询摘要截断', async () => {
   expect(String(emptyLong.search_summary)).toContain('…')
 })
 
+it('search：摘要携带命中详情，并与调用方提供的证据合并去重', async () => {
+  const h = new SearchHandler()
+  const out = await h.execute({
+    state: {
+      query: '阀体',
+      prior_art: [{ title: '调用方证据', url: 'https://example.com/same', publicationDate: '2022-01-01' }],
+    },
+    provider: {
+      search: async () => [
+        { title: '调用方证据', url: 'https://example.com/same' },
+        { title: '检索命中', publicationDate: '2023-01-01', snippet: '摘要片段' },
+      ],
+    },
+  })
+  expect(out.prior_art).toHaveLength(2)
+  expect(out.prior_art).toMatchObject([{ title: '调用方证据' }, { title: '检索命中' }])
+  const summary = String(out.search_summary)
+  expect(summary).toContain('检索到 2 篇相关文献')
+  expect(summary).toContain('连同调用方提供的 1 篇，共 2 篇')
+  expect(summary).toContain('- D1 调用方证据')
+  expect(summary).toContain('- D2 检索命中｜公开日 2023-01-01')
+  expect(summary).toContain('摘要片段')
+})
+
 it('search：检索抛 Error 与非 Error 均降级', async () => {
   const h = new SearchHandler()
   const err = await h.execute({ state: { query: 'x' }, provider: { search: async () => { throw new Error('net') } } })

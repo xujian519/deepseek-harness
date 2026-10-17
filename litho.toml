@@ -1,0 +1,169 @@
+# Litho (deepwiki-rs) 配置 — DeepSeek Harness
+#
+# 用途：让 Litho 分析本仓库代码，生成 C4 架构文档（中文）。
+# 产物写到 ./litho.docs（已在 .gitignore 中忽略），与人工维护的 docs/ 文档体系分开：
+#   docs/          人工维护、受 verify-doc-budgets / i18n 配对 / 生成物登记约束
+#   litho.docs/    AI 生成的架构速览，供评审、onboarding 参考，不提交
+#
+# 运行：
+#   source ~/.zshrc
+#   deepwiki-rs -p . -o litho.docs --llm-api-key "$DEEPSEEK_API_KEY"     # 全仓库
+#   deepwiki-rs -p packages/core -o litho.docs/core --name "DSH Core" \
+#     --llm-api-key "$DEEPSEEK_API_KEY"                                   # 分组
+#   deepwiki-rs --skip-research --skip-documentation                      # 只预处理
+#   deepwiki-rs --force-regenerate                                        # 清缓存重跑
+#
+# 注意：CLI 的 -p/-o 带默认值，会覆盖本文件的 project_path/output_path，必须显式传。
+# [knowledge.local_docs] 的路径相对 project_path；用 -p 跑子目录时这些 docs 找不到，
+# 该次生成不会获得外部知识（代码本身仍会被分析）。
+
+project_name = "DeepSeek Harness"
+project_path = "."
+output_path = "./litho.docs"
+internal_path = ".litho"
+target_language = "zh"
+
+# 分析开关
+analyze_dependencies = true
+identify_components = true
+max_depth = 10
+max_file_size = 524288
+include_tests = false
+include_hidden = false
+# 只扫 git 跟踪的文件：根目录有未跟踪的 \\?\pipe\ 残留，且构建产物/缓存不必进入分析
+git_tracked_only = true
+
+# 排除目录：构建产物、依赖、缓存、以及与架构无关的业务/站点目录
+excluded_dirs = [
+    ".litho",
+    "litho.docs",
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "lib",
+    "target",
+    "tmp",
+    "coverage",
+    "bin",
+    "obj",
+    ".svelte-kit",
+    "__pycache__",
+    "__tests__",
+    "__mocks__",
+    "__fixtures__",
+    # 本项目特有：第三方 vendored 源码、站点内容、业务数据、快照基线
+    "vendor",
+    "website",
+    "patent",
+    "patent-workspace",
+    "openspec",
+    "snapshots",
+]
+
+# 排除文件：文档已通过 [knowledge.local_docs] 单独喂给模型，避免重复与自引用
+excluded_files = [
+    "litho.toml",
+    "*.litho",
+    "*.log",
+    "*.tmp",
+    "*.cache",
+    "*.md",
+    "*.txt",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "Cargo.lock",
+    ".gitignore",
+    "*.tpl",
+    ".env",
+]
+
+excluded_extensions = [
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "ico",
+    "mp3",
+    "mp4",
+    "avi",
+    "pdf",
+    "zip",
+    "tar",
+    "exe",
+    "dll",
+    "so",
+    "archive",
+]
+
+included_extensions = []
+
+# ── LLM ──────────────────────────────────────────────────────────────────────
+[llm]
+provider = "deepseek"
+# 不要在此写字面量或 ${VAR}：Litho 不做环境变量插值。
+# 运行时用 --llm-api-key "$DEEPSEEK_API_KEY" 覆盖（优先级高于此文件）。
+# 也可省略整个 [llm] 段让 Litho 读 LITHO_LLM_API_KEY 环境变量。
+api_base_url = "https://api.deepseek.com"
+model_efficient = "deepseek-chat"
+model_powerful = "deepseek-reasoner"
+max_tokens = 8192
+temperature = 0.1
+retry_attempts = 5
+retry_delay_ms = 5000
+timeout_seconds = 600
+max_parallels = 3
+tool_concurrency = 4
+disable_preset_tools = false
+
+# ── 边界分析（大仓库务必收紧，否则容易超时/烧 token）──────────────────────────
+[boundary_analysis]
+code_insights_limit = 25
+include_source_code = false
+only_directories_when_files_more_than = 100
+
+# ── 缓存 ─────────────────────────────────────────────────────────────────────
+[cache]
+enabled = true
+cache_dir = ".litho/cache"
+expire_hours = 8760
+
+# ── 外部知识：把人工维护的权威文档喂给生成过程 ────────────────────────────────
+# 这是本仓库用 Litho 的关键：docs/ 已写明架构与决策，作为 knowledge 源可显著提高
+# 生成文档与真实设计的一致性，减少模型凭空猜测。
+[knowledge.local_docs]
+enabled = true
+cache_dir = ".litho/cache/knowledge/local_docs"
+watch_for_changes = true
+
+[[knowledge.local_docs.categories]]
+name = "architecture"
+description = "人工维护的架构与生命周期文档"
+paths = [
+    "docs/architecture.md",
+    "docs/capability-seams.md",
+    "docs/agent-lifecycle.md",
+    "docs/api-gateway.md",
+    "docs/cordis-primer.md",
+    "docs/glossary.md",
+]
+
+[[knowledge.local_docs.categories]]
+name = "subsystems"
+description = "子系统参考页（类型定义与语义）"
+paths = ["docs/subsystems/*.md"]
+
+[[knowledge.local_docs.categories]]
+name = "workflow"
+description = "开发流程与测试策略"
+paths = [
+    "docs/development.md",
+    "docs/testing.md",
+]
+
+[[knowledge.local_docs.categories]]
+name = "product"
+description = "产品定位与使用入口"
+paths = ["README.md"]

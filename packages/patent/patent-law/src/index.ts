@@ -82,11 +82,13 @@ export type {
   CitationPolicy,
   CitationPolicySet,
   GuidelineReference,
+  GuidelineVersion,
   LawArticleReference,
   LawBaseline,
   LawName,
   LawReference,
   SectionEntry,
+  StaleSection,
   StatuteName,
 } from './types.ts'
 

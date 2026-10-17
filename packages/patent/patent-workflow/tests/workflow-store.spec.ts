@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
-import type { WorkflowManifest } from '@deepseek-ai/dsh-patent-core'
+import { globalAtomRegistry, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
+import type { StageProvider, WorkflowManifest } from '@deepseek-ai/dsh-patent-core'
 import {
   InMemoryWorkflowRunStore,
   JsonFileWorkflowRunStore,
@@ -16,9 +16,23 @@ import {
 
 // 镜像生产装配（B1）：内置原子注册进全局注册表，novelty 等 manifest 的 atom 阶段才能通过 fail-fast。
 registerBuiltinAtoms()
+// legal-gaps 的真实注册在 patent-tools apply()；此处注册契约 stub 使内置 manifest 通过校验。
+globalAtomRegistry.register({
+  name: 'legal-gaps',
+  category: 'gate',
+  description: 'test stub — 真实注册在 patent-tools apply()',
+  inputSchema: [],
+  outputSchema: ['legal_gaps_report'],
+})
 
 function okExecutor(stage: WorkflowStage, ctx: WorkflowContext): Promise<string> {
   return Promise.resolve('[' + stage.id + '] 完成。输入: ' + (ctx.input ?? ''))
+}
+
+/** 原子检索所需的最小 provider：稳定关键词 JSON + 空语料。 */
+const emptySearchProvider: StageProvider = {
+  callLLM: async () => '{"keywords":["装置"]}',
+  search: async () => [],
 }
 
 describe('workflow-run stores', () => {
@@ -91,7 +105,12 @@ describe('workflow-run stores', () => {
       loadRun: async () => undefined,
       listRuns: async () => [],
     }
-    const result = await runWorkflow(patentNoveltyManifest, {}, okExecutor, { persist: failingStore, approvalGrants: ['approval'] })
+    const result = await runWorkflow(
+      patentNoveltyManifest,
+      { input: '一种装置', filing_date: '2024-06-01' },
+      okExecutor,
+      { persist: failingStore, approvalGrants: ['approval'], provider: emptySearchProvider },
+    )
     expect(result.completed).toBe(true)
     expect(result.persistWarning ?? '').toMatch(/持久化失败/)
     expect(result.persistWarning ?? '').toMatch(/disk full/)

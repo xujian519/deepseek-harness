@@ -6,7 +6,7 @@
  */
 
 import type { Session } from '@deepseek-ai/dsh-session'
-import type { PatentModelUsage, WorkflowRunResult } from '@deepseek-ai/dsh-patent-core'
+import type { PatentModelUsage, WorkflowEvidenceLedger, WorkflowRunResult } from '@deepseek-ai/dsh-patent-core'
 import type { PlanTask, PlanTaskState } from './plantask.ts'
 
 declare module '@deepseek-ai/dsh-session/types' {
@@ -27,6 +27,21 @@ declare module '@deepseek-ai/dsh-session/types' {
      * @param event - the workflow run result appended to the session log.
      */
     'patent/workflow-run': PatentWorkflowRunEvent
+    /**
+     * The legal-gaps stage finished. Carries the model-visible provision-level
+     * report (passed / failed / not assessed with reviewable evidence), so a
+     * run's legal-gap summary is reconstructable from the log alone. Log-only.
+     * @param event - the legal-gaps report appended to the session log.
+     */
+    'patent/legal-gaps': PatentLegalGapsEvent
+    /**
+     * A workflow run recorded the evidence sources it consumed. Carries one
+     * receipt per source with a stable citation id (`D1`, `EV-1`, `MATERIAL`,
+     * …), so citations in the run's conclusion can be traced back to a
+     * document from the log alone. Log-only.
+     * @param event - the evidence ledger appended to the session log.
+     */
+    'patent/evidence-ledger': PatentEvidenceLedgerEvent
     /**
      * One model call the patent pipeline made through the harness LLM seam
      * outside the agent loop (stage closure text, claim-chart element mapping,
@@ -96,6 +111,26 @@ export interface PatentPlantaskEvent {
 /** Durable workflow-run result appended to the session log (runId distinguishes repeated runs). */
 export interface PatentWorkflowRunEvent extends WorkflowRunResult {
   runId?: string
+}
+
+/** Durable evidence ledger of one workflow run. */
+export interface PatentEvidenceLedgerEvent {
+  /** Manifest whose run produced the ledger. */
+  manifestId: string
+  /** Run identity when the caller supplied one. */
+  runId?: string
+  /** One receipt per evidence source the run consumed. */
+  ledger: WorkflowEvidenceLedger
+}
+
+/** Durable legal-gaps report appended to the session log. */
+export interface PatentLegalGapsEvent {
+  /** Manifest whose run produced the report. */
+  manifestId: string
+  /** Run identity when the caller supplied one. */
+  runId?: string
+  /** Provision-level report: status, legal basis, and the state key it read. */
+  report: string
 }
 
 /** Minimal agent face the plantask runner needs: the session owning the durable log. */

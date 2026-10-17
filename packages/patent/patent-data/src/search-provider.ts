@@ -12,7 +12,8 @@ import { cachedSearchPatents } from './patent-cache.ts'
 /**
  * Build a nuo-backed search provider. `options.search` injects the underlying
  * search function (default: the LRU-cached nuo `searchPatents`); the returned
- * `search` maps source hits to the { title, snippet, url } stage vocabulary.
+ * `search` maps source hits to the { title, snippet, url, publicationDate }
+ * stage vocabulary.
  * @param options - optional search-function injection.
  * @returns the StageProvider whose search drives the workflow search stage.
  */
@@ -25,6 +26,7 @@ export function createNuoSearchProvider(options?: CreateNuoSearchProviderOptions
         title: h.title || h.patent,
         snippet: h.abstract,
         url: h.url,
+        ...(h.publication_date ? { publicationDate: h.publication_date } : {}),
       }))
     },
   }

@@ -9,29 +9,114 @@
  * 由选项给定。
  */
 
-import type { ChartMode, GroundProgram, WorkflowManifest } from '@deepseek-ai/dsh-patent-core'
+import type { ChartMode, GroundProgram, WorkflowManifest, WorkflowStage } from '@deepseek-ai/dsh-patent-core'
+
+/** 现有技术时间基准阶段：新颖性、披露与可专利性工作流共用。 */
+const TIME_BASELINE_STAGE: WorkflowStage = {
+  id: 'time_baseline',
+  strategy: 'chain',
+  description: '确定现有技术时间基准（申请日与优先权日较早者，A22.5/A29）',
+  atom: 'time-baseline',
+}
+
+/** 可专利客体筛查阶段：披露与可专利性工作流共用。 */
+const ELIGIBILITY_STAGE: WorkflowStage = {
+  id: 'eligibility',
+  strategy: 'chain',
+  description: '可专利客体筛查（A2/A5/A25）：纯智力活动规则、疾病诊断治疗方法、动植物品种与核变换客体',
+  atom: 'eligibility',
+}
+
+/** 检索关键词阶段：新颖性、创造性与可专利性的原子检索共用。 */
+const SEARCH_KEYWORDS_STAGE: WorkflowStage = {
+  id: 'generate_keywords',
+  strategy: 'chain',
+  description: '生成检索关键词（上位/下位/同义词）',
+  atom: 'keywords',
+}
+
+/** 公开日过滤阶段：新颖性、创造性与可专利性共用。 */
+const PRIOR_ART_FILTER_STAGE: WorkflowStage = {
+  id: 'prior_art_filter',
+  strategy: 'chain',
+  description: '按公开日过滤检索结果（A22.5）；A24 宽限期内的首次公开不构成现有技术',
+  atom: 'prior-art-filter',
+}
+
+/** 说明书草案阶段：披露与可专利性共用，为 spec-check 的 spec 模式提供五部分文本。 */
+const DRAFT_SPECIFICATION_STAGE: WorkflowStage = {
+  id: 'draft_specification',
+  strategy: 'chain',
+  description: '生成五部分说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式，确定性）',
+  atom: 'draft-specification',
+}
+
+/** 引用真实性校验阶段：新颖性与创造性共用。 */
+const CITATION_CHECK_STAGE: WorkflowStage = {
+  id: 'citation_check',
+  strategy: 'chain',
+  description: '引用真实性校验（确定性）：结论引用的 D 标号/专利号须出现在过滤后的现有技术中',
+  atom: 'citation-check',
+}
 
 /**
- * 内置：专利新颖性分析五阶段 manifest（镜像 Mady patent_novelty.yaml 与 novelty_chain 模板）。
+ * Revision of 《专利审查指南》 the built-in manifests target. Keep it equal to
+ * `revision` in `packages/patent/patent-law/assets/law/cn-examination-guidelines.yaml`;
+ * a deployment running a different shipped asset sets the patent-tools plugin's
+ * `guidelineRevision` to that asset's revision so the mismatch fails at load.
+ */
+export const SHIPPED_GUIDELINE_REVISION = '2023 年修订版（2024-01-20 施行）'
+
+/**
+ * 内置：专利新颖性分析 manifest（镜像 Mady patent_novelty.yaml 与 novelty_chain 模板）。
  */
 export const patentNoveltyManifest: WorkflowManifest = {
   id: 'patent_novelty_v1',
+  guidelineRevision: SHIPPED_GUIDELINE_REVISION,
   name: '专利新颖性分析',
   caseType: 'novelty_search',
   stages: [
     { id: 'parse', strategy: 'chain', description: '解析技术交底书，提取技术特征' },
-    { id: 'search', strategy: 'react', description: '检索现有技术文献', consumes: ['parse'] },
+    TIME_BASELINE_STAGE,
+    SEARCH_KEYWORDS_STAGE,
+    {
+      id: 'search',
+      strategy: 'react',
+      description: '检索现有技术文献',
+      atom: 'search',
+    },
+    PRIOR_ART_FILTER_STAGE,
+    {
+      id: 'conflicting_application',
+      strategy: 'chain',
+      description: '排查抵触申请（A22.2 第二句：申请日以前提出、申请日以后公布、同样的发明或者实用新型）',
+      atom: 'conflicting-application',
+    },
     {
       id: 'compare',
       strategy: 'chain',
       description: '逐项对比技术特征与现有技术（单独对比原则）',
-      consumes: ['parse', 'search'],
+      consumes: ['parse', 'time_baseline', 'search', 'prior_art_filter'],
+    },
+    {
+      id: 'numeric_range',
+      strategy: 'chain',
+      description: '数值范围专项核验（指南第二部分第三章：重叠或共同端点破坏新颖性）',
+      atom: 'numeric-range',
     },
     {
       id: 'conclude',
       strategy: 'chain',
       description: '生成新颖性分析结论（附置信度）',
-      consumes: ['search', 'compare'],
+      consumes: ['time_baseline', 'search', 'prior_art_filter', 'compare', 'conflicting_application', 'numeric_range'],
+    },
+    CITATION_CHECK_STAGE,
+    {
+      id: 'legal_gaps',
+      strategy: 'chain',
+      description: '法条缺口汇总：时间基准、抵触申请与新颖性结论对应法条的通过/未通过/未评估状态',
+      atom: 'legal-gaps',
+      params: { profile: 'novelty' },
     },
     {
       id: 'approval',
@@ -49,10 +134,12 @@ export const patentNoveltyManifest: WorkflowManifest = {
  */
 export const patentDisclosureManifest: WorkflowManifest = {
   id: 'patent_disclosure_v1',
+  guidelineRevision: SHIPPED_GUIDELINE_REVISION,
   name: '技术交底书披露分析',
   caseType: 'disclosure_analysis',
   stages: [
     { id: 'preprocess', strategy: 'chain', description: '预处理技术交底书，分段与去噪' },
+    ELIGIBILITY_STAGE,
     {
       id: 'extract_problem',
       strategy: 'sub_agent',
@@ -103,7 +190,14 @@ export const patentDisclosureManifest: WorkflowManifest = {
       },
     },
     { id: 'generate_keywords', strategy: 'chain', description: '生成检索关键词（上位/下位/同义词）', atom: 'keywords' },
+    TIME_BASELINE_STAGE,
     { id: 'search', strategy: 'react', description: '检索现有技术文献（证据片段注入新颖性评估）', atom: 'search' },
+    {
+      id: 'prior_art_filter',
+      strategy: 'chain',
+      description: '按公开日过滤检索结果（A22.5；A24 宽限期内的首次公开不破坏新颖性）',
+      atom: 'prior-art-filter',
+    },
     {
       id: 'novelty',
       strategy: 'chain',
@@ -111,10 +205,16 @@ export const patentDisclosureManifest: WorkflowManifest = {
       atom: 'novelty',
     },
     {
+      id: 'citation_check',
+      strategy: 'chain',
+      description: '引用真实性校验（确定性）：新颖性结论引用的 D 标号/专利号须出现在检索结果中',
+      atom: 'citation-check',
+    },
+    {
       id: 'report',
       strategy: 'chain',
       description: '生成披露分析报告（创新点/保护建议）',
-      consumes: ['merge', 'novelty'],
+      consumes: ['merge', 'novelty', 'citation_check', 'eligibility'],
     },
     {
       id: 'review_gate',
@@ -129,6 +229,14 @@ export const patentDisclosureManifest: WorkflowManifest = {
       description: '基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）',
       atom: 'draft-claims',
     },
+    DRAFT_SPECIFICATION_STAGE,
+    {
+      id: 'spec_check',
+      strategy: 'chain',
+      description: '说明书与权利要求合规检查（A26.3/A26.4）：五部分章节、充分公开与权项特征支持',
+      atom: 'spec-check',
+      params: { mode: 'spec', text_key: 'specification', claims_key: 'claims_draft' },
+    },
     {
       id: 'slop_clean',
       strategy: 'chain',
@@ -140,15 +248,23 @@ export const patentDisclosureManifest: WorkflowManifest = {
         maxRetries: 1,
       },
     },
+    {
+      id: 'legal_gaps',
+      strategy: 'chain',
+      description: '法条缺口汇总：客体、时间基准、宽限期、新颖性、权利要求支持与充分公开对应法条的覆盖状态',
+      atom: 'legal-gaps',
+      params: { profile: 'disclosure' },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
 
 /**
- * 内置：专利创造性分析八阶段 manifest（专利法 A22.3，三步法）。
+ * 内置：专利创造性分析 manifest（专利法 A22.3，三步法）。
  */
 export const patentInventivenessManifest: WorkflowManifest = {
   id: 'patent_inventiveness_v1',
+  guidelineRevision: SHIPPED_GUIDELINE_REVISION,
   name: '专利创造性分析',
   caseType: 'inventiveness_analysis',
   stages: [
@@ -157,17 +273,20 @@ export const patentInventivenessManifest: WorkflowManifest = {
       strategy: 'chain',
       description: '解析权利要求/技术方案，构建所属领域技术人员画像，确定申请日/优先权日时间基准',
     },
+    TIME_BASELINE_STAGE,
+    SEARCH_KEYWORDS_STAGE,
     {
       id: 'search',
       strategy: 'react',
       description: '检索现有技术文献，筛选最接近现有技术候选（技术领域→技术问题→发明构思）',
-      consumes: ['parse'],
+      atom: 'search',
     },
+    PRIOR_ART_FILTER_STAGE,
     {
       id: 'closest',
       strategy: 'chain',
       description: '三步法 Step1：确定最接近的现有技术（候选多时逐个试判）',
-      consumes: ['parse', 'search'],
+      consumes: ['parse', 'time_baseline', 'search', 'prior_art_filter'],
       guidance:
         '边界条件：现有技术证据缺失时，基于技术领域与权利要求主题推断合理的最接近现有技术作为对比基准，并明示其公开了哪些特征；不得仅凭方案复杂或参数特殊直接断定具备创造性——已知手段的简单变体且无预料不到效果时，倾向不具备创造性。',
     },
@@ -180,10 +299,16 @@ export const patentInventivenessManifest: WorkflowManifest = {
         '实际解决的技术问题基于区别特征的客观作用重新确定，区别于说明书记载的发明目的；技术问题不得是区别特征本身，也不得包含对该特征的指引。',
     },
     {
+      id: 'problem_check',
+      strategy: 'chain',
+      description: '校验实际解决的技术问题（A22.3 第二步：不得写成区别特征自身或包含解决手段）',
+      atom: 'problem-check',
+    },
+    {
       id: 'hint',
       strategy: 'chain',
       description: '三步法 Step3：技术启示判断（改进动机/结合启示/公知常识/发明构思/逻辑推理与有限试验）',
-      consumes: ['diff'],
+      consumes: ['diff', 'problem_check'],
       guidance:
         '边界条件：①软件/算法/网络方案——区别特征仅为已知逻辑或流程的简单重组且无显著技术效果，或对标准协议的非标准修改但未克服技术障碍时，倾向不具备创造性；不得把非标准或看似复杂的配置误认为创造性特征。②组合方案——依次判断：区别特征是否属于公知常识、本领域技术人员是否有动机将其结合到最接近现有技术、是否存在阻止结合的相反教导；存在相反教导或结合并非显而易见时，倾向具备创造性。',
     },
@@ -197,7 +322,15 @@ export const patentInventivenessManifest: WorkflowManifest = {
       id: 'conclude',
       strategy: 'chain',
       description: '生成创造性结论（高/中/低/无，附置信度）+ 反事后诸葛亮自检',
-      consumes: ['diff', 'hint', 'secondary'],
+      consumes: ['diff', 'problem_check', 'hint', 'secondary', 'prior_art_filter'],
+    },
+    CITATION_CHECK_STAGE,
+    {
+      id: 'legal_gaps',
+      strategy: 'chain',
+      description: '法条缺口汇总：技术问题确定与创造性结论对应法条的通过/未通过/未评估状态',
+      atom: 'legal-gaps',
+      params: { profile: 'inventiveness' },
     },
     {
       id: 'approval',
@@ -215,14 +348,25 @@ export const patentInventivenessManifest: WorkflowManifest = {
  */
 export const patentPatentabilityManifest: WorkflowManifest = {
   id: 'patent_patentability_v1',
+  guidelineRevision: SHIPPED_GUIDELINE_REVISION,
   name: '可专利性检索与权利要求布局',
   caseType: 'novelty_search',
   stages: [
     { id: 'parse', strategy: 'chain', description: '解析技术方案与权利要求' },
+    TIME_BASELINE_STAGE,
+    ELIGIBILITY_STAGE,
+    SEARCH_KEYWORDS_STAGE,
+    {
+      id: 'search',
+      strategy: 'react',
+      description: '检索现有技术文献（为 claim chart 提供对比文件）',
+      atom: 'search',
+    },
+    PRIOR_ART_FILTER_STAGE,
     {
       id: 'claim-chart',
       strategy: 'chain',
-      description: '权利要求要素级映射到最接近现有技术（mode=patentability）',
+      description: '权利要求要素级映射到最接近现有技术（mode=patentability；未显式传 chart_targets 时取过滤后的 prior_art）',
       atom: 'claim-chart',
       params: { chart_mode: 'patentability' },
     },
@@ -230,7 +374,22 @@ export const patentPatentabilityManifest: WorkflowManifest = {
       id: 'draft',
       strategy: 'chain',
       description: '基于区别特征布局权利要求（规避 D1）（原子路径不支持，收口模式）',
-      consumes: ['parse', 'claim-chart'],
+      consumes: ['parse', 'time_baseline', 'eligibility', 'prior_art_filter', 'claim-chart'],
+    },
+    DRAFT_SPECIFICATION_STAGE,
+    {
+      id: 'spec_check',
+      strategy: 'chain',
+      description: '说明书与权利要求合规检查（A26.3/A26.4）：五部分章节、充分公开与布局后的权项特征支持',
+      atom: 'spec-check',
+      params: { mode: 'spec', text_key: 'specification', claims_key: 'draft' },
+    },
+    {
+      id: 'legal_gaps',
+      strategy: 'chain',
+      description: '法条缺口汇总：客体、时间基准、宽限期与权利要求支持对应法条的通过/未通过/未评估状态',
+      atom: 'legal-gaps',
+      params: { profile: 'patentability' },
     },
     {
       id: 'approval',
@@ -248,6 +407,7 @@ export const patentPatentabilityManifest: WorkflowManifest = {
  */
 export const patentOaResponseManifest: WorkflowManifest = {
   id: 'patent_oa_response_v1',
+  guidelineRevision: SHIPPED_GUIDELINE_REVISION,
   name: '审查意见答复',
   caseType: 'oa_response',
   stages: [
@@ -293,6 +453,25 @@ export const patentOaResponseManifest: WorkflowManifest = {
       ].join('\n'),
     },
     {
+      id: 'response_check',
+      strategy: 'chain',
+      description: '答复合规检查（PR-OA-007/008/009：26.3 判准落位、驳回理由覆盖、未提条款引用）',
+      atom: 'response-check',
+    },
+    {
+      id: 'amendment_basis',
+      strategy: 'chain',
+      description: '修改依据检查（A33：修改后权利要求的新增技术特征须记载于原说明书或原权利要求书）',
+      atom: 'amendment-basis',
+    },
+    {
+      id: 'legal_gaps',
+      strategy: 'chain',
+      description: '法条缺口汇总：答复规范检查与修改依据检查对应法条的通过/未通过/未评估状态',
+      atom: 'legal-gaps',
+      params: { profile: 'oa-response' },
+    },
+    {
       id: 'approval',
       strategy: 'chain',
       description: '人工确认答复书',
@@ -319,6 +498,8 @@ type ContestedManifestOptions = {
   chartMode: ChartMode
   /** `grounds` 阶段描述：两种程序的理由表不同，描述须各自点名。 */
   groundsDescription: string
+  /** legal-gaps 清单：与程序一一对应，新增程序时须显式给出。 */
+  legalGapProfile: 'invalidation' | 'reexamination'
 }
 
 /**
@@ -331,6 +512,7 @@ type ContestedManifestOptions = {
 function buildContestedManifest(options: ContestedManifestOptions): WorkflowManifest {
   return {
     id: options.id,
+    guidelineRevision: SHIPPED_GUIDELINE_REVISION,
     name: options.name,
     caseType: options.caseType,
     stages: [
@@ -376,6 +558,27 @@ function buildContestedManifest(options: ContestedManifestOptions): WorkflowMani
         ].join('\n'),
       },
       {
+        id: 'evidence-check',
+        strategy: 'chain',
+        description:
+          '证据审查（形式/期限/关联性）：举证期限内提交、外文/域外证据形式完备、公开日早于现有技术截止日、与理由或权项关联',
+        atom: 'evidence-check',
+      },
+      {
+        id: 'citation-check',
+        strategy: 'chain',
+        description: '引用真实性校验（确定性）：新颖性/创造性结论引用的 D 标号与专利号须在证据清单中接地',
+        atom: 'citation-check',
+        params: { ref_text_keys: ['novelty', 'inventiveness'] },
+      },
+      {
+        id: 'legal_gaps',
+        strategy: 'chain',
+        description: '法条缺口汇总：证据审查、新颖性与创造性理由对应法条的通过/未通过/未评估状态',
+        atom: 'legal-gaps',
+        params: { profile: options.legalGapProfile },
+      },
+      {
         id: 'approval',
         strategy: 'chain',
         description: '人工确认分析结论',
@@ -396,6 +599,7 @@ export const patentInvalidationManifest: WorkflowManifest = buildContestedManife
   program: 'invalidation',
   chartMode: 'invalidity',
   groundsDescription: '识别请求援引的法定理由（确定性，无效理由表）',
+  legalGapProfile: 'invalidation',
 })
 
 /**
@@ -413,6 +617,7 @@ export const patentReexaminationManifest: WorkflowManifest = buildContestedManif
   program: 'reexamination',
   chartMode: 'reexamination',
   groundsDescription: '识别驳回决定援引的理由（确定性，复审理由表含实用新型客体缺陷）',
+  legalGapProfile: 'reexamination',
 })
 
 /**
@@ -420,6 +625,7 @@ export const patentReexaminationManifest: WorkflowManifest = buildContestedManif
  */
 export const patentInfringementManifest: WorkflowManifest = {
   id: 'patent_infringement_v1',
+  guidelineRevision: SHIPPED_GUIDELINE_REVISION,
   name: '侵权比对分析',
   caseType: 'infringement_analysis',
   stages: [
@@ -448,6 +654,13 @@ export const patentInfringementManifest: WorkflowManifest = {
         '方法专利从严：步骤顺序变化或触发条件不同往往导致手段或效果实质不同；省略特征致技术效果实质变化的不认定等同。',
         '结论必须包含风险等级（高/中/低）与置信度；风险等级只能引用确定性结论（coverage 阶段的全面覆盖/等同矛盾、claim_chart_build 的 risk 评分），本 run 的输入没有评分事实时写明"未计算风险等级"，不得自行编造等级。',
       ].join('\n'),
+    },
+    {
+      id: 'legal_gaps',
+      strategy: 'chain',
+      description: '法条缺口汇总：保护范围、全面覆盖与现有技术抗辩对应法条的通过/未通过/未评估状态',
+      atom: 'legal-gaps',
+      params: { profile: 'infringement' },
     },
     {
       id: 'approval',

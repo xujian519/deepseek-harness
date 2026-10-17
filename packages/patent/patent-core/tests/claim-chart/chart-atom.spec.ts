@@ -587,6 +587,60 @@ it('oa-response 模式：未手传 chart_targets 时由 office_action 派生对�
   expect(doc.mode).toBe('oa-response')
 })
 
+it('patentability 模式：未手传 chart_targets 时由过滤后的 prior_art 派生目标', async () => {
+  let prompt = ''
+  const provider: StageProvider = {
+    callLLM: async (p: string) => {
+      prompt = p
+      return JSON.stringify({ elements: (goodChart() as { elements: unknown[] }).elements, rows: [] })
+    },
+  }
+  const handler = new ClaimChartHandler()
+  const state = await handler.execute({
+    state: {
+      claim: CLAIM,
+      chart_mode: 'patentability',
+      prior_art: [
+        { dLabel: 'D1', title: '对比文件1' },
+        { title: '无标号条目' },
+        { dLabel: 'D1', title: '重复条目' },
+        { dLabel: 'D3', title: '   ' },
+        'not-an-object',
+        null,
+      ],
+    },
+    provider,
+  })
+  expect(prompt).toContain('D1（对比文件：对比文件1')
+  expect(prompt).toContain('D2（对比文件：无标号条目')
+  expect(prompt).toContain('D3（对比文件')
+  expect(prompt).not.toContain('重复条目')
+  const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
+  expect(doc.targets).toEqual([
+    { id: 'D1', kind: 'prior-art', title: '对比文件1' },
+    { id: 'D2', kind: 'prior-art', title: '无标号条目' },
+    { id: 'D3', kind: 'prior-art' },
+  ])
+})
+
+it('patentability 模式：prior_art 不是数组时不造目标', async () => {
+  let prompt = ''
+  const provider: StageProvider = {
+    callLLM: async (p: string) => {
+      prompt = p
+      return JSON.stringify({ elements: (goodChart() as { elements: unknown[] }).elements, rows: [] })
+    },
+  }
+  const handler = new ClaimChartHandler()
+  const state = await handler.execute({
+    state: { claim: CLAIM, chart_mode: 'patentability', prior_art: 'not-an-array' },
+    provider,
+  })
+  expect(prompt).toContain('只拆分要素')
+  const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
+  expect(doc.targets).toEqual([])
+})
+
 it('oa-response 模式：手传 chart_targets 优先（派生不覆盖显式输入）', async () => {
   const provider: StageProvider = { callLLM: async () => JSON.stringify(goodChart()) }
   const handler = new ClaimChartHandler()

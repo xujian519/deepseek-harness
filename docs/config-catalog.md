@@ -2830,7 +2830,7 @@ export interface AutoCommitConfig {
 ## `@deepseek-ai/dsh-patent-data`
 
 - `inject`: `subprocess`
-- `source`: [`packages/patent/patent-data/src/index.ts:130`](../packages/patent/patent-data/src/index.ts)
+- `source`: [`packages/patent/patent-data/src/index.ts:132`](../packages/patent/patent-data/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -3013,7 +3013,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-law`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-law/src/index.ts:100`](../packages/patent/patent-law/src/index.ts)
+- `source`: [`packages/patent/patent-law/src/index.ts:102`](../packages/patent/patent-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-law plugin configuration. */
@@ -3054,7 +3054,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:209`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:210`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3192,7 +3192,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:258`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:304`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -3207,6 +3207,26 @@ export interface Config {
   noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
+  /**
+   * 《专利审查指南》version the built-in manifests must target. Defaults to the
+   * revision shipped with this repository; a deployment running a different
+   * patent-law asset sets this to that asset's `revision`, and a manifest still
+   * written against another revision fails plugin load.
+   */
+  guidelineRevision?: string
+  /**
+   * Maximum stages a single built-in workflow manifest may declare. Plugin load
+   * fails when a manifest exceeds it, so stage-list growth cannot silently
+   * increase run cost. Defaults to `DEFAULT_WORKFLOW_STAGE_BUDGET`.
+   */
+  workflowStageBudget?: number
+  /**
+   * Maximum model-calling stages a single built-in workflow manifest may
+   * declare. Stages without an atom (run by the LLM-backed stage executor) and
+   * atoms whose contract declares `usesModel` count. Defaults to
+   * `DEFAULT_WORKFLOW_LLM_STAGE_BUDGET`.
+   */
+  workflowLlmStageBudget?: number
   /** 附图索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/figures-index.json。 */
   figureIndexFile?: string
   /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */

@@ -103,6 +103,7 @@ export {
   evaluateDualRule,
   isDualInputCheck,
   type DualInputRuleInput,
+  type OfficeActionRejections,
 } from './runtime/dual-input.ts'
 export {
   checkSynonymRequirements,

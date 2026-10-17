@@ -49,14 +49,17 @@ describe('workflow manifest DAG bridge', () => {
   it('workflowManifestToMermaid renders sequential (solid) and rewind (dashed) edges', () => {
     const mermaid = workflowManifestToMermaid(patentDisclosureManifest)
     expect(mermaid.startsWith('flowchart TD')).toBe(true)
-    expect(mermaid).toContain('preprocess --> extract_problem')
+    expect(mermaid).toContain('preprocess --> eligibility')
+    expect(mermaid).toContain('eligibility --> extract_problem')
     expect(mermaid).toContain('consistency -.-> extract_problem')
     expect(mermaid).toContain('review_gate["人工复核披露分析报告（中断等待确认）"]')
   })
 
   it('workflowManifestToMermaid renders plain chain for acyclic novelty manifest', () => {
     const mermaid = workflowManifestToMermaid(patentNoveltyManifest)
-    expect(mermaid).toContain('parse --> search')
+    expect(mermaid).toContain('parse --> time_baseline')
+    expect(mermaid).toContain('time_baseline --> generate_keywords')
+    expect(mermaid).toContain('generate_keywords --> search')
     expect(mermaid).not.toContain('-.->')
   })
 

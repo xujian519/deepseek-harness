@@ -271,12 +271,28 @@ export interface BuildWorkflowRunContextOptions {
    * material (e.g. an office action as `input` plus the claims under review).
    */
   claims?: string
+  /** Application filing date, read by the time-baseline atom. */
+  filingDate?: string
+  /** Earliest priority date, read by the time-baseline atom. */
+  priorityDate?: string
   /** Max prior-art search results (default 5). */
   maxResults?: number
   /** claim-chart target objects JSON (default empty). */
   chartTargets?: string
-  /** Existing prior-art evidence entries (mapped to the prior_art state the search/citation-check stages read). */
+  /** Existing prior-art evidence entries (mapped to the prior_art state the search/filter/citation-check stages read). */
   priorArt?: unknown[]
+  /**
+   * Conflicting-application candidates (mapped to the conflicting_applications
+   * state the conflicting-application stage reads).
+   */
+  conflictingApplications?: unknown[]
+  /**
+   * Evidence entries (mapped to the evidence state the evidence-check stage
+   * reads).
+   */
+  evidence?: unknown[]
+  /** Evidence submission deadline (mapped to evidence_deadline). */
+  evidenceDeadline?: string
 }
 
 /**
@@ -286,6 +302,10 @@ export interface BuildWorkflowRunContextOptions {
  * are the keys the element-level atoms read, `claims` is the key the chain
  * executor labels its claims block with. Without a separate claims input both
  * roles point at the same material, so a single-blob caller behaves as before.
+ * Supplied dates map to the `filing_date`/`priority_date` state keys the
+ * time-baseline atom reads; supplied prior art, conflicting applications, and
+ * evidence map to the `prior_art`, `conflicting_applications`, and `evidence`
+ * keys their stages read.
  * Shared by patent_workflow_run (manifest + graph) and flexible_plan (run).
  * @param opts - the mapping options.
  * @returns the workflow context.
@@ -302,9 +322,16 @@ export function buildWorkflowRunContext(opts: BuildWorkflowRunContextOptions): W
     claim: claimText,
     claim_text: claimText,
     ...(claims !== undefined ? { claims } : {}),
+    ...(opts.filingDate !== undefined ? { filing_date: opts.filingDate } : {}),
+    ...(opts.priorityDate !== undefined ? { priority_date: opts.priorityDate } : {}),
     chart_targets: opts.chartTargets ?? '',
     max_results: String(opts.maxResults ?? 5),
     ...(opts.priorArt !== undefined ? { prior_art: opts.priorArt } : {}),
+    ...(opts.conflictingApplications !== undefined
+      ? { conflicting_applications: opts.conflictingApplications }
+      : {}),
+    ...(opts.evidence !== undefined ? { evidence: opts.evidence } : {}),
+    ...(opts.evidenceDeadline !== undefined ? { evidence_deadline: opts.evidenceDeadline } : {}),
   }
 }
 

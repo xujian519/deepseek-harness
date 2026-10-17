@@ -94,6 +94,38 @@ function toWorkflowRunEvent(result: WorkflowRunResult, runId?: string): PatentWo
 }
 
 /**
+ * Append one finished run's durable records to an agent session: the run
+ * result, its evidence ledger, and its legal-gaps report. Service and tool
+ * paths share this so the same manifest run yields the same event set.
+ * @param agent - session-owning agent; when absent nothing is logged.
+ * @param result - finished workflow run.
+ * @param runId - caller-supplied run identity, when any.
+ */
+export function appendWorkflowRunEvents(
+  agent: PatentAgent | undefined,
+  result: WorkflowRunResult,
+  runId?: string,
+): void {
+  if (agent === undefined) return
+  agent.session.append('patent/workflow-run', toWorkflowRunEvent(result, runId))
+  if (result.evidenceLedger !== undefined) {
+    agent.session.append('patent/evidence-ledger', {
+      manifestId: result.manifestId,
+      ledger: result.evidenceLedger,
+      ...(runId !== undefined ? { runId } : {}),
+    })
+  }
+  const legalGaps = result.stages.find(stage => stage.atom === 'legal-gaps')
+  if (legalGaps !== undefined) {
+    agent.session.append('patent/legal-gaps', {
+      manifestId: result.manifestId,
+      report: legalGaps.output,
+      ...(runId !== undefined ? { runId } : {}),
+    })
+  }
+}
+
+/**
  * PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow),
  * which runs workflow manifests, drives the plantask HITL state machine, and
  * holds the case-docket issue schema whose blocking and terminal grades the
@@ -138,9 +170,7 @@ export class PatentWorkflow extends Service {
     agent?: PatentAgent,
   ): Promise<WorkflowRunResult> {
     const result = await runWorkflowPipeline(manifest, wctx, executor, options)
-    if (agent !== undefined) {
-      agent.session.append('patent/workflow-run', toWorkflowRunEvent(result, options?.runId))
-    }
+    appendWorkflowRunEvents(agent, result, options?.runId)
     return result
   }
 

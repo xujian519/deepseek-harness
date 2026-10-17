@@ -57,6 +57,8 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'patent-teams/task-validated',
   'patent-teams/team-created',
   'patent-teams/team-deleted',
+  'patent/evidence-ledger',
+  'patent/legal-gaps',
   'patent/model-call',
   'patent/plantask',
   'patent/workflow-run',

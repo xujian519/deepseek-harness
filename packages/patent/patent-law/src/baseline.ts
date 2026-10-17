@@ -22,7 +22,14 @@ import {
   type AssetFail,
 } from '@deepseek-ai/dsh-patent-index-asset'
 import { lawBaselineDir, listLawFiles } from './asset-location.ts'
-import type { ArticleEntry, LawBaseline, LawName, SectionEntry } from './types.ts'
+import type {
+  ArticleEntry,
+  GuidelineVersion,
+  LawBaseline,
+  LawName,
+  SectionEntry,
+  StaleSection,
+} from './types.ts'
 
 /** Thrown when a law-index asset is missing, unreadable, or malformed. */
 export class LawBaselineError extends IndexAssetError {
@@ -80,11 +87,20 @@ export function parseLawBaseline(source: string, origin: string): LawBaseline {
   if (!isLawName(law)) throw fail(`未知的法律名称：${law}`)
   const document = readString(root, 'document', fail)
   const revision = readOptionalString(root, 'revision', fail)
+  const supersededBy = readOptionalString(root, 'supersededBy', fail)
   const maxArticle = readOptionalCount(root, 'maxArticle', fail)
   const maxVerifiedOn = readOptionalDate(root, 'maxVerifiedOn', fail)
   const maxSource = readOptionalString(root, 'maxSource', fail)
   const articles = readArticles(root['articles'], fail)
   const sections = readSections(root['sections'], fail)
+  // Only the guideline carries section-level revisions and staleness; a statute
+  // declares its superseding revision through `revision` alone.
+  const staleSections = law === '专利审查指南'
+    ? readStaleSections(root['staleSections'], fail, sections)
+    : []
+  const versions = law === '专利审查指南'
+    ? readVersions(root['versions'], fail, revision)
+    : []
 
   if (law === '专利审查指南') {
     if (articles.length > 0) throw fail('审查指南的索引只能声明 sections，不能声明 articles')
@@ -92,12 +108,21 @@ export function parseLawBaseline(source: string, origin: string): LawBaseline {
   } else {
     if (sections.length > 0) throw fail(`${law} 的索引只能声明 articles，不能声明 sections`)
     if (articles.length === 0) throw fail(`${law} 的索引必须声明至少一个 article`)
+    if (root['staleSections'] !== undefined && root['staleSections'] !== null) {
+      throw fail(`${law} 的索引不能声明 staleSections`)
+    }
+    if (root['versions'] !== undefined && root['versions'] !== null) {
+      throw fail(`${law} 的索引不能声明 versions`)
+    }
   }
 
   return {
     law,
     document,
     revision,
+    supersededBy,
+    staleSections,
+    versions,
     maxArticle,
     maxVerifiedOn,
     maxSource,
@@ -196,5 +221,53 @@ function readSections(value: unknown, fail: AssetFail): SectionEntry[] {
       text: readOptionalString(entry, 'text', fail),
       ...readRecordedSource(entry, fail),
     }
+  })
+}
+
+/**
+ * Read the stale-section records. A record must name an indexed section, so a
+ * section path typo fails the load instead of silently leaving stale text
+ * passing as current.
+ */
+function readStaleSections(value: unknown, fail: AssetFail, sections: readonly SectionEntry[]): StaleSection[] {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw fail('字段 staleSections 必须是数组')
+  const indexed = new Set(sections.map(section => section.path))
+  const seen = new Set<string>()
+  return value.map((item) => {
+    const entry = readMapping(item, 'staleSections 的每一项', fail)
+    const path = readString(entry, 'path', fail)
+    const reason = readString(entry, 'reason', fail)
+    if (!indexed.has(path)) throw fail(`staleSections 引用了不存在的 section: ${path}`)
+    if (seen.has(path)) throw fail(`staleSections 路径重复：${path}`)
+    seen.add(path)
+    return { path, reason }
+  })
+}
+
+/**
+ * Read revision-specific section overrides. A version must name a revision
+ * different from the base one and carry at least one section; duplicate
+ * revisions or duplicate paths inside one version fail the load.
+ */
+function readVersions(
+  value: unknown,
+  fail: AssetFail,
+  baseRevision: string | null,
+): GuidelineVersion[] {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw fail('字段 versions 必须是数组')
+  const revisions = new Set<string>()
+  return value.map((item) => {
+    const entry = readMapping(item, 'versions 的每一项', fail)
+    const revision = readString(entry, 'revision', fail)
+    if (revision === baseRevision) throw fail(`versions 的 revision 不能与基础 revision 相同：${revision}`)
+    if (revisions.has(revision)) throw fail(`versions 的 revision 重复：${revision}`)
+    revisions.add(revision)
+    const sections = readSections(entry['sections'], fail)
+    if (sections.length === 0) throw fail(`versions ${revision} 必须至少声明一个 section`)
+    // A later revision may add a section the base revision did not have, so a
+    // path absent from the base index is an addition rather than an error.
+    return { revision, sections: [...sections].sort((a, b) => a.path.localeCompare(b.path)) }
   })
 }

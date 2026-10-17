@@ -84,6 +84,31 @@ export type SectionEntry = {
   verifiedOn: string | null
 }
 
+/**
+ * One guideline section whose indexed text predates the revision that
+ * supersedes it. The record makes the stale text machine-readable: a citation
+ * covering the section is reported as unverified instead of passing as current
+ * law.
+ */
+export type StaleSection = {
+  /** Normalized section path whose indexed text is stale. */
+  path: string
+  /** Why the indexed text is stale. */
+  reason: string
+}
+
+/**
+ * Sections one later revision changes. A version overrides the matching paths
+ * of `LawBaseline.sections` and may add paths the base revision did not index.
+ * Sections it does not name keep the base text.
+ */
+export type GuidelineVersion = {
+  /** Revision these sections state, e.g. `2026 年修订版（2026-01-01 施行）`. */
+  revision: string
+  /** Sections this revision changes or adds. */
+  sections: SectionEntry[]
+}
+
 /** One law document's index. */
 export type LawBaseline = {
   law: LawName
@@ -91,6 +116,21 @@ export type LawBaseline = {
   document: string
   /** Revision the index targets, or null while it has not been stated. */
   revision: string | null
+  /**
+   * Revision that supersedes the indexed text, or null when the index targets
+   * the current revision. When set, citations to `staleSections` are reported
+   * as unverified rather than valid.
+   */
+  supersededBy: string | null
+  /** Guideline sections whose indexed text predates `supersededBy`; empty for statutes. */
+  staleSections: StaleSection[]
+  /**
+   * Revisions that change or add guideline sections, as transcribed overrides
+   * of `sections`, declared oldest first; empty for statutes and while no later
+   * revision has been transcribed. Verification uses the last entry when the
+   * current revision is transcribed, unless the caller names a revision.
+   */
+  versions: GuidelineVersion[]
   /**
    * Highest article number the law has, or null while it has not been verified.
    * A reference beyond a verified ceiling is out of range; beyond an unverified

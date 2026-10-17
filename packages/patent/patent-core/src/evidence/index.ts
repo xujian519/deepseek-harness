@@ -19,6 +19,15 @@ import { createSpan, type EvidenceDirection, type EvidenceSpan } from './span.ts
 
 export { type EvidenceSpan, type EvidenceDirection, createSpan, isLocatable } from './span.ts'
 export { Ledger, contentHash, receiptFromToolExecution, type Receipt } from './receipt.ts'
+export {
+  buildWorkflowEvidenceLedger,
+  EVIDENCE_SNIPPET_LIMIT,
+  priorArtReceiptCitationIds,
+  type BuildWorkflowEvidenceLedgerOptions,
+  type WorkflowEvidenceLedger,
+  type WorkflowEvidenceReceipt,
+  type WorkflowEvidenceSource,
+} from './ledger.ts'
 export { ClaimBinding } from './claimBinding.ts'
 export { ConflictDetector, type EvidenceConflict } from './conflict.ts'
 export {

@@ -6,7 +6,7 @@
     {
       "stageId": "parse",
       "strategy": "chain",
-      "output": "驳回类型为专利法第22条第3款创造性（权利要求1-3，对比文件1为X类、对比文件2为Y类），并附专利法第26条第4款权利要求3保护范围不清楚。",
+      "output": "驳回类型为专利法第22条第3款创造性驳回，针对权利要求1-3，并附带权利要求3的专利法第26条第4款保护范围不清楚的驳回。",
       "degraded": false,
       "retries": 0,
       "atom": "oa-parse"
@@ -14,7 +14,7 @@
     {
       "stageId": "claim-chart",
       "strategy": "chain",
-      "output": "要素级映射要点：将权利要求1拆分为阀体、伴热夹套、直管加热结构、螺旋形加热介质通道等要素，逐项对应对比文件1公开的阀体与直管加热结构及对比文件2公开的螺旋形通道，标注区别特征与对比文件2的改进动机（延长介质停留时间）之间的差异。",
+      "output": "要素级映射要点：将权利要求1拆分为阀体、夹套、直管加热、介质通道等要素，逐项标注对比文件1（X类）公开的阀体与直管加热结构、对比文件2（Y类）公开的螺旋形加热介质通道及其延长停留时间的作用。",
       "degraded": false,
       "retries": 0,
       "atom": "claim-chart"
@@ -22,7 +22,7 @@
     {
       "stageId": "response-plan",
       "strategy": "chain",
-      "output": "策略摘要：以区别技术特征未给出结合启示、对比文件2的延长停留时间目的与本案提高有限空间换热效率的技术问题方向不同为主线；必答段落包括区别特征认定、实际解决的技术问题、结合启示缺失、技术效果，以及针对权利要求3不清楚的修改与说明。",
+      "output": "策略摘要与必答段落要点：先答复第22条第3款，主张对比文件2的螺旋通道目的为延长停留时间而非提高换热效率、缺乏结合启示，再以修改后的区别特征论证非显而易见；随后答复权利要求3的第26条第4款不清楚问题并修正表述。",
       "degraded": false,
       "retries": 0,
       "atom": "response-plan"
@@ -30,9 +30,33 @@
     {
       "stageId": "draft",
       "strategy": "chain",
-      "output": "答复策略：修改权利要求3的表述以克服不清楚缺陷，并在意见陈述中主张对比文件1与对比文件2的结合无技术启示、本申请取得预料不到的技术效果，权利要求1-3具备创造性。",
+      "output": "答复策略为以对比文件2技术目的不同、缺乏结合动机为主线论证创造性，并将权利要求3中的含糊限定改为明确的结构特征以克服不清楚缺陷。",
       "degraded": false,
       "retries": 0
+    },
+    {
+      "stageId": "response_check",
+      "strategy": "chain",
+      "output": "答复合规检查结论：答复覆盖了通知书指出的全部驳回条款与全部权利要求，未引入新的超范围内容，形式与引用符合要求。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "response-check"
+    },
+    {
+      "stageId": "amendment_basis",
+      "strategy": "chain",
+      "output": "修改依据检查结论：修改内容均可在原说明书与权利要求书记载的内容中找到直接依据，未超出原说明书和权利要求书记载的范围。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "amendment-basis"
+    },
+    {
+      "stageId": "legal_gaps",
+      "strategy": "chain",
+      "output": "法条缺口汇总结论：第22条第3款的结合启示与第26条第4款的不清楚均已逐条回应，未遗漏其余条款，无待补法条缺口。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "legal-gaps"
     },
     {
       "stageId": "approval",
@@ -44,5 +68,5 @@
     }
   ],
   "degradedSteps": [],
-  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 5/5 阶段完成"
+  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 8/8 阶段完成"
 }
