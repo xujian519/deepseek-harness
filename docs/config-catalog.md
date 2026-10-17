@@ -2879,7 +2879,7 @@ export type NuoRequestChannel = (typeof NUO_REQUEST_CHANNELS)[number]
 ## `@deepseek-ai/dsh-patent-deadline`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-deadline/src/index.ts:97`](../packages/patent/patent-deadline/src/index.ts)
+- `source`: [`packages/patent/patent-deadline/src/index.ts:100`](../packages/patent/patent-deadline/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-deadline plugin configuration. */
@@ -2888,6 +2888,10 @@ export interface Config {
   calendarDir?: string
   /** Warn when an end date falls within this many days (deployment policy, not a legal period). */
   reminderLeadDays?: number
+  /** Years of future annual fees to report (deployment policy, not a legal period). */
+  annuityHorizonYears?: number
+  /** IANA zone in which "today" is read; defaults to Asia/Shanghai. */
+  timeZone?: string
   /**
    * Publish the evaluator as the `patentDeadline` Cordis service. Defaults to
    * false so the preset mount stays tool-only; a root-domain mount sets it to
@@ -3203,13 +3207,6 @@ export interface Config {
   noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
-  /**
-   * 《专利审查指南》version the built-in manifests must target. Defaults to the
-   * revision shipped with this repository; a deployment running a different
-   * patent-law asset sets this to that asset's `revision`, and a manifest still
-   * written against another revision fails plugin load.
-   */
-  guidelineRevision?: string
   /** 附图索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/figures-index.json。 */
   figureIndexFile?: string
   /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */
