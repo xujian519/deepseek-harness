@@ -6,9 +6,9 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { ENGINEERING_PARAMS, loadPrinciples, lookupMatrixCell, paramLabel, principleById } from '../data.ts'
-import type { TrizPrinciple } from '../types.ts'
+import type { InferValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { ENGINEERING_PARAMS, loadPrinciples, loadSeparations, lookupMatrixCell, paramLabel, principleById } from '../data.ts'
+import type { TrizPrinciple, TrizSeparation } from '../types.ts'
 
 /** Tool input: an optional improving/worsening parameter pair (both or neither). */
 export type TrizInput = {
@@ -31,10 +31,21 @@ export type TrizPrincipleView = {
   description: string
 }
 
-/** The tool's canonical result: the full catalog, or one matrix-cell lookup. */
-export type TrizOutput =
-  | { mode: 'catalog'; parameters: TrizParameterView[]; principles: TrizPrincipleView[] }
-  | { mode: 'lookup'; improving: TrizParameterView; worsening: TrizParameterView; recommended: TrizPrincipleView[] }
+/** One separation principle as returned to the model. */
+export type TrizSeparationView = {
+  name: string
+  description: string
+  signals: string[]
+}
+
+/** The tool's canonical result, inferred from the output schema. */
+export type TrizOutput = InferValue<typeof OUTPUT_SCHEMA>
+
+/** The catalog branch of {@link TrizOutput}. */
+type CatalogOutput = Extract<TrizOutput, { mode: 'catalog' }>
+
+/** The matrix-cell branch of {@link TrizOutput}. */
+type LookupOutput = Extract<TrizOutput, { mode: 'lookup' }>
 
 const PARAMETER_VIEW_SCHEMA = {
   type: 'object',
@@ -55,11 +66,48 @@ const PRINCIPLE_VIEW_SCHEMA = {
   },
 } as const
 
+const SEPARATION_VIEW_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string', required: true },
+    description: { type: 'string', required: true },
+    signals: { type: 'array', required: true, items: { type: 'string' } },
+  },
+} as const
+
+const CATALOG_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    mode: { type: 'string', const: 'catalog', required: true },
+    parameters: { type: 'array', required: true, items: PARAMETER_VIEW_SCHEMA },
+    principles: { type: 'array', required: true, items: PRINCIPLE_VIEW_SCHEMA },
+  },
+} as const
+
+const LOOKUP_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    mode: { type: 'string', const: 'lookup', required: true },
+    improving: { ...PARAMETER_VIEW_SCHEMA, required: true },
+    worsening: { ...PARAMETER_VIEW_SCHEMA, required: true },
+    recommended: { type: 'array', required: true, items: PRINCIPLE_VIEW_SCHEMA },
+    separations: { type: 'array', required: true, items: SEPARATION_VIEW_SCHEMA },
+  },
+} as const
+
+const OUTPUT_SCHEMA = {
+  oneOf: [CATALOG_OUTPUT_SCHEMA, LOOKUP_OUTPUT_SCHEMA],
+} as const
+
 const DESCRIPTION = [
   '- TRIZ inventive problem solving: the 40 inventive principles and the 39x39 Altshuller contradiction matrix',
   '- Call with no arguments to list all 39 engineering parameters and 40 principles',
   '- Call with an improving and a worsening parameter number (1-39) to read that matrix cell and its recommended principles',
   '- Use for technical contradictions, trade-offs, and patent design-around',
+  '- This tool only reads the matrix for explicit parameter numbers; extracting parameters or contradictions from a document is outside its scope',
 ].join('\n')
 
 function parameterView(no: number): TrizParameterView {
@@ -68,6 +116,18 @@ function parameterView(no: number): TrizParameterView {
 
 function principleView(principle: TrizPrinciple): TrizPrincipleView {
   return { number: principle.no, name: principle.name, description: principle.description }
+}
+
+function separationView(separation: TrizSeparation): TrizSeparationView {
+  return {
+    name: separation.name,
+    description: separation.description,
+    signals: separation.signals,
+  }
+}
+
+function allSeparations(): TrizSeparationView[] {
+  return loadSeparations().map(separationView)
 }
 
 function allParameters(): TrizParameterView[] {
@@ -79,7 +139,7 @@ function allPrinciples(): TrizPrincipleView[] {
 }
 
 /** Render the full catalog as Markdown. */
-function renderCatalog(value: { parameters: TrizParameterView[]; principles: TrizPrincipleView[] }): string {
+function renderCatalog(value: CatalogOutput): string {
   const lines = [
     'TRIZ: 39 engineering parameters and 40 inventive principles.',
     '',
@@ -93,14 +153,22 @@ function renderCatalog(value: { parameters: TrizParameterView[]; principles: Tri
 }
 
 /** Render one matrix-cell lookup as Markdown. */
-function renderLookup(value: { improving: TrizParameterView; worsening: TrizParameterView; recommended: TrizPrincipleView[] }): string {
+function renderLookup(value: LookupOutput): string {
   const header = `Contradiction matrix: improving ${value.improving.label} (${value.improving.number}) → worsening ${value.worsening.label} (${value.worsening.number})`
   if (value.recommended.length === 0) {
     // 空单元有两种：对角线（同一参数即物理矛盾）与转写本身就留空的非对角线格。
-    // 只有前者是物理矛盾；把 292 个非对角线空格也说成物理矛盾会把结论引向错误方向。
-    const empty = value.improving.number === value.worsening.number
-      ? 'This is a diagonal cell: improving equals worsening, a physical contradiction that classical TRIZ resolves by separation rather than a matrix entry.'
-      : 'The classical matrix lists no recommendation for this pair. This is not a diagonal cell, so a separation move does not apply; check whether the pair names the parameters actually in conflict.'
+    // 只有前者是物理矛盾；把 234 个非对角线空格也说成物理矛盾会把结论引向错误方向。
+    if (value.improving.number === value.worsening.number) {
+      return [
+        header,
+        '',
+        'Recommended principles: none. This is a diagonal cell: improving equals worsening, a physical contradiction that classical TRIZ resolves by separation rather than a matrix entry.',
+        '',
+        'Separation principles:',
+        ...value.separations.map(separation => `- ${separation.name} — ${separation.description} Signals: ${separation.signals.join('; ')}`),
+      ].join('\n')
+    }
+    const empty = 'The classical matrix lists no recommendation for this pair. This is not a diagonal cell, so a separation move does not apply; check whether the pair names the parameters actually in conflict.'
     return `${header}\n\nRecommended principles: none. ${empty}`
   }
   const lines = [
@@ -149,24 +217,14 @@ export function createTrizTool(): ToolDefinition {
       },
     },
     output: {
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          mode: { type: 'string', required: true, enum: ['catalog', 'lookup'] },
-          parameters: { type: 'array', items: PARAMETER_VIEW_SCHEMA },
-          principles: { type: 'array', items: PRINCIPLE_VIEW_SCHEMA },
-          improving: PARAMETER_VIEW_SCHEMA,
-          worsening: PARAMETER_VIEW_SCHEMA,
-          recommended: { type: 'array', items: PRINCIPLE_VIEW_SCHEMA },
-        },
-      },
-      render: (_args, value) => [{ type: 'text', text: renderTriz(value as unknown as TrizOutput) }],
+      schema: OUTPUT_SCHEMA,
+      render: (_args, value) => [{ type: 'text', text: renderTriz(value) }],
     },
-    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
-    async execute(args) {
+    // The tool reads immutable shipped data; sibling calls cannot interfere.
+    isConcurrencySafe: () => true,
+    execute(args) {
       if (args.improving === undefined && args.worsening === undefined) {
-        return { mode: 'catalog', parameters: allParameters(), principles: allPrinciples() } as const
+        return Promise.resolve({ mode: 'catalog', parameters: allParameters(), principles: allPrinciples() } as const)
       }
       if (args.improving === undefined || args.worsening === undefined) {
         throw new Error('triz requires both improving and worsening, or neither (for the full catalog)')
@@ -180,7 +238,7 @@ export function createTrizTool(): ToolDefinition {
         throw new Error('triz worsening must be an integer 1-39')
       }
       const ids = lookupMatrixCell(improving, worsening)
-      return {
+      return Promise.resolve({
         mode: 'lookup',
         improving: parameterView(improving),
         worsening: parameterView(worsening),
@@ -188,7 +246,8 @@ export function createTrizTool(): ToolDefinition {
           const principle = principleById(id)
           return principle === undefined ? [] : [principleView(principle)]
         }),
-      } as const
+        separations: improving === worsening ? allSeparations() : [],
+      } as const)
     },
   })
 }

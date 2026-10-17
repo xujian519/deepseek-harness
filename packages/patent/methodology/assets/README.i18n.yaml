@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/patent/methodology/assets/README.md
+/triz-data-assets:
+  en: 392bbb5664ef5cba
+  zh: 35504905f9f3fe80
+/triz-data-assets/provenance:
+  en: 6999c4e9862ece74
+  zh: 32049041389b1315
+/triz-data-assets/provenance/contradiction-matrix:
+  en: 1a3a635009aa0d4c
+  zh: 8cc32c66610cae68
+/triz-data-assets/provenance/inventive-principles:
+  en: c58db8fa5b9d8e8a
+  zh: c4a19f833d18f242
+/triz-data-assets/provenance/separation-principles:
+  en: f2e822de53182e0c
+  zh: 4836e517b0538993
+/triz-data-assets/license-status:
+  en: 098dd95f77e140de
+  zh: dcac70aac154fb26
+/triz-data-assets/known-deviations:
+  en: 671fe345fc186fce
+  zh: 183d422a32f67421
+/triz-data-assets/validation:
+  en: 1a2dac3239d0d2b4
+  zh: ace2b7db8c5a778f
+/triz-data-assets/regeneration-procedure:
+  en: 9cd13ae11be127d4
+  zh: 66481c69788518a2

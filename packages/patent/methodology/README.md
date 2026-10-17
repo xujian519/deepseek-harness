@@ -1,5 +1,5 @@
 ---
-description: "Function plugin porting the Sati reasoning-methodology layer into the DeepSeek Harness: the TRIZ 40 inventive principles and the classic 39x39 Altshuller contradiction matrix ship as package assets and reach the model through one `triz` tool plus a concise `tool:triz` system-prompt section. The full methodology registry (eight components, keyword matching, and prompt injection) also ships as a keyless library API for prompt-assembly consumers."
+description: "Function plugin shipping the TRIZ 40 inventive principles, the classic 39x39 Altshuller contradiction matrix, and five separation principles as package assets, reaching the model through one `triz` tool plus a concise `tool:triz` system-prompt section. The matrix, principles, and separations are also available through a keyless data API."
 kind: "package-reference"
 ---
 
@@ -9,23 +9,23 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin porting the Sati reasoning-methodology layer into the DeepSeek Harness: the TRIZ 40 inventive principles and the classic 39x39 Altshuller contradiction matrix ship as package assets and reach the model through one `triz` tool plus a concise `tool:triz` system-prompt section. The full methodology registry (eight components, keyword matching, and prompt injection) also ships as a keyless library API for prompt-assembly consumers.
+Function plugin shipping the TRIZ 40 inventive principles, the classic 39x39 Altshuller contradiction matrix, and five separation principles as package assets, reaching the model through one `triz` tool plus a concise `tool:triz` system-prompt section. The matrix, principles, and separations are also available through a keyless data API.
 
 ## Table of Contents
 
 - [triz tool](#triz-tool)
-- [Methodology registry (library API)](#methodology-registry-library-api)
+- [Data API](#data-api)
 - [Configuration](#configuration)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## triz tool
 
-`triz` is a stateless, read-only tool over the shipped data. Call it with no arguments to list the 39 classic engineering parameters and the 40 inventive principles. Call it with an `improving` and a `worsening` parameter number (each 1-39) to read that contradiction-matrix cell and receive the recommended inventive principle numbers, names, and descriptions. A diagonal cell (improving equals worsening) is a physical contradiction and returns no classical matrix entry; the transcription also leaves cells empty off the diagonal (292 of the 331 empty cells), which the tool reports as a matrix gap rather than a contradiction.
+`triz` is a stateless, read-only tool over the shipped data. Call it with no arguments to list the 39 classic engineering parameters and the 40 inventive principles. Call it with an `improving` and a `worsening` parameter number (each 1-39) to read that contradiction-matrix cell and receive the recommended inventive principle numbers, names, and descriptions. A diagonal cell (improving equals worsening) is a physical contradiction and returns no classical matrix entry; it returns the five separation principles instead. The transcription also leaves cells empty off the diagonal (234 of the 273 empty cells), which the tool reports as a matrix gap rather than a contradiction. The tool reads the matrix for explicit parameter numbers only; extracting parameters or contradictions from a disclosure belongs to a domain analysis tool such as `triz_contradiction_analysis`.
 
-## Methodology registry (library API)
+## Data API
 
-The package re-exports the ported methodology layer: `MethodologyRegistry`, `DEFAULT_METHODOLOGY_COMPONENTS`, `extractMethodologyKeywords`, `injectMethodology`, and the eight components (`fiveWhys`, `mece`, `swot`, `pdca`, `fishbone`, `firstPrinciples`, `sixHats`, `triz`). These are pure, keyless rule implementations; nothing mounts them automatically — a prompt-assembly consumer decides when to match and inject a methodology prompt.
+The package re-exports a keyless read API over the shipped assets: `loadMatrix`, `lookupMatrixCell`, `loadPrinciples`, `loadSeparations`, `ENGINEERING_PARAMS`, `paramLabel`, `principleById`, `principleNames`, and `createTrizTool`. `lookupMatrixCell(improving, worsening)` deduplicates the one duplicated source cell. Nothing in the package matches methodologies against a task or injects prompts automatically.
 
 ## Configuration
 
@@ -49,11 +49,12 @@ One always-on prompt section named `tool:triz` at order 111, registered only whi
 For patent innovation, design-around, and trade-off analysis, use the triz tool when a task names a technical contradiction or conflict between two engineering parameters.
 Call triz with no arguments to list the 39 classic engineering parameters and the 40 inventive principles.
 Call triz with an improving and a worsening parameter number (1-39) to read that contradiction-matrix cell and its recommended inventive principles.
+triz only reads a matrix cell for two explicit parameter numbers; identifying parameters or contradictions from a disclosure is outside its scope.
 ```
 
 #### Token effect
 
-Fixed three-line cost on every request while the section is enabled; disabling `registerSection` removes all three lines.
+Fixed four-line cost on every request while the section is enabled; disabling `registerSection` removes all four lines.
 
 #### KV Cache effect
 
@@ -63,7 +64,7 @@ Prefix-stable while the section text and its order are unchanged; toggling `regi
 
 #### What the model sees
 
-One registered tool definition named `triz` with two optional integer parameters, `improving` and `worsening` (each 1-39). Its exact description and parameters are in the generated [`triz` schema](../../../docs/tool-catalog.md#deepseek-aidsh-methodology); results render as Markdown, not schema tokens.
+One registered tool definition named `triz` with two optional integer parameters, `improving` and `worsening` (each 1-39). A lookup result carries `recommended` principles and, for a diagonal cell, five `separations`. Its exact description and parameters are in the generated [`triz` schema](../../../docs/tool-catalog.md#deepseek-aidsh-methodology); results render as Markdown, not schema tokens.
 
 #### Token effect
 
@@ -75,9 +76,10 @@ Append-only; newly visible result text follows the reusable request prefix and d
 
 ## Known Limitations and Deferred Work
 
-- **Registry is a library API, not a mounted section** — the eight methodology components ship for consumers to match and inject, but nothing registers them into the system prompt; a composition must call `injectMethodology` itself.
-- **Static section text** — the `tool:triz` section is fixed prose; it does not adapt to the loaded component set or a per-deployment parameter list.
-- **Classical matrix data only** — the shipped 39x39 matrix is the public Altshuller transcription; 331 of its 1521 cells carry no recommendation (39 on the diagonal, which are physical contradictions, and 292 off it), and no newer or derived matrix is included.
+- **TRIZ only** — the package ships the TRIZ tool and its data API; it does not include a general methodology registry or goal-text parameter detection. Callers supply explicit parameter numbers; extracting them from prose belongs to a domain analysis tool.
+- **Static section text** — the `tool:triz` section is fixed prose; it does not adapt to a per-deployment parameter list.
+- **Classical matrix data only** — the shipped 39x39 matrix is the public Altshuller transcription; 273 of its 1521 cells carry no recommendation (39 on the diagonal, which are physical contradictions, and 234 off it), and no newer or derived matrix is included.
+- **Source data anomaly** — the `(improving 19, worsening 9)` cell is transcribed as `[8, 35, 35]` by both reference sources; the reader deduplicates it and the raw value is preserved. The source files, licenses, and the full list of known deviations are in [`assets/README.md`](assets/README.md).
 
 ### Dev Note
 
