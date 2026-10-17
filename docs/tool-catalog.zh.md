@@ -2762,6 +2762,7 @@ todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为
 - 无参数调用时列出全部 39 个工程参数与 40 条原理
 - 传入 improving 与 worsening 参数编号（1-39）读取对应矩阵单元格及其推荐原理
 - 用于技术矛盾、权衡与专利规避设计
+- 本工具只按显式参数编号读取矩阵；从文档中提取参数或矛盾不在其范围内
 
 ```json
 {
@@ -6455,11 +6456,19 @@ build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附�
     },
     "marketingApprovalDate": {
       "type": "string",
-      "description": "Date the drug obtained marketing approval in China"
+      "description": "Date the drug obtained marketing approval in China (invention only)"
+    },
+    "termCompensationYears": {
+      "type": "number",
+      "description": "Granted patent-term compensation in whole years (invention only, 0-5); extends the term and its annual fees"
     },
     "invalidationRequestDate": {
       "type": "string",
       "description": "Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence"
+    },
+    "paidThroughYear": {
+      "type": "number",
+      "description": "Last patent year whose annual fee is recorded as paid; fees through that year are omitted from the report"
     },
     "notices": {
       "type": "array",

@@ -2881,7 +2881,7 @@ export type NuoRequestChannel = (typeof NUO_REQUEST_CHANNELS)[number]
 ## `@deepseek-ai/dsh-patent-deadline`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-deadline/src/index.ts:97`](../packages/patent/patent-deadline/src/index.ts)
+- `source`: [`packages/patent/patent-deadline/src/index.ts:100`](../packages/patent/patent-deadline/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-deadline plugin configuration. */
@@ -2890,6 +2890,10 @@ export interface Config {
   calendarDir?: string
   /** Warn when an end date falls within this many days (deployment policy, not a legal period). */
   reminderLeadDays?: number
+  /** Years of future annual fees to report (deployment policy, not a legal period). */
+  annuityHorizonYears?: number
+  /** IANA zone in which "today" is read; defaults to Asia/Shanghai. */
+  timeZone?: string
   /**
    * Publish the evaluator as the `patentDeadline` Cordis service. Defaults to
    * false so the preset mount stays tool-only; a root-domain mount sets it to

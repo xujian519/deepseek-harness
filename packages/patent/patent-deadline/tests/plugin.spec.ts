@@ -65,6 +65,21 @@ describe('@deepseek-ai/dsh-patent-deadline plugin surface', () => {
     expect(ctx.get('patentDeadline')).toBeDefined()
   })
 
+  it('defaults an empty config when apply is called directly', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    Pkg.apply(ctx, {})
+    expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(true)
+  })
+
+  it('fails loud at load when the configured time zone is unusable', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(Pkg, { timeZone: 'Not/AZone' })).rejects.toThrow()
+  })
+
   it('fails loud at load when the configured calendar directory has no asset', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)

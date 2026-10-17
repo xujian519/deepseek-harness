@@ -48,6 +48,26 @@ describe('patentDeadline service', () => {
     expect(normal?.status).toBe('normal')
   })
 
+  it('applies the built-in annual-fee horizon and lets one call override it', () => {
+    const service = createPatentDeadlineService({
+      calendar,
+      reminderLeadDays: 30,
+      annuityHorizonYears: 1,
+    })
+    const query: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2020-01-15'),
+      claimsPriority: false,
+      authorizationPublicationDate: date('2026-09-01'),
+      today: date('2026-09-20'),
+    }
+    const fees = (report: ReturnType<typeof service.evaluate>) =>
+      report.computed.filter(entry => entry.id.startsWith('annual-fee-')).map(entry => entry.id)
+    expect(fees(service.evaluate(query))).toEqual(['annual-fee-8'])
+    expect(fees(service.evaluate(query, { annuityHorizonYears: 3 })))
+      .toEqual(['annual-fee-8', 'annual-fee-9', 'annual-fee-10'])
+  })
+
   it('reports the loaded holiday-arrangement coverage, ascending', () => {
     const service = createPatentDeadlineService({ calendar: calendarOf([2027, 2024]), reminderLeadDays: 30 })
     expect(service.calendarCoverage()).toEqual({ years: [2024, 2027] })

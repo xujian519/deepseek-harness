@@ -3,23 +3,23 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/methodology/README.md
 /:
-  en: 2fb8ebd379856760
-  zh: 0fcfc84dd31950a7
+  en: 792e953456d88eb5
+  zh: a5d16d191b10956c
 /deepseek-ai-dsh-methodology:
   en: 666152e1734b8c93
   zh: bbb72a3cde3c2c26
 /deepseek-ai-dsh-methodology/summary:
-  en: 4bc1ade2d581324d
-  zh: 7bfcee5901ba1e02
+  en: 332a360856e1bda5
+  zh: f0e5eaa9e044a87c
 /deepseek-ai-dsh-methodology/table-of-contents:
-  en: cd394355f29f8cb4
-  zh: ca03834afd49c6b0
+  en: 5d38a34913893a54
+  zh: 4bc96292f54d402c
 /deepseek-ai-dsh-methodology/triz-tool:
-  en: 476a518fc6cb2fa8
-  zh: 878100e80bec7aec
-/deepseek-ai-dsh-methodology/methodology-registry-library-api:
-  en: 3e63330b33fe1771
-  zh: 3951d13d63e84242
+  en: 5e79865d2e59108b
+  zh: f9e81432452229aa
+/deepseek-ai-dsh-methodology/data-api:
+  en: f5208055c21e4cbb
+  zh: 490a4dccde12a8fe
 /deepseek-ai-dsh-methodology/configuration:
   en: 8bec1d61fd09dc8a
   zh: bcb47522664c7a06
@@ -36,8 +36,8 @@
   en: aae04b15468b4390
   zh: 8942f3b4571f58de
 /deepseek-ai-dsh-methodology/model-experience/triz-system-prompt-section/token-effect:
-  en: 6c879e1622fcdaec
-  zh: aa17c2661a108b53
+  en: e79ed49844bde269
+  zh: 5df5cd2db9f00629
 /deepseek-ai-dsh-methodology/model-experience/triz-system-prompt-section/kv-cache-effect:
   en: 5ccaab199e7d0454
   zh: c7ef4df9fcfceb0b
@@ -45,8 +45,8 @@
   en: 6dd429023f196b97
   zh: f653db9b5248c43b
 /deepseek-ai-dsh-methodology/model-experience/triz-tool-schema/what-the-model-sees:
-  en: a16ec86c80935e61
-  zh: 06663fec8375066c
+  en: dec9ed78890a637e
+  zh: 9e0f38575f7b2f01
 /deepseek-ai-dsh-methodology/model-experience/triz-tool-schema/token-effect:
   en: a480c7ec6659cfbb
   zh: ae004c38def290e0
@@ -54,8 +54,8 @@
   en: 648289df65cba624
   zh: 8a130c3e64e7f5d6
 /deepseek-ai-dsh-methodology/known-limitations-and-deferred-work:
-  en: f37b991119319db2
-  zh: 92445afb0450d05e
+  en: a00d0f6684e4293d
+  zh: bcc523b7213d6ae0
 /deepseek-ai-dsh-methodology/known-limitations-and-deferred-work/dev-note:
   en: 0a1253c6f7b5e8b9
   zh: ea0290032d535ca3

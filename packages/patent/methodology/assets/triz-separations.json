@@ -1,0 +1,32 @@
+[
+  {
+    "id": "space",
+    "name": "Separation in space",
+    "description": "Split the conflicting requirements across different places: put the part that needs one property in one location and the part that needs the opposite property in another.",
+    "signals": ["one object must be large and small", "one region must be hot and cold", "the conflict follows a physical location"]
+  },
+  {
+    "id": "time",
+    "name": "Separation in time",
+    "description": "Let the same object satisfy each requirement at a different moment: alternate states, use pauses, or make one property active only during the phase that needs it.",
+    "signals": ["the requirements hold in different process phases", "a fast and a slow state are both needed", "the conflict appears only during part of the cycle"]
+  },
+  {
+    "id": "condition",
+    "name": "Separation by condition",
+    "description": "Make the object's behavior depend on a condition: it takes one state under condition A and the opposite state under condition B, without a compromise.",
+    "signals": ["the requirement depends on load, temperature, pressure, or another measurable condition", "a single fixed value cannot satisfy both cases"]
+  },
+  {
+    "id": "direction",
+    "name": "Separation in direction",
+    "description": "Separate the requirements by orientation or direction of action: one direction carries one property, the opposite or transverse direction carries the other.",
+    "signals": ["the conflict depends on which way a force, flow, or signal travels", "one axis must be stiff while another must be flexible"]
+  },
+  {
+    "id": "system-level",
+    "name": "Separation between system and subsystem",
+    "description": "Assign opposite requirements to different levels: the system as a whole satisfies one requirement while a subsystem satisfies the other, or the object becomes a nested hierarchy.",
+    "signals": ["the whole and its parts need opposite properties", "a monolithic object cannot satisfy both requirements", "the conflict disappears once the object is decomposed"]
+  }
+]

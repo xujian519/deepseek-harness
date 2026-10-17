@@ -2760,6 +2760,7 @@ todo_write is session-owned state; UIs render the latest todo/write event as a c
 - Call with no arguments to list all 39 engineering parameters and 40 principles
 - Call with an improving and a worsening parameter number (1-39) to read that matrix cell and its recommended principles
 - Use for technical contradictions, trade-offs, and patent design-around
+- This tool only reads the matrix for explicit parameter numbers; extracting parameters or contradictions from a document is outside its scope
 
 ```json
 {
@@ -6451,11 +6452,19 @@ Usage notes:
     },
     "marketingApprovalDate": {
       "type": "string",
-      "description": "Date the drug obtained marketing approval in China"
+      "description": "Date the drug obtained marketing approval in China (invention only)"
+    },
+    "termCompensationYears": {
+      "type": "number",
+      "description": "Granted patent-term compensation in whole years (invention only, 0-5); extends the term and its annual fees"
     },
     "invalidationRequestDate": {
       "type": "string",
       "description": "Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence"
+    },
+    "paidThroughYear": {
+      "type": "number",
+      "description": "Last patent year whose annual fee is recorded as paid; fees through that year are omitted from the report"
     },
     "notices": {
       "type": "array",

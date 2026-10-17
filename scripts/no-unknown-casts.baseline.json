@@ -1846,9 +1846,6 @@
   "packages/memory/openviking/tests/tools.spec.ts": {
     "2d3b3f9db80f6bd2bf7f4086f320f9bcf6667658eea22b14bc408eb6b57b1ec3": 1
   },
-  "packages/patent/methodology/src/tool/triz.ts": {
-    "6fe9024d30e0d4757a348b83d246925b3f5aeaf2e79a0eff4bf12f3c9fb5826b": 1
-  },
   "packages/patent/methodology/tests/loader-composition.spec.ts": {
     "2577e96b1bb379e2262039c566722773b3830ee1af7e028347c4b2c66eed0c08": 1
   },

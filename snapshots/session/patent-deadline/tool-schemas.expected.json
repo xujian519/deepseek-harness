@@ -297,11 +297,19 @@
           },
           "marketingApprovalDate": {
             "type": "string",
-            "description": "Date the drug obtained marketing approval in China"
+            "description": "Date the drug obtained marketing approval in China (invention only)"
+          },
+          "termCompensationYears": {
+            "type": "number",
+            "description": "Granted patent-term compensation in whole years (invention only, 0-5); extends the term and its annual fees"
           },
           "invalidationRequestDate": {
             "type": "string",
             "description": "Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence"
+          },
+          "paidThroughYear": {
+            "type": "number",
+            "description": "Last patent year whose annual fee is recorded as paid; fees through that year are omitted from the report"
           },
           "notices": {
             "type": "array",

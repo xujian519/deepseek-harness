@@ -123,11 +123,58 @@ describe('deadline report rendering', () => {
       '已逾期项请先判断是否仍在救济期内：因不可抗拒的事由延误的，可自障碍消除之日起2个月内'
       + '且自期限届满之日起2年内请求恢复权利；因其他正当理由延误的，可自收到通知之日起2个月内'
       + '请求恢复（延误复审请求期限的，自该期限届满之日起2个月内），并缴纳恢复权利请求费'
-      + '（专利法实施细则第6条）。指定期限在届满前还可请求延长，延长不超过两个月'
+      + '（专利法实施细则第6条）。专利权期限（专利法第42条）与优先权期限（专利法第29条）'
+      + '不适用恢复（专利法实施细则第6条第5款）。指定期限在届满前还可请求延长，延长不超过两个月'
       + '（专利审查指南第五部分第七章第4.2节）；但无效宣告请求审查程序中指定的期限不得延长'
       + '（专利法实施细则第75条）。',
     )
     expect(render({ ...grantedCase, today: { year: 2019, month: 1, day: 1 } })).not.toContain('已逾期项请先判断')
+  })
+
+  it('renders the delivery rule that started each notice-driven period', () => {
+    const text = render(grantedCase)
+    expect(text).toContain('起算依据（通知书送达规则）：')
+    expect(text).toContain('- 答复第一次审查意见通知书（指定期限，实质审查程序中为4个月）：')
+    expect(text).toContain('满15日')
+  })
+
+  it('does not offer recovery for a period excluded by 细则第6条第5款', () => {
+    const report: DeadlineReport = {
+      computed: [{
+        id: 'patent-term',
+        label: '专利权期限届满（20年，自申请日起算）',
+        legalBasis: '专利法第42条第1款',
+        rawDueDate: '2020-01-01',
+        dueDate: '2020-01-01',
+        daysRemaining: -1,
+        status: 'overdue',
+        rolledForward: false,
+      }],
+      pending: [],
+      restDayRule: 'apply',
+    }
+    const text = renderDeadlineReport(report, META)
+    expect(text).not.toContain('已逾期项请先判断')
+    expect(text).toContain('不适用恢复权利（专利法实施细则第6条第5款）')
+  })
+
+  it('states the paid-through year so omitted annual fees are explained', () => {
+    const text = renderDeadlineReport(
+      { computed: [], pending: [], restDayRule: 'apply' },
+      { ...META, paidThroughYear: 8 },
+    )
+    expect(text).toContain('年费记录：已缴至第 8 年度（含该年度），之前年度不再列出。')
+  })
+
+  it('renders a priority claim whose date the caller did not supply', () => {
+    const { priorityDate: _dropped, ...meta } = META
+    const text = renderDeadlineReport(
+      { computed: [], pending: [], restDayRule: 'apply' },
+      meta,
+    )
+    expect(text.split('\n')[0]).toBe(
+      'patent_deadlines: 发明专利 · 申请日 2023-10-01 · 基准日 2026-09-20 · 主张优先权',
+    )
   })
 
   it('reports an empty result without inventing a deadline', () => {

@@ -321,6 +321,16 @@ describe('patent preset composition', () => {
     expect(row?.disabled).toBeUndefined()
   })
 
+  it('mounts the TRIZ lookup tool routed for explicit parameter pairs', async () => {
+    // The disclosure-understanding skill routes explicit improving/worsening
+    // parameter pairs to `triz`; dropping this row leaves that route pointing at
+    // a tool the session never registers.
+    const rows = await patentRows()
+    const row = rows.find(entry => entry.id === 'methodology')
+    expect(row?.name).toBe('@deepseek-ai/dsh-methodology')
+    expect(row?.disabled).toBeUndefined()
+  })
+
   it('mounts the fee index tool the number gate calls', async () => {
     // patent-quality-gate item 4 and the persona require the fee amounts to come from
     // patent_fees; without this row the model has no tool to price them with.
