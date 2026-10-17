@@ -55,7 +55,7 @@ describe('指南节号引用的索引覆盖', () => {
     // 并钉住两条本仓库依赖的引用：无效程序指定的答复期限与指定期限的延长。
     const paths = new Set(collectCitations().map(citation => citation.path))
     expect(paths.size).toBeGreaterThan(40)
-    expect(paths.has('第四部分第三章4.4')).toBe(true)
+    expect(paths.has('第四部分第三章4.4.1')).toBe(true)
     expect(paths.has('第五部分第七章4.2')).toBe(true)
   })
 })

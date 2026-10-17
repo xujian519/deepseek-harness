@@ -5782,11 +5782,7 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
     },
     "priorArt": {
       "type": "string",
-      "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage."
-    },
-    "conflictingApplications": {
-      "type": "string",
-      "description": "Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention."
+      "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
     },
     "run_in_background": {
       "type": "boolean",
@@ -6456,11 +6452,19 @@ Usage notes:
     },
     "marketingApprovalDate": {
       "type": "string",
-      "description": "Date the drug obtained marketing approval in China"
+      "description": "Date the drug obtained marketing approval in China (invention only)"
+    },
+    "termCompensationYears": {
+      "type": "number",
+      "description": "Granted patent-term compensation in whole years (invention only, 0-5); extends the term and its annual fees"
     },
     "invalidationRequestDate": {
       "type": "string",
       "description": "Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence"
+    },
+    "paidThroughYear": {
+      "type": "number",
+      "description": "Last patent year whose annual fee is recorded as paid; fees through that year are omitted from the report"
     },
     "notices": {
       "type": "array",

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   loadWorkCalendar,
@@ -85,6 +88,55 @@ describe('work calendar', () => {
       .toThrow(/重复声明/)
     expect(() => parseWorkCalendar('years: [{ year: 2026, source: "s", holidays: [20260101] }]'))
       .toThrow(/含非字符串日期/)
+  })
+
+  it('rejects a malformed year entry and a non-array date list', () => {
+    expect(() => parseWorkCalendar('years: [1]')).toThrow(/必须是对象/)
+    expect(() => parseWorkCalendar('years: [{ year: "2026", source: "s" }]')).toThrow(/整数年份/)
+    expect(() => parseWorkCalendar('years: [{ year: 2026, source: "s", holidays: {} }]')).toThrow(/日期数组/)
+  })
+
+  it('reports an all-rest calendar instead of rolling forever', () => {
+    const holidays = new Set<string>()
+    for (const year of [2026, 2027]) {
+      for (let month = 1; month <= 12; month++) {
+        for (let day = 1; day <= 31; day++) {
+          const date = new Date(Date.UTC(year, month - 1, day))
+          if (date.getUTCMonth() === month - 1) holidays.add(date.toISOString().slice(0, 10))
+        }
+      }
+    }
+    const calendar = new WorkCalendar([
+      { year: 2026, source: 'test', holidays, workdays: new Set<string>() },
+      { year: 2027, source: 'test', holidays, workdays: new Set<string>() },
+    ])
+    expect(() => calendar.rollForward(date('2026-01-01'))).toThrow(/连续 366 天/)
+  })
+
+  it('rejects a day declared both a holiday and a working day', () => {
+    expect(() => parseWorkCalendar(`
+years:
+  - year: 2026
+    source: test
+    holidays: ["2026-10-01"]
+    workdays: ["2026-10-01"]
+`)).toThrow(/同时登记/)
+  })
+
+  it('wraps a YAML parse failure in the package error type', () => {
+    expect(() => parseWorkCalendar('years: [')).toThrow(WorkCalendarError)
+    expect(() => parseWorkCalendar('years: [')).toThrow(/YAML 无法解析/)
+  })
+
+  it('names the asset path when the YAML cannot be parsed', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-calendar-'))
+    try {
+      writeFileSync(join(dir, 'cn-holidays.yaml'), 'years: [')
+      expect(() => loadWorkCalendar(dir)).toThrow(WorkCalendarError)
+      expect(() => loadWorkCalendar(dir)).toThrow(dir)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('fails loud when the calendar asset is missing', () => {

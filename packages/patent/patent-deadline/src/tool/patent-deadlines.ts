@@ -18,6 +18,7 @@ import {
   evaluateDeadlines,
   type DeadlineQuery,
   type DeadlineReport,
+  type EvaluateOptions,
   type NoticeInput,
   type NoticeKind,
   type PatentKind,
@@ -64,8 +65,12 @@ export type PatentDeadlinesInput = {
   isPctNationalPhase?: boolean
   authorizationPublicationDate?: string
   marketingApprovalDate?: string
+  /** Granted patent-term compensation in whole years (invention only, 0–5). */
+  termCompensationYears?: number
   /** Date the invalidation request was filed (提出无效宣告请求之日). */
   invalidationRequestDate?: string
+  /** Last patent year whose annual fee is recorded as paid. */
+  paidThroughYear?: number
   notices?: PatentDeadlinesNoticeInput[]
   /** `apply` (default) rolls an end date off a rest day; `omit` reports the period's own end date. */
   restDayRule?: RestDayRule
@@ -77,6 +82,8 @@ export type PatentDeadlinesOutput = {
   filingDate: string
   claimsPriority: boolean
   priorityDate?: string
+  termCompensationYears?: number
+  paidThroughYear?: number
   asOf: string
   restDayRule: RestDayRule
   computed: DeadlineReport['computed']
@@ -88,7 +95,11 @@ export type PatentDeadlinesToolOptions = {
   calendar: WorkCalendar
   /** Warn when an end date falls within this many days. */
   reminderLeadDays: number
-  /** Current-day source; defaults to the host's local date. */
+  /** Years of future annual fees to report; defaults to two. */
+  annuityHorizonYears?: number
+  /** Zone used to read the current day; defaults to Asia/Shanghai. */
+  timeZone?: string
+  /** Current-day source; overrides the zone-derived clock. */
   now?: () => CalendarDate
 }
 
@@ -106,6 +117,9 @@ const DESCRIPTION = [
 ].join('\n')
 
 const DATE = { type: 'string', description: 'Date as YYYY-MM-DD' } as const
+
+/** Zone of the patent office's calendar; "today" is read in this zone. */
+export const DEFAULT_TIME_ZONE = 'Asia/Shanghai'
 
 const COMPUTED_SCHEMA = {
   type: 'object',
@@ -184,7 +198,14 @@ const NOTICE_SCHEMA = {
  * @returns a registry-ready tool definition.
  */
 export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): ToolDefinition {
-  const now = options.now ?? localToday
+  const now = options.now ?? (() => localToday(options.timeZone ?? DEFAULT_TIME_ZONE))
+  const evaluateOptions: EvaluateOptions = {
+    calendar: options.calendar,
+    reminderLeadDays: options.reminderLeadDays,
+    ...(options.annuityHorizonYears !== undefined
+      ? { annuityHorizonYears: options.annuityHorizonYears }
+      : {}),
+  }
   return defineTool({
     name: 'patent_deadlines',
     description: DESCRIPTION,
@@ -204,8 +225,16 @@ export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): 
       priorityDate: { ...DATE, description: 'Earliest priority date; required when claimsPriority is true' },
       isPctNationalPhase: { type: 'boolean', description: 'Whether the case is a PCT application entering the Chinese national phase' },
       authorizationPublicationDate: { ...DATE, description: 'Grant publication date (授权公告日)' },
-      marketingApprovalDate: { ...DATE, description: 'Date the drug obtained marketing approval in China' },
+      marketingApprovalDate: { ...DATE, description: 'Date the drug obtained marketing approval in China (invention only)' },
+      termCompensationYears: {
+        type: 'number',
+        description: 'Granted patent-term compensation in whole years (invention only, 0-5); extends the term and its annual fees',
+      },
       invalidationRequestDate: { ...DATE, description: 'Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence' },
+      paidThroughYear: {
+        type: 'number',
+        description: 'Last patent year whose annual fee is recorded as paid; fees through that year are omitted from the report',
+      },
       notices: { type: 'array', items: NOTICE_SCHEMA, description: 'Notices received, with their delivery' },
       restDayRule: {
         type: 'string',
@@ -222,6 +251,8 @@ export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): 
           filingDate: { type: 'string', required: true },
           claimsPriority: { type: 'boolean', required: true },
           priorityDate: { type: 'string' },
+          termCompensationYears: { type: 'number' },
+          paidThroughYear: { type: 'number' },
           asOf: { type: 'string', required: true },
           restDayRule: { type: 'string', required: true, enum: ['apply', 'omit'] },
           computed: { type: 'array', required: true, items: COMPUTED_SCHEMA },
@@ -238,6 +269,7 @@ export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): 
             today: value.asOf,
             claimsPriority: value.claimsPriority,
             ...(value.priorityDate !== undefined ? { priorityDate: value.priorityDate } : {}),
+            ...(value.paidThroughYear !== undefined ? { paidThroughYear: value.paidThroughYear } : {}),
           },
         ),
       }],
@@ -245,16 +277,17 @@ export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): 
     execute(args) {
       const asOf = now()
       const query = toQuery(args, asOf)
-      const report = evaluateDeadlines(query, {
-        calendar: options.calendar,
-        reminderLeadDays: options.reminderLeadDays,
-      })
+      const report = evaluateOrThrow(query, evaluateOptions)
       // The deadline set is pure date arithmetic, so the result is already settled.
       return Promise.resolve({
         patentType: query.kind,
         filingDate: formatCalendarDate(query.filingDate),
         claimsPriority: query.claimsPriority,
         ...(query.priorityDate !== undefined ? { priorityDate: formatCalendarDate(query.priorityDate) } : {}),
+        ...(query.termCompensationYears !== undefined
+          ? { termCompensationYears: query.termCompensationYears }
+          : {}),
+        ...(query.paidThroughYear !== undefined ? { paidThroughYear: query.paidThroughYear } : {}),
         asOf: formatCalendarDate(asOf),
         restDayRule: report.restDayRule,
         computed: report.computed,
@@ -265,37 +298,53 @@ export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): 
 }
 
 /**
+ * Evaluate a query, translating a contradictory query into the tool's stable error.
+ * @param query - the case inputs.
+ * @param options - calendar and horizon policy.
+ * @returns the evaluated report.
+ * @throws DeadlineToolError when the query contradicts itself.
+ */
+function evaluateOrThrow(query: DeadlineQuery, options: EvaluateOptions): DeadlineReport {
+  try {
+    return evaluateDeadlines(query, options)
+  } catch (error) {
+    if (error instanceof DeadlineQueryError) {
+      throw new DeadlineToolError('invalid_query', error.message)
+    }
+    throw error
+  }
+}
+
+/**
  * Turn validated tool arguments into a deadline query.
  * @param args - the tool arguments.
  * @param today - the current day from the injected clock.
  * @returns the query.
- * @throws DeadlineToolError when the priority inputs contradict each other.
+ * @throws DeadlineToolError when a date or a designated period is malformed.
  */
 function toQuery(args: PatentDeadlinesInput, today: CalendarDate): DeadlineQuery {
-  try {
-    return {
-      kind: args.patentType,
-      filingDate: parseDate(args.filingDate, 'filingDate'),
-      claimsPriority: args.claimsPriority,
-      today,
-      ...(args.priorityDate !== undefined ? { priorityDate: parseDate(args.priorityDate, 'priorityDate') } : {}),
-      ...(args.isPctNationalPhase !== undefined ? { isPctNationalPhase: args.isPctNationalPhase } : {}),
-      ...(args.authorizationPublicationDate !== undefined
-        ? { authorizationPublicationDate: parseDate(args.authorizationPublicationDate, 'authorizationPublicationDate') }
-        : {}),
-      ...(args.marketingApprovalDate !== undefined
-        ? { marketingApprovalDate: parseDate(args.marketingApprovalDate, 'marketingApprovalDate') }
-        : {}),
-      ...(args.invalidationRequestDate !== undefined
-        ? { invalidationRequestDate: parseDate(args.invalidationRequestDate, 'invalidationRequestDate') }
-        : {}),
-      ...(args.notices !== undefined ? { notices: args.notices.map(toNotice) } : {}),
-      ...(args.restDayRule !== undefined ? { restDayRule: args.restDayRule } : {}),
-    }
-  } catch (error) {
-    if (error instanceof DeadlineToolError) throw error
-    if (error instanceof DeadlineQueryError) throw new DeadlineToolError('contradictory_priority_inputs', error.message)
-    throw error
+  return {
+    kind: args.patentType,
+    filingDate: parseDate(args.filingDate, 'filingDate'),
+    claimsPriority: args.claimsPriority,
+    today,
+    ...(args.priorityDate !== undefined ? { priorityDate: parseDate(args.priorityDate, 'priorityDate') } : {}),
+    ...(args.isPctNationalPhase !== undefined ? { isPctNationalPhase: args.isPctNationalPhase } : {}),
+    ...(args.authorizationPublicationDate !== undefined
+      ? { authorizationPublicationDate: parseDate(args.authorizationPublicationDate, 'authorizationPublicationDate') }
+      : {}),
+    ...(args.marketingApprovalDate !== undefined
+      ? { marketingApprovalDate: parseDate(args.marketingApprovalDate, 'marketingApprovalDate') }
+      : {}),
+    ...(args.termCompensationYears !== undefined
+      ? { termCompensationYears: args.termCompensationYears }
+      : {}),
+    ...(args.invalidationRequestDate !== undefined
+      ? { invalidationRequestDate: parseDate(args.invalidationRequestDate, 'invalidationRequestDate') }
+      : {}),
+    ...(args.paidThroughYear !== undefined ? { paidThroughYear: args.paidThroughYear } : {}),
+    ...(args.notices !== undefined ? { notices: args.notices.map(toNotice) } : {}),
+    ...(args.restDayRule !== undefined ? { restDayRule: args.restDayRule } : {}),
   }
 }
 
@@ -306,6 +355,13 @@ function toQuery(args: PatentDeadlinesInput, today: CalendarDate): DeadlineQuery
  * @returns the notice input.
  */
 function toNotice(notice: PatentDeadlinesNoticeInput): NoticeInput {
+  if (notice.designatedMonths !== undefined
+    && (!Number.isInteger(notice.designatedMonths) || notice.designatedMonths <= 0)) {
+    throw new DeadlineToolError(
+      'invalid_designated_months',
+      `${notice.kind}.designatedMonths 必须为正整数: ${String(notice.designatedMonths)}`,
+    )
+  }
   const delivery: DeliveryRequest = {
     ...(notice.mode !== undefined ? { mode: notice.mode } : {}),
     ...(notice.dispatchDate !== undefined ? { dispatchDate: parseDate(notice.dispatchDate, `${notice.kind}.dispatchDate`) } : {}),
@@ -337,17 +393,25 @@ function parseDate(value: string, field: string): CalendarDate {
   try {
     return parseCalendarDate(value)
   } catch (error) {
-    throw new DeadlineToolError('invalid_date', `${field}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new DeadlineToolError('invalid_date', `${field}: ${String(error)}`)
   }
 }
 
 /**
- * The host's local calendar day.
- * @returns today's date in local time.
+ * The calendar day in the patent office's zone. The host may run in another
+ * zone, where its local date would differ from the date the office is using.
+ * @param timeZone - IANA zone name.
+ * @returns today's date in that zone.
  */
-function localToday(): CalendarDate {
-  const now = new Date()
-  return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }
+function localToday(timeZone: string): CalendarDate {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const byType = new Map(parts.map(part => [part.type, part.value]))
+  return { year: Number(byType.get('year')), month: Number(byType.get('month')), day: Number(byType.get('day')) }
 }
 
 /** Patent-kind label for reports, re-exported for consumers. */
