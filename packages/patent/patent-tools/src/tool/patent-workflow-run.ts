@@ -737,7 +737,7 @@ async function executeGraphRun(
     persistNote,
     ...(interruptNote !== undefined ? { interruptNote } : {}),
     graphState: result.state as unknown as JsonValue,
-    graphDegraded: graphDegraded as unknown as JsonValue[],
+    graphDegraded,
     /* v8 ignore next -- every graph run starts at least one superstep, so a checkpoint id is always produced. */
     ...(checkpointId !== undefined ? { checkpointId } : {}),
     checkpointNote,
