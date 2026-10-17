@@ -29,6 +29,13 @@ import { WorkCalendarCoverageError, type WorkCalendar } from './work-calendar.ts
 export type PatentKind = 'invention' | 'utility-model' | 'design'
 
 /**
+ * Day the 2020 amendment to 专利法 took effect. A design filed before this day
+ * keeps the 10-year term of the earlier 专利法第42条; one filed on or after it
+ * has the 15-year term. The filing date, not the grant date, selects the term.
+ */
+const DESIGN_TERM_TRANSITION = { year: 2021, month: 6, day: 1 } as const
+
+/**
  * Whether rest-day roll-forward (细则第5条) is applied to the reported end dates.
  *
  * `apply` is the statutory reading and the default. `omit` reports each period's
@@ -98,8 +105,19 @@ export type DeadlineQuery = {
   authorizationPublicationDate?: CalendarDate
   /** Date the drug obtained marketing approval in China (新药上市许可日). */
   marketingApprovalDate?: CalendarDate
+  /**
+   * Granted patent-term compensation in whole years (发明专利，0–5). Extends both
+   * the term and the annual-fee years; a patent still awaiting a decision omits it.
+   */
+  termCompensationYears?: number
   /** Date the invalidation request was filed (提出无效宣告请求之日). */
   invalidationRequestDate?: CalendarDate
+  /**
+   * Last patent year whose annual fee is recorded as paid. Fees up to and
+   * including this year are not reported; omitting it reports every fee in the
+   * horizon, including historical ones.
+   */
+  paidThroughYear?: number
   /** Notices of this case whose delivery starts a period. */
   notices?: readonly NoticeInput[]
   /** Whether 细则第5条 roll-forward applies; defaults to `apply`. */
@@ -154,11 +172,19 @@ export type DeadlineReport = {
   restDayRule: RestDayRule
 }
 
+/** Default years of future annual fees a report covers when no policy overrides it. */
+export const DEFAULT_ANNUITY_HORIZON_YEARS = 2
+
 /** Options the evaluator needs beyond the case inputs. */
 export type EvaluateOptions = {
   calendar: WorkCalendar
   /** Warn when an end date falls within this many days; a deployment policy. */
   reminderLeadDays: number
+  /**
+   * Years of future annual fees to report, counted from `today`; a deployment
+   * policy. Defaults to two so the report shows the next charge and the one after.
+   */
+  annuityHorizonYears?: number
 }
 
 /** Thrown when the query contradicts itself, e.g. a priority date without a priority claim. */
@@ -198,10 +224,10 @@ type EntryBase = {
  * @param query - case dates, notices, and the report date.
  * @param options - work calendar and reminder policy.
  * @returns computed deadlines (chronological) and deadlines still needing inputs.
- * @throws DeadlineQueryError when the priority inputs contradict each other.
+ * @throws DeadlineQueryError when the inputs contradict each other or do not apply to the kind.
  */
 export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions): DeadlineReport {
-  assertPriorityInputs(query)
+  assertQuery(query)
   const notices = indexNotices(query.notices ?? [])
   const items: DeadlineItem[] = [
     ...priorityItems(query, options),
@@ -220,12 +246,74 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
 }
 
 /**
- * Reject a query whose priority inputs contradict each other. An explicit
- * priority claim with no date, or a date with no claim, would otherwise pick a
- * start date silently.
+ * Reject a query whose inputs contradict themselves: priority inputs, dates out
+ * of order, or a field that does not apply to the patent category. Each would
+ * otherwise produce a period counted from the wrong date or for the wrong kind.
+ * @param query - the case inputs.
+ */
+function assertQuery(query: DeadlineQuery): void {
+  assertPriorityInputs(query)
+  if (query.authorizationPublicationDate !== undefined
+    && compareCalendarDates(query.authorizationPublicationDate, query.filingDate) < 0) {
+    throw new DeadlineQueryError(
+      '授权公告日早于申请日：授权公告不可能发生在申请之前，请核对两项日期。',
+    )
+  }
+  if (query.isPctNationalPhase === true && query.kind === 'design') {
+    throw new DeadlineQueryError(
+      '外观设计不能通过 PCT 进入中国国家阶段：请将 isPctNationalPhase 设为 false 或更正专利类型。',
+    )
+  }
+  if (query.kind !== 'invention') {
+    if (query.marketingApprovalDate !== undefined) {
+      throw new DeadlineQueryError(
+        '新药相关专利权期限补偿只适用于发明专利：请删除 marketingApprovalDate 或更正专利类型。',
+      )
+    }
+    if ((query.termCompensationYears ?? 0) !== 0) {
+      throw new DeadlineQueryError(
+        '专利权期限补偿只适用于发明专利：请删除 termCompensationYears 或更正专利类型。',
+      )
+    }
+  }
+  if (query.termCompensationYears !== undefined
+    && (!Number.isInteger(query.termCompensationYears)
+      || query.termCompensationYears < 0 || query.termCompensationYears > 5)) {
+    throw new DeadlineQueryError(
+      `termCompensationYears 必须是 0 至 5 的整数年: ${String(query.termCompensationYears)}`,
+    )
+  }
+  if (query.paidThroughYear !== undefined) {
+    if (!Number.isInteger(query.paidThroughYear) || query.paidThroughYear < 0) {
+      throw new DeadlineQueryError(
+        `paidThroughYear 必须是 0 或正整数专利年度: ${String(query.paidThroughYear)}`,
+      )
+    }
+    const cap = termYearCap(query)
+    if (query.paidThroughYear > cap) {
+      const hint = query.kind === 'invention'
+        ? '如已获期限补偿，请同时提供 termCompensationYears。'
+        : ''
+      throw new DeadlineQueryError(
+        `paidThroughYear 超出专利权期限（${String(cap)} 年）: ${String(query.paidThroughYear)}。${hint}`,
+      )
+    }
+  }
+}
+
+/**
+ * Reject priority inputs that contradict each other or run out of order: a
+ * claim with no date, a date with no claim, or a priority date after the filing
+ * date. Each would otherwise pick a start date silently.
  * @param query - the case inputs.
  */
 function assertPriorityInputs(query: DeadlineQuery): void {
+  if (query.priorityDate !== undefined
+    && compareCalendarDates(query.priorityDate, query.filingDate) > 0) {
+    throw new DeadlineQueryError(
+      '优先权日晚于申请日：优先权日必须在申请日之前，请核对两项日期。',
+    )
+  }
   if (query.claimsPriority && query.priorityDate === undefined) {
     throw new DeadlineQueryError(
       '已声明本案主张优先权（claimsPriority: true），但未提供优先权日（priorityDate）：'
@@ -267,21 +355,24 @@ function priorityItems(query: DeadlineQuery, options: EvaluateOptions): Deadline
     period: { unit: 'month', count: priorityMonths },
   }))
 
-  // ── 细则第36条 — priority may be restored within two months of the window closing.
-  items.push(fromPeriod({
-    base: {
-      id: 'priority-restoration',
-      label: '请求恢复优先权（有正当理由且在优先权期限届满后2个月内）',
-      legalBasis: '专利法实施细则第36条',
-      query,
-      options,
-    },
-    start: periodEnd(filing, { unit: 'month', count: priorityMonths }),
-    period: { unit: 'month', count: 2 },
-  }))
+  // ── 细则第36条 — restoration is limited to an invention or utility model.
+  if (query.kind !== 'design') {
+    items.push(fromPeriod({
+      base: {
+        id: 'priority-restoration',
+        label: '请求恢复优先权（有正当理由且在优先权期限届满后2个月内）',
+        legalBasis: '专利法实施细则第36条',
+        query,
+        options,
+      },
+      start: periodEnd(filing, { unit: 'month', count: priorityMonths }),
+      period: { unit: 'month', count: 2 },
+    }))
+  }
 
-  // ── 细则第37条 — add or correct a priority claim; it presupposes a priority claim.
-  if (query.claimsPriority && priority !== undefined) {
+  // ── 细则第37条 — add or correct a priority claim; it presupposes a priority
+  // claim and, like restoration, applies only to an invention or utility model.
+  if (query.kind !== 'design' && query.claimsPriority && priority !== undefined) {
     const fromPriority = periodEnd(priority, { unit: 'month', count: 16 })
     const fromFiling = periodEnd(filing, { unit: 'month', count: 4 })
     items.push(fromDate({
@@ -309,11 +400,12 @@ function applicationFeeItems(query: DeadlineQuery, options: EvaluateOptions): De
   const filing = query.filingDate
   const items: DeadlineItem[] = []
 
-  // ── 细则第112条 — application fee.
+  // ── 细则第112条 — application fee; a priority claim adds its fee to the same payment.
+  const priorityFee = query.claimsPriority ? '及优先权要求费' : ''
   items.push(fromPeriod({
     base: {
       id: 'application-fee',
-      label: '缴纳申请费、公布印刷费及必要的申请附加费（或自收到受理通知书之日起15日内）',
+      label: `缴纳申请费、公布印刷费、必要的申请附加费${priorityFee}（或自收到受理通知书之日起15日内）`,
       legalBasis: '专利法实施细则第112条',
       query,
       options,
@@ -479,24 +571,49 @@ function registrationItems(
  * @returns the term entry.
  */
 function patentTermItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
-  const filing = query.filingDate
-  const items: DeadlineItem[] = []
+  const baseYears = statutoryTermYears(query)
+  const compensation = query.termCompensationYears ?? 0
+  const label = compensation === 0
+    ? `专利权期限届满（${String(baseYears)}年，自申请日起算）`
+    : `专利权期限届满（${String(baseYears)}年+期限补偿${String(compensation)}年，自申请日起算）`
 
   // ── 专利法第42条第1款 — patent term, always counted from the filing date.
-  const termYears = query.kind === 'invention' ? 20 : query.kind === 'utility-model' ? 10 : 15
-  items.push(fromPeriod({
+  return [fromPeriod({
     base: {
       id: 'patent-term',
-      label: `专利权期限届满（${String(termYears)}年，自申请日起算）`,
+      label,
       legalBasis: '专利法第42条第1款',
       query,
       options,
     },
-    start: filing,
-    period: { unit: 'year', count: termYears },
-  }))
+    start: query.filingDate,
+    period: { unit: 'year', count: baseYears + compensation },
+  })]
+}
 
-  return items
+/**
+ * The last patent year of the term, including granted compensation.
+ * @param query - the case inputs.
+ * @returns the term length in years.
+ */
+function termYearCap(query: DeadlineQuery): number {
+  return statutoryTermYears(query) + (query.termCompensationYears ?? 0)
+}
+
+/**
+ * The statutory term in years for a case, before any granted compensation: 20
+ * for an invention, 10 for a utility model, and 10 or 15 for a design depending
+ * on whether it was filed before the 2021 amendment took effect.
+ * @param query - the case inputs.
+ * @returns the statutory term in years.
+ */
+function statutoryTermYears(query: DeadlineQuery): number {
+  switch (query.kind) {
+    case 'invention': return 20
+    case 'utility-model': return 10
+    case 'design':
+      return compareCalendarDates(query.filingDate, DESIGN_TERM_TRANSITION) < 0 ? 10 : 15
+  }
 }
 
 /**
@@ -522,9 +639,17 @@ function annualFeeItems(query: DeadlineQuery, options: EvaluateOptions): Deadlin
   }
   const grantedYear = patentYearOf(filing, grant)
   const items: DeadlineItem[] = []
-  const horizon = periodEnd(query.today, { unit: 'year', count: 2 })
-  const lastYear = Math.max(grantedYear + 1, patentYearOf(filing, horizon))
-  for (let year = grantedYear + 1; year <= lastYear; year++) {
+  const horizonYears = options.annuityHorizonYears ?? DEFAULT_ANNUITY_HORIZON_YEARS
+  const horizon = periodEnd(query.today, { unit: 'year', count: horizonYears })
+  // A patent year is one year of term; no annual fee exists past the last one.
+  // Granted term compensation extends both the term and its fee years.
+  const lastFeeYear = termYearCap(query)
+  const lastYear = Math.min(
+    lastFeeYear,
+    Math.max(grantedYear + 1, patentYearOf(filing, horizon)),
+  )
+  const firstYear = Math.max(grantedYear + 1, (query.paidThroughYear ?? 0) + 1)
+  for (let year = firstYear; year <= lastYear; year++) {
     // 细则第115条: the fee for year N is due before year N-1 ends.
     const due = addCalendarMonths(filing, (year - 1) * 12)
     const windowEnd = periodEnd(due, { unit: 'month', count: 6 })
@@ -564,8 +689,8 @@ function pctNationalEntryItems(query: DeadlineQuery, options: EvaluateOptions): 
   const filing = query.filingDate
   const items: DeadlineItem[] = []
 
-  // ── 细则第120条 — PCT national-phase entry.
-  if (query.isPctNationalPhase === true) {
+  // ── 细则第120条 — PCT national-phase entry; the PCT route does not cover designs.
+  if (query.kind !== 'design' && query.isPctNationalPhase === true) {
     const base = priority ?? filing
     const baseLabel = priority !== undefined ? '优先权日' : '国际申请日（未主张优先权）'
     items.push(fromPeriod({
@@ -635,6 +760,10 @@ type NoticePeriodSpec = {
   absentReason: string
   /** Months from delivery when the notice itself designates none. */
   months: number
+  /** Overrides for a patent category whose default designated period differs. */
+  monthsByKind?: Partial<Record<PatentKind, number>>
+  /** Labels that name the category-specific procedure. */
+  labelByKind?: Partial<Record<PatentKind, string>>
 }
 
 /**
@@ -654,10 +783,15 @@ const NOTICE_PERIOD_SPECS: readonly NoticePeriodSpec[] = [
   {
     id: 'oa-response-first',
     label: '答复第一次审查意见通知书（指定期限，实质审查程序中为4个月）',
+    labelByKind: {
+      'utility-model': '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
+      design: '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
+    },
     legalBasis: '专利审查指南第五部分第七章第2.1节',
     noticeKind: 'office-action-first',
     absentReason: '需要第一次审查意见通知书的送达记录，本查询未提供该通知。',
     months: 4,
+    monthsByKind: { 'utility-model': 2, design: 2 },
   },
   {
     id: 'oa-response-subsequent',
@@ -669,16 +803,16 @@ const NOTICE_PERIOD_SPECS: readonly NoticePeriodSpec[] = [
   },
   {
     id: 'reexamination-deficiency-response',
-    label: '答复复审通知书（指定期限，以通知书指定为准）',
+    label: '答复复审通知书（指定期限通常为1个月，以通知书指定为准）',
     legalBasis: '专利法实施细则第67条',
     noticeKind: 'reexamination-notice',
     absentReason: '需要复审通知书的送达记录，本查询未提供该通知。',
-    months: 2,
+    months: 1,
   },
   {
     id: 'invalidation-response',
     label: '答复无效宣告请求（合议组指定期限，通常为1个月）',
-    legalBasis: '专利法实施细则第72条、专利审查指南第四部分第三章第4.4节',
+    legalBasis: '专利法实施细则第72条、专利审查指南第四部分第三章第4.4.1节',
     noticeKind: 'invalidation-transfer',
     absentReason: '需要无效宣告请求书转送文件的送达记录，本查询未提供该通知。',
     months: 1,
@@ -697,7 +831,14 @@ function noticeDrivenItems(
   query: DeadlineQuery,
   options: EvaluateOptions,
 ): DeadlineItem[] {
-  return NOTICE_PERIOD_SPECS.flatMap(spec => fromNotices({ ...spec, notices, query, options }))
+  return NOTICE_PERIOD_SPECS.flatMap(({ labelByKind, monthsByKind, ...spec }) => fromNotices({
+    ...spec,
+    label: labelByKind?.[query.kind] ?? spec.label,
+    months: monthsByKind?.[query.kind] ?? spec.months,
+    notices,
+    query,
+    options,
+  }))
 }
 
 /**
@@ -710,6 +851,9 @@ function noticeDrivenItems(
  */
 function termCompensationItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
   const items: DeadlineItem[] = []
+
+  // ── 细则第77条、第81条 — compensation exists only for an invention patent.
+  if (query.kind !== 'invention') return []
 
   // ── 细则第77条、第81条 — term-compensation requests.
   if (query.authorizationPublicationDate !== undefined) {

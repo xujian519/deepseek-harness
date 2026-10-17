@@ -11,8 +11,9 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { createPatentDeadlinesTool } from './tool/patent-deadlines.ts'
+import { createPatentDeadlinesTool, DEFAULT_TIME_ZONE } from './tool/patent-deadlines.ts'
 import { createPatentDeadlineService, type PatentDeadlineService } from './service.ts'
+import { DEFAULT_ANNUITY_HORIZON_YEARS } from './statutes.ts'
 import { loadWorkCalendar } from './work-calendar.ts'
 // Public library API: pure date and period arithmetic, delivery determination,
 // the deadline evaluator, and the tool factory.
@@ -48,6 +49,7 @@ export {
 } from './work-calendar.ts'
 export { CALENDAR_FILE_NAME, workCalendarDir } from './asset-location.ts'
 export {
+  DEFAULT_ANNUITY_HORIZON_YEARS,
   DeadlineQueryError,
   describePatentKind,
   evaluateDeadlines,
@@ -74,6 +76,7 @@ export {
 export {
   createPatentDeadlinesTool,
   DeadlineToolError,
+  DEFAULT_TIME_ZONE,
   type PatentDeadlinesInput,
   type PatentDeadlinesNoticeInput,
   type PatentDeadlinesOutput,
@@ -99,6 +102,10 @@ export interface Config {
   calendarDir?: string
   /** Warn when an end date falls within this many days (deployment policy, not a legal period). */
   reminderLeadDays?: number
+  /** Years of future annual fees to report (deployment policy, not a legal period). */
+  annuityHorizonYears?: number
+  /** IANA zone in which "today" is read; defaults to Asia/Shanghai. */
+  timeZone?: string
   /**
    * Publish the evaluator as the `patentDeadline` Cordis service. Defaults to
    * false so the preset mount stays tool-only; a root-domain mount sets it to
@@ -109,10 +116,15 @@ export interface Config {
   exposeTool?: boolean
 }
 
+/** Default warning horizon when the configuration omits it. */
+const DEFAULT_REMINDER_LEAD_DAYS = 30
+
 /** Schemastery configuration: calendar override, warning horizon, and mount role. */
 export const Config: z<Config> = z.object({
   calendarDir: z.string(),
-  reminderLeadDays: z.number().default(30),
+  reminderLeadDays: z.number().default(DEFAULT_REMINDER_LEAD_DAYS),
+  annuityHorizonYears: z.number().min(1).step(1).default(DEFAULT_ANNUITY_HORIZON_YEARS),
+  timeZone: z.string().default(DEFAULT_TIME_ZONE),
   provideService: z.boolean().default(false),
   exposeTool: z.boolean().default(true),
 })
@@ -121,15 +133,21 @@ export const Config: z<Config> = z.object({
  * Register the patent_deadlines tool over the configured holiday arrangement,
  * and/or publish the evaluator as the `patentDeadline` service.
  * @param ctx - registrant context carrying the tool registry.
- * @param config - calendar override, reminder horizon, and mount role.
+ * @param config - calendar override, reminder and annuity horizons, time zone, and mount role.
  */
 export function apply(ctx: Context, config: Config): void {
-  const calendar = loadWorkCalendar(config.calendarDir)
-  const reminderLeadDays = config.reminderLeadDays ?? 30
+  const timeZone = config.timeZone ?? DEFAULT_TIME_ZONE
+  // An unusable zone fails at load rather than silently reading the host's date.
+  new Intl.DateTimeFormat('en-CA', { timeZone })
+  const shared = {
+    calendar: loadWorkCalendar(config.calendarDir),
+    reminderLeadDays: config.reminderLeadDays ?? DEFAULT_REMINDER_LEAD_DAYS,
+    annuityHorizonYears: config.annuityHorizonYears ?? DEFAULT_ANNUITY_HORIZON_YEARS,
+  }
   if (config.provideService ?? false) {
-    ctx.provide('patentDeadline', createPatentDeadlineService({ calendar, reminderLeadDays }))
+    ctx.provide('patentDeadline', createPatentDeadlineService(shared))
   }
   if (config.exposeTool ?? true) {
-    ctx.tools.register(createPatentDeadlinesTool({ calendar, reminderLeadDays }))
+    ctx.tools.register(createPatentDeadlinesTool({ ...shared, timeZone }))
   }
 }

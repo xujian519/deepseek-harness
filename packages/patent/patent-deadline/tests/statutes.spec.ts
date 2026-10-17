@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { DeadlineQueryError, evaluateDeadlines, type DeadlineQuery } from '../src/statutes.ts'
+import {
+  DeadlineQueryError,
+  describePatentKind,
+  evaluateDeadlines,
+  type DeadlineQuery,
+} from '../src/statutes.ts'
 import { WorkCalendar, loadWorkCalendar } from '../src/work-calendar.ts'
 
 const date = (text: string) => {
@@ -113,7 +118,7 @@ describe('statutory deadline set', () => {
     expect(find(query, 'invalidation-response')).toMatchObject({
       dueDate: '2024-04-01',
       label: '答复无效宣告请求（合议组指定期限，通常为1个月）',
-      legalBasis: '专利法实施细则第72条、专利审查指南第四部分第三章第4.4节',
+      legalBasis: '专利法实施细则第72条、专利审查指南第四部分第三章第4.4.1节',
     })
     expect(pendingIds(query)).not.toContain('invalidation-response')
   })
@@ -262,6 +267,213 @@ describe('statutory deadline set', () => {
     expect(find(query, 'patent-term')).toMatchObject({ dueDate: '2039-03-10' })
     expect(find(query, 'voluntary-amendment-utility-design')).toMatchObject({ dueDate: '2024-05-10' })
     expect(find(query, 'substantive-exam-request')).toBeUndefined()
+  })
+
+  it('applies the 10-year term to a design filed before the 2021 transition', () => {
+    const oldDesign: DeadlineQuery = {
+      kind: 'design',
+      filingDate: date('2020-05-31'),
+      claimsPriority: false,
+      today: date('2026-09-20'),
+    }
+    expect(find(oldDesign, 'patent-term')).toMatchObject({
+      rawDueDate: '2030-05-31',
+      label: '专利权期限届满（10年，自申请日起算）',
+    })
+    // The filing date selects the term: the day the amendment took effect starts 15 years.
+    expect(find({ ...oldDesign, filingDate: date('2021-06-01') }, 'patent-term'))
+      .toMatchObject({ rawDueDate: '2036-06-01' })
+  })
+
+  it('stops annual fees at the last year of the patent term', () => {
+    const oldInvention: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2000-01-01'),
+      claimsPriority: false,
+      authorizationPublicationDate: date('2005-01-01'),
+      today: date('2026-10-17'),
+    }
+    expect(find(oldInvention, 'annual-fee-20')).toBeDefined()
+    expect(find(oldInvention, 'annual-fee-21')).toBeUndefined()
+  })
+
+  it('omits annual fees already recorded as paid', () => {
+    const query: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2000-01-01'),
+      claimsPriority: false,
+      authorizationPublicationDate: date('2005-01-01'),
+      paidThroughYear: 19,
+      today: date('2026-10-17'),
+    }
+    expect(find(query, 'annual-fee-19')).toBeUndefined()
+    expect(find(query, 'annual-fee-20')).toBeDefined()
+    expect(find({ ...query, paidThroughYear: 20 }, 'annual-fee-20')).toBeUndefined()
+  })
+
+  it('extends the term and its fee years by a granted compensation period', () => {
+    const options = { calendar: plainCalendar(2019, 2046), reminderLeadDays: 30 }
+    const query: DeadlineQuery = {
+      ...invention,
+      authorizationPublicationDate: date('2026-09-01'),
+      termCompensationYears: 5,
+      today: date('2044-09-20'),
+    }
+    expect(find(query, 'patent-term', options)).toMatchObject({
+      rawDueDate: '2045-01-15',
+      label: '专利权期限届满（20年+期限补偿5年，自申请日起算）',
+    })
+    expect(find(query, 'annual-fee-25', options)).toBeDefined()
+    expect(find(query, 'annual-fee-26', options)).toBeUndefined()
+  })
+
+  it('offers term compensation only to an invention', () => {
+    const utility: DeadlineQuery = {
+      kind: 'utility-model',
+      filingDate: date('2024-01-10'),
+      claimsPriority: false,
+      authorizationPublicationDate: date('2026-06-10'),
+      today: date('2026-09-20'),
+    }
+    expect(find(utility, 'term-compensation-request')).toBeUndefined()
+    expect(pendingIds(utility)).not.toContain('term-compensation-request')
+    expect(() => evaluateDeadlines({ ...utility, marketingApprovalDate: date('2026-07-01') }, base))
+      .toThrow(/新药/)
+  })
+
+  it('omits priority restoration and addition for a design', () => {
+    const design: DeadlineQuery = {
+      kind: 'design',
+      filingDate: date('2024-03-10'),
+      claimsPriority: true,
+      priorityDate: date('2023-11-10'),
+      today: date('2026-09-20'),
+    }
+    expect(find(design, 'priority-window')).toBeDefined()
+    expect(find(design, 'priority-restoration')).toBeUndefined()
+    expect(find(design, 'priority-addition-or-correction')).toBeUndefined()
+    expect(() => evaluateDeadlines({ ...design, isPctNationalPhase: true }, base)).toThrow(/PCT/)
+  })
+
+  it('uses the two-month first office-action period for a utility model and a design', () => {
+    const notice = {
+      kind: 'office-action-first' as const,
+      delivery: { mode: 'electronic' as const, dispatchDate: date('2026-08-20') },
+    }
+    const utility: DeadlineQuery = {
+      kind: 'utility-model',
+      filingDate: date('2025-02-10'),
+      claimsPriority: false,
+      notices: [notice],
+      today: date('2026-09-20'),
+    }
+    expect(find(utility, 'oa-response-first')).toMatchObject({
+      dueDate: '2026-10-20',
+      label: '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
+    })
+    expect(find({ ...utility, kind: 'design' }, 'oa-response-first')).toMatchObject({ dueDate: '2026-10-20' })
+    expect(find({ ...utility, kind: 'invention' }, 'oa-response-first')).toMatchObject({ dueDate: '2026-12-21' })
+  })
+
+  it('defaults the reexamination-notice answer to one month', () => {
+    const query: DeadlineQuery = {
+      ...invention,
+      notices: [{
+        kind: 'reexamination-notice',
+        delivery: { mode: 'electronic', dispatchDate: date('2026-08-20') },
+      }],
+    }
+    // 2026-09-20 is a Sunday, so the reported date rolls to Monday.
+    expect(find(query, 'reexamination-deficiency-response')).toMatchObject({
+      rawDueDate: '2026-09-20',
+      dueDate: '2026-09-21',
+      label: '答复复审通知书（指定期限通常为1个月，以通知书指定为准）',
+    })
+  })
+
+  it('rejects dates that contradict each other in time', () => {
+    expect(() => evaluateDeadlines({
+      ...invention,
+      claimsPriority: true,
+      priorityDate: date('2020-02-01'),
+    }, base)).toThrow(/优先权日/)
+    expect(() => evaluateDeadlines({
+      ...invention,
+      authorizationPublicationDate: date('2019-01-01'),
+    }, base)).toThrow(/授权公告日/)
+  })
+
+  it('counts PCT national-phase dates from the international filing date without priority', () => {
+    const query: DeadlineQuery = {
+      kind: 'utility-model',
+      filingDate: date('2023-07-15'),
+      claimsPriority: false,
+      isPctNationalPhase: true,
+      today: date('2026-09-20'),
+    }
+    expect(find(query, 'pct-national-entry')).toMatchObject({
+      dueDate: '2026-01-15',
+      label: '办理进入中国国家阶段手续（自国际申请日（未主张优先权）起30个月内；缴纳宽限费后可延至32个月）',
+    })
+  })
+
+  it('computes the new-drug compensation request from the marketing approval date', () => {
+    const query: DeadlineQuery = {
+      ...invention,
+      marketingApprovalDate: date('2026-07-01'),
+    }
+    expect(find(query, 'new-drug-compensation-request')).toMatchObject({
+      dueDate: '2026-10-01',
+      legalBasis: '专利法第42条第3款、专利法实施细则第81条',
+    })
+  })
+
+  it('rejects compensation and paid-through values outside their domain', () => {
+    expect(() => evaluateDeadlines({ ...invention, paidThroughYear: -1 }, base))
+      .toThrow(/paidThroughYear/)
+    expect(() => evaluateDeadlines({ ...invention, paidThroughYear: 1.5 }, base))
+      .toThrow(/paidThroughYear/)
+    expect(() => evaluateDeadlines({ ...invention, paidThroughYear: 21 }, base))
+      .toThrow(/超出专利权期限/)
+    expect(() => evaluateDeadlines({ ...invention, termCompensationYears: 6 }, base))
+      .toThrow(/termCompensationYears/)
+    expect(() => evaluateDeadlines({ ...invention, termCompensationYears: -1 }, base))
+      .toThrow(/termCompensationYears/)
+    expect(() => evaluateDeadlines({
+      kind: 'utility-model',
+      filingDate: date('2024-01-10'),
+      claimsPriority: false,
+      termCompensationYears: 2,
+      today: date('2026-09-20'),
+    }, base)).toThrow(/只适用于发明专利/)
+
+    let designMessage = ''
+    try {
+      evaluateDeadlines({
+        kind: 'design',
+        filingDate: date('2024-03-10'),
+        claimsPriority: false,
+        paidThroughYear: 16,
+        today: date('2026-09-20'),
+      }, base)
+    } catch (error) {
+      if (error instanceof Error) designMessage = error.message
+    }
+    expect(designMessage).toContain('超出专利权期限')
+    expect(designMessage).not.toContain('termCompensationYears')
+  })
+
+  it('names every patent category and propagates unexpected calendar failures', () => {
+    expect(describePatentKind('invention')).toBe('发明专利')
+    expect(describePatentKind('utility-model')).toBe('实用新型专利')
+    expect(describePatentKind('design')).toBe('外观设计专利')
+    class BrokenCalendar extends WorkCalendar {
+      override rollForward(): never {
+        throw new Error('calendar exploded')
+      }
+    }
+    expect(() => evaluateDeadlines(invention, { calendar: new BrokenCalendar([]), reminderLeadDays: 30 }))
+      .toThrow('calendar exploded')
   })
 
   it('computes both PCT national-phase dates from the priority date', () => {
