@@ -100,7 +100,10 @@ describe('readCniprScriptFailure', () => {
     // 未知分类只可能来自脚本改了一半的运行，归入页面交互失败比放行安全。
     expect(readCniprScriptFailure({ code: 'something_new' })).toEqual({ code: 'page_state', message: '' })
     expect(readCniprScriptFailure(undefined)).toBeUndefined()
-    expect(readCniprScriptFailure('boom')).toBeUndefined()
+    expect(readCniprScriptFailure(null)).toBeUndefined()
+    // 非对象的 error 同样是畸形收据：保留原文并按 page_state 报出。
+    expect(readCniprScriptFailure('boom')).toEqual({ code: 'page_state', message: 'boom' })
+    expect(readCniprScriptFailure(42)).toEqual({ code: 'page_state', message: '脚本回传的 error 不是对象' })
   })
 })
 
@@ -121,9 +124,18 @@ describe('readCniprPdfLinksPayload', () => {
     expect(read.failure).toBeUndefined()
   })
 
-  it('treats a non-object payload as empty and carries a script-level failure', () => {
-    expect(readCniprPdfLinksPayload(null)).toEqual({ items: [] })
-    expect(readCniprPdfLinksPayload({ items: 'nope' })).toEqual({ items: [] })
+  it('treats a malformed receipt as a channel failure and keeps a script-level failure', () => {
+    expect(readCniprPdfLinksPayload(null)).toEqual({
+      items: [],
+      failure: { code: 'page_state', message: 'CNIPR 脚本收据不是对象' },
+    })
+    expect(readCniprPdfLinksPayload({ items: 'nope' })).toEqual({
+      items: [],
+      failure: { code: 'page_state', message: 'CNIPR 脚本收据缺少 items 数组' },
+    })
+    // 骨架缺失但脚本给了失败原因时，优先保留脚本自己的分类。
+    expect(readCniprPdfLinksPayload({ items: 'nope', error: { code: 'login_required', message: '未检测到登录态' } }))
+      .toEqual({ items: [], failure: { code: 'login_required', message: '未检测到登录态' } })
     const read = readCniprPdfLinksPayload({ items: [], error: { code: 'login_required', message: '未检测到登录态' } })
     expect(read.items).toEqual([])
     expect(read.failure).toEqual({ code: 'login_required', message: '未检测到登录态' })
@@ -207,9 +219,15 @@ describe('readCniprLegalPayload', () => {
     ])
   })
 
-  it('treats a non-object payload as empty and carries a script-level failure', () => {
-    expect(readCniprLegalPayload(undefined)).toEqual({ items: [] })
-    expect(readCniprLegalPayload({ items: 'nope' })).toEqual({ items: [] })
+  it('treats a malformed receipt as a channel failure and carries a script-level failure', () => {
+    expect(readCniprLegalPayload(undefined)).toEqual({
+      items: [],
+      failure: { code: 'page_state', message: 'CNIPR 脚本收据不是对象' },
+    })
+    expect(readCniprLegalPayload({ items: 'nope' })).toEqual({
+      items: [],
+      failure: { code: 'page_state', message: 'CNIPR 脚本收据缺少 items 数组' },
+    })
     expect(readCniprLegalPayload({ items: [], error: { code: 'page_state', message: '等检索结果页失败' } }).failure)
       .toEqual({ code: 'page_state', message: '等检索结果页失败' })
   })
@@ -315,8 +333,17 @@ describe('readCniprSearchPayload', () => {
     expect(readCniprSearchPayload({ header: '全部0件专利', items: [] })).toEqual({ total: 0, hits: [] })
   })
 
-  it('treats a non-object payload as empty and carries a script-level failure', () => {
-    expect(readCniprSearchPayload(undefined)).toEqual({ total: null, hits: [] })
+  it('treats a malformed receipt as a channel failure and carries a script-level failure', () => {
+    expect(readCniprSearchPayload(undefined)).toEqual({
+      total: null,
+      hits: [],
+      failure: { code: 'page_state', message: 'CNIPR 脚本收据不是对象' },
+    })
+    expect(readCniprSearchPayload({ items: 'nope' })).toEqual({
+      total: null,
+      hits: [],
+      failure: { code: 'page_state', message: 'CNIPR 脚本收据缺少 items 数组' },
+    })
     expect(readCniprSearchPayload({ header: '全部2件专利', items: [], error: { code: 'login_required', message: '未检测到登录态' } }))
       .toEqual({ total: 2, hits: [], failure: { code: 'login_required', message: '未检测到登录态' } })
   })

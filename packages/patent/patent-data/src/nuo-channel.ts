@@ -25,15 +25,26 @@ export const NUO_EGO_BROWSER_ENV = 'NUO_PATENT_EGO_BROWSER'
 /**
  * Apply the deployment's nuo request channel to the process environment.
  *
- * `auto` leaves both the environment and nuo's cached availability probe untouched;
- * the other two values write the environment variable and drop nuo's cached probe,
- * because that cache is read once and would otherwise keep the previous answer for
- * the rest of the process.
+ * `native` and `browser` write the environment variable and drop nuo's cached
+ * availability probe, because that cache is read once and would otherwise keep
+ * the previous answer for the rest of the process. `auto` keeps nuo's own
+ * detection and leaves the environment untouched. The variable is process-wide,
+ * so an explicit choice is last-writer-wins across mounts; each mount restores
+ * the value it replaced when its service disposes, unless another writer changed
+ * the variable in the meantime.
  * @param channel - `native` forces the plain fetch, `browser` forces the ego-browser path, `auto` keeps nuo's own detection.
- * @returns nothing; the environment and nuo's availability cache are updated in place.
+ * @returns a disposer restoring the previous value, or undefined for `auto`.
  */
-export function applyNuoRequestChannel(channel: NuoRequestChannel): void {
-  if (channel === 'auto') return
-  process.env[NUO_EGO_BROWSER_ENV] = channel === 'native' ? '0' : '1'
+export function applyNuoRequestChannel(channel: NuoRequestChannel): (() => void) | undefined {
+  if (channel === 'auto') return undefined
+  const value = channel === 'native' ? '0' : '1'
+  const previous = process.env[NUO_EGO_BROWSER_ENV]
+  process.env[NUO_EGO_BROWSER_ENV] = value
   resetEgoBrowserCache()
+  return () => {
+    if (process.env[NUO_EGO_BROWSER_ENV] !== value) return
+    if (previous === undefined) Reflect.deleteProperty(process.env, NUO_EGO_BROWSER_ENV)
+    else process.env[NUO_EGO_BROWSER_ENV] = previous
+    resetEgoBrowserCache()
+  }
 }

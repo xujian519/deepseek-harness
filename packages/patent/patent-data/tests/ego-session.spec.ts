@@ -80,6 +80,24 @@ describe('EgoBrowserSession.checkAvailability', () => {
     const session = new EgoBrowserSession({ homeDir: base, platform: 'win32', env: { PATH: bin } })
     expect(session.checkAvailability()).toEqual({ ok: true })
   })
+
+  it('is ok when the CLI sits in a configured pathEntries directory', () => {
+    const base = mkdtempSync(join(tmpdir(), 'dsh-ego-session-entries-'))
+    const bin = join(base, 'opt', 'ego', 'bin')
+    mkdirSync(bin, { recursive: true })
+    const cli = join(bin, 'ego-browser')
+    writeFileSync(cli, '#!/bin/sh\nexit 0\n')
+    chmodSync(cli, 0o755)
+    // pathEntries 会注入 spawn 的 PATH，可用性检查也必须看到同一组目录。
+    const session = new EgoBrowserSession({
+      homeDir: join(base, 'home'),
+      // 空串在构造时被过滤，不会把当前目录当成 PATH 目录。
+      pathEntries: ['', bin],
+      platform: 'darwin',
+      env: { PATH: '/usr/bin:/bin' },
+    })
+    expect(session.checkAvailability()).toEqual({ ok: true })
+  })
 })
 
 describe('EgoBrowserSession.runScript', () => {
@@ -107,6 +125,31 @@ describe('EgoBrowserSession.runScript', () => {
 
     const result = await session.runScript("cliLog('x')", { cwd: '/tmp' })
     expect(result.output).toContain('[output truncated]')
+  })
+
+  it('truncates by bytes without splitting a multibyte character', async () => {
+    const runner = new FakeRunner()
+    runner.result = { exitCode: 0, stdout: '你好世界', stderr: '', timedOut: false, durationMs: 5 }
+    const session = new EgoBrowserSession({ runner, homeDir: '/Users/tester', platform: 'darwin', maxOutputBytes: 7 })
+
+    const result = await session.runScript("cliLog('x')", { cwd: '/tmp' })
+    // 前两个汉字占 6 字节，第三个汉字占 3 字节；上限 7 字节只保留完整字符。
+    expect(result.output).toBe('你好…\n[output truncated]')
+  })
+
+  it('uses the session-level environment for script runs', async () => {
+    const runner = new FakeRunner()
+    const session = new EgoBrowserSession({
+      runner,
+      homeDir: '/Users/tester',
+      platform: 'darwin',
+      env: { PATH: '/session/bin', MARKER: 'session' },
+    })
+
+    await session.runScript("cliLog('x')", { cwd: '/tmp' })
+
+    expect(runner.calls[0]?.env?.PATH).toContain('/session/bin')
+    expect(runner.calls[0]?.env?.MARKER).toBe('session')
   })
 
   it('fails loudly when no runner is configured', async () => {

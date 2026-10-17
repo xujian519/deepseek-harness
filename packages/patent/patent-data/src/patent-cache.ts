@@ -8,6 +8,12 @@
 import type { PatentSearchResult, ScrapeResult } from '@deepseek-ai/nuo-patent'
 import type { PatentCacheOptions } from './types.ts'
 
+/** Default search/scrape cache TTL in milliseconds (10 minutes). */
+const DEFAULT_CACHE_TTL_MS = 10 * 60 * 1000
+
+/** Default search/scrape cache capacity in entries. */
+const DEFAULT_CACHE_MAX_ENTRIES = 100
+
 type CacheNode<T> = { value: T; expiresAt: number }
 
 /**
@@ -21,8 +27,8 @@ export class AsyncResultCache<T> {
   private readonly inflight = new Map<string, Promise<T>>()
 
   constructor(options: PatentCacheOptions = {}) {
-    this.ttlMs = options.ttlMs ?? 10 * 60 * 1000
-    this.maxEntries = options.maxEntries ?? 100
+    this.ttlMs = options.ttlMs ?? DEFAULT_CACHE_TTL_MS
+    this.maxEntries = options.maxEntries ?? DEFAULT_CACHE_MAX_ENTRIES
   }
 
   /**
@@ -86,12 +92,16 @@ export class AsyncResultCache<T> {
 }
 
 /**
- * A search result is cacheable when it carries no failure-class warning.
+ * A search result is cacheable when it carries hits and no failure-class warning.
+ * Empty results pass through uncached: the engine also reports parse degradation
+ * as a non-fatal warning, and caching that zero-hit answer would keep the failure
+ * visible for the whole TTL after the next query could have succeeded.
  * @param result - the search result to check.
- * @returns true when the result carries no failure-class warning.
+ * @returns true when the result carries hits and no failure-class warning.
  */
 export function isSearchResultCacheable(result: PatentSearchResult): boolean {
-  return !result.warnings.some(w => /^(查询条件为空|检索超时|检索失败)/.test(w))
+  return result.hits.length > 0
+    && !result.warnings.some(w => /^(查询条件为空|检索超时|检索失败)/.test(w))
 }
 
 /**
@@ -100,7 +110,7 @@ export function isSearchResultCacheable(result: PatentSearchResult): boolean {
  * @returns true when the scrape succeeded.
  */
 export function isScrapeResultCacheable(result: ScrapeResult): boolean {
-  return  result.success
+  return result.success
 }
 
 /**
