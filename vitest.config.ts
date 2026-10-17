@@ -258,15 +258,16 @@ export default defineConfig({
         'packages/client/ui-agent-preset/src/**/*.{ts,tsx}',
         // Patent-domain packages are exempted one at a time, never by a family
         // glob, so a package added later is measured unless it is exempted
-        // deliberately. Six already pass the per-file gate and stay measured:
+        // deliberately. Seven already pass the per-file gate and stay measured:
         // methodology, patent-data, patent-document, patent-knowledge,
-        // patent-rule, and tool-literature. Measured 2026-09-28 over
+        // patent-rule, tool-literature, and patent-deadline. Measured 2026-09-28 over
         // `npx vitest run packages/patent/{patent-core,patent-tools,patent-workflow,patent-teams,patent-deadline,writing-patterns}
         // --coverage --coverage.reporter=json-summary --coverage.exclude='packages/*/*/src/worker.ts'`
         // — the entries below are excluded from the gate, so the exclude override
         // is what instruments them. Statements and instrumented src files:
         // patent-core 99.7/107, patent-tools 98.4/78, patent-workflow 99.9/17,
-        // patent-teams 99.5/16, patent-deadline 96.9/9, writing-patterns 97.4/8.
+        // patent-teams 99.5/16, writing-patterns 97.4/8. patent-deadline measured
+        // 100/10 on 2026-10-17 and stays measured.
         // TODO(cov): retire each entry as its package reaches the gate; the
         // per-package work order is in the 2026-09-21 patent-domain review
         // (PDR-01, tracker #208).
@@ -274,7 +275,6 @@ export default defineConfig({
         'packages/patent/patent-tools/src/**/*.{ts,tsx}',
         'packages/patent/patent-workflow/src/**/*.{ts,tsx}',
         'packages/patent/patent-teams/src/**/*.{ts,tsx}',
-        'packages/patent/patent-deadline/src/**/*.{ts,tsx}',
         'packages/patent/writing-patterns/src/**/*.{ts,tsx}',
         // The webserver Host module ships its own suite, but request-failure
         // and WebSocket-upgrade error branches remain uncovered. TODO(cov):

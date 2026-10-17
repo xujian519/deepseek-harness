@@ -6,7 +6,9 @@
 import {
   describePatentKind,
   UNCOVERED_YEAR_CAVEAT_PREFIX,
+  type ComputedDeadline,
   type DeadlineReport,
+  type LatePaymentWindow,
   type PatentKind,
 } from './statutes.ts'
 
@@ -19,6 +21,8 @@ export type DeadlineReportMeta = {
   claimsPriority: boolean
   /** The priority date, when one applies. */
   priorityDate?: string
+  /** Last patent year recorded as paid, when the caller supplied one. */
+  paidThroughYear?: number
 }
 
 const STATUS_LABEL = {
@@ -26,6 +30,9 @@ const STATUS_LABEL = {
   urgent: '🔴 紧急',
   normal: '🟢 正常',
 } as const
+
+/** Periods that 专利法实施细则第6条第5款 excludes from restoration. */
+const RECOVERY_EXCLUDED_IDS: ReadonlySet<string> = new Set(['patent-term', 'priority-window'])
 
 /**
  * Render a deadline report as Markdown: computed deadlines in chronological
@@ -51,6 +58,13 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
     '',
   )
 
+  if (meta.paidThroughYear !== undefined) {
+    lines.push(
+      `年费记录：已缴至第 ${String(meta.paidThroughYear)} 年度（含该年度），之前年度不再列出。`,
+      '',
+    )
+  }
+
   if (report.computed.length === 0) {
     lines.push('本次查询未产出可计算的期限。', '')
   } else {
@@ -75,6 +89,17 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
     lines.push('')
   }
 
+  const triggered = report.computed.filter(
+    (entry): entry is ComputedDeadline & { triggerBasis: string } => entry.triggerBasis !== undefined,
+  )
+  if (triggered.length > 0) {
+    lines.push('起算依据（通知书送达规则）：', '')
+    for (const entry of triggered) {
+      lines.push(`- ${entry.label}：${entry.triggerBasis}`)
+    }
+    lines.push('')
+  }
+
   if (report.pending.length > 0) {
     lines.push(
       `无法计算的期限 ${String(report.pending.length)} 项——需补充下列记录后重算，本工具不以固定年数代替通知书送达日：`,
@@ -86,12 +111,14 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
     lines.push('')
   }
 
-  const caveats = report.computed.filter(entry => entry.calendarCaveat !== undefined)
+  const caveats = report.computed.filter(
+    (entry): entry is ComputedDeadline & { calendarCaveat: string } => entry.calendarCaveat !== undefined,
+  )
   if (caveats.length > 0) {
     // The prose names the years; the prefixed token stays in the structured
     // result for machine consumers.
     const years = [...new Set(caveats.map(entry =>
-      (entry.calendarCaveat ?? '').slice(UNCOVERED_YEAR_CAVEAT_PREFIX.length)))].sort()
+      entry.calendarCaveat.slice(UNCOVERED_YEAR_CAVEAT_PREFIX.length)))].sort()
     lines.push(
       `⚠️ 下列届满日未应用顺延规则（本地节假日安排未覆盖 ${years.join('、')} 年）：`
       + `${caveats.map(entry => `${entry.dueDate}（${entry.label}）`).join('；')}。`,
@@ -99,26 +126,35 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
     )
   }
 
-  const lateWindows = report.computed.filter(entry => entry.latePaymentWindow !== undefined)
+  const lateWindows = report.computed.filter(
+    (entry): entry is ComputedDeadline & { latePaymentWindow: LatePaymentWindow } =>
+      entry.latePaymentWindow !== undefined,
+  )
   if (lateWindows.length > 0) {
     lines.push('年费补缴窗口（逾期后 6 个月内仍可补缴并缴滞纳金，期满未缴专利权自应缴年费期满之日起终止）：', '')
     for (const entry of lateWindows) {
       const window = entry.latePaymentWindow
-      if (window === undefined) continue
       lines.push(`- ${entry.label}：${window.from} 起算，最迟 ${window.to}。`)
     }
     lines.push('')
   }
 
+  // 细则第6条第5款 excludes the patent term and the priority window from restoration.
   const overdueEntries = report.computed.filter(entry => entry.status === 'overdue')
-  if (overdueEntries.length > 0) {
+  const recoverable = overdueEntries.filter(entry => !RECOVERY_EXCLUDED_IDS.has(entry.id))
+  if (recoverable.length > 0) {
     lines.push(
       '已逾期项请先判断是否仍在救济期内：因不可抗拒的事由延误的，可自障碍消除之日起2个月内'
       + '且自期限届满之日起2年内请求恢复权利；因其他正当理由延误的，可自收到通知之日起2个月内'
       + '请求恢复（延误复审请求期限的，自该期限届满之日起2个月内），并缴纳恢复权利请求费'
-      + '（专利法实施细则第6条）。指定期限在届满前还可请求延长，延长不超过两个月'
+      + '（专利法实施细则第6条）。专利权期限（专利法第42条）与优先权期限（专利法第29条）'
+      + '不适用恢复（专利法实施细则第6条第5款）。指定期限在届满前还可请求延长，延长不超过两个月'
       + '（专利审查指南第五部分第七章第4.2节）；但无效宣告请求审查程序中指定的期限不得延长'
       + '（专利法实施细则第75条）。',
+    )
+  } else if (overdueEntries.length > 0) {
+    lines.push(
+      '已逾期项为专利权期限或优先权期限，二者不适用恢复权利（专利法实施细则第6条第5款）。',
     )
   }
 

@@ -139,7 +139,12 @@ export class WorkCalendar {
  * @returns the parsed arrangement.
  */
 export function parseWorkCalendar(text: string): WorkCalendar {
-  const document: unknown = parseYaml(text)
+  let document: unknown
+  try {
+    document = parseYaml(text)
+  } catch (error) {
+    throw new WorkCalendarError(`工作日历 YAML 无法解析: ${String(error)}`)
+  }
   if (typeof document !== 'object' || document === null || Array.isArray(document)) {
     throw new WorkCalendarError('工作日历资产必须是对象，且含 years 数组。')
   }
@@ -173,12 +178,15 @@ function parseWorkCalendarYear(entry: unknown, index: number): WorkCalendarYear 
   if (typeof source !== 'string' || source.trim() === '') {
     throw new WorkCalendarError(`工作日历 years[${String(index)}].source 必须写明节假日安排的出处。`)
   }
-  return {
-    year,
-    source,
-    holidays: parseDateSet(holidays, year, `years[${String(index)}].holidays`),
-    workdays: parseDateSet(workdays, year, `years[${String(index)}].workdays`),
+  const holidaySet = parseDateSet(holidays, year, `years[${String(index)}].holidays`)
+  const workdaySet = parseDateSet(workdays, year, `years[${String(index)}].workdays`)
+  const conflict = [...holidaySet].find(day => workdaySet.has(day))
+  if (conflict !== undefined) {
+    throw new WorkCalendarError(
+      `工作日历 ${conflict} 同时登记为节假日和调休工作日：两项冲突，无法判断该日是否上班。`,
+    )
   }
+  return { year, source, holidays: holidaySet, workdays: workdaySet }
 }
 
 /**
@@ -217,10 +225,13 @@ export function loadWorkCalendar(calendarDir?: string, fileName: string = CALEND
     text = readFileSync(path, 'utf8')
   } catch (error) {
     // Only a missing/unreadable asset can land here; the error names the path.
-    if (error instanceof Error) {
-      throw new WorkCalendarError(`无法读取工作日历资产 ${path}: ${error.message}`)
-    }
-    throw error
+    throw new WorkCalendarError(`无法读取工作日历资产 ${path}: ${String(error)}`)
   }
-  return parseWorkCalendar(text)
+  try {
+    return parseWorkCalendar(text)
+  } catch (error) {
+    // A parse failure and a validation failure both name the file, so the
+    // operator can correct the asset without searching for it.
+    throw new WorkCalendarError(`工作日历资产 ${path} 无效: ${String(error)}`)
+  }
 }

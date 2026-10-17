@@ -46,10 +46,13 @@ export interface PatentDeadlineService {
    * Compute one case's deadline set. `query.today` is supplied by the caller so
    * a report is reproducible; the service never reads the host clock.
    * @param query - the case inputs, including `today`.
-   * @param options - optional override of the reminder horizon for this call.
+   * @param options - optional override of the reminder and annual-fee horizons for this call.
    * @returns the computed and pending deadlines.
    */
-  evaluate(query: DeadlineQuery, options?: { reminderLeadDays?: number }): DeadlineReport
+  evaluate(
+    query: DeadlineQuery,
+    options?: { reminderLeadDays?: number; annuityHorizonYears?: number },
+  ): DeadlineReport
   /**
    * End date of a period starting at `start`, before the rest-day roll-forward.
    * @param start - the period's start date.
@@ -83,6 +86,8 @@ export type PatentDeadlineServiceOptions = {
   calendar: WorkCalendar
   /** Warn when an end date falls within this many days. */
   reminderLeadDays: number
+  /** Years of future annual fees the service reports; defaults to two. */
+  annuityHorizonYears?: number
 }
 
 /**
@@ -93,9 +98,11 @@ export type PatentDeadlineServiceOptions = {
 export function createPatentDeadlineService(options: PatentDeadlineServiceOptions): PatentDeadlineService {
   return {
     evaluate(query, overrides) {
+      const annuityHorizonYears = overrides?.annuityHorizonYears ?? options.annuityHorizonYears
       return evaluateDeadlines(query, {
         calendar: options.calendar,
         reminderLeadDays: overrides?.reminderLeadDays ?? options.reminderLeadDays,
+        ...(annuityHorizonYears !== undefined ? { annuityHorizonYears } : {}),
       })
     },
     periodEnd,

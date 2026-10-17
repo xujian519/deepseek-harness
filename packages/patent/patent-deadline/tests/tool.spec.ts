@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { loadWorkCalendar } from '../src/work-calendar.ts'
+import { loadWorkCalendar, WorkCalendar } from '../src/work-calendar.ts'
 import { createPatentDeadlinesTool, type PatentDeadlinesOutput } from '../src/tool/patent-deadlines.ts'
 
 const FIXED_TODAY = { year: 2026, month: 9, day: 20 }
@@ -140,10 +140,139 @@ describe('patent_deadlines tool', () => {
     const value = result.value as PatentDeadlinesOutput
     const entry = value.computed.find(item => item.id === 'oa-response-first')
     expect(entry?.triggerBasis).toContain('满15日')
-    // 2026-08-20 + 15 days = 2026-09-04, plus the designated 4 months = 2027-01-04,
-    // which the packaged 2025-2026 calendar cannot verify for rest days.
-    expect(entry?.dueDate).toBe('2027-01-04')
-    expect(entry?.calendarCaveat).toBe('calendar-uncovered-year:2027')
+    // 2026-08-20 + 15 days = 2026-09-04, plus the two-month period that
+    // 初步审查 designates for a utility model = 2026-11-04.
+    expect(entry?.dueDate).toBe('2026-11-04')
+    expect(entry?.label).toBe('答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）')
+    expect(entry?.calendarCaveat).toBeUndefined()
+  })
+
+  it('rejects a non-positive designated period instead of throwing a raw period error', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+      notices: [{ kind: 'office-action-first', dispatchDate: '2026-08-20', designatedMonths: 0 }],
+    })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result.content)).toContain('designatedMonths')
+  })
+
+  it('rejects marketing approval for a utility model as a contradiction', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      patentType: 'utility-model',
+      filingDate: '2024-01-10',
+      claimsPriority: false,
+      marketingApprovalDate: '2026-07-01',
+    })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result.content)).toContain('新药')
+  })
+
+  it('accepts every optional case date and echoes the compensation and paid-through inputs', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2020-01-15',
+      claimsPriority: true,
+      priorityDate: '2019-06-01',
+      isPctNationalPhase: false,
+      authorizationPublicationDate: '2026-09-01',
+      termCompensationYears: 2,
+      paidThroughYear: 8,
+      notices: [{
+        kind: 'office-action-first',
+        mode: 'electronic',
+        dispatchDate: '2026-08-20',
+        enteredDate: '2026-08-21',
+        actualReceiptDate: '2026-08-22',
+        handedOverDate: '2026-08-23',
+        publicationDate: '2026-08-24',
+        designatedMonths: 1,
+      }],
+      restDayRule: 'omit',
+    })
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as PatentDeadlinesOutput
+    expect(value.termCompensationYears).toBe(2)
+    expect(value.paidThroughYear).toBe(8)
+    expect(value.computed.find(entry => entry.id === 'oa-response-first')).toMatchObject({
+      dueDate: '2026-09-21',
+      triggerBasis: expect.stringContaining('通知书指定期限 1 个月') as string,
+    })
+    // Year 7 is the granted year and year 8 is recorded as paid: fees start at year 9.
+    expect(value.computed.some(entry => entry.id === 'annual-fee-8')).toBe(false)
+    expect(value.computed.some(entry => entry.id === 'annual-fee-9')).toBe(true)
+    const text = result.content.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
+    expect(text).toContain('年费记录：已缴至第 8 年度（含该年度），之前年度不再列出。')
+  })
+
+  it('reads today from the default zone when no clock is injected', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.tools.register(createPatentDeadlinesTool({
+      calendar: loadWorkCalendar(),
+      reminderLeadDays: 30,
+    }))
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+    })
+    if (result.isError) throw new Error('expected success')
+    expect((result.value as PatentDeadlinesOutput).asOf).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('accepts a notice dated by the day it entered the electronic system', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+      notices: [{ kind: 'office-action-first', mode: 'electronic', enteredDate: '2026-08-21' }],
+    })
+    if (result.isError) throw new Error('expected success')
+    expect((result.value as PatentDeadlinesOutput).computed.find(entry => entry.id === 'oa-response-first'))
+      .toMatchObject({ dueDate: '2026-12-21' })
+  })
+
+  it('rejects an out-of-domain paid-through year', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2020-01-15',
+      claimsPriority: false,
+      paidThroughYear: -1,
+    })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result.content)).toContain('paidThroughYear')
+  })
+
+  it('propagates an unexpected calendar failure as a tool error', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    class BrokenCalendar extends WorkCalendar {
+      override rollForward(): never {
+        throw new Error('calendar exploded')
+      }
+    }
+    ctx.tools.register(createPatentDeadlinesTool({
+      calendar: new BrokenCalendar([]),
+      reminderLeadDays: 30,
+      now: () => FIXED_TODAY,
+    }))
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+      restDayRule: 'apply',
+    })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result.content)).toContain('calendar exploded')
   })
 
   it('fails loud on a malformed date instead of guessing one', async () => {
