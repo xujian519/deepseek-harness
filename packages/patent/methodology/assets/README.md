@@ -2,9 +2,9 @@
 
 English | [中文](README.zh.md)
 
-Provenance, license status, known deviations, and validation for `triz-matrix.json` and `triz-principles.json`.
+Sources, license status, known deviations, and validation for `triz-matrix.json` and `triz-principles.json`.
 
-## Provenance
+## Sources
 
 ### Contradiction matrix
 
@@ -25,7 +25,7 @@ No stable canonical URL is recorded for the Perno 2007 page. The reviewed spread
 
 ### Inventive principles
 
-`triz-principles.json` contains the 40 classical principle names and Chinese explanations. The English names and the principle set are classical TRIZ material. **The Chinese name and description text has no source or translation record in this repository; its provenance is unconfirmed.** Do not claim that the translation is license-cleared until that record exists.
+`triz-principles.json` contains the 40 classical principle names and Chinese explanations. The English names and the principle set are classical TRIZ material. **The Chinese name and description text has no source or translation record in this repository; its source is unconfirmed.** Do not claim that the translation is license-cleared until that record exists.
 
 ### Separation principles
 
