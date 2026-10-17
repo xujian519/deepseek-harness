@@ -1,5 +1,5 @@
 /**
- * src/document/draftSchema/generic — 八个通用文档模板的受控草案注册表。
+ * src/document/draftSchema/generic — 十个通用文档模板的受控草案注册表。
  *
  * 与表单模板（data-slot 机制）不同，通用模板的槽位是模板骨架上的元素 id：
  * fields 填充叶级元素的文本内容（meta、footer 等系列），sections blocks 替换
@@ -14,12 +14,14 @@
 import type { DocumentTemplateId } from '../types.ts'
 import type { TemplateSlotRegistry } from './index.ts'
 
-/** 已接入受控草案的通用文档模板 id（claims-spec 与两个表单模板之外的八个）。 */
+/** 已接入受控草案的通用文档模板 id（claims-spec 与两个表单模板之外的十个）。 */
 export const GENERIC_TEMPLATE_IDS = [
   'patentability-opinion',
   'search-report',
   'oa-response',
   'invalidation-opinion',
+  'invalidation-analysis',
+  'invalidation-defense',
   'rectification-response',
   're-examination-request',
   'infringement-opinion',
@@ -170,7 +172,7 @@ const OA_RESPONSE: TemplateSlotRegistry = {
   ],
 }
 
-/** invalidation-opinion 的草案注册表。 */
+/** invalidation-opinion（对外无效宣告请求书）的草案注册表。 */
 const INVALIDATION_OPINION: TemplateSlotRegistry = {
   fields: {
     'meta-patent-no': req,
@@ -180,13 +182,6 @@ const INVALIDATION_OPINION: TemplateSlotRegistry = {
     'meta-requester': req,
     'meta-date': req,
     'position-summary': req,
-    'nov-facts': req,
-    'nov-evidence': req,
-    'nov-conclusion': req,
-    'inv-facts': req,
-    'inv-evidence': req,
-    'inv-conclusion': req,
-    'other-grounds': opt,
     'conclusion-text': req,
     'footer-case': req,
     'footer-date': req,
@@ -196,17 +191,108 @@ const INVALIDATION_OPINION: TemplateSlotRegistry = {
     'position-points': { ...BLOCKS, ...req },
     'claim-feature-table': { ...rows(4), ...req },
     'evidence-table': { ...rows(6), ...req },
+    // 无效理由节由结构与法条生成节标题与四段式正文（节序前缀 4 = 「四、无效理由」）；
+    // 写死小节标题会让只主张其他理由的请求书被迫编造一段不存在的主张。
+    'grounds-body': { kind: 'grounds', groundsPrefix: '4', ...req },
     'claim-conclusion-table': { ...rows(4), ...req },
-    'citation-table': { ...rows(6), ...req },
   },
   staticElements: [
     { marker: 'id="position"', reason: '立论骨架包装：含分区标题与 position-summary/position-points 槽位' },
     { marker: 'id="claim-analysis"', reason: '权利要求分析骨架包装：含分区标题与 claim-feature-table 槽位' },
-    { marker: 'id="claim-by-claim"', reason: '逐条分析骨架包装：含分区标题与 nov-*/inv-* 字段槽位' },
+    { marker: 'id="grounds"', reason: '无效理由骨架包装：含分区标题与 grounds-body 槽位' },
+    { marker: 'id="claim-by-claim"', reason: '逐条分析骨架包装：含分区标题与 claim-conclusion-table 槽位' },
     { marker: 'id="evidence"', reason: '证据清单骨架包装：含分区标题与 evidence-table 槽位' },
-    { marker: 'id="grounds"', reason: '无效理由骨架包装：含分区标题与 claim-conclusion-table/other-grounds 槽位' },
-    { marker: 'id="citation-log"', reason: '引用日志骨架包装：含分区标题与 citation-table 槽位' },
     { marker: 'id="conclusion"', reason: '结论骨架包装：含分区标题与 conclusion-text 槽位' },
+  ],
+}
+
+/**
+ * invalidation-analysis（内部无效宣告分析意见）的草案注册表。
+ *
+ * 与对外的 invalidation-opinion 分开：内部件的章节集合不同——它承载引用日志、逐权项结论
+ * 分档与缺口披露，这三类内部工作记录不得出现在对外的请求书里，故两个产物各自登记槽位，
+ * 而不是让一个模板按模式增减章节。
+ */
+const INVALIDATION_ANALYSIS: TemplateSlotRegistry = {
+  fields: {
+    'meta-patent-no': req,
+    'meta-patent-title': req,
+    'meta-grant-date': req,
+    'meta-patentee': req,
+    'meta-client': req,
+    'meta-date': req,
+    'scope-summary': req,
+    'conclusion-text': req,
+    'footer-case': req,
+    'footer-date': req,
+  },
+  sections: {
+    'doc-number': { ...BLOCKS, ...req },
+    'scope-points': { ...BLOCKS, ...req },
+    'claim-feature-table': { ...rows(4), ...req },
+    'evidence-table': { ...rows(6), ...req },
+    // 与对外件同一口径：理由节标题由结构生成（节序前缀 4 = 「四、无效理由逐条分析」）。
+    'grounds-body': { kind: 'grounds', groundsPrefix: '4', ...req },
+    'claim-outlook-table': { ...rows(4), ...req },
+    'citation-table': { ...rows(6), ...req },
+    'gaps-body': { ...BLOCKS, ...req },
+  },
+  staticElements: [
+    { marker: 'id="scope"', reason: '分析范围骨架包装：含分区标题与 scope-summary/scope-points 槽位' },
+    { marker: 'id="claim-analysis"', reason: '权利要求分析骨架包装：含分区标题与 claim-feature-table 槽位' },
+    { marker: 'id="evidence"', reason: '证据清单骨架包装：含分区标题与 evidence-table 槽位' },
+    { marker: 'id="grounds"', reason: '无效理由骨架包装：含分区标题与 grounds-body 槽位' },
+    { marker: 'id="claim-outlook"', reason: '逐权项评估骨架包装：含分区标题与 claim-outlook-table 槽位' },
+    { marker: 'id="citation-log"', reason: '引用日志骨架包装：含分区标题与 citation-table 槽位' },
+    { marker: 'id="gaps"', reason: '缺口披露骨架包装：含分区标题与 gaps-body 槽位' },
+    { marker: 'id="conclusion"', reason: '分析结论骨架包装：含分区标题与 conclusion-text 槽位' },
+  ],
+}
+
+/**
+ * invalidation-defense（专利权人侧的无效宣告程序意见陈述书）的草案注册表。
+ *
+ * 逐项答辩节与请求人侧的理由节共用 grounds 槽位：节骨架相同，关系词换成「的」，
+ * 因此节标题仍是渲染器按草案结构生成的 `5.1 权利要求 1、3 的创造性（…）`，
+ * 起草时同样不手写小节标题。
+ */
+const INVALIDATION_DEFENSE: TemplateSlotRegistry = {
+  fields: {
+    'meta-patent-no': req,
+    'meta-patent-title': req,
+    'meta-grant-date': req,
+    'meta-patentee': req,
+    'meta-requester': req,
+    'meta-request-date': req,
+    'meta-transfer-no': req,
+    'meta-deadline': req,
+    'meta-date': req,
+    'position-summary': req,
+    'conclusion-text': req,
+    'footer-case': req,
+    'footer-date': req,
+  },
+  sections: {
+    'doc-number': { ...BLOCKS, ...req },
+    'position-points': { ...BLOCKS, ...req },
+    'procedural-body': { ...BLOCKS, ...req },
+    'evidence-objection-body': { ...BLOCKS, ...req },
+    'amendment-basis': { ...BLOCKS, ...req },
+    'amendment-table': { ...rows(5), ...req },
+    // 与请求人侧同一节骨架，关系词换成「的」：被请求人侧的小节按主题命名（节序前缀 5 = 「五、逐项答辩」）。
+    'defense-body': { kind: 'grounds', groundsPrefix: '5', groundsRelation: '的', ...req },
+    'evidence-table': { ...rows(6), ...req },
+    'claim-conclusion-table': { ...rows(4), ...req },
+  },
+  staticElements: [
+    { marker: 'id="position"', reason: '答辩意见概述骨架包装：含分区标题与 position-summary/position-points 槽位' },
+    { marker: 'id="procedural"', reason: '程序性意见骨架包装：含分区标题与 procedural-body 槽位' },
+    { marker: 'id="evidence-objection"', reason: '质证意见骨架包装：含分区标题与 evidence-objection-body 槽位' },
+    { marker: 'id="amendment"', reason: '权利要求书修改骨架包装：含分区标题与 amendment-basis/amendment-table 槽位' },
+    { marker: 'id="defense"', reason: '逐项答辩骨架包装：含分区标题与 defense-body 槽位' },
+    { marker: 'id="evidence"', reason: '证据清单骨架包装：含分区标题与 evidence-table 槽位' },
+    { marker: 'id="claim-by-claim"', reason: '逐权利要求结论骨架包装：含分区标题与 claim-conclusion-table 槽位' },
+    { marker: 'id="conclusion"', reason: '结论与请求骨架包装：含分区标题与 conclusion-text 槽位' },
   ],
 }
 
@@ -354,14 +440,46 @@ const LITIGATION_PLEADING: TemplateSlotRegistry = {
   ],
 }
 
-/** 八个通用文档模板的注册表。 */
+/** 十个通用文档模板的注册表。 */
 export const GENERIC_TEMPLATE_SCHEMAS: Readonly<Record<GenericTemplateId, TemplateSlotRegistry>> = {
   'patentability-opinion': PATENTABILITY_OPINION,
   'search-report': SEARCH_REPORT,
   'oa-response': OA_RESPONSE,
   'invalidation-opinion': INVALIDATION_OPINION,
+  'invalidation-analysis': INVALIDATION_ANALYSIS,
+  'invalidation-defense': INVALIDATION_DEFENSE,
   'rectification-response': RECTIFICATION_RESPONSE,
   're-examination-request': RE_EXAMINATION_REQUEST,
   'infringement-opinion': INFRINGEMENT_OPINION,
   'litigation-pleading': LITIGATION_PLEADING,
+}
+
+/**
+ * 一个 `grounds` 槽位的体例：节序前缀与关系词。
+ *
+ * 二者都是模板骨架的事实（前缀如 `4` 对应「四、无效理由」；关系词如请求人侧的「不具备」、
+ * 被请求人侧按主题命名的「的」），登记在槽位声明里而不是转换器里，使节标题随模板体例走。
+ */
+export type GroundsSectionStyle = {
+  /** 节序前缀；缺省空串，节标题只出序号。 */
+  prefix: string
+  /** 权项与理由名之间的关系词；未声明时渲染器用「不具备」。 */
+  relation?: string
+}
+
+/**
+ * 取模板 grounds 槽位的体例映射（槽位 id → 节序前缀与关系词）。
+ * @param template - 通用文档模板 id。
+ * @returns 槽位 id → 体例；没有 grounds 槽位时为空对象。
+ */
+export function groundsSectionStyles(template: GenericTemplateId): Record<string, GroundsSectionStyle> {
+  const styles: Record<string, GroundsSectionStyle> = {}
+  for (const [id, slot] of Object.entries(GENERIC_TEMPLATE_SCHEMAS[template].sections)) {
+    if (slot.kind !== 'grounds') continue
+    styles[id] = {
+      prefix: slot.groundsPrefix,
+      ...(slot.groundsRelation === undefined ? {} : { relation: slot.groundsRelation }),
+    }
+  }
+  return styles
 }

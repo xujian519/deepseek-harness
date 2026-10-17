@@ -13,6 +13,8 @@ import { DocumentRenderError } from '../errors.ts'
 import { findMatchingCloseTag } from '../htmlScan.ts'
 import { escapeHtmlText } from './escape.ts'
 import { renderBlocks, type TableCaptionCounter } from './blocks.ts'
+import { renderGroundsSection } from './grounds.ts'
+import type { GroundsSectionStyle } from '../draftSchema/generic.ts'
 
 /** 生成一个 rows 章节的内容：以占位行为模板逐行克隆，单元格文本转义。 */
 function renderRowsSectionHtml(html: string, slotId: string, rows: readonly (readonly string[])[]): string {
@@ -50,9 +52,14 @@ function renderRowsSectionHtml(html: string, slotId: string, rows: readonly (rea
  * 把通用文档模板受控草案转换为 id → innerHTML 注入映射。
  * @param html - 模板 HTML（rows 槽位的行模板从此提取）。
  * @param draft - 已通过 validateTemplateDraft（注册表 schema）校验的草案。
+ * @param groundsSections - `grounds` 槽位的节序前缀与关系词（槽位 id → 体例）；未提供时按空前缀、缺省关系词渲染。
  * @returns 元素 id → innerHTML 映射，交给 injectSections 注入。
  */
-export function renderGenericTemplateSections(html: string, draft: TemplateDraft): Record<string, string> {
+export function renderGenericTemplateSections(
+  html: string,
+  draft: TemplateDraft,
+  groundsSections: Readonly<Record<string, GroundsSectionStyle>> = {},
+): Record<string, string> {
   const sections: Record<string, string> = {}
   const captionCounter: TableCaptionCounter = { count: 0 }
   for (const [id, value] of Object.entries(draft.fields ?? {})) {
@@ -62,7 +69,10 @@ export function renderGenericTemplateSections(html: string, draft: TemplateDraft
     sections[id] = escapeHtmlText(value)
   }
   for (const section of draft.sections) {
-    if (section.blocks !== undefined) {
+    if (section.grounds !== undefined) {
+      const style = groundsSections[section.id]
+      sections[section.id] = renderGroundsSection(section.grounds, style?.prefix ?? '', style?.relation)
+    } else if (section.blocks !== undefined) {
       sections[section.id] = renderBlocks(section.blocks, captionCounter)
     } else {
       sections[section.id] = renderRowsSectionHtml(html, section.id, section.rows)

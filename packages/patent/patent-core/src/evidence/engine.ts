@@ -5,19 +5,27 @@
  * 互联网公开/域外/证人/公知常识/使用公开/现有技术日期），综合评分；
  * 并提供举证责任分配与证明标准达成评估。
  *
+ * 判定只使用证据记录本身与调用方声明的外部输入：自报字段（哈希、证据类型标签）
+ * 不作为采信依据——哈希只在调用方声明已独立核验时计入真实性，证据类型标签不
+ * 代替公证文书、来源域名等可核对外部记载。
+ *
  * 设计对齐 Mady：确定性判定（无 LLM），权重可经 YAML 资产
  * （rules/patent/evidence-rules.yaml）配置；外部服务不可用时降级而非失败。
  */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { EvidenceSpan } from './span.ts'
+import { isLocatable } from './span.ts'
 import {
   determinePublicationDate,
   extractDateFromText,
   inferredMonthEnd,
-  isBeforeFilingDate,
+  isBeforeReferenceDate,
   isMonthOnlyDate,
   isPreciseDate,
   parseDateFlexible,
+  priorArtReference,
+  type PriorArtReference,
 } from './date.ts'
 import { credibilityToScore, evaluatePublicIntent, platformCategory, platformCredibility } from './credibility.ts'
 import { DEFAULT_WEIGHTS, parseRuleSet } from './rule-set.ts'
@@ -34,6 +42,7 @@ import type {
   EvidenceType,
   FourElementsResult,
   JudgmentIssue,
+  PriorArtBasis,
   ProofStandardResult,
   RuleApplication,
   TypeSpecificJudgment,
@@ -42,8 +51,21 @@ import type {
 /** 规则条件评估上下文。 */
 type ConditionContext = {
   span: EvidenceSpan
-  filingDate?: string
+  /** 调用方给出的申请日/优先权日。 */
+  basis: PriorArtBasis
+  /** 解析出的现有技术截止日（不可解析时为 undefined）。 */
+  reference: PriorArtReference | undefined
   external: EvidenceExternalInputs
+}
+
+/**
+ * 使用公开四要件条件名 → 对应要件的判定。条件名与 `evidence-rules.yaml` 的 EVI-015 一致。
+ */
+const PUBLIC_USE_CONDITIONS: Record<string, (fourElements: FourElementsResult) => boolean> = {
+  public_use_time_available: fourElements => fourElements.timeElement.met,
+  public_use_place_identified: fourElements => fourElements.placeElement.met,
+  public_use_method_identified: fourElements => fourElements.methodElement.met,
+  public_use_publicly_accessible: fourElements => fourElements.accessibility.met,
 }
 
 /**
@@ -52,24 +74,29 @@ type ConditionContext = {
  * 未知条件返回 undefined（不误判）。
  */
 function evaluateCondition(name: string, ctx: ConditionContext): boolean | undefined {
+  const publicUseCheck = PUBLIC_USE_CONDITIONS[name]
+  if (publicUseCheck !== undefined) return publicUseCheck(evaluateFourElements(ctx.span))
   switch (name) {
     case 'evidence_has_claim_refs':
       return (ctx.span.claimRefs?.length ?? 0) > 0
     case 'evidence_direction_clear':
       return ctx.span.direction === 'supporting' || ctx.span.direction === 'contradicting'
     case 'evidence_source_identified':
-      return Boolean(ctx.span.sourceUri)
+      return hasText(ctx.span.sourceUri)
     case 'evidence_content_hash_available':
     case 'content_hash_provided':
-      return Boolean(ctx.span.contentHash)
+      return hasText(ctx.span.contentHash)
     case 'evidence_source_uri_or_doc_version_available':
-      return Boolean(ctx.span.sourceUri) || Boolean(ctx.span.docVersion)
+      return hasText(ctx.span.sourceUri) || hasText(ctx.span.docVersion)
     case 'evidence_has_source_uri':
-      return Boolean(ctx.span.sourceUri)
+      return hasText(ctx.span.sourceUri)
     case 'publication_date_available':
-      return Boolean(ctx.span.docVersion)
-    case 'filing_date_available':
-      return Boolean(ctx.filingDate)
+      // The condition is about an ascertained date, not about a non-empty field:
+      // an unparseable page date or a Wayback URL both go through the same
+      // determination the judgment reports.
+      return determinePublicationDate(ctx.span.docVersion, ctx.span.sourceUri, ctx.reference).determined !== 'unknown'
+    case 'prior_art_reference_available':
+      return ctx.reference !== undefined
     case 'evidence_notarized':
       return ctx.external.notarized
     case 'evidence_legalized':
@@ -124,16 +151,24 @@ function levelFor(score: number, thresholds: Array<{ min: number; level: string 
   return fallback
 }
 
+/** 字段是否填写了非空白内容。 */
+function hasText(value: string | undefined): boolean {
+  return value !== undefined && value.trim() !== ''
+}
+
+/** 三性评分基线：证据记录本身的完备度起点，不含任何加分。 */
+const TRIPLE_ATTRIBUTE_BASE = 0.5
+
 // ---------------------------------------------------------------------------
 // 三性判定（对齐 Mady evaluateRelevance / evaluateLegality / evaluateAuthenticity）
 // ---------------------------------------------------------------------------
 
 function evaluateRelevance(span: EvidenceSpan): DimensionJudgment {
-  let score = 0.5
-  if (span.sourceUri !== undefined && span.sourceUri !== '') score += 0.1
+  let score = TRIPLE_ATTRIBUTE_BASE
+  if (hasText(span.sourceUri)) score += 0.1
   if ((span.claimRefs?.length ?? 0) > 0) score += 0.2
   if (span.direction === 'supporting' || span.direction === 'contradicting') score += 0.1
-  if (span.snippet !== undefined && span.snippet !== '') score += 0.1
+  if (hasText(span.snippet)) score += 0.1
   score = Math.min(score, 1.0)
   return {
     dimension: 'relevance',
@@ -151,10 +186,14 @@ function evaluateRelevance(span: EvidenceSpan): DimensionJudgment {
   }
 }
 
-function evaluateAuthenticity(span: EvidenceSpan): DimensionJudgment {
-  let score = 0.5
-  if (span.contentHash !== undefined && span.contentHash !== '') score += 0.3
-  if (span.docVersion !== undefined && span.docVersion !== '') score += 0.1
+/**
+ * 真实性评分。只有当事人自报字段可用的，一律按记录完备度计分：内容哈希在判定阶段无法
+ * 重算，只在调用方声明已独立核验（`integrityVerified`）时才计入。
+ */
+function evaluateAuthenticity(span: EvidenceSpan, external: EvidenceExternalInputs): DimensionJudgment {
+  let score = TRIPLE_ATTRIBUTE_BASE
+  if (hasText(span.docVersion)) score += 0.1
+  if (hasText(span.contentHash) && external.integrityVerified === true) score += 0.3
   score = Math.min(score, 1.0)
   return {
     dimension: 'authenticity',
@@ -171,11 +210,12 @@ function evaluateAuthenticity(span: EvidenceSpan): DimensionJudgment {
   }
 }
 
+/**
+ * 合法性评分。来源记录是唯一可核对的输入：内容哈希与合法性无关（哈希证明内容未被改动，
+ * 不证明取证合法），不作为合法性的加分项。
+ */
 function evaluateLegality(span: EvidenceSpan): DimensionJudgment {
-  let score = 0.7
-  if (span.sourceUri === undefined || span.sourceUri === '') score -= 0.2
-  if (span.contentHash !== undefined && span.contentHash !== '') score += 0.2
-  score = Math.max(0, Math.min(score, 1.0))
+  const score = hasText(span.sourceUri) ? 0.7 : TRIPLE_ATTRIBUTE_BASE
   return {
     dimension: 'legality',
     score,
@@ -214,18 +254,27 @@ export function inferEvidenceType(span: EvidenceSpan): EvidenceType {
   return 'general'
 }
 
-/** 内容完整性状态（对齐 Mady evaluateInternetContentIntegrity：哈希可验证即 verified）。 */
-function evaluateContentIntegrity(span: EvidenceSpan): ContentIntegrityStatus {
-  if (span.contentHash !== undefined && span.contentHash !== '') return 'verified'
-  return 'unverified'
+/**
+ * 内容完整性状态。当事人自报的哈希串只是可核验锚点，判定路径不重算哈希，因此仅有哈希
+ * 记为 `partial`（部分验证）；只有调用方声明已独立核验（`integrityVerified`）才记
+ * `verified`。
+ */
+function evaluateContentIntegrity(span: EvidenceSpan, external: EvidenceExternalInputs): ContentIntegrityStatus {
+  if (!hasText(span.contentHash)) return 'unverified'
+  return external.integrityVerified === true ? 'verified' : 'partial'
 }
 
 /** 互联网公开日期推定（页面标注日期 > Wayback Machine）。 */
-function determineInternetPublicationDate(span: EvidenceSpan, filingDate?: string): DateDetermination {
-  return determinePublicationDate(span.docVersion, span.sourceUri, filingDate)
+function determineInternetPublicationDate(span: EvidenceSpan, reference?: PriorArtReference): DateDetermination {
+  return determinePublicationDate(span.docVersion, span.sourceUri, reference)
 }
 
-function evaluateTypeSpecific(span: EvidenceSpan, evType: EvidenceType, filingDate?: string): TypeSpecificJudgment {
+function evaluateTypeSpecific(
+  span: EvidenceSpan,
+  evType: EvidenceType,
+  external: EvidenceExternalInputs,
+  reference?: PriorArtReference,
+): TypeSpecificJudgment {
   const ts: TypeSpecificJudgment = { evidenceType: evType }
   const uri = span.sourceUri ?? ''
 
@@ -239,11 +288,9 @@ function evaluateTypeSpecific(span: EvidenceSpan, evType: EvidenceType, filingDa
     case 'foreign_language':
       ts.translationStatus = 'unknown'
       break
-    case 'overseas':
-      if (span.contentHash !== undefined && span.contentHash !== '') ts.platformCredibility = 'high'
-      break
     case 'notarial_certificate':
-      ts.notarizationStatus = 'confirmed'
+      // 声明证据类型不等于公证已完成：公证状态只来自公证文书记载（外部输入 notarized）。
+      ts.notarizationStatus = external.notarized === true ? 'confirmed' : 'unverified'
       break
     case 'witness_testimony':
       ts.witnessCredibility = 'medium'
@@ -252,23 +299,23 @@ function evaluateTypeSpecific(span: EvidenceSpan, evType: EvidenceType, filingDa
       ts.exemptionApplied = '无需举证'
       break
     case 'prior_art_date':
-      ts.dateDetermination = determineInternetPublicationDate(span, filingDate)
+      ts.dateDetermination = determineInternetPublicationDate(span, reference)
       break
     case 'internet_publication': {
-      ts.dateDetermination = determineInternetPublicationDate(span, filingDate)
+      ts.dateDetermination = determineInternetPublicationDate(span, reference)
       const level = platformCredibility(uri)
       ts.platformCredibility = level
       ts.credibilityScore = credibilityToScore(level)
       ts.platformCategory = platformCategory(uri)
-      ts.contentIntegrity = evaluateContentIntegrity(span)
+      ts.contentIntegrity = evaluateContentIntegrity(span, external)
       ts.publicIntent = evaluatePublicIntent(uri)
       break
     }
     case 'public_use': {
-      ts.dateDetermination = determinePublicUseDate(span, filingDate)
+      ts.dateDetermination = determinePublicUseDate(span, reference)
       ts.fourElementsCheck = evaluateFourElements(span)
       ts.burdenDifficulty = assessBurdenDifficulty(ts.fourElementsCheck)
-      ts.chainIntegrity = assessChainIntegrity(span, ts.fourElementsCheck)
+      ts.chainIntegrity = assessChainIntegrity(span, external, ts.fourElementsCheck)
       break
     }
     default:
@@ -278,13 +325,13 @@ function evaluateTypeSpecific(span: EvidenceSpan, evType: EvidenceType, filingDa
 }
 
 /** 使用公开日期推定（主张日期 > 描述文本提取）。 */
-function determinePublicUseDate(span: EvidenceSpan, filingDate?: string): DateDetermination {
+function determinePublicUseDate(span: EvidenceSpan, reference?: PriorArtReference): DateDetermination {
   const result: DateDetermination = {
     sourceDate: span.docVersion ?? '',
     determined: 'unknown',
     method: 'public_use',
     isPriorArt: false,
-    ...(filingDate !== undefined ? { filingDate } : {}),
+    ...(reference !== undefined ? { referenceDate: reference.date, referenceBasis: reference.basis } : {}),
     reliability: 'low',
     sourceType: 'claimed_date',
   }
@@ -304,7 +351,7 @@ function determinePublicUseDate(span: EvidenceSpan, filingDate?: string): DateDe
         result.determined = span.docVersion
         result.reliability = 'low'
       }
-      result.isPriorArt = isBeforeFilingDate(result.determined, filingDate)
+      result.isPriorArt = isBeforeReferenceDate(result.determined, reference?.date)
       return result
     }
   }
@@ -314,18 +361,95 @@ function determinePublicUseDate(span: EvidenceSpan, filingDate?: string): DateDe
     result.determined = extracted
     result.reliability = 'low'
     result.sourceType = 'inferred'
-    result.isPriorArt = isBeforeFilingDate(extracted, filingDate)
+    result.isPriorArt = isBeforeReferenceDate(extracted, reference?.date)
   }
   return result
 }
 
-function containsAny(snippet: string, keywords: readonly string[]): boolean {
-  const lower = snippet.toLowerCase()
-  return keywords.some(kw => lower.includes(kw.toLowerCase()))
+/** 拉丁词指示符：按词边界匹配，避免 "us" 命中 because / use 这类子串。 */
+const LATIN_INDICATOR_RE = /^[a-z][a-z -]*$/
+
+/** 否定标记：出现在指示符之前时，片段是在否认该事实，不能按肯定认定。 */
+const NEGATION_MARKERS = ['尚未', '未', '没有', '不存在', '无', '不得', '不', '非', 'not ', 'no ', 'without ', "n't "]
+
+/** 含「不／无」但不表示否定的常见组合，判定前先从否定窗口剔除。 */
+const NEGATION_EXEMPT = ['不过', '不但', '不仅', '不只', '不单', '不无', '无不', 'not only']
+
+/** 否定作用窗口：中文指示符前 6 字内出现否定标记即视为该处被否定。按窗口判定是近似——
+ * 「无锡」「无论」这类词里的「无」也会算作否定，方向是少认定肯定线索，不误认。 */
+const CJK_NEGATION_WINDOW = 6
+
+/** 英文否定词与中心词之间常隔冠词（without any nda），窗口相应放宽。 */
+const LATIN_NEGATION_WINDOW = 24
+
+/**
+ * 指示符匹配：中文指示符按子串，拉丁指示符按词边界，不区分肯定与否定。
+ * @param snippet - 已小写的待匹配文本。
+ * @param keywords - 指示符表。
+ * @returns 是否出现任一指示符。
+ */
+function containsIndicator(snippet: string, keywords: readonly string[]): boolean {
+  return keywords.some(kw => indicatorPattern(kw.toLowerCase()).test(snippet))
+}
+
+/**
+ * 否定感知的指示符匹配：只认定未被否定的命中。片段写「未约定保密义务」时是在
+ * 排除保密义务，不能据此认定存在保密义务；写「未在中国境内销售」时也不能认定
+ * 使用地在中国境内。
+ * @param snippet - 已小写的待匹配文本。
+ * @param keywords - 指示符表。
+ * @returns 是否存在未被否定的命中。
+ */
+function containsAffirmed(snippet: string, keywords: readonly string[]): boolean {
+  return keywords.some(kw => hasAffirmedOccurrence(snippet, kw.toLowerCase()))
+}
+
+/**
+ * 单个指示符的匹配式。拉丁指示符按词边界（前导字符在捕获组内，以便还原命中位置），
+ * 中文指示符按子串。
+ * @param needle - 已小写的指示符。
+ * @param flags - 正则标志。
+ * @returns 匹配式。
+ */
+function indicatorPattern(needle: string, flags = ''): RegExp {
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return LATIN_INDICATOR_RE.test(needle)
+    ? new RegExp(`(^|[^a-z])${escaped}(?=[^a-z]|$)`, flags)
+    : new RegExp(escaped, flags)
+}
+
+/**
+ * 指示符是否存在未被否定的命中。
+ * @param snippet - 已小写的待匹配文本。
+ * @param needle - 已小写的指示符。
+ * @returns 是否命中且未被否定。
+ */
+function hasAffirmedOccurrence(snippet: string, needle: string): boolean {
+  const window = LATIN_INDICATOR_RE.test(needle) ? LATIN_NEGATION_WINDOW : CJK_NEGATION_WINDOW
+  for (const match of snippet.matchAll(indicatorPattern(needle, 'g'))) {
+    const start = match.index + (match[1]?.length ?? 0)
+    if (!isNegatedAt(snippet, start, window)) return true
+  }
+  return false
+}
+
+/**
+ * 指示符起始处之前是否带否定标记。
+ * @param snippet - 已小写的待匹配文本。
+ * @param start - 指示符起始下标。
+ * @param window - 向前回看的字符数。
+ * @returns 该处是否被否定。
+ */
+function isNegatedAt(snippet: string, start: number, window: number): boolean {
+  const before = snippet.slice(Math.max(0, start - window), start)
+  const stripped = NEGATION_EXEMPT.reduce((text, combo) => text.replaceAll(combo, ''), before)
+  return NEGATION_MARKERS.some(marker => stripped.includes(marker))
 }
 
 /**
  * 使用公开四要件检查（时间/地点/方式/公众可获取性，对齐 Mady evaluateFourElements）。
+ * 要件只能由片段中的线索认定：未提及即 `met: false` 并说明缺什么，不推定满足；
+ * 被片段否认的线索（如「未在中国境内销售」「未约定保密义务」）同样不按肯定认定。
  * @param span - 证据实体。
  * @returns 四要件检查结果。
  */
@@ -347,7 +471,7 @@ export function evaluateFourElements(span: EvidenceSpan): FourElementsResult {
 
 function evaluatePublicUseTime(span: EvidenceSpan): ElementResult {
   if (span.docVersion === undefined || span.docVersion === '') {
-    return { met: false, score: 0.25, detail: '未提供使用公开日期，无法判断是否在申请日之前' }
+    return { met: false, score: 0.25, detail: '未提供使用公开日期，无法判断是否在现有技术截止日之前' }
   }
   if (parseDateFlexible(span.docVersion) === null) {
     return { met: false, score: 0.3, detail: `日期格式无法识别: ${span.docVersion}` }
@@ -361,14 +485,14 @@ function evaluatePublicUseTime(span: EvidenceSpan): ElementResult {
 function evaluatePublicUsePlace(span: EvidenceSpan): ElementResult {
   const snippet = (span.snippet ?? '').toLowerCase()
   const domesticIndicators = ['中国', '北京', '上海', '广州', '深圳', '国内', '境内']
-  const foreignIndicators = ['美国', 'us', 'europe', '日本', '国外', '境外', 'international']
-  if (containsAny(snippet, domesticIndicators)) {
+  const foreignIndicators = ['美国', '日本', '德国', '英国', '法国', '韩国', '国外', '境外', 'us', 'usa', 'europe', 'international']
+  if (containsAffirmed(snippet, domesticIndicators)) {
     return { met: true, score: 0.85, detail: '使用行为发生在中国境内（构成国内公开）' }
   }
-  if (containsAny(snippet, foreignIndicators)) {
+  if (containsAffirmed(snippet, foreignIndicators)) {
     return { met: true, score: 0.8, detail: '使用行为发生在境外（构成国外公开，中国专利法采用绝对新颖性标准）' }
   }
-  return { met: true, score: 0.6, detail: '未明确提及使用地点，推定使用行为已公开（需进一步核实具体地点）' }
+  return { met: false, score: 0.3, detail: '片段未提及使用地点，无法认定公开发生地，需补充使用地点的直接证据' }
 }
 
 function evaluatePublicUseMethod(span: EvidenceSpan): ElementResult {
@@ -378,16 +502,16 @@ function evaluatePublicUseMethod(span: EvidenceSpan): ElementResult {
   const publicationIndicators = ['出版', '发布', '发表', '公开', 'publish', 'release', 'post']
   const otherIndicators = ['使用', '实施', '制造', '生产', 'use', 'manufactur', 'produc']
 
-  if (containsAny(snippet, salesIndicators)) {
+  if (containsAffirmed(snippet, salesIndicators)) {
     return { met: true, score: 0.9, detail: '通过销售行为公开使用' }
   }
-  if (containsAny(snippet, exhibitionIndicators)) {
+  if (containsAffirmed(snippet, exhibitionIndicators)) {
     return { met: true, score: 0.85, detail: '通过展览或展示行为公开使用' }
   }
-  if (containsAny(snippet, publicationIndicators)) {
+  if (containsAffirmed(snippet, publicationIndicators)) {
     return { met: true, score: 0.75, detail: '通过发布/发表行为公开使用' }
   }
-  if (containsAny(snippet, otherIndicators)) {
+  if (containsAffirmed(snippet, otherIndicators)) {
     return { met: true, score: 0.6, detail: '通过其他方式公开使用，需进一步明确具体方式' }
   }
   return { met: false, score: 0.3, detail: '未识别出明确的使用公开方式，需补充公开方式的描述（如销售、展览、演示等）' }
@@ -399,18 +523,30 @@ function evaluatePublicUseAccessibility(span: EvidenceSpan): ElementResult {
   const limitedAccessIndicators = ['内部', '内测', '内部测试', 'closed', 'internal', 'invite-only']
   const publicAccessIndicators = ['公开', '开放', '公众', 'public', 'open', 'anyone']
 
-  if (containsAny(snippet, confidentialityIndicators)) {
+  if (containsAffirmed(snippet, confidentialityIndicators)) {
     return { met: false, score: 0.2, detail: '存在保密义务或保密措施，可能不构成公众可获取' }
   }
-  if (containsAny(snippet, limitedAccessIndicators)) {
+  if (containsAffirmed(snippet, limitedAccessIndicators)) {
     return { met: false, score: 0.35, detail: '使用行为限于特定范围，非对公众开放' }
   }
-  if (containsAny(snippet, publicAccessIndicators)) {
+  if (containsAffirmed(snippet, publicAccessIndicators)) {
     return { met: true, score: 0.9, detail: '使用行为对公众开放，公众可获取' }
   }
-  return { met: true, score: 0.65, detail: '未提及保密措施，推定为公众可获取' }
+  if (containsIndicator(snippet, confidentialityIndicators)) {
+    return {
+      met: false,
+      score: 0.5,
+      detail: '片段说明不存在保密义务，但未说明使用是否对不特定公众开放，公众可获取性要件仍未认定',
+    }
+  }
+  return { met: false, score: 0.3, detail: '片段未提及使用是否对公众开放，无法认定公众可获取，需补充旁证' }
 }
 
+/**
+ * 举证难度：按四要件满足数分档。要件缺失越多，补证负担越重。
+ * @param fourElements - 四要件检查结果。
+ * @returns 难度档位。
+ */
 function assessBurdenDifficulty(fourElements: FourElementsResult | undefined): string {
   /* v8 ignore next -- called only from the public_use branch with a computed FourElementsResult */
   if (fourElements === undefined) return '无法评估'
@@ -421,22 +557,31 @@ function assessBurdenDifficulty(fourElements: FourElementsResult | undefined): s
     fourElements.accessibility,
   ].filter(e => e.met).length
   if (metCount >= 4) return '中'
-  /* v8 ignore else -- place/accessibility default to met, so metCount never drops below 2 */
   if (metCount >= 2) return '高'
-  /* v8 ignore next -- paired with the metCount guard above */
   return '极高'
 }
 
-function assessChainIntegrity(span: EvidenceSpan, fourElements: FourElementsResult | undefined): string {
+/**
+ * 证据链完整性建议。内容哈希只作锚点陈述：未经独立核验不称"完整"。
+ * @param span - 证据实体。
+ * @param external - 外部输入（是否已独立核验完整性）。
+ * @param fourElements - 四要件检查结果。
+ * @returns 证据链完整性表述。
+ */
+function assessChainIntegrity(
+  span: EvidenceSpan,
+  external: EvidenceExternalInputs,
+  fourElements: FourElementsResult | undefined,
+): string {
   /* v8 ignore next -- called only from the public_use branch with a computed FourElementsResult */
   if (fourElements === undefined) return '无法评估'
   if (fourElements.allMet) {
-    if (span.contentHash !== undefined && span.contentHash !== '') {
-      return '完整（四要素齐全且内容可哈希验证）'
+    if (hasText(span.contentHash) && external.integrityVerified === true) {
+      return '完整（四要素齐全且内容哈希经独立核验）'
     }
     return '较完整（四要素齐全，建议补充旁证印证）'
   }
-  if (span.snippet !== undefined && span.snippet !== '') {
+  if (hasText(span.snippet)) {
     return '需补充证据（部分要件缺失，建议提供销售合同/展览记录等直接证据）'
   }
   return '证据链不完整，建议收集多份相互印证的证据'
@@ -483,16 +628,25 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
     return this.rules.filter(r => r.evidenceType === evidenceType)
   }
 
-  /** 对单条证据做三性 + 类型特定判定（evidenceType 显式指定时覆盖 URI 推断）。 */
+  /**
+   * 对单条证据做三性 + 类型特定判定（evidenceType 显式指定时覆盖 URI 推断）。
+   * @param span - 证据实体。
+   * @param basis - 申请日与优先权日（现有技术截止日取较早者）。
+   * @param evidenceType - 显式证据类型，覆盖 URI 推断。
+   * @param external - 外部输入（公证/译本/独立核验等）。
+   * @returns 该证据的完整判定结果。
+   */
   judge(
     span: EvidenceSpan,
-    filingDate?: string,
+    basis: PriorArtBasis = {},
     evidenceType?: EvidenceType,
     external: EvidenceExternalInputs = {},
   ): EvidenceJudgment {
     const evType = evidenceType ?? inferEvidenceType(span)
+    const reference = priorArtReference(basis)
     const judgment: EvidenceJudgment = {
       spanId: span.id,
+      direction: span.direction,
       confidence: 0.5,
       overallScore: 0.5,
       reasoning: '',
@@ -502,53 +656,79 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
 
     judgment.relevanceJudgment = evaluateRelevance(span)
     judgment.legalityJudgment = evaluateLegality(span)
-    judgment.authenticityJudgment = evaluateAuthenticity(span)
+    judgment.authenticityJudgment = evaluateAuthenticity(span, external)
 
+    // 缺陷提示按证据记录的语义条件判定，不按评分阈值：评分是完备度的连续量，整数阈值
+    // 只会随权重调整而静默开关告警通道。
     const issues: JudgmentIssue[] = []
-    /* v8 ignore next 2 -- evaluateRelevance floors the score at 0.5 */
-    if (judgment.relevanceJudgment.score < 0.5) {
-      issues.push({ type: 'relevance', description: '相关性不足', severity: 'major' })
+    if ((span.claimRefs?.length ?? 0) === 0) {
+      issues.push({
+        type: 'relevance',
+        description: '证据未绑定任何权利要求或结论（claimRefs 为空），与待证事实的关联性无法确认',
+        severity: 'major',
+      })
     }
-    if (judgment.legalityJudgment.score < 0.5) {
-      issues.push({ type: 'legality', description: '合法性存疑', severity: 'critical' })
+    if (!hasText(span.sourceUri)) {
+      issues.push({
+        type: 'legality',
+        description: '未记录证据来源（sourceUri 为空），取证合法性无法确认',
+        severity: 'critical',
+      })
     }
-    /* v8 ignore next 2 -- evaluateAuthenticity floors the score at 0.5 */
-    if (judgment.authenticityJudgment.score < 0.3) {
-      issues.push({ type: 'authenticity', description: '真实性无法确认', severity: 'critical' })
+    if (!isLocatable(span)) {
+      issues.push({
+        type: 'authenticity',
+        description: '证据不可定位（无来源/版本/页码/字符区间/哈希），真实性无法核验',
+        severity: 'critical',
+      })
     }
     judgment.flaggedIssues = issues
 
-    judgment.typeSpecificJudgment = evaluateTypeSpecific(span, evType, filingDate)
+    judgment.typeSpecificJudgment = evaluateTypeSpecific(span, evType, external, reference)
     judgment.overallScore = this.computeOverallScore(judgment)
     // confidence 与评分关联（低分证据不应宣称"确信"）——固定 1.0 是误导。
     judgment.confidence = Number(judgment.overallScore.toFixed(3))
-    judgment.rulesApplied = this.applyRules(span, evType, filingDate, external)
+    judgment.rulesApplied = this.applyRules(span, evType, basis, reference, external)
     judgment.reasoning = this.buildReasoning(judgment, evType)
     return judgment
   }
 
-  /** 批量判定。 */
+  /**
+   * 批量判定（同一时间基准与外部输入下的多条证据）。
+   * @param spans - 证据实体列表。
+   * @param basis - 申请日与优先权日。
+   * @param evidenceType - 显式证据类型。
+   * @param external - 外部输入。
+   * @returns 逐条判定结果。
+   */
   batchJudge(
     spans: EvidenceSpan[],
-    filingDate?: string,
+    basis: PriorArtBasis = {},
     evidenceType?: EvidenceType,
     external?: EvidenceExternalInputs,
   ): EvidenceJudgment[] {
-    return spans.map(span => this.judge(span, filingDate, evidenceType, external))
+    return spans.map(span => this.judge(span, basis, evidenceType, external))
   }
 
   /**
    * 规则表应用（evidence-rules.yaml）：每条匹配证据类型的规则，对其 check.conditions
    * 逐项评估——已知条件（span/日期可判）确定 true/false；外部输入条件（公证/译本等）
    * 未提供时标记 pending（不误判为失败）。满足全部条件的规则为实际适用（rulesMatched）。
+   * @param span - 证据实体。
+   * @param evType - 证据类型。
+   * @param basis - 申请日与优先权日。
+   * @param reference - 解析出的现有技术截止日。
+   * @param external - 外部输入。
+   * @returns 每条候选规则的适用结果。
    */
   private applyRules(
     span: EvidenceSpan,
     evType: EvidenceType,
-    filingDate: string | undefined,
+    basis: PriorArtBasis,
+    reference: PriorArtReference | undefined,
     external: EvidenceExternalInputs,
   ): RuleApplication[] {
-    const ctx: ConditionContext = { span, ...(filingDate !== undefined ? { filingDate } : {}), external }
+    const ctx: ConditionContext = { span, basis, reference, external }
     const applicable = this.rules.filter(r => r.evidenceType === evType || r.evidenceType === 'general')
     return applicable.map((rule) => {
       const conditions = rule.check?.conditions ?? []
@@ -616,11 +796,15 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
   }
 
   /**
-   * 证明标准达成评估（查找表驱动，删除了移植残留的死分支与双计数）：
+   * 证明标准达成评估（查找表驱动）：
    *   preponderance/优势证据：支持 > 矛盾 且 置信度 ≥ 0.5
    *   clear_and_convincing/高度盖然性：置信度 ≥ 0.7 且 支持 > 2×矛盾
    *   未知标准：置信度 ≥ 0.5（宽松放行）
-   * 单条证据只计入一次（低分 → contradicting），无 conflict 双计数。
+   * 支持/矛盾按证据的 `direction` 归类，不按评分：立场是当事人主张问题，评分是证明力
+   * 问题，高分矛盾证据不是支持证据。neutral 证据不计入比较。置信度取全部证据评分的均值。
+   * @param judgments - 待评价的证据判定结果。
+   * @param standard - 证明标准标识或中文名。
+   * @returns 达成评估结果。
    */
   assessProofStandard(judgments: EvidenceJudgment[], standard: string): ProofStandardResult {
     const result: ProofStandardResult = {
@@ -629,6 +813,7 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
       confidence: 0,
       supportingCount: 0,
       contradictingCount: 0,
+      neutralCount: 0,
       reasoning: '',
       gaps: [],
     }
@@ -636,17 +821,28 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
     let validCount = 0
     let supporting = 0
     let contradicting = 0
+    let neutral = 0
     for (const j of judgments) {
       validCount += 1
       totalScore += j.overallScore
-      if (j.overallScore >= 0.6) {
-        supporting += 1
-      } else {
-        contradicting += 1
+      switch (j.direction) {
+        case 'supporting':
+          supporting += 1
+          break
+        case 'contradicting':
+          contradicting += 1
+          break
+        case 'neutral':
+          neutral += 1
+          break
+        /* v8 ignore next -- closed-union backstop; the compiler rejects a new direction here. */
+        default:
+          assertNever(j.direction, 'evidence direction')
       }
     }
     result.supportingCount = supporting
     result.contradictingCount = contradicting
+    result.neutralCount = neutral
     if (validCount > 0) result.confidence = totalScore / validCount
 
     const STANDARDS: Record<string, { minConfidence: number; ratio: 'preponderance' | 'clear_convincing' }> = {
@@ -665,13 +861,14 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
       result.met = result.confidence >= 0.5
     }
     if (contradicting > 0) {
-      result.gaps.push(`存在 ${contradicting} 件矛盾或低分证据，需进一步审查`)
+      result.gaps.push(`存在 ${contradicting} 件反证，需逐件评价证明力后再认定`)
     }
     if (validCount === 0) {
       result.gaps.push('无证据支持')
       result.met = false
     }
-    result.reasoning = `支持证据 ${supporting} 件 / 矛盾证据 ${contradicting} 件，平均置信度 ${(result.confidence * 100).toFixed(0)}%`
+    result.reasoning =
+      `支持证据 ${supporting} 件 / 反证 ${contradicting} 件 / 中性 ${neutral} 件，平均置信度 ${(result.confidence * 100).toFixed(0)}%`
     return result
   }
 

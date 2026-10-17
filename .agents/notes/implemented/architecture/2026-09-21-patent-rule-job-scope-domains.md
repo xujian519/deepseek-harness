@@ -12,20 +12,21 @@ The ported upstream job table (`builtinPatentManifests[].checkDomains`) cannot s
 
 ## Decision
 
-`PATENT_CASE_DOMAINS` (`packages/patent/patent-rule/src/runtime/patent-compliance.ts`) maps four job scopes to the rule `domain` lists they evaluate, and `rule_check` accepts those names as `scope` values. The rule set stays the merged full asset set with its activation overrides; the domain filter applies at evaluation time, so the scopes share one load and one cache entry each.
+`PATENT_CASE_DOMAINS` (`packages/patent/patent-rule/src/runtime/patent-compliance.ts`) maps the job scopes to the rule `domain` lists they evaluate, and `rule_check` accepts those names as `scope` values. The rule set stays the merged full asset set with its activation overrides; the domain filter applies at evaluation time, so the scopes share one load and one cache entry each.
 
 A scope evaluates the common domains (`patent`, `patent_general` — the compliance rules and the general-practice rules, which apply to every patent deliverable) plus its own document and procedure domains and the domains of the clauses it must answer or establish:
 
 | Scope | Manifest | Rules |
 | --- | --- | --- |
-| `patent-oa-response` | `patent_oa_response_v1` | 108 |
+| `patent-oa-response` | `patent_oa_response_v1` | 110 |
 | `patent-invalidation` | `patent_invalidation_v1` | 97 |
-| `patent-reexamination` | `patent_reexamination_v1` | 108 |
+| `patent-invalidation-defense` | `patent_invalidation_v1` | 110 |
+| `patent-reexamination` | `patent_reexamination_v1` | 110 |
 | `patent-infringement` | `patent_infringement_v1` | 39 |
 
 The domains of the substantive clauses come from the reason tables this repository owns: the rejection-type table in `packages/patent/patent-core/src/notice/office-action.ts` and the grounds tables in `.../notice/grounds.ts`. Both name the same clause set — novelty (22.2), inventiveness (22.3), utility (22.4), sufficient disclosure (26.3), claims (26.4), amendment (33) — which the assets carry as `patent_novelty`, `patent_inventiveness`, `patent_utility`, `patent_disclosure`, `patent_claims` and `patent_procedure`.
 
-Office-action answers and reexamination requests evaluate the same domain set: the reexamination reason table is the invalidation table plus the utility-model subject-matter defect, and that defect is a common-domain rule, while a reexamination request is an answer-shaped brief. The two stay separate scope names because the model picks its entry point by job, not by domain vocabulary; a job whose assets later gain a domain of its own (`patent_invalidation` rules, for instance) splits the lists there without changing the names. Invalidation carries no answer-practice domain — those rules are worded for answering office actions (point-by-point response, reply deadlines) and fire on an invalidation request. Infringement carries only its own domain, since the drafting and examination domains hold completeness checks that fire on an infringement opinion.
+Office-action answers, reexamination requests, and invalidation defences evaluate the same domain set: the reexamination reason table is the invalidation table plus the utility-model subject-matter defect, and that defect is a common-domain rule, while all three deliverables answer the other side point by point and amend under the A33 limits. They stay separate scope names because the model picks its entry point by job, not by domain vocabulary; a job whose assets later gain a domain of its own (`patent_invalidation` rules, for instance) splits the lists there without changing the names. The invalidation job carries that set on its defence side only: the answer-practice rules are worded for answering a claim the other side made (point-by-point response, reply deadlines, argument by word count) and fire on the requester's brief, so `patent-invalidation` drops the domain while `patent-invalidation-defense` keeps it, and the two sides of one manifest therefore differ by exactly that domain. Infringement carries only its own domain, since the drafting and examination domains hold completeness checks that fire on an infringement opinion.
 
 `evaluateText`'s `domain` option accepts one domain or a list, with rules that declare no domain always evaluated; that matches `RuleEngine.evaluate` in `packages/patent/patent-core/src/checker/engine.ts`, which already takes `string | readonly string[]`.
 
@@ -41,7 +42,7 @@ Office-action answers and reexamination requests evaluate the same domain set: t
 
 ## Consequences
 
-The full asset set holds 120 rules; the four scopes evaluate 108 / 97 / 108 / 39 of them, and their union covers every domain in the merged set, so no asset domain lacks a job entry point — a test fails when a new asset domain belongs to no scope.
+The full asset set holds 122 rules; the job scopes evaluate 110 / 97 / 110 / 110 / 39 of them, and their union covers every domain in the merged set, so no asset domain lacks a job entry point — a test fails when a new asset domain belongs to no scope.
 
 The filter narrows the rule set by job, not by document type, and it composes with the per-rule applicability premise later added by [the premise change](2026-09-30-rule-applicability-premises-and-quoted-spans.md): a completeness check whose subject the text never touches is not evaluated at all, while one whose subject vocabulary the text does contain still reports its missing elements on a document of another type.
 
@@ -49,4 +50,4 @@ The job skills reference their scopes unevenly: the `patent-oa-response` skill a
 
 ## Testing
 
-`packages/patent/patent-rule/tests/case-scopes.spec.ts` pins the four scope names, that every listed domain is declared by the bundled assets (a typo would otherwise narrow a scope silently), that the union covers the merged set's domains, that no scope reports a rule from a domain outside it, that domain-less rules run in every scope, and one in-scope hit plus one out-of-scope absence per class of scope. `tests/rule-engine.spec.ts` carries the `domain` option's single-value, list, empty-string and empty-list behaviour. `packages/patent/patent-tools/tests/drafting-engine.spec.ts` runs the same text through `patent-full` and `patent-infringement` to show the filter, and checks the unknown-scope error lists the job scopes.
+`packages/patent/patent-rule/tests/case-scopes.spec.ts` pins the scope names, that every listed domain is declared by the bundled assets (a typo would otherwise narrow a scope silently), that the union covers the merged set's domains, that no scope reports a rule from a domain outside it, that domain-less rules run in every scope, that the defence scope differs from the request scope by exactly the answer-practice domain, and one in-scope hit plus one out-of-scope absence per class of scope. `tests/rule-engine.spec.ts` carries the `domain` option's single-value, list, empty-string and empty-list behaviour. `packages/patent/patent-tools/tests/drafting-engine.spec.ts` runs the same text through `patent-full` and `patent-infringement` to show the filter, and checks the unknown-scope error lists the job scopes.

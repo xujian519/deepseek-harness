@@ -33,11 +33,16 @@ export function getTemplateRoot(): string {
 }
 
 /**
- * manifest.json 的模板清单。渲染器只读 `templates`；`renders` / `page` 没有消费者，
- * 不再声明，`as` 断言随之消失：字段不再全可选，结构不对在解析处就报错。
+ * manifest.json 的模板清单。渲染器只读 `templates` 与 `internalRecords`；`renders` / `page`
+ * 没有消费者，不再声明。字段不再全可选，结构不对在解析处就报错。
  */
 type TemplateManifest = {
   templates: string[]
+  /**
+   * 记录内部工作内容的模板：成功概率分档、缺口汇总、引用核验记录等只在此类模板中出现，
+   * 对外文书的合规检查因此按模板分流（见 documentCompliance 的检查范围）。
+   */
+  internalRecords: string[]
 }
 
 let manifestCache: TemplateManifest | undefined
@@ -79,7 +84,28 @@ function parseTemplateManifest(raw: string, path: string): TemplateManifest {
   if (!isStringArray(templates)) {
     throw new DocumentRenderError(`${path}: manifest.json 的 templates 必须是字符串数组`)
   }
-  return { templates }
+  const internalRecords = (parsed as Record<string, unknown>).internalRecords
+  if (!isStringArray(internalRecords)) {
+    throw new DocumentRenderError(`${path}: manifest.json 的 internalRecords 必须是字符串数组`)
+  }
+  // 内部记录模板必须是已声明模板：拼错一个名字会让合规检查静默按对外文书处理该模板。
+  const unknown = internalRecords.filter(id => !templates.includes(id))
+  if (unknown.length > 0) {
+    throw new DocumentRenderError(
+      `${path}: manifest.json 的 internalRecords 含未声明的模板 ${unknown.join('、')}`,
+    )
+  }
+  return { templates, internalRecords }
+}
+
+/**
+ * 该模板是否承载内部工作记录（成功概率分档、缺口汇总、引用核验记录等）。
+ * 对外文书不得含内部工作记录；检查器据此对这类模板放宽内部用语检查。
+ * @param template - 模板 id。
+ * @returns 该模板是否记录内部工作内容。
+ */
+export function isInternalRecordTemplate(template: string): boolean {
+  return readTemplateManifest().internalRecords.includes(template)
 }
 
 /**

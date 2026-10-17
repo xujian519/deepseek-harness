@@ -1,4 +1,12 @@
-/** Reject maintained references to repository commits and the disallowed organization URL. */
+/**
+ * Reject maintained references to repository commits and the disallowed
+ * organization URL.
+ *
+ * A run of decimal digits is read as a commit reference only when it is a
+ * complete object name: on a full clone a byte size can spell an abbreviated
+ * commit prefix, and reporting it would make the gate fail where a shallow clone
+ * passes.
+ */
 
 import { execFileSync } from 'node:child_process'
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
@@ -16,6 +24,22 @@ const excludedPrefixes = ['vendor/', '.agents/notes/archived/']
 const gitOutputLimit = 64 * 1024 * 1024
 // One 41-byte line per object; 1.2 million objects produce about 49 MiB.
 const objectListingLimit = 1024 * 1024 * 1024
+
+/**
+ * Decide whether a hexadecimal-looking run can be a commit reference.
+ *
+ * `[\da-f]` includes bare decimals, so a byte size or a count whose digits happen
+ * to spell a commit prefix in a full clone — `size = 6344383` in a lock file, and
+ * the prose that quotes it — would be reported as a reference, while a shallow
+ * clone cannot see that object and reports nothing. A run of decimal digits is
+ * therefore a candidate only as a complete object name: a maintained reference
+ * carries either the full object name or at least one hexadecimal letter.
+ * @param candidate - the matched run, in any case.
+ * @returns whether the run is treated as a commit reference candidate.
+ */
+export function isCommitCandidate(candidate: string): boolean {
+  return candidate.length === 40 || /[a-fA-F]/u.test(candidate)
+}
 
 /** One prohibited reference in a maintained source file. */
 export interface RepositoryReference {
@@ -49,7 +73,9 @@ export function findRepositoryReferences(
     if (organizationUrl.test(canonicalReferenceText(line).replace(kitRepositoryUrl, ''))) {
       references.push({ file, line: index + 1, kind: 'organization-url' })
     }
-    if ([...line.matchAll(commitCandidate)].some(match => commits.has(match[0].toLowerCase()))) {
+    if ([...line.matchAll(commitCandidate)]
+      .filter(match => isCommitCandidate(match[0]))
+      .some(match => commits.has(match[0].toLowerCase()))) {
       references.push({ file, line: index + 1, kind: 'commit-hash' })
     }
   }
@@ -111,7 +137,10 @@ export function uniquePrefixMatch(objects: readonly string[], prefix: string): s
  */
 export function repositoryCommits(repoRoot: string, sources: Iterable<string>): Set<string> {
   const candidates = [...new Set([...sources].flatMap(source =>
-    [...source.matchAll(commitCandidate)].map(match => match[0].toLowerCase())))]
+    [...source.matchAll(commitCandidate)]
+      .map(match => match[0])
+      .filter(isCommitCandidate)
+      .map(candidate => candidate.toLowerCase())))]
   if (candidates.length === 0) return new Set()
   // Git resolves prefixes across all available objects, including unreachable and alternate ones;
   // one listing of those objects replaces one Git prefix lookup per candidate.

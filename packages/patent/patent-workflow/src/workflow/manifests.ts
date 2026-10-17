@@ -352,14 +352,28 @@ function buildContestedManifest(options: ContestedManifestOptions): WorkflowMani
       {
         id: 'novelty',
         strategy: 'chain',
-        description: '新颖性单独对比（单篇全覆盖）（原子路径不支持，收口模式）',
+        description: '新颖性单独对比（单篇全覆盖）',
         consumes: ['grounds', 'claim-chart'],
+        guidance: [
+          '单独对比原则：一项权利要求的新颖性只能由**一篇**现有技术单独否定，不得把两篇（或多篇）的内容拼合起来认定"已公开"。',
+          '判定对象是该权利要求的全部技术特征；从属权利要求的全部技术特征 = 所引用权利要求的全部技术特征 + 本权项的附加技术特征。要素级映射用 claim_chart_build（mode=invalidity / reexamination）：它的 invalidity_conclusion 按引用链并入所引用权项的全部要素后给出逐权项"单篇全覆盖成立／未全覆盖"，直接采用该结论，不得与它相反。',
+          '不得以"附加技术特征已被该篇公开"为由认定从属权利要求不具备新颖性：所引用权利要求相对同一篇未全覆盖时，从属权利要求（含其全部特征）相对该篇同样未全覆盖；invalidity_conclusion 的 dependentClaimIssues 报出该形态时必须先改法条路径或补足证据。',
+          '只有判定为全覆盖时才写"不具备新颖性"；未全覆盖的写"具备新颖性"并列出缺项要素，不得改写成"公开不充分""前景有限"一类己方评估。',
+          '缺项要素即三步法第二步骤的区别技术特征输入，与 invalidity_conclusion 的 distinguishing 清单保持一致。',
+        ].join('\n'),
       },
       {
         id: 'inventiveness',
         strategy: 'chain',
-        description: '三步法创造性分析（原子路径不支持，收口模式）',
+        description: '三步法创造性分析',
         consumes: ['grounds', 'claim-chart'],
+        guidance: [
+          '三步法：第一步确定最接近的现有技术（以 invalidity_conclusion 的 primaryTargetId 为基准，不得中途换基准而不说明）；第二步以 distinguishing 列出的区别技术特征为输入，按该区别特征在要求保护的发明中的客观作用确定实际解决的技术问题——技术问题不得是区别特征本身，也不得包含指向该区别特征的手段；第三步判断现有技术整体上是否给出将该区别特征应用到最接近现有技术以解决其技术问题的启示（结合启示、公知常识、有限试验、逻辑推理）。',
+          '区别特征只在主对比文件上提取；换用另一篇作最接近现有技术时须重跑 claim_chart_build 或说明，不得沿用上一基准的区别特征清单。',
+          '从属权利要求与所引用的权利要求使用同一法条路径：所引用权利要求以 A22.3 主张的，从属权利要求以 A22.3 承接，结论写"在引用权利要求不具备创造性的基础上，权利要求 X 不具有创造性"，不得替换成以附加技术特征单独评价的另一条路径。',
+          'invalidity_conclusion 检出的"仅附加特征被覆盖"形态必须在本阶段处理：或把主张改写到所引用权利要求的同一路径，或补足该篇对所引用权利要求全部特征的公开，不得回避。',
+          '发明构思与公知常识的论证按"事实 → 规则 → 论证"三层组织；不以"本领域常规技术选择"这类无事实支撑的断言代替论证。',
+        ].join('\n'),
       },
       {
         id: 'approval',

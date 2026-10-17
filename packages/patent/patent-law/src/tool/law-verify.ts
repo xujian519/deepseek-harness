@@ -11,6 +11,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { parseLawReference } from '../reference.ts'
 import { renderCitationRows, resolveCitationPolicy, verifyCitation, verifyCitations } from '../verify.ts'
+import type { VerifyOptions } from '../verify.ts'
 import type {
   CitationDecision,
   CitationFinding,
@@ -76,13 +77,15 @@ export type LawVerifyOutput = {
 export type LawVerifyToolOptions = {
   baselines: Map<LawName, LawBaseline>
   policies: CitationPolicySet
+  /** Overlap a proposition must reach before an entry's text supports it; defaults to {@link PROPOSITION_SUPPORT_DEFAULT}. */
+  supportThreshold?: number
 }
 
 const DESCRIPTION = [
   '- Checks law citations against the law index shipped with this deployment: 《专利法》《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path.',
-  '- Each citation is decided as 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验, and an article beyond an article ceiling that has itself not been verified also comes back as 未核验.',
+  '- Each citation is decided as 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验, and an article beyond an article ceiling that has itself not been verified also comes back as 未核验.',
   '- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error, so a typo surfaces instead of being skipped.',
-  '- Pass proposition when a citation is offered in support of a specific claim, so a cited article whose topics do not support that claim is reported as 与所引命题不符.',
+  '- Pass proposition when a citation is offered in support of a specific claim. The cited entry must carry that claim, by naming its subject in the entry\'s own topic keywords or by sharing the entry\'s transcribed wording; 与所引命题不符 means another entry of the same law carries the claim instead (the reason names it), and 未与条文对应（未判定） means no entry does, so nothing here decides the claim and a person must.',
   '- This checks citation form and index membership, not legal correctness of the actual text: the index carries transcribed text only after a person records the transcription source. An article that is 未核验 still has to be verified against an official source (patent_case_search / cnlaw / web_fetch on the official page) before it is relied on.',
   '',
   'Usage notes:',
@@ -96,7 +99,7 @@ const DESCRIPTION = [
  * @returns the tool definition.
  */
 export function createLawVerifyTool(options: LawVerifyToolOptions): ToolDefinition {
-  const { baselines, policies } = options
+  const { baselines, policies, supportThreshold } = options
   return defineTool({
     name: 'law_verify',
     description: DESCRIPTION,
@@ -123,6 +126,7 @@ export function createLawVerifyTool(options: LawVerifyToolOptions): ToolDefiniti
             properties: {
               'valid': { type: 'number', required: true },
               'mismatch': { type: 'number', required: true },
+              'unmatched': { type: 'number', required: true },
               'out-of-range': { type: 'number', required: true },
               'not-indexed': { type: 'number', required: true },
               'unverified': { type: 'number', required: true },
@@ -136,7 +140,7 @@ export function createLawVerifyTool(options: LawVerifyToolOptions): ToolDefiniti
       }],
     },
     execute(args) {
-      return Promise.resolve(runVerify(args, baselines, policies))
+      return Promise.resolve(runVerify(args, baselines, policies, supportThreshold))
     },
   })
 }
@@ -153,7 +157,7 @@ const FINDING_SCHEMA = {
     decision: {
       type: 'string',
       required: true,
-      enum: ['valid', 'mismatch', 'out-of-range', 'not-indexed', 'unverified'],
+      enum: ['valid', 'mismatch', 'unmatched', 'out-of-range', 'not-indexed', 'unverified'],
     },
     policy: { type: 'string', required: true, enum: ['block', 'warn', 'allow'] },
     reason: { type: 'string', required: true },
@@ -165,8 +169,9 @@ function runVerify(
   args: LawVerifyInput,
   baselines: Map<LawName, LawBaseline>,
   policies: CitationPolicySet,
+  supportThreshold: number | undefined,
 ): LawVerifyOutput {
-  const findings = collectFindings(args, baselines)
+  const findings = collectFindings(args, baselines, supportThreshold)
   const projected = findings.map(finding => toFinding(finding, policies))
   return {
     findings: projected,
@@ -176,17 +181,25 @@ function runVerify(
 }
 
 /** Collect the findings for the requested text and references. */
-function collectFindings(args: LawVerifyInput, baselines: Map<LawName, LawBaseline>): CitationFinding[] {
-  const options = args.proposition === undefined ? {} : { proposition: args.proposition }
+function collectFindings(
+  args: LawVerifyInput,
+  baselines: Map<LawName, LawBaseline>,
+  supportThreshold: number | undefined,
+): CitationFinding[] {
+  const options: VerifyOptions = {
+    ...(args.proposition === undefined ? {} : { proposition: args.proposition }),
+    ...(supportThreshold === undefined ? {} : { supportThreshold }),
+  }
+  const references = args.references ?? []
   const findings = args.text === undefined ? [] : verifyCitations(args.text, baselines, options)
-  for (const raw of args.references ?? []) {
+  for (const raw of references) {
     const reference = parseLawReference(raw)
     if (reference === null) {
       throw new LawVerifyToolError('unparsable_reference', `无法把「${raw}」解析为单条法条引用：请给出条号（如 专利法第22条第3款）或指南节（如 审查指南第二部分第四章3.2.1.1）`)
     }
     findings.push(verifyCitation(reference, baselines, options))
   }
-  if (findings.length === 0 && args.text === undefined && (args.references ?? []).length === 0) {
+  if (findings.length === 0 && args.text === undefined && references.length === 0) {
     throw new LawVerifyToolError('no_input', '至少要给出 text 或 references 之一')
   }
   return findings
@@ -214,6 +227,7 @@ function countDecisions(findings: LawVerifyFinding[]): Record<CitationDecision, 
   const counts: Record<CitationDecision, number> = {
     'valid': 0,
     'mismatch': 0,
+    'unmatched': 0,
     'out-of-range': 0,
     'not-indexed': 0,
     'unverified': 0,
@@ -234,7 +248,10 @@ function renderToolReport(findings: LawVerifyFinding[], blocked: boolean): strin
     lines.push('', '**存在被拦截的引用**：先补证或改写该断言，再交付。')
   }
   if (findings.some(finding => finding.decision === 'unverified')) {
-    lines.push('', '存在未核验引用：本索引只登记"有哪些条"，条文文本须由人工按官方来源补录；在此之前该引用必须另找来源核验。')
+    lines.push('', '存在未核验引用：本索引没有可用于判定该引用的文本（该条目及其子节都未转录），因此既不能放行也不能比对；该引用必须另找官方来源核验。')
+  }
+  if (findings.some(finding => finding.decision === 'unmatched')) {
+    lines.push('', '存在未判定引用：所引条目的文本与该命题的字面重合不足，且本索引中没有条目支撑它。字面比对既不证明支撑也不证明不符——请人工核对该条是否承托该命题。')
   }
   return lines.join('\n')
 }

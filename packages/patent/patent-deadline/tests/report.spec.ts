@@ -80,7 +80,7 @@ describe('deadline report rendering', () => {
 
   it('lists the deadlines that still need a notice delivery record instead of approximating them', () => {
     const text = render(grantedCase)
-    expect(text).toContain('无法计算的期限 7 项——需补充下列记录后重算，本工具不以固定年数代替通知书送达日：')
+    expect(text).toContain('无法计算的期限 8 项——需补充下列记录后重算，本工具不以固定年数代替通知书送达日：')
     expect(text).toContain(
       '- 提出分案申请（须在办理登记手续期限届满前）（专利法实施细则第48条、第60条第1款）'
       + '｜缺少：grant-notice（授权通知的送达记录）｜分案申请须在办理登记手续期限届满前提出，该期限自收到授权通知之日起算。',
@@ -124,7 +124,8 @@ describe('deadline report rendering', () => {
       + '且自期限届满之日起2年内请求恢复权利；因其他正当理由延误的，可自收到通知之日起2个月内'
       + '请求恢复（延误复审请求期限的，自该期限届满之日起2个月内），并缴纳恢复权利请求费'
       + '（专利法实施细则第6条）。指定期限在届满前还可请求延长，延长不超过两个月'
-      + '（专利审查指南第五部分第七章第4.2节）。',
+      + '（专利审查指南第五部分第七章第4.2节）；但无效宣告请求审查程序中指定的期限不得延长'
+      + '（专利法实施细则第75条）。',
     )
     expect(render({ ...grantedCase, today: { year: 2019, month: 1, day: 1 } })).not.toContain('已逾期项请先判断')
   })

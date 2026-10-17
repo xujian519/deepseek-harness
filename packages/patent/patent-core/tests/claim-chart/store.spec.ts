@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   chartFileBase,
   loadClaimChart,
@@ -21,6 +21,7 @@ function makeChart(): ClaimChart {
       { id: '1b', claimNo: 1, text: '和滤芯', kind: 'limitation' },
     ],
     claimNos: [1],
+    claims: [{ claimNo: 1, claimType: 'independent', refersTo: [] }],
     targets: [{ id: 'D1', kind: 'prior-art' }],
     rows: [
       {
@@ -43,7 +44,7 @@ function makeChart(): ClaimChart {
       },
     ],
     gaps: [
-      { elementId: '1b', targetId: 'D1', mapping: 'not-found', reason: '未找到', suggestion: '补充检索或论证等同替换' },
+      { elementId: '1b', targetId: 'D1', kind: 'not-found', reason: '未找到', suggestion: '补充检索或论证等同替换' },
     ],
     draftNotice: DRAFT_NOTICE,
   }
@@ -93,6 +94,21 @@ it('renderChartMarkdown 空 gap/特殊字符转义/verified 标记/分隔行', (
   expect(!row1c!.includes('| ☐ |')).toBeTruthy()
 })
 
+it('renderChartMarkdown 渲染权利要求引用关系；引用关系未知时不渲染', () => {
+  const chart = makeChart()
+  chart.claims = [
+    { claimNo: 1, claimType: 'independent', refersTo: [] },
+    { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+  ]
+  const md = renderChartMarkdown(chart)
+  expect(md.includes('## 权利要求引用关系')).toBeTruthy()
+  expect(md.includes('| 2 | 从属 | 1 |')).toBeTruthy()
+  expect(md.includes('| 1 | 独立 | — |')).toBeTruthy()
+
+  chart.claims = []
+  expect(renderChartMarkdown(chart).includes('## 权利要求引用关系')).toBe(false)
+})
+
 it('chartFileBase 拒绝不安全 chartId（防路径注入）', () => {
   for (const bad of ['../evil', 'a/b', '.hidden', 'a b']) {
     expect(() => chartFileBase('case-1', bad)).toThrow(RangeError)
@@ -114,7 +130,46 @@ it('save/load 往返一致（落盘 data/cases/<caseId>/outputs/）', async () =
     const loaded = loadClaimChart(chart.caseId, chart.chartId)
     expect(loaded?.chartId).toBe('t1')
     expect(loaded?.rows).toEqual(chart.rows)
+    expect(loaded?.claims).toEqual(chart.claims)
     expect(loadClaimChart(chart.caseId, 'missing')).toBeNull()
+  } finally {
+    process.chdir(prevCwd)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('loadClaimChart 把旧文件 gaps[].mapping 迁移为 kind', async () => {
+  const prevCwd = process.cwd()
+  const dir = mkdtempSync(join(tmpdir(), 'cc-store-legacy-gap-'))
+  process.chdir(dir)
+  try {
+    const base = chartFileBase('case-1', 'legacy-gap')
+    mkdirSync(dirname(base), { recursive: true })
+    const legacy = {
+      ...makeChart(),
+      gaps: [{ elementId: '1b', targetId: 'D1', mapping: 'not-found', reason: '未找到', suggestion: '补充检索' }],
+    }
+    writeFileSync(`${base}.json`, JSON.stringify(legacy))
+    const loaded = loadClaimChart('case-1', 'legacy-gap')
+    expect(loaded?.gaps[0]?.kind).toBe('not-found')
+    expect(renderChartMarkdown(loaded!)).toContain('（not-found）')
+  } finally {
+    process.chdir(prevCwd)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('loadClaimChart 为缺 claims 字段的旧文件补空数组（引用关系未知）', async () => {
+  const prevCwd = process.cwd()
+  const dir = mkdtempSync(join(tmpdir(), 'cc-store-legacy-'))
+  process.chdir(dir)
+  try {
+    const base = chartFileBase('case-1', 'legacy')
+    mkdirSync(dirname(base), { recursive: true })
+    const { claims: _dropped, ...withoutClaims } = makeChart()
+    writeFileSync(`${base}.json`, JSON.stringify(withoutClaims))
+    const loaded = loadClaimChart('case-1', 'legacy')
+    expect(loaded?.claims).toEqual([])
   } finally {
     process.chdir(prevCwd)
     rmSync(dir, { recursive: true, force: true })

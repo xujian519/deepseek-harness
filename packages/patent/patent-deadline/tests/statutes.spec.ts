@@ -71,6 +71,7 @@ describe('statutory deadline set', () => {
     expect(ids).toEqual([
       'annual-fee',
       'divisional-application',
+      'invalidation-evidence-supplement',
       'invalidation-response',
       'oa-response-first',
       'oa-response-subsequent',
@@ -83,6 +84,38 @@ describe('statutory deadline set', () => {
     const registration = report.pending.find(entry => entry.id === 'registration')
     expect(registration?.requiredInput).toBe('grant-notice（授权通知的送达记录）')
     expect(registration?.reason).toContain('不以申请日起算的固定年数替代')
+    const supplement = report.pending.find(entry => entry.id === 'invalidation-evidence-supplement')
+    expect(supplement?.requiredInput).toBe('invalidationRequestDate（提出无效宣告请求之日）')
+    expect(supplement?.reason).toContain('自提出无效宣告请求之日起算')
+  })
+
+  it('counts the invalidation period for adding grounds or evidence from the request date', () => {
+    const query: DeadlineQuery = { ...invention, invalidationRequestDate: date('2024-03-05'), today: date('2024-03-20') }
+    expect(find(query, 'invalidation-evidence-supplement')).toMatchObject({
+      dueDate: '2024-04-05',
+      rawDueDate: '2024-04-05',
+      status: 'urgent',
+      label: '增加无效理由或补充证据（自提出无效宣告请求之日起1个月）',
+      legalBasis: '专利法实施细则第71条',
+    })
+    expect(pendingIds(query)).not.toContain('invalidation-evidence-supplement')
+  })
+
+  it('counts the answer to a transferred invalidation request from its delivery date', () => {
+    const query: DeadlineQuery = {
+      ...invention,
+      today: date('2024-03-20'),
+      notices: [{
+        kind: 'invalidation-transfer',
+        delivery: { mode: 'electronic', dispatchDate: date('2024-03-01') },
+      }],
+    }
+    expect(find(query, 'invalidation-response')).toMatchObject({
+      dueDate: '2024-04-01',
+      label: '答复无效宣告请求（合议组指定期限，通常为1个月）',
+      legalBasis: '专利法实施细则第72条、专利审查指南第四部分第三章第4.4节',
+    })
+    expect(pendingIds(query)).not.toContain('invalidation-response')
   })
 
   it('counts the substantive-examination request from the priority date when priority is claimed', () => {
@@ -181,7 +214,7 @@ describe('statutory deadline set', () => {
     expect(find(query, 'oa-response-first')).toMatchObject({
       dueDate: '2026-12-21',
       rolledForward: true,
-      triggerBasis: '专利法实施细则第四条 + 专利审查指南第五部分第七章：电子送达以发文日为送达日，期限自发文日起算（不再加15日）',
+      triggerBasis: '专利法实施细则第四条 + 专利审查指南第五部分第六章2.3.1：电子送达以发文日为送达日，期限自发文日起算（不再加15日）',
     })
     // Postal delivery adds 15 days: 2026-09-04 plus one designated month.
     expect(find(query, 'oa-response-subsequent')).toMatchObject({

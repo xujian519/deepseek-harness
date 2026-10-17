@@ -2,9 +2,10 @@ import { expect, it } from 'vitest'
 import {
   deriveDistinguishingFeatures,
   deriveNoveltyCoverage,
+  deriveNoveltyCoverageByClaim,
   validateRowMapping,
 } from '@deepseek-ai/dsh-patent-core'
-import type { ChartRow, ChartTarget, ClaimElement } from '@deepseek-ai/dsh-patent-core'
+import type { ChartRow, ChartTarget, ClaimElement, ClaimRef } from '@deepseek-ai/dsh-patent-core'
 
 const ELEMENTS: ClaimElement[] = [
   { id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' },
@@ -57,4 +58,118 @@ it('区别特征 = 主目标上 not-found/needs-evidence 的要素', () => {
     row('1c', 'D2', 'literal'),
   ]
   expect(deriveDistinguishingFeatures(rows, 'D1', ELEMENTS)).toEqual(['1b', '1c'])
+})
+
+// ── 逐权项单篇全覆盖（从属权项并入引用链） ──────────────────────────────────
+
+const TWO_CLAIMS: ClaimElement[] = [
+  { id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' },
+  { id: '1b', claimNo: 1, text: '和滤芯', kind: 'limitation' },
+  { id: '2a', claimNo: 2, text: '根据权利要求1所述的装置', kind: 'preamble' },
+  { id: '2b', claimNo: 2, text: '所述滤芯为折叠式', kind: 'limitation' },
+  { id: '3a', claimNo: 3, text: '根据权利要求2所述的装置', kind: 'preamble' },
+  { id: '3b', claimNo: 3, text: '所述壳体为塑料', kind: 'limitation' },
+]
+
+const CHAIN: ClaimRef[] = [
+  { claimNo: 1, claimType: 'independent', refersTo: [] },
+  { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+  { claimNo: 3, claimType: 'dependent', refersTo: [2] },
+]
+
+it('逐权项覆盖：独立权项只看自身要素', () => {
+  const rows = [row('1a', 'D1', 'literal'), row('1b', 'D1', 'literal')]
+  const [first] = deriveNoveltyCoverageByClaim(rows, 'D1', TWO_CLAIMS, CHAIN)
+  expect(first).toEqual({
+    claimNo: 1,
+    covered: true,
+    missing: [],
+    includesReferredClaims: false,
+    referredClaimNos: [],
+  })
+})
+
+it('逐权项覆盖：从属权项并入所引用权项的全部要素（传递闭包）', () => {
+  // 权 2 的附加特征被 D1 公开，但权 1 的 1b 未公开 —— 权 2 同样未全覆盖。
+  const rows = [
+    row('1a', 'D1', 'literal'),
+    row('1b', 'D1', 'not-found'),
+    row('2a', 'D1', 'literal'),
+    row('2b', 'D1', 'literal'),
+  ]
+  const coverage = deriveNoveltyCoverageByClaim(rows, 'D1', TWO_CLAIMS, CHAIN)
+  const second = coverage.find(entry => entry.claimNo === 2)
+  expect(second?.covered).toBe(false)
+  expect(second?.missing).toEqual(['1b'])
+  expect(second?.includesReferredClaims).toBe(true)
+  expect(second?.referredClaimNos).toEqual([1])
+})
+
+it('逐权项覆盖：多级从属取引用链的并集', () => {
+  const rows = [
+    row('1a', 'D1', 'literal'),
+    row('1b', 'D1', 'literal'),
+    row('2a', 'D1', 'literal'),
+    row('2b', 'D1', 'literal'),
+    row('3a', 'D1', 'literal'),
+    row('3b', 'D1', 'not-found'),
+  ]
+  const third = deriveNoveltyCoverageByClaim(rows, 'D1', TWO_CLAIMS, CHAIN).find(entry => entry.claimNo === 3)
+  expect(third?.referredClaimNos).toEqual([1, 2])
+  expect(third?.missing).toEqual(['3b'])
+})
+
+it('逐权项覆盖：缺引用关系时按独立权项处理（不臆造引用）', () => {
+  const rows = [row('2a', 'D1', 'literal'), row('2b', 'D1', 'literal')]
+  const second = deriveNoveltyCoverageByClaim(rows, 'D1', TWO_CLAIMS, []).find(entry => entry.claimNo === 2)
+  expect(second?.covered).toBe(true)
+  expect(second?.includesReferredClaims).toBe(false)
+})
+
+// ── 多项从属权项：择一引用，不是合取 ────────────────────────────────────────
+
+const MULTI_ELEMENTS: ClaimElement[] = [
+  { id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' },
+  { id: '1b', claimNo: 1, text: '和滤芯', kind: 'limitation' },
+  { id: '2a', claimNo: 2, text: '根据权利要求1所述的装置', kind: 'preamble' },
+  { id: '2b', claimNo: 2, text: '所述滤芯为折叠式', kind: 'limitation' },
+  { id: '3a', claimNo: 3, text: '所述壳体为塑料', kind: 'limitation' },
+]
+
+const MULTI: ClaimRef[] = [
+  { claimNo: 1, claimType: 'independent', refersTo: [] },
+  { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+  { claimNo: 3, claimType: 'dependent', refersTo: [1, 2] },
+]
+
+it('逐权项覆盖：多项从属权项任一替代方案全覆盖即为覆盖', () => {
+  const rows = [
+    row('1a', 'D1', 'literal'),
+    row('1b', 'D1', 'literal'),
+    row('2a', 'D1', 'literal'),
+    row('2b', 'D1', 'not-found'),
+    row('3a', 'D1', 'literal'),
+  ]
+  const third = deriveNoveltyCoverageByClaim(rows, 'D1', MULTI_ELEMENTS, MULTI).find(entry => entry.claimNo === 3)
+  expect(third?.covered).toBe(true)
+  expect(third?.missing).toEqual([])
+  expect(third?.referredClaimNos).toEqual([1, 2])
+  expect(third?.alternatives).toEqual([
+    { referredClaimNos: [1], covered: true, missing: [] },
+    { referredClaimNos: [1, 2], covered: false, missing: ['2b'] },
+  ])
+})
+
+it('逐权项覆盖：多项从属权项全部替代方案都有缺口时，摘要取缺口最少的一条', () => {
+  const rows = [
+    row('1a', 'D1', 'literal'),
+    row('1b', 'D1', 'not-found'),
+    row('2a', 'D1', 'literal'),
+    row('2b', 'D1', 'not-found'),
+    row('3a', 'D1', 'literal'),
+  ]
+  const third = deriveNoveltyCoverageByClaim(rows, 'D1', MULTI_ELEMENTS, MULTI).find(entry => entry.claimNo === 3)
+  expect(third?.covered).toBe(false)
+  expect(third?.missing).toEqual(['1b'])
+  expect(third?.alternatives?.map(alternative => alternative.missing)).toEqual([['1b'], ['1b', '2b']])
 })

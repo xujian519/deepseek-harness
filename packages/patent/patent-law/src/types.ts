@@ -57,8 +57,9 @@ export type ArticleEntry = {
   /** Paragraph numbers the entry knows to exist; omitted when not yet verified. */
   paragraphs?: number[]
   /**
-   * Topic keywords used to test a claimed proposition against the article. They
-   * are an index aid, not statutory text.
+   * Topic keywords a proposition can name. They are one of the two signals a
+   * proposition is matched by — the other is `text` — and they are an index aid,
+   * not statutory text.
    */
   topics: string[]
   /** Article text, or null while it has not been transcribed. */
@@ -73,7 +74,7 @@ export type ArticleEntry = {
 export type SectionEntry = {
   /** Normalized section path. */
   path: string
-  /** Topic keywords used to test a claimed proposition. */
+  /** Topic keywords a proposition can name; one of the two signals a proposition is matched by. */
   topics: string[]
   /** Section text, or null while it has not been transcribed. */
   text: string | null
@@ -112,6 +113,8 @@ export type CitationDecision =
   | 'valid'
   /** Indexed and verified, but the claimed proposition does not match the entry. */
   | 'mismatch'
+  /** Indexed and verified, but neither the entry nor any other matches the proposition lexically. */
+  | 'unmatched'
   /** Beyond the law's verified article ceiling. */
   | 'out-of-range'
   /** Not present in the index at all. */
@@ -137,8 +140,14 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 
 /** Per-decision policy, so a deployment chooses which gaps may pass. */
 export type CitationPolicySet = {
-  /** Policy for `mismatch`. */
+  /**
+   * Policy for `mismatch`: the entry itself does not carry the proposition, and
+   * either the cited paragraph does not exist or another entry of the same law
+   * does carry it.
+   */
   mismatch: CitationPolicy
+  /** Policy for `unmatched`: no entry of the law carries the proposition, so nothing here decides it. */
+  unmatched: CitationPolicy
   /** Policy for `out-of-range`. */
   outOfRange: CitationPolicy
   /** Policy for `not-indexed`. */

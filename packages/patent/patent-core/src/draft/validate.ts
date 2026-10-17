@@ -11,6 +11,7 @@ import {
   SPEC_PART_HEADINGS,
   SPEC_PART_ORDER,
   type DraftBlock,
+  type DraftGroundItem,
   type SpecDraft,
   type SpecDraftMeta,
   type SpecPartId,
@@ -504,6 +505,63 @@ function validateTemplateBlocks(value: unknown, path: string, violations: string
   return valid ? blocks : undefined
 }
 
+/**
+ * 校验无效理由节槽位值：每项须有法条、理由名、≥1 个权项号与三段非空正文。
+ *
+ * 三段正文（事实认定 / 证据分析 / 法条适用与结论）必须分栏提交而不是一整段，因为渲染器按
+ * 四段式生成小标题；合成一段会让"事实与评价分离"这条纪律在成品里看不出来。
+ * @param value - 槽位值。
+ * @param path - 违规消息里的路径。
+ * @param violations - 违规收集器。
+ * @returns 窄化后的理由项数组；存在违规返回 undefined。
+ */
+function validateGrounds(value: unknown, path: string, violations: string[]): DraftGroundItem[] | undefined {
+  const array = readNonEmptyArray(value, path, violations, '至少一项')
+  if (array === undefined) return undefined
+  const before = violations.length
+  const items: DraftGroundItem[] = []
+  array.forEach((item, index) => {
+    const record = asJsonRecord(item)
+    if (record === undefined) {
+      violations.push(`${path}[${index}] 必须是对象`)
+      return
+    }
+    const prefix = `${path}[${index}]`
+    const article = readRequiredString(record, 'article', prefix, violations)
+    const ground = readRequiredString(record, 'ground', prefix, violations)
+    const facts = readRequiredString(record, 'facts', prefix, violations)
+    const evidence = readRequiredString(record, 'evidence', prefix, violations)
+    const conclusion = readRequiredString(record, 'conclusion', prefix, violations)
+    const claimNos = readPositiveIntegerList(record.claimNos, `${prefix}.claimNos`, violations)
+    if (
+      article === undefined || ground === undefined || facts === undefined
+      || evidence === undefined || conclusion === undefined || claimNos === undefined
+    ) {
+      return
+    }
+    items.push({ article, ground, claimNos, facts, evidence, conclusion })
+  })
+  return violations.length === before ? items : undefined
+}
+
+/**
+ * 校验权利要求序号列表：≥1 项，各项为 ≥1 的整数，去重后升序。
+ */
+function readPositiveIntegerList(value: unknown, path: string, violations: string[]): number[] | undefined {
+  const array = readNonEmptyArray(value, path, violations, '至少一个权利要求序号')
+  if (array === undefined) return undefined
+  const before = violations.length
+  const numbers = new Set<number>()
+  array.forEach((item, index) => {
+    if (typeof item !== 'number' || !Number.isInteger(item) || item < 1) {
+      violations.push(`${path}[${index}] 必须是 ≥1 的整数（权利要求序号）`)
+      return
+    }
+    numbers.add(item)
+  })
+  return violations.length === before ? [...numbers].sort((a, b) => a - b) : undefined
+}
+
 function validateTemplateSections(
   value: unknown,
   schema: TemplateDraftSchema | undefined,
@@ -541,9 +599,26 @@ function validateTemplateSections(
       }
     }
     const slot = id === undefined ? undefined : schema?.sections?.[id]
+    if (slot?.kind === 'grounds') {
+      if (record.blocks !== undefined || record.rows !== undefined) {
+        violations.push(`sections.${id} 是无效理由槽位，不接受 blocks / rows`)
+        valid = false
+      }
+      const grounds = validateGrounds(record.grounds, `sections.${index}.grounds`, violations)
+      if (id === undefined || grounds === undefined) {
+        valid = false
+      } else {
+        sections.push({ id, grounds })
+      }
+      return
+    }
     if (slot?.kind === 'rows') {
       if (record.blocks !== undefined) {
         violations.push(`sections.${id} 是数据行槽位，不接受 blocks`)
+        valid = false
+      }
+      if (record.grounds !== undefined) {
+        violations.push(`sections.${id} 是数据行槽位，不接受 grounds`)
         valid = false
       }
       const rows = validateRows(record.rows, `sections.${index}.rows`, slot.columns, violations)
@@ -556,6 +631,11 @@ function validateTemplateSections(
     }
     if (record.rows !== undefined) {
       violations.push(`sections.${id} 是正文槽位，不接受 rows（数据行请用 rows 类槽位）`)
+      valid = false
+      return
+    }
+    if (record.grounds !== undefined) {
+      violations.push(`sections.${id} 是正文槽位，不接受 grounds（理由请用 grounds 类槽位）`)
       valid = false
       return
     }

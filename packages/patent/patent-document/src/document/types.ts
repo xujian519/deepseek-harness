@@ -12,6 +12,8 @@ export type DocumentTemplateId =
   | 'oa-response'
   | 'claims-spec'
   | 'invalidation-opinion'
+  | 'invalidation-analysis'
+  | 'invalidation-defense'
   | 'rectification-response'
   | 're-examination-request'
   | 'infringement-opinion'

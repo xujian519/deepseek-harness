@@ -60,6 +60,7 @@ const EXEMPT_REFERENCES: ReadonlyMap<string, string> = new Map([
   ['inventive_step', 'cnlaw evidence package key'],
   ['max_claims', 'draft_claims tool parameter'],
   ['paragraph_numbering', 'validate_specification result key'],
+  ['patent_invalidation_v1', 'workflow manifest id'],
   ['patent_inventiveness_v1', 'workflow manifest id'],
   ['patent_novelty_v1', 'workflow manifest id'],
   ['patent_oa_response_v1', 'workflow manifest id'],

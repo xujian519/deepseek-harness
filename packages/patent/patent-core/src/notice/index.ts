@@ -40,4 +40,5 @@ export {
   type InvalidationGround,
   type PatentSubject,
   type ReexaminationGround,
+  type SharedGround,
 } from './grounds.ts'

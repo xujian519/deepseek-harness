@@ -6,7 +6,7 @@
  * 纯函数，无外部依赖。
  */
 
-import type { DateDetermination } from './types.ts'
+import type { DateDetermination, PriorArtBasis, ReferenceBasis } from './types.ts'
 
 /** 支持的日期格式（对齐 Go dateFormats）。
  * 英文月份名（Jan 2, 2023 / September 2, 2023）由 parseDateFlexible 的
@@ -69,6 +69,44 @@ function formatToRegex(format: string): RegExp {
     default:
       return /$a/ // 永不匹配
   }
+}
+
+/**
+ * 解析出的现有技术截止日及其来源。
+ *
+ * 现有技术指申请日以前公开的技术，有优先权的指优先权日（专利法第22条第5款）。两个日期
+ * 都提供时取较早者作为截止日；早于截止日公开才构成现有技术。
+ */
+export type PriorArtReference = {
+  /** 截止日（可被 {@link parseDateFlexible} 解析的字符串）。 */
+  date: string
+  /** 截止日来自申请日还是优先权日。 */
+  basis: ReferenceBasis
+}
+
+/**
+ * 解析现有技术的时间基准。
+ * @param basis - 申请日与优先权日。
+ * @returns 较早的可解析日期及其来源；两者都无法解析时返回 undefined。
+ */
+export function priorArtReference(basis: PriorArtBasis): PriorArtReference | undefined {
+  const filing = usableDate(basis.filingDate)
+  const priority = usableDate(basis.priorityDate)
+  if (filing === undefined) return priority === undefined ? undefined : { date: priority, basis: 'priority-date' }
+  if (priority === undefined) return { date: filing, basis: 'filing-date' }
+  const filingTime = parseDateFlexible(filing)
+  const priorityTime = parseDateFlexible(priority)
+  /* v8 ignore next -- both dates above passed parseDateFlexible, so neither re-parse is null */
+  if (filingTime === null || priorityTime === null) return { date: filing, basis: 'filing-date' }
+  return priorityTime.getTime() <= filingTime.getTime()
+    ? { date: priority, basis: 'priority-date' }
+    : { date: filing, basis: 'filing-date' }
+}
+
+/** 非空且可解析的日期字符串；否则 undefined。 */
+function usableDate(value: string | undefined): string | undefined {
+  if (value === undefined || value.trim() === '') return undefined
+  return parseDateFlexible(value) === null ? undefined : value
 }
 
 const MONTHS: Record<string, number> = {
@@ -228,20 +266,20 @@ export function extractWaybackMachineDate(rawURL: string): string {
  * 月级日期推定到月末，可靠度分级。返回 DateDetermination。
  * @param claimedDate - 页面标注的日期（可空）。
  * @param urlStr - 证据 URL（可空，供 Wayback Machine 存档日期提取）。
- * @param filingDate - 申请日（可选，用于判断是否构成现有技术）。
+ * @param reference - 现有技术截止日（可选，用于判断是否构成现有技术）。
  * @returns 日期认定结果。
  */
 export function determinePublicationDate(
   claimedDate: string | undefined,
   urlStr: string | undefined,
-  filingDate?: string,
+  reference?: PriorArtReference,
 ): DateDetermination {
   const result: DateDetermination = {
     sourceDate: claimedDate ?? '',
     determined: 'unknown',
     method: 'internet_publication',
     isPriorArt: false,
-    ...(filingDate !== undefined ? { filingDate } : {}),
+    ...(reference !== undefined ? { referenceDate: reference.date, referenceBasis: reference.basis } : {}),
     reliability: 'low',
     sourceType: 'inferred',
   }
@@ -250,7 +288,7 @@ export function determinePublicationDate(
     const wmDate = extractWaybackMachineDate(urlStr)
     if (wmDate !== '') {
       result.determined = wmDate
-      result.isPriorArt = isBeforeFilingDate(wmDate, filingDate)
+      result.isPriorArt = isBeforeReferenceDate(wmDate, reference?.date)
       result.reliability = 'medium'
       result.sourceType = 'wayback_machine'
     }
@@ -273,22 +311,22 @@ export function determinePublicationDate(
     result.reliability = 'medium'
     result.sourceType = 'claimed_date'
   }
-  result.isPriorArt = isBeforeFilingDate(result.determined, filingDate)
+  result.isPriorArt = isBeforeReferenceDate(result.determined, reference?.date)
   return result
 }
 
 /**
- * 判断公开日是否早于申请日（无法解析时返回 false）。
+ * 判断公开日是否早于现有技术截止日（无法解析时返回 false）。
  * @param pubDate - 公开日期字符串。
- * @param filingDate - 申请日期字符串。
- * @returns 公开日是否早于申请日。
+ * @param referenceDate - 截止日（申请日与优先权日中较早者）。
+ * @returns 公开日是否早于截止日。
  */
-export function isBeforeFilingDate(pubDate: string | undefined, filingDate: string | undefined): boolean {
-  if (pubDate === undefined || pubDate === '' || filingDate === undefined || filingDate === '') return false
+export function isBeforeReferenceDate(pubDate: string | undefined, referenceDate: string | undefined): boolean {
+  if (pubDate === undefined || pubDate === '' || referenceDate === undefined || referenceDate === '') return false
   const pub = parseDateFlexible(pubDate)
-  const filing = parseDateFlexible(filingDate)
-  if (pub === null || filing === null) return false
-  return pub.getTime() < filing.getTime()
+  const reference = parseDateFlexible(referenceDate)
+  if (pub === null || reference === null) return false
+  return pub.getTime() < reference.getTime()
 }
 
 /**

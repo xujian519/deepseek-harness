@@ -154,6 +154,9 @@ export class PfeConsistencyHandler implements StageHandler {
     if (!Array.isArray(raw)) {
       return degraded('pfe-consistency', 'pfe_triples 不是数组（应为 merge 阶段写出的四元组列表）')
     }
+    if (raw.some(value => typeof value !== 'object' || value === null)) {
+      return degraded('pfe-consistency', 'pfe_triples 含非对象条目（应为 merge 阶段写出的四元组）')
+    }
     // 四元组由本进程的 merge 阶段按 PFETriple 写出；字段形状由写入侧类型保证
     // （同一进程内的类型化传递，不重复校验），此处只补默认值以容忍缺失的可选字段。
     const triples: PFETriple[] = getStateArray(input.state, 'pfe_triples').map((value) => {

@@ -7,7 +7,7 @@
  * @module @deepseek-ai/dsh-patent-document/document/draftSchema
  */
 
-import type { TemplateDraftSchema } from '@deepseek-ai/dsh-patent-core'
+import type { TemplateDraftSchema, TemplateSectionSlot } from '@deepseek-ai/dsh-patent-core'
 import type { DocumentTemplateId } from '../types.ts'
 import { GENERIC_TEMPLATE_IDS, isGenericTemplateId } from './generic.ts'
 
@@ -27,6 +27,11 @@ export function isFormTemplateId(id: DocumentTemplateId): id is FormTemplateId {
 
 /** 模板草案注册表项：槽位 schema + 纯展示元素登记（表单与通用文档模板共用）。 */
 export interface TemplateSlotRegistry extends TemplateDraftSchema {
+  /**
+   * 章节槽位表。声明为必填（`TemplateDraftSchema` 里可选）：两个机制下的注册表都逐条登记章节槽位，
+   * 没有空 `sections` 的形态，因此取体例的代码不必为「注册表没写 sections」兜底。
+   */
+  sections: Record<string, TemplateSectionSlot>
   /** 模板中无槽位的纯展示元素，逐条给出不设槽位的理由（marker 为模板中的可检索文本）。 */
   staticElements: ReadonlyArray<{ marker: string; reason: string }>
 }

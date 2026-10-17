@@ -15,6 +15,18 @@ function exampleDraft(template: 'right-evaluation-report' | 'search-report-form'
 }
 
 describe('injectTemplateDraft', () => {
+  it('表单模板收到理由节槽位时报错，而不是静默丢弃', () => {
+    // 校验器先拒绝这种草案（表单注册表没有 grounds 槽位），所以这里直接调转换器，钉住那条兜底报错。
+    const draft: TemplateDraft = {
+      sections: [{
+        id: 'grounds-body',
+        grounds: [{ article: 'A22.3', ground: '创造性', claimNos: [1], facts: '事实。', evidence: '证据。', conclusion: '结论。' }],
+      }],
+    }
+    expect(() => injectTemplateDraft(readTemplateHtml('search-report-form'), 'search-report-form', draft))
+      .toThrow(/表单模板不支持无效理由节/)
+  })
+
   it('text 槽填充全部同名元素（抬头与落款同一值）', () => {
     const html = injectTemplateDraft(readTemplateHtml('search-report-form'), 'search-report-form', exampleDraft('search-report-form'))
     const hits = html.match(/检索人：<span class="fill">王磊<\/span>/g) ?? []

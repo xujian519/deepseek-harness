@@ -64,7 +64,7 @@ describe('内置 manifest 的确定性原子接线', () => {
     }
   })
 
-  it('侵权比对：coverage 原子排在 claim-chart 之后、report 之前，不覆盖其它模式', () => {
+  it('侵权比对：coverage 原子排在 claim-chart 之后、report 之前', () => {
     expect(stageOf('patent_infringement_v1', 'coverage')?.atom).toBe('coverage')
     expect(indexOf('patent_infringement_v1', 'claim-chart')).toBeLessThan(
       indexOf('patent_infringement_v1', 'coverage'),
@@ -72,13 +72,16 @@ describe('内置 manifest 的确定性原子接线', () => {
     expect(indexOf('patent_infringement_v1', 'coverage')).toBeLessThan(
       indexOf('patent_infringement_v1', 'report'),
     )
-    // 其它四个作业不带 coverage：无效/复审/OA 答复/新颖性的覆盖判定口径不同（单独对比）。
-    for (const id of [
-      'patent_oa_response_v1',
-      'patent_invalidation_v1',
-      'patent_reexamination_v1',
-      'patent_novelty_v1',
-    ]) {
+    // OA 答复与新颖性不带 coverage：这两种作业没有对比文件侧的要素级网格可核验。
+    for (const id of ['patent_oa_response_v1', 'patent_novelty_v1']) {
+      expect(stageOf(id, 'coverage')).toBeUndefined()
+    }
+  })
+
+  it('无效与复审不带 coverage 阶段：单篇全覆盖结论由 claim-chart 阶段随图表给出', () => {
+    // 无效/复审的覆盖判定口径与侵权不同，且这两个 manifest 也由 recap 路径执行——recap 不
+    // 执行原子，多一个只能由原子产出的阶段会让每次 recap 运行都报未完成。
+    for (const id of ['patent_invalidation_v1', 'patent_reexamination_v1']) {
       expect(stageOf(id, 'coverage')).toBeUndefined()
     }
   })

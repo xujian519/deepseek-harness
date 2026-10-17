@@ -314,7 +314,7 @@ patent-workspace/
 | 撰写 | —（不新写） | `patent-drafting-general` + 四领域技能、`_shared/patent-law-baseline-2024.md` | fs、officecli/document-processing |
 | 审查意见答复 | （Phase 2 视需要新写）〔已落地：`patent-oa-response` + `patent_oa_response_v1`，2026-10-16〕 | `patent-drafting-general`（33 条修改依据） | web、fs、ask_user |
 | 侵权比对 | `patent-infringement`（改写自 Sati） | `patent-comparison` | web、fs |
-| 无效宣告 | `patent-invalidity`（改写自 Sati） | `court-trip`、`patent-download` | web、fs |
+| 无效宣告 | `patent-invalidity`（改写自 Sati）〔被请求人侧答辩已落地：`patent-invalidation-defense` + `invalidation-defense` 模板，2026-10-17〕 | `court-trip`、`patent-download` | web、fs |
 | 质量门禁 | `patent-quality-gate`（新写） | 各技能内置清单 | ask_user、subagent_fork |
 | 目录组织 | `patent-workspace-layout`（新写） | — | fs、bash |
 

@@ -38,6 +38,8 @@ export type EvaluateEvidenceInput = {
   evidenceType?: EvidenceType
   /** Filing date (prior-art date determination). */
   filingDate?: string
+  /** Earliest priority date; the earlier of the two bounds prior-art status. */
+  priorityDate?: string
   /** Case type (burden allocation): invalidation / infringement / new_product_method. */
   caseType?: string
   /** Overseas evidence notarized (EVI-011). */
@@ -145,6 +147,7 @@ export function createEvaluateEvidenceTool(deps: EvaluateEvidenceDeps = {}): Too
       claimRefs: { type: 'array', items: { type: 'string' }, description: '绑定的结论 id 列表。' },
       evidenceType: { type: 'string', description: '显式证据类型（缺省按 sourceUri 推断）。', enum: ['general','foreign_language','overseas','electronic','witness_testimony','expert_opinion','common_knowledge','notarial_certificate','burden_of_proof','standard_of_proof','prior_art_date','procedural','internet_publication','public_use','design_comparison'] },
       filingDate: { type: 'string', description: '专利申请日（公开日是否早于申请日）。' },
+      priorityDate: { type: 'string', description: '优先权日。有优先权的，现有技术截止日取申请日与优先权日中较早者（专利法第22条第5款）。' },
       caseType: { type: 'string', description: '案件类型：invalidation / infringement / new_product_method。' },
       notarized: { type: 'boolean', description: '域外证据已公证（EVI-011 条件）。' },
       legalized: { type: 'boolean', description: '域外证据已认证（EVI-011 条件）。' },
@@ -200,7 +203,11 @@ export function createEvaluateEvidenceTool(deps: EvaluateEvidenceDeps = {}): Too
         ...(args.custodyChainTraceable !== undefined ? { custodyChainTraceable: args.custodyChainTraceable } : {}),
         ...(args.integrityVerified !== undefined ? { integrityVerified: args.integrityVerified } : {}),
       }
-      const judgment = engine.judge(span, args.filingDate, args.evidenceType, external)
+      const basis = {
+        ...(args.filingDate !== undefined ? { filingDate: args.filingDate } : {}),
+        ...(args.priorityDate !== undefined ? { priorityDate: args.priorityDate } : {}),
+      }
+      const judgment = engine.judge(span, basis, args.evidenceType, external)
       const burden = args.caseType !== undefined ? engine.assessBurdenOfProof(args.caseType) : undefined
 
       return {

@@ -5,7 +5,7 @@
  * 的类型契约。记录层只负责"有什么证据"，判定层回答"证据如何采信"。
  */
 
-import type { EvidenceSpan } from './span.ts'
+import type { EvidenceDirection, EvidenceSpan } from './span.ts'
 
 /** 证据类型（对齐 Mady EvidenceType）。 */
 export type EvidenceType =
@@ -121,13 +121,32 @@ export type DimensionJudgment = {
   reasoning: string
 }
 
+/**
+ * 现有技术的时间基准：申请日与优先权日。
+ *
+ * 专利法第22条第5款的现有技术指申请日以前公开的技术，有优先权的指优先权日；两者同时
+ * 提供时以较早者为截止日。基准由调用方给出，本层不从案卷其他字段推断。
+ */
+export type PriorArtBasis = {
+  /** 专利申请日（国际申请为国际申请日）。 */
+  filingDate?: string
+  /** 优先权日（最早优先权日）。 */
+  priorityDate?: string
+}
+
+/** 判定所采用的基准来自哪一个日期。 */
+export type ReferenceBasis = 'filing-date' | 'priority-date'
+
 /** 日期认定结果。 */
 export type DateDetermination = {
   sourceDate: string
   determined: string
   method: string
   isPriorArt: boolean
-  filingDate?: string
+  /** 本次 isPriorArt 比较所用的截止日（申请日与优先权日中较早者）。 */
+  referenceDate?: string
+  /** 截止日来自申请日还是优先权日。 */
+  referenceBasis?: ReferenceBasis
   reliability?: DateReliability
   sourceType?: DateSourceType
 }
@@ -216,6 +235,11 @@ export type RuleApplication = {
 /** 单条证据的完整判定结果。 */
 export type EvidenceJudgment = {
   spanId: string
+  /**
+   * 证据方向，取自证据记录。证明标准按本字段归类支持/矛盾证据：方向是立场问题，
+   * 评分是证明力问题，二者不能互相替代（高分矛盾证据不是支持证据）。
+   */
+  direction: EvidenceDirection
   relevanceJudgment?: DimensionJudgment
   legalityJudgment?: DimensionJudgment
   authenticityJudgment?: DimensionJudgment
@@ -244,23 +268,25 @@ export type ProofStandardResult = {
   confidence: number
   supportingCount: number
   contradictingCount: number
+  /** 方向为 neutral 的证据件数：既不支持也不反对，不计入达标比较。 */
+  neutralCount: number
   reasoning: string
   gaps: string[]
 }
 
 /** 证据引擎接口（对齐 Mady EvidenceJudgmentEngine）。 */
 export interface EvidenceJudgmentEngine {
-  /** 对单条证据做三性 + 类型特定判定（filingDate/evidenceType/external 为可选增强）。 */
+  /** 对单条证据做三性 + 类型特定判定（basis/evidenceType/external 为可选增强）。 */
   judge(
     span: EvidenceSpan,
-    filingDate?: string,
+    basis?: PriorArtBasis,
     evidenceType?: EvidenceType,
     external?: EvidenceExternalInputs,
   ): EvidenceJudgment
   /** 批量判定。 */
   batchJudge(
     spans: EvidenceSpan[],
-    filingDate?: string,
+    basis?: PriorArtBasis,
     evidenceType?: EvidenceType,
     external?: EvidenceExternalInputs,
   ): EvidenceJudgment[]

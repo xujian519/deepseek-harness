@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { atomicWriteJson, assertSafeId } from '../../persist-utils.ts'
 import { caseOutputsDir } from '../../paths.ts'
-import type { ClaimChart } from '../protocol/types.ts'
+import type { ClaimChart, GapKind } from '../protocol/types.ts'
 
 /**
  * 计算 chart 文件路径基名（防御路径注入：chartId 仅允许安全字符集）。
@@ -52,6 +52,12 @@ export function loadClaimChart(caseId: string, chartId: string): ClaimChart | nu
     const parsed = JSON.parse(readFileSync(p, 'utf8')) as Partial<ClaimChart>
     // 最小形状守卫：损坏/人工编辑文件不崩溃（chart.ts 的 verified 合并依赖 rows 数组）。
     if (!Array.isArray(parsed.rows) || !Array.isArray(parsed.elements)) return null
+    // 引用关系是后加的字段：旧文件没有它，按"引用关系未知"处理（不得据此断言全部权项独立）。
+    if (!Array.isArray(parsed.claims)) parsed.claims = []
+    // 旧文件用 gaps[].mapping 表示缺口类别；kind 是后加字段，先迁移再交给渲染。
+    for (const gap of (parsed.gaps ?? []) as { kind?: GapKind; mapping?: GapKind }[]) {
+      if (gap.kind === undefined && gap.mapping !== undefined) gap.kind = gap.mapping
+    }
     return parsed as ClaimChart
   } catch {
     return null
@@ -78,7 +84,7 @@ export function renderChartMarkdown(chart: ClaimChart): string {
   } else {
     for (const g of chart.gaps) {
       const el = byId.get(g.elementId)
-      lines.push(`- [ ] \`${g.elementId}\` ${el?.text ?? ''} → ${g.targetId}（${g.mapping}）：${g.suggestion}`)
+      lines.push(`- [ ] \`${g.elementId}\` ${el?.text ?? ''} → ${g.targetId}（${g.kind}）：${g.suggestion}`)
     }
     lines.push('')
   }
@@ -89,6 +95,15 @@ export function renderChartMarkdown(chart: ClaimChart): string {
     lines.push(
       `| ${r.elementId} | ${escapeCell(el?.text ?? '')} | ${escapeCell(r.quote)} | ${escapeCell(r.pinCite)} | ${r.mapping} | ${r.verified ? '✓' : '☐'} |`,
     )
+  }
+  if (chart.claims.length > 0) {
+    lines.push('', '## 权利要求引用关系', '')
+    lines.push('| 权利要求 | 类型 | 引用 |', '|---|---|---|')
+    for (const claim of chart.claims) {
+      lines.push(
+        `| ${claim.claimNo} | ${claim.claimType === 'dependent' ? '从属' : '独立'} | ${claim.refersTo.join('、') || '—'} |`,
+      )
+    }
   }
   return lines.join('\n')
 }

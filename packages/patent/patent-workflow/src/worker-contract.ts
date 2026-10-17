@@ -431,7 +431,7 @@ function disputeWorkers(): WorkerContract[] {
       name: 'invalidity-petitioner',
       tier: 'reasoning',
       description:
-        '无效请求人（攻击方）：无效理由地图（A22.2/22.3/26.3/26.4/33/A9）、证据组合与成功率最大化、预判专利权人应对',
+        '无效请求人（攻击方）：无效理由地图（A22.2/22.3/22.4/26.3/26.4/33、A2/A5/A25、细则23.2/49、A9）、证据组合与成功率最大化、预判专利权人应对',
       allowedTools: ['patent_search', 'patent_case_search', 'patent_legal_status', 'read', 'patent_eval'],
       outputs: [
         {

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it, type TestContext } from 'vitest'
-import { findRepositoryReferences, scanRepositoryReferences, uniquePrefixMatch } from './verify-repository-references.ts'
+import { findRepositoryReferences, isCommitCandidate, scanRepositoryReferences, uniquePrefixMatch } from './verify-repository-references.ts'
 
 const organizationUrl = `https://${['github.com', ['deepseek', 'harness'].join('-')].join('/')}`
 
@@ -39,9 +39,25 @@ function repository(test: TestContext) {
   write('tracked.md', 'release tags\n')
   git(['add', 'tracked.md'])
   const tree = git(['write-tree'])
-  const commit = git(['commit-tree', tree, '-m', 'fixture'])
+  let commit = git(['commit-tree', tree, '-m', 'fixture'])
+  // A decimal run is not a commit reference candidate, so the abbreviated prefixes
+  // the tests write must carry a hexadecimal letter; checking only the full name
+  // leaves a 7- or 12-character all-decimal prefix on some machines.
+  for (let index = 1; !/[a-f]/u.test(commit.slice(0, 12)); index += 1) {
+    commit = git(['commit-tree', tree, '-m', `fixture ${String(index)}`])
+  }
   git(['update-ref', 'HEAD', commit])
   return { root, git, write, commit, tree }
+}
+
+/** Create commit objects until one's object name satisfies `matches`. */
+function commitWithName(fixture: ReturnType<typeof repository>, matches: (name: string) => boolean): string {
+  for (let index = 0; index < 10000; index += 1) {
+    const body = `tree ${fixture.tree}\nauthor T <t@example.invalid> 0 +0000\ncommitter T <t@example.invalid> 0 +0000\n\nname search ${String(index)}\n`
+    const name = fixture.git(['hash-object', '-t', 'commit', '-w', '--stdin'], body)
+    if (matches(name)) return name
+  }
+  throw new Error('the fixture could not produce a matching commit object name')
 }
 
 /** Two commit object bodies whose object names share at least `length` leading hexadecimal digits. */
@@ -71,7 +87,26 @@ describe('unique object-name prefix search', () => {
   })
 })
 
+describe('commit reference candidates', () => {
+  it('takes hexadecimal letters or a complete object name, not a decimal', () => {
+    expect(isCommitCandidate('1a2b3c4')).toBe(true)
+    expect(isCommitCandidate('0'.repeat(40))).toBe(true)
+    expect(isCommitCandidate('6344383')).toBe(false)
+  })
+})
+
 describe('maintained repository reference policy', () => {
+  it('accepts a decimal byte size that spells a commit prefix and reports the full object name', (test) => {
+    const fixture = repository(test)
+    const decimal = commitWithName(fixture, name => /^\d{7}/u.test(name))
+    fixture.write('lock.yaml', `size = ${decimal.slice(0, 7)}\n`)
+    fixture.write('reference.md', decimal)
+
+    expect(scanRepositoryReferences(fixture.root)).toEqual([
+      { file: 'reference.md', line: 1, kind: 'commit-hash' },
+    ])
+  })
+
   it('permits only the independent kit repository and its source URLs', () => {
     for (const suffix of ['', '.git', '/tree/main/packages/entry']) {
       expect(findRepositoryReferences('package.json', `${organizationUrl}/libreoffice-kit${suffix}`, new Set())).toEqual([])

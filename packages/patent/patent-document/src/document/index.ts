@@ -14,11 +14,17 @@ export type {
 
 export { DocumentRenderError } from './errors.ts'
 export { checkDocumentCompliance } from './documentCompliance.ts'
-export type { ComplianceIssue, ComplianceRule } from './documentCompliance.ts'
+export type { ComplianceIssue, ComplianceRule, ComplianceScope } from './documentCompliance.ts'
 export { renderPatentDocument, DEFAULT_OUTPUT_DIR } from './renderPatentDocument.ts'
 export type { RenderPatentDocumentOptions } from './renderPatentDocument.ts'
 export { escapeHtmlText, renderBlocks, renderSpecDraftSections } from './draftConverter/index.ts'
 export type { SpecDraftSectionMap, TableCaptionCounter } from './draftConverter/index.ts'
 export { DEFAULT_PDF_TIMEOUT_MS, renderPdf, findChrome } from './pdfRenderer.ts'
 export { buildBrandStyle, loadBrandFromPath, mergeBrand, BRAND_KEY_TO_CSS_VAR } from './brandInjector.ts'
-export { readTemplateManifest, resolveTemplate, readTemplateHtml, getTemplateRoot } from './templateResolver.ts'
+export {
+  readTemplateManifest,
+  resolveTemplate,
+  readTemplateHtml,
+  getTemplateRoot,
+  isInternalRecordTemplate,
+} from './templateResolver.ts'

@@ -56,7 +56,7 @@ The product is inventor-side: candidate solution directions and a disclosure gap
 
 ## Evidence (closed-loop ledger + judgment engine)
 
-The evidence layer records tool receipts (`Ledger`/`receiptFromToolExecution`), lifts them into locatable `EvidenceSpan`s, binds conclusions, detects conflicts, and runs the three-attribute plus type-specific judgment (`EvidenceEngine`) with burden-of-proof and proof-standard assessment.
+The evidence layer records tool receipts (`Ledger`/`receiptFromToolExecution`), lifts them into locatable `EvidenceSpan`s, binds conclusions, detects conflicts, and runs the three-attribute plus type-specific judgment (`EvidenceEngine`) with burden-of-proof and proof-standard assessment. Its scores measure how complete the evidence record is, not whether the assertions in it are true: a self-declared content hash counts toward authenticity only when the caller states it was independently verified, and a declared evidence type never stands in for the notarial record or source domain it names. A public-use clue the fragment negates is not read as an affirmation: `未约定保密义务` excludes a confidentiality obligation rather than establishing one, and public accessibility stays unproven until the fragment says the use was open to the public. The prior-art cutoff is the earlier of the filing date and the priority date (专利法第22条第5款), the proof standard classifies judgments by the span's direction rather than by score, and gap detection reports both weak mappings and element × target combinations that have no mapping row at all.
 
 ## Reasoning (fact blackboard + syllogism)
 

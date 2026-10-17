@@ -93,7 +93,7 @@ export function resolveDeliveryDate(request: DeliveryRequest): DeliveryDate {
         date,
         basis: request.enteredDate !== undefined
           ? '专利法实施细则第四条：以进入当事人认可的电子系统的日期为送达日'
-          : '专利法实施细则第四条 + 专利审查指南第五部分第七章：电子送达以发文日为送达日，期限自发文日起算（不再加15日）',
+          : '专利法实施细则第四条 + 专利审查指南第五部分第六章2.3.1：电子送达以发文日为送达日，期限自发文日起算（不再加15日）',
       }
     }
     case 'postal': {

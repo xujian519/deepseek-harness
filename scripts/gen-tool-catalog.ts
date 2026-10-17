@@ -807,13 +807,15 @@ const TOOL_PACKAGES: ToolPackage[] = [
         cnlawSearchUrl: PatentLaw.DEFAULT_CNLAW_SEARCH_URL,
         cnlawGraphUrl: PatentLaw.DEFAULT_CNLAW_GRAPH_URL,
         onMismatch: PatentLaw.DEFAULT_CITATION_POLICY.mismatch,
+        onUnmatched: PatentLaw.DEFAULT_CITATION_POLICY.unmatched,
         onOutOfRange: PatentLaw.DEFAULT_CITATION_POLICY.outOfRange,
         onNotIndexed: PatentLaw.DEFAULT_CITATION_POLICY.notIndexed,
         onUnverified: PatentLaw.DEFAULT_CITATION_POLICY.unverified,
+        propositionSupport: PatentLaw.PROPOSITION_SUPPORT_DEFAULT,
       })
     },
     note:
-      'law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted.',
+      'law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed entry whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. A guideline citation is decided against the whole section, so a proposal a subsection carries supports it, and a row that names only a part or a chapter is decided by the sections under it.',
   },
   {
     pkg: '@deepseek-ai/dsh-writing-patterns',

@@ -1,5 +1,6 @@
-# 由 scripts/port-nuo-rules.ts 从 XiaoNuo Agent patent-core-rules.yaml 转换生成
-# 原始文件完整内容见 assets/patent-rules/patent-core-rules.yaml（含 LLM 评估型规则与指导字段）
+# 本文件由 XiaoNuo Agent 的 patent-core-rules.yaml 转换而来，现按本仓库直接维护：改动直接改本文件。
+# 转换脚本 scripts/port-nuo-rules.ts 与转换前的原始文件 assets/patent-rules/patent-core-rules.yaml 均不在本仓库，
+# 内容的唯一事实源是本文件。
 # 转换语义: pattern_analysis(期望模式)→structural_analysis 单 element；severity warning→major；info→minor
 version: "1.0"
 rules:
@@ -44,7 +45,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 专利法实施细则第62条；审查指南第二部分第八章4.1
+    legalBasis: 专利法第41条；专利法实施细则第65条；审查指南第四部分第二章4.1
     check:
       type: structural_analysis
       requiresAll:

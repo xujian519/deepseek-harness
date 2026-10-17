@@ -11,6 +11,14 @@
 
 import { findArticle, findSection } from './baseline.ts'
 import { extractLawReferences, formatLawReference } from './reference.ts'
+import {
+  createOverlapIndex,
+  PROPOSITION_SUPPORT_DEFAULT,
+  textOverlap,
+  topicOverlap,
+  type ComparableEntry,
+  type OverlapIndex,
+} from './support.ts'
 import type {
   ArticleEntry,
   CitationDecision,
@@ -26,11 +34,13 @@ import type {
 /**
  * Default policy: an article beyond a verified ceiling, or a proposition that
  * contradicts a verified article, blocks; an entry whose text is still awaiting
- * transcription is reported without blocking, so a partially transcribed index
- * stays usable while every gap in it is visible.
+ * transcription, and a proposition no entry carries, are reported without
+ * blocking, so a partially transcribed index stays usable while every gap in it
+ * is visible.
  */
 export const DEFAULT_CITATION_POLICY: CitationPolicySet = {
   mismatch: 'block',
+  unmatched: 'warn',
   outOfRange: 'block',
   notIndexed: 'warn',
   unverified: 'warn',
@@ -40,6 +50,8 @@ export const DEFAULT_CITATION_POLICY: CitationPolicySet = {
 export type VerifyOptions = {
   /** The proposition the citation is offered in support of, when the caller has one. */
   proposition?: string
+  /** Overlap a proposition must reach before an entry's text supports it; defaults to {@link PROPOSITION_SUPPORT_DEFAULT}. */
+  supportThreshold?: number
 }
 
 /**
@@ -99,6 +111,7 @@ export function resolveCitationPolicy(finding: CitationFinding, policies: Citati
 /** Which policy field each non-`valid` decision reads. */
 const DECISION_POLICY_KEYS: Record<Exclude<CitationDecision, 'valid'>, keyof CitationPolicySet> = {
   'mismatch': 'mismatch',
+  'unmatched': 'unmatched',
   'out-of-range': 'outOfRange',
   'not-indexed': 'notIndexed',
   'unverified': 'unverified',
@@ -147,6 +160,7 @@ export function renderCitationRows(rows: CitationRow[]): string {
 const DECISION_LABELS: Record<CitationDecision, string> = {
   'valid': '已核验',
   'mismatch': '与所引命题不符',
+  'unmatched': '未与条文对应（未判定）',
   'out-of-range': '条号超出有效范围',
   'not-indexed': '索引中不存在',
   'unverified': '条文未转录（未核验）',
@@ -174,16 +188,119 @@ function finding(
   }
 }
 
-/** Decide a citation whose entry is transcribed: a mismatch, or the supported citation. */
+/**
+ * Decide a citation whose entry is transcribed, against the proposition the
+ * citation is offered in support of.
+ *
+ * The entry itself must carry the proposition first, by its topic keywords or by
+ * its own transcribed wording. Only when it does not, and another entry of the
+ * same law does, is the citation reported as a mismatch — so a proposition
+ * reworded around a synonym this index cannot see is reported as undecided
+ * rather than as a contradiction.
+ * @param reference - the parsed reference.
+ * @param entry - the indexed entry the reference resolved to.
+ * @param text - the entry's transcribed text, which the caller has established is present.
+ * @param baseline - the law's baseline, whose other entries are the competing homes.
+ * @param options - the proposition and the support threshold.
+ * @param validReason - the reason a supported citation reports.
+ * @returns the finding.
+ */
 function decideTranscribed(
-  reference: LawReference,
-  entry: ArticleEntry | SectionEntry,
-  proposition: string | undefined,
+  reference: Extract<LawReference, { kind: 'law-article' }>,
+  entry: ArticleEntry,
+  text: string,
+  baseline: LawBaseline,
+  options: VerifyOptions,
   validReason: string,
 ): CitationFinding {
-  const mismatch = matchProposition(entry, proposition)
-  if (mismatch !== null) return finding(reference, 'mismatch', mismatch, entry)
-  return finding(reference, 'valid', validReason, entry)
+  const proposition = options.proposition?.trim()
+  if (proposition === undefined || proposition === '') return finding(reference, 'valid', validReason, entry)
+  const threshold = options.supportThreshold ?? PROPOSITION_SUPPORT_DEFAULT
+  const index = overlapIndex(baseline)
+  const overlap = textOverlap(index, proposition, text)
+  if (topicOverlap(entry.topics, proposition) || overlap >= threshold) {
+    return finding(reference, 'valid', validReason, entry)
+  }
+  const elsewhere = supportingLabels(baseline, index, proposition, threshold, `第 ${entry.article} 条`)
+  if (elsewhere.length > 0) {
+    return finding(reference, 'mismatch', mismatchReason(baseline, proposition, elsewhere), entry)
+  }
+  return finding(
+    reference,
+    'unmatched',
+    `所引条目的文本与命题「${truncate(proposition)}」的字面重合 ${percent(overlap)}，低于支撑阈值 ${percent(threshold)}，且本索引中没有条目支撑该命题——请核对条号或改写命题`,
+    entry,
+  )
+}
+
+/** The overlap indices of the loaded baselines, so a baseline's texts are indexed once. */
+const overlapIndices = new WeakMap<LawBaseline, OverlapIndex>()
+
+/**
+ * Get the overlap index of one baseline.
+ * @param baseline - the loaded baseline.
+ * @returns its index, built on first use.
+ */
+function overlapIndex(baseline: LawBaseline): OverlapIndex {
+  const cached = overlapIndices.get(baseline)
+  if (cached !== undefined) return cached
+  const built = createOverlapIndex(comparableEntries(baseline))
+  overlapIndices.set(baseline, built)
+  return built
+}
+
+/**
+ * List every entry of a baseline as a proposition candidate.
+ * @param baseline - the loaded baseline.
+ * @returns the law's articles or its guideline sections.
+ */
+function comparableEntries(baseline: LawBaseline): ComparableEntry[] {
+  if (baseline.sections.length > 0) {
+    return baseline.sections.map(section => ({ label: section.path, topics: section.topics, text: section.text }))
+  }
+  return baseline.articles.map(article => ({
+    label: `第 ${article.article} 条`,
+    topics: article.topics,
+    text: article.text,
+  }))
+}
+
+/**
+ * Find the entries of the cited entry's law that carry the proposition instead.
+ *
+ * A subsection of a cited section is not a competing home: the citation covers it.
+ * @param baseline - the law's baseline.
+ * @param index - the baseline's overlap index.
+ * @param proposition - the claim the citation is offered in support of.
+ * @param threshold - overlap at which transcribed text counts as support.
+ * @param cited - the cited entry's label, which is excluded.
+ * @returns the labels of the entries that carry the proposition, at most three.
+ */
+function supportingLabels(
+  baseline: LawBaseline,
+  index: OverlapIndex,
+  proposition: string,
+  threshold: number,
+  cited: string,
+): string[] {
+  const nested = baseline.sections.length > 0
+  return comparableEntries(baseline)
+    .filter(entry => entry.label !== cited)
+    .filter(entry => !(nested && coversSection(cited, entry.label)))
+    .filter(entry => topicOverlap(entry.topics, proposition)
+      || (entry.text !== null && textOverlap(index, proposition, entry.text) >= threshold))
+    .map(entry => entry.label)
+    .slice(0, 3)
+}
+
+/** The reason a citation reports when another entry of the law carries the proposition. */
+function mismatchReason(baseline: LawBaseline, proposition: string, elsewhere: readonly string[]): string {
+  return `所引条目未被该命题支撑：《${baseline.law}》${elsewhere.join('、')}更贴近命题「${truncate(proposition)}」`
+}
+
+/** Render a 0–1 score as a whole percentage for a reason line. */
+function percent(value: number): string {
+  return `${String(Math.round(value * 100))}%`
 }
 
 /** Verify one statute-article reference. */
@@ -207,7 +324,9 @@ function verifyArticle(
   return decideTranscribed(
     reference,
     entry,
-    options.proposition,
+    entry.text,
+    baseline,
+    options,
     `与《${baseline.law}》第 ${reference.article} 条一致（来源：${entry.sourceDoc ?? '未标注'}）`,
   )
 }
@@ -244,20 +363,129 @@ function verifySection(
   if (entry === undefined) {
     return finding(reference, 'not-indexed', `《专利审查指南》${reference.path} 不在索引中`)
   }
-  if (entry.verifiedOn === null || entry.text === null) {
+  const candidates = sectionTexts(baseline, reference.path)
+  if (candidates.length === 0) {
     return finding(
       reference,
       'unverified',
-      `《专利审查指南》${reference.path} 已索引，但章节内容尚未转录核验`,
+      `《专利审查指南》${reference.path} 已索引，但本节及其子节的正文尚未转录核验`,
       entry,
     )
   }
-  return decideTranscribed(
+  return decideSection(reference, entry, candidates, baseline, options)
+}
+
+/**
+ * The transcribed texts one guideline citation covers: the cited section's own
+ * body and every subsection under it.
+ *
+ * A citation to a section covers what its subsections say, so the proposition is
+ * matched against the whole section. A part or chapter carries no text of its own
+ * and is decided by its sections alone.
+ * @param baseline - the guideline baseline.
+ * @param path - the cited normalized section path.
+ * @returns the texts to match against, the cited section first when it has one.
+ */
+function sectionTexts(baseline: LawBaseline, path: string): Array<ComparableEntry & { text: string }> {
+  return comparableEntries(baseline)
+    .filter((entry): entry is ComparableEntry & { text: string } =>
+      entry.text !== null && coversSection(path, entry.label))
+}
+
+/**
+ * Whether one section path names the cited section or a section under it.
+ * @param cited - the cited normalized section path.
+ * @param path - the path to test.
+ * @returns true when the path is the cited one or below it.
+ */
+function coversSection(cited: string, path: string): boolean {
+  if (path === cited) return true
+  if (!path.startsWith(cited)) return false
+  const rest = path.slice(cited.length)
+  // A level inside a section number follows a dot, so 2.10 is not under 2.1. A
+  // part or a chapter states the next part, chapter or section number directly,
+  // as 第二部分第二章 and 第一部分第一章4.2 do.
+  return /\d$/u.test(cited) ? rest.startsWith('.') : /^[第0-9]/u.test(rest)
+}
+
+/**
+ * Decide a guideline citation. A proposition its own section carries is supported;
+ * so is one carried by a subsection, which the citation covers; so is one whose
+ * subject the section's topic keywords name. Only when none of those hold, and an
+ * unrelated entry of the guideline carries the proposition, is the citation
+ * reported as a mismatch.
+ * @param reference - the parsed reference.
+ * @param entry - the indexed section the reference resolved to.
+ * @param candidates - the transcribed texts of the section and its subsections.
+ * @param baseline - the guideline's baseline, whose other entries are the competing homes.
+ * @param options - the proposition and the support threshold.
+ * @returns the finding.
+ */
+function decideSection(
+  reference: Extract<LawReference, { kind: 'guideline-section' }>,
+  entry: SectionEntry,
+  candidates: readonly (ComparableEntry & { text: string })[],
+  baseline: LawBaseline,
+  options: VerifyOptions,
+): CitationFinding {
+  const proposition = options.proposition?.trim()
+  const hasOwn = candidates.some(candidate => candidate.label === reference.path)
+  if (proposition === undefined || proposition === '') {
+    return finding(reference, 'valid', sectionReason(reference.path, entry, null, hasOwn), entry)
+  }
+  // A container has no text of its own, but its topic keywords still name the
+  // subject; without this, a topic could make a citation fail as a competing
+  // home yet never let the cited container pass.
+  if (!hasOwn && topicOverlap(entry.topics, proposition)) {
+    return finding(
+      reference,
+      'valid',
+      `与《专利审查指南》${reference.path} 一致（本节正文未单独转录，本节主题词覆盖该命题）`,
+      entry,
+    )
+  }
+  const threshold = options.supportThreshold ?? PROPOSITION_SUPPORT_DEFAULT
+  const index = overlapIndex(baseline)
+  const scored = candidates.map(candidate => ({
+    candidate,
+    score: textOverlap(index, proposition, candidate.text),
+  }))
+  const carrier = scored.find(({ candidate, score }) =>
+    score >= threshold || topicOverlap(candidate.topics, proposition))
+  if (carrier !== undefined) {
+    return finding(
+      reference,
+      'valid',
+      sectionReason(reference.path, entry, carrier.candidate.label, hasOwn),
+      entry,
+    )
+  }
+  const elsewhere = supportingLabels(baseline, index, proposition, threshold, reference.path)
+  if (elsewhere.length > 0) {
+    return finding(reference, 'mismatch', mismatchReason(baseline, proposition, elsewhere), entry)
+  }
+  const best = Math.max(0, ...scored.map(candidate => candidate.score))
+  return finding(
     reference,
+    'unmatched',
+    hasOwn
+      ? `本节及其子节的文本与命题「${truncate(proposition)}」的字面重合 ${percent(best)}，低于支撑阈值 ${percent(threshold)}，且本索引中没有条目支撑该命题——请核对节号或改写命题`
+      : `《专利审查指南》${reference.path} 的节正文未转录，其下已转录的各节与命题「${truncate(proposition)}」都不相符——请核对节号或改写命题`,
     entry,
-    options.proposition,
-    `与《专利审查指南》${reference.path} 一致（来源：${entry.sourceDoc ?? '未标注'}）`,
   )
+}
+
+/** The reason a supported guideline citation reports. */
+function sectionReason(path: string, entry: SectionEntry, carrier: string | null, hasOwn: boolean): string {
+  if (!hasOwn) {
+    return carrier === null
+      ? `与《专利审查指南》${path} 一致（本节正文未单独转录，判定依据其下各节）`
+      : `与《专利审查指南》${path} 一致（本节正文未单独转录，命题由其下的 ${carrier} 承载）`
+  }
+  if (carrier !== null && carrier !== path) {
+    return `与《专利审查指南》${path} 一致（命题由本节下的 ${carrier} 承载）`
+  }
+  return `与《专利审查指南》${path} 一致（来源：${entry.sourceDoc ?? '未标注'}）`
 }
 
 /** Report a cited paragraph the entry knows to be absent, or null when it is consistent. */
@@ -268,15 +496,6 @@ function checkNarrowing(
   if (reference.paragraph === undefined || entry.paragraphs === undefined) return null
   if (entry.paragraphs.includes(reference.paragraph)) return null
   return `第 ${entry.article} 条索引载明共 ${entry.paragraphs.length} 款，不含第 ${reference.paragraph} 款`
-}
-
-/** Report a proposition the verified entry does not support, or null when it matches or is absent. */
-function matchProposition(entry: ArticleEntry | SectionEntry, proposition: string | undefined): string | null {
-  if (proposition === undefined || proposition.trim() === '') return null
-  const needle = proposition.trim()
-  const matched = entry.topics.some(topic => needle.includes(topic) || topic.includes(needle))
-  if (matched) return null
-  return `该条目主题为「${entry.topics.join('、')}」，未支撑所引命题「${truncate(needle)}」`
 }
 
 /** Truncate a proposition for a report line. */
