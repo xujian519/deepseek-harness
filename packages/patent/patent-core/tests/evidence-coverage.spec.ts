@@ -16,11 +16,12 @@ import {
   extractWaybackMachineDate,
   inferEvidenceType,
   inferredMonthEnd,
-  isBeforeFilingDate,
+  isBeforeReferenceDate,
   loadEvidenceRulesEngine,
   parseDateFlexible,
   platformCategory,
   platformCredibility,
+  priorArtReference,
   receiptFromToolExecution,
   type EvidenceSpan,
 } from '@deepseek-ai/dsh-patent-core'
@@ -147,19 +148,40 @@ it('determinePublicationDate：空输入/不可解析/月级推定', () => {
   expect(monthOnly.sourceType).toBe('claimed_date')
   expect(monthOnly.isPriorArt).toBe(false)
 
-  const withFiling = determinePublicationDate('2023-01', undefined, '2023-06-01')
+  const withFiling = determinePublicationDate('2023-01', undefined, { date: '2023-06-01', basis: 'filing-date' })
   expect(withFiling.isPriorArt).toBe(true)
-  expect(withFiling.filingDate).toBe('2023-06-01')
+  expect(withFiling.referenceDate).toBe('2023-06-01')
+  expect(withFiling.referenceBasis).toBe('filing-date')
 
-  const english = determinePublicationDate('Jan 15, 2023', undefined, '2023-06-01')
+  const english = determinePublicationDate('Jan 15, 2023', undefined, { date: '2023-06-01', basis: 'filing-date' })
   expect(english.determined).toBe('2023-01-15')
   expect(english.reliability).toBe('high')
   expect(english.sourceType).toBe('exact_page_date')
 })
 
-it('isBeforeFilingDate：不可解析日期返回 false', () => {
-  expect(isBeforeFilingDate('not-a-date', '2023-06-01')).toBe(false)
-  expect(isBeforeFilingDate('2023-01-02', 'not-a-date')).toBe(false)
+it('priorArtReference：申请日/优先权日缺省与不可解析的组合', () => {
+  expect(priorArtReference({})).toBeUndefined()
+  expect(priorArtReference({ filingDate: '  ', priorityDate: 'not-a-date' })).toBeUndefined()
+  // 只有一个可用日期时，无论来源都作为截止日
+  expect(priorArtReference({ priorityDate: '2023-02-01' })).toEqual({ date: '2023-02-01', basis: 'priority-date' })
+  expect(priorArtReference({ filingDate: '2023-02-01' })).toEqual({ date: '2023-02-01', basis: 'filing-date' })
+  // 不可解析的一侧被忽略
+  expect(priorArtReference({ filingDate: 'not-a-date', priorityDate: '2023-02-01' })).toEqual({
+    date: '2023-02-01',
+    basis: 'priority-date',
+  })
+  // 同日：优先权日优先（两者等价，取优先权口径便于报告说明）
+  expect(priorArtReference({ filingDate: '2023-02-01', priorityDate: '2023-02-01' })).toEqual({
+    date: '2023-02-01',
+    basis: 'priority-date',
+  })
+})
+
+it('isBeforeReferenceDate：不可解析日期返回 false', () => {
+  expect(isBeforeReferenceDate('not-a-date', '2023-06-01')).toBe(false)
+  expect(isBeforeReferenceDate('2023-01-02', 'not-a-date')).toBe(false)
+  expect(isBeforeReferenceDate(undefined, '2023-06-01')).toBe(false)
+  expect(isBeforeReferenceDate('2023-01-02', undefined)).toBe(false)
 })
 
 it('extractDateFromText：中文完整/月级/ASCII 与非法回退', () => {
@@ -311,8 +333,13 @@ it('证据引擎：显式类型覆盖各类型特定分支', () => {
   const fl = engine.judge(span({ snippet: '外文证据' }), undefined, 'foreign_language')
   expect(fl.typeSpecificJudgment?.translationStatus).toBe('unknown')
 
+  // 公证状态来自公证文书记载（外部输入），不来自证据类型标签
   const notary = engine.judge(span({ snippet: '公证' }), undefined, 'notarial_certificate')
-  expect(notary.typeSpecificJudgment?.notarizationStatus).toBe('confirmed')
+  expect(notary.typeSpecificJudgment?.notarizationStatus).toBe('unverified')
+  const notaryConfirmed = engine.judge(span({ snippet: '公证' }), undefined, 'notarial_certificate', {
+    notarized: true,
+  })
+  expect(notaryConfirmed.typeSpecificJudgment?.notarizationStatus).toBe('confirmed')
 
   const witness = engine.judge(span({ snippet: '证人证言' }), undefined, 'witness_testimony')
   expect(witness.typeSpecificJudgment?.witnessCredibility).toBe('medium')
@@ -328,14 +355,10 @@ it('证据引擎：显式类型覆盖各类型特定分支', () => {
   )
   expect(priorArt.typeSpecificJudgment?.dateDetermination?.determined).toBe('2022-01-01')
 
+  // 域外证据不做类型特定加分：自报哈希不影响其可信度判定（EVI-011 由规则条件驱动）
   const overseasHash = engine.judge(span({ contentHash: 'h' }), undefined, 'overseas')
-  expect(overseasHash.typeSpecificJudgment?.platformCredibility).toBe('high')
-
-  const overseasEmptyHash = engine.judge(span({ contentHash: '' }), undefined, 'overseas')
-  expect(overseasEmptyHash.typeSpecificJudgment?.platformCredibility).toBeUndefined()
-
-  const overseasBare = engine.judge(span({}), undefined, 'overseas')
-  expect(overseasBare.typeSpecificJudgment?.platformCredibility).toBeUndefined()
+  expect(overseasHash.typeSpecificJudgment?.platformCredibility).toBeUndefined()
+  expect(overseasHash.typeSpecificJudgment?.credibilityScore).toBeUndefined()
 })
 
 it('使用公开：日期认定各分支', () => {
@@ -351,9 +374,12 @@ it('使用公开：日期认定各分支', () => {
   // 无 docVersion 无 snippet → 保持 unknown（snippet ?? '' 兜底路径）
   const unknown = engine.judge(createSpan({ sourceUri: 'pub_use:x', direction: 'neutral' }))
   expect(unknown.typeSpecificJudgment?.dateDetermination?.determined).toBe('unknown')
-  // 提供 filingDate → isPriorArt 判定
-  const withFiling = engine.judge(span({ sourceUri: 'pub_use:x', docVersion: '2023-01-10' }), '2023-06-01')
-  expect(withFiling.typeSpecificJudgment?.dateDetermination?.filingDate).toBe('2023-06-01')
+  // 提供申请日 → isPriorArt 判定
+  const withFiling = engine.judge(span({ sourceUri: 'pub_use:x', docVersion: '2023-01-10' }), {
+    filingDate: '2023-06-01',
+  })
+  expect(withFiling.typeSpecificJudgment?.dateDetermination?.referenceDate).toBe('2023-06-01')
+  expect(withFiling.typeSpecificJudgment?.dateDetermination?.referenceBasis).toBe('filing-date')
   expect(withFiling.typeSpecificJudgment?.dateDetermination?.isPriorArt).toBe(true)
 })
 
@@ -367,25 +393,87 @@ it('使用公开四要件：地点/方式/可获取性各分支', () => {
   // 发布 → publication 方式
   const published = engine.judge(span({ sourceUri: 'pub_use:x', snippet: '2023年1月发布于官网' }))
   expect(published.typeSpecificJudgment?.fourElementsCheck?.methodElement.detail).toMatch(/发布/)
-  // 无方式关键词 → 方式不满足；无可获取性关键词 → 推定公开
+  // 无方式关键词 → 方式不满足；无可获取性关键词 → 同样不满足（未提及不推定公开）
   const bare = engine.judge(span({ sourceUri: 'pub_use:x', snippet: '2023年1月10日' }))
   const fe3 = bare.typeSpecificJudgment?.fourElementsCheck
   expect(fe3?.methodElement.met).toBe(false)
-  expect(fe3?.accessibility.met).toBe(true)
+  expect(fe3?.accessibility.met).toBe(false)
+  expect(fe3?.accessibility.detail).toMatch(/未提及/)
+  expect(fe3?.placeElement.met).toBe(false)
+  expect(fe3?.allMet).toBe(false)
   // 内部测试 → 限于特定范围
   const internal = engine.judge(span({ sourceUri: 'pub_use:x', snippet: '内部测试使用该产品' }))
   expect(internal.typeSpecificJudgment?.fourElementsCheck?.accessibility.met).toBe(false)
-  // 四要素齐全 + contentHash → 证据链完整
+  // 四要素齐全 + 自报哈希 → 证据链仍为"较完整"（哈希未经独立核验）
   const complete = engine.judge(
     span({
       sourceUri: 'pub_use:x', docVersion: '2023-01-10', snippet: '2023年1月10日在上海公开销售', contentHash: 'h',
     }),
   )
-  expect(complete.typeSpecificJudgment?.chainIntegrity).toMatch(/完整/)
-  // 时间要素不可判 + 无 snippet → 证据链不完整（snippet ?? '' 兜底路径）
+  expect(complete.typeSpecificJudgment?.chainIntegrity).toMatch(/较完整/)
+  // 独立核验后才是"完整"
+  const verified = engine.judge(
+    span({
+      sourceUri: 'pub_use:x', docVersion: '2023-01-10', snippet: '2023年1月10日在上海公开销售', contentHash: 'h',
+    }),
+    undefined,
+    undefined,
+    { integrityVerified: true },
+  )
+  expect(verified.typeSpecificJudgment?.chainIntegrity).toMatch(/^完整/)
+  // 时间要素不可判 + 无 snippet → 证据链不完整（snippet ?? '' 兜底路径），四要件全缺 → 举证难度极高
   const broken = engine.judge(createSpan({ sourceUri: 'pub_use:x', docVersion: 'not-a-date', direction: 'neutral' }))
   expect(broken.typeSpecificJudgment?.chainIntegrity).toMatch(/证据链不完整/)
-  expect(broken.typeSpecificJudgment?.burdenDifficulty).toBe('高')
+  expect(broken.typeSpecificJudgment?.burdenDifficulty).toBe('极高')
+  // 部分要件满足 → 举证难度高
+  const partial = engine.judge(span({ sourceUri: 'pub_use:x', snippet: '2023年1月10日在上海销售该产品' }))
+  expect(partial.typeSpecificJudgment?.fourElementsCheck?.placeElement.met).toBe(true)
+  expect(partial.typeSpecificJudgment?.burdenDifficulty).toBe('高')
+})
+
+it('使用公开四要件：被否定的线索不按肯定认定', () => {
+  const engine = new EvidenceEngine()
+  // 「未约定保密义务」是在排除保密，不能读成存在保密义务；公众可获取性仍待补证
+  const excluded = engine.judge(
+    span({
+      sourceUri: 'pub_use:x',
+      docVersion: '2023-01-10',
+      snippet: '2023年1月10日在上海展出，参展方与参观者之间未约定任何保密义务',
+    }),
+  )
+  const excludedAccessibility = excluded.typeSpecificJudgment?.fourElementsCheck?.accessibility
+  expect(excludedAccessibility?.met).toBe(false)
+  expect(excludedAccessibility?.detail).toMatch(/不存在保密义务/)
+  expect(excludedAccessibility?.score).toBe(0.5)
+  // 排除保密之外另写明对公众开放，才是肯定认定
+  const open = engine.judge(
+    span({
+      sourceUri: 'pub_use:x',
+      docVersion: '2023-01-10',
+      snippet: '2023年1月10日在上海展出，未约定保密义务，展会向公众开放',
+    }),
+  )
+  const openElements = open.typeSpecificJudgment?.fourElementsCheck
+  expect(openElements?.accessibility.met).toBe(true)
+  expect(openElements?.allMet).toBe(true)
+  // 「从未在中国境内销售」不构成境内使用
+  const never = engine.judge(span({ sourceUri: 'pub_use:x', snippet: '该产品从未在中国境内销售' }))
+  expect(never.typeSpecificJudgment?.fourElementsCheck?.placeElement.met).toBe(false)
+  // 「尚未公开使用」不构成公开使用方式
+  const unpublished = engine.judge(span({ sourceUri: 'pub_use:x', snippet: '该技术尚未公开使用' }))
+  expect(unpublished.typeSpecificJudgment?.fourElementsCheck?.methodElement.met).toBe(false)
+  // 英文否定（without any nda）同样识别
+  const english = engine.judge(
+    span({ sourceUri: 'pub_use:x', snippet: 'displayed at the fair without any nda, open to the public' }),
+  )
+  expect(english.typeSpecificJudgment?.fourElementsCheck?.accessibility.met).toBe(true)
+  // 「不但」中的「不」不是否定：承接式让步不改变保密义务本身
+  const concession = engine.judge(
+    span({ sourceUri: 'pub_use:x', snippet: '双方不但约定了保密义务，还限制了访问范围' }),
+  )
+  const concessionAccessibility = concession.typeSpecificJudgment?.fourElementsCheck?.accessibility
+  expect(concessionAccessibility?.met).toBe(false)
+  expect(concessionAccessibility?.detail).toMatch(/存在保密义务/)
 })
 
 it('举证责任：别名 caseType / 未知类型 / 自定义 burden_holder', () => {
@@ -547,7 +635,7 @@ rules:
         - evidence_content_hash_available
         - evidence_source_uri_or_doc_version_available
         - publication_date_available
-        - filing_date_available
+        - prior_art_reference_available
         - evidence_legalized
         - evidence_witness_disclosed
         - fact_is_well_known
@@ -561,7 +649,7 @@ rules:
       claimRefs: ['C1'], direction: 'supporting', sourceUri: 'web:https://x.com',
       contentHash: 'h', docVersion: '2023-01-01', snippet: 'x',
     }),
-    '2023-06-01',
+    { filingDate: '2023-06-01' },
     undefined,
     {
       legalized: true, witnessDisclosed: true, isWellKnown: true, isUncontested: true,

@@ -98,6 +98,8 @@ export type DeadlineQuery = {
   authorizationPublicationDate?: CalendarDate
   /** Date the drug obtained marketing approval in China (新药上市许可日). */
   marketingApprovalDate?: CalendarDate
+  /** Date the invalidation request was filed (提出无效宣告请求之日). */
+  invalidationRequestDate?: CalendarDate
   /** Notices of this case whose delivery starts a period. */
   notices?: readonly NoticeInput[]
   /** Whether 细则第5条 roll-forward applies; defaults to `apply`. */
@@ -210,6 +212,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     ...patentTermItems(query, options),
     ...annualFeeItems(query, options),
     ...pctNationalEntryItems(query, options),
+    ...invalidationRequestItems(query, options),
     ...noticeDrivenItems(notices, query, options),
     ...termCompensationItems(query, options),
   ]
@@ -592,6 +595,36 @@ function pctNationalEntryItems(query: DeadlineQuery, options: EvaluateOptions): 
   return items
 }
 
+/**
+ * Build the invalidation-procedure period that runs from the request date.
+ *
+ * The request date is not the filing date, so a case that has not recorded it
+ * reports a pending entry naming the input rather than counting from anything
+ * else.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the request-driven entry, computed or pending.
+ */
+function invalidationRequestItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
+  const label = '增加无效理由或补充证据（自提出无效宣告请求之日起1个月）'
+  const legalBasis = '专利法实施细则第71条'
+  const requestDate = query.invalidationRequestDate
+  if (requestDate === undefined) {
+    return [pending({
+      id: 'invalidation-evidence-supplement',
+      label,
+      legalBasis,
+      requiredInput: 'invalidationRequestDate（提出无效宣告请求之日）',
+      reason: '该期限自提出无效宣告请求之日起算；未记录请求日即无法计算，不以申请日等其他日期替代。',
+    })]
+  }
+  return [fromPeriod({
+    base: { id: 'invalidation-evidence-supplement', label, legalBasis, query, options },
+    start: requestDate,
+    period: { unit: 'month', count: 1 },
+  })]
+}
+
 /** One notice-driven period: the report carries an entry per recorded notice of the kind. */
 type NoticePeriodSpec = {
   id: string
@@ -645,7 +678,7 @@ const NOTICE_PERIOD_SPECS: readonly NoticePeriodSpec[] = [
   {
     id: 'invalidation-response',
     label: '答复无效宣告请求（合议组指定期限，通常为1个月）',
-    legalBasis: '专利审查指南第四部分第三章第4.4节',
+    legalBasis: '专利法实施细则第72条、专利审查指南第四部分第三章第4.4节',
     noticeKind: 'invalidation-transfer',
     absentReason: '需要无效宣告请求书转送文件的送达记录，本查询未提供该通知。',
     months: 1,

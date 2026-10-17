@@ -196,8 +196,11 @@ export function injectTemplateDraft(html: string, template: FormTemplateId, draf
   for (const section of draft.sections) {
     if (section.blocks !== undefined) {
       result = injectBlocksSlot(result, section.id, section.blocks)
-    } else {
+    } else if (section.rows !== undefined) {
       result = injectRowsSlot(result, section.id, section.rows)
+    } else {
+      // 表单模板没有 grounds 槽位（该槽位只登记在通用文档模板的注册表里），校验器应当先拒绝。
+      throw new DocumentRenderError(`表单模板不支持无效理由节（槽位 ${section.id} 应为 blocks 或 rows）`)
     }
   }
   // 注入是一次性操作：成品不携带槽位机器，全部剥掉 data-slot 属性。

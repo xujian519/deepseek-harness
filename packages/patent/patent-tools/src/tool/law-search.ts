@@ -77,7 +77,7 @@ function truncateSnippet(content: string, maxChars = 800): string {
 
 const DESCRIPTION = [
   '检索部署的外接 IP 知识库（knowledge.db 全文索引）里的规范原文：scope=law 取法律法规条文，scope=guideline 取《专利审查指南》全文。',
-  '这是**规则**的检索通道：`law_verify` 只按随包索引判定引用形式与是否转录（指南条文未转录时判「未核验」），指南条文要在这里取原文并把 sourcePath（语料内路径）记为引文来源；判例全文另有 patent_case_search。',
+  '这是**规则**的检索通道：`law_verify` 只按随包索引判定引用形式与是否转录（指南的节级条目已随包转录，其下各节都没有转录的条目才判「未核验」），指南条文要在这里取原文并把 sourcePath（语料内路径）记为引文来源；判例全文另有 patent_case_search。',
   '命中为空不得下任何结论；引用格式：`<名称>` + `<条号/节号>` + `<sourcePath>`。',
 ].join(' ')
 

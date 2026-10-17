@@ -163,4 +163,31 @@ describe('patent_deadlines tool', () => {
     })
     expect(result.isError).toBe(true)
   })
+
+  it('counts the invalidation evidence period from the request date when given', async () => {
+    const ctx = await host()
+    const withRequest = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+      invalidationRequestDate: '2026-09-10',
+    })
+    if (withRequest.isError) throw new Error('expected success')
+    const value = withRequest.value as PatentDeadlinesOutput
+    expect(value.computed.find(entry => entry.id === 'invalidation-evidence-supplement')).toMatchObject({
+      dueDate: '2026-10-10',
+      legalBasis: '专利法实施细则第71条',
+    })
+    expect(value.pending.map(entry => entry.id)).not.toContain('invalidation-evidence-supplement')
+
+    const withoutRequest = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+    })
+    if (withoutRequest.isError) throw new Error('expected success')
+    const bare = withoutRequest.value as PatentDeadlinesOutput
+    expect(bare.pending.find(entry => entry.id === 'invalidation-evidence-supplement')?.requiredInput)
+      .toBe('invalidationRequestDate（提出无效宣告请求之日）')
+  })
 })

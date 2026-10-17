@@ -382,11 +382,14 @@ export function loadPatentFullRuleSet(rulesDir?: string): PatentComplianceLoadRe
 const COMMON_CASE_DOMAINS = ['patent', 'patent_general'] as const
 
 /**
- * 答复类文书（审查意见答复、复审请求）的域集合，两个作业 scope 共用。
+ * 答复类文书（审查意见答复、复审请求、无效答辩）的域集合，三个作业 scope 共用。
  *
  * 构成：通用域 + 答复实践域（逐点回应、答复期限、修改超范围检查）+ 需答复的实体条款域
  * （新颖性 22.2 / 创造性 22.3 / 实用性 22.4 / 充分公开 26.3 / 权利要求 26.4）
  * + 审查程序域（A33 修改不超范围、程序与证据规则）。
+ *
+ * 三者的交付文书同构：逐点回应对方主张的每一项理由、在期限内答复、修改受 A33 限制。
+ * 无效答辩只多一层「对方是请求人而不是审查员」，故与答复共用同一域集合。
  */
 const ANSWER_BRIEF_DOMAINS = [
   ...COMMON_CASE_DOMAINS,
@@ -399,10 +402,14 @@ const ANSWER_BRIEF_DOMAINS = [
   'patent_procedure',
 ] as const
 
-/** 作业类别 scope（`rule_check` 的 scope 取值，与四类作业 manifest 一一对应）。 */
+/**
+ * 作业类别 scope（`rule_check` 的 scope 取值）。前四个与四类作业 manifest 一一对应；
+ * `patent-invalidation-defense` 与 `patent_invalidation_v1` 同一作业，只是被请求人侧。
+ */
 export type PatentCaseScope =
   | 'patent-oa-response'
   | 'patent-invalidation'
+  | 'patent-invalidation-defense'
   | 'patent-reexamination'
   | 'patent-infringement'
 
@@ -417,21 +424,24 @@ export type PatentCaseScope =
  * | scope | 对应 manifest | 理由来源 |
  * | --- | --- | --- |
  * | `patent-oa-response` | `patent_oa_response_v1` | 驳回类型表（7 类） |
- * | `patent-invalidation` | `patent_invalidation_v1` | 无效理由表（5 项） |
+ * | `patent-invalidation` | `patent_invalidation_v1` | 无效理由表（12 项），**请求人侧** |
+ * | `patent-invalidation-defense` | `patent_invalidation_v1` | 无效理由表，**被请求人（专利权人）侧** |
  * | `patent-reexamination` | `patent_reexamination_v1` | 复审理由表（6 项） |
  * | `patent-infringement` | `patent_infringement_v1` | 侵权比对与抗辩 |
  *
- * 四个 scope 的并集覆盖 `patent-full` 里的全部域（测试断言）：任一域的规则都至少有一个作业入口，
+ * 五个 scope 的并集覆盖 `patent-full` 里的全部域（测试断言）：任一域的规则都至少有一个作业入口，
  * 新增资产域若不属于任何作业，构建期就会失败而不是只能靠 `patent-full` 触及。
  *
- * 答复与复审今日域集合相同：复审理由表 = 无效理由表 + 实用新型客体缺陷（客体规则在通用域），且复审
- * 请求书与答复文书同构（逐点回应、A33 限制）。两者仍分列——模型按作业选入口，不必知道域表；任一作业
- * 的资产域分化时（例如上游带来 `patent_invalidation` 域的规则）在此处拆开，scope 名称不变。
- * 无效 scope 不含答复实践域：该域规则的语义是答复审查意见（逐点回应审查意见、答复期限），对无效请求书
- * 会误报。侵权 scope 只含侵权域：撰写与审查域的结构完整性规则对侵权意见书会误报。
+ * 答复、复审与无效答辩今日域集合相同：复审理由表 = 无效理由表 + 实用新型客体缺陷（客体规则在通用域），
+ * 且复审请求书与无效答辩意见陈述书都与答复文书同构（逐点回应、A33 限制）。三者仍分列——模型按作业选
+ * 入口，不必知道域表；任一作业的资产域分化时（例如上游带来 `patent_invalidation` 域的规则）在此处
+ * 拆开，scope 名称不变。无效 scopes 的请求人侧与答辩侧分列：答复实践域（逐点回应、答复期限、禁止计数
+ * 式论证、重复引证）的语义是答复对方主张，对**请求书**会误报，对**答辩意见陈述书**正适用；请求人侧
+ * 因此不带该域，答辩侧带。侵权 scope 只含侵权域：撰写与审查域的结构完整性规则对侵权意见书会误报。
  */
 export const PATENT_CASE_DOMAINS: Record<PatentCaseScope, readonly string[]> = {
   'patent-oa-response': ANSWER_BRIEF_DOMAINS,
+  'patent-invalidation-defense': ANSWER_BRIEF_DOMAINS,
   'patent-reexamination': ANSWER_BRIEF_DOMAINS,
   'patent-invalidation': [
     ...COMMON_CASE_DOMAINS,

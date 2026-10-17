@@ -6,26 +6,27 @@ Status: implemented
 
 ## Problem
 
-`rule_check` 每个 scope 只给一个规则集：固定合规文件（`patent`）、电学合并（`patent-electrical`）、合并后的全量资产（`patent-full`，120 条）以及项目分层包。四类作业——审查意见答复、无效、复审、侵权——没有各自的 scope，检查某类作业的交付物只能在四条通用合规规则与全部随包规则之间二选一，而全量里含着与作业无关的域。
+`rule_check` 每个 scope 只给一个规则集：固定合规文件（`patent`）、电学合并（`patent-electrical`）、合并后的全量资产（`patent-full`，122 条）以及项目分层包。四类作业——审查意见答复、无效、复审、侵权——没有各自的 scope，检查某类作业的交付物只能在四条通用合规规则与全部随包规则之间二选一，而全量里含着与作业无关的域。
 
 移植来的上游作业表（`builtinPatentManifests[].checkDomains`）不能直接当映射用。它是按 checker 引擎自己的规则集写的，其中三个域（`patent_invalidation`、`patent_reexamination`、`patent_amendment`）在本包资产里没有任何规则，而镜像资产又声明了它从未提及的域（`patent_oa_response`、`patent_procedure`、`patent_general`、`patent_utility`）。
 
 ## Decision
 
-`PATENT_CASE_DOMAINS`（`packages/patent/patent-rule/src/runtime/patent-compliance.ts`）把四个作业 scope 映射到各自评估的规则 `domain` 列表，`rule_check` 接受这些名称作为 `scope` 取值。规则集仍是带激活覆盖的合并全量资产，域过滤发生在评估期，因此各 scope 共用一次加载、各自一条缓存。
+`PATENT_CASE_DOMAINS`（`packages/patent/patent-rule/src/runtime/patent-compliance.ts`）把各作业 scope 映射到各自评估的规则 `domain` 列表，`rule_check` 接受这些名称作为 `scope` 取值。规则集仍是带激活覆盖的合并全量资产，域过滤发生在评估期，因此各 scope 共用一次加载、各自一条缓存。
 
 一个 scope 评估通用域（`patent`、`patent_general`——合规规则与通用实务规则，任何专利交付物都适用）加上本作业的文书域与程序域，以及本作业必须答复或论证的条款所在的域：
 
 | Scope | Manifest | 规则数 |
 | --- | --- | --- |
-| `patent-oa-response` | `patent_oa_response_v1` | 108 |
+| `patent-oa-response` | `patent_oa_response_v1` | 110 |
 | `patent-invalidation` | `patent_invalidation_v1` | 97 |
-| `patent-reexamination` | `patent_reexamination_v1` | 108 |
+| `patent-invalidation-defense` | `patent_invalidation_v1` | 110 |
+| `patent-reexamination` | `patent_reexamination_v1` | 110 |
 | `patent-infringement` | `patent_infringement_v1` | 39 |
 
 实体条款所在的域取自本仓自己的理由表：`packages/patent/patent-core/src/notice/office-action.ts` 的驳回类型表与 `.../notice/grounds.ts` 的理由表。两张表指向同一组条款——新颖性（22.2）、创造性（22.3）、实用性（22.4）、充分公开（26.3）、权利要求（26.4）、修改（33 条）——资产把它们承载为 `patent_novelty`、`patent_inventiveness`、`patent_utility`、`patent_disclosure`、`patent_claims` 与 `patent_procedure`。
 
-答复与复审评估同一个域集合：复审理由表 = 无效理由表 + 实用新型客体缺陷，而该缺陷规则在通用域；复审请求书又是答复式文书。两者仍分列 scope 名，因为模型按作业选入口而不是按域名词表选；将来某作业的资产出现自有域（例如 `patent_invalidation` 域的规则）时，就在那一行拆开列表，名称不变。无效不带答复实践域——那些规则的措辞是答复审查意见（逐点回应、答复期限），用在无效请求书上会误报。侵权只带侵权域：撰写与审查域里的完整性检查落在侵权意见书上会误报。
+答复、复审与无效答辩评估同一个域集合：复审理由表 = 无效理由表 + 实用新型客体缺陷，而该缺陷规则在通用域；三者的交付文书又都是逐点回应对方主张、修改受 A33 限制。它们仍分列 scope 名，因为模型按作业选入口而不是按域名词表选；将来某作业的资产出现自有域（例如 `patent_invalidation` 域的规则）时，就在那一行拆开列表，名称不变。无效作业只在答辩侧带这个域集合：答复实践域的措辞是答复对方的主张（逐点回应、答复期限、以字词计数代替论证），用在请求人侧的请求书上会误报，所以 `patent-invalidation` 去掉该域、`patent-invalidation-defense` 保留它，同一 manifest 的两侧因此只差这一个域。侵权只带侵权域：撰写与审查域里的完整性检查落在侵权意见书上会误报。
 
 `evaluateText` 的 `domain` 选项接受单个域或域列表，未声明域的规则始终评估；这与 `packages/patent/patent-core/src/checker/engine.ts` 的 `RuleEngine.evaluate` 一致——后者本就接受 `string | readonly string[]`。
 
@@ -41,7 +42,7 @@ Status: implemented
 
 ## Consequences
 
-全量资产为 120 条；四个 scope 分别评估其中 108 / 97 / 108 / 39 条，四者并集覆盖合并结果的全部域，故任一资产域都有对应的作业入口——新增资产域不属于任何作业时测试转红。
+全量资产为 122 条；各作业 scope 分别评估其中 110 / 97 / 110 / 110 / 39 条，并集覆盖合并结果的全部域，故任一资产域都有对应的作业入口——新增资产域不属于任何作业时测试转红。
 
 过滤按作业收窄规则集，不按文书类型；它与后来加入的逐规则适用前提（[前提变更](2026-09-30-rule-applicability-premises-and-quoted-spans.zh.md)）叠加：文本从未触及的完整性检查根本不被评估，而主题词表出现在文本中的规则，仍会在别类文书上报出缺失要素。
 
@@ -49,4 +50,4 @@ Status: implemented
 
 ## Testing
 
-`packages/patent/patent-rule/tests/case-scopes.spec.ts` 钉住四个 scope 名、每个列出的域都由随包资产声明（否则拼写错的域会让 scope 静默变窄）、四者并集覆盖合并结果的域、任何 scope 都不报出域外规则、未声明域的规则在每个 scope 都运行，以及每类 scope 各一条域内命中与一条域外缺席。`tests/rule-engine.spec.ts` 承载 `domain` 选项的单值、列表、空串与空列表行为。`packages/patent/patent-tools/tests/drafting-engine.spec.ts` 用同一段文本分别跑 `patent-full` 与 `patent-infringement` 以体现过滤，并断言未知 scope 的报错列出作业 scope。
+`packages/patent/patent-rule/tests/case-scopes.spec.ts` 钉住各 scope 名、每个列出的域都由随包资产声明（否则拼写错的域会让 scope 静默变窄）、并集覆盖合并结果的域、任何 scope 都不报出域外规则、未声明域的规则在每个 scope 都运行、答辩 scope 与请求 scope 恰好差答复实践域，以及每类 scope 各一条域内命中与一条域外缺席。`tests/rule-engine.spec.ts` 承载 `domain` 选项的单值、列表、空串与空列表行为。`packages/patent/patent-tools/tests/drafting-engine.spec.ts` 用同一段文本分别跑 `patent-full` 与 `patent-infringement` 以体现过滤，并断言未知 scope 的报错列出作业 scope。

@@ -639,8 +639,15 @@ function main(): void {
     }
   }
 
+  const absent: string[] = []
   for (const file of files) {
     const path = resolve(root, file)
+    // A tracked file deleted in the working tree is still in the index, and a file
+    // that is not there has nothing to rewrite.
+    if (!existsSync(path)) {
+      absent.push(file)
+      continue
+    }
     const before = readFileSync(path, 'utf8')
     const { text: after, lines } = rewrite(before, file, all)
     if (after === before) continue
@@ -652,6 +659,9 @@ function main(): void {
   }
 
   console.log(`rescope-vendor: ${mode}${reverse ? ' --reverse' : ''} over ${String(files.length)} tracked files`)
+  if (absent.length > 0) {
+    console.log(`rescope-vendor: ${String(absent.length)} tracked file(s) absent from the working tree, skipped: ${absent.join(', ')}`)
+  }
   for (const kind of [...counts.keys()].sort()) {
     const { files: count, lines } = counts.get(kind) ?? { files: 0, lines: 0 }
     console.log(`  ${kind.padEnd(24)} ${String(count).padStart(4)} file(s), ${String(lines)} line(s)`)

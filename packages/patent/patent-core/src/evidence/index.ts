@@ -31,6 +31,7 @@ export {
 export type {
   EvidenceJudgment,
   EvidenceJudgmentEngine,
+  EvidenceExternalInputs,
   DimensionJudgment,
   TypeSpecificJudgment,
   BurdenDetermination,
@@ -41,6 +42,8 @@ export type {
   CredibilityLevel,
   DateDetermination,
   FourElementsResult,
+  PriorArtBasis,
+  ReferenceBasis,
 } from './types.ts'
 export { platformCredibility, credibilityToScore, platformCategory, evaluatePublicIntent } from './credibility.ts'
 export {
@@ -49,12 +52,14 @@ export {
   isMonthOnlyDate,
   inferredMonthEnd,
   extractDateFromText,
-  isBeforeFilingDate,
+  isBeforeReferenceDate,
+  priorArtReference,
   determinePublicationDate,
   extractWaybackMachineDate,
   cleanEvidenceURI,
 } from './date.ts'
 export { loadEvidenceRulesEngine } from './rule-loader.ts'
+export type { PriorArtReference } from './date.ts'
 
 /**
  * EvidenceExtension：证据闭环聚合体（实现 SatiEvidenceCollector）。

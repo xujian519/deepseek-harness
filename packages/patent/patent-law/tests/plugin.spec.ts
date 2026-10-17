@@ -15,9 +15,11 @@ function resolveConfig(overrides: Partial<Pkg.Config> = {}): Pkg.Config {
     cnlawSearchUrl: overrides.cnlawSearchUrl ?? Pkg.DEFAULT_CNLAW_SEARCH_URL,
     cnlawGraphUrl: overrides.cnlawGraphUrl ?? Pkg.DEFAULT_CNLAW_GRAPH_URL,
     onMismatch: overrides.onMismatch ?? SHIPPED.mismatch,
+    onUnmatched: overrides.onUnmatched ?? SHIPPED.unmatched,
     onOutOfRange: overrides.onOutOfRange ?? SHIPPED.outOfRange,
     onNotIndexed: overrides.onNotIndexed ?? SHIPPED.notIndexed,
     onUnverified: overrides.onUnverified ?? SHIPPED.unverified,
+    propositionSupport: overrides.propositionSupport ?? Pkg.PROPOSITION_SUPPORT_DEFAULT,
     ...(overrides.baselineDir === undefined ? {} : { baselineDir: overrides.baselineDir }),
   }
 }
@@ -81,9 +83,9 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
       signal: new AbortController().signal,
       callId: ToolCallId('law-verify-policy'),
       name: 'law_verify',
-      // A guideline section is still awaiting transcription in the shipped
-      // index, so it is what an `onUnverified` policy has to act on.
-      arguments: { references: ['审查指南第二部分第四章3.2.1.1'] },
+      // 第二部分第十章只登记了章一级条目，该章各节不在本索引中，因此这条引用
+      // 没有可判定的正文，`onUnverified` 策略要处置的就是它。
+      arguments: { references: ['审查指南第二部分第十章'] },
     })
     expect(result.isError).toBe(false)
     expect((result.value as { blocked: boolean }).blocked).toBe(true)

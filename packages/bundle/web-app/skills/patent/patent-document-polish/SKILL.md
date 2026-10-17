@@ -20,7 +20,9 @@ description: 专利正式文档输出规范（文档专员/单会话通用）：
 | 答复审查意见 | `oa-response` | 意见陈述书 + 修改对照 |
 | 补正 | `rectification-response` | 补正书（对补正通知书答复 + 替换页清单） |
 | 复审 | `re-examination-request` | 复审请求书 |
-| 无效 | `invalidation-opinion` | 无效宣告请求书 / 无效意见 |
+| 无效 | `invalidation-opinion` | 无效宣告请求书（对外件；不载引用日志、结论分档与缺口披露） |
+| 无效（内部评估） | `invalidation-analysis` | 内部无效分析意见（载引用日志、结论分档与缺口披露；不写对外请求句） |
+| 无效（被请求人答辩） | `invalidation-defense` | 无效宣告程序意见陈述书（专利权人侧的对外件：程序性意见、质证意见、权利要求书修改、逐项答辩；流程与依据见 patent-invalidation-defense 技能） |
 | 评价报告转制 / 模拟 | `right-evaluation-report` | 专利权评价报告（转制收到的报告，或抬头显著标注的模拟件） |
 | 侵权比对 | `infringement-opinion` | 侵权比对意见书 |
 | 诉讼文书 | `litigation-pleading` | 起诉状 / 答辩状 |

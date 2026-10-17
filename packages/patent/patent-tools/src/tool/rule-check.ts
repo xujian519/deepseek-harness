@@ -79,7 +79,7 @@ export type RuleCheckDeps = {
 }
 
 /** rule_check supported scopes (shared by the description and the runtime error). */
-const AVAILABLE_SCOPES = 'patent, patent-electrical, patent-full, patent-oa-response, patent-invalidation, patent-reexamination, patent-infringement, pack'
+const AVAILABLE_SCOPES = 'patent, patent-electrical, patent-full, patent-oa-response, patent-invalidation, patent-invalidation-defense, patent-reexamination, patent-infringement, pack'
 
 const DESCRIPTION = [
   'Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match / quote repetition)',
@@ -89,7 +89,7 @@ const DESCRIPTION = [
   'Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions).',
   "Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance),",
   "'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed),",
-  "a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement'",
+  "a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement'",
   "(the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish),",
   "or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).",
   'With the office-action notice at hand, a job scope also takes notice=通知书正文: the two dual-input rules (PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用) then run against the response; without notice they are listed as unevaluated.',
@@ -178,7 +178,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
     description: DESCRIPTION,
     parameters: {
       text: { type: 'string', required: true, description: 'The text to check.' },
-      scope: { type: 'string', description: "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml." },
+      scope: { type: 'string', description: "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml." },
       notice: { type: 'string', description: '通知书正文（可选）：提供时就地确定性解析，并评估双输入规则 PR-OA-008/009；未提供时结果中显式列出未评估项。' },
     },
     output: {

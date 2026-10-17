@@ -31,8 +31,29 @@ export type DraftBlock =
     rows: string[][]
   }
 
-/** claims-spec 五部分章节 id 到中文标题的固定映射（转换器按此生成 h3）。 */
-export const SPEC_PART_HEADINGS = {
+/**
+ * 无效理由节的一项（按法条组织的理由段）。
+ *
+ * 节标题由渲染器按 `{节序}.{序} 权利要求 …不具备{理由}（{法条}）` 生成，模型只填三段正文与
+ * 结构化事实，不写标题、不写节号——写死理由的小节标题（"4.1 权 1 不具备新颖性"）会让只主张
+ * 其他理由的文书被迫编造一段不存在的主张。
+ */
+export interface DraftGroundItem {
+  /** 所依据的法条，如 `专利法第22条第3款`；进节标题的括注。 */
+  article: string
+  /** 理由名（与理由表标签口径一致），如 `创造性`。 */
+  ground: string
+  /** 本项针对的权利要求序号；≥1 项，渲染为「权利要求 1、2」。 */
+  claimNos: number[]
+  /** 事实认定。 */
+  facts: string
+  /** 证据分析（含 pin-cite）。 */
+  evidence: string
+  /** 法条适用与结论。 */
+  conclusion: string
+}
+
+/** claims-spec 五部分章节 id 到中文标题的固定映射（转换器按此生成 h3）。 */export const SPEC_PART_HEADINGS = {
   technicalField: '技术领域',
   background: '背景技术',
   summary: '发明内容',
@@ -113,23 +134,51 @@ export interface TemplateFieldSlot {
   multiple?: boolean
 }
 
-/** 章节槽位的 schema 声明。 */
-export interface TemplateSectionSlot {
+/** 章节槽位的 schema 声明：正文块序列（默认类别）、表格数据行，或按法条组织的理由节。 */
+export type TemplateSectionSlot = TemplateBlocksSlot | TemplateRowsSlot | TemplateGroundsSlot
+
+/** 正文块序列槽位（默认类别）：草案值经 {@link DraftBlock} 序列渲染。 */
+export interface TemplateBlocksSlot {
   /** 是否必填。 */
   required?: boolean
-  /**
-   * 槽位类别：`blocks`（默认）正文块序列；`rows` 表格数据行
-   * （草案值为等宽字符串数组，列宽由模板的行模板决定）。
-   */
-  kind?: 'blocks' | 'rows'
-  /** `rows` 槽位的列数；每行宽度必须等于 columns。 */
-  columns?: number
+  /** 槽位类别：`blocks`（默认）。 */
+  kind?: 'blocks'
 }
 
-/** 模板草案的一个章节槽位：骨架元素 id + 块序列或数据行（二者恰居其一）。 */
+/** 表格数据行槽位：草案值为等宽字符串数组，列宽由模板的行模板决定。 */
+export interface TemplateRowsSlot {
+  /** 是否必填。 */
+  required?: boolean
+  /** 槽位类别。 */
+  kind: 'rows'
+  /** 每行宽度必须等于 columns。 */
+  columns: number
+}
+
+/** 按法条组织的理由节槽位：草案值为 {@link DraftGroundItem} 序列，节标题与四段式小标题由渲染器生成。 */
+export interface TemplateGroundsSlot {
+  /** 是否必填。 */
+  required?: boolean
+  /** 槽位类别。 */
+  kind: 'grounds'
+  /**
+   * 节序前缀，与模板骨架的中文节序对应（如 `4` 对应「四、无效理由」）。
+   * 必填：没有前缀的理由节会与骨架的节序脱节，渲染成 `.1`、`.2` 却无人报错。
+   */
+  groundsPrefix: string
+  /**
+   * 被主张的权项与理由名之间的关系词，缺省 `不具备`：请求人侧写「权利要求 1 不具备创造性」，
+   * 被请求人侧按主题命名小节、写「的」（「权利要求 1 的创造性」）。理由名与法条取自草案，
+   * 关系词由模板体例决定。
+   */
+  groundsRelation?: string
+}
+
+/** 模板草案的一个章节槽位：骨架元素 id + 块序列、数据行或无效理由节（三者恰居其一）。 */
 export type TemplateDraftSection =
-  | { /** 模板骨架中的槽位 id。 */ id: string; /** 槽位内容块；≥1 个非空块；表格块仅 claims-spec 支持。 */ blocks: DraftBlock[]; rows?: never }
-  | { /** 模板骨架中的槽位 id。 */ id: string; /** 数据行（rows 槽位）；≥1 行，各行等宽且单元格非空。 */ rows: string[][]; blocks?: never }
+  | { /** 模板骨架中的槽位 id。 */ id: string; /** 槽位内容块；≥1 个非空块；表格块仅 claims-spec 支持。 */ blocks: DraftBlock[]; rows?: never; grounds?: never }
+  | { /** 模板骨架中的槽位 id。 */ id: string; /** 数据行（rows 槽位）；≥1 行，各行等宽且单元格非空。 */ rows: string[][]; blocks?: never; grounds?: never }
+  | { /** 模板骨架中的槽位 id。 */ id: string; /** 无效理由节（grounds 槽位）；≥1 项，各项三段正文非空。 */ grounds: DraftGroundItem[]; blocks?: never; rows?: never }
 
 /** 其余文书模板受控草案。 */
 export interface TemplateDraft {

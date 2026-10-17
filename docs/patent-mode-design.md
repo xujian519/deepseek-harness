@@ -88,7 +88,7 @@
 ├── agent.cordis.yml          # 组合文件（工具行，见 §4）
 ├── preset.yml                # name: 专利模式；description；order
 ├── skills/                   # 预设内技能（随预设旅行，任何会话用它即可见）
-│   ├── patent-disclosure-understanding/   # 交底书理解（PFE）
+│   ├── patent-disclosure-understanding/   # 交底书理解（PFIE）
 │   ├── patent-prior-art-search/           # 检索作业流程
 │   ├── patent-novelty-inventiveness/      # 新颖性 + 创造性分析（改写自 Sati）
 │   ├── patent-infringement/               # 侵权比对（改写自 Sati）
@@ -281,7 +281,7 @@ patent-workspace/
    来源（URL / 文件路径 / 对比文件编号+段落）；拿不出来源就删除该断言，不保留"好像有"。
 
 ## 标准作业流程
-交底书理解（PFE 三元组：技术问题/技术特征/技术效果）→ 现有技术检索 →
+交底书理解（PFIE 四元组：技术问题/发明认知/技术特征/技术效果）→ 现有技术检索 →
 新颖性分析（单独对比）→ 创造性分析（三步法）→ 权利要求布局与撰写 →
 说明书撰写（五部分）→ 形式与质量自检 → HITL 确认 → 输出成品。
 
@@ -314,13 +314,13 @@ patent-workspace/
 | 撰写 | —（不新写） | `patent-drafting-general` + 四领域技能、`_shared/patent-law-baseline-2024.md` | fs、officecli/document-processing |
 | 审查意见答复 | （Phase 2 视需要新写）〔已落地：`patent-oa-response` + `patent_oa_response_v1`，2026-10-16〕 | `patent-drafting-general`（33 条修改依据） | web、fs、ask_user |
 | 侵权比对 | `patent-infringement`（改写自 Sati） | `patent-comparison` | web、fs |
-| 无效宣告 | `patent-invalidity`（改写自 Sati） | `court-trip`、`patent-download` | web、fs |
+| 无效宣告 | `patent-invalidity`（改写自 Sati）〔被请求人侧答辩已落地：`patent-invalidation-defense` + `invalidation-defense` 模板，2026-10-17〕 | `court-trip`、`patent-download` | web、fs |
 | 质量门禁 | `patent-quality-gate`（新写） | 各技能内置清单 | ask_user、subagent_fork |
 | 目录组织 | `patent-workspace-layout`（新写） | — | fs、bash |
 
 ### 7.2 新写技能要点（各 1 个 SKILL.md，控制篇幅，方法优先）
 
-1. **`patent-disclosure-understanding`**：交底书结构化理解。输出 PFE 三元组表（技术问题 / 技术特征（标号化） / 技术效果）、发明点分级、隐含特征提示、与现有技术的初步分界。产出 `03-分析/XX_交底书理解.md`。
+1. **`patent-disclosure-understanding`**：交底书结构化理解。输出 PFIE 四元组表（技术问题 / 发明认知（Insight，须有原文锚点且待发明人确认） / 技术特征（标号化） / 技术效果）、发明点分级、隐含特征提示、与现有技术的初步分界。产出 `03-分析/XX_交底书理解.md`。
 2. **`patent-prior-art-search`**：检索作业流程。检索式构建（关键词 + 分类号 + 布尔）、检索面（中国/全球）、结果落盘规范（`01-检索/`）、对比文件遴选与编号（D1/D2…）、检索报告模板（来源/日期/覆盖范围/取舍理由）。含"检索未覆盖 → 不得下新颖性结论"的硬规则。
 3. **`patent-novelty-inventiveness`**（改写自 Sati `patent-novelty-analysis` / `patent-inventiveness-analysis`）：保留单独对比、三步法、逐特征比对表模板；工具引用替换为 web 检索 + 读对比文件 + 法条基线文件。
 4. **`patent-infringement`**（改写自 Sati）：全面覆盖原则 + 等同原则（三基本等同判定 + 禁止反悔例外）；技术特征分解→逐项比对表模板；被控侵权物 vs 权利要求对照。
@@ -364,7 +364,7 @@ HITL 确认点、风险与备选方案。
 
 ### 8.3 五大流水线（阶段 → 产物 → 门禁）
 
-**L1 交底书理解**：交底书 → `patent-disclosure-understanding` → `03-分析/XX_交底书理解.md`（PFE 表）→ 门禁：PFE 完整、发明点分级明确 → HITL：确认发明点与检索方向。
+**L1 交底书理解**：交底书 → `patent-disclosure-understanding` → `03-分析/XX_交底书理解.md`（PFIE 表）→ 门禁：PFIE 四要素齐备、发明认知有原文锚点且未越位到问题表述、发明点分级明确 → HITL：确认发明点与检索方向。
 
 **L2 检索与专利性分析**：`patent-prior-art-search`（检索式先 HITL 确认）→ 检索报告落盘 `01-检索/` → 遴选 D1/D2 → `patent-novelty-inventiveness`（单独对比 + 三步法，逐特征表）→ `03-分析/XX_新颖性创造性.md` → 门禁：结论附完整证据链（对比文件编号/特征/推理）→ HITL 放行。
 

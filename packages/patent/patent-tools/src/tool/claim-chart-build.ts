@@ -6,8 +6,11 @@
  * In `mode: 'infringement'` the result also carries a deterministic conclusion
  * (per accused-product all-elements coverage, equivalence contradictions, and —
  * only when the caller supplies the scoring facts — the weighted risk level).
- * The conclusion is computed from the chart's row-level mappings, never from a
- * verdict the caller asserts.
+ * In `mode: 'invalidity'` / `'reexamination'` it carries the per-claim
+ * single-reference coverage, the distinguishing features against the primary
+ * reference, and the dependent-claim path check. Every conclusion is computed
+ * from the chart's row-level mappings and the claim-reference relations derived
+ * from the claim text, never from a verdict the caller asserts.
  * @module @deepseek-ai/dsh-patent-tools/tool/claim-chart-build
  */
 
@@ -17,6 +20,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   ClaimChartHandler,
   deriveInfringementConclusion,
+  renderInvalidityConclusion,
   type AllElementsOutcome,
   type ChartMode,
   type ChartTarget,
@@ -26,6 +30,7 @@ import {
   type EquivalenceContradictionKind,
   type InfringementConclusion,
   type InfringementConclusionInput,
+  type InvalidityConclusion,
   type PatentModelPort,
   type StageProvider,
 } from '@deepseek-ai/dsh-patent-core'
@@ -72,6 +77,8 @@ export type ClaimChartOutput = {
   gap_count: number
   /** Deterministic conclusion (infringement mode only). */
   infringement_conclusion?: JsonValue
+  /** Deterministic conclusion (invalidity / reexamination mode only). */
+  invalidity_conclusion?: JsonValue
 }
 
 /** Injected model port (the integrator wires a createLlmModelPort over ctx.llm). */
@@ -79,7 +86,7 @@ export type ClaimChartBuildDeps = {
   model?: PatentModelPort
 }
 
-const DESCRIPTION = '构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。'
+const DESCRIPTION = '构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。mode=invalidity/reexamination 时另给出确定性结论段：逐权项对比文件的单篇全覆盖判定（从属权项已按引用链并入所引用权项的全部要素）、相对主对比文件的区别特征、从属权项"仅附加特征被覆盖"的法条路径问题与引用关系缺陷。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。'
 
 /** 四态覆盖结论的中文说明（描述数据，不是法律结论）。 */
 const OUTCOME_LABELS: Record<AllElementsOutcome, string> = {
@@ -145,12 +152,15 @@ function renderClaimChart(value: ClaimChartOutput): string {
     '',
   ]
   if (c.gaps.length > 0) {
-    lines.push('## Gap list', ...c.gaps.map(g => `- ${g.elementId}→${g.targetId}（${g.mapping}）: ${g.reason} → ${g.suggestion}`))
+    lines.push('## Gap list', ...c.gaps.map(g => `- ${g.elementId}→${g.targetId}（${g.kind}）: ${g.reason} → ${g.suggestion}`))
   } else {
     lines.push('## Gap list', '无 gap（全部要素已映射）。')
   }
   if (value.infringement_conclusion !== undefined) {
     lines.push(...renderConclusion(value.infringement_conclusion as unknown as InfringementConclusion))
+  }
+  if (value.invalidity_conclusion !== undefined) {
+    lines.push('', ...renderInvalidityConclusion(value.invalidity_conclusion as InvalidityConclusion, c).split('\n'))
   }
   if (value.json_path !== undefined && value.md_path !== undefined) {
     lines.push('', `落盘: ${value.json_path} + ${value.md_path}`)
@@ -267,6 +277,7 @@ export function createClaimChartBuildTool(deps: ClaimChartBuildDeps = {}): ToolD
           md_path: { type: 'string' },
           gap_count: { type: 'integer', required: true },
           infringement_conclusion: { type: 'json' },
+          invalidity_conclusion: { type: 'json' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderClaimChart(value as unknown as ClaimChartOutput) }],
@@ -301,15 +312,19 @@ export function createClaimChartBuildTool(deps: ClaimChartBuildDeps = {}): ToolD
       const chart = JSON.parse(doc) as ClaimChart
       const rawPaths = typeof state.claim_chart_paths === 'string' ? state.claim_chart_paths : undefined
       const paths = rawPaths !== undefined ? (JSON.parse(rawPaths) as { jsonPath: string; mdPath: string }) : undefined
-      // 结论只在侵权模式存在：其它模式的覆盖口径不同（新颖性单独对比、无效理由组合）。
+      // 结论按模式分派：侵权模式出全面覆盖/等同矛盾/风险等级，无效与复审模式出单篇全覆盖、
+      // 区别特征、从属权项法条路径与引用关系问题。两种结论都由行级映射算出，口径各自归内核；
+      // 无效与复审的结论由 claim-chart 原子随图表一并算出并存在图表里，此处只取回。
       const conclusion = chart.mode === 'infringement'
         ? deriveInfringementConclusion(chart, conclusionInput)
         : undefined
+      const invalidity = chart.invalidityConclusion
       return {
         chart: chart as unknown as JsonValue,
         ...(paths !== undefined ? { json_path: paths.jsonPath, md_path: paths.mdPath } : {}),
         gap_count: chart.gaps.length,
         ...(conclusion !== undefined ? { infringement_conclusion: conclusion as unknown as JsonValue } : {}),
+        ...(invalidity !== undefined ? { invalidity_conclusion: invalidity as JsonValue } : {}),
       }
     },
   })

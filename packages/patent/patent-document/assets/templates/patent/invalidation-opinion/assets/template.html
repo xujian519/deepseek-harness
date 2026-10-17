@@ -223,9 +223,9 @@
   </header>
 
   <div class="doc-masthead">
-    <span class="doc-type">无效宣告意见</span>
-    <h1>专利无效宣告意见</h1>
-    <div class="doc-number" id="doc-number">意见编号：<span class="mono">________</span> · 版本 V1.0</div>
+    <span class="doc-type">无效宣告请求书</span>
+    <h1>专利无效宣告请求书</h1>
+    <div class="doc-number" id="doc-number">案件编号：<span class="mono">________</span> · 版本 V1.0</div>
   </div>
 
   <dl class="doc-meta">
@@ -269,8 +269,8 @@
       <caption>表 2 · 证据与对比文件清单</caption>
       <thead>
         <tr>
-          <th style="width:8%">编号</th><th style="width:16%">公开号</th><th style="width:24%">标题</th>
-          <th style="width:12%">公开日</th><th style="width:12%">与涉案专利关系</th><th>可引用段落 / 用途</th>
+          <th style="width:8%">编号</th><th style="width:18%">标识（公开号 / ISBN 等）</th><th style="width:22%">证据名称</th>
+          <th style="width:12%">公开 / 出版日</th><th style="width:12%">与涉案专利关系</th><th>可引用段落 / 用途</th>
         </tr>
       </thead>
       <tbody id="evidence-table">
@@ -288,38 +288,20 @@
 
   <section id="grounds" aria-label="无效理由">
     <h2>四、无效理由</h2>
-
-    <h3>4.1 权利要求 1 不具备新颖性（专利法第22条第2款）</h3>
-    <h4>事实认定</h4>
-    <p id="nov-facts">________</p>
-    <h4>证据分析</h4>
-    <p id="nov-evidence">________</p>
-    <h4>法条适用与结论</h4>
-    <p id="nov-conclusion">________</p>
-
-    <h3>4.2 权利要求 1 不具备创造性（专利法第22条第3款）</h3>
-    <h4>事实认定</h4>
-    <p id="inv-facts">________</p>
-    <h4>证据分析</h4>
-    <p id="inv-evidence">________</p>
-    <h4>法条适用与结论</h4>
-    <p id="inv-conclusion">________</p>
-
-    <h3>4.3 其他无效理由（客体 / 充分公开 / 清楚支持 / 修改超范围）</h3>
-    <p id="other-grounds"></p>
+    <div id="grounds-body"></div>
   </section>
 
   <section id="claim-by-claim" aria-label="逐权利要求结论">
-    <h2>五、逐权利要求无效结论</h2>
+    <h2>五、逐权利要求结论</h2>
     <table>
-      <caption>表 3 · 逐权利要求结论</caption>
+      <caption>表 3 · 逐权利要求请求结论</caption>
       <thead>
-        <tr><th style="width:12%">权利要求</th><th style="width:18%">结论</th><th style="width:14%">法条依据</th><th>主要证据 / 理由</th></tr>
+        <tr><th style="width:12%">权利要求</th><th style="width:18%">请求结论</th><th style="width:14%">法条依据</th><th>主要证据 / 理由</th></tr>
       </thead>
       <tbody id="claim-conclusion-table">
         <tr>
           <td class="mono">权1</td>
-          <td><span class="badge badge-risk-mid">可无效（存疑）</span></td>
+          <td>请求宣告无效</td>
           <td class="mono">A22.3</td>
           <td>D1+D2 结合具备技术启示</td>
         </tr>
@@ -327,32 +309,8 @@
     </table>
   </section>
 
-  <section id="citation-log" aria-label="引用日志">
-    <h2>六、引用日志</h2>
-    <p>来源类型与置信度取值见 <span class="mono">references/citation-log.md</span>。</p>
-    <table>
-      <caption>表 4 · 关键断言溯源</caption>
-      <thead>
-        <tr>
-          <th style="width:22%">断言 / 结论</th><th style="width:13%">来源类型</th><th style="width:24%">来源名称</th>
-          <th style="width:12%">日期</th><th style="width:13%">置信度</th><th>定位（pin-cite）</th>
-        </tr>
-      </thead>
-      <tbody id="citation-table">
-        <tr>
-          <td>（断言示例）</td>
-          <td>现有技术文献</td>
-          <td class="mono">D1</td>
-          <td class="num">________</td>
-          <td><span class="badge badge-evidence">证据支撑</span></td>
-          <td class="mono">________</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-
   <section id="conclusion" aria-label="结论与请求">
-    <h2>七、结论与请求</h2>
+    <h2>六、结论与请求</h2>
     <p id="conclusion-text">综上所述，涉案专利的权利要求 <span class="mono">____</span> 不符合《专利法》第 <span class="mono">____</span> 条的规定，请求专利复审和无效审理部宣告上述权利要求全部/部分无效。</p>
   </section>
 

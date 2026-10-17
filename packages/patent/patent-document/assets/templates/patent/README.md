@@ -8,9 +8,9 @@
 assets/templates/patent/
 ├── DOCS.md                    # 文书品牌契约（设计语言 prose）
 ├── tokens.css                 # 可覆盖的 CSS 语义变量表
-├── manifest.json              # 机器可读设计系统清单（模板白名单，渲染工具据此解析模板 id）
+├── manifest.json              # 机器可读设计系统清单（模板白名单 + 内部记录模板清单，渲染工具据此解析模板 id 与合规检查范围）
 ├── README.md                  # 本文件
-└── <template-id>/             # 每个模板一个目录（共 11 个，清单见下；结构同构）
+└── <template-id>/             # 每个模板一个目录（共 13 个，清单见下；结构同构）
     ├── SKILL.md               # agent 工作流与输入/输出契约
     ├── assets/template.html   # 单文件 HTML 骨架
     ├── example.html           # 虚构填充示例（风格确认用）
@@ -43,6 +43,7 @@ agent 读取对应模板目录的 `SKILL.md` 与 `references/`，按其中「输
 | 提出复审请求 | `re-examination-request` |
 | 撰写申请文件 | `claims-spec` |
 | 发起/分析无效 | `invalidation-opinion` |
+| 答复无效宣告请求 | `invalidation-defense` |
 | 侵权比对意见 | `infringement-opinion` |
 | 诉讼文书 | `litigation-pleading` |
 | 转制 / 模拟专利权评价报告 | `right-evaluation-report` |
@@ -62,12 +63,14 @@ agent 读取对应模板目录的 `SKILL.md` 与 `references/`，按其中「输
 | `rectification-response` | ✅ 已落地 | 补正书答复 |
 | `re-examination-request` | ✅ 已落地 | 复审请求书 |
 | `claims-spec` | ✅ 已落地 | 权利要求书 / 说明书（含内部审稿版与正式提交版切换说明） |
-| `invalidation-opinion` | ✅ 已落地 | 无效请求 / 无效宣告意见 |
+| `invalidation-opinion` | ✅ 已落地 | 无效宣告请求书（对外件：请求人提交，不含内部评估与引用核验记录） |
+| `invalidation-analysis` | ✅ 已落地 | 内部无效分析意见（内部件：可含引用核验记录、逐权项成功概率分档与缺口汇总；清单 `internalRecords` 列出，渲染器对其只做章节编号检查） |
+| `invalidation-defense` | ✅ 已落地 | 无效宣告程序意见陈述书（对外件：**被请求人（专利权人）侧**的答辩，含程序性意见、质证意见、权利要求书修改与逐项答辩；正式出件按 100902/100014 表格，见 `invalidation-defense/references/conventions.md` §10） |
 | `infringement-opinion` | ✅ 已落地 | 侵权比对意见 |
 | `litigation-pleading` | ✅ 已落地 | 诉讼文书 |
 | `right-evaluation-report` | ✅ 已落地 | 实用新型/外观设计专利权评价报告（复刻《表格 220701》版式） |
 
-共 11 个模板，与 `manifest.json` 的 `templates` 列表一致。`search-report-form` 与 `right-evaluation-report` 是「表格式（复刻官方/检索记录版式）」家族：刻意使用黑白表格线、不套用 `tokens.css` 品牌色，以贴近官方原件外观；与品牌风的同族模板（如 `search-report`）是两种版式，按交付场合选用。
+共 13 个模板，与 `manifest.json` 的 `templates` 列表一致。`search-report-form` 与 `right-evaluation-report` 是「表格式（复刻官方/检索记录版式）」家族：刻意使用黑白表格线、不套用 `tokens.css` 品牌色，以贴近官方原件外观；与品牌风的同族模板（如 `search-report`）是两种版式，按交付场合选用。无效宣告域按角色分三个产物：`invalidation-opinion` 是请求人侧的对外件，`invalidation-analysis` 是内部件，`invalidation-defense` 是被请求人（专利权人）侧的对外件。内部评估、成功概率分档、引用核验记录与缺口汇总只写入内部件。
 
 ## 相关
 

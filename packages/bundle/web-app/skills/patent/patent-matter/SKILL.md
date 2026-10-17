@@ -28,7 +28,7 @@ description: 专利案件管理：七级工作目录 + 两个跟踪文件、L1�
 | 闸门 | `rule_check`（patent-compliance-review）+ 法条/日期/数字核验（patent-fact-check） | 门禁结论 |
 | 交付 | patent-quality-gate 通过、`render_patent_document` 渲染、`matter_log_append` 登记（含取代链）、工作台桥接 | `05-交付/` 或对应目录产物 |
 
-案型差异：答复案把"撰写"换成 OA 解析 + 逐权项修改对照（`patent_oa_response_v1`）；检索/无效/复审/侵权案把"撰写"换成对应技能的分析流程与要素级比对，收口用该案型 manifest；补正案无 manifest 入口，以替换页逐项核验清单替代收口行。
+案型差异：答复案把"撰写"换成 OA 解析 + 逐权项修改对照（`patent_oa_response_v1`）；检索/无效/复审/侵权案把"撰写"换成对应技能的分析流程与要素级比对，收口用该案型 manifest；补正案无 manifest 入口，以替换页逐项核验清单替代收口行。无效案代表专利权人（被请求人）时，"撰写"换成答辩流程（见 patent-invalidation-defense），收口仍用 `patent_invalidation_v1`。
 
 ## 状态机（六列，按 L1–L5 流水线映射）
 
@@ -72,4 +72,4 @@ description: 专利案件管理：七级工作目录 + 两个跟踪文件、L1�
 - 一个案子注册一个 goal（跨轮持续推进）。
 - 流水线阶段用 todo 跟踪，阶段产物即 todo 完成标准。
 - 个人工作台桥接：用户的工作台（侧边栏「工作台」：日历/任务树/知识库/日报周报）挂载时，建案后或用户要求把案件纳入工作台时调用 `workbench_link_patent_case(caseNumber=案号)` 幂等桥接——根任务=案号、L1–L5 阶段子任务（`source=patent`），阶段状态按 `_matter-log.md` 投影。投影是单向的：案件状态的唯一事实源仍是 `_matter-log.md` 与案卷文件，不得经工作台反向改写；工作台通用协作规则（草稿确认、AI 验收闭环、任务共享记忆、排程提案）以插件注入的工作台指南段为准，其中执行完成一律提交验收申请，不得直接把任务标记为完成/取消。
-- 关键 HITL 点（按 persona 纪律 6，非穷举）：检索式确认（L2 前，见 patent-prior-art-search）、权利要求布局确认（L3 plan-mode 获批时）、答复策略确认（L4）、无效理由组合确认（L5，见 patent-invalidity）、交付放行确认（门禁后，见 patent-quality-gate）。
+- 关键 HITL 点（按 persona 纪律 6，非穷举）：检索式确认（L2 前，见 patent-prior-art-search）、权利要求布局确认（L3 plan-mode 获批时）、答复策略确认（L4）、无效理由组合确认（L5，请求人侧，见 patent-invalidity）、无效答辩策略与权利要求书修改方案确认（L5，被请求人侧，见 patent-invalidation-defense）、交付放行确认（门禁后，见 patent-quality-gate）。

@@ -481,6 +481,63 @@ describe('validateTemplateDraft', () => {
     const tableBlock = { sections: [{ id: 'analysis', blocks: [{ kind: 'table', name: 't', header: ['h'], rows: [['c']] }] }] }
     expectTemplateViolation(tableBlock, schema, '表格块仅 claims-spec 支持')
   })
+
+  it('grounds 槽位校验法条、理由名、权项号与三段正文', () => {
+    const schema = { sections: { 'grounds-body': { required: true, kind: 'grounds' as const, groundsPrefix: '4' } } }
+    const item = {
+      article: '专利法第22条第3款',
+      ground: '创造性',
+      claimNos: [1, 2],
+      facts: '事实。',
+      evidence: '证据。',
+      conclusion: '结论。',
+    }
+    expect(validateTemplateDraft({ sections: [{ id: 'grounds-body', grounds: [item] }] }, schema).sections)
+      .toEqual([{ id: 'grounds-body', grounds: [item] }])
+
+    // 权项号去重升序：重复与乱序写法归一为同一份已校验值。
+    const shuffled = { ...item, claimNos: [2, 1, 2] }
+    expect(validateTemplateDraft({ sections: [{ id: 'grounds-body', grounds: [shuffled] }] }, schema).sections)
+      .toEqual([{ id: 'grounds-body', grounds: [item] }])
+
+    const base = { sections: [{ id: 'grounds-body', grounds: [item] }] }
+    expectTemplateViolation({ ...base, sections: [{ id: 'grounds-body', grounds: [] }] }, schema, '至少一项')
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', grounds: [{ ...item, article: '' }] }] },
+      schema,
+      'article 为空',
+    )
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', grounds: [{ ...item, claimNos: [0] }] }] },
+      schema,
+      '必须是 ≥1 的整数',
+    )
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', grounds: [{ ...item, claimNos: [] }] }] },
+      schema,
+      '至少一个权利要求序号',
+    )
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', grounds: [{ ...item, claimNos: undefined }] }] },
+      schema,
+      'claimNos 缺失',
+    )
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', grounds: [{ ...item, facts: '  ' }] }] },
+      schema,
+      'facts 为空',
+    )
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', blocks: [{ kind: 'paragraph', text: 'x' }] }] },
+      schema,
+      '无效理由槽位，不接受 blocks / rows',
+    )
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', rows: [['X']] }] },
+      schema,
+      '无效理由槽位，不接受 blocks / rows',
+    )
+  })
 })
 
 function expectTemplateViolation(input: unknown, ...fragments: string[]): void

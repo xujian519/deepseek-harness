@@ -1,5 +1,6 @@
-# 由 scripts/port-nuo-rules.ts 从 XiaoNuo Agent patent-examination-rules.yaml 转换生成
-# 原始文件完整内容见 assets/patent-rules/patent-examination-rules.yaml（含 LLM 评估型规则与指导字段）
+# 本文件由 XiaoNuo Agent 的 patent-examination-rules.yaml 转换而来，现按本仓库直接维护：改动直接改本文件。
+# 转换脚本 scripts/port-nuo-rules.ts 与转换前的原始文件 assets/patent-rules/patent-examination-rules.yaml 均不在本仓库，
+# 内容的唯一事实源是本文件。
 # 转换语义: pattern_analysis(期望模式)→structural_analysis 单 element；severity warning→major；info→minor
 version: "1.0"
 rules:
@@ -159,7 +160,7 @@ rules:
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 专利法第26条第4款；审查指南第二部分第二章3.2.1
+    legalBasis: 专利法第26条第4款；审查指南第二部分第二章3.2.2
     check:
       type: keyword_blocklist
       keywords:
@@ -226,7 +227,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第三章3.2.1
+    legalBasis: 审查指南第二部分第三章3.2.2
     check:
       type: structural_analysis
       requiresAll:
@@ -244,7 +245,7 @@ rules:
     phase: post_execution
     severity: minor
     action: log
-    legalBasis: 审查指南第二部分第三章3.2.2
+    legalBasis: 审查指南第二部分第三章3.2.4
     check:
       type: structural_analysis
       requiresAll:
@@ -262,7 +263,7 @@ rules:
     phase: post_execution
     severity: minor
     action: log
-    legalBasis: 审查指南第二部分第三章5
+    legalBasis: 审查指南第二部分第三章3.2.5
     check:
       type: structural_analysis
       requiresAll:
@@ -343,7 +344,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第四章5.4
+    legalBasis: 审查指南第二部分第四章6.2
     check:
       type: keyword_blocklist
       keywords:
@@ -434,7 +435,7 @@ rules:
     phase: post_execution
     severity: minor
     action: log
-    legalBasis: 专利法实施细则第42条；审查指南第二部分第六章
+    legalBasis: 专利法实施细则第48条；审查指南第二部分第六章
     check:
       type: structural_analysis
       requiresAll:
@@ -451,7 +452,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第八章4
+    legalBasis: 审查指南第二部分第八章5.1
     check:
       type: structural_analysis
       requiresAll:

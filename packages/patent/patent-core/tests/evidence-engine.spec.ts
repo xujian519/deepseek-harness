@@ -9,7 +9,7 @@ import {
   createSpan,
   extractWaybackMachineDate,
   inferEvidenceType,
-  isBeforeFilingDate,
+  isBeforeReferenceDate,
   isMonthOnlyDate,
   isPreciseDate,
   loadEvidenceRulesEngine,
@@ -37,10 +37,13 @@ it('三性：完整证据（来源+哈希+版本+绑定+方向）三项高分', 
       direction: 'supporting',
       snippet: '原文',
     }),
+    undefined,
+    undefined,
+    { integrityVerified: true },
   )
   expect(j.relevanceJudgment!.score >= 0.85).toBeTruthy()
   expect(j.authenticityJudgment!.score >= 0.85).toBeTruthy()
-  expect(j.legalityJudgment!.score >= 0.85).toBeTruthy()
+  expect(j.legalityJudgment!.score >= 0.65).toBeTruthy()
   expect(j.flaggedIssues.length).toBe(0)
 })
 
@@ -50,8 +53,22 @@ it('三性：仅有摘录的证据评分低并标记问题', () => {
   expect(j.relevanceJudgment!.score < 0.85).toBeTruthy()
   expect(j.legalityJudgment!.score < 0.85).toBeTruthy()
   expect(j.authenticityJudgment!.score < 0.85).toBeTruthy()
-  // 无来源 URI → 合法性存疑（critical）
+  // 无来源 URI → 合法性存疑（critical）；未绑定结论 → 相关性存疑；不可定位 → 真实性无法核验
   expect(j.flaggedIssues.some(i => i.type === 'legality' && i.severity === 'critical')).toBeTruthy()
+  expect(j.flaggedIssues.some(i => i.type === 'relevance')).toBeTruthy()
+  expect(j.flaggedIssues.some(i => i.type === 'authenticity' && i.severity === 'critical')).toBeTruthy()
+})
+
+it('三性：自报哈希不加分，仅在独立核验后计入真实性', () => {
+  const engine = new EvidenceEngine()
+  const declared = engine.judge(span({ sourceUri: 'web:https://example.com', contentHash: 'x' }))
+  const verified = engine.judge(span({ sourceUri: 'web:https://example.com', contentHash: 'x' }), undefined, undefined, {
+    integrityVerified: true,
+  })
+  // 合法性只看来源记录：哈希与取证合法性无关，不作为加分项
+  expect(declared.legalityJudgment!.score).toBe(0.7)
+  expect(declared.authenticityJudgment!.score).toBe(0.5)
+  expect(verified.authenticityJudgment!.score).toBe(0.8)
 })
 
 // ---------------------------------------------------------------------------
@@ -76,15 +93,27 @@ it('互联网公开：平台可信度 + 日期 + 完整性 + 意图', () => {
       snippet: '公告',
       direction: 'supporting',
     }),
-    '2023-06-01',
+    { filingDate: '2023-06-01' },
   )
   const ts = j.typeSpecificJudgment!
   expect(ts.platformCredibility).toBe('high')
-  expect(ts.contentIntegrity).toBe('verified')
+  // 只有哈希串、未经独立核验 → 部分验证（不宣称 verified）
+  expect(ts.contentIntegrity).toBe('partial')
   expect(ts.publicIntent).toBe('public')
   expect(ts.dateDetermination?.determined).toBe('2023-01-15')
   expect(ts.dateDetermination?.reliability).toBe('high')
   expect(ts.dateDetermination?.isPriorArt).toBe(true) // 早于 2023-06-01 申请日
+})
+
+it('互联网公开：独立核验哈希后内容完整性为 verified', () => {
+  const engine = new EvidenceEngine()
+  const j = engine.judge(
+    span({ sourceUri: 'web_pub:https://www.cnipa.gov.cn/notice', contentHash: 'hash1', direction: 'supporting' }),
+    undefined,
+    undefined,
+    { integrityVerified: true },
+  )
+  expect(j.typeSpecificJudgment?.contentIntegrity).toBe('verified')
 })
 
 it('互联网公开：无日期时经 Wayback 存档日期提取', () => {
@@ -103,9 +132,33 @@ it('互联网公开：申请日之前的公开日构成现有技术', () => {
   const engine = new EvidenceEngine()
   const j = engine.judge(
     span({ sourceUri: 'web_pub:https://example.com', docVersion: '2022-12-01', direction: 'neutral' }),
-    '2023-06-01',
+    { filingDate: '2023-06-01' },
   )
   expect(j.typeSpecificJudgment?.dateDetermination?.isPriorArt).toBe(true)
+})
+
+it('现有技术基准：优先权日早于申请日时，晚于优先权日的公开不构成现有技术', () => {
+  const engine = new EvidenceEngine()
+  const j = engine.judge(
+    span({ sourceUri: 'web_pub:https://example.com', docVersion: '2023-03-01', direction: 'neutral' }),
+    { filingDate: '2023-06-01', priorityDate: '2023-01-15' },
+  )
+  const dd = j.typeSpecificJudgment?.dateDetermination
+  expect(dd?.referenceDate).toBe('2023-01-15')
+  expect(dd?.referenceBasis).toBe('priority-date')
+  // 公开日 2023-03-01 晚于优先权日 → 不构成现有技术（此前按申请日比较会误判为现有技术）
+  expect(dd?.isPriorArt).toBe(false)
+})
+
+it('现有技术基准：申请日早于优先权日时（同日申请/国内优先权异常记录）取申请日', () => {
+  const engine = new EvidenceEngine()
+  const j = engine.judge(
+    span({ sourceUri: 'web_pub:https://example.com', docVersion: '2023-02-01', direction: 'neutral' }),
+    { filingDate: '2023-01-15', priorityDate: '2023-06-01' },
+  )
+  const dd = j.typeSpecificJudgment?.dateDetermination
+  expect(dd?.referenceDate).toBe('2023-01-15')
+  expect(dd?.referenceBasis).toBe('filing-date')
 })
 
 it('使用公开：销售 + 无保密 → 四要件全部满足', () => {
@@ -195,10 +248,10 @@ it('isPreciseDate / isMonthOnlyDate 区分精度', () => {
   expect(isMonthOnlyDate('2023-01-02')).toBe(false)
 })
 
-it('isBeforeFilingDate：公开日早于申请日', () => {
-  expect(isBeforeFilingDate('2023-01-02', '2023-06-01')).toBe(true)
-  expect(isBeforeFilingDate('2023-07-01', '2023-06-01')).toBe(false)
-  expect(isBeforeFilingDate('', '2023-06-01')).toBe(false)
+it('isBeforeReferenceDate：公开日早于现有技术截止日', () => {
+  expect(isBeforeReferenceDate('2023-01-02', '2023-06-01')).toBe(true)
+  expect(isBeforeReferenceDate('2023-07-01', '2023-06-01')).toBe(false)
+  expect(isBeforeReferenceDate('', '2023-06-01')).toBe(false)
 })
 
 it('英文月份日期：精确解析且不被截为年-月（isPriorArt 不反转）', () => {
@@ -206,7 +259,7 @@ it('英文月份日期：精确解析且不被截为年-月（isPriorArt 不反�
   const engine = new EvidenceEngine()
   const j = engine.judge(
     span({ sourceUri: 'web_pub:https://example.com', docVersion: 'Jan 20, 2023', direction: 'neutral' }),
-    '2023-01-15',
+    { filingDate: '2023-01-15' },
   )
   // 英文精确日期被规范化为 ISO（2023-01-20），不再截为年-月（2023-01）
   expect(j.typeSpecificJudgment?.dateDetermination?.determined).toBe('2023-01-20')
@@ -280,9 +333,45 @@ it('证明标准：优势证据 — 支持与矛盾持平不达标', () => {
       snippet: 'x',
     }),
   )
-  const weak = engine.judge(span({ snippet: '无来源无哈希' }))
-  const result = engine.assessProofStandard([strong, weak], STANDARD_PREPONDERANCE)
+  // 反证按 direction 归类：低分的中性证据不再被当作反证
+  const contradicting = engine.judge(span({ snippet: '无来源无哈希', direction: 'contradicting' }))
+  const result = engine.assessProofStandard([strong, contradicting], STANDARD_PREPONDERANCE)
+  expect(result.supportingCount).toBe(1)
+  expect(result.contradictingCount).toBe(1)
   expect(result.met).toBe(false)
+})
+
+it('证明标准：中性证据不计入支持或反证', () => {
+  const engine = new EvidenceEngine()
+  const strong = engine.judge(
+    span({ sourceUri: 'web:https://www.cnipa.gov.cn', claimRefs: ['C1'], direction: 'supporting', snippet: 'x' }),
+  )
+  const neutral = engine.judge(span({ sourceUri: 'web:https://example.com', direction: 'neutral', snippet: 'y' }))
+  const result = engine.assessProofStandard([strong, neutral], STANDARD_PREPONDERANCE)
+  expect(result.supportingCount).toBe(1)
+  expect(result.contradictingCount).toBe(0)
+  expect(result.neutralCount).toBe(1)
+  expect(result.reasoning).toMatch(/中性 1 件/)
+})
+
+it('证明标准：高分反证不得计入支持方', () => {
+  const engine = new EvidenceEngine()
+  // 记录完备（高评分）但方向为反证：立场由 direction 决定，评分只表示记录完备度
+  const strongContradicting = engine.judge(
+    span({
+      sourceUri: 'web:https://www.cnipa.gov.cn',
+      docVersion: '2023-01-01',
+      contentHash: 'a',
+      claimRefs: ['C1'],
+      direction: 'contradicting',
+      snippet: 'x',
+    }),
+  )
+  const result = engine.assessProofStandard([strongContradicting], STANDARD_PREPONDERANCE)
+  expect(result.supportingCount).toBe(0)
+  expect(result.contradictingCount).toBe(1)
+  expect(result.met).toBe(false)
+  expect(result.gaps.some(g => g.includes('反证'))).toBeTruthy()
 })
 
 it('证明标准：高度盖然性 — 置信度 ≥0.7 且支持 > 2×矛盾', () => {

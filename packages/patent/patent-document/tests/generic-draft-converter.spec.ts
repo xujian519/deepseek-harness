@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { TemplateDraft } from '@deepseek-ai/dsh-patent-core'
 import { renderGenericTemplateSections } from '../src/document/draftConverter/index.ts'
+import { groundsSectionStyles } from '../src/document/draftSchema/generic.ts'
 import { readTemplateHtml } from '../src/document/templateResolver.ts'
 
 const OA_HTML = readTemplateHtml('oa-response')
+const INVALIDATION_HTML = readTemplateHtml('invalidation-opinion')
 
 function validatedDraft(): TemplateDraft {
   return {
@@ -36,6 +38,26 @@ describe('renderGenericTemplateSections', () => {
     // 占位行的 td 属性（居中列 class 等）随模板保留。
     expect(sections['amendment-table'] ?? '').toContain('<td>修改后</td>')
     expect(sections['amendment-table']?.match(/<tr/g)?.length).toBe(1)
+  })
+
+  it('grounds 槽位未给体例时按空前缀与缺省关系词渲染，给了体例则按模板声明渲染', () => {
+    const draft: TemplateDraft = {
+      sections: [{
+        id: 'grounds-body',
+        grounds: [{
+          article: 'A22.3',
+          ground: '创造性',
+          claimNos: [1],
+          facts: '事实。',
+          evidence: '证据。',
+          conclusion: '结论。',
+        }],
+      }],
+    }
+    const fallback = renderGenericTemplateSections(INVALIDATION_HTML, draft)
+    expect(fallback['grounds-body']).toContain('<h3>.1 权利要求 1 不具备创造性（A22.3）</h3>')
+    const styled = renderGenericTemplateSections(INVALIDATION_HTML, draft, groundsSectionStyles('invalidation-opinion'))
+    expect(styled['grounds-body']).toContain('<h3>4.1 权利要求 1 不具备创造性（A22.3）</h3>')
   })
 
   it('多个 rows 槽位各克隆各的行数', () => {

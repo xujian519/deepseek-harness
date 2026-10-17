@@ -87,7 +87,7 @@ kind: "package-reference"
 <a id="job-scopes"></a>
 ### 作业 scope
 
-`PATENT_CASE_DOMAINS` 把四个作业 scope——`patent-oa-response`、`patent-invalidation`、`patent-reexamination`、`patent-infringement`，名称取自四类作业 manifest，经 `rule_check` 工具对模型开放——映射到各自评估的规则 `domain` 列表。一个 scope 评估通用域（`patent`、`patent_general`）加上本作业的文书域与程序域，以及本作业必须答复或论证的条款所在的域。四者并集覆盖合并结果里的全部域，故任一资产域都有对应的作业入口。答复与复审共用一个域集合：复审理由表 = 无效理由表 + 实用新型客体缺陷，而该缺陷规则在通用域；无效不带答复实践域，侵权只带侵权域。`evaluateText` 的 `domain` 选项接受单个域或域列表。
+`PATENT_CASE_DOMAINS` 把作业 scope——`patent-oa-response`、`patent-invalidation`、`patent-invalidation-defense`、`patent-reexamination`、`patent-infringement`，名称取自作业 manifest，经 `rule_check` 工具对模型开放——映射到各自评估的规则 `domain` 列表。一个 scope 评估通用域（`patent`、`patent_general`）加上本作业的文书域与程序域，以及本作业必须答复或论证的条款所在的域。各 scope 并集覆盖合并结果里的全部域，故任一资产域都有对应的作业入口。答复、复审与无效答辩共用一个域集合：复审理由表 = 无效理由表 + 实用新型客体缺陷，而该缺陷规则在通用域，三者的交付文书又都是逐点回应对方主张、修改受 A33 限制。无效作业只在答辩侧带这个域集合：请求人侧不带答复实践域，因为该域规则是答复对方主张的，对请求书会误报。侵权只带侵权域。`evaluateText` 的 `domain` 选项接受单个域或域列表。
 
 <a id="configuration"></a>
 ## 配置
@@ -123,7 +123,7 @@ None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-01
 - **制品门禁无随包条目** — 本制品门禁不带任何 `structuralGate` 条目，因为本部署没有「入参即交付文书全文」的生产工具：`render_patent_document` 的入参是模板槽位片段，而模板本身已含固定措辞，按片段判缺失会报出渲染成品并不存在的缺陷。生产工具的入参就是文书全文时才启用。
 - **交付台账不跨恢复保留** — 台账保存在插件挂载内、以活动 agent 对象为键，故在新进程里恢复的会话从零开始，即使此前已跑过前置调用也会要求重跑。失败方向是多跑一次闸门，不是少跑。
 - **前置条件认「成功调用」而非「通过结论」** — 台账记录的是某工具未报错返回。`rule_check` 结果里报了违规、或 `patent_workflow_run` 停在人工确认门，都算满足；门禁强制的是这次闸门在本会话跑过，结论由交付报告承载供人核阅。
-- **指南引用是自由文本** — `legalBasis` 原样进入输出，没有任何环节解析它，故规则引的《专利审查指南》节号只与其转录来源一样正确；`tests/guideline-citations.spec.ts` 记下资产须守的编号写法和已按 2023 年修订版核对过的节，其余引用尚未核验。
+- **指南引用是自由文本** — `legalBasis` 原样进入输出，没有任何环节解析它，故规则引的《专利审查指南》节号只与其转录来源一样正确；`tests/guideline-citations.spec.ts` 只守住节号的写法（带零段、例如「2.0」的不是节号）；节号是否在索引里、命题是否落在所引节及其子节内，分别由 patent-law 的 `guideline-citation-coverage.spec.ts` 与 `law_verify` 回答。
 
 ### 开发备注
 

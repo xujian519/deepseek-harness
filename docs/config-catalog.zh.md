@@ -3011,7 +3011,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-law`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-law/src/index.ts:91`](../packages/patent/patent-law/src/index.ts)
+- `source`: [`packages/patent/patent-law/src/index.ts:100`](../packages/patent/patent-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-law plugin configuration. */
@@ -3024,14 +3024,18 @@ export interface Config {
   cnlawSearchUrl: string
   /** Graph/case endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8001`. */
   cnlawGraphUrl: string
-  /** Treatment of a citation whose proposition a verified article does not support. */
+  /** Treatment of a citation whose proposition a verified article does not support, while another entry does. */
   onMismatch: CitationPolicy
+  /** Treatment of a citation whose proposition no entry of the law supports, so nothing here decides it. */
+  onUnmatched: CitationPolicy
   /** Treatment of a citation beyond a verified article ceiling. */
   onOutOfRange: CitationPolicy
   /** Treatment of a citation the index does not hold. */
   onNotIndexed: CitationPolicy
   /** Treatment of an indexed entry whose text has not been transcribed. */
   onUnverified: CitationPolicy
+  /** Share of a proposition's weighted character pairs an entry's text must carry before it supports the proposition. */
+  propositionSupport: number
 }
 
 /** How a decision is turned into a tool result. */

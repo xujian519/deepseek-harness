@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { type WorkflowManifest, type WorkflowStage } from '@deepseek-ai/dsh-patent-core'
+import {
+  LookupStageHandler,
+  compileSignal,
+  registerBuiltinAtoms,
+  signalMatches,
+  type WorkflowManifest,
+  type WorkflowStage,
+} from '@deepseek-ai/dsh-patent-core'
 import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 
 const manifestOf = (id: string): WorkflowManifest => {
@@ -57,7 +64,7 @@ describe('内置 manifest 的确定性原子接线', () => {
     }
   })
 
-  it('侵权比对：coverage 原子排在 claim-chart 之后、report 之前，不覆盖其它模式', () => {
+  it('侵权比对：coverage 原子排在 claim-chart 之后、report 之前', () => {
     expect(stageOf('patent_infringement_v1', 'coverage')?.atom).toBe('coverage')
     expect(indexOf('patent_infringement_v1', 'claim-chart')).toBeLessThan(
       indexOf('patent_infringement_v1', 'coverage'),
@@ -65,13 +72,16 @@ describe('内置 manifest 的确定性原子接线', () => {
     expect(indexOf('patent_infringement_v1', 'coverage')).toBeLessThan(
       indexOf('patent_infringement_v1', 'report'),
     )
-    // 其它四个作业不带 coverage：无效/复审/OA 答复/新颖性的覆盖判定口径不同（单独对比）。
-    for (const id of [
-      'patent_oa_response_v1',
-      'patent_invalidation_v1',
-      'patent_reexamination_v1',
-      'patent_novelty_v1',
-    ]) {
+    // OA 答复与新颖性不带 coverage：这两种作业没有对比文件侧的要素级网格可核验。
+    for (const id of ['patent_oa_response_v1', 'patent_novelty_v1']) {
+      expect(stageOf(id, 'coverage')).toBeUndefined()
+    }
+  })
+
+  it('无效与复审不带 coverage 阶段：单篇全覆盖结论由 claim-chart 阶段随图表给出', () => {
+    // 无效/复审的覆盖判定口径与侵权不同，且这两个 manifest 也由 recap 路径执行——recap 不
+    // 执行原子，多一个只能由原子产出的阶段会让每次 recap 运行都报未完成。
+    for (const id of ['patent_invalidation_v1', 'patent_reexamination_v1']) {
       expect(stageOf(id, 'coverage')).toBeUndefined()
     }
   })
@@ -131,5 +141,43 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
         expect(stage.atom).toBeUndefined()
       }
     }
+  })
+})
+
+describe('PFIE 一致性阶段：确定性原子与回退信号闭环', () => {
+  registerBuiltinAtoms()
+
+  it('consistency 交 pfe-consistency 原子，其主输出命中本阶段声明的回退信号', async () => {
+    const consistency = stageOf('patent_disclosure_v1', 'consistency')!
+    expect(consistency.atom).toBe('pfe-consistency')
+    const handler = LookupStageHandler('pfe-consistency')!
+    const out = await handler.execute({
+      state: { pfe_triples: [{ id: 'T1', problem: 'P1', features: [], effects: [] }] },
+    })
+    const signal = compileSignal(consistency.retry!.whenOutputMatches)
+    expect(signalMatches(String(out.pfe_consistency_summary), signal)).toBe(true)
+  })
+
+  it('承接完整时不触发回退（否则每轮都会白跑一次回退重做）', async () => {
+    const consistency = stageOf('patent_disclosure_v1', 'consistency')!
+    const handler = LookupStageHandler('pfe-consistency')!
+    const out = await handler.execute({
+      state: { pfe_triples: [{ id: 'T1', problem: '如何在装配后定位', features: ['F1'], effects: ['E1'] }] },
+    })
+    const signal = compileSignal(consistency.retry!.whenOutputMatches)
+    expect(signalMatches(String(out.pfe_consistency_summary), signal)).toBe(false)
+  })
+
+  it('extract_insight 在 merge 之前，且回退目标 extract_problem 在它之前（回退后四元组整体重算）', () => {
+    expect(indexOf('patent_disclosure_v1', 'extract_insight')).toBeLessThan(
+      indexOf('patent_disclosure_v1', 'merge'),
+    )
+    expect(indexOf('patent_disclosure_v1', 'extract_problem')).toBeLessThan(
+      indexOf('patent_disclosure_v1', 'extract_insight'),
+    )
+  })
+
+  it('consistency 声明 atom 时不再声明 consumes（原子直接读 state，consumes 会是死数据）', () => {
+    expect(stageOf('patent_disclosure_v1', 'consistency')?.consumes).toBeUndefined()
   })
 })

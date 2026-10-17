@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 8c00ad251280ae88
-  zh: 51c1f5bd222e353a
+  en: d8f8c4489577df6e
+  zh: 50fd445cfa297ce7
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -351,7 +351,7 @@
   en: 5eacdbb5b0b8fd84
   zh: e7ef3ab4b21fd08f
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/claim-chart-build:
-  en: 42a1a5b55c39608d
+  en: afdeb7e483781e13
   zh: 618a6ea9b4a08a0b
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/draft-claims:
   en: c8432c6a61c45bda
@@ -375,7 +375,7 @@
   en: 1b6d123015df161f
   zh: cfc5be2cab864355
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/law-search:
-  en: 247b6134600cb509
+  en: cb83fd8f313c9fef
   zh: b6fefd313659f708
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/matter-log-append:
   en: 16efd1198beec321
@@ -426,8 +426,8 @@
   en: d23cf293a4051b66
   zh: 1d8fbb3adc4c7be1
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/rule-check:
-  en: 49990b3e810053ec
-  zh: 842505eb5468b6c2
+  en: d15eaddd30992033
+  zh: 05454bd07dbfa803
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/search-patent-figure:
   en: e952950dd3a02826
   zh: ecc3c6b0f7b1df69
@@ -447,7 +447,7 @@
   en: 5ad102b013042c68
   zh: 5ad102b013042c68
 /tool-schema-catalog/deepseek-ai-dsh-patent-document/render-patent-document:
-  en: 60c12c62cfa5cb35
+  en: 784ededfe0990b91
   zh: f5790616a022b01d
 /tool-schema-catalog/deepseek-ai-dsh-patent-document/verify-deliverable:
   en: ce967cb10057f426
@@ -465,7 +465,7 @@
   en: ba0d1ad10812e2db
   zh: ba0d1ad10812e2db
 /tool-schema-catalog/deepseek-ai-dsh-patent-deadline/patent-deadlines:
-  en: 049eecfbf49202ef
+  en: 3e6d3cff43c37196
   zh: 6499881ca2f6ae30
 /tool-schema-catalog/deepseek-ai-dsh-patent-fees:
   en: e97c71632d45c9e8
@@ -477,8 +477,8 @@
   en: b645c1bf635769c1
   zh: b645c1bf635769c1
 /tool-schema-catalog/deepseek-ai-dsh-patent-law/law-verify:
-  en: 0e92b069b6ebc401
-  zh: 67fd40c005d8a24e
+  en: 838bd35baebab6d2
+  zh: e2afedb4bc974a0f
 /tool-schema-catalog/deepseek-ai-dsh-writing-patterns:
   en: 8ab26b9ce6684b46
   zh: 8ab26b9ce6684b46

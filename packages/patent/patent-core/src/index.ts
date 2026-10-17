@@ -50,6 +50,7 @@ export {
 } from './draft/index.ts'
 export type {
   DraftBlock,
+  DraftGroundItem,
   NumberedFigureDescription,
   SpecDraft,
   SpecDraftMeta,

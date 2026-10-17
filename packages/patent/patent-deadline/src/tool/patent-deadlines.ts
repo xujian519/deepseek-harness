@@ -64,6 +64,8 @@ export type PatentDeadlinesInput = {
   isPctNationalPhase?: boolean
   authorizationPublicationDate?: string
   marketingApprovalDate?: string
+  /** Date the invalidation request was filed (提出无效宣告请求之日). */
+  invalidationRequestDate?: string
   notices?: PatentDeadlinesNoticeInput[]
   /** `apply` (default) rolls an end date off a rest day; `omit` reports the period's own end date. */
   restDayRule?: RestDayRule
@@ -91,7 +93,7 @@ export type PatentDeadlinesToolOptions = {
 }
 
 const DESCRIPTION = [
-  '- Computes the Chinese patent statutory and designated deadlines of one case: priority window and its restoration, priority-claim addition/correction, application fee, substantive-examination request, voluntary amendment, registration and divisional filing, patent term, annual fees with the six-month surcharge window, PCT national-phase entry, reexamination, office-action and invalidation responses, and term-compensation requests.',
+  '- Computes the Chinese patent statutory and designated deadlines of one case: priority window and its restoration, priority-claim addition/correction, application fee, substantive-examination request, voluntary amendment, registration and divisional filing, patent term, annual fees with the six-month surcharge window, PCT national-phase entry, the invalidation period for adding grounds or evidence, reexamination, office-action and invalidation responses, and term-compensation requests.',
   '- Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.',
   '- Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to "omit" for the un-rolled criterion, which reports each period\'s own end date; both dates are always returned, with rawDueDate holding the un-rolled one.',
   '- Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.',
@@ -203,6 +205,7 @@ export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): 
       isPctNationalPhase: { type: 'boolean', description: 'Whether the case is a PCT application entering the Chinese national phase' },
       authorizationPublicationDate: { ...DATE, description: 'Grant publication date (授权公告日)' },
       marketingApprovalDate: { ...DATE, description: 'Date the drug obtained marketing approval in China' },
+      invalidationRequestDate: { ...DATE, description: 'Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence' },
       notices: { type: 'array', items: NOTICE_SCHEMA, description: 'Notices received, with their delivery' },
       restDayRule: {
         type: 'string',
@@ -282,6 +285,9 @@ function toQuery(args: PatentDeadlinesInput, today: CalendarDate): DeadlineQuery
         : {}),
       ...(args.marketingApprovalDate !== undefined
         ? { marketingApprovalDate: parseDate(args.marketingApprovalDate, 'marketingApprovalDate') }
+        : {}),
+      ...(args.invalidationRequestDate !== undefined
+        ? { invalidationRequestDate: parseDate(args.invalidationRequestDate, 'invalidationRequestDate') }
         : {}),
       ...(args.notices !== undefined ? { notices: args.notices.map(toNotice) } : {}),
       ...(args.restDayRule !== undefined ? { restDayRule: args.restDayRule } : {}),

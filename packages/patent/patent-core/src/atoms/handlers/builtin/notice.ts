@@ -92,13 +92,16 @@ function isGroundProgram(value: string): value is GroundProgram {
 const NO_GROUND_SUMMARY = '未识别到具体法条依据（须人工判读文书是否援引理由）'
 
 /**
- * 渲染理由摘要：逐条给出中文标签与法条依据。
+ * 渲染理由摘要：逐条给出中文标签、法条依据与命中的原文片段。
+ *
+ * 片段随摘要一起给出，是因为关键词表只能回答"文中提到了该条款"；把命中处摆在同一条里，
+ * 判读"是否被实质论证"时不必再回原文定位。
  * @param findings - 识别到的理由。
  * @returns 逐条摘要文本；未识别到理由时返回明示文案。
  */
 function summarizeGrounds(findings: readonly GroundFinding<string>[]): string {
   if (findings.length === 0) return NO_GROUND_SUMMARY
-  return findings.map(finding => `${finding.label}（${finding.article}）`).join('、')
+  return findings.map(finding => `${finding.label}（${finding.article}）：「${finding.matched}」`).join('、')
 }
 
 /** grounds 执行器：按程序类型识别法定理由（复审另判专利权类型）。 */

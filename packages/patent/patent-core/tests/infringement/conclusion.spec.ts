@@ -29,6 +29,7 @@ function chart(rows: readonly ChartRow[], targets: readonly ChartTarget[]): Clai
     caseId: 'case-1',
     elements: [element('1a'), element('1b')],
     claimNos: [1],
+    claims: [{ claimNo: 1, claimType: 'independent', refersTo: [] }],
     targets: [...targets],
     rows: [...rows],
     gaps: [],

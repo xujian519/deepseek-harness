@@ -630,3 +630,76 @@ describe('patent preset delivery rows', () => {
     }
   })
 })
+
+/**
+ * `presets/patent.md` names every skill the preset ships, and its count folds
+ * into the prose a reader uses to size the delivery surface. The list and the
+ * directory drifted apart once when a skill was added, so this case holds the
+ * two together: an added, dropped, or renamed skill, or a count left at the old
+ * number, fails here instead of shipping a guide that names a skill the loader
+ * cannot find. The English count (`Sixteen skills ship …`) is prose the pairing
+ * check covers with the rest of the guide, not a number this case can read back.
+ */
+describe('patent preset skill list', () => {
+  /** The skill names `presets/patent.md` lists under its `## Skills` heading, in order. */
+  function listedSkills(): string[] {
+    const guide = readFileSync(join(REPO_ROOT, 'packages/bundle/web-app/presets/patent.md'), 'utf8')
+    const start = guide.indexOf('\n## Skills\n')
+    const end = guide.indexOf('\n## ', start + 1)
+    const section = guide.slice(start, end === -1 ? undefined : end)
+    return [...section.matchAll(/^- ([\w-]+)$/gmu)].map(match => match[1] ?? '')
+  }
+
+  /** The skill names the preset's skill directory ships. */
+  function shippedSkills(): string[] {
+    return globSync('*/SKILL.md', { cwd: PATENT_SKILLS }).map(relative => relative.replace(/[\\/]SKILL\.md$/u, ''))
+  }
+
+  /** Every name on one side of the comparison and not the other, as reported lines. */
+  function skillListMismatches(listed: readonly string[], shipped: readonly string[]): string[] {
+    const onDisk = new Set(shipped)
+    const inGuide = new Set(listed)
+    return [
+      ...[...inGuide].filter(name => !onDisk.has(name)).map(name => `指南列出但目录没有：${name}`),
+      ...[...onDisk].filter(name => !inGuide.has(name)).map(name => `目录有但指南未列：${name}`),
+    ]
+  }
+
+  it('lists exactly the skills the directory ships', () => {
+    expect(shippedSkills().length).toBeGreaterThan(0)
+    expect(skillListMismatches(listedSkills(), shippedSkills())).toEqual([])
+  })
+
+  it('reports a name on either side alone', () => {
+    // The case above passes on any list only if the comparison can fail.
+    expect(skillListMismatches(['patent-ghost'], ['patent-invalidity'])).toEqual([
+      '指南列出但目录没有：patent-ghost',
+      '目录有但指南未列：patent-invalidity',
+    ])
+  })
+
+  it('states that count wherever the Chinese guide gives one', () => {
+    const chinese = readFileSync(join(REPO_ROOT, 'packages/bundle/web-app/presets/patent.zh.md'), 'utf8')
+    const stated = [...chinese.matchAll(/(\d+) 个技能/gu)].map(match => Number(match[1]))
+    expect(stated.length).toBeGreaterThan(0)
+    expect(stated).toEqual(stated.map(() => listedSkills().length))
+  })
+
+  it('每个技能的 frontmatter 可解析且 name 与目录同名', () => {
+    // A file the loader cannot parse is skipped with a log line, not an error, so a
+    // skill whose frontmatter broke would be listed by the guide above and absent from
+    // the session. The provider keys a skill by its declared `name`, which is why the
+    // directory name is the thing to hold it to.
+    const parsed = shippedSkills().map((skill) => {
+      const file = readFileSync(join(PATENT_SKILLS, skill, 'SKILL.md'), 'utf8')
+      const frontmatter = /^---\n([\s\S]*?)\n---\n/u.exec(file)?.[1]
+      expect(frontmatter, `${skill}/SKILL.md 缺少 frontmatter`).toBeDefined()
+      const fields = yaml.load(frontmatter ?? '') as { name?: unknown; description?: unknown }
+      return { skill, name: fields.name, description: fields.description }
+    })
+    expect(parsed.filter(entry => entry.name !== entry.skill).map(entry => `${entry.skill} → ${String(entry.name)}`)).toEqual([])
+    expect(parsed
+      .filter(entry => typeof entry.description !== 'string' || entry.description.trim() === '')
+      .map(entry => entry.skill)).toEqual([])
+  })
+})

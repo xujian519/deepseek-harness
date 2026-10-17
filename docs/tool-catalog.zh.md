@@ -59,7 +59,7 @@
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计。 |
-| `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`、`tool/result` | - | law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行。 |
+| `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`、`tool/result` | - | law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行，没有任何条目承载的命题报「未判定」而不是「不符」。指南引用按整节判定：命题由所引节的子节承载即成立，只登记到部分或章一级的条目由其下各节判定。 |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task`, `patent_teams_wait` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-working-directory` | `working_directory` | `ctx.tools`、`ctx.workingDirectory` | `tool/call`、`working-directory/change`、`user context for directory changes`、`tool/result` | - | 读取或更改调用方 Session 的目录。既有的 shell 与进程保留各自目录；来源元数据与权限根保持不变。 |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | `create_worktree` | `ctx.tools`、`ctx.worktrees`、`a calling Agent` | `tool/call`、`Git branch and checkout`、`working-directory/change`、`tool/result` | - | 仅在显式实验性组合中启用。从固定的本地提交创建新分支与检出（受既有写权限约束），随后更改 Session 目录。离开时保留分支与检出。 |
@@ -3324,6 +3324,10 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
       "type": "string",
       "description": "专利申请日（公开日是否早于申请日）。"
     },
+    "priorityDate": {
+      "type": "string",
+      "description": "优先权日。有优先权的，现有技术截止日取申请日与优先权日中较早者（专利法第22条第5款）。"
+    },
     "caseType": {
       "type": "string",
       "description": "案件类型：invalidation / infringement / new_product_method。"
@@ -3455,7 +3459,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
           },
           "params": {
             "type": "object",
@@ -3513,7 +3517,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
         },
         "params": {
           "type": "object",
@@ -5833,7 +5837,7 @@ Usage notes:
 
 ### `rule_check`
 
-对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。手头已有通知书正文时，作业 scope 还可传 notice=通知书正文：两条双输入规则（PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用）随该通知书一并评估答复；未提供 notice 时，这两条在结果中显式列为未评估。每条结果末尾的「评估输入」给出本次实际读到的文本的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
+对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-invalidation-defense / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域；无效作业分请求人侧与答辩侧两个入口，答辩侧含答复实践域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。手头已有通知书正文时，作业 scope 还可传 notice=通知书正文：两条双输入规则（PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用）随该通知书一并评估答复；未提供 notice 时，这两条在结果中显式列为未评估。每条结果末尾的「评估输入」给出本次实际读到的文本的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
 
 ```json
 {
@@ -5845,7 +5849,7 @@ Usage notes:
     },
     "scope": {
       "type": "string",
-      "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
+      "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
     },
     "notice": {
       "type": "string",
@@ -6191,6 +6195,8 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
         "oa-response",
         "claims-spec",
         "invalidation-opinion",
+        "invalidation-analysis",
+        "invalidation-defense",
         "rectification-response",
         "re-examination-request",
         "infringement-opinion",
@@ -6222,7 +6228,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
     },
     "draft": {
       "type": "object",
-      "description": "Controlled draft (structured JSON). All eleven templates accept draft. The claims-spec template takes the SpecDraft structure: meta (caseNumber, printed in the masthead number line and the footer, plus title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, optional abstractFigure (the 1-based figure number printed as the abstract figure, default 1, at most the figureFiles count), and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks; the drawingDescriptions part is a list with exactly one item per figure (a paragraph or table block there adds no figure entry); tables are allowed only in embodiment and are captioned automatically. The eight document templates (patentability-opinion, search-report, oa-response, invalidation-opinion, rectification-response, re-examination-request, infringement-opinion, litigation-pleading) take id-keyed drafts: fields fill leaf text slots (meta, footer, and other single-line slots), and sections carry blocks (paragraph/list/table, table captions generated and numbered continuously) or rows (equal-width string arrays cloned into the template table body); the masthead number line (doc-number) and the footer number (footer-case) are draft-supplied slots, so the rendered document carries no template-invented document number. The form templates right-evaluation-report and search-report-form take the form draft: fields (text slots filled into .fill spans, and choice slots given as the selected option id, or an array of ids for multi-select groups), plus sections as either blocks (paragraph/list, rendered one line per paragraph or item) or rows (equal-width string arrays for the related-documents and search-round tables). Headings, claim numbers, figure numbers, table captions, and checkbox states are generated from the structure, never authored. Unknown or missing slots fail validation with the slot list; draft is required for every template, and the legacy sections innerHTML parameter is gone.",
+      "description": "Controlled draft (structured JSON). All thirteen templates accept draft. The claims-spec template takes the SpecDraft structure: meta (caseNumber, printed in the masthead number line and the footer, plus title/applicant/inventor/agent/date), claims (unnumbered, one per item), abstract (one paragraph per item), figureFiles, optional abstractFigure (the 1-based figure number printed as the abstract figure, default 1, at most the figureFiles count), and sections with the five specification parts (technicalField/background/summary/drawingDescriptions/embodiment) as paragraph/list/table blocks; the drawingDescriptions part is a list with exactly one item per figure (a paragraph or table block there adds no figure entry); tables are allowed only in embodiment and are captioned automatically. The ten document templates (patentability-opinion, search-report, oa-response, invalidation-opinion, invalidation-analysis, invalidation-defense, rectification-response, re-examination-request, infringement-opinion, litigation-pleading) take id-keyed drafts: fields fill leaf text slots (meta, footer, and other single-line slots), and sections carry blocks (paragraph/list/table, table captions generated and numbered continuously), rows (equal-width string arrays cloned into the template table body) or grounds (invalidation reason items: article, ground, claimNos, facts, evidence, conclusion; the section heading and the four-part sub-headings are generated from those fields). The masthead number line (doc-number) and the footer number (footer-case) are draft-supplied slots, so the rendered document carries no template-invented document number. The form templates right-evaluation-report and search-report-form take the form draft: fields (text slots filled into .fill spans, and choice slots given as the selected option id, or an array of ids for multi-select groups), plus sections as either blocks (paragraph/list, rendered one line per paragraph or item) or rows (equal-width string arrays for the related-documents and search-round tables). Headings, claim numbers, figure numbers, table captions, and checkbox states are generated from the structure, never authored. Unknown or missing slots fail validation with the slot list; draft is required for every template, and the legacy sections innerHTML parameter is gone.",
       "additionalProperties": true
     },
     "brand": {
@@ -6451,6 +6457,10 @@ build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附�
       "type": "string",
       "description": "Date the drug obtained marketing approval in China"
     },
+    "invalidationRequestDate": {
+      "type": "string",
+      "description": "Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence"
+    },
     "notices": {
       "type": "array",
       "description": "Notices received, with their delivery",
@@ -6651,9 +6661,9 @@ patent_fees 按本包随包的费用索引为一件中国专利案件计价：�
 ### `law_verify`
 
 - 按本次部署随包的法规索引核验法条引用：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。
-- 每条引用的判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）。判定绝不把没核验的报成已核验：已索引但条文未转录的条目报「未核验」，超出上限、而该上限本身尚未核验的条号同样报「未核验」。
+- 每条引用的判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）。判定绝不把没核验的报成已核验：已索引但条文未转录的条目报「未核验」，超出上限、而该上限本身尚未核验的条号同样报「未核验」。
 - 传入要核验引用的文本（引用从中抽取），或直接传入确切的引用。不是恰好一条引用的输入是工具错误，因此笔误会被暴露而不是被跳过。
-- 当某条引用用于支撑某个具体命题时传入 proposition：主题词不支撑该命题的条目会报「与所引命题不符」。
+- 当某条引用用于支撑某个具体命题时传入 proposition。所引条目必须承载该命题：或它声明的主题词点到该命题，或它的转录文本包含该命题的措辞。「与所引命题不符」意指同一法律的另一条目承载了该命题（理由里点名那一条），「未与条文对应（未判定）」意指没有任何条目承载它，于是本索引判定不了，须由人判。
 - 本工具核验的是引用形式与索引收录，不是法条原文的内容正确性：索引只有在人工记录转录来源之后才带有条文文本。判为「未核验」的条文在依赖之前仍须对照官方来源（patent_case_search / cnlaw / 用 web_fetch 打开官方页面）核验。
 
 使用说明：
@@ -6685,7 +6695,7 @@ patent_fees 按本包随包的费用索引为一件中国专利案件计价：�
 
 来源：[`packages/patent/patent-law/src/index.ts`](../packages/patent/patent-law/src/index.ts)
 
-law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行。
+law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行，没有任何条目承载的命题报「未判定」而不是「不符」。指南引用按整节判定：命题由所引节的子节承载即成立，只登记到部分或章一级的条目由其下各节判定。
 
 <a id="deepseek-aidsh-writing-patterns"></a>
 

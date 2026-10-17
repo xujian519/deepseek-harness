@@ -405,11 +405,12 @@ it('store：loadClaimChart 缺失/损坏与 renderChartMarkdown 兜底', () => {
       chartId: 'x', mode: 'invalidity', caseId: 'c',
       elements: [{ id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' }],
       targets: [], claimNos: [1],
+      claims: [],
       rows: [{
         elementId: '9z', targetId: 'D1', quote: 'q', pinCite: '[D1 段[1]]',
         mapping: 'literal', state: 'literal', verified: false,
       }],
-      gaps: [{ elementId: '9z', targetId: 'D1', mapping: 'literal', reason: 'r', suggestion: 's' }],
+      gaps: [{ elementId: '9z', targetId: 'D1', kind: 'partial', reason: 'r', suggestion: 's' }],
       draftNotice: '免责',
     }
     const md = renderChartMarkdown(chart)

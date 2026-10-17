@@ -42,7 +42,7 @@
       "cordis.patch.yml": "128bdee840",
       "document.patch.yml": "07fef4f229",
       "minimal.patch.yml": "cc5f870f42",
-      "patent.patch.yml": "862e1a0c53",
+      "patent.patch.yml": "18df82b9d5",
       "ptc.patch.yml": "b5a7fe963b",
       "standard.patch.yml": "3255d0a919"
     },
@@ -137,7 +137,7 @@
     "tool-schedule": {
       "cordis.patch.yml": "6da634189a",
       "document.patch.yml": "fe81d76ef6",
-      "patent.patch.yml": "cf7914fc59",
+      "patent.patch.yml": "15286858fe",
       "ptc.patch.yml": "6da634189a",
       "standard.patch.yml": "6da634189a"
     },

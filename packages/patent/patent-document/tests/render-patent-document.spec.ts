@@ -431,6 +431,29 @@ describe('renderPatentDocument', () => {
     }
   })
 
+  it('warns on evidence ids the body cites but the evidence list does not register', async () => {
+    const dir = makeTempDir()
+    try {
+      renderMocks.craftedTemplate = '<html><head></head><body><h2>一、总体立场</h2><p>D2 公开了 F1。</p>'
+        + '<section aria-label="证据清单"><table><tbody><tr><td>D1</td></tr></tbody></table></section></body></html>'
+      const result = await renderPatentDocument(
+        {
+          template: 'patentability-opinion',
+          outputName: 'evidence-mismatch',
+          outputDir: dir,
+          format: 'html',
+          templateDraft: { sections: [] },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      expect(result.warnings?.join(' ')).toContain('「D2」未登记在证据清单')
+    } finally {
+      renderMocks.craftedTemplate = undefined
+      cleanup(dir)
+    }
+  })
+
   it('fails closed on an illegal case id', async () => {
     const dir = makeTempDir()
     try {

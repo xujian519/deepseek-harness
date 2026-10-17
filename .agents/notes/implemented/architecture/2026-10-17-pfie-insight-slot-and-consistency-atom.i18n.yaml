@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-17-pfie-insight-slot-and-consistency-atom.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-17-pfie-insight-slot-and-consistency-atom.md
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom:
+  en: 94527dfabac966d7
+  zh: 411c89ed40d28be5
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom/problem:
+  en: cc5e59cd50eccb64
+  zh: 984b2ddfe17e1397
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom/decision:
+  en: 4c0a6ebbf710920f
+  zh: 5e19d15f6a4f1573
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom/where-this-takes-effect:
+  en: 0ce3b7afdb911ef9
+  zh: b601b693e032fb92
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom/alternatives-considered:
+  en: 1e12fa7c0d08d95f
+  zh: 380a87b397266bf9
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom/consequences:
+  en: a3378c80c8edd59d
+  zh: cbdf49cdc82792ca
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom/testing:
+  en: d29673ed7fb1cd7d
+  zh: ab19751c5bec37a8
+/agent-note-an-insight-slot-in-the-disclosure-pipeline-and-a-deterministic-pfie-consistency-atom/deferred:
+  en: 3367c3323b8c7509
+  zh: 29eed5e001e22cc9

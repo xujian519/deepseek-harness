@@ -11,6 +11,7 @@ export {
   SPEC_PART_HEADINGS,
   SPEC_PART_ORDER,
   type DraftBlock,
+  type DraftGroundItem,
   type SpecDraft,
   type SpecDraftMeta,
   type SpecPartId,

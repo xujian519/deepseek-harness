@@ -9,6 +9,7 @@ import type { CitationPolicySet, LawBaseline, LawName } from '../src/types.ts'
 
 const POLICIES: CitationPolicySet = {
   mismatch: 'block',
+  unmatched: 'warn',
   outOfRange: 'block',
   notIndexed: 'warn',
   unverified: 'warn',
@@ -33,6 +34,21 @@ const verifiedIndex = new Map<LawName, LawBaseline>([['专利法', {
     verifiedOn: '2026-01-01',
   }],
   sections: [],
+}]])
+
+/** A baseline whose two articles are verified, so one proposition has a wrong home to be attributed to. */
+const twoArticleIndex = new Map<LawName, LawBaseline>([['专利法', {
+  ...verifiedIndex.get('专利法')!,
+  articles: [
+    ...verifiedIndex.get('专利法')!.articles,
+    {
+      article: 26,
+      topics: ['说明书充分公开'],
+      text: '说明书应当对发明或者实用新型作出清楚、完整的说明。',
+      sourceDoc: 'fixture',
+      verifiedOn: '2026-01-01',
+    },
+  ],
 }]])
 
 async function host(index = shipped, policies = POLICIES): Promise<Context> {
@@ -60,15 +76,21 @@ async function run(ctx: Context, args: unknown): Promise<LawVerifyOutput> {
 }
 
 describe('law_verify tool', () => {
-  it('decides the transcribed statute citation and reports the untranscribed guideline one', async () => {
+  it('decides a transcribed statute citation and a transcribed guideline citation alike', async () => {
     const value = await run(await host(), { text: '依据专利法第22条第3款与审查指南第二部分第四章3.2.1.1。' })
     expect(value.findings.map(finding => finding.raw)).toEqual(['专利法第22条第3款', '审查指南第二部分第四章3.2.1.1'])
-    expect(value.findings.map(finding => finding.decision)).toEqual(['valid', 'unverified'])
+    expect(value.findings.map(finding => finding.decision)).toEqual(['valid', 'valid'])
     expect(value.blocked).toBe(false)
-    expect(value.counts.valid).toBe(1)
-    expect(value.counts.unverified).toBe(1)
+    expect(value.counts.valid).toBe(2)
     expect(value.findings[0]).toMatchObject({ law: '专利法', article: 22, paragraph: 3 })
     expect(value.findings[1]).toMatchObject({ law: '专利审查指南', sectionPath: '第二部分第四章3.2.1.1' })
+  })
+
+  it('reports a guideline section whose indexed sections are not transcribed', async () => {
+    const value = await run(await host(), { references: ['审查指南第二部分第十章'] })
+    expect(value.findings[0]).toMatchObject({ decision: 'unverified', policy: 'warn' })
+    expect(value.blocked).toBe(false)
+    expect(value.counts.unverified).toBe(1)
   })
 
   it('accepts a citation the index has verified', async () => {
@@ -84,12 +106,23 @@ describe('law_verify tool', () => {
     expect(value.counts['out-of-range']).toBe(1)
   })
 
-  it('blocks a citation whose proposition the verified article does not support', async () => {
+  it('warns on a proposition no entry supports instead of blocking the citation', async () => {
     const value = await run(await host(verifiedIndex), {
       references: ['专利法第22条第3款'],
       proposition: '说明书充分公开',
     })
+    expect(value.findings[0]).toMatchObject({ decision: 'unmatched', policy: 'warn' })
+    expect(value.blocked).toBe(false)
+    expect(value.counts.unmatched).toBe(1)
+  })
+
+  it('blocks a proposition another verified article carries, and names it', async () => {
+    const value = await run(await host(twoArticleIndex), {
+      references: ['专利法第22条第3款'],
+      proposition: '说明书充分公开',
+    })
     expect(value.findings[0]).toMatchObject({ decision: 'mismatch', policy: 'block' })
+    expect(value.findings[0]?.reason).toContain('第 26 条')
     expect(value.blocked).toBe(true)
   })
 
@@ -109,7 +142,7 @@ describe('law_verify tool', () => {
 
   it('renders a decision table with the unverified warning', async () => {
     const ctx = await host()
-    const result = await execute(ctx, { text: '依据审查指南第二部分第四章3.2.1.1。' })
+    const result = await execute(ctx, { text: '依据审查指南第二部分第十章。' })
     expect(JSON.stringify(result.content)).toContain('| 引用 | 判定 | 处置 | 说明 |')
     expect(JSON.stringify(result.content)).toContain('存在未核验引用')
   })

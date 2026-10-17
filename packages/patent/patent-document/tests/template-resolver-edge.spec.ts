@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   DocumentRenderError,
   getTemplateRoot,
+  isInternalRecordTemplate,
   readTemplateManifest,
   resolveTemplate,
 } from '@deepseek-ai/dsh-patent-document'
@@ -99,8 +100,42 @@ describe('templateResolver fallback edges', () => {
     }
   })
 
+  it('reports a manifest without an internalRecords list', () => {
+    edgeFs.manifestBody = '{"templates":["claims-spec"]}'
+    try {
+      expect(() => readTemplateManifest()).toThrow(/manifest\.json 的 internalRecords 必须是字符串数组/)
+    } finally {
+      edgeFs.manifestBody = null
+    }
+  })
+
+  it('reports an internalRecords list holding a non-string entry', () => {
+    edgeFs.manifestBody = '{"templates":["claims-spec"],"internalRecords":[1]}'
+    try {
+      expect(() => readTemplateManifest()).toThrow(/manifest\.json 的 internalRecords 必须是字符串数组/)
+    } finally {
+      edgeFs.manifestBody = null
+    }
+  })
+
+  it('reports an internalRecords entry that is not a declared template', () => {
+    edgeFs.manifestBody = '{"templates":["claims-spec"],"internalRecords":["no-such-template"]}'
+    try {
+      expect(() => readTemplateManifest()).toThrow(/internalRecords 含未声明的模板 no-such-template/)
+    } finally {
+      edgeFs.manifestBody = null
+    }
+  })
+
   it('reuses the parsed manifest for the same path', () => {
     expect(readTemplateManifest()).toBe(readTemplateManifest())
+  })
+
+  it('marks the internal records template and no other', () => {
+    const manifest = readTemplateManifest()
+    expect(manifest.internalRecords).toEqual(['invalidation-analysis'])
+    expect(isInternalRecordTemplate('invalidation-analysis')).toBe(true)
+    expect(isInternalRecordTemplate('invalidation-opinion')).toBe(false)
   })
 
   it('resolves a template the manifest lists', () => {
@@ -120,7 +155,7 @@ describe('templateResolver fallback edges', () => {
   it('reports an empty available list when the manifest lists no template', async () => {
     // 同样需要一个未缓存的模块实例。
     vi.resetModules()
-    edgeFs.manifestBody = '{"templates":[]}'
+    edgeFs.manifestBody = '{"templates":[],"internalRecords":[]}'
     try {
       const fresh = await import('@deepseek-ai/dsh-patent-document')
       expect(() => fresh.resolveTemplate('patentability-opinion'))
@@ -134,7 +169,7 @@ describe('templateResolver fallback edges', () => {
   it('reports a template the manifest does not list', async () => {
     // 需要一个未缓存的模块实例：前面的用例已经缓存了真实 manifest。
     vi.resetModules()
-    edgeFs.manifestBody = '{"templates":["claims-spec"]}'
+    edgeFs.manifestBody = '{"templates":["claims-spec"],"internalRecords":[]}'
     try {
       const fresh = await import('@deepseek-ai/dsh-patent-document')
       expect(() => fresh.resolveTemplate('patentability-opinion'))

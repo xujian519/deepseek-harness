@@ -21,7 +21,9 @@ import {
   type ClaimElement,
 } from '../../../claim-chart/protocol/types.ts'
 import { validateElements } from '../../../claim-chart/runtime/element-validator.ts'
+import { deriveClaimRefs } from '../../../claim-chart/runtime/claim-refs.ts'
 import { validateRowMapping } from '../../../claim-chart/runtime/mapping-machine.ts'
+import { deriveInvalidityConclusion } from '../../../claim-chart/runtime/invalidity-conclusion.ts'
 import { detectGaps } from '../../../claim-chart/runtime/gap-detector.ts'
 import {
   validatePinCite,
@@ -355,7 +357,7 @@ export class ClaimChartHandler implements StageHandler {
       const rows = parsed.rows as ChartRow[]
       const errors = validateChart(elements, rows, targets, mode, claim, sourceCache)
       if (errors.length === 0) {
-        const gaps = detectGaps(rows)
+        const gaps = detectGaps(rows, elements, targets)
         // 落盘/核验按 mode 区分 chartId：同一 caseId 下不同场景（invalidity /
         // patentability / oa-response…）互不覆盖，verified 标记也不跨 mode 串扰。
         const chartId = `chart-${mode}`
@@ -379,10 +381,19 @@ export class ClaimChartHandler implements StageHandler {
           caseId: provider?.caseId ?? '',
           elements,
           claimNos: [...new Set(elements.map(el => el.claimNo))].sort((a, b) => a - b),
+          // 引用关系由权利要求原文推出（不由模型填报）：从属权项的比对对象是所引用权项的
+          // 全部技术特征与附加技术特征的组合，覆盖判定要用它。
+          claims: deriveClaimRefs(claim),
           targets,
           rows,
           gaps,
           draftNotice: DRAFT_NOTICE,
+        }
+        // 无效与复审另出确定性结论并随图表落盘：单篇全覆盖是"单篇对比文件是否公开权利要求
+        // 全部技术特征"的直接答案，由行级映射算出，不收模型给的结论（口径归
+        // invalidity-conclusion.ts）。结论作为图表的派生字段而不是独立阶段，见协议层注解。
+        if (mode === 'invalidity' || mode === 'reexamination') {
+          chart.invalidityConclusion = deriveInvalidityConclusion(chart)
         }
         const state: PipelineState = {
           claim_chart_doc: JSON.stringify(chart, null, 2),

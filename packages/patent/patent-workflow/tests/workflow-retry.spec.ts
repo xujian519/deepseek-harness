@@ -226,19 +226,25 @@ describe('workflow retry validation', () => {
   it('patentDisclosureManifest: structure and retry declarations are valid', () => {
     expect(() => { validateWorkflowManifest(patentDisclosureManifest) }).not.toThrow()
     expect(patentDisclosureManifest.id).toBe('patent_disclosure_v1')
-    expect(patentDisclosureManifest.stages).toHaveLength(14)
+    expect(patentDisclosureManifest.stages).toHaveLength(15)
     const consistency = patentDisclosureManifest.stages.find(s => s.id === 'consistency')!
     expect(consistency.retry?.rewindTo).toBe('extract_problem')
     expect(consistency.retry!.whenOutputMatches).toMatch(/不一致\|矛盾\|缺少\|孤立/)
+    // PFIE 一致性是确定性原子：结构与"问题是否绑定解决手段"都由 pfe-consistency 判定，
+    // 不再交给 executor 用自由文本自查。
+    expect(consistency.atom).toBe('pfe-consistency')
     const atoms = patentDisclosureManifest.stages.filter(s => s.atom !== undefined).map(s => s.atom)
     expect([...new Set(atoms)].sort()).toEqual([
-      'approval-gate', 'draft-claims', 'extract', 'groundedness', 'keywords', 'merge', 'novelty', 'search', 'slop-gate',
+      'approval-gate', 'draft-claims', 'extract', 'groundedness', 'keywords', 'merge', 'novelty', 'pfe-consistency',
+      'search', 'slop-gate',
     ])
     const extractStages = patentDisclosureManifest.stages.filter(s => s.id.startsWith('extract_'))
-    expect(extractStages).toHaveLength(3)
-    expect(extractStages.map(s => s.params?.output_key).sort()).toEqual(['effects', 'features', 'problems'])
+    expect(extractStages).toHaveLength(4)
+    expect(extractStages.map(s => s.params?.output_key).sort()).toEqual(['effects', 'features', 'insight', 'problems'])
     const ids = patentDisclosureManifest.stages.map(s => s.id)
-    expect(ids.indexOf('extract_effects') < ids.indexOf('merge')).toBe(true)
+    expect(ids.indexOf('extract_effects') < ids.indexOf('extract_insight')).toBe(true)
+    expect(ids.indexOf('extract_insight') < ids.indexOf('merge')).toBe(true)
+    expect(ids.indexOf('merge') < ids.indexOf('consistency')).toBe(true)
     expect(ids.indexOf('report') < ids.indexOf('review_gate')).toBe(true)
     expect(ids.indexOf('review_gate') < ids.indexOf('draft_claims')).toBe(true)
     expect(patentDisclosureManifest.stages.find(s => s.id === 'review_gate')?.atom).toBe('approval-gate')

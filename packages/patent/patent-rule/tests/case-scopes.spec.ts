@@ -8,12 +8,13 @@ import {
 } from '@deepseek-ai/dsh-patent-rule'
 
 /**
- * 作业 scope（四类作业的规则门）：域表覆盖性、越域排除与逐作业命中。
+ * 作业 scope（各类作业的规则门）：域表覆盖性、越域排除与逐作业命中。
  * 域表语义见 `src/runtime/patent-compliance.ts` 的 `PATENT_CASE_DOMAINS`。
  */
 const CASE_SCOPES: readonly PatentCaseScope[] = [
   'patent-oa-response',
   'patent-invalidation',
+  'patent-invalidation-defense',
   'patent-reexamination',
   'patent-infringement',
 ]
@@ -40,7 +41,7 @@ function evaluateScope(scope: PatentCaseScope, text: string): string[] {
 }
 
 describe('patent job scopes (PATENT_CASE_DOMAINS)', () => {
-  it('names exactly the four job scopes', () => {
+  it('names exactly the job scopes', () => {
     expect(Object.keys(PATENT_CASE_DOMAINS).sort()).toEqual([...CASE_SCOPES].sort())
   })
 
@@ -53,7 +54,7 @@ describe('patent job scopes (PATENT_CASE_DOMAINS)', () => {
     }
   })
 
-  it('covers every domain of the full asset set across the four scopes', () => {
+  it('covers every domain of the full asset set across the job scopes', () => {
     const scoped = new Set(Object.values(PATENT_CASE_DOMAINS).flat())
     const uncovered = [...new Set(full.ruleSet.rules.map(rule => rule.domain))].filter(
       domain => domain !== undefined && !scoped.has(domain),
@@ -87,8 +88,8 @@ describe('patent job scopes (PATENT_CASE_DOMAINS)', () => {
     expect(ids).not.toContain('CON-103')
   })
 
-  it('answer scopes keep the answer-practice domain, invalidation does not', () => {
-    for (const scope of ['patent-oa-response', 'patent-reexamination'] as const) {
+  it('answer scopes keep the answer-practice domain, the invalidation request does not', () => {
+    for (const scope of ['patent-oa-response', 'patent-reexamination', 'patent-invalidation-defense'] as const) {
       const ids = evaluateScope(scope, PROBE_TEXT)
       expect(ids, scope).toContain('CON-702')
       expect(ids, scope).not.toContain('LAW-TIMELIMIT-001')
@@ -100,7 +101,20 @@ describe('patent job scopes (PATENT_CASE_DOMAINS)', () => {
     expect(invalidation).not.toContain('LAW-TIMELIMIT-001')
   })
 
-  it('resolves only the four job scopes, not every caller string', () => {
+  it('the invalidation defense scope adds the answer-practice rules to the request scope', () => {
+    // 同一作业的两侧：答辩侧多出答复实践域（逐点回应、禁止计数式论证、重复引证），
+    // 因为那些规则的语义是答复对方主张，对请求书会误报。
+    const defense = PATENT_CASE_DOMAINS['patent-invalidation-defense']
+    const request = PATENT_CASE_DOMAINS['patent-invalidation']
+    expect(defense.filter(domain => !request.includes(domain))).toEqual(['patent_oa_response'])
+    expect(request.filter(domain => !defense.includes(domain))).toEqual([])
+    const ids = evaluateScope('patent-invalidation-defense', PROBE_TEXT)
+    expect(ids).toContain('CON-702')
+    expect(ids).toContain('P-NOV-001')
+    expect(evaluateScope('patent-invalidation', PROBE_TEXT)).toContain('P-NOV-001')
+  })
+
+  it('resolves only the job scopes, not every caller string', () => {
     for (const scope of CASE_SCOPES) expect(patentCaseDomains(scope)).toBe(PATENT_CASE_DOMAINS[scope])
     for (const other of ['patent', 'patent-electrical', 'patent-full', 'pack', '', 'bogus', 'toString', 'constructor']) {
       expect(patentCaseDomains(other), other).toBeUndefined()

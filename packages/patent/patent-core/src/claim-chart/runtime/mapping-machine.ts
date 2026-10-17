@@ -3,15 +3,28 @@
  * （新颖性单篇全覆盖、区别特征提取 —— 三步法第二步的输入）。
  */
 
-import type { ChartMode, ChartRow, ChartTarget, ClaimElement } from '../protocol/types.ts'
+import type { ChartMode, ChartRow, ChartTarget, ClaimElement, ClaimNoveltyCoverage, ClaimRef } from '../protocol/types.ts'
+import { referencedClosure } from './claim-refs.ts'
 
 const PRIOR_ART_ONLY = new Set(['anticipation', 'obviousness-combination'])
 const COVERED_MAPPINGS = new Set(['literal', 'anticipation', 'literal-construction-dependent'])
-const DISTINGUISHING_MAPPINGS = new Set(['not-found', 'needs-evidence'])
 
 /** 过滤 targetId + mapping 集合命中的行，返回要素 id 列表。 */
-function mappedElementIds(rows: ChartRow[], targetId: string, mappings: Set<string>): string[] {
+function mappedElementIds(rows: readonly ChartRow[], targetId: string, mappings: ReadonlySet<string>): string[] {
   return rows.filter(r => r.targetId === targetId && mappings.has(r.mapping)).map(r => r.elementId)
+}
+
+/**
+ * 该要素是否已被指定的一篇公开（原文相同，或原文相同但结论依赖权利要求解释）。
+ *
+ * 新颖性、从属权项路径检查与区别特征提取共用这一条覆盖口径，避免三处各写一份映射集合。
+ * @param rows - 映射行列表。
+ * @param targetId - 对比文件目标 id。
+ * @param elementId - 要素 id。
+ * @returns 是否已覆盖。
+ */
+export function isElementCovered(rows: readonly ChartRow[], targetId: string, elementId: string): boolean {
+  return rows.some(row => row.targetId === targetId && row.elementId === elementId && COVERED_MAPPINGS.has(row.mapping))
 }
 
 /**
@@ -40,27 +53,66 @@ export function validateRowMapping(row: ChartRow, target: ChartTarget | undefine
  * @returns 覆盖结果：covered 是否全覆盖，missing 为未覆盖要素 id 列表。
  */
 export function deriveNoveltyCoverage(
-  rows: ChartRow[],
+  rows: readonly ChartRow[],
   targetId: string,
-  elements: ClaimElement[],
+  elements: readonly ClaimElement[],
 ): { covered: boolean; missing: string[] } {
   const coveredIds = new Set(mappedElementIds(rows, targetId, COVERED_MAPPINGS))
   const missing = elements.filter(el => !coveredIds.has(el.id)).map(el => el.id)
   return { covered: missing.length === 0, missing }
 }
 
+/** 单条权利要求在一篇对比文件上的单篇全覆盖判定（契约见协议层）。 */
+export type { ClaimNoveltyCoverage } from '../protocol/types.ts'
+
 /**
- * 区别特征 = 主目标（D1）上未找到的要素（供三步法第二步与 draft-claims 规避布局）。
+ * 逐权利要求的单篇全覆盖判定：从属权项的比对对象是其全部要素与所引用权项全部要素的组合
+ * （从属权利要求的技术方案包含所引用权利要求的全部技术特征；本仓口径见
+ * `patent-document` 的 `templates/patent/invalidation-opinion/references/conventions.md` §2.1），
+ * 故覆盖判定须并入引用链上的要素。缺 `claims` 时按全部权项独立处理。
+ * @param rows - 映射行列表。
+ * @param targetId - 对比文件目标 id。
+ * @param elements - 权利要求要素列表。
+ * @param claims - 逐权项的引用关系；空数组表示引用关系未知（按独立处理）。
+ * @returns 逐权项的覆盖判定，按权项号升序。
+ */
+export function deriveNoveltyCoverageByClaim(
+  rows: readonly ChartRow[],
+  targetId: string,
+  elements: readonly ClaimElement[],
+  claims: readonly ClaimRef[] = [],
+): ClaimNoveltyCoverage[] {
+  const coveredIds = new Set(mappedElementIds(rows, targetId, COVERED_MAPPINGS))
+  const claimNos = [...new Set(elements.map(el => el.claimNo))].sort((a, b) => a - b)
+  return claimNos.map((claimNo) => {
+    const referredClaimNos = referencedClosure(claims, claimNo)
+    const scope = new Set([claimNo, ...referredClaimNos])
+    const missing = elements.filter(el => scope.has(el.claimNo) && !coveredIds.has(el.id)).map(el => el.id)
+    return {
+      claimNo,
+      covered: missing.length === 0,
+      missing,
+      includesReferredClaims: referredClaimNos.length > 0,
+      referredClaimNos,
+    }
+  })
+}
+
+/**
+ * 区别特征 = 主目标（D1）上未获覆盖的要素（供三步法第二步与 draft-claims 规避布局）。
+ *
+ * 与覆盖判定共用 {@link isElementCovered}：不仅 `not-found`／`needs-evidence`，`partial`、
+ * `construction-dependent` 与"该目标上根本没有映射行"都算未覆盖——区别特征是"主对比文件
+ * 是否公开了该要素"的补集，不是"映射行写了哪个词"。
  * @param rows - 映射行列表。
  * @param primaryTargetId - 主目标（D1）id。
  * @param elements - 权利要求要素列表。
- * @returns 区别特征要素 id 列表。
+ * @returns 区别特征要素 id 列表，按要素表序。
  */
 export function deriveDistinguishingFeatures(
-  rows: ChartRow[],
+  rows: readonly ChartRow[],
   primaryTargetId: string,
-  elements: ClaimElement[],
+  elements: readonly ClaimElement[],
 ): string[] {
-  const missing = new Set(mappedElementIds(rows, primaryTargetId, DISTINGUISHING_MAPPINGS))
-  return elements.filter(el => missing.has(el.id)).map(el => el.id)
+  return elements.filter(el => !isElementCovered(rows, primaryTargetId, el.id)).map(el => el.id)
 }

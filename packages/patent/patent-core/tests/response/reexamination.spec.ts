@@ -105,6 +105,7 @@ describe('buildReexaminationPreparation', () => {
       ground: 'novelty',
       article: '专利法第22条第2款',
       label: '新颖性缺陷',
+      matched: '不符合专利法第22条第2款',
     }
     const prep = buildReexaminationPreparation([finding, finding], { oralHearing: true })
     expect(prep.grounds).toEqual(['novelty'])

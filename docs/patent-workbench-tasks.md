@@ -144,7 +144,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 
 | 技能目录名 | 来源 | 职责与要点（摘自设计文档 §7.2） | 产物 |
 |---|---|---|---|
-| `patent-disclosure-understanding` | 新写 | 交底书结构化：PFE 三元组表（技术问题/技术特征标号化/技术效果）、发明点分级、隐含特征提示、与现有技术初步分界 | `03-分析/XX_交底书理解.md` |
+| `patent-disclosure-understanding` | 新写 | 交底书结构化：PFIE 四元组表（技术问题/发明认知/技术特征标号化/技术效果）、发明点分级、隐含特征提示、与现有技术初步分界 | `03-分析/XX_交底书理解.md` |
 | `patent-prior-art-search` | 新写 | 检索式构建（关键词+分类号+布尔）、检索面、结果落盘规范（`01-检索/`）、对比文件遴选与编号 D1/D2…、检索报告模板；硬规则"检索未覆盖→不得下新颖性结论" | `01-检索/YYYY-MM-DD_<主题>.md` |
 | `patent-novelty-inventiveness` | 改写自 Sati | 单独对比 + 三步法 + 逐特征比对表模板；工具替换为 web 检索 + 读对比文件 + 法条基线文件 | `03-分析/XX_新颖性创造性.md` |
 | `patent-infringement` | 改写自 Sati | 全面覆盖 + 等同（三基本等同判定 + 禁止反悔例外）；技术特征分解→逐项比对表 | 侵权比对报告 |

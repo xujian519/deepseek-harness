@@ -790,21 +790,35 @@ describe('claim_chart_build 侵权确定性结论', () => {
     await bad({ remedyExposureRatio: 0.5, defenses: 'high' }, 'cc-21')
   })
 
-  it('非侵权模式不给结论段（覆盖口径不同）', async () => {
-    const ctx = await ctxWith(createClaimChartBuildTool({
-      model: jsonModel(JSON.stringify({
-        elements: [{ id: '1a', claimNo: 1, kind: 'preamble', text: '一种装置' }],
-        rows: [{ elementId: '1a', targetId: 'D1', quote: '', pinCite: '[D1 段[0001]]', mapping: 'not-found' }],
-      })),
+  it('无效模式给单篇全覆盖结论段，不给侵权结论段；无可判定的模式两者都不给', async () => {
+    const model = jsonModel(JSON.stringify({
+      elements: [{ id: '1a', claimNo: 1, kind: 'preamble', text: '一种装置' }],
+      rows: [{ elementId: '1a', targetId: 'D1', quote: '', pinCite: '[D1 段[0001]]', mapping: 'not-found' }],
     }))
-    const result = await execute(ctx, 'claim_chart_build', {
+    const ctx = await ctxWith(createClaimChartBuildTool({ model }))
+    const invalidity = await execute(ctx, 'claim_chart_build', {
       mode: 'invalidity',
       claim_text: claimText,
       targets: [{ id: 'D1', kind: 'prior-art' }],
     }, 'cc-14')
-    expect(result.isError).toBe(false)
-    if (result.isError) throw new Error('expected success')
-    expect(text(result)).not.toContain('确定性结论')
+    expect(invalidity.isError).toBe(false)
+    if (invalidity.isError) throw new Error('expected success')
+    expect(text(invalidity)).toContain('单篇全覆盖与区别特征')
+    expect(text(invalidity)).toContain('权利要求 1: 未全覆盖')
+    expect(text(invalidity)).toContain('区别特征')
+    // 侵权结论段（全面覆盖四态与风险等级）不因无效模式出现。
+    expect(text(invalidity)).not.toContain('风险等级')
+
+    for (const mode of ['patentability', 'oa-response'] as const) {
+      const result = await execute(ctx, 'claim_chart_build', {
+        mode,
+        claim_text: claimText,
+        targets: [{ id: 'D1', kind: 'prior-art' }],
+      }, `cc-${mode}`)
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      expect(text(result)).not.toContain('确定性结论')
+    }
   })
 })
 

@@ -359,13 +359,14 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | 计数 | 值 |
 | --- | --- |
 | `structure.long-functions` | 186 |
-| `structure.large-files` | 75 |
-| `lint.v8-ignore` | 1168 |
+| `structure.large-files` | 76 |
+| `lint.v8-ignore` | 1167 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
 
 - **本轮就地更正本报告自身的两处口径**(保留痕迹):①`preset-divergence-baseline.json` 的 `rows` 分区是 **24** 个 id(早期草稿记为 22),覆盖 `cordis.patch.yml`/`document.patch.yml`/`minimal.patch.yml`/`patent.patch.yml`/`ptc.patch.yml`/`standard.patch.yml` 六个文件;②`patent-document` 磁盘上是 **11** 个模板目录(早期草稿记为 13),与 `TEMPLATE_IDS`(`render-patent-document.ts:19-31`)和 `manifest.json:15-27` 三处一致。
+- **本条之后的口径变化(2026-10-17)**:专利无效域补齐后,`patent-document` 的模板目录为 **12** 个(新增内部无效分析意见 `invalidation-analysis`,并在 `manifest.json` 的 `internalRecords` 中单独列出),上一行 ② 的 11 已过期;同时 `structure.large-files` 由 75 升至 **76**(证据判定引擎扩容后超过 800 行),`lint.v8-ignore` 由 1168 降至 **1166**(使用公开四要件与举证难度分档的 v8 豁免随分支补齐而撤销),随后回升至 **1167**(证据编号与证据清单互查的捕获组取值统一走 `group()`,新增那一处豁免;其余分支全部由用例覆盖)。
 - **未证实项(关闭前须重跑)**:`lint`/`typecheck` 在 `build:lib:host` 的失败归属;门禁红绿基线本轮全未跑;上表四个计数;`law_search` 的实际调用面;受控草稿与 `patent-document`/`patent-filing` 之间的契约细节(**本轮专利域包面深潜未完成,是下一轮第一优先**);`verify-patent-*` 三份门禁的断言面;`agent-team` 包在装配路径上的启用状态;`docs/subsystems/patent.md` 是否同缺 `patent-filing`;自媒体所需的广告法/专利标识资料是否存在于仓外。
 - **归档**:已由 2026-10-10 的后续会话执行 `bash .agents/audits/2026-10-10-file-issues.sh`(幂等,按标题去重),16 条全部创建为 **#383–#398**,编号已回填分诊表。
 

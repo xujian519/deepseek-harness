@@ -1,6 +1,6 @@
 # 证据规则集 — 专利无效/诉讼证据三性审查
 # 移植自 Mady domains/rules/data/rules/evidence-rules.yaml
-# 15 rules: 三性(3) + 类型(4) + 举证责任(1) + 证明标准(1) + 日期认定(1) + 完整性(1) + 程序(1) + 电子证据(1) + 审查指南(2)
+# 17 rules: 三性(3) + 类型(6) + 举证责任(1) + 证明标准(1) + 日期认定(1) + 完整性(1) + 程序(1) + 电子证据(1) + 审查指南(2)
 # 消费方：src/patent/evidence/engine.ts（EvidenceEngine.loadRules）
 
 weights:
@@ -14,7 +14,7 @@ rules:
   - ruleId: EVI-001
     name: 证据相关性审查
     description: 证据必须与待证事实具有关联性，能够影响法官对事实的认定
-    legalBasis: 专利法实施细则第65条
+    legalBasis: 专利法实施细则第69条第1款
     domain: patent
     severity: major
     action: apply
@@ -231,6 +231,73 @@ rules:
         - 技术领域内的公知常识
         - 本领域技术人员普遍知晓的技术事实
 
+  - ruleId: EVI-014
+    name: 互联网公开证据审查规则
+    description: 以互联网公开主张现有技术，须审查公开日、来源平台可信度、内容完整性与公开意图
+    legalBasis: 专利法第22条第5款、专利审查指南第二部分第三章第2.1.2节
+    domain: patent
+    severity: major
+    action: apply
+    evidenceType: internet_publication
+    check:
+      type: internet_publication
+      method: credibility_scaled
+      principles:
+        - 公开日须早于现有技术截止日（申请日；有优先权的为优先权日）
+        - 页面标注日期不可靠时以存档记录的日期为准
+        - 平台可信度决定证明力高低（政府/专利局 > 学术 > 新闻 > 聚合/社交）
+        - 内容完整性须可核验：自报哈希只作锚点，须经独立核验
+      conditions:
+        - evidence_has_source_uri
+        - publication_date_available
+    evidenceAssessment:
+      assessmentType: credibility_scaled
+      dimensions:
+        - name: platform_credibility
+          weight: 0.6
+          levels:
+            - { value: "high", score: 1.0, description: "政府/法院/专利局官方" }
+            - { value: "medium_high", score: 0.75, description: "学术数据库/行业权威平台" }
+            - { value: "medium", score: 0.55, description: "新闻媒体/聚合平台" }
+            - { value: "low", score: 0.25, description: "社交/自媒体/未知" }
+        - name: content_integrity
+          weight: 0.4
+          levels:
+            - { value: "verified", score: 1.0, description: "内容经独立核验" }
+            - { value: "partial", score: 0.5, description: "仅有哈希锚点，未独立核验" }
+            - { value: "unverified", score: 0.0, description: "无法核验完整性" }
+
+  - ruleId: EVI-015
+    name: 使用公开证据审查规则
+    description: 以使用公开主张现有技术，四要件（时间/地点/方式/公众可获取）须逐项认定，缺一即须补证
+    legalBasis: 专利审查指南第二部分第三章第2.1.2节
+    domain: patent
+    severity: major
+    action: apply
+    evidenceType: public_use
+    check:
+      type: public_use
+      method: multi_condition
+      principles:
+        - 公开时间须早于现有技术截止日
+        - 公开地点须可认定（境内/境外均为现有技术，不影响成立）
+        - 公开方式须为销售、展览、演示等能被不特定公众知悉的方式
+        - 公众可获取性须有旁证；处于保密义务下的使用不构成公开
+      conditions:
+        - public_use_time_available
+        - public_use_place_identified
+        - public_use_method_identified
+        - public_use_publicly_accessible
+    evidenceAssessment:
+      assessmentType: multi_condition
+      dimensions:
+        - name: four_elements
+          weight: 1.0
+          levels:
+            - { value: "complete", score: 1.0, description: "四要件齐备" }
+            - { value: "partial", score: 0.5, description: "部分要件未认定，须补证" }
+            - { value: "missing", score: 0.0, description: "要件未认定" }
+
   # ── 举证责任 ──────────────────────────────────────────────
 
   - ruleId: EVI-020
@@ -294,8 +361,8 @@ rules:
 
   - ruleId: EVI-040
     name: 公开日期认定规则
-    description: 以证据的公开日作为现有技术的时间基准，公开日应早于专利申请日
-    legalBasis: 专利法第22条第2款（新颖性）、第22条第3款（创造性）
+    description: 以证据的公开日作为现有技术的时间基准，公开日须早于现有技术截止日（申请日；有优先权的为优先权日）
+    legalBasis: 专利法第22条第5款、第22条第2款（新颖性）、第22条第3款（创造性）
     domain: patent
     severity: major
     action: apply
@@ -308,9 +375,10 @@ rules:
         - 期刊以实际出版日为公开日
         - 网络公开以首次公开日为公开日
         - 口头公开以公开日为公开日
+        - 有优先权的，现有技术截止日为优先权日
       conditions:
         - publication_date_available
-        - filing_date_available
+        - prior_art_reference_available
     evidenceAssessment:
       assessmentType: conditional
       conditions:

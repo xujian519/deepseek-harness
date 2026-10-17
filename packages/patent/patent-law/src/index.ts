@@ -18,6 +18,7 @@ import {
   DEFAULT_CNLAW_SEARCH_URL,
   renderCnlawDeclaration,
 } from './cnlaw-declaration.ts'
+import { PROPOSITION_SUPPORT_DEFAULT } from './support.ts'
 import { createLawVerifyTool } from './tool/law-verify.ts'
 import { DEFAULT_CITATION_POLICY } from './verify.ts'
 import type { CitationPolicy, CitationPolicySet } from './types.ts'
@@ -48,6 +49,14 @@ export {
   parseCnNumber,
   parseLawReference,
 } from './reference.ts'
+export {
+  createOverlapIndex,
+  PROPOSITION_SUPPORT_DEFAULT,
+  textOverlap,
+  topicOverlap,
+  type ComparableEntry,
+  type OverlapIndex,
+} from './support.ts'
 export {
   DEFAULT_CITATION_POLICY,
   renderCitationFindings,
@@ -97,14 +106,18 @@ export interface Config {
   cnlawSearchUrl: string
   /** Graph/case endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8001`. */
   cnlawGraphUrl: string
-  /** Treatment of a citation whose proposition a verified article does not support. */
+  /** Treatment of a citation whose proposition a verified article does not support, while another entry does. */
   onMismatch: CitationPolicy
+  /** Treatment of a citation whose proposition no entry of the law supports, so nothing here decides it. */
+  onUnmatched: CitationPolicy
   /** Treatment of a citation beyond a verified article ceiling. */
   onOutOfRange: CitationPolicy
   /** Treatment of a citation the index does not hold. */
   onNotIndexed: CitationPolicy
   /** Treatment of an indexed entry whose text has not been transcribed. */
   onUnverified: CitationPolicy
+  /** Share of a proposition's weighted character pairs an entry's text must carry before it supports the proposition. */
+  propositionSupport: number
 }
 
 /** Schemastery configuration: index override, the declared cnlaw base, and the per-decision citation policy. */
@@ -114,9 +127,11 @@ export const Config: z<Config> = z.object({
   cnlawSearchUrl: z.string().default(DEFAULT_CNLAW_SEARCH_URL),
   cnlawGraphUrl: z.string().default(DEFAULT_CNLAW_GRAPH_URL),
   onMismatch: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.mismatch),
+  onUnmatched: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.unmatched),
   onOutOfRange: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.outOfRange),
   onNotIndexed: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.notIndexed),
   onUnverified: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.unverified),
+  propositionSupport: z.number().default(PROPOSITION_SUPPORT_DEFAULT),
 })
 
 /**
@@ -130,11 +145,12 @@ export function apply(ctx: Context, config: Config): void {
   // The schema defaults every policy field, so each one is resolved by the time it arrives.
   const policies: CitationPolicySet = {
     mismatch: config.onMismatch,
+    unmatched: config.onUnmatched,
     outOfRange: config.onOutOfRange,
     notIndexed: config.onNotIndexed,
     unverified: config.onUnverified,
   }
-  ctx.tools.register(createLawVerifyTool({ baselines, policies }))
+  ctx.tools.register(createLawVerifyTool({ baselines, policies, supportThreshold: config.propositionSupport }))
   // Optional injection: without a prompt registry there is no model to declare
   // the base to, and the tool stands on its own.
   ctx.inject(['systemPrompt'], (scope) => {
