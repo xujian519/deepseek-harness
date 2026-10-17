@@ -22,17 +22,18 @@ export type QueryWritingPatternsInput = {
   query?: string
   /** Technical features or keywords of the case. */
   features?: string[]
-  /** Maximum number of patterns to return; the deployment's cap when omitted. */
+  /**
+   * Maximum number of patterns to return; a search, feature-match, or category call without a limit
+   * is capped by `matchLimit`, while an argument-free call lists the whole library.
+   */
   limit?: number
 }
 
-/** One selected pattern as the model sees it. */
+/** One selected pattern as the model sees it: the index entry above the compiled block. */
 export type WritingPatternView = {
   id: string
   name: string
   category: PatternCategory
-  summary: string
-  quality: number
 }
 
 /** How the returned patterns were selected. */
@@ -51,7 +52,7 @@ export type QueryWritingPatternsOutput = {
 /** Injected collaborators. */
 export type QueryWritingPatternsToolOptions = {
   store: PatternStore
-  /** Cap applied when the call omits `limit`. */
+  /** Cap applied when a search, feature-match, or category call omits `limit`; an argument-free listing returns the whole library. */
   matchLimit: number
 }
 
@@ -62,8 +63,6 @@ const PATTERN_VIEW_SCHEMA = {
     id: { type: 'string', required: true },
     name: { type: 'string', required: true },
     category: { type: 'string', required: true, enum: PATTERN_CATEGORIES },
-    summary: { type: 'string', required: true },
-    quality: { type: 'number', required: true },
   },
 } as const
 
@@ -82,7 +81,7 @@ const MODE_LABELS: Readonly<Record<QueryWritingPatternsMode, string>> = {
 const DESCRIPTION = [
   '- Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a `<writing_skills>` block',
   '- A pattern covers one situation with ordered steps and the rules to follow or avoid: claim drafting, specification drafting, disclosure drafting, IPC strategy, embodiment writing, and office-action replies on inventiveness, novelty, and clarity',
-  '- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed, capped by `limit`',
+  '- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, authored keywords, summaries, and step names; otherwise `category` lists that category; with no argument at all the whole library is listed',
   '- Selection is lexical and offline: the tool picks patterns, it does not judge the case. Apply the returned steps to the passage being written',
 ].join('\n')
 
@@ -112,7 +111,7 @@ export function createQueryWritingPatternsTool(options: QueryWritingPatternsTool
       },
       limit: {
         type: 'integer',
-        description: `Maximum number of patterns to return; defaults to ${String(options.matchLimit)}`,
+        description: `Maximum number of patterns to return; defaults to ${String(options.matchLimit)}, or to the whole library when no argument narrows the call`,
       },
     },
     output: {
@@ -129,8 +128,8 @@ export function createQueryWritingPatternsTool(options: QueryWritingPatternsTool
       render: (args, value) => [{ type: 'text', text: renderQueryWritingPatterns(args, value) }],
     },
     execute(args) {
-      const limit = resolveLimit(args.limit, options.matchLimit)
       const mode = selectMode(args)
+      const limit = resolveLimit(args.limit, mode === 'catalog' ? options.store.size : options.matchLimit)
       const patterns = selectPatterns(options.store, mode, args, limit)
       return Promise.resolve({
         mode,
@@ -163,7 +162,7 @@ export function renderQueryWritingPatterns(
     '',
     '匹配到的模式：',
     ...value.patterns.map(pattern =>
-      `- \`${pattern.id}\` · ${PATTERN_CATEGORY_LABELS[pattern.category]} · **${pattern.name}** —— ${pattern.summary}`),
+      `- \`${pattern.id}\` · ${PATTERN_CATEGORY_LABELS[pattern.category]} · **${pattern.name}**`),
     '',
     '编译后的写作技能：',
     value.skills,
@@ -171,7 +170,7 @@ export function renderQueryWritingPatterns(
   return lines.join('\n')
 }
 
-/** Resolve the result cap: the call's own, else the deployment's. */
+/** Resolve the result cap: the call's own, else the mode's default. */
 function resolveLimit(limit: number | undefined, matchLimit: number): number {
   if (limit === undefined) return matchLimit
   if (!Number.isInteger(limit) || limit < 1) {
@@ -221,13 +220,11 @@ function unreachableMode(mode: never): never {
   throw new Error(`未知 query_writing_patterns 选择模式：${String(mode)}`)
 }
 
-/** One pattern as the model sees it. */
+/** One pattern as the model sees it; its summary lives in the compiled block alone. */
 function toView(pattern: WritingPattern): WritingPatternView {
   return {
     id: pattern.id,
     name: pattern.name,
     category: pattern.category,
-    summary: pattern.summary,
-    quality: pattern.quality,
   }
 }

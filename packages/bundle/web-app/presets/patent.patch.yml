@@ -471,8 +471,20 @@
           - id: patent-law
             name: '@deepseek-ai/dsh-patent-law'
 
+          # The always-on section injects the compiled patterns of its categories on
+          # every request, so narrow it to the situations this preset drafts; the tool
+          # still searches the whole library, which is how the disclosure, IPC,
+          # embodiment, and invalidation patterns reach the model. The narrowed set is
+          # about 27 KB against the library's 35 KB.
           - id: writing-patterns
             name: '@deepseek-ai/dsh-writing-patterns'
+            config:
+              sectionCategories:
+                - claim_drafting
+                - spec_drafting
+                - oa_inventiveness
+                - oa_novelty
+                - oa_clarity
 
           - id: tool-literature
             name: '@deepseek-ai/dsh-tool-literature'

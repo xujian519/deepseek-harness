@@ -93,6 +93,8 @@ export type WritingPattern = {
   summary: string
   /** When this pattern applies. */
   context?: string
+  /** Authored search synonyms: the terms a case may use for this pattern. */
+  keywords?: readonly string[]
   steps: readonly PatternStep[]
   examples: readonly PatternExample[]
   dos: readonly PatternPrinciple[]

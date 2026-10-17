@@ -360,7 +360,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-patent-tools` | yes | Model-facing patent tool set for the DeepSeek Harness: search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart, drafting, evidence judgment, rule check, and the workflow/plan tools, ported from Sati |
 | `@deepseek-ai/dsh-patent-workflow` | yes | Patent execution pipeline: workflow/plantask state machine with HITL approval wiring for the DeepSeek Harness |
 | `@deepseek-ai/dsh-tool-literature` | yes | Model-facing literature tools for the DeepSeek Harness: arXiv, OpenAlex, Semantic Scholar, and Crossref connectors |
-| `@deepseek-ai/dsh-writing-patterns` | yes | Writing-pattern library for patent drafting and office-action replies for the DeepSeek Harness: a packaged YAML pattern corpus with lexical search and match, a deterministic <writing_skills> compiler, the four-dimension quality evaluation, a system-prompt section, and the query_writing_patterns tool |
+| `@deepseek-ai/dsh-writing-patterns` | yes | Writing-pattern library for patent drafting and office-action replies for the DeepSeek Harness: a packaged YAML pattern corpus with lexical search and match, a deterministic <writing_skills> compiler, a system-prompt section, and the query_writing_patterns tool |
 
 ## plan
 

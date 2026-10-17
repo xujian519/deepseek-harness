@@ -3205,6 +3205,13 @@ export interface Config {
   noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
+  /**
+   * 《专利审查指南》version the built-in manifests must target. Defaults to the
+   * revision shipped with this repository; a deployment running a different
+   * patent-law asset sets this to that asset's `revision`, and a manifest still
+   * written against another revision fails plugin load.
+   */
+  guidelineRevision?: string
   /** 附图索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/figures-index.json。 */
   figureIndexFile?: string
   /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */
@@ -5790,14 +5797,17 @@ export interface Config {
 ## `@deepseek-ai/dsh-writing-patterns`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/patent/writing-patterns/src/index.ts:74`](../packages/patent/writing-patterns/src/index.ts)
+- `source`: [`packages/patent/writing-patterns/src/index.ts:73`](../packages/patent/writing-patterns/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing writing-pattern plugin configuration. */
 export interface Config {
   /** Directory holding the pattern YAML files; defaults to the packaged corpus. */
   patternDir?: string
-  /** Result cap applied when a `query_writing_patterns` call omits its own limit. */
+  /**
+   * Result cap applied when a search, feature-match, or category call omits its
+   * own limit. An argument-free listing always returns the whole library.
+   */
   matchLimit?: number
   /** Register the always-on writing-patterns system-prompt section. Defaults to true. */
   registerSection?: boolean

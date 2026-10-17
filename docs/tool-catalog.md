@@ -5781,7 +5781,11 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
     },
     "priorArt": {
       "type": "string",
-      "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+      "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage."
+    },
+    "conflictingApplications": {
+      "type": "string",
+      "description": "Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention."
     },
     "run_in_background": {
       "type": "boolean",
@@ -6701,7 +6705,7 @@ law_verify reads the law citations of a text, or the references passed directly,
 
 - Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a `<writing_skills>` block
 - A pattern covers one situation with ordered steps and the rules to follow or avoid: claim drafting, specification drafting, disclosure drafting, IPC strategy, embodiment writing, and office-action replies on inventiveness, novelty, and clarity
-- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed, capped by `limit`
+- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, authored keywords, summaries, and step names; otherwise `category` lists that category; with no argument at all the whole library is listed
 - Selection is lexical and offline: the tool picks patterns, it does not judge the case. Apply the returned steps to the passage being written
 
 ```json
@@ -6736,7 +6740,7 @@ law_verify reads the law citations of a text, or the references passed directly,
     },
     "limit": {
       "type": "integer",
-      "description": "Maximum number of patterns to return; defaults to 5"
+      "description": "Maximum number of patterns to return; defaults to 5, or to the whole library when no argument narrows the call"
     }
   }
 }

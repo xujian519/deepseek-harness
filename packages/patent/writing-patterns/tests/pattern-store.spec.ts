@@ -11,6 +11,7 @@ import {
 } from '../src/pattern-store.ts'
 import { PatternAssetError } from '../src/types.ts'
 import { makePattern } from './fixtures/patterns.ts'
+import { RETRIEVAL_CASES } from './fixtures/retrieval.ts'
 
 let root: string | undefined
 
@@ -25,6 +26,19 @@ async function writeCorpus(files: Record<string, string>): Promise<string> {
   for (const [name, content] of Object.entries(files)) await writeFile(join(root, name), content)
   return root
 }
+
+const LISTED = [
+  'patterns:',
+  '  - id: p1',
+  '    name: P1',
+  '    category: claim_drafting',
+  '    summary: S1',
+  '    steps:',
+  '      - order: 1',
+  '        name: Step',
+  '        instruction: Do it',
+  '',
+].join('\n')
 
 const MINIMAL = [
   'id: p1',
@@ -41,7 +55,8 @@ const MINIMAL = [
 describe('packaged pattern corpus', () => {
   it('loads every shipped seed pattern', () => {
     const store = loadPatternStore()
-    expect(store.size).toBe(10)
+    expect(store.size).toBe(store.all().length)
+    expect(store.size).toBe(new Set(store.all().map(pattern => pattern.id)).size)
     expect(store.all().map(pattern => pattern.id)).toEqual([
       'wp-claim-dependent-layering',
       'wp-claim-utility-model',
@@ -64,9 +79,9 @@ describe('packaged pattern corpus', () => {
       quality: 0.95,
       version: 1,
     })
-    expect(pattern?.steps.map(step => step.order)).toEqual([1, 2, 3])
-    expect(pattern?.dos).toHaveLength(2)
-    expect(pattern?.donts).toHaveLength(3)
+    expect(pattern?.steps.map(step => step.order)).toEqual([1, 2, 3, 4])
+    expect(pattern?.dos).toHaveLength(3)
+    expect(pattern?.donts).toHaveLength(4)
     expect(pattern?.context).toContain('专利法第22条第3款')
   })
 
@@ -79,9 +94,21 @@ describe('packaged pattern corpus', () => {
     expect(store.get('no-such-pattern')).toBeUndefined()
   })
 
-  it('extracts searchable keywords and skips one-character entries', () => {
-    const pattern = makePattern({ id: 'p1', name: 'A', dos: [{ rule: '规则' }], donts: [{ rule: '禁' }] })
-    expect(patternKeywords(pattern)).toEqual(['claim_drafting', '规则'])
+  it('indexes a pattern once when its sub-category repeats its category', () => {
+    const store = new PatternStore([makePattern({ id: 'x', subCategory: 'claim_drafting' })])
+    expect(store.byCategory('claim_drafting')).toHaveLength(1)
+  })
+
+  it('extracts authored keywords and step names, skipping one-character entries and rule text', () => {
+    const pattern = makePattern({
+      id: 'p1',
+      name: 'A',
+      keywords: ['术语', '规则'],
+      dos: [{ rule: '规则文本' }],
+      donts: [{ rule: '禁' }],
+      steps: [{ order: 1, name: '步骤', instruction: 'x' }],
+    })
+    expect(patternKeywords(pattern)).toEqual(['术语', '规则', 'claim_drafting', '步骤'])
   })
 })
 
@@ -134,6 +161,40 @@ describe('lexical search', () => {
   it('returns nothing when no term is contained anywhere', () => {
     expect(loadPatternStore().search('zzzz', { limit: 5 })).toEqual([])
   })
+
+  it('finds patterns from a natural-language Chinese query', () => {
+    const store = loadPatternStore()
+    expect(store.search('创造性答复怎么写', { limit: 5 })[0]?.id).toBe('wp-oa-inventiveness-3step')
+    expect(store.search('从权引用关系怎么写', { limit: 5 })[0]?.id).toBe('wp-claim-dependent-layering')
+    expect(store.search('参数范围怎么写', { limit: 5 })[0]?.id).toBe('wp-embodiment-writing')
+    expect(store.search('背景技术对比表怎么写', { limit: 5 })[0]?.id).toBe('wp-spec-background')
+  })
+
+  it('searches Latin keywords as whole words', () => {
+    const store = loadPatternStore()
+    expect(store.search('Fallback', { limit: 5 }).map(pattern => pattern.id))
+      .toContain('wp-claim-dependent-layering')
+    expect(store.search('IPC', { limit: 5 })[0]?.id).toBe('wp-ipc-strategy')
+  })
+
+  it('searches do-not rules as well as do rules', () => {
+    const store = new PatternStore([makePattern({ id: 'd', donts: [{ rule: '禁用语' }] })])
+    expect(store.search('禁用语', { limit: 5 }).map(pattern => pattern.id)).toEqual(['d'])
+  })
+
+  it('matches a one-character Chinese run', () => {
+    const store = new PatternStore([makePattern({ id: 'one', name: '阀' })])
+    expect(store.search('阀', { limit: 5 }).map(pattern => pattern.id)).toEqual(['one'])
+  })
+
+  it('retrieves a relevant pattern in the top three for realistic queries', () => {
+    const store = loadPatternStore()
+    const misses = RETRIEVAL_CASES.filter(({ query, expected }) => {
+      const top = store.search(query, { limit: 3 }).map(pattern => pattern.id)
+      return !expected.some(id => top.includes(id))
+    })
+    expect(misses, JSON.stringify(misses)).toHaveLength(0)
+  })
 })
 
 describe('case-feature match', () => {
@@ -153,22 +214,31 @@ describe('case-feature match', () => {
       makePattern({ id: 'c-step', steps: [{ order: 1, name: '含术语', instruction: 'x' }] }),
       makePattern({ id: 'd-none', name: '不相关', summary: '不相关' }),
     ])
-    // A step name is both a feature hit (+1.5) and a keyword of the pattern,
-    // whose presence in the query adds 1 more.
     expect(store.match({ features: ['含术语'], limit: 5 }).map(pattern => pattern.id))
-      .toEqual(['a-name', 'c-step', 'b-summary'])
+      .toEqual(['a-name', 'b-summary', 'c-step'])
   })
 
-  it('adds a keyword point for a pattern keyword contained in the query', () => {
-    const withKeyword = makePattern({ id: 'a', name: '共同', dos: [{ rule: '术语' }] })
+  it('scores an authored keyword above a summary hit', () => {
+    const withKeyword = makePattern({ id: 'a', name: '共同', keywords: ['术语'] })
     const withoutKeyword = makePattern({ id: 'b', summary: '术语' })
     const store = new PatternStore([withKeyword, withoutKeyword])
-    // `a` scores 1 for the do-rule keyword contained in the query; `b` scores 2
-    // for the summary hit and nothing else.
-    expect(store.match({ features: ['术语'], limit: 5 }).map(pattern => pattern.id)).toEqual(['b', 'a'])
+    expect(store.match({ features: ['术语'], limit: 5 }).map(pattern => pattern.id)).toEqual(['a', 'b'])
   })
 
-  it('scores keywords contained in the query and caps the result', () => {
+  it('multiplies the match score by the pattern quality', () => {
+    const store = new PatternStore([
+      makePattern({ id: 'a-low', name: '共同术语', quality: 0.5 }),
+      makePattern({ id: 'b-high', name: '共同术语', quality: 1 }),
+    ])
+    expect(store.match({ features: ['共同术语'], limit: 5 }).map(pattern => pattern.id)).toEqual(['b-high', 'a-low'])
+  })
+
+  it('scores a Chinese category label as the case type', () => {
+    expect(loadPatternStore().match({ caseType: '创造性', limit: 5 }).map(pattern => pattern.id))
+      .toEqual(['wp-oa-inventiveness-3step'])
+  })
+
+  it('scores feature matches against pattern text and caps the result', () => {
     const store = loadPatternStore()
     expect(store.match({ caseType: 'oa', features: ['创造性'], limit: 1 }))
       .toHaveLength(1)
@@ -192,12 +262,47 @@ describe('corpus loading is fail-loud', () => {
 
   it('reports a directory without a pattern file', async () => {
     const dir = await writeCorpus({ 'notes.md': '# not a pattern' })
-    expect(() => loadPatternCorpus(dir)).toThrow(/目录下没有 \.yaml 写作模式资产/)
+    expect(() => loadPatternCorpus(dir)).toThrow(/目录下没有 \.yaml \/ \.yml 写作模式资产/)
   })
 
   it('ignores a non-YAML file beside a valid pattern', async () => {
     const dir = await writeCorpus({ 'p1.yaml': MINIMAL, 'README.md': '# corpus' })
     expect(loadPatternCorpus(dir)).toHaveLength(1)
+  })
+
+  it('loads a .yml asset beside a .yaml one', async () => {
+    const dir = await writeCorpus({
+      'p1.yaml': MINIMAL,
+      'p2.yml': MINIMAL.replace('id: p1', 'id: p2').replace('name: P1', 'name: P2'),
+    })
+    expect(loadPatternCorpus(dir).map(pattern => pattern.id)).toEqual(['p1', 'p2'])
+  })
+
+  it('rejects an unknown field instead of silently dropping it', async () => {
+    const dir = await writeCorpus({ 'p1.yaml': `${MINIMAL}qualtiy: 0.9\n` })
+    expect(() => loadPatternCorpus(dir)).toThrow(/根节点 含未知字段：qualtiy/)
+  })
+
+  it('rejects an unknown field beside a patterns list', async () => {
+    const dir = await writeCorpus({
+      'p1.yaml': LISTED.replace('patterns:', 'keywords:\n  - shared\npatterns:'),
+    })
+    expect(() => loadPatternCorpus(dir)).toThrow(/根节点 含未知字段：keywords/)
+  })
+
+  it('rejects an unknown field inside a step, an example, and a principle', async () => {
+    const step = await writeCorpus({
+      'p1.yaml': MINIMAL.replace('    instruction: Do it\n', '    instruction: Do it\n    tip: extra\n'),
+    })
+    expect(() => loadPatternCorpus(step)).toThrow(/根节点\.steps\[0\] 含未知字段：tip/)
+    const example = await writeCorpus({
+      'p1.yaml': `${MINIMAL}examples:\n  - text: Example\n    source: upstream\n`,
+    })
+    expect(() => loadPatternCorpus(example)).toThrow(/根节点\.examples\[0\] 含未知字段：source/)
+    const principle = await writeCorpus({
+      'p1.yaml': `${MINIMAL}dos:\n  - rule: Follow\n    reason: because\n`,
+    })
+    expect(() => loadPatternCorpus(principle)).toThrow(/根节点\.dos\[0\] 含未知字段：reason/)
   })
 
   it('reports a YAML syntax error', async () => {
@@ -255,6 +360,36 @@ describe('corpus loading is fail-loud', () => {
   it('reports a sub-category that is not a string', async () => {
     const dir = await writeCorpus({ 'p1.yaml': `${MINIMAL}sub_category: [x]\n` })
     expect(() => loadPatternCorpus(dir)).toThrow(/根节点\.sub_category 必须是字符串/)
+  })
+
+  it('reports a keywords field that is not a string list', async () => {
+    const notList = await writeCorpus({ 'p1.yaml': `${MINIMAL}keywords: 术语\n` })
+    expect(() => loadPatternCorpus(notList)).toThrow(/keywords 必须是数组/)
+    const blank = await writeCorpus({ 'p1.yaml': `${MINIMAL}keywords: [""]\n` })
+    expect(() => loadPatternCorpus(blank)).toThrow(/keywords\[0\] 必须是非空字符串/)
+  })
+
+  it('rejects duplicate or non-contiguous step orders and sorts the steps by order', async () => {
+    const twoSteps = (first: number, second: number) => [
+      'id: p1',
+      'name: P1',
+      'category: claim_drafting',
+      'summary: S1',
+      'steps:',
+      `  - order: ${String(first)}`,
+      '    name: One',
+      '    instruction: Do one',
+      `  - order: ${String(second)}`,
+      '    name: Two',
+      '    instruction: Do two',
+      '',
+    ].join('\n')
+    const duplicate = await writeCorpus({ 'p1.yaml': twoSteps(1, 1) })
+    expect(() => loadPatternCorpus(duplicate)).toThrow(/order 必须唯一/)
+    const gap = await writeCorpus({ 'p1.yaml': twoSteps(1, 3) })
+    expect(() => loadPatternCorpus(gap)).toThrow(/order 必须从 1 开始连续/)
+    const reversed = await writeCorpus({ 'p1.yaml': twoSteps(2, 1) })
+    expect(loadPatternCorpus(reversed)[0]?.steps.map(step => step.order)).toEqual([1, 2])
   })
 
   it('reports a duplicated pattern id across files', async () => {

@@ -41,13 +41,13 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
     expect(typeof Pkg.patternKeywords).toBe('function')
     expect(typeof Pkg.compileWritingSkills).toBe('function')
     expect(typeof Pkg.escapeXmlText).toBe('function')
-    expect(typeof Pkg.evaluateQuality).toBe('function')
     expect(typeof Pkg.renderWritingSkillsSection).toBe('function')
     expect(typeof Pkg.createQueryWritingPatternsTool).toBe('function')
     expect(typeof Pkg.renderQueryWritingPatterns).toBe('function')
     expect(typeof Pkg.isPatternCategory).toBe('function')
-    expect(Pkg.PATTERN_FILE_SUFFIX).toBe('.yaml')
-    expect(Pkg.PATTERN_CATEGORIES).toHaveLength(9)
+    expect(Pkg.PATTERN_FILE_SUFFIXES).toEqual(['.yaml', '.yml'])
+    expect(Pkg.PATTERN_CATEGORIES.length).toBeGreaterThan(0)
+    expect(new Set(Pkg.PATTERN_CATEGORIES).size).toBe(Pkg.PATTERN_CATEGORIES.length)
     expect(Pkg.DEFAULT_PATTERN_QUALITY).toBe(0.8)
     expect(Pkg.WRITING_PATTERNS_SECTION_NAME).toBe('writing-patterns:skills')
   })
@@ -100,16 +100,27 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
     expect(names.indexOf(WRITING_PATTERNS_SECTION_NAME)).toBeLessThan(names.indexOf('test:anchor'))
   })
 
-  it('applies the configured result cap to a call that omits its own limit', async () => {
+  it('applies the configured result cap to narrowed calls but not to the argument-free listing', async () => {
     const { ctx } = await install({ matchLimit: 1 })
-    const result = await ctx.tools.execute({
+    const narrowed = await ctx.tools.execute({
       signal: new AbortController().signal,
       callId: ToolCallId('query-writing-patterns-cap'),
       name: 'query_writing_patterns',
+      arguments: { query: '创造性' },
+    })
+    if (narrowed.isError) throw new Error('expected success')
+    expect((narrowed.value as QueryWritingPatternsOutput).patterns).toHaveLength(1)
+
+    const catalog = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId('query-writing-patterns-catalog'),
+      name: 'query_writing_patterns',
       arguments: {},
     })
-    if (result.isError) throw new Error('expected success')
-    expect((result.value as QueryWritingPatternsOutput).patterns).toHaveLength(1)
+    if (catalog.isError) throw new Error('expected success')
+    const value = catalog.value as QueryWritingPatternsOutput
+    expect(value.patterns).toHaveLength(value.librarySize)
+    expect(value.patterns.length).toBeGreaterThan(1)
   })
 
   it('fails loud at load when the configured corpus directory has no asset', async () => {

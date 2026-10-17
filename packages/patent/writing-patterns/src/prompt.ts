@@ -23,10 +23,21 @@ export const WRITING_PATTERNS_PROMPT_TEXT = [
  * The compiled block is fenced so the section reads as instruction prose plus
  * one quoted data block: a bare multi-line XML run would parse as a prose
  * paragraph of the prompt itself, which both obscures where the data starts and
- * violates the one-physical-line-per-paragraph convention for prompt text.
+ * violates the one-physical-line-per-paragraph convention for prompt text. The
+ * fence is longer than any backtick run in the block, so authored text cannot
+ * close it early.
  * @param skills - the compiled `<writing_skills>` block, or `''` for none.
  * @returns the section text.
  */
 export function renderWritingSkillsSection(skills: string): string {
-  return skills === '' ? WRITING_PATTERNS_PROMPT_TEXT : `${WRITING_PATTERNS_PROMPT_TEXT}\n\n\`\`\`xml\n${skills}\n\`\`\``
+  if (skills === '') return WRITING_PATTERNS_PROMPT_TEXT
+  const fence = fenceFor(skills)
+  return `${WRITING_PATTERNS_PROMPT_TEXT}\n\n${fence}xml\n${skills}\n${fence}`
+}
+
+/** A backtick fence longer than any backtick run in `text`. */
+function fenceFor(text: string): string {
+  let longest = 0
+  for (const run of text.matchAll(/`+/gu)) longest = Math.max(longest, run[0].length)
+  return '`'.repeat(Math.max(3, longest + 1))
 }

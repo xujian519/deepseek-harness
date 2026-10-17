@@ -17,8 +17,8 @@ import { createQueryWritingPatternsTool } from './tool/query-writing-patterns.ts
 import { PATTERN_CATEGORIES, type PatternCategory, type WritingPattern } from './types.ts'
 
 // Public library API: the pattern corpus, its lexical selection, the compiled
-// skill text, the quality evaluation, and the tool factory.
-export { PATTERN_FILE_SUFFIX, patternDir } from './asset-location.ts'
+// skill text, and the tool factory.
+export { PATTERN_FILE_SUFFIXES, patternDir } from './asset-location.ts'
 export {
   loadPatternCorpus,
   loadPatternStore,
@@ -29,7 +29,6 @@ export {
   type PatternSearchSpec,
 } from './pattern-store.ts'
 export { compileWritingSkills, escapeXmlText } from './skill-compiler.ts'
-export { evaluateQuality, type QualityDimensions, type QualityEvaluation } from './quality-evaluator.ts'
 export {
   renderWritingSkillsSection,
   WRITING_PATTERNS_PROMPT_TEXT,
@@ -74,7 +73,10 @@ const DEFAULT_SECTION_ORDER = 112
 export interface Config {
   /** Directory holding the pattern YAML files; defaults to the packaged corpus. */
   patternDir?: string
-  /** Result cap applied when a `query_writing_patterns` call omits its own limit. */
+  /**
+   * Result cap applied when a search, feature-match, or category call omits its
+   * own limit. An argument-free listing always returns the whole library.
+   */
   matchLimit?: number
   /** Register the always-on writing-patterns system-prompt section. Defaults to true. */
   registerSection?: boolean

@@ -13,8 +13,8 @@ import { fileURLToPath } from 'node:url'
 
 const ASSETS_PATTERNS_URL = new URL('../assets/patterns/', import.meta.url)
 
-/** Suffix of a pattern asset file; every other entry of the directory is ignored. */
-export const PATTERN_FILE_SUFFIX = '.yaml'
+/** Suffixes of a pattern asset file; every other entry of the directory is ignored. */
+export const PATTERN_FILE_SUFFIXES = ['.yaml', '.yml'] as const
 
 /**
  * Directory holding the pattern assets: the explicit override when given

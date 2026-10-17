@@ -49,15 +49,17 @@ describe('query_writing_patterns schema', () => {
     const ctx = await host()
     const schema = ctx.tools.get('query_writing_patterns')?.output.schema as {
       required: string[]
-      properties: Record<string, { enum?: string[] }>
+      properties: Record<string, { enum?: string[]; items?: { properties: Record<string, unknown> } }>
     }
     expect(schema.required.sort()).toEqual(['librarySize', 'mode', 'patterns', 'skills'])
     expect(schema.properties['mode']?.enum).toEqual(['search', 'match', 'category', 'catalog'])
+    expect(Object.keys(schema.properties['patterns']?.items?.properties ?? {}).sort())
+      .toEqual(['category', 'id', 'name'])
   })
 
-  it('states that the argument-free listing is capped by limit', async () => {
+  it('states that the argument-free listing returns the whole library', async () => {
     const ctx = await host()
-    expect(ctx.tools.get('query_writing_patterns')?.description).toContain('listed, capped by `limit`')
+    expect(ctx.tools.get('query_writing_patterns')?.description).toContain('the whole library is listed')
   })
 })
 
@@ -68,8 +70,6 @@ describe('query_writing_patterns output.render', () => {
       id: 'wp-oa-inventiveness-3step',
       name: '创造性三步法 OA 答复框架',
       category: 'oa_inventiveness',
-      summary: '三步框架',
-      quality: 0.95,
     }],
     librarySize: 10,
     skills: '<writing_skills>\n</writing_skills>',
@@ -80,7 +80,7 @@ describe('query_writing_patterns output.render', () => {
       '写作模式库：命中 1 / 10 个模式（按类目列举）。',
       '',
       '匹配到的模式：',
-      '- `wp-oa-inventiveness-3step` · OA 答复-创造性 · **创造性三步法 OA 答复框架** —— 三步框架',
+      '- `wp-oa-inventiveness-3step` · OA 答复-创造性 · **创造性三步法 OA 答复框架**',
       '',
       '编译后的写作技能：',
       '<writing_skills>',
@@ -95,17 +95,19 @@ describe('query_writing_patterns output.render', () => {
 })
 
 describe('query_writing_patterns execution', () => {
-  it('lists the library at the deployment cap when nothing narrows it', async () => {
+  it('lists the whole library when nothing narrows it', async () => {
     const ctx = await host()
     const result = await execute(ctx, {})
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
     const value = result.value as QueryWritingPatternsOutput
     expect(value.mode).toBe('catalog')
-    expect(value.patterns).toHaveLength(MATCH_LIMIT)
-    expect(value.librarySize).toBe(10)
+    expect(value.librarySize).toBeGreaterThan(MATCH_LIMIT)
+    expect(value.patterns).toHaveLength(value.librarySize)
     expect(value.skills).toContain('<skill id="wp-claim-dependent-layering">')
-    expect(textOf(result)).toContain('写作模式库：命中 5 / 10 个模式（列举模式库）。')
+    expect(textOf(result)).toContain(
+      `写作模式库：命中 ${String(value.librarySize)} / ${String(value.librarySize)} 个模式（列举模式库）。`,
+    )
   })
 
   it('lists one category in id order', async () => {
@@ -126,8 +128,17 @@ describe('query_writing_patterns execution', () => {
     const value = result.value as QueryWritingPatternsOutput
     expect(value.mode).toBe('search')
     expect(value.patterns.map(pattern => pattern.id)).toEqual(['wp-oa-inventiveness-3step'])
-    expect(value.patterns[0]?.quality).toBe(0.95)
+    expect(Object.keys(value.patterns[0] ?? {}).sort()).toEqual(['category', 'id', 'name'])
     expect(textOf(result)).toContain('（按关键词检索）')
+  })
+
+  it('finds patterns from a natural-language Chinese query', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { query: '创造性答复怎么写' })
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as QueryWritingPatternsOutput
+    expect(value.mode).toBe('search')
+    expect(value.patterns[0]?.id).toBe('wp-oa-inventiveness-3step')
   })
 
   it('matches case features and keeps the category as the case type', async () => {
@@ -146,7 +157,10 @@ describe('query_writing_patterns execution', () => {
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
     const value = result.value as QueryWritingPatternsOutput
-    expect(value).toMatchObject({ mode: 'search', patterns: [], skills: '', librarySize: 10 })
+    expect(value.mode).toBe('search')
+    expect(value.patterns).toEqual([])
+    expect(value.skills).toBe('')
+    expect(value.librarySize).toBeGreaterThan(0)
     expect(textOf(result)).toContain('没有匹配的模式')
   })
 
