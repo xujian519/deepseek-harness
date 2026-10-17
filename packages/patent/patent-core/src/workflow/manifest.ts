@@ -11,15 +11,17 @@ import { WorkflowError, type WorkflowManifest } from './types.ts'
  * Manifest 校验（轻量守卫，替代 zod）：非法即抛错。
  * options.atomNames 提供时，额外校验已声明 atom 均存在（fail-fast）。
  * @param manifest - 待校验的工作流 manifest。
- * @param options - 可选校验配置（atomNames 提供时校验 atom 均存在）。
+ * @param options - 可选校验配置（atomNames 提供时校验 atom 均存在；
+ *                  guidelineRevision 提供时期望 manifest 声明同一版本）。
  */
 export function validateWorkflowManifest(
   manifest: WorkflowManifest,
-  options?: { atomNames?: ReadonlySet<string> },
+  options?: { atomNames?: ReadonlySet<string>; guidelineRevision?: string },
 ): void {
   if (!manifest.id.trim()) throw new WorkflowError('manifest.id 不能为空')
   if (!manifest.name.trim()) throw new WorkflowError('manifest.name 不能为空')
   if (!manifest.caseType.trim()) throw new WorkflowError('manifest.caseType 不能为空')
+  validateGuidelineRevision(manifest, options?.guidelineRevision)
   if (!Array.isArray(manifest.stages) || manifest.stages.length === 0) {
     throw new WorkflowError('manifest.stages 必须至少包含一个阶段')
   }
@@ -73,5 +75,31 @@ export function validateWorkflowManifest(
       const maxRetries = stage.retry.maxRetries ?? 1
       if (maxRetries < 0) throw new WorkflowError(`阶段 ${stage.id} 的 retry.maxRetries 不能为负`)
     }
+  }
+}
+
+/**
+ * Check the manifest's declared guideline revision against the revision the
+ * deployment expects. The cross-check is opt-in: without an expected revision
+ * the declaration is only checked for a blank value.
+ * @param manifest - the manifest under validation.
+ * @param expected - the revision the deployment expects, when it states one.
+ * @throws WorkflowError when the declaration is blank, missing under an expected
+ *         revision, or different from it.
+ */
+function validateGuidelineRevision(manifest: WorkflowManifest, expected: string | undefined): void {
+  const declared = manifest.guidelineRevision?.trim()
+  if (manifest.guidelineRevision !== undefined && declared === '') {
+    throw new WorkflowError(`manifest ${manifest.id} 的 guidelineRevision 不能为空字符串`)
+  }
+  if (expected === undefined) return
+  if (expected.trim() === '') {
+    throw new WorkflowError('guidelineRevision 期望版本不能为空字符串')
+  }
+  if (declared === undefined) {
+    throw new WorkflowError(`manifest ${manifest.id} 未声明 guidelineRevision，当前指南版本为 ${expected}`)
+  }
+  if (declared !== expected) {
+    throw new WorkflowError(`manifest ${manifest.id} 的 guidelineRevision（${declared}）与当前指南版本（${expected}）不一致`)
   }
 }

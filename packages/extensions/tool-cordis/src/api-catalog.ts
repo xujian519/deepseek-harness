@@ -5457,7 +5457,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Atom',
-    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n};',
+    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n    usesModel?: boolean;\n};',
   },
   {
     name: 'AtomCategory',
@@ -5657,15 +5657,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CniprChannelOptions',
-    declaration: 'export interface CniprChannelOptions {\n    session: CniprEgoSession;\n    timeoutMs?: number;\n    cwd?: string;\n}',
+    declaration: 'export interface CniprChannelOptions {\n    session: CniprEgoSession;\n    queue?: SerialQueue;\n    timeoutMs?: number;\n    cwd?: string;\n}',
   },
   {
     name: 'CniprChannelOverrides',
-    declaration: 'export type CniprChannelOverrides = Omit<CniprChannelOptions, \'session\'>;',
+    declaration: 'export type CniprChannelOverrides = Omit<CniprChannelOptions, \'session\' | \'queue\'>;',
   },
   {
     name: 'CniprEgoSession',
-    declaration: 'export interface CniprEgoSession {\n    checkAvailability: () => {\n        ok: boolean;\n        reason?: string;\n    };\n    runScript: (script: string, options: {\n        cwd: string;\n        timeoutMs?: number;\n        signal?: AbortSignal;\n    }) => Promise<{\n        output: string;\n        exitCode: number | null;\n        timedOut: boolean;\n    }>;\n    extractTaggedJson: (output: string, tag: string) => unknown;\n}',
+    declaration: 'export interface CniprEgoSession {\n    checkAvailability: () => {\n        ok: boolean;\n        reason?: string;\n    };\n    runScript: (script: string, options: {\n        cwd: string;\n        timeoutMs?: number;\n        signal?: AbortSignal;\n    }) => Promise<{\n        output: string;\n        stderr?: string;\n        exitCode: number | null;\n        timedOut: boolean;\n    }>;\n    extractTaggedJson: (output: string, tag: string) => unknown;\n}',
   },
   {
     name: 'CniprLegalRecord',
@@ -7644,6 +7644,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ReassignTaskResult {\n    task_id: string;\n    previous_assignee: string;\n    assignee: string;\n    status: string;\n    attempt: number;\n    attempt_id?: string;\n}',
   },
   {
+    name: 'Receipt',
+    declaration: 'export type Receipt = SatiEvidenceReceipt;',
+  },
+  {
     name: 'RecurringScheduleRecord',
     declaration: 'export type RecurringScheduleRecord = EveryScheduleRecord | DailyScheduleRecord | WeeklyScheduleRecord | CronScheduleRecord;',
   },
@@ -7860,6 +7864,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SandboxPolicyRequest {\n    session?: Session;\n    mode?: SandboxMode;\n}',
   },
   {
+    name: 'SatiEvidenceReceipt',
+    declaration: 'export type SatiEvidenceReceipt = {\n    toolCallId: string;\n    turnId: string;\n    toolName: string;\n    args: unknown;\n    success: boolean;\n    startedAt: string;\n    path?: string;\n    write: boolean;\n    resultText?: string;\n};',
+  },
+  {
     name: 'SaveDialogOptions',
     declaration: 'export interface SaveDialogOptions {\n    title?: string;\n    defaultPath?: string;\n}',
   },
@@ -8014,6 +8022,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SerializedNode',
     declaration: 'export type SerializedNode = SerializedElement | string;',
+  },
+  {
+    name: 'SerialQueue',
+    declaration: 'export class SerialQueue {\n    async run<T>(task: () => Promise<T>): Promise<T>;\n}',
   },
   {
     name: 'ServerResponse',
@@ -9093,7 +9105,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'StageSearchHit',
-    declaration: 'export interface StageSearchHit {\n    title: string;\n    snippet?: string;\n    url?: string;\n}',
+    declaration: 'export interface StageSearchHit {\n    title: string;\n    snippet?: string;\n    url?: string;\n    publicationDate?: string;\n}',
   },
   {
     name: 'StorageBackend',
@@ -10024,12 +10036,24 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type WorkflowContext = {\n    caseId?: string;\n    input?: string;\n    [key: string]: unknown;\n};',
   },
   {
+    name: 'WorkflowEvidenceLedger',
+    declaration: 'export type WorkflowEvidenceLedger = {\n    receipts: WorkflowEvidenceReceipt[];\n    digest: string;\n    incomplete?: boolean;\n};',
+  },
+  {
+    name: 'WorkflowEvidenceReceipt',
+    declaration: 'export type WorkflowEvidenceReceipt = Omit<Receipt, \'args\' | \'startedAt\'> & {\n    args: Record<string, string>;\n    citationId: string;\n    source: WorkflowEvidenceSource;\n    title?: string;\n    publicationDate?: string;\n    contentHash?: string;\n};',
+  },
+  {
+    name: 'WorkflowEvidenceSource',
+    declaration: 'export type WorkflowEvidenceSource = \'material\' | \'claims\' | \'prior-art\' | \'prior-art-excluded\' | \'prior-art-undated\' | \'evidence\' | \'conflicting-application\' | \'conflicting-application-excluded\' | \'conflicting-application-unknown\';',
+  },
+  {
     name: 'WorkflowInterrupt',
     declaration: 'export type WorkflowInterrupt = {\n    stageId: string;\n    message: string;\n    data: Record<string, unknown>;\n};',
   },
   {
     name: 'WorkflowManifest',
-    declaration: 'export type WorkflowManifest = {\n    id: string;\n    name: string;\n    caseType: string;\n    stages: WorkflowStage[];\n    validation?: {\n        requireAllSteps?: boolean;\n        maxRetries?: number;\n    };\n};',
+    declaration: 'export type WorkflowManifest = {\n    id: string;\n    name: string;\n    caseType: string;\n    guidelineRevision?: string;\n    stages: WorkflowStage[];\n    validation?: {\n        requireAllSteps?: boolean;\n        maxRetries?: number;\n    };\n};',
   },
   {
     name: 'WorkflowMeta',
@@ -10061,11 +10085,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkflowRunOptions',
-    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    onStage?: (stageId: string, index: number, total: number) => void;\n    signal?: AbortSignal;\n};',
+    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    onStage?: (stageId: string, index: number, total: number) => void;\n    signal?: AbortSignal;\n    guidelineRevision?: string;\n};',
   },
   {
     name: 'WorkflowRunResult',
-    declaration: 'export type WorkflowRunResult = {\n    manifestId: string;\n    caseType: string;\n    completed: boolean;\n    stages: WorkflowStageResult[];\n    degradedSteps: string[];\n    summary: string;\n    interrupted?: WorkflowInterrupt;\n    persistWarning?: string;\n};',
+    declaration: 'export type WorkflowRunResult = {\n    manifestId: string;\n    caseType: string;\n    completed: boolean;\n    stages: WorkflowStageResult[];\n    degradedSteps: string[];\n    summary: string;\n    interrupted?: WorkflowInterrupt;\n    persistWarning?: string;\n    evidenceLedger?: WorkflowEvidenceLedger;\n};',
   },
   {
     name: 'WorkflowRunStore',

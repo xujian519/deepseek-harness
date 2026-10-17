@@ -25,6 +25,7 @@ export const reasoningAtom: Atom = {
   category: 'reason',
   inputSchema: ['reasoning_prompt', 'reasoning_input'],
   outputSchema: ['reasoning_output', 'conclusion'],
+  usesModel: true,
 }
 
 /** reasoning 执行器：自由推理产出结论。 */
@@ -70,6 +71,7 @@ export const groundednessAtom: Atom = {
   category: 'reason',
   inputSchema: ['features', 'source_text'],
   outputSchema: ['groundedness_result', 'groundedness_feedback', 'low_confidence_features'],
+  usesModel: true,
 }
 
 const GROUNDEDNESS_SCHEMA = {

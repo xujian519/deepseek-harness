@@ -42,6 +42,7 @@ describe('createNuoSearchProvider', () => {
         title: 'Thermal management system',
         snippet: 'A thermal management system.',
         url: 'https://patents.google.com/patent/US11452699B2',
+        publicationDate: '2022-09-27',
       },
       {
         title: 'CN115690481A',

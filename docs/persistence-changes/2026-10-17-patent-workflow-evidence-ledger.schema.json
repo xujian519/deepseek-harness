@@ -1,0 +1,700 @@
+{
+  "formatVersion": 2,
+  "roots": [
+    {
+      "key": "event:patent/evidence-ledger",
+      "kind": "event",
+      "event": "patent/evidence-ledger",
+      "surface": false,
+      "digest": "21a8536f828f11e9faf08635fe52956af4ee6017ef8983cbd91defb41bac4288",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 18,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 20,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "ledger",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "manifestId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "runId",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "digest",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "incomplete",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "receipts",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "array",
+            "element": 6
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "args",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "citationId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "contentHash",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "path",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "publicationDate",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "resultText",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "source",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "success",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "toolCallId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "toolName",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "write",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 3,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "claims"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-undated"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "evidence"
+          },
+          {
+            "kind": "literal",
+            "value": "material"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "patent/evidence-ledger"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:patent/legal-gaps",
+      "kind": "event",
+      "event": "patent/legal-gaps",
+      "surface": false,
+      "digest": "790077a8f3ba90b34c4283a4b38b878b4e10af2cd53120f8f5da747c108932a9",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "manifestId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "report",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "runId",
+                "type": 2,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "patent/legal-gaps"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:patent/workflow-run",
+      "kind": "event",
+      "event": "patent/workflow-run",
+      "surface": false,
+      "digest": "e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 29,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 30,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "caseType",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "completed",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "degradedSteps",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "evidenceLedger",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "interrupted",
+                "type": 19,
+                "optional": true
+              },
+              {
+                "name": "manifestId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "persistWarning",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "runId",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "stages",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "summary",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "digest",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "incomplete",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "receipts",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 7
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "args",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "citationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "contentHash",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "path",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "publicationDate",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "resultText",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "source",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "success",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "toolCallId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "toolName",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "write",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 2
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "claims"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "evidence"
+          },
+          {
+            "kind": "literal",
+            "value": "material"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-undated"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 20,
+                "optional": false
+              },
+              {
+                "name": "message",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "stageId",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 21
+              }
+            ]
+          },
+          {
+            "kind": "opaque",
+            "reason": "unknown"
+          },
+          {
+            "kind": "array",
+            "element": 23
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "atom",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "degraded",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "output",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "retries",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "stageId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "strategy",
+                "type": 25,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              26,
+              27,
+              28
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "chain"
+          },
+          {
+            "kind": "literal",
+            "value": "react"
+          },
+          {
+            "kind": "literal",
+            "value": "sub_agent"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "patent/workflow-run"
+          }
+        ]
+      }
+    }
+  ],
+  "types": []
+}

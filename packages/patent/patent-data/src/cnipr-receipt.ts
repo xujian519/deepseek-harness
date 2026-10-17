@@ -277,14 +277,18 @@ function group(match: RegExpMatchArray, index: number): string {
 }
 
 /**
- * 校验脚本回传的失败对象；未知分类按 `page_state` 处理（脚本与包同版本发布，
- * 未知分类只可能来自脚本改了一半的运行，归入页面交互失败比放行更安全）。
+ * 校验脚本回传的失败对象；未知分类与非对象取值都按 `page_state` 处理（脚本与包
+ * 同版本发布，未知分类只可能来自脚本改了一半的运行，归入页面交互失败比放行更安全）。
  * @param value - 脚本回传的 error 字段。
- * @returns 规范化后的失败，或 undefined（该字段缺失/不是对象）。
+ * @returns 规范化后的失败，或 undefined（该字段为 null/undefined）。
  */
 export function readCniprScriptFailure(value: unknown): CniprScriptFailure | undefined {
+  if (value === null || value === undefined) return undefined
   const record = asRecord(value)
-  if (record === undefined) return undefined
+  // 脚本回传的 error 不是对象也是畸形收据：按页面状态失败报出，不静默丢弃。
+  if (record === undefined) {
+    return { code: 'page_state', message: typeof value === 'string' ? value : '脚本回传的 error 不是对象' }
+  }
   const message = asString(record.message) ?? ''
   const code = asString(record.code)
   const known: CniprScriptFailureCode = code === 'login_required' ? 'login_required' : 'page_state'
@@ -303,17 +307,25 @@ function readCniprPayload<T>(
   readItem: (record: Record<string, unknown>) => T | undefined,
 ): { items: T[]; failure?: CniprScriptFailure } {
   const root = asRecord(payload)
-  const list = root === undefined ? undefined : root.items
-  const items: T[] = []
-  if (Array.isArray(list)) {
-    for (const entry of list) {
-      const record = asRecord(entry)
-      if (record === undefined) continue
-      const item = readItem(record)
-      if (item !== undefined) items.push(item)
+  if (root === undefined) {
+    return { items: [], failure: { code: 'page_state', message: 'CNIPR 脚本收据不是对象' } }
+  }
+  const failure = readCniprScriptFailure(root.error)
+  const list = root.items
+  if (!Array.isArray(list)) {
+    // 收据骨架不合约定时按通道级失败处理；静默当空数组会把脚本故障伪装成号码级缺失。
+    return {
+      items: [],
+      failure: failure ?? { code: 'page_state', message: 'CNIPR 脚本收据缺少 items 数组' },
     }
   }
-  const failure = root === undefined ? undefined : readCniprScriptFailure(root.error)
+  const items: T[] = []
+  for (const entry of list) {
+    const record = asRecord(entry)
+    if (record === undefined) continue
+    const item = readItem(record)
+    if (item !== undefined) items.push(item)
+  }
   return { items, ...(failure === undefined ? {} : { failure }) }
 }
 
@@ -372,7 +384,6 @@ export function readCniprLegalPayload(payload: unknown): { items: CniprLegalStat
 
 /** 脚本回传的检索条目：公开号与标题是干净的属性，其余字段在行文本里。 */
 type SearchPayloadItem = {
-  cursor?: unknown
   number?: unknown
   title?: unknown
   text?: unknown

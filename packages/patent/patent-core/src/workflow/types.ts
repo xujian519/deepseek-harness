@@ -7,6 +7,7 @@
  */
 
 import type { AtomRegistry, PipelineState, StageHandlerRegistry } from '../atoms/index.ts'
+import type { WorkflowEvidenceLedger } from '../evidence/index.ts'
 import type { StageProvider } from '../types.ts'
 
 /** 阶段执行策略：chain / react / sub_agent。 */
@@ -61,6 +62,12 @@ export type WorkflowManifest = {
   id: string
   name: string
   caseType: string
+  /**
+   * Revision of 《专利审查指南》 the manifest's law references target, e.g.
+   * `2023 年修订版（2024-01-20 施行）`. When a run supplies an expected
+   * revision, a different declaration fails before any stage executes.
+   */
+  guidelineRevision?: string
   stages: WorkflowStage[]
   validation?: {
     /** 是否要求所有步骤都产生输出（缺省 true） */
@@ -117,6 +124,11 @@ export type WorkflowRunOptions = {
   onStage?: (stageId: string, index: number, total: number) => void
   /** 调用方取消信号：阶段边界检查，中止时中止执行。 */
   signal?: AbortSignal
+  /**
+   * 本次部署预期使用的《专利审查指南》版本。给出时，manifest 必须声明同一
+   * `guidelineRevision`，否则校验失败；用于在加载/运行前拦截按旧版条文编写的清单。
+   */
+  guidelineRevision?: string
 }
 
 /** 单个阶段执行结果：阶段 id、策略、输出、降级标记、重试次数与原子名。 */
@@ -151,6 +163,12 @@ export type WorkflowRunResult = {
   interrupted?: WorkflowInterrupt
   /** 可选：结果持久化失败时的告警（执行本身不受影响） */
   persistWarning?: string
+  /**
+   * Evidence sources the run consumed, one receipt per source with a stable
+   * citation id. Lets a persisted run or session log rebuild the documents
+   * behind a citation without replaying the stages.
+   */
+  evidenceLedger?: WorkflowEvidenceLedger
 }
 
 /**

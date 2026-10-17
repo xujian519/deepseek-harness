@@ -26,12 +26,27 @@ import {
   type WorkflowRunJobRegistry,
 } from '../src/tool/patent-workflow-run.ts'
 import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
+import { draftSpecificationAtom, DraftSpecificationHandler } from '../src/atoms/draft-specification.ts'
+import { specCheckAtom, SpecCheckHandler } from '../src/atoms/spec-check.ts'
+import { responseCheckAtom, ResponseCheckHandler } from '../src/atoms/response-check.ts'
+import { eligibilityAtom, EligibilityHandler } from '../src/atoms/eligibility.ts'
+import { legalGapsAtom, LegalGapsHandler } from '../src/atoms/legal-gaps.ts'
 
 registerBuiltinAtoms()
-// slop-gate 依赖本包的 slop 引擎，真实注册在 apply()（索引第 283-284 行）；
+// slop-gate、spec-check、response-check、eligibility 与 legal-gaps 依赖本包实现，真实注册在 apply()；
 // 测试直接走包内实现，保证 manifest 校验与实际运行路径一致。
 globalAtomRegistry.register(slopGateAtom)
 globalStageHandlerRegistry.register(new SlopGateHandler())
+globalAtomRegistry.register(draftSpecificationAtom)
+globalStageHandlerRegistry.register(new DraftSpecificationHandler())
+globalAtomRegistry.register(specCheckAtom)
+globalStageHandlerRegistry.register(new SpecCheckHandler())
+globalAtomRegistry.register(responseCheckAtom)
+globalStageHandlerRegistry.register(new ResponseCheckHandler())
+globalAtomRegistry.register(eligibilityAtom)
+globalStageHandlerRegistry.register(new EligibilityHandler())
+globalAtomRegistry.register(legalGapsAtom)
+globalStageHandlerRegistry.register(new LegalGapsHandler())
 
 /**
  * Tool execution context for a call from this spec. `withAgent` adds the
@@ -40,8 +55,14 @@ globalStageHandlerRegistry.register(new SlopGateHandler())
  * @param withAgent - include a calling agent.
  * @returns the execution context the tool body reads.
  */
-function toolExec(withAgent = false): Parameters<ToolDefinition['execute']>[1] {
-  const agent = { id: 'sess-1', session: { id: 'sess-1', append: () => {} } }
+function toolExec(
+  withAgent = false,
+  onAppend: (type: string, data: unknown) => void = () => {},
+): Parameters<ToolDefinition['execute']>[1] {
+  const agent = {
+    id: 'sess-1',
+    session: { id: 'sess-1', append: (type: string, data: unknown) => { onAppend(type, data) } },
+  }
   const context = { signal: new AbortController().signal, ...(withAgent ? { agent } : {}) }
   return context as unknown as Parameters<ToolDefinition['execute']>[1]
 }
@@ -148,6 +169,37 @@ describe('patent_workflow_run', () => {
     expect(value.manifestId).toBe('patent_disclosure_v1')
     expect(value.interruptNote).toBeDefined()
     expect(value.interruptNote).toContain('review_gate')
+  })
+
+  it('disclosure manifest: prior-art filtering drops post-cutoff hits before novelty', async () => {
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        const prompt = request.messages.map(m => m.content).join('\n')
+        yield {
+          type: 'delta',
+          text: prompt.includes('检索关键词')
+            ? '{"keywords":["壳体"]}'
+            : '{"features":["f1"],"problems":["p1"],"effects":["e1"]}',
+        }
+        yield { type: 'done' }
+      },
+    }
+    const search = async () => [
+      { title: 'D1 申请日前', publicationDate: '2023-01-01', url: 'https://example.com/d1' },
+      { title: 'D2 申请日后', publicationDate: '2024-07-01', url: 'https://example.com/d2' },
+    ]
+    const tool = createPatentWorkflowRunTool({ model, search })
+    const value = (await tool.execute(
+      { manifestId: 'patent_disclosure_v1', input: 'technical disclosure', filingDate: '2024-06-01' },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    expect(stages.find(s => s.stageId === 'time_baseline')?.degraded).toBe(false)
+    const filter = stages.find(s => s.stageId === 'prior_art_filter')
+    expect(filter?.degraded).toBe(false)
+    expect(filter?.output).toContain('保留 1 篇')
+    expect(filter?.output).toContain('排除 1 篇')
   })
 
   it('returns ok=false for an unknown graph checkpoint', async () => {
@@ -388,6 +440,583 @@ describe('patent_workflow_run', () => {
     expect(parse).not.toContain('上游阶段产出')
   })
 
+  it('novelty manifest: filingDate/priorityDate establish the prior-art cutoff', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_novelty_v1',
+        input: '交底书正文',
+        filingDate: '2024-06-01',
+        priorityDate: '2023-06-01',
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const baseline = stages.find(s => s.stageId === 'time_baseline')
+    expect(baseline).toBeDefined()
+    expect(baseline!.output).toContain('2023-06-01')
+    expect(baseline!.output).toContain('优先权日')
+    expect(baseline!.degraded).toBe(false)
+    expect(value.degradedSteps ?? []).not.toContain('time_baseline')
+  })
+
+  it('rejects an unparseable filingDate at the tool input boundary', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    await expect(
+      tool.execute({ manifestId: 'patent_novelty_v1', input: 'x', filingDate: '2024-13-01' }, exec),
+    ).rejects.toThrow(/filingDate/)
+  })
+
+  it('novelty manifest: conflictingApplications runs the A22.2 second-sentence check', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_novelty_v1',
+        input: '交底书正文',
+        filingDate: '2024-06-01',
+        conflictingApplications: JSON.stringify([
+          {
+            applicationNumber: 'CN202310000001',
+            publicationNumber: 'CN123456A',
+            title: '在先申请',
+            filingDate: '2023-01-01',
+            publicationDate: '2024-07-01',
+            sameInvention: true,
+          },
+        ]),
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const check = stages.find(s => s.stageId === 'conflicting_application')
+    expect(check).toBeDefined()
+    expect(check!.degraded).toBe(false)
+    expect(check!.output).toContain('确认 1 件')
+    expect(check!.output).toContain('仅用于新颖性判断')
+  })
+
+  it('novelty manifest: numeric_range compares claim numbers with supplied priorArt', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_novelty_v1',
+        input: '交底书正文',
+        claims: '1. 一种装置，其特征在于，温度为 50-80℃。',
+        priorArt: JSON.stringify([{ title: 'D1', snippet: 'D1 公开温度为 60-90℃。' }]),
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const check = stages.find(s => s.stageId === 'numeric_range')
+    expect(check).toBeDefined()
+    expect(check!.degraded).toBe(false)
+    expect(check!.output).toContain('破坏新颖性')
+    expect(check!.output).toContain('[claim × D1]')
+  })
+
+  it('novelty manifest: atomic search feeds prior-art filtering and citation grounding', async () => {
+    const prompts: string[] = []
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        const prompt = request.messages.map(m => m.content).join('\n')
+        prompts.push(prompt)
+        const text = prompt.includes('检索关键词')
+          ? '{"keywords":["阀体","伴热夹套"]}'
+          : prompt.includes('生成新颖性分析结论')
+            ? '对比文件 D1 公开了全部技术特征，不具备新颖性。'
+            : '解析结果：包括阀体与设置在阀体外侧的伴热夹套。'
+        yield { type: 'delta', text }
+        yield { type: 'done' }
+      },
+    }
+    const search = async () => [
+      {
+        title: 'D1 阀体结构',
+        publicationDate: '2023-01-01',
+        url: 'https://example.com/d1',
+        snippet: '阀体外侧设置伴热夹套',
+      },
+      { title: 'D2 后公开', publicationDate: '2024-07-01', url: 'https://example.com/d2' },
+    ]
+    const tool = createPatentWorkflowRunTool({ model, search })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_novelty_v1',
+        input: '一种阀体伴热夹套结构',
+        filingDate: '2024-06-01',
+        approveStageIds: ['approval'],
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    expect(value.completed).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const searchStage = stages.find(s => s.stageId === 'search')
+    expect(searchStage?.atom).toBe('search')
+    expect(searchStage?.output).toContain('检索到 2 篇相关文献')
+    expect(searchStage?.output).toContain('D1 阀体结构')
+    expect(searchStage?.output).toContain('阀体外侧设置伴热夹套')
+    const filter = stages.find(s => s.stageId === 'prior_art_filter')
+    expect(filter?.degraded).toBe(false)
+    expect(filter?.output).toContain('保留 1 篇')
+    expect(filter?.output).toContain('排除 1 篇')
+    const citation = stages.find(s => s.stageId === 'citation_check')
+    expect(citation?.degraded).toBe(false)
+    expect(citation?.output).toContain('引用全部接地')
+    expect(citation?.output).toContain('D1')
+    // 收口阶段只能读到阶段产出文本：检索摘要必须携带命中详情，过滤结论必须可消费。
+    const compare = prompts.find(p => p.includes('逐项对比技术特征与现有技术'))
+    expect(compare).toContain('D1 阀体结构')
+    expect(compare).toContain('## 上游阶段产出: prior_art_filter')
+  })
+
+  it('novelty manifest: citation-check rejects a citation to a filtered-out document', async () => {
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        const prompt = request.messages.map(m => m.content).join('\n')
+        const text = prompt.includes('检索关键词')
+          ? '{"keywords":["阀体"]}'
+          : prompt.includes('生成新颖性分析结论')
+            ? '对比文件 D2 公开了全部技术特征。'
+            : '解析结果：阀体。'
+        yield { type: 'delta', text }
+        yield { type: 'done' }
+      },
+    }
+    const search = async () => [
+      { title: 'D1 早公开', publicationDate: '2023-01-01', url: 'https://example.com/d1' },
+      { title: 'D2 截止日后公开', publicationDate: '2024-07-01', url: 'https://example.com/d2' },
+    ]
+    const tool = createPatentWorkflowRunTool({ model, search })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_novelty_v1',
+        input: '一种阀体',
+        filingDate: '2024-06-01',
+        approveStageIds: ['approval'],
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    const citation = ((value.stages ?? []) as WorkflowStageResult[])
+      .find(s => s.stageId === 'citation_check')
+    expect(citation?.degraded).toBe(false)
+    expect(citation?.output).toContain('D2')
+    expect(citation?.output).toContain('未在检索结果中找到')
+  })
+
+  it('inventiveness manifest: time baseline, search, and prior-art filtering feed the three-step method', async () => {
+    const prompts: string[] = []
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        const prompt = request.messages.map(m => m.content).join('\n')
+        prompts.push(prompt)
+        const text = prompt.includes('检索关键词')
+          ? '{"keywords":["壳体","限位凸台"]}'
+          : prompt.includes('生成创造性结论')
+            ? '对比文件 D1 给出了技术启示，不具备创造性。'
+            : '产出：区别特征为限位凸台。'
+        yield { type: 'delta', text }
+        yield { type: 'done' }
+      },
+    }
+    const search = async () => [
+      { title: 'D1 早公开', publicationDate: '2023-01-01', url: 'https://example.com/d1', snippet: '壳体内设置限位凸台' },
+      { title: 'D2 后公开', publicationDate: '2024-07-01', url: 'https://example.com/d2' },
+    ]
+    const tool = createPatentWorkflowRunTool({ model, search })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_inventiveness_v1',
+        input: '一种装置，包括壳体和限位凸台。',
+        filingDate: '2024-06-01',
+        approveStageIds: ['approval'],
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    expect(value.completed).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    expect(stages.find(s => s.stageId === 'time_baseline')?.degraded).toBe(false)
+    const filter = stages.find(s => s.stageId === 'prior_art_filter')
+    expect(filter?.degraded).toBe(false)
+    expect(filter?.output).toContain('保留 1 篇')
+    expect(filter?.output).toContain('排除 1 篇')
+    const citation = stages.find(s => s.stageId === 'citation_check')
+    expect(citation?.degraded).toBe(false)
+    expect(citation?.output).toContain('引用全部接地')
+    const closest = prompts.find(p => p.includes('确定最接近的现有技术'))
+    expect(closest).toContain('D1 早公开')
+    expect(closest).toContain('## 上游阶段产出: prior_art_filter')
+  })
+
+  it('inventiveness manifest: problem_check rejects a problem restating the distinguishing feature', async () => {
+    const runWithProblem = async (problem: string): Promise<WorkflowStageResult | undefined> => {
+      const model: PatentModelPort = {
+        stream: async function* (request) {
+          const prompt = request.messages.map(m => m.content).join('\n')
+          const output = prompt.includes('实质对比确定区别技术特征')
+            ? JSON.stringify({
+              distinguishing_features: ['设置限位凸台'],
+              actual_technical_problem: problem,
+              effect_of_diff: '可靠定位',
+            })
+            : '产出'
+          yield { type: 'delta', text: output }
+          yield { type: 'done' }
+        },
+      }
+      const tool = createPatentWorkflowRunTool({ model, search: async () => [] })
+      const value = (await tool.execute(
+        { manifestId: 'patent_inventiveness_v1', input: '一种装置，包括壳体。' },
+        exec,
+      )) as PatentWorkflowRunOutput
+      expect(value.ok).toBe(true)
+      return ((value.stages ?? []) as WorkflowStageResult[]).find(s => s.stageId === 'problem_check')
+    }
+
+    const rejected = await runWithProblem('如何设置限位凸台')
+    expect(rejected).toBeDefined()
+    expect(rejected!.degraded).toBe(false)
+    expect(rejected!.output).toContain('未通过')
+    expect(rejected!.output).toContain('区别特征自身')
+
+    const accepted = await runWithProblem('如何将装配温度从95℃降至78℃')
+    expect(accepted).toBeDefined()
+    expect(accepted!.degraded).toBe(false)
+    expect(accepted!.output).toContain('通过')
+  })
+
+  it('oa-response manifest: response_check flags a missing rejection ground in the draft', async () => {
+    const notice =
+      '权利要求 1-2 不具备创造性，不符合专利法第22条第3款的规定；权利要求 3 的保护范围不清楚，不符合专利法第26条第4款的规定。'
+    const runWithDraft = async (draft: string): Promise<WorkflowStageResult | undefined> => {
+      const model: PatentModelPort = {
+        stream: async function* (request) {
+          const prompt = request.messages.map(m => m.content).join('\n')
+          const output = prompt.includes('撰写意见陈述书') ? draft : '{"features":["f1"]}'
+          yield { type: 'delta', text: output }
+          yield { type: 'done' }
+        },
+      }
+      const tool = createPatentWorkflowRunTool({ model, search: async () => [] })
+      const value = (await tool.execute(
+        { manifestId: 'patent_oa_response_v1', input: notice },
+        exec,
+      )) as PatentWorkflowRunOutput
+      expect(value.ok).toBe(true)
+      return ((value.stages ?? []) as WorkflowStageResult[])
+        .find(stage => stage.stageId === 'response_check')
+    }
+
+    const missing = await runWithDraft('关于创造性：对比文件 1 与 2 的结合无技术启示。')
+    expect(missing).toBeDefined()
+    expect(missing!.degraded).toBe(false)
+    expect(missing!.output).toContain('未通过')
+    expect(missing!.output).toContain('不清楚')
+
+    const covered = await runWithDraft(
+      '关于创造性：对比文件 1 与 2 的结合无技术启示。\n关于不清楚：修改权利要求 3 的表述。',
+    )
+    expect(covered).toBeDefined()
+    expect(covered!.degraded).toBe(false)
+    expect(covered!.output).toContain('通过')
+  })
+
+  it('oa-response manifest: amendment_basis rejects a new feature absent from the original application', async () => {
+    const notice = '权利要求 1 不具备创造性，不符合专利法第22条第3款的规定。'
+    const originalClaims = '1. 一种装置，包括壳体，其特征在于，所述壳体上设置有散热孔和过滤网。'
+    const runWithDraft = async (draft: string): Promise<WorkflowStageResult | undefined> => {
+      const model: PatentModelPort = {
+        stream: async function* (request) {
+          const prompt = request.messages.map(m => m.content).join('\n')
+          const output = prompt.includes('撰写意见陈述书') ? draft : '{"features":["f1"]}'
+          yield { type: 'delta', text: output }
+          yield { type: 'done' }
+        },
+      }
+      const tool = createPatentWorkflowRunTool({ model, search: async () => [] })
+      const value = (await tool.execute(
+        { manifestId: 'patent_oa_response_v1', input: notice, claims: originalClaims },
+        exec,
+      )) as PatentWorkflowRunOutput
+      expect(value.ok).toBe(true)
+      return ((value.stages ?? []) as WorkflowStageResult[])
+        .find(stage => stage.stageId === 'amendment_basis')
+    }
+
+    const added = await runWithDraft(
+      [
+        '关于创造性：对比文件 1 未公开散热孔。',
+        '修改后权利要求书：',
+        '1. 一种装置，包括壳体，其特征在于，所述壳体上设置有散热孔，所述壳体内设置有不锈钢材质的过滤网。',
+      ].join('\n'),
+    )
+    expect(added).toBeDefined()
+    expect(added!.degraded).toBe(false)
+    expect(added!.output).toContain('未通过')
+    expect(added!.output).toContain('不锈钢')
+
+    const supported = await runWithDraft(
+      [
+        '关于创造性：对比文件 1 未公开散热孔。',
+        '修改后权利要求书：',
+        '1. 一种装置，包括壳体，其特征在于，所述壳体上设置有散热孔和过滤网。',
+      ].join('\n'),
+    )
+    expect(supported).toBeDefined()
+    expect(supported!.degraded).toBe(false)
+    expect(supported!.output).toContain('通过')
+  })
+
+  it('invalidation manifest: evidence_check rejects a late exhibit and accepts an in-time one', async () => {
+    const runWithEvidence = async (evidence: unknown[]): Promise<WorkflowStageResult | undefined> => {
+      const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+      const value = (await tool.execute(
+        {
+          manifestId: 'patent_invalidation_v1',
+          input: '请求人主张权利要求 1 不具备创造性（专利法第22条第3款）。',
+          filingDate: '2024-06-01',
+          evidenceDeadline: '2024-07-01',
+          evidence: JSON.stringify(evidence),
+        },
+        exec,
+      )) as PatentWorkflowRunOutput
+      expect(value.ok).toBe(true)
+      return ((value.stages ?? []) as WorkflowStageResult[])
+        .find(stage => stage.stageId === 'evidence-check')
+    }
+
+    const exhibit = {
+      title: 'CN101234567A 阀体伴热夹套结构',
+      type: '现有技术',
+      sourceUri: 'patent:CN101234567A',
+      publicationDate: '2023-01-01',
+      grounds: ['创造性'],
+    }
+    const late = await runWithEvidence([{ ...exhibit, submittedAt: '2024-08-01' }])
+    expect(late).toBeDefined()
+    expect(late!.degraded).toBe(false)
+    expect(late!.output).toContain('未通过')
+    expect(late!.output).toContain('EVID-TIME-LATE')
+
+    const inTime = await runWithEvidence([{ ...exhibit, submittedAt: '2024-06-15' }])
+    expect(inTime).toBeDefined()
+    expect(inTime!.degraded).toBe(false)
+    expect(inTime!.output).toContain('通过')
+  })
+
+  it('invalidation manifest: citation_check grounds D labels from the novelty and inventiveness stages', async () => {
+    const runWith = async (conclusion: string, priorArt: unknown[]): Promise<WorkflowStageResult | undefined> => {
+      const model: PatentModelPort = {
+        stream: async function* () {
+          yield { type: 'delta', text: conclusion }
+          yield { type: 'done' }
+        },
+      }
+      const tool = createPatentWorkflowRunTool({ model, search: async () => [] })
+      const value = (await tool.execute(
+        {
+          manifestId: 'patent_invalidation_v1',
+          input: '请求人主张权利要求 1 不具备新颖性（专利法第22条第2款）。',
+          priorArt: JSON.stringify(priorArt),
+        },
+        exec,
+      )) as PatentWorkflowRunOutput
+      expect(value.ok).toBe(true)
+      return ((value.stages ?? []) as WorkflowStageResult[])
+        .find(stage => stage.stageId === 'citation-check')
+    }
+
+    const grounded = await runWith('对比文件 1（D1）公开了权利要求 1 的全部技术特征。', [
+      { title: 'CN101234567A 阀体伴热夹套结构' },
+    ])
+    expect(grounded).toBeDefined()
+    expect(grounded!.degraded).toBe(false)
+    expect(grounded!.output).toContain('引用全部接地')
+
+    const ungrounded = await runWith('US11452699B2 公开了权利要求 1 的全部技术特征。', [
+      { title: 'CN101234567A 阀体伴热夹套结构' },
+    ])
+    expect(ungrounded).toBeDefined()
+    expect(ungrounded!.degraded).toBe(false)
+    expect(ungrounded!.output).toContain('US11452699B2')
+    expect(ungrounded!.output).toContain('未在检索结果中找到对应对比文件')
+  })
+
+  it('invalidation manifest: legal_gaps aggregates evidence and ground coverage', async () => {
+    const runWithEvidence = async (evidence: unknown[]): Promise<WorkflowStageResult | undefined> => {
+      const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+      const value = (await tool.execute(
+        {
+          manifestId: 'patent_invalidation_v1',
+          input: '请求人主张权利要求 1 不具备创造性（专利法第22条第3款）。',
+          filingDate: '2024-06-01',
+          evidenceDeadline: '2024-07-01',
+          evidence: JSON.stringify(evidence),
+        },
+        exec,
+      )) as PatentWorkflowRunOutput
+      expect(value.ok).toBe(true)
+      return ((value.stages ?? []) as WorkflowStageResult[])
+        .find(stage => stage.stageId === 'legal_gaps')
+    }
+
+    const exhibit = {
+      title: 'CN101234567A 阀体伴热夹套结构',
+      type: '现有技术',
+      sourceUri: 'patent:CN101234567A',
+      publicationDate: '2023-01-01',
+      grounds: ['创造性'],
+      submittedAt: '2024-06-15',
+    }
+    const blocked = await runWithEvidence([{ ...exhibit, submittedAt: '2024-08-01' }])
+    expect(blocked).toBeDefined()
+    expect(blocked!.degraded).toBe(false)
+    expect(blocked!.output).toContain('未通过')
+    expect(blocked!.output).toContain('审查指南第四部分第三章4.3.2')
+
+    const passed = await runWithEvidence([exhibit])
+    expect(passed).toBeDefined()
+    expect(passed!.degraded).toBe(false)
+    expect(passed!.output).toContain('无阻断项')
+  })
+
+  it('novelty manifest: legal_gaps summarizes time baseline, conflicting applications, and novelty', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_novelty_v1',
+        input: '一种阀体伴热夹套结构，包括阀体和设置在阀体外侧的伴热夹套。',
+        claims: '1. 一种阀体伴热夹套结构，其特征在于，包括阀体和设置在阀体外侧的伴热夹套。',
+        filingDate: '2024-06-01',
+        approveStageIds: ['approval'],
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    const gaps = ((value.stages ?? []) as WorkflowStageResult[])
+      .find(stage => stage.stageId === 'legal_gaps')
+    expect(gaps).toBeDefined()
+    expect(gaps!.degraded).toBe(false)
+    expect(gaps!.output).toContain('法条缺口汇总（新颖性分析）')
+    expect(gaps!.output).toContain('专利法第22条第5款')
+    expect(gaps!.output).toContain('抵触申请')
+  })
+
+  it('patentability manifest: legal_gaps reports eligibility and claim support coverage', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_patentability_v1',
+        input: '一种阀体伴热夹套结构，包括阀体和设置在阀体外侧的伴热夹套。',
+        claims: '1. 一种阀体伴热夹套结构，其特征在于，包括阀体和设置在阀体外侧的伴热夹套。',
+        approveStageIds: ['approval'],
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    const gaps = ((value.stages ?? []) as WorkflowStageResult[])
+      .find(stage => stage.stageId === 'legal_gaps')
+    expect(gaps).toBeDefined()
+    expect(gaps!.degraded).toBe(false)
+    expect(gaps!.output).toContain('法条缺口汇总（可专利性分析）')
+    expect(gaps!.output).toContain('专利法第2条第2款')
+    expect(gaps!.output).toContain('专利法第26条第4款')
+    expect(gaps!.output).toContain('未评估')
+  })
+
+  it('patentability manifest: time baseline and atomic search feed the filtered claim chart', async () => {
+    const prompts: string[] = []
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        const prompt = request.messages.map(m => m.content).join('\n')
+        prompts.push(prompt)
+        const text = prompt.includes('检索关键词')
+          ? '{"keywords":["阀体","伴热夹套"]}'
+          : prompt.includes('把权利要求拆分为编号要素')
+            ? JSON.stringify({ elements: [], rows: [] })
+            : '解析结果：包括阀体与设置在阀体外侧的伴热夹套。'
+        yield { type: 'delta', text }
+        yield { type: 'done' }
+      },
+    }
+    const search = async () => [
+      {
+        title: 'D1 阀体结构',
+        publicationDate: '2023-01-01',
+        url: 'https://example.com/d1',
+        snippet: '阀体外侧设置伴热夹套',
+      },
+      {
+        title: 'D2 后公开',
+        publicationDate: '2024-07-01',
+        url: 'https://example.com/d2',
+        snippet: '申请日之后公开的伴热夹套',
+      },
+    ]
+    const tool = createPatentWorkflowRunTool({ model, search })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_patentability_v1',
+        input: '一种阀体伴热夹套结构',
+        claims: '1. 一种阀体伴热夹套结构，其特征在于，包括阀体和设置在阀体外侧的伴热夹套。',
+        filingDate: '2024-06-01',
+        approveStageIds: ['approval'],
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    expect(stages.find(stage => stage.stageId === 'time_baseline')?.degraded).toBe(false)
+    const filter = stages.find(stage => stage.stageId === 'prior_art_filter')
+    expect(filter?.degraded).toBe(false)
+    expect(filter?.output).toContain('保留 1 篇')
+    expect(filter?.output).toContain('排除 1 篇')
+    const draftSpecification = stages.find(stage => stage.stageId === 'draft_specification')
+    expect(draftSpecification?.degraded).toBe(false)
+    expect(draftSpecification?.output).toContain('## 技术领域')
+    const specCheck = stages.find(stage => stage.stageId === 'spec_check')
+    expect(specCheck?.degraded).toBe(false)
+    expect(specCheck?.output).toContain('说明书合规检查')
+    // claim-chart 未显式收到 chart_targets：目标由过滤后的 prior_art 派生，排除的 D2 不进入映射。
+    const chartPrompt = prompts.find(prompt => prompt.includes('把权利要求拆分为编号要素'))
+    expect(chartPrompt).toContain('D1（对比文件：D1 阀体结构')
+    expect(chartPrompt).not.toContain('D2 后公开')
+    const gaps = stages.find(stage => stage.stageId === 'legal_gaps')
+    expect(gaps?.output).toContain('[通过] 专利法第22条第5款')
+    expect(gaps?.output).toContain('[通过] 专利法第24条')
+    expect(gaps?.output).toContain('专利法第26条第3款')
+  })
+
+  it('rejects a non-array conflictingApplications at the tool input boundary', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    await expect(
+      tool.execute(
+        { manifestId: 'patent_novelty_v1', input: 'x', conflictingApplications: '{"title":"E1"}' },
+        exec,
+      ),
+    ).rejects.toThrow('conflictingApplications 必须是 JSON 数组')
+  })
+
+  it('rejects a non-array evidence list and an unparseable evidence deadline at the input boundary', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    await expect(
+      tool.execute(
+        { manifestId: 'patent_invalidation_v1', input: 'x', evidence: '{"title":"E1"}' },
+        exec,
+      ),
+    ).rejects.toThrow('evidence 必须是 JSON 数组')
+    await expect(
+      tool.execute(
+        { manifestId: 'patent_invalidation_v1', input: 'x', evidenceDeadline: 'not-a-date' },
+        exec,
+      ),
+    ).rejects.toThrow('evidenceDeadline 不是可识别的日期')
+  })
+
   it('runs the reexamination and invalidation manifests with their own grounds table and chart mode', async () => {
     const prompts: string[] = []
     const model: PatentModelPort = {
@@ -443,6 +1072,29 @@ describe('patent_workflow_run', () => {
     const state = value.graphState as { citation_check_grounded?: unknown; citation_check_report?: unknown }
     expect(state.citation_check_grounded).toBe(true)
     expect(state.citation_check_report).toContain('引用全部接地')
+  })
+
+  it('marks a resumed graph run with degraded nodes incomplete, matching the manifest path', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+    const failing: PatentModelPort = {
+      stream: async function* () { throw new Error('model unavailable') },
+    }
+    const tool = createPatentWorkflowRunTool({ model: failing, search: fakeSearch, cwd: temp })
+    const paused = (await tool.execute(
+      { graph: 'novelty', input: '技术方案', caseId: 'case-graph' },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(paused.interruptNote).toBeDefined()
+    expect((paused.graphDegraded ?? []).length).toBeGreaterThan(0)
+    expect(paused.checkpointId).toBeDefined()
+
+    const resumed = (await tool.execute(
+      { graph: 'novelty', input: '技术方案', caseId: 'case-graph', approveCheckpointId: paused.checkpointId },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(resumed.interruptNote).toBeUndefined()
+    expect((resumed.graphDegraded ?? []).length).toBeGreaterThan(0)
+    expect(resumed.completed).toBe(false)
   })
 
   it('rejects a non-JSON priorArt at the input boundary', async () => {
@@ -631,6 +1283,43 @@ describe('patent_workflow_run', () => {
     if (result.isError) throw new Error('expected success')
     const text = result.content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
     expect(text).toContain('未知 manifest')
+  })
+})
+
+describe('patent_workflow_run — run records', () => {
+  it('returns the run evidence ledger and appends run, ledger, and legal-gaps events', async () => {
+    const events: Array<{ type: string; data: unknown }> = []
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: async () => [] })
+    const value = (await tool.execute(
+      {
+        manifestId: 'patent_novelty_v1',
+        input: '交底书正文',
+        filingDate: '2024-06-01',
+        priorArt: JSON.stringify([
+          { title: '对比文件 1', url: 'https://example.test/D1', publicationDate: '2020-01-01' },
+        ]),
+      },
+      toolExec(true, (type, data) => { events.push({ type, data }) }),
+    )) as PatentWorkflowRunOutput
+
+    expect(value.ok).toBe(true)
+    const ledger = value.evidenceLedger as { receipts: Array<{ citationId: string; source: string }> }
+    expect(ledger.receipts.map(receipt => [receipt.citationId, receipt.source])).toEqual([
+      ['MATERIAL', 'material'],
+      ['D1', 'prior-art'],
+    ])
+    const runEvents = events.filter(event => event.type === 'patent/workflow-run')
+    expect(runEvents).toHaveLength(1)
+    expect(runEvents[0]!.data).toMatchObject({ manifestId: 'patent_novelty_v1' })
+
+    const ledgerEvents = events.filter(event => event.type === 'patent/evidence-ledger')
+    expect(ledgerEvents).toHaveLength(1)
+    expect(ledgerEvents[0]!.data).toMatchObject({ manifestId: 'patent_novelty_v1' })
+
+    const gapEvents = events.filter(event => event.type === 'patent/legal-gaps')
+    expect(gapEvents).toHaveLength(1)
+    expect(gapEvents[0]!.data).toMatchObject({ manifestId: 'patent_novelty_v1' })
+    expect((gapEvents[0]!.data as { report: string }).report).toContain('法条缺口汇总')
   })
 })
 

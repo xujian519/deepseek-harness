@@ -82,6 +82,8 @@ export interface StageSearchHit {
   snippet?: string
   /** Detail-page URL, when the source returns one. */
   url?: string
+  /** Publication date the prior-art filter reads, when the source returns one. */
+  publicationDate?: string
 }
 
 /**

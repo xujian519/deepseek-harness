@@ -11,6 +11,22 @@ import {
   buildCniprSearchScript,
 } from '@deepseek-ai/dsh-patent-data'
 
+/** Constructor shape for compiling a script body that contains top-level await. */
+type AsyncFunctionConstructor = new (body: string) => (...args: unknown[]) => Promise<unknown>
+
+const AsyncFunction = (async function () {}).constructor as AsyncFunctionConstructor
+
+describe('generated script bodies', () => {
+  it('compile as JavaScript before they reach ego-browser', () => {
+    const bodies = [
+      buildCniprPdfLinksScript(['CN122072823A']),
+      buildCniprLegalScript([{ number: 'CN122072823A', pubNumber: 'CN122072823A' }]),
+      buildCniprSearchScript('石墨烯 "quoted" \\ backslash', 3),
+    ]
+    for (const body of bodies) expect(() => new AsyncFunction(body)).not.toThrow()
+  })
+})
+
 describe('buildCniprPdfLinksScript', () => {
   it('embeds the numbers, the task space, and the login gate', () => {
     const script = buildCniprPdfLinksScript(['CN122072823A', 'CN100000000A'])

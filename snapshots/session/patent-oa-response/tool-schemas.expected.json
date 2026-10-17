@@ -556,7 +556,7 @@
                 },
                 "atom": {
                   "type": "string",
-                  "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
+                  "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
                 },
                 "params": {
                   "type": "object",
@@ -614,7 +614,7 @@
               },
               "atom": {
                 "type": "string",
-                "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
+                "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
               },
               "params": {
                 "type": "object",
@@ -2913,7 +2913,7 @@
     },
     {
       "name": "patent_workflow_run",
-      "description": "Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port. A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.",
+      "description": "Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. Pass conflictingApplications (a JSON array) to run the A22.2 second-sentence conflicting-application check; entries need filingDate/publicationDate and a caller-judged sameInvention boolean. Conflicting applications are filed before but published on or after the target date, so the prior-art search cannot find them. Pass evidence (a JSON array) and evidenceDeadline to run the invalidation/reexamination evidence-check stage; it reports form defects, late submissions without a justification, prior-art dates at or after the cutoff, and evidence not linked to a ground or claim. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port. A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2958,6 +2958,14 @@
             "type": "string",
             "description": "Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material."
           },
+          "filingDate": {
+            "type": "string",
+            "description": "Application filing date (e.g. 2024-06-01 or 2024年6月1日). The time-baseline stage uses it for the prior-art cutoff; without it or priorityDate that stage degrades."
+          },
+          "priorityDate": {
+            "type": "string",
+            "description": "Earliest priority date. The earlier of it and filingDate becomes the prior-art cutoff."
+          },
           "chartTargets": {
             "type": "string",
             "description": "claim-chart target objects JSON (default empty)."
@@ -2968,7 +2976,19 @@
           },
           "priorArt": {
             "type": "string",
-            "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+            "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage."
+          },
+          "conflictingApplications": {
+            "type": "string",
+            "description": "Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "Evidence entries as a JSON array for the invalidation/reexamination evidence-check stage. Entries may carry title/name, type (现有技术/外文证据/域外证据/证人证言...), sourceUri, submittedAt, publicationDate, translated, notarized, legalized, witness, grounds/claimRefs, contentHash+snippet. Late entries without lateJustification are blocking findings."
+          },
+          "evidenceDeadline": {
+            "type": "string",
+            "description": "Evidence submission deadline (parseable date). evidence-check compares each entry submittedAt against it and reports late entries without a justification as blocking."
           },
           "run_in_background": {
             "type": "boolean",

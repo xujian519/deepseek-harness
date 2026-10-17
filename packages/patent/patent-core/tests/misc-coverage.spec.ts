@@ -225,6 +225,32 @@ it('validateWorkflowManifest：各非法分支抛 WorkflowError', () => {
   expect(() => { validateWorkflowManifest(base()) }).not.toThrow()
 })
 
+it('validateWorkflowManifest：guidelineRevision 校验', () => {
+  const revision = '2023 年修订版（2024-01-20 施行）'
+  const declared: WorkflowManifest = {
+    id: 'm',
+    name: 'n',
+    caseType: 'test',
+    guidelineRevision: revision,
+    stages: [validStage('s1')],
+  }
+  expect(() => {
+    validateWorkflowManifest(declared, { guidelineRevision: revision })
+  }).not.toThrow()
+  expect(() => {
+    validateWorkflowManifest(declared, { guidelineRevision: '2026 年修订版（2026-01-01 施行）' })
+  }).toThrow(/不一致/)
+  expect(() => {
+    validateWorkflowManifest({ ...declared, guidelineRevision: ' ' }, { guidelineRevision: '2026 年修订版（2026-01-01 施行）' })
+  }).toThrow(/不能为空字符串/)
+  expect(() => {
+    validateWorkflowManifest(
+      { id: 'm', name: 'n', caseType: 'test', stages: [validStage('s1')] },
+      { guidelineRevision: '2026 年修订版（2026-01-01 施行）' },
+    )
+  }).toThrow(/未声明/)
+})
+
 it('signalMatches：否定语境/句界/零宽匹配与 compileSignal', () => {
   expect(signalMatches('；不匹配', /不/g)).toBe(false) // 句界分隔
   expect(signalMatches('尚未匹配', /匹配/g)).toBe(false) // 否定语境

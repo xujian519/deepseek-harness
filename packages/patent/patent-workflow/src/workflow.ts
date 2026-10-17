@@ -14,6 +14,7 @@
 
 import {
   WorkflowError,
+  buildWorkflowEvidenceLedger,
   clearStageOutputs,
   globalAtomRegistry,
   globalStageHandlerRegistry,
@@ -55,6 +56,7 @@ export {
   patentOaResponseManifest,
   patentPatentabilityManifest,
   patentReexaminationManifest,
+  SHIPPED_GUIDELINE_REVISION,
 } from './workflow/manifests.ts'
 export { runStageOnce, type RunStageOnceOptions } from './workflow/executor.ts'
 export { compileSignal, signalFor, signalMatches } from './workflow/signal.ts'
@@ -77,7 +79,9 @@ export async function runWorkflow(
   executor?: StageExecutor,
   options: WorkflowRunOptions = {},
 ): Promise<WorkflowRunResult> {
-  validateWorkflowManifest(manifest)
+  validateWorkflowManifest(manifest, {
+    ...(options.guidelineRevision !== undefined ? { guidelineRevision: options.guidelineRevision } : {}),
+  })
   const atoms = options.atoms ?? globalAtomRegistry
   assertKnownAtoms(manifest, atoms)
   const run: StageRun = {
@@ -325,6 +329,10 @@ async function assembleRunResult(run: StageRun, interrupted: WorkflowInterrupt |
     summary = `工作流 ${run.manifest.id}（${run.manifest.name}）: ${okCount}/${run.results.length} 阶段完成${degradedSteps.length > 0 ? `，降级阶段: ${degradedSteps.join('、')}` : ''}`
   }
 
+  const evidenceLedger = buildWorkflowEvidenceLedger(run.state, {
+    manifestId: run.manifest.id,
+    ...(run.options.runId !== undefined ? { runId: run.options.runId } : {}),
+  })
   const result: WorkflowRunResult = {
     manifestId: run.manifest.id,
     caseType: run.manifest.caseType,
@@ -332,6 +340,8 @@ async function assembleRunResult(run: StageRun, interrupted: WorkflowInterrupt |
     stages: run.results,
     degradedSteps,
     summary,
+    // 没有证据来源时不写空台账：缺席表示"未记录"，空台账会被读成"已确认没有证据"。
+    ...(evidenceLedger.receipts.length > 0 ? { evidenceLedger } : {}),
     ...(interrupted ? { interrupted } : {}),
   }
   // 持久化失败不阻断执行结果，仅把告警带回结果供调用方展示。

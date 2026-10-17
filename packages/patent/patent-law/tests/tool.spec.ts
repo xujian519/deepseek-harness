@@ -15,7 +15,7 @@ const POLICIES: CitationPolicySet = {
   unverified: 'warn',
 }
 
-/** The packaged index: transcribed statutes, guideline sections still awaiting transcription. */
+/** The packaged index: transcribed statutes and guideline sections, with the 2026 overrides. */
 const shipped = loadLawBaselines()
 
 /** A baseline whose single article is fully verified, for the accepted path. */
@@ -23,6 +23,9 @@ const verifiedIndex = new Map<LawName, LawBaseline>([['专利法', {
   law: '专利法',
   document: '中华人民共和国专利法',
   revision: null,
+  supersededBy: null,
+  staleSections: [],
+  versions: [],
   maxArticle: 82,
   maxVerifiedOn: '2026-01-01',
   maxSource: 'fixture',
@@ -84,6 +87,12 @@ describe('law_verify tool', () => {
     expect(value.counts.valid).toBe(2)
     expect(value.findings[0]).toMatchObject({ law: '专利法', article: 22, paragraph: 3 })
     expect(value.findings[1]).toMatchObject({ law: '专利审查指南', sectionPath: '第二部分第四章3.2.1.1' })
+  })
+
+  it('uses the latest transcribed guideline revision by default', async () => {
+    const value = await run(await host(), { references: ['审查指南第四部分第三章2.1'] })
+    expect(value.findings[0]).toMatchObject({ decision: 'valid', policy: 'allow' })
+    expect(value.findings[0]?.reason).toContain('2026 年修订版')
   })
 
   it('reports a guideline section whose indexed sections are not transcribed', async () => {

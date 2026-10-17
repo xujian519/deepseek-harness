@@ -15,6 +15,6 @@ input:
 
     本复审请求涉及申请号为 202320123456.7 的实用新型专利申请。审查员认为权利要求 1-2 不具备创造性，不符合专利法第 22 条第 3 款的规定。对比文件 1（CN201234567U，X 类）公开了权利要求 1 中记载的连接结构。此外，权利要求 2 的技术特征不清楚，不符合专利法第 26 条第 4 款的规定；申请人对权利要求的修改超出原说明书记载的范围，不符合专利法第 33 条的规定。因此该申请不具备授权前景。
 
-    第 2 步：调用 patent_workflow，参数 manifestId 传 patent_reexamination_v1，caseId 传 CN2024-0003，outputs 传六个阶段：stageId 依次为 parse、grounds、claim-chart、novelty、inventiveness、approval，每个阶段的 text 各写一句中文（parse 写驳回决定要点，grounds 写援引的复审理由，claim-chart 写要素级映射要点，novelty 写单篇对比结论，inventiveness 写三步法结论，approval 写"已人工确认"）。
+    第 2 步：调用 patent_workflow，参数 manifestId 传 patent_reexamination_v1，caseId 传 CN2024-0003，outputs 传九个阶段：stageId 依次为 parse、grounds、claim-chart、novelty、inventiveness、evidence-check、citation-check、legal_gaps、approval，每个阶段的 text 各写一句中文（parse 写驳回决定要点，grounds 写援引的复审理由，claim-chart 写要素级映射要点，novelty 写单篇对比结论，inventiveness 写三步法结论，evidence-check 写证据形式/期限/关联性检查结论，citation-check 写引用真实性校验结论，legal_gaps 写法条缺口汇总结论，approval 写"已人工确认"）。
 
     最后用一句话说明两步各自的结果。

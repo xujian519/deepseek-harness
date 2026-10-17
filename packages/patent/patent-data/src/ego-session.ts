@@ -45,7 +45,7 @@ export class EgoBrowserSession {
     this.maxTimeoutMs = options.maxTimeoutMs ?? DEFAULT_EGO_MAX_TIMEOUT_MS
     this.probeTimeoutMs = options.probeTimeoutMs ?? DEFAULT_EGO_PROBE_TIMEOUT_MS
     this.homeDir = options.homeDir ?? homedir()
-    this.pathEntries = options.pathEntries ?? [join(this.homeDir, '.local', 'bin')]
+    this.pathEntries = (options.pathEntries ?? [join(this.homeDir, '.local', 'bin')]).filter(entry => entry.length > 0)
     this.maxOutputBytes = options.maxOutputBytes ?? DEFAULT_EGO_MAX_OUTPUT_BYTES
     this.platform = options.platform ?? process.platform
     this.env = options.env ?? process.env
@@ -118,7 +118,7 @@ export class EgoBrowserSession {
    */
   async runScript(script: string, options: EgoRunOptions): Promise<EgoScriptResult> {
     const timeoutMs = Math.min(options.timeoutMs ?? this.defaultTimeoutMs, this.maxTimeoutMs)
-    const env = this.buildEnv(options.env ?? process.env)
+    const env = this.buildEnv(options.env ?? this.env)
     try {
       const result = await this.requireRunner().spawn({
         argv: [this.commandName, 'nodejs'],
@@ -139,7 +139,7 @@ export class EgoBrowserSession {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      throw new Error(`ego-browser failed to start: ${message}`)
+      throw new Error(`ego-browser failed to start: ${message}`, { cause: error })
     }
   }
 
@@ -185,9 +185,7 @@ export class EgoBrowserSession {
     const existingPath = base.PATH ?? ''
     const segments = existingPath.length > 0 ? existingPath.split(delimiter) : []
     for (const entry of this.pathEntries) {
-      if (entry && entry.length > 0 && !segments.includes(entry)) {
-        segments.push(entry)
-      }
+      if (!segments.includes(entry)) segments.push(entry)
     }
     return { ...base, PATH: segments.join(delimiter) }
   }
@@ -196,7 +194,10 @@ export class EgoBrowserSession {
     const delimiter = pathDelimiter(this.platform)
     const localBin = join(this.homeDir, '.local', 'bin')
     const pathSegments = (env.PATH ?? '').split(delimiter).filter(s => s.length > 0)
-    for (const dir of [localBin, ...pathSegments]) {
+    // 可用性检查与 spawn 使用同一组目录：pathEntries 会注入子进程 PATH，
+    // 若不参与探测，自定义安装目录会出现「探测说没装、运行能找到」。
+    const dirs = [...new Set([localBin, ...this.pathEntries, ...pathSegments])]
+    for (const dir of dirs) {
       for (const name of commandNames(this.commandName, this.platform)) {
         if (isUsableFile(join(dir, name), this.platform)) return true
       }
@@ -205,7 +206,12 @@ export class EgoBrowserSession {
   }
 
   private truncate(text: string): string {
-    return text.length > this.maxOutputBytes ? `${text.slice(0, this.maxOutputBytes)}…\n[output truncated]` : text
+    const buffer = Buffer.from(text, 'utf8')
+    if (buffer.length <= this.maxOutputBytes) return text
+    let end = this.maxOutputBytes
+    // 从上限处回退到 UTF-8 字符边界，避免切出半个多字节字符。
+    while (end > 0 && (buffer.readUInt8(end) & 0xc0) === 0x80) end -= 1
+    return `${buffer.subarray(0, end).toString('utf8')}…\n[output truncated]`
   }
 }
 

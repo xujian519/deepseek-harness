@@ -29,6 +29,7 @@ import type {
   LawName,
   LawReference,
   SectionEntry,
+  StaleSection,
 } from './types.ts'
 
 /**
@@ -52,6 +53,14 @@ export type VerifyOptions = {
   proposition?: string
   /** Overlap a proposition must reach before an entry's text supports it; defaults to {@link PROPOSITION_SUPPORT_DEFAULT}. */
   supportThreshold?: number
+  /**
+   * Guideline revision to decide against, e.g. `2026 年修订版（2026-01-01 施行）`.
+   * Defaults to the last transcribed override when the current revision is
+   * transcribed; when `supersededBy` names a revision the index has not
+   * transcribed, the base text and its stale marks decide. Naming the base
+   * revision decides against that base text.
+   */
+  revision?: string
 }
 
 /**
@@ -233,6 +242,61 @@ function decideTranscribed(
   )
 }
 
+/** Merged guideline views, keyed by baseline and the requested revision (empty for the default). */
+const guidelineViews = new WeakMap<LawBaseline, Map<string, LawBaseline | null>>()
+
+/**
+ * Resolve the guideline baseline to the requested revision.
+ *
+ * Without a revision, the latest transcribed override is used; a version that
+ * names only some sections leaves the rest at the base text. With a revision,
+ * the base revision selects the base text and an unknown revision selects
+ * nothing, so the caller gets an unverified finding instead of a silent
+ * fallback.
+ * @param baseline - the loaded guideline baseline.
+ * @param revision - the requested revision, or undefined for the latest.
+ * @returns the merged baseline, the base baseline, or null when the revision is unknown.
+ */
+function guidelineView(baseline: LawBaseline, revision: string | undefined): LawBaseline | null {
+  const key = revision === undefined ? '' : `revision:${revision}`
+  let cached = guidelineViews.get(baseline)
+  if (cached === undefined) {
+    cached = new Map()
+    guidelineViews.set(baseline, cached)
+  }
+  const cachedView = cached.get(key)
+  if (cachedView !== undefined) return cachedView
+  const view = buildGuidelineView(baseline, revision)
+  cached.set(key, view)
+  return view
+}
+
+/** Build one merged guideline view; see {@link guidelineView}. */
+function buildGuidelineView(baseline: LawBaseline, revision: string | undefined): LawBaseline | null {
+  // Use the newest transcription when the current revision is among the transcribed
+  // ones. When `supersededBy` names a revision no version covers, target that
+  // revision so the base text's stale marks stay in force.
+  const latest = baseline.versions.at(-1)?.revision
+  const current = baseline.supersededBy
+  const transcribed = current === null || baseline.versions.some(version => version.revision === current)
+  const target = revision ?? (transcribed ? latest : current) ?? null
+  if (target === null || target === baseline.revision) return baseline
+  const version = baseline.versions.find(candidate => candidate.revision === target)
+  if (version === undefined) return revision === undefined ? baseline : null
+  const overridden = new Map(version.sections.map(section => [section.path, section]))
+  const basePaths = new Set(baseline.sections.map(section => section.path))
+  const sections = [
+    ...baseline.sections.map(section => overridden.get(section.path) ?? section),
+    ...version.sections.filter(section => !basePaths.has(section.path)),
+  ].sort((a, b) => a.path.localeCompare(b.path))
+  return {
+    ...baseline,
+    sections,
+    staleSections: baseline.staleSections.filter(stale => !overridden.has(stale.path)),
+    versions: [],
+  }
+}
+
 /** The overlap indices of the loaded baselines, so a baseline's texts are indexed once. */
 const overlapIndices = new WeakMap<LawBaseline, OverlapIndex>()
 
@@ -359,11 +423,32 @@ function verifySection(
   baseline: LawBaseline,
   options: VerifyOptions,
 ): CitationFinding {
-  const entry = findSection(baseline, reference.path)
+  const view = guidelineView(baseline, options.revision)
+  if (view === null) {
+    return finding(
+      reference,
+      'unverified',
+      `索引中没有《专利审查指南》${options.revision} 的节正文，无法按该版本核验`,
+    )
+  }
+  const entry = findSection(view, reference.path)
   if (entry === undefined) {
     return finding(reference, 'not-indexed', `《专利审查指南》${reference.path} 不在索引中`)
   }
-  const candidates = sectionTexts(baseline, reference.path)
+  // A citation covering a section whose shipped text predates the current
+  // revision cannot be verified against current law, even when its wording
+  // matches the old text.
+  const stale = staleSectionFor(view, reference.path)
+  if (stale !== undefined) {
+    const current = view.supersededBy ?? '新版《专利审查指南》'
+    return finding(
+      reference,
+      'unverified',
+      `《专利审查指南》${reference.path} 涉及已被${current}修改的 ${stale.path}（${stale.reason}），随包文本不能按现行条文核验`,
+      entry,
+    )
+  }
+  const candidates = sectionTexts(view, reference.path)
   if (candidates.length === 0) {
     return finding(
       reference,
@@ -372,7 +457,7 @@ function verifySection(
       entry,
     )
   }
-  return decideSection(reference, entry, candidates, baseline, options)
+  return decideSection(reference, entry, candidates, view, options)
 }
 
 /**
@@ -406,6 +491,22 @@ function coversSection(cited: string, path: string): boolean {
   // part or a chapter states the next part, chapter or section number directly,
   // as 第二部分第二章 and 第一部分第一章4.2 do.
   return /\d$/u.test(cited) ? rest.startsWith('.') : /^[第0-9]/u.test(rest)
+}
+
+/**
+ * Find the stale-text record a citation covers.
+ *
+ * A citation to a parent section covers the stale subsection, and a citation to
+ * a subsection inherits a stale ancestor, so both directions count. Returns
+ * undefined when the index targets the current revision or the cited path is
+ * unaffected.
+ * @param baseline - the guideline baseline.
+ * @param path - the cited normalized section path.
+ * @returns the stale record covering or inherited by the path, when one exists.
+ */
+function staleSectionFor(baseline: LawBaseline, path: string): StaleSection | undefined {
+  return baseline.staleSections.find(stale =>
+    coversSection(path, stale.path) || coversSection(stale.path, path))
 }
 
 /**

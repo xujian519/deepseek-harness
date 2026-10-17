@@ -344,6 +344,24 @@ it('checkCitations: D 标号精确匹配（D10 不被 D1 前缀误接受）', ()
   expect(result.uncited).toEqual(['D10'])
 })
 
+it('checkCitations: 台账收据标号存在时 D 标号按收据精确接地', () => {
+  const grounded = checkCitations({
+    refTexts: ['对比文件2 公开了区别特征'],
+    docs: [{ title: '一篇没有专利号但可定位的检索结果' }],
+    receiptCitationIds: ['D1', 'D2'],
+  })
+  expect(grounded.grounded).toBe(true)
+  expect(grounded.report).toContain('引用全部接地')
+
+  const ungrounded = checkCitations({
+    refTexts: ['另引用 D3'],
+    docs: [{ title: 'D1 的检索结果' }],
+    receiptCitationIds: ['D1', 'D2'],
+  })
+  expect(ungrounded.grounded).toBe(false)
+  expect(ungrounded.uncited).toEqual(['D3'])
+})
+
 it('checkCitations: 对比文件N 引用经数组位置标号与仅带专利号的 prior_art 接地', () => {
   const result = checkCitations({
     refTexts: ['对比文件2 公开了区别特征'],

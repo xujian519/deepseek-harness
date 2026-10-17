@@ -14,10 +14,11 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { createLlmModelPort, globalAtomRegistry, globalStageHandlerRegistry, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
+import { createLlmModelPort, globalAtomRegistry, globalStageHandlerRegistry, registerBuiltinAtoms, validateWorkflowBudget, validateWorkflowManifest } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import type { ImageAttachmentRef, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-patent-knowledge'
+import { builtinPatentManifests, SHIPPED_GUIDELINE_REVISION } from '@deepseek-ai/dsh-patent-workflow'
 import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
 import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-ai/dsh-patent-document'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -72,6 +73,11 @@ import { createPatentWorkerValidateTool } from './tool/patent-worker-validate.ts
 import { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 import { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
 import { slopGateAtom, SlopGateHandler } from './atoms/slop-gate.ts'
+import { draftSpecificationAtom, DraftSpecificationHandler } from './atoms/draft-specification.ts'
+import { specCheckAtom, SpecCheckHandler } from './atoms/spec-check.ts'
+import { responseCheckAtom, ResponseCheckHandler } from './atoms/response-check.ts'
+import { eligibilityAtom, EligibilityHandler } from './atoms/eligibility.ts'
+import { legalGapsAtom, LegalGapsHandler } from './atoms/legal-gaps.ts'
 
 // ---- public library surface (factories + error + render_patent_document) ----
 export { PatentToolError } from './error.ts'
@@ -238,6 +244,46 @@ export type {
   MatterLogRequest,
 } from './tool/matter-log-append.ts'
 export { slopGateAtom, SlopGateHandler, SLOP_GATE_PASS_THRESHOLD } from './atoms/slop-gate.ts'
+export { draftSpecificationAtom, DraftSpecificationHandler } from './atoms/draft-specification.ts'
+export { specCheckAtom, SpecCheckHandler, type SpecCheckMode } from './atoms/spec-check.ts'
+export {
+  responseCheckAtom,
+  ResponseCheckHandler,
+  RESPONSE_CHECK_RULE_IDS,
+  DEFAULT_RESPONSE_TEXT_KEYS,
+  DEFAULT_OFFICE_ACTION_KEY,
+  DEFAULT_NOTICE_TEXT_KEYS,
+  loadResponseCheckRules,
+  type ResponseCheckLoader,
+  type ResponseRuleLoad,
+} from './atoms/response-check.ts'
+export {
+  eligibilityAtom,
+  EligibilityHandler,
+  ELIGIBILITY_A5_RULE_ID,
+  DEFAULT_ELIGIBILITY_CLAIMS_KEYS,
+  DEFAULT_ELIGIBILITY_TEXT_KEYS,
+  loadEligibilityRules,
+  type EligibilityCategory,
+  type EligibilityCheckLoader,
+  type EligibilityPending,
+  type EligibilityRuleLoad,
+  type EligibilitySeverity,
+  type EligibilityUnit,
+  type EligibilityVerdict,
+  type EligibilityViolation,
+} from './atoms/eligibility.ts'
+export {
+  legalGapsAtom,
+  LegalGapsHandler,
+  LEGAL_GAP_PROFILES,
+  LEGAL_GAP_CHECKS,
+  type LegalGapCheckpoint,
+  type LegalGapItem,
+  type LegalGapProfile,
+  type LegalGapSeverity,
+  type LegalGapStatus,
+} from './atoms/legal-gaps.ts'
 export { buildSlopRevisionHint } from './internal/retry-hints.ts'
 export type { EvaluatedText } from './internal/evaluated-input.ts'
 
@@ -266,6 +312,26 @@ export interface Config {
   noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
+  /**
+   * 《专利审查指南》version the built-in manifests must target. Defaults to the
+   * revision shipped with this repository; a deployment running a different
+   * patent-law asset sets this to that asset's `revision`, and a manifest still
+   * written against another revision fails plugin load.
+   */
+  guidelineRevision?: string
+  /**
+   * Maximum stages a single built-in workflow manifest may declare. Plugin load
+   * fails when a manifest exceeds it, so stage-list growth cannot silently
+   * increase run cost. Defaults to `DEFAULT_WORKFLOW_STAGE_BUDGET`.
+   */
+  workflowStageBudget?: number
+  /**
+   * Maximum model-calling stages a single built-in workflow manifest may
+   * declare. Stages without an atom (run by the LLM-backed stage executor) and
+   * atoms whose contract declares `usesModel` count. Defaults to
+   * `DEFAULT_WORKFLOW_LLM_STAGE_BUDGET`.
+   */
+  workflowLlmStageBudget?: number
   /** 附图索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/figures-index.json。 */
   figureIndexFile?: string
   /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */
@@ -331,6 +397,12 @@ export interface Config {
   structureFigureViews?: StructureViewName[]
 }
 
+/** Default cap on stages per built-in workflow manifest. */
+export const DEFAULT_WORKFLOW_STAGE_BUDGET = 24
+
+/** Default cap on model-calling stages per built-in workflow manifest. */
+export const DEFAULT_WORKFLOW_LLM_STAGE_BUDGET = 12
+
 /** Figure/image model route used by the figure-analysis tool. */
 export interface ImageModelConfig {
   /** LLM provider route for figure/image analysis. */
@@ -345,6 +417,9 @@ export const Config: z<Config> = z.object({
   model: z.string(),
   imageModel: z.object({ provider: z.string(), model: z.string() }),
   maxTokens: z.number(),
+  guidelineRevision: z.string().default(SHIPPED_GUIDELINE_REVISION),
+  workflowStageBudget: z.number().step(1).min(1).default(DEFAULT_WORKFLOW_STAGE_BUDGET),
+  workflowLlmStageBudget: z.number().step(1).min(1).default(DEFAULT_WORKFLOW_LLM_STAGE_BUDGET),
   noteDir: z.string(),
   figureIndexFile: z.string(),
   chemistryIndexFile: z.string(),
@@ -550,12 +625,39 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
  * @param config - validated {@link Config}.
  */
 export function apply(ctx: Context, config: Config): void {
+  // A manifest authored against another guideline revision would silently apply
+  // stale law; fail the plugin load instead.
+  const guidelineRevision = config.guidelineRevision ?? SHIPPED_GUIDELINE_REVISION
+  for (const manifest of builtinPatentManifests) {
+    validateWorkflowManifest(manifest, { guidelineRevision })
+  }
   // 内置原子（契约 + 运行时）注册进全局注册表；幂等。不注册则 atom-bearing
   // manifest 在 runWorkflow 的 fail-fast 处抛错，工作流工具全部不可用。
   registerBuiltinAtoms()
-  // slop-gate 依赖本包的 slop 引擎，按依赖方向注册在 patent-core 内置之外。
+  // slop-gate 依赖本包的 slop 引擎，spec-check 依赖本包的说明书校验器，
+  // response-check 与 eligibility 复用 patent-rule 的规则资产，legal-gaps 汇总这些检查；
+  // 均按依赖方向注册在 patent-core 内置之外。
   globalAtomRegistry.register(slopGateAtom)
   globalStageHandlerRegistry.register(new SlopGateHandler())
+  globalAtomRegistry.register(draftSpecificationAtom)
+  globalStageHandlerRegistry.register(new DraftSpecificationHandler())
+  globalAtomRegistry.register(specCheckAtom)
+  globalStageHandlerRegistry.register(new SpecCheckHandler())
+  globalAtomRegistry.register(responseCheckAtom)
+  globalStageHandlerRegistry.register(new ResponseCheckHandler())
+  globalAtomRegistry.register(eligibilityAtom)
+  globalStageHandlerRegistry.register(new EligibilityHandler())
+  globalAtomRegistry.register(legalGapsAtom)
+  globalStageHandlerRegistry.register(new LegalGapsHandler())
+  // Budgets are deployment configuration: a manifest that grows past them fails
+  // the load instead of quietly multiplying model calls at run time.
+  const budget = {
+    maxStages: config.workflowStageBudget ?? DEFAULT_WORKFLOW_STAGE_BUDGET,
+    maxLlmStages: config.workflowLlmStageBudget ?? DEFAULT_WORKFLOW_LLM_STAGE_BUDGET,
+  }
+  for (const manifest of builtinPatentManifests) {
+    validateWorkflowBudget(manifest, budget, globalAtomRegistry)
+  }
   const model = buildModelPort(ctx, config)
   const gateModel = figureRoute(ctx, config)
   const imageModel = buildFigureModelPort(ctx, config)

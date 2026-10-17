@@ -9,8 +9,8 @@
   en: 1387c4505dde2faf
   zh: 48570fa1c13d6910
 /session-persistence-event-catalog/persistence-type-fingerprints:
-  en: 1762f99c6fc6c660
-  zh: 0fb9d0aac7aec474
+  en: 6af3a6f172355279
+  zh: 12466be28e7993c6
 /session-persistence-event-catalog/event-envelope:
   en: 7223913c29a280dc
   zh: 0e8a6b02384727b4
@@ -147,11 +147,17 @@
   en: 0d9e20c2357ae7ac
   zh: 23401d59e97d6011
 /session-persistence-event-catalog/events/patent:
-  en: cc2975041fa6c080
-  zh: cc2975041fa6c080
+  en: d845f7ccdcf75e7b
+  zh: d845f7ccdcf75e7b
+/session-persistence-event-catalog/events/patent/patent-evidence-ledger-log-only:
+  en: 724f65d8ff28a727
+  zh: 0d161344bc767be8
+/session-persistence-event-catalog/events/patent/patent-legal-gaps-log-only:
+  en: e74f906fb56b16e9
+  zh: 99041f3089e58dd4
 /session-persistence-event-catalog/events/patent/patent-model-call-log-only:
-  en: baab3491d82f84f1
-  zh: eb4b764606ef9480
+  en: 1a7af37067802320
+  zh: c91b479b99e13a99
 /session-persistence-event-catalog/events/patent/patent-plantask-log-only:
   en: 7bffe2ab0f26a189
   zh: 8d06daec8abe673d
@@ -495,8 +501,11 @@
   en: fe91ec2f26aef57b
   zh: fe91ec2f26aef57b
 /session-persistence-event-catalog/resolved-persistence-types/chunk:
-  en: 491d3885b56f0ecd
-  zh: 491d3885b56f0ecd
+  en: c4581b4ca7453d29
+  zh: c4581b4ca7453d29
+/session-persistence-event-catalog/resolved-persistence-types/claims:
+  en: 65bbb83efa70d9f6
+  zh: 65bbb83efa70d9f6
 /session-persistence-event-catalog/resolved-persistence-types/claude-code:
   en: 6c96d71d5948c1fb
   zh: 6c96d71d5948c1fb
@@ -531,8 +540,17 @@
   en: dd92732acbe2ec3a
   zh: dd92732acbe2ec3a
 /session-persistence-event-catalog/resolved-persistence-types/completed:
-  en: d93f8643892c6cfc
-  zh: d93f8643892c6cfc
+  en: 13f666eaac7d3b24
+  zh: 13f666eaac7d3b24
+/session-persistence-event-catalog/resolved-persistence-types/conflicting-application:
+  en: f40fd3a21f34f737
+  zh: f40fd3a21f34f737
+/session-persistence-event-catalog/resolved-persistence-types/conflicting-application-excluded:
+  en: cf418bb264e1c494
+  zh: cf418bb264e1c494
+/session-persistence-event-catalog/resolved-persistence-types/conflicting-application-unknown:
+  en: a0f21e702dd40ba6
+  zh: a0f21e702dd40ba6
 /session-persistence-event-catalog/resolved-persistence-types/continuable:
   en: 36e1cf82ed9683c4
   zh: 36e1cf82ed9683c4
@@ -582,8 +600,11 @@
   en: 0a0098cf30464dcf
   zh: 0a0098cf30464dcf
 /session-persistence-event-catalog/resolved-persistence-types/every:
-  en: 97ad6789c250b3df
-  zh: 97ad6789c250b3df
+  en: 29853139274cc0d0
+  zh: 29853139274cc0d0
+/session-persistence-event-catalog/resolved-persistence-types/evidence:
+  en: 401871a8afef32c4
+  zh: 401871a8afef32c4
 /session-persistence-event-catalog/resolved-persistence-types/executing:
   en: 09c885c932add207
   zh: 09c885c932add207
@@ -720,8 +741,11 @@
   en: b84a39b88807a5d9
   zh: b84a39b88807a5d9
 /session-persistence-event-catalog/resolved-persistence-types/low-confidence:
-  en: 513c5d1295d9fd1c
-  zh: 513c5d1295d9fd1c
+  en: a52c8fd36c705379
+  zh: a52c8fd36c705379
+/session-persistence-event-catalog/resolved-persistence-types/material:
+  en: e9beb8cfed2a50b1
+  zh: e9beb8cfed2a50b1
 /session-persistence-event-catalog/resolved-persistence-types/max-tokens:
   en: d5ada3d6acfc416b
   zh: d5ada3d6acfc416b
@@ -795,8 +819,14 @@
   en: 1c27d3be315288c7
   zh: 1c27d3be315288c7
 /session-persistence-event-catalog/resolved-persistence-types/patent-teams-team-deleted:
-  en: 704d6201575ad381
-  zh: 704d6201575ad381
+  en: 4191850bf96b1087
+  zh: 4191850bf96b1087
+/session-persistence-event-catalog/resolved-persistence-types/patent-evidence-ledger:
+  en: 08c8e55b339ffd46
+  zh: 08c8e55b339ffd46
+/session-persistence-event-catalog/resolved-persistence-types/patent-legal-gaps:
+  en: 563eba08b270aa98
+  zh: 563eba08b270aa98
 /session-persistence-event-catalog/resolved-persistence-types/patent-model-call:
   en: cfac66e6515aacf7
   zh: cfac66e6515aacf7
@@ -831,8 +861,17 @@
   en: e3dc301ae024d994
   zh: e3dc301ae024d994
 /session-persistence-event-catalog/resolved-persistence-types/pressure:
-  en: 9938a52a4e465999
-  zh: 9938a52a4e465999
+  en: dd8f13d8bf07bf6e
+  zh: dd8f13d8bf07bf6e
+/session-persistence-event-catalog/resolved-persistence-types/prior-art:
+  en: b813686c0fb5ef95
+  zh: b813686c0fb5ef95
+/session-persistence-event-catalog/resolved-persistence-types/prior-art-excluded:
+  en: 4961e86566f25fdb
+  zh: 4961e86566f25fdb
+/session-persistence-event-catalog/resolved-persistence-types/prior-art-undated:
+  en: 33c7ffb19923505e
+  zh: 33c7ffb19923505e
 /session-persistence-event-catalog/resolved-persistence-types/producer:
   en: b829f105842b826c
   zh: b829f105842b826c
@@ -1410,17 +1449,23 @@
   en: 803d1b7a7847568f
   zh: 0cf65b9d259ef0f0
 /session-persistence-event-catalog/resolved-persistence-types/optionalsessionseq:
-  en: c7c243f79363a03f
-  zh: df12d7ce2eccc2e4
+  en: 5ce873ea9f5a2c67
+  zh: 48ca6a7fcac53304
+/session-persistence-event-catalog/resolved-persistence-types/patentevidenceledgerevent:
+  en: 62cea23a4a91d0c3
+  zh: f6fb6c1867970c14
+/session-persistence-event-catalog/resolved-persistence-types/patentlegalgapsevent:
+  en: c93e4b4b7aa56c62
+  zh: 14ab83c3acafa74d
 /session-persistence-event-catalog/resolved-persistence-types/patentmodelcallevent:
-  en: 6deb95cc0c1beeba
-  zh: 028b9dc47883a2f0
+  en: bb5d6fc051e4ad52
+  zh: 8ec4540f4e882bef
 /session-persistence-event-catalog/resolved-persistence-types/patentmodelusage:
   en: d10296b1bcd5503e
   zh: c6332d8a8efd209f
 /session-persistence-event-catalog/resolved-persistence-types/patentplantaskevent:
-  en: 915017c10476c96b
-  zh: b642bff82a2a087c
+  en: c8a741fe28e41998
+  zh: 320b2bb346c594e0
 /session-persistence-event-catalog/resolved-persistence-types/patentteamsmemberaddeddata:
   en: 5bbb219dddce7887
   zh: 3c5dc898ba29b9ec
@@ -1449,11 +1494,11 @@
   en: bea70760e2bca85b
   zh: cea146f79e4cc7ce
 /session-persistence-event-catalog/resolved-persistence-types/patentteamsteamdeleteddata:
-  en: 0310fa7b3b57c99c
-  zh: 63f4cc697a3a25f4
+  en: 670209f595591277
+  zh: 96351cf92f945c15
 /session-persistence-event-catalog/resolved-persistence-types/patentworkflowrunevent:
-  en: 69abd30946883ff2
-  zh: db7136fcc7b3aa3f
+  en: a26e85b97f7ba444
+  zh: abfe898076ee844d
 /session-persistence-event-catalog/resolved-persistence-types/plantask:
   en: 1cd7d6b1c8894c47
   zh: 060cea33a0aca9d6
@@ -1644,14 +1689,26 @@
   en: 2a2ff9746343293d
   zh: d5ab45b63d759905
 /session-persistence-event-catalog/resolved-persistence-types/workflowagentoutcome:
-  en: 8f6ab8e40bd44104
-  zh: ee5d5ed4eea31458
+  en: 5c12839c8ce1a762
+  zh: dc1c044849c2dee7
+/session-persistence-event-catalog/resolved-persistence-types/workflowevidenceledger:
+  en: e00dabea9711456b
+  zh: c173232de087f6fe
+/session-persistence-event-catalog/resolved-persistence-types/workflowevidencereceipt:
+  en: 0ee099a71417a23d
+  zh: b6d3e39c162fef91
+/session-persistence-event-catalog/resolved-persistence-types/workflowevidencereceipt~2:
+  en: 6289926b8680538a
+  zh: 925517de34302c46
+/session-persistence-event-catalog/resolved-persistence-types/workflowevidencesource:
+  en: 9efb34ef00eb4ca0
+  zh: 28764e552ab8771e
 /session-persistence-event-catalog/resolved-persistence-types/workflowinterrupt:
-  en: 7d0e7797d65fe5f7
-  zh: 43c3a29e526ace63
+  en: 4b48fe6432c9900d
+  zh: f4975d2684a0a405
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult:
-  en: 080f5c7edab1281c
-  zh: 874073088d94a614
+  en: f6a1f9c8527af5dc
+  zh: 02ca5b8b765adc96
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult~2:
   en: 5c197b986751203c
   zh: 53c625f8e62dff16
@@ -1659,8 +1716,8 @@
   en: b760b62ffd95505e
   zh: f65ea2450e7bec71
 /session-persistence-event-catalog/resolved-persistence-types/workflowstrategy:
-  en: 5f909a9514f1e0d0
-  zh: fa1efb2f28b1bb7e
+  en: 22554adee7c7d909
+  zh: 2fbd7c13304502d9
 /session-persistence-event-catalog/resolved-persistence-types/boolean:
   en: 40616917f0b8f9cc
   zh: 40616917f0b8f9cc
@@ -2460,17 +2517,23 @@
   en: 186807c6890a1341
   zh: 650000771a9c7b82
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-teams-team-deleted:
-  en: 641545207aedebc3
-  zh: ab3ceef5e195424f
+  en: 422e0fbdae55ce5a
+  zh: edb1994b48c86cd8
+/session-persistence-event-catalog/resolved-persistence-types/type-patent-evidence-ledger:
+  en: f6fc8f2886aff576
+  zh: c36bae385be3e99d
+/session-persistence-event-catalog/resolved-persistence-types/type-patent-legal-gaps:
+  en: fccbd17cea2ce07c
+  zh: bfbcdd73ac5cf6a3
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-model-call:
   en: c4ba18ccfd27d2e1
   zh: 20f26162f7b08c92
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-plantask:
-  en: 4bd65e08a9d4ebd1
-  zh: 1dc86d544c3866e6
+  en: db633ba0acf0708f
+  zh: 37708da3a43a8b37
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-workflow-run:
-  en: ebb716dc9abcfd99
-  zh: de6e1806561bd2dc
+  en: 419ed11277408378
+  zh: b173c476c7ca9583
 /session-persistence-event-catalog/resolved-persistence-types/type-permission-preset:
   en: 965e836b012404b3
   zh: 0ab923cc8a41e7f2
@@ -2625,5 +2688,8 @@
   en: 762ba6afa8d1774b
   zh: 11bd0f051f176ac9
 /session-persistence-event-catalog/resolved-persistence-types/section~2:
-  en: bec6dc13ad29f1a7
-  zh: 1d7ff0535364d8e9
+  en: 717a3ea43e305c2a
+  zh: dd3f4d65c3513538
+/session-persistence-event-catalog/resolved-persistence-types/section~3:
+  en: 8fd5436dd15c4452
+  zh: a158b25226dba94e

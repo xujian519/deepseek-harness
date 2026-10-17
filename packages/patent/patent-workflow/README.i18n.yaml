@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-workflow/README.md
 /:
-  en: f966023b4b98f0fc
-  zh: ae01ead77af86a02
+  en: c5e03f4b9267b147
+  zh: b5fe3a03c27adf57
 /deepseek-ai-dsh-patent-workflow:
   en: 1604867365a987ea
   zh: 1725d2f928b9e833
 /deepseek-ai-dsh-patent-workflow/summary:
-  en: 66c6c1c4077d81f2
-  zh: ff06c74ced00190d
+  en: 642140cd5c5d7cc3
+  zh: f24c7bbd3ba55761
 /deepseek-ai-dsh-patent-workflow/table-of-contents:
   en: f07f90ed00e76f5c
   zh: c28faf93dbce08cc
@@ -18,8 +18,8 @@
   en: 0e0d886c391fdbf9
   zh: a4a636144c9dfcb2
 /deepseek-ai-dsh-patent-workflow/service/runworkflow-manifest-ctx-executor-options-agent:
-  en: b96e7840e882b501
-  zh: 5533ca76247e6ca9
+  en: 19485e0009b78928
+  zh: d7246c87e2b2c6a3
 /deepseek-ai-dsh-patent-workflow/service/runplantask-agent-caseid-plansteps-options:
   en: 8a19616d59b8dfeb
   zh: 07fe715b07f24fc5

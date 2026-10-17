@@ -24,6 +24,7 @@ export const extractAtom: Atom = {
   category: 'extract',
   inputSchema: ['text', 'extraction_type', 'domain', 'output_key'],
   outputSchema: ['extraction_result', 'features', 'problems', 'effects', 'insight'],
+  usesModel: true,
 }
 
 const EXTRACT_SCHEMA = {

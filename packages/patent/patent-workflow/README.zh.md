@@ -1,5 +1,5 @@
 ---
-description: "专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层、plantask 人机协作状态机与案卷问题条目 schema，移植自 Sati。本包把持久的 `patent/plantask`、`patent/workflow-run` 与 `patent/model-call` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。"
+description: "专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层、plantask 人机协作状态机与案卷问题条目 schema，移植自 Sati。本包把持久的 `patent/plantask`、`patent/workflow-run`、`patent/evidence-ledger`、`patent/legal-gaps` 与 `patent/model-call` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层、plantask 人机协作状态机与案卷问题条目 schema，移植自 Sati。本包把持久的 `patent/plantask`、`patent/workflow-run` 与 `patent/model-call` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。
+专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层、plantask 人机协作状态机与案卷问题条目 schema，移植自 Sati。本包把持久的 `patent/plantask`、`patent/workflow-run`、`patent/evidence-ledger`、`patent/legal-gaps` 与 `patent/model-call` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。
 
 ## 目录
 
@@ -27,7 +27,7 @@ kind: "package-reference"
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
-经移植的执行器运行工作流 manifest，并在传入 agent 时把 `patent/workflow-run` 事件写入 `agent.session`。阶段声明 atom 或回退到 `executor`；阶段在 `consumes` 中列出上游阶段 id 时，这些阶段的产出会交给 executor（manifest 与图两条路径都把每个已执行阶段的产出存在该阶段 id 下），原子阶段则直接读共享 state；审批门 `InterruptStageError` 暂停运行并返回 `interrupted` 而非失败，宿主以 `options.approvalGrants` 重跑续接。
+经移植的执行器运行工作流 manifest，并在传入 agent 时把 `patent/workflow-run` 事件写入 `agent.session`。阶段声明 atom 或回退到 `executor`；阶段在 `consumes` 中列出上游阶段 id 时，这些阶段的产出会交给 executor（manifest 与图两条路径都把每个已执行阶段的产出存在该阶段 id 下），原子阶段则直接读共享 state；审批门 `InterruptStageError` 暂停运行并返回 `interrupted` 而非失败，宿主以 `options.approvalGrants` 重跑续接。运行终态包含证据来源时，结果同时携带 `evidenceLedger`，并追加 `patent/evidence-ledger` 事件，按来源逐条给出收据；执行了 `legal-gaps` 阶段的运行还会追加 `patent/legal-gaps` 事件，携带该阶段的报告。
 
 `builtinPatentManifests` 是八个内置 manifest 的数据目录：patent_novelty_v1、patent_disclosure_v1、patent_inventiveness_v1、patent_patentability_v1、patent_oa_response_v1、patent_invalidation_v1、patent_reexamination_v1、patent_infringement_v1。无效宣告与复审两个 manifest 共用同一个阶段构建器，差异只在确定性阶段的接线：无效宣告用无效理由表与 `invalidity` 图表模式，复审用复审理由表（多一项专利法第 2 条第 3 款的实用新型客体缺陷理由，专利权类型单独输出）与 `reexamination` 图表模式，后者也让两种案件落盘的对照表互不覆盖。
 

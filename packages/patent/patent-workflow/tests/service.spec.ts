@@ -7,11 +7,27 @@ import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
-import { registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
+import {
+  globalAtomRegistry,
+  globalStageHandlerRegistry,
+  registerBuiltinAtoms,
+  type PipelineState,
+  type StageHandler,
+  type StageProvider,
+  type WorkflowManifest,
+} from '@deepseek-ai/dsh-patent-core'
 import PatentWorkflow, { patentNoveltyManifest } from '@deepseek-ai/dsh-patent-workflow'
 
 // 镜像生产装配（B1）：内置原子注册进全局注册表，novelty 等 manifest 的 atom 阶段才能通过 fail-fast。
 registerBuiltinAtoms()
+// legal-gaps 的真实注册在 patent-tools apply()；此处注册契约 stub 使内置 manifest 通过校验。
+globalAtomRegistry.register({
+  name: 'legal-gaps',
+  category: 'gate',
+  description: 'test stub — 真实注册在 patent-tools apply()',
+  inputSchema: [],
+  outputSchema: ['legal_gaps_report'],
+})
 
 function makeAgent(id: string): { session: Session } {
   const session = Session.create(SessionId(id))
@@ -21,6 +37,15 @@ function makeAgent(id: string): { session: Session } {
 
 function okExecutor(stage: { id: string }): Promise<string> {
   return Promise.resolve('[' + stage.id + '] 完成')
+}
+
+/**
+ * 原子检索所需的最小 provider：关键词生成给出稳定 JSON，检索返回空语料。
+ * 空语料让 prior-art-filter 通过“检索结果为空”分支，而无需伪造外部检索。
+ */
+const emptySearchProvider: StageProvider = {
+  callLLM: async () => '{"keywords":["装置"]}',
+  search: async () => [],
 }
 
 describe('PatentWorkflow service', () => {
@@ -91,7 +116,13 @@ describe('PatentWorkflow service', () => {
     await ctx.plugin(PatentWorkflow)
     try {
       const agent = makeAgent('workflow-run')
-      const result = await ctx.patentWorkflow.runWorkflow(patentNoveltyManifest, { input: '一种装置' }, okExecutor, { approvalGrants: ['approval'] }, agent)
+      const result = await ctx.patentWorkflow.runWorkflow(
+        patentNoveltyManifest,
+        { input: '一种装置', filing_date: '2024-06-01' },
+        okExecutor,
+        { provider: emptySearchProvider, approvalGrants: ['approval'] },
+        agent,
+      )
 
       expect(result.completed).toBe(true)
       const events = agent.session.snapshotEvents().filter(e => e.type === 'patent/workflow-run')
@@ -103,24 +134,97 @@ describe('PatentWorkflow service', () => {
     }
   })
 
+  it('records the run evidence ledger as a patent/evidence-ledger session event', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      const agent = makeAgent('workflow-ledger')
+      const result = await ctx.patentWorkflow.runWorkflow(
+        patentNoveltyManifest,
+        {
+          input: '一种装置',
+          filing_date: '2024-06-01',
+          prior_art: [{ dLabel: 'D1', title: '对比文件', url: 'https://example.test/D1' }],
+        },
+        okExecutor,
+        { provider: emptySearchProvider, approvalGrants: ['approval'], runId: 'run-ledger' },
+        agent,
+      )
+
+      expect(result.evidenceLedger?.receipts.map(receipt => receipt.citationId)).toEqual(['MATERIAL', 'D1'])
+      const events = agent.session.snapshotEvents().filter(e => e.type === 'patent/evidence-ledger')
+      expect(events).toHaveLength(1)
+      expect(events[0]!.data.manifestId).toBe('patent_novelty_v1')
+      expect(events[0]!.data.runId).toBe('run-ledger')
+      expect(events[0]!.data.ledger.receipts.map(receipt => receipt.citationId)).toEqual(['MATERIAL', 'D1'])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('runWorkflow without an agent records no session event; runId travels with the event', async () => {
     const ctx = new Context()
     await ctx.plugin(PatentWorkflow)
     try {
       const noAgent = await ctx.patentWorkflow.runWorkflow(
-        patentNoveltyManifest, { input: '一种装置' }, okExecutor, { approvalGrants: ['approval'] },
+        patentNoveltyManifest,
+        { input: '一种装置', filing_date: '2024-06-01' },
+        okExecutor,
+        { provider: emptySearchProvider, approvalGrants: ['approval'] },
       )
       expect(noAgent.completed).toBe(true)
 
       const agent = makeAgent('workflow-run-id')
       const withRunId = await ctx.patentWorkflow.runWorkflow(
-        patentNoveltyManifest, { input: '一种装置' }, okExecutor,
-        { runId: 'run-42', approvalGrants: ['approval'] }, agent,
+        patentNoveltyManifest,
+        { input: '一种装置', filing_date: '2024-06-01' },
+        okExecutor,
+        { provider: emptySearchProvider, runId: 'run-42', approvalGrants: ['approval'] },
+        agent,
       )
       expect(withRunId.completed).toBe(true)
       const events = agent.session.snapshotEvents().filter(e => e.type === 'patent/workflow-run')
       expect(events).toHaveLength(1)
       expect(events[0]!.data.runId).toBe('run-42')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('records a legal-gaps stage as a patent/legal-gaps session event', async () => {
+    class StubLegalGapsHandler implements StageHandler {
+      readonly name = 'legal-gaps'
+      readonly category = 'gate' as const
+      execute(): Promise<PipelineState> {
+        return Promise.resolve({ legal_gaps_report: '法条缺口汇总（审查意见答复）：无阻断项' })
+      }
+    }
+    globalStageHandlerRegistry.register(new StubLegalGapsHandler())
+    const manifest: WorkflowManifest = {
+      id: 'legal_gaps_event_v1',
+      name: '法条缺口事件',
+      caseType: 'oa_response',
+      stages: [
+        {
+          id: 'legal_gaps',
+          strategy: 'chain',
+          description: '汇总法条缺口',
+          atom: 'legal-gaps',
+          params: { profile: 'oa-response' },
+        },
+      ],
+    }
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      const agent = makeAgent('legal-gaps-event')
+      const result = await ctx.patentWorkflow.runWorkflow(manifest, {}, okExecutor, { runId: 'run-gaps' }, agent)
+      expect(result.completed).toBe(true)
+      const events = agent.session.snapshotEvents().filter(e => e.type === 'patent/legal-gaps')
+      expect(events).toHaveLength(1)
+      expect(events[0]!.data.manifestId).toBe('legal_gaps_event_v1')
+      expect(events[0]!.data.runId).toBe('run-gaps')
+      expect(events[0]!.data.report).toContain('无阻断项')
     } finally {
       await ctx.fiber.dispose()
     }
