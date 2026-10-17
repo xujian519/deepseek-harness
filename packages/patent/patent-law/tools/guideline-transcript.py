@@ -309,7 +309,16 @@ def read_entries(text: str) -> list[Entry]:
     entries: list[Entry] = []
     current: Entry | None = None
     skipping = False
+    # `staleSections` also uses `- path:` entries; only `sections:` holds transcription targets.
+    in_sections = False
     for line in text.split('\n'):
+        if line.strip() == 'sections:' and not line.startswith(' '):
+            in_sections = True
+            continue
+        if line and not line[0].isspace():
+            in_sections = False
+        if not in_sections:
+            continue
         if skipping:
             if line.startswith('      '):
                 continue
@@ -338,7 +347,12 @@ def read_entries(text: str) -> list[Entry]:
 
 def rebuild(text: str, entries: list[Entry], sections: dict[str, list[str]], stamp: str | None) -> str:
     """Rewrite the sections block with the derived transcription fields."""
-    head = text.split('sections:')[0]
+    lines = text.split('\n')
+    # `versions` also has a nested `sections:` key, so split on the top-level line only.
+    index = next((position for position, line in enumerate(lines) if line == 'sections:'), None)
+    if index is None:
+        fail('索引缺少顶层的 sections: 行')
+    head = '\n'.join(lines[:index])
     out = [*head.rstrip('\n').split('\n'), 'sections:']
     for entry in entries:
         out.extend(entry.lines)

@@ -88,6 +88,9 @@ describe('parseLawBaseline', () => {
     expect(baseline.articles[0]?.paragraphs).toEqual([1, 2, 3])
     expect(baseline.articles[0]?.verifiedOn).toBe('2026-01-01')
     expect(baseline.sections).toEqual([])
+    expect(baseline.supersededBy).toBeNull()
+    expect(baseline.staleSections).toEqual([])
+    expect(baseline.versions).toEqual([])
   })
 
   it('parses a guideline index and sorts its sections', () => {
@@ -112,6 +115,164 @@ describe('parseLawBaseline', () => {
     expect(baseline.law).toBe('专利审查指南')
     expect(baseline.sections).toHaveLength(2)
     expect(baseline.articles).toEqual([])
+    expect(baseline.supersededBy).toBeNull()
+    expect(baseline.staleSections).toEqual([])
+    expect(baseline.versions).toEqual([])
+  })
+
+  it('reads a superseding revision and the sections whose text it supersedes', () => {
+    const baseline = parseLawBaseline([
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: 2023 年修订版（2024-01-20 施行）',
+      'supersededBy: 2026 年修订版（2026-01-01 施行）',
+      'maxArticle: null',
+      'maxVerifiedOn: null',
+      'staleSections:',
+      '  - path: 第四部分第三章2.1',
+      '    reason: 2026 年修订版已修改本节',
+      'sections:',
+      '  - path: 第四部分第三章2.1',
+      '    topics: [一事不再理]',
+      '    text: null',
+      '    sourceDoc: null',
+      '    verifiedOn: null',
+    ].join('\n'), 'fixture.yaml')
+    expect(baseline.supersededBy).toBe('2026 年修订版（2026-01-01 施行）')
+    expect(baseline.staleSections).toEqual([
+      { path: '第四部分第三章2.1', reason: '2026 年修订版已修改本节' },
+    ])
+  })
+
+  it('rejects a stale-section record that names an unindexed section', () => {
+    expect(parseFailing([
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: null',
+      'staleSections:',
+      '  - path: 不存在的节',
+      '    reason: fixture',
+      'sections:',
+      '  - path: 第四部分第三章2.1',
+      '    topics: [一事不再理]',
+      '    text: null',
+      '    sourceDoc: null',
+      '    verifiedOn: null',
+    ].join('\n')).message).toContain('不存在的 section')
+  })
+
+  it('rejects stale-section records on a statute', () => {
+    expect(parseFailing([
+      STATUTE,
+      'staleSections:',
+      '  - path: 第四部分第三章2.1',
+      '    reason: fixture',
+    ].join('\n')).message).toContain('不能声明 staleSections')
+  })
+
+  it('reads revision-specific section overrides and sorts them', () => {
+    const baseline = parseLawBaseline([
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: 2023 年修订版（2024-01-20 施行）',
+      'supersededBy: 2026 年修订版（2026-01-01 施行）',
+      'maxArticle: null',
+      'maxVerifiedOn: null',
+      'versions:',
+      '  - revision: 2026 年修订版（2026-01-01 施行）',
+      '    sections:',
+      '      - path: 第四部分第三章3.3',
+      '        topics: [无效宣告]',
+      '        text: 2026 正文',
+      '        sourceDoc: 修改对照表',
+      '        verifiedOn: 2026-10-17',
+      '      - path: 第二部分第一章4.4',
+      '        topics: [植物品种]',
+      '        text: 2026 正文',
+      '        sourceDoc: 修改对照表',
+      '        verifiedOn: 2026-10-17',
+      'sections:',
+      '  - path: 第四部分第三章2.1',
+      '    topics: [一事不再理]',
+      '    text: 2023 正文',
+      '    sourceDoc: null',
+      '    verifiedOn: null',
+    ].join('\n'), 'fixture.yaml')
+    expect(baseline.versions).toHaveLength(1)
+    expect(baseline.versions[0]?.revision).toBe('2026 年修订版（2026-01-01 施行）')
+    expect(baseline.versions[0]?.sections.map(section => section.path))
+      .toEqual(['第二部分第一章4.4', '第四部分第三章3.3'])
+  })
+
+  it('rejects version overrides on a statute', () => {
+    expect(parseFailing([
+      STATUTE,
+      'versions:',
+      '  - revision: 2026 年修订版',
+      '    sections:',
+      '      - path: 第二部分第四章3.2',
+      '        topics: [a]',
+    ].join('\n')).message).toContain('不能声明 versions')
+  })
+
+  it('rejects a version that repeats the base revision, repeats itself, or has no sections', () => {
+    const base = [
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: 2023 年修订版',
+    ]
+    const sections = [
+      'sections:',
+      '  - path: 第二部分第四章3.2',
+      '    topics: [a]',
+    ]
+    expect(parseFailing([
+      ...base,
+      'versions:',
+      '  - revision: 2023 年修订版',
+      '    sections:',
+      '      - path: 第二部分第四章3.2',
+      '        topics: [a]',
+      ...sections,
+    ].join('\n')).message).toContain('不能与基础 revision 相同')
+    expect(parseFailing([
+      ...base,
+      'versions:',
+      '  - revision: 2026 年修订版',
+      '    sections:',
+      '      - path: 第二部分第四章3.2',
+      '        topics: [a]',
+      '  - revision: 2026 年修订版',
+      '    sections:',
+      '      - path: 第二部分第四章3.2',
+      '        topics: [a]',
+      ...sections,
+    ].join('\n')).message).toContain('revision 重复')
+    expect(parseFailing([
+      ...base,
+      'versions:',
+      '  - revision: 2026 年修订版',
+      '    sections: []',
+      ...sections,
+    ].join('\n')).message).toContain('至少声明一个 section')
+  })
+
+  it('rejects duplicate paths inside one version', () => {
+    expect(parseFailing([
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: 2023 年修订版',
+      'versions:',
+      '  - revision: 2026 年修订版',
+      '    sections:',
+      '      - path: 第二部分第四章3.2',
+      '        topics: [a]',
+      '      - path: 第二部分第四章3.2',
+      '        topics: [b]',
+      'sections:',
+      '  - path: 第二部分第四章3.2',
+      '    topics: [a]',
+    ].join('\n')).message).toContain('重复')
   })
 
   it('rejects a law name it does not index', () => {

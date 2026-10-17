@@ -50,6 +50,9 @@ function statute(overrides: Partial<LawBaseline> = {}): LawBaseline {
     law: '专利法',
     document: '中华人民共和国专利法',
     revision: null,
+    supersededBy: null,
+    staleSections: [],
+    versions: [],
     maxArticle: 82,
     maxVerifiedOn: '2026-01-01',
     maxSource: 'fixture',
@@ -73,6 +76,9 @@ function baselines(): Map<LawName, LawBaseline> {
       law: '专利审查指南',
       document: '专利审查指南',
       revision: null,
+      supersededBy: null,
+      staleSections: [],
+      versions: [],
       maxArticle: null,
       maxVerifiedOn: null,
       maxSource: null,
@@ -299,6 +305,157 @@ describe('rendering', () => {
   })
 })
 
+describe('stale guideline sections', () => {
+  const container: SectionEntry = {
+    path: '第四部分第三章',
+    topics: ['无效宣告'],
+    text: null,
+    sourceDoc: null,
+    verifiedOn: null,
+  }
+  const stale: SectionEntry = {
+    path: '第四部分第三章2.1',
+    topics: ['一事不再理'],
+    text: '修改前正文',
+    sourceDoc: 'fixture',
+    verifiedOn: '2026-01-01',
+  }
+  const current: SectionEntry = {
+    path: '第二部分第一章1.1',
+    topics: ['主题'],
+    text: '现行正文',
+    sourceDoc: 'fixture',
+    verifiedOn: '2026-01-01',
+  }
+  const index = new Map<LawName, LawBaseline>([['专利审查指南', {
+    law: '专利审查指南',
+    document: '专利审查指南',
+    revision: '2023 年修订版（2024-01-20 施行）',
+    supersededBy: '2026 年修订版（2026-01-01 施行）',
+    staleSections: [{ path: '第四部分第三章2.1', reason: '2026 年修订版已修改本节' }],
+    versions: [],
+    maxArticle: null,
+    maxVerifiedOn: null,
+    maxSource: null,
+    articles: [],
+    sections: [container, stale, current],
+  }]])
+
+  it('reports a citation to the stale section as unverified, naming the superseding revision', () => {
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), index)
+    expect(finding.decision).toBe('unverified')
+    expect(finding.reason).toContain('2026 年修订版')
+    expect(finding.reason).toContain('2026 年修订版已修改本节')
+  })
+
+  it('treats a parent citation that covers the stale section as unverified', () => {
+    expect(verifyCitation(sectionRef('第四部分第三章'), index).decision).toBe('unverified')
+  })
+
+  it('leaves an unaffected section verifiable', () => {
+    expect(verifyCitation(sectionRef('第二部分第一章1.1'), index).decision).toBe('valid')
+  })
+})
+
+describe('versioned guideline sections', () => {
+  const BASE = '2023 年修订版（2024-01-20 施行）'
+  const CURRENT = '2026 年修订版（2026-01-01 施行）'
+  const container: SectionEntry = {
+    path: '第四部分第三章',
+    topics: ['无效宣告'],
+    text: null,
+    sourceDoc: null,
+    verifiedOn: null,
+  }
+  const base: SectionEntry = {
+    path: '第四部分第三章2.1',
+    topics: ['一事不再理'],
+    text: '以同样的理由和证据再次提出无效宣告请求的，不予受理和审理。',
+    sourceDoc: '审查指南 2023',
+    verifiedOn: '2026-10-17',
+  }
+  const revised: SectionEntry = {
+    path: '第四部分第三章2.1',
+    topics: ['一事不再理'],
+    text: '以相同或者实质相同的理由和证据再次提出无效宣告请求的，不予受理和审理。',
+    sourceDoc: '审查指南 2026 修改对照表',
+    verifiedOn: '2026-10-17',
+  }
+  const stillStale: SectionEntry = {
+    path: '第四部分第三章3.3',
+    topics: ['无效宣告'],
+    text: '旧版正文',
+    sourceDoc: '审查指南 2023',
+    verifiedOn: '2026-10-17',
+  }
+  /** The revised section plus the base text it replaces. */
+  const index = new Map<LawName, LawBaseline>([['专利审查指南', {
+    law: '专利审查指南',
+    document: '专利审查指南',
+    revision: BASE,
+    supersededBy: CURRENT,
+    staleSections: [{ path: '第四部分第三章2.1', reason: '2026 年修订版已修改本节' }],
+    versions: [{ revision: CURRENT, sections: [revised] }],
+    maxArticle: null,
+    maxVerifiedOn: null,
+    maxSource: null,
+    articles: [],
+    sections: [container, base],
+  }]])
+  /** A revision that transcribed one of two stale sections. */
+  const partial = new Map<LawName, LawBaseline>([['专利审查指南', {
+    ...index.get('专利审查指南')!,
+    staleSections: [
+      { path: '第四部分第三章2.1', reason: '2026 年修订版已修改本节' },
+      { path: '第四部分第三章3.3', reason: '2026 年修订版已修改本节' },
+    ],
+    sections: [container, base, stillStale],
+  }]])
+
+  it('uses the latest transcribed override when no revision is named', () => {
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), index)
+    expect(finding.decision).toBe('valid')
+    expect(finding.reason).toContain('2026 修改对照表')
+  })
+
+  it('decides against the base revision when it is named', () => {
+    expect(verifyCitation(sectionRef('第四部分第三章2.1'), index, { revision: BASE }).decision).toBe('unverified')
+  })
+
+  it('decides against the named revision', () => {
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), index, { revision: CURRENT })
+    expect(finding.decision).toBe('valid')
+    expect(finding.reason).toContain('2026 修改对照表')
+  })
+
+  it('reports a revision the index does not carry instead of falling back', () => {
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), index, { revision: '2025 年修订版' })
+    expect(finding.decision).toBe('unverified')
+    expect(finding.reason).toContain('2025 年修订版')
+  })
+
+  it('lets a parent citation use the revised subsection', () => {
+    const finding = verifyCitation(sectionRef('第四部分第三章'), index, {
+      proposition: '相同或者实质相同的理由和证据',
+    })
+    expect(finding.decision).toBe('valid')
+  })
+
+  it('keeps a stale section without an override unverified', () => {
+    expect(verifyCitation(sectionRef('第四部分第三章3.3'), partial).decision).toBe('unverified')
+  })
+
+  it('uses the shipped 2026 overrides for the three transcribed sections', () => {
+    const shipped = new Map<LawName, LawBaseline>([['专利审查指南', loadLawBaselines().get('专利审查指南')!]])
+    for (const path of ['第二部分第一章4.4', '第四部分第三章2.1', '第四部分第三章3.3']) {
+      const current = verifyCitation(sectionRef(path), shipped)
+      expect(current.decision).toBe('valid')
+      expect(current.entry?.sourceDoc).toContain('2026 年修订版')
+      expect(verifyCitation(sectionRef(path), shipped, { revision: BASE }).decision).toBe('unverified')
+    }
+  })
+})
+
 describe('entries without a recorded source', () => {
   /** A verified article and section that carry no source document. */
   const withoutSource = new Map<LawName, LawBaseline>([
@@ -309,6 +466,9 @@ describe('entries without a recorded source', () => {
       law: '专利审查指南',
       document: '专利审查指南',
       revision: null,
+      supersededBy: null,
+      staleSections: [],
+      versions: [],
       maxArticle: null,
       maxVerifiedOn: null,
       maxSource: null,
@@ -514,6 +674,9 @@ describe('the packaged index', () => {
       law: '专利审查指南',
       document: '专利审查指南',
       revision: null,
+      supersededBy: null,
+      staleSections: [],
+      versions: [],
       maxArticle: null,
       maxVerifiedOn: null,
       maxSource: null,
@@ -548,6 +711,9 @@ describe('the packaged index', () => {
       law: '专利审查指南',
       document: '专利审查指南',
       revision: null,
+      supersededBy: null,
+      staleSections: [],
+      versions: [],
       maxArticle: null,
       maxVerifiedOn: null,
       maxSource: null,
@@ -571,6 +737,9 @@ describe('the packaged index', () => {
       law: '专利审查指南',
       document: '专利审查指南',
       revision: null,
+      supersededBy: null,
+      staleSections: [],
+      versions: [],
       maxArticle: null,
       maxVerifiedOn: null,
       maxSource: null,
