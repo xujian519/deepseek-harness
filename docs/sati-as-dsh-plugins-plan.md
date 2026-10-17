@@ -463,7 +463,7 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 #### P4.3 完成：dsh-methodology
 
 - 移植：protocol/registry/injector + 8 组件 + TRIZ 数据（`assets/triz-matrix.json` + `assets/triz-principles.json` 36K 随包，`files: ["assets"]` 约束白名单登记，`new URL(..., import.meta.url)` 解析，source 与 built lib 均可加载）。
-- 模型面：`triz` defineTool（无参→39 参数 + 40 原理目录；improving+worsening→矩阵格推荐原理）+ `tool:triz` system-prompt section（order 111，`registerSection` 配置开关默认 true）；`MethodologyRegistry` 全量 8 组件以库 API 提供（不自动挂载）。
+- 模型面：`triz` defineTool（无参→39 参数 + 40 原理目录；improving+worsening→矩阵格推荐原理）+ `tool:triz` system-prompt section（order 111，`registerSection` 配置开关默认 true）；`MethodologyRegistry` 全量 8 组件以库 API 提供（不自动挂载）。（2026-10-17：注册表、注入器与 8 组件因无消费方已移除，只保留 TRIZ 工具与数据 API；见 [Agent Note](../.agents/notes/implemented/simplification/2026-10-17-methodology-registry-scope.md)。）
 - 测试：28 用例（Sati spec 移植 + 真实工具测试 + Loader REAL-composition 含 built-lib 资产冒烟 + HMR-safety）；tool-catalog 注册（en/zh）。
 
 #### P1 阶段性验收状态

@@ -2760,6 +2760,7 @@ todo_write is session-owned state; UIs render the latest todo/write event as a c
 - Call with no arguments to list all 39 engineering parameters and 40 principles
 - Call with an improving and a worsening parameter number (1-39) to read that matrix cell and its recommended principles
 - Use for technical contradictions, trade-offs, and patent design-around
+- This tool only reads the matrix for explicit parameter numbers; extracting parameters or contradictions from a document is outside its scope
 
 ```json
 {

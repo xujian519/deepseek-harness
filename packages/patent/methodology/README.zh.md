@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 推理方法论层移植进 DeepSeek Harness：TRIZ 40 条发明原理与经典的 39×39 Altshuller 矛盾矩阵作为包资产随包分发，通过一个 `triz` 工具加上一段简洁的 `tool:triz` 系统提示词区段提供给模型。完整的方法论注册表（八个组件、关键词匹配与提示词注入）也作为无需密钥的库 API 随包分发，供提示词组装消费方使用。"
+description: "函数插件，将 TRIZ 40 条发明原理、经典 39×39 Altshuller 矛盾矩阵与 5 条分离原理作为包资产随包分发，通过一个 `triz` 工具加上一段简洁的 `tool:triz` 系统提示词区段提供给模型。矩阵、原理与分离原理也可通过无需密钥的数据 API 读取。"
 kind: "package-reference"
 ---
 
@@ -9,12 +9,12 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 推理方法论层移植进 DeepSeek Harness：TRIZ 40 条发明原理与经典的 39×39 Altshuller 矛盾矩阵作为包资产随包分发，通过一个 `triz` 工具加上一段简洁的 `tool:triz` 系统提示词区段提供给模型。完整的方法论注册表（八个组件、关键词匹配与提示词注入）也作为无需密钥的库 API 随包分发，供提示词组装消费方使用。
+函数插件，将 TRIZ 40 条发明原理、经典 39×39 Altshuller 矛盾矩阵与 5 条分离原理作为包资产随包分发，通过一个 `triz` 工具加上一段简洁的 `tool:triz` 系统提示词区段提供给模型。矩阵、原理与分离原理也可通过无需密钥的数据 API 读取。
 
 ## 目录
 
 - [triz 工具](#triz-tool)
-- [方法论注册表（库 API）](#methodology-registry-library-api)
+- [数据 API](#data-api)
 - [配置](#configuration)
 - [模型体验](#model-experience)
 - [已知限制与暂缓事项](#known-limitations-and-deferred-work)
@@ -22,12 +22,12 @@ kind: "package-reference"
 <a id="triz-tool"></a>
 ## triz 工具
 
-`triz` 是基于随包数据的无状态、只读工具。无参数调用它会列出 39 个经典工程参数与 40 条发明原理。传入 `improving` 与 `worsening` 参数编号（各 1-39）可读取对应矛盾矩阵单元格，获得推荐的发明原理编号、名称与说明。对角线单元格（改善参数等于恶化参数）是物理矛盾，不返回经典矩阵条目；该转录版在非对角线位置也有空格（331 个空格中占 292 个），工具会把它说明为矩阵空缺而不是矛盾。
+`triz` 是基于随包数据的无状态、只读工具。无参数调用它会列出 39 个经典工程参数与 40 条发明原理。传入 `improving` 与 `worsening` 参数编号（各 1-39）可读取对应矛盾矩阵单元格，获得推荐的发明原理编号、名称与说明。对角线单元格（改善参数等于恶化参数）是物理矛盾，不返回经典矩阵条目，改为返回 5 条分离原理。该转录版在非对角线位置也有空格（273 个空格中占 234 个），工具会把它说明为矩阵空缺而不是矛盾。本工具只按明确的参数编号查表；从交底书中提取参数或矛盾由 `triz_contradiction_analysis` 这类领域分析工具负责。
 
-<a id="methodology-registry-library-api"></a>
-## 方法论注册表（库 API）
+<a id="data-api"></a>
+## 数据 API
 
-包重新导出移植的方法论层：`MethodologyRegistry`、`DEFAULT_METHODOLOGY_COMPONENTS`、`extractMethodologyKeywords`、`injectMethodology` 以及八个组件（`fiveWhys`、`mece`、`swot`、`pdca`、`fishbone`、`firstPrinciples`、`sixHats`、`triz`）。这些是纯规则、无需密钥的实现；不会有任何东西自动挂载它们——提示词组装消费方自行决定何时匹配并注入方法论提示词。
+包重新导出基于随包资产的只读、无需密钥 API：`loadMatrix`、`lookupMatrixCell`、`loadPrinciples`、`loadSeparations`、`ENGINEERING_PARAMS`、`paramLabel`、`principleById`、`principleNames` 与 `createTrizTool`。`lookupMatrixCell(improving, worsening)` 会对唯一一个重复源格去重。包内没有任何逻辑会把方法论匹配到任务并自动注入提示词。
 
 <a id="configuration"></a>
 ## 配置
@@ -53,11 +53,12 @@ Schemastery 配置，所有字段均可选。
 For patent innovation, design-around, and trade-off analysis, use the triz tool when a task names a technical contradiction or conflict between two engineering parameters.
 Call triz with no arguments to list the 39 classic engineering parameters and the 40 inventive principles.
 Call triz with an improving and a worsening parameter number (1-39) to read that contradiction-matrix cell and its recommended inventive principles.
+triz only reads a matrix cell for two explicit parameter numbers; identifying parameters or contradictions from a disclosure is outside its scope.
 ```
 
 #### Token 影响
 
-区段启用期间，每次请求承担固定的三行成本；禁用 `registerSection` 会移除这三行。
+区段启用期间，每次请求承担固定的四行成本；禁用 `registerSection` 会移除这四行。
 
 #### KV Cache 影响
 
@@ -67,7 +68,7 @@ Call triz with an improving and a worsening parameter number (1-39) to read that
 
 #### 模型看到的内容
 
-一个名为 `triz` 的已注册工具定义，含两个可选整数参数 `improving` 与 `worsening`（各 1-39）。其确切描述与参数见生成的 [`triz` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-methodology)；结果以 Markdown 渲染，而非 schema token。
+一个名为 `triz` 的已注册工具定义，含两个可选整数参数 `improving` 与 `worsening`（各 1-39）。查询结果包含 `recommended` 原理；对角格另含 5 条 `separations`。其确切描述与参数见生成的 [`triz` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-methodology)；结果以 Markdown 渲染，而非 schema token。
 
 #### Token 影响
 
@@ -80,9 +81,10 @@ Call triz with an improving and a worsening parameter number (1-39) to read that
 <a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与暂缓事项
 
-- **注册表是库 API，而非挂载的区段** — 八个方法论组件随包分发供消费方匹配与注入，但没有任何东西把它们注册进系统提示词；组合需自行调用 `injectMethodology`。
-- **区段文本是静态的** — `tool:triz` 区段是固定文本；它不会随加载的组件集或某个部署的参数列表而变化。
-- **仅经典矩阵数据** — 随包分发的 39×39 矩阵是公开的 Altshuller 转录版；1521 个单元格中有 331 个不含推荐（其中 39 个位于对角线、属物理矛盾，292 个在非对角线位置），也不包含任何更新或派生的矩阵。
+- **仅 TRIZ** — 本包只提供 TRIZ 工具及其数据 API，不包含通用方法论注册表或目标文本参数识别。调用方提供明确的参数编号；从文本中提取参数由领域分析工具负责。
+- **区段文本是静态的** — `tool:triz` 区段是固定文本；它不会随某个部署的参数列表变化。
+- **仅经典矩阵数据** — 随包分发的 39×39 矩阵是公开的 Altshuller 转录版；1521 个单元格中有 273 个不含推荐（其中 39 个位于对角线、属物理矛盾，234 个在非对角线位置），也不包含任何更新或派生的矩阵。
+- **源数据异常** — `(改善 19, 恶化 9)` 格在两个参考来源中都被转录为 `[8, 35, 35]`；读取层会去重，原始值保留。数据来源、许可证与全部已知偏差见 [`assets/README.zh.md`](assets/README.zh.md)。
 
 ### 开发备注
 

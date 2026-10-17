@@ -8,4 +8,5 @@ export const TRIZ_PROMPT_TEXT = [
   'For patent innovation, design-around, and trade-off analysis, use the triz tool when a task names a technical contradiction or conflict between two engineering parameters.',
   'Call triz with no arguments to list the 39 classic engineering parameters and the 40 inventive principles.',
   'Call triz with an improving and a worsening parameter number (1-39) to read that contradiction-matrix cell and its recommended inventive principles.',
+  'triz only reads a matrix cell for two explicit parameter numbers; identifying parameters or contradictions from a disclosure is outside its scope.',
 ].join('\n')
