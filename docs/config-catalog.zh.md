@@ -2677,7 +2677,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-methodology`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/patent/methodology/src/index.ts:53`](../packages/patent/methodology/src/index.ts)
+- `source`: [`packages/patent/methodology/src/index.ts:33`](../packages/patent/methodology/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing TRIZ plugin configuration. */
