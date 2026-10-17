@@ -485,6 +485,53 @@ describe('the packaged index', () => {
     expect(topicOverlap(['无效宣告', '审查方式'], '当事人期满未答复的')).toBe(false)
   })
 
+  it('decides a section-level container by a subsection it covers', () => {
+    const shipped = loadLawBaselines()
+    // 第二部分第二章3.1 只登记主题词，正文在其子节 3.1.2。
+    const citation = verifyCitation(sectionRef('第二部分第二章3.1'), shipped, {
+      proposition: '必要技术特征是指，发明或者实用新型为解决其技术问题所不可缺少的技术特征',
+    })
+    expect(citation.decision).toBe('valid')
+    expect(citation.reason).toContain('第二部分第二章3.1.2')
+  })
+
+  it('lets a text-less container pass on its own topic keywords', () => {
+    const container: SectionEntry = {
+      path: '第二部分第二章3.1',
+      topics: ['三步法'],
+      text: null,
+      sourceDoc: null,
+      verifiedOn: null,
+    }
+    const subsection: SectionEntry = {
+      path: '第二部分第二章3.1.2',
+      topics: ['独立权利要求'],
+      text: '与三步法无关的正文',
+      sourceDoc: 'fixture',
+      verifiedOn: '2026-01-01',
+    }
+    const index = new Map<LawName, LawBaseline>([['专利审查指南', {
+      law: '专利审查指南',
+      document: '专利审查指南',
+      revision: null,
+      maxArticle: null,
+      maxVerifiedOn: null,
+      maxSource: null,
+      articles: [],
+      sections: [container, subsection],
+    }]])
+    const citation = verifyCitation(sectionRef('第二部分第二章3.1'), index, { proposition: '三步法' })
+    expect(citation.decision).toBe('valid')
+    expect(citation.reason).toContain('主题词')
+  })
+
+  it('passes a container citation without a proposition, naming its subsections', () => {
+    const shipped = loadLawBaselines()
+    const citation = verifyCitation(sectionRef('第二部分第二章'), shipped)
+    expect(citation.decision).toBe('valid')
+    expect(citation.reason).toContain('判定依据其下各节')
+  })
+
   it('decides a chapter by its sections when the chapter carries no text of its own', () => {
     const shipped = loadLawBaselines()
     const citation = verifyCitation(sectionRef('第二部分第二章'), shipped, {

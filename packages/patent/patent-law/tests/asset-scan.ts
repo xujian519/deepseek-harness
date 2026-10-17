@@ -15,8 +15,8 @@ const REPO_ROOT = join(import.meta.dirname, '../../../..')
 /** 被扫描的目录：随包资产与源码所在处，不含测试、构建产物与依赖目录。 */
 const SCAN_ROOTS: readonly string[] = ['packages/patent', 'packages/bundle/web-app']
 
-/** 只扫描这些路径片段下的文件：随包资产与被装载的源码。 */
-const INCLUDED_SEGMENTS: readonly string[] = ['/assets/', '/src/']
+/** 只扫描这些路径片段下的文件：随包资产、被装载的源码，以及随包技能与预设。 */
+const INCLUDED_SEGMENTS: readonly string[] = ['/assets/', '/src/', '/skills/', '/presets/']
 
 /** 扫描时跳过的路径片段。 */
 const EXCLUDED_SEGMENTS: readonly string[] = ['/lib/', '/node_modules/', '/tests/']

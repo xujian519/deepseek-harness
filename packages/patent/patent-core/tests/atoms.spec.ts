@@ -416,6 +416,11 @@ describe('extract 分键 / merge / draft-claims', () => {
     expect(single.length).toBe(1)
     expect(single[0]!.problem).toBe('')
     expect(single[0]!.features).toEqual(['F1'])
+    const noProblemInsights = await h.execute({
+      state: { problems: [], features: [], effects: [], insight: ['认知1', '认知2'] },
+    })
+    const insights = noProblemInsights.pfe_triples as Array<{ insight?: string }>
+    expect(insights[0]!.insight).toBe('认知1；认知2')
   })
 
   it('MergeHandler：多余发明认知追加到末组的 insight', async () => {

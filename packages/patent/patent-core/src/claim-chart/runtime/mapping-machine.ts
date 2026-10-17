@@ -4,7 +4,7 @@
  */
 
 import type { ChartMode, ChartRow, ChartTarget, ClaimElement, ClaimNoveltyCoverage, ClaimRef } from '../protocol/types.ts'
-import { referencedClosure } from './claim-refs.ts'
+import { referenceAlternatives, referencedClosure } from './claim-refs.ts'
 
 const PRIOR_ART_ONLY = new Set(['anticipation', 'obviousness-combination'])
 const COVERED_MAPPINGS = new Set(['literal', 'anticipation', 'literal-construction-dependent'])
@@ -69,7 +69,9 @@ export type { ClaimNoveltyCoverage } from '../protocol/types.ts'
  * 逐权利要求的单篇全覆盖判定：从属权项的比对对象是其全部要素与所引用权项全部要素的组合
  * （从属权利要求的技术方案包含所引用权利要求的全部技术特征；本仓口径见
  * `patent-document` 的 `templates/patent/invalidation-opinion/references/conventions.md` §2.1），
- * 故覆盖判定须并入引用链上的要素。缺 `claims` 时按全部权项独立处理。
+ * 故覆盖判定须并入引用链上的要素。多项从属权项以择一方式引用，每个直接引用是一个独立替代
+ * 方案：任一路径全覆盖即该权项全覆盖，`missing` 取缺口最少的路径，逐路径结果保留在
+ * `alternatives`。缺 `claims` 时按全部权项独立处理。
  * @param rows - 映射行列表。
  * @param targetId - 对比文件目标 id。
  * @param elements - 权利要求要素列表。
@@ -86,14 +88,24 @@ export function deriveNoveltyCoverageByClaim(
   const claimNos = [...new Set(elements.map(el => el.claimNo))].sort((a, b) => a - b)
   return claimNos.map((claimNo) => {
     const referredClaimNos = referencedClosure(claims, claimNo)
-    const scope = new Set([claimNo, ...referredClaimNos])
-    const missing = elements.filter(el => scope.has(el.claimNo) && !coveredIds.has(el.id)).map(el => el.id)
+    const paths = referenceAlternatives(claims, claimNo)
+    const alternatives = (paths.length === 0 ? [[claimNo]] : paths.map(path => [claimNo, ...path]))
+      .map((scope) => {
+        const missing = elements.filter(el => scope.includes(el.claimNo) && !coveredIds.has(el.id)).map(el => el.id)
+        return {
+          referredClaimNos: scope.filter(value => value !== claimNo).sort((a, b) => a - b),
+          covered: missing.length === 0,
+          missing,
+        }
+      })
+    const best = alternatives.reduce((left, right) => right.missing.length < left.missing.length ? right : left)
     return {
       claimNo,
-      covered: missing.length === 0,
-      missing,
+      covered: best.missing.length === 0,
+      missing: best.missing,
       includesReferredClaims: referredClaimNos.length > 0,
       referredClaimNos,
+      ...(paths.length > 1 ? { alternatives } : {}),
     }
   })
 }

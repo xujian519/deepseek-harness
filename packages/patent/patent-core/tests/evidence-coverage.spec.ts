@@ -669,6 +669,35 @@ rules:
   expect(r3.failedConditions).toContain('evidence_source_identified')
 })
 
+it('publication_date_available：以日期认定结果为准，不看 docVersion 是否非空', () => {
+  const engine = new EvidenceEngine(`
+weights:
+  relevance: 0.35
+  legality: 0.3
+  authenticity: 0.35
+rules:
+  - ruleId: EVI-014
+    name: 互联网公开
+    evidenceType: internet_publication
+    check:
+      type: internet_publication
+      method: credibility_scaled
+      conditions:
+        - publication_date_available
+`)
+  const unparsable = engine.judge(
+    span({ sourceUri: 'web:https://example.com/post', docVersion: 'n.d.' }),
+    { filingDate: '2023-06-01' },
+  ).rulesApplied.find(x => x.ruleId === 'EVI-014')!
+  expect(unparsable.failedConditions).toContain('publication_date_available')
+
+  const archived = engine.judge(
+    span({ sourceUri: 'web:https://web.archive.org/web/20200101/https://example.com/post' }),
+    { filingDate: '2023-06-01' },
+  ).rulesApplied.find(x => x.ruleId === 'EVI-014')!
+  expect(archived.failedConditions).not.toContain('publication_date_available')
+})
+
 it('综合评分：权重全零时回退 0.5', () => {
   const engine = new EvidenceEngine(`
 weights:

@@ -223,12 +223,7 @@ function decideTranscribed(
   }
   const elsewhere = supportingLabels(baseline, index, proposition, threshold, `第 ${entry.article} 条`)
   if (elsewhere.length > 0) {
-    return finding(
-      reference,
-      'mismatch',
-      `所引条目未被该命题支撑：《${baseline.law}》${elsewhere.join('、')}更贴近命题「${truncate(proposition)}」`,
-      entry,
-    )
+    return finding(reference, 'mismatch', mismatchReason(baseline, proposition, elsewhere), entry)
   }
   return finding(
     reference,
@@ -298,6 +293,11 @@ function supportingLabels(
     .slice(0, 3)
 }
 
+/** The reason a citation reports when another entry of the law carries the proposition. */
+function mismatchReason(baseline: LawBaseline, proposition: string, elsewhere: readonly string[]): string {
+  return `所引条目未被该命题支撑：《${baseline.law}》${elsewhere.join('、')}更贴近命题「${truncate(proposition)}」`
+}
+
 /** Render a 0–1 score as a whole percentage for a reason line. */
 function percent(value: number): string {
   return `${String(Math.round(value * 100))}%`
@@ -353,16 +353,6 @@ function articleGap(
   return finding(reference, 'not-indexed', `《${baseline.law}》第 ${reference.article} 条不在索引中`)
 }
 
-/** One transcribed guideline text a proposition can be matched against. */
-type SectionText = {
-  /** Normalized path of the section or subsection this text belongs to. */
-  path: string
-  /** Topic keywords the entry declares. */
-  topics: string[]
-  /** Transcribed section text. */
-  text: string
-}
-
 /** Verify one guideline-section reference. */
 function verifySection(
   reference: Extract<LawReference, { kind: 'guideline-section' }>,
@@ -396,11 +386,10 @@ function verifySection(
  * @param path - the cited normalized section path.
  * @returns the texts to match against, the cited section first when it has one.
  */
-function sectionTexts(baseline: LawBaseline, path: string): SectionText[] {
-  return baseline.sections
-    .filter((section): section is SectionEntry & { text: string } =>
-      section.text !== null && coversSection(path, section.path))
-    .map(section => ({ path: section.path, topics: section.topics, text: section.text }))
+function sectionTexts(baseline: LawBaseline, path: string): Array<ComparableEntry & { text: string }> {
+  return comparableEntries(baseline)
+    .filter((entry): entry is ComparableEntry & { text: string } =>
+      entry.text !== null && coversSection(path, entry.label))
 }
 
 /**
@@ -435,14 +424,25 @@ function coversSection(cited: string, path: string): boolean {
 function decideSection(
   reference: Extract<LawReference, { kind: 'guideline-section' }>,
   entry: SectionEntry,
-  candidates: readonly SectionText[],
+  candidates: readonly (ComparableEntry & { text: string })[],
   baseline: LawBaseline,
   options: VerifyOptions,
 ): CitationFinding {
   const proposition = options.proposition?.trim()
-  const hasOwn = candidates.some(candidate => candidate.path === reference.path)
+  const hasOwn = candidates.some(candidate => candidate.label === reference.path)
   if (proposition === undefined || proposition === '') {
     return finding(reference, 'valid', sectionReason(reference.path, entry, null, hasOwn), entry)
+  }
+  // A container has no text of its own, but its topic keywords still name the
+  // subject; without this, a topic could make a citation fail as a competing
+  // home yet never let the cited container pass.
+  if (!hasOwn && topicOverlap(entry.topics, proposition)) {
+    return finding(
+      reference,
+      'valid',
+      `与《专利审查指南》${reference.path} 一致（本节正文未单独转录，本节主题词覆盖该命题）`,
+      entry,
+    )
   }
   const threshold = options.supportThreshold ?? PROPOSITION_SUPPORT_DEFAULT
   const index = overlapIndex(baseline)
@@ -456,20 +456,15 @@ function decideSection(
     return finding(
       reference,
       'valid',
-      sectionReason(reference.path, entry, carrier.candidate.path, hasOwn),
+      sectionReason(reference.path, entry, carrier.candidate.label, hasOwn),
       entry,
     )
   }
   const elsewhere = supportingLabels(baseline, index, proposition, threshold, reference.path)
   if (elsewhere.length > 0) {
-    return finding(
-      reference,
-      'mismatch',
-      `所引条目未被该命题支撑：《${baseline.law}》${elsewhere.join('、')}更贴近命题「${truncate(proposition)}」`,
-      entry,
-    )
+    return finding(reference, 'mismatch', mismatchReason(baseline, proposition, elsewhere), entry)
   }
-  const best = Math.max(0, ...scored.map(entry => entry.score))
+  const best = Math.max(0, ...scored.map(candidate => candidate.score))
   return finding(
     reference,
     'unmatched',
@@ -483,7 +478,9 @@ function decideSection(
 /** The reason a supported guideline citation reports. */
 function sectionReason(path: string, entry: SectionEntry, carrier: string | null, hasOwn: boolean): string {
   if (!hasOwn) {
-    return `与《专利审查指南》${path} 一致（本节正文未单独转录，判定依据其下各节）`
+    return carrier === null
+      ? `与《专利审查指南》${path} 一致（本节正文未单独转录，判定依据其下各节）`
+      : `与《专利审查指南》${path} 一致（本节正文未单独转录，命题由其下的 ${carrier} 承载）`
   }
   if (carrier !== null && carrier !== path) {
     return `与《专利审查指南》${path} 一致（命题由本节下的 ${carrier} 承载）`

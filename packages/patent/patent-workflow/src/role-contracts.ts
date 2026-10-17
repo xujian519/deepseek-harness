@@ -110,7 +110,7 @@ export function defaultRoleContracts(): RoleContract[] {
       role: 'invalidity-petitioner',
       name: '无效请求人',
       stance: 'attacker',
-      description: '无效理由地图（A22.2/22.3/22.4/26.3/26.4/33、A2/A5/A25、细则20.2/43.1、A9）、证据组合与成功率最大化、预判专利权人应对',
+      description: '无效理由地图（A22.2/22.3/22.4/26.3/26.4/33、A2/A5/A25、细则23.2/49、A9）、证据组合与成功率最大化、预判专利权人应对',
       workers: ['invalidity-petitioner'],
       forbiddenActions: ['不代专利权人答辩'],
       triggersHITL: true,

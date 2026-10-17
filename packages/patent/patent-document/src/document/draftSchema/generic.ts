@@ -1,5 +1,5 @@
 /**
- * src/document/draftSchema/generic — 八个通用文档模板的受控草案注册表。
+ * src/document/draftSchema/generic — 十个通用文档模板的受控草案注册表。
  *
  * 与表单模板（data-slot 机制）不同，通用模板的槽位是模板骨架上的元素 id：
  * fields 填充叶级元素的文本内容（meta、footer 等系列），sections blocks 替换
@@ -14,7 +14,7 @@
 import type { DocumentTemplateId } from '../types.ts'
 import type { TemplateSlotRegistry } from './index.ts'
 
-/** 已接入受控草案的通用文档模板 id（claims-spec 与两个表单模板之外的九个）。 */
+/** 已接入受控草案的通用文档模板 id（claims-spec 与两个表单模板之外的十个）。 */
 export const GENERIC_TEMPLATE_IDS = [
   'patentability-opinion',
   'search-report',
@@ -440,7 +440,7 @@ const LITIGATION_PLEADING: TemplateSlotRegistry = {
   ],
 }
 
-/** 八个通用文档模板的注册表。 */
+/** 十个通用文档模板的注册表。 */
 export const GENERIC_TEMPLATE_SCHEMAS: Readonly<Record<GenericTemplateId, TemplateSlotRegistry>> = {
   'patentability-opinion': PATENTABILITY_OPINION,
   'search-report': SEARCH_REPORT,

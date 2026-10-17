@@ -116,7 +116,10 @@ export interface Config {
   onNotIndexed: CitationPolicy
   /** Treatment of an indexed entry whose text has not been transcribed. */
   onUnverified: CitationPolicy
-  /** Share of a proposition's weighted character pairs an entry's text must carry before it supports the proposition. */
+  /**
+   * Share of a proposition's weighted character pairs an entry's text must carry
+   * before it supports the proposition; greater than 0 and at most 1.
+   */
   propositionSupport: number
 }
 
@@ -131,7 +134,7 @@ export const Config: z<Config> = z.object({
   onOutOfRange: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.outOfRange),
   onNotIndexed: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.notIndexed),
   onUnverified: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.unverified),
-  propositionSupport: z.number().default(PROPOSITION_SUPPORT_DEFAULT),
+  propositionSupport: z.number().min(0.0001).max(1).default(PROPOSITION_SUPPORT_DEFAULT),
 })
 
 /**

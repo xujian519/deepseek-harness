@@ -12,7 +12,7 @@ description: 创造性（A22.3）三步法的证据搜集例程：调用 cnlaw_i
 - **输出**：四步证据包（`cnlaw_inventive_step` 返回值），每步含若干条可引用证据：
   - **closest_prior_art**：最接近现有技术 D1 候选（同领域、公开特征多）
   - **distinguishing**：区别特征 —— 复审委对同类发明的创造性认定（`based_on` 第22条第3款的判例）
-  - **technical_problem**：实际解决的技术问题 —— 审查指南第二部分四章 + 判例表述
+  - **technical_problem**：实际解决的技术问题 —— 《专利审查指南》第二部分第四章 + 判例表述
   - **inventive_step**：有无技术启示 —— 同领域「维持（有创造性）vs 无效（无创造性）」对比
 - 每条证据：`case_number/发明名称 + 法条 reference + source_path + citation_verified`。
 

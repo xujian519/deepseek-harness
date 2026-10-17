@@ -169,7 +169,7 @@ function injectSections(
 
 /**
  * 解析本次渲染的受控草案注入：claims-spec 走 SpecDraft（转换器生成结构），
- * 其余十个模板走 templateDraft（表单按 data-slot 注入，通用文档按元素 id 注入）。
+ * 其余十二个模板走 templateDraft（表单按 data-slot 注入，通用文档按元素 id 注入）。
  * 两种草案互斥；都不传时按模板骨架原样渲染。
  * @param html - 模板 HTML（品牌注入后）。
  * @param input - 渲染输入。
@@ -187,7 +187,7 @@ function resolveDraft(html: string, input: DocumentRenderInput): { html: string;
   }
   if (input.templateDraft !== undefined) {
     if (input.template === 'claims-spec') {
-      throw new DocumentRenderError('claims-spec 请用 draft 参数（SpecDraft 结构）：templateDraft 仅用于其余十一个模板')
+      throw new DocumentRenderError('claims-spec 请用 draft 参数（SpecDraft 结构）：templateDraft 仅用于其余十二个模板')
     }
     if (isFormTemplateId(input.template)) {
       return { html: injectTemplateDraft(html, input.template, input.templateDraft), skippedIds: [] }

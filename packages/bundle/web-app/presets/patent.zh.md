@@ -18,7 +18,7 @@
 - `@deepseek-ai/dsh-patent-filing` — build_patent_filing / verify_patent_filing：把一个 CNIPA 申请文件（摘要、摘要附图、权利要求书、说明书、说明书附图）装配成 DOCX，其排版由随包模板反推，并逐项核对成品与该模板一致。
 - `@deepseek-ai/dsh-patent-deadline` — patent_deadlines：案件的法定与指定期限，含专利法实施细则的期限与送达规则，以及随包节假日日历用于届满日顺延。
 - `@deepseek-ai/dsh-patent-fees` — patent_fees：逐项按本包随包的费用索引为案件计价（申请、实审、授权、年费与各项程序费用），按各费种的计数基准计数量——每件、超过免费基数的每项权利要求、每页、每项优先权要求、每个专利年度、每请求月数——并在索引登记了减缴时按案件适用的减缴计算。金额已按官方收费标准随包转录，因此工具会给出合计；只有适用项没有金额时才扣住合计——随包索引里这仍是说明书附加费与延长期限请求费两项，因为它们按条目模型承载不了的分档收费。
-- `@deepseek-ai/dsh-patent-law` — law_verify：逐条把法条引用对照本包随包的法规索引判定（《专利法》《专利法实施细则》按条，《专利审查指南》按归一化节路径），并把已索引但未转录的条目报「未核验」而不是放行。两部法律（法规）的条文已随包转录——每个条目带着所引条文的文本、抄录的文书与版本、以及抄录日期——条数上限也已核验，因此编造的条号判「条号超出有效范围」、索引未覆盖的有效条号判「索引中不存在」，两者都不是通过。指南的 63 条节级条目已随包转录 2023 年修订版正文，引用会判成「已核验」「与所引命题不符」或「未判定」；只登记到部分或章一级、其下各节又都没转录的条目仍报「未核验」。引用必须经官方来源核验的纪律没有变，只是未核验的条目不再可能被读成已核验。
+- `@deepseek-ai/dsh-patent-law` — law_verify：逐条把法条引用对照本包随包的法规索引判定（《专利法》《专利法实施细则》按条，《专利审查指南》按归一化节路径），并把已索引但未转录的条目报「未核验」而不是放行。两部法律（法规）的条文已随包转录——每个条目带着所引条文的文本、抄录的文书与版本、以及抄录日期——条数上限也已核验，因此编造的条号判「条号超出有效范围」、索引未覆盖的有效条号判「索引中不存在」，两者都不是通过。指南的 63 条节级条目已随包转录 2023 年修订版正文，引用会判成「已核验」「与所引命题不符」或「未判定」；只登记到部分、章或节一级、其下各节又都没转录的条目仍报「未核验」。引用必须经官方来源核验的纪律没有变，只是未核验的条目不再可能被读成已核验。
 - `@deepseek-ai/dsh-writing-patterns` — 基于随包撰写/答复模式语料的 query_writing_patterns，以及承载编译后 `<writing_skills>` 块的系统提示段。
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
 - `@deepseek-ai/dsh-methodology` — triz 工具。
@@ -84,6 +84,6 @@ OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openv
 - patent_pdf_download 在宿主机有可用 ego-browser（ego lite，仅 macOS，且在 PATH 上）时在浏览器内取回 PDF 响应体（CDP `Network.getResponseBody`）；取不到时退回抓页面 CDN 链接 + HTTP 下载，整批仍能下载。两个通道都失败时按篇报告错误，不中断整批。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - patent-oa-response 与 patent-reexamination 属本仓新增技能，非移植：步骤顺序跟随 patent_oa_response_v1 / patent_reexamination_v1 manifest，期限一律由 patent_deadlines 给出，但两者均未经实务对照现行《专利审查指南》复核。复审技能对实用新型命中的创造性理由按现行口径保留、并把专利权类型单独输出（不静默删除理由）；该口径在工作台计划中仍标注为待确认项。
-- patent-invalidation-defense 属本仓新增技能，非移植：它从专利权人（被请求人）侧答复无效宣告请求，期限经 `invalidation-transfer` 通知书由 patent_deadlines 给出（该指定期限依专利法实施细则第 75 条不得延长），交付经 `invalidation-defense` 模板渲染为 100902 意见陈述书与其 100014 附页。与 patent-invalidity 一样尚未对照现行实务复核，且它点名的指南节次只有形式核验——随包指南索引只有主题词、没有条文。
+- patent-invalidation-defense 属本仓新增技能，非移植：它从专利权人（被请求人）侧答复无效宣告请求，期限经 `invalidation-transfer` 通知书由 patent_deadlines 给出（该指定期限依专利法实施细则第 75 条不得延长），交付经 `invalidation-defense` 模板渲染为 100902 意见陈述书与其 100014 附页。与 patent-invalidity 一样尚未对照现行实务复核。它点名的指南节次按随包索引与所引节的转录正文（2023 年修订版）核对；被 2026 年版修改过的节仍须以该版本文本为准。
 - 设计文档的 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` 是 Sati 用户级资产，未随附；事实核验与质量门禁技能已不再依赖它——引用形式改由随包索引核验，法条原文在使用时核验。
 - 自进化 benchmark 仅编程接口：`ctx.selfEvolveBenchmark` 不挂模型工具；建立基线 / 优化循环由 operator 或脚本解析某 agent 的该服务后驱动。其默认 seams 在宿主 subagents 注册表上 fork 子代理，子代理继承本 preset 的 approval 设置（`'never'`）与计划模式纪律——需审批的操作在子代理中被拒，executor prompt 已显式退出计划语义，可直接产出交付物。

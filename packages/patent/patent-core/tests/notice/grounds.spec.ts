@@ -86,17 +86,29 @@ describe('identifyInvalidationGrounds', () => {
     ])
   })
 
-  it('公开不充分的三种写法都命中', () => {
-    // 上游两表只收"公开充分""充分公开"，正文最常见的"公开不充分"漏检。
+  it('只命中缺陷表述，不把正面表述当理由', () => {
+    // 上游两表只收"公开充分""充分公开"，正文最常见的"公开不充分"漏检；
+    // "公开充分"本身是专利权人的正面主张，不是公开不充分缺陷。
     expect(identifyInvalidationGrounds('说明书公开不充分').map(ground => ground.ground)).toEqual([
       'disclosure',
     ])
-    expect(identifyInvalidationGrounds('说明书公开充分').map(ground => ground.ground)).toEqual([
+    expect(identifyInvalidationGrounds('说明书未充分公开').map(ground => ground.ground)).toEqual([
       'disclosure',
     ])
-    expect(identifyInvalidationGrounds('说明书充分公开').map(ground => ground.ground)).toEqual([
-      'disclosure',
-    ])
+    expect(identifyInvalidationGrounds('说明书公开充分，请求人的无效理由不成立')).toEqual([])
+  })
+
+  it('裸条号不跨法命中', () => {
+    // 实施细则第5/9/22/25 条不是专利法第5/9/22/25 条；裸条号前出现另一部法律名时不命中。
+    expect(identifyInvalidationGrounds('请求人主张专利法实施细则第5条关于送达的规定')).toEqual([])
+    expect(identifyInvalidationGrounds('依据专利法实施细则第9条')).toEqual([])
+    expect(identifyInvalidationGrounds('依据专利法实施细则第25条')).toEqual([])
+    expect(identifyInvalidationGrounds('依据专利法实施细则第22条第3款')).toEqual([])
+    // 同一段前文出现另一部法律，不影响后一处带专利法条号的命中。
+    expect(
+      identifyInvalidationGrounds('经专利法实施细则第5条送达；权利要求1不具备新颖性，不符合专利法第22条第2款')
+        .map(ground => ground.ground),
+    ).toEqual(['novelty'])
   })
 
   it('条款简写与大小写写法都命中', () => {

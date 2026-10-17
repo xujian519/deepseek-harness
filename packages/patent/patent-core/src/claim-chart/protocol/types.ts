@@ -119,14 +119,26 @@ export interface ClaimRef {
 export type ClaimNoveltyCoverage = {
   /** 权利要求序号。 */
   claimNo: number
-  /** 构成该权项技术方案的全部要素是否都被这一篇公开。 */
+  /** 构成该权项技术方案的全部要素是否都被这一篇公开；多项从属权项任一替代方案全覆盖即为 true。 */
   covered: boolean
-  /** 未覆盖的要素 id（含所引用权项的要素）。 */
+  /** 未覆盖的要素 id（含所引用权项的要素）；多项从属权项取缺口最少的替代方案。 */
   missing: string[]
   /** 判定是否已并入其所引用权项的要素（从属权项为 true）。 */
   includesReferredClaims: boolean
   /** 并入的所引用权项号（传递闭包）；独立权项为空数组。 */
   referredClaimNos: number[]
+  /** 多项从属权项（引用两项以上）的逐替代方案结果；单一引用或无引用时省略。 */
+  alternatives?: ClaimAlternative[]
+}
+
+/** 多项从属权利要求的一个替代技术方案（每个直接引用一条）。 */
+export type ClaimAlternative = {
+  /** 该替代方案并入的所引用权项号（含传递闭包），升序。 */
+  referredClaimNos: number[]
+  /** 该替代方案的全部要素是否都被这一篇公开。 */
+  covered: boolean
+  /** 该替代方案未被覆盖的要素 id。 */
+  missing: string[]
 }
 
 /** 引用关系缺陷。 */
@@ -162,7 +174,13 @@ export type InvalidityConclusion = {
   /** 逐对比文件的单篇全覆盖判定（逐权利要求），按目标顺序。 */
   novelty: { targetId: string; title?: string; claims: ClaimNoveltyCoverage[] }[]
   /** 相对主对比文件的区别特征，逐权利要求；无主对比文件时为空数组。 */
-  distinguishing: { claimNo: number; elementIds: string[] }[]
+  distinguishing: {
+    claimNo: number
+    /** 各替代方案区别特征的并集。 */
+    elementIds: string[]
+    /** 多项从属权项（引用两项以上）的逐替代方案区别特征；单一引用或无引用时省略。 */
+    alternatives?: { referredClaimNos: number[]; elementIds: string[] }[]
+  }[]
   /** 从属权项法条路径问题（逐目标逐权项）。 */
   dependentClaimIssues: DependentClaimPathIssue[]
   /** 引用关系本身的缺陷（引用不存在/不更小的权项、自引用、成环）。 */

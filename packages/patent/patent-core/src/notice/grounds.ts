@@ -98,7 +98,7 @@ const INVALIDATION_GROUND_PATTERNS: readonly GroundPattern<InvalidationGround>[]
     ground: 'disclosure',
     article: '专利法第26条第3款',
     label: '公开不充分无效',
-    patterns: ['26条第3款', '26.3', '公开不充分', '公开充分', '充分公开', '不能实现', '无法实现'],
+    patterns: ['26条第3款', '26.3', '公开不充分', '充分公开', '不能实现', '无法实现'],
   },
   {
     ground: 'claim-clarity',
@@ -174,7 +174,7 @@ const REEXAMINATION_GROUND_PATTERNS: readonly GroundPattern<ReexaminationGround>
     ground: 'disclosure',
     article: '专利法第26条第3款',
     label: '公开不充分',
-    patterns: ['26条第3款', '26.3', '公开不充分', '公开充分', '充分公开', '不能实现', '无法实现'],
+    patterns: ['26条第3款', '26.3', '公开不充分', '充分公开', '不能实现', '无法实现'],
   },
   {
     ground: 'claim-clarity',
@@ -224,9 +224,15 @@ const MATCH_CONTEXT_BEFORE = 30
 /** 命中片段向后截取的字数（自命中词末尾起算）。 */
 const MATCH_CONTEXT_AFTER = 40
 
+/** 只写条号、不写法律名的模式；前文若出现另一部法律名，不算命中。 */
+const NUMBER_ONLY_PATTERN = /^(?:第)?\d+(?:\.\d+)?(?:条|款)?/
+
+/** 条号前出现另一部法律名的情形（`专利法实施细则第5条` 不是专利法第5条）。 */
+const OTHER_LAW_BEFORE = /(?:实施)?细则/
+
 /** 关键词按字面匹配（元字符转义）且不区分大小写。 */
-function literalPattern(keyword: string): RegExp {
-  return new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+function literalPattern(keyword: string, flags = 'i'): RegExp {
+  return new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags)
 }
 
 /**
@@ -238,8 +244,15 @@ function literalPattern(keyword: string): RegExp {
 function firstMatch(text: string, patterns: readonly string[]): { index: number; length: number } | null {
   for (const pattern of patterns) {
     if (pattern.length === 0) continue
-    const found = literalPattern(pattern).exec(text)
-    if (found !== null) return { index: found.index, length: found[0].length }
+    const matcher = literalPattern(pattern, 'gi')
+    let found = matcher.exec(text)
+    while (found !== null) {
+      const before = text.slice(Math.max(0, found.index - 20), found.index)
+      if (!NUMBER_ONLY_PATTERN.test(pattern) || !OTHER_LAW_BEFORE.test(before)) {
+        return { index: found.index, length: found[0].length }
+      }
+      found = matcher.exec(text)
+    }
   }
   return null
 }

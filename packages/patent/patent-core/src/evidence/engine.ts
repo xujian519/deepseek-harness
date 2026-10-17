@@ -91,7 +91,10 @@ function evaluateCondition(name: string, ctx: ConditionContext): boolean | undef
     case 'evidence_has_source_uri':
       return hasText(ctx.span.sourceUri)
     case 'publication_date_available':
-      return hasText(ctx.span.docVersion)
+      // The condition is about an ascertained date, not about a non-empty field:
+      // an unparseable page date or a Wayback URL both go through the same
+      // determination the judgment reports.
+      return determinePublicationDate(ctx.span.docVersion, ctx.span.sourceUri, ctx.reference).determined !== 'unknown'
     case 'prior_art_reference_available':
       return ctx.reference !== undefined
     case 'evidence_notarized':

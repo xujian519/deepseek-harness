@@ -190,15 +190,16 @@ function collectFindings(
     ...(args.proposition === undefined ? {} : { proposition: args.proposition }),
     ...(supportThreshold === undefined ? {} : { supportThreshold }),
   }
+  const references = args.references ?? []
   const findings = args.text === undefined ? [] : verifyCitations(args.text, baselines, options)
-  for (const raw of args.references ?? []) {
+  for (const raw of references) {
     const reference = parseLawReference(raw)
     if (reference === null) {
       throw new LawVerifyToolError('unparsable_reference', `无法把「${raw}」解析为单条法条引用：请给出条号（如 专利法第22条第3款）或指南节（如 审查指南第二部分第四章3.2.1.1）`)
     }
     findings.push(verifyCitation(reference, baselines, options))
   }
-  if (findings.length === 0 && args.text === undefined && (args.references ?? []).length === 0) {
+  if (findings.length === 0 && args.text === undefined && references.length === 0) {
     throw new LawVerifyToolError('no_input', '至少要给出 text 或 references 之一')
   }
   return findings

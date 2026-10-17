@@ -120,6 +120,42 @@ it('所引权项同样被全覆盖时不报路径问题', () => {
   expect(conclusion.dependentClaimIssues).toEqual([])
 })
 
+it('多项从属权项：一条替代路径全覆盖时不再报路径问题，并按路径给出区别特征', () => {
+  const multi = chart([
+    row('1a', 'D1', 'literal'),
+    row('1b', 'D1', 'literal'),
+    row('2a', 'D1', 'literal'),
+    row('2b', 'D1', 'not-found'),
+    row('3a', 'D1', 'literal'),
+  ])
+  multi.elements = [
+    { id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' },
+    { id: '1b', claimNo: 1, text: '和滤芯', kind: 'limitation' },
+    { id: '2a', claimNo: 2, text: '根据权利要求1所述的装置', kind: 'preamble' },
+    { id: '2b', claimNo: 2, text: '所述滤芯为折叠式', kind: 'limitation' },
+    { id: '3a', claimNo: 3, text: '所述壳体为塑料', kind: 'limitation' },
+  ]
+  multi.claimNos = [1, 2, 3]
+  multi.claims = [
+    { claimNo: 1, claimType: 'independent', refersTo: [] },
+    { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+    { claimNo: 3, claimType: 'dependent', refersTo: [1, 2] },
+  ]
+  const conclusion = deriveInvalidityConclusion(multi)
+  const third = conclusion.novelty[0]?.claims.find(claim => claim.claimNo === 3)
+  expect(third?.covered).toBe(true)
+  expect(third?.alternatives?.map(alternative => alternative.covered)).toEqual([true, false])
+  expect(conclusion.dependentClaimIssues).toEqual([])
+  expect(conclusion.distinguishing.find(entry => entry.claimNo === 3)?.alternatives).toEqual([
+    { referredClaimNos: [1], elementIds: [] },
+    { referredClaimNos: [1, 2], elementIds: ['2b'] },
+  ])
+  const rendered = renderInvalidityConclusion(conclusion, multi)
+  expect(rendered).toContain('替代方案（引用 1）: 单篇全覆盖成立')
+  expect(rendered).toContain('替代方案（引用 1、2）: 未全覆盖，缺 2b')
+  expect(rendered).toContain('引用 1、2: 2b')
+})
+
 it('从属权项自身要素未全覆盖时不报路径问题（形态不成立）', () => {
   const conclusion = deriveInvalidityConclusion(chart([
     row('1a', 'D1', 'literal'),

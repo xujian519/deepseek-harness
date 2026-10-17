@@ -3032,7 +3032,10 @@ export interface Config {
   onNotIndexed: CitationPolicy
   /** Treatment of an indexed entry whose text has not been transcribed. */
   onUnverified: CitationPolicy
-  /** Share of a proposition's weighted character pairs an entry's text must carry before it supports the proposition. */
+  /**
+   * Share of a proposition's weighted character pairs an entry's text must carry
+   * before it supports the proposition; greater than 0 and at most 1.
+   */
   propositionSupport: number
 }
 

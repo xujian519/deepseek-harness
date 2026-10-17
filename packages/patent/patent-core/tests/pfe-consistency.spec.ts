@@ -161,6 +161,11 @@ describe('PfeConsistencyHandler：回退信号与降级', () => {
     expect(result.error).toMatch(/不是数组/)
   })
 
+  it('pfe_triples 含非对象条目 → 降级而不是抛 TypeError', async () => {
+    const result = await runConsistency({ pfe_triples: [null] })
+    expect(result.error).toMatch(/非对象/)
+  })
+
   it('容忍可选字段缺失：裸四元组不抛错', async () => {
     const result = await runConsistency({ pfe_triples: [{ id: 'T1', problem: 'P', features: [], effects: [] }] })
     expect(result.passed).toBe(false)

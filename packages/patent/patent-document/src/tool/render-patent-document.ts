@@ -15,7 +15,7 @@ import { FORM_TEMPLATE_SCHEMAS, GENERIC_TEMPLATE_SCHEMAS, isFormTemplateId } fro
 import { renderPatentDocument } from '../document/renderPatentDocument.ts'
 import type { DocumentRenderResult } from '../document/types.ts'
 
-/** 十二个随包分发的模板 id，与 manifest.json 的 templates 列表一致。 */
+/** 十三个随包分发的模板 id，与 manifest.json 的 templates 列表一致。 */
 const TEMPLATE_IDS = [
   'patentability-opinion',
   'search-report',

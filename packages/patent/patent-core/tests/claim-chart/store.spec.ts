@@ -138,6 +138,27 @@ it('save/load 往返一致（落盘 data/cases/<caseId>/outputs/）', async () =
   }
 })
 
+it('loadClaimChart 把旧文件 gaps[].mapping 迁移为 kind', async () => {
+  const prevCwd = process.cwd()
+  const dir = mkdtempSync(join(tmpdir(), 'cc-store-legacy-gap-'))
+  process.chdir(dir)
+  try {
+    const base = chartFileBase('case-1', 'legacy-gap')
+    mkdirSync(dirname(base), { recursive: true })
+    const legacy = {
+      ...makeChart(),
+      gaps: [{ elementId: '1b', targetId: 'D1', mapping: 'not-found', reason: '未找到', suggestion: '补充检索' }],
+    }
+    writeFileSync(`${base}.json`, JSON.stringify(legacy))
+    const loaded = loadClaimChart('case-1', 'legacy-gap')
+    expect(loaded?.gaps[0]?.kind).toBe('not-found')
+    expect(renderChartMarkdown(loaded!)).toContain('（not-found）')
+  } finally {
+    process.chdir(prevCwd)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 it('loadClaimChart 为缺 claims 字段的旧文件补空数组（引用关系未知）', async () => {
   const prevCwd = process.cwd()
   const dir = mkdtempSync(join(tmpdir(), 'cc-store-legacy-'))

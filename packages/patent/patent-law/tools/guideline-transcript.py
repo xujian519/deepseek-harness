@@ -22,9 +22,10 @@ This script derives the text mechanically:
 - A line whose text repeats the tail of the previous line on the same baseline is a
   duplicated run of the source PDF, not content, and is dropped.
 
-The source PDF is not shipped with this repository, so `--check` reports the absent
-source instead of passing silently, and the shipped index stays the only record of
-the transcription. Run `--write` after changing any rule above; it rewrites the
+The body-column threshold is measured on Parts I, II, IV and V; the PDF sets Part III
+at a different left edge, and no Part III path is indexed. The source PDF is not
+shipped with this repository, so `--check` reports the absent source instead of
+passing silently, and the shipped index stays the only record of the transcription. Run `--write` after changing any rule above; it rewrites the
 `text`, `sourceDoc` and `verifiedOn` fields only, leaving the hand-verified `topics`
 and the file header untouched. `--check` compares the derived `text` and `sourceDoc`
 and keeps whichever `verifiedOn` dates the file carries, because a date is not
@@ -46,10 +47,9 @@ import datetime
 import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, NoReturn
-
-import fitz
 
 # Bounding boxes of the body column and of the text zone, in PDF points.
 BODY_LEFT = 145.0
@@ -57,6 +57,11 @@ INDENT_LEFT = 170.0
 TOP_ZONE = 60.0
 BOTTOM_ZONE = 660.0
 HEAD_FONTS = ('ºÚÌå', '·½Õý´óºÚ¼òÌå')
+
+# A character narrower than ZERO_WIDTH this close to a visible one with the same
+# value is the text layer's duplicate of that glyph, not a second character.
+ZERO_WIDTH = 0.5
+DUPLICATE_ORIGIN = 2.0
 
 DEFAULT_PDF = Path(
     os.environ.get('DSH_GUIDELINE_PDF')
@@ -93,10 +98,44 @@ def fail(message: str) -> NoReturn:
     raise SystemExit(1)
 
 
+def line_text(spans: list[dict]) -> str:
+    """Join one line's spans, dropping zero-width duplicates of visible glyphs.
+
+    The PDF text layer carries some quotes twice: a zero-width copy at almost the
+    same origin as the visible glyph. A zero-width run that has no visible twin is
+    not a duplicate — it is the only text-layer copy of that part of the line.
+    """
+    visible = [
+        (char['c'], char['origin'][0])
+        for span in spans
+        for char in span.get('chars', [])
+        if char['bbox'][2] - char['bbox'][0] >= ZERO_WIDTH
+    ]
+    parts: list[str] = []
+    for span in spans:
+        chars = span.get('chars')
+        if chars is None:
+            parts.append(span.get('text', ''))
+            continue
+        kept: list[str] = []
+        for char in chars:
+            if char['bbox'][2] - char['bbox'][0] < ZERO_WIDTH and char['c'].strip():
+                if any(value == char['c'] and abs(origin - char['origin'][0]) < DUPLICATE_ORIGIN
+                       for value, origin in visible):
+                    continue
+            kept.append(char['c'])
+        parts.append(''.join(kept))
+    return ''.join(parts)
+
+
 class Source:
     """The official guideline PDF, addressed by page, chapter and section number."""
 
     def __init__(self, pdf: Path) -> None:
+        try:
+            import fitz
+        except ImportError:
+            fail('缺少 PyMuPDF：请运行 python3 -m pip install pymupdf')
         self.doc = fitz.open(str(pdf))
         self._lines: dict[int, list[dict]] = {}
         self.chapters: dict[str, list[int]] = {}
@@ -125,14 +164,14 @@ class Source:
         """
         if page not in self._lines:
             kept: list[dict] = []
-            for block in self.doc[page].get_text('dict')['blocks']:
+            for block in self.doc[page].get_text('rawdict')['blocks']:
                 if block['type'] != 0:
                     continue
                 for line in block['lines']:
                     spans = [span for span in line['spans'] if span['bbox'][0] >= BODY_LEFT]
                     if not spans:
                         continue
-                    text = ''.join(span['text'] for span in spans)
+                    text = line_text(spans)
                     entry = {
                         'spans': spans,
                         'text': text,
@@ -176,13 +215,13 @@ class Source:
         return bool(line['spans']) and all(span['font'] in HEAD_FONTS for span in line['spans'])
 
 
-def split_path(path: str) -> tuple[str, str, str]:
-    """Part, chapter and section number of one normalized index path."""
+def split_path(path: str) -> tuple[str, str]:
+    """Part and chapter, and the section number after it, of one normalized index path."""
     match = PATH_PATTERN_PARTS.match(path)
     if not match:
         fail(f'索引路径无法解析：{path}')
     part, chapter, tail = match.group(1), match.group(2), match.group(3)
-    return f'第{part}部分' + (f'第{chapter}章' if chapter else ''), (chapter or ''), tail
+    return f'第{part}部分' + (f'第{chapter}章' if chapter else ''), tail
 
 
 def headings(source: Source, chapter: str) -> list[tuple[int, float, str]]:
@@ -202,7 +241,7 @@ def section(source: Source, path: str) -> list[str] | None:
     A part or chapter path yields the text that precedes its first section, which
     is empty for every indexed part and chapter.
     """
-    chapter, _, tail = split_path(path)
+    chapter, tail = split_path(path)
     pages = source.chapters.get(chapter, [])
     if not pages:
         return None
@@ -256,11 +295,19 @@ def entry_lines(path: str, paragraphs: list[str], verified_on: str | None) -> li
     ]
 
 
-def read_entries(text: str) -> list[tuple[str, list[str], str | None]]:
-    """Index entries as (path, lines kept verbatim, the date the file records)."""
-    entries: list[tuple[str, list[str], str | None]] = []
-    current: tuple[str, list[str]] | None = None
-    date: str | None = None
+@dataclass
+class Entry:
+    """One section entry as read from the shipped index."""
+
+    path: str
+    lines: list[str]
+    recorded: str | None = None
+
+
+def read_entries(text: str) -> list[Entry]:
+    """Index entries as their path, the lines kept verbatim, and the date the file records."""
+    entries: list[Entry] = []
+    current: Entry | None = None
     skipping = False
     for line in text.split('\n'):
         if skipping:
@@ -269,37 +316,33 @@ def read_entries(text: str) -> list[tuple[str, list[str], str | None]]:
             skipping = False
         match = PATH_PATTERN.match(line)
         if match:
-            current = (match.group(1), [line])
-            date = None
-            entries.append((current[0], current[1], date))
+            current = Entry(match.group(1), [line])
+            entries.append(current)
             continue
         if current is None:
             continue
         field = FIELD_PATTERN.match(line)
         if field:
             if field.group(1) == 'topics':
-                current[1].append(line)
+                current.lines.append(line)
             if field.group(1) == 'verifiedOn':
-                date = line.split(':', 1)[1].strip()
-                entries[-1] = (current[0], current[1], date)
+                current.recorded = line.split(':', 1)[1].strip()
             skipping = field.group(1) == 'text'
             continue
-        current[1].append(line)
-    return [(path, [line for line in lines if line.strip()], date) for path, lines, date in entries]
+        current.lines.append(line)
+    return [
+        Entry(entry.path, [line for line in entry.lines if line.strip()], entry.recorded)
+        for entry in entries
+    ]
 
 
-def rebuild(
-    text: str,
-    entries: list[tuple[str, list[str], str | None]],
-    sections: dict[str, list[str]],
-    stamp: str | None,
-) -> str:
+def rebuild(text: str, entries: list[Entry], sections: dict[str, list[str]], stamp: str | None) -> str:
     """Rewrite the sections block with the derived transcription fields."""
     head = text.split('sections:')[0]
     out = [*head.rstrip('\n').split('\n'), 'sections:']
-    for path, lines, recorded in entries:
-        out.extend(lines)
-        out.extend(entry_lines(path, sections[path], stamp if stamp is not None else recorded))
+    for entry in entries:
+        out.extend(entry.lines)
+        out.extend(entry_lines(entry.path, sections[entry.path], stamp if stamp is not None else entry.recorded))
         out.append('')
     return '\n'.join(out).rstrip('\n') + '\n'
 
@@ -324,29 +367,38 @@ def main() -> None:
     entries = read_entries(text)
     if not entries:
         fail(f'{args.yaml} 没有可解析的 section 条目')
-    untopiced = [path for path, lines, _ in entries if not any(line.startswith('    topics:') for line in lines)]
+    untopiced = [entry.path for entry in entries
+                 if not any(line.startswith('    topics:') for line in entry.lines)]
     if untopiced:
         fail('以下条目缺少手工核定的 topics，重写会丢失它们：' + '、'.join(untopiced))
 
     sections: dict[str, list[str]] = {}
     unresolved: list[str] = []
-    for path, _, _ in entries:
-        chapter, _, tail = split_path(path)
+    for entry in entries:
+        chapter, tail = split_path(entry.path)
         if not tail:
-            known = chapter in source.chapters or any(key.startswith(chapter) for key in source.chapters)
-            if not known:
-                unresolved.append(path)
-            sections[path] = []
+            if not any(key.startswith(chapter) for key in source.chapters):
+                unresolved.append(entry.path)
+            sections[entry.path] = []
             continue
-        paragraphs = section(source, path)
+        paragraphs = section(source, entry.path)
         if paragraphs is None:
-            unresolved.append(path)
-            sections[path] = []
+            unresolved.append(entry.path)
+            sections[entry.path] = []
             continue
-        sections[path] = paragraphs
+        sections[entry.path] = paragraphs
 
     if unresolved:
         fail('索引中的路径在源 PDF 中找不到对应标题：' + '、'.join(unresolved))
+
+    if not args.write:
+        # Without a recorded date the derived output omits the section text, so a
+        # file that also omits it would compare equal: the check must refuse that
+        # comparison instead of reporting a section as transcribed.
+        unrecorded = [entry.path for entry in entries if sections[entry.path] and entry.recorded is None]
+        if unrecorded:
+            fail('以下条目在源 PDF 中有节正文，但索引没有 verifiedOn，--check 无法确认其转录：'
+                 + '、'.join(unrecorded))
 
     stamp = arg_date(args) if args.write else None
     rebuilt = rebuild(text, entries, sections, stamp)
@@ -354,7 +406,7 @@ def main() -> None:
     if args.write:
         args.yaml.write_text(rebuilt, encoding='utf-8')
         print(f'已写入 {args.yaml}：{transcribed}/{len(entries)} 条有节正文，'
-              f'{len(entries) - transcribed} 条为部分或章的容器路径，转录日期 {stamp}')
+              f'{len(entries) - transcribed} 条为部分、章或节的容器路径，转录日期 {stamp}')
         return
 
     if rebuilt == text:

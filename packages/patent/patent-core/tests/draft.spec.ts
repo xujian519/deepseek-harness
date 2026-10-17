@@ -473,11 +473,21 @@ describe('validateTemplateDraft', () => {
     expectTemplateViolation({ sections: [{ id: 'relatedDocuments', rows: [] }] }, schema, '至少一行')
     expectTemplateViolation({ sections: [{ id: 'relatedDocuments', rows: [['X', '']] }] }, schema, 'sections.0.rows[0][1] 为空')
     expectTemplateViolation({ sections: [{ id: 'relatedDocuments', blocks: [{ kind: 'paragraph', text: 'x' }] }] }, schema, '数据行槽位，不接受 blocks')
+    expectTemplateViolation(
+      { sections: [{ id: 'relatedDocuments', rows: [['X', 'A']], grounds: [] }] },
+      schema,
+      '数据行槽位，不接受 grounds',
+    )
   })
 
   it('正文槽位拒绝 rows 与表格块', () => {
     const schema = { sections: { analysis: { required: true } } }
     expectTemplateViolation({ sections: [{ id: 'analysis', rows: [['X']] }] }, schema, '正文槽位，不接受 rows')
+    expectTemplateViolation(
+      { sections: [{ id: 'analysis', blocks: [{ kind: 'paragraph', text: 'x' }], grounds: [] }] },
+      schema,
+      '正文槽位，不接受 grounds',
+    )
     const tableBlock = { sections: [{ id: 'analysis', blocks: [{ kind: 'table', name: 't', header: ['h'], rows: [['c']] }] }] }
     expectTemplateViolation(tableBlock, schema, '表格块仅 claims-spec 支持')
   })

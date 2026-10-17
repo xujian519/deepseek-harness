@@ -617,6 +617,10 @@ function validateTemplateSections(
         violations.push(`sections.${id} 是数据行槽位，不接受 blocks`)
         valid = false
       }
+      if (record.grounds !== undefined) {
+        violations.push(`sections.${id} 是数据行槽位，不接受 grounds`)
+        valid = false
+      }
       const rows = validateRows(record.rows, `sections.${index}.rows`, slot.columns, violations)
       if (id === undefined || rows === undefined) {
         valid = false
@@ -627,6 +631,11 @@ function validateTemplateSections(
     }
     if (record.rows !== undefined) {
       violations.push(`sections.${id} 是正文槽位，不接受 rows（数据行请用 rows 类槽位）`)
+      valid = false
+      return
+    }
+    if (record.grounds !== undefined) {
+      violations.push(`sections.${id} 是正文槽位，不接受 grounds（理由请用 grounds 类槽位）`)
       valid = false
       return
     }

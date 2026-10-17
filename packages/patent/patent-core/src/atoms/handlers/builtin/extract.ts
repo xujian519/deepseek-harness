@@ -193,7 +193,7 @@ export class MergeHandler implements StageHandler {
         triples.push({
           id: 'T1',
           problem: '',
-          ...(insights[0] !== undefined ? { insight: insights[0] } : {}),
+          ...(insights.length > 0 ? { insight: insights.join('；') } : {}),
           features: [...features],
           effects: [...effects],
         })

@@ -10,6 +10,7 @@
  * 范围"，覆盖集含等同。两者不共用覆盖集，也不互相调用。
  */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   ClaimChart,
   ClaimElement,
@@ -22,7 +23,7 @@ import {
   deriveNoveltyCoverageByClaim,
   isElementCovered,
 } from './mapping-machine.ts'
-import { referencedClosure, validateClaimRefs } from './claim-refs.ts'
+import { referenceAlternatives, referencedClosure, validateClaimRefs } from './claim-refs.ts'
 
 /** 从属权项法条路径问题与确定性结论的契约见协议层。 */
 export type {
@@ -65,14 +66,20 @@ export function deriveInvalidityConclusion(
     : [...new Set(chart.elements.map(element => element.claimNo))]
       .sort((a, b) => a - b)
       .map((claimNo) => {
-        const scope = new Set([claimNo, ...referencedClosure(chart.claims, claimNo)])
+        const paths = referenceAlternatives(chart.claims, claimNo)
+        const alternatives = (paths.length === 0 ? [[claimNo]] : paths.map(path => [claimNo, ...path]))
+          .map(scope => ({
+            referredClaimNos: scope.filter(value => value !== claimNo).sort((a, b) => a - b),
+            elementIds: deriveDistinguishingFeatures(
+              chart.rows,
+              primaryTargetId,
+              chart.elements.filter(element => scope.includes(element.claimNo)),
+            ),
+          }))
         return {
           claimNo,
-          elementIds: deriveDistinguishingFeatures(
-            chart.rows,
-            primaryTargetId,
-            chart.elements.filter(element => scope.has(element.claimNo)),
-          ),
+          elementIds: [...new Set(alternatives.flatMap(alternative => alternative.elementIds))],
+          ...(paths.length > 1 ? { alternatives } : {}),
         }
       })
 
@@ -101,6 +108,12 @@ function collectDependentClaimIssues(
       if (ref.refersTo.length === 0) continue
       const ownElements = elementsOf(chart, ref.claimNo)
       if (ownElements.length === 0 || !allCovered(chart, targetId, ownElements)) continue
+      // 多项从属权项：任一替代路径（本权项 + 该路径的引用链）全覆盖，即已构成单篇覆盖，
+      // 不得再按"仅附加特征被覆盖"提示。
+      const coveredPath = referenceAlternatives(chart.claims, ref.claimNo).some(path =>
+        allCovered(chart, targetId, chart.elements.filter(element =>
+          element.claimNo === ref.claimNo || path.includes(element.claimNo))))
+      if (coveredPath) continue
       for (const referredClaimNo of referencedClosure(chart.claims, ref.claimNo)) {
         const referredElements = elementsOf(chart, referredClaimNo)
         if (referredElements.length === 0 || allCovered(chart, targetId, referredElements)) continue
@@ -134,6 +147,11 @@ function allCovered(chart: ClaimChart, targetId: string, elements: readonly Clai
   return elements.every(element => isElementCovered(chart.rows, targetId, element.id))
 }
 
+/** 区别特征列表的展示文本。 */
+function distinguishingText(elementIds: readonly string[]): string {
+  return elementIds.length === 0 ? '无区别特征（主对比文件已覆盖全部要素）' : elementIds.join('、')
+}
+
 /** 引用关系缺陷的中文说明。 */
 const CLAIM_REF_ISSUE_LABELS: Record<ClaimRefIssue['kind'], string> = {
   'self-reference': '权利要求引用了自身',
@@ -153,6 +171,8 @@ function claimRefIssueLine(issue: ClaimRefIssue): string {
       return `- 权利要求 ${issue.claimNo}：${CLAIM_REF_ISSUE_LABELS[issue.kind]}（${issue.refersTo.join('、')}）`
     case 'reference-cycle':
       return `- ${CLAIM_REF_ISSUE_LABELS[issue.kind]}：${issue.claimNos.join(' → ')}`
+    default:
+      return assertNever(issue)
   }
 }
 
@@ -179,14 +199,22 @@ export function renderInvalidityConclusion(conclusion: InvalidityConclusion, cha
       continue
     }
     for (const claim of entry.claims) {
-      const scope = claim.includesReferredClaims
-        ? `（已并入所引用权利要求 ${claim.referredClaimNos.join('、')} 的全部要素）`
-        : ''
+      const scope = claim.alternatives !== undefined
+        ? '（多项从属，逐替代方案见下）'
+        : claim.includesReferredClaims
+          ? `（已并入所引用权利要求 ${claim.referredClaimNos.join('、')} 的全部要素）`
+          : ''
       lines.push(
         claim.covered
           ? `- 权利要求 ${claim.claimNo}: 单篇全覆盖成立${scope}`
           : `- 权利要求 ${claim.claimNo}: 未全覆盖${scope}，缺 ${claim.missing.join('、')}`,
       )
+      for (const alternative of claim.alternatives ?? []) {
+        lines.push(
+          `  - 替代方案（引用 ${alternative.referredClaimNos.join('、')}）: `
+          + (alternative.covered ? '单篇全覆盖成立' : `未全覆盖，缺 ${alternative.missing.join('、')}`),
+        )
+      }
     }
     lines.push('')
   }
@@ -196,11 +224,14 @@ export function renderInvalidityConclusion(conclusion: InvalidityConclusion, cha
     lines.push('- 未计算（图表无对比文件目标）')
   } else {
     for (const entry of conclusion.distinguishing) {
-      lines.push(
-        entry.elementIds.length === 0
-          ? `- 权利要求 ${entry.claimNo}: 无区别特征（主对比文件已覆盖全部要素）`
-          : `- 权利要求 ${entry.claimNo}: ${entry.elementIds.join('、')}`,
-      )
+      if (entry.alternatives !== undefined) {
+        lines.push(`- 权利要求 ${entry.claimNo}: 各替代方案的区别特征见下`)
+        for (const alternative of entry.alternatives) {
+          lines.push(`  - 引用 ${alternative.referredClaimNos.join('、')}: ${distinguishingText(alternative.elementIds)}`)
+        }
+        continue
+      }
+      lines.push(`- 权利要求 ${entry.claimNo}: ${distinguishingText(entry.elementIds)}`)
     }
   }
 

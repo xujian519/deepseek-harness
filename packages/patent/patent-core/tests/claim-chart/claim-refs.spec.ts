@@ -17,6 +17,15 @@ it('单引用的从属权项识别为 dependent 并给出所引权项', () => {
   ])
 })
 
+it('自引用保留在引用关系中，由校验报告，而不是静默按独立权项处理', () => {
+  const refs = deriveClaimRefs('1. 根据权利要求1所述的装置，其特征在于，包括壳体。')
+  expect(refs).toEqual([{ claimNo: 1, claimType: 'dependent', refersTo: [1] }])
+  expect(validateClaimRefs(refs)).toEqual([
+    { kind: 'self-reference', claimNo: 1 },
+    { kind: 'later-reference', claimNo: 1, refersTo: [1] },
+  ])
+})
+
 it('如/按照 与多值、区间引用都识别', () => {
   const text = [
     '1. 一种装置，包括壳体。',
@@ -82,6 +91,14 @@ it('引用关系校验：自引用、引用不存在、引用编号不更小、�
     { claimNo: 2, claimType: 'dependent', refersTo: [1] },
     { claimNo: 3, claimType: 'dependent', refersTo: [1, 2] },
   ])).toEqual([])
+})
+
+it('引用环检测沿全部引用边，而不是只看第一条', () => {
+  expect(validateClaimRefs([
+    { claimNo: 1, claimType: 'dependent', refersTo: [2, 3] },
+    { claimNo: 2, claimType: 'independent', refersTo: [] },
+    { claimNo: 3, claimType: 'dependent', refersTo: [1] },
+  ])).toContainEqual({ kind: 'reference-cycle', claimNos: [1, 3] })
 })
 
 it('传递闭包取引用链并集，不含自身', () => {

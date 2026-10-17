@@ -75,9 +75,7 @@ export function deriveClaimRefs(claimText: string): ClaimRef[] {
   for (const [claimNo, segment] of segments) {
     const body = segment.replace(CLAIM_NUMBER_PREFIX_RE, '').slice(0, PREAMBLE_SCAN_LIMIT)
     const reference = REFERENCE_RE.exec(body)
-    const refersTo = reference === null
-      ? []
-      : parseReferenceNumbers(reference[1] ?? '').filter(target => target !== claimNo)
+    const refersTo = reference === null ? [] : parseReferenceNumbers(reference[1] ?? '')
     refs.push({
       claimNo,
       claimType: refersTo.length > 0 ? 'dependent' : 'independent',
@@ -120,23 +118,29 @@ export function validateClaimRefs(refs: readonly ClaimRef[]): ClaimRefIssue[] {
  * @returns 参与环的权项号；无环时为 undefined。
  */
 function findCycle(refs: readonly ClaimRef[]): number[] | undefined {
-  const next = new Map<number, number>()
+  const next = new Map<number, number[]>()
   for (const ref of refs) {
-    const target = ref.refersTo[0]
-    if (target !== undefined && target !== ref.claimNo) next.set(ref.claimNo, target)
+    const targets = ref.refersTo.filter(target => target !== ref.claimNo)
+    if (targets.length > 0) next.set(ref.claimNo, [...new Set([...(next.get(ref.claimNo) ?? []), ...targets])])
   }
-  const settled = new Set<number>()
-  for (const start of [...next.keys()].sort((a, b) => a - b)) {
-    if (settled.has(start)) continue
-    const path: number[] = []
-    let current: number | undefined = start
-    while (current !== undefined && !settled.has(current)) {
-      const revisited = path.indexOf(current)
-      if (revisited >= 0) return path.slice(revisited)
-      path.push(current)
-      current = next.get(current)
+  const visited = new Set<number>()
+  const stack: number[] = []
+  const walk = (claimNo: number): number[] | undefined => {
+    const revisited = stack.indexOf(claimNo)
+    if (revisited >= 0) return stack.slice(revisited)
+    if (visited.has(claimNo)) return undefined
+    visited.add(claimNo)
+    stack.push(claimNo)
+    for (const target of next.get(claimNo) ?? []) {
+      const cycle = walk(target)
+      if (cycle !== undefined) return cycle
     }
-    for (const claimNo of path) settled.add(claimNo)
+    stack.pop()
+    return undefined
+  }
+  for (const start of [...next.keys()].sort((a, b) => a - b)) {
+    const cycle = walk(start)
+    if (cycle !== undefined) return cycle
   }
   return undefined
 }
@@ -158,4 +162,19 @@ export function referencedClosure(refs: readonly ClaimRef[], claimNo: number): n
     queue.push(...(byClaim.get(next) ?? []))
   }
   return [...seen].sort((a, b) => a - b)
+}
+
+/**
+ * 一条权利要求的替代引用路径。
+ *
+ * 多项从属权利要求（「根据权利要求 1 或 2」）以择一方式引用在前权项，每个直接引用都是
+ * 一个独立技术方案；单一引用只有一条路径。路径按引用闭包展开，因为从属权项包含所引用
+ * 权项的全部技术特征。
+ * @param refs - 引用关系。
+ * @param claimNo - 起始权项号。
+ * @returns 每个直接引用一条路径（以该引用开头）；独立权利要求为空数组。
+ */
+export function referenceAlternatives(refs: readonly ClaimRef[], claimNo: number): number[][] {
+  const direct = refs.find(ref => ref.claimNo === claimNo)?.refersTo ?? []
+  return direct.map(target => [target, ...referencedClosure(refs, target).filter(value => value !== target)])
 }
