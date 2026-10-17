@@ -5790,7 +5790,11 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
     },
     "priorArt": {
       "type": "string",
-      "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+      "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage."
+    },
+    "conflictingApplications": {
+      "type": "string",
+      "description": "Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention."
     },
     "evidence": {
       "type": "string",

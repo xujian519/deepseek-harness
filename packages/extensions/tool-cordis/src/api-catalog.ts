@@ -5457,7 +5457,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Atom',
-    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n};',
+    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n    usesModel?: boolean;\n};',
   },
   {
     name: 'AtomCategory',

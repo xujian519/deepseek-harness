@@ -7,8 +7,8 @@
  * excluded, or undated), the evidence entries, and the conflicting-application
  * candidates. `citationId` is the stable lookup key: prior-art receipts carry
  * the same `D<n>` label `citation-check` uses, so a citation can be matched to
- * the document that grounds it. The ledger records provenance only; it does
- * not judge whether a cited document is prior art.
+ * the document that grounds it. The ledger records which source supplied each
+ * citation; it does not judge whether a cited document is prior art.
  */
 
 import type { PipelineState } from '../atoms/handler.ts'
