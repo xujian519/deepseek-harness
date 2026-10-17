@@ -40,10 +40,10 @@ function repository(test: TestContext) {
   git(['add', 'tracked.md'])
   const tree = git(['write-tree'])
   let commit = git(['commit-tree', tree, '-m', 'fixture'])
-  // A decimal run is not a commit reference candidate, so the fixture commit must
-  // carry a hexadecimal letter for the abbreviated-identifier cases to exercise
-  // the reported path on every machine.
-  for (let index = 1; !/[a-f]/u.test(commit); index += 1) {
+  // A decimal run is not a commit reference candidate, so the abbreviated prefixes
+  // the tests write must carry a hexadecimal letter; checking only the full name
+  // leaves a 7- or 12-character all-decimal prefix on some machines.
+  for (let index = 1; !/[a-f]/u.test(commit.slice(0, 12)); index += 1) {
     commit = git(['commit-tree', tree, '-m', `fixture ${String(index)}`])
   }
   git(['update-ref', 'HEAD', commit])
