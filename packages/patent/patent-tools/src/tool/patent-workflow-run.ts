@@ -30,6 +30,7 @@ import {
   grantApproval,
   globalAtomRegistry,
   globalStageHandlerRegistry,
+  parseDateFlexible,
   runGraphWithCheckpoints,
   validateWorkflowManifest,
   type CheckpointStore,
@@ -43,7 +44,11 @@ import {
   type WorkflowManifest,
   type WorkflowRunResult,
 } from '@deepseek-ai/dsh-patent-core'
-import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
+import {
+  appendWorkflowRunEvents,
+  builtinPatentManifests,
+  type PatentAgent,
+} from '@deepseek-ai/dsh-patent-workflow'
 import { PatentToolError } from '../error.ts'
 import { loggedToolModel } from './internal/model-call-log.ts'
 import {
@@ -86,12 +91,35 @@ export type PatentWorkflowRunInput = {
   input: string
   /** Claims text, when supplied separately from `input` (element-level atoms read this instead). */
   claims?: string
+  /** Application filing date; the time-baseline stage uses it for the prior-art cutoff. */
+  filingDate?: string
+  /** Earliest priority date; the earlier of it and filingDate becomes the prior-art cutoff. */
+  priorityDate?: string
   /** claim-chart target objects JSON (default empty). */
   chartTargets?: string
   /** Max prior-art search results (default 5). */
   maxResults?: number
-  /** Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds against these). */
+  /**
+   * Existing prior-art evidence entries as a JSON array. Entries may carry
+   * `publicationDate` (the prior-art cutoff input) and `a24Exception`
+   * (`A24.1`–`A24.4`, an A24 grace-period disclosure).
+   */
   priorArt?: string
+  /**
+   * Conflicting-application candidates as a JSON array. Each entry carries
+   * `filingDate` and `publicationDate`, optional `priorityDate`, and a
+   * caller-judged `sameInvention` boolean; the conflicting-application stage
+   * applies A22.2 second sentence to them.
+   */
+  conflictingApplications?: string
+  /**
+   * Evidence entries as a JSON array. The evidence-check stage reads each
+   * entry's type, source, submission/publication dates, translation and
+   * notarization flags, and its linked grounds/claims.
+   */
+  evidence?: string
+  /** Evidence submission deadline (parseable date); evidence-check rejects late entries without a reason. */
+  evidenceDeadline?: string
   /**
    * Register the manifest run as a background job and return its id at once
    * (collect with `job_output`, stop with `job_kill`) instead of holding the
@@ -124,6 +152,8 @@ export type PatentWorkflowRunOutput = {
   persistNote?: string
   /** Persistence failure warning, when present. */
   persistWarning?: string
+  /** Evidence sources the run consumed (manifest mode), one receipt per source. */
+  evidenceLedger?: JsonValue
   /** Approval-gate interrupt note, when the run paused for human confirmation. */
   interruptNote?: string
   /** Final graph state (graph mode), JSON-safe. */
@@ -171,6 +201,8 @@ const DESCRIPTION = [
   'Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report).',
   'Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array).',
   'Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material.',
+  'Pass conflictingApplications (a JSON array) to run the A22.2 second-sentence conflicting-application check; entries need filingDate/publicationDate and a caller-judged sameInvention boolean. Conflicting applications are filed before but published on or after the target date, so the prior-art search cannot find them.',
+  'Pass evidence (a JSON array) and evidenceDeadline to run the invalidation/reexamination evidence-check stage; it reports form defects, late submissions without a justification, prior-art dates at or after the cutoff, and evidence not linked to a ground or claim.',
   'The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.',
   'A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.',
 ].join(' ')
@@ -252,9 +284,14 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       caseId: { type: 'string', description: 'Optional case id enabling run/checkpoint persistence.' },
       input: { type: 'string', required: true, description: 'Initial material consumed by the extract atoms.' },
       claims: { type: 'string', description: 'Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material.' },
+      filingDate: { type: 'string', description: 'Application filing date (e.g. 2024-06-01 or 2024年6月1日). The time-baseline stage uses it for the prior-art cutoff; without it or priorityDate that stage degrades.' },
+      priorityDate: { type: 'string', description: 'Earliest priority date. The earlier of it and filingDate becomes the prior-art cutoff.' },
       chartTargets: { type: 'string', description: 'claim-chart target objects JSON (default empty).' },
       maxResults: { type: 'number', description: 'Max prior-art search results (default 5).' },
-      priorArt: { type: 'string', description: 'Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these).' },
+      priorArt: { type: 'string', description: 'Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage.' },
+      conflictingApplications: { type: 'string', description: 'Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention.' },
+      evidence: { type: 'string', description: 'Evidence entries as a JSON array for the invalidation/reexamination evidence-check stage. Entries may carry title/name, type (现有技术/外文证据/域外证据/证人证言...), sourceUri, submittedAt, publicationDate, translated, notarized, legalized, witness, grounds/claimRefs, contentHash+snippet. Late entries without lateJustification are blocking findings.' },
+      evidenceDeadline: { type: 'string', description: 'Evidence submission deadline (parseable date). evidence-check compares each entry submittedAt against it and reports late entries without a justification as blocking.' },
       run_in_background: { type: 'boolean', description: 'Manifest path only: register the run as a background job and return its id immediately (collect with job_output, stop with job_kill) instead of holding the turn until every stage finishes. Defaults to false.' },
     },
     output: {
@@ -273,6 +310,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
           degradedSteps: { type: 'array', items: { type: 'string' } },
           persistNote: { type: 'string' },
           persistWarning: { type: 'string' },
+          evidenceLedger: { type: 'json' },
           interruptNote: { type: 'string' },
           graphState: { type: 'json' },
           graphDegraded: { type: 'array' },
@@ -326,7 +364,15 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       const provider = buildManifestProvider(deps, exec, manifestId, input.caseId)
       // Input parsing happens here, not inside the run: malformed arguments must
       // fail the call, never register a job that then reports its own failure.
-      const runInput: ManifestRunInput = { manifest, deps, provider, ctx: buildRunContext(input), input, cwd }
+      const runInput: ManifestRunInput = {
+        manifest,
+        deps,
+        provider,
+        ctx: buildRunContext(input),
+        input,
+        cwd,
+        ...(exec.agent !== undefined ? { agent: exec.agent } : {}),
+      }
       if (input.run_in_background !== true) {
         return await runManifest(runInput, exec.signal)
       }
@@ -357,6 +403,8 @@ interface ManifestRunInput {
   input: PatentWorkflowRunInput
   /** Working directory the run paths resolve against. */
   cwd: string
+  /** Calling agent whose session records the run's evidence ledger, when present. */
+  agent?: PatentAgent
 }
 
 /**
@@ -422,6 +470,7 @@ async function runManifest(
   const interruptNote = result.interrupted
     ? `⏸ 审批门暂停: "${result.interrupted.stageId}"（${result.interrupted.message}）——等待人工确认，后续阶段未执行`
     : undefined
+  appendWorkflowRunEvents(run.agent, result, persistTarget?.runId)
 
   return {
     ok: true,
@@ -432,6 +481,7 @@ async function runManifest(
     stages: result.stages as unknown as JsonValue[],
     degradedSteps: result.degradedSteps,
     persistNote,
+    ...(result.evidenceLedger !== undefined ? { evidenceLedger: result.evidenceLedger } : {}),
     ...(interruptNote !== undefined ? { interruptNote } : {}),
     /* v8 ignore next -- the built-in run stores surface no persist warning in this build. */
     ...(result.persistWarning !== undefined ? { persistWarning: result.persistWarning } : {}),
@@ -507,8 +557,8 @@ function startBackgroundManifestRun(
   return { ok: true, mode: 'manifest', manifestId: run.manifest.id, background: true, jobId }
 }
 
-/** 解析工具输入的 priorArt JSON（校验失败在输入边界报错，不静默降级）。 */
-function parsePriorArt(raw: string): unknown[] {
+/** 解析工具输入的 JSON 数组（校验失败在输入边界报错，不静默降级）。 */
+function parseJsonArray(raw: string, field: string, label: string): unknown[] {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -517,16 +567,31 @@ function parsePriorArt(raw: string): unknown[] {
     const detail = err instanceof Error ? err.message : String(err)
     throw new PatentToolError(
       'invalid_tool_input',
-      `priorArt 必须是 JSON 数组（现有技术证据条目）: ${detail}`,
+      `${field} 必须是 JSON 数组（${label}）: ${detail}`,
       { tool: 'patent_workflow_run' },
     )
   }
   if (!Array.isArray(parsed)) {
-    throw new PatentToolError('invalid_tool_input', 'priorArt 必须是 JSON 数组（现有技术证据条目）。', {
+    throw new PatentToolError('invalid_tool_input', `${field} 必须是 JSON 数组（${label}）。`, {
       tool: 'patent_workflow_run',
     })
   }
   return parsed
+}
+
+/** 解析工具输入的 priorArt JSON。 */
+function parsePriorArt(raw: string): unknown[] {
+  return parseJsonArray(raw, 'priorArt', '现有技术证据条目')
+}
+
+/** 解析工具输入的 conflictingApplications JSON。 */
+function parseConflictingApplications(raw: string): unknown[] {
+  return parseJsonArray(raw, 'conflictingApplications', '抵触申请候选条目')
+}
+
+/** 解析工具输入的 evidence JSON。 */
+function parseEvidence(raw: string): unknown[] {
+  return parseJsonArray(raw, 'evidence', '无效/复审证据条目')
 }
 
 /** The provider deps with the model port bound to the calling agent's session. */
@@ -539,15 +604,38 @@ function bindModel(
   return model === undefined ? deps : { ...deps, model }
 }
 
+/** Validate a caller-supplied date at the tool input boundary; blank dates count as absent. */
+function parseOptionalDate(value: string | undefined, field: string): string | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value.trim()
+  if (trimmed === '') return undefined
+  if (parseDateFlexible(trimmed) === null) {
+    throw new PatentToolError('invalid_tool_input', `${field} 不是可识别的日期: ${value}`, {
+      tool: 'patent_workflow_run',
+    })
+  }
+  return trimmed
+}
+
 /** 装配工作流上下文（manifest 与 graph 两条路径共用同一输入映射）。 */
 function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
+  const filingDate = parseOptionalDate(input.filingDate, 'filingDate')
+  const priorityDate = parseOptionalDate(input.priorityDate, 'priorityDate')
+  const evidenceDeadline = parseOptionalDate(input.evidenceDeadline, 'evidenceDeadline')
   return buildWorkflowRunContext({
     ...(input.caseId !== undefined ? { caseId: input.caseId } : {}),
     input: input.input,
     ...(input.claims !== undefined ? { claims: input.claims } : {}),
+    ...(filingDate !== undefined ? { filingDate } : {}),
+    ...(priorityDate !== undefined ? { priorityDate } : {}),
     ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
     ...(input.chartTargets !== undefined ? { chartTargets: input.chartTargets } : {}),
     ...(input.priorArt !== undefined ? { priorArt: parsePriorArt(input.priorArt) } : {}),
+    ...(input.conflictingApplications !== undefined
+      ? { conflictingApplications: parseConflictingApplications(input.conflictingApplications) }
+      : {}),
+    ...(input.evidence !== undefined ? { evidence: parseEvidence(input.evidence) } : {}),
+    ...(evidenceDeadline !== undefined ? { evidenceDeadline } : {}),
   })
 }
 
@@ -631,6 +719,10 @@ async function executeGraphRun(
   const interruptNote = result.interrupted !== undefined
     ? `⏸ 审批门暂停: "${result.interrupted.node}"（${result.interrupted.message}）——可用 resumeCheckpointId 续跑`
     : undefined
+  // A degraded node left a missing output behind, exactly like a degraded
+  // manifest stage; the manifest path reports such a run as incomplete, so the
+  // graph path must not call it completed just because the last edge was reached.
+  const graphDegraded = result.degraded
 
   return {
     ok: true,
@@ -638,14 +730,14 @@ async function executeGraphRun(
     manifestId: graphId,
     graph: graphName,
     steps: result.steps,
-    completed: result.completed,
+    completed: result.completed && graphDegraded.length === 0,
     summary: '',
     stages: [],
     degradedSteps: [],
     persistNote,
     ...(interruptNote !== undefined ? { interruptNote } : {}),
     graphState: result.state as unknown as JsonValue,
-    graphDegraded: result.degraded as unknown as JsonValue[],
+    graphDegraded: graphDegraded as unknown as JsonValue[],
     /* v8 ignore next -- every graph run starts at least one superstep, so a checkpoint id is always produced. */
     ...(checkpointId !== undefined ? { checkpointId } : {}),
     checkpointNote,

@@ -1,5 +1,5 @@
 ---
-description: "Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, the plantask human-in-the-loop state machine, and the case-docket issue schema, ported from Sati. The package appends durable `patent/plantask`, `patent/workflow-run`, and `patent/model-call` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam."
+description: "Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, the plantask human-in-the-loop state machine, and the case-docket issue schema, ported from Sati. The package appends durable `patent/plantask`, `patent/workflow-run`, `patent/evidence-ledger`, `patent/legal-gaps`, and `patent/model-call` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, the plantask human-in-the-loop state machine, and the case-docket issue schema, ported from Sati. The package appends durable `patent/plantask`, `patent/workflow-run`, and `patent/model-call` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam.
+Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, the plantask human-in-the-loop state machine, and the case-docket issue schema, ported from Sati. The package appends durable `patent/plantask`, `patent/workflow-run`, `patent/evidence-ledger`, `patent/legal-gaps`, and `patent/model-call` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ The `PatentWorkflow` service exposes the pipeline entry points and re-exports th
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
-Runs a workflow manifest through the ported executor and appends a `patent/workflow-run` event to `agent.session` when an agent is given. Stages declare an atom or fall back to `executor`; a stage listing upstream stage ids in `consumes` hands those outputs to the executor (each executed stage stores its output under its own id, in both the manifest and graph paths), an atom stage reads the shared state directly, and an approval-gate `InterruptStageError` pauses the run and returns `interrupted` instead of failing, with the host resuming by re-running with the stage id in `options.approvalGrants`.
+Runs a workflow manifest through the ported executor and appends a `patent/workflow-run` event to `agent.session` when an agent is given. Stages declare an atom or fall back to `executor`; a stage listing upstream stage ids in `consumes` hands those outputs to the executor (each executed stage stores its output under its own id, in both the manifest and graph paths), an atom stage reads the shared state directly, and an approval-gate `InterruptStageError` pauses the run and returns `interrupted` instead of failing, with the host resuming by re-running with the stage id in `options.approvalGrants`. When the run's final state carries evidence sources, the result also includes `evidenceLedger` and the call appends a `patent/evidence-ledger` event with one receipt per source; a run that executed a `legal-gaps` stage appends its report as a `patent/legal-gaps` event.
 
 `builtinPatentManifests` is the data catalog of the eight built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_reexamination_v1, patent_infringement_v1. The invalidation and reexamination manifests share one stage builder and differ only in how their deterministic stages are wired: the invalidation manifest reads the invalidation grounds table and the `invalidity` chart mode, the reexamination manifest the reexamination table (one extra utility-model subject-matter ground under 专利法第2条第3款, with the patent subject reported separately) and the `reexamination` chart mode, which also keeps the two cases' persisted charts apart.
 

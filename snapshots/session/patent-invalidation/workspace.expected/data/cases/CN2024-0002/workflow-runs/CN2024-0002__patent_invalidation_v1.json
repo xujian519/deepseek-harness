@@ -6,14 +6,14 @@
     {
       "stageId": "parse",
       "strategy": "chain",
-      "output": "请求人提交的无效宣告请求书针对授权公告的权利要求 1-5 提出无效，程序文书要点为：请求人主体适格、请求期限与费用符合规定，请求范围明确，合议组已向专利权人转送请求书及证据副本并指定答复期限。",
+      "output": "程序文书要点：请求人于2024年3月1日提出无效宣告请求，请求宣告权利要求1-3全部无效，理由为权利要求1相对于对比文件1不具备新颖性、权利要求2-3不具备创造性。",
       "degraded": false,
       "retries": 0
     },
     {
       "stageId": "grounds",
       "strategy": "chain",
-      "output": "本请求援引的无效理由为：权利要求 1-5 不具备专利法第二十二条第三款规定的创造性，并援引对比文件 1、对比文件 2 与对比文件 3 作为现有技术证据。",
+      "output": "援引的无效理由：专利法第二十二条第二款（新颖性）及第二十二条第三款（创造性），证据为对比文件1（CN101234567A）、对比文件2与对比文件3。",
       "degraded": false,
       "retries": 0,
       "atom": "grounds"
@@ -21,7 +21,7 @@
     {
       "stageId": "claim-chart",
       "strategy": "chain",
-      "output": "要素级映射要点为：将权利要求 1 拆分为阀体、伴热夹套、介质通道及连接结构等要素，逐要素比对对比文件 1 的公开内容，并标注各要素的公开位置与差异特征。",
+      "output": "要素级映射要点：将权利要求1拆分为阀体、伴热夹套、夹套与阀体的连接方式及导热介质通道四组技术特征，逐项对应对比文件1的相应公开内容并逐字标注出处。",
       "degraded": false,
       "retries": 0,
       "atom": "claim-chart"
@@ -29,16 +29,40 @@
     {
       "stageId": "novelty",
       "strategy": "chain",
-      "output": "单篇对比结论为：对比文件 1 未公开权利要求 1 中伴热夹套与阀体之间的螺旋导流结构特征，故权利要求 1 相对于对比文件 1 具备新颖性。",
+      "output": "单篇对比结论：对比文件1单独一篇公开了权利要求1的全部技术特征，且属于同一技术领域、解决相同技术问题，权利要求1不具备新颖性。",
       "degraded": false,
       "retries": 0
     },
     {
       "stageId": "inventiveness",
       "strategy": "chain",
-      "output": "三步法结论为：以对比文件 1 为最接近现有技术，区别特征为螺旋导流结构，其解决的技术问题是提高伴热均匀性，且该区别特征未在对比文件 2、3 中给出技术启示，故权利要求 1 具备创造性。",
+      "output": "三步法结论：权利要求2-3相对于对比文件1的区别特征为夹套横截面形状与均压孔的设置，该区别特征属于本领域常规选择，对比文件2与对比文件3未给出相反教导，故不具备创造性。",
       "degraded": false,
       "retries": 0
+    },
+    {
+      "stageId": "evidence-check",
+      "strategy": "chain",
+      "output": "证据形式/期限/关联性检查结论：三份对比文件均为公开日早于申请日的中国专利文献，形式真实，在举证期限内提交，且与各无效理由及所涉权利要求逐一对应。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "evidence-check"
+    },
+    {
+      "stageId": "citation-check",
+      "strategy": "chain",
+      "output": "引用真实性校验结论：结论中的对比文件1、对比文件2与对比文件3均在在先技术证据清单中出现，编号与文献内容一致，无凭空引用或错引。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "citation-check"
+    },
+    {
+      "stageId": "legal_gaps",
+      "strategy": "chain",
+      "output": "法条缺口汇总结论：新颖性理由证据充分可立，创造性理由中区别特征的技术启示论证偏弱，建议补充对比文件3与区别特征对应关系的具体段落证据。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "legal-gaps"
     },
     {
       "stageId": "approval",
@@ -50,5 +74,5 @@
     }
   ],
   "degradedSteps": [],
-  "summary": "工作流 patent_invalidation_v1（无效宣告分析）: 6/6 阶段完成"
+  "summary": "工作流 patent_invalidation_v1（无效宣告分析）: 9/9 阶段完成"
 }

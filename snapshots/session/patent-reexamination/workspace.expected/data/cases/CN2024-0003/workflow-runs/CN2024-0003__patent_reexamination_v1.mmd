@@ -4,9 +4,15 @@ flowchart TD
   claim-chart["权利要求要素级映射到证据组合（mode=reexamination）"]
   novelty["新颖性单独对比（单篇全覆盖）"]
   inventiveness["三步法创造性分析"]
+  evidence-check["证据审查（形式/期限/关联性）：举证期限内提交、外文/域外证据形式完备、公开日早于现有技术截止日、与理由或权项关联"]
+  citation-check["引用真实性校验（确定性）：新颖性/创造性结论引用的 D 标号与专利号须在证据清单中接地"]
+  legal_gaps["法条缺口汇总：证据审查、新颖性与创造性理由对应法条的通过/未通过/未评估状态"]
   approval["人工确认分析结论"]
   parse --> grounds
   grounds --> claim-chart
   claim-chart --> novelty
   novelty --> inventiveness
-  inventiveness --> approval
+  inventiveness --> evidence-check
+  evidence-check --> citation-check
+  citation-check --> legal_gaps
+  legal_gaps --> approval

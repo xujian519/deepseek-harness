@@ -83,7 +83,7 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
     ...embodimentViolations(text),
     ...effectViolations(text),
     ...chemicalViolations(input, text),
-    ...claimViolations(input, text),
+    ...checkClaimViolations(input, text),
   ]
   const scored = computeSpecScore(violations)
   return {
@@ -363,11 +363,14 @@ function chemicalViolations(input: ValidateSpecificationInput, text: string): Sp
 /**
  * Claim-feature coverage of the specification (A26.4), then independent-claim
  * unity and the claim-to-embodiment coverage matrix from the structured inputs.
+ *
+ * Exposed for the `spec-check` atom's claims mode, which runs only the claim
+ * rules instead of the whole specification rule set.
  * @param input - the specification input under validation.
  * @param text - the specification text.
  * @returns claim violations, in claim order.
  */
-function claimViolations(input: ValidateSpecificationInput, text: string): SpecViolation[] {
+export function checkClaimViolations(input: ValidateSpecificationInput, text: string): SpecViolation[] {
   const violations: SpecViolation[] = []
   if (input.claims && input.claims.trim().length > 0 && text.trim().length > 0) {
     const { missing: missingFeatures, total } = checkClaimCoverage(input.claims, text)
@@ -390,14 +393,15 @@ function claimViolations(input: ValidateSpecificationInput, text: string): SpecV
 /**
  * Render the canonical validation result into model-facing prose.
  * @param value - the validation result.
+ * @param heading - report heading; the claims mode names the narrower rule set.
  * @returns the rendered Markdown text.
  */
-export function renderSpecification(value: ValidateSpecificationOutput): string {
+export function renderSpecification(value: ValidateSpecificationOutput, heading = '专利说明书校验'): string {
   const errors = value.violations.filter(v => v.severity === 'error')
   const warnings = value.violations.filter(v => v.severity === 'warning')
   const evaluated = renderEvaluatedTexts(value.evaluated)
   const trailer = evaluated === '' ? '' : `\n\n${evaluated}`
-  const head = `专利说明书校验：${value.passed ? '通过' : '未通过'}（得分 ${value.score}）`
+  const head = `${heading}：${value.passed ? '通过' : '未通过'}（得分 ${value.score}）`
   if (value.violations.length === 0) {
     return `${head}，未发现违规项。${trailer}`
   }

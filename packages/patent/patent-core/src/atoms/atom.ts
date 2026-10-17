@@ -25,6 +25,11 @@ export type Atom = {
   inputSchema: string[]
   /** 声明写入 PipelineState 的输出键列表（第一个为主输出键） */
   outputSchema: string[]
+  /**
+   * 执行该原子是否调用部署的语言模型。阶段预算按它区分模型阶段与确定性检查；
+   * 确定性原子省略该字段。
+   */
+  usesModel?: boolean
 }
 
 /** Atom 注册表：按 name 登记、查询原子，并支持按分类列出。 */

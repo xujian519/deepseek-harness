@@ -454,3 +454,47 @@ describe('runWorkflow — 阶段通知', () => {
     expect(result.completed).toBe(true)
   })
 })
+
+describe('runWorkflow — 证据台账', () => {
+  it('把材料、现有技术、证据与抵触申请写入运行结果的台账', async () => {
+    const result = await runWorkflow(
+      manifest('ledger', [stage('only')]),
+      {
+        input: '交底书正文',
+        claims: '1. 一种装置',
+        prior_art: [{ dLabel: 'D1', title: '对比文件', url: 'https://example.test/D1' }],
+        prior_art_excluded: [{ label: 'D2', title: '公开过早', reason: 'not-prior-art' }],
+        evidence: [{ title: '证据 1', sourceUri: 'file:///e1.pdf' }],
+        conflicting_applications: [{ title: '抵触申请', publicationDate: '2024-07-01' }],
+      },
+      okExecutor,
+      { runId: 'run-ledger' },
+    )
+    const ledger = result.evidenceLedger!
+    expect(ledger.receipts.map(receipt => receipt.citationId)).toEqual([
+      'MATERIAL', 'CLAIMS', 'D1', 'D2', 'EV-1', 'CA-1',
+    ])
+    expect(ledger.receipts.every(receipt => receipt.toolCallId.startsWith('run-ledger:'))).toBe(true)
+    expect(ledger.receipts[2]!.args['sourceUri']).toBe('https://example.test/D1')
+    expect(ledger.digest).toMatch(/^[0-9a-f]+$/)
+  })
+
+  it('中断的运行同样保留已经消费的证据台账', async () => {
+    const handlers = new StageHandlerRegistry()
+    handlers.register({
+      name: 'gate',
+      category: 'gate',
+      execute: async () => {
+        throw new InterruptStageError('gate', '等待确认', {})
+      },
+    })
+    const result = await runWorkflow(
+      manifest('ledger-interrupt', [stage('gate', { atom: 'gate' })]),
+      { input: '交底书', prior_art: [{ title: 'D1 文献' }] },
+      undefined,
+      { atoms: atomRegistry(['gate']), handlers, runId: 'run-int' },
+    )
+    expect(result.interrupted?.stageId).toBe('gate')
+    expect(result.evidenceLedger!.receipts.map(receipt => receipt.citationId)).toEqual(['MATERIAL', 'D1'])
+  })
+})

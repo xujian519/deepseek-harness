@@ -6,14 +6,14 @@
     {
       "stageId": "parse",
       "strategy": "chain",
-      "output": "驳回决定要点：权利要求1-2不具备创造性（专利法第22条第3款），权利要求2技术特征不清楚（第26条第4款），修改超出原说明书记载范围（第33条）。",
+      "output": "驳回决定要点：权利要求1-2不具备创造性（专利法第22条第3款），对比文件1（CN201234567U，X类）公开了权利要求1的连接结构；权利要求2技术特征不清楚（第26条第4款）；修改超出原说明书记载范围（第33条），故认定无授权前景。",
       "degraded": false,
       "retries": 0
     },
     {
       "stageId": "grounds",
       "strategy": "chain",
-      "output": "援引的复审理由为专利法第22条第3款创造性、第26条第4款清楚性与第33条修改超范围。",
+      "output": "复审理由：请求撤销驳回决定，主张对比文件1未公开权利要求1的连接结构且无技术启示，权利要求2限定清楚，修改亦未超出原说明书记载范围。",
       "degraded": false,
       "retries": 0,
       "atom": "grounds"
@@ -21,7 +21,7 @@
     {
       "stageId": "claim-chart",
       "strategy": "chain",
-      "output": "要素级映射要点：对比文件1（CN201234567U，X类）公开了权利要求1记载的连接结构。",
+      "output": "要素级映射要点：将权利要求1拆分为连接结构各组成要素，逐项与对比文件1公开内容比对，标明相同、区别及对比文件1未记载的要素。",
       "degraded": false,
       "retries": 0,
       "atom": "claim-chart"
@@ -29,16 +29,40 @@
     {
       "stageId": "novelty",
       "strategy": "chain",
-      "output": "单篇对比结论：对比文件1未以一篇文件公开权利要求1-2的全部技术特征，不单独破坏新颖性。",
+      "output": "单篇对比结论：对比文件1未完整公开权利要求1的全部技术特征，权利要求1相对该单篇文献具备新颖性（专利法第22条第2款）。",
       "degraded": false,
       "retries": 0
     },
     {
       "stageId": "inventiveness",
       "strategy": "chain",
-      "output": "三步法结论：以对比文件1为最接近现有技术，区别技术特征未被公开且无技术启示，权利要求1-2具备创造性。",
+      "output": "三步法结论：区别特征为解决相应技术问题所设，对比文件1及公知常识均未给出技术启示，权利要求1-2具备创造性（专利法第22条第3款）。",
       "degraded": false,
       "retries": 0
+    },
+    {
+      "stageId": "evidence-check",
+      "strategy": "chain",
+      "output": "证据检查结论：对比文件1形式要件齐备、公开日早于申请日、与创造性理由及所涉权项关联成立，未发现期限或形式缺陷。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "evidence-check"
+    },
+    {
+      "stageId": "citation-check",
+      "strategy": "chain",
+      "output": "引用真实性校验结论：对比文件1（CN201234567U）号码、类别标注与驳回决定引用一致，引用真实可核，未发现引证错误。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "citation-check"
+    },
+    {
+      "stageId": "legal_gaps",
+      "strategy": "chain",
+      "output": "法条缺口汇总：创造性（第22条第3款）论证存在技术启示缺失，不清楚（第26条第4款）与修改超范围（第33条）的认定缺乏事实与记载依据，应予纠正。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "legal-gaps"
     },
     {
       "stageId": "approval",
@@ -50,5 +74,5 @@
     }
   ],
   "degradedSteps": [],
-  "summary": "工作流 patent_reexamination_v1（复审答复）: 6/6 阶段完成"
+  "summary": "工作流 patent_reexamination_v1（复审答复）: 9/9 阶段完成"
 }

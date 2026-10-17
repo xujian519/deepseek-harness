@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -7,8 +7,19 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { registerBuiltinAtoms, type WorkflowRunResult } from '@deepseek-ai/dsh-patent-core'
+import {
+  globalAtomRegistry,
+  globalStageHandlerRegistry,
+  registerBuiltinAtoms,
+  type WorkflowRunResult,
+} from '@deepseek-ai/dsh-patent-core'
 import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
+import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
+import { draftSpecificationAtom, DraftSpecificationHandler } from '../src/atoms/draft-specification.ts'
+import { specCheckAtom, SpecCheckHandler } from '../src/atoms/spec-check.ts'
+import { responseCheckAtom, ResponseCheckHandler } from '../src/atoms/response-check.ts'
+import { eligibilityAtom, EligibilityHandler } from '../src/atoms/eligibility.ts'
+import { legalGapsAtom, LegalGapsHandler } from '../src/atoms/legal-gaps.ts'
 import {
   createPatentWorkflowTool,
   renderPatentWorkflow,
@@ -24,14 +35,34 @@ import {
 // 镜像生产装配（B1）：内置原子注册进全局注册表，novelty 等 manifest 的 atom
 // 阶段才能通过 runWorkflow 的 fail-fast。
 registerBuiltinAtoms()
+// 本包自有原子由 apply() 注册；测试直接导入工具函数，需同样登记才能覆盖全部 manifest。
+globalAtomRegistry.register(slopGateAtom)
+globalStageHandlerRegistry.register(new SlopGateHandler())
+globalAtomRegistry.register(draftSpecificationAtom)
+globalStageHandlerRegistry.register(new DraftSpecificationHandler())
+globalAtomRegistry.register(specCheckAtom)
+globalStageHandlerRegistry.register(new SpecCheckHandler())
+globalAtomRegistry.register(responseCheckAtom)
+globalStageHandlerRegistry.register(new ResponseCheckHandler())
+globalAtomRegistry.register(eligibilityAtom)
+globalStageHandlerRegistry.register(new EligibilityHandler())
+globalAtomRegistry.register(legalGapsAtom)
+globalStageHandlerRegistry.register(new LegalGapsHandler())
 
 const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 
 const NOVELTY_OUTPUTS = [
   { stageId: 'parse', text: 'parsed' },
+  { stageId: 'time_baseline', text: '2024-06-01' },
+  { stageId: 'generate_keywords', text: 'keywords' },
   { stageId: 'search', text: 'searched' },
+  { stageId: 'prior_art_filter', text: 'no excluded prior art' },
+  { stageId: 'conflicting_application', text: 'no conflicting application' },
   { stageId: 'compare', text: 'compared' },
+  { stageId: 'numeric_range', text: 'no numeric range' },
   { stageId: 'conclude', text: 'concluded' },
+  { stageId: 'citation_check', text: 'citations grounded' },
+  { stageId: 'legal_gaps', text: 'no legal gaps' },
   { stageId: 'approval', text: 'approved' },
 ]
 
@@ -54,7 +85,7 @@ describe('patent_workflow', () => {
     expect(value.found).toBe(true)
     expect(value.valid).toBe(true)
     expect(value.completed).toBe(true)
-    expect(value.stages).toHaveLength(5)
+    expect(value.stages).toHaveLength(12)
     expect(value.degradedSteps).toEqual([])
     expect(value.persistNote).toContain('未启用')
   })
@@ -66,6 +97,45 @@ describe('patent_workflow', () => {
     )) as PatentWorkflowOutput
     expect(value.completed).toBe(false)
     expect(value.degradedSteps.length).toBeGreaterThan(0)
+  })
+
+  it('degrades every atom stage instead of crashing when recap supplies no atom output', async () => {
+    for (const manifest of builtinPatentManifests) {
+      const outputs = manifest.stages
+        .filter(stage => stage.atom === undefined)
+        .map(stage => ({ stageId: stage.id, text: `${stage.id} 收口产出` }))
+      const value = (await tool.execute({ manifestId: manifest.id, outputs }, exec)) as PatentWorkflowOutput
+      expect(value.found).toBe(true)
+      expect(value.valid).toBe(true)
+      expect(value.completed).toBe(false)
+      expect([...value.degradedSteps].sort()).toEqual(
+        manifest.stages.filter(stage => stage.atom !== undefined).map(stage => stage.id).sort(),
+      )
+    }
+  })
+
+  it('persists the degraded atom stages in the recap run record', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+    const cwdTool = createPatentWorkflowTool({ cwd: temp })
+    const manifest = builtinPatentManifests.find(m => m.id === 'patent_invalidation_v1')
+    if (manifest === undefined) throw new Error('manifest missing')
+    const outputs = manifest.stages
+      .filter(stage => stage.atom === undefined)
+      .map(stage => ({ stageId: stage.id, text: `${stage.id} 收口产出` }))
+
+    const value = (await cwdTool.execute(
+      { manifestId: manifest.id, outputs, caseId: 'case-9' },
+      exec,
+    )) as PatentWorkflowOutput
+    expect(value.persistNote).toContain('持久化:')
+
+    const file = join(temp, 'data/cases/case-9/workflow-runs/case-9__patent_invalidation_v1.json')
+    const record = JSON.parse(await readFile(file, 'utf8')) as WorkflowRunResult
+    expect(record.completed).toBe(false)
+    expect(record.degradedSteps).toEqual(expect.arrayContaining(['evidence-check', 'citation-check', 'legal_gaps']))
+    for (const stageId of ['evidence-check', 'citation-check', 'legal_gaps']) {
+      expect(record.stages.find(stage => stage.stageId === stageId)?.degraded).toBe(true)
+    }
   })
 
   it('renders unknown-manifest and assembled-summary prose', () => {

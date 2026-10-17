@@ -20,6 +20,7 @@ export const draftClaimsAtom: Atom = {
   category: 'extract',
   inputSchema: ['pfe_triples', 'merge_result', 'novelty_conclusion', 'source_text', 'slop_revision_hint'],
   outputSchema: ['claims_draft', 'draft_claims_result'],
+  usesModel: true,
 }
 
 const DRAFT_CLAIMS_SCHEMA = {

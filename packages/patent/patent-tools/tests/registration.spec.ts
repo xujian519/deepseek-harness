@@ -44,27 +44,42 @@ const EXPECTED_TOOLS = [
 ]
 
 /**
- * Atoms a complete composition registers: patent-core's 16 built-ins plus
- * `slop-gate` (registered by this package, not by registerBuiltinAtoms).
+ * Atoms a complete composition registers: patent-core's 24 built-ins plus
+ * `slop-gate`, `draft-specification`, `spec-check`, `response-check`,
+ * `eligibility`, and `legal-gaps` (registered by this package, not by
+ * registerBuiltinAtoms).
  */
 const REGISTERED_ATOMS = [
+  'amendment-basis',
   'approval-gate',
+  'citation-check',
   'claim-chart',
   'compare',
+  'conflicting-application',
   'coverage',
   'draft-claims',
+  'draft-specification',
+  'eligibility',
+  'evidence-check',
   'extract',
   'groundedness',
   'grounds',
   'keywords',
+  'legal-gaps',
   'merge',
   'novelty',
+  'numeric-range',
   'oa-parse',
   'pfe-consistency',
+  'prior-art-filter',
+  'problem-check',
   'reasoning',
+  'response-check',
   'response-plan',
   'search',
   'slop-gate',
+  'spec-check',
+  'time-baseline',
 ]
 
 /** Atoms the built-in manifests declare; `compare`/`reasoning` are graph-only. */
@@ -105,6 +120,38 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     expect(names).not.toContain('render_patent_document')
   })
 
+  it('fails plugin load when a built-in manifest targets another guideline revision', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(tool, { guidelineRevision: '2026 年修订版（2026-01-01 施行）' }))
+      .rejects.toThrow(/guidelineRevision/)
+  })
+
+  it('fails plugin load when a manifest exceeds the configured stage budget', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(tool, { workflowStageBudget: 20 }))
+      .rejects.toThrow(/patent_disclosure_v1 的阶段数 22 超出预算 20/)
+  })
+
+  it('fails plugin load when a manifest exceeds the configured model-calling stage budget', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(tool, { workflowLlmStageBudget: 9 }))
+      .rejects.toThrow(/patent_disclosure_v1 的模型调用阶段数 10 超出预算 9/)
+  })
+
+  it('accepts budgets raised to the current built-in manifest sizes', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(tool, { workflowStageBudget: 22, workflowLlmStageBudget: 10 })
+    expect(ctx.tools.schemas().map(schema => schema.name)).toContain('patent_workflow_run')
+  })
+
   it('每个内置 manifest 声明的 atom 在完整组合下都有契约与 handler（跨包注册：slop-gate 属本包）', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
@@ -128,7 +175,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(tool, {})
-    // 完整组合后注册表含 patent-core 的 16 个内置 + 本包注册的 slop-gate。
+    // 完整组合后注册表含 patent-core 的 24 个内置 + 本包注册的 slop-gate、draft-specification、spec-check、response-check、eligibility 与 legal-gaps。
     expect(globalAtomRegistry.list().map(atom => atom.name).sort()).toEqual(REGISTERED_ATOMS)
     for (const atom of globalAtomRegistry.list()) {
       expect(tool.ATOM_PARAM_DESCRIPTION).toContain(atom.name)

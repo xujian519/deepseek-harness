@@ -11,7 +11,7 @@ input:
   task: |
     这是一件无效宣告请求的收口作业。只做下面两步，不调用其它工具，不使用 shell，不读写工作区里的其它文件。
 
-    第 1 步：调用 patent_workflow，参数 manifestId 传 patent_invalidation_v1，caseId 传 CN2024-0002，outputs 传六个阶段：stageId 依次为 parse、grounds、claim-chart、novelty、inventiveness、approval，每个阶段的 text 各写一句中文（parse 写程序文书要点，grounds 写援引的无效理由，claim-chart 写要素级映射要点，novelty 写单篇对比结论，inventiveness 写三步法结论，approval 写"已人工确认"）。
+    第 1 步：调用 patent_workflow，参数 manifestId 传 patent_invalidation_v1，caseId 传 CN2024-0002，outputs 传九个阶段：stageId 依次为 parse、grounds、claim-chart、novelty、inventiveness、evidence-check、citation-check、legal_gaps、approval，每个阶段的 text 各写一句中文（parse 写程序文书要点，grounds 写援引的无效理由，claim-chart 写要素级映射要点，novelty 写单篇对比结论，inventiveness 写三步法结论，evidence-check 写证据形式/期限/关联性检查结论，citation-check 写引用真实性校验结论，legal_gaps 写法条缺口汇总结论，approval 写"已人工确认"）。
 
     第 2 步：调用 patent_workflow_run，参数 graph 传 citation-check，input 传下面这句话（逐字原样传入）：
 
