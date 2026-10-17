@@ -1,5 +1,5 @@
 /**
- * 提取域原子：extract（结构化抽取，按 output_key 分键）+ merge（PFE 三路融合）。
+ * 提取域原子：extract（结构化抽取，按 output_key 分键）+ merge（PFIE 四路融合）。
  */
 
 import { type Atom } from '../../atom.ts'
@@ -23,7 +23,7 @@ export const extractAtom: Atom = {
   description: '从文本中结构化抽取特征/问题/效果（JSON Schema 约束 LLM 输出）',
   category: 'extract',
   inputSchema: ['text', 'extraction_type', 'domain', 'output_key'],
-  outputSchema: ['extraction_result', 'features', 'problems', 'effects'],
+  outputSchema: ['extraction_result', 'features', 'problems', 'effects', 'insight'],
 }
 
 const EXTRACT_SCHEMA = {
@@ -32,6 +32,11 @@ const EXTRACT_SCHEMA = {
     features: { type: 'array', items: { type: 'string' }, description: '技术特征列表' },
     problems: { type: 'array', items: { type: 'string' }, description: '要解决的技术问题' },
     effects: { type: 'array', items: { type: 'string' }, description: '技术效果' },
+    insight: {
+      type: 'array',
+      items: { type: 'string' },
+      description: '发明认知：使特征组合得以奏效的机制层认知，逐条按 problems 的顺序对应',
+    },
   },
   required: ['features'],
 } as const
@@ -67,7 +72,7 @@ export class ExtractHandler implements StageHandler {
     }
     const extractionType = getStateString(state, 'extraction_type') || '技术特征抽取'
     const domain = getStateString(state, 'domain') || '专利'
-    // 按任务分键（经 stage.params.output_key 注入）：三路提取互不覆盖。
+    // 按任务分键（经 stage.params.output_key 注入）：四路提取互不覆盖。
     // 缺省时保持旧行为（全量写 features/problems/effects）。
     const outputKey = getStateString(state, 'output_key')
     const isFeatureExtraction = outputKey === 'features' || extractionType.includes('特征')
@@ -83,11 +88,17 @@ export class ExtractHandler implements StageHandler {
       res.raw,
       (parsed, raw) => {
         if (!Array.isArray(parsed.features)) return null
-        if (outputKey === 'features' || outputKey === 'problems' || outputKey === 'effects') {
+        if (
+          outputKey === 'features' ||
+          outputKey === 'problems' ||
+          outputKey === 'effects' ||
+          outputKey === 'insight'
+        ) {
           const segment: PipelineState = { extraction_result: raw }
           if (outputKey === 'features') segment.features = parsed.features
           if (outputKey === 'problems' && Array.isArray(parsed.problems)) segment.problems = parsed.problems
           if (outputKey === 'effects' && Array.isArray(parsed.effects)) segment.effects = parsed.effects
+          if (outputKey === 'insight' && Array.isArray(parsed.insight)) segment.insight = parsed.insight
           return segment
         }
         return {
@@ -103,36 +114,47 @@ export class ExtractHandler implements StageHandler {
 }
 
 // ---------------------------------------------------------------------------
-// merge —— PFE 三路提取融合（移植 Mady disclosure/graph.go mergeExtractionsNode）
+// merge —— PFIE 四路提取融合（移植 Mady disclosure/graph.go mergeExtractionsNode）
 // ---------------------------------------------------------------------------
 //
-// 确定性实现（无 LLM）：读 extract 三路分键产出的 problems/features/effects，
-// 按索引配对为 PFE 三元组（问题为锚点），多余特征/效果并入末组；全部为空时降级。
+// 确定性实现（无 LLM）：读 extract 四路分键产出的 problems/features/effects/insight，
+// 按索引配对为 PFIE 四元组（问题为锚点），多余特征/效果并入末组，多余发明认知追加到
+// 末组的 insight；全部为空时降级。
+//
+// 配对由索引**构造**而非校验，故"问题有特征承接"不由本阶段证明——问题多于特征时索引
+// 越界的那几组会拿到空特征列表，这正是 pfe-consistency 原子判定的结构事实。
 
-/** merge 原子：融合 PFE 三路提取结果为三元组。 */
+/** merge 原子：融合 PFIE 四路提取结果为四元组。 */
 export const mergeAtom: Atom = {
   name: 'merge',
-  description: '融合 PFE 三路提取结果（问题↔特征↔效果交叉引用），产出 PFE 三元组',
+  description: '融合 PFIE 四路提取结果（问题↔发明认知↔特征↔效果），产出 PFIE 四元组',
   category: 'extract',
-  inputSchema: ['features', 'problems', 'effects'],
+  inputSchema: ['features', 'problems', 'effects', 'insight'],
   outputSchema: ['pfe_triples', 'merge_result'],
 }
 
-/** PFE 三元组：一个问题与对应的特征/效果列表。 */
+/**
+ * PFIE 四元组：一个问题与对应的发明认知、特征、效果。
+ *
+ * `insight` 可选：下游消费方（keywords/novelty/draft-claims）只读问题与特征，未跑
+ * extract_insight 的管线不应因为缺发明认知而整体降级。
+ */
 export type PFETriple = {
   id: string
   problem: string
+  /** 发明认知：使本组特征得以奏效的机制层认知；缺省表示本组未提炼。 */
+  insight?: string
   features: string[]
   effects: string[]
 }
 
-/** merge 执行器：按索引配对三路提取结果为 PFE 三元组。 */
+/** merge 执行器：按索引配对四路提取结果为 PFIE 四元组。 */
 export class MergeHandler implements StageHandler {
   readonly name = 'merge'
   readonly category = 'extract' as const
 
   /**
-   * 执行 merge 阶段（三路结果配对为 PFE 三元组），返回下一管线状态。
+   * 执行 merge 阶段（四路结果配对为 PFIE 四元组），返回下一管线状态。
    * @param input - 阶段执行输入（state）。
    * @returns 下一管线状态（可能带降级标记）。
    */
@@ -142,28 +164,42 @@ export class MergeHandler implements StageHandler {
     const features = getStateArray(state, 'features').map(String).filter(Boolean)
     const problems = getStateArray(state, 'problems').map(String).filter(Boolean)
     const effects = getStateArray(state, 'effects').map(String).filter(Boolean)
-    if (features.length + problems.length + effects.length === 0) {
-      return degraded('merge', '三路提取结果均为空（state.features/problems/effects）')
+    const insights = getStateArray(state, 'insight').map(String).filter(Boolean)
+    if (features.length + problems.length + effects.length + insights.length === 0) {
+      return degraded('merge', '四路提取结果均为空（state.features/problems/effects/insight）')
     }
     const triples: PFETriple[] = problems.map((problem, i) => ({
       id: `T${i + 1}`,
       problem,
+      ...(insights[i] !== undefined ? { insight: insights[i] } : {}),
       features: features[i] !== undefined ? [features[i]] : [],
       effects: effects[i] !== undefined ? [effects[i]] : [],
     }))
-    // 多于问题数的特征/效果并入最后一个三元组（无问题时构造单一三元组）。
+    // 多于问题数的特征/效果/发明认知并入最后一个三元组（无问题时构造单一三元组）。
     const extraFeatures = features.slice(problems.length)
     const extraEffects = effects.slice(problems.length)
-    if (extraFeatures.length > 0 || extraEffects.length > 0) {
+    const extraInsights = insights.slice(problems.length)
+    if (extraFeatures.length > 0 || extraEffects.length > 0 || extraInsights.length > 0) {
       const last = triples.at(-1)
       if (last !== undefined) {
         last.features.push(...extraFeatures)
         last.effects.push(...extraEffects)
+        if (extraInsights.length > 0) {
+          last.insight = [last.insight, ...extraInsights]
+            .filter((value): value is string => value !== undefined)
+            .join('；')
+        }
       } else {
-        triples.push({ id: 'T1', problem: '', features: [...features], effects: [...effects] })
+        triples.push({
+          id: 'T1',
+          problem: '',
+          ...(insights[0] !== undefined ? { insight: insights[0] } : {}),
+          features: [...features],
+          effects: [...effects],
+        })
       }
     }
-    const summary = `PFE 融合：${problems.length} 个问题 / ${features.length} 个特征 / ${effects.length} 个效果`
+    const summary = `PFIE 融合：${problems.length} 个问题 / ${insights.length} 条发明认知 / ${features.length} 个特征 / ${effects.length} 个效果`
     return { pfe_triples: triples, merge_result: summary }
   }
 }

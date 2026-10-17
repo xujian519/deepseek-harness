@@ -243,7 +243,7 @@ function analysisWorkers(): WorkerContract[] {
     {
       name: 'patent-technical-analyzer',
       tier: 'work',
-      description: '分析技术交底书，提取技术三要素（问题/特征/效果）PFE 三元组',
+      description: '分析技术交底书，提取 PFIE 四元组（技术问题/发明认知/技术特征/技术效果）',
       allowedTools: ['read', 'web_fetch'],
       inputs: [{ path: `${CASE_ROOT_REL}/{caseId}/disclosure/*.md`, description: '技术交底书' }],
       outputs: [

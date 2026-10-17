@@ -45,7 +45,7 @@ export const patentNoveltyManifest: WorkflowManifest = {
 }
 
 /**
- * 内置：技术交底书披露分析 manifest（移植 Mady disclosure/graph.go 的 PFE 管线）。
+ * 内置：技术交底书披露分析 manifest（移植 Mady disclosure/graph.go 的 PFIE 管线）。
  */
 export const patentDisclosureManifest: WorkflowManifest = {
   id: 'patent_disclosure_v1',
@@ -74,7 +74,17 @@ export const patentDisclosureManifest: WorkflowManifest = {
       atom: 'extract',
       params: { extraction_type: '提取技术效果（严格输出 effects 数组）', output_key: 'effects' },
     },
-    { id: 'merge', strategy: 'chain', description: '融合 PFE 三元组（问题↔特征↔效果交叉引用）', atom: 'merge' },
+    {
+      id: 'extract_insight',
+      strategy: 'sub_agent',
+      description: '提炼发明认知（使特征组合得以奏效的机制层认知）',
+      atom: 'extract',
+      params: {
+        extraction_type: '提炼发明认知（严格输出 insight 数组，逐条按 problems 的顺序对应）',
+        output_key: 'insight',
+      },
+    },
+    { id: 'merge', strategy: 'chain', description: '融合 PFIE 四元组（问题↔发明认知↔特征↔效果）', atom: 'merge' },
     {
       id: 'groundedness',
       strategy: 'chain',
@@ -84,8 +94,8 @@ export const patentDisclosureManifest: WorkflowManifest = {
     {
       id: 'consistency',
       strategy: 'chain',
-      description: 'PFE 一致性检查（特征-效果因果链闭合、无孤立特征）',
-      consumes: ['merge', 'groundedness'],
+      description: 'PFIE 一致性检查（问题与发明认知均有特征承接、问题表述未绑定解决手段）',
+      atom: 'pfe-consistency',
       retry: {
         whenOutputMatches: '不一致|矛盾|缺少|孤立',
         rewindTo: 'extract_problem',

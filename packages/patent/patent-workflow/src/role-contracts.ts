@@ -65,7 +65,7 @@ export function defaultRoleContracts(): RoleContract[] {
       role: 'drafter',
       name: '撰写员',
       stance: 'agent-side',
-      description: '案件理解（PFE 三元组）、文书起草（申请文件/答复稿/补正书/复审请求书/请求书/诉状）、逐特征比对',
+      description: '案件理解（PFIE 四元组）、文书起草（申请文件/答复稿/补正书/复审请求书/请求书/诉状）、逐特征比对',
       workers: ['patent-technical-analyzer', 'patent-oa-writer'],
       forbiddenActions: ['不代对方起草（对抗场景反之立场）'],
       triggersHITL: true,

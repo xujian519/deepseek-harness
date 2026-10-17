@@ -2,7 +2,8 @@
  * 内置 Pipeline 原子聚合（按职责分域，公共 LLM 骨架见 llm.ts）。
  *
  * - search.ts：search（检索）/ keywords（关键词生成）
- * - extract.ts：extract（结构化抽取）/ merge（PFE 融合）
+ * - extract.ts：extract（结构化抽取）/ merge（PFIE 融合）
+ * - pfe.ts：pfe-consistency（PFIE 四元组结构一致性检查）
  * - compare.ts：compare（特征对比）/ novelty（逐特征新颖性）
  * - reason.ts：reasoning（自由推理）/ groundedness（原文依据过滤）
  * - draft.ts：draft-claims（权利要求草稿）
@@ -25,6 +26,14 @@ export {
   MergeHandler,
   type PFETriple,
 } from './extract.ts'
+export {
+  pfeConsistencyAtom,
+  PfeConsistencyHandler,
+  PFE_CONSISTENCY_VIOLATION_IDS,
+  checkPfeConsistency,
+  type PfeConsistencyViolationId,
+  type PfeConsistencyViolation,
+} from './pfe.ts'
 export {
   compareAtom,
   CompareHandler,
