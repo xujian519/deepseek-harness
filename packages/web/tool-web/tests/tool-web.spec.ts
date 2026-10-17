@@ -46,7 +46,7 @@ function fetchProvider(isAvailable = available): WebFetchProvider {
 /** Mount the real registry, seam, and tool-web; return an executor helper. */
 async function mountTools(opts: {
   config?: ToolWeb.Config
-  webConfig?: ConstructorParameters<typeof WebRuntime>[1]
+  webConfig?: { searchProvider?: string; fetchProvider?: string }
   search?: WebSearchProvider
   fetchProvider?: import('@deepseek-ai/dsh-web').WebFetchProvider | null
 } = {}): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>>; call: (name: string, args: unknown) => Promise<ToolExecutionResult> }> {
