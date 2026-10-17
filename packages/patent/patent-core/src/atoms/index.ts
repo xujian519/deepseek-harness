@@ -5,7 +5,7 @@
  * - handler.ts：StageHandler 运行时 + PipelineState + 错误模型 + 注册表
  * - handlers/builtin/：内置原子（search/extract/compare/reasoning/groundedness/
  *   keywords/novelty/merge/draft-claims/approval-gate/claim-chart，按职责分域；
- *   其中 oa-parse/grounds/response-plan/coverage 为不调用模型的确定性原子）
+ *   其中 oa-parse/grounds/response-plan/coverage/pfe-consistency 为不调用模型的确定性原子）
  *
  * 使用：调用 registerBuiltinAtoms() 将内置原子注册进全局注册表；
  * workflow 执行时也可注入局部注册表（隔离测试 / 覆盖同名原子）。
@@ -77,6 +77,12 @@ export {
   coverageAtom,
   CoverageHandler,
   type PFETriple,
+  pfeConsistencyAtom,
+  PfeConsistencyHandler,
+  PFE_CONSISTENCY_VIOLATION_IDS,
+  checkPfeConsistency,
+  type PfeConsistencyViolationId,
+  type PfeConsistencyViolation,
 } from './handlers/builtin/index.ts'
 
 import { globalAtomRegistry } from './atom.ts'
@@ -100,6 +106,7 @@ export function registerBuiltinAtoms(): void {
   globalAtomRegistry.register(builtin.groundsAtom)
   globalAtomRegistry.register(builtin.responsePlanAtom)
   globalAtomRegistry.register(builtin.coverageAtom)
+  globalAtomRegistry.register(builtin.pfeConsistencyAtom)
 
   globalStageHandlerRegistry.register(new builtin.SearchHandler())
   globalStageHandlerRegistry.register(new builtin.ExtractHandler())
@@ -116,4 +123,5 @@ export function registerBuiltinAtoms(): void {
   globalStageHandlerRegistry.register(new builtin.GroundsHandler())
   globalStageHandlerRegistry.register(new builtin.ResponsePlanHandler())
   globalStageHandlerRegistry.register(new builtin.CoverageHandler())
+  globalStageHandlerRegistry.register(new builtin.PfeConsistencyHandler())
 }

@@ -50,7 +50,7 @@ describe('registry', () => {
     expect(reg.lookup('t')).toBe(h2)
   })
 
-  it('registerBuiltinAtoms 注册 15 个内置原子与 handler', () => {
+  it('registerBuiltinAtoms 注册 16 个内置原子与 handler', () => {
     registerBuiltinAtoms()
     const names = ListAtoms().map(a => a.name).sort()
     expect(names).toEqual([
@@ -66,6 +66,7 @@ describe('registry', () => {
       'merge',
       'novelty',
       'oa-parse',
+      'pfe-consistency',
       'reasoning',
       'response-plan',
       'search',
@@ -364,18 +365,45 @@ describe('extract 分键 / merge / draft-claims', () => {
     expect(out.effects).toEqual([])
   })
 
-  it('MergeHandler：PFE 按索引配对为三元组', async () => {
+  it('MergeHandler：PFIE 按索引配对为四元组', async () => {
     const h = LookupStageHandler('merge')!
     const out = await h.execute({
-      state: { problems: ['问题1', '问题2'], features: ['特征A', '特征B'], effects: ['效果1', '效果2'] },
+      state: {
+        problems: ['问题1', '问题2'],
+        features: ['特征A', '特征B'],
+        effects: ['效果1', '效果2'],
+        insight: ['认知1', '认知2'],
+      },
     })
-    const triples = out.pfe_triples as Array<{ id: string; problem: string; features: string[]; effects: string[] }>
+    const triples = out.pfe_triples as Array<{
+      id: string
+      problem: string
+      insight?: string
+      features: string[]
+      effects: string[]
+    }>
     expect(triples.length).toBe(2)
     expect(triples[0]!.problem).toBe('问题1')
+    expect(triples[0]!.insight).toBe('认知1')
     expect(triples[0]!.features).toEqual(['特征A'])
     expect(triples[0]!.effects).toEqual(['效果1'])
     expect(triples[1]!.id).toBe('T2')
-    expect(String(out.merge_result)).toMatch(/2 个问题 \/ 2 个特征 \/ 2 个效果/)
+    expect(String(out.merge_result)).toMatch(/2 个问题 \/ 2 条发明认知 \/ 2 个特征 \/ 2 个效果/)
+  })
+
+  it('MergeHandler：没有发明认知时不写 insight 键（缺省即未提炼）', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({ state: { problems: ['P1'], features: ['F1'], effects: [] } })
+    const triples = out.pfe_triples as Array<Record<string, unknown>>
+    expect('insight' in triples[0]!).toBe(false)
+  })
+
+  it('MergeHandler：问题多于特征时仍配对，越界组拿到空特征（S⊨P 由一致性原子判定）', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({ state: { problems: ['P1', 'P2'], features: ['F1'], effects: [] } })
+    const triples = out.pfe_triples as Array<{ features: string[] }>
+    expect(triples[0]!.features).toEqual(['F1'])
+    expect(triples[1]!.features).toEqual([])
   })
 
   it('MergeHandler：多余特征并入末组；无问题时构造单一三元组', async () => {
@@ -390,10 +418,19 @@ describe('extract 分键 / merge / draft-claims', () => {
     expect(single[0]!.features).toEqual(['F1'])
   })
 
-  it('MergeHandler：三路全空时降级（不抛错）', async () => {
+  it('MergeHandler：多余发明认知追加到末组的 insight', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({
+      state: { problems: ['P1'], features: ['F1'], effects: [], insight: ['认知1', '认知2'] },
+    })
+    const triples = out.pfe_triples as Array<{ insight?: string }>
+    expect(triples[0]!.insight).toBe('认知1；认知2')
+  })
+
+  it('MergeHandler：四路全空时降级（不抛错）', async () => {
     const h = LookupStageHandler('merge')!
     const out = await h.execute({ state: {} })
-    expect(String(out._error)).toMatch(/三路提取结果均为空/)
+    expect(String(out._error)).toMatch(/四路提取结果均为空/)
   })
 
   const claimsProvider: StageProvider = {

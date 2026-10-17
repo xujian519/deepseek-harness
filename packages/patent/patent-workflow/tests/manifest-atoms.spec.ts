@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { type WorkflowManifest, type WorkflowStage } from '@deepseek-ai/dsh-patent-core'
+import {
+  LookupStageHandler,
+  compileSignal,
+  registerBuiltinAtoms,
+  signalMatches,
+  type WorkflowManifest,
+  type WorkflowStage,
+} from '@deepseek-ai/dsh-patent-core'
 import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 
 const manifestOf = (id: string): WorkflowManifest => {
@@ -131,5 +138,43 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
         expect(stage.atom).toBeUndefined()
       }
     }
+  })
+})
+
+describe('PFIE 一致性阶段：确定性原子与回退信号闭环', () => {
+  registerBuiltinAtoms()
+
+  it('consistency 交 pfe-consistency 原子，其主输出命中本阶段声明的回退信号', async () => {
+    const consistency = stageOf('patent_disclosure_v1', 'consistency')!
+    expect(consistency.atom).toBe('pfe-consistency')
+    const handler = LookupStageHandler('pfe-consistency')!
+    const out = await handler.execute({
+      state: { pfe_triples: [{ id: 'T1', problem: 'P1', features: [], effects: [] }] },
+    })
+    const signal = compileSignal(consistency.retry!.whenOutputMatches)
+    expect(signalMatches(String(out.pfe_consistency_summary), signal)).toBe(true)
+  })
+
+  it('承接完整时不触发回退（否则每轮都会白跑一次回退重做）', async () => {
+    const consistency = stageOf('patent_disclosure_v1', 'consistency')!
+    const handler = LookupStageHandler('pfe-consistency')!
+    const out = await handler.execute({
+      state: { pfe_triples: [{ id: 'T1', problem: '如何在装配后定位', features: ['F1'], effects: ['E1'] }] },
+    })
+    const signal = compileSignal(consistency.retry!.whenOutputMatches)
+    expect(signalMatches(String(out.pfe_consistency_summary), signal)).toBe(false)
+  })
+
+  it('extract_insight 在 merge 之前，且回退目标 extract_problem 在它之前（回退后四元组整体重算）', () => {
+    expect(indexOf('patent_disclosure_v1', 'extract_insight')).toBeLessThan(
+      indexOf('patent_disclosure_v1', 'merge'),
+    )
+    expect(indexOf('patent_disclosure_v1', 'extract_problem')).toBeLessThan(
+      indexOf('patent_disclosure_v1', 'extract_insight'),
+    )
+  })
+
+  it('consistency 声明 atom 时不再声明 consumes（原子直接读 state，consumes 会是死数据）', () => {
+    expect(stageOf('patent_disclosure_v1', 'consistency')?.consumes).toBeUndefined()
   })
 })

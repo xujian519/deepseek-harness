@@ -44,7 +44,7 @@ const EXPECTED_TOOLS = [
 ]
 
 /**
- * Atoms a complete composition registers: patent-core's 15 built-ins plus
+ * Atoms a complete composition registers: patent-core's 16 built-ins plus
  * `slop-gate` (registered by this package, not by registerBuiltinAtoms).
  */
 const REGISTERED_ATOMS = [
@@ -60,6 +60,7 @@ const REGISTERED_ATOMS = [
   'merge',
   'novelty',
   'oa-parse',
+  'pfe-consistency',
   'reasoning',
   'response-plan',
   'search',
@@ -127,7 +128,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(tool, {})
-    // 完整组合后注册表含 patent-core 的 14 个内置 + 本包注册的 slop-gate。
+    // 完整组合后注册表含 patent-core 的 16 个内置 + 本包注册的 slop-gate。
     expect(globalAtomRegistry.list().map(atom => atom.name).sort()).toEqual(REGISTERED_ATOMS)
     for (const atom of globalAtomRegistry.list()) {
       expect(tool.ATOM_PARAM_DESCRIPTION).toContain(atom.name)
