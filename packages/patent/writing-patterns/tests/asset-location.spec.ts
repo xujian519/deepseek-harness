@@ -1,12 +1,12 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { PATTERN_FILE_SUFFIX, patternDir } from '../src/asset-location.ts'
+import { PATTERN_FILE_SUFFIXES, patternDir } from '../src/asset-location.ts'
 
 describe('pattern asset location', () => {
   it('resolves the packaged corpus beside this module', () => {
     // fileURLToPath keeps the trailing separator of the directory URL.
     expect(patternDir()).toMatch(/assets[/\\]patterns[/\\]?$/)
-    expect(PATTERN_FILE_SUFFIX).toBe('.yaml')
+    expect(PATTERN_FILE_SUFFIXES).toEqual(['.yaml', '.yml'])
   })
 
   it('falls back to the packaged corpus for a blank override', () => {

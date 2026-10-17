@@ -74,6 +74,7 @@ describe('writing-patterns real Loader composition through cordis.yml', () => {
     if (result.isError) throw new Error('expected success')
     const value = result.value as { patterns: { id: string }[]; librarySize: number }
     expect(value.librarySize).toBe(10)
+    expect(value.patterns.length).toBeLessThanOrEqual(value.librarySize)
     expect(value.patterns[0]?.id).toBe('wp-oa-inventiveness-3step')
   }, 30_000)
 
@@ -96,7 +97,7 @@ describe('writing-patterns real Loader composition through cordis.yml', () => {
       signal: new AbortController().signal,
       callId: ToolCallId('write-patterns-cap'),
       name: 'query_writing_patterns',
-      arguments: {},
+      arguments: { query: '创造性' },
     })
     if (result.isError) throw new Error('expected success')
     expect((result.value as { patterns: unknown[] }).patterns).toHaveLength(1)

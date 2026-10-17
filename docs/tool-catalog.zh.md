@@ -5783,7 +5783,11 @@ Usage notes:
     },
     "priorArt": {
       "type": "string",
-      "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+      "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage."
+    },
+    "conflictingApplications": {
+      "type": "string",
+      "description": "Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention."
     },
     "run_in_background": {
       "type": "boolean",
@@ -6705,7 +6709,7 @@ law_verify 读取一段文本中的法条引用（或直接传入的引用），
 
 - 取回适合当前撰写或答复场景的专利与法律撰写模式，并编译为 `<writing_skills>` 块
 - 每个模式覆盖一个场景，含有序步骤与应当遵循或避免的规则：权利要求撰写、说明书撰写、交底书撰写、IPC 策略、具体实施方式撰写，以及针对创造性、新颖性、清楚性的审查意见答复
-- 选择方式：传 `query` 按关键词检索；否则用 `features` 把案件特征与模式名称、摘要、步骤名做匹配；否则按 `category` 列出该类目；不带任何参数时按 `limit` 上限列出模式库
+- 选择方式：传 `query` 按关键词检索；否则用 `features` 把案件特征与模式名称、著录关键词、摘要、步骤名做匹配；否则按 `category` 列出该类目；不带任何参数时列出整个模式库
 - 选择是词法且离线的：工具只挑选模式，不对案件作判断。把返回的步骤应用到正在撰写的段落上
 
 Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/writing-patterns/src/index.ts)
@@ -6742,7 +6746,7 @@ Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/wri
     },
     "limit": {
       "type": "integer",
-      "description": "Maximum number of patterns to return; defaults to 5"
+      "description": "Maximum number of patterns to return; defaults to 5, or to the whole library when no argument narrows the call"
     }
   }
 }

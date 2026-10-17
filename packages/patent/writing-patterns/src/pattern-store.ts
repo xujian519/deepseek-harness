@@ -13,11 +13,12 @@ import { readFileSync, readdirSync } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
-import { PATTERN_FILE_SUFFIX, patternDir } from './asset-location.ts'
+import { PATTERN_FILE_SUFFIXES, patternDir } from './asset-location.ts'
 import {
   DEFAULT_PATTERN_QUALITY,
   isPatternCategory,
   PATTERN_CATEGORIES,
+  PATTERN_CATEGORY_LABELS,
   PatternAssetError,
   type PatternCategory,
   type PatternExample,
@@ -49,6 +50,9 @@ export type PatternMatchSpec = {
 
 /** One scored candidate; only used inside the sort of a search or match. */
 type Scored = { pattern: WritingPattern; score: number }
+
+/** One query term and the weight its field hits carry. */
+type SearchTerm = { text: string; weight: number }
 
 /** Code-unit id comparison — locale-independent, so the order is identical on every machine. */
 function compareIds(left: WritingPattern, right: WritingPattern): number {
@@ -119,15 +123,15 @@ export class PatternStore {
 
   /**
    * Search by free text and optional category, scoring each candidate on
-   * containment of the query terms in its name, summary, context, steps, and
-   * do-rules, multiplied by its quality.
+   * containment of the query terms in its name, keywords, summary, context,
+   * steps, and rules, multiplied by its quality.
    * @param query - search text; an empty query selects the candidates unscored.
    * @param spec - category restriction and result cap.
    * @returns up to `spec.limit` patterns, best score first.
    */
   search(query: string, spec: PatternSearchSpec): readonly WritingPattern[] {
     const candidates = spec.category === undefined ? this.patterns : this.byCategory(spec.category)
-    const terms = query.toLowerCase().split(/\s+/u).filter(term => term !== '')
+    const terms = searchTerms(query)
     if (terms.length === 0) return candidates.slice(0, spec.limit)
     const scored: Scored[] = []
     for (const pattern of candidates) {
@@ -139,18 +143,17 @@ export class PatternStore {
 
   /**
    * Match patterns to a case type and its technical features. The case type
-   * weighs most, then feature hits in the name, the summary, and step names,
-   * and finally keyword hits anywhere in the query.
+   * weighs most, then feature hits in the name, the keywords, the summary, and
+   * step names; the score is multiplied by the pattern's quality.
    * @param spec - case type, features, and result cap.
    * @returns up to `spec.limit` patterns with a non-zero score, best first.
    */
   match(spec: PatternMatchSpec): readonly WritingPattern[] {
     const caseType = spec.caseType?.trim().toLowerCase() ?? ''
     const features = (spec.features ?? []).map(feature => feature.trim().toLowerCase()).filter(feature => feature !== '')
-    const query = [caseType, ...features].join(' ')
     const scored: Scored[] = []
     for (const pattern of this.patterns) {
-      const score = scoreMatch(pattern, caseType, features, query)
+      const score = scoreMatch(pattern, caseType, features)
       if (score > 0) scored.push({ pattern, score })
     }
     return scored.sort(compareScored).slice(0, spec.limit).map(entry => entry.pattern)
@@ -182,11 +185,11 @@ export function loadPatternCorpus(dir: string): readonly WritingPattern[] {
     throw new PatternAssetError(dir, `无法读取写作模式资产目录：${errorMessage(error)}`)
   }
   const files = entries
-    .filter(entry => entry.isFile() && entry.name.endsWith(PATTERN_FILE_SUFFIX))
+    .filter(entry => entry.isFile() && PATTERN_FILE_SUFFIXES.some(suffix => entry.name.endsWith(suffix)))
     .map(entry => entry.name)
     .sort()
   if (files.length === 0) {
-    throw new PatternAssetError(dir, `目录下没有 ${PATTERN_FILE_SUFFIX} 写作模式资产`)
+    throw new PatternAssetError(dir, `目录下没有 ${PATTERN_FILE_SUFFIXES.join(' / ')} 写作模式资产`)
   }
   const patterns: WritingPattern[] = []
   const seen = new Map<string, string>()
@@ -227,6 +230,7 @@ export function parsePatternFile(path: string): readonly WritingPattern[] {
   const root = asRecord(document, path, '根节点')
   const listed = root['patterns']
   if (listed === undefined) return [parsePattern(root, path, '根节点')]
+  rejectUnknownFields(root, ROOT_FIELDS, path, '根节点')
   if (!Array.isArray(listed)) throw new PatternAssetError(path, '`patterns` 必须是模式数组')
   if (listed.length === 0) throw new PatternAssetError(path, '`patterns` 列表为空')
   return listed.map((entry, index) => parsePattern(entry, path, `patterns[${index}]`))
@@ -242,6 +246,7 @@ export function parsePatternFile(path: string): readonly WritingPattern[] {
  */
 function parsePattern(raw: unknown, source: string, field: string): WritingPattern {
   const record = asRecord(raw, source, field)
+  rejectUnknownFields(record, PATTERN_FIELDS, source, field)
   const id = requiredString(record, 'id', source, field)
   const category = requiredString(record, 'category', source, field)
   if (!isPatternCategory(category)) {
@@ -249,6 +254,7 @@ function parsePattern(raw: unknown, source: string, field: string): WritingPatte
   }
   const subCategory = optionalString(record, 'sub_category', source, field)
   const context = optionalString(record, 'context', source, field)
+  const keywords = parseKeywords(record['keywords'], source, `${field}.keywords`)
   const sourceRef = optionalString(record, 'source_ref', source, field)
   return {
     id,
@@ -257,6 +263,7 @@ function parsePattern(raw: unknown, source: string, field: string): WritingPatte
     ...(subCategory !== undefined ? { subCategory } : {}),
     summary: requiredString(record, 'summary', source, field),
     ...(context !== undefined ? { context } : {}),
+    ...(keywords.length > 0 ? { keywords } : {}),
     steps: parseSteps(record['steps'], source, `${field}.steps`),
     examples: parseExamples(record['examples'], source, `${field}.examples`),
     dos: parsePrinciples(record['dos'], source, `${field}.dos`),
@@ -269,62 +276,67 @@ function parsePattern(raw: unknown, source: string, field: string): WritingPatte
 
 /** Category and sub-category tags a pattern answers to. */
 function applicableTags(pattern: WritingPattern): readonly string[] {
-  return pattern.subCategory === undefined ? [pattern.category] : [pattern.category, pattern.subCategory]
+  if (pattern.subCategory === undefined || pattern.subCategory === pattern.category) return [pattern.category]
+  return [pattern.category, pattern.subCategory]
 }
 
-/** Relevance score of one pattern against the search terms, multiplied by its quality. */
-function scorePattern(pattern: WritingPattern, terms: readonly string[]): number {
+/** Relevance score of one pattern against the weighted search terms, multiplied by its quality. */
+function scorePattern(pattern: WritingPattern, terms: readonly SearchTerm[]): number {
   let score = 0
   const name = pattern.name.toLowerCase()
   const summary = pattern.summary.toLowerCase()
   const context = pattern.context?.toLowerCase() ?? ''
+  const keywords = (pattern.keywords ?? []).map(keyword => keyword.toLowerCase())
   for (const term of terms) {
-    if (name.includes(term)) score += 3
-    if (summary.includes(term)) score += 2
-    if (context.includes(term)) score += 1.5
+    if (name.includes(term.text)) score += 3 * term.weight
+    if (keywords.some(keyword => keyword.includes(term.text))) score += 2.5 * term.weight
+    if (summary.includes(term.text)) score += 2 * term.weight
+    if (context.includes(term.text)) score += 1.5 * term.weight
     for (const step of pattern.steps) {
-      if (step.name.toLowerCase().includes(term)) score += 1
-      if (step.instruction.toLowerCase().includes(term)) score += 0.5
+      if (step.name.toLowerCase().includes(term.text)) score += 1 * term.weight
+      if (step.instruction.toLowerCase().includes(term.text)) score += 0.5 * term.weight
     }
     for (const principle of pattern.dos) {
-      if (principle.rule.toLowerCase().includes(term)) score += 0.5
+      if (principle.rule.toLowerCase().includes(term.text)) score += 0.5 * term.weight
+    }
+    for (const principle of pattern.donts) {
+      if (principle.rule.toLowerCase().includes(term.text)) score += 0.5 * term.weight
     }
   }
   return score * pattern.quality
 }
 
-/** Case-feature score: category, then feature hits, then keyword hits in the query. */
-function scoreMatch(
-  pattern: WritingPattern,
-  caseType: string,
-  features: readonly string[],
-  query: string,
-): number {
+/** Case-feature score: category, then feature hits in authored fields, multiplied by quality. */
+function scoreMatch(pattern: WritingPattern, caseType: string, features: readonly string[]): number {
   let score = 0
-  if (caseType !== '' && pattern.category.toLowerCase().includes(caseType)) score += 5
+  if (caseType !== '') {
+    const category = pattern.category.toLowerCase()
+    const label = PATTERN_CATEGORY_LABELS[pattern.category].toLowerCase()
+    if (category.includes(caseType) || label.includes(caseType)) score += 5
+  }
   if (features.length > 0) {
     const name = pattern.name.toLowerCase()
     const summary = pattern.summary.toLowerCase()
+    const keywords = (pattern.keywords ?? []).map(keyword => keyword.toLowerCase())
     for (const feature of features) {
       if (name.includes(feature)) score += 3
+      if (keywords.some(keyword => keyword.includes(feature))) score += 2.5
       if (summary.includes(feature)) score += 2
       for (const step of pattern.steps) {
         if (step.name.toLowerCase().includes(feature)) score += 1.5
       }
     }
   }
-  for (const keyword of patternKeywords(pattern)) {
-    if (query.includes(keyword.toLowerCase())) score += 1
-  }
-  return score
+  return score * pattern.quality
 }
 
 /**
- * Searchable keywords of a pattern: its name, category, sub-category, step
- * names, and do/do-not rules, deduplicated, keeping entries of at least two
- * characters.
+ * Searchable labels of a pattern: its authored keywords, name, category,
+ * sub-category, and step names, deduplicated, keeping entries of at least two
+ * characters. Rule text is excluded because a query almost never contains a
+ * whole rule, so treating a rule as a keyword scored incidental substrings.
  * @param pattern - the pattern to extract from.
- * @returns the keywords in extraction order.
+ * @returns the labels in extraction order.
  */
 export function patternKeywords(pattern: WritingPattern): readonly string[] {
   const keywords: string[] = []
@@ -335,13 +347,82 @@ export function patternKeywords(pattern: WritingPattern): readonly string[] {
     seen.add(trimmed)
     keywords.push(trimmed)
   }
+  for (const keyword of pattern.keywords ?? []) add(keyword)
   add(pattern.name)
   add(pattern.category)
   if (pattern.subCategory !== undefined) add(pattern.subCategory)
   for (const step of pattern.steps) add(step.name)
-  for (const principle of pattern.dos) add(principle.rule)
-  for (const principle of pattern.donts) add(principle.rule)
   return keywords
+}
+
+/**
+ * Weighted query terms. Latin words and the whole query keep full weight;
+ * Chinese runs also contribute adjacent-character bigrams, because Chinese
+ * does not delimit words with spaces and a multi-word query would otherwise
+ * only match as one exact substring.
+ */
+function searchTerms(query: string): readonly SearchTerm[] {
+  const normalized = query.trim().toLowerCase()
+  if (normalized === '') return []
+  const terms = new Map<string, number>()
+  const add = (text: string, weight: number): void => {
+    const trimmed = text.trim()
+    if (trimmed === '') return
+    const previous = terms.get(trimmed)
+    if (previous === undefined || weight > previous) terms.set(trimmed, weight)
+  }
+  for (const word of normalized.match(/[a-z0-9][a-z0-9._-]*/gu) ?? []) add(word, 1)
+  for (const run of normalized.match(/[\p{Script=Han}]+/gu) ?? []) {
+    const characters = Array.from(run)
+    if (characters.length === 1) {
+      add(run, 1)
+      continue
+    }
+    for (let index = 0; index < characters.length - 1; index++) {
+      const first = characters[index]
+      const second = characters[index + 1]
+      if (first !== undefined && second !== undefined) add(first + second, 0.5)
+    }
+  }
+  add(normalized, 1)
+  return [...terms].map(([text, weight]) => ({ text, weight }))
+}
+
+/** Pattern fields the corpus format defines. */
+const PATTERN_FIELDS: ReadonlySet<string> = new Set([
+  'id', 'name', 'category', 'sub_category', 'summary', 'context', 'keywords',
+  'steps', 'examples', 'dos', 'donts', 'source_ref', 'quality', 'version',
+])
+
+/** Root fields allowed beside a `patterns` list. */
+const ROOT_FIELDS: ReadonlySet<string> = new Set(['patterns'])
+
+/** Step fields the corpus format defines. */
+const STEP_FIELDS: ReadonlySet<string> = new Set(['order', 'name', 'instruction', 'example'])
+
+/** Example fields the corpus format defines. */
+const EXAMPLE_FIELDS: ReadonlySet<string> = new Set(['text', 'context', 'note'])
+
+/** Principle fields the corpus format defines. */
+const PRINCIPLE_FIELDS: ReadonlySet<string> = new Set(['rule', 'example'])
+
+/**
+ * Reject keys the format does not define. A misspelled field would otherwise be
+ * dropped silently, leaving the pattern without the behavior its author
+ * intended; the known set is part of the error so the author can correct it.
+ */
+function rejectUnknownFields(
+  record: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  source: string,
+  field: string,
+): void {
+  const unknown = Object.keys(record).filter(key => !allowed.has(key)).sort()
+  if (unknown.length === 0) return
+  throw new PatternAssetError(
+    source,
+    `${field} 含未知字段：${unknown.join('、')}（可用字段：${[...allowed].join('、')}）`,
+  )
 }
 
 /** A YAML mapping. */
@@ -376,11 +457,12 @@ function optionalList(value: unknown, source: string, field: string): readonly u
   return value
 }
 
-/** Pattern steps. */
+/** Pattern steps: orders must be 1..n, unique; the result is in order. */
 function parseSteps(value: unknown, source: string, field: string): readonly PatternStep[] {
-  return optionalList(value, source, field).map((entry, index) => {
+  const steps = optionalList(value, source, field).map((entry, index) => {
     const at = `${field}[${index}]`
     const record = asRecord(entry, source, at)
+    rejectUnknownFields(record, STEP_FIELDS, source, at)
     const order = record['order']
     if (typeof order !== 'number' || !Number.isInteger(order) || order < 1) {
       throw new PatternAssetError(source, `${at}.order 必须是正整数`)
@@ -393,6 +475,27 @@ function parseSteps(value: unknown, source: string, field: string): readonly Pat
       ...(example !== undefined ? { example } : {}),
     }
   })
+  const orders = steps.map(step => step.order)
+  if (new Set(orders).size !== orders.length) {
+    throw new PatternAssetError(source, `${field} 的 order 必须唯一`)
+  }
+  const sorted = [...orders].sort((left, right) => left - right)
+  for (const [index, order] of sorted.entries()) {
+    if (order !== index + 1) {
+      throw new PatternAssetError(source, `${field} 的 order 必须从 1 开始连续`)
+    }
+  }
+  return [...steps].sort((left, right) => left.order - right.order)
+}
+
+/** Authored search synonyms: a list of non-empty strings. */
+function parseKeywords(value: unknown, source: string, field: string): readonly string[] {
+  return optionalList(value, source, field).map((entry, index) => {
+    if (typeof entry !== 'string' || entry.trim() === '') {
+      throw new PatternAssetError(source, `${field}[${index}] 必须是非空字符串`)
+    }
+    return entry.trim()
+  })
 }
 
 /** Pattern examples. */
@@ -400,6 +503,7 @@ function parseExamples(value: unknown, source: string, field: string): readonly 
   return optionalList(value, source, field).map((entry, index) => {
     const at = `${field}[${index}]`
     const record = asRecord(entry, source, at)
+    rejectUnknownFields(record, EXAMPLE_FIELDS, source, at)
     const context = optionalString(record, 'context', source, at)
     const note = optionalString(record, 'note', source, at)
     return {
@@ -415,6 +519,7 @@ function parsePrinciples(value: unknown, source: string, field: string): readonl
   return optionalList(value, source, field).map((entry, index) => {
     const at = `${field}[${index}]`
     const record = asRecord(entry, source, at)
+    rejectUnknownFields(record, PRINCIPLE_FIELDS, source, at)
     const example = optionalString(record, 'example', source, at)
     return {
       rule: requiredString(record, 'rule', source, at),

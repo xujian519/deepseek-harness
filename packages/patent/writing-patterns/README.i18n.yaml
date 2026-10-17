@@ -15,14 +15,14 @@
   en: 5a00d01e21b4fbd8
   zh: a8abc823b76c69dd
 /deepseek-ai-dsh-writing-patterns/query-writing-patterns-tool:
-  en: 31c9da857a824227
-  zh: 62d8f2e12780f2fa
+  en: 596b9513dc3c701f
+  zh: 1e578fbbad493191
 /deepseek-ai-dsh-writing-patterns/pattern-corpus-and-library-api:
-  en: df27210188705cbc
-  zh: 81156cc87fbd432a
+  en: 893d156e0254ea31
+  zh: 1b28ab8a19e151d3
 /deepseek-ai-dsh-writing-patterns/configuration:
-  en: ed649b439b382188
-  zh: 88338da1d371385a
+  en: 6a00eae5a0463f9c
+  zh: 494ce71df1e50065
 /deepseek-ai-dsh-writing-patterns/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
@@ -30,8 +30,8 @@
   en: 2240c4aa08c14767
   zh: 508a3279f077ef1e
 /deepseek-ai-dsh-writing-patterns/model-experience/query-writing-patterns-tool/what-the-model-sees:
-  en: 3f2140255fce3d68
-  zh: 98d976de3a477a6c
+  en: 98ed5c559529fb54
+  zh: bdc86fc80ecf0fcc
 /deepseek-ai-dsh-writing-patterns/model-experience/query-writing-patterns-tool/token-effect:
   en: 8d2b968b152c13eb
   zh: 22b29d7b29811df7
@@ -54,8 +54,8 @@
   en: e9cd276a58f76953
   zh: ca216007a65e0bec
 /deepseek-ai-dsh-writing-patterns/known-limitations-and-deferred-work:
-  en: 6d13183e137f4ca6
-  zh: 2edfd0e63c88f5db
+  en: de1d8ce984482f81
+  zh: beea903791d01f09
 /deepseek-ai-dsh-writing-patterns/known-limitations-and-deferred-work/dev-note:
   en: 0a1253c6f7b5e8b9
   zh: 48bdabcf5427b3a2
