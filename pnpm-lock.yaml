@@ -12952,6 +12952,9 @@ importers:
       '@deepseek-ai/nuo-patent':
         specifier: workspace:~
         version: link:../../../vendor/nuo-patent
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~

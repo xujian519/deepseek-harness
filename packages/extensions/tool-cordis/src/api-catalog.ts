@@ -5457,7 +5457,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Atom',
-    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n};',
+    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n    usesModel?: boolean;\n};',
   },
   {
     name: 'AtomCategory',
@@ -5657,15 +5657,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CniprChannelOptions',
-    declaration: 'export interface CniprChannelOptions {\n    session: CniprEgoSession;\n    timeoutMs?: number;\n    cwd?: string;\n}',
+    declaration: 'export interface CniprChannelOptions {\n    session: CniprEgoSession;\n    queue?: SerialQueue;\n    timeoutMs?: number;\n    cwd?: string;\n}',
   },
   {
     name: 'CniprChannelOverrides',
-    declaration: 'export type CniprChannelOverrides = Omit<CniprChannelOptions, \'session\'>;',
+    declaration: 'export type CniprChannelOverrides = Omit<CniprChannelOptions, \'session\' | \'queue\'>;',
   },
   {
     name: 'CniprEgoSession',
-    declaration: 'export interface CniprEgoSession {\n    checkAvailability: () => {\n        ok: boolean;\n        reason?: string;\n    };\n    runScript: (script: string, options: {\n        cwd: string;\n        timeoutMs?: number;\n        signal?: AbortSignal;\n    }) => Promise<{\n        output: string;\n        exitCode: number | null;\n        timedOut: boolean;\n    }>;\n    extractTaggedJson: (output: string, tag: string) => unknown;\n}',
+    declaration: 'export interface CniprEgoSession {\n    checkAvailability: () => {\n        ok: boolean;\n        reason?: string;\n    };\n    runScript: (script: string, options: {\n        cwd: string;\n        timeoutMs?: number;\n        signal?: AbortSignal;\n    }) => Promise<{\n        output: string;\n        stderr?: string;\n        exitCode: number | null;\n        timedOut: boolean;\n    }>;\n    extractTaggedJson: (output: string, tag: string) => unknown;\n}',
   },
   {
     name: 'CniprLegalRecord',
@@ -8022,6 +8022,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SerializedNode',
     declaration: 'export type SerializedNode = SerializedElement | string;',
+  },
+  {
+    name: 'SerialQueue',
+    declaration: 'export class SerialQueue {\n    async run<T>(task: () => Promise<T>): Promise<T>;\n}',
   },
   {
     name: 'ServerResponse',

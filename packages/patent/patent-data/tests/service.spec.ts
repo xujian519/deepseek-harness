@@ -110,6 +110,21 @@ describe('PatentData service', () => {
     })
   })
 
+  it('fails loud on an inverted timeout configuration instead of clamping every run', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    try {
+      expect(() => new PatentData(ctx, { defaultTimeoutMs: 90_000, maxTimeoutMs: 1_000 }))
+        .toThrow(/defaultTimeoutMs .* must not exceed maxTimeoutMs/)
+      expect(() => new PatentData(ctx, { maxOutputBytes: 0 }))
+        .toThrow(/maxOutputBytes must be a positive integer/)
+      expect(() => new PatentData(ctx, { commandName: '' }))
+        .toThrow(/commandName must not be empty/)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('builds a CNIPR channel where the deployment enabled it', async () => {
     const ctx = new Context()
     await ctx.plugin(LocalSubprocessRuntime)

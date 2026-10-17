@@ -9,6 +9,7 @@
  */
 
 import { CNIPR_LEGAL_TAG, CNIPR_PDF_TAG, CNIPR_SEARCH_TAG, buildCniprLegalScript, buildCniprPdfLinksScript, buildCniprSearchScript } from './cnipr-script.ts'
+import { SerialQueue } from './serial-queue.ts'
 import {
   alignCniprResults,
   planCniprLegalQueries,
@@ -69,14 +70,16 @@ export class CniprChannelError extends Error {
  */
 export class CniprChannel {
   private readonly session: CniprEgoSession
+  private readonly queue: SerialQueue
   private readonly timeoutMs: number | undefined
   private readonly cwd: string
 
   /**
-   * @param options - 注入的 ego 会话、单次运行的期限与工作目录。
+   * @param options - 注入的 ego 会话、共享串行队列、单次运行的期限与工作目录。
    */
   constructor(options: CniprChannelOptions) {
     this.session = options.session
+    this.queue = options.queue ?? new SerialQueue()
     this.timeoutMs = options.timeoutMs
     this.cwd = options.cwd ?? process.cwd()
   }
@@ -132,26 +135,32 @@ export class CniprChannel {
 
   /** 运行一个脚本并取回未校验的载荷；通道级失败在这里分类。 */
   private async run(script: string, tag: string, options: CniprCallOptions): Promise<unknown> {
-    const availability = this.session.checkAvailability()
-    if (!availability.ok) {
-      throw new CniprChannelError('setup_required', availability.reason ?? 'ego-browser 不可用；请先安装 ego lite 并完成首次引导。')
-    }
-    const timeoutMs = options.timeoutMs ?? this.timeoutMs
-    const result = await this.session.runScript(script, {
-      cwd: this.cwd,
-      ...(timeoutMs === undefined ? {} : { timeoutMs }),
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    return this.queue.run(async () => {
+      // 排队期间调用方可能已取消：拿到执行权后先检查，避免启动一个已作废的浏览器脚本。
+      options.signal?.throwIfAborted()
+      const availability = this.session.checkAvailability()
+      if (!availability.ok) {
+        throw new CniprChannelError('setup_required', availability.reason ?? 'ego-browser 不可用；请先安装 ego lite 并完成首次引导。')
+      }
+      const timeoutMs = options.timeoutMs ?? this.timeoutMs
+      const result = await this.session.runScript(script, {
+        cwd: this.cwd,
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      })
+      if (result.timedOut) {
+        throw new CniprChannelError('timeout', `CNIPR 脚本超出期限（exit ${result.exitCode ?? 'null'}）`)
+      }
+      // 合并输出按头部截断，脚本的收据写在末尾时可能已被截掉；stderr 原样保留。
+      const payload = this.session.extractTaggedJson(result.output, tag)
+        ?? this.session.extractTaggedJson(result.stderr ?? '', tag)
+      if (payload === null || payload === undefined) {
+        throw new CniprChannelError(
+          'receipt_missing',
+          `脚本未回传 ${tag} 收据（exit ${result.exitCode ?? 'null'}）：${result.output.slice(-OUTPUT_TAIL_LENGTH)}`,
+        )
+      }
+      return payload
     })
-    if (result.timedOut) {
-      throw new CniprChannelError('timeout', `CNIPR 脚本超出期限（exit ${result.exitCode ?? 'null'}）`)
-    }
-    const payload = this.session.extractTaggedJson(result.output, tag)
-    if (payload === null || payload === undefined) {
-      throw new CniprChannelError(
-        'receipt_missing',
-        `脚本未回传 ${tag} 收据（exit ${result.exitCode ?? 'null'}）：${result.output.slice(-OUTPUT_TAIL_LENGTH)}`,
-      )
-    }
-    return payload
   }
 }

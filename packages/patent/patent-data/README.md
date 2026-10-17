@@ -24,7 +24,7 @@ The `PatentData` service injects `subprocess` and exposes three capability metho
 
 ### createSearchProvider(options?)
 
-Builds a nuo-backed `StageProvider` whose `search(query, { maxResults })` maps source hits to the `{ title, snippet, url }` stage vocabulary. Without `options.search` it wraps the nuo `searchPatents` in the LRU cache, so a repeated query within the TTL reuses the cached result instead of re-spawning the network path.
+Builds a nuo-backed `StageProvider` whose `search(query, { maxResults })` maps source hits to the `{ title, snippet, url }` stage vocabulary. Without `options.search` it wraps the nuo `searchPatents` in the LRU cache, so a repeated query within the TTL reuses the cached result instead of re-spawning the network path; only non-empty successful answers are stored, so a parse-degraded zero-hit reply cannot pin a transient failure for the whole TTL.
 
 ### createEgoSession(options?)
 
@@ -44,8 +44,8 @@ cordis.yml `Config` declares the ego-browser values a deployment varies; a per-c
 | `probeTimeoutMs` | `8000` | Connection-probe timeout in milliseconds. |
 | `defaultTimeoutMs` | `90000` | Default run timeout in milliseconds. |
 | `maxTimeoutMs` | `300000` | Hard cap for a per-run timeout. |
-| `maxOutputBytes` | `500000` | Soft cap in bytes for the merged output. |
-| `nuoRequestChannel` | `auto` | Channel nuo's requests travel over: `auto` keeps nuo's own availability probe, `native` forces the plain fetch, `browser` the ego-browser path. Either explicit value writes the process-wide `NUO_PATENT_EGO_BROWSER`, because that variable is the only switch nuo exposes. |
+| `maxOutputBytes` | `500000` | Soft cap in bytes for the merged output; truncation keeps whole UTF-8 characters. |
+| `nuoRequestChannel` | `auto` | Channel nuo's requests travel over: `auto` keeps nuo's own availability probe and leaves the environment untouched, `native` forces the plain fetch, `browser` the ego-browser path. Either explicit value writes the process-wide `NUO_PATENT_EGO_BROWSER`, because that variable is the only switch nuo exposes; the service restores the value it replaced when it disposes. The variable is process-wide, so explicit choices from multiple mounts are last-writer-wins. |
 | `cniprEnabled` | `false` | Whether the deployment may serve Chinese patent full text and legal status through CNIPR. The channel reuses the ego lite login state on `search.cnipr.com`, so a deployment without that session gains nothing by enabling it; `createCniprChannel()` returns nothing, and the consuming tool keeps searching through the nuo engine and names the channel it used. |
 
 The remaining options are per-call only: they are test seams or values this service cannot know.
@@ -54,7 +54,7 @@ The remaining options are per-call only: they are test seams or values this serv
 | --- | --- | --- | --- |
 | `createSearchProvider` | `search` | LRU-cached nuo `searchPatents` | Underlying search function injection. |
 | `createEgoSession` | `homeDir` | `os.homedir()` | Home directory locating `~/.local/bin`. |
-| `createEgoSession` | `pathEntries` | `[<home>/.local/bin]` | Extra PATH directories injected into the spawn env. |
+| `createEgoSession` | `pathEntries` | `[<home>/.local/bin]` | Extra PATH directories injected into the spawn env and checked by the availability probe. |
 | `createEgoSession` | `platform` | `process.platform` | Platform override. |
 | `createEgoSession` | `env` | `process.env` | Environment override. |
 | `createEgoSession` | `runner` | subprocess-backed runner | Spawn runner injection for tests. |
@@ -73,9 +73,11 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 
 - **External `ego-browser` CLI dependency** — the anti-crawl scrape path needs the external `ego-browser` (ego-lite) CLI installed and on the PATH (macOS only); the package ships no ego-browser script assets (Sati's `skills/ego-browser/` holds only learnings), so site anti-crawl upgrades are maintained outside this package.
 - **nuo's browser path breaks search when a JSON viewer extension is installed** — `fetchHtml` prefers the ego-browser path whenever that CLI is installed on macOS, so leaving `NUO_PATENT_EGO_BROWSER` unset is not the same as staying on the plain fetch. In that path a browser JSON-viewer extension renders the search XHR's `application/json` response as HTML: `parseSearchResultsJson` receives no JSON, the HTML fallback parses no hit, and `patent_search` returns zero results carrying only a non-fatal warning. Measured 2026-10-03 on the same proxy: three queries returned zero hits through the browser path and ten hits each through the plain fetch. Set `nuoRequestChannel: native` where search must work (the patent preset does); the choice is process-wide because nuo exposes it only as an environment variable.
-- **CNIPR channel scope and upkeep** — the channel drives `search.cnipr.com` through ego lite, so it needs that login state and it inherits the platform's limits: the site states it does not support scraping, which is why the channel takes one number at a time through ordinary page interaction and never batches or parallelizes. Its page contracts (search box, detail-search POST, legal-status form, the result-row fields, the `pic.cnipr.com/pdfcn/...` link pattern) are the site's, so a site change surfaces as `page_state` on the first call rather than as a silent empty answer — the receipt either parses or it does not. Legal-status records come from the results page text, and a page that lists no records yields a null count rather than an invented zero. Search reads the result rows directly (they carry title, applicant, publication date, and abstract, so no per-record detail fetch is needed); the page shows ten rows and its 20/30-row options are refused for this deployment's account tier, so a larger `limit` is served by turning the site's own result pages, capped at three pages per call.
+- **CNIPR channel scope and upkeep** — the channel drives `search.cnipr.com` through ego lite, so it needs that login state and it inherits the platform's limits: the site states it does not support scraping, which is why the channel takes one number at a time through ordinary page interaction and never batches or parallelizes. The channels created by one `PatentData` service share a serial queue, because every script reuses the same named task space and tab; concurrent tool calls in that service wait instead of driving the same page. The queue is service-scoped: separate dsh processes, and multiple services mounted against one ego lite profile, can still collide, so a deployment should run one CNIPR-serving patent-data mount per ego profile. Its page contracts (search box, detail-search POST, legal-status form, the result-row fields, the `pic.cnipr.com/pdfcn/...` link pattern) are the site's, so a site change surfaces as `page_state` on the first call rather than as a silent empty answer — the receipt either parses or it does not. Legal-status records come from the results page text, and a page that lists no records yields a null count rather than an invented zero. Search reads the result rows directly (they carry title, applicant, publication date, and abstract, so no per-record detail fetch is needed); the page shows ten rows and its 20/30-row options are refused for this deployment's account tier, so a larger `limit` is served by turning the site's own result pages, capped at three pages per call.
 - **Consumer wiring** — the search provider and ego-session runner are consumed by `dsh-patent-tools` (patent_search/metadata/legal_status and patent_pdf_download); the CNIPR channel is consumed by `patent_pdf_download` (China full text), `patent_legal_status` (China legal-status records), and `patent_search` (China keyword search when the engine fails or returns no hits). The cache, mapper, persistence, and path modules stay library exports for those consumers.
 
 ### Dev Note
 
 None.
+
+This package publishes no invariant companion: the data seam serves callers on demand and holds no package-owned persistent event stream; search and ego-browser runs are consumed by the tool layer, which owns the model-visible and session-log relationship.

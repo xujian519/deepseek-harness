@@ -12,6 +12,7 @@ describe('@deepseek-ai/dsh-patent-data surface', () => {
     expect(typeof Pkg.AsyncResultCache).toBe('function')
     expect(typeof Pkg.cachedSearchPatents).toBe('function')
     expect(typeof Pkg.cachedScrapePatent).toBe('function')
+    expect(typeof Pkg.SerialQueue).toBe('function')
     expect(typeof Pkg.isSearchResultCacheable).toBe('function')
     expect(typeof Pkg.isScrapeResultCacheable).toBe('function')
     expect(typeof Pkg.searchCacheKey).toBe('function')

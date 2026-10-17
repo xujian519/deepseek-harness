@@ -201,6 +201,12 @@ describe('isSearchResultCacheable / isScrapeResultCacheable', () => {
     expect(isSearchResultCacheable(makeSearchResult({ warnings: ['搜索结果页未解析到任何结果'] }))).toBe(true)
   })
 
+  it('does not cache an empty result, even without a failure warning', () => {
+    // 解析降级会以非致命告警返回零命中；缓存它会把一次瞬时失败固定成整个 TTL 的答案。
+    expect(isSearchResultCacheable(makeSearchResult({ hits: [], total: 0 }))).toBe(false)
+    expect(isSearchResultCacheable(makeSearchResult({ hits: [], total: 0, warnings: ['搜索结果页未解析到任何结果'] }))).toBe(false)
+  })
+
   it('caches a successful scrape only', () => {
     expect(isScrapeResultCacheable(makeScrapeResult())).toBe(true)
     expect(isScrapeResultCacheable(makeScrapeResult({ success: false, errorCode: 'NOT_FOUND' }))).toBe(false)
@@ -239,6 +245,18 @@ describe('cachedSearchPatents / cachedScrapePatent', () => {
     const impl = async () => {
       calls += 1
       return makeSearchResult({ hits: [], total: 0, warnings: ['检索失败: network down'] })
+    }
+    const wrapped = cachedSearchPatents(impl)
+    await wrapped('thermal')
+    await wrapped('thermal')
+    expect(calls).toBe(2)
+  })
+
+  it('does not cache an empty search result', async () => {
+    let calls = 0
+    const impl = async () => {
+      calls += 1
+      return makeSearchResult({ hits: [], total: 0, warnings: ['搜索结果页未解析到任何结果'] })
     }
     const wrapped = cachedSearchPatents(impl)
     await wrapped('thermal')

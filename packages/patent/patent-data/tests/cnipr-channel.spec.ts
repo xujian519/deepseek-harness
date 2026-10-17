@@ -1,11 +1,19 @@
 // CNIPR 通道：可用性与期限的分类、收据缺失的收敛、号码级结果的对齐，以及
 // 会话选项（cwd / 期限 / 取消信号）的透传。
 import { describe, expect, it } from 'vitest'
-import { CniprChannel, CniprChannelError } from '@deepseek-ai/dsh-patent-data'
+import { CniprChannel, CniprChannelError, SerialQueue } from '@deepseek-ai/dsh-patent-data'
 import type { CniprEgoSession } from '@deepseek-ai/dsh-patent-data'
 
 /** 一次脚本运行的记录：断言通道传给会话的脚本体与选项。 */
 type ScriptRun = { script: string; options: { cwd: string; timeoutMs?: number; signal?: AbortSignal } }
+
+/** Minimal receipt parser shared by the fake sessions (production uses `EgoBrowserSession`). */
+function parseTagged(raw: string, tag: string): unknown {
+  const prefix = `EGO_${tag}:`
+  const idx = raw.indexOf(prefix)
+  if (idx < 0) return null
+  return JSON.parse(raw.slice(idx + prefix.length))
+}
 
 /** 回放固定输出的假会话，并记录每次运行；`output` 由各处用例给出。 */
 function fakeSession(output: string, overrides: Partial<CniprEgoSession> = {}): { session: CniprEgoSession; runs: ScriptRun[] } {
@@ -16,12 +24,7 @@ function fakeSession(output: string, overrides: Partial<CniprEgoSession> = {}): 
       runs.push({ script, options })
       return { output, exitCode: 0, timedOut: false }
     },
-    extractTaggedJson: (raw: string, tag: string): unknown => {
-      const prefix = `EGO_${tag}:`
-      const idx = raw.indexOf(prefix)
-      if (idx < 0) return null
-      return JSON.parse(raw.slice(idx + prefix.length))
-    },
+    extractTaggedJson: parseTagged,
     ...overrides,
   }
   return { session, runs }
@@ -29,6 +32,13 @@ function fakeSession(output: string, overrides: Partial<CniprEgoSession> = {}): 
 
 function tagged(tag: string, payload: unknown): string {
   return `unrelated\nEGO_${tag}:${JSON.stringify(payload)}\n`
+}
+
+/** One-shot gate used to sequence a fake run without relying on timer delays. */
+function gate(): { promise: Promise<void>; open: () => void } {
+  let open: () => void = () => {}
+  const promise = new Promise<void>((resolve) => { open = resolve })
+  return { promise, open }
 }
 
 describe('CniprChannel.pdfLinks', () => {
@@ -193,6 +203,134 @@ describe('CniprChannel run gating', () => {
     await new CniprChannel({ session }).pdfLinks(['CN122072823A'])
 
     expect(runs[0]?.options).toMatchObject({ cwd: process.cwd() })
+  })
+
+  it('recovers a receipt from the raw stderr when the merged output was truncated', async () => {
+    const { session } = fakeSession('', {
+      runScript: async () => ({
+        output: 'stdout progress without the receipt',
+        stderr: tagged('CNIPR_PDFLINKS', {
+          items: [{ number: 'CN122072823A', matches: ['pic.cnipr.com/pdfcn/a/x.PDF'] }],
+        }),
+        exitCode: 0,
+        timedOut: false,
+      }),
+    })
+
+    const items = await new CniprChannel({ session }).pdfLinks(['CN122072823A'])
+
+    expect(items[0]).toEqual({
+      number: 'CN122072823A',
+      urls: ['http://pic.cnipr.com/pdfcn/a/x.PDF'],
+      unexamined: false,
+      authorized: false,
+    })
+  })
+
+  it('rejects a malformed receipt instead of reporting every number as missing', async () => {
+    const { session } = fakeSession(tagged('CNIPR_PDFLINKS', { items: 'nope' }))
+
+    await expect(new CniprChannel({ session }).pdfLinks(['CN122072823A'])).rejects.toMatchObject({
+      code: 'page_state',
+      detail: 'CNIPR 脚本收据缺少 items 数组',
+    })
+  })
+})
+
+describe('CniprChannel shared-task-space serialization', () => {
+  /** One fake run that records its lifecycle and optionally waits on a gate. */
+  function gatedSession(label: string, events: string[], wait?: Promise<void>, started?: () => void): CniprEgoSession {
+    return {
+      checkAvailability: () => ({ ok: true }),
+      runScript: async () => {
+        events.push(`start:${label}`)
+        started?.()
+        if (wait !== undefined) await wait
+        events.push(`end:${label}`)
+        return { output: tagged('CNIPR_PDFLINKS', { items: [] }), exitCode: 0, timedOut: false }
+      },
+      extractTaggedJson: parseTagged,
+    }
+  }
+
+  it('does not start a second run while the first still holds the shared queue', async () => {
+    const events: string[] = []
+    const firstGate = gate()
+    const secondStarted = gate()
+    const queue = new SerialQueue()
+    const first = new CniprChannel({ session: gatedSession('first', events, firstGate.promise), queue })
+      .pdfLinks(['CN122072823A'])
+    await Promise.resolve()
+    const second = new CniprChannel({
+      session: gatedSession('second', events, undefined, secondStarted.open),
+      queue,
+    }).pdfLinks(['CN100000000A'])
+    await Promise.resolve()
+
+    expect(events).toEqual(['start:first'])
+    firstGate.open()
+    await Promise.all([first, second])
+    await secondStarted.promise
+    expect(events).toEqual(['start:first', 'end:first', 'start:second', 'end:second'])
+  })
+
+  it('runs channels with separate queues independently', async () => {
+    const events: string[] = []
+    const firstGate = gate()
+    const secondStarted = gate()
+    const first = new CniprChannel({ session: gatedSession('first', events, firstGate.promise), queue: new SerialQueue() })
+      .pdfLinks(['CN122072823A'])
+    await Promise.resolve()
+    const second = new CniprChannel({
+      session: gatedSession('second', events, undefined, secondStarted.open),
+      queue: new SerialQueue(),
+    }).pdfLinks(['CN100000000A'])
+
+    // 第二个通道拥有自己的队列，不等待第一个通道的门闩。
+    await secondStarted.promise
+    expect(events).toEqual(['start:first', 'start:second', 'end:second'])
+    firstGate.open()
+    await Promise.all([first, second])
+  })
+
+  it('releases the queue after a failed run', async () => {
+    const queue = new SerialQueue()
+    const failed = fakeSession('', {
+      runScript: async () => ({ output: 'no receipt', exitCode: 1, timedOut: false }),
+    })
+    const next = fakeSession(tagged('CNIPR_PDFLINKS', { items: [] }))
+
+    await expect(new CniprChannel({ session: failed.session, queue }).pdfLinks(['CN122072823A']))
+      .rejects.toMatchObject({ code: 'receipt_missing' })
+    await expect(new CniprChannel({ session: next.session, queue }).pdfLinks(['CN100000000A'])).resolves.toHaveLength(1)
+  })
+
+  it('does not start an aborted call after it reaches the front of the queue', async () => {
+    const events: string[] = []
+    const firstGate = gate()
+    const queue = new SerialQueue()
+    const controller = new AbortController()
+    const secondRuns: string[] = []
+    const second = fakeSession(tagged('CNIPR_PDFLINKS', { items: [] }))
+    const secondSession: CniprEgoSession = {
+      ...second.session,
+      runScript: async (script, options) => {
+        secondRuns.push(script)
+        return second.session.runScript(script, options)
+      },
+    }
+
+    const first = new CniprChannel({ session: gatedSession('first', events, firstGate.promise), queue })
+      .pdfLinks(['CN122072823A'])
+    await Promise.resolve()
+    const blocked = new CniprChannel({ session: secondSession, queue })
+      .pdfLinks(['CN100000000A'], { signal: controller.signal })
+    controller.abort()
+    firstGate.open()
+
+    await expect(blocked).rejects.toThrow()
+    await first
+    expect(secondRuns).toEqual([])
   })
 })
 

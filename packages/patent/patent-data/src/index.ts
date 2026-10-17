@@ -22,6 +22,7 @@ import {
 import { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
 import { applyNuoRequestChannel } from './nuo-channel.ts'
 import { CniprChannel } from './cnipr-channel.ts'
+import { SerialQueue } from './serial-queue.ts'
 import { NUO_REQUEST_CHANNELS } from './types.ts'
 import type { CniprChannelOverrides, CreateNuoSearchProviderOptions, EgoSessionOptions, NuoRequestChannel } from './types.ts'
 
@@ -47,6 +48,7 @@ export {
 export { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
 export { applyNuoRequestChannel, NUO_EGO_BROWSER_ENV } from './nuo-channel.ts'
 export { CniprChannel, CniprChannelError } from './cnipr-channel.ts'
+export { SerialQueue } from './serial-queue.ts'
 export {
   CNIPR_LEGAL_TAG,
   CNIPR_PDF_TAG,
@@ -172,23 +174,30 @@ export class PatentData extends Service {
 
   /** Schemastery configuration for the sessions and runners this service builds. */
   static Config: z<Config> = z.object({
-    commandName: z.string().default(DEFAULT_EGO_COMMAND_NAME),
-    probeTimeoutMs: z.natural().default(DEFAULT_EGO_PROBE_TIMEOUT_MS),
-    defaultTimeoutMs: z.natural().default(DEFAULT_EGO_TIMEOUT_MS),
-    maxTimeoutMs: z.natural().default(DEFAULT_EGO_MAX_TIMEOUT_MS),
-    maxOutputBytes: z.natural().default(DEFAULT_EGO_MAX_OUTPUT_BYTES),
+    commandName: z.string().min(1).default(DEFAULT_EGO_COMMAND_NAME),
+    probeTimeoutMs: z.natural().min(1).default(DEFAULT_EGO_PROBE_TIMEOUT_MS),
+    defaultTimeoutMs: z.natural().min(1).default(DEFAULT_EGO_TIMEOUT_MS),
+    maxTimeoutMs: z.natural().min(1).default(DEFAULT_EGO_MAX_TIMEOUT_MS),
+    maxOutputBytes: z.natural().min(1).default(DEFAULT_EGO_MAX_OUTPUT_BYTES),
     nuoRequestChannel: z.union(NUO_REQUEST_CHANNELS).default('auto'),
     cniprEnabled: z.boolean().default(false),
   })
 
   private readonly egoDefaults: ResolvedEgoDefaults
+  private readonly cniprRuns = new SerialQueue()
   private readonly cniprEnabled: boolean
 
   constructor(ctx: Context, config: Config = {}) {
+    // Resolve and validate before super() registers the service: an invalid
+    // mount must fail without leaving a half-registered ctx.patentData behind.
+    const egoDefaults = resolveEgoDefaults(config)
     super(ctx, 'patentData')
-    this.egoDefaults = resolveEgoDefaults(config)
+    this.egoDefaults = egoDefaults
     this.cniprEnabled = config.cniprEnabled ?? false
-    applyNuoRequestChannel(config.nuoRequestChannel ?? 'auto')
+    const restoreNuoChannel = applyNuoRequestChannel(config.nuoRequestChannel ?? 'auto')
+    if (restoreNuoChannel !== undefined) {
+      ctx.effect(() => restoreNuoChannel, 'patent-data: nuo request channel')
+    }
   }
 
   /**
@@ -223,24 +232,52 @@ export class PatentData extends Service {
    */
   createCniprChannel(options?: CniprChannelOverrides): CniprChannel | undefined {
     if (!this.cniprEnabled) return undefined
-    return new CniprChannel({ session: this.createEgoSession(), ...options })
+    return new CniprChannel({ session: this.createEgoSession(), queue: this.cniprRuns, ...options })
   }
 }
 
 /**
  * Resolve the ego-browser defaults: the validated Config fields, each falling
  * back to the value the seam shipped before it was configurable.
+ *
+ * The checks repeat the schema's constraints because a direct constructor call
+ * bypasses cordis' validation; a zero or inverted deadline would otherwise turn
+ * every run into an immediate timeout instead of failing at load.
  * @param config - the service's validated configuration.
  * @returns the ego-browser defaults the service builds every session over.
+ * @throws when a value is not a positive integer or the run default exceeds its cap.
  */
 function resolveEgoDefaults(config: Config): ResolvedEgoDefaults {
-  return {
+  const resolved: ResolvedEgoDefaults = {
     commandName: config.commandName ?? DEFAULT_EGO_COMMAND_NAME,
-    probeTimeoutMs: config.probeTimeoutMs ?? DEFAULT_EGO_PROBE_TIMEOUT_MS,
-    defaultTimeoutMs: config.defaultTimeoutMs ?? DEFAULT_EGO_TIMEOUT_MS,
-    maxTimeoutMs: config.maxTimeoutMs ?? DEFAULT_EGO_MAX_TIMEOUT_MS,
-    maxOutputBytes: config.maxOutputBytes ?? DEFAULT_EGO_MAX_OUTPUT_BYTES,
+    probeTimeoutMs: positiveInteger('probeTimeoutMs', config.probeTimeoutMs ?? DEFAULT_EGO_PROBE_TIMEOUT_MS),
+    defaultTimeoutMs: positiveInteger('defaultTimeoutMs', config.defaultTimeoutMs ?? DEFAULT_EGO_TIMEOUT_MS),
+    maxTimeoutMs: positiveInteger('maxTimeoutMs', config.maxTimeoutMs ?? DEFAULT_EGO_MAX_TIMEOUT_MS),
+    maxOutputBytes: positiveInteger('maxOutputBytes', config.maxOutputBytes ?? DEFAULT_EGO_MAX_OUTPUT_BYTES),
   }
+  if (resolved.commandName.length === 0) {
+    throw new Error('patent-data Config: commandName must not be empty')
+  }
+  if (resolved.defaultTimeoutMs > resolved.maxTimeoutMs) {
+    throw new Error(
+      `patent-data Config: defaultTimeoutMs (${resolved.defaultTimeoutMs}) must not exceed maxTimeoutMs (${resolved.maxTimeoutMs})`,
+    )
+  }
+  return resolved
+}
+
+/**
+ * Require a positive integer configuration value.
+ * @param name - the Config field name used in the error message.
+ * @param value - the value to check.
+ * @returns the value unchanged.
+ * @throws when the value is not an integer of at least 1.
+ */
+function positiveInteger(name: string, value: number): number {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`patent-data Config: ${name} must be a positive integer, got ${String(value)}`)
+  }
+  return value
 }
 
 declare module '@deepseek-ai/cordis' {
