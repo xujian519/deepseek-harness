@@ -59,9 +59,11 @@ The [format references](persistence-changes/historical-formats/README.md) cover 
 | `event:patent-teams/task-validated` | event | `3de55eacf0f371e68d78f99aad63fd0a8b72e6f64d1acc1c1392f0e30dd475c8` | [`{ type: "patent-teams/task-validated" }`](#persistence-type-sha256-3de55eacf0f371e68d78f99aad63fd0a8b72e6f64d1acc1c1392f0e30dd475c8) |
 | `event:patent-teams/team-created` | event | `d3403e99eac7930bea2f320fece4f5170255ed812c6bdb5c0b2057e5c8d47010` | [`{ type: "patent-teams/team-created" }`](#persistence-type-sha256-d3403e99eac7930bea2f320fece4f5170255ed812c6bdb5c0b2057e5c8d47010) |
 | `event:patent-teams/team-deleted` | event | `6ccaff85d31459a300c449653602514c34489d856e2e1bc31d9a27b77e634d95` | [`{ type: "patent-teams/team-deleted" }`](#persistence-type-sha256-6ccaff85d31459a300c449653602514c34489d856e2e1bc31d9a27b77e634d95) |
+| `event:patent/evidence-ledger` | event | `21a8536f828f11e9faf08635fe52956af4ee6017ef8983cbd91defb41bac4288` | [`{ type: "patent/evidence-ledger" }`](#persistence-type-sha256-21a8536f828f11e9faf08635fe52956af4ee6017ef8983cbd91defb41bac4288) |
+| `event:patent/legal-gaps` | event | `790077a8f3ba90b34c4283a4b38b878b4e10af2cd53120f8f5da747c108932a9` | [`{ type: "patent/legal-gaps" }`](#persistence-type-sha256-790077a8f3ba90b34c4283a4b38b878b4e10af2cd53120f8f5da747c108932a9) |
 | `event:patent/model-call` | event | `9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0` | [`{ type: "patent/model-call" }`](#persistence-type-sha256-9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0) |
 | `event:patent/plantask` | event | `21031fbcbdff405ad47179a7acc9fb7bcf70e838ee106d70f7aa26604fb61ce5` | [`{ type: "patent/plantask" }`](#persistence-type-sha256-21031fbcbdff405ad47179a7acc9fb7bcf70e838ee106d70f7aa26604fb61ce5) |
-| `event:patent/workflow-run` | event | `81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da` | [`{ type: "patent/workflow-run" }`](#persistence-type-sha256-81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da) |
+| `event:patent/workflow-run` | event | `e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6` | [`{ type: "patent/workflow-run" }`](#persistence-type-sha256-e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6) |
 | `event:permission/preset` | event | `5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b` | [`{ type: "permission/preset" }`](#persistence-type-sha256-5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b) |
 | `event:plan/mode` | event | `a7cf43ce7c2a4c038feed1885cd7a00d5c6ee2d90a7e0d56b46f78a3e1ca327f` | [`{ type: "plan/mode" }`](#persistence-type-sha256-a7cf43ce7c2a4c038feed1885cd7a00d5c6ee2d90a7e0d56b46f78a3e1ca327f) |
 | `event:request/context` | event | `37cbc9cf06d494cfe5c67f078af1605eacb8e4c2c853e9e26455b73de0ee7ccf` | [`{ type: "request/context" }`](#persistence-type-sha256-37cbc9cf06d494cfe5c67f078af1605eacb8e4c2c853e9e26455b73de0ee7ccf) |
@@ -748,6 +750,39 @@ Source: [`packages/api/session-controller/src/types.ts:41`](../packages/api/sess
 
 ### `patent/*`
 
+<a id="patentevidence-ledger--log-only"></a>
+
+#### `patent/evidence-ledger` — log-only
+
+```ts persistence-catalog
+/**
+ * A workflow run recorded the evidence sources it consumed. Carries one
+ * receipt per source with a stable citation id (`D1`, `EV-1`, `MATERIAL`,
+ * …), so citations in the run's conclusion can be traced back to a
+ * document from the log alone. Log-only.
+ * @param event - the evidence ledger appended to the session log.
+ */
+'patent/evidence-ledger': PatentEvidenceLedgerEvent
+```
+
+Source: [`packages/patent/patent-workflow/src/types.ts:44`](../packages/patent/patent-workflow/src/types.ts)
+
+<a id="patentlegal-gaps--log-only"></a>
+
+#### `patent/legal-gaps` — log-only
+
+```ts persistence-catalog
+/**
+ * The legal-gaps stage finished. Carries the model-visible provision-level
+ * report (passed / failed / not assessed with reviewable evidence), so a
+ * run's legal-gap summary is reconstructable from the log alone. Log-only.
+ * @param event - the legal-gaps report appended to the session log.
+ */
+'patent/legal-gaps': PatentLegalGapsEvent
+```
+
+Source: [`packages/patent/patent-workflow/src/types.ts:36`](../packages/patent/patent-workflow/src/types.ts)
+
 <a id="patentmodel-call--log-only"></a>
 
 #### `patent/model-call` — log-only
@@ -766,7 +801,7 @@ Source: [`packages/api/session-controller/src/types.ts:41`](../packages/api/sess
 'patent/model-call': PatentModelCallEvent
 ```
 
-Source: [`packages/patent/patent-workflow/src/types.ts:40`](../packages/patent/patent-workflow/src/types.ts)
+Source: [`packages/patent/patent-workflow/src/types.ts:55`](../packages/patent/patent-workflow/src/types.ts)
 
 <a id="patentplantask--log-only"></a>
 
@@ -2034,6 +2069,14 @@ SHA-256: `14230f9b8b5797bb7e8c621fa636531cfbde2ffba1ef5f1fd058216ff21952a0`
 
 `"chunk"`
 
+<a id="persistence-type-sha256-7309ea217ac28f1f2a5067f1cf3a0dc9c71fdea9610d3322199baf6d7e3e093b"></a>
+
+### `"claims"`
+
+SHA-256: `7309ea217ac28f1f2a5067f1cf3a0dc9c71fdea9610d3322199baf6d7e3e093b`
+
+`"claims"`
+
 <a id="persistence-type-sha256-aff60ef947c18b012644852bdd0d5bfe72065e061dd563787c76c646b4a10f6b"></a>
 
 ### `"claude-code"`
@@ -2129,6 +2172,30 @@ SHA-256: `d9196086e41e4dd5c2ce87f5c25529c8112a1731d258cf0728747d41a9ee3241`
 SHA-256: `1ebc6f9ff3aa9e3a38f8695f49bacdab1f8b7a3832741853ca46f40af56ccd01`
 
 `"completed"`
+
+<a id="persistence-type-sha256-afbf3cba6bdf42c94b9ea80726e62794e9b510097bf07191bf163d7c31ab6c37"></a>
+
+### `"conflicting-application"`
+
+SHA-256: `afbf3cba6bdf42c94b9ea80726e62794e9b510097bf07191bf163d7c31ab6c37`
+
+`"conflicting-application"`
+
+<a id="persistence-type-sha256-05e83082c4cf603c2ee130c7c4826d5a13974ef0a1a6510debe19fecfa5d3d02"></a>
+
+### `"conflicting-application-excluded"`
+
+SHA-256: `05e83082c4cf603c2ee130c7c4826d5a13974ef0a1a6510debe19fecfa5d3d02`
+
+`"conflicting-application-excluded"`
+
+<a id="persistence-type-sha256-5cc1abd5c814451610e3658d80693faa9d73e211c0220568fc908d24b519a85a"></a>
+
+### `"conflicting-application-unknown"`
+
+SHA-256: `5cc1abd5c814451610e3658d80693faa9d73e211c0220568fc908d24b519a85a`
+
+`"conflicting-application-unknown"`
 
 <a id="persistence-type-sha256-e5d3828df1ec3e2a66879de0659e0f4866d9cfffc00825ee731a66f8a0c03d98"></a>
 
@@ -2257,6 +2324,14 @@ SHA-256: `a2be0f0cb59f0d4a06557d45847d1938aced238baa77a6da416e590b8b958553`
 SHA-256: `e42b0f40b5d0b628c6e1c44a8fb9eda0780037a81959e1b93d2dfb47b46b0e87`
 
 `"every"`
+
+<a id="persistence-type-sha256-93c1d1defe0f8503499fca70e5ec4c4351c58e0bd43f64dcf25de0205c06e5ca"></a>
+
+### `"evidence"`
+
+SHA-256: `93c1d1defe0f8503499fca70e5ec4c4351c58e0bd43f64dcf25de0205c06e5ca`
+
+`"evidence"`
 
 <a id="persistence-type-sha256-00d6bc972a699d18bd0c4441d9983656491685bd7774db0506384e0a3a2328eb"></a>
 
@@ -2632,6 +2707,14 @@ SHA-256: `7323b652385626ddcc2507d8309bcf7db97854bae245ce5bc6837659dc56dfe2`
 
 `"low-confidence"`
 
+<a id="persistence-type-sha256-f8398e341cabbdaeb97dd2503cc033ec2234d273b1ccf4f927a5d116ca11700a"></a>
+
+### `"material"`
+
+SHA-256: `f8398e341cabbdaeb97dd2503cc033ec2234d273b1ccf4f927a5d116ca11700a`
+
+`"material"`
+
 <a id="persistence-type-sha256-68141cbe3994a5ffcd064c07c75996538437fd9dbf77ce8a2927e89ec577fabe"></a>
 
 ### `"max-tokens"`
@@ -2832,6 +2915,22 @@ SHA-256: `7943d3ba0cb0613072cd485d08d701239f637544eff4d93b60e6c9bf3f30b221`
 
 `"patent-teams/team-deleted"`
 
+<a id="persistence-type-sha256-3573fa435ec677b190fe8f5eeba5bc6cc3fd903da91547a00e98f3e84ad0fc53"></a>
+
+### `"patent/evidence-ledger"`
+
+SHA-256: `3573fa435ec677b190fe8f5eeba5bc6cc3fd903da91547a00e98f3e84ad0fc53`
+
+`"patent/evidence-ledger"`
+
+<a id="persistence-type-sha256-88a27f208151dba59f1c9b211bc5ff2a742ce71ff80f7ec586975b452cd5e8d6"></a>
+
+### `"patent/legal-gaps"`
+
+SHA-256: `88a27f208151dba59f1c9b211bc5ff2a742ce71ff80f7ec586975b452cd5e8d6`
+
+`"patent/legal-gaps"`
+
 <a id="persistence-type-sha256-ae8f246e9a4be18f63f00ef7be9704017a65e2dd9e1f3f61955ad912b5ffb936"></a>
 
 ### `"patent/model-call"`
@@ -2927,6 +3026,30 @@ SHA-256: `df5d9709b7db2a72510dc52052a23f0c38f39730af1504bab8bccabc14fae528`
 SHA-256: `b4318fc49640abe29d1ea345a525d6f46ec3fb7abffc078b429a43f661957cd7`
 
 `"pressure"`
+
+<a id="persistence-type-sha256-d1c45e6e7e477e983588b1838e31076b81d5d37e5b6f0065794691135bafc3e7"></a>
+
+### `"prior-art"`
+
+SHA-256: `d1c45e6e7e477e983588b1838e31076b81d5d37e5b6f0065794691135bafc3e7`
+
+`"prior-art"`
+
+<a id="persistence-type-sha256-2e52189f6326df45b7b972262d131d46ab83d271feb1c8a624a8a0b76ec9885c"></a>
+
+### `"prior-art-excluded"`
+
+SHA-256: `2e52189f6326df45b7b972262d131d46ab83d271feb1c8a624a8a0b76ec9885c`
+
+`"prior-art-excluded"`
+
+<a id="persistence-type-sha256-185bfbcae1a4345d810968d9106aac61b2b71a0a502c8befeee8725f05463dd3"></a>
+
+### `"prior-art-undated"`
+
+SHA-256: `185bfbcae1a4345d810968d9106aac61b2b71a0a502c8befeee8725f05463dd3`
+
+`"prior-art-undated"`
 
 <a id="persistence-type-sha256-6cf082d0fb6034dea61636787ff0ddf43b6e59aad71e644435a479bc9b83ad65"></a>
 
@@ -5335,6 +5458,42 @@ One of:
 - `null`
 - `number`
 
+<a id="persistence-type-sha256-20780c30db8f475b23bcf264dd72bf91d0098b013895de5090b79af17eb7c24e"></a>
+
+<a id="persistence-type-packagespatentpatent-workflowsrctypestspatentevidenceledgerevent"></a>
+
+<a id="persistence-type-patentevidenceledgerevent"></a>
+
+### `PatentEvidenceLedgerEvent`
+
+SHA-256: `20780c30db8f475b23bcf264dd72bf91d0098b013895de5090b79af17eb7c24e`
+
+Sources: [`packages/patent/patent-workflow/src/types.ts:117`](../packages/patent/patent-workflow/src/types.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `ledger` | required | [`WorkflowEvidenceLedger`](#persistence-type-sha256-477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445) |
+| `manifestId` | required | `string` |
+| `runId` | optional | `string` |
+
+<a id="persistence-type-sha256-01895603a724536b7865a243c9b50c127d022e8e7d24b5d2603cea1bf2ffb9f7"></a>
+
+<a id="persistence-type-packagespatentpatent-workflowsrctypestspatentlegalgapsevent"></a>
+
+<a id="persistence-type-patentlegalgapsevent"></a>
+
+### `PatentLegalGapsEvent`
+
+SHA-256: `01895603a724536b7865a243c9b50c127d022e8e7d24b5d2603cea1bf2ffb9f7`
+
+Sources: [`packages/patent/patent-workflow/src/types.ts:127`](../packages/patent/patent-workflow/src/types.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `manifestId` | required | `string` |
+| `report` | required | `string` |
+| `runId` | optional | `string` |
+
 <a id="persistence-type-sha256-598d1d2f53c1194133976837c47e016be809a151276df15eabceab4989010bf9"></a>
 
 <a id="persistence-type-packagespatentpatent-workflowsrctypestspatentmodelcallevent"></a>
@@ -5345,7 +5504,7 @@ One of:
 
 SHA-256: `598d1d2f53c1194133976837c47e016be809a151276df15eabceab4989010bf9`
 
-Sources: [`packages/patent/patent-workflow/src/types.ts:49`](../packages/patent/patent-workflow/src/types.ts)
+Sources: [`packages/patent/patent-workflow/src/types.ts:64`](../packages/patent/patent-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5385,7 +5544,7 @@ Sources: [`packages/patent/patent-core/src/types.ts:45`](../packages/patent/pate
 
 SHA-256: `26647df86465d4f99aef29c880bafd648dc17c4fd73f048144e32ba70f21463d`
 
-Sources: [`packages/patent/patent-workflow/src/types.ts:88`](../packages/patent/patent-workflow/src/types.ts)
+Sources: [`packages/patent/patent-workflow/src/types.ts:103`](../packages/patent/patent-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5589,7 +5748,7 @@ Sources: [`packages/patent/patent-teams/src/event-types.ts:89`](../packages/pate
 |---|---|---|
 | `teamId` | required | `string` |
 
-<a id="persistence-type-sha256-fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14"></a>
+<a id="persistence-type-sha256-a91e01800760fdc0552280897c1a7738086d475534e54d08fc660376dc65de3c"></a>
 
 <a id="persistence-type-packagespatentpatent-workflowsrctypestspatentworkflowrunevent"></a>
 
@@ -5597,15 +5756,16 @@ Sources: [`packages/patent/patent-teams/src/event-types.ts:89`](../packages/pate
 
 ### `PatentWorkflowRunEvent`
 
-SHA-256: `fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14`
+SHA-256: `a91e01800760fdc0552280897c1a7738086d475534e54d08fc660376dc65de3c`
 
-Sources: [`packages/patent/patent-workflow/src/types.ts:97`](../packages/patent/patent-workflow/src/types.ts)
+Sources: [`packages/patent/patent-workflow/src/types.ts:112`](../packages/patent/patent-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
 | `caseType` | required | `string` |
 | `completed` | required | `boolean` |
 | `degradedSteps` | required | [`string[]`](#persistence-type-sha256-93c33d9687613293f8c95d46c4d922fe9ceae83b84c384beff5c3315abe005f2) |
+| `evidenceLedger` | optional | [`WorkflowEvidenceLedger`](#persistence-type-sha256-477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445) |
 | `interrupted` | optional | [`WorkflowInterrupt`](#persistence-type-sha256-89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a) |
 | `manifestId` | required | `string` |
 | `persistWarning` | optional | `string` |
@@ -6757,6 +6917,84 @@ One of:
 - `"completed"`
 - `"failed"`
 
+<a id="persistence-type-sha256-477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445"></a>
+
+<a id="persistence-type-packagespatentpatent-coresrcevidenceledgertsworkflowevidenceledger"></a>
+
+<a id="persistence-type-workflowevidenceledger"></a>
+
+### `WorkflowEvidenceLedger`
+
+SHA-256: `477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445`
+
+Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:56`](../packages/patent/patent-core/src/evidence/ledger.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `digest` | required | `string` |
+| `incomplete` | optional | `boolean` |
+| `receipts` | required | [`WorkflowEvidenceReceipt[]`](#persistence-type-sha256-bbbcf22ba3b6e5e3011906c7ab6bf8271bc8dc37ecac535134b59c17b5e95b1d) |
+
+<a id="persistence-type-sha256-fe87180c1564d51949d37f0fa3e7deada5217598a3c12c1af700828dcb183979"></a>
+
+<a id="persistence-type-packagespatentpatent-coresrcevidenceledgertsworkflowevidencereceipt"></a>
+
+<a id="persistence-type-workflowevidencereceipt"></a>
+
+### `WorkflowEvidenceReceipt`
+
+SHA-256: `fe87180c1564d51949d37f0fa3e7deada5217598a3c12c1af700828dcb183979`
+
+Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:40`](../packages/patent/patent-core/src/evidence/ledger.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `args` | required | [`{}`](#persistence-type-sha256-6a7ab1c5ad8ec672f7c972a469e23cca6c88771870786042677e03cdf25f55ac) |
+| `citationId` | required | `string` |
+| `contentHash` | optional | `string` |
+| `path` | optional | `string` |
+| `publicationDate` | optional | `string` |
+| `resultText` | optional | `string` |
+| `source` | required | [`WorkflowEvidenceSource`](#persistence-type-sha256-6b9fe30f63b2d8a14ba18e37bcc9399dadc9174f0065b27d35da9b914bf3f57a) |
+| `success` | required | `boolean` |
+| `title` | optional | `string` |
+| `toolCallId` | required | `string` |
+| `toolName` | required | `string` |
+| `turnId` | required | `string` |
+| `write` | required | `boolean` |
+
+<a id="persistence-type-sha256-bbbcf22ba3b6e5e3011906c7ab6bf8271bc8dc37ecac535134b59c17b5e95b1d"></a>
+
+### `WorkflowEvidenceReceipt[]`
+
+SHA-256: `bbbcf22ba3b6e5e3011906c7ab6bf8271bc8dc37ecac535134b59c17b5e95b1d`
+
+Array of [`WorkflowEvidenceReceipt`](#persistence-type-sha256-fe87180c1564d51949d37f0fa3e7deada5217598a3c12c1af700828dcb183979).
+
+<a id="persistence-type-sha256-6b9fe30f63b2d8a14ba18e37bcc9399dadc9174f0065b27d35da9b914bf3f57a"></a>
+
+<a id="persistence-type-packagespatentpatent-coresrcevidenceledgertsworkflowevidencesource"></a>
+
+<a id="persistence-type-workflowevidencesource"></a>
+
+### `WorkflowEvidenceSource`
+
+SHA-256: `6b9fe30f63b2d8a14ba18e37bcc9399dadc9174f0065b27d35da9b914bf3f57a`
+
+Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:23`](../packages/patent/patent-core/src/evidence/ledger.ts)
+
+One of:
+
+- `"claims"`
+- `"conflicting-application"`
+- `"conflicting-application-excluded"`
+- `"conflicting-application-unknown"`
+- `"evidence"`
+- `"material"`
+- `"prior-art"`
+- `"prior-art-excluded"`
+- `"prior-art-undated"`
+
 <a id="persistence-type-sha256-89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a"></a>
 
 <a id="persistence-type-packagespatentpatent-coresrcworkflowtypestsworkflowinterrupt"></a>
@@ -6767,7 +7005,7 @@ One of:
 
 SHA-256: `89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:135`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:147`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6785,7 +7023,7 @@ Sources: [`packages/patent/patent-core/src/workflow/types.ts:135`](../packages/p
 
 SHA-256: `76f13244df957cb786e2f48f1aae4300842c535cde25ff7e3f4603627bbcd956`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:123`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:135`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6832,7 +7070,7 @@ One of:
 
 SHA-256: `7b028364118e10175d636cc0931f08f32f4b65089bdae9a32937434bb4883498`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:13`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:14`](../packages/patent/patent-core/src/workflow/types.ts)
 
 One of:
 
@@ -10392,6 +10630,38 @@ SHA-256: `6ccaff85d31459a300c449653602514c34489d856e2e1bc31d9a27b77e634d95`
 | `time` | required | `number` |
 | `type` | required | `"patent-teams/team-deleted"` |
 
+<a id="persistence-type-sha256-21a8536f828f11e9faf08635fe52956af4ee6017ef8983cbd91defb41bac4288"></a>
+
+<a id="persistence-type-eventpatentevidence-ledger"></a>
+
+### `{ type: "patent/evidence-ledger" }`
+
+SHA-256: `21a8536f828f11e9faf08635fe52956af4ee6017ef8983cbd91defb41bac4288`
+
+| Property | Presence | Type |
+|---|---|---|
+| `data` | required | [`PatentEvidenceLedgerEvent`](#persistence-type-sha256-20780c30db8f475b23bcf264dd72bf91d0098b013895de5090b79af17eb7c24e) |
+| `ignorable` | optional | `true` |
+| `seq` | required | `number` |
+| `time` | required | `number` |
+| `type` | required | `"patent/evidence-ledger"` |
+
+<a id="persistence-type-sha256-790077a8f3ba90b34c4283a4b38b878b4e10af2cd53120f8f5da747c108932a9"></a>
+
+<a id="persistence-type-eventpatentlegal-gaps"></a>
+
+### `{ type: "patent/legal-gaps" }`
+
+SHA-256: `790077a8f3ba90b34c4283a4b38b878b4e10af2cd53120f8f5da747c108932a9`
+
+| Property | Presence | Type |
+|---|---|---|
+| `data` | required | [`PatentLegalGapsEvent`](#persistence-type-sha256-01895603a724536b7865a243c9b50c127d022e8e7d24b5d2603cea1bf2ffb9f7) |
+| `ignorable` | optional | `true` |
+| `seq` | required | `number` |
+| `time` | required | `number` |
+| `type` | required | `"patent/legal-gaps"` |
+
 <a id="persistence-type-sha256-9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0"></a>
 
 <a id="persistence-type-eventpatentmodel-call"></a>
@@ -10424,17 +10694,17 @@ SHA-256: `21031fbcbdff405ad47179a7acc9fb7bcf70e838ee106d70f7aa26604fb61ce5`
 | `time` | required | `number` |
 | `type` | required | `"patent/plantask"` |
 
-<a id="persistence-type-sha256-81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da"></a>
+<a id="persistence-type-sha256-e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6"></a>
 
 <a id="persistence-type-eventpatentworkflow-run"></a>
 
 ### `{ type: "patent/workflow-run" }`
 
-SHA-256: `81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da`
+SHA-256: `e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6`
 
 | Property | Presence | Type |
 |---|---|---|
-| `data` | required | [`PatentWorkflowRunEvent`](#persistence-type-sha256-fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14) |
+| `data` | required | [`PatentWorkflowRunEvent`](#persistence-type-sha256-a91e01800760fdc0552280897c1a7738086d475534e54d08fc660376dc65de3c) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
 | `time` | required | `number` |
@@ -11260,3 +11530,13 @@ Sources: [`packages/util/values/src/index.ts:4`](../packages/util/values/src/ind
 | Property | Presence | Type |
 |---|---|---|
 | [`string`] | index signature | [`JsonValue`](#persistence-type-sha256-c592ce75aab73fcab19c1d7845684c72cf402b78d2e1f2833a58ecf9f3598ed6) |
+
+<a id="persistence-type-sha256-6a7ab1c5ad8ec672f7c972a469e23cca6c88771870786042677e03cdf25f55ac"></a>
+
+### `{}`
+
+SHA-256: `6a7ab1c5ad8ec672f7c972a469e23cca6c88771870786042677e03cdf25f55ac`
+
+| Property | Presence | Type |
+|---|---|---|
+| [`string`] | index signature | `string` |

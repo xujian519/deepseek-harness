@@ -12357,6 +12357,326 @@
       }
     },
     {
+      "key": "event:patent/evidence-ledger",
+      "kind": "event",
+      "event": "patent/evidence-ledger",
+      "surface": false,
+      "digest": "21a8536f828f11e9faf08635fe52956af4ee6017ef8983cbd91defb41bac4288",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 18,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 20,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "ledger",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "manifestId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "runId",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "digest",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "incomplete",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "receipts",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "array",
+            "element": 6
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "args",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "citationId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "contentHash",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "path",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "publicationDate",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "resultText",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "source",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "success",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "toolCallId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "toolName",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "write",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 3,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "claims"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-undated"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "evidence"
+          },
+          {
+            "kind": "literal",
+            "value": "material"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "patent/evidence-ledger"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:patent/legal-gaps",
+      "kind": "event",
+      "event": "patent/legal-gaps",
+      "surface": false,
+      "digest": "790077a8f3ba90b34c4283a4b38b878b4e10af2cd53120f8f5da747c108932a9",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "manifestId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "report",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "runId",
+                "type": 2,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "patent/legal-gaps"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:patent/model-call",
       "kind": "event",
       "event": "patent/model-call",
@@ -12661,7 +12981,7 @@
       "kind": "event",
       "event": "patent/workflow-run",
       "surface": false,
-      "digest": "81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da",
+      "digest": "e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6",
       "schema": {
         "root": 0,
         "nodes": [
@@ -12675,22 +12995,22 @@
               },
               {
                 "name": "ignorable",
-                "type": 15,
+                "type": 29,
                 "optional": true
               },
               {
                 "name": "seq",
-                "type": 10,
+                "type": 24,
                 "optional": false
               },
               {
                 "name": "time",
-                "type": 10,
+                "type": 24,
                 "optional": false
               },
               {
                 "name": "type",
-                "type": 16,
+                "type": 30,
                 "optional": false
               }
             ],
@@ -12715,8 +13035,13 @@
                 "optional": false
               },
               {
-                "name": "interrupted",
+                "name": "evidenceLedger",
                 "type": 5,
+                "optional": true
+              },
+              {
+                "name": "interrupted",
+                "type": 19,
                 "optional": true
               },
               {
@@ -12736,7 +13061,7 @@
               },
               {
                 "name": "stages",
-                "type": 8,
+                "type": 22,
                 "optional": false
               },
               {
@@ -12763,8 +13088,164 @@
             "kind": "object",
             "properties": [
               {
-                "name": "data",
+                "name": "digest",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "incomplete",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "receipts",
                 "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 7
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "args",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "citationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "contentHash",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "path",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "publicationDate",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "resultText",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "source",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "success",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "toolCallId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "toolName",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "write",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 2
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "claims"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": "conflicting-application-unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "evidence"
+          },
+          {
+            "kind": "literal",
+            "value": "material"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-excluded"
+          },
+          {
+            "kind": "literal",
+            "value": "prior-art-undated"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 20,
                 "optional": false
               },
               {
@@ -12786,7 +13267,7 @@
             "indices": [
               {
                 "key": 2,
-                "value": 7
+                "value": 21
               }
             ]
           },
@@ -12796,7 +13277,7 @@
           },
           {
             "kind": "array",
-            "element": 9
+            "element": 23
           },
           {
             "kind": "object",
@@ -12818,7 +13299,7 @@
               },
               {
                 "name": "retries",
-                "type": 10,
+                "type": 24,
                 "optional": false
               },
               {
@@ -12828,7 +13309,7 @@
               },
               {
                 "name": "strategy",
-                "type": 11,
+                "type": 25,
                 "optional": false
               }
             ],
@@ -12841,10 +13322,14 @@
           {
             "kind": "union",
             "types": [
-              12,
-              13,
-              14
+              26,
+              27,
+              28
             ]
+          },
+          {
+            "kind": "literal",
+            "value": "chain"
           },
           {
             "kind": "literal",
@@ -12853,10 +13338,6 @@
           {
             "kind": "literal",
             "value": "sub_agent"
-          },
-          {
-            "kind": "literal",
-            "value": "chain"
           },
           {
             "kind": "literal",
@@ -26340,6 +26821,15 @@
       "sources": []
     },
     {
+      "digest": "01895603a724536b7865a243c9b50c127d022e8e7d24b5d2603cea1bf2ffb9f7",
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentLegalGapsEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:127"
+      ]
+    },
+    {
       "digest": "0203243b72fc867afc81aff5f4cf2167e564ed342534eb612fc92f295cf07789",
       "names": [],
       "sources": []
@@ -26398,6 +26888,11 @@
       "sources": [
         "packages/interaction/user-approval/src/index.ts:67"
       ]
+    },
+    {
+      "digest": "05e83082c4cf603c2ee130c7c4826d5a13974ef0a1a6510debe19fecfa5d3d02",
+      "names": [],
+      "sources": []
     },
     {
       "digest": "0650681a1072e365a6dcd2f05bafe136026216be297e25b147aa8894589317ae",
@@ -26731,6 +27226,11 @@
       ]
     },
     {
+      "digest": "185bfbcae1a4345d810968d9106aac61b2b71a0a502c8befeee8725f05463dd3",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "18dc21f12bbac8ade8377e6fbb54179e20c3d955d73fba3244c57fb6bf001df0",
       "names": [
         "packages/schedule/schedule/src/types.ts#ScheduleDeleteChange"
@@ -26904,6 +27404,15 @@
       "sources": []
     },
     {
+      "digest": "20780c30db8f475b23bcf264dd72bf91d0098b013895de5090b79af17eb7c24e",
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentEvidenceLedgerEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:117"
+      ]
+    },
+    {
       "digest": "20a57544bbf204dacd1ae6beb2ab29444365c3c869f2afdf489dcdcbc3d9c8c5",
       "names": [],
       "sources": [
@@ -26928,6 +27437,11 @@
       "sources": [
         "packages/experimental/agent-team/src/types.ts:138"
       ]
+    },
+    {
+      "digest": "21a8536f828f11e9faf08635fe52956af4ee6017ef8983cbd91defb41bac4288",
+      "names": [],
+      "sources": []
     },
     {
       "digest": "21fb6a90d5068f6a0003b7ab316ed2f56342477146a65c00db0f13c4d8df667d",
@@ -27011,7 +27525,7 @@
         "packages/patent/patent-workflow/src/types.ts#PatentPlantaskEvent"
       ],
       "sources": [
-        "packages/patent/patent-workflow/src/types.ts:88"
+        "packages/patent/patent-workflow/src/types.ts:103"
       ]
     },
     {
@@ -27144,6 +27658,11 @@
       "sources": []
     },
     {
+      "digest": "2e52189f6326df45b7b972262d131d46ab83d271feb1c8a624a8a0b76ec9885c",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "2eafefdc6f79a4922d68a787a09eaf4dd2b2369c3777fba4c05e800b5678ac8e",
       "names": [
         "packages/experimental/agent-team/src/types.ts#TeamMessageSnapshot"
@@ -27252,6 +27771,11 @@
     },
     {
       "digest": "35203ba7ad5ef6f97d556b85df20ae98f04f09c65748cecdf8eefdb8b6405ffc",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "3573fa435ec677b190fe8f5eeba5bc6cc3fd903da91547a00e98f3e84ad0fc53",
       "names": [],
       "sources": []
     },
@@ -27536,6 +28060,15 @@
       "names": [],
       "sources": [
         "packages/compaction/compaction-image-offload/src/projection.ts:25"
+      ]
+    },
+    {
+      "digest": "477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445",
+      "names": [
+        "packages/patent/patent-core/src/evidence/ledger.ts#WorkflowEvidenceLedger"
+      ],
+      "sources": [
+        "packages/patent/patent-core/src/evidence/ledger.ts:56"
       ]
     },
     {
@@ -27924,7 +28457,7 @@
         "packages/patent/patent-workflow/src/types.ts#PatentModelCallEvent"
       ],
       "sources": [
-        "packages/patent/patent-workflow/src/types.ts:49"
+        "packages/patent/patent-workflow/src/types.ts:64"
       ]
     },
     {
@@ -27978,6 +28511,11 @@
     },
     {
       "digest": "5cb63db9fe57dc09c3a1c2b84c3edf73ff5b62960155d8436a2377a5c43ce32c",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "5cc1abd5c814451610e3658d80693faa9d73e211c0220568fc908d24b519a85a",
       "names": [],
       "sources": []
     },
@@ -28194,6 +28732,11 @@
       "sources": []
     },
     {
+      "digest": "6a7ab1c5ad8ec672f7c972a469e23cca6c88771870786042677e03cdf25f55ac",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "6ab45ac76839722df912f3ba50f1c6b41f2d614bde11f1aabfae04117ccdc80d",
       "names": [],
       "sources": []
@@ -28207,6 +28750,15 @@
       "digest": "6b805416d3bcfef496f9c6d67fa6dd951814c32c93b7520c3a79609957257fed",
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "6b9fe30f63b2d8a14ba18e37bcc9399dadc9174f0065b27d35da9b914bf3f57a",
+      "names": [
+        "packages/patent/patent-core/src/evidence/ledger.ts#WorkflowEvidenceSource"
+      ],
+      "sources": [
+        "packages/patent/patent-core/src/evidence/ledger.ts:23"
+      ]
     },
     {
       "digest": "6bbe793f6a93dc8d50a4d4d3fbb6f8ed15650bcb7e151d28669628f7b7c3fc25",
@@ -28399,6 +28951,11 @@
       "sources": []
     },
     {
+      "digest": "7309ea217ac28f1f2a5067f1cf3a0dc9c71fdea9610d3322199baf6d7e3e093b",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "7323b652385626ddcc2507d8309bcf7db97854bae245ce5bc6837659dc56dfe2",
       "names": [],
       "sources": []
@@ -28457,11 +29014,16 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:123"
+        "packages/patent/patent-core/src/workflow/types.ts:135"
       ]
     },
     {
       "digest": "78a9be340090b735a39980e7222ce730c972fbcf1de7c9e0aef2125884b7caee",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "790077a8f3ba90b34c4283a4b38b878b4e10af2cd53120f8f5da747c108932a9",
       "names": [],
       "sources": []
     },
@@ -28496,7 +29058,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowStrategy"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:13"
+        "packages/patent/patent-core/src/workflow/types.ts:14"
       ]
     },
     {
@@ -28631,11 +29193,6 @@
       ]
     },
     {
-      "digest": "81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da",
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "82470020b5bfcb1a843e2aa05602af7d37df99e82d01f015c7c589ba054fd89d",
       "names": [],
       "sources": []
@@ -28768,6 +29325,11 @@
       "sources": []
     },
     {
+      "digest": "88a27f208151dba59f1c9b211bc5ff2a742ce71ff80f7ec586975b452cd5e8d6",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "88a610b831be6d92612a464be5c7d0b88ec24d97bd299837bf74bf7672183c9a",
       "names": [],
       "sources": [
@@ -28785,7 +29347,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:135"
+        "packages/patent/patent-core/src/workflow/types.ts:147"
       ]
     },
     {
@@ -28948,6 +29510,11 @@
     },
     {
       "digest": "938f7c7357bc403ea3b281a9dd016939df7a0880fc8db12612585be574d0d615",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "93c1d1defe0f8503499fca70e5ec4c4351c58e0bd43f64dcf25de0205c06e5ca",
       "names": [],
       "sources": []
     },
@@ -29338,6 +29905,15 @@
       "sources": []
     },
     {
+      "digest": "a91e01800760fdc0552280897c1a7738086d475534e54d08fc660376dc65de3c",
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:112"
+      ]
+    },
+    {
       "digest": "a926dc71814edd01a4f041eb5fc766d153db3407ef4704e98f4c1b6527309ebb",
       "names": [
         "packages/schedule/schedule/src/types.ts#LegacyEveryScheduleRecord"
@@ -29486,6 +30062,11 @@
     },
     {
       "digest": "af6e173f7be819bcd0a5c8d77918649c10ce761d8a184ff472f2e01ce64eb2e0",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "afbf3cba6bdf42c94b9ea80726e62794e9b510097bf07191bf163d7c31ab6c37",
       "names": [],
       "sources": []
     },
@@ -29785,6 +30366,11 @@
       "sources": []
     },
     {
+      "digest": "bbbcf22ba3b6e5e3011906c7ab6bf8271bc8dc37ecac535134b59c17b5e95b1d",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "bbc5696e3f13c758237b316e3cf08cda0b9fd51ffe672539883457769faa185d",
       "names": [],
       "sources": []
@@ -30049,6 +30635,11 @@
     },
     {
       "digest": "d0fbb0ca1bbba059830826f33f801da1aced35a2504376d61e020bdfec8d50c0",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "d1c45e6e7e477e983588b1838e31076b81d5d37e5b6f0065794691135bafc3e7",
       "names": [],
       "sources": []
     },
@@ -30438,6 +31029,11 @@
       "sources": []
     },
     {
+      "digest": "e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "e8de0f457fed5b9ff94dc4950b59ef75fd8ba8af665cc7899485924a62653367",
       "names": [],
       "sources": []
@@ -30738,6 +31334,11 @@
       "sources": []
     },
     {
+      "digest": "f8398e341cabbdaeb97dd2503cc033ec2234d273b1ccf4f927a5d116ca11700a",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "f88f1b7b6bb733f685f5fb6a8744a5db9199fa53c90463ea1a33bad51153671d",
       "names": [],
       "sources": []
@@ -30837,15 +31438,6 @@
       "sources": []
     },
     {
-      "digest": "fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14",
-      "names": [
-        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
-      ],
-      "sources": [
-        "packages/patent/patent-workflow/src/types.ts:97"
-      ]
-    },
-    {
       "digest": "fcf427290c6213c2a7feb57492d832ce324f5b9737a759f424dab69e6bd101a0",
       "names": [],
       "sources": []
@@ -30882,6 +31474,15 @@
       "digest": "fe792a6cd430494503837e21e79f91677704ccdd9e870c679aabd7d43ed47ddd",
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "fe87180c1564d51949d37f0fa3e7deada5217598a3c12c1af700828dcb183979",
+      "names": [
+        "packages/patent/patent-core/src/evidence/ledger.ts#WorkflowEvidenceReceipt"
+      ],
+      "sources": [
+        "packages/patent/patent-core/src/evidence/ledger.ts:40"
+      ]
     },
     {
       "digest": "fea632e9ea42a1aecedd25c540d881990c161c2d3e14bd7c92b5812178d6f625",

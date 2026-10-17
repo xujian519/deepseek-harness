@@ -2677,7 +2677,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-methodology`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/patent/methodology/src/index.ts:53`](../packages/patent/methodology/src/index.ts)
+- `source`: [`packages/patent/methodology/src/index.ts:33`](../packages/patent/methodology/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing TRIZ plugin configuration. */
@@ -2881,7 +2881,7 @@ export type NuoRequestChannel = (typeof NUO_REQUEST_CHANNELS)[number]
 ## `@deepseek-ai/dsh-patent-deadline`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-deadline/src/index.ts:97`](../packages/patent/patent-deadline/src/index.ts)
+- `source`: [`packages/patent/patent-deadline/src/index.ts:100`](../packages/patent/patent-deadline/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-deadline plugin configuration. */
@@ -2890,6 +2890,10 @@ export interface Config {
   calendarDir?: string
   /** Warn when an end date falls within this many days (deployment policy, not a legal period). */
   reminderLeadDays?: number
+  /** Years of future annual fees to report (deployment policy, not a legal period). */
+  annuityHorizonYears?: number
+  /** IANA zone in which "today" is read; defaults to Asia/Shanghai. */
+  timeZone?: string
   /**
    * Publish the evaluator as the `patentDeadline` Cordis service. Defaults to
    * false so the preset mount stays tool-only; a root-domain mount sets it to
@@ -3011,7 +3015,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-law`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-law/src/index.ts:100`](../packages/patent/patent-law/src/index.ts)
+- `source`: [`packages/patent/patent-law/src/index.ts:102`](../packages/patent/patent-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-law plugin configuration. */
@@ -3052,7 +3056,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:209`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:210`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3190,7 +3194,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:258`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:302`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -3212,6 +3216,19 @@ export interface Config {
    * written against another revision fails plugin load.
    */
   guidelineRevision?: string
+  /**
+   * Maximum stages a single built-in workflow manifest may declare. Plugin load
+   * fails when a manifest exceeds it, so stage-list growth cannot silently
+   * increase run cost. Defaults to `DEFAULT_WORKFLOW_STAGE_BUDGET`.
+   */
+  workflowStageBudget?: number
+  /**
+   * Maximum model-calling stages a single built-in workflow manifest may
+   * declare. Stages without an atom (run by the LLM-backed stage executor) and
+   * atoms whose contract declares `usesModel` count. Defaults to
+   * `DEFAULT_WORKFLOW_LLM_STAGE_BUDGET`.
+   */
+  workflowLlmStageBudget?: number
   /** 附图索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/figures-index.json。 */
   figureIndexFile?: string
   /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */

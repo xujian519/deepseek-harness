@@ -3460,7 +3460,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
           },
           "params": {
             "type": "object",
@@ -3518,7 +3518,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, slop-gate."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
         },
         "params": {
           "type": "object",
@@ -5727,7 +5727,7 @@ Usage notes:
 
 ### `patent_workflow_run`
 
-自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：8 个内置 manifest——patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）、patent_novelty_v1、patent_inventiveness_v1（三步法）、patent_patentability_v1、patent_oa_response_v1（通知书解析 → 权利要求对照表 → 答复草稿）、patent_invalidation_v1（无效理由 → 对照表 → 新颖性与创造性）、patent_reexamination_v1（驳回理由 → 对照表 → 新颖性与创造性）、patent_infringement_v1（对照表 → 全面覆盖/等同核验 → 报告）。图路径（graph=novelty|inventiveness|enablement|citation-check）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）；citation-check 为确定性纯函数图，校验结论文本（inventiveness_conclusion/novelty_report/text）中的每个 `D<id>`/专利号引用均出现在 priorArt（以 JSON 数组传入）中。以 input 提供材料；当权利要求文本不应混入该材料时，另以 claims 单独传入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。manifest 运行会占用当前回合直到跑完或在审批门暂停；需要立即拿到 job id 并继续其它工作（用 job_output 收集；job_kill 在下一个阶段边界停止它）时传 run_in_background: true；图路径仅支持前台执行。
+自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：8 个内置 manifest——patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）、patent_novelty_v1、patent_inventiveness_v1（三步法）、patent_patentability_v1、patent_oa_response_v1（通知书解析 → 权利要求对照表 → 答复草稿）、patent_invalidation_v1（无效理由 → 对照表 → 新颖性与创造性）、patent_reexamination_v1（驳回理由 → 对照表 → 新颖性与创造性）、patent_infringement_v1（对照表 → 全面覆盖/等同核验 → 报告）。图路径（graph=novelty|inventiveness|enablement|citation-check）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）；citation-check 为确定性纯函数图，校验结论文本（inventiveness_conclusion/novelty_report/text）中的每个 `D<id>`/专利号引用均出现在 priorArt（以 JSON 数组传入）中。以 input 提供材料；当权利要求文本不应混入该材料时，另以 claims 单独传入。传 conflictingApplications（JSON 数组）运行 A22.2 第二句的抵触申请排查；条目需提供 filingDate/publicationDate 与调用方判定的 sameInvention 布尔值。抵触申请在目标申请日以前提出、在申请日以后公布，现有技术检索按定义找不到它们。传 evidence（JSON 数组）与 evidenceDeadline 运行无效/复审的 evidence-check 阶段；它报告形式缺陷、无正当理由的逾期提交、不早于截止日的公开日，以及未关联理由或权项的证据。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。manifest 运行会占用当前回合直到跑完或在审批门暂停；需要立即拿到 job id 并继续其它工作（用 job_output 收集；job_kill 在下一个阶段边界停止它）时传 run_in_background: true；图路径仅支持前台执行。
 
 ```json
 {
@@ -5774,6 +5774,14 @@ Usage notes:
       "type": "string",
       "description": "Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material."
     },
+    "filingDate": {
+      "type": "string",
+      "description": "Application filing date (e.g. 2024-06-01 or 2024年6月1日). The time-baseline stage uses it for the prior-art cutoff; without it or priorityDate that stage degrades."
+    },
+    "priorityDate": {
+      "type": "string",
+      "description": "Earliest priority date. The earlier of it and filingDate becomes the prior-art cutoff."
+    },
     "chartTargets": {
       "type": "string",
       "description": "claim-chart target objects JSON (default empty)."
@@ -5789,6 +5797,14 @@ Usage notes:
     "conflictingApplications": {
       "type": "string",
       "description": "Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention."
+    },
+    "evidence": {
+      "type": "string",
+      "description": "Evidence entries as a JSON array for the invalidation/reexamination evidence-check stage. Entries may carry title/name, type (现有技术/外文证据/域外证据/证人证言...), sourceUri, submittedAt, publicationDate, translated, notarized, legalized, witness, grounds/claimRefs, contentHash+snippet. Late entries without lateJustification are blocking findings."
+    },
+    "evidenceDeadline": {
+      "type": "string",
+      "description": "Evidence submission deadline (parseable date). evidence-check compares each entry submittedAt against it and reports late entries without a justification as blocking."
     },
     "run_in_background": {
       "type": "boolean",
@@ -6460,11 +6476,19 @@ build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附�
     },
     "marketingApprovalDate": {
       "type": "string",
-      "description": "Date the drug obtained marketing approval in China"
+      "description": "Date the drug obtained marketing approval in China (invention only)"
+    },
+    "termCompensationYears": {
+      "type": "number",
+      "description": "Granted patent-term compensation in whole years (invention only, 0-5); extends the term and its annual fees"
     },
     "invalidationRequestDate": {
       "type": "string",
       "description": "Date the invalidation request was filed; starts the 1-month period for adding grounds or evidence"
+    },
+    "paidThroughYear": {
+      "type": "number",
+      "description": "Last patent year whose annual fee is recorded as paid; fees through that year are omitted from the report"
     },
     "notices": {
       "type": "array",
