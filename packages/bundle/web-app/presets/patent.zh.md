@@ -21,7 +21,7 @@
 - `@deepseek-ai/dsh-patent-law` — law_verify：逐条把法条引用对照本包随包的法规索引判定（《专利法》《专利法实施细则》按条，《专利审查指南》按归一化节路径），并把已索引但未转录的条目报「未核验」而不是放行。两部法律（法规）的条文已随包转录——每个条目带着所引条文的文本、抄录的文书与版本、以及抄录日期——条数上限也已核验，因此编造的条号判「条号超出有效范围」、索引未覆盖的有效条号判「索引中不存在」，两者都不是通过。指南的 63 条节级条目已随包转录 2023 年修订版正文，引用会判成「已核验」「与所引命题不符」或「未判定」；只登记到部分、章或节一级、其下各节又都没转录的条目仍报「未核验」。引用必须经官方来源核验的纪律没有变，只是未核验的条目不再可能被读成已核验。
 - `@deepseek-ai/dsh-writing-patterns` — 基于随包撰写/答复模式语料的 query_writing_patterns，以及承载编译后 `<writing_skills>` 块的系统提示段；该 section 只注入权利要求撰写、说明书撰写与三个审查意见类目，其余类目仍可经工具检索（工具始终检索整个模式库）。
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
-- `@deepseek-ai/dsh-methodology` — triz 工具。
+- `@deepseek-ai/dsh-methodology` — `triz` 矛盾矩阵查表工具，用于已明确给出改善/恶化参数编号的场景。从交底书识别矛盾与参数缺口仍由 `triz_contradiction_analysis` 负责。
 
 相对 `standard` 携带的行集，本 preset 有意省略三行——`tool-plugin-market`、`present` 与 `tool-plugin-manager`。三者都属部署面或 UI 面，不是办案的一步：交付物由 `render_patent_document` / `build_patent_filing` 声明，交付前置门禁把它们扣在规则检查、法条核验与本轮留档（`matter_log_append`）上，另开一条声明通道就会落在那道门禁之外。`scripts/preset-mode-baseline.json` 逐条记下理由，并把每个交付型模式扣在同一份共享行集上。
 

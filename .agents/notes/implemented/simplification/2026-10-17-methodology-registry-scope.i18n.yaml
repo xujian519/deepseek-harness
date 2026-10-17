@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-17-methodology-registry-scope.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-10-17-methodology-registry-scope.md
+/agent-note-methodology-package-scope:
+  en: c29b167810d9f429
+  zh: 21408d3b1dcf5110
+/agent-note-methodology-package-scope/problem:
+  en: 9c0c9936bb3e172b
+  zh: e1875243fbbd5d90
+/agent-note-methodology-package-scope/decision:
+  en: 65814cf952a397b9
+  zh: 3b83867503195e64
+/agent-note-methodology-package-scope/alternatives-considered:
+  en: 13aa5f56283887ca
+  zh: 0afd23bc4b53d35a
+/agent-note-methodology-package-scope/consequences:
+  en: bd20aa8cdec52eea
+  zh: 8f97e10b65c0ff31
