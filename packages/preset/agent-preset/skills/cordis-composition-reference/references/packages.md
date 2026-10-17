@@ -348,7 +348,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 
 | Package | Config | Description |
 |---|---|---|
-| `@deepseek-ai/dsh-methodology` | yes | TRIZ reasoning methodology for the DeepSeek Harness: the 40 inventive principles and the 39x39 contradiction matrix as a model-facing tool and library |
+| `@deepseek-ai/dsh-methodology` | yes | TRIZ reasoning methodology for the DeepSeek Harness: the 40 inventive principles, the 39x39 contradiction matrix, and separation principles as a model-facing tool and data API |
 | `@deepseek-ai/dsh-patent-data` | yes | Patent data access seam: nuo-patent vendor mapping/search provider plus the ego-browser anti-crawl subprocess provider for the DeepSeek Harness |
 | `@deepseek-ai/dsh-patent-deadline` | yes | Chinese patent statutory deadlines for the DeepSeek Harness: the period arithmetic of the Implementing Regulations (period start, corresponding day, rest-day roll-forward), delivery-date determination, and the patent_deadlines tool |
 | `@deepseek-ai/dsh-patent-document` | yes | Patent document rendering for the DeepSeek Harness: template resolution, brand injection, and headless-Chrome PDF rendering via ctx.subprocess |
