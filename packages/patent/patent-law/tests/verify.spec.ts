@@ -327,7 +327,7 @@ describe('stale guideline sections', () => {
     sourceDoc: 'fixture',
     verifiedOn: '2026-01-01',
   }
-  const index = new Map<LawName, LawBaseline>([['专利审查指南', {
+  const baseline: LawBaseline = {
     law: '专利审查指南',
     document: '专利审查指南',
     revision: '2023 年修订版（2024-01-20 施行）',
@@ -339,13 +339,21 @@ describe('stale guideline sections', () => {
     maxSource: null,
     articles: [],
     sections: [container, stale, current],
-  }]])
+  }
+  const index = new Map<LawName, LawBaseline>([['专利审查指南', baseline]])
 
   it('reports a citation to the stale section as unverified, naming the superseding revision', () => {
     const finding = verifyCitation(sectionRef('第四部分第三章2.1'), index)
     expect(finding.decision).toBe('unverified')
     expect(finding.reason).toContain('2026 年修订版')
     expect(finding.reason).toContain('2026 年修订版已修改本节')
+  })
+
+  it('names the stale section without a superseding revision when none is declared', () => {
+    const unnamed = new Map<LawName, LawBaseline>([['专利审查指南', { ...baseline, supersededBy: null }]])
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), unnamed)
+    expect(finding.decision).toBe('unverified')
+    expect(finding.reason).toContain('新版《专利审查指南》')
   })
 
   it('treats a parent citation that covers the stale section as unverified', () => {
@@ -389,7 +397,7 @@ describe('versioned guideline sections', () => {
     verifiedOn: '2026-10-17',
   }
   /** The revised section plus the base text it replaces. */
-  const index = new Map<LawName, LawBaseline>([['专利审查指南', {
+  const baseline: LawBaseline = {
     law: '专利审查指南',
     document: '专利审查指南',
     revision: BASE,
@@ -401,10 +409,11 @@ describe('versioned guideline sections', () => {
     maxSource: null,
     articles: [],
     sections: [container, base],
-  }]])
+  }
+  const index = new Map<LawName, LawBaseline>([['专利审查指南', baseline]])
   /** A revision that transcribed one of two stale sections. */
   const partial = new Map<LawName, LawBaseline>([['专利审查指南', {
-    ...index.get('专利审查指南')!,
+    ...baseline,
     staleSections: [
       { path: '第四部分第三章2.1', reason: '2026 年修订版已修改本节' },
       { path: '第四部分第三章3.3', reason: '2026 年修订版已修改本节' },
@@ -416,6 +425,59 @@ describe('versioned guideline sections', () => {
     const finding = verifyCitation(sectionRef('第四部分第三章2.1'), index)
     expect(finding.decision).toBe('valid')
     expect(finding.reason).toContain('2026 修改对照表')
+  })
+
+  it('uses the last declared version when several are transcribed', () => {
+    const next: SectionEntry = {
+      ...revised,
+      text: '2027 年的理由和证据表述',
+      sourceDoc: '审查指南 2027',
+      verifiedOn: '2027-01-01',
+    }
+    const multi = new Map<LawName, LawBaseline>([['专利审查指南', {
+      ...baseline,
+      versions: [
+        { revision: CURRENT, sections: [revised] },
+        { revision: '2027 年修订版', sections: [next] },
+      ],
+    }]])
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), multi)
+    expect(finding.decision).toBe('valid')
+    expect(finding.reason).toContain('审查指南 2027')
+  })
+
+  it('uses the transcribed version when no superseding revision is named', () => {
+    const unnamed = new Map<LawName, LawBaseline>([['专利审查指南', { ...baseline, supersededBy: null }]])
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), unnamed)
+    expect(finding.decision).toBe('valid')
+    expect(finding.reason).toContain('2026 修改对照表')
+  })
+
+  it('keeps the base text and stale marks when the current revision is not transcribed', () => {
+    const future = new Map<LawName, LawBaseline>([['专利审查指南', {
+      ...baseline,
+      supersededBy: '2027 年修订版',
+    }]])
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), future)
+    expect(finding.decision).toBe('unverified')
+    expect(finding.reason).toContain('2027 年修订版')
+  })
+
+  it('decides a section a version adds', () => {
+    const added: SectionEntry = {
+      path: '第四部分第三章3.4',
+      topics: ['新增审查事项'],
+      text: '新增节正文',
+      sourceDoc: '审查指南 2026',
+      verifiedOn: '2026-10-17',
+    }
+    const withAdded = new Map<LawName, LawBaseline>([['专利审查指南', {
+      ...baseline,
+      versions: [{ revision: CURRENT, sections: [revised, added] }],
+    }]])
+    const finding = verifyCitation(sectionRef('第四部分第三章3.4'), withAdded)
+    expect(finding.decision).toBe('valid')
+    expect(finding.entry?.sourceDoc).toBe('审查指南 2026')
   })
 
   it('decides against the base revision when it is named', () => {

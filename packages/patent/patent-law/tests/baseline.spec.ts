@@ -170,6 +170,34 @@ describe('parseLawBaseline', () => {
     ].join('\n')).message).toContain('不能声明 staleSections')
   })
 
+  it('rejects a stale-section field that is not a list', () => {
+    expect(parseFailing([
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: null',
+      'staleSections: not-a-list',
+      'sections:',
+      '  - path: 第四部分第三章2.1',
+      '    topics: [一事不再理]',
+    ].join('\n')).message).toContain('必须是数组')
+  })
+
+  it('rejects duplicate stale-section records', () => {
+    expect(parseFailing([
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: null',
+      'staleSections:',
+      '  - path: 第四部分第三章2.1',
+      '    reason: fixture',
+      '  - path: 第四部分第三章2.1',
+      '    reason: fixture',
+      'sections:',
+      '  - path: 第四部分第三章2.1',
+      '    topics: [一事不再理]',
+    ].join('\n')).message).toContain('路径重复')
+  })
+
   it('reads revision-specific section overrides and sorts them', () => {
     const baseline = parseLawBaseline([
       'law: 专利审查指南',
@@ -213,6 +241,30 @@ describe('parseLawBaseline', () => {
       '      - path: 第二部分第四章3.2',
       '        topics: [a]',
     ].join('\n')).message).toContain('不能声明 versions')
+  })
+
+  it('rejects a version field that is not a list, or a version with an empty revision', () => {
+    const head = [
+      'law: 专利审查指南',
+      'document: 专利审查指南',
+      'revision: 2023 年修订版',
+    ]
+    const sections = [
+      'sections:',
+      '  - path: 第二部分第四章3.2',
+      '    topics: [a]',
+    ]
+    expect(parseFailing([...head, 'versions: not-a-list', ...sections].join('\n')).message)
+      .toContain('必须是数组')
+    expect(parseFailing([
+      ...head,
+      'versions:',
+      '  - revision: "   "',
+      '    sections:',
+      '      - path: 第二部分第四章3.2',
+      '        topics: [a]',
+      ...sections,
+    ].join('\n')).message).toContain('必须是非空字符串')
   })
 
   it('rejects a version that repeats the base revision, repeats itself, or has no sections', () => {

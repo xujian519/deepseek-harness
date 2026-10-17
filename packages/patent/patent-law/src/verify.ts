@@ -55,8 +55,10 @@ export type VerifyOptions = {
   supportThreshold?: number
   /**
    * Guideline revision to decide against, e.g. `2026 年修订版（2026-01-01 施行）`.
-   * Defaults to the latest revision the index has transcribed overrides for;
-   * naming the base revision decides against the base text and its stale marks.
+   * Defaults to the last transcribed override when the current revision is
+   * transcribed; when `supersededBy` names a revision the index has not
+   * transcribed, the base text and its stale marks decide. Naming the base
+   * revision decides against that base text.
    */
   revision?: string
 }
@@ -262,7 +264,8 @@ function guidelineView(baseline: LawBaseline, revision: string | undefined): Law
     cached = new Map()
     guidelineViews.set(baseline, cached)
   }
-  if (cached.has(key)) return cached.get(key) ?? null
+  const cachedView = cached.get(key)
+  if (cachedView !== undefined) return cachedView
   const view = buildGuidelineView(baseline, revision)
   cached.set(key, view)
   return view
@@ -270,20 +273,25 @@ function guidelineView(baseline: LawBaseline, revision: string | undefined): Law
 
 /** Build one merged guideline view; see {@link guidelineView}. */
 function buildGuidelineView(baseline: LawBaseline, revision: string | undefined): LawBaseline | null {
-  // `supersededBy` names the newest revision; without it, the last declared version is the newest.
-  const latest = baseline.versions[baseline.versions.length - 1]?.revision
-  const target = revision ?? baseline.supersededBy ?? latest ?? null
+  // Use the newest transcription when the current revision is among the transcribed
+  // ones. When `supersededBy` names a revision no version covers, target that
+  // revision so the base text's stale marks stay in force.
+  const latest = baseline.versions.at(-1)?.revision
+  const current = baseline.supersededBy
+  const transcribed = current === null || baseline.versions.some(version => version.revision === current)
+  const target = revision ?? (transcribed ? latest : current) ?? null
   if (target === null || target === baseline.revision) return baseline
   const version = baseline.versions.find(candidate => candidate.revision === target)
   if (version === undefined) return revision === undefined ? baseline : null
   const overridden = new Map(version.sections.map(section => [section.path, section]))
-  const sections = baseline.sections.map(section => overridden.get(section.path) ?? section)
-  for (const section of version.sections) {
-    if (!baseline.sections.some(base => base.path === section.path)) sections.push(section)
-  }
+  const basePaths = new Set(baseline.sections.map(section => section.path))
+  const sections = [
+    ...baseline.sections.map(section => overridden.get(section.path) ?? section),
+    ...version.sections.filter(section => !basePaths.has(section.path)),
+  ].sort((a, b) => a.path.localeCompare(b.path))
   return {
     ...baseline,
-    sections: sections.sort((a, b) => a.path.localeCompare(b.path)),
+    sections,
     staleSections: baseline.staleSections.filter(stale => !overridden.has(stale.path)),
     versions: [],
   }
@@ -496,9 +504,9 @@ function coversSection(cited: string, path: string): boolean {
  * @param path - the cited normalized section path.
  * @returns the stale record covering or inherited by the path, when one exists.
  */
-export function staleSectionFor(baseline: LawBaseline, path: string): StaleSection | undefined {
+function staleSectionFor(baseline: LawBaseline, path: string): StaleSection | undefined {
   return baseline.staleSections.find(stale =>
-    path === stale.path || coversSection(path, stale.path) || coversSection(stale.path, path))
+    coversSection(path, stale.path) || coversSection(stale.path, path))
 }
 
 /**

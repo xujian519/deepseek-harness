@@ -260,8 +260,7 @@ function readVersions(
   const revisions = new Set<string>()
   return value.map((item) => {
     const entry = readMapping(item, 'versions 的每一项', fail)
-    const revision = readString(entry, 'revision', fail).trim()
-    if (revision.length === 0) throw fail('versions 的 revision 不能为空字符串')
+    const revision = readString(entry, 'revision', fail)
     if (revision === baseRevision) throw fail(`versions 的 revision 不能与基础 revision 相同：${revision}`)
     if (revisions.has(revision)) throw fail(`versions 的 revision 重复：${revision}`)
     revisions.add(revision)

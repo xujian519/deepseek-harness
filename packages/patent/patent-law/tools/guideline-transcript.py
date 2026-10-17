@@ -27,9 +27,11 @@ at a different left edge, and no Part III path is indexed. The source PDF is not
 shipped with this repository, so `--check` reports the absent source instead of
 passing silently, and the shipped index stays the only record of the transcription. Run `--write` after changing any rule above; it rewrites the
 `text`, `sourceDoc` and `verifiedOn` fields only, leaving the hand-verified `topics`
-and the file header untouched. `--check` compares the derived `text` and `sourceDoc`
-and keeps whichever `verifiedOn` dates the file carries, because a date is not
-something the extraction can derive.
+and the file header untouched. Only the top-level `sections:` block is transcribed
+and checked; a `versions:` block is preserved verbatim, because its text comes from
+a later revision's change table rather than from this PDF. `--check` compares the
+derived `text` and `sourceDoc` and keeps whichever `verifiedOn` dates the file
+carries, because a date is not something the extraction can derive.
 
 Usage:
   python3 tools/guideline-transcript.py --check [--pdf PATH] [--yaml PATH]
@@ -352,8 +354,10 @@ def rebuild(text: str, entries: list[Entry], sections: dict[str, list[str]], sta
     index = next((position for position, line in enumerate(lines) if line == 'sections:'), None)
     if index is None:
         fail('索引缺少顶层的 sections: 行')
-    head = '\n'.join(lines[:index])
-    out = [*head.rstrip('\n').split('\n'), 'sections:']
+    # Keep the blank separator the file uses before the top-level key.
+    separator = [''] if index > 0 and lines[index - 1] == '' else []
+    head = '\n'.join(lines[:index]).rstrip('\n')
+    out = [*head.split('\n'), *separator, 'sections:']
     for entry in entries:
         out.extend(entry.lines)
         out.extend(entry_lines(entry.path, sections[entry.path], stamp if stamp is not None else entry.recorded))

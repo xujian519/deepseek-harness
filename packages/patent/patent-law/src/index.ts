@@ -62,7 +62,6 @@ export {
   renderCitationFindings,
   renderCitationRows,
   resolveCitationPolicy,
-  staleSectionFor,
   verifyCitation,
   verifyCitations,
   type CitationRow,

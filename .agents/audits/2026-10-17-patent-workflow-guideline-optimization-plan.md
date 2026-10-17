@@ -80,7 +80,7 @@
 #### G-02 2026 版指南治理元数据（P0）
 
 - 已实现（元数据）：指南资产新增 `supersededBy` 与 `staleSections`，3 个已确认过时节（第二部分第一章4.4、第四部分第三章2.1、第四部分第三章3.3）机器可读；`verifyCitation` 对命中过时节的引用（含父节与子节）返回 `unverified`，不再把旧文本当作现行条文核验。
-- 已实现（最小版本闭环，2026-10-17）：资产新增 `versions`，只收录 2026 年修订版已确认修改的 3 节；正文按 2025-11-13 局令第84号修改对照表新栏的颜色标记转录（删除线文字剔除）。`verifyCitation` 新增 `revision` 选项：未指定时用最新已转录覆盖，指定 2023 年修订版时用基础文本与 `staleSections`，指定索引没有的版本时报 `unverified`。其余 61 条节级条目仍是 2023 年文本，不声称已更新。
+- 已实现（最小版本闭环，2026-10-17）：资产新增 `versions`，只收录 2026 年修订版已确认修改的 3 节；正文按 2025-11-13 局令第84号修改对照表新栏的颜色标记转录（删除线文字剔除）。`verifyCitation` 新增 `revision` 选项：未指定时，若 `supersededBy` 已由某个版本转录，使用最后声明的版本（版本从旧到新声明）；若 `supersededBy` 尚未转录，使用基础文本与 `staleSections`；`supersededBy` 未声明时使用最后一个版本，没有版本则用基础文本。指定 2023 年修订版时用基础文本与 `staleSections`，指定索引没有的版本时报 `unverified`。其余 61 条节级条目仍是 2023 年文本，不声称已更新。
 - 资产解析校验：`staleSections` 必须指向已索引的节；`versions` 只允许出现在指南索引，`revision` 非空、不得重复、不得等于基础 `revision`，每项至少一个 section，同一版本内路径不得重复；非指南法条声明 `versions` 或 `staleSections` 即加载失败。
 - 未完成：完整 2026 版全文资产。本机有官方修改对照表（PDF 与 Markdown 转换），但没有 2026 年合订全文；对照表列出的 57 处改动中，只有 3 处已确认落在当前索引的节上并完成转录。其余改动可能涉及未索引的节、新增节（如第二部分第九章第7节）或节号改号，需逐条核对后扩写 `versions`。
 - 完成条件：拿到官方 2026 年合订全文（或按对照表逐条核对 57 处改动）后，补齐受影响节与新增节，重核路径编号，再声明 2026 版全文资产；在那之前 `sections` 仍是 2023 年基础文本，`versions` 只覆盖已确认的 3 节。
@@ -1650,7 +1650,7 @@ W-02 与 W-04 的最后一个缺口是 `spec-check` 只能跑 `mode=claims`：�
 - `versions` 只允许出现在《专利审查指南》索引：`revision` 非空、不得重复、不得等于基础 `revision`；每项至少一个 section，同一版本内路径不得重复；非指南法条声明 `versions` 即加载失败。
 - 版本覆盖按路径替换基础 `sections`；版本可以新增基础索引没有的节，为后续 2026 新增节留出位置。
 - `verifyCitation` 新增可选的 `revision`：
-  - 未指定：使用最新已转录覆盖（当前为 2026 年修订版）；覆盖不到的节仍用 2023 基础文本，仍按 `staleSections` 判定。
+  - 未指定：若 `supersededBy` 已转录，使用最后声明的版本（版本按从旧到新声明，当前为 2026 年修订版）；覆盖不到的节仍用 2023 基础文本，仍按 `staleSections` 判定。若 `supersededBy` 尚未转录，退回基础文本与过时标记；`supersededBy` 未声明时使用最后一个版本，没有版本则用基础文本。
   - 指定基础 `revision`：使用基础文本，3 节按 `staleSections` 报 `unverified`。
   - 指定索引没有的版本：报 `unverified` 并写明版本，不回退到基础文本。
 - 合并视图按 baseline 与版本缓存；正文重合索引按视图缓存，不因每次判定重建。
@@ -1671,26 +1671,28 @@ W-02 与 W-04 的最后一个缺口是 `spec-check` 只能跑 `mode=claims`：�
 | `packages/patent/patent-law/src/types.ts` | 新增 `GuidelineVersion`；`LawBaseline` 新增必需的 `versions` |
 | `packages/patent/patent-law/src/baseline.ts` | 解析并校验 `versions`；非指南声明即失败 |
 | `packages/patent/patent-law/src/verify.ts` | `VerifyOptions.revision`；按版本合并视图、缓存；未知版本报 `unverified` |
-| `packages/patent/patent-law/src/index.ts` | 导出 `GuidelineVersion` |
+| `packages/patent/patent-law/src/index.ts` | 导出 `GuidelineVersion`；`staleSectionFor` 保持模块内部，不扩张公共 API |
 | `packages/patent/patent-law/assets/law/cn-examination-guidelines.yaml` | 新增 2026 `versions` 的 3 节；订正条目计数 64+14；更新头部说明 |
-| `packages/patent/patent-law/tests/baseline.spec.ts` | 版本解析、排序与 5 类负例 |
-| `packages/patent/patent-law/tests/verify.spec.ts` | 默认/指定版本/未知版本/父节覆盖/未覆盖的过时节/随包 3 节集成用例 |
+| `packages/patent/patent-law/tests/baseline.spec.ts` | 版本解析、排序与 7 类负例（含非数组、空 revision、重复 stale 路径） |
+| `packages/patent/patent-law/tests/verify.spec.ts` | 默认/多版本/现行版本未转录/指定版本/未知版本/父节覆盖/版本新增节/未覆盖的过时节/无 supersededBy 回落/随包 3 节集成用例 |
 | `packages/patent/patent-law/tests/tool.spec.ts` | `law_verify` 默认使用最新转录版本 |
 | `packages/patent/patent-law/README.md`、`README.zh.md`、`README.i18n.yaml` | 版本覆盖、计数、已知限制与配对哈希 |
-| `packages/patent/patent-law/tools/guideline-transcript.py` | `read_entries` 只解析顶层 `sections:`（避开 `staleSections`）；`rebuild` 只按顶层 `sections:` 切分（避开 `versions` 内的嵌套键），保证 `--write` 不丢版本块 |
+| `packages/patent/patent-law/tools/guideline-transcript.py` | `read_entries` 只解析顶层 `sections:`（避开 `staleSections`）；`rebuild` 只按顶层 `sections:` 切分（避开 `versions` 内的嵌套键），保留版本块与其后的空行；模块注释说明 `versions` 原样保留且不按 2023 PDF 校验 |
 | `docs/upgrade-guide/v0.2.1-rc.1/patent-guideline-2026-sections/` | 新增中英升级指南：3 节行为变化、`versions` 字段与迁移步骤 |
 | `.agents/audits/2026-10-17-patent-workflow-guideline-optimization-plan.md` | G-02 状态、§4 与本节记录 |
 
 ### 验证结果
 
-- `pnpm exec vitest run packages/patent/patent-law`：9 个文件、146 个用例全部通过。
-- `pnpm exec vitest run packages/patent`：319 个文件通过、1 个跳过；4855 个用例通过、2 个跳过。
+- `pnpm exec vitest run packages/patent/patent-law`：9 个文件、154 个用例全部通过。
+- `pnpm exec vitest run packages/patent/patent-law --coverage --coverage.include='packages/patent/patent-law/src/**/*.ts' --coverage.exclude='packages/patent/patent-law/src/types.ts'`：`baseline.ts`、`verify.ts` 等全部 100% statements/branches/functions/lines；`patent-law` 不在覆盖率豁免名单，必须满足逐文件门禁。
+- `pnpm exec vitest run packages/patent`：319 个文件通过、1 个跳过；4863 个用例通过、2 个跳过。
 - `pnpm run typecheck`：5/5 gates PASS。
 - `pnpm run build`：9/9 gates PASS。
 - 改动 TS 文件 oxlint：0 errors、0 warnings。
 - `pnpm run verify-translation-pairing packages/patent/patent-law/README.md`：1 对一致；升级指南的中英配对同样通过。
 - `pnpm run test:docs`：28/29 通过；唯一失败是并行的 `litho.docs/patent/README.md` 配对缺失，与本切片无关。
-- 转录工具 `--write` 在临时副本上保留 `versions`，只输出既有的一处空格差异（第二部分第四章6.3，抽取器不按坐标补空格，非本次引入）。
+- 转录工具 `--write` 在临时副本上保留 `versions` 与其后的空行，只输出既有的一处空格差异（第二部分第四章6.3，抽取器不按坐标补空格，非本次引入）。
+- 现有 patent 快照没有调用 `law_verify` 的这 3 节；本次默认判定变化由 `tool.spec.ts` 与 `verify.spec.ts` 的随包资产用例覆盖，因此未重录快照。
 
 ### 覆盖边界
 

@@ -126,9 +126,9 @@ export type LawBaseline = {
   staleSections: StaleSection[]
   /**
    * Revisions that change or add guideline sections, as transcribed overrides
-   * of `sections`; empty for statutes and while no later revision has been
-   * transcribed. Verification uses the latest available override unless the
-   * caller names a revision.
+   * of `sections`, declared oldest first; empty for statutes and while no later
+   * revision has been transcribed. Verification uses the last entry when the
+   * current revision is transcribed, unless the caller names a revision.
    */
   versions: GuidelineVersion[]
   /**
