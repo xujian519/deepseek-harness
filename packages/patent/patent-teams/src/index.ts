@@ -24,7 +24,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import { PatentTeamsService, type PatentTeamsConfig } from './service.ts'
 import { installRetiredMemberGuard } from './members.ts'
 import { DEFAULT_MAILBOX_DELIVERY_LEASE_MS } from './mailbox.ts'
-import { registerPatentTeamsTools } from './tools.ts'
+import { PATENT_TEAMS_TOOL_NAMES, registerPatentTeamsTools } from './tools.ts'
 
 // Re-export the service class so the Typert catalog projection can render
 // `ctx.patentTeams` onto the patent subsystem page (it models a Context key
@@ -140,20 +140,7 @@ export function apply(ctx: Context, config: Config): void {
   // `list_agents` and reject `sendMessage` instead of cold-resuming.
   installRetiredMemberGuard(ctx, resolved.stateDir)
 
-  const toolNames = [
-    'patent_teams_create',
-    'patent_teams_add_member',
-    'patent_teams_remove_member',
-    'patent_teams_create_task',
-    'patent_teams_reassign_task',
-    'patent_teams_claim_task',
-    'patent_teams_update_task',
-    'patent_teams_send_message',
-    'patent_teams_wait',
-    'patent_teams_status',
-    'patent_teams_archive',
-    'patent_teams_delete',
-  ].join(', ')
+  const toolNames = PATENT_TEAMS_TOOL_NAMES.join(', ')
   ctx.systemPrompt.section({
     name: 'patent-teams:usage',
     order: config.promptSectionOrder ?? 117,

@@ -4,6 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, Config, inject, name } from '../src/index.ts'
 import { PatentTeamsService } from '../src/service.ts'
+import { PATENT_TEAMS_TOOL_NAMES } from '../src/tools.ts'
 
 describe('plugin identity', () => {
   it('declares the plugin name, injection list, and service class', () => {
@@ -98,20 +99,7 @@ describe('apply', () => {
     expect(sections).toHaveLength(1)
     expect(sections[0]!.name).toBe('patent-teams:usage')
     expect(sections[0]!.order).toBe(42)
-    for (const toolName of [
-      'patent_teams_create',
-      'patent_teams_add_member',
-      'patent_teams_remove_member',
-      'patent_teams_create_task',
-      'patent_teams_reassign_task',
-      'patent_teams_claim_task',
-      'patent_teams_update_task',
-      'patent_teams_send_message',
-      'patent_teams_wait',
-      'patent_teams_status',
-      'patent_teams_archive',
-      'patent_teams_delete',
-    ]) {
+    for (const toolName of PATENT_TEAMS_TOOL_NAMES) {
       expect(registered.some(tool => tool.name === toolName)).toBe(true)
       expect(sections[0]!.text).toContain(toolName)
     }

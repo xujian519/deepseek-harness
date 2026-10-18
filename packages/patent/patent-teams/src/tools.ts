@@ -17,6 +17,22 @@ import { callingAgent, type PatentTeamsArchive, type PatentTeamsService, type Pa
 import { requireTeamApproval } from './approval.ts'
 import { TEAM_WAIT_DEFAULT_MS, TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS } from './team-activity.ts'
 
+/** Every `patent_teams_*` tool name in registration order. */
+export const PATENT_TEAMS_TOOL_NAMES = [
+  'patent_teams_create',
+  'patent_teams_add_member',
+  'patent_teams_remove_member',
+  'patent_teams_create_task',
+  'patent_teams_reassign_task',
+  'patent_teams_claim_task',
+  'patent_teams_update_task',
+  'patent_teams_send_message',
+  'patent_teams_wait',
+  'patent_teams_status',
+  'patent_teams_archive',
+  'patent_teams_delete',
+] as const
+
 /** Render the status snapshot as compact text for the model. */
 function renderStatus(team: PatentTeamsStatus): string {
   const lines: string[] = [

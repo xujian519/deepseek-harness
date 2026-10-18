@@ -8,7 +8,7 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import { describe, expect, it, vi } from 'vitest'
 import { TeamApprovalError } from '../src/approval.ts'
-import { registerPatentTeamsTools, type PatentTeamsToolOptions } from '../src/tools.ts'
+import { PATENT_TEAMS_TOOL_NAMES, registerPatentTeamsTools, type PatentTeamsToolOptions } from '../src/tools.ts'
 import type { PatentTeamsArchive, PatentTeamsStatus } from '../src/service.ts'
 
 interface ToolDefinition {
@@ -106,20 +106,7 @@ describe('registerPatentTeamsTools', () => {
   it('registers every patent_teams_* tool', () => {
     const ctx = new Context()
     const tools = register(ctx, makeService())
-    expect([...tools.keys()]).toEqual([
-      'patent_teams_create',
-      'patent_teams_add_member',
-      'patent_teams_remove_member',
-      'patent_teams_create_task',
-      'patent_teams_reassign_task',
-      'patent_teams_claim_task',
-      'patent_teams_update_task',
-      'patent_teams_send_message',
-      'patent_teams_wait',
-      'patent_teams_status',
-      'patent_teams_archive',
-      'patent_teams_delete',
-    ])
+    expect([...tools.keys()]).toEqual([...PATENT_TEAMS_TOOL_NAMES])
     expect(tools.get('patent_teams_create')!.description).toContain('Create a new PatentTeams team')
   })
 

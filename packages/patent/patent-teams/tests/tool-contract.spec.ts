@@ -39,14 +39,31 @@ function fakeCaptain(id: string, cwd: string): Agent {
     cwd,
     isSeeded: false,
   })
-  return {
+  const agent: Agent = {
     id: SessionId(id),
     session,
     options: { provider: 'spawn', model: 'deepseek-v4' },
     status: 'idle',
+    ctx: new Context(),
+    inbox: {
+      nextTurn: [],
+      nextStep: [],
+      clear() {},
+      append() {},
+      prepend() {},
+      replace: () => false,
+      remove: () => false,
+      splice: () => [],
+    },
+    cancel() {},
     whenIdle: () => Promise.resolve(),
-    steer: () => {},
-  } as unknown as Agent
+    runMaintenance: task => task(new AbortController().signal),
+    send() {},
+    followup() {},
+    steer() {},
+    inject() {},
+  }
+  return agent
 }
 
 async function mount(): Promise<Context> {
@@ -132,5 +149,50 @@ describe('patent-teams tool output contracts', () => {
     expect(task.isError).toBe(false)
     if (task.isError) return
     expect(task.value).not.toHaveProperty('worker')
+  })
+
+  it('runs update_task and status through the real tool runtime', async () => {
+    const workspace = await tmpWorkspace()
+    const ctx = await mount()
+    const captain = fakeCaptain('captain-3', workspace)
+    expect((await call(ctx, captain, 'patent_teams_create', { name: 'Alpha' })).isError).toBe(false)
+    expect((await call(ctx, captain, 'patent_teams_create_task', { subject: 'draft' })).isError).toBe(false)
+
+    const reassigned = await call(ctx, captain, 'patent_teams_reassign_task', {
+      task_id: 't1',
+      assignee: 'captain',
+    })
+    expect(reassigned.isError).toBe(false)
+
+    const claimed = await call(ctx, captain, 'patent_teams_claim_task', { task_id: 't1' })
+    expect(claimed.isError).toBe(false)
+    if (claimed.isError) return
+    const attemptId = (claimed.value as { attempt_id?: string }).attempt_id
+    expect(attemptId).toBeTruthy()
+
+    const started = await call(ctx, captain, 'patent_teams_update_task', {
+      task_id: 't1',
+      status: 'in_progress',
+      attempt_id: attemptId,
+    })
+    expect(started.isError).toBe(false)
+    const completed = await call(ctx, captain, 'patent_teams_update_task', {
+      task_id: 't1',
+      status: 'completed',
+      output: 'done',
+      attempt_id: attemptId,
+    })
+    expect(completed.isError).toBe(false)
+    if (completed.isError) return
+    expect(completed.value).toMatchObject({ status: 'completed', output: 'done' })
+
+    const status = await call(ctx, captain, 'patent_teams_status', {})
+    expect(status.isError).toBe(false)
+    if (status.isError) return
+    const text = status.content
+      .map(block => block.type === 'text' ? block.text : '')
+      .join('\n')
+    expect(text).toContain('Team "Alpha"')
+    expect(text).toContain('t1 [completed]')
   })
 })

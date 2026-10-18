@@ -1,7 +1,7 @@
 // Real-Loader composition test: boots a test cordis.yml through the real
 // Loader mounting @deepseek-ai/dsh-patent-teams over the services it needs
 // (dsh-subagent, dsh-tools, dsh-system-prompt, dsh-tool-subagent-control), and
-// asserts the service, all ten patent_teams_* tools, the usage section, and the
+// asserts the service, all twelve patent_teams_* tools, the usage section, and the
 // member capability filter are live on the real context. This is the shipped
 // entry path: a hand-mounted plugin would not catch invalid Loader exports or
 // missing inject services.
@@ -26,6 +26,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as ToolSubagentControl from '@deepseek-ai/dsh-tool-subagent-control'
 import * as plugin from '../src/index.ts'
 import { MEMBER_DENIED_TOOLS } from '../src/members.ts'
+import { PATENT_TEAMS_TOOL_NAMES } from '../src/tools.ts'
 
 let root: string | undefined
 let context: Context | undefined
@@ -80,22 +81,11 @@ async function boot(): Promise<Context> {
 }
 
 describe('dsh-patent-teams real Loader composition', () => {
-  it('mounts the service, all eleven tools, and the usage section', async () => {
+  it('mounts the service, all twelve tools, and the usage section', async () => {
     const ctx = await boot()
     expect(ctx.get('patentTeams')).toBeDefined()
-    for (const name of [
-      'patent_teams_create',
-      'patent_teams_add_member',
-      'patent_teams_remove_member',
-      'patent_teams_create_task',
-      'patent_teams_reassign_task',
-      'patent_teams_claim_task',
-      'patent_teams_update_task',
-      'patent_teams_send_message',
-      'patent_teams_status',
-      'patent_teams_archive',
-      'patent_teams_delete',
-    ]) {
+    expect(PATENT_TEAMS_TOOL_NAMES).toHaveLength(12)
+    for (const name of PATENT_TEAMS_TOOL_NAMES) {
       expect(ctx.tools.get(name), `tool ${name} should be registered`).toBeDefined()
     }
     const assembly = await ctx.get('systemPrompt')!.assemble()

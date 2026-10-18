@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply, Config, inject, name } from '../src/index.ts'
 import { recordRetiredMemberIds } from '../src/state.ts'
+import { PATENT_TEAMS_TOOL_NAMES } from '../src/tools.ts'
 
 let context: Context | undefined
 const roots: string[] = []
@@ -40,14 +41,31 @@ function fakeCaptain(id: string, cwd: string): Agent {
     cwd,
     isSeeded: false,
   })
-  return {
+  const agent: Agent = {
     id: SessionId(id),
     session,
     options: { provider: 'spawn', model: 'deepseek-v4' },
     status: 'idle',
+    ctx: new Context(),
+    inbox: {
+      nextTurn: [],
+      nextStep: [],
+      clear() {},
+      append() {},
+      prepend() {},
+      replace: () => false,
+      remove: () => false,
+      splice: () => [],
+    },
+    cancel() {},
     whenIdle: () => Promise.resolve(),
-    steer: () => {},
-  } as unknown as Agent
+    runMaintenance: task => task(new AbortController().signal),
+    send() {},
+    followup() {},
+    steer() {},
+    inject() {},
+  }
+  return agent
 }
 
 interface MountOptions {
@@ -99,21 +117,8 @@ describe('patent-teams composition', () => {
   it('registers the service, all twelve tools, and the usage section', async () => {
     const ctx = await mount()
     expect(ctx.get('patentTeams')).toBeDefined()
-    const tools = [
-      'patent_teams_create',
-      'patent_teams_add_member',
-      'patent_teams_remove_member',
-      'patent_teams_create_task',
-      'patent_teams_reassign_task',
-      'patent_teams_claim_task',
-      'patent_teams_update_task',
-      'patent_teams_send_message',
-      'patent_teams_wait',
-      'patent_teams_status',
-      'patent_teams_archive',
-      'patent_teams_delete',
-    ]
-    for (const name of tools) {
+    expect(PATENT_TEAMS_TOOL_NAMES).toHaveLength(12)
+    for (const name of PATENT_TEAMS_TOOL_NAMES) {
       expect(ctx.tools.get(name), `tool ${name} should be registered`).toBeDefined()
     }
     const prompt = await ctx.systemPrompt.assemble()

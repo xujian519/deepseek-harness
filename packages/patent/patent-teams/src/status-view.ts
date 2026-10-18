@@ -66,7 +66,6 @@ export async function buildTeamStatus(
     () => freshParticipant(stateRoot, team.id, agent.id),
   )
   const activity = await memberActivity(host.ctx, fresh.captainSessionId)
-  // v8 ignore start -- spawned members always carry route fields and a child id; task attempts are always set
   const members = fresh.members
     .filter(member => member.status !== 'removed')
     .map((member) => {
@@ -107,7 +106,6 @@ export async function buildTeamStatus(
       ? { gate_rejections: task.gateRejections }
       : {},
   }))
-  // v8 ignore stop
   const mailboxWarnings: string[] = []
   let mailboxWarningCount = 0
   const reportMalformed = (agentKey: string) => (lineNumber: number): void => {
