@@ -246,10 +246,11 @@ describe('team directory persistence', () => {
 
     await mkdir(join(root, 'bad'), { recursive: true })
     await writeFile(join(root, 'bad', 'team.json'), 'not json {')
-    await expect(readTeam(root, 'bad')).rejects.toThrow()
+    await expect(readTeam(root, 'bad')).rejects.toThrow(join(root, 'bad', 'team.json'))
 
     await writeFile(join(root, 'bad', 'team.json'), JSON.stringify({ id: 'other' }))
     await expect(readTeam(root, 'bad')).rejects.toThrow('invalid PatentTeams state in team "bad"')
+    await expect(readTeam(root, 'bad')).rejects.toThrow(join(root, 'bad', 'team.json'))
   })
 
   it('readTeam strips a leading UTF-8 BOM from the durable file', async () => {
@@ -307,7 +308,14 @@ describe('durable record validation', () => {
   const validTask: TeamTask = {
     id: 't1', subject: 's', description: 'd', status: 'claimed', assignee: 'alice',
     dependencies: [], output: 'o', attempt: 1, attemptId: 'a', handoffId: 'h',
-    reassigning: false, createdAt: 1, updatedAt: 1,
+    reassigning: false,
+    worker: 'patent-search-commander',
+    contractValidation: {
+      worker: 'patent-search-commander', valid: true, missingHardFields: [], degraded: false,
+    },
+    gateFeedback: { score: 0.8, satisfied: true, failures: [], feedback: '' },
+    gateRejections: 1,
+    createdAt: 1, updatedAt: 1,
   }
 
   async function writeStateRoot(root: string, value: unknown): Promise<void> {
@@ -365,6 +373,13 @@ describe('durable record validation', () => {
       ['attemptId', 5],
       ['handoffId', 5],
       ['reassigning', 'yes'],
+      ['worker', 5],
+      ['contractValidation', []],
+      ['contractValidation', { worker: 'x', valid: 'yes', missingHardFields: [], degraded: false }],
+      ['gateFeedback', []],
+      ['gateFeedback', { score: '0.5', satisfied: false, failures: [], feedback: '' }],
+      ['gateRejections', -1],
+      ['gateRejections', 1.5],
       ['createdAt', 'x'],
       ['updatedAt', 'x'],
     ]
@@ -598,6 +613,18 @@ describe('mailbox persistence', () => {
     await writeFile(join(root, 'alpha', 'inbox', 'captain.jsonl'), lines.join('\n'))
     const unread = await readUnreadMailbox(root, 'alpha', CAPTAIN_KEY)
     expect(unread.map(m => m.id)).toEqual(['claimed-expired', 'fresh'])
+  })
+
+  it('honors a custom delivery lease', async () => {
+    const root = await tmpRoot()
+    await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })
+    await writeFile(
+      join(root, 'alpha', 'inbox', 'captain.jsonl'),
+      JSON.stringify(message('claimed', { deliveryClaimedAt: Date.now() - 10 })),
+    )
+    expect(await readUnreadMailbox(root, 'alpha', CAPTAIN_KEY)).toHaveLength(0)
+    expect((await readUnreadMailbox(root, 'alpha', CAPTAIN_KEY, undefined, 1)).map(m => m.id))
+      .toEqual(['claimed'])
   })
 
   it('claim/release/acknowledge mutate only the selected records and preserve malformed lines', async () => {

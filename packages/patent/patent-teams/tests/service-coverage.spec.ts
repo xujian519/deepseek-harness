@@ -87,6 +87,7 @@ async function makeService(options: {
     ...options.memberMaxDepth === undefined ? {} : { memberMaxDepth: options.memberMaxDepth },
     qualityGate: options.qualityGate ?? false,
     passThreshold: options.passThreshold ?? 0.7,
+    mailboxDeliveryLeaseMs: 60_000,
   })
   return { ctx, workspace, stateDir, agents, sendMessage }
 }
@@ -330,7 +331,9 @@ describe('coverage completion', () => {
     const result = await h.ctx.patentTeams.delete(captain, new AbortController().signal)
     expect(result.deleted).toBe(true)
     const archived = await readArchivedTeam(join(h.workspace, h.stateDir), 'alpha')
-    expect(archived?.tasks[0]!.status).toBe('pending')
+    expect(archived?.tasks[0]!.status).toBe('claimed')
+    expect(archived?.tasks[0]!.assignee).toBe('alice')
+    expect(archived?.tasks[0]!.attemptId).toBeUndefined()
     expect(archived?.members[0]!.status).toBe('removed')
   })
 

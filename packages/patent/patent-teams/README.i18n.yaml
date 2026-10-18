@@ -18,14 +18,14 @@
   en: ee80a848a893add4
   zh: d633fc2a5fe38286
 /dsh-patent-teams/configuration:
-  en: 4ec9342ff8b9b537
-  zh: aff42e3fee19b2c6
+  en: e15271606723c78e
+  zh: 06ae83026cdfc372
 /dsh-patent-teams/state-model:
-  en: 13989f61706f142f
-  zh: 46139e54fd2a4d45
+  en: 408a34591b3386d3
+  zh: 70cdd4f9d1e3c4b3
 /dsh-patent-teams/session-events:
-  en: c95610941bd55feb
-  zh: eb8559f4b1023136
+  en: 6652b821809a0e48
+  zh: 5d86884c310ce6e0
 /dsh-patent-teams/model-experience:
   en: 215e7ba838619b7b
   zh: 215e7ba838619b7b
@@ -39,8 +39,8 @@
   en: efa45d5438560dbd
   zh: 89cd6dc6880f3353
 /dsh-patent-teams/model-experience/request-context-and-condition/token-effect:
-  en: da4c865050be2aa4
-  zh: 2891f59d5c1df365
+  en: a3c6a825cede3ea3
+  zh: 1c5335e601905285
 /dsh-patent-teams/model-experience/request-context-and-condition/kv-cache-effect:
   en: 26840a33fc868f6e
   zh: d1f6d383eed9308d

@@ -17,13 +17,16 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isENOENT, isRecord } from '@deepseek-ai/dsh-value'
-import type { TaskStatus, TeamMember, TeamState, TeamTask } from './types.ts'
+import type { TaskContractValidation, TaskGateFeedback, TaskStatus, TeamMember, TeamState, TeamTask } from './types.ts'
 import { atomicWriteText, renameWithRetry, sanitizeKey, stripLeadingBom, withTeamLock } from './team-lock.ts'
+import { isFiniteNumber } from './value.ts'
 
 /** Mailbox key of the captain. */
 export const CAPTAIN_KEY = 'captain'
 /** Durable deny-list for PatentTeams members that must never be resumed. */
 const RETIRED_MEMBERS_FILE = 'retired-members.json'
+/** State-root directory names the archive layout reserves; a team id must never collide with them. */
+export const RESERVED_TEAM_IDS: ReadonlySet<string> = new Set(['archive'])
 
 /**
  * Whether `dependencies` are all satisfied (every named task exists and
@@ -125,6 +128,20 @@ export function invalidateTaskAttempt(
 }
 
 /**
+ * Revoke a task's current capability without changing its lifecycle state or
+ * recorded result. Used when a team is archived: late member updates must fail,
+ * while the archived record keeps the terminal status, assignee, and output for
+ * later review.
+ * @param task - the task whose attempt to revoke.
+ */
+export function revokeTaskAttempt(task: TeamTask): void {
+  delete task.attemptId
+  delete task.handoffId
+  delete task.reassigning
+  task.updatedAt = Date.now()
+}
+
+/**
  * Create the team directory structure and the initial team record.
  * @param stateRoot - resolved absolute state root directory.
  * @param state - the initial team record.
@@ -136,10 +153,16 @@ export async function createTeamDir(stateRoot: string, state: TeamState): Promis
 }
 
 /** Parse and validate one team record's file content. */
-function parseTeamRecord(raw: string, teamId: string): TeamState {
-  const value: unknown = JSON.parse(stripLeadingBom(raw))
+function parseTeamRecord(raw: string, teamId: string, file: string): TeamState {
+  let value: unknown
+  try {
+    value = JSON.parse(stripLeadingBom(raw))
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(`invalid PatentTeams state in team "${teamId}" (${file}): ${detail}`, { cause: error })
+  }
   if (!isTeamState(value, teamId)) {
-    throw new Error(`invalid PatentTeams state in team "${teamId}"`)
+    throw new Error(`invalid PatentTeams state in team "${teamId}" (${file})`)
   }
   return value
 }
@@ -151,8 +174,9 @@ function parseTeamRecord(raw: string, teamId: string): TeamState {
  * @returns the team record, or `undefined` when absent.
  */
 export async function readTeam(stateRoot: string, teamId: string): Promise<TeamState | undefined> {
+  const file = join(stateRoot, teamId, 'team.json')
   try {
-    return parseTeamRecord(await readFile(join(stateRoot, teamId, 'team.json'), 'utf8'), teamId)
+    return parseTeamRecord(await readFile(file, 'utf8'), teamId, file)
   } catch (error: unknown) {
     if (isENOENT(error)) {
       return undefined
@@ -286,9 +310,29 @@ function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string'
 }
 
-/** Whether a value is a finite timestamp/counter number. */
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
+/** Whether a value is a non-negative safe integer counter. */
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0
+}
+
+/** Validate a recorded worker-contract verdict. */
+function isTaskContractValidation(value: unknown): value is TaskContractValidation {
+  if (!isRecord(value)) return false
+  return typeof value['worker'] === 'string'
+    && typeof value['valid'] === 'boolean'
+    && Array.isArray(value['missingHardFields'])
+    && value['missingHardFields'].every(item => typeof item === 'string')
+    && typeof value['degraded'] === 'boolean'
+}
+
+/** Validate a recorded quality-gate verdict. */
+function isTaskGateFeedback(value: unknown): value is TaskGateFeedback {
+  if (!isRecord(value)) return false
+  return isFiniteNumber(value['score'])
+    && typeof value['satisfied'] === 'boolean'
+    && Array.isArray(value['failures'])
+    && value['failures'].every(item => typeof item === 'string')
+    && typeof value['feedback'] === 'string'
 }
 
 /** Validate one member record at the durable JSON boundary. */
@@ -321,11 +365,14 @@ function isTeamTask(value: unknown): value is TeamTask {
     && Array.isArray(value['dependencies'])
     && value['dependencies'].every(dependency => typeof dependency === 'string')
     && isOptionalString(value['output'])
-    && (value['attempt'] === undefined
-      || (Number.isSafeInteger(value['attempt']) && (value['attempt'] as number) >= 0))
+    && (value['attempt'] === undefined || isNonNegativeInteger(value['attempt']))
     && isOptionalString(value['attemptId'])
     && isOptionalString(value['handoffId'])
     && (value['reassigning'] === undefined || typeof value['reassigning'] === 'boolean')
+    && isOptionalString(value['worker'])
+    && (value['contractValidation'] === undefined || isTaskContractValidation(value['contractValidation']))
+    && (value['gateFeedback'] === undefined || isTaskGateFeedback(value['gateFeedback']))
+    && (value['gateRejections'] === undefined || isNonNegativeInteger(value['gateRejections']))
     && isFiniteNumber(value['createdAt'])
     && isFiniteNumber(value['updatedAt'])
 }

@@ -22,7 +22,9 @@ import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { PatentTeamsService, type PatentTeamsConfig } from './service.ts'
-import { registerPatentTeamsTools } from './tools.ts'
+import { installRetiredMemberGuard } from './members.ts'
+import { DEFAULT_MAILBOX_DELIVERY_LEASE_MS } from './mailbox.ts'
+import { PATENT_TEAMS_TOOL_NAMES, registerPatentTeamsTools } from './tools.ts'
 
 // Re-export the service class so the Typert catalog projection can render
 // `ctx.patentTeams` onto the patent subsystem page (it models a Context key
@@ -63,6 +65,11 @@ export interface Config {
    */
   passThreshold?: number
   /**
+   * How long a live-delivery claim stays exclusive before the message becomes
+   * retryable, in milliseconds (positive integer; default 60000).
+   */
+  mailboxDeliveryLeaseMs?: number
+  /**
    * Ask the deployment's approval answerers for a decision on the team plan before
    * `patent_teams_create` creates the team (deployment choice; default `false`). A
    * deployment that turns it on without an answerer refuses the create instead of
@@ -85,6 +92,7 @@ export const Config: z<Config> = z.object({
   promptSectionOrder: z.natural().default(117),
   qualityGate: z.boolean().default(false),
   passThreshold: z.number().min(0.01).max(1).default(0.7),
+  mailboxDeliveryLeaseMs: z.natural().min(1).default(DEFAULT_MAILBOX_DELIVERY_LEASE_MS),
   approveCreation: z.boolean().default(false),
   approveClosure: z.boolean().default(false),
 })
@@ -97,7 +105,7 @@ function usageSectionText(toolNames: string): string {
 3. Break the goal into tasks with patent_teams_create_task and wire dependencies. Assign role-specific work when useful; unassigned ready work belongs to the shared pool. The scheduler automatically claims one ready task for each truly idle member and wakes it, including across later rounds.
 4. Lead by delegation: assign work with patent_teams_create_task, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Then wait with patent_teams_wait and re-read patent_teams_status when it returns — the wait blocks until a task moves, a teammate reports, or a member starts or stops working, so never sleep, poll, or loop on status to pass the time. Do not duplicate a teammate's work merely because its turn is slow.
 5. If work is blocked, stale, or needs takeover, always call patent_teams_reassign_task first. Reassign to another idle member, or use assignee=captain before doing it yourself. Reassignment revokes the old attempt and waits for that member to quiesce, preventing late results from overwriting the new attempt.
-6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Keep dispatching and waiting until every required task is terminal and every member is idle/ready.
+6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; STALE_ATTEMPT errors mean ownership changed. Keep dispatching and waiting until every required task is terminal and every member is idle/ready.
 7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it. Deleted teams stay reviewable read-only through patent_teams_archive.
 
 Tools: ${toolNames}`
@@ -112,6 +120,7 @@ export function apply(ctx: Context, config: Config): void {
     maxMembers: config.maxMembers ?? 8,
     qualityGate: config.qualityGate ?? false,
     passThreshold: config.passThreshold ?? 0.7,
+    mailboxDeliveryLeaseMs: config.mailboxDeliveryLeaseMs ?? DEFAULT_MAILBOX_DELIVERY_LEASE_MS,
   }
 
   // Provider registration is a sibling plugin's effect (`subagent-spawn` /
@@ -126,20 +135,12 @@ export function apply(ctx: Context, config: Config): void {
   // resolve through the fiber chain; the fiber disposes it on unload.
   new PatentTeamsService(ctx, resolved)
 
-  const toolNames = [
-    'patent_teams_create',
-    'patent_teams_add_member',
-    'patent_teams_remove_member',
-    'patent_teams_create_task',
-    'patent_teams_reassign_task',
-    'patent_teams_claim_task',
-    'patent_teams_update_task',
-    'patent_teams_send_message',
-    'patent_teams_wait',
-    'patent_teams_status',
-    'patent_teams_archive',
-    'patent_teams_delete',
-  ].join(', ')
+  // The host exposes no targeted forget/retire seam, so the plugin owns the
+  // per-child retirement boundary: retired members must disappear from
+  // `list_agents` and reject `sendMessage` instead of cold-resuming.
+  installRetiredMemberGuard(ctx, resolved.stateDir)
+
+  const toolNames = PATENT_TEAMS_TOOL_NAMES.join(', ')
   ctx.systemPrompt.section({
     name: 'patent-teams:usage',
     order: config.promptSectionOrder ?? 117,

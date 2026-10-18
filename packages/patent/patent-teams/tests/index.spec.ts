@@ -4,6 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, Config, inject, name } from '../src/index.ts'
 import { PatentTeamsService } from '../src/service.ts'
+import { PATENT_TEAMS_TOOL_NAMES } from '../src/tools.ts'
 
 describe('plugin identity', () => {
   it('declares the plugin name, injection list, and service class', () => {
@@ -23,6 +24,7 @@ describe('Config schema', () => {
       promptSectionOrder: 117,
       qualityGate: false,
       passThreshold: 0.7,
+      mailboxDeliveryLeaseMs: 60_000,
       approveCreation: false,
       approveClosure: false,
     })
@@ -49,11 +51,13 @@ describe('Config schema', () => {
       promptSectionOrder: 5,
       qualityGate: true,
       passThreshold: 0.9,
+      mailboxDeliveryLeaseMs: 60_000,
       approveCreation: true,
       approveClosure: true,
     })
     expect(() => Config({ maxMembers: 0 })).toThrow()
     expect(() => Config({ memberMaxDepth: -1 })).toThrow()
+    expect(() => Config({ mailboxDeliveryLeaseMs: 0 })).toThrow()
   })
 })
 
@@ -76,6 +80,11 @@ describe('apply', () => {
     } as never)
     ctx.provide('llm', { resolveCallConfig: async (c: unknown) => c } as never)
     ctx.provide('agents', { get: () => undefined } as never)
+    ctx.provide('subagents', {
+      listChildren: async () => [],
+      listDescendants: async () => [],
+      sendMessage: async () => 'msg',
+    } as never)
     apply(ctx, Config(config))
     return { ctx, registered, sections }
   }
@@ -90,20 +99,7 @@ describe('apply', () => {
     expect(sections).toHaveLength(1)
     expect(sections[0]!.name).toBe('patent-teams:usage')
     expect(sections[0]!.order).toBe(42)
-    for (const toolName of [
-      'patent_teams_create',
-      'patent_teams_add_member',
-      'patent_teams_remove_member',
-      'patent_teams_create_task',
-      'patent_teams_reassign_task',
-      'patent_teams_claim_task',
-      'patent_teams_update_task',
-      'patent_teams_send_message',
-      'patent_teams_wait',
-      'patent_teams_status',
-      'patent_teams_archive',
-      'patent_teams_delete',
-    ]) {
+    for (const toolName of PATENT_TEAMS_TOOL_NAMES) {
       expect(registered.some(tool => tool.name === toolName)).toBe(true)
       expect(sections[0]!.text).toContain(toolName)
     }
@@ -124,6 +120,11 @@ describe('apply', () => {
     ctx.provide('systemPrompt', { section: (section: { name: string; order: number; text: string }) => { sections.push(section); return () => {} } } as never)
     ctx.provide('llm', { resolveCallConfig: async (c: unknown) => c } as never)
     ctx.provide('agents', { get: () => undefined } as never)
+    ctx.provide('subagents', {
+      listChildren: async () => [],
+      listDescendants: async () => [],
+      sendMessage: async () => 'msg',
+    } as never)
     // A raw partial config bypasses the schema defaults.
     apply(ctx, {})
     expect(sections[0]!.order).toBe(117)

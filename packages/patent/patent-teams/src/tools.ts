@@ -17,6 +17,22 @@ import { callingAgent, type PatentTeamsArchive, type PatentTeamsService, type Pa
 import { requireTeamApproval } from './approval.ts'
 import { TEAM_WAIT_DEFAULT_MS, TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS } from './team-activity.ts'
 
+/** Every `patent_teams_*` tool name in registration order. */
+export const PATENT_TEAMS_TOOL_NAMES = [
+  'patent_teams_create',
+  'patent_teams_add_member',
+  'patent_teams_remove_member',
+  'patent_teams_create_task',
+  'patent_teams_reassign_task',
+  'patent_teams_claim_task',
+  'patent_teams_update_task',
+  'patent_teams_send_message',
+  'patent_teams_wait',
+  'patent_teams_status',
+  'patent_teams_archive',
+  'patent_teams_delete',
+] as const
+
 /** Render the status snapshot as compact text for the model. */
 function renderStatus(team: PatentTeamsStatus): string {
   const lines: string[] = [
@@ -45,11 +61,19 @@ function renderStatus(team: PatentTeamsStatus): string {
         : ''
       return `  - ${task.id} [${task.status}] attempt ${task.attempt}${handoff} ${task.subject} → ${task.assignee || 'unassigned'}${deps}${worker}${validation}${gated}${output}`
     }),
-    `Captain inbox (${team.captain_inbox.length}):`,
-    ...team.captain_inbox.map(message => `  - [${message.from}] ${message.content.slice(0, 200)}`),
+    `Captain inbox (${team.captain_inbox.length}${team.captain_inbox_omitted > 0 ? `, ${team.captain_inbox_omitted} older omitted` : ''}):`,
+    ...team.captain_inbox.map(message => `  - [${message.from}] ${message.content}`),
   ]
   for (const [name, inbox] of Object.entries(team.member_inboxes)) {
-    lines.push(`Member inbox ${name} (${inbox.count}): latest — ${inbox.latest.slice(0, 120)}`)
+    const omitted = inbox.omitted > 0 ? `, ${inbox.omitted} omitted` : ''
+    if (inbox.messages !== undefined) {
+      lines.push(`Member inbox ${name} (${inbox.count}${omitted}):`)
+      for (const message of inbox.messages) {
+        lines.push(`  - [${message.from}] ${message.content}`)
+      }
+    } else {
+      lines.push(`Member inbox ${name} (${inbox.count}${omitted}): latest — ${inbox.latest ?? ''}`)
+    }
   }
   if (team.mailbox_warning_count > 0) {
     lines.push(
@@ -250,11 +274,12 @@ function registerTaskOwnershipTools(ctx: Context, teams: PatentTeamsService): vo
           subject: { type: 'string', required: true },
           status: { type: 'string', required: true },
           assignee: { type: 'string' },
+          worker: { type: 'string' },
         },
       },
       render: (_args, value) => [{
         type: 'text',
-        text: `Task "${value.subject}" created as ${value.task_id} (status ${value.status}${value.assignee ? `, assigned to ${value.assignee}` : ''}).`,
+        text: `Task "${value.subject}" created as ${value.task_id} (status ${value.status}${value.assignee ? `, assigned to ${value.assignee}` : ''}${value.worker ? `, worker ${value.worker}` : ''}).`,
       }],
     },
     async execute(args, exec) {

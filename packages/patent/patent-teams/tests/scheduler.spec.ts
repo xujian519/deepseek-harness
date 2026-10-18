@@ -97,7 +97,11 @@ async function makeHarness(options?: {
     sendMessage,
     interrupt: () => {},
   } as never)
-  const scheduler = installTeamScheduler(ctx, { stateDir, activity: new TeamActivity() })
+  const scheduler = installTeamScheduler(ctx, {
+    stateDir,
+    activity: new TeamActivity(),
+    deliveryLeaseMs: 60_000,
+  })
   return { ctx, workspace, stateDir, scheduler, live }
 }
 
@@ -204,6 +208,41 @@ describe('installTeamScheduler kickMember', () => {
     const mailbox = await readMailbox(join(workspace, stateDir), 'team1', 'alice')
     expect(mailbox[0]!.deliveryClaimedAt).toBeUndefined()
     expect(mailbox[0]!.readAt).toBeUndefined()
+  })
+
+  it('does not deliver mailbox fallback from a stale snapshot after removal', async () => {
+    const sendMessage = vi.fn(async () => 'msg')
+    const { workspace, stateDir, scheduler } = await makeHarness({ sendMessage })
+    const root = join(workspace, stateDir)
+    await createTeamDir(root, makeState())
+    await appendMailbox(
+      root,
+      'team1',
+      'alice',
+      createMessage('captain', 'alice', 'stale mail'),
+    )
+    const snapshot = await readTeam(root, 'team1')
+    expect(snapshot).toBeDefined()
+    const removed = {
+      ...snapshot!,
+      members: snapshot!.members.map(member => member.name === 'alice'
+        ? { ...member, status: 'removed' as const }
+        : member),
+    }
+    await writeTeam(root, removed)
+
+    await scheduler.kickTeam(
+      workspace,
+      'team1',
+      fakeAgent('captain-1', workspace),
+      undefined,
+      snapshot,
+    )
+
+    expect(sendMessage).not.toHaveBeenCalled()
+    const mailbox = await readMailbox(root, 'team1', 'alice')
+    expect(mailbox[0]!.readAt).toBeUndefined()
+    expect(mailbox[0]!.deliveryClaimedAt).toBeUndefined()
   })
 
   it('dispatches the next ready task with the exact attempt capability', async () => {
