@@ -160,6 +160,37 @@ it('逐权项覆盖：多项从属权项任一替代方案全覆盖即为覆盖'
   ])
 })
 
+it('逐权项覆盖：后一替代方案缺口更少时选用后者', () => {
+  const elements: ClaimElement[] = [
+    { id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' },
+    { id: '3a', claimNo: 3, text: '包括滤芯', kind: 'limitation' },
+    { id: '4a', claimNo: 4, text: '所述壳体为金属', kind: 'limitation' },
+  ]
+  const refs: ClaimRef[] = [
+    { claimNo: 1, claimType: 'independent', refersTo: [] },
+    { claimNo: 3, claimType: 'independent', refersTo: [] },
+    { claimNo: 4, claimType: 'dependent', refersTo: [1, 3] },
+  ]
+  const rows = [row('1a', 'D1', 'not-found'), row('3a', 'D1', 'literal'), row('4a', 'D1', 'literal')]
+  const fourth = deriveNoveltyCoverageByClaim(rows, 'D1', elements, refs).find(entry => entry.claimNo === 4)
+  expect(fourth?.covered).toBe(true)
+  expect(fourth?.missing).toEqual([])
+  expect(fourth?.alternatives?.map(alternative => alternative.missing)).toEqual([['1a'], []])
+})
+
+it('逐权项覆盖：替代方案缺口数相同时保留先出现的一条', () => {
+  const rows = [
+    row('1a', 'D1', 'literal'),
+    row('1b', 'D1', 'not-found'),
+    row('2a', 'D1', 'literal'),
+    row('2b', 'D1', 'literal'),
+    row('3a', 'D1', 'literal'),
+  ]
+  const third = deriveNoveltyCoverageByClaim(rows, 'D1', MULTI_ELEMENTS, MULTI).find(entry => entry.claimNo === 3)
+  expect(third?.missing).toEqual(['1b'])
+  expect(third?.alternatives?.map(alternative => alternative.missing)).toEqual([['1b'], ['1b']])
+})
+
 it('逐权项覆盖：多项从属权项全部替代方案都有缺口时，摘要取缺口最少的一条', () => {
   const rows = [
     row('1a', 'D1', 'literal'),

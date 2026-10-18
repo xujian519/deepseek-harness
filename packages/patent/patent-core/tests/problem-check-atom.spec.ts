@@ -170,6 +170,57 @@ describe('problem-check atom', () => {
     expect(codes(out)).toContain('PROBLEM-EQUALS-FEATURE')
   })
 
+  it('多个 diff 键提供相同文本时只分析一次', async () => {
+    const diff = JSON.stringify({
+      distinguishing_features: ['设置限位凸台'],
+      actual_technical_problem: '如何设置限位凸台',
+    })
+    const out = await handler.execute({ state: { diff, inventiveness_diff: diff } })
+    expect(codes(out)).toContain('PROBLEM-EQUALS-FEATURE')
+    expect(out.problem_check_report).toContain('区别技术特征：1 项')
+  })
+
+  it('JSON 前后带说明文字时提取对象片段', async () => {
+    const out = await handler.execute({
+      state: {
+        diff:
+          '对比结果如下：'
+          + '{"distinguishing_features":["设置限位凸台"],"actual_technical_problem":"如何设置限位凸台"}'
+          + ' 以上。',
+      },
+    })
+    expect(codes(out)).toContain('PROBLEM-EQUALS-FEATURE')
+  })
+
+  it('结构化特征可以是单个字符串', async () => {
+    const out = await handler.execute({
+      state: {
+        distinguishing_features: '设置限位凸台',
+        diff: JSON.stringify({ actual_technical_problem: '如何设置限位凸台' }),
+      },
+    })
+    expect(codes(out)).toContain('PROBLEM-EQUALS-FEATURE')
+  })
+
+  it('问题规范化后过短时不参与复述比对', async () => {
+    const out = await handler.execute({
+      state: {
+        diff: JSON.stringify({
+          distinguishing_features: ['设置限位凸台'],
+          actual_technical_problem: '。',
+        }),
+      },
+    })
+    expect(codes(out)).not.toContain('PROBLEM-EQUALS-FEATURE')
+  })
+
+  it('没有区别特征时报告跳过复述检查', async () => {
+    const out = await handler.execute({
+      state: { diff: JSON.stringify({ actual_technical_problem: '如何提高可靠性' }) },
+    })
+    expect(out.problem_check_report).toContain('未提供区别技术特征，跳过')
+  })
+
   it('配置键非法 → 降级', async () => {
     const badDiffKeys = await handler.execute({ state: { diff_text_keys: 'diff' } })
     expect(badDiffKeys._error).toContain('params.diff_text_keys')

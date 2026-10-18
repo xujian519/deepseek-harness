@@ -11,7 +11,9 @@ import {
   getStateString,
 } from '../../handler.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
+import { parseJsonStringArray } from '../../../llm-json.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm } from './llm.ts'
+import { readAtomTunables } from '../../tunables.ts'
 
 /** draft-claims 原子：基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）。 */
 export const draftClaimsAtom: Atom = {
@@ -44,6 +46,11 @@ export class DraftClaimsHandler implements StageHandler {
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = execInput
+    const tuned = readAtomTunables(state, { temperature: 0.2, promptLimit: 8000 })
+    if (!tuned.ok) return degraded('draft-claims', tuned.reason)
+    const { temperature, promptLimit, promptLimitConfigured } = tuned.tunables
+    // 未显式配置时保留各文本块的原有上限；配置后同一上限作用于所有块。
+    const noveltyLimit = promptLimitConfigured ? promptLimit : 2000
     const missing = requireLlm(provider, 'draft-claims')
     if (missing) return missing
     const mergeResult = getStateString(state, 'merge_result')
@@ -66,22 +73,31 @@ export class DraftClaimsHandler implements StageHandler {
       '- 与新颖性分析结论一致：区别特征应体现在独立权利要求中',
       '',
       '【分析结果】',
-      dataBlock(input.slice(0, 8000)),
-      novelty.trim().length > 0 ? `【新颖性结论】\n${dataBlock(novelty.slice(0, 2000))}` : '',
+      dataBlock(input.slice(0, promptLimit)),
+      novelty.trim().length > 0
+        ? `【新颖性结论】\n${dataBlock(novelty.slice(0, noveltyLimit))}`
+        : '',
       revisionHint.trim().length > 0
         ? `【上一轮反套话评审意见（仅修订提示，不含评分）】\n${dataBlock(revisionHint)}`
         : '',
       '',
       '请严格输出 JSON：claims 为权利要求逐条文本数组（第 1 条为独立权利要求），notes 为撰写说明。',
     ].join('\n')
-    const res = await callLlm(provider, 'draft-claims', prompt, { schema: DRAFT_CLAIMS_SCHEMA, temperature: 0.2 }, signal)
+    const res = await callLlm(
+      provider,
+      'draft-claims',
+      prompt,
+      { schema: DRAFT_CLAIMS_SCHEMA, temperature },
+      signal,
+    )
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,
       (parsed, raw) => {
-        if (!Array.isArray(parsed.claims)) return null
+        const claims = parseJsonStringArray(parsed.claims, 'claims')
+        if (!claims.ok) return degraded('draft-claims', claims.reason)
         return {
-          claims_draft: parsed.claims.map(String).join('\n\n'),
+          claims_draft: claims.values.join('\n\n'),
           draft_claims_result: raw,
         }
       },

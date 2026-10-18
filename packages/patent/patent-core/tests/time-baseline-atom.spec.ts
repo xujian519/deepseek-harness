@@ -30,6 +30,13 @@ describe('time-baseline atom', () => {
     expect(String(out.time_baseline_report)).toContain('优先权日')
   })
 
+  it('只有优先权日时以优先权日为截止日，申请日留空', async () => {
+    const out = await handler.execute({ state: { priority_date: '2023-06-01' } })
+    expect(out.reference_date).toBe('2023-06-01')
+    expect(out.reference_basis).toBe('priority-date')
+    expect(out.filing_date).toBe('')
+  })
+
   it('优先权日晚于申请日时仍取申请日', async () => {
     const out = await handler.execute({ state: { filing_date: '2024-06-01', priority_date: '2024-07-01' } })
     expect(out.reference_date).toBe('2024-06-01')
@@ -58,6 +65,20 @@ describe('time-baseline atom', () => {
     expect(String(badPriority._error)).toContain('优先权日')
   })
 
+  it('月级申请日或优先权日降级，要求具体日期', async () => {
+    const filing = await handler.execute({ state: { filing_date: '2024-06' } })
+    expect(String(filing._error)).toContain('申请日')
+    expect(String(filing._error)).toContain('仅精确到月')
+    expect(filing.reference_date).toBeUndefined()
+
+    const priority = await handler.execute({
+      state: { filing_date: '2024-06-01', priority_date: '2023年6月' },
+    })
+    expect(String(priority._error)).toContain('优先权日')
+    expect(String(priority._error)).toContain('仅精确到月')
+    expect(priority.reference_date).toBeUndefined()
+  })
+
   it('params 可指定日期来源键', async () => {
     const out = await handler.execute({
       state: {
@@ -68,6 +89,17 @@ describe('time-baseline atom', () => {
       },
     })
     expect(out.reference_date).toBe('2023-12-01')
+  })
+
+  it('日期来源键保留首尾空格，按原样读取 state', async () => {
+    const out = await handler.execute({
+      state: {
+        filing_date_key: ' application date ',
+        ' application date ': '2024-06-01',
+      },
+    })
+    expect(out.reference_date).toBe('2024-06-01')
+    expect(out.reference_basis).toBe('filing-date')
   })
 
   it('日期来源键配置非法时降级', async () => {

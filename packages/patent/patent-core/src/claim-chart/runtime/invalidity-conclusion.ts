@@ -116,7 +116,7 @@ function collectDependentClaimIssues(
       if (coveredPath) continue
       for (const referredClaimNo of referencedClosure(chart.claims, ref.claimNo)) {
         const referredElements = elementsOf(chart, referredClaimNo)
-        if (referredElements.length === 0 || allCovered(chart, targetId, referredElements)) continue
+        if (allCovered(chart, targetId, referredElements)) continue
         const missing = referredElements
           .filter(element => !isElementCovered(chart.rows, targetId, element.id))
           .map(element => element.id)
@@ -171,6 +171,7 @@ function claimRefIssueLine(issue: ClaimRefIssue): string {
       return `- 权利要求 ${issue.claimNo}：${CLAIM_REF_ISSUE_LABELS[issue.kind]}（${issue.refersTo.join('、')}）`
     case 'reference-cycle':
       return `- ${CLAIM_REF_ISSUE_LABELS[issue.kind]}：${issue.claimNos.join(' → ')}`
+    /* v8 ignore next -- closed union: all four kinds are handled above. */
     default:
       return assertNever(issue)
   }

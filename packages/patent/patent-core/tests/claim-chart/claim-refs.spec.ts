@@ -37,6 +37,11 @@ it('如/按照 与多值、区间引用都识别', () => {
   expect(deriveClaimRefs(text).map(ref => ref.refersTo)).toEqual([[], [1], [1, 2], [1, 2, 3], [1, 2, 3]])
 })
 
+it('编号表达式容忍空片段与非数字标记', () => {
+  expect(parseReferenceNumbers('或1， 2')).toEqual([1, 2])
+  expect(parseReferenceNumbers('1或X')).toEqual([1])
+})
+
 it('区间展开有跨度上限，超限不展开', () => {
   expect(parseReferenceNumbers('1-3')).toEqual([1, 2, 3])
   expect(parseReferenceNumbers('1-200')).toEqual([])

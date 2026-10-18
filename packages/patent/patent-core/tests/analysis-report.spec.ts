@@ -47,6 +47,12 @@ describe('feature extract', () => {
     expect(features.every(f => f.confidence > 0)).toBe(true)
   })
 
+  it('uses the fallback confidence when the feature type is unknown', () => {
+    const [feature] = extractTechnicalFeatures(['某无关描述'])
+    expect(feature?.type).toBe('other')
+    expect(feature?.confidence).toBeLessThan(extractTechnicalFeatures(CLAIMS)[0]!.confidence)
+  })
+
   it('computes full-key statistics', () => {
     const stats = computeFeatureStatistics(extractTechnicalFeatures(CLAIMS))
     expect(stats.total).toBe(3)
@@ -68,6 +74,11 @@ describe('deterministic quality scores', () => {
     const fuzzy = computeClarityScore(['范围为约 5 厘米左右，大约 10 毫米'])
     expect(fuzzy.score).toBeLessThan(100)
     expect(fuzzy.rationale).toContain('左右')
+  })
+
+  it('returns a zero score when no claim text is available', () => {
+    expect(computeClarityScore([])).toMatchObject({ score: 0, rationale: '缺少权利要求文本' })
+    expect(computeCompletenessScore([])).toMatchObject({ score: 0, rationale: '缺少权利要求文本' })
   })
 
   it('penalizes missing abstract and single claim for completeness', () => {
@@ -166,6 +177,45 @@ describe('buildAnalysisReport', () => {
     expect(report.checkerVerdict).toBe('pass')
     expect(report.checkerFailures).toHaveLength(0)
     expect(report.expertConsiderations.some(c => c.includes('尚未记录证据收据'))).toBe(true)
+  })
+
+  it('uses an unknown domain name for unrecognized IPC sections', () => {
+    const summary = toIpcSummary({ section: 'Z', confidence: 0.4, matchedKeywords: [] })
+    expect(summary.domainName).toBe('未知')
+    expect(summary.noveltyImplications).toBeUndefined()
+  })
+
+  it('derives insights for high-confidence IPC, score bands and one-claim input', () => {
+    const high = buildAnalysisReport({
+      claims: CLAIMS,
+      abstract: ABSTRACT,
+      ipc: [{ section: 'G', confidence: 0.9, matchedKeywords: ['控制'] }],
+      modelScores: {
+        novelty: { score: 90, rationale: 'LLM 评估' },
+        technical_strength: { score: 60, rationale: 'LLM 评估' },
+      },
+      evidenceReceiptCount: 2,
+    })
+    expect(high.innovationInsights.some(item => item.includes('置信度 0.90'))).toBe(true)
+    expect(high.innovationInsights.some(item => item.includes('新颖性评估良好'))).toBe(true)
+    expect(high.expertConsiderations.some(item => item.includes('尚未记录证据收据'))).toBe(false)
+
+    const low = buildAnalysisReport({
+      claims: CLAIMS,
+      abstract: ABSTRACT,
+      modelScores: { novelty: { score: 50, rationale: 'LLM 评估' } },
+    })
+    expect(low.innovationInsights.some(item => item.includes('新颖性评估偏低'))).toBe(true)
+
+    const single = buildAnalysisReport({ claims: ['一种装置'], abstract: ABSTRACT })
+    expect(single.innovationInsights.some(item => item.includes('可区别技术特征'))).toBe(true)
+    expect(single.expertConsiderations.some(item => item.includes('仅一条权利要求'))).toBe(true)
+  })
+
+  it('skips feature insights when there are no claims', () => {
+    const report = buildAnalysisReport({ claims: [], ipc: [] })
+    expect(report.technicalFeatures).toEqual([])
+    expect(report.innovationInsights.some(item => item.includes('可区别技术特征'))).toBe(false)
   })
 
   it('keeps checkerVerdict undefined when the checker was not run', () => {

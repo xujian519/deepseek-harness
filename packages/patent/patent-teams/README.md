@@ -37,11 +37,16 @@ Durable multi-agent teams for patent workflow: one captain-led team of continuab
     memberMaxDepth: 1            # member delegation depth cap (0 forbids delegation)
     maxMembers: 8                # team size cap
     promptSectionOrder: 117      # usage-section order
+    qualityGate: false           # run the composite quality gate on worker completions
+    passThreshold: 0.7           # advisory composite-score threshold (0.01..1)
+    mailboxDeliveryLeaseMs: 60000 # live-delivery lease before a claimed message is retried
     approveCreation: false       # ask the approval answerers before creating a team
     approveClosure: false        # ask the approval answerers before archiving the team
 ```
 
 Two of the twelve tools decide the case rather than the work inside it: `patent_teams_create` opens a team, and `patent_teams_delete` closes it. With `approveCreation` or `approveClosure` on, the tool asks the deployment's `approval` service for one decision before the mutation runs, so a user decision stands between the captain and both ends of a case — the captain leads the work but does not decide alone that a team should exist or that the case is finished. The request names the tool, the exact call, and the reason (the team name and goal on create; the closure on delete), and the approval service writes its own audit pair. A deployment that turns a switch on without an answerer is refused rather than waved through: the seam raises `TeamApprovalError` naming the outcome (`rejected`, `cancelled`, or `unavailable`), and the model sees the failed call. Both switches default to `false`; the patent preset turns both on.
+
+`qualityGate` is opt-in and applies only to tasks created with a `worker` contract. A completion must carry output (submitted now or stored by an earlier update); a missing contract field, insufficient content, or a rule-gate hit bounces the task back to the member with feedback. `passThreshold` controls only when the advisory composite score is called out, not whether the gate bounces.
 
 ## State model
 
@@ -50,11 +55,13 @@ Team state lives under `<workspace>/<stateDir>/<teamId>/`:
 - `team.json` — the durable `TeamState` record (members, tasks, task sequence).
 - `inbox/<agentKey>.jsonl` — one JSONL mailbox per agent (`captain` or a member name).
 
-Team-record mutations run inside an in-process per-team lock and persist atomically (same-directory temp + rename, with a direct-write fallback for Windows `EPERM`); mailbox appends are single-line `O_APPEND` writes, and `add_member` resolves the member route and starts the child outside the lock (state admission and persistence revalidate inside it) so one spawn never stalls the team's tools. Task status transitions are validated by `TASK_TRANSITIONS`, and a refused transition names the statuses that are allowed next, so a caller that jumped (typically `claimed → completed`) learns the intermediate status to enter instead of retrying blind; every claim carries an `attempt_id` capability that becomes stale after retry or reassignment, so late member updates are rejected. `patent_teams_delete` archives the team directory under `archive/` instead of deleting it, retaining tasks and mailboxes for later review; `patent_teams_archive` reads that archive back (workspace-wide listing plus one-team detail, read-only).
+A workspace-level `<workspace>/<stateDir>/retired-members.json` records the retired member session ids; the mount-time guard filters them from agent listings and rejects resuming them.
+
+Team-record mutations run inside an in-process per-team lock and persist atomically (same-directory temp + rename, with a direct-write fallback for Windows `EPERM`); mailbox appends are single-line `O_APPEND` writes, and `add_member` resolves the member route and starts the child outside the lock (state admission and persistence revalidate inside it) so one spawn never stalls the team's tools. A live-delivery claim is exclusive for `mailboxDeliveryLeaseMs` (default 60 s) before another delivery attempt may retry it. Task status transitions are validated by `TASK_TRANSITIONS`, and a refused transition names the statuses that are allowed next, so a caller that jumped (typically `claimed → completed`) learns the intermediate status to enter instead of retrying blind; every claim carries an `attempt_id` capability that becomes stale after retry or reassignment, so late member updates are rejected. `patent_teams_delete` archives the team directory under `archive/` instead of deleting it, retaining tasks and mailboxes for later review; `patent_teams_archive` reads that archive back (workspace-wide listing plus one-team detail, read-only).
 
 ## Session events
 
-Every state mutation appends one `patent-teams/*` event to the captain's session (types and payloads in `event-types.ts`): `team-created`, `member-added`, `member-removed`, `task-created`, `task-updated`, `task-validated`, `task-gated`, `message-sent`, `team-deleted`.
+Every state mutation appends one `patent-teams/*` event to the captain's session (types and payloads in `event-types.ts`): `team-created`, `member-added`, `member-removed`, `task-created`, `task-updated`, `task-validated`, `task-gated`, `message-sent`, `team-deleted`. Events are informational records marked `ignorable: true`; durable team state remains authoritative.
 
 ## Model Experience
 
@@ -73,7 +80,7 @@ When the user asks to run something with PatentTeams (e.g. "use PatentTeams to d
 3. Break the goal into tasks with patent_teams_create_task and wire dependencies. Assign role-specific work when useful; unassigned ready work belongs to the shared pool. The scheduler automatically claims one ready task for each truly idle member and wakes it, including across later rounds.
 4. Lead by delegation: assign work with patent_teams_create_task, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Then wait with patent_teams_wait and re-read patent_teams_status when it returns — the wait blocks until a task moves, a teammate reports, or a member starts or stops working, so never sleep, poll, or loop on status to pass the time. Do not duplicate a teammate's work merely because its turn is slow.
 5. If work is blocked, stale, or needs takeover, always call patent_teams_reassign_task first. Reassign to another idle member, or use assignee=captain before doing it yourself. Reassignment revokes the old attempt and waits for that member to quiesce, preventing late results from overwriting the new attempt.
-6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Keep dispatching and waiting until every required task is terminal and every member is idle/ready.
+6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; STALE_ATTEMPT errors mean ownership changed. Keep dispatching and waiting until every required task is terminal and every member is idle/ready.
 7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it. Deleted teams stay reviewable read-only through patent_teams_archive.
 
 Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_wait, patent_teams_status, patent_teams_archive, patent_teams_delete
@@ -81,7 +88,7 @@ Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member,
 
 #### Token effect
 
-Fixed: one usage section (approximately 2.7 KB) plus the twelve tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings, task output is truncated to 300 characters in status and archive renders, inbox previews to 200.
+Fixed: one usage section (approximately 2.7 KB) plus the twelve tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings and at most 10 inbox messages per viewer (the captain inbox and a member's own inbox show full message text; a captain's cross-member preview is truncated to 200 characters), and task output is truncated to 300 characters in status and archive renders.
 
 #### KV Cache effect
 

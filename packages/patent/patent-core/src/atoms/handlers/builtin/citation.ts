@@ -16,6 +16,7 @@ import { type PipelineState, type StageExecuteInput, type StageHandler, getState
 import { checkCitations } from '../../../graph/domains/citation-check.ts'
 import { priorArtReceiptCitationIds } from '../../../evidence/ledger.ts'
 import { degraded } from './llm.ts'
+import { resolveConfiguredKey, resolveKeyList } from './state-keys.ts'
 
 /** 默认引用文本来源键（新颖性/创造性原子的结论与收口阶段产出，多键拼接）。 */
 export const DEFAULT_CITATION_REF_TEXT_KEYS: readonly string[] = [
@@ -39,35 +40,6 @@ export const citationCheckAtom: Atom = {
   outputSchema: ['citation_check_report', 'citation_check_grounded', 'citation_check_failures'],
 }
 
-/**
- * 解析引用文本键：缺省取内置键表，显式给出时必须是字符串数组。
- * @param state - 阶段执行态（含 params 合并值）。
- * @returns 可用的键列表；配置非法时返回 undefined。
- */
-function resolveRefTextKeys(state: PipelineState): string[] | undefined {
-  const raw = state['ref_text_keys']
-  if (raw === undefined) return [...DEFAULT_CITATION_REF_TEXT_KEYS]
-  if (!Array.isArray(raw) || raw.length === 0) return undefined
-  const keys: string[] = []
-  for (const item of raw) {
-    if (typeof item !== 'string' || item.trim().length === 0) return undefined
-    keys.push(item)
-  }
-  return keys
-}
-
-/**
- * 解析检索结果键：缺省为 `prior_art`，显式给出时须为非空字符串。
- * @param state - 阶段执行态（含 params 合并值）。
- * @returns 可用的键；配置非法时返回 undefined。
- */
-function resolvePriorArtKey(state: PipelineState): string | undefined {
-  const raw = state['prior_art_key']
-  if (raw === undefined) return DEFAULT_CITATION_PRIOR_ART_KEY
-  if (typeof raw !== 'string' || raw.trim().length === 0) return undefined
-  return raw
-}
-
 /** citation-check 执行器：汇总引用文本后调用域内确定性校验。 */
 export class CitationCheckHandler implements StageHandler {
   readonly name = 'citation-check'
@@ -81,11 +53,11 @@ export class CitationCheckHandler implements StageHandler {
   // oxlint-disable-next-line typescript/require-await -- StageHandler contract requires async execute
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const { state } = input
-    const keys = resolveRefTextKeys(state)
+    const keys = resolveKeyList(state, 'ref_text_keys', DEFAULT_CITATION_REF_TEXT_KEYS)
     if (keys === undefined) {
       return degraded('citation-check', 'params.ref_text_keys 必须是非空字符串数组')
     }
-    const priorArtKey = resolvePriorArtKey(state)
+    const priorArtKey = resolveConfiguredKey(state, 'prior_art_key', DEFAULT_CITATION_PRIOR_ART_KEY)
     if (priorArtKey === undefined) {
       return degraded('citation-check', 'params.prior_art_key 必须是非空字符串')
     }

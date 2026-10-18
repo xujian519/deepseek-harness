@@ -159,6 +159,23 @@ it('loadClaimChart 把旧文件 gaps[].mapping 迁移为 kind', async () => {
   }
 })
 
+it('loadClaimChart 为缺 gaps 字段的旧文件补空数组', async () => {
+  const prevCwd = process.cwd()
+  const dir = mkdtempSync(join(tmpdir(), 'cc-store-legacy-gaps-'))
+  process.chdir(dir)
+  try {
+    const base = chartFileBase('case-1', 'legacy-gaps')
+    mkdirSync(dirname(base), { recursive: true })
+    const { gaps: _dropped, ...withoutGaps } = makeChart()
+    writeFileSync(`${base}.json`, JSON.stringify(withoutGaps))
+    const loaded = loadClaimChart('case-1', 'legacy-gaps')
+    expect(loaded?.gaps).toEqual([])
+  } finally {
+    process.chdir(prevCwd)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 it('loadClaimChart 为缺 claims 字段的旧文件补空数组（引用关系未知）', async () => {
   const prevCwd = process.cwd()
   const dir = mkdtempSync(join(tmpdir(), 'cc-store-legacy-'))

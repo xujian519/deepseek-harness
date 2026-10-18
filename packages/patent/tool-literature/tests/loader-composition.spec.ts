@@ -13,7 +13,6 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
-import { clearCache, resetRateLimits } from '../src/runtime/http.ts'
 
 let root: string | undefined
 let context: Context | undefined
@@ -126,8 +125,6 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
   }, 30_000)
 
   it('serves a repeated search from the GET cache under the default TTL', async () => {
-    clearCache()
-    resetRateLimits()
     const original = globalThis.fetch
     let calls = 0
     globalThis.fetch = async () => {
@@ -145,8 +142,6 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
   }, 30_000)
 
   it('fetches every time when cacheTtlMs is 0', async () => {
-    clearCache()
-    resetRateLimits()
     const original = globalThis.fetch
     let calls = 0
     globalThis.fetch = async () => {
@@ -164,8 +159,6 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
   }, 30_000)
 
   it('stops after the first attempt when the retry budget is zero', async () => {
-    clearCache()
-    resetRateLimits()
     const original = globalThis.fetch
     let calls = 0
     globalThis.fetch = async () => {
@@ -183,8 +176,6 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
   }, 30_000)
 
   it('times out a hanging request at the configured timeoutMs', async () => {
-    clearCache()
-    resetRateLimits()
     const original = globalThis.fetch
     globalThis.fetch = (_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
       const signal = init?.signal

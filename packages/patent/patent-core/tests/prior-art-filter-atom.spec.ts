@@ -190,11 +190,87 @@ describe('prior-art-filter atom', () => {
     expect(String(invalid._error)).toContain('reference_date')
   })
 
+  it('月级截止日或申请日降级，避免按月初误判', async () => {
+    const reference = await handler.execute({
+      state: stateWith([doc('五月公开', '2024-05-10')], {
+        reference_date: '2024-06',
+        filing_date: '2024-06-01',
+      }),
+    })
+    expect(String(reference._error)).toContain('reference_date')
+    expect(String(reference._error)).toContain('仅精确到月')
+    expect(reference.prior_art).toBeUndefined()
+
+    const filing = await handler.execute({
+      state: stateWith([doc('五月公开', '2024-05-10')], { filing_date: '2024年6月' }),
+    })
+    expect(String(filing._error)).toContain('filing_date')
+    expect(String(filing._error)).toContain('仅精确到月')
+    expect(filing.prior_art).toBeUndefined()
+  })
+
   it('已提供的申请日不可解析时降级', async () => {
     const out = await handler.execute({
       state: { prior_art: [], reference_date: '2024-06-01', filing_date: '2024-13-01' },
     })
     expect(String(out._error)).toContain('filing_date')
+  })
+
+  it('条目不是对象时保留并列入待核实', async () => {
+    const out = await handler.execute({ state: stateWith(['纯文本条目']) })
+    expect(out.prior_art).toEqual(['纯文本条目'])
+    expect(out.prior_art_undated).toMatchObject([
+      { label: 'D1', title: '#1', reason: '条目不是对象，无法读取公开日' },
+    ])
+  })
+
+  it('缺少标题、专利号与 URL 时用位次命名；已有合法 D 标号不覆盖', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        { publicationDate: '2023-01-01', dLabel: 5 },
+        { publicationDate: '2023-01-01', dLabel: 'X' },
+        { publicationDate: '2023-01-01', dLabel: '  ' },
+        { publicationDate: '2023-01-01', dLabel: 'D9' },
+      ]),
+    })
+    expect(out.prior_art).toMatchObject([
+      { dLabel: 'D1' },
+      { dLabel: 'X' },
+      { dLabel: 'D3' },
+      { dLabel: 'D9' },
+    ])
+  })
+
+  it('保留条目出现在过滤后列表中', async () => {
+    const out = await handler.execute({ state: stateWith([{ publicationDate: '2023-01-01' }]) })
+    expect(out.prior_art).toMatchObject([{ publicationDate: '2023-01-01', dLabel: 'D1' }])
+  })
+
+  it('公开日字段不是字符串时列入待核实', async () => {
+    const out = await handler.execute({ state: stateWith([{ title: '坏字段', publicationDate: 20230101 }]) })
+    expect(out.prior_art_undated).toMatchObject([{ reason: 'publicationDate 不是字符串' }])
+  })
+
+  it('A24 标注为空或非字符串时降级', async () => {
+    const empty = await handler.execute({ state: stateWith([doc('空标注', '2024-03-01', { a24Exception: '' })]) })
+    expect(String(empty._error)).toContain('a24Exception')
+    const wrongType = await handler.execute({ state: stateWith([doc('坏类型', '2024-03-01', { a24Exception: 2 })]) })
+    expect(String(wrongType._error)).toContain('a24Exception')
+  })
+
+  it('公开日未知但标注 A24 → 记录未判定说明', async () => {
+    const out = await handler.execute({
+      state: stateWith([{ title: '无日期', a24Exception: 'A24.1' }]),
+    })
+    expect(String(out.prior_art_filter_report)).toContain('公开日未知，A24 未判定')
+  })
+
+  it('各字段配置参数非法时分别降级', async () => {
+    const cases = ['prior_art_key', 'reference_date_key', 'filing_date_key', 'a24_exception_key'] as const
+    for (const key of cases) {
+      const out = await handler.execute({ state: stateWith([], { [key]: 3 }) })
+      expect(String(out._error)).toContain(key)
+    }
   })
 
   it('字段配置参数非法时降级', async () => {

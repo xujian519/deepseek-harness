@@ -11,8 +11,9 @@
 
 import { type Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
-import { parseDateFlexible, priorArtReference } from '../../../evidence/date.ts'
+import { isMonthOnlyDate, parseDateFlexible, priorArtReference } from '../../../evidence/date.ts'
 import { degraded } from './llm.ts'
+import { resolveConfiguredKey } from './state-keys.ts'
 
 /** time-baseline 原子：申请日/优先权日 → 现有技术截止日。 */
 export const timeBaselineAtom: Atom = {
@@ -30,21 +31,10 @@ type DateResolution = {
 }
 
 /**
- * 解析日期来源键：缺省用内置键，显式给出时须为非空字符串。
- * @param state - 阶段执行态（含 params 合并值）。
- * @param paramKey - 携带键名的参数键。
- * @param fallback - 未配置时使用的状态键。
- * @returns 可用的状态键；配置非法时返回 undefined。
- */
-function resolveDateKey(state: PipelineState, paramKey: string, fallback: string): string | undefined {
-  const raw = state[paramKey]
-  if (raw === undefined) return fallback
-  if (typeof raw !== 'string' || raw.trim().length === 0) return undefined
-  return raw
-}
-
-/**
  * 读取并校验一个日期状态键。
+ *
+ * 月级日期（`2024-06`、`2024年6月`）不足以确定现有技术截止日：按月初解释会
+ * 提前排除本应属于现有技术的公开，故一律降级并要求具体日期。
  * @param state - 阶段执行态。
  * @param key - 日期所在的状态键。
  * @param label - 报告用的日期名称。
@@ -53,6 +43,11 @@ function resolveDateKey(state: PipelineState, paramKey: string, fallback: string
 function readDate(state: PipelineState, key: string, label: string): DateResolution {
   const raw = getStateString(state, key).trim()
   if (raw === '') return {}
+  if (isMonthOnlyDate(raw)) {
+    return {
+      error: `${label}（state.${key}）仅精确到月，现有技术截止日需要具体日期（yyyy-MM-dd）：${raw}`,
+    }
+  }
   if (parseDateFlexible(raw) === null) {
     return { error: `${label}（state.${key}）无法解析：${raw}` }
   }
@@ -72,11 +67,11 @@ export class TimeBaselineHandler implements StageHandler {
   // oxlint-disable-next-line typescript/require-await -- StageHandler contract requires async execute
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const { state } = input
-    const filingKey = resolveDateKey(state, 'filing_date_key', 'filing_date')
+    const filingKey = resolveConfiguredKey(state, 'filing_date_key', 'filing_date')
     if (filingKey === undefined) {
       return degraded('time-baseline', 'params.filing_date_key 必须是非空字符串')
     }
-    const priorityKey = resolveDateKey(state, 'priority_date_key', 'priority_date')
+    const priorityKey = resolveConfiguredKey(state, 'priority_date_key', 'priority_date')
     if (priorityKey === undefined) {
       return degraded('time-baseline', 'params.priority_date_key 必须是非空字符串')
     }

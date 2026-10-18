@@ -12,9 +12,17 @@
 
 import { type Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
-import { type ClaimChart } from '../../../claim-chart/protocol/types.ts'
-import { tryParseJson } from '../../../llm-json.ts'
-import { deriveInfringementConclusion } from '../../../infringement/conclusion.ts'
+import {
+  isMapping,
+  type ChartRowMatch,
+  type ChartTargetRef,
+  type ClaimElementRef,
+} from '../../../claim-chart/protocol/types.ts'
+import { asJsonRecord, readJsonString, tryParseJson } from '../../../llm-json.ts'
+import {
+  deriveInfringementConclusion,
+  type InfringementConclusionChart,
+} from '../../../infringement/conclusion.ts'
 import { degraded } from './llm.ts'
 
 /** coverage 原子：侵权的全面覆盖与等同一致性核验。 */
@@ -26,6 +34,73 @@ export const coverageAtom: Atom = {
   outputSchema: ['coverage_report', 'coverage_conflicts'],
 }
 
+/** 读取结果：成功携带结论需要的图表列，失败携带可直接展示的原因。 */
+type CoverageChartResult =
+  | { ok: true; chart: InfringementConclusionChart }
+  | { ok: false; reason: string }
+
+/**
+ * 从持久化的图表文档中读出覆盖判定需要的列。
+ *
+ * `claim_chart_doc` 是上一阶段写出的 JSON；本原子只做形状校验，不重新计算映射。逐项
+ * 检查数组元素的下标，畸形文档给出可定位的降级原因而不是 `TypeError`。
+ * @param parsed - 已确认是 JSON 对象的图表文档。
+ * @returns 目标、行映射与要素编号，或失败原因。
+ */
+function readCoverageChart(parsed: Record<string, unknown>): CoverageChartResult {
+  const targetsRaw = parsed.targets
+  if (!Array.isArray(targetsRaw)) {
+    return { ok: false, reason: 'claim_chart_doc.targets 不是数组（应为 claim-chart 阶段写出的图表文档）' }
+  }
+  const targets: ChartTargetRef[] = []
+  for (const [index, entry] of targetsRaw.entries()) {
+    const record = asJsonRecord(entry)
+    if (record === undefined) return { ok: false, reason: `claim_chart_doc.targets[${index}] 不是对象` }
+    const id = readJsonString(record.id)
+    if (id === undefined) return { ok: false, reason: `claim_chart_doc.targets[${index}] 缺少 id` }
+    if (record.kind !== 'prior-art' && record.kind !== 'accused-product') {
+      return { ok: false, reason: `claim_chart_doc.targets[${index}] 的 kind 非法: ${JSON.stringify(record.kind)}` }
+    }
+    targets.push({ id, kind: record.kind })
+  }
+
+  const elementsRaw = parsed.elements
+  if (!Array.isArray(elementsRaw)) {
+    return { ok: false, reason: 'claim_chart_doc.elements 不是数组（应为 claim-chart 阶段写出的图表文档）' }
+  }
+  const elements: ClaimElementRef[] = []
+  for (const [index, entry] of elementsRaw.entries()) {
+    const record = asJsonRecord(entry)
+    if (record === undefined) return { ok: false, reason: `claim_chart_doc.elements[${index}] 不是对象` }
+    const id = readJsonString(record.id)
+    if (id === undefined) return { ok: false, reason: `claim_chart_doc.elements[${index}] 缺少 id` }
+    elements.push({ id })
+  }
+
+  const rowsRaw = parsed.rows
+  if (!Array.isArray(rowsRaw)) {
+    return { ok: false, reason: 'claim_chart_doc.rows 不是数组（应为 claim-chart 阶段写出的图表文档）' }
+  }
+  const rows: ChartRowMatch[] = []
+  for (const [index, entry] of rowsRaw.entries()) {
+    const record = asJsonRecord(entry)
+    if (record === undefined) return { ok: false, reason: `claim_chart_doc.rows[${index}] 不是对象` }
+    const elementId = readJsonString(record.elementId)
+    if (elementId === undefined) {
+      return { ok: false, reason: `claim_chart_doc.rows[${index}] 缺少 elementId` }
+    }
+    const targetId = readJsonString(record.targetId)
+    if (targetId === undefined) {
+      return { ok: false, reason: `claim_chart_doc.rows[${index}] 缺少 targetId` }
+    }
+    if (!isMapping(record.mapping)) {
+      return { ok: false, reason: `claim_chart_doc.rows[${index}] 的 mapping 非法: ${JSON.stringify(record.mapping)}` }
+    }
+    rows.push({ elementId, targetId, mapping: record.mapping })
+  }
+  return { ok: true, chart: { targets, rows, elements } }
+}
+
 /** coverage 执行器：读 claim-chart 文档，输出覆盖结论与等同矛盾。 */
 export class CoverageHandler implements StageHandler {
   readonly name = 'coverage'
@@ -34,7 +109,7 @@ export class CoverageHandler implements StageHandler {
   /**
    * 核验图表：逐被控产品判定覆盖结论，并检出等同认定与映射的矛盾。
    *
-   * 图表文档缺失/不可解析、模式非侵权、无被控产品目标三种情形均降级并说明原因。
+   * 图表文档缺失/不可解析/形状非法、模式非侵权、无被控产品目标均降级并说明原因。
    * @param input - 阶段执行输入（state 携带图表文档）。
    * @returns `coverage_report` 与 `coverage_conflicts`（均为 JSON）。
    */
@@ -48,14 +123,17 @@ export class CoverageHandler implements StageHandler {
     if (parsed === undefined) {
       return degraded('coverage', 'claim_chart_doc 不是合法 JSON（应为 claim-chart 阶段写出的图表文档）')
     }
-    // 图表文档由本进程的 claim-chart 阶段按 ClaimChart 序列化；此处只做 JSON 解析，
-    // 字段形状由写入侧的类型保证（同一进程内的类型化传递，不重复校验）。
-    const chart = parsed as unknown as ClaimChart
-    if (chart.mode !== 'infringement') {
-      return degraded('coverage', `覆盖核验仅适用于侵权模式（当前 mode=${chart.mode}）`)
+    const mode = readJsonString(parsed.mode)
+    if (mode === undefined) {
+      return degraded('coverage', 'claim_chart_doc.mode 缺失（应为 claim-chart 阶段写出的图表文档）')
     }
+    if (mode !== 'infringement') {
+      return degraded('coverage', `覆盖核验仅适用于侵权模式（当前 mode=${mode}）`)
+    }
+    const read = readCoverageChart(parsed)
+    if (!read.ok) return degraded('coverage', read.reason)
     // 等同认定记录不在图表内，故不传三要素：按等同落格的行一律报缺认定记录。
-    const conclusion = deriveInfringementConclusion(chart)
+    const conclusion = deriveInfringementConclusion(read.chart)
     if (conclusion.coverage.length === 0) {
       return degraded('coverage', '图表没有被控产品目标（kind: accused-product）')
     }

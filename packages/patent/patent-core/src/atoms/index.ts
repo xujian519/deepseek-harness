@@ -3,9 +3,13 @@
  *
  * - atom.ts：Atom 声明式契约 + 注册表（纯声明，不参与执行）
  * - handler.ts：StageHandler 运行时 + PipelineState + 错误模型 + 注册表
- * - handlers/builtin/：内置原子（search/extract/compare/reasoning/groundedness/
- *   keywords/novelty/merge/draft-claims/approval-gate/claim-chart，按职责分域；
- *   其中 oa-parse/grounds/response-plan/coverage/pfe-consistency 为不调用模型的确定性原子）
+ * - handlers/builtin/：24 个内置原子，按职责分域：
+ *   search/keywords/extract/merge/compare/novelty/reasoning/groundedness/
+ *   draft-claims/approval-gate/claim-chart 为模型或检索阶段；
+ *   oa-parse/grounds/response-plan/coverage/pfe-consistency/citation-check/
+ *   time-baseline/prior-art-filter/conflicting-application/numeric-range/
+ *   problem-check/amendment-basis/evidence-check 为不调用模型的确定性检查。
+ *   @deepseek-ai/dsh-patent-tools 另以插件 effect 注册 6 个包内原子。
  *
  * 使用：调用 registerBuiltinAtoms() 将内置原子注册进全局注册表；
  * workflow 执行时也可注入局部注册表（隔离测试 / 覆盖同名原子）。
@@ -25,7 +29,8 @@ export {
   type PipelineState,
   type StageExecuteInput,
   type StageHandler,
-  StageError,
+  DEGRADED_ERROR_KEY,
+  DEGRADED_RETRYABLE_KEY,
   InterruptStageError,
   isInterruptStageError,
   getStateString,
@@ -57,6 +62,7 @@ export {
   draftClaimsAtom,
   DraftClaimsHandler,
   degraded,
+  type DegradedOptions,
   approvalGateAtom,
   ApprovalGateHandler,
   APPROVAL_GRANTED_KEY,
@@ -66,6 +72,7 @@ export {
   isGateApproved,
   claimChartAtom,
   ClaimChartHandler,
+  deriveOfficeActionTargets,
   oaParseAtom,
   OaParseHandler,
   groundsAtom,
@@ -131,7 +138,7 @@ import { globalAtomRegistry } from './atom.ts'
 import { globalStageHandlerRegistry } from './handler.ts'
 import * as builtin from './handlers/builtin/index.ts'
 
-/** 将内置原子（契约 + 运行时）注册进全局注册表。幂等：同名覆盖。 */
+/** 将 24 个内置原子（契约 + 运行时）注册进全局注册表。幂等：同名覆盖。 */
 export function registerBuiltinAtoms(): void {
   globalAtomRegistry.register(builtin.searchAtom)
   globalAtomRegistry.register(builtin.extractAtom)

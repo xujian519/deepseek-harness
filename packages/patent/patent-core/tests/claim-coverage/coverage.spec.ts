@@ -70,6 +70,20 @@ describe('checkEmbodimentCoverage: 编号断档与非法条目', () => {
     expect(matrix.gaps).toEqual([2])
   })
 
+  it('有实施例引用但全部特征未覆盖 → none', () => {
+    const matrix = checkEmbodimentCoverage([entry('claim_1', ['导电涂层', '散热结构'], ['实施例1记载无关内容'])])
+    expect(matrix.items[0]).toMatchObject({ coverage: 'none', uncovered: ['导电涂层', '散热结构'] })
+    expect(matrix.noneCount).toBe(1)
+  })
+
+  it('没有技术特征的条目判为非法', () => {
+    const matrix = checkEmbodimentCoverage([entry('claim_1', [], ['实施例1记载导电涂层'])])
+    expect(matrix.items[0]).toMatchObject({
+      valid: false,
+      invalidReason: '未提供技术特征（features 为空），无法核验覆盖度',
+    })
+  })
+
   it('条目编号非法时不推断断档，只逐条标注原因', () => {
     const matrix = checkEmbodimentCoverage([
       entry('claim_1', ['a'], ['a']),

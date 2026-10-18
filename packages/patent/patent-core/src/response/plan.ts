@@ -35,6 +35,14 @@ import {
   type ResponseStrategy,
 } from './strategy.ts'
 
+/**
+ * 答复计划读取的通知书字段。
+ *
+ * 计划只依赖驳回类型与受影响权项；引用文献、审查员论点等字段由其他阶段消费，故从持久化
+ * JSON 读取时按这组字段校验即可，不要求完整 `ParsedOfficeAction`。
+ */
+export type ResponsePlanNotice = Pick<ParsedOfficeAction, 'rejectionType' | 'rejectionTypes' | 'affectedClaims'>
+
 /** 答复计划的调用方输入。 */
 export type ResponsePlanOptions = {
   /**
@@ -101,7 +109,7 @@ export type ResponsePlan = {
  * @param options - 独立权利要求编号。
  * @returns 答复计划。
  */
-export function buildResponsePlan(notice: ParsedOfficeAction, options: ResponsePlanOptions): ResponsePlan {
+export function buildResponsePlan(notice: ResponsePlanNotice, options: ResponsePlanOptions): ResponsePlan {
   const types = notice.rejectionTypes
   const strategies = strategiesFor(types)
   const sections: ResponsePlanSection[] = types.map((ground, index) => ({

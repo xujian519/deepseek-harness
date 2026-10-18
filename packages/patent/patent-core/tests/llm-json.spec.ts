@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { stripCodeFence, tryParseJson } from '@deepseek-ai/dsh-patent-core'
+import {
+  parseJsonRecordArray,
+  parseJsonStringArray,
+  parseOptionalJsonStringArray,
+  readJsonNumber,
+  stripCodeFence,
+  tryParseJson,
+} from '@deepseek-ai/dsh-patent-core'
 
 describe('stripCodeFence', () => {
   it('strips a ```json fence', () => {
@@ -36,5 +43,47 @@ describe('tryParseJson', () => {
     expect(tryParseJson('42')).toBeUndefined()
     expect(tryParseJson('"hi"')).toBeUndefined()
     expect(tryParseJson('null')).toBeUndefined()
+  })
+})
+
+describe('readJsonNumber', () => {
+  it('accepts numbers and rejects other shapes', () => {
+    expect(readJsonNumber(3)).toBe(3)
+    expect(readJsonNumber('3')).toBeUndefined()
+    expect(readJsonNumber(null)).toBeUndefined()
+  })
+})
+
+describe('parseJsonStringArray', () => {
+  it('keeps order and rejects non-string entries with an index', () => {
+    expect(parseJsonStringArray(['a', 'b'], 'keywords')).toEqual({ ok: true, values: ['a', 'b'] })
+    expect(parseJsonStringArray(['a', { x: 1 }], 'keywords')).toEqual({
+      ok: false,
+      reason: 'keywords 数组含非字符串项（下标 1）',
+    })
+    expect(parseJsonStringArray('a', 'keywords')).toEqual({ ok: false, reason: 'keywords 不是数组' })
+  })
+})
+
+describe('parseOptionalJsonStringArray', () => {
+  it('treats a missing field as empty and validates values that are present', () => {
+    expect(parseOptionalJsonStringArray(undefined, 'effects')).toEqual({ ok: true, values: [] })
+    expect(parseOptionalJsonStringArray(['e'], 'effects')).toEqual({ ok: true, values: ['e'] })
+    expect(parseOptionalJsonStringArray([null], 'effects')).toEqual({
+      ok: false,
+      reason: 'effects 数组含非字符串项（下标 0）',
+    })
+  })
+})
+
+describe('parseJsonRecordArray', () => {
+  it('keeps object entries and rejects null/scalar entries with an index', () => {
+    expect(parseJsonRecordArray([{ a: 1 }], 'assessments')).toEqual({ ok: true, values: [{ a: 1 }] })
+    expect(parseJsonRecordArray([{ a: 1 }, null], 'assessments')).toEqual({
+      ok: false,
+      reason: 'assessments 数组含非对象项（下标 1）',
+    })
+    expect(parseJsonRecordArray([], 'assessments')).toEqual({ ok: true, values: [] })
+    expect(parseJsonRecordArray({}, 'assessments')).toEqual({ ok: false, reason: 'assessments 不是数组' })
   })
 })

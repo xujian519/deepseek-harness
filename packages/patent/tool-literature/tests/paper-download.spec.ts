@@ -56,6 +56,10 @@ type ExecuteToolDeps = {
   fetchImpl?: typeof fetch
   extractor?: BrowserUseExtractor
   cwd?: string
+  /** Override output-directory resolution (used to abort mid-call in cancellation tests). */
+  resolveOutputDir?: (outputDir: string | undefined, cwd: string) => string
+  /** Caller signal for this call (defaults to a never-aborted shared signal). */
+  callSignal?: AbortSignal
 }
 
 async function executeTool(args: unknown, deps: ExecuteToolDeps) {
@@ -63,7 +67,12 @@ async function executeTool(args: unknown, deps: ExecuteToolDeps) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   ctx.tools.register(createPaperDownloadTool(deps))
-  return ctx.tools.execute({ signal, callId: ToolCallId('pd-1'), name: 'paper_download', arguments: args })
+  return ctx.tools.execute({
+    signal: deps.callSignal ?? signal,
+    callId: ToolCallId('pd-1'),
+    name: 'paper_download',
+    arguments: args,
+  })
 }
 
 describe('paper_download', () => {
@@ -205,6 +214,99 @@ describe('paper_download', () => {
     }
   })
 
+  it.each([
+    { field: 'extra.pdf_url', record: { extra: { pdf_url: 'https://pdf.example/a.pdf' } }, url: 'https://pdf.example/a.pdf' },
+    { field: 'extra.pdf', record: { extra: { pdf: 'https://pdf.example/b.pdf' } }, url: 'https://pdf.example/b.pdf' },
+    { field: 'pdf_url', record: { pdf_url: 'https://pdf.example/c.pdf' }, url: 'https://pdf.example/c.pdf' },
+    { field: 'pdf', record: { pdf: 'https://pdf.example/d.pdf' }, url: 'https://pdf.example/d.pdf' },
+    {
+      field: 'best_oa_location.pdf_url',
+      record: { best_oa_location: { pdf_url: 'https://pdf.example/e.pdf' } },
+      url: 'https://pdf.example/e.pdf',
+    },
+    { field: 'open_access.oa_url', record: { open_access: { oa_url: 'https://pdf.example/f.pdf' } }, url: 'https://pdf.example/f.pdf' },
+    {
+      field: 'primary_location.pdf_url',
+      record: { primary_location: { pdf_url: 'https://pdf.example/g.pdf' } },
+      url: 'https://pdf.example/g.pdf',
+    },
+    { field: 'openAccessPdf.url', record: { openAccessPdf: { url: 'https://pdf.example/h.pdf' } }, url: 'https://pdf.example/h.pdf' },
+  ])('downloads the direct link carried as $field', async ({ record, url }) => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const fetchImpl = vi.fn(pdfFetch())
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', outputDir: dir },
+        { registry: registryWith(record), fetchImpl },
+      )
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      const value = result.value as { result: { status: string; method?: string } }
+      expect(value.result.status).toBe('ok')
+      expect(value.result.method).toBe('direct')
+      expect(fetchImpl).toHaveBeenCalledWith(url, expect.anything())
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('skips an empty direct-link candidate and uses the next one', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const fetchImpl = vi.fn(pdfFetch())
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', outputDir: dir },
+        { registry: registryWith({ pdf_url: '', pdf: 'https://pdf.example/next.pdf' }), fetchImpl },
+      )
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      expect(fetchImpl).toHaveBeenCalledWith('https://pdf.example/next.pdf', expect.anything())
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    { field: 'url', record: { url: 'https://page.example/url' }, page: 'https://page.example/url' },
+    { field: 'URL', record: { URL: 'https://page.example/upper' }, page: 'https://page.example/upper' },
+    { field: 'landing_page_url', record: { landing_page_url: 'https://page.example/landing' }, page: 'https://page.example/landing' },
+    {
+      field: 'primary_location.landing_page_url',
+      record: { primary_location: { landing_page_url: 'https://page.example/primary' } },
+      page: 'https://page.example/primary',
+    },
+    {
+      field: 'best_oa_location.landing_page_url',
+      record: { best_oa_location: { landing_page_url: 'https://page.example/best' } },
+      page: 'https://page.example/best',
+    },
+    { field: 'id', record: { id: 'https://page.example/id' }, page: 'https://page.example/id' },
+  ])('browser-extracts the record page carried as $field', async ({ record, page }) => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      let script = ''
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', outputDir: dir },
+        {
+          registry: registryWith(record),
+          fetchImpl: pdfFetch(),
+          extractor: extractorWith(async (input) => {
+            script = input
+            return { exitCode: 0, stdout: 'BU_EXTRACT:https://cdn.example/w123.pdf\n', stderr: '', timedOut: false }
+          }),
+        },
+      )
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      const value = result.value as { result: { status: string; method?: string } }
+      expect(value.result.status).toBe('ok')
+      expect(value.result.method).toBe('browser')
+      expect(script).toContain(JSON.stringify(page))
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('honors the pdfUrl override', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
     try {
@@ -216,6 +318,24 @@ describe('paper_download', () => {
       expect(result.isError).toBe(false)
       if (result.isError) throw new Error('expected success')
       expect(fetchImpl).toHaveBeenCalledWith('https://override.example/a.pdf', expect.anything())
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a skipped fallback when a pdfUrl override fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', pdfUrl: 'https://override.example/a.pdf', outputDir: dir },
+        { registry: registryWith({ url: 'https://page.example/x' }), fetchImpl: failingFetch(403) },
+      )
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      const value = result.value as { result: { status: string; error?: string; pdfUrl?: string } }
+      expect(value.result.status).toBe('failed')
+      expect(value.result.error).toContain('record-page fallback skipped for the pdfUrl override')
+      expect(value.result.pdfUrl).toBe('https://override.example/a.pdf')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -510,6 +630,139 @@ describe('paper_download', () => {
       const value = result.value as { result: { status: string; error?: string } }
       expect(value.result.status).toBe('failed')
       expect(value.result.error).toContain('no PDF link')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports an actionable rate-limit message when the connector fetch fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const registry = new ConnectorRegistry()
+      registry.register({
+        id: 'arxiv',
+        name: 'arXiv',
+        domain: 'literature',
+        description: 'arxiv',
+        search: async () => [],
+        fetch: async () => {
+          throw new Error('HTTP 429 Too Many Requests')
+        },
+      })
+      const result = await executeTool(
+        { db: 'arxiv', id: '1706.03762', outputDir: dir },
+        { registry, fetchImpl: pdfFetch() },
+      )
+      expect(result.isError).toBe(true)
+      const message = result.content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
+      expect(message).toContain('rate limiting')
+      expect(message).toContain('arXiv allows ~1 request every 3s')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a non-rate-limit connector failure with the source name', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const registry = new ConnectorRegistry()
+      registry.register({
+        id: 'fake',
+        name: 'Fake',
+        domain: 'literature',
+        description: 'fake',
+        search: async () => [],
+        fetch: async () => {
+          throw new Error('upstream exploded')
+        },
+      })
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', outputDir: dir },
+        { registry, fetchImpl: pdfFetch() },
+      )
+      expect(result.isError).toBe(true)
+      const message = result.content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
+      expect(message).toContain('Fake returned an error: upstream exploded')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('propagates caller cancellation during the connector fetch', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const controller = new AbortController()
+      const registry = new ConnectorRegistry()
+      registry.register({
+        id: 'fake',
+        name: 'Fake',
+        domain: 'literature',
+        description: 'fake',
+        search: async () => [],
+        fetch: async () => {
+          controller.abort(new Error('cancelled during record fetch'))
+          throw new Error('cancelled during record fetch')
+        },
+      })
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', outputDir: dir },
+        { registry, fetchImpl: pdfFetch(), callSignal: controller.signal },
+      )
+      expect(result.isError).toBe(true)
+      expect(result.error?.message).toBe('cancelled during record fetch')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('propagates a caller abort that lands before record resolution when the connector has no fetch', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const controller = new AbortController()
+      const registry = new ConnectorRegistry()
+      registry.register({
+        id: 'fake',
+        name: 'Fake',
+        domain: 'literature',
+        description: 'fake',
+        search: async () => [],
+      })
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', outputDir: dir },
+        {
+          registry,
+          callSignal: controller.signal,
+          resolveOutputDir: () => {
+            controller.abort('cancelled before record lookup')
+            return dir
+          },
+        },
+      )
+      expect(result.isError).toBe(true)
+      expect(result.error?.message).toBe('request aborted')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('propagates caller cancellation during the PDF fetch', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const controller = new AbortController()
+      const abortingFetch: typeof fetch = async () => {
+        controller.abort(new Error('cancelled during pdf fetch'))
+        throw new Error('cancelled during pdf fetch')
+      }
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', outputDir: dir },
+        {
+          registry: registryWith({ extra: { pdf_url: 'https://pdf.example/x.pdf' } }),
+          fetchImpl: abortingFetch,
+          callSignal: controller.signal,
+        },
+      )
+      expect(result.isError).toBe(true)
+      expect(result.error?.message).toBe('cancelled during pdf fetch')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

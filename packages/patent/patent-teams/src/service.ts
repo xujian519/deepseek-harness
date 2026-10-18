@@ -15,7 +15,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { roleContract, workerDeliverables } from '@deepseek-ai/dsh-patent-workflow'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { join } from 'node:path'
@@ -25,8 +24,8 @@ import {
   acknowledgeMailbox,
   appendMailbox,
   createMessage,
-  readUnreadMailbox,
   releaseMailboxDelivery,
+  withMailboxLease,
 } from './mailbox.ts'
 import {
   addMember as addMemberImpl,
@@ -36,18 +35,20 @@ import {
   removeMember as removeMemberImpl,
   type RemoveMemberResult,
 } from './member-runtime.ts'
-import { deliverToMember, interruptMember, memberActivity, waitForMemberIdle } from './members.ts'
+import { deliverToMember, interruptMember, waitForMemberIdle } from './members.ts'
 import { installTeamScheduler, type TeamScheduler } from './scheduler.ts'
+import { buildTeamStatus } from './status-view.ts'
 import {
   archiveTeamDir,
   CAPTAIN_KEY,
   createTeamDir,
   findTeamByCaptain,
-  invalidateTaskAttempt,
   listArchivedTeamIds,
   readArchivedTeam,
   readTeam,
   recordRetiredMemberIds,
+  RESERVED_TEAM_IDS,
+  revokeTaskAttempt,
   writeTeam,
 } from './state.ts'
 import {
@@ -68,15 +69,15 @@ import {
 import {
   captainTeam,
   freshCaptainTeam,
-  freshParticipant,
   participantTeam,
   requireMember,
   stateRootFor,
   withParticipant,
 } from './team-access.ts'
 import { TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS, TeamActivity } from './team-activity.ts'
+import { taskBase } from './task-view.ts'
 import { sanitizeKey, teamLockKey, withTeamLock } from './team-lock.ts'
-import type { TeamState } from './types.ts'
+import { PatentTeamsError, type TeamMessage, type TeamState } from './types.ts'
 
 /** Resolved plugin config consumed by the service. */
 export interface PatentTeamsConfig {
@@ -94,6 +95,8 @@ export interface PatentTeamsConfig {
   qualityGate: boolean
   /** Comprehensive-eval pass score threshold (0..1). */
   passThreshold: number
+  /** Live-delivery lease before a claimed mailbox message is retried (ms). */
+  mailboxDeliveryLeaseMs: number
 }
 
 /** The caller agent, or a loud failure for non-agent callers. */
@@ -152,7 +155,11 @@ export class PatentTeamsService extends Service {
   constructor(ctx: Context, config: PatentTeamsConfig) {
     super(ctx, 'patentTeams')
     this.config = config
-    this.scheduler = installTeamScheduler(ctx, { stateDir: config.stateDir, activity: this.activity })
+    this.scheduler = installTeamScheduler(ctx, {
+      stateDir: config.stateDir,
+      activity: this.activity,
+      deliveryLeaseMs: config.mailboxDeliveryLeaseMs,
+    })
     this.tasks = {
       ctx,
       stateDir: config.stateDir,
@@ -191,6 +198,9 @@ export class PatentTeamsService extends Service {
     const teamName = name.trim()
     if (teamName === '') throw new Error('team name must not be empty')
     const teamId = sanitizeKey(teamName)
+    if (RESERVED_TEAM_IDS.has(teamId)) {
+      throw new PatentTeamsError('TEAM_RESERVED_ID', `team id "${teamId}" is reserved for the archive directory — pick a different team name`)
+    }
     const captainLockKey = `captain:${stateRoot}:${agent.id}`
     return withTeamLock(captainLockKey, async () => {
       const current = await findTeamByCaptain(stateRoot, agent.id)
@@ -355,28 +365,14 @@ export class PatentTeamsService extends Service {
       if (to === CAPTAIN_KEY) {
         const message = { ...createMessage(from, CAPTAIN_KEY, args.content), deliveryClaimedAt: Date.now() }
         await appendMailbox(stateRoot, fresh.id, CAPTAIN_KEY, message)
-        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/message-sent', {
-          teamId: PatentTeamsTeamId(fresh.id),
-          messageId: PatentTeamsMessageId(message.id),
-          from,
-          to: CAPTAIN_KEY,
-          content: args.content,
-          ts: message.ts,
-        })
+        recordMessageSent(this.ctx, fresh, agent, message, from, CAPTAIN_KEY)
         this.activity.notify(fresh.id)
         return { kind: 'captain' as const, fresh, identity, message, from }
       }
       const recipient = requireMember(fresh, to)
       const message = { ...createMessage(from, recipient.name, args.content), deliveryClaimedAt: Date.now() }
       await appendMailbox(stateRoot, fresh.id, recipient.name, message)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/message-sent', {
-        teamId: PatentTeamsTeamId(fresh.id),
-        messageId: PatentTeamsMessageId(message.id),
-        from,
-        to: recipient.name,
-        content: args.content,
-        ts: message.ts,
-      })
+      recordMessageSent(this.ctx, fresh, agent, message, from, recipient.name)
       this.activity.notify(fresh.id)
       return { kind: 'member' as const, fresh, identity, message, from, recipient }
     })
@@ -390,12 +386,12 @@ export class PatentTeamsService extends Service {
         delivered = steerCaptainReport(captain, prepared.from, prepared.identity.sessionId, args.content) ? 'live' : 'mailbox'
       }
       if (delivered === 'live') {
-        await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-          acknowledgeMailbox(stateRoot, prepared.fresh.id, CAPTAIN_KEY, [prepared.message.id])
+        await withMailboxLease(stateRoot, prepared.fresh.id, CAPTAIN_KEY, key => (
+          acknowledgeMailbox(stateRoot, prepared.fresh.id, key, [prepared.message.id])
         ))
       } else {
-        await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-          releaseMailboxDelivery(stateRoot, prepared.fresh.id, CAPTAIN_KEY, [prepared.message.id])
+        await withMailboxLease(stateRoot, prepared.fresh.id, CAPTAIN_KEY, key => (
+          releaseMailboxDelivery(stateRoot, prepared.fresh.id, key, [prepared.message.id])
         ))
       }
       return { message_id: prepared.message.id, from: prepared.from, to: CAPTAIN_KEY, delivered }
@@ -410,14 +406,14 @@ export class PatentTeamsService extends Service {
       const accepted = await deliverToMember(this.ctx, captain, prepared.recipient.id, text, signal)
       delivered = accepted ? 'wake' : 'mailbox'
       if (accepted) {
-        await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-          acknowledgeMailbox(stateRoot, prepared.fresh.id, prepared.recipient.name, [prepared.message.id])
+        await withMailboxLease(stateRoot, prepared.fresh.id, prepared.recipient.name, key => (
+          acknowledgeMailbox(stateRoot, prepared.fresh.id, key, [prepared.message.id])
         ))
       }
     }
     if (delivered === 'mailbox') {
-      await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-        releaseMailboxDelivery(stateRoot, prepared.fresh.id, prepared.recipient.name, [prepared.message.id])
+      await withMailboxLease(stateRoot, prepared.fresh.id, prepared.recipient.name, key => (
+        releaseMailboxDelivery(stateRoot, prepared.fresh.id, key, [prepared.message.id])
       ))
     }
     return {
@@ -457,119 +453,12 @@ export class PatentTeamsService extends Service {
    * @returns the full team status payload.
    */
   async status(agent: Agent, signal?: AbortSignal): Promise<PatentTeamsStatus> {
-    const { workspace, stateRoot, team } = await participantTeam(agent, this.config.stateDir)
-    if (team.captainSessionId === agent.id) {
-      await this.scheduler.kickTeam(workspace, team.id, agent, signal)
-    }
-    const { team: fresh, identity } = await withTeamLock(
-      teamLockKey(stateRoot, team.id),
-      () => freshParticipant(stateRoot, team.id, agent.id),
-    )
-    const activity = await memberActivity(this.ctx, fresh.captainSessionId)
-    // v8 ignore start -- spawned members always carry route fields and a child id; task attempts are always set
-    const members = fresh.members
-      .filter(member => member.status !== 'removed')
-      .map((member) => {
-        const summary = member.role === undefined || member.role === ''
-          ? undefined
-          : contractSummary(member.role)
-        return {
-          name: member.name,
-          role: member.role ?? '',
-          provider: member.provider ?? '',
-          model: member.model ?? '',
-          reasoning_effort: member.reasoningEffort ?? '',
-          status: member.status,
-          activity: member.id !== '' ? (activity.get(member.id) ?? 'unknown') : 'unspawned',
-          ...summary !== undefined ? { role_contract: summary } : {},
-        }
-      })
-    const tasks = fresh.tasks.map(task => ({
-      id: task.id,
-      subject: task.subject,
-      status: task.status,
-      assignee: task.assignee ?? '',
-      dependencies: task.dependencies,
-      attempt: task.attempt ?? 0,
-      attempt_id: task.attemptId ?? '',
-      reassigning: task.reassigning === true,
-      ...task.output !== undefined ? { output: task.output } : {},
-      ...task.worker !== undefined ? { worker: task.worker } : {},
-      ...task.contractValidation !== undefined
-        ? {
-          contract_validation: {
-            valid: task.contractValidation.valid,
-            missing_hard_fields: task.contractValidation.missingHardFields,
-            degraded: task.contractValidation.degraded,
-          },
-        }
-        : {},
-      ...task.gateFeedback !== undefined
-        ? { gate_feedback: task.gateFeedback }
-        : {},
-      ...task.gateRejections !== undefined
-        ? { gate_rejections: task.gateRejections }
-        : {},
-    }))
-    // v8 ignore stop
-    const mailboxWarnings: string[] = []
-    let mailboxWarningCount = 0
-    const reportMalformed = (agentKey: string) => (lineNumber: number): void => {
-      mailboxWarningCount += 1
-      if (mailboxWarnings.length < 10) {
-        mailboxWarnings.push(`${agentKey} mailbox line ${lineNumber}`)
-      }
-    }
-    const captainInbox = identity.kind === 'captain'
-      ? await readUnreadMailbox(stateRoot, team.id, CAPTAIN_KEY, reportMalformed(CAPTAIN_KEY))
-      : []
-    const memberInboxes: Record<string, { count: number; latest: string }> = {}
-    const visibleMembers = identity.kind === 'captain'
-      ? members
-      : members.filter(member => member.name === identity.name)
-    // v8 ignore start -- the latest-preview fallback only runs inside the length > 0 branch
-    for (const member of visibleMembers) {
-      const messages = await readUnreadMailbox(
-        stateRoot,
-        team.id,
-        member.name,
-        reportMalformed(member.name),
-      )
-      if (messages.length > 0) {
-        memberInboxes[member.name] = {
-          count: messages.length,
-          latest: messages[messages.length - 1]?.content.slice(0, 200) ?? '',
-        }
-      }
-    }
-    // v8 ignore stop
-    const result = {
-      team_id: team.id,
-      team_name: team.name,
-      description: team.description ?? '',
-      viewer: identity.name,
-      members,
-      tasks,
-      captain_inbox: captainInbox.slice(-10).map(message => ({
-        from: message.from,
-        content: message.content,
-        ts: message.ts,
-      })),
-      member_inboxes: memberInboxes,
-      mailbox_warnings: mailboxWarnings,
-      mailbox_warning_count: mailboxWarningCount,
-    }
-    // v8 ignore start -- acknowledging is read-path bookkeeping; both branches are covered by other assertions
-    const acknowledged = identity.kind === 'captain'
-      ? captainInbox.map(message => message.id)
-      : await readUnreadMailbox(stateRoot, team.id, identity.name).then(messages => messages.map(message => message.id))
-    if (acknowledged.length > 0) {
-      await withTeamLock(teamLockKey(stateRoot, team.id), () => (
-        acknowledgeMailbox(stateRoot, team.id, identity.kind === 'captain' ? CAPTAIN_KEY : identity.name, acknowledged)
-      ))
-    }
-    return result
-    // v8 ignore stop
+    return buildTeamStatus({
+      ctx: this.ctx,
+      stateDir: this.config.stateDir,
+      scheduler: this.scheduler,
+      deliveryLeaseMs: this.config.mailboxDeliveryLeaseMs,
+    }, agent, signal)
   }
 
   /**
@@ -589,10 +478,10 @@ export class PatentTeamsService extends Service {
       for (const member of fresh.members) {
         if (member.status === 'removed') continue
         member.status = 'removed'
-        for (const task of fresh.tasks) {
-          if (task.assignee === member.name && task.status !== 'completed') invalidateTaskAttempt(task)
-        }
       }
+      // The archive keeps each task's lifecycle state and result, but no task
+      // may retain a live capability: a late update must fail after closure.
+      for (const task of fresh.tasks) revokeTaskAttempt(task)
       await writeTeam(stateRoot, fresh)
       return roster
     })
@@ -652,11 +541,7 @@ export class PatentTeamsService extends Service {
             role: member.role ?? '',
           })),
           tasks: team.tasks.map(task => ({
-            id: task.id,
-            subject: task.subject,
-            status: task.status,
-            assignee: task.assignee ?? '',
-            dependencies: task.dependencies,
+            ...taskBase(task),
             ...task.output !== undefined ? { output: task.output } : {},
           })),
         },
@@ -683,18 +568,6 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     patentTeams: PatentTeamsService
   }
-}
-
-/**
- * Summarize a member's role contract for the status payload: its stance and
- * the flat list of required deliverable fields across its workers.
- * @param role - the member's SKILL role id.
- * @returns the summary, or undefined when the role is not registered.
- */
-function contractSummary(role: string): { stance: string; deliverables: string } | undefined {
-  const contract = roleContract(role)
-  if (contract === undefined) return undefined
-  return { stance: contract.stance, deliverables: workerDeliverables(role) }
 }
 
 /** One member row of the status payload. */
@@ -738,6 +611,18 @@ export interface PatentTeamsStatusMessage {
   ts: number
 }
 
+/** One member-inbox view: a captain preview or the member's own full page. */
+export interface PatentTeamsMemberInbox {
+  /** Total unread messages in this mailbox. */
+  count: number
+  /** Unread messages not included in this view. */
+  omitted: number
+  /** Latest-message preview in a captain's cross-member view. */
+  latest?: string
+  /** Full unread messages, oldest first, in the member's own view. */
+  messages?: PatentTeamsStatusMessage[]
+}
+
 /** The full status payload returned by {@link PatentTeamsService.status}. */
 export interface PatentTeamsStatus {
   team_id: string
@@ -747,7 +632,9 @@ export interface PatentTeamsStatus {
   members: PatentTeamsStatusMember[]
   tasks: PatentTeamsStatusTask[]
   captain_inbox: PatentTeamsStatusMessage[]
-  member_inboxes: Record<string, { count: number; latest: string }>
+  /** Unread captain messages older than the shown page. */
+  captain_inbox_omitted: number
+  member_inboxes: Record<string, PatentTeamsMemberInbox>
   mailbox_warnings: string[]
   mailbox_warning_count: number
 }
@@ -776,6 +663,38 @@ export interface PatentTeamsArchiveDetail {
 export type PatentTeamsArchive =
   | { mode: 'list'; teams: PatentTeamsArchiveSummary[] }
   | { mode: 'detail'; team: PatentTeamsArchiveDetail }
+
+/**
+ * Append the durable message-sent event for one outbound mailbox write.
+ * @param ctx - the plugin context carrying the event log.
+ * @param team - the team the message belongs to.
+ * @param agent - the sending agent.
+ * @param message - the persisted message record.
+ * @param from - the sender's team key.
+ * @param to - the recipient's team key.
+ */
+function recordMessageSent(
+  ctx: Context,
+  team: TeamState,
+  agent: Agent,
+  message: TeamMessage,
+  from: string,
+  to: string,
+): void {
+  appendTeamEvent(
+    ctx,
+    captainSessionOf(ctx, SessionId(team.captainSessionId), agent.session),
+    'patent-teams/message-sent',
+    {
+      teamId: PatentTeamsTeamId(team.id),
+      messageId: PatentTeamsMessageId(message.id),
+      from,
+      to,
+      content: message.content,
+      ts: message.ts,
+    },
+  )
+}
 
 /**
  * The calling agent from a tool exec, for the tools Consumer.

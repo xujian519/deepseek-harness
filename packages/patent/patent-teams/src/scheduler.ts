@@ -17,6 +17,7 @@ import {
   claimMailboxDelivery,
   readUnreadMailbox,
   releaseMailboxDelivery,
+  withMailboxLease,
 } from './mailbox.ts'
 import { deliverToMember } from './members.ts'
 import {
@@ -26,27 +27,61 @@ import {
   unsatisfiedDependencies,
   writeTeam,
 } from './state.ts'
+import { memberOpenTask } from './team-access.ts'
 import {
+  serialize,
   stateRootOf,
   teamLockKey,
   withTeamLock,
 } from './team-lock.ts'
 import type { TeamActivity } from './team-activity.ts'
-import type { TeamMember, TeamTask } from './types.ts'
+import type { TeamMember, TeamState, TeamTask } from './types.ts'
 
 /** Scheduler configuration: where team state lives on disk. */
 export interface SchedulerConfig {
   readonly stateDir: string
   /** Waiter registry woken on every member status edge this scheduler mirrors. */
   readonly activity: TeamActivity
+  /** Live-delivery lease before a claimed mailbox message is retried. */
+  readonly deliveryLeaseMs: number
 }
 
 /** The team scheduler: serialized, ready-work dispatch to idle members. */
 export interface TeamScheduler {
-  /** Try to give every genuinely idle/ready member one unit of ready work. */
-  kickTeam(workspace: string, teamId: string, captain?: Agent, signal?: AbortSignal): Promise<void>
-  /** Try to flush fallback mail or give one member one ready task. */
-  kickMember(workspace: string, teamId: string, memberName: string, captain?: Agent, signal?: AbortSignal): Promise<void>
+  /**
+   * Try to give every genuinely idle/ready member one unit of ready work.
+   * @param workspace - the team's workspace.
+   * @param teamId - the team id.
+   * @param captain - the live captain, when the caller already has it.
+   * @param signal - caller cancellation.
+   * @param snapshot - an already-read team record; the scheduler avoids a
+   * second read and treats it as a best-effort dispatch hint.
+   */
+  kickTeam(
+    workspace: string,
+    teamId: string,
+    captain?: Agent,
+    signal?: AbortSignal,
+    snapshot?: TeamState,
+  ): Promise<void>
+  /**
+   * Try to flush fallback mail or give one member one ready task.
+   * @param workspace - the team's workspace.
+   * @param teamId - the team id.
+   * @param memberName - the member to kick.
+   * @param captain - the live captain, when the caller already has it.
+   * @param signal - caller cancellation.
+   * @param snapshot - an already-read team record; the claim path still
+   * re-reads under the team lock before changing state.
+   */
+  kickMember(
+    workspace: string,
+    teamId: string,
+    memberName: string,
+    captain?: Agent,
+    signal?: AbortSignal,
+    snapshot?: TeamState,
+  ): Promise<void>
   /**
    * Record a freshly persisted member so its status events skip the state
    * directory scan (spawning is the only way a live agent becomes a member).
@@ -83,17 +118,18 @@ function isMemberAvailable(ctx: Context, member: TeamMember): boolean {
   return live === undefined || live.status === 'idle'
 }
 
-function ownedOpenTask(tasks: readonly TeamTask[], memberName: string): TeamTask | undefined {
-  return tasks.find(task => task.assignee === memberName
-    && (task.status === 'claimed' || task.status === 'in_progress'))
-}
-
 function nextReadyTask(tasks: readonly TeamTask[], memberName: string): TeamTask | undefined {
   const ready = tasks.filter(task => task.status === 'pending'
     && task.reassigning !== true
     && unsatisfiedDependencies([...tasks], task.dependencies).length === 0)
   return ready.find(task => task.assignee === memberName)
     ?? ready.find(task => task.assignee === undefined)
+}
+
+/** Whether a snapshot shows any work the member could claim. */
+function hasDispatchCandidate(team: TeamState, memberName: string): boolean {
+  return memberOpenTask(team, memberName) !== undefined
+    || nextReadyTask(team.tasks, memberName) !== undefined
 }
 
 function assignmentPrompt(ticket: DispatchTicket, stateDir: string, teamId: string): string {
@@ -120,9 +156,11 @@ function fallbackMailboxPrompt(messages: Awaited<ReturnType<typeof readUnreadMai
 /**
  * Deliver a member's unread mailbox as its fallback work item. A mailbox-only
  * fallback is real pending work, so it is delivered before a fresh task, and
- * the claim is acknowledged only after the Harness accepts the follow-up.
+ * the claim is acknowledged only after the Harness accepts the follow-up. The
+ * durable member record is re-read under the team lock so a stale team
+ * snapshot cannot deliver to a member removed after the snapshot.
  * @param ctx - registrant context carrying the agent registry.
- * @param args - state root, team id, member, live captain, and cancellation signal.
+ * @param args - state root, team id, member, live captain, cancellation signal, and lease duration.
  * @returns whether the mailbox path handled this kick.
  */
 async function deliverMailboxFallback(ctx: Context, args: {
@@ -131,13 +169,30 @@ async function deliverMailboxFallback(ctx: Context, args: {
   member: TeamMember
   captain: Agent
   signal: AbortSignal
+  deliveryLeaseMs: number
 }): Promise<boolean> {
-  const { stateRoot, teamId, member, captain, signal } = args
-  const unread = await readUnreadMailbox(stateRoot, teamId, member.name)
+  const { stateRoot, teamId, member, captain, signal, deliveryLeaseMs } = args
+  const unread = await readUnreadMailbox(
+    stateRoot,
+    teamId,
+    member.name,
+    undefined,
+    deliveryLeaseMs,
+  )
   if (unread.length === 0) return false
-  await withTeamLock(teamLockKey(stateRoot, teamId), () => (
-    claimMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
-  ))
+  // The caller may hold a pre-removal team snapshot. Revalidate membership
+  // under the same lock that claims the lease, so a member removed after the
+  // snapshot cannot receive fallback mail from a stale kick.
+  const claimed = await withTeamLock(teamLockKey(stateRoot, teamId), async () => {
+    const fresh = await readTeam(stateRoot, teamId)
+    const current = fresh?.members.find(candidate => candidate.id === member.id
+      && candidate.name === member.name
+      && candidate.status !== 'removed')
+    if (current === undefined) return false
+    await claimMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
+    return true
+  })
+  if (!claimed) return true
   const accepted = await deliverToMember(
     ctx,
     captain,
@@ -146,12 +201,12 @@ async function deliverMailboxFallback(ctx: Context, args: {
     signal,
   )
   if (accepted) {
-    await withTeamLock(teamLockKey(stateRoot, teamId), () => (
-      acknowledgeMailbox(stateRoot, teamId, member.name, unread.map(message => message.id))
+    await withMailboxLease(stateRoot, teamId, member.name, key => (
+      acknowledgeMailbox(stateRoot, teamId, key, unread.map(message => message.id))
     ))
   } else {
-    await withTeamLock(teamLockKey(stateRoot, teamId), () => (
-      releaseMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
+    await withMailboxLease(stateRoot, teamId, member.name, key => (
+      releaseMailboxDelivery(stateRoot, teamId, key, unread.map(message => message.id))
     ))
   }
   return true
@@ -177,7 +232,7 @@ async function claimDispatchTicket(ctx: Context, args: {
     if (fresh === undefined) return undefined
     const currentMember = fresh.members.find(candidate => candidate.name === memberName && candidate.status !== 'removed')
     if (currentMember === undefined || currentMember.id === '' || !isMemberAvailable(ctx, currentMember)) return undefined
-    const task = ownedOpenTask(fresh.tasks, currentMember.name)
+    const task = memberOpenTask(fresh, currentMember.name)
       ?? nextReadyTask(fresh.tasks, currentMember.name)
     if (task === undefined) {
       if (currentMember.status !== 'idle') {
@@ -244,23 +299,6 @@ async function rollbackFailedDispatch(args: {
  * @returns the installed scheduler runtime.
  */
 export function installTeamScheduler(ctx: Context, config: SchedulerConfig): TeamScheduler {
-  const memberQueues = new Map<string, Promise<unknown>>()
-
-  const serializeMember = async <T>(key: string, operation: () => Promise<T>): Promise<T> => {
-    const previous = memberQueues.get(key) ?? Promise.resolve()
-    let release!: () => void
-    const gate = new Promise<void>((resolve) => { release = resolve })
-    const tail = previous.then(() => gate)
-    memberQueues.set(key, tail)
-    await previous
-    try {
-      return await operation()
-    } finally {
-      release()
-      if (memberQueues.get(key) === tail) memberQueues.delete(key)
-    }
-  }
-
   /**
    * Observer fast path: agent session id → the team it works for. `null`
    * marks an agent already proven to captain or lie outside every team, so
@@ -274,23 +312,23 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
   const memberIndex = new Map<string, { teamId: string; memberName: string } | null>()
 
   const runtime: TeamScheduler = {
-    async kickTeam(workspace, teamId, suppliedCaptain, signal) {
+    async kickTeam(workspace, teamId, suppliedCaptain, signal, snapshot) {
       const stateRoot = stateRootOf(workspace, config.stateDir)
-      const team = await readTeam(stateRoot, teamId)
+      const team = snapshot ?? await readTeam(stateRoot, teamId)
       if (team === undefined) return
       const captain = liveCaptain(ctx, team.captainSessionId, suppliedCaptain)
       if (captain === undefined) return
       for (const member of team.members) {
         if (member.status === 'removed') continue
-        await runtime.kickMember(workspace, teamId, member.name, captain, signal)
+        await runtime.kickMember(workspace, teamId, member.name, captain, signal, team)
       }
     },
 
-    async kickMember(workspace, teamId, memberName, suppliedCaptain, signal) {
+    async kickMember(workspace, teamId, memberName, suppliedCaptain, signal, snapshot) {
       const stateRoot = stateRootOf(workspace, config.stateDir)
       const queueKey = `${stateRoot}\u0000${teamId}\u0000${memberName}`
-      await serializeMember(queueKey, async () => {
-        const team = await readTeam(stateRoot, teamId)
+      await serialize(queueKey, async () => {
+        const team = snapshot ?? await readTeam(stateRoot, teamId)
         if (team === undefined) return
         const captain = liveCaptain(ctx, team.captainSessionId, suppliedCaptain)
         if (captain === undefined) return
@@ -303,7 +341,12 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
           member,
           captain,
           signal: signal ?? new AbortController().signal,
+          deliveryLeaseMs: config.deliveryLeaseMs,
         })) return
+
+        // The snapshot is enough to skip an idle member with no candidate;
+        // the claim path re-reads under the team lock before changing state.
+        if (member.status === 'idle' && !hasDispatchCandidate(team, memberName)) return
 
         const ticket = await claimDispatchTicket(ctx, { stateRoot, teamId: team.id, memberName })
         if (ticket === undefined) return

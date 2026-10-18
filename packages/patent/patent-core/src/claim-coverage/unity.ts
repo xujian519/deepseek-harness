@@ -104,7 +104,6 @@ export function checkClaimUnity(claims: readonly UnityClaim[]): ClaimUnityVerdic
     }
   }
 
-  const texts = independent.map(claim => `${claim.preamble} ${claim.characterized ?? ''}`)
   const verdict: ClaimUnityVerdict = {
     hasUnity: true,
     score: UNITY_SCORE_NO_PAIRS,
@@ -114,12 +113,13 @@ export function checkClaimUnity(claims: readonly UnityClaim[]): ClaimUnityVerdic
   }
 
   let weakest = 1
-  for (let i = 0; i < independent.length; i++) {
-    for (let j = i + 1; j < independent.length; j++) {
-      const similarity = claimSimilarity(texts[i] ?? '', texts[j] ?? '')
+  for (const [index, left] of independent.entries()) {
+    const leftText = `${left.preamble} ${left.characterized ?? ''}`
+    for (const right of independent.slice(index + 1)) {
+      const similarity = claimSimilarity(leftText, `${right.preamble} ${right.characterized ?? ''}`)
       verdict.pairScores.push({
-        leftNumber: independent[i]?.number ?? 0,
-        rightNumber: independent[j]?.number ?? 0,
+        leftNumber: left.number,
+        rightNumber: right.number,
         similarity,
       })
       if (similarity < weakest) weakest = similarity

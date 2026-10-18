@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-atom-fail-closed/guide.md
+/:
+  en: 4dad64f9c1bb66de
+  zh: 3d44da114868cba6
+/patent-atom-inputs-now-fail-closed:
+  en: b07ebce46dd972f6
+  zh: 20cf1ffcc4bdabca
+/patent-atom-inputs-now-fail-closed/change:
+  en: e39c1f15bd5247b8
+  zh: 93e250111cb53f99
+/patent-atom-inputs-now-fail-closed/migration:
+  en: 192b4ca2bd2365ea
+  zh: a53331a201e4cf83

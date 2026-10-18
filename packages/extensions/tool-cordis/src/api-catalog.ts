@@ -5465,7 +5465,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AtomRegistry',
-    declaration: 'export class AtomRegistry {\n    register(atom: Atom): void;\n    lookup(name: string): Atom | undefined;\n    list(): Atom[];\n    listByCategory(category: AtomCategory): Atom[];\n}',
+    declaration: 'export class AtomRegistry {\n    register(atom: Atom): () => void;\n    lookup(name: string): Atom | undefined;\n    list(): Atom[];\n    listByCategory(category: AtomCategory): Atom[];\n}',
   },
   {
     name: 'AtScheduleRecord',
@@ -7280,8 +7280,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PatentTeamsArchiveSummary {\n    team_id: string;\n    team_name: string;\n    created_at: number;\n    members: number;\n    tasks: number;\n    completed_tasks: number;\n}',
   },
   {
+    name: 'PatentTeamsMemberInbox',
+    declaration: 'export interface PatentTeamsMemberInbox {\n    count: number;\n    omitted: number;\n    latest?: string;\n    messages?: PatentTeamsStatusMessage[];\n}',
+  },
+  {
     name: 'PatentTeamsStatus',
-    declaration: 'export interface PatentTeamsStatus {\n    team_id: string;\n    team_name: string;\n    description: string;\n    viewer: string;\n    members: PatentTeamsStatusMember[];\n    tasks: PatentTeamsStatusTask[];\n    captain_inbox: PatentTeamsStatusMessage[];\n    member_inboxes: Record<string, {\n        count: number;\n        latest: string;\n    }>;\n    mailbox_warnings: string[];\n    mailbox_warning_count: number;\n}',
+    declaration: 'export interface PatentTeamsStatus {\n    team_id: string;\n    team_name: string;\n    description: string;\n    viewer: string;\n    members: PatentTeamsStatusMember[];\n    tasks: PatentTeamsStatusTask[];\n    captain_inbox: PatentTeamsStatusMessage[];\n    captain_inbox_omitted: number;\n    member_inboxes: Record<string, PatentTeamsMemberInbox>;\n    mailbox_warnings: string[];\n    mailbox_warning_count: number;\n}',
   },
   {
     name: 'PatentTeamsStatusMember',
@@ -9097,7 +9101,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'StageHandlerRegistry',
-    declaration: 'export class StageHandlerRegistry {\n    register(handler: StageHandler): void;\n    lookup(name: string): StageHandler | undefined;\n    list(): StageHandler[];\n}',
+    declaration: 'export class StageHandlerRegistry {\n    register(handler: StageHandler): () => void;\n    lookup(name: string): StageHandler | undefined;\n    list(): StageHandler[];\n}',
   },
   {
     name: 'StageProvider',

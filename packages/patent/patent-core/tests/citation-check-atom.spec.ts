@@ -101,6 +101,18 @@ describe('citation-check atom', () => {
     expect(out.citation_check_grounded).toBe(true)
   })
 
+  it('配置键保留首尾空格，按原样读取 state', async () => {
+    const out = await handler.execute({
+      state: {
+        ref_text_keys: [' conclude '],
+        prior_art_key: ' search hits ',
+        ' conclude ': '与 D2 的区别在于连接方式',
+        ' search hits ': [{ title: 'D2', dLabel: 'D2' }],
+      },
+    })
+    expect(out.citation_check_grounded).toBe(true)
+  })
+
   it('检索结果为空时放行并说明跳过原因（不双重惩罚）', async () => {
     const out = await handler.execute({ state: { novelty_conclusion: '引用 D1' } })
     expect(out.citation_check_grounded).toBe(true)

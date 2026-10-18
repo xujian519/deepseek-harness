@@ -2789,8 +2789,8 @@ triz lists the 40 inventive principles and the 39 engineering parameters with no
 ### `paper_download`
 
 - Downloads one academic paper PDF identified by `db` + `id` (from `paper_search`)
-- Prefers the source's direct PDF link (arXiv extra.pdf / OpenAlex pdf_url / Semantic Scholar openAccessPdf), verified by PDF magic and minimum size
-- When the direct link fails (403/404/HTML shell), falls back to ego opening the record page and extracting the PDF link
+- Prefers the source's direct PDF link (`extra.pdf_url` / `pdf_url` / `pdf`, OpenAlex location links, Semantic Scholar `openAccessPdf`), verified by PDF magic and minimum size
+- When the direct link is missing or fails (403/404/HTML shell), falls back to ego opening the record page and extracting the PDF link
 - Saves as `<outputDir>/<id>.pdf` (default `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`)
 
 Usage notes:
@@ -2860,7 +2860,7 @@ Source: [`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool
 
 Usage notes:
   - Call `paper_list_sources` first to discover available `db` ids
-  - Fielded queries are supported by arXiv (e.g. `ti:transformer AND cat:cs.LG`) and OpenAlex
+  - Fielded queries are supported by arXiv (e.g. `ti:transformer AND cat:cs.LG`); other sources take free-text queries
   - This tool is read-only and does not modify files
 
 ```json

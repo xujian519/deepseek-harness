@@ -16,8 +16,12 @@
 import { type Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
 import {
+  REJECTION_LABELS,
+  REJECTION_PATTERNS,
   formatOfficeActionSummary,
   parseOfficeAction,
+  type NoticeRejectionGround,
+  type NoticeRejectionType,
   type ParsedOfficeAction,
 } from '../../../notice/office-action.ts'
 import {
@@ -32,7 +36,9 @@ import {
   buildResponsePlan,
   detectIndependentClaims,
   formatResponsePlan,
+  type ResponsePlanNotice,
 } from '../../../response/plan.ts'
+import { isJsonRecord } from '../../../llm-json.ts'
 import { degraded } from './llm.ts'
 
 /** oa-parse 原子：审查意见通知书结构化解析。 */
@@ -80,7 +86,7 @@ export const groundsAtom: Atom = {
   description: '程序法定理由识别：按 ground_program 选定无效/复审/外观设计理由表（纯函数，不调用模型）',
   category: 'compare',
   inputSchema: ['input', 'ground_program'],
-  outputSchema: ['grounds', 'grounds_summary'],
+  outputSchema: ['grounds', 'grounds_summary', 'patent_subject'],
 }
 
 /** 类型守卫：值是否为已知的程序类型。 */
@@ -160,6 +166,61 @@ export const responsePlanAtom: Atom = {
   outputSchema: ['response_plan', 'response_plan_summary'],
 }
 
+/** 类型守卫：值是否为已知的驳回理由（程序类型以外的状态由 `other` 表达）。 */
+function isRejectionGround(value: unknown): value is NoticeRejectionGround {
+  return typeof value === 'string' && Object.hasOwn(REJECTION_PATTERNS, value)
+}
+
+/** 类型守卫：值是否为已知的驳回类型（含 `other`）。 */
+function isRejectionType(value: unknown): value is NoticeRejectionType {
+  return typeof value === 'string' && Object.hasOwn(REJECTION_LABELS, value)
+}
+
+/** 读取结果：成功携带计划需要的字段，失败携带可直接展示的原因。 */
+type ResponsePlanNoticeResult =
+  | { ok: true; notice: ResponsePlanNotice }
+  | { ok: false; reason: string }
+
+/**
+ * 从持久化的通知书解析 JSON 中读出计划需要的字段。
+ *
+ * `office_action` 是上一阶段写出的 JSON；本原子只做形状校验，不重新解析正文。未知驳回
+ * 理由会让策略表取到 `undefined`，因此逐项校验取值域；受影响权项须为正整数（权项号）。
+ * @param parsed - 已确认是 JSON 对象的解析结果。
+ * @returns 计划输入，或可操作的失败原因。
+ */
+function readResponsePlanNotice(parsed: Record<string, unknown>): ResponsePlanNoticeResult {
+  const typesRaw = parsed.rejectionTypes
+  if (!Array.isArray(typesRaw)) {
+    return { ok: false, reason: '解析结果缺少 rejectionTypes 数组（office_action 应为 oa-parse 产出的对象）' }
+  }
+  const rejectionTypes: NoticeRejectionGround[] = []
+  for (const [index, ground] of typesRaw.entries()) {
+    if (!isRejectionGround(ground)) {
+      return { ok: false, reason: `解析结果的 rejectionTypes[${index}] 非法: ${JSON.stringify(ground)}` }
+    }
+    rejectionTypes.push(ground)
+  }
+
+  const claimsRaw = parsed.affectedClaims
+  if (!Array.isArray(claimsRaw)) {
+    return { ok: false, reason: '解析结果缺少 affectedClaims 数组（office_action 应为 oa-parse 产出的对象）' }
+  }
+  const affectedClaims: number[] = []
+  for (const [index, claim] of claimsRaw.entries()) {
+    if (typeof claim !== 'number' || !Number.isInteger(claim) || claim < 1) {
+      return { ok: false, reason: `解析结果的 affectedClaims[${index}] 不是正整数: ${JSON.stringify(claim)}` }
+    }
+    affectedClaims.push(claim)
+  }
+
+  const rejectionType = parsed.rejectionType
+  if (!isRejectionType(rejectionType)) {
+    return { ok: false, reason: `解析结果缺少合法的 rejectionType: ${JSON.stringify(rejectionType)}` }
+  }
+  return { ok: true, notice: { rejectionType, rejectionTypes, affectedClaims } }
+}
+
 /** response-plan 执行器：把通知书解析结果拼装为起草阶段的输入层骨架。 */
 export class ResponsePlanHandler implements StageHandler {
   readonly name = 'response-plan'
@@ -177,13 +238,18 @@ export class ResponsePlanHandler implements StageHandler {
     if (raw.trim().length === 0) {
       return degraded('response-plan', '缺少解析结果（state.office_action 未提供）')
     }
-    let notice: ParsedOfficeAction
+    let parsed: unknown
     try {
-      notice = JSON.parse(raw) as ParsedOfficeAction
+      parsed = JSON.parse(raw)
     } catch {
       return degraded('response-plan', '解析结果不可读（office_action 不是合法 JSON）')
     }
-    const plan = buildResponsePlan(notice, {
+    if (!isJsonRecord(parsed)) {
+      return degraded('response-plan', '解析结果不是 JSON 对象（office_action 应为 oa-parse 产出的对象）')
+    }
+    const read = readResponsePlanNotice(parsed)
+    if (!read.ok) return degraded('response-plan', read.reason)
+    const plan = buildResponsePlan(read.notice, {
       independentClaims: detectIndependentClaims(getStateString(state, 'claims')),
     })
     return {

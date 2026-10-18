@@ -1,5 +1,5 @@
 ---
-description: "Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with fifteen builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers."
+description: "Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with twenty-four builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with fifteen builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers.
+Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with twenty-four builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers.
 
 ## Table of Contents
 
@@ -34,7 +34,16 @@ Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines 
 
 ## Atoms engines
 
-The atoms layer defines the workflow stage vocabulary: `Atom`/`AtomRegistry` (declarative contract) and `StageHandler`/`StageHandlerRegistry` (runtime), with builtin handlers for search, keywords, extract, merge, compare, novelty, reasoning, groundedness, draft-claims, approval-gate, and claim-chart, plus the deterministic (model-free) `oa-parse` (office-action parsing), `grounds` (procedure grounds), `response-plan` (reply-plan skeleton), and `coverage` (all-elements and equivalence check) added for the office-action, invalidation, and infringement workflows. `registerBuiltinAtoms()` registers all fifteen; a host injects a `StageProvider` (a `callLLM` string seam or a streaming `llm` port, plus `search`) that the handlers consume and degrade over instead of throwing.
+The atoms layer defines the workflow stage vocabulary: `Atom`/`AtomRegistry` (declarative contract) and `StageHandler`/`StageHandlerRegistry` (runtime). `registerBuiltinAtoms()` registers twenty-four handlers: the model/search stages `search`, `keywords`, `extract`, `merge`, `compare`, `novelty`, `reasoning`, `groundedness`, `draft-claims`, `approval-gate`, and `claim-chart`, plus the deterministic legal checks `oa-parse` (office-action parsing), `grounds` (procedure grounds), `response-plan` (reply-plan skeleton), `coverage` (all-elements and equivalence), `pfe-consistency`, `citation-check`, `time-baseline`, `prior-art-filter`, `conflicting-application`, `numeric-range`, `problem-check`, `amendment-basis`, and `evidence-check`. `@deepseek-ai/dsh-patent-tools` adds six package-owned atoms through its plugin effect: `slop-gate`, `draft-specification`, `spec-check`, `response-check`, `eligibility`, and `legal-gaps`. A host injects a `StageProvider` (a `callLLM` string seam or a streaming `llm` port, plus `search`) that the handlers consume and degrade over instead of throwing.
+
+Stage params tune these handlers. Absent keys keep the per-atom defaults; malformed values degrade the stage before any model call.
+
+| Key | Type | Default | Applies to |
+| --- | --- | --- | --- |
+| `temperature` | number, 0–2 | per atom (`0`, `0.1`, or `0.2`) | model-calling atoms |
+| `prompt_char_limit` | positive integer | per atom | source excerpts embedded in prompts; short generated lines stay uncapped |
+| `max_retries` | integer, 0–10 | `2` | `claim-chart` validation redos |
+| `groundedness_threshold` | number, 0–1 | `0.6` | `groundedness` low-score filtering and its prompt bands |
 
 ## ModelPort
 

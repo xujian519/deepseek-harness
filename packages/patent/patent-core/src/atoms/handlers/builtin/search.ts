@@ -11,8 +11,10 @@ import {
   getStateString,
 } from '../../handler.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
+import { parseJsonStringArray } from '../../../llm-json.ts'
 import type { StageSearchHit } from '../../../types.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
+import { readAtomTunables } from '../../tunables.ts'
 import { isRecord } from './state-keys.ts'
 
 // ---------------------------------------------------------------------------
@@ -130,7 +132,11 @@ export class SearchHandler implements StageHandler {
       const summary = [header, ...docs.flatMap((doc, index) => renderHit(doc, index))].join('\n')
       return { prior_art: docs, search_summary: summary }
     } catch (err) {
-      return degraded('search', `检索失败: ${err instanceof Error ? err.message : String(err)}`)
+      return degraded(
+        'search',
+        `检索失败: ${err instanceof Error ? err.message : String(err)}`,
+        { retryable: true },
+      )
     }
   }
 }
@@ -169,6 +175,9 @@ export class KeywordsHandler implements StageHandler {
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = execInput
+    const tuned = readAtomTunables(state, { temperature: 0, promptLimit: 8000 })
+    if (!tuned.ok) return degraded('keywords', tuned.reason)
+    const { temperature, promptLimit } = tuned.tunables
     const missing = requireLlm(provider, 'keywords')
     if (missing) return missing
     const input =
@@ -189,17 +198,24 @@ export class KeywordsHandler implements StageHandler {
       '- 避免过于宽泛的常规词汇',
       '',
       '【分析摘要】',
-      dataBlock(input.slice(0, 8000)),
+      dataBlock(input.slice(0, promptLimit)),
       '',
       '请严格输出 JSON：{ "keywords": ["关键词1", "关键词2", ...] }',
     ].join('\n')
-    const res = await callLlm(provider, 'keywords', prompt, { schema: KEYWORDS_SCHEMA, temperature: 0 }, signal)
+    const res = await callLlm(
+      provider,
+      'keywords',
+      prompt,
+      { schema: KEYWORDS_SCHEMA, temperature },
+      signal,
+    )
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,
       (parsed) => {
-        if (!Array.isArray(parsed.keywords)) return null
-        return { keywords: parsed.keywords.map(String) }
+        const result = parseJsonStringArray(parsed.keywords, 'keywords')
+        if (!result.ok) return degraded('keywords', result.reason)
+        return { keywords: result.values }
       },
       () => degraded('keywords', '关键词 JSON 解析失败'),
     )

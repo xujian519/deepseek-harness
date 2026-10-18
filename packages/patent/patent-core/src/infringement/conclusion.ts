@@ -9,7 +9,7 @@
  * `all-elements.ts` / `equivalence.ts` / `risk.ts`。
  */
 
-import type { ClaimChart } from '../claim-chart/protocol/types.ts'
+import type { ChartRowMatch, ChartTargetRef, ClaimElementRef } from '../claim-chart/protocol/types.ts'
 import { deriveAllElementsCoverage, type AllElementsCoverage } from './all-elements.ts'
 import { findEquivalenceContradictions, type EquivalenceContradiction, type EquivalenceTriplet } from './equivalence.ts'
 import { scoreInfringement, type DefenseViability, type InfringementScore } from './risk.ts'
@@ -34,6 +34,18 @@ export type InfringementConclusionInput = {
   scoring?: InfringementScoringFacts
 }
 
+/**
+ * 侵权结论读取的图表列。
+ *
+ * 结论只依赖目标、行映射与要素编号；从持久化图表文档读取时按这组最小形状校验，
+ * 渲染字段（quote/pinCite/标题等）不参与判定。
+ */
+export type InfringementConclusionChart = {
+  targets: readonly ChartTargetRef[]
+  rows: readonly ChartRowMatch[]
+  elements: readonly ClaimElementRef[]
+}
+
 /** 由图表算出的侵权结论。 */
 export type InfringementConclusion = {
   /** 逐被控产品的全面覆盖判定，按图表目标顺序。 */
@@ -47,13 +59,13 @@ export type InfringementConclusion = {
 /**
  * 由 claim-chart 装配侵权结论：逐被控产品判定全面覆盖、核验等同一致性，并在给出评分
  * 事实时计算风险等级。非被控产品目标（现有技术侧）不参与判定。
- * @param chart - 侵权模式的 claim-chart。
+ * @param chart - 侵权模式的 claim-chart（只读取目标、行映射与要素编号）。
  * @param input - 等同认定记录与可选评分事实。
  * @returns 覆盖判定、等同矛盾与（可选的）逐目标评分。
  * @throws RangeError 评分事实非法（比例越界）——由 `scoreInfringement` 抛出，不静默出分。
  */
 export function deriveInfringementConclusion(
-  chart: ClaimChart,
+  chart: InfringementConclusionChart,
   input: InfringementConclusionInput = {},
 ): InfringementConclusion {
   const triplets = input.triplets ?? []

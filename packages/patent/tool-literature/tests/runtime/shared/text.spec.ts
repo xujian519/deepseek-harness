@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromInverted, decodeEntities, snippet, stripTags, formatAuthors, nonEmpty } from '../../../src/runtime/shared/text.ts'
+import { clampLimit, fromInverted, decodeEntities, snippet, stripTags, formatAuthors, nonEmpty } from '../../../src/runtime/shared/text.ts'
 
 describe('text helpers', () => {
   it('decodeEntities decodes named, hex, and decimal entities', () => {
@@ -70,5 +70,20 @@ describe('text helpers', () => {
   it('nonEmpty normalizes empty strings to undefined', () => {
     expect(nonEmpty('')).toBeUndefined()
     expect(nonEmpty('text')).toBe('text')
+  })
+
+  it('clampLimit truncates fractions and clamps to 1-50', () => {
+    expect(clampLimit(undefined)).toBe(10)
+    expect(clampLimit(7.9)).toBe(7)
+    expect(clampLimit(0)).toBe(1)
+    expect(clampLimit(-3)).toBe(1)
+    expect(clampLimit(999)).toBe(50)
+    expect(clampLimit(12)).toBe(12)
+  })
+
+  it('clampLimit falls back to the default for non-finite input', () => {
+    expect(clampLimit(Number.NaN)).toBe(10)
+    expect(clampLimit(Number.POSITIVE_INFINITY)).toBe(10)
+    expect(clampLimit(Number.NEGATIVE_INFINITY)).toBe(10)
   })
 })

@@ -75,6 +75,7 @@ export function deriveClaimRefs(claimText: string): ClaimRef[] {
   for (const [claimNo, segment] of segments) {
     const body = segment.replace(CLAIM_NUMBER_PREFIX_RE, '').slice(0, PREAMBLE_SCAN_LIMIT)
     const reference = REFERENCE_RE.exec(body)
+    /* v8 ignore next -- REFERENCE_RE always captures the number expression. */
     const refersTo = reference === null ? [] : parseReferenceNumbers(reference[1] ?? '')
     refs.push({
       claimNo,

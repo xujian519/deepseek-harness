@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DraftValidationError,
   SPEC_PART_HEADINGS,
+  formatTableCaption,
   validateSpecDraft,
   validateTemplateDraft,
   type SpecDraft,
@@ -547,6 +548,17 @@ describe('validateTemplateDraft', () => {
       schema,
       '无效理由槽位，不接受 blocks / rows',
     )
+    expectTemplateViolation(
+      { sections: [{ id: 'grounds-body', grounds: ['not-an-object'] }] },
+      schema,
+      '必须是对象',
+    )
+  })
+})
+
+describe('formatTableCaption', () => {
+  it('renders the table number and name', () => {
+    expect(formatTableCaption(2, '实验数据')).toBe('表 2 · 实验数据')
   })
 })
 

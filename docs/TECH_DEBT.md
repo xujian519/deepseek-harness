@@ -360,10 +360,12 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | --- | --- |
 | `structure.long-functions` | 186 |
 | `structure.large-files` | 77 |
-| `lint.v8-ignore` | 1172 |
+| `lint.v8-ignore` | 1178 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
+
+- **2026-10-18 patent-core 覆盖率收口**:`lint.v8-ignore` 由 1166 升至 **1178**;`patent-core` 逐文件覆盖率补齐时,对正则必选捕获组、数值模式捕获组与矩阵原理编号等类型不变量守卫补了带理由的豁免,其余分支均由用例覆盖。`structure.long-functions` 保持 186(同一批改动把 `claim-chart` 执行器的目标预读与清单渲染拆成模块级函数)。
 
 - **本轮就地更正本报告自身的两处口径**(保留痕迹):①`preset-divergence-baseline.json` 的 `rows` 分区是 **24** 个 id(早期草稿记为 22),覆盖 `cordis.patch.yml`/`document.patch.yml`/`minimal.patch.yml`/`patent.patch.yml`/`ptc.patch.yml`/`standard.patch.yml` 六个文件;②`patent-document` 磁盘上是 **11** 个模板目录(早期草稿记为 13),与 `TEMPLATE_IDS`(`render-patent-document.ts:19-31`)和 `manifest.json:15-27` 三处一致。
 - **本条之后的口径变化(2026-10-17)**:专利无效域补齐后,`patent-document` 的模板目录为 **13** 个(新增内部无效分析意见 `invalidation-analysis` 与被请求人侧答辩 `invalidation-defense`,二者均在 `manifest.json` 中登记),上一行 ② 的 11 已过期;同时 `structure.large-files` 由 75 升至 **76**(证据判定引擎扩容后超过 800 行),`lint.v8-ignore` 由 1168 降至 **1166**(使用公开四要件与举证难度分档的 v8 豁免随分支补齐而撤销),随后回升至 **1167**(证据编号与证据清单互查的捕获组取值统一走 `group()`,新增那一处豁免;其余分支全部由用例覆盖)。
