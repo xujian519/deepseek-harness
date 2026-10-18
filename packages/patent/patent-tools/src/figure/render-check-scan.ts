@@ -435,11 +435,10 @@ function parsePathData(d: string): PathData | undefined {
       else if (command === 'h') current = [relative ? current[0] + value(chunk, 0) : value(chunk, 0), current[1]]
       else if (command === 'v') current = [current[0], relative ? current[1] + value(chunk, 0) : value(chunk, 0)]
       else {
-        // 曲线命令：只取末点，曲率本身不量测。
+        // 曲线命令：只取末点（最后两个参数），曲率本身不量测。
         approximate = true
         const last = arity - 1
-        const previous = command === 'c' || command === 'q' ? last - 2 : last - 1
-        current = target(relative, value(chunk, previous), value(chunk, last))
+        current = target(relative, value(chunk, last - 1), value(chunk, last))
       }
       points.push(current)
     }

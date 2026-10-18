@@ -424,6 +424,16 @@ describe('checkFigureRendering 相邻剖面线难以区分', () => {
     expect(report.findings).toEqual([])
   })
 
+  it('尺寸相同但轮廓不互为镜像时仍比较相邻件取向', () => {
+    const report = checkFigureRendering(svg([
+      '<polygon points="0,0 20,0 20,5 10,5 10,10 0,10" stroke-width="0.5"/>',
+      '<polygon points="0,11 20,11 20,16 15,16 15,21 0,21" stroke-width="0.5"/>',
+      hatchFamily(4, 2, 45, 3, 1.5),
+      hatchFamily(4, 13, 45, 3, 1.5),
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['hatch-orientation-collision'])
+  })
+
   it('零件内的零散线条不构成剖面线：符号笔画与穿行线不触发取向比较', () => {
     // 与电路图同形：两个相邻符号各有 1–2 条内部笔画，不是剖面线族。
     const report = checkFigureRendering(svg([
@@ -972,6 +982,8 @@ describe('scanSvg 解析边界补充', () => {
       '<path d="1 2 L 3 4" stroke-width="0.5"/>',
       '<path d="L 1 ? 2" stroke-width="0.5"/>',
       '<path d="X 1 2" stroke-width="0.5"/>',
+      '<path d="L" stroke-width="0.5"/>',
+      '<path d="L 1" stroke-width="0.5"/>',
       '<path d="M 1 2" stroke-width="0.5"/>',
       '<path stroke-width="0.5"/>',
       '<path d="L 3 4 L 5 6" stroke-width="0.5"/>',
@@ -981,6 +993,19 @@ describe('scanSvg 解析边界补充', () => {
     expect(scan.shapes).toHaveLength(1)
     expect(scan.shapes[0]?.subpaths[0]?.points).toEqual([[0, 0], [3, 4], [5, 6]])
     expect(scan.unmeasured.join('\n')).toContain('无法解析')
+  })
+
+  it('M 的后续坐标按 L 处理，曲线末点取最后两个参数', () => {
+    const scan = scanSvg(svg([
+      '<path d="M 1 2 3 4" stroke-width="0.5"/>',
+      '<path d="M 10 10 C 11 11 12 12 13 14" stroke-width="0.5"/>',
+      '<path d="M 20 20 Q 21 21 22 24" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(scan.shapes.map(shape => shape.subpaths[0]?.points)).toEqual([
+      [[1, 2], [3, 4]],
+      [[10, 10], [13, 14]],
+      [[20, 20], [22, 24]],
+    ])
   })
 
   it('缺 points 的折线、缺 x/y 的矩形与缺 cx/cy 的圆/椭圆按默认值量测', () => {
