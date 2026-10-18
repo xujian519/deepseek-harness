@@ -685,7 +685,7 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 | P2-01 | 已完成 | — | 2026-10-18 | `serialize` 统一互斥队列；复用 `memberOpenTask`；`withMailboxLease` 收敛租约锁；status/archive 共用 task row 前缀；无新增克隆 |
 | P2-02 | 已完成 | — | 2026-10-18 | `kickTeam`/`kickMember` 接收团队快照；安静 8 人团队 status 的 `team.json` 读取次数由 spy 用例钉为 ≤2；空闲无候选时跳过 claim 重读 |
 | P2-03 | 已完成 | — | 2026-10-18 | 校验 `worker`/`contractValidation`/`gateFeedback`/`gateRejections`；解析错误带 team id 与文件路径 |
-| P2-04 | 已完成 | — | 2026-10-18 | `PatentTeamsError` 稳定码覆盖 stale/claimed/terminal/dependencies/output/contract/reserved；persona 改引 `STALE_ATTEMPT` |
+| P2-04 | 已完成 | — | 2026-10-18 | `PatentTeamsError` 稳定码覆盖 stale/claimed/terminal/dependencies/output/contract/reserved，错误文本带 code 后缀；persona/队长用法改引 `STALE_ATTEMPT` |
 | P2-05 | 已完成 | — | 2026-10-18 | README 补 qualityGate/passThreshold/mailboxDeliveryLeaseMs；状态模型补 `retired-members.json`；删除虚假的事件校验 invariant |
 | P2-06 | 已完成 | — | 2026-10-18 | 删除 `dsh-patent-core` 与 tsconfig reference；补 brand/util-values/user-approval references 与测试 devDeps；更新 lockfile |
 | P2-07 | 已完成 | — | 2026-10-18 | `PATENT_TEAMS_TOOL_NAMES` 单一真源；真实 ToolRuntime 覆盖 update_task/status；删 `probe.spec.ts`；status 投影去 `v8 ignore`；清理新增 unknown cast |
@@ -733,4 +733,5 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 - 债务计数：`structure.large-files` 77、`structure.long-functions` 186（工作树 187 由未提交的 chart.ts 改动造成）；`lint.v8-ignore` 回写为 1166（工作树实测更高由未提交的 patent-core 改动造成）。
 - `pnpm run verify-cordis-catalog` 因工作树中未提交的 `AtomRegistry` / `StageHandlerRegistry` 签名变化而 stale；本批未新增 catalog 类型，未提交该生成文件。
 - 全量 `pnpm run test:docs` 的剩余失败为上述工作树债务计数与 gitignore 的 `litho.docs/patent/README.md` 缺中文对照，均与本批提交无关。
-- 本批五个本地提交（按内容）：持久化校验与错误码；共享队列与 status 读取优化；邮箱租约 Config 与文档；依赖/references 对齐；工具名单单一真源与真实运行时测试。
+- P2-02 的读取下降集中在 `team.json` 与无候选 claim 重读；邮箱仍按成员单次整读，未引入跨请求缓存。
+- 本批按内容分多个本地提交：持久化校验与错误码；共享队列与 status 读取优化；邮箱租约 Config 与文档；依赖/references 对齐；工具名单单一真源与真实运行时测试；稳定错误码文本可见性。
