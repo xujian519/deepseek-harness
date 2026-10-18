@@ -136,7 +136,7 @@ export * from './evidence/index.ts'
 export * from './reasoning/index.ts'
 
 // Persistence + path helpers (single home; re-exported by dsh-patent-data).
-export { JsonFileStore, SAFE_ID_PATTERN, assertSafeId, atomicWriteJson } from './persist-utils.ts'
+export { JsonFileStore, SAFE_ID_PATTERN, assertSafeId, assertSafePathSegment, atomicWriteJson } from './persist-utils.ts'
 export {
   CASE_OUTPUTS_REL,
   CASE_ROOT_REL,

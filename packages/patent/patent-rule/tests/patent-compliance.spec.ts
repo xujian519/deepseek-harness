@@ -77,11 +77,9 @@ describe('patent compliance loading', () => {
     expect(loaded.source).not.toContain(ELECTRICAL)
   })
 
-  it('loadPatentElectricalRuleSet returns the base result when compliance is missing', () => {
-    const loaded = loadPatentElectricalRuleSet('/nonexistent/rules-root')
-    expect(loaded.source).toBeNull()
-    expect(loaded.ruleSet.rules.length).toBe(0)
-    expect(loaded.warnings.some(w => w.includes('门禁降级为放行'))).toBe(true)
+  it('loadPatentElectricalRuleSet fails loud when compliance is missing', () => {
+    expect(() => loadPatentElectricalRuleSet('/nonexistent/rules-root'))
+      .toThrow(/未找到可解析的专利合规规则资产/)
   })
 
   it('loadActivationOverrides reports parse errors, bad entries, and unreadable files', () => {
@@ -206,10 +204,8 @@ describe('patent compliance loading', () => {
     }
   })
 
-  it('loadPatentFullRuleSet returns the base result when compliance is missing', () => {
-    const loaded = loadPatentFullRuleSet('/nonexistent/rules-root')
-    expect(loaded.source).toBeNull()
-    expect(loaded.ruleSet.rules.length).toBe(0)
-    expect(loaded.warnings.some(w => w.includes('门禁降级为放行'))).toBe(true)
+  it('loadPatentFullRuleSet fails loud when compliance is missing', () => {
+    expect(() => loadPatentFullRuleSet('/nonexistent/rules-root'))
+      .toThrow(/未找到可解析的专利合规规则资产/)
   })
 })

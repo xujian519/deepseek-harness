@@ -118,6 +118,15 @@ it('chartFileBase 拒绝不安全 chartId（防路径注入）', () => {
   expect(() => chartFileBase('case-1', 'a.b_c-1')).not.toThrow()
 })
 
+it('chartFileBase 拒绝穿越目录的 caseId，同时保留中文案卷名', () => {
+  for (const bad of ['../../escape', 'a/b', '..', '.', 'a\\b', 'a\0b']) {
+    expect(() => chartFileBase(bad, 't1')).toThrow(RangeError)
+    expect(() => chartFileBase(bad, 't1')).toThrow(/^Invalid caseId /)
+  }
+  expect(() => chartFileBase('CN2024-0001', 't1')).not.toThrow()
+  expect(() => chartFileBase('中文案卷', 't1')).not.toThrow()
+})
+
 it('save/load 往返一致（落盘 data/cases/<caseId>/outputs/）', async () => {
   const prevCwd = process.cwd()
   const dir = mkdtempSync(join(tmpdir(), 'cc-store-'))

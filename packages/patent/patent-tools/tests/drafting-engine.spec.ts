@@ -617,6 +617,20 @@ describe('claim_chart_build success paths', () => {
     }
   })
 
+  it('rejects a case_id that would escape data/cases', async () => {
+    const tool = createClaimChartBuildTool({ model: jsonModel(chartJson) })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: '1. 一种装置，包括壳体。',
+      targets: [{ id: 'D1', kind: 'prior-art' }],
+      case_id: '../../escape',
+    }, 'cc-case-id')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('case_id')
+    expect(text(result)).toContain('single path segment')
+  })
+
   it('builds a gap-free chart when no targets are mapped', async () => {
     const tool = createClaimChartBuildTool({
       model: jsonModel(JSON.stringify({

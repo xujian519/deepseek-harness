@@ -87,7 +87,7 @@ describe('pdfRenderer', () => {
       const argv = calls[0]?.argv ?? []
       expect(argv[0]).toBe(chromePath)
       expect(argv).toContain('--headless')
-      expect(argv).toContain('--print-to-pdf-no-header')
+      expect(argv).toContain('--no-pdf-header-footer')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

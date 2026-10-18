@@ -484,6 +484,28 @@ describe('pricing a case', () => {
     expect(report.lines.map(line => line.id)).toEqual(['reexamination-fee'])
   })
 
+  it('withholds the total when a named trigger has no indexed item', () => {
+    const report = computeFees(loadFeeTable(), query({ triggers: ['grant-registration'] }), POLICY)
+    expect(report.lines).toEqual([])
+    expect(report.total).toEqual({
+      amount: null,
+      complete: false,
+      unverifiedIds: [],
+      uncoveredTriggers: ['grant-registration'],
+    })
+    expect(report.notes.some(note => note.includes('索引未收录'))).toBe(true)
+  })
+
+  it('does not treat a trigger with items excluded by patent type as unindexed', () => {
+    const report = computeFees(
+      loadFeeTable(),
+      query({ patentType: 'design', triggers: ['substantive-examination'] }),
+      POLICY,
+    )
+    expect(report.lines).toEqual([])
+    expect(report.total.uncoveredTriggers).toBeUndefined()
+  })
+
   it('prices the shipped index and withholds the total while one item has no amount', () => {
     const report = computeFees(
       loadFeeTable(),

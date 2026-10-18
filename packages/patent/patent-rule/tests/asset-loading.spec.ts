@@ -20,11 +20,11 @@ describe('asset loading', () => {
     expect(loaded.ruleSet.rules.length).toBe(4)
   })
 
-  it('loadPatentComplianceRuleSet degrades to an empty rule set with a warning when assets are missing', () => {
-    const loaded = loadPatentComplianceRuleSet('/nonexistent/rules-root')
-    expect(loaded.source).toBeNull()
-    expect(loaded.ruleSet.rules.length).toBe(0)
-    expect(loaded.warnings.length).toBeGreaterThan(0)
+  it('loadPatentComplianceRuleSet fails loud when the base asset is missing', () => {
+    expect(() => loadPatentComplianceRuleSet('/nonexistent/rules-root'))
+      .toThrow(PatentRule.PatentRuleAssetError)
+    expect(() => loadPatentComplianceRuleSet('/nonexistent/rules-root'))
+      .toThrow(/未找到可解析的专利合规规则资产/)
   })
 
   it('resolveRuleAsset locates a packaged asset and returns null on a miss', () => {

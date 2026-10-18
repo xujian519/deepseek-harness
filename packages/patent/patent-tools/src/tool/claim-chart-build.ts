@@ -19,6 +19,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   ClaimChartHandler,
+  assertSafePathSegment,
   deriveInfringementConclusion,
   renderInvalidityConclusion,
   type AllElementsOutcome,
@@ -285,6 +286,17 @@ export function createClaimChartBuildTool(deps: ClaimChartBuildDeps = {}): ToolD
     async execute(args, exec) {
       if (args.claim_text.trim().length === 0) {
         throw new PatentToolError('invalid_tool_input', 'claim_text 为空', { tool: 'claim_chart_build' })
+      }
+      if (args.case_id !== undefined) {
+        try {
+          assertSafePathSegment(args.case_id, 'case_id')
+        } catch (error) {
+          throw new PatentToolError(
+            'invalid_tool_input',
+            error instanceof Error ? error.message : String(error),
+            { tool: 'claim_chart_build' },
+          )
+        }
       }
       const model = loggedToolModel(exec, deps.model, { callSite: 'claim_chart_build' })
       if (model === undefined) {

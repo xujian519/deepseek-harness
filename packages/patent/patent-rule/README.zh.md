@@ -117,7 +117,7 @@ None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-01
 
 - **资产定位与 Sati 不同** — 规则经 `import.meta.url` 从随包 `assets/rules/` 解析（可选 `rulesDir` 覆盖）；丢弃 `SATI_RULES_DIR` 环境变量、cwd/工作区根向上 walk 与项目 `.sati/rules.yaml` 自动发现。`loadRulePack` 仅接受显式 `manifestPath`。
 - **分层包默认仅 base** — 无清单时 `loadRulePack` 只加载随包的 base 包；domain 与 override 层需显式清单。
-- **规则集加载 fail-soft** — 资产缺失或损坏时降级为空规则集（门禁放行），而非使部署失败。
+- **基础合规资产缺失即失败。** `compliance.yaml` 缺失或无法解析时在加载期抛 `PatentRuleAssetError`；空规则集会让门禁静默放行。单个后续包文件（`nuo-*.yaml`、`current-law.yaml`、`mady-gap-rules.yaml`、`oa-response-form.yaml`）缺失或损坏仍只告警并跳过，一个坏包不会拖垮其余规则。
 - **并入资产只覆盖可机器判定的规则** — 载荷为正文表述（分析原则、法条条件、判例引用）的上游规则未转成检查，留在本包之外；转换清单、检查类型映射与边界见[并入边界说明](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.zh.md)。
 - **规则按域与前提收窄，不按文书类型判定** — 作业 scope 只留本作业的域，规则的适用前提在文本未触及该主题时保持沉默，但没有任何环节判定文书类型：前提命中的规则（例如答复引述了权利要求文字）仍会报出它缺失的要素。
 - **制品门禁无随包条目** — 本制品门禁不带任何 `structuralGate` 条目，因为本部署没有「入参即交付文书全文」的生产工具：`render_patent_document` 的入参是模板槽位片段，而模板本身已含固定措辞，按片段判缺失会报出渲染成品并不存在的缺陷。生产工具的入参就是文书全文时才启用。

@@ -87,7 +87,7 @@ export type PatentFeesOutput = {
   currency: string
   lines: FeeLineValue[]
   pending: PendingFeeValue[]
-  total: { amount?: string; complete: boolean; unverifiedIds: string[] }
+  total: { amount?: string; complete: boolean; unverifiedIds: string[]; uncoveredTriggers?: string[] }
   reduction?: ReductionValue
   notes: string[]
 }
@@ -103,7 +103,7 @@ const DESCRIPTION = [
   '- Report the case facts the index counts with (claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths). A fact the priced items need but the call omits comes back under pending, naming the input, rather than being guessed.',
   '- Announce every step of the case in triggers. A step you do not name is not priced at all, so a grant or a procedure left out reads as "no fee" — this list is the report\'s coverage, not a hint.',
   '- Money is reported only from transcribed amounts. Each line carries amountStatus: verified (amount and its verification date are recorded), unverified (amount recorded, verification date is not), or unrecorded (no amount yet). With the shipped index every item is unrecorded, so lines carry applicability and counts and no figures.',
-  '- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. Never fill in a missing amount yourself and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.',
+  '- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. A trigger the index carries no item for is reported under total.uncoveredTriggers and also withholds the total. Never fill in a missing amount or an unindexed stage yourself, and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.',
   '- annuityYears is the list of patent years to price; it comes from patent_deadlines, which owns the dates. lateMonths is the number of started months of delay, likewise from that tool.',
   '- This is arithmetic over an index, not a fee quote: the index carries a fee item\'s structure, and its amounts stay unverified until a person transcribes them from the official fee standard. Confirm any amount against the official announcement before invoicing a client.',
   '',
@@ -179,6 +179,7 @@ export function createPatentFeesTool(options: PatentFeesToolOptions): ToolDefini
               amount: { type: 'string' },
               complete: { type: 'boolean', required: true },
               unverifiedIds: { type: 'array', required: true, items: { type: 'string' } },
+              uncoveredTriggers: { type: 'array', items: { type: 'string' } },
             },
           },
           reduction: {
@@ -206,6 +207,9 @@ export function createPatentFeesTool(options: PatentFeesToolOptions): ToolDefini
           ...(report.total.amount === null ? {} : { amount: report.total.amount }),
           complete: report.total.complete,
           unverifiedIds: report.total.unverifiedIds,
+          ...report.total.uncoveredTriggers === undefined
+            ? {}
+            : { uncoveredTriggers: report.total.uncoveredTriggers },
         },
         ...(report.reduction === null ? {} : { reduction: toReductionValue(report.reduction) }),
         notes: report.notes,
@@ -380,6 +384,10 @@ function renderFeeTable(report: PatentFeesOutput): string {
 
 /** The total line, stating the refusal when it applies. */
 function renderTotal(report: PatentFeesOutput): string {
+  const uncovered = report.total.uncoveredTriggers ?? []
+  if (uncovered.length > 0) {
+    return `**本次未给出合计**：索引未收录收费阶段 ${uncovered.join('、')}。未收录的阶段是未知，不是零；须先补录该阶段的费项再核价。`
+  }
   if (report.total.complete && report.total.amount !== undefined) {
     return `**合计（全部已核验）**：${report.total.amount} ${report.currency}`
   }

@@ -129,6 +129,7 @@ export {
   patentCaseDomains,
   selectGateRules,
   PATENT_CASE_DOMAINS,
+  PatentRuleAssetError,
   type ActivationOverrides,
   type GateCheckType,
   type PatentCaseScope,

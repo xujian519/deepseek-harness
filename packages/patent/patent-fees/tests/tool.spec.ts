@@ -103,6 +103,23 @@ describe('patent_fees tool', () => {
     expect(text).toContain('- 权利要求附加费（claims-surcharge）：需要 claims——')
   })
 
+  it('withholds the total and names a trigger the index does not carry', async () => {
+    const result = await execute(await host(), {
+      patentType: 'invention',
+      triggers: ['grant-registration'],
+    })
+    expect(result.isError).toBe(false)
+    const value = result.value as PatentFeesOutput
+    expect(value.total).toEqual({
+      complete: false,
+      unverifiedIds: [],
+      uncoveredTriggers: ['grant-registration'],
+    })
+    const text = rendered(result)
+    expect(text).toContain('索引未收录收费阶段 grant-registration')
+    expect(text).not.toContain('合计（全部已核验）')
+  })
+
   it('omits every unrecorded field from the output value', async () => {
     const bare = tableOf('application-fee', '申请费', 'filing', {
       amount: null,

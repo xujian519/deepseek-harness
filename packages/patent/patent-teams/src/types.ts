@@ -31,6 +31,7 @@ export type PatentTeamsErrorCode =
   | 'WORKER_OUTPUT_REQUIRED'
   | 'WORKER_CONTRACT_UNKNOWN'
   | 'TEAM_RESERVED_ID'
+  | 'TEAM_NAME_ARCHIVED'
 
 /**
  * A PatentTeams operation failure with a stable machine-readable code.

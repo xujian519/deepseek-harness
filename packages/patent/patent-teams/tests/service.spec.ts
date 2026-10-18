@@ -1032,6 +1032,16 @@ describe('delete', () => {
     expect(await readTeam(join(h.workspace, h.stateDir), 'alpha')).toBeUndefined()
   })
 
+  it('refuses to reuse the name of an archived team', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain, 'Alpha')
+    await h.ctx.patentTeams.delete(captain, new AbortController().signal)
+    await expect(createTeam(h, captain, 'Alpha')).rejects.toMatchObject({ code: 'TEAM_NAME_ARCHIVED' })
+    const archived = await readArchivedTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(archived?.name).toBe('Alpha')
+  })
+
   it('still archives when a member does not quiesce cleanly', async () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
