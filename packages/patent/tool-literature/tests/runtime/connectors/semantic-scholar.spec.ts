@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createSemanticScholarConnector } from '../../../src/runtime/connectors/semantic-scholar.ts'
-import { clearCache, resetRateLimits } from '../../../src/runtime/http.ts'
+import { LiteratureHttpClient } from '../../../src/runtime/http.ts'
 import type { Connector } from '../../../src/protocol/types.ts'
 
 /** Test injection: skip the keyless 1s per-host rate limit to keep the suite fast. */
@@ -110,22 +110,14 @@ describe('semantic scholar connector', () => {
   })
 
   it('applies the default keyless rate limit when none configured', async () => {
-    clearCache()
-    resetRateLimits()
-    let calls = 0
-    const connector = createSemanticScholarConnector({
-      fetchImpl: async () => {
-        calls += 1
-        return jsonResponse(calls === 1 ? { data: [] } : null)
-      },
-    })
+    const client = new LiteratureHttpClient()
+    const getJSON = vi.spyOn(client, 'getJSON').mockResolvedValue({ data: [] })
+    const connector = createSemanticScholarConnector({ client, fetchImpl: async () => jsonResponse({ data: [] }) })
     await connector.search('default rate limit probe')
-    resetRateLimits()
-    await expect(connector.fetch!('abc')).resolves.toBeNull()
+    expect(getJSON.mock.calls[0]?.[1]?.rateLimit).toEqual({ minIntervalMs: 1000 })
   })
 
   it('exposes the open-access pdf link in extra.pdf_url', async () => {
-    clearCache()
     const connector = createSemanticScholarConnector({
       rateLimit: { minIntervalMs: 0 },
       retry: { maxRetries: 0 },
@@ -136,7 +128,6 @@ describe('semantic scholar connector', () => {
   })
 
   it('omits pdf_url when the record has no open-access pdf', async () => {
-    clearCache()
     const connector = createSemanticScholarConnector({
       rateLimit: { minIntervalMs: 0 },
       retry: { maxRetries: 0 },

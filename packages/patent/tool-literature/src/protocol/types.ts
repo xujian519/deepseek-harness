@@ -5,7 +5,7 @@
  * OpenAlex, Semantic Scholar, Crossref...), uniformly implementing `search`/`fetch`
  * plus metadata. The tool layer (`paper_search` / `paper_list_sources`) routes only
  * through the registry and never touches a concrete database, so the model-facing
- * tool count stays constant (2) no matter how many sources are wired in.
+ * tool count stays constant (3) no matter how many sources are wired in.
  * @module @deepseek-ai/dsh-tool-literature/protocol
  */
 

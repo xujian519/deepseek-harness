@@ -168,6 +168,24 @@ describe('paper_search over an injected-fetchImpl registry', () => {
     expect(t).toContain('**url**: http://arxiv.org/abs/1706.03762v7')
   })
 
+  it('renders the pdf link that connectors publish as extra.pdf_url', async () => {
+    const registry = new ConnectorRegistry()
+    registry.register({
+      id: 'stub',
+      name: 'Stub',
+      domain: 'literature',
+      description: 'stub source',
+      search: async () => [
+        { id: 'h1', title: 'Open Access Paper', extra: { pdf_url: 'https://pdf.example/h1.pdf' } },
+      ],
+    })
+    const ctx = await setupRegistry(registry)
+    const result = await execute(ctx, 'paper_search', { db: 'stub', query: 'q' }, 'stub-pdf')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected paper_search success')
+    expect(text(result)).toContain('**pdf**: https://pdf.example/h1.pdf')
+  })
+
   it('clamps limit to 50', async () => {
     let url = ''
     const registry = makeRegistry(async (input: RequestInfo | URL) => {

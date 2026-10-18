@@ -1,7 +1,7 @@
 /**
  * Function plugin porting the Sati literature layer: arXiv, OpenAlex, Semantic Scholar, and
  * Crossref connectors with per-host rate limiting and in-process GET caching, exposed as the
- * model-facing `paper_list_sources` and `paper_search` tools. Named exports preserve loader
+ * model-facing `paper_list_sources`, `paper_search`, and `paper_download` tools. Named exports preserve loader
  * injection metadata.
  * @module @deepseek-ai/dsh-tool-literature
  */
@@ -103,7 +103,7 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Build the connector registry from config and register the two literature tools.
+ * Build the connector registry from config and register the three literature tools.
  * @param ctx - registrant context carrying the tool registry.
  * @param config - deployment's connector toggles, optional credentials, and network budgets.
  */

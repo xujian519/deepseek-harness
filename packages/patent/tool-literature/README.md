@@ -32,7 +32,7 @@ Searches one source by `db` id and `query`, with an optional `limit` (1–50, de
 
 ### paper_download
 
-Downloads one paper's PDF by `db` + `id` (from a `paper_search` hit), saving it as `<outputDir>/<id>.pdf` (default `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`). The direct PDF link wins — arXiv `extra.pdf`, OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url`, Semantic Scholar `openAccessPdf.url` — verified by PDF magic and minimum size; when the direct fetch fails (403/404/HTML shell page), the ego extractor opens the record page, extracts the PDF link, and the same fetch path downloads it. An explicit `pdfUrl` override skips connector resolution. Mirrors the patent_pdf_download channel design (direct-first, browser fallback).
+Downloads one paper's PDF by `db` + `id` (from a `paper_search` hit), saving it as `<outputDir>/<id>.pdf` (default `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`). The direct PDF link wins — the first non-empty of `extra.pdf_url` / `extra.pdf` / `pdf_url` / `pdf`, OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url` / `primary_location.pdf_url`, and Semantic Scholar `openAccessPdf.url` — verified by PDF magic and minimum size. When the link is missing or the fetch fails (403/404/HTML shell page), the ego extractor opens the record page (`url`, `URL`, `landing_page_url`, a nested location landing page, or an `id` that is itself an HTTP URL), extracts the PDF link, and the same fetch path downloads it. An explicit `pdfUrl` override skips connector resolution. Mirrors the patent_pdf_download channel design (direct-first, browser fallback).
 
 ## Configuration
 
@@ -68,13 +68,13 @@ Fixed definition cost per request, independent of how many connectors are enable
 
 #### KV Cache effect
 
-Prefix-stable while the two definitions and their visibility are unchanged; plugin registration or disposal invalidates reuse from the first changed definition token.
+Prefix-stable while the three definitions and their visibility are unchanged; plugin registration or disposal invalidates reuse from the first changed definition token.
 
 ### Search result
 
 #### What the model sees
 
-A successful `paper_search` renders one Markdown block per hit — a `## <title>` heading followed by `**id**`, an optional `**url**`, an optional `**pdf**` (arXiv), an optional ` · score`, and the summary. A zero-hit query renders `No results for "<query>" in <db>.`; a source failure renders its actionable guidance text.
+A successful `paper_search` renders one Markdown block per hit — a `## <title>` heading followed by `**id**`, an optional `**url**`, an optional `**pdf**` link when the source reports one, an optional ` · score`, and the summary. A zero-hit query renders `No results for "<query>" in <db>.`; a source failure renders its actionable guidance text.
 
 #### Token effect
 
@@ -102,7 +102,8 @@ Append-only; newly visible list text follows the reusable request prefix and doe
 
 - **Keyless public sources only** — the four connectors cover free, no-API-key sources; there is no model for authenticated or premium tiers, and no connector requires credentials to function (a Semantic Scholar key only raises the rate limit).
 - **Per-host rate limiting can add latency** — arXiv paces to 1 request per 3 seconds and keyless Semantic Scholar to 1 request per second, so a multi-source fan-out with many arXiv hits may queue behind the polite interval; pacing is per-host, so unrelated sources proceed in parallel.
-- **PDF availability follows the source's open-access status** — `paper_download` resolves the link the source reports (arXiv pdf, OpenAlex best-oa location, Semantic Scholar openAccessPdf); paywalled records simply have no link to download.
+- **PDF availability follows the source's open-access status** — `paper_download` resolves the link the source reports (arXiv pdf, OpenAlex best-oa / primary location, Semantic Scholar openAccessPdf, Crossref record URL only); paywalled records have no direct link, so the call either fails with guidance or succeeds only if the record page still exposes a PDF.
+- **The direct PDF fetch makes one attempt** — `paper_download` does not retry the direct link or the browser-extracted link; a transient 5xx surfaces as a failed result carrying the attempted `pdfUrl`, which the model can retry through `pdfUrl`.
 - **The browser fallback channel is the unified ego stack** — `paper_download`'s fallback opens the record page through `EgoExtractor`; browser-use extraction is no longer a download-channel fallback.
 
 ### Dev Note

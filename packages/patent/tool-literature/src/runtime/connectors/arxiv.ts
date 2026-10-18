@@ -9,7 +9,8 @@
  * `fetch` 用 `id_list` 形式精确取记录。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getText, type LiteratureBudgetOptions, type LiteratureFetchOptions, type LiteratureRateLimit } from '../http.ts'
+import type { LiteratureFetchOptions, LiteratureHttpClient } from '../http.ts'
+import { connectorHttp, type ConnectorHttpOptions } from './connector-http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 import { xmlAttr, xmlBlocks, xmlSelfClosing, xmlText } from '../shared/xml.ts'
 
@@ -20,11 +21,7 @@ const RATE_LIMIT = { minIntervalMs: 3000 }
 const FIELDED = /^(ti|au|abs|co|jr|cat|rn|id|all):/i
 
 /** 创建 arXiv 连接器的选项（fetch/限速/预算注入）。 */
-export interface CreateArxivConnectorOptions extends LiteratureBudgetOptions {
-  fetchImpl?: typeof fetch
-  /** 覆盖默认 3s per-host 限速（测试注入小值/0）。 */
-  rateLimit?: LiteratureRateLimit
-}
+export type CreateArxivConnectorOptions = ConnectorHttpOptions
 
 interface Entry {
   id: string
@@ -83,9 +80,9 @@ function parse(xml: string): Entry[] {
  * 拉取并校验一次 arXiv Atom 响应。非 Atom body 与 arXiv 错误条目一律抛错
  * （而非返回 `[]`），让工具层能区分"源错误"与"真零结果"。
  */
-async function feed(url: string, http: LiteratureFetchOptions): Promise<Entry[]> {
+async function feed(client: LiteratureHttpClient, url: string, http: LiteratureFetchOptions): Promise<Entry[]> {
   // rateLimit/retry/fetchImpl 已在连接器构造时并入 http；signal 每次调用可变。
-  const xml = await getText(url, { ...http, looksValid: isAtomFeed })
+  const xml = await client.getText(url, { ...http, looksValid: isAtomFeed })
   if (!isAtomFeed(xml)) {
     throw new Error('arXiv returned a non-Atom response (likely rate-limited or unavailable); retry shortly.')
   }
@@ -115,13 +112,7 @@ function toHit(e: Entry): ConnectorHit {
  * @returns arXiv 连接器。
  */
 export function createArxivConnector(options: CreateArxivConnectorOptions = {}): Connector {
-  const http: LiteratureFetchOptions = {
-    fetchImpl: options.fetchImpl,
-    rateLimit: options.rateLimit ?? RATE_LIMIT,
-    timeoutMs: options.timeoutMs,
-    cacheTtlMs: options.cacheTtlMs,
-    retry: options.retry,
-  }
+  const { client, http } = connectorHttp(options, RATE_LIMIT)
   return {
     id: 'arxiv',
     name: 'arXiv',
@@ -131,12 +122,12 @@ export function createArxivConnector(options: CreateArxivConnectorOptions = {}):
     async search(query, opts) {
       const max = clampLimit(opts?.limit)
       const url = `${BASE}?search_query=${encodeURIComponent(searchExpr(query))}&start=0&max_results=${max}&sortBy=relevance`
-      const entries = await feed(url, { ...http, signal: opts?.signal })
+      const entries = await feed(client, url, { ...http, signal: opts?.signal })
       return entries.map(toHit)
     },
     async fetch(id, opts) {
       const clean = bareId(id)
-      const entries = await feed(`${BASE}?id_list=${encodeURIComponent(clean)}&max_results=1`, {
+      const entries = await feed(client, `${BASE}?id_list=${encodeURIComponent(clean)}&max_results=1`, {
         ...http,
         signal: opts?.signal,
       })
