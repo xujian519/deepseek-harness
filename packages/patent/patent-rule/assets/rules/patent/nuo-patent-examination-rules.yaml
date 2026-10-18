@@ -163,12 +163,27 @@ rules:
     legalBasis: 专利法第26条第4款；审查指南第二部分第二章3.2.2
     check:
       type: keyword_blocklist
+      # 「应避免使用大约」是撰写建议，不是权利要求本身的用语。
+      negationContext: true
+      quoteImmune: true
       keywords:
         - 大约
-        - 左右
         - 优选地
         - 最好是
         - 大概是
+  - id: EX-CLM-007
+    name: 权利要求—数值范围近似用语
+    domain: patent_claims
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 专利法第26条第4款；审查指南第二部分第二章3.2.2
+    check:
+      type: pattern_analysis
+      patterns:
+        # 只有数值语境里的「左右/上下/大约」才是范围不确定；「左右两侧」是方位描述。
+        - '[0-9０-９][^。；\n]{0,8}(?:左右|上下)'
+        - '(?:大约|约为|近似)[^。；\n]{0,8}[0-9０-９]'
   - id: EX-CLM-002
     name: 权利要求—以说明书为依据
     domain: patent_claims
@@ -191,7 +206,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第二章3.1.2
+    legalBasis: 审查指南第二部分第二章3.3.2
     check:
       type: structural_analysis
       requiresAll:
@@ -347,6 +362,8 @@ rules:
     legalBasis: 审查指南第二部分第四章6.2
     check:
       type: keyword_blocklist
+      # 指南自己的表述是「避免事后诸葛亮」；不豁免会把规范表述判成违规。
+      negationContext: true
       keywords:
         - 事后诸葛亮
         - hindsight
@@ -467,6 +484,10 @@ rules:
             - 意见陈述
             - 争辩
             - 修改
+            - 申请人认为
+            - 申请人主张
+            - 辩称
+            - 反驳
   - id: EX-SPEC-001
     name: 说明书—技术背景描述要求
     domain: patent_disclosure
@@ -495,7 +516,7 @@ rules:
     phase: post_execution
     severity: minor
     action: log
-    legalBasis: 审查指南第二部分第二章2.2.7
+    legalBasis: 专利法实施细则第二十条第四款；审查指南第一部分第一章4.2
     check:
       type: structural_analysis
       requiresAll:

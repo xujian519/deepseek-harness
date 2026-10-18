@@ -12,13 +12,25 @@ rules:
     action: block
     check:
       type: keyword_blocklist
+      # 「不得使用 CNXXXXXX」是合规警示，不是占位号本身；引文同理。
+      negationContext: true
+      quoteImmune: true
       keywords:
         - CNXXXXXX
         - CNxxxxxx
+        - CNXXXXXXX
+        - CNxxxxxxx
+        - CN20XX
+        - CN20xx
         - (20XX)
         - (20xx)
+        - （20XX）
+        - （20xx）
         - USXXXXXXX
+        - USXXXXXXXX
+        - US20XX
         - WO20XX/
+        - ZL20XX
   - id: CON-COMP-0104
     name: 禁止编造审查指南内容
     domain: patent_general
@@ -35,13 +47,16 @@ rules:
       minConfidence: 1
   - id: CON-COMP-0105
     name: 禁止商业宣传用语
+    description: 说明书不得使用商业性宣传用语
     domain: patent_general
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第二章2.2.6
+    legalBasis: 专利法实施细则第二十条第三款；审查指南第二部分第二章2.2.7
     check:
       type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
       keywords:
         - 世界领先
         - 行业首创

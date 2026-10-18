@@ -43,7 +43,7 @@ import type { ContextFormed, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { PostToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 // Type-only: makes `ctx.get('approval')` resolve to the ApprovalService
 // augmentation. The seam stays optional at runtime.
-import type {} from '@deepseek-ai/dsh-user-approval'
+import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { RuleOutputGate as PatentRuleOutputGate, RuleOutputGateResult } from '@deepseek-ai/dsh-patent-core'
 import { patentAssetDir } from './asset-location.ts'
 import { createEvidenceComplianceGuards } from './guard/evidenceComplianceGuards.ts'
@@ -57,6 +57,7 @@ import {
   type GateCheckType,
 } from './runtime/patent-compliance.ts'
 import { formatViolation, RuleOutputGate } from './runtime/output-gate.ts'
+import { loadSynonymsAsset } from './runtime/synonym-engine.ts'
 import {
   deliveryGateMissing,
   DeliveryAttemptLedger,
@@ -299,8 +300,10 @@ function resultText(result: Readonly<ToolExecutionResult>): string {
 /** A model-visible one-line summary of the review/block rule ids that fired. */
 function hitSummary(result: RuleOutputGateResult): string {
   const ids = [...new Set([...result.blockHits, ...result.reviewHits])]
-  const first = result.violations[0]
-  /* v8 ignore next -- only called with block/review hits, so violations is non-empty. */
+  // 标签必须来自真正触发 block/review 的违规；取 violations[0] 会把排在前面的
+  // warn 规则名贴到审批理由上，模型据此改错规则。
+  const first = result.violations.find(v => v.action === 'block' || v.action === 'review')
+  /* v8 ignore next -- only called with block/review hits, so a matching violation exists. */
   const label = first ? '（' + first.ruleName + '）' : ''
   /* v8 ignore next -- only called with block/review hits, so ids is non-empty. */
   return ids.length > 0 ? ids.join(', ') + label : '(none)'
@@ -376,8 +379,10 @@ export function apply(ctx: Context, config: Config): void {
   warnings.push(...structuralGate.warnings)
   const deliveryGate: DeliveryGatePlan = resolveDeliveryGate(config.deliveryGate ?? [])
   warnings.push(...deliveryGate.warnings)
+  const synonyms = loadSynonymsAsset(config.rulesDir)
+  warnings.push(...synonyms.warnings)
   for (const warning of warnings) ctx.logger.warn('patent-rule: ' + warning)
-  const gate = new RuleOutputGate(selectGateRules(ruleSet, gateCheckTypes))
+  const gate = new RuleOutputGate(selectGateRules(ruleSet, gateCheckTypes), { synonyms: synonyms.synonyms })
   // Expose the same gate to team-consumers (e.g. patent-teams) so a task
   // completion can be rule-gated consistently with the tools/post-execute path.
   ctx.provide('patentRuleGate', gate)
@@ -393,7 +398,7 @@ export function apply(ctx: Context, config: Config): void {
   // 结果全文，只能在制品进入渲染/落盘之前拦下——这是它们唯一的硬执行点。
   if (structuralGate.entries.length > 0) {
     ctx.on('tools/pre-execute', async (exec, next) => {
-      const violations = structuralGateViolations(structuralGate, exec.name, exec.arguments)
+      const violations = structuralGateViolations(structuralGate, exec.name, exec.arguments, synonyms.synonyms)
       if (violations.length === 0) return next()
       return { kind: 'deny', reason: renderStructuralGateDenial(exec.name, violations) }
     })
@@ -413,17 +418,32 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   ctx.on('tools/post-execute', async (exec: ToolExecution, result, next): Promise<PostToolDecision> => {
-    // 先登记再判定：前置工具本身通常不在 gateToolNames 里，下面的输出门禁会直接放行。
-    // 登记的是「跑过且通过」：工具成功返回但自带 blocked:true 时不算满足前置。
-    if (!result.isError && !isBlockedResult(result.value) && exec.agent !== undefined && requiredTools.has(exec.name)) {
-      deliveryLedger.record(exec.agent, exec.name)
+    // 登记的是「跑过且通过」：工具成功返回、未自带 blocked:true，且下游 post-execute
+    // 没有把它改成 block。记录必须发生在 next() 之后——在调用前登记会把一条马上被
+    // 输出门禁或下游监听器拦下的调用也记成前置证据。
+    const agent = exec.agent
+    const shouldRecord = !result.isError
+      && !isBlockedResult(result.value)
+      && requiredTools.has(exec.name)
+    const recordIfPassed = (decision: PostToolDecision): PostToolDecision => {
+      if (shouldRecord && decision.kind !== 'block' && agent) {
+        deliveryLedger.record(agent, exec.name)
+      }
+      return decision
     }
-    if (!gateToolNames.has(exec.name) || result.isError) return next()
+
+    if (!gateToolNames.has(exec.name) || result.isError) return recordIfPassed(await next())
     const text = resultText(result)
-    if (text.trim().length === 0) return next()
+    if (text.trim().length === 0) return recordIfPassed(await next())
 
     const gateResult = gate.process(text)
     const warn = warnContext(gateResult, exec.name)
+    // log 级命中只进日志：它既不改写结果，也不进入下一轮上下文，但“计算后丢弃”
+    // 会让审计看不到规则跑过；在早退（block/review）之前记录，任何处置都留痕。
+    const logHits = [...new Set(gateResult.violations.filter(v => v.action === 'log').map(v => v.ruleId))]
+    if (logHits.length > 0) {
+      ctx.logger.info('patent-rule: ' + exec.name + ' 命中 log 级规则 ' + logHits.join(', '))
+    }
     if (gateResult.blockHits.length > 0) {
       return attachWarn({
         kind: 'block',
@@ -436,7 +456,7 @@ export function apply(ctx: Context, config: Config): void {
     if (warn !== undefined) {
       ctx.logger.warn('patent-rule: ' + exec.name + ' 命中 warn 级规则 ' + gateResult.warnHits.join(', '))
     }
-    if (gateResult.reviewHits.length === 0) return attachWarn(await next(), warn)
+    if (gateResult.reviewHits.length === 0) return attachWarn(recordIfPassed(await next()), warn)
 
     const reason = '专利输出门禁请求审批 ' + exec.name + '：命中待审规则 ' + hitSummary(gateResult)
     const approval = ctx.get('approval')
@@ -447,19 +467,32 @@ export function apply(ctx: Context, config: Config): void {
         feedback: [{ type: 'text', text: reason + '（无审批通道，按拦截处理）' }],
       }, warn)
     }
-    const outcome = await approval.request({
-      agent: exec.agent,
-      toolName: exec.name,
-      callId: exec.callId,
-      reason,
-      signal: exec.signal,
-    })
+    let outcome: ApprovalOutcome
+    try {
+      outcome = await approval.request({
+        agent: exec.agent,
+        toolName: exec.name,
+        callId: exec.callId,
+        reason,
+        signal: exec.signal,
+      })
+    } catch (error) {
+      // 审批通道自身异常时保持 fail-closed；抛出会把结果变成未定义的错误路径，
+      // 模型也拿不到“该改哪条规则”的可操作反馈。
+      return attachWarn({
+        kind: 'block',
+        feedback: [{
+          type: 'text',
+          text: reason + '（审批通道异常，按拦截处理：' + (error as Error).message + '）',
+        }],
+      }, warn)
+    }
     if (outcome !== 'allowed-once') {
       return attachWarn({
         kind: 'block',
         feedback: [{ type: 'text', text: reason + '（审批未通过，按拦截处理）' }],
       }, warn)
     }
-    return attachWarn(await next(), warn)
+    return attachWarn(recordIfPassed(await next()), warn)
   })
 }

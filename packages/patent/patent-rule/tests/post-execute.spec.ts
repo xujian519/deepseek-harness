@@ -26,7 +26,7 @@ function deliveryTool(name: string, text: string) {
   })
 }
 
-/** A rulesDir fixture with one block rule, one review rule, and one warn rule (all keyword_blocklist, non-PAT). */
+/** A rulesDir fixture with one block, review, warn, and log rule (all keyword_blocklist, non-PAT). */
 function makeRulesFixture(): string {
   const root = mkdtempSync(join(tmpdir(), 'patent-rule-'))
   const patentDir = join(root, 'patent')
@@ -50,6 +50,11 @@ function makeRulesFixture(): string {
       '    severity: minor',
       '    action: warn',
       '    check: { type: keyword_blocklist, keywords: ["WARNWORD"] }',
+      '  - id: TEST-LOG',
+      '    name: 测试记录',
+      '    severity: minor',
+      '    action: log',
+      '    check: { type: keyword_blocklist, keywords: ["LOGWORD"] }',
     ].join('\n'),
     'utf8',
   )
@@ -91,6 +96,18 @@ describe('tools/post-execute output gate', () => {
     const result = await ctx.tools.execute(exec('draft_specification'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/TEST-REVIEW/)
+  })
+
+  it('fails closed when the approval channel throws', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    ctx.provide('approval', {
+      request: async (): Promise<string> => { throw new Error('approval bridge unavailable') },
+    })
+    ctx.tools.register(deliveryTool('draft_claims', '包含 REVIEWWORD 的文档'))
+    const result = await ctx.tools.execute(exec('draft_claims'))
+    expect(result.isError).toBe(true)
+    expect(result.error?.message).toMatch(/审批通道异常/)
+    expect(result.error?.message).toMatch(/approval bridge unavailable/)
   })
 
   it('fails closed on a review-level result with no approval answerer', async () => {
@@ -241,7 +258,18 @@ describe('tools/post-execute output gate', () => {
     expect(text).toContain('TEST-WARN')
   })
 
-  it('attaches no context when only log-level or no rule fires', async () => {
+  it('records log-level hits in the logger without attaching context', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    const infoSpy = vi.spyOn(ctx.logger, 'info')
+    ctx.tools.register(deliveryTool('render_patent_document', '包含 LOGWORD 的文档'))
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(false)
+    expect(result.additionalContexts ?? []).toHaveLength(0)
+    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('命中 log 级规则 TEST-LOG'))
+    infoSpy.mockRestore()
+  })
+
+  it('attaches no context when no rule fires', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('render_patent_document', '普通文档，无命中'))
     const result = await ctx.tools.execute(exec('render_patent_document'))

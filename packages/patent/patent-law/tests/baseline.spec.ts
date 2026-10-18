@@ -444,7 +444,7 @@ describe('loadLawBaselines', () => {
     const baselines = loadLawBaselines()
     expect(baselines.get('专利法')?.articles).toHaveLength(37)
     expect(baselines.get('专利法实施细则')?.articles).toHaveLength(42)
-    expect(baselines.get('专利审查指南')?.sections).toHaveLength(79)
+    expect(baselines.get('专利审查指南')?.sections).toHaveLength(82)
     expect(baselines.get('专利审查指南')?.sections.filter(section => section.text !== null)).toHaveLength(64)
   })
 

@@ -12,6 +12,8 @@ import {
  * 域表语义见 `src/runtime/patent-compliance.ts` 的 `PATENT_CASE_DOMAINS`。
  */
 const CASE_SCOPES: readonly PatentCaseScope[] = [
+  'patent-drafting',
+  'patent-analysis',
   'patent-oa-response',
   'patent-invalidation',
   'patent-invalidation-defense',
@@ -76,7 +78,7 @@ describe('patent job scopes (PATENT_CASE_DOMAINS)', () => {
   it('runs rules without a domain in every scope', () => {
     const universal = full.ruleSet.rules.filter(rule => rule.domain === undefined)
     expect(universal.map(rule => rule.id)).toEqual(['CON-102'])
-    const text = '本案不得编造对比文件。'
+    const text = '本案虚构了对比文件。'
     for (const scope of CASE_SCOPES) expect(evaluateScope(scope, text), scope).toContain('CON-102')
   })
 
@@ -86,6 +88,24 @@ describe('patent job scopes (PATENT_CASE_DOMAINS)', () => {
     expect(ids).toContain('JD-INF-001')
     expect(ids).not.toContain('PR-OA-001')
     expect(ids).not.toContain('CON-103')
+  })
+
+  it('infringement scope reaches litigation procedure and evidence rules', () => {
+    const ids = evaluateScope(
+      'patent-infringement',
+      '被告拒不提供销售数据，构成举证妨碍；法院可参考权利人主张确定赔偿数额。技术鉴定并非必经程序。',
+    )
+    expect(ids).toContain('JD-PRC-004')
+    expect(ids).toContain('JD-PRC-005')
+  })
+
+  it('drafting and analysis scopes keep their own rule families', () => {
+    expect(PATENT_CASE_DOMAINS['patent-drafting']).toContain('patent_claims')
+    expect(PATENT_CASE_DOMAINS['patent-drafting']).toContain('patent_disclosure')
+    expect(PATENT_CASE_DOMAINS['patent-drafting']).not.toContain('patent_oa_response')
+    expect(PATENT_CASE_DOMAINS['patent-analysis']).toContain('patent_novelty')
+    expect(PATENT_CASE_DOMAINS['patent-analysis']).not.toContain('patent_claims')
+    expect(PATENT_CASE_DOMAINS['patent-analysis']).not.toContain('patent_oa_response')
   })
 
   it('answer scopes keep the answer-practice domain, the invalidation request does not', () => {

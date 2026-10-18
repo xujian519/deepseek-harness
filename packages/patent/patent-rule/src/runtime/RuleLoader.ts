@@ -70,19 +70,28 @@ export function asStringArray(value: unknown): string[] | null {
 }
 
 /**
- * 判定字符串数组是否含至少一个可生效的词：数组非空，且存在长度大于 0 的元素。
+ * 判定字符串数组是否含至少一个可生效的词：数组非空，且存在去除首尾空白后非空的元素。
  *
- * `asStringArray` 只保证元素是字符串。空串元素在两条消费路径上都会被丢弃——
+ * `asStringArray` 只保证元素是字符串。空串/纯空白元素在消费路径上都会被丢弃——
  * `hasNegationContext` 的 `word.length > 0` 守卫与 `checkKeywordEntry` 的
- * `filter(s => s.length > 0)`——所以整表皆空串时豁免不了任何命中，而作者以为放行词
- * 已经生效。带首尾空白的元素**不**在此列：两条路径都会让它参与匹配（否定词表按字面
- * `endsWith`，关键词先 `trim` 再 `indexOf`），语义窄但会生效，故保留。
+ * `filter(s => s.length > 0)`——所以整表皆此类元素时豁免不了任何命中，而作者以为
+ * 放行词已经生效。带首尾空白但含实词的条目**不**在此列：两条路径都会让它参与匹配
+ * （否定词表按字面 `endsWith`，关键词先 `trim` 再 `indexOf`），语义窄但会生效，故保留。
  * 判定不修改元素，存储保留作者写下的原值。
  * @param list - 待判定的字符串数组。
  * @returns 含至少一个非空元素时为 true。
  */
 export function hasNonEmptyWord(list: readonly string[]): boolean {
-  return list.length > 0 && list.some(word => word.length > 0)
+  return list.length > 0 && list.some(word => word.trim().length > 0)
+}
+
+/**
+ * 关键词条目 `a|b|c` 至少有一个非空白备选；`["|"]` / `["  "]` 都不会命中任何文本。
+ * @param list - 待判定的关键词条目列表。
+ * @returns 至少一个条目含非空白备选时为 true。
+ */
+export function hasUsableKeywordEntry(list: readonly string[]): boolean {
+  return list.some(entry => entry.split('|').some(word => word.trim().length > 0))
 }
 
 function isRecordOfStrings(value: unknown): value is Record<string, string[]> {
@@ -185,12 +194,23 @@ function parsePremise(
 }
 
 /**
- * 简易灾难性回溯检测：捕获组/字符组闭括号后直接跟量词（`(a+)+` / `(a*)*` /
- * `(ab){2,}+` 等嵌套量词），规则 YAML 来自不可信来源时可致 ReDoS。
- * 安全优先：宁可误拒固定重复（如 `(a){2}`），不接受嵌套量词。
+ * 简易灾难性回溯检测：捕获组内已有量词、组后又跟量词（`(a+)+` / `(a*)*`），
+ * 或量化组内的备选互相前缀（`(a|aa)+`）。规则 YAML 来自不可信来源时可致 ReDoS。
+ * `(a|b)+` 与固定重复 `(a){2}` 不构成嵌套量词，保持可用。
  */
 function hasNestedQuantifier(pattern: string): boolean {
-  return /\)[+*{]/.test(pattern) || /\}[+*]/.test(pattern)
+  if (/\}[+*]/.test(pattern)) return true
+  const quantifiedGroups = /\(([^()]*)\)[+*{]/g
+  for (const match of pattern.matchAll(quantifiedGroups)) {
+    /* v8 ignore next -- the capture group always participates. */
+    const content = match[1] ?? ''
+    const body = content.startsWith('?:') ? content.slice(2) : content
+    const branches = body.split('|').map(branch => branch.trim()).filter(branch => branch.length > 0)
+    if (branches.some(a => branches.some(b => a !== b && b.startsWith(a)))) return true
+    // `(?:` / `(?=` 等分组前缀不含量词；只看组内实际的重复量词。
+    if (/[+*]|\{\d+,?\d*\}/.test(content)) return true
+  }
+  return false
 }
 
 type SynonymRequirementRaw = {
@@ -203,6 +223,16 @@ type StructuralElementRaw = {
   element: string
   description?: string
   patterns: string[]
+}
+
+
+/** 解析置信度阈值：缺省 1；非数字、非有限、越界时告警并按 1 处理。 */
+function parseMinConfidence(raw: unknown, ruleId: string, issues: RuleSetValidationIssue[]): number {
+  const valid = typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 && raw <= 1
+  if (raw !== undefined && !valid) {
+    issues.push({ ruleId, message: `rule ${ruleId}: minConfidence 必须是 0..1 的数字，已按 1 处理` })
+  }
+  return valid ? raw : 1
 }
 
 /** 解析单个 check 对象；非法返回 null。 */
@@ -220,8 +250,11 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
   switch (type) {
     case 'keyword_blocklist': {
       const keywords = asStringArray(record.keywords)
-      if (keywords === null || keywords.length === 0) {
-        issues.push({ ruleId, message: `rule ${ruleId}: keyword_blocklist 需要非空 keywords` })
+      if (keywords === null || !hasNonEmptyWord(keywords) || !hasUsableKeywordEntry(keywords)) {
+        issues.push({
+          ruleId,
+          message: `rule ${ruleId}: keyword_blocklist 需要至少一个非空关键词（空串、纯空白与只含分隔符的条目不会命中任何文本）`,
+        })
         return null
       }
       // 空表、非法类型与全空串元素同责：三种形态都让词表在消费侧恒不生效（元素被
@@ -245,10 +278,19 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
           message: `rule ${ruleId}: 声明了 additionalNegationWords 但未开 negationContext: true，放行词不会生效`,
         })
       }
-      // severityIfFound 非法值忽略（保持 RuleSeverity 不变量）
+      if (record.negationContext !== undefined && typeof record.negationContext !== 'boolean') {
+        issues.push({ ruleId, message: `rule ${ruleId}: negationContext 必须是布尔值，已按 false 处理` })
+      }
+      // severityIfFound 非法值忽略（保持 RuleSeverity 不变量），但必须让资产作者看见。
       const severityIfFound = SEVERITIES.includes(record.severityIfFound as RuleSeverity)
         ? (record.severityIfFound as RuleSeverity)
         : undefined
+      if (record.severityIfFound !== undefined && severityIfFound === undefined) {
+        issues.push({
+          ruleId,
+          message: `rule ${ruleId}: severityIfFound 必须是 ${SEVERITIES.join('/')} 之一，已忽略`,
+        })
+      }
       if (record.quoteImmune !== undefined && typeof record.quoteImmune !== 'boolean') {
         issues.push({ ruleId, message: `rule ${ruleId}: quoteImmune 必须是布尔值，已忽略` })
       }
@@ -268,8 +310,11 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
         return null
       }
       if (!validateRegexPatterns(patterns, ruleId, issues)) return null
-      const minMatches = typeof record.minMatches === 'number' ? record.minMatches : 1
-      return { type, patterns, minMatches }
+      const validMinMatches = typeof record.minMatches === 'number' && Number.isInteger(record.minMatches) && record.minMatches >= 1
+      if (record.minMatches !== undefined && !validMinMatches) {
+        issues.push({ ruleId, message: `rule ${ruleId}: minMatches 必须是正整数，已按 1 处理` })
+      }
+      return { type, patterns, minMatches: validMinMatches ? record.minMatches as number : 1 }
     }
     case 'structural_analysis': {
       if (!Array.isArray(record.requiresAll) || record.requiresAll.length === 0) {
@@ -291,8 +336,7 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
           patterns,
         })
       }
-      const minConfidence = typeof record.minConfidence === 'number' ? record.minConfidence : 1
-      return { type, requiresAll, minConfidence }
+      return { type, requiresAll, minConfidence: parseMinConfidence(record.minConfidence, ruleId, issues) }
     }
     case 'citation_analysis': {
       const statutes = asRecord(record.statutes)
@@ -309,6 +353,10 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
         }
         const topics = def.topics
         if (topics !== undefined) {
+          issues.push({
+            ruleId,
+            message: `rule ${ruleId}: citation_analysis.topics（R2 主题相关性）尚未实现，该字段不影响判定`,
+          })
           if (!isRecordOfStrings(topics)) {
             issues.push({ ruleId, message: `rule ${ruleId}: 法条 "${name}" topics 需为 条号→词数组` })
             return null
@@ -334,8 +382,8 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
       for (const item of record.requirements) {
         const el = asRecord(item)
         const keywords = el !== null ? asStringArray(el.keywords) : null
-        if (el === null || typeof el.element !== 'string' || keywords === null || keywords.length === 0) {
-          issues.push({ ruleId, message: `rule ${ruleId}: requirements 元素需要 element + 非空 keywords` })
+        if (el === null || typeof el.element !== 'string' || keywords === null || !hasNonEmptyWord(keywords)) {
+          issues.push({ ruleId, message: `rule ${ruleId}: requirements 元素需要 element + 至少一个非空 keyword` })
           return null
         }
         requirements.push({
@@ -344,8 +392,7 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
           keywords,
         })
       }
-      const minConfidence = typeof record.minConfidence === 'number' ? record.minConfidence : 1
-      return { type, requirements, minConfidence }
+      return { type, requirements, minConfidence: parseMinConfidence(record.minConfidence, ruleId, issues) }
     }
     case 'quote_repetition': {
       const minLength = record.minLength ?? 12
@@ -535,12 +582,16 @@ export function loadRuleSetDir(dir: string): {
 /**
  * 合并多个规则集（后出现的规则按 id 覆盖先前的，便于分层覆盖）。
  * @param ruleSets - 待合并的规则集列表。
+ * @param issues - 可选的重复 id 收集器；覆盖仍按后出现的规则生效。
  * @returns 合并后的规则集。
  */
-export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
+export function mergeRuleSets(ruleSets: RuleSet[], issues?: RuleSetValidationIssue[]): RuleSet {
   const byId = new Map<string, ConstitutionalRule>()
   for (const ruleSet of ruleSets) {
     for (const rule of ruleSet.rules) {
+      if (byId.has(rule.id)) {
+        issues?.push({ ruleId: rule.id, message: `规则 ${rule.id}: 合并时 id 重复，后出现的规则覆盖先前的规则` })
+      }
       byId.set(rule.id, rule)
     }
   }

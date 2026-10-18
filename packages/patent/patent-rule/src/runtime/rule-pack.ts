@@ -178,6 +178,9 @@ export function loadRulePack(options: { manifestPath?: string; rulesDir?: string
   const layerOrder: Array<{ name: string; ruleSet: RuleSet }> = []
 
   const manifestPath = resolveRulePackManifestPath(options.manifestPath)
+  if (options.manifestPath !== undefined && manifestPath === null) {
+    warnings.push(`规则包清单不存在（${options.manifestPath}）；回退仅加载 base 包`)
+  }
   let manifest: RulePackManifest = { base: 'base', domains: [] }
   let manifestMtimeMs: number | null = null
   if (manifestPath !== null) {

@@ -360,10 +360,12 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | --- | --- |
 | `structure.long-functions` | 186 |
 | `structure.large-files` | 77 |
-| `lint.v8-ignore` | 1178 |
+| `lint.v8-ignore` | 1180 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
+
+- **2026-10-18 patent-rule 规则门禁收口**:`lint.v8-ignore` 由 1178 升至 **1180**;`RuleLoader` 的正则组捕获与 `dual-input` 的必选捕获组各补一处带理由的豁免,其余新增分支由用例覆盖。
 
 - **2026-10-18 patent-core 覆盖率收口**:`lint.v8-ignore` 由 1166 升至 **1178**;`patent-core` 逐文件覆盖率补齐时,对正则必选捕获组、数值模式捕获组与矩阵原理编号等类型不变量守卫补了带理由的豁免,其余分支均由用例覆盖。`structure.long-functions` 保持 186(同一批改动把 `claim-chart` 执行器的目标预读与清单渲染拆成模块级函数)。
 

@@ -39,7 +39,7 @@ kind: "package-reference"
 
 声明按规则 id 而不是按域，因为一个域内的缺失规则未必适用于该制品形态：`patent_claims` 域的 CON-301 判据是评述词（清楚 / 简要 / 限定 / 必要技术特征），普通权利要求草案天然不含。声明的 id 不在已加载规则集内时加载期告警并剔除该条，拼错的 id 不会留下一条看着生效、实际不判的门禁。
 
-条目只对**入参本身承载制品全文**的工具成立。`render_patent_document` 的 `draft` 只是模板槽位片段，而随包模板已含固定措辞（权利要求句式、各部标题），按这些片段判结构会报出渲染成品并不存在的缺失——该模板不是安全的目标。工具的入参就是文书全文时才启用本门禁。
+条目只对**入参本身承载制品全文**的工具成立。`render_patent_document` 的 `draft` 只是模板槽位片段，而随包模板已含固定措辞（权利要求句式、各部标题），故判据依赖模板固定措辞的规则会报出渲染成品并不存在的缺失。随包 `patent` 预置启用了一条按规则 id 的条目：`PR-OA-007` 判定 `draft` 中由作者撰写的 26.3 论证是否落到法定判准，这部分文本确实由 `draft` 承载。
 
 <a id="delivery-gate"></a>
 ## 交付前置门禁
@@ -50,12 +50,12 @@ kind: "package-reference"
 
 台账按调用方（agent）归属，一个案件的门禁调用不会顶替另一个案件的交付。没有 agent 的调用无法归属到任何会话，一律按未满足处理：无法归属的交付件同样拿不出本会话的记录。随包默认不声明任何条目——一次交付欠哪些闸门调用，是本部署的交付政策，不是本包的政策。
 
-生产消费者是 `render_patent_document` 与 `build_patent_filing`：`patent` 预置要求任何交付渲染或提交格式成文前已跑过 `rule_check` 与 `law_verify`，凡按 manifest 收口的模板另要求 `patent_workflow_run`——分析类模板，以及 `claims-spec`（其 `patent_disclosure_v1` 的末段就是权利要求草稿）。随包模板中有两个不在第二条要求内：`rectification-response` 无 manifest 入口，交付技能以逐项替换页核验记录替代该次运行；`right-evaluation-report` 作转制用时只是把行政机关已出具的报告排成模板版式，没有分析可收口。
+生产消费者是 `render_patent_document` 与 `build_patent_filing`：`patent` 预置要求任何交付渲染或提交格式成文前已跑过 `rule_check`、`law_verify` 与 `matter_log_append`，凡按 manifest 收口的模板另要求 `patent_workflow_run`——分析类模板，以及 `claims-spec`（其 `patent_disclosure_v1` 的末段就是权利要求草稿）。随包模板中有两个不在第二条要求内：`rectification-response` 无 manifest 入口，交付技能以逐项替换页核验记录替代该次运行；`right-evaluation-report` 作转制用时只是把行政机关已出具的报告排成模板版式，没有分析可收口。
 
 <a id="evi-011-evidence-guards"></a>
 ## EVI-011 证据守卫
 
-当域外或外文证据记录缺失其必需的公证、认证或中文译本声明时，两条单调守卫拒绝 `evaluate_evidence` 调用。守卫条件字段派生自随包的 `evidence-rules.yaml`，资产缺失时回退到硬编码集合。每条守卫返回拒绝原因字符串，无 allow 结果可覆盖。
+当域外或外文证据记录缺失其必需的公证、认证或中文译本声明时，两条单调守卫拒绝 `evaluate_evidence` 调用。守卫条件字段派生自随包的 `evidence-rules.yaml`，资产缺失时回退到硬编码集合。每条守卫返回拒绝原因字符串，无 allow 结果可覆盖。`overseas` 记录还可携带 `language`：非中文语言会同时触发译本守卫，域外 + 外文不会再只满足公证/认证其中一道。
 
 <a id="rule-engine-library-api"></a>
 ## 规则引擎（库 API）
@@ -73,7 +73,7 @@ kind: "package-reference"
 | 上游生成物镜像 | `nuo-*.yaml` | 由 `loadPatentFullRuleSet` 经显式清单 `NUO_RULE_FILES` 加载 |
 | 手写并入的现行口径与缺口规则 | `current-law.yaml`、`mady-gap-rules.yaml`、`oa-response-form.yaml` | 由 `loadPatentFullRuleSet` 经显式清单 `MERGED_RULE_FILES` 加载 |
 
-`current-law.yaml` 针对输出文本中已废止的法条口径：两年侵权诉讼时效、以已被替换的司法解释作为等同依据、把实用新型客体写成第 2 条第 2 款。其检查为 `pattern_analysis`，故默认输出门禁不取用（部署在 `gateCheckTypes` 里点名该族则取用）。`mady-gap-rules.yaml` 是上游规则转换到本引擎各类检查的子集——关键词为字面词串的禁令，与要素为字面词串的完整性检查——上游的 `block` 一律评审降为 `warn`（上游 `info` 级降为 `log`）。其中两条禁令是 `keyword_blocklist`，输出门禁与镜像规则一并取用。`oa-response-form.yaml` 是答复文书的**形式**检查（计数式论证、重复引证、答复必须论证的充分公开判准），全部为 `warn`。`activation-overrides.yaml` 作用于合并结果，故评审结论可指向任一族的规则。
+`current-law.yaml` 针对输出文本中已废止的法条口径：两年侵权诉讼时效、以已被替换的司法解释作为等同依据、把实用新型客体写成第 2 条第 2 款。其检查为 `pattern_analysis`，故默认输出门禁不取用（部署在 `gateCheckTypes` 里点名该族则取用）。`mady-gap-rules.yaml` 是上游规则转换到本引擎各类检查的子集——关键词为字面词串的禁令，与要素为字面词串的完整性检查——上游的 `block` 一律评审降为 `warn`（上游 `info` 级降为 `log`）。其中两条禁令是 `keyword_blocklist`，输出门禁与镜像规则一并取用。`oa-response-form.yaml` 是答复文书的**形式**检查：计数式论证 `PR-OA-005`、重复引证 `PR-OA-006`、答复必须论证的充分公开判准 `PR-OA-007`（`block`），以及两条双输入规则 `PR-OA-008/009`（`warn`）。`PR-OA-007` 在 `oa-response` 渲染前由制品结构门禁执行。`activation-overrides.yaml` 作用于合并结果，故评审结论可指向任一族的规则。
 
 `activation-overrides.yaml` 按规则 id 打补丁。`action` 与 `premise` 整字段替换；`addKeywords`、`negationContext`、`additionalNegationWords` 为 check 级**增补**，不重声明既有 check——评审结论因此不会造出生成物的第二份副本。`premise-vocab` 以 YAML 锚点集中维护各主题词表，同一主题只有一份。未命中的补丁（未知键、未知 id、空前提或非法正则前提、开了关闭开关却留着放行词）在加载期告警，而不是静默不生效。
 
@@ -87,7 +87,7 @@ kind: "package-reference"
 <a id="job-scopes"></a>
 ### 作业 scope
 
-`PATENT_CASE_DOMAINS` 把作业 scope——`patent-oa-response`、`patent-invalidation`、`patent-invalidation-defense`、`patent-reexamination`、`patent-infringement`，名称取自作业 manifest，经 `rule_check` 工具对模型开放——映射到各自评估的规则 `domain` 列表。一个 scope 评估通用域（`patent`、`patent_general`）加上本作业的文书域与程序域，以及本作业必须答复或论证的条款所在的域。各 scope 并集覆盖合并结果里的全部域，故任一资产域都有对应的作业入口。答复、复审与无效答辩共用一个域集合：复审理由表 = 无效理由表 + 实用新型客体缺陷，而该缺陷规则在通用域，三者的交付文书又都是逐点回应对方主张、修改受 A33 限制。无效作业只在答辩侧带这个域集合：请求人侧不带答复实践域，因为该域规则是答复对方主张的，对请求书会误报。侵权只带侵权域。`evaluateText` 的 `domain` 选项接受单个域或域列表。
+`PATENT_CASE_DOMAINS` 把作业 scope——撰写用 `patent-drafting`、专利性分析用 `patent-analysis`，以及名称取自作业 manifest 的 `patent-oa-response`、`patent-invalidation`、`patent-invalidation-defense`、`patent-reexamination`、`patent-infringement`，经 `rule_check` 工具对模型开放——映射到各自评估的规则 `domain` 列表。一个 scope 评估通用域（`patent`、`patent_general`）加上本作业的文书域与程序域，以及本作业必须答复或论证的条款所在的域。各 scope 并集覆盖合并结果里的全部域，故任一资产域都有对应的作业入口。`patent-drafting` 取权利要求/说明书与实体法域；`patent-analysis` 取分析域并排除权利要求撰写形态规则；这个拆分让干净的权利要求草案不再被当作答复或无效请求检查。答复、复审与无效答辩共用一个域集合：复审理由表 = 无效理由表 + 实用新型客体缺陷，而该缺陷规则在通用域，三者的交付文书又都是逐点回应对方主张、修改受 A33 限制。无效作业只在答辩侧带这个域集合：请求人侧不带答复实践域，因为该域规则是答复对方主张的，对请求书会误报。侵权带侵权域与程序域，使诉讼程序/证据规则（`JD-PRC-*`）可达；同一程序域里的审查程序规则由其前提静默。`evaluateText` 的 `domain` 选项接受单个域或域列表。
 
 <a id="configuration"></a>
 ## 配置
@@ -106,7 +106,7 @@ Schemastery 配置。
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-011 守卫与 post-execute 门禁拒绝或拦截既有工具调用，dsh-tools 将拒绝/拦截反馈渲染为普通错误结果。
+本插件不注册工具 schema 或提示段。其 EVI-011 守卫与 post-execute 门禁拒绝或拦截既有工具调用，dsh-tools 将拒绝/拦截反馈渲染为普通错误结果。warn 级命中对模型可见：它随 post-execute 决策以 `patent-rule-gate` 用户消息在下一步进入请求，带受限摘要与规则 id；`log` 级命中只进日志。
 
 #### KV Cache effect
 
@@ -120,10 +120,10 @@ None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-01
 - **规则集加载 fail-soft** — 资产缺失或损坏时降级为空规则集（门禁放行），而非使部署失败。
 - **并入资产只覆盖可机器判定的规则** — 载荷为正文表述（分析原则、法条条件、判例引用）的上游规则未转成检查，留在本包之外；转换清单、检查类型映射与边界见[并入边界说明](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.zh.md)。
 - **规则按域与前提收窄，不按文书类型判定** — 作业 scope 只留本作业的域，规则的适用前提在文本未触及该主题时保持沉默，但没有任何环节判定文书类型：前提命中的规则（例如答复引述了权利要求文字）仍会报出它缺失的要素。
-- **制品门禁无随包条目** — 本制品门禁不带任何 `structuralGate` 条目，因为本部署没有「入参即交付文书全文」的生产工具：`render_patent_document` 的入参是模板槽位片段，而模板本身已含固定措辞，按片段判缺失会报出渲染成品并不存在的缺陷。生产工具的入参就是文书全文时才启用。
+- **随包制品门禁条目是模板专用的** — `patent` 预置在 `render_patent_document` 的 `template=oa-response` 上启用 `PR-OA-007`，判定 `draft` 中作者撰写的论证文本。其余缺失规则仍要求入参承载文书全文；模板生成的标题/权项固定措辞不是它们的安全目标。
 - **交付台账不跨恢复保留** — 台账保存在插件挂载内、以活动 agent 对象为键，故在新进程里恢复的会话从零开始，即使此前已跑过前置调用也会要求重跑。失败方向是多跑一次闸门，不是少跑。
 - **前置条件认「成功调用且未声明 `blocked: true`」而非「通过结论」** — 台账记录的是某工具未报错返回、且结果没有 `blocked: true`。`rule_check` 结果里报了违规、或 `patent_workflow_run` 停在人工确认门，仍算满足；`law_verify` 的 `blocked: true` 不算，因为那是该检查自己的拒绝。门禁强制的是这次闸门在本会话跑过且没有自报拒绝，结论由交付报告承载供人核阅。
-- **指南引用是自由文本** — `legalBasis` 原样进入输出，没有任何环节解析它，故规则引的《专利审查指南》节号只与其转录来源一样正确；`tests/guideline-citations.spec.ts` 只守住节号的写法（带零段、例如「2.0」的不是节号）；节号是否在索引里、命题是否落在所引节及其子节内，分别由 patent-law 的 `guideline-citation-coverage.spec.ts` 与 `law_verify` 回答。
+- **指南引用是自由文本** — `legalBasis` 原样进入输出，没有任何环节解析它，故规则引的《专利审查指南》节号只与其转录来源一样正确；`tests/guideline-citations.spec.ts` 只守住节号的写法（带零段、例如「2.0」的不是节号）；节号是否在索引里由 patent-law 的 `guideline-citation-coverage.spec.ts` 回答；命题是否落在所引节及其子节内需用 `law_verify` 带命题核对（该覆盖测试只查路径存在）。
 
 ### 开发备注
 

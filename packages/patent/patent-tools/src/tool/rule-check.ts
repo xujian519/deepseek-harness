@@ -59,6 +59,11 @@ export type RuleViolationView = {
 export type RuleCheckOutput = {
   scope: string
   violations: RuleViolationView[]
+  /**
+   * 本次自检是否存在 block 级违规。交付前置门禁据此拒绝把一次“跑了但没通过”的
+   * 自检记成前置证据；review 级命中仍由交付时的审批通道处置。
+   */
+  blocked: boolean
   /** Identity of the text this run evaluated, so another run can be compared with it. */
   evaluated: EvaluatedText[]
   /** Layered pack summary (scope=pack only). */
@@ -66,6 +71,8 @@ export type RuleCheckOutput = {
   packWarnings?: string[]
   /** 因未提供 `notice` 而未评估的双输入规则 id。 */
   dualInputSkipped?: string[]
+  /** 提供了 `notice`，但当前 scope 没有可评估的双输入规则时的显式提示。 */
+  noticeIgnored?: string
 }
 
 /** Injectables mirroring Sati's RuleCheckDeps (tests override; defaults use the bundled assets). */
@@ -79,7 +86,7 @@ export type RuleCheckDeps = {
 }
 
 /** rule_check supported scopes (shared by the description and the runtime error). */
-const AVAILABLE_SCOPES = 'patent, patent-electrical, patent-full, patent-oa-response, patent-invalidation, patent-invalidation-defense, patent-reexamination, patent-infringement, pack'
+const AVAILABLE_SCOPES = 'patent, patent-electrical, patent-full, patent-drafting, patent-analysis, patent-oa-response, patent-invalidation, patent-invalidation-defense, patent-reexamination, patent-infringement, pack'
 
 const DESCRIPTION = [
   'Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match / quote repetition)',
@@ -89,12 +96,27 @@ const DESCRIPTION = [
   'Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions).',
   "Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance),",
   "'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed),",
-  "a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement'",
+  "a job scope 'patent-drafting' (claim/spec drafting) / 'patent-analysis' (patentability, novelty, inventiveness) / 'patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement'",
   "(the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish),",
   "or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).",
   'With the office-action notice at hand, a job scope also takes notice=通知书正文: the two dual-input rules (PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用) then run against the response; without notice they are listed as unevaluated.',
   'Every result ends with an 评估输入 line giving the character count and digest of the text this run actually read: keep that line when you transcribe the result, so a later run can show whether it read the same text.',
 ].join(' ')
+
+/** 处置级别排序：先让硬拦截与待审项出现在前，避免 block 被几十条 warn 淹没。 */
+const ACTION_RANK: Record<string, number> = { block: 0, review: 1, warn: 2, log: 3 }
+const SEVERITY_RANK: Record<string, number> = { critical: 0, major: 1, minor: 2 }
+
+/**
+ * 按处置级别、再按严重度排序违规；同级保持规则集原顺序。
+ * @param violations - 待排序的违规视图。
+ * @returns 排序后的新数组。
+ */
+function orderedViolations(violations: readonly RuleViolationView[]): RuleViolationView[] {
+  return [...violations].sort((a, b) =>
+    (ACTION_RANK[a.action] ?? 9) - (ACTION_RANK[b.action] ?? 9)
+    || (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9))
+}
 
 /** Render the canonical rule-check value into model-facing prose. */
 function renderRuleCheck(value: RuleCheckOutput): string {
@@ -104,12 +126,22 @@ function renderRuleCheck(value: RuleCheckOutput): string {
   const skipped = value.dualInputSkipped !== undefined && value.dualInputSkipped.length > 0
     ? `\n双输入规则未评估（未提供 notice）: ${value.dualInputSkipped.join('、')}`
     : ''
+  const ignored = value.noticeIgnored !== undefined ? `\n提示: ${value.noticeIgnored}` : ''
+  const blocked = value.blocked
+    ? '\n门禁结论: 存在 block 级违规，这次自检不能作为交付前置证据；修订后重跑。'
+    : ''
   // `text` is a required input, so an evaluation always reports at least one identity.
-  const trailer = `${warnings}${skipped}\n${evaluated}`
+  const trailer = `${warnings}${skipped}${ignored}${blocked}\n${evaluated}`
   if (value.violations.length === 0) {
     return `${header}rule_check(${value.scope}): 无违规${trailer}`
   }
-  const lines = value.violations.map((v) => {
+  const counts = new Map<string, number>()
+  for (const violation of value.violations) counts.set(violation.action, (counts.get(violation.action) ?? 0) + 1)
+  const breakdown = ['block', 'review', 'warn', 'log']
+    .filter(action => (counts.get(action) ?? 0) > 0)
+    .map(action => `${action} ${counts.get(action)}`)
+    .join(' / ')
+  const lines = orderedViolations(value.violations).map((v) => {
     const basis = v.legalBasis ? `（依据：${v.legalBasis}）` : ''
     const evidence = v.evidence.length > 0 ? ` 命中「${v.evidence.join('」「')}」` : ''
     const where = v.line !== undefined && v.matchedSentence !== undefined
@@ -117,7 +149,7 @@ function renderRuleCheck(value: RuleCheckOutput): string {
       : ''
     return `- [${v.severity}/${v.action}] ${v.ruleId} ${v.ruleName}：${v.message}${evidence}${where}${basis}`
   })
-  const summary = `rule_check(${value.scope}): 发现 ${value.violations.length} 条违规`
+  const summary = `rule_check(${value.scope}): 发现 ${value.violations.length} 条违规（${breakdown}）`
   return `${header}${summary}\n${lines.join('\n')}${trailer}`
 }
 
@@ -178,7 +210,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
     description: DESCRIPTION,
     parameters: {
       text: { type: 'string', required: true, description: 'The text to check.' },
-      scope: { type: 'string', description: "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml." },
+      scope: { type: 'string', description: "Rule set scope. Defaults to 'patent' (4 general compliance rules only; choose a job scope for substantive checks). 'patent-drafting' / 'patent-analysis' cover claim/spec drafting and patentability analysis; 'patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement' evaluate the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml." },
       notice: { type: 'string', description: '通知书正文（可选）：提供时就地确定性解析，并评估双输入规则 PR-OA-008/009；未提供时结果中显式列出未评估项。' },
     },
     output: {
@@ -188,10 +220,12 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
         properties: {
           scope: { type: 'string', required: true },
           violations: { type: 'array', required: true, items: VIOLATION_SCHEMA },
+          blocked: { type: 'boolean', required: true },
           evaluated: { type: 'array', required: true, items: EVALUATED_TEXT_SCHEMA },
           packHeader: { type: 'string' },
           packWarnings: { type: 'array', items: { type: 'string' } },
           dualInputSkipped: { type: 'array', items: { type: 'string' } },
+          noticeIgnored: { type: 'string' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderRuleCheck(value) }],
@@ -216,6 +250,9 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
       const dualViolations: RuleViolation[] = []
       let dualInputSkipped: string[] | undefined
       let evaluatedNotice: string | undefined
+      const noticeIgnored = noticeText.length > 0 && dualRules.length === 0
+        ? `scope '${scope}' 没有可评估的双输入规则，notice 未参与判定`
+        : undefined
       if (dualRules.length > 0) {
         if (noticeText.length === 0) {
           dualInputSkipped = dualRules.map(rule => rule.id)
@@ -231,9 +268,11 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
       const packHeader = pack !== null
         ? `规则分层: ${summarizeRulePackLayers(pack.layers)}（清单: ${pack.manifestPath ?? '无，默认 rules/base'}）`
         : undefined
+      const violations = [...evaluation.violations, ...dualViolations]
       return {
         scope,
-        violations: [...evaluation.violations, ...dualViolations].map(v => ({
+        blocked: violations.some(v => v.action === 'block'),
+        violations: violations.map(v => ({
           ruleId: v.ruleId,
           ruleName: v.ruleName,
           severity: v.severity,
@@ -249,6 +288,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
           ...(evaluatedNotice !== undefined ? { notice: evaluatedNotice } : {}),
         }),
         ...(dualInputSkipped !== undefined ? { dualInputSkipped } : {}),
+        ...(noticeIgnored !== undefined ? { noticeIgnored } : {}),
         ...(packHeader !== undefined ? { packHeader } : {}),
         ...(pack !== null && pack.warnings.length > 0 ? { packWarnings: pack.warnings } : {}),
       }

@@ -72,7 +72,8 @@ rules:
       - "公开不充分"
     check:
       type: structural_analysis
-      minConfidence: 0.66
+      # 三项判准是并列要求，2/3 会让缺“说明书记载”的答复通过。
+      minConfidence: 1
       requiresAll:
         - element: enablement_standard
           description: 以"能否实现"为判准的落位表述

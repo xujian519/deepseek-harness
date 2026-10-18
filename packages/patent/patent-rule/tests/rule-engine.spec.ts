@@ -178,6 +178,51 @@ describe('RuleEngine', () => {
     expect(result.violations[0]?.message).toMatch(/超出范围/)
   })
 
+  it('citation_analysis reads bracketed and Chinese-numeral citations', () => {
+    const set = ruleSet([
+      {
+        id: 'CON-301',
+        name: '法条范围',
+        severity: 'major',
+        action: 'warn',
+        check: { type: 'citation_analysis', statutes: { 专利法: { max: 78 } } },
+      },
+    ])
+    for (const text of [
+      '依据《专利法》第99条。',
+      '依据《专利法》第九十九条。',
+      '依据专利法第九十九条。',
+    ]) {
+      expect(evaluateText(text, set).violations.length, text).toBe(1)
+    }
+    expect(evaluateText('依据《专利法》第二十二条。', set).violations.length).toBe(0)
+  })
+
+  it('defensively skips invalid regex patterns and premises', () => {
+    const invalidPattern = ruleSet([
+      {
+        id: 'R-BAD-PATTERN',
+        name: '非法正则',
+        severity: 'major',
+        action: 'warn',
+        check: { type: 'pattern_analysis', patterns: ['('] },
+      },
+    ])
+    expect(evaluateText('任意文本', invalidPattern).violations).toEqual([])
+
+    const invalidPremise = ruleSet([
+      {
+        id: 'R-BAD-PREMISE',
+        name: '非法前提',
+        severity: 'major',
+        action: 'warn',
+        premise: ['('],
+        check: { type: 'pattern_analysis', patterns: ['文本'] },
+      },
+    ])
+    expect(evaluateText('任意文本', invalidPremise).violations).toEqual([])
+  })
+
   it('groupByAction buckets violations by action', () => {
     const set = ruleSet([
       { id: 'R1', name: 'block 规则', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['炸弹'] } },

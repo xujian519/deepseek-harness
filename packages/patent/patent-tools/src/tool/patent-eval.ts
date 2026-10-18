@@ -64,7 +64,24 @@ const PASS_LINE = 0.7
  * flags in the rule gate, so `patent-eval`'s score and the gate agree; a test
  * reads the shipped rule asset and fails when the two lists drift.
  */
-export const ABSOLUTE_PHRASES: readonly string[] = ['绝对', '一定', '百分百', '毫无疑问', '必然']
+export const ABSOLUTE_PHRASES: readonly string[] = [
+  '绝对可以',
+  '绝对可行',
+  '绝对能',
+  '绝对是',
+  '绝对优于',
+  '绝对领先',
+  '一定能够',
+  '一定会',
+  '一定是',
+  '一定属于',
+  '一定具有',
+  '百分百',
+  '毫无疑问',
+  '必然导致',
+  '必然会',
+  '必然能够',
+]
 
 const DESCRIPTION = '评估专利相关产出的质量（报告/检索/流程/引用/综合）。返回结构化评分和通过/失败判定。支持 5 种评估模式（report/retrieval/workflow/citations/comprehensive），在提交人工复核前使用可提前发现质量问题。'
 

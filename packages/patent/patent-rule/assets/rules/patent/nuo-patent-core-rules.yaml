@@ -82,7 +82,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 专利法第26条第4款
+    legalBasis: 审查指南第二部分第七章（检索）
     check:
       type: structural_analysis
       requiresAll:
@@ -104,6 +104,9 @@ rules:
     legalBasis: 最高人民法院关于审理侵犯专利权纠纷案件应用法律若干问题的解释
     check:
       type: keyword_blocklist
+      # 「不得编造（202X）…」是合规警示；引文同样不算本模型编造。
+      negationContext: true
+      quoteImmune: true
       keywords:
         - (202X)最高法知民终
         - (202X)京73民初
@@ -129,7 +132,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第八章4.1
+    legalBasis: 审查指南第二部分第八章5.1
     check:
       type: structural_analysis
       requiresAll:
@@ -144,6 +147,10 @@ rules:
             - 答复
             - 意见陈述
             - 争辩
+            - 申请人认为
+            - 申请人主张
+            - 辩称
+            - 反驳
         - element: conclusion
           patterns:
             - 请求

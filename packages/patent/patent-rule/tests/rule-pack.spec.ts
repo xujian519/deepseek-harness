@@ -141,6 +141,12 @@ describe('rule pack', () => {
     expect(summary).toMatch(/overrides 1/)
   })
 
+  it('loadRulePack warns when an explicit manifest path does not exist', () => {
+    const result = loadRulePack({ manifestPath: join(tmpdir(), 'dsh-no-such-manifest.yml') })
+    expect(result.manifestPath).toBeNull()
+    expect(result.warnings.some(w => w.includes('清单不存在') && w.includes('回退仅加载 base 包'))).toBe(true)
+  })
+
   it('loadRulePack skips missing domain layer with warning', () => {
     const root = mkdtempSync(join(tmpdir(), 'sati-rule-pack-missing-'))
     const base = join(root, 'base-pack')

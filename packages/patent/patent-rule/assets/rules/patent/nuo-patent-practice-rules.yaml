@@ -88,7 +88,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第二章2.1.1
+    legalBasis: 审查指南第二部分第二章2.2.7
     check:
       type: structural_analysis
       requiresAll:
@@ -107,7 +107,7 @@ rules:
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 专利法实施细则第23条第2款
+    legalBasis: 专利法实施细则第24条
     check:
       type: structural_analysis
       requiresAll:
@@ -222,7 +222,7 @@ rules:
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 审查指南第二部分第八章4.1
+    legalBasis: 审查指南第二部分第八章5.1
     check:
       type: structural_analysis
       requiresAll:
@@ -238,6 +238,10 @@ rules:
             - 意见陈述
             - 争辩
             - 不同意
+            - 申请人认为
+            - 申请人主张
+            - 辩称
+            - 反驳
         - element: conclusion_request
           patterns:
             - 请求
@@ -283,6 +287,7 @@ rules:
             - 技术启示
             - 显而易见
             - 结合启示
+            - 公知常识
   - id: PR-OA-004
     name: OA答复—争辩新颖性时的单独对比原则
     domain: patent_oa_response
@@ -344,7 +349,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第二章3.1
+    legalBasis: 专利法实施细则第二十二条第二款；审查指南第二部分第二章3.1
     check:
       type: structural_analysis
       requiresAll:

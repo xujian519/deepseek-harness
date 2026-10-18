@@ -3013,7 +3013,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-law`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-law/src/index.ts:102`](../packages/patent/patent-law/src/index.ts)
+- `source`: [`packages/patent/patent-law/src/index.ts:103`](../packages/patent/patent-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-law plugin configuration. */
@@ -3054,7 +3054,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:210`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:212`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3141,7 +3141,7 @@ export type DeclaredArgValue = string | string[]
 ## `@deepseek-ai/dsh-patent-teams`
 
 - `inject`: `tools` · `systemPrompt` · `subagents`
-- `source`: [`packages/patent/patent-teams/src/index.ts:40`](../packages/patent/patent-teams/src/index.ts)
+- `source`: [`packages/patent/patent-teams/src/index.ts:42`](../packages/patent/patent-teams/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. */
@@ -3170,6 +3170,11 @@ export interface Config {
    * rule gate — never by the composite score alone.
    */
   passThreshold?: number
+  /**
+   * How long a live-delivery claim stays exclusive before the message becomes
+   * retryable, in milliseconds (positive integer; default 60000).
+   */
+  mailboxDeliveryLeaseMs?: number
   /**
    * Ask the deployment's approval answerers for a decision on the team plan before
    * `patent_teams_create` creates the team (deployment choice; default `false`). A

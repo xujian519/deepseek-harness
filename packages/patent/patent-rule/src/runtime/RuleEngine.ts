@@ -24,6 +24,26 @@ import { checkSynonymRequirements, type SynonymMap } from './synonym-engine.ts'
 /** 证据截断长度。 */
 const EVIDENCE_MAX = 80
 
+/**
+ * 规则正则按「pattern + flags」缓存：同一份规则集会在长文上反复评估，
+ * 每条规则每次 `new RegExp` 的开销没有必要。加载期已校验语法，缓存未命中时
+ * 仍防御性返回 null；带 g 的正则使用前重置 lastIndex。
+ */
+const REGEX_CACHE = new Map<string, RegExp>()
+
+function regexOf(pattern: string, flags: string): RegExp | null {
+  const key = `${flags}\u0000${pattern}`
+  const cached = REGEX_CACHE.get(key)
+  if (cached !== undefined) return cached
+  try {
+    const compiled = new RegExp(pattern, flags)
+    REGEX_CACHE.set(key, compiled)
+    return compiled
+  } catch {
+    return null
+  }
+}
+
 function truncate(text: string): string {
   return text.length > EVIDENCE_MAX ? `${text.slice(0, EVIDENCE_MAX)}…` : text
 }
@@ -177,17 +197,15 @@ function checkPatternAnalysis(check: PatternAnalysisCheck, text: string): string
   for (const pattern of check.patterns) {
     let count = 0
     const matches: string[] = []
-    try {
-      const regex = new RegExp(pattern, 'gi')
-      let match: RegExpExecArray | null
-      while ((match = regex.exec(text)) !== null) {
-        const fullMatch = match[0]
-        count += 1
-        if (matches.length < 4) matches.push(fullMatch)
-        if (fullMatch.length === 0) regex.lastIndex += 1
-      }
-    } catch {
-      // 非法正则已在加载期拦截；此处防御性跳过
+    const regex = regexOf(pattern, 'gi')
+    if (regex === null) continue
+    regex.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = regex.exec(text)) !== null) {
+      const fullMatch = match[0]
+      count += 1
+      if (matches.length < 4) matches.push(fullMatch)
+      if (fullMatch.length === 0) regex.lastIndex += 1
     }
     // 禁止模式语义：命中次数达到 minMatches 才判定违规
     if (count >= minMatches) {
@@ -204,13 +222,7 @@ function checkStructuralAnalysis(
   let hit = 0
   const missing: string[] = []
   for (const element of check.requiresAll) {
-    const matched = element.patterns.some((pattern) => {
-      try {
-        return new RegExp(pattern, 'i').test(text)
-      } catch {
-        return false
-      }
-    })
+    const matched = element.patterns.some(pattern => regexOf(pattern, 'i')?.test(text) ?? false)
     if (matched) {
       hit += 1
     } else {
@@ -221,14 +233,22 @@ function checkStructuralAnalysis(
   return { confidence: total === 0 ? 1 : hit / total, missing }
 }
 
-/** 提取法条引用（R1 存在性检查用）："专利法第N条" / "专利法实施细则第N条"（N 支持中文数字）。 */
-const CITATION_RE = /(专利法实施细则|专利法)第\s*([0-9零一二三四五六七八九十百]+)\s*条/g
+/**
+ * 提取法条引用（R1 存在性检查用）。
+ *
+ * 同时接受不带书名号的 `专利法第22条` 与中文文书通行的 `《专利法》第二十二条`；
+ * N 支持阿拉伯数字与中文数字。书名号只作为可选外层，不进入法名分组。
+ */
+const CITATION_RE = /(?:《\s*)?(专利法实施细则|专利法)\s*》?\s*第\s*([0-9零一二三四五六七八九十百]+)\s*条/g
 
 function checkCitationAnalysis(
   check: { type: 'citation_analysis'; statutes: Record<string, { max: number; topics?: Record<number, string[]> }> },
   text: string,
 ): string[] {
   const evidence: string[] = []
+  // 模块级 g 正则的 lastIndex 会在多次评估间保留；每次从 0 开始，避免前一次扫描
+  // 的游标让后续文本漏掉开头的引用。
+  CITATION_RE.lastIndex = 0
   let match: RegExpExecArray | null
   while ((match = CITATION_RE.exec(text)) !== null) {
     const fullMatch = match[0]
@@ -309,11 +329,7 @@ export function evaluateText(
 function premiseSatisfied(premise: readonly string[] | undefined, text: string): boolean {
   if (premise === undefined || premise.length === 0) return true
   for (const pattern of premise) {
-    try {
-      if (new RegExp(pattern, 'i').test(text)) return true
-    } catch {
-      // 非法前提正则已在加载期拦截；此处防御性跳过
-    }
+    if (regexOf(pattern, 'i')?.test(text) === true) return true
   }
   return false
 }

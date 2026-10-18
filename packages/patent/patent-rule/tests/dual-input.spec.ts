@@ -85,6 +85,15 @@ describe('evaluateDualRule：未提条款引用', () => {
     expect(violation?.message).toContain('主动澄清')
   })
 
+  it('书名号与中文数字写法同样参与未提条款比对', () => {
+    const violation = evaluateDualRule(rule('PR-OA-009'), {
+      notice,
+      response: '本申请符合《专利法》第二十六条第三款关于充分公开的要求。',
+    })
+    expect(violation?.ruleId).toBe('PR-OA-009')
+    expect(violation?.evidence).toEqual(['《专利法》第二十六条第三款'])
+  })
+
   it('同条不带款号命中族内已提条款、族外条款与非专利法引用不误报', () => {
     expect(evaluateDualRule(rule('PR-OA-009'), {
       notice,
@@ -97,6 +106,13 @@ describe('evaluateDualRule：未提条款引用', () => {
     expect(evaluateDualRule(rule('PR-OA-009'), {
       notice,
       response: '依据专利法实施细则第57条第3款提出修改。',
+    })).toBeNull()
+  })
+
+  it('无法解析的中文数字条号跳过，不误报为未提条款', () => {
+    expect(evaluateDualRule(rule('PR-OA-009'), {
+      notice,
+      response: '本申请符合专利法第十十条的规定。',
     })).toBeNull()
   })
 

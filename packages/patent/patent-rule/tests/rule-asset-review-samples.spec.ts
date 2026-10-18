@@ -166,8 +166,15 @@ describe('规则资产评审样本（#357）', () => {
     expect(hitIds('经检测，该产品构成侵权。')).toContain('PAT-RISK-001')
   })
 
-  it('域禁词不外溢：PAT-ABS-001 的「绝对」不被「反」前缀豁免', () => {
-    // 「反」若是全局否定词，「反对绝对化表述」会被判为否定语境而漏报。
-    expect(hitIds('反对绝对化表述。')).toContain('PAT-ABS-001')
+  it('EX-CLM-007 只对数值语境里的近似用语告警', () => {
+    expect(hitIds('所述支架的左右两侧分别设有安装孔。')).not.toContain('EX-CLM-007')
+    expect(hitIds('所述支架的左右两侧分别设有安装孔。')).not.toContain('EX-CLM-001')
+    expect(hitIds('所述支架的宽度为 10mm 左右。')).toContain('EX-CLM-007')
+  })
+
+  it('PAT-ABS-001 只收绝对化断言，裸「绝对」不误伤术语与否定对象', () => {
+    expect(hitIds('反对绝对化表述。')).not.toContain('PAT-ABS-001')
+    expect(hitIds('本实用新型具有绝对新颖性。')).not.toContain('PAT-ABS-001')
+    expect(hitIds('本方案绝对优于现有技术。')).toContain('PAT-ABS-001')
   })
 })

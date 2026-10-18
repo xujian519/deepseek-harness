@@ -148,7 +148,7 @@ rules:
   - ruleId: EVI-011
     name: 域外证据审查规则
     description: 域外形成的证据须经公证认证或履行相关证明手续
-    legalBasis: 最高人民法院关于民事诉讼证据的若干规定第16条
+    legalBasis: 最高人民法院关于民事诉讼证据的若干规定第16条、第17条
     domain: patent
     severity: major
     action: notify
@@ -234,7 +234,7 @@ rules:
   - ruleId: EVI-014
     name: 互联网公开证据审查规则
     description: 以互联网公开主张现有技术，须审查公开日、来源平台可信度、内容完整性与公开意图
-    legalBasis: 专利法第22条第5款、专利审查指南第二部分第三章第2.1.2节
+    legalBasis: 专利法第22条第5款、专利审查指南第二部分第三章第2.1.2节、第四部分第八章5.1
     domain: patent
     severity: major
     action: apply
@@ -303,7 +303,7 @@ rules:
   - ruleId: EVI-020
     name: 举证责任分配规则
     description: 主张权利的一方应当提供证据证明其主张的事实
-    legalBasis: 民事诉讼法第64条、专利法第x条
+    legalBasis: 民事诉讼法第64条；专利法第66条（新产品制造方法举证责任倒置）
     domain: patent
     severity: major
     action: apply
@@ -454,7 +454,7 @@ rules:
   - ruleId: EVI-070
     name: 审查指南证据规则参照
     description: 参照专利审查指南第二部分第三章第2.1节关于证据的规定
-    legalBasis: 专利审查指南第二部分第三章第2.1节
+    legalBasis: 专利审查指南第四部分第八章2.2.1
     domain: patent
     severity: minor
     action: reference
@@ -470,7 +470,7 @@ rules:
   - ruleId: EVI-071
     name: 审查指南证据认定规则参照
     description: 参照专利审查指南关于证据效力的认定标准和证明力的判断规则
-    legalBasis: 专利审查指南第二部分第三章第3.2节
+    legalBasis: 专利审查指南第四部分第八章
     domain: patent
     severity: minor
     action: reference

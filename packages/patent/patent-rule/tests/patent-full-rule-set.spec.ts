@@ -16,10 +16,10 @@ import {
 } from '@deepseek-ai/dsh-patent-rule'
 
 describe('patent full rule set', () => {
-  it('loadPatentFullRuleSet merges compliance + nuo assets + merged gap assets (4 + 96 + 22 = 122 rules)', () => {
+  it('loadPatentFullRuleSet merges compliance + nuo assets + merged gap assets (4 + 97 + 22 = 123 rules)', () => {
     const loaded = loadPatentFullRuleSet()
     expect(loaded.source).not.toBeNull()
-    expect(loaded.ruleSet.rules.length).toBe(122)
+    expect(loaded.ruleSet.rules.length).toBe(123)
     const ids = new Set(loaded.ruleSet.rules.map(r => r.id))
     expect(ids.has('PAT-RISK-001')).toBe(true)
     expect(ids.has('CON-COMP-0101')).toBe(true)
@@ -61,17 +61,17 @@ describe('patent full rule set', () => {
     expect(clean.blockHits).not.toContain('CON-COMP-0101')
   })
 
-  it('scope differs: patent keeps 4 rules, patent-full keeps 120', () => {
+  it('scope differs: patent keeps 4 rules, patent-full keeps 123', () => {
     const patent = loadPatentComplianceRuleSet()
     const full = loadPatentFullRuleSet()
     expect(patent.ruleSet.rules.length).toBe(4)
-    expect(full.ruleSet.rules.length).toBe(122)
+    expect(full.ruleSet.rules.length).toBe(123)
   })
 
-  it('loadActivationOverrides parses 90 patches with no warnings', () => {
+  it('loadActivationOverrides parses 103 patches with no warnings', () => {
     const ov = loadActivationOverrides()
     expect(ov.source).not.toBeNull()
-    expect(ov.byId.size).toBe(90)
+    expect(ov.byId.size).toBe(103)
     expect(ov.warnings.length).toBe(0)
     expect(ov.byId.get('CON-102')?.action).toBe('review')
     // check 级增补（2026-09-16 语义增强）与 action 整替换共存于同一份补丁表。
@@ -95,6 +95,30 @@ describe('patent full rule set', () => {
       const loaded = loadPatentFullRuleSet(tmp)
       expect(loaded.ruleSet.rules.length).toBeGreaterThan(0)
       expect(loaded.warnings.some(w => w.includes('规则资产加载失败') || w.includes('nuo'))).toBe(true)
+    } finally {
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
+  it('reports duplicate rule ids during the full-set merge', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'dsh-dup-rules-'))
+    const patentDir = join(tmp, 'patent')
+    try {
+      mkdirSync(patentDir)
+      writeFileSync(
+        join(patentDir, 'compliance.yaml'),
+        'rules:\n  - id: PAT-X\n    name: x\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+        'utf8',
+      )
+      for (const file of ['nuo-patent-law.yaml', 'nuo-patent-core-rules.yaml']) {
+        writeFileSync(
+          join(patentDir, file),
+          'rules:\n  - id: DUP-1\n    name: d\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["d"] }\n',
+          'utf8',
+        )
+      }
+      const loaded = loadPatentFullRuleSet(tmp)
+      expect(loaded.warnings.some(w => w.includes('DUP-1') && w.includes('id 重复'))).toBe(true)
     } finally {
       rmSync(tmp, { recursive: true, force: true })
     }
