@@ -50,6 +50,63 @@ describe('registry', () => {
     expect(reg.lookup('t')).toBe(h2)
   })
 
+  it('AtomRegistry disposer 只撤销自己的贡献，旧 disposer 不删除后继', () => {
+    const atoms = new AtomRegistry()
+    const first = { ...searchAtom }
+    const disposeFirst = atoms.register(first)
+    expect(atoms.lookup('search')).toBe(first)
+    disposeFirst()
+    disposeFirst()
+    expect(atoms.lookup('search')).toBeUndefined()
+
+    atoms.register(first)
+    const successor = { ...searchAtom, description: '后继' }
+    const disposeSuccessor = atoms.register(successor)
+    disposeFirst()
+    expect(atoms.lookup('search')).toBe(successor)
+    disposeSuccessor()
+    expect(atoms.lookup('search')).toBeUndefined()
+  })
+
+  it('重复注册同一对象时，旧 disposer 不删除后继注册', () => {
+    const atoms = new AtomRegistry()
+    const atom = { ...searchAtom }
+    const disposeFirst = atoms.register(atom)
+    const disposeSecond = atoms.register(atom)
+    disposeFirst()
+    expect(atoms.lookup('search')).toBe(atom)
+    disposeSecond()
+    expect(atoms.lookup('search')).toBeUndefined()
+
+    const handlers = new StageHandlerRegistry()
+    const handler: StageHandler = { name: 'same', category: 'search', execute: async () => ({}) }
+    const disposeHandlerFirst = handlers.register(handler)
+    const disposeHandlerSecond = handlers.register(handler)
+    disposeHandlerFirst()
+    expect(handlers.lookup('same')).toBe(handler)
+    disposeHandlerSecond()
+    expect(handlers.lookup('same')).toBeUndefined()
+  })
+
+  it('StageHandlerRegistry disposer 与 RegisterAtom 全局撤销', () => {
+    const handlers = new StageHandlerRegistry()
+    const first: StageHandler = { name: 't', category: 'search', execute: async () => ({ v: '1' }) }
+    const disposeFirst = handlers.register(first)
+    const successor: StageHandler = { name: 't', category: 'search', execute: async () => ({ v: '2' }) }
+    const disposeSuccessor = handlers.register(successor)
+    disposeFirst()
+    expect(handlers.lookup('t')).toBe(successor)
+    disposeSuccessor()
+    disposeSuccessor()
+    expect(handlers.lookup('t')).toBeUndefined()
+
+    const atom = { name: 'temp-global-atom', description: '临时', category: 'search' as const, inputSchema: [], outputSchema: [] }
+    const disposeGlobal = RegisterAtom(atom)
+    expect(globalAtomRegistry.lookup('temp-global-atom')).toBe(atom)
+    disposeGlobal()
+    expect(globalAtomRegistry.lookup('temp-global-atom')).toBeUndefined()
+  })
+
   it('registerBuiltinAtoms 注册 24 个内置原子与 handler', () => {
     registerBuiltinAtoms()
     const names = ListAtoms().map(a => a.name).sort()

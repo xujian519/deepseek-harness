@@ -82,7 +82,7 @@ export function noteDocumentId(project: string | undefined, title: string, conte
 /** Render the canonical save value into model-facing prose. */
 function renderKnowledgeNoteSave(value: KnowledgeNoteSaveOutput): string {
   if (value.reason === 'inserted') {
-    return `已沉淀笔记（id=${value.documentId}，${value.charCount} 字符，路径 ${value.path}），后续可经 patent_case_search / 语义检索召回。`
+    return `已沉淀笔记（id=${value.documentId}，${value.charCount} 字符，路径 ${value.path}），可用文件检索/grep 在笔记目录中召回。`
   }
   if (value.reason === 'duplicate') {
     return `笔记已存在（id=${value.documentId}），跳过重复保存。`

@@ -5395,7 +5395,7 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
 - 返回标题、状态、预计到期日、申请/授权日、申请人、发明人及状态事件历史
 
 使用说明：
-  - 只读；每篇专利发起一次网络请求（默认并发 4）
+  - 只读；每篇专利发起一次网络请求（默认并发 4，范围 1-20）
   - 每个结果点名服务它的 channel。中国申请号/公开(公告)号在 Google Patents 通道查不到时，部署启用 CNIPR 通道重查一次：该通道只出法律状态公告记录（announce_date / status / status_info），其余字段为空，status 取其中公告日最新的一条
   - 通道失败不是整批失败：失败的号保留 nuo 通道的原因，被咨询过但未能服务的通道写在 warnings 里
 
@@ -5412,7 +5412,7 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
     },
     "maxConcurrency": {
       "type": "number",
-      "description": "Max concurrent requests (default 4)"
+      "description": "Max concurrent requests (default 4, 1-20)"
     }
   },
   "required": [

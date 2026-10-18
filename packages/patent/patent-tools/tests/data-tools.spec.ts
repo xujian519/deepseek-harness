@@ -8,7 +8,7 @@ import { createPatentSearchTool, baseNumber, dedupeByFamily } from '../src/tool/
 import { createPatentMetadataTool } from '../src/tool/patent-metadata.ts'
 import { createPatentLegalStatusTool } from '../src/tool/patent-legal-status.ts'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from '../src/tool/internal/upstream-channel.ts'
-import type { PatentData } from '@deepseek-ai/nuo-patent'
+import type { LegalStatusOptions, PatentData } from '@deepseek-ai/nuo-patent'
 
 const signal = new AbortController().signal
 
@@ -81,6 +81,20 @@ describe('patent_search', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('patent_search')
     expect(text(result)).toContain('CN115690481A')
+  })
+
+  it('clamps limit into [1, 50]', async () => {
+    const seen: number[] = []
+    const tool = createPatentSearchTool({
+      search: async (_query, options) => {
+        seen.push(options?.limit ?? -1)
+        return { query: 'q', total: 0, hits: [], warnings: [] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    await execute(ctx, 'patent_search', { query: 'q', limit: 0 }, 's-clamp-low')
+    await execute(ctx, 'patent_search', { query: 'q', limit: 999 }, 's-clamp-high')
+    expect(seen).toEqual([1, 50])
   })
 
   it('renders the non-fatal warnings alongside the hits', async () => {
@@ -446,6 +460,22 @@ describe('patent_legal_status', () => {
     expect(text(result)).toContain('US1A')
     expect(text(result)).toContain('Active')
     expect(text(result)).toContain(`通道：${GOOGLE_PATENTS_CHANNEL}`)
+  })
+
+  it('clamps maxConcurrency into [1, 20]', async () => {
+    const seen: Array<number | undefined> = []
+    const tool = createPatentLegalStatusTool({
+      checker: {
+        checkBatch: async (_patents, options?: LegalStatusOptions) => {
+          seen.push(options?.maxConcurrency)
+          return { 'US1A': activeRecord }
+        },
+      },
+    })
+    const ctx = await ctxWith(tool)
+    await execute(ctx, 'patent_legal_status', { patents: ['US1A'], maxConcurrency: 0 }, 'l-clamp-low')
+    await execute(ctx, 'patent_legal_status', { patents: ['US1A'], maxConcurrency: 999 }, 'l-clamp-high')
+    expect(seen).toEqual([1, 20])
   })
 
   it('retries numbers the engine could not answer through CNIPR', async () => {

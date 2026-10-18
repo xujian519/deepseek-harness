@@ -301,7 +301,7 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
       if (query.length === 0) {
         throw new PatentToolError('invalid_tool_input', 'Search query is empty.', { tool: 'patent_search' })
       }
-      const limit = args.limit ?? 10
+      const limit = Math.min(Math.max(Math.floor(args.limit ?? 10), 1), 50)
       // 引擎把上游失败写在 warnings 里，但也可能直接抛错（网络栈或引擎自身）。两种都算
       // 「第一通道没有可用答案」，都值得一次第二通道的机会；它也不成时原错误照旧抛出。
       let settled: { result: PatentSearchResult; attempts: number } | undefined
