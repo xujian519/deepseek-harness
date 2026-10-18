@@ -6,9 +6,10 @@
  * 「没跑」。本模块把纪律落成执行点：部署声明「哪个交付工具被调用前，本会话内必须已成功
  * 执行过哪些工具」，未满足即拒绝该次调用，使缺闸门证据的交付件不落盘。
  *
- * 台账以调用方（agent）为归属单位：只有本会话内成功返回的前置调用才算数，跨会话不继承，
- * 因此同一部署下的不同案件互不顶替。归属不明的调用（无 agent）一律按未满足处理——无法
- * 归属的交付件同样拿不出本会话的闸门证据。
+ * 台账以调用方（agent）为归属单位：只有本会话内成功返回、且未在结果中声明
+ * `blocked: true` 的前置调用才算数，跨会话不继承，因此同一部署下的不同案件互不顶替。
+ * 归属不明的调用（无 agent）一律按未满足处理——无法归属的交付件同样拿不出本会话的
+ * 闸门证据。
  * @module @deepseek-ai/dsh-patent-rule/runtime/delivery-gate
  */
 
@@ -42,7 +43,7 @@ export class DeliveryAttemptLedger {
   /**
    * 记录一次成功返回的调用。
    * @param agent - 调用归属单位（`ToolExecution.agent`）。
-   * @param tool - 已完成且未报错的工具名。
+   * @param tool - 已完成、未报错且未声明 `blocked: true` 的工具名。
    */
   record(agent: object, tool: string): void {
     const seen = this.#byAgent.get(agent)

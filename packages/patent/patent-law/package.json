@@ -28,9 +28,9 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@deepseek-ai/dsh-patent-core": "workspace:*",
     "@deepseek-ai/dsh-patent-index-asset": "workspace:*",
-    "@deepseek-ai/schemastery": "workspace:~",
-    "yaml": "^2.9.0"
+    "@deepseek-ai/schemastery": "workspace:~"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "workspace:*",

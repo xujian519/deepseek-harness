@@ -71,6 +71,12 @@ describe('parseCnNumber', () => {
   it('阿拉伯数字直接解析', () => {
     expect(parseCnNumber('82')).toBe(82)
     expect(parseCnNumber('0')).toBe(0)
+    expect(parseCnNumber('99999999999999999999')).toBeNull()
+  })
+
+  it('〇 与零都读作 0', () => {
+    expect(parseCnNumber('〇')).toBe(0)
+    expect(parseCnNumber('零')).toBe(0)
   })
 
   it('X十Y 组合', () => {
@@ -99,6 +105,12 @@ describe('parseCnNumber', () => {
     expect(parseCnNumber('abc')).toBeNull()
     expect(parseCnNumber('十二abc')).toBeNull()
     expect(parseCnNumber('')).toBeNull()
+    expect(parseCnNumber('十十')).toBeNull()
+    expect(parseCnNumber('一百百')).toBeNull()
+    expect(parseCnNumber('十二三')).toBeNull()
+    expect(parseCnNumber('一二三')).toBeNull()
+    expect(parseCnNumber('百')).toBeNull()
+    expect(parseCnNumber('千')).toBeNull()
   })
 })
 

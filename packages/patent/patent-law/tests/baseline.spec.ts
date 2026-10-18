@@ -32,6 +32,9 @@ const STATUTE = [
   '    verifiedOn: null',
 ].join('\n')
 
+/** The statute fixture re-labelled as the implementing regulations. */
+const REGULATIONS = STATUTE.replace('law: 专利法', 'law: 专利法实施细则')
+
 const GUIDELINES = [
   'law: 专利审查指南',
   'document: 专利审查指南',
@@ -223,8 +226,8 @@ describe('parseLawBaseline', () => {
       '  - path: 第四部分第三章2.1',
       '    topics: [一事不再理]',
       '    text: 2023 正文',
-      '    sourceDoc: null',
-      '    verifiedOn: null',
+      '    sourceDoc: 2023 全文',
+      '    verifiedOn: 2026-01-01',
     ].join('\n'), 'fixture.yaml')
     expect(baseline.versions).toHaveLength(1)
     expect(baseline.versions[0]?.revision).toBe('2026 年修订版（2026-01-01 施行）')
@@ -356,6 +359,39 @@ describe('parseLawBaseline', () => {
       .toContain('article 重复')
   })
 
+  it('rejects a transcription record that is not all-or-nothing', () => {
+    expect(parseFailing([
+      'law: 专利法',
+      'document: x',
+      'articles:',
+      '  - article: 1',
+      '    topics: [a]',
+      '    text: 正文',
+      '    sourceDoc: 主席令',
+      '    verifiedOn: null',
+    ].join('\n')).message).toContain('sourceDoc 与 verifiedOn 必须同时记录')
+    expect(parseFailing([
+      'law: 专利法',
+      'document: x',
+      'articles:',
+      '  - article: 1',
+      '    topics: [a]',
+      '    text: null',
+      '    sourceDoc: 主席令',
+      '    verifiedOn: null',
+    ].join('\n')).message).toContain('不能单独记录')
+    expect(parseFailing([
+      'law: 专利审查指南',
+      'document: x',
+      'sections:',
+      '  - path: 第二部分第四章3.2',
+      '    topics: [a]',
+      '    text: 正文',
+      '    sourceDoc: null',
+      '    verifiedOn: 2026-01-01',
+    ].join('\n')).message).toContain('sourceDoc 与 verifiedOn 必须同时记录')
+  })
+
   it('rejects a missing or malformed topic list', () => {
     expect(parseFailing('law: 专利法\ndocument: x\narticles:\n  - article: 1').message).toContain('topics')
     expect(parseFailing('law: 专利法\ndocument: x\narticles:\n  - article: 1\n    topics: []').message).toContain('topics')
@@ -404,6 +440,14 @@ describe('loadLawBaselines', () => {
     expect(baselines.get('专利审查指南')?.sections.length).toBeGreaterThan(0)
   })
 
+  it('ships the coverage counts the README documents', () => {
+    const baselines = loadLawBaselines()
+    expect(baselines.get('专利法')?.articles).toHaveLength(37)
+    expect(baselines.get('专利法实施细则')?.articles).toHaveLength(42)
+    expect(baselines.get('专利审查指南')?.sections).toHaveLength(79)
+    expect(baselines.get('专利审查指南')?.sections.filter(section => section.text !== null)).toHaveLength(64)
+  })
+
   it('transcribes every packaged statute entry and states where the text came from', () => {
     const baselines = loadLawBaselines()
     const articles = [
@@ -423,8 +467,8 @@ describe('loadLawBaselines', () => {
     expect(baselines.get('专利法实施细则')?.maxVerifiedOn).not.toBeNull()
   })
 
-  it('loads an override directory', () => {
-    const dir = fixtureDir({ 'law.yaml': STATUTE })
+  it('loads an override directory that mirrors the packaged layout', () => {
+    const dir = fixtureDir({ 'law.yaml': STATUTE, 'regulations.yaml': REGULATIONS, 'guidelines.yaml': GUIDELINES })
     expect(loadLawBaselines(dir).get('专利法')?.maxArticle).toBe(82)
   })
 
@@ -433,6 +477,11 @@ describe('loadLawBaselines', () => {
     expect(() => loadLawBaselines(fixtureDir({}))).toThrow(/没有 \.yaml 文件/)
     const dir = fixtureDir({ 'a.yaml': STATUTE, 'b.yaml': STATUTE })
     expect(() => loadLawBaselines(dir)).toThrow(/同一部法律被索引了两次/)
+  })
+
+  it('rejects a directory missing one of the three documents', () => {
+    const dir = fixtureDir({ 'law.yaml': STATUTE, 'guidelines.yaml': GUIDELINES })
+    expect(() => loadLawBaselines(dir)).toThrow(/缺少：专利法实施细则/)
   })
 })
 

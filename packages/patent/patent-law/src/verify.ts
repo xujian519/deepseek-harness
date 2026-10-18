@@ -162,8 +162,13 @@ export function renderCitationRows(rows: CitationRow[]): string {
   return [
     '| 引用 | 判定 | 处置 | 说明 |',
     '|---|---|---|---|',
-    ...rows.map(row => `| ${row.label} | ${DECISION_LABELS[row.decision]} | ${POLICY_LABELS[row.policy]} | ${row.reason} |`),
+    ...rows.map(row => `| ${cell(row.label)} | ${DECISION_LABELS[row.decision]} | ${POLICY_LABELS[row.policy]} | ${cell(row.reason)} |`),
   ].join('\n')
+}
+
+/** Escape a table cell so a proposition containing `|` cannot split the row. */
+function cell(value: string): string {
+  return value.replaceAll('|', '\\|')
 }
 
 const DECISION_LABELS: Record<CitationDecision, string> = {
@@ -248,8 +253,10 @@ const guidelineViews = new WeakMap<LawBaseline, Map<string, LawBaseline | null>>
 /**
  * Resolve the guideline baseline to the requested revision.
  *
- * Without a revision, the latest transcribed override is used; a version that
- * names only some sections leaves the rest at the base text. With a revision,
+ * Without a revision, the latest transcribed override is targeted and every
+ * transcribed override up to it is applied oldest first; a version that names
+ * only some sections leaves the rest at the text the previous version set.
+ * With a revision,
  * the base revision selects the base text and an unknown revision selects
  * nothing, so the caller gets an unverified finding instead of a silent
  * fallback.
@@ -281,13 +288,24 @@ function buildGuidelineView(baseline: LawBaseline, revision: string | undefined)
   const transcribed = current === null || baseline.versions.some(version => version.revision === current)
   const target = revision ?? (transcribed ? latest : current) ?? null
   if (target === null || target === baseline.revision) return baseline
-  const version = baseline.versions.find(candidate => candidate.revision === target)
-  if (version === undefined) return revision === undefined ? baseline : null
-  const overridden = new Map(version.sections.map(section => [section.path, section]))
+  const targetIndex = baseline.versions.findIndex(candidate => candidate.revision === target)
+  if (targetIndex < 0) return revision === undefined ? baseline : null
+  // Apply every transcribed override up to the target, oldest first. A later
+  // revision that changes only some sections must not drop an earlier one's
+  // changes.
+  const applied = baseline.versions.slice(0, targetIndex + 1)
+  const overridden = new Map<string, SectionEntry>()
+  const added = new Map<string, SectionEntry>()
   const basePaths = new Set(baseline.sections.map(section => section.path))
+  for (const version of applied) {
+    for (const section of version.sections) {
+      overridden.set(section.path, section)
+      if (!basePaths.has(section.path)) added.set(section.path, section)
+    }
+  }
   const sections = [
     ...baseline.sections.map(section => overridden.get(section.path) ?? section),
-    ...version.sections.filter(section => !basePaths.has(section.path)),
+    ...added.values(),
   ].sort((a, b) => a.path.localeCompare(b.path))
   return {
     ...baseline,
@@ -320,13 +338,32 @@ function overlapIndex(baseline: LawBaseline): OverlapIndex {
  */
 function comparableEntries(baseline: LawBaseline): ComparableEntry[] {
   if (baseline.sections.length > 0) {
-    return baseline.sections.map(section => ({ label: section.path, topics: section.topics, text: section.text }))
+    return baseline.sections.map(section => ({
+      label: section.path,
+      topics: section.topics,
+      text: transcribedText(section),
+    }))
   }
   return baseline.articles.map(article => ({
     label: `第 ${article.article} 条`,
     topics: article.topics,
-    text: article.text,
+    text: transcribedText(article),
   }))
+}
+
+/**
+ * The text a proposition may be matched against. An entry whose source or
+ * verification date is missing is not transcribed for matching, even when it
+ * carries text, so a hand-built baseline cannot make it support a proposition.
+ * @param entry - the article or section entry.
+ * @returns its text when the transcription record is complete, otherwise null.
+ */
+function transcribedText(entry: {
+  text: string | null
+  sourceDoc: string | null
+  verifiedOn: string | null
+}): string | null {
+  return entry.text !== null && entry.sourceDoc !== null && entry.verifiedOn !== null ? entry.text : null
 }
 
 /**
@@ -375,9 +412,7 @@ function verifyArticle(
 ): CitationFinding {
   const entry = findArticle(baseline, reference.article)
   if (entry === undefined) return articleGap(reference, baseline)
-  const narrowing = checkNarrowing(reference, entry)
-  if (narrowing !== null) return finding(reference, 'mismatch', narrowing, entry)
-  if (entry.verifiedOn === null || entry.text === null) {
+  if (entry.verifiedOn === null || entry.text === null || entry.sourceDoc === null) {
     return finding(
       reference,
       'unverified',
@@ -385,13 +420,15 @@ function verifyArticle(
       entry,
     )
   }
+  const narrowing = checkNarrowing(reference, entry)
+  if (narrowing !== null) return finding(reference, 'mismatch', narrowing, entry)
   return decideTranscribed(
     reference,
     entry,
     entry.text,
     baseline,
     options,
-    `与《${baseline.law}》第 ${reference.article} 条一致（来源：${entry.sourceDoc ?? '未标注'}）`,
+    `与《${baseline.law}》第 ${reference.article} 条一致（来源：${entry.sourceDoc}）`,
   )
 }
 
@@ -586,7 +623,7 @@ function sectionReason(path: string, entry: SectionEntry, carrier: string | null
   if (carrier !== null && carrier !== path) {
     return `与《专利审查指南》${path} 一致（命题由本节下的 ${carrier} 承载）`
   }
-  return `与《专利审查指南》${path} 一致（来源：${entry.sourceDoc ?? '未标注'}）`
+  return `与《专利审查指南》${path} 一致（来源：${entry.sourceDoc as string}）`
 }
 
 /** Report a cited paragraph the entry knows to be absent, or null when it is consistent. */

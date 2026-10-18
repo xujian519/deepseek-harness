@@ -232,7 +232,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 专利法第六条；专利法实施细则第十二条
+    legalBasis: 专利法第六条；专利法实施细则第十三条
     check:
       type: structural_analysis
       requiresAll:

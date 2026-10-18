@@ -300,6 +300,16 @@ describe('rendering', () => {
     expect(report).toContain('| 《专利法》第九十九条 | 条号超出有效范围 | 拦截 |')
   })
 
+  it('escapes a pipe in a cell so the table stays a table', () => {
+    const report = renderCitationRows([{
+      label: '《专利法》第二十二条',
+      decision: 'valid',
+      policy: 'allow',
+      reason: 'a|b',
+    }])
+    expect(report).toContain('a\\|b')
+  })
+
   it('states that no citation was found instead of reporting success', () => {
     expect(renderCitationRows([])).toContain('未在文本中识别到法条引用')
   })
@@ -446,6 +456,27 @@ describe('versioned guideline sections', () => {
     expect(finding.reason).toContain('审查指南 2027')
   })
 
+  it('keeps an earlier revision when a later one names another section', () => {
+    const later: SectionEntry = {
+      path: '第四部分第三章3.3',
+      topics: ['无效宣告'],
+      text: '2027 年的证据规则',
+      sourceDoc: '审查指南 2027',
+      verifiedOn: '2027-01-01',
+    }
+    const multi = new Map<LawName, LawBaseline>([['专利审查指南', {
+      ...baseline,
+      supersededBy: '2027 年修订版',
+      versions: [
+        { revision: CURRENT, sections: [revised] },
+        { revision: '2027 年修订版', sections: [later] },
+      ],
+    }]])
+    const finding = verifyCitation(sectionRef('第四部分第三章2.1'), multi)
+    expect(finding.decision).toBe('valid')
+    expect(finding.reason).toContain('2026 修改对照表')
+  })
+
   it('uses the transcribed version when no superseding revision is named', () => {
     const unnamed = new Map<LawName, LawBaseline>([['专利审查指南', { ...baseline, supersededBy: null }]])
     const finding = verifyCitation(sectionRef('第四部分第三章2.1'), unnamed)
@@ -539,9 +570,9 @@ describe('entries without a recorded source', () => {
     }],
   ])
 
-  it('reports the missing source instead of an empty one', () => {
-    expect(verifyCitation(articleRef(22), withoutSource).reason).toContain('未标注')
-    expect(verifyCitation(sectionRef('第二部分第四章3.2'), withoutSource).reason).toContain('未标注')
+  it('reports an entry whose source is missing as unverified', () => {
+    expect(verifyCitation(articleRef(22), withoutSource).decision).toBe('unverified')
+    expect(verifyCitation(sectionRef('第二部分第四章3.2'), withoutSource).decision).toBe('unverified')
   })
 })
 

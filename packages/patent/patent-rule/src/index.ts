@@ -25,8 +25,9 @@
  * - A declared delivery gate ({@link Config.deliveryGate}) denies a
  *   delivery-tool call whose declared prerequisite calls have not succeeded
  *   earlier in the same session, so a deliverable cannot ship without the gate
- *   runs the delivery discipline requires. Successful prerequisite calls are
- *   recorded from tools/post-execute; the deny is a monotonic guard.
+ *   runs the delivery discipline requires. Prerequisite calls that return
+ *   without an error and without declaring `blocked: true` are recorded from
+ *   tools/post-execute; the deny is a monotonic guard.
  * - evaluate_evidence calls are denied by two monotonic EVI-011 guards when an
  *   overseas/foreign evidence record omits its required notarization /
  *   legalization / translation declaration.
@@ -350,6 +351,21 @@ function attachWarn(decision: PostToolDecision, warn: UserMessage | undefined): 
  * @param ctx - registrant context carrying the tool registry.
  * @param config - validated {@link Config}.
  */
+/**
+ * Whether a prerequisite result declares its own block.
+ *
+ * A tool can return successfully while refusing the result it checked
+ * (`law_verify` returns `blocked: true`). The delivery gate records a passing
+ * run, not merely a non-error one, so such a call does not satisfy the gate.
+ * @param value - the canonical tool result value.
+ * @returns true when the result carries `blocked: true`.
+ */
+function isBlockedResult(value: unknown): boolean {
+  return typeof value === 'object'
+    && value !== null
+    && (value as { blocked?: unknown }).blocked === true
+}
+
 export function apply(ctx: Context, config: Config): void {
   const gateToolNames = new Set(config.gateToolNames ?? DEFAULT_GATE_TOOL_NAMES)
   const approvalDisabled = config.approvalDisabled === true
@@ -398,7 +414,8 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.on('tools/post-execute', async (exec: ToolExecution, result, next): Promise<PostToolDecision> => {
     // 先登记再判定：前置工具本身通常不在 gateToolNames 里，下面的输出门禁会直接放行。
-    if (!result.isError && exec.agent !== undefined && requiredTools.has(exec.name)) {
+    // 登记的是「跑过且通过」：工具成功返回但自带 blocked:true 时不算满足前置。
+    if (!result.isError && !isBlockedResult(result.value) && exec.agent !== undefined && requiredTools.has(exec.name)) {
       deliveryLedger.record(exec.agent, exec.name)
     }
     if (!gateToolNames.has(exec.name) || result.isError) return next()
