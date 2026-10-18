@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -53,7 +54,19 @@ HEADER_BELOW_PT = 60.0   # HTML 回退路径：其上为页眉区（品牌条 + 
 FOOTER_ABOVE_PT = 800.0  # HTML 回退路径：其下为页脚区（页码）
 FIGURE_CAPTION = re.compile(r"^图\s*\d+$")
 
-SVG_SIZE = re.compile(r'<svg[^>]*?width="(\d+(?:\.\d+)?)"[^>]*?height="(\d+(?:\.\d+)?)"')
+SVG_OPEN = re.compile(r"<svg\b[^>]*>", re.IGNORECASE)
+SVG_ATTRIBUTE = re.compile(r"""([:\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+CSS_LENGTH = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([a-z]*)\s*$", re.IGNORECASE)
+# CSS 绝对单位到 96 dpi 像素的换算；无单位按 px。em/%/rem 依赖外部上下文，按缺失处理。
+CSS_UNIT_PX = {
+    "": 1.0,
+    "px": 1.0,
+    "in": 96.0,
+    "cm": 96.0 / 2.54,
+    "mm": 96.0 / 25.4,
+    "pt": 96.0 / 72.0,
+    "pc": 16.0,
+}
 
 
 def find_chrome(explicit: str | None = None) -> str:
@@ -74,12 +87,31 @@ def _figure_sort_key(p: Path) -> int:
     return int(m.group(1)) if m else 0
 
 
+def _svg_pixel_size(src: Path) -> tuple[int, int]:
+    """把 SVG 根元素的物理 width/height 换算成 96 dpi 下的截图像素。"""
+    open_tag = SVG_OPEN.search(src.read_text(encoding="utf-8"))
+    attributes: dict[str, str] = {}
+    if open_tag is not None:
+        for match in SVG_ATTRIBUTE.finditer(open_tag.group(0)):
+            attributes[match.group(1).lower()] = (
+                match.group(2) if match.group(2) is not None else match.group(3)
+            )
+    pixels = []
+    for name in ("width", "height"):
+        length = CSS_LENGTH.match(attributes.get(name, ""))
+        if length is None or length.group(2).lower() not in CSS_UNIT_PX:
+            raise SystemExit(
+                f"{src.name} 的 width/height 无法换算成像素"
+                "（支持 mm/cm/in/pt/pc/px 与纯数字），无法确定输出尺寸"
+            )
+        factor = CSS_UNIT_PX[length.group(2).lower()]
+        pixels.append(max(1, math.ceil(float(length.group(1)) * factor)))
+    return pixels[0], pixels[1]
+
+
 def _rasterize(src: Path, target: Path, chrome: str, scale: int) -> None:
     """按 SVG 自身的 width/height × scale 栅格化一张图。"""
-    m = SVG_SIZE.search(src.read_text(encoding="utf-8"))
-    if m is None:
-        raise SystemExit(f"{src.name} 没有 width/height，无法确定输出尺寸")
-    w, h = int(float(m.group(1))), int(float(m.group(2)))
+    w, h = _svg_pixel_size(src)
     subprocess.run(
         [chrome, "--headless", "--disable-gpu", "--hide-scrollbars",
          "--default-background-color=FFFFFF",
@@ -121,7 +153,7 @@ def render_html(html: Path, out_dir: Path, chrome: str, dpi: int,
                 start_page: int) -> list[str]:
     """回退路径：HTML → PDF → 排除页眉页脚后逐图裁切。"""
     try:
-        import fitz
+        import fitz  # pyright: ignore[reportMissingImports]
     except ImportError:
         raise SystemExit(
             "HTML 回退路径需要 pymupdf；请用带 pymupdf 的解释器运行，"
