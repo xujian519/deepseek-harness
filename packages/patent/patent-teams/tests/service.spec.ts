@@ -70,6 +70,7 @@ async function makeService(options: {
   memberModel?: string
   qualityGate?: boolean
   passThreshold?: number
+  mailboxDeliveryLeaseMs?: number
 } = {}): Promise<Harness> {
   const ctx = new Context()
   const stateDir = '.patent-teams'
@@ -109,6 +110,7 @@ async function makeService(options: {
     ...options.memberModel === undefined ? {} : { memberModel: options.memberModel },
     qualityGate: options.qualityGate ?? false,
     passThreshold: options.passThreshold ?? 0.7,
+    mailboxDeliveryLeaseMs: options.mailboxDeliveryLeaseMs ?? 60_000,
   })
   return {
     ctx,

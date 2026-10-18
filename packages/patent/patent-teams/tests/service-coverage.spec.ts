@@ -87,6 +87,7 @@ async function makeService(options: {
     ...options.memberMaxDepth === undefined ? {} : { memberMaxDepth: options.memberMaxDepth },
     qualityGate: options.qualityGate ?? false,
     passThreshold: options.passThreshold ?? 0.7,
+    mailboxDeliveryLeaseMs: 60_000,
   })
   return { ctx, workspace, stateDir, agents, sendMessage }
 }

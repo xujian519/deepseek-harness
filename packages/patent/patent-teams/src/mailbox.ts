@@ -17,8 +17,8 @@ import type { TeamMessage } from './types.ts'
 import { atomicWriteText, sanitizeKey, stripLeadingBom, teamLockKey, withTeamLock } from './team-lock.ts'
 import { isFiniteNumber } from './value.ts'
 
-/** A crashed live-delivery attempt becomes retryable after this interval. */
-const MAILBOX_DELIVERY_LEASE_MS = 60_000
+/** Default live-delivery lease before a claimed mailbox message becomes retryable. */
+export const DEFAULT_MAILBOX_DELIVERY_LEASE_MS = 60_000
 
 /**
  * Build a message record, stamping its id and time.
@@ -132,6 +132,9 @@ export async function readMailbox(
  * @param teamId - the team id.
  * @param agentKey - `captain` or a member name.
  * @param onMalformedLine - optional diagnostic hook for malformed records.
+ * @param deliveryLeaseMs - how long a live-delivery claim stays exclusive
+ * before the message is retryable (defaults to
+ * {@link DEFAULT_MAILBOX_DELIVERY_LEASE_MS}).
  * @returns the unacknowledged messages, empty when the mailbox does not exist.
  */
 export async function readUnreadMailbox(
@@ -139,12 +142,13 @@ export async function readUnreadMailbox(
   teamId: string,
   agentKey: string,
   onMalformedLine?: (lineNumber: number, error: unknown) => void,
+  deliveryLeaseMs = DEFAULT_MAILBOX_DELIVERY_LEASE_MS,
 ): Promise<TeamMessage[]> {
   const now = Date.now()
   return (await readMailbox(stateRoot, teamId, agentKey, onMalformedLine))
     .filter(message => message.readAt === undefined
       && (message.deliveryClaimedAt === undefined
-        || now - message.deliveryClaimedAt >= MAILBOX_DELIVERY_LEASE_MS))
+        || now - message.deliveryClaimedAt >= deliveryLeaseMs))
 }
 
 async function mutateMailbox(

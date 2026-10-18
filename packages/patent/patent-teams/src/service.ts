@@ -95,6 +95,8 @@ export interface PatentTeamsConfig {
   qualityGate: boolean
   /** Comprehensive-eval pass score threshold (0..1). */
   passThreshold: number
+  /** Live-delivery lease before a claimed mailbox message is retried (ms). */
+  mailboxDeliveryLeaseMs: number
 }
 
 /** The caller agent, or a loud failure for non-agent callers. */
@@ -153,7 +155,11 @@ export class PatentTeamsService extends Service {
   constructor(ctx: Context, config: PatentTeamsConfig) {
     super(ctx, 'patentTeams')
     this.config = config
-    this.scheduler = installTeamScheduler(ctx, { stateDir: config.stateDir, activity: this.activity })
+    this.scheduler = installTeamScheduler(ctx, {
+      stateDir: config.stateDir,
+      activity: this.activity,
+      deliveryLeaseMs: config.mailboxDeliveryLeaseMs,
+    })
     this.tasks = {
       ctx,
       stateDir: config.stateDir,
@@ -451,6 +457,7 @@ export class PatentTeamsService extends Service {
       ctx: this.ctx,
       stateDir: this.config.stateDir,
       scheduler: this.scheduler,
+      deliveryLeaseMs: this.config.mailboxDeliveryLeaseMs,
     }, agent, signal)
   }
 

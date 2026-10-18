@@ -29,6 +29,8 @@ export interface StatusViewHost {
   readonly stateDir: string
   /** Scheduler that may wake idle members before the snapshot is read. */
   readonly scheduler: TeamScheduler
+  /** Live-delivery lease before a claimed mailbox message is retried. */
+  readonly deliveryLeaseMs: number
 }
 
 /**
@@ -115,7 +117,13 @@ export async function buildTeamStatus(
     }
   }
   const captainInbox = identity.kind === 'captain'
-    ? await readUnreadMailbox(stateRoot, team.id, CAPTAIN_KEY, reportMalformed(CAPTAIN_KEY))
+    ? await readUnreadMailbox(
+      stateRoot,
+      team.id,
+      CAPTAIN_KEY,
+      reportMalformed(CAPTAIN_KEY),
+      host.deliveryLeaseMs,
+    )
     : []
   const visibleCaptainInbox = captainInbox.slice(-10)
   const memberInboxes: Record<string, PatentTeamsMemberInbox> = {}
@@ -129,6 +137,7 @@ export async function buildTeamStatus(
       team.id,
       member.name,
       reportMalformed(member.name),
+      host.deliveryLeaseMs,
     )
     if (messages.length === 0) continue
     if (identity.kind === 'captain') {

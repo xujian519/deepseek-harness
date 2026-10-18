@@ -97,7 +97,11 @@ async function makeHarness(options?: {
     sendMessage,
     interrupt: () => {},
   } as never)
-  const scheduler = installTeamScheduler(ctx, { stateDir, activity: new TeamActivity() })
+  const scheduler = installTeamScheduler(ctx, {
+    stateDir,
+    activity: new TeamActivity(),
+    deliveryLeaseMs: 60_000,
+  })
   return { ctx, workspace, stateDir, scheduler, live }
 }
 

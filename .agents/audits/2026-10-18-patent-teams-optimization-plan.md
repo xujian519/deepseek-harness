@@ -704,7 +704,7 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 - `pnpm run build` → 9/9 门禁通过。
 - 变异检查 1：移除 `create_task` 输出 schema 的 `worker` 声明 → `tool-contract.spec.ts` 的带 worker 用例如期失败；已恢复。
 - 变异检查 2：注释 `apply()` 中的守卫安装 → `composition-dispose.spec.ts` 的安装/行为用例如期失败；已恢复。
-- 已提交：`111e9c4570`（`fix(patent-teams): install retirement guard and fix create_task output`）。
+- 已提交到本地 `master`：`fix(patent-teams): install retirement guard and fix create_task output`。
 
 ### B 批验证（2026-10-18）
 

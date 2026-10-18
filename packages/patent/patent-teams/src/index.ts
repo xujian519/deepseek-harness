@@ -23,6 +23,7 @@ import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { PatentTeamsService, type PatentTeamsConfig } from './service.ts'
 import { installRetiredMemberGuard } from './members.ts'
+import { DEFAULT_MAILBOX_DELIVERY_LEASE_MS } from './mailbox.ts'
 import { registerPatentTeamsTools } from './tools.ts'
 
 // Re-export the service class so the Typert catalog projection can render
@@ -64,6 +65,11 @@ export interface Config {
    */
   passThreshold?: number
   /**
+   * How long a live-delivery claim stays exclusive before the message becomes
+   * retryable, in milliseconds (positive integer; default 60000).
+   */
+  mailboxDeliveryLeaseMs?: number
+  /**
    * Ask the deployment's approval answerers for a decision on the team plan before
    * `patent_teams_create` creates the team (deployment choice; default `false`). A
    * deployment that turns it on without an answerer refuses the create instead of
@@ -86,6 +92,7 @@ export const Config: z<Config> = z.object({
   promptSectionOrder: z.natural().default(117),
   qualityGate: z.boolean().default(false),
   passThreshold: z.number().min(0.01).max(1).default(0.7),
+  mailboxDeliveryLeaseMs: z.natural().min(1).default(DEFAULT_MAILBOX_DELIVERY_LEASE_MS),
   approveCreation: z.boolean().default(false),
   approveClosure: z.boolean().default(false),
 })
@@ -113,6 +120,7 @@ export function apply(ctx: Context, config: Config): void {
     maxMembers: config.maxMembers ?? 8,
     qualityGate: config.qualityGate ?? false,
     passThreshold: config.passThreshold ?? 0.7,
+    mailboxDeliveryLeaseMs: config.mailboxDeliveryLeaseMs ?? DEFAULT_MAILBOX_DELIVERY_LEASE_MS,
   }
 
   // Provider registration is a sibling plugin's effect (`subagent-spawn` /

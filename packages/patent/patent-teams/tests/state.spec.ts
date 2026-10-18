@@ -615,6 +615,18 @@ describe('mailbox persistence', () => {
     expect(unread.map(m => m.id)).toEqual(['claimed-expired', 'fresh'])
   })
 
+  it('honors a custom delivery lease', async () => {
+    const root = await tmpRoot()
+    await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })
+    await writeFile(
+      join(root, 'alpha', 'inbox', 'captain.jsonl'),
+      JSON.stringify(message('claimed', { deliveryClaimedAt: Date.now() - 10 })),
+    )
+    expect(await readUnreadMailbox(root, 'alpha', CAPTAIN_KEY)).toHaveLength(0)
+    expect((await readUnreadMailbox(root, 'alpha', CAPTAIN_KEY, undefined, 1)).map(m => m.id))
+      .toEqual(['claimed'])
+  })
+
   it('claim/release/acknowledge mutate only the selected records and preserve malformed lines', async () => {
     const root = await tmpRoot()
     await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })

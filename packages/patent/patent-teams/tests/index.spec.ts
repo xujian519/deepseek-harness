@@ -23,6 +23,7 @@ describe('Config schema', () => {
       promptSectionOrder: 117,
       qualityGate: false,
       passThreshold: 0.7,
+      mailboxDeliveryLeaseMs: 60_000,
       approveCreation: false,
       approveClosure: false,
     })
@@ -49,11 +50,13 @@ describe('Config schema', () => {
       promptSectionOrder: 5,
       qualityGate: true,
       passThreshold: 0.9,
+      mailboxDeliveryLeaseMs: 60_000,
       approveCreation: true,
       approveClosure: true,
     })
     expect(() => Config({ maxMembers: 0 })).toThrow()
     expect(() => Config({ memberMaxDepth: -1 })).toThrow()
+    expect(() => Config({ mailboxDeliveryLeaseMs: 0 })).toThrow()
   })
 })
 

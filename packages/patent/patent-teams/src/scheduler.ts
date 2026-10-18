@@ -42,6 +42,8 @@ export interface SchedulerConfig {
   readonly stateDir: string
   /** Waiter registry woken on every member status edge this scheduler mirrors. */
   readonly activity: TeamActivity
+  /** Live-delivery lease before a claimed mailbox message is retried. */
+  readonly deliveryLeaseMs: number
 }
 
 /** The team scheduler: serialized, ready-work dispatch to idle members. */
@@ -156,7 +158,7 @@ function fallbackMailboxPrompt(messages: Awaited<ReturnType<typeof readUnreadMai
  * fallback is real pending work, so it is delivered before a fresh task, and
  * the claim is acknowledged only after the Harness accepts the follow-up.
  * @param ctx - registrant context carrying the agent registry.
- * @param args - state root, team id, member, live captain, and cancellation signal.
+ * @param args - state root, team id, member, live captain, cancellation signal, and lease duration.
  * @returns whether the mailbox path handled this kick.
  */
 async function deliverMailboxFallback(ctx: Context, args: {
@@ -165,9 +167,16 @@ async function deliverMailboxFallback(ctx: Context, args: {
   member: TeamMember
   captain: Agent
   signal: AbortSignal
+  deliveryLeaseMs: number
 }): Promise<boolean> {
-  const { stateRoot, teamId, member, captain, signal } = args
-  const unread = await readUnreadMailbox(stateRoot, teamId, member.name)
+  const { stateRoot, teamId, member, captain, signal, deliveryLeaseMs } = args
+  const unread = await readUnreadMailbox(
+    stateRoot,
+    teamId,
+    member.name,
+    undefined,
+    deliveryLeaseMs,
+  )
   if (unread.length === 0) return false
   await withMailboxLease(stateRoot, teamId, member.name, key => (
     claimMailboxDelivery(stateRoot, teamId, key, unread.map(message => message.id))
@@ -320,6 +329,7 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
           member,
           captain,
           signal: signal ?? new AbortController().signal,
+          deliveryLeaseMs: config.deliveryLeaseMs,
         })) return
 
         // The snapshot is enough to skip an idle member with no candidate;
