@@ -607,6 +607,7 @@ it('patentability 模式：未手传 chart_targets 时由过滤后的 prior_art 
         { dLabel: 'D3', title: '   ' },
         'not-an-object',
         null,
+        { dLabel: 'D4', title: 42 },
       ],
     },
     provider,
@@ -614,12 +615,14 @@ it('patentability 模式：未手传 chart_targets 时由过滤后的 prior_art 
   expect(prompt).toContain('D1（对比文件：对比文件1')
   expect(prompt).toContain('D2（对比文件：无标号条目')
   expect(prompt).toContain('D3（对比文件')
+  expect(prompt).toContain('D4（对比文件')
   expect(prompt).not.toContain('重复条目')
   const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
   expect(doc.targets).toEqual([
     { id: 'D1', kind: 'prior-art', title: '对比文件1' },
     { id: 'D2', kind: 'prior-art', title: '无标号条目' },
     { id: 'D3', kind: 'prior-art' },
+    { id: 'D4', kind: 'prior-art' },
   ])
 })
 
@@ -679,4 +682,34 @@ it('oa-response 模式：无解析产出时回落"只拆要素"（不造目标�
   expect(prompt).toContain('只拆分要素')
   const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
   expect(doc.targets).toEqual([])
+})
+
+it('非法 chart_mode 降级并列出取值域，且不调用模型', async () => {
+  let calls = 0
+  const provider: StageProvider = {
+    callLLM: async () => {
+      calls += 1
+      throw new Error('非法 mode 应在调用模型前降级')
+    },
+  }
+  const state = await new ClaimChartHandler().execute({
+    state: { claim: CLAIM, chart_mode: 'bogus' },
+    provider,
+  })
+  expect(String(state._error)).toContain('[claim-chart] chart_mode 非法')
+  expect(String(state._error)).toContain('"bogus"')
+  expect(String(state._error)).toContain('infringement / invalidity / oa-response / reexamination / patentability')
+  expect(calls).toBe(0)
+})
+
+it('空白 chart_mode 使用缺省 invalidity', async () => {
+  const provider: StageProvider = {
+    callLLM: async () => JSON.stringify({ elements: (goodChart() as { elements: unknown[] }).elements, rows: [] }),
+  }
+  const state = await new ClaimChartHandler().execute({
+    state: { claim: CLAIM, chart_mode: '   ' },
+    provider,
+  })
+  const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
+  expect(doc.mode).toBe('invalidity')
 })

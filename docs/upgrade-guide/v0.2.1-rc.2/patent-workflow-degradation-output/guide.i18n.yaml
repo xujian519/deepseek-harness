@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-workflow-degradation-output/guide.md
+/:
+  en: 67434a41ae0ed243
+  zh: f64db454068b5d2f
+/patent-workflow-failures-now-carry-a-reason:
+  en: 6e633b2523695694
+  zh: 7eacbdc40eb72b21
+/patent-workflow-failures-now-carry-a-reason/change:
+  en: 8ee75e33955449e8
+  zh: 1c39b8ca9a71fb29
+/patent-workflow-failures-now-carry-a-reason/migration:
+  en: c53b915ab06d79cc
+  zh: 0718de1613bcb6cf

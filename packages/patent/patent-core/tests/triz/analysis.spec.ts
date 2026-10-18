@@ -164,6 +164,48 @@ it('未映射项: 模型自报的 unmapped 原样并入，缺 reason 时给默�
   expect(analysis.unmapped[0]!.reason).toBe('未映射到 1-39 工程参数')
 })
 
+it('条目形状: 非对象矛盾与参数缺口逐项计入未映射', () => {
+  const analysis = buildTrizAnalysis({
+    contradictions: [null, {}, 'text'],
+    parameter_gaps: [
+      null,
+      { parameter: 0, missing: ['unit'] },
+      { parameter: 3, missing: [] },
+      { missing: ['unit'] },
+      {},
+    ],
+  }, SOURCE)
+
+  expect(analysis.contradictions).toEqual([])
+  expect(analysis.parameterGaps).toEqual([])
+  expect(analysis.unmapped.map(item => item.reason)).toEqual([
+    '条目不是对象',
+    expect.stringContaining('改善／恶化参数不是'),
+    '条目不是对象',
+    '参数编号或缺失维度非法，未采纳',
+    '参数编号或缺失维度非法，未采纳',
+    '参数编号或缺失维度非法，未采纳',
+    '参数编号或缺失维度非法，未采纳',
+  ])
+})
+
+it('参数缺口: 同一参数多次出现时合并维度并保留首条非空说明', () => {
+  const analysis = buildTrizAnalysis({
+    parameter_gaps: [
+      { parameter: 5, missing: ['unit'], detail: '' },
+      { parameter: 5, missing: ['unit', 'current-value'], detail: '需补充当前值' },
+    ],
+  }, SOURCE)
+
+  expect(analysis.parameterGaps).toHaveLength(1)
+  expect(analysis.parameterGaps[0]).toMatchObject({
+    missing: ['current-value', 'unit'],
+    detail: '需补充当前值',
+  })
+  expect(analysis.parameterGaps[0]?.parameter.number).toBe(5)
+  expect(analysis.parameterGaps[0]?.parameter.name).toBeTypeOf('string')
+})
+
 it('形状容错: 顶层字段非数组 → 空产物，不抛错', () => {
   const extraction: TrizExtractionInput = {
     contradictions: 'not-an-array',

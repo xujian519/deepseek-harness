@@ -30,11 +30,16 @@ export {
   asJsonArray,
   asJsonRecord,
   isJsonRecord,
+  parseJsonRecordArray,
+  parseJsonStringArray,
+  parseOptionalJsonStringArray,
   readJsonNumber,
   readJsonString,
   readJsonStringArray,
   stripCodeFence,
   tryParseJson,
+  type JsonRecordArrayResult,
+  type JsonStringArrayResult,
 } from './llm-json.ts'
 
 // Controlled draft model + validation: the model submits structured drafts

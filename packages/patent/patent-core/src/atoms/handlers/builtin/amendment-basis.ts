@@ -19,7 +19,7 @@
 import { type Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler } from '../../handler.ts'
 import { degraded } from './llm.ts'
-import { isNonEmptyString, readStateText, resolveKeyList } from './state-keys.ts'
+import { readStateText, resolveKeyList } from './state-keys.ts'
 
 /** 默认修改后权利要求文本键：显式修改稿优先，其次是答复正文。 */
 export const DEFAULT_AMENDMENT_AMENDED_TEXT_KEYS: readonly string[] = [
@@ -142,7 +142,6 @@ function findMalformedKey(state: PipelineState, keys: readonly string[]): string
     const raw = state[key]
     if (raw === undefined) continue
     if (typeof raw === 'string') continue
-    if (Array.isArray(raw) && raw.every(isNonEmptyString)) continue
     return key
   }
   return undefined
@@ -194,6 +193,7 @@ function extractClaimsSection(text: string): string | undefined {
     const prefix = CLAIM_HEADING_PREFIX.exec(trimmed)
     if (prefix !== null) {
       start = index + 1
+      /* v8 ignore next -- CLAIM_HEADING_PREFIX always captures the inline body. */
       inline = prefix[1]?.trim() ?? ''
       break
     }
@@ -201,8 +201,7 @@ function extractClaimsSection(text: string): string | undefined {
   if (start < 0) return undefined
 
   const body: string[] = inline.length > 0 ? [inline] : []
-  for (let index = start; index < lines.length; index += 1) {
-    const line = lines[index] ?? ''
+  for (const line of lines.slice(start)) {
     const trimmed = line.trim()
     if (SECTION_MARKER.test(trimmed) || SECTION_KEYWORD.test(trimmed)) break
     body.push(line)
@@ -225,6 +224,7 @@ function parseClaims(section: string): ClaimSegment[] {
       if (current !== undefined) {
         claims.push({ number: current.number, text: current.lines.join('\n').trim() })
       }
+      /* v8 ignore next -- CLAIM_MARKER always captures the claim number. */
       current = { number: marker[1] ?? '1', lines: [line.slice(marker[0].length)] }
       continue
     }
@@ -233,10 +233,7 @@ function parseClaims(section: string): ClaimSegment[] {
   if (current !== undefined) {
     claims.push({ number: current.number, text: current.lines.join('\n').trim() })
   }
-  if (claims.length === 0) {
-    const text = section.trim()
-    if (text.length > 0) claims.push({ number: '1', text })
-  }
+  if (claims.length === 0) claims.push({ number: '1', text: section.trim() })
   return claims.filter(claim => claim.text.length > 0)
 }
 
@@ -301,16 +298,17 @@ function addedSpans(amended: string, source: string): string[] {
     return prefixAddedSpans(amended, source)
   }
 
-  const rows: Uint16Array[] = Array.from(
-    { length: source.length + 1 },
-    () => new Uint16Array(amended.length + 1),
-  )
+  const width = amended.length + 1
+  const cells = new Uint16Array((source.length + 1) * width)
+  // 下标全部落在已分配的 (source.length + 1) × width 表内。
+  const cellAt = (index: number): number => Number(cells[index])
   for (let i = source.length - 1; i >= 0; i -= 1) {
-    const row = rows[i]
-    const next = rows[i + 1]
-    if (row === undefined || next === undefined) continue
+    const rowBase = i * width
+    const nextBase = rowBase + width
     for (let j = amended.length - 1; j >= 0; j -= 1) {
-      row[j] = source[i] === amended[j] ? (next[j + 1] ?? 0) + 1 : Math.max(next[j] ?? 0, row[j + 1] ?? 0)
+      cells[rowBase + j] = source.charCodeAt(i) === amended.charCodeAt(j)
+        ? cellAt(nextBase + j + 1) + 1
+        : Math.max(cellAt(nextBase + j), cellAt(rowBase + j + 1))
     }
   }
 
@@ -319,7 +317,7 @@ function addedSpans(amended: string, source: string): string[] {
   let i = 0
   let j = 0
   while (j < amended.length) {
-    if (i < source.length && source[i] === amended[j]) {
+    if (i < source.length && source.charCodeAt(i) === amended.charCodeAt(j)) {
       if (current.length > 0) {
         spans.push(current)
         current = ''
@@ -328,11 +326,11 @@ function addedSpans(amended: string, source: string): string[] {
       j += 1
       continue
     }
-    if (i < source.length && (rows[i + 1]?.[j] ?? 0) >= (rows[i]?.[j + 1] ?? 0)) {
+    if (i < source.length && cellAt((i + 1) * width + j) >= cellAt(i * width + j + 1)) {
       i += 1
       continue
     }
-    current += amended[j] ?? ''
+    current += amended.charAt(j)
     j += 1
   }
   if (current.length > 0) spans.push(current)
@@ -366,7 +364,7 @@ function prefixAddedSpans(amended: string, source: string): string[] {
       index += matched
       continue
     }
-    current += amended[index] ?? ''
+    current += amended.charAt(index)
     index += 1
   }
   if (current.length > 0) spans.push(current)
@@ -381,8 +379,8 @@ function prefixAddedSpans(amended: string, source: string): string[] {
 function trimFunctionEdges(span: string): string {
   let start = 0
   let end = span.length
-  while (start < end && FUNCTION_CHARS.has(span[start] ?? '')) start += 1
-  while (end > start && FUNCTION_CHARS.has(span[end - 1] ?? '')) end -= 1
+  while (start < end && FUNCTION_CHARS.has(span.charAt(start))) start += 1
+  while (end > start && FUNCTION_CHARS.has(span.charAt(end - 1))) end -= 1
   return span.slice(start, end)
 }
 
@@ -507,7 +505,7 @@ function describeScope(sources: readonly string[]): string {
       return '原申请文件'
     })
     .filter((item, index, all) => all.indexOf(item) === index)
-  return description.length > 0 ? description.join(' + ') : '未提供'
+  return description.join(' + ')
 }
 
 /** 渲染检查报告。 */
@@ -520,7 +518,7 @@ function renderReport(options: {
   const lines = [
     `修改依据检查（A33）：${options.passed ? '通过' : `未通过（${String(options.violations.length)} 处疑似新增）`}`,
     `- 比对来源：${options.scope}`,
-    `- 修改后权项：${options.claimNumbers.length > 0 ? options.claimNumbers.join('、') : '未识别'}`,
+    `- 修改后权项：${options.claimNumbers.join('、')}`,
   ]
   if (options.violations.length === 0) {
     lines.push('- 结论：修改后权项的新增内容均可在原申请文件中找到记载')

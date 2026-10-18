@@ -11,7 +11,6 @@ import {
   LookupStageHandler,
   NoveltyHandler,
   SearchHandler,
-  StageError,
   StageHandlerRegistry,
   collectStateText,
   registerBuiltinAtoms,
@@ -40,16 +39,6 @@ it('StageHandlerRegistry：缺少 name 抛错（构造函数经 register 覆盖�
   } catch (err) {
     expect((err as Error).name).toBe('StageHandlerRegistryError')
   }
-})
-
-it('StageError：构造携带 stageId/atom/cause（含缺省 cause）', () => {
-  const withCause = new StageError('s1', 'atom1', 'failed', new Error('root cause'))
-  expect(withCause.stageId).toBe('s1')
-  expect(withCause.atom).toBe('atom1')
-  expect(withCause.name).toBe('StageError')
-  expect(String(withCause.cause)).toContain('root cause')
-  const withoutCause = new StageError('s2', 'a2', 'msg')
-  expect(withoutCause.cause).toBeUndefined()
 })
 
 // ---------------------------------------------------------------------------
@@ -111,6 +100,38 @@ it('search：摘要携带命中详情，并与调用方提供的证据合并去�
   expect(summary).toContain('摘要片段')
 })
 
+it('search：非对象条目与缺失元数据仍能渲染并去重', async () => {
+  const h = new SearchHandler()
+  const out = await h.execute({
+    state: {
+      query: '阀体',
+      prior_art: [
+        '调用方纯文本',
+        { publicationDate: '2023-01-01', dLabel: 5 },
+        { title: '格式错误的标号', dLabel: 'X' },
+        { title: '带标号', dLabel: 'D9' },
+        { title: '无元数据' },
+      ],
+    },
+    provider: {
+      search: async () => [
+        { title: '检索命中', snippet: '摘要'.repeat(200) },
+        { title: '' },
+      ],
+    },
+  })
+  const summary = String(out.search_summary)
+  expect(summary).toContain('- D1 调用方纯文本')
+  expect(summary).toContain('- D2 #2')
+  expect(summary).toContain('- D3 格式错误的标号')
+  expect(summary).toContain('- D9 带标号')
+  expect(summary).toContain('- D5 无元数据')
+  expect(summary).toContain('- D6 检索命中')
+  expect(summary).toContain('- D7 #7')
+  expect(summary).toContain('…')
+  expect(out.prior_art).toHaveLength(7)
+})
+
 it('search：检索抛 Error 与非 Error 均降级', async () => {
   const h = new SearchHandler()
   const err = await h.execute({ state: { query: 'x' }, provider: { search: async () => { throw new Error('net') } } })
@@ -139,7 +160,7 @@ it('keywords：LLM 失败与 JSON 解析失败降级', async () => {
     state: { extraction_result: 'x' },
     provider: { callLLM: async () => JSON.stringify({ other: [] }) },
   })
-  expect(String(noKeywords._error)).toMatch(/关键词 JSON 解析失败/)
+  expect(String(noKeywords._error)).toMatch(/keywords 不是数组/)
 })
 
 it('keywords：经 provider.llm 端口路由（schema/temperature 透传）', async () => {
@@ -183,7 +204,7 @@ it('compare：缺 diff_features / 缺 claim_chart / 失败路径', async () => {
     state: { claim: 'F1' },
     provider: { callLLM: async () => '{"foo":1}' },
   })
-  expect(noChart.claim_chart).toBe('{"foo":1}')
+  expect(String(noChart._error)).toMatch(/claim_chart 不是数组/)
 
   const noProvider = await h.execute({ state: { claim: 'F1' }, provider: {} })
   expect(String(noProvider._error)).toMatch(/未配置 LLM/)
@@ -208,7 +229,7 @@ it('novelty：无 LLM / 缺 assessments / 缺 conclusion', async () => {
     state: { features: ['F1'] },
     provider: { callLLM: async () => JSON.stringify({ conclusion: 'c' }) },
   })
-  expect(String(noAssessments.novelty_result)).toContain('conclusion')
+  expect(String(noAssessments._error)).toMatch(/assessments 不是数组/)
 
   const noConclusion = await h.execute({
     state: { features: ['F1'] },
@@ -283,7 +304,7 @@ it('draft-claims：pfe_triples 输入与失败路径', async () => {
   expect(String(failing._error)).toMatch(/LLM 调用失败/)
 
   const noClaims = await h.execute({ state: { merge_result: 'x' }, provider: { callLLM: async () => '{"notes":"n"}' } })
-  expect(noClaims.claims_draft).toBe('{"notes":"n"}')
+  expect(String(noClaims._error)).toMatch(/claims 不是数组/)
 })
 
 // ---------------------------------------------------------------------------
@@ -299,15 +320,13 @@ it('extract：LLM 失败与缺 features 兜底', async () => {
     state: { text: 'x' },
     provider: { callLLM: async () => JSON.stringify({ problems: ['P'] }) },
   })
-  expect(String(noFeatures.extraction_result)).toContain('problems')
-  expect(noFeatures.features).toBeUndefined()
+  expect(String(noFeatures._error)).toMatch(/features 不是数组/)
 
   const wrongTypes = await h.execute({
     state: { text: 'x' },
     provider: { callLLM: async () => JSON.stringify({ features: ['F'], problems: 'x', effects: 42 }) },
   })
-  expect(wrongTypes.problems).toEqual([])
-  expect(wrongTypes.effects).toEqual([])
+  expect(String(wrongTypes._error)).toMatch(/problems 不是数组/)
 })
 
 // ---------------------------------------------------------------------------
@@ -374,12 +393,12 @@ it('claim-chart：chart_targets 解析失败与缺省字段', async () => {
   expect(String(badKind._error)).toMatch(/kind 非法/)
   expect(String(badKind._error)).toContain('"X"')
 
-  // 非法 kind（无 id）→ '(未命名)' 错误
+  // 缺 id → 带下标的降级（id 是行映射的引用键）
   const noId = await handler.execute({
     state: { claim: CLAIM, chart_targets: JSON.stringify([{ kind: 'bogus' }]) },
     provider: goodProvider,
   })
-  expect(String(noId._error)).toMatch(/未命名/)
+  expect(String(noId._error)).toMatch(/chart_targets\[0\] 缺少 id/)
 
   // product kind 归一化 + 无 title → 成功且 target 字段缺省
   const product = await handler.execute({
@@ -390,19 +409,20 @@ it('claim-chart：chart_targets 解析失败与缺省字段', async () => {
   expect(productDoc.targets[0]!.kind).toBe('accused-product')
   expect(productDoc.targets[0]!.title).toBeUndefined()
 
-  // 无 id 无 title 的 prior-art target → '(未命名目标)' 渲染分支
+  // 无 id 的 prior-art target → 降级（不能成为行映射目标）
   const unnamed = await handler.execute({
     state: { claim: CLAIM, chart_targets: JSON.stringify([{ kind: 'prior-art' }]) },
     provider: goodProvider,
   })
-  expect(typeof unnamed.claim_chart_doc).toBe('string')
+  expect(String(unnamed._error)).toMatch(/chart_targets\[0\] 缺少 id/)
 
-  // 非法 mode → 回退 invalidity
+  // 非法 mode → 降级并列出取值域（不静默回退）
   const badMode = await handler.execute({
     state: { claim: CLAIM, chart_targets: '[]', chart_mode: 'bogus' },
     provider: goodProvider,
   })
-  expect((JSON.parse(badMode.claim_chart_doc as string) as { mode: string }).mode).toBe('invalidity')
+  expect(String(badMode._error)).toMatch(/chart_mode 非法/)
+  expect(String(badMode._error)).toContain('"bogus"')
 
   // 无 chart_mode → 缺省 invalidity
   const noMode = await handler.execute({ state: { claim: CLAIM, chart_targets: '[]' }, provider: goodProvider })

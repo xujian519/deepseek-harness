@@ -3,7 +3,8 @@
  *
  * 包装 `evidence/date.ts` 的公开日认定与截止日比较，按 A22.5 只保留截止日前公开的
  * 文献；A24 的四种首次公开情形在申请日前六个月内发生时，标注为不破坏新颖性并从
- * `prior_art` 中排除。缺少公开日的文献保留并单列，避免把未知日期误判为非现有技术。
+ * `prior_art` 中排除。截止日与申请日必须是具体日期：月级输入无法确定边界，降级
+ * 而不是按月初或月末猜测。缺少公开日的文献保留并单列，避免把未知日期误判为非现有技术。
  *
  * 过滤后的每篇文献保留原始检索位次 `dLabel`（D1、D2……），供 citation-check 在
  * 数组缩短后仍按原标号校验引用；未标注 A24 或标注落在宽限期外的公开仍作为现有技术。
@@ -19,6 +20,7 @@ import {
 import {
   determinePublicationDate,
   isBeforeReferenceDate,
+  isMonthOnlyDate,
   parseDateFlexible,
   type PriorArtReference,
 } from '../../../evidence/date.ts'
@@ -70,11 +72,10 @@ type UndatedEntry = {
   reason: string
 }
 
-/** 单篇文献的公开日读取结果。 */
-type PublicationDateResolution = {
-  date?: string
-  reason?: string
-}
+/** 单篇文献的公开日读取结果：认定成功带日期，否则带原因。 */
+type PublicationDateResolution =
+  | { date: string; reason?: undefined }
+  | { date?: undefined; reason: string }
 
 /** 条目的可读名称：标题 > 专利号 > URL > 位次。 */
 function entryTitle(doc: unknown, index: number): string {
@@ -149,6 +150,7 @@ function monthsBefore(date: Date, months: number): Date {
 /** 判断公开日是否落在申请日前六个月（含起点、不含申请日）。 */
 function withinGracePeriod(publicationDate: string, filingDate: Date): boolean {
   const publication = parseDateFlexible(publicationDate)
+  /* v8 ignore next -- determinePublicationDate only emits parseable dates. */
   if (publication === null) return false
   const start = monthsBefore(filingDate, 6)
   return publication.getTime() >= start.getTime() && publication.getTime() < filingDate.getTime()
@@ -197,11 +199,23 @@ export class PriorArtFilterHandler implements StageHandler {
     if (referenceDate === '') {
       return degraded('prior-art-filter', `缺少现有技术截止日（state.${referenceKey}）`)
     }
+    if (isMonthOnlyDate(referenceDate)) {
+      return degraded(
+        'prior-art-filter',
+        `现有技术截止日（state.${referenceKey}）仅精确到月，需要具体日期（yyyy-MM-dd）：${referenceDate}`,
+      )
+    }
     if (parseDateFlexible(referenceDate) === null) {
       return degraded('prior-art-filter', `现有技术截止日（state.${referenceKey}）无法解析：${referenceDate}`)
     }
 
     const filingDateText = getStateString(state, filingKey).trim()
+    if (filingDateText !== '' && isMonthOnlyDate(filingDateText)) {
+      return degraded(
+        'prior-art-filter',
+        `申请日（state.${filingKey}）仅精确到月，A24 宽限期判定需要具体日期（yyyy-MM-dd）：${filingDateText}`,
+      )
+    }
     const filingDate = filingDateText === '' ? undefined : (parseDateFlexible(filingDateText) ?? undefined)
     if (filingDateText !== '' && filingDate === undefined) {
       return degraded('prior-art-filter', `申请日（state.${filingKey}）无法解析：${filingDateText}`)
@@ -229,7 +243,7 @@ export class PriorArtFilterHandler implements StageHandler {
           index,
           label,
           title,
-          reason: publication.reason ?? '无法确定公开日',
+          reason: publication.reason,
         })
         if (exception.value !== undefined) {
           notes.push(`${label} 标注 ${exception.value}，但公开日未知，A24 未判定`)

@@ -5465,7 +5465,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AtomRegistry',
-    declaration: 'export class AtomRegistry {\n    register(atom: Atom): void;\n    lookup(name: string): Atom | undefined;\n    list(): Atom[];\n    listByCategory(category: AtomCategory): Atom[];\n}',
+    declaration: 'export class AtomRegistry {\n    register(atom: Atom): () => void;\n    lookup(name: string): Atom | undefined;\n    list(): Atom[];\n    listByCategory(category: AtomCategory): Atom[];\n}',
   },
   {
     name: 'AtScheduleRecord',
@@ -9101,7 +9101,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'StageHandlerRegistry',
-    declaration: 'export class StageHandlerRegistry {\n    register(handler: StageHandler): void;\n    lookup(name: string): StageHandler | undefined;\n    list(): StageHandler[];\n}',
+    declaration: 'export class StageHandlerRegistry {\n    register(handler: StageHandler): () => void;\n    lookup(name: string): StageHandler | undefined;\n    list(): StageHandler[];\n}',
   },
   {
     name: 'StageProvider',

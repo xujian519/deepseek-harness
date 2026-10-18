@@ -243,6 +243,7 @@ function literalPattern(keyword: string, flags = 'i'): RegExp {
  */
 function firstMatch(text: string, patterns: readonly string[]): { index: number; length: number } | null {
   for (const pattern of patterns) {
+    /* v8 ignore next -- ground tables never declare empty keywords. */
     if (pattern.length === 0) continue
     const matcher = literalPattern(pattern, 'gi')
     let found = matcher.exec(text)

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   approvalGateAtom,
   AtomRegistry,
+  claimChartAtom,
   clearStageOutputs,
   extractAtom,
+  groundsAtom,
   type WorkflowStage,
 } from '@deepseek-ai/dsh-patent-core'
 
@@ -48,6 +50,26 @@ describe('clearStageOutputs', () => {
     }
     clearStageOutputs({ state, stages, atoms })
     expect(state).toEqual({ input: '交底书' })
+  })
+
+  it('条件输出的附加键（claim_chart_paths / patent_subject）也随回退清理', () => {
+    const atoms = new AtomRegistry()
+    atoms.register(claimChartAtom)
+    atoms.register(groundsAtom)
+    const stages: WorkflowStage[] = [
+      { id: 'build_chart', strategy: 'chain', description: '构建图表', atom: 'claim-chart' },
+      { id: 'identify_grounds', strategy: 'chain', description: '识别理由', atom: 'grounds' },
+    ]
+    const state: Record<string, unknown> = {
+      claim_chart_doc: '{}',
+      gap_list: '[]',
+      claim_chart_paths: '{"jsonPath":"chart.json"}',
+      grounds: '[]',
+      grounds_summary: '未识别',
+      patent_subject: 'invention',
+    }
+    clearStageOutputs({ state, stages, atoms })
+    expect(state).toEqual({})
   })
 
   it('无 atom 阶段只删 stage-id 键；范围之外的阶段不受影响', () => {

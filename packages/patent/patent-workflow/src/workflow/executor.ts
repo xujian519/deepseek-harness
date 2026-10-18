@@ -5,7 +5,8 @@
  * - Object.assign(state, segment) 在 handler 产出后立即合并（state 引用共享）；
  * - 主输出键 = atom.outputSchema[0]，兜底 state[stage.id]；executor 阶段的输出同样写入
  *   state[stage.id]（图适配器亦然），使下游阶段能按 consumes 取到它；
- * - degraded 前缀 [WORKFLOW_DEGRADED] 保留错误信息；
+ * - handler 的降级诊断键只作为阶段局部输入，不写入共享 state；终态失败输出
+ *   [WORKFLOW_DEGRADED] 原因，LLM/检索临时失败按 maxRetries 重试；
  * - approvedGate 由 approvalGrants（stageId 白名单）判定，命中时把 APPROVAL_GRANTED_KEY
  *   注入 execState 执行态拷贝；与图路径同一契约——两条路径都只写执行态、都不写共享 state
  *   （写共享 state 会让一次放行泄漏到同 run 内后续所有门，见 patent-core 的 gate.ts）。
@@ -14,6 +15,8 @@
 import {
   APPROVAL_GRANTED_KEY,
   APPROVAL_GRANTED_OUTPUT,
+  DEGRADED_ERROR_KEY,
+  DEGRADED_RETRYABLE_KEY,
   isApprovalGateHandler,
   isInterruptStageError,
 } from '@deepseek-ai/dsh-patent-core'
@@ -78,10 +81,28 @@ export async function runStageOnce(
           ...(options.provider !== undefined ? { provider: options.provider } : {}),
           ...(options.signal !== undefined ? { signal: options.signal } : {}),
         })
-        Object.assign(state, segment)
+        // 降级诊断是阶段局部契约：剥离后不写入共享 state，避免上一轮错误残留；
+        // 终态失败直接产出可读原因，临时失败（LLM/检索）按 maxRetries 重试。
+        const diagnostic = segment[DEGRADED_ERROR_KEY]
+        const retryable = segment[DEGRADED_RETRYABLE_KEY] === true
+        const delta: PipelineState = { ...segment }
+        Reflect.deleteProperty(delta, DEGRADED_ERROR_KEY)
+        Reflect.deleteProperty(delta, DEGRADED_RETRYABLE_KEY)
+        Object.assign(state, delta)
+        if (typeof diagnostic === 'string' && diagnostic.trim().length > 0) {
+          const message = diagnostic.trim()
+          if (retryable && attempt < options.maxRetries) {
+            lastError = new Error(message)
+            retries = attempt + 1
+            continue
+          }
+          output = `[WORKFLOW_DEGRADED] ${message}`
+          state[stage.id] = output
+          return { output, retries: attempt }
+        }
         // 主输出键 = atom.outputSchema[0]（对齐 Mady 约定，文本/JSON 均可）；兜底按 stage.id 引用。
         const mainKey = stage.atom !== undefined ? options.atoms.lookup(stage.atom)?.outputSchema[0] : undefined
-        const raw = mainKey !== undefined ? segment[mainKey] : undefined
+        const raw = mainKey !== undefined ? delta[mainKey] : undefined
         output = typeof raw === 'string' ? raw : raw === undefined ? '' : JSON.stringify(raw, null, 2)
         if (output.trim().length === 0) {
           const fallback = state[stage.id]
@@ -99,7 +120,8 @@ export async function runStageOnce(
         state[stage.id] = output
       }
       if (output.trim().length > 0) break
-      lastError = new Error('阶段执行未产生输出')
+      // 保留前一次可重试失败的真实原因；空输出本身不是更有价值的诊断。
+      lastError ??= new Error('阶段执行未产生输出')
     } catch (err) {
       if (isInterruptStageError(err)) {
         return { output: '', retries, interrupted: { stageId: stage.id, message: err.message, data: err.data } }

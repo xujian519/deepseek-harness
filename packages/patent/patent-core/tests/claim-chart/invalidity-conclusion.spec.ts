@@ -177,6 +177,70 @@ it('引用关系缺陷随结论输出', () => {
   ])
 })
 
+it('引用到没有要素的权项时不报附加特征问题', () => {
+  const c = chart([row('1a', 'D1', 'literal'), row('1b', 'D1', 'literal')])
+  c.claims = [
+    { claimNo: 1, claimType: 'independent', refersTo: [] },
+    { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+    { claimNo: 3, claimType: 'dependent', refersTo: [1] },
+  ]
+  c.elements = ELEMENTS.filter(element => element.claimNo !== 2)
+  const conclusion = deriveInvalidityConclusion(c)
+  expect(conclusion.dependentClaimIssues).toEqual([])
+})
+
+it('引用链中部分权项已覆盖时跳过该权项', () => {
+  const c = chart([
+    row('1a', 'D1', 'not-found'),
+    row('1b', 'D1', 'not-found'),
+    row('2a', 'D1', 'literal'),
+    row('2b', 'D1', 'literal'),
+    row('3a', 'D1', 'literal'),
+    row('3b', 'D1', 'literal'),
+  ])
+  c.elements = [
+    ...ELEMENTS,
+    { id: '3a', claimNo: 3, text: '根据权利要求2所述的装置', kind: 'preamble' },
+    { id: '3b', claimNo: 3, text: '所述壳体为金属', kind: 'limitation' },
+  ]
+  c.claims = [
+    { claimNo: 1, claimType: 'independent', refersTo: [] },
+    { claimNo: 2, claimType: 'dependent', refersTo: [3] },
+    { claimNo: 3, claimType: 'dependent', refersTo: [1] },
+  ]
+  const issues = deriveInvalidityConclusion(c).dependentClaimIssues
+  expect(issues.map(issue => issue.referredClaimNo)).toEqual([1, 1])
+})
+
+it('渲染无标题的对比文件目标', () => {
+  const c = chart([row('1a', 'D2', 'literal')], [D2])
+  const rendered = renderInvalidityConclusion(deriveInvalidityConclusion(c), c)
+  expect(rendered).toContain('### D2')
+  expect(rendered).not.toContain('### D2（')
+})
+
+it('渲染四类引用关系缺陷', () => {
+  const self = chart([])
+  self.claims = [{ claimNo: 1, claimType: 'dependent', refersTo: [1] }]
+  expect(renderInvalidityConclusion(deriveInvalidityConclusion(self), self)).toContain('权利要求引用了自身')
+
+  const missing = chart([])
+  missing.claims = [
+    { claimNo: 1, claimType: 'independent', refersTo: [] },
+    { claimNo: 2, claimType: 'dependent', refersTo: [7] },
+  ]
+  expect(renderInvalidityConclusion(deriveInvalidityConclusion(missing), missing)).toContain('所引用的权利要求不存在')
+
+  const cycle = chart([])
+  cycle.claims = [
+    { claimNo: 1, claimType: 'dependent', refersTo: [2] },
+    { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+  ]
+  const cycleReport = renderInvalidityConclusion(deriveInvalidityConclusion(cycle), cycle)
+  expect(cycleReport).toContain('从属权利要求只能引用在前的权利要求')
+  expect(cycleReport).toContain('引用关系成环')
+})
+
 it('渲染：逐权项结论、区别特征、路径问题与引用关系未知三分支', () => {
   const covered = deriveInvalidityConclusion(chart([
     row('1a', 'D1', 'literal'),

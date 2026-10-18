@@ -14,6 +14,7 @@ import { type Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
 import {
   DRAFT_NOTICE,
+  MAPPINGS,
   type ChartMode,
   type ChartRow,
   type ChartTarget,
@@ -32,9 +33,10 @@ import {
   type PinCiteCheckResult,
 } from '../../../claim-chart/runtime/pin-cite-validator.ts'
 import { loadClaimChart, saveClaimChart } from '../../../claim-chart/runtime/store.ts'
-import type { ParsedOfficeAction } from '../../../notice/office-action.ts'
+import { asJsonRecord, readJsonString } from '../../../llm-json.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
+import { readAtomTunables } from '../../tunables.ts'
 
 /** claim-chart 原子：权利要求要素级证据网格构建。 */
 export const claimChartAtom: Atom = {
@@ -42,28 +44,22 @@ export const claimChartAtom: Atom = {
   description: '权利要求要素级证据网格：要素编号 + 逐要素映射 + pin-cite + gap 检测',
   category: 'compare',
   inputSchema: ['claim', 'chart_targets', 'chart_mode'],
-  outputSchema: ['claim_chart_doc', 'gap_list'],
+  outputSchema: ['claim_chart_doc', 'gap_list', 'claim_chart_paths'],
   usesModel: true,
 }
 
-const CHART_MODES: readonly string[] = ['infringement', 'invalidity', 'oa-response', 'reexamination', 'patentability']
+const CHART_MODES: readonly ChartMode[] = ['infringement', 'invalidity', 'oa-response', 'reexamination', 'patentability']
+
+/** 类型守卫：值是否为已知的图表模式。 */
+function isChartMode(value: string): value is ChartMode {
+  return CHART_MODES.some(mode => mode === value)
+}
 const ELEMENT_KINDS: readonly string[] = [
   'preamble',
   'transitional',
   'limitation',
   'means-plus-function',
   'markush-member',
-]
-const MAPPINGS: readonly string[] = [
-  'literal',
-  'literal-construction-dependent',
-  'doe',
-  'anticipation',
-  'obviousness-combination',
-  'partial',
-  'not-found',
-  'needs-evidence',
-  'construction-dependent',
 ]
 
 const CHART_SCHEMA = {
@@ -119,14 +115,19 @@ function parseTargets(raw: string): TargetsParseResult {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return { targets: [], error: '输入 chart_targets 不是数组' }
     const targets: ChartTarget[] = []
-    for (const entry of parsed) {
-      const t = entry as Record<string, unknown>
+    for (const [index, entry] of parsed.entries()) {
+      const t = asJsonRecord(entry)
+      if (t === undefined) return { targets: [], error: `chart_targets[${index}] 不是对象` }
+      // id 是行映射的引用键（rows.targetId）；缺失或空串的目标无法被任何行引用，直接报错。
+      const id = readJsonString(t.id)
+      if (id === undefined) {
+        return { targets: [], error: `chart_targets[${index}] 缺少 id（须为非空字符串）` }
+      }
       // kind 归一化：外部契约用 product=被控产品；内核仅支持 prior-art/accused-product，
       // 未知 kind 直接报错（fail-closed），避免静默落入"被控产品"渲染与校验分支。
       const rawKind = t.kind === 'product' ? 'accused-product' : t.kind
       if (rawKind !== 'prior-art' && rawKind !== 'accused-product') {
-        const id = typeof t.id === 'string' ? JSON.stringify(t.id) : '(未命名)'
-        return { targets: [], error: `目标 ${id} 的 kind 非法（仅支持 prior-art/product）: ${JSON.stringify(t.kind)}` }
+        return { targets: [], error: `目标 ${JSON.stringify(id)} 的 kind 非法（仅支持 prior-art/product）: ${JSON.stringify(t.kind)}` }
       }
       let sourcePath: string | undefined
       if (typeof t.sourcePath === 'string') {
@@ -135,7 +136,7 @@ function parseTargets(raw: string): TargetsParseResult {
         sourcePath = t.source_path
       }
       targets.push({
-        id: typeof t.id === 'string' ? t.id : '',
+        id,
         kind: rawKind,
         ...(typeof t.title === 'string' ? { title: t.title } : {}),
         ...(sourcePath === undefined ? {} : { sourcePath }),
@@ -152,26 +153,32 @@ function parseTargets(raw: string): TargetsParseResult {
  *
  * OA 答复的映射对象就是通知书引用的对比文件，来源即 parse 阶段的确定性产出；派生目标
  * 未提供文献正文（无 sourcePath），行内 quote/pinCite 留空串是既定的"未提供源文"语义。
- * 解析产出不可读或没有引用文献时返回空列表，回落"只拆要素"语义——缺目标由上游解析
- * 质量承担，不在此兜底造目标。
+ * 解析产出不可读、不是对象或没有引用文献时返回空列表，回落"只拆要素"语义——缺目标由
+ * 上游解析质量承担，不在此兜底造目标。引用条目缺文献号时跳过该条（无法成为映射目标）。
  * @param officeActionJson - parse 阶段写入 state 的 `office_action` JSON。
  * @returns 对比文件目标列表（按解析顺序去重）；不可解析时为空列表。
  */
 export function deriveOfficeActionTargets(officeActionJson: string): ChartTarget[] {
   if (officeActionJson.trim().length === 0) return []
-  let parsed: ParsedOfficeAction
+  let parsed: unknown
   try {
-    parsed = JSON.parse(officeActionJson) as ParsedOfficeAction
+    parsed = JSON.parse(officeActionJson)
   } catch {
     return []
   }
-  if (!Array.isArray(parsed.citations)) return []
+  const notice = asJsonRecord(parsed)
+  if (notice === undefined) return []
+  const citations = notice.citations
+  if (!Array.isArray(citations)) return []
   const targets: ChartTarget[] = []
   const seen = new Set<string>()
-  for (const citation of parsed.citations) {
-    if (seen.has(citation.documentNumber)) continue
-    seen.add(citation.documentNumber)
-    targets.push({ id: citation.documentNumber, kind: 'prior-art' })
+  for (const citation of citations) {
+    const record = asJsonRecord(citation)
+    if (record === undefined) continue
+    const documentNumber = readJsonString(record.documentNumber)
+    if (documentNumber === undefined || seen.has(documentNumber)) continue
+    seen.add(documentNumber)
+    targets.push({ id: documentNumber, kind: 'prior-art' })
   }
   return targets
 }
@@ -188,8 +195,8 @@ export function derivePriorArtTargets(priorArt: unknown): ChartTarget[] {
   const targets: ChartTarget[] = []
   const seen = new Set<string>()
   priorArt.forEach((entry, index) => {
-    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return
-    const record = entry as Record<string, unknown>
+    const record = asJsonRecord(entry)
+    if (record === undefined) return
     const rawLabel = typeof record.dLabel === 'string' ? record.dLabel.trim() : ''
     const id = /^D\d+$/.test(rawLabel) ? rawLabel : `D${index + 1}`
     if (seen.has(id)) return
@@ -291,6 +298,43 @@ function validateChart(
   return errors
 }
 
+/** 未显式提供目标时，按场景模式从上一阶段产出派生。 */
+function deriveModeTargets(mode: ChartMode, state: PipelineState): ChartTarget[] {
+  if (mode === 'oa-response') return deriveOfficeActionTargets(getStateString(state, 'office_action'))
+  if (mode === 'patentability') return derivePriorArtTargets(state['prior_art'])
+  return []
+}
+
+/**
+ * 预读目标源文件一次（重做 attempt 间复用，避免循环内重复 I/O）。
+ * 读取失败不缓存，由 validateChart 对引用该源的每行报"源文件不可读"。
+ */
+function readTargetSources(targets: readonly ChartTarget[]): Map<string, string> {
+  const cache = new Map<string, string>()
+  for (const target of targets) {
+    if (!target.sourcePath) continue
+    try {
+      cache.set(target.sourcePath, readFileSync(target.sourcePath, 'utf8'))
+    } catch {
+      // 源文件不可读：留空缓存，错误归因下沉到行级校验
+    }
+  }
+  return cache
+}
+
+/** 渲染提示词中的目标清单。 */
+function renderTargetLines(targets: readonly ChartTarget[]): string {
+  if (targets.length === 0) return '（无目标对象 —— 只拆分要素，逐行映射留待后续补充）'
+  return targets
+    .map(
+      target =>
+        `- ${target.id}（${target.kind === 'prior-art' ? '对比文件' : '被控产品'}${
+          target.title ? `：${target.title}` : ''
+        }${target.sourcePath === undefined ? '，未提供源文' : ''}）`,
+    )
+    .join('\n')
+}
+
 /** claim-chart 执行器：构建权利要求要素级证据网格。 */
 export class ClaimChartHandler implements StageHandler {
   readonly name = 'claim-chart'
@@ -303,54 +347,41 @@ export class ClaimChartHandler implements StageHandler {
    */
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = input
+    const tuned = readAtomTunables(state, {
+      temperature: 0.1,
+      promptLimit: 8000,
+      maxRetries: MAX_RETRIES,
+    })
+    if (!tuned.ok) return degraded('claim-chart', tuned.reason)
+    const { temperature, promptLimit, maxRetries } = tuned.tunables
     const missing = requireLlm(provider, 'claim-chart')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')
     if (claim.trim().length === 0) {
       return degraded('claim-chart', '权利要求为空')
     }
-    const modeRaw = getStateString(state, 'chart_mode') || 'invalidity'
-    const mode = (CHART_MODES.includes(modeRaw) ? modeRaw : 'invalidity') as ChartMode
+    // 缺省/空白 chart_mode 沿用 invalidity；显式给出的非法值降级，不静默换模式
+    // （静默回退会让调用方的侵权/可专利性输入按无效模式产出结论）。
+    const modeRaw = getStateString(state, 'chart_mode').trim()
+    if (modeRaw !== '' && !isChartMode(modeRaw)) {
+      return degraded(
+        'claim-chart',
+        `chart_mode 非法: ${JSON.stringify(modeRaw)}（须为 ${CHART_MODES.join(' / ')}）`,
+      )
+    }
+    const mode: ChartMode = modeRaw === '' ? 'invalidity' : modeRaw
     const targetsRes = parseTargets(getStateString(state, 'chart_targets'))
     if (targetsRes.error) return degraded('claim-chart', targetsRes.error)
     // 显式传入的目标优先；OA 答复由解析产出派生，可专利性由过滤后的检索命中派生。
-    const targets =
-      targetsRes.targets.length > 0
-        ? targetsRes.targets
-        : mode === 'oa-response'
-          ? deriveOfficeActionTargets(getStateString(state, 'office_action'))
-          : mode === 'patentability'
-            ? derivePriorArtTargets(state['prior_art'])
-            : []
+    const targets = targetsRes.targets.length > 0 ? targetsRes.targets : deriveModeTargets(mode, state)
 
-    // 预读目标源文件一次（重做 attempt 间复用，避免循环内重复 I/O）；
-    // 读取失败不缓存，由 validateChart 对引用该源的每行报"源文件不可读"。
-    const sourceCache = new Map<string, string>()
-    for (const t of targets) {
-      if (!t.sourcePath) continue
-      try {
-        sourceCache.set(t.sourcePath, readFileSync(t.sourcePath, 'utf8'))
-      } catch {
-        // 源文件不可读：留空缓存，错误归因下沉到行级校验
-      }
-    }
-
-    const targetLines =
-      targets.length === 0
-        ? '（无目标对象 —— 只拆分要素，逐行映射留待后续补充）'
-        : targets
-          .map(
-            t =>
-              `- ${t.id || '(未命名目标)'}（${t.kind === 'prior-art' ? '对比文件' : '被控产品'}${
-                t.title ? `：${t.title}` : ''
-              }${t.sourcePath === undefined ? '，未提供源文' : ''}）`,
-          )
-          .join('\n')
+    const sourceCache = readTargetSources(targets)
+    const targetLines = renderTargetLines(targets)
     const basePrompt = [
       '你是专利权利要求分析专家。把权利要求拆分为编号要素，并逐要素映射到目标对象。',
       '',
       '【权利要求】',
-      dataBlock(claim.slice(0, 8000)),
+      dataBlock(claim.slice(0, promptLimit)),
       '',
       '【目标对象】',
       dataBlock(targetLines),
@@ -372,8 +403,14 @@ export class ClaimChartHandler implements StageHandler {
     ].join('\n')
 
     let prompt = basePrompt
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-      const res = await callLlm(provider, 'claim-chart', prompt, { schema: CHART_SCHEMA, temperature: 0.1 }, signal)
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      const res = await callLlm(
+        provider,
+        'claim-chart',
+        prompt,
+        { schema: CHART_SCHEMA, temperature },
+        signal,
+      )
       if (!res.ok) return res.error
       const parsed = parseLlmJson(
         res.raw,
@@ -436,8 +473,11 @@ export class ClaimChartHandler implements StageHandler {
         }
         return state
       }
-      if (attempt >= MAX_RETRIES) {
-        return degraded('claim-chart', `校验失败且重做超限（${MAX_RETRIES} 次）: ${errors.slice(0, 5).join('；')}`)
+      if (attempt >= maxRetries) {
+        return degraded(
+          'claim-chart',
+          `校验失败且重做超限（${maxRetries} 次）: ${errors.slice(0, 5).join('；')}`,
+        )
       }
       prompt = `${basePrompt}\n\n【上一轮输出校验失败，请修正后重新输出】\n${errors.map(e => `- ${e}`).join('\n')}`
     }

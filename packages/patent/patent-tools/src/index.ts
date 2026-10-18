@@ -15,7 +15,7 @@ import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { createLlmModelPort, globalAtomRegistry, globalStageHandlerRegistry, registerBuiltinAtoms, validateWorkflowBudget, validateWorkflowManifest } from '@deepseek-ai/dsh-patent-core'
-import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
+import type { Atom, PatentModelPort, StageHandler } from '@deepseek-ai/dsh-patent-core'
 import type { ImageAttachmentRef, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-patent-knowledge'
 import { builtinPatentManifests, SHIPPED_GUIDELINE_REVISION } from '@deepseek-ai/dsh-patent-workflow'
@@ -620,6 +620,32 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
 }
 
 /**
+ * 把本包自有的 atom/handler 注册包装为 Cordis effect：插件 dispose 时撤销本次注册。
+ *
+ * patent-core 的内置 atom 由 `registerBuiltinAtoms()` 全局共享，归属核心而非单个插件，
+ * 不在本 effect 内撤销。
+ * @param ctx - 插件上下文。
+ * @param pairs - 本包注册的 atom 与 handler。
+ */
+function registerPackageAtoms(
+  ctx: Context,
+  pairs: readonly { atom: Atom; handler: StageHandler }[],
+): void {
+  ctx.effect(
+    () => {
+      const disposers = pairs.flatMap(({ atom, handler }) => [
+        globalAtomRegistry.register(atom),
+        globalStageHandlerRegistry.register(handler),
+      ])
+      return () => {
+        for (const dispose of disposers.reverse()) dispose()
+      }
+    },
+    'patent-tools: workflow atoms',
+  )
+}
+
+/**
  * Register the 32 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
@@ -637,18 +663,14 @@ export function apply(ctx: Context, config: Config): void {
   // slop-gate 依赖本包的 slop 引擎，spec-check 依赖本包的说明书校验器，
   // response-check 与 eligibility 复用 patent-rule 的规则资产，legal-gaps 汇总这些检查；
   // 均按依赖方向注册在 patent-core 内置之外。
-  globalAtomRegistry.register(slopGateAtom)
-  globalStageHandlerRegistry.register(new SlopGateHandler())
-  globalAtomRegistry.register(draftSpecificationAtom)
-  globalStageHandlerRegistry.register(new DraftSpecificationHandler())
-  globalAtomRegistry.register(specCheckAtom)
-  globalStageHandlerRegistry.register(new SpecCheckHandler())
-  globalAtomRegistry.register(responseCheckAtom)
-  globalStageHandlerRegistry.register(new ResponseCheckHandler())
-  globalAtomRegistry.register(eligibilityAtom)
-  globalStageHandlerRegistry.register(new EligibilityHandler())
-  globalAtomRegistry.register(legalGapsAtom)
-  globalStageHandlerRegistry.register(new LegalGapsHandler())
+  registerPackageAtoms(ctx, [
+    { atom: slopGateAtom, handler: new SlopGateHandler() },
+    { atom: draftSpecificationAtom, handler: new DraftSpecificationHandler() },
+    { atom: specCheckAtom, handler: new SpecCheckHandler() },
+    { atom: responseCheckAtom, handler: new ResponseCheckHandler() },
+    { atom: eligibilityAtom, handler: new EligibilityHandler() },
+    { atom: legalGapsAtom, handler: new LegalGapsHandler() },
+  ])
   // Budgets are deployment configuration: a manifest that grows past them fails
   // the load instead of quietly multiplying model calls at run time.
   const budget = {

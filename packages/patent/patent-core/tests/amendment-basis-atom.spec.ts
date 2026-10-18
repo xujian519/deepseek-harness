@@ -246,6 +246,130 @@ describe('amendment-basis atom', () => {
     expect(out._error).toContain('original_text_keys')
   })
 
+  it('缺少修改后文本但提供了原申请文件 → 降级为缺少答复正文', async () => {
+    const out = await handler.execute({ state: { claims: ORIGINAL_CLAIMS } })
+    expect(out._error).toContain('缺少答复正文')
+  })
+
+  it('空白字符串视为未提供文本', async () => {
+    const blank = await handler.execute({ state: { draft: '   ', claims: ORIGINAL_CLAIMS } })
+    expect(blank._error).toContain('缺少答复正文')
+  })
+
+  it('标题与权项同行的写法也能提取', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: `修改后权利要求书：${ORIGINAL_CLAIMS}\n\n意见陈述：无。`,
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(out.amendment_basis_report).toContain('修改后权项：1')
+  })
+
+  it('标题后直接进入下一节 → 视为未修改权利要求', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: ['修改后权利要求书：', '意见陈述：本次未修改权利要求。'].join('\n'),
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(out.amendment_basis_scope).toBe('未检测到修改后权利要求')
+  })
+
+  it('跨行权项正文按同一权项合并', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(['1. 一种装置，包括壳体，', '其特征在于，所述壳体上设置有散热孔。'].join('\n')),
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(out.amendment_basis_report).toContain('修改后权项：1')
+  })
+
+  it('原申请文件中的权利要求段也用于建立对比基础', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(ORIGINAL_CLAIMS.replace('散热孔。', '散热孔和过滤网。')),
+        description: '权利要求书：\n1. 一种装置，包括壳体，其特征在于，所述壳体上设置有散热孔和过滤网。',
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(out.amendment_basis_scope).toBe('原说明书 + 原权利要求书')
+  })
+
+  it('多个键提供相同原文时只参与一次比对', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(ORIGINAL_CLAIMS),
+        description: ORIGINAL_CLAIMS,
+        original_description: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(out.amendment_basis_scope).toBe('原说明书')
+  })
+
+  it('修改后权项规范化后为空 → 不产生新增片段', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft('1. 其特征在于'),
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(violations(out)).toEqual([])
+  })
+
+  it('原申请文件规范化后为空 → 修改后权项整体列为新增', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft('1. 一种装置'),
+        claims: '其特征在于',
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(false)
+    expect(violations(out)[0]?.addedSpan).toBe('装置')
+  })
+
+  it('超长文本退回前缀匹配，仍能定位中间插入片段', async () => {
+    const source = '甲'.repeat(2010)
+    const amended = `${'甲'.repeat(1000)}乙乙乙乙乙乙乙乙乙乙${'甲'.repeat(1000)}`
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(`1. ${amended}`),
+        claims: `1. ${source}`,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(false)
+    expect(violations(out)[0]?.addedSpan).toBe('乙乙乙乙乙乙乙乙乙乙')
+  })
+
+  it('超长文本末尾新增的片段也会输出', async () => {
+    const source = '甲'.repeat(2010)
+    const amended = `${'甲'.repeat(2010)}乙乙乙乙乙乙乙乙乙乙`
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(`1. ${amended}`),
+        claims: `1. ${source}`,
+      },
+    })
+    expect(violations(out)[0]?.addedSpan).toBe('乙乙乙乙乙乙乙乙乙乙')
+  })
+
+  it('新增片段末尾的虚词被剥离', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(ORIGINAL_CLAIMS.replace('散热孔。', '散热孔和过滤网之后。')),
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(violations(out)[0]?.addedSpan).toBe('过滤网')
+  })
+
   it('报告固定写明字符级对照的复核限制', async () => {
     const out = await handler.execute({
       state: {

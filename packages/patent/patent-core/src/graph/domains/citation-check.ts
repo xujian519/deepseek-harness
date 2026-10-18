@@ -23,9 +23,8 @@ import { extractCitationIds, extractDocIds } from '../../citation-ids.ts'
 export { PATENT_NUMBER_RE, extractCitationIds, extractDocIds } from '../../citation-ids.ts'
 
 /** 读取 prior-art-filter 保留的原始检索位次（D1、D2……）。 */
-function originalDocLabel(doc: unknown): string | undefined {
-  if (doc === null || typeof doc !== 'object') return undefined
-  const label = (doc as Record<string, unknown>).dLabel
+function originalDocLabel(doc: Record<string, unknown>): string | undefined {
+  const label = doc.dLabel
   return typeof label === 'string' && /^D\d+$/.test(label.trim()) ? label.trim() : undefined
 }
 
@@ -78,7 +77,8 @@ export function checkCitations(opts: {
   // 避免过滤缩短数组后把 D2 误认成 D1。
   const docIds = docs.flatMap((doc, index) => {
     const ids = extractDocIds(doc)
-    return ids.length > 0 ? [...ids, originalDocLabel(doc) ?? `D${index + 1}`] : ids
+    // extractDocIds 仅对对象条目产出标识，故此处已可读 dLabel。
+    return ids.length > 0 ? [...ids, originalDocLabel(doc as Record<string, unknown>) ?? `D${index + 1}`] : ids
   })
   if (docIds.length === 0 && receiptIds === undefined) {
     return {

@@ -95,3 +95,68 @@ export function readJsonNumber(value: unknown): number | undefined {
 export function readJsonStringArray(value: unknown): string[] {
   return asJsonArray(value).map(readJsonString).filter((entry): entry is string => entry !== undefined)
 }
+
+/** 严格字符串数组解析结果：成功携带原数组顺序，失败携带可直接展示的原因。 */
+export type JsonStringArrayResult =
+  | { ok: true; values: string[] }
+  | { ok: false; reason: string }
+
+/**
+ * 严格读取字符串数组：非数组或含非字符串项时失败，并指出首个非法下标。
+ *
+ * 与 {@link readJsonStringArray} 的宽容过滤不同，本函数用于承载交付物的字段
+ * （权利要求、关键词、提取特征等）：静默丢弃或 `String()` 强转会让非法模型输出
+ * 变成 `[object Object]` 或缺失项。
+ * @param value - 待校验的 JSON 值。
+ * @param label - 字段名，用于错误文案。
+ * @returns 原序字符串数组，或失败原因。
+ */
+export function parseJsonStringArray(value: unknown, label: string): JsonStringArrayResult {
+  if (!Array.isArray(value)) return { ok: false, reason: `${label} 不是数组` }
+  const values: string[] = []
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== 'string') {
+      return { ok: false, reason: `${label} 数组含非字符串项（下标 ${index}）` }
+    }
+    values.push(entry)
+  }
+  return { ok: true, values }
+}
+
+/**
+ * 读取可选字符串数组：字段缺失视为空数组，存在时按 {@link parseJsonStringArray} 严格校验。
+ *
+ * 用于 schema 中非必需、但一旦给出就必须是字符串数组的字段（如 extract 的 problems/effects）。
+ * @param value - 待校验的 JSON 值。
+ * @param label - 字段名，用于错误文案。
+ * @returns 原序字符串数组（缺失时为空数组），或失败原因。
+ */
+export function parseOptionalJsonStringArray(value: unknown, label: string): JsonStringArrayResult {
+  return value === undefined ? { ok: true, values: [] } : parseJsonStringArray(value, label)
+}
+
+/** 严格对象数组解析结果：成功携带原序对象，失败携带可直接展示的原因。 */
+export type JsonRecordArrayResult =
+  | { ok: true; values: Record<string, unknown>[] }
+  | { ok: false; reason: string }
+
+/**
+ * 严格读取对象数组：非数组或含非对象项时失败，并指出首个非法下标。
+ *
+ * 用于承载逐项结构化输出的字段（compare 的 claim_chart、novelty 的 assessments）：
+ * 静默保留 `null` 或标量项会让下游按记录字段读取时崩溃，或把非法项写进报告。
+ * @param value - 待校验的 JSON 值。
+ * @param label - 字段名，用于错误文案。
+ * @returns 原序对象数组，或失败原因。
+ */
+export function parseJsonRecordArray(value: unknown, label: string): JsonRecordArrayResult {
+  if (!Array.isArray(value)) return { ok: false, reason: `${label} 不是数组` }
+  const values: Record<string, unknown>[] = []
+  for (const [index, entry] of value.entries()) {
+    if (!isJsonRecord(entry)) {
+      return { ok: false, reason: `${label} 数组含非对象项（下标 ${index}）` }
+    }
+    values.push(entry)
+  }
+  return { ok: true, values }
+}

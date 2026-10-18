@@ -243,10 +243,10 @@ function buildReport(
 
   for (const entry of excluded) {
     const dates = [
-      entry.filingDate !== undefined ? `申请日 ${entry.filingDate}` : '',
-      entry.publicationDate !== undefined ? `公开日 ${entry.publicationDate}` : '',
-    ].filter(part => part.length > 0)
-    const prefix = dates.length > 0 ? `${dates.join('，')}，` : ''
+      `申请日 ${entry.filingDate}`,
+      ...(entry.publicationDate !== undefined ? [`公开日 ${entry.publicationDate}`] : []),
+    ]
+    const prefix = `${dates.join('，')}，`
     lines.push(`- ${entry.label} ${entry.id}${entry.title === entry.id ? '' : `《${entry.title}》`}：${prefix}${reasonText[entry.reason]}`)
   }
 

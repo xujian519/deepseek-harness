@@ -9,7 +9,6 @@
     "packages/document/document-deliver/src/tool.ts|packages/document/document-deliver/src/tool.ts",
     "packages/patent/methodology/src/tool/triz.ts|packages/patent/methodology/src/tool/triz.ts",
     "packages/patent/patent-core/src/atoms/handlers/builtin/chart.ts|packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts",
-    "packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts|packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts",
     "packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts|packages/patent/patent-core/src/atoms/handlers/builtin/draft.ts",
     "packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts|packages/patent/patent-core/src/atoms/handlers/builtin/extract.ts",
     "packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts|packages/patent/patent-core/src/atoms/handlers/builtin/reason.ts",

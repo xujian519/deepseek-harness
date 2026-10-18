@@ -160,6 +160,48 @@ describe('evidence-check atom', () => {
     expect(pending(exempt)).toEqual([])
   })
 
+  it('复合证据同时检查外文译本与域外公证认证', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        {
+          title: 'US1234567A',
+          type: '现有技术 外文证据 域外证据',
+          translated: false,
+          notarized: false,
+          legalized: false,
+          publicationDate: '2023-01-01',
+          submittedAt: '2024-06-01',
+          grounds: ['新颖性'],
+        },
+      ]),
+    })
+    expect(out.evidence_check_passed).toBe(false)
+    expect(codes(out)).toEqual(
+      expect.arrayContaining([
+        'EVID-FORM-TRANSLATION',
+        'EVID-FORM-NOTARIZATION',
+        'EVID-FORM-LEGALIZATION',
+      ]),
+    )
+    expect(out.evidence_check_report).toContain('[现有技术/外文证据/域外证据]')
+  })
+
+  it('电子数据：形式要件列入待核，不静默通过', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        {
+          title: '电子邮件记录',
+          type: '电子数据',
+          submittedAt: '2024-06-01',
+          grounds: ['公开使用'],
+        },
+      ]),
+    })
+    expect(out.evidence_check_passed).toBe(true)
+    expect(pending(out).map(item => item.code)).toContain('EVID-FORM-ELECTRONIC')
+    expect(out.evidence_check_report).toContain('[电子数据]')
+  })
+
   it('证人证言未载明证人身份 → 阻断', async () => {
     const out = await handler.execute({
       state: stateWith([
@@ -213,6 +255,15 @@ describe('evidence-check atom', () => {
     })
     expect(after.evidence_check_passed).toBe(false)
     expect(codes(after)).toContain('EVID-TIME-NOT-PRIOR-ART')
+  })
+
+  it('月级公开日的月末晚于月中截止日 → 不构成现有技术', async () => {
+    const out = await handler.execute({
+      state: stateWith([priorArt({ publicationDate: '2024-06' })], { reference_date: '2024-06-15' }),
+    })
+    expect(out.evidence_check_passed).toBe(false)
+    expect(codes(out)).toContain('EVID-TIME-NOT-PRIOR-ART')
+    expect(String(out.evidence_check_report)).toContain('公开日 2024-06-30 不早于现有技术截止日 2024-06-15')
   })
 
   it('A24 宽限期标注只提示，不在本原子判断是否适用', async () => {
@@ -336,6 +387,193 @@ describe('evidence-check atom', () => {
   it('状态键参数非法 → 降级', async () => {
     const out = await handler.execute({ state: { evidence_key: 123 } })
     expect(String(out._error)).toContain('evidence_key')
+  })
+
+  it('未标注证据类型 → 不命中任何形式检查', async () => {
+    const out = await handler.execute({
+      state: stateWith([{ title: '未分类证据', submittedAt: '2024-06-01', grounds: ['其他'] }]),
+    })
+    expect(out.evidence_check_passed).toBe(true)
+    expect(violations(out)).toEqual([])
+  })
+
+  it('外文证据已附译本 → 不产生违规或待核', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        { title: 'US1234567A', type: '外文证据', translated: true, submittedAt: '2024-06-01', grounds: ['新颖性'] },
+      ]),
+    })
+    expect(violations(out)).toEqual([])
+    expect(pending(out)).toEqual([])
+  })
+
+  it('外文证据提供译本正文但未声明布尔值 → 视为已说明', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        {
+          title: 'US1234567A',
+          type: '外文证据',
+          translation: '中文译文全文',
+          submittedAt: '2024-06-01',
+          grounds: ['新颖性'],
+        },
+      ]),
+    })
+    expect(violations(out)).toEqual([])
+    expect(pending(out)).toEqual([])
+  })
+
+  it('布尔字段为 null 按缺失处理', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        { title: 'US1234567A', type: '外文证据', translated: null, submittedAt: '2024-06-01', grounds: ['新颖性'] },
+      ]),
+    })
+    expect(pending(out).map(item => item.code)).toContain('EVID-FORM-TRANSLATION')
+  })
+
+  it('域外证据未说明公证与认证 → 两项待核', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        { title: '域外合同', type: '域外证据', submittedAt: '2024-06-01', grounds: ['公开使用'] },
+      ]),
+    })
+    expect(pending(out).map(item => item.code)).toEqual(
+      expect.arrayContaining(['EVID-FORM-NOTARIZATION', 'EVID-FORM-LEGALIZATION']),
+    )
+  })
+
+  it('布尔字段类型错误 → 降级并指出字段', async () => {
+    const notarized = await handler.execute({
+      state: stateWith([
+        { title: '域外合同', type: '域外证据', notarized: 'yes', submittedAt: '2024-06-01', grounds: ['公开使用'] },
+      ]),
+    })
+    expect(String(notarized._error)).toContain('notarized 必须是布尔值')
+    const legalized = await handler.execute({
+      state: stateWith([
+        { title: '域外合同', type: '域外证据', legalized: 1, submittedAt: '2024-06-01', grounds: ['公开使用'] },
+      ]),
+    })
+    expect(String(legalized._error)).toContain('legalized 必须是布尔值')
+    const witness = await handler.execute({
+      state: stateWith([
+        { title: '证人证言', type: '证人证言', witness: '王某', witnessDisclosed: 'no', submittedAt: '2024-06-01', grounds: ['公开使用'] },
+      ]),
+    })
+    expect(String(witness._error)).toContain('witnessDisclosed 必须是布尔值')
+  })
+
+  it('关联理由或权项接受字符串数组并丢弃无效项', async () => {
+    const out = await handler.execute({
+      state: stateWith([priorArt({ grounds: [1, '新颖性'], claims: [null, 'claim_1'] })]),
+    })
+    expect(codes(out)).not.toContain('EVID-RELEVANCE-UNLINKED')
+  })
+
+  it('举证期限为 null、空白或月级 → 缺失或降级', async () => {
+    const missing = await handler.execute({ state: stateWith([], { evidence_deadline: null }) })
+    expect(pending(missing).map(item => item.code)).toContain('EVID-TIME-DEADLINE')
+    const blank = await handler.execute({ state: stateWith([], { evidence_deadline: '   ' }) })
+    expect(pending(blank).map(item => item.code)).toContain('EVID-TIME-DEADLINE')
+    const month = await handler.execute({ state: stateWith([], { evidence_deadline: '2024-06' }) })
+    expect(String(month._error)).toContain('仅精确到月')
+  })
+
+  it('申请日或优先权日仅到月 → 降级', async () => {
+    const filing = await handler.execute({
+      state: stateWith([], { reference_date: undefined, filing_date: '2024-06' }),
+    })
+    expect(String(filing._error)).toContain('无法解析为具体日期')
+    const priority = await handler.execute({
+      state: stateWith([], { reference_date: undefined, filing_date: undefined, priority_date: '2024-06' }),
+    })
+    expect(String(priority._error)).toContain('无法解析为具体日期')
+  })
+
+  it('外文证据译本声明类型错误 → 降级', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        { title: 'US1234567A', type: '外文证据', translated: 'yes', submittedAt: '2024-06-01', grounds: ['新颖性'] },
+      ]),
+    })
+    expect(String(out._error)).toContain('translated 必须是布尔值')
+  })
+
+  it('域外证据已公证认证 → 不产生待核', async () => {
+    const out = await handler.execute({
+      state: stateWith([
+        { title: '域外合同', type: '域外证据', notarized: true, legalized: true, submittedAt: '2024-06-01', grounds: ['公开使用'] },
+      ]),
+    })
+    expect(pending(out)).toEqual([])
+    expect(violations(out)).toEqual([])
+  })
+
+  it('关联理由与权项接受单个字符串，空字符串被忽略', async () => {
+    const scalar = await handler.execute({
+      state: stateWith([priorArt({ grounds: '新颖性', claims: 'claim_1' })]),
+    })
+    expect(codes(scalar)).not.toContain('EVID-RELEVANCE-UNLINKED')
+    const blank = await handler.execute({
+      state: stateWith([priorArt({ grounds: '', claims: [] })]),
+    })
+    expect(codes(blank)).toContain('EVID-RELEVANCE-UNLINKED')
+  })
+
+  it('举证期限类型错误 → 降级', async () => {
+    const out = await handler.execute({ state: stateWith([], { evidence_deadline: 20240701 }) })
+    expect(String(out._error)).toContain('必须是字符串')
+  })
+
+  it('提交日仅到月 → 降级', async () => {
+    const out = await handler.execute({ state: stateWith([priorArt({ submittedAt: '2024-06' })]) })
+    expect(String(out._error)).toContain('仅精确到月')
+  })
+
+  it('截止日类型错误、月级或不可解析 → 降级', async () => {
+    const wrongType = await handler.execute({ state: stateWith([], { reference_date: 20240601 }) })
+    expect(String(wrongType._error)).toContain('reference_date 必须是字符串')
+    const month = await handler.execute({ state: stateWith([], { reference_date: '2024-06' }) })
+    expect(String(month._error)).toContain('仅精确到月')
+  })
+
+  it('申请日或优先权日类型错误 → 降级', async () => {
+    const filing = await handler.execute({
+      state: stateWith([], { reference_date: undefined, filing_date: 20240601 }),
+    })
+    expect(String(filing._error)).toContain('filing_date 必须是字符串')
+    const priority = await handler.execute({
+      state: stateWith([], { reference_date: undefined, filing_date: undefined, priority_date: 20240601 }),
+    })
+    expect(String(priority._error)).toContain('priority_date 必须是字符串')
+  })
+
+  it('只提供优先权日时取优先权日作为截止日', async () => {
+    const out = await handler.execute({
+      state: stateWith([priorArt({ publicationDate: '2024-04-01' })], {
+        reference_date: undefined,
+        filing_date: undefined,
+        priority_date: '2024-05-01',
+      }),
+    })
+    expect(out.evidence_check_passed).toBe(true)
+    expect(out.evidence_check_report).toContain('优先权日')
+  })
+
+  it('申请日与优先权日为空白字符串 → 视为缺失', async () => {
+    const out = await handler.execute({
+      state: stateWith([priorArt()], { reference_date: undefined, filing_date: '  ', priority_date: ' ' }),
+    })
+    expect(pending(out).map(item => item.code)).toContain('EVID-TIME-REFERENCE')
+  })
+
+  it('各状态键参数非法 → 分别降级', async () => {
+    const cases = ['deadline_key', 'reference_date_key', 'filing_date_key', 'priority_date_key'] as const
+    for (const key of cases) {
+      const out = await handler.execute({ state: { evidence: [], [key]: 123 } })
+      expect(String(out._error)).toContain(key)
+    }
   })
 
   it('报告固定写明实质判断仍需人工复核', async () => {

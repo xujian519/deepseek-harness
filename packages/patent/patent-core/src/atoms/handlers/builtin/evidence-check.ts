@@ -4,7 +4,8 @@
  * 无效宣告与复审程序中，证据能否被采纳先于证据的证明力判断。本原子做确定性核对：
  * - 形式：证据须有可识别的名称/来源；外文证据须附中文译本；域外证据须公证、认证
  *   （公开出版物等法定免除情形由调用方以 `notarizedExempt`/`legalizedExempt` 声明）；
- *   证人证言须载明证人身份；内容哈希与原文摘录可对应时校验完整性。
+ *   证人证言须载明证人身份；内容哈希与原文摘录可对应时校验完整性。同一份证据可同时
+ *   命中多项形式（例如域外外文对比文件），各项检查独立运行，不按单一分类短路。
  * - 期限：`submittedAt` 晚于举证期限且没有正当理由的，列为阻断项；有理由的降为提示，
  *   由合议组决定是否采纳。举证期限由调用方显式给出，本原子不从程序文书推断。
  * - 关联性：证据须说明所依据的无效/复审理由或关联的权利要求，否则列为提示项。
@@ -48,8 +49,17 @@ export const DEFAULT_EVIDENCE_FILING_DATE_KEY = 'filing_date'
 /** 优先权日默认所在的状态键。 */
 export const DEFAULT_EVIDENCE_PRIORITY_DATE_KEY = 'priority_date'
 
-/** 证据类型归一后的分类。 */
-type EvidenceKind = 'prior-art' | 'foreign-language' | 'overseas' | 'witness' | 'electronic' | 'general'
+/**
+ * 证据形式属性：同一份证据可以同时是现有技术、外文证据与域外证据，
+ * 每项适用检查都须运行，不能按单一分类短路。
+ */
+type EvidenceForms = {
+  priorArt: boolean
+  foreignLanguage: boolean
+  overseas: boolean
+  witness: boolean
+  electronic: boolean
+}
 
 /** 违规严重度：阻断项使 `evidence_check_passed` 为 false，提示项只报告。 */
 export type EvidenceCheckSeverity = 'block' | 'warn'
@@ -168,10 +178,10 @@ function readBoolean(
  */
 function readDate(
   record: Record<string, unknown>,
-  fields: readonly string[],
+  fields: readonly [string, ...string[]],
   allowMonthOnly: boolean,
 ): DateResolution {
-  const field = fields[0] ?? 'date'
+  const field = fields[0]
   const text = firstText(record, fields)
   if (text === undefined) return { missing: true }
   if (isMonthOnlyDate(text)) {
@@ -179,7 +189,8 @@ function readDate(
     const parsed = parseDateFlexible(text)
     /* v8 ignore next -- isMonthOnlyDate guarantees parseDateFlexible succeeds. */
     if (parsed === null) return { error: `${field} 无法解析：${text}` }
-    return { date: parsed, text: inferredMonthEnd(parsed) }
+    const monthEndDate = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 0))
+    return { date: monthEndDate, text: inferredMonthEnd(parsed) }
   }
   const parsed = parseDateFlexible(text)
   if (parsed === null) return { error: `${field} 不是可识别的日期：${text}` }
@@ -191,19 +202,28 @@ function toIsoDate(date: Date): string {
 }
 
 /**
- * 归一证据类型。中英文标签均可，未知类型按一般证据处理。
+ * 识别证据的全部适用形式。中英文标签均可，各项独立命中；未知类型不命中任何项。
  * @param raw - 原始类型字段。
- * @returns 归一后的证据分类。
+ * @returns 证据形式属性集合。
  */
-function classifyKind(raw: string | undefined): EvidenceKind {
-  if (raw === undefined) return 'general'
+function classifyForms(raw: string | undefined): EvidenceForms {
+  if (raw === undefined) {
+    return {
+      priorArt: false,
+      foreignLanguage: false,
+      overseas: false,
+      witness: false,
+      electronic: false,
+    }
+  }
   const text = raw.trim().toLowerCase()
-  if (/(prior[-_ ]?art|现有技术|对比文件|公开出版物|专利文献)/u.test(text)) return 'prior-art'
-  if (/(foreign|外文|译文|translation)/u.test(text)) return 'foreign-language'
-  if (/(overseas|域外|境外证据)/u.test(text)) return 'overseas'
-  if (/(witness|证人|证言)/u.test(text)) return 'witness'
-  if (/(electronic|电子数据|电子证据)/u.test(text)) return 'electronic'
-  return 'general'
+  return {
+    priorArt: /(prior[-_ ]?art|现有技术|对比文件|公开出版物|专利文献)/u.test(text),
+    foreignLanguage: /(foreign|外文|译文|translation)/u.test(text),
+    overseas: /(overseas|域外|境外证据)/u.test(text),
+    witness: /(witness|证人|证言)/u.test(text),
+    electronic: /(electronic|电子数据|电子证据)/u.test(text),
+  }
 }
 
 /**
@@ -228,6 +248,9 @@ function hasIdentity(record: Record<string, unknown>): boolean {
 /** 举证期限解析结果。 */
 type DeadlineResolution = { date: Date; text: string } | { missing: true } | { error: string }
 
+/** 执行器已拒绝错误后，期限检查只会看到可用或缺失。 */
+type ResolvedDeadline = Exclude<DeadlineResolution, { error: string }>
+
 /**
  * 读取举证期限。非字符串、仅到月或不可解析均视为录入错误（降级）。
  * @param state - 阶段执行态。
@@ -251,6 +274,9 @@ type ReferenceResolution =
   | { date: Date; text: string; basis: 'reference-date' | 'filing-date' | 'priority-date' }
   | { missing: true }
   | { error: string }
+
+/** 执行器已拒绝错误后，公开日检查只会看到可用或缺失。 */
+type ResolvedReference = Exclude<ReferenceResolution, { error: string }>
 
 /**
  * 解析现有技术截止日：优先 `reference_date`，否则取申请日与优先权日中较早者。
@@ -320,7 +346,7 @@ type EntryContext = {
   record: Record<string, unknown>
   label: string
   index: number
-  kind: EvidenceKind
+  forms: EvidenceForms
 }
 
 /** 单条证据的核对结果。 */
@@ -349,8 +375,8 @@ function pending(ctx: EntryContext, code: string, message: string): EvidenceChec
  * @param reference - 现有技术截止日。
  * @returns 违规项、待核项或录入错误。
  */
-function checkEntry(ctx: EntryContext, reference: ReferenceResolution): EntryResult {
-  const { record, kind } = ctx
+function checkEntry(ctx: EntryContext, reference: ResolvedReference): EntryResult {
+  const { record, forms } = ctx
   const violations: EvidenceCheckViolation[] = []
   const pendingItems: EvidenceCheckPending[] = []
 
@@ -360,7 +386,7 @@ function checkEntry(ctx: EntryContext, reference: ReferenceResolution): EntryRes
     )
   }
 
-  if (kind === 'foreign-language') {
+  if (forms.foreignLanguage) {
     const translated = readBoolean(record, 'translated')
     if (translated.error !== undefined) return { violations, pending: pendingItems, error: translated.error }
     const translationText = firstText(record, ['translation', 'translationText'])
@@ -373,7 +399,7 @@ function checkEntry(ctx: EntryContext, reference: ReferenceResolution): EntryRes
     }
   }
 
-  if (kind === 'overseas') {
+  if (forms.overseas) {
     const notarized = readBoolean(record, 'notarized')
     if (notarized.error !== undefined) return { violations, pending: pendingItems, error: notarized.error }
     const legalized = readBoolean(record, 'legalized')
@@ -400,7 +426,7 @@ function checkEntry(ctx: EntryContext, reference: ReferenceResolution): EntryRes
     }
   }
 
-  if (kind === 'witness') {
+  if (forms.witness) {
     if (firstText(record, ['witness', 'witnessName']) === undefined) {
       violations.push(violation(ctx, 'EVID-FORM-WITNESS', 'block', '证人证言未载明证人身份，无法核对作证资格'))
     }
@@ -413,7 +439,7 @@ function checkEntry(ctx: EntryContext, reference: ReferenceResolution): EntryRes
     }
   }
 
-  if (kind === 'prior-art') {
+  if (forms.priorArt) {
     const publication = readDate(record, PUBLICATION_FIELDS, true)
     if ('error' in publication) return { violations, pending: pendingItems, error: publication.error }
     if ('missing' in publication) {
@@ -448,8 +474,17 @@ function checkEntry(ctx: EntryContext, reference: ReferenceResolution): EntryRes
     }
   }
 
+  if (forms.electronic) {
+    pendingItems.push(
+      pending(
+        ctx,
+        'EVID-FORM-ELECTRONIC',
+        '电子数据形式要件（原始载体、提取过程、完整性校验）需人工核验',
+      ),
+    )
+  }
+
   const integrity = checkIntegrity(ctx)
-  if (integrity.error !== undefined) return { violations, pending: pendingItems, error: integrity.error }
   violations.push(...integrity.violations)
   pendingItems.push(...integrity.pending)
 
@@ -492,7 +527,6 @@ function readRefs(record: Record<string, unknown>, fields: readonly string[]): s
 function checkIntegrity(ctx: EntryContext): {
   violations: EvidenceCheckViolation[]
   pending: EvidenceCheckPending[]
-  error?: string
 } {
   const hash = firstText(ctx.record, ['contentHash', 'content_hash'])
   if (hash === undefined) return { violations: [], pending: [] }
@@ -528,10 +562,9 @@ function checkIntegrity(ctx: EntryContext): {
  */
 function checkDeadline(
   ctx: EntryContext,
-  deadline: DeadlineResolution,
+  deadline: ResolvedDeadline,
 ): { violations: EvidenceCheckViolation[]; pending: EvidenceCheckPending[]; error?: string } {
   if ('missing' in deadline) return { violations: [], pending: [] }
-  if ('error' in deadline) return { violations: [], pending: [], error: deadline.error }
 
   const submitted = readDate(ctx.record, SUBMITTED_FIELDS, false)
   if ('error' in submitted) return { violations: [], pending: [], error: submitted.error }
@@ -577,8 +610,8 @@ function checkDeadline(
  */
 function renderReport(params: {
   count: number
-  deadline: DeadlineResolution
-  reference: ReferenceResolution
+  deadline: ResolvedDeadline
+  reference: ResolvedReference
   entries: Array<{ ctx: EntryContext; result: EntryResult }>
   listPending: EvidenceCheckPending[]
 }): string {
@@ -592,17 +625,13 @@ function renderReport(params: {
   const deadlineText =
     'missing' in params.deadline
       ? '举证期限：未提供（期限检查未评估）'
-      : 'error' in params.deadline
-        ? `举证期限：${params.deadline.error}`
-        : `举证期限：${params.deadline.text}`
+      : `举证期限：${params.deadline.text}`
   const referenceText =
     'missing' in params.reference
       ? '现有技术截止日：未提供（公开日检查未评估）'
-      : 'error' in params.reference
-        ? `现有技术截止日：${params.reference.error}`
-        : `现有技术截止日：${params.reference.text}（${
-          params.reference.basis === 'priority-date' ? '优先权日' : '申请日'
-        }）`
+      : `现有技术截止日：${params.reference.text}（${
+        params.reference.basis === 'priority-date' ? '优先权日' : '申请日'
+      }）`
 
   const lines = [
     `证据审查（无效/复审）：${verdict}（阻断 ${blocks} 项，提示 ${warns} 项，待核 ${pendingCount} 项）`,
@@ -611,7 +640,7 @@ function renderReport(params: {
 
   for (const { ctx, result } of params.entries) {
     const name = displayName(ctx.record, ctx.index)
-    const kindLabel = ctx.kind === 'general' ? '' : `[${kindText(ctx.kind)}]`
+    const kindLabel = formLabel(ctx.forms)
     if (result.violations.length === 0 && result.pending.length === 0) {
       lines.push(`- ${ctx.label}《${name}》${kindLabel}：通过`)
       continue
@@ -640,25 +669,18 @@ function renderReport(params: {
 }
 
 /**
- * 证据分类的中文标签。
- * @param kind - 归一后的证据分类。
- * @returns 中文标签。
+ * 证据形式属性对应的报告标签，按固定顺序拼接。
+ * @param forms - 证据形式属性集合。
+ * @returns 形如 `[现有技术/外文证据]` 的标签；全部未命中时为空串。
  */
-function kindText(kind: EvidenceKind): string {
-  switch (kind) {
-    case 'prior-art':
-      return '现有技术'
-    case 'foreign-language':
-      return '外文证据'
-    case 'overseas':
-      return '域外证据'
-    case 'witness':
-      return '证人证言'
-    case 'electronic':
-      return '电子数据'
-    case 'general':
-      return '一般证据'
-  }
+function formLabel(forms: EvidenceForms): string {
+  const labels: string[] = []
+  if (forms.priorArt) labels.push('现有技术')
+  if (forms.foreignLanguage) labels.push('外文证据')
+  if (forms.overseas) labels.push('域外证据')
+  if (forms.witness) labels.push('证人证言')
+  if (forms.electronic) labels.push('电子数据')
+  return labels.length > 0 ? `[${labels.join('/')}]` : ''
 }
 
 /** evidence-check 执行器：逐条核对证据的形式、期限与关联性。 */
@@ -719,8 +741,8 @@ export class EvidenceCheckHandler implements StageHandler {
     for (const [index, raw] of rawList.entries()) {
       const label = `证据${index + 1}`
       if (!isRecord(raw)) return degraded('evidence-check', `${label} 条目不是对象`)
-      const kind = classifyKind(firstText(raw, ['type', 'evidenceType', 'kind']))
-      const ctx: EntryContext = { record: raw, label, index, kind }
+      const forms = classifyForms(firstText(raw, ['type', 'evidenceType', 'kind']))
+      const ctx: EntryContext = { record: raw, label, index, forms }
 
       const entryResult = checkEntry(ctx, reference)
       if (entryResult.error !== undefined) return degraded('evidence-check', `${label} ${entryResult.error}`)

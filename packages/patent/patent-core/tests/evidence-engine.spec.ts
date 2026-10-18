@@ -179,6 +179,42 @@ it('使用公开：销售 + 无保密 → 四要件全部满足', () => {
   expect(j.typeSpecificJudgment?.burdenDifficulty !== undefined).toBeTruthy()
 })
 
+it('使用公开规则：四要件条件全部命中时规则成立', () => {
+  const engine = new EvidenceEngine(`weights:
+  relevance: 0.5
+  legality: 0.25
+  authenticity: 0.25
+rules:
+  - ruleId: EVI-015
+    name: 使用公开证据审查规则
+    description: d
+    severity: major
+    action: apply
+    evidenceType: public_use
+    check:
+      type: public_use
+      method: multi_condition
+      conditions:
+        - public_use_time_available
+        - public_use_place_identified
+        - public_use_method_identified
+        - public_use_publicly_accessible
+`)
+  const j = engine.judge(
+    span({
+      sourceUri: 'pub_use:2023年1月销售',
+      docVersion: '2023-01-10',
+      snippet: '2023年1月10日在上海公开销售该产品',
+      direction: 'contradicting',
+    }),
+    { filingDate: '2023-02-01' },
+  )
+  const rule = j.rulesApplied.find(item => item.ruleId === 'EVI-015')
+  expect(rule?.satisfied).toBe(true)
+  expect(rule?.failedConditions).toEqual([])
+  expect(rule?.pendingInputs).toEqual([])
+})
+
 it('使用公开：保密协议 → 公众可获取性不满足', () => {
   const engine = new EvidenceEngine()
   const j = engine.judge(

@@ -35,15 +35,28 @@ export type Atom = {
 /** Atom 注册表：按 name 登记、查询原子，并支持按分类列出。 */
 export class AtomRegistry {
   private readonly atoms = new Map<string, Atom>()
+  /** 每次注册的独立令牌：同名覆盖时旧 disposer 不能删除后继，即使对象相同。 */
+  private readonly tokens = new Map<string, object>()
 
   /**
    * 同名注册覆盖先前定义（对齐 Mady 覆盖语义，便于测试与扩展）。
+   *
+   * 注册是 effect：返回的 disposer 只撤销本次注册。名称已被后续注册覆盖时，旧
+   * disposer 不删除后继（插件卸载不得拆掉后来者的贡献），重复注册同一对象亦然。
    * @param atom - 待注册的 Atom。
+   * @returns 撤销本次注册的 disposer；可重复调用。
    */
-  register(atom: Atom): void {
+  register(atom: Atom): () => void {
     if (!atom.name.trim()) throw new AtomRegistryError('Atom 缺少 name')
     if (!atom.description.trim()) throw new AtomRegistryError(`Atom "${atom.name}" 缺少 description`)
+    const token = {}
     this.atoms.set(atom.name, atom)
+    this.tokens.set(atom.name, token)
+    return () => {
+      if (this.tokens.get(atom.name) !== token) return
+      this.tokens.delete(atom.name)
+      this.atoms.delete(atom.name)
+    }
   }
 
   /**
@@ -87,9 +100,10 @@ export const globalAtomRegistry = new AtomRegistry()
 /**
  * 向全局注册表登记一个 Atom（同名覆盖）。
  * @param atom - 待注册的 Atom。
+ * @returns 撤销本次注册的 disposer。
  */
-export function RegisterAtom(atom: Atom): void {
-  globalAtomRegistry.register(atom)
+export function RegisterAtom(atom: Atom): () => void {
+  return globalAtomRegistry.register(atom)
 }
 
 /**

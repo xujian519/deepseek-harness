@@ -7,19 +7,35 @@
  */
 
 import type { PipelineState } from '../../handler.ts'
-import { getStateArray, getStateString } from '../../handler.ts'
+import {
+  DEGRADED_ERROR_KEY,
+  DEGRADED_RETRYABLE_KEY,
+  getStateArray,
+  getStateString,
+} from '../../handler.ts'
 import type { StageProvider } from '../../../types.ts'
 import { collectPortText } from '../../../model-port.ts'
 import { tryParseJson } from '../../../llm-json.ts'
 
+/** 降级选项：`retryable` 标记 LLM/检索等临时故障，供执行器重试。 */
+export type DegradedOptions = {
+  /** `true` 表示失败可重试；缺省为终态失败。 */
+  retryable?: boolean
+}
+
 /**
- * 返回包含 _error 的降级状态片段。
+ * 返回包含降级诊断的状态片段。
  * @param atom - 发生降级的原子名称。
  * @param reason - 降级原因。
- * @returns 携带 _error 键的状态片段。
+ * @param options - 可选重试标记；终态失败省略。
+ * @returns 携带 {@link DEGRADED_ERROR_KEY} 的状态片段，可重试时另带
+ *   {@link DEGRADED_RETRYABLE_KEY}。
  */
-export function degraded(atom: string, reason: string): PipelineState {
-  return { _error: `[${atom}] ${reason}` }
+export function degraded(atom: string, reason: string, options: DegradedOptions = {}): PipelineState {
+  return {
+    [DEGRADED_ERROR_KEY]: `[${atom}] ${reason}`,
+    ...(options.retryable === true ? { [DEGRADED_RETRYABLE_KEY]: true } : {}),
+  }
 }
 
 /**
@@ -68,7 +84,11 @@ function resolveLlmCall(
   provider: StageProvider | undefined,
   signal?: AbortSignal,
 ): ((prompt: string, opts?: { jsonSchema?: unknown; temperature?: number }) => Promise<string>) | undefined {
-  if (provider?.callLLM) return provider.callLLM
+  if (provider?.callLLM) {
+    const callLLM = provider.callLLM
+    // 字符串接缝的 signal 是第三个参数；直接返回 provider.callLLM 会丢掉它。
+    return async (prompt, opts) => callLLM(prompt, opts, signal)
+  }
   if (provider?.llm) {
     const port = provider.llm
     // 端口桥接：逐调用 temperature/schema 经 PatentModelRequest 传递，
@@ -128,7 +148,11 @@ export async function callLlm(
     // 配置类错误（fail-loud LLM stub 的 setup_required）向上传播，不得降级为阶段错误。
     if (err instanceof Error && (err as { code?: unknown }).code === 'setup_required') throw err
     const message = err instanceof Error ? err.message : String(err)
-    return { ok: false, error: degraded(atom, `LLM 调用失败: ${message}`), message }
+    return {
+      ok: false,
+      error: degraded(atom, `LLM 调用失败: ${message}`, { retryable: true }),
+      message,
+    }
   }
 }
 

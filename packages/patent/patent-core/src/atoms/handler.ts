@@ -4,9 +4,10 @@
  * StageHandler 负责具体执行：读取 PipelineState，调用外部能力（LLM/检索器，
  * 经 StageProvider 注入），返回新的状态片段供后续阶段使用。
  *
- * 错误模型（对齐 Mady）：
- * - StageError：普通阶段错误（workflow 捕获后标记 degraded，不中断整个流程）
+ * 错误模型：
+ * - 预期失败：handler 返回 {@link degraded} 片段，执行器标记该阶段 degraded，不中断流程
  * - InterruptStageError：需要人工介入的中断（如审批门），上层捕获后暂停等待恢复
+ * - 其它异常：执行器按阶段失败重试/降级；图路径由节点策略转节点级标记
  */
 
 import type { AtomCategory } from './atom.ts'
@@ -14,6 +15,18 @@ import type { StageProvider } from '../types.ts'
 
 /** 键值状态容器（字符串键 → 任意值），阶段间数据流管道。 */
 export type PipelineState = Record<string, unknown>
+
+/**
+ * 降级诊断键：handler 返回该键表示本阶段未产出业务结果。
+ * 执行器把它作为阶段局部诊断读取并输出 `[WORKFLOW_DEGRADED]`，不写入共享 state。
+ */
+export const DEGRADED_ERROR_KEY = '_error'
+
+/**
+ * 降级重试标记键：与 {@link DEGRADED_ERROR_KEY} 同时出现时，`true` 表示该失败
+ * 属于 LLM/检索等临时故障，可由执行器重试；缺省或 `false` 表示终态失败。
+ */
+export const DEGRADED_RETRYABLE_KEY = '_retryable'
 
 /**
  * 类型安全读取：键不存在或非字符串时返回缺省值。
@@ -83,23 +96,6 @@ export interface StageHandler {
   execute(input: StageExecuteInput): Promise<PipelineState>
 }
 
-/** 普通阶段错误：workflow 捕获后标记 degraded（可选步骤失败不影响整体）。 */
-export class StageError extends Error {
-  /** 发生错误的阶段 id。 */
-  readonly stageId: string
-  /** 对应 Atom 名称。 */
-  readonly atom: string
-  override readonly cause?: unknown
-
-  constructor(stageId: string, atom: string, message: string, cause?: unknown) {
-    super(message)
-    this.name = 'StageError'
-    this.stageId = stageId
-    this.atom = atom
-    this.cause = cause
-  }
-}
-
 /** 中断错误（如审批门）：上层捕获后暂停执行，等待人工恢复。 */
 export class InterruptStageError extends Error {
   /** 中断发生的阶段 id。 */
@@ -129,14 +125,27 @@ export function isInterruptStageError(err: unknown): err is InterruptStageError 
 /** StageHandler 注册表：按 name 登记、查询执行器。 */
 export class StageHandlerRegistry {
   private readonly handlers = new Map<string, StageHandler>()
+  /** 每次注册的独立令牌：同名覆盖时旧 disposer 不能删除后继，即使对象相同。 */
+  private readonly tokens = new Map<string, object>()
 
   /**
    * 同名注册覆盖先前定义（对齐 Mady 覆盖语义，便于测试与扩展）。
+   *
+   * 注册是 effect：返回的 disposer 只撤销本次注册。名称已被后续注册覆盖时，旧
+   * disposer 不删除后继（插件卸载不得拆掉后来者的贡献），重复注册同一对象亦然。
    * @param handler - 待注册的 StageHandler。
+   * @returns 撤销本次注册的 disposer；可重复调用。
    */
-  register(handler: StageHandler): void {
+  register(handler: StageHandler): () => void {
     if (!handler.name.trim()) throw new StageHandlerRegistryError('StageHandler 缺少 name')
+    const token = {}
     this.handlers.set(handler.name, handler)
+    this.tokens.set(handler.name, token)
+    return () => {
+      if (this.tokens.get(handler.name) !== token) return
+      this.tokens.delete(handler.name)
+      this.handlers.delete(handler.name)
+    }
   }
 
   /**
