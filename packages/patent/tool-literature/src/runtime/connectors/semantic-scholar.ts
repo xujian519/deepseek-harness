@@ -6,12 +6,7 @@
  * id 可以是 paperId 或外部 id（"DOI:10.…"、"ARXIV:…"、"PMID:…"）。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import {
-  LiteratureHttpClient,
-  type LiteratureBudgetOptions,
-  type LiteratureFetchOptions,
-  type LiteratureRateLimit,
-} from '../http.ts'
+import { connectorHttp, type ConnectorHttpOptions } from './connector-http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.semanticscholar.org/graph/v1/paper'
@@ -19,14 +14,9 @@ const FIELDS = 'title,abstract,url,year,venue,citationCount,externalIds,authors.
 const RATE_LIMIT = { minIntervalMs: 1000 }
 
 /** 创建 Semantic Scholar 连接器的选项（提额 key、限速、预算）。 */
-export interface CreateSemanticScholarConnectorOptions extends LiteratureBudgetOptions {
+export interface CreateSemanticScholarConnectorOptions extends ConnectorHttpOptions {
   /** 可选提额 key；默认回退 SEMANTIC_SCHOLAR_API_KEY 环境变量。 */
   apiKey?: string
-  fetchImpl?: typeof fetch
-  /** 覆盖默认 1s per-host 限速（测试注入小值/0）。 */
-  rateLimit?: LiteratureRateLimit
-  /** 共享 HTTP 客户端（registry 注入；省略时连接器自建）。 */
-  client?: LiteratureHttpClient
 }
 
 interface Author {
@@ -73,14 +63,7 @@ function toHit(p: Paper): ConnectorHit {
  * @returns Semantic Scholar 连接器。
  */
 export function createSemanticScholarConnector(options: CreateSemanticScholarConnectorOptions = {}): Connector {
-  const client = options.client ?? new LiteratureHttpClient()
-  const http: LiteratureFetchOptions = {
-    fetchImpl: options.fetchImpl,
-    rateLimit: options.rateLimit ?? RATE_LIMIT,
-    timeoutMs: options.timeoutMs,
-    cacheTtlMs: options.cacheTtlMs,
-    retry: options.retry,
-  }
+  const { client, http } = connectorHttp(options, RATE_LIMIT)
   const apiHeaders = (): Record<string, string> | undefined => {
     const key = options.apiKey?.trim() || process.env.SEMANTIC_SCHOLAR_API_KEY?.trim()
     return key ? { 'x-api-key': key } : undefined

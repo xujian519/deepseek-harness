@@ -6,19 +6,16 @@
  * 可选 `OPENALEX_MAILTO` 环境变量覆盖默认值。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { LiteratureHttpClient, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
+import { connectorHttp, type ConnectorHttpOptions } from './connector-http.ts'
 import { clampLimit, formatAuthors, fromInverted, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.openalex.org/works'
 const DEFAULT_MAILTO = 'sati@users.noreply.github.com'
 
 /** 创建 OpenAlex 连接器的选项（polite pool 邮箱等）。 */
-export interface CreateOpenAlexConnectorOptions extends LiteratureBudgetOptions {
+export interface CreateOpenAlexConnectorOptions extends ConnectorHttpOptions {
   /** polite pool 标识邮箱；默认回退 OPENALEX_MAILTO 环境变量。 */
   mailto?: string
-  fetchImpl?: typeof fetch
-  /** 共享 HTTP 客户端（registry 注入；省略时连接器自建）。 */
-  client?: LiteratureHttpClient
 }
 
 interface Authorship {
@@ -82,13 +79,7 @@ function toHit(w: Work): ConnectorHit {
  * @returns OpenAlex 连接器。
  */
 export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions = {}): Connector {
-  const client = options.client ?? new LiteratureHttpClient()
-  const http: LiteratureFetchOptions = {
-    fetchImpl: options.fetchImpl,
-    timeoutMs: options.timeoutMs,
-    cacheTtlMs: options.cacheTtlMs,
-    retry: options.retry,
-  }
+  const { client, http } = connectorHttp(options)
   const polite = (): string => {
     const email = options.mailto?.trim() || process.env.OPENALEX_MAILTO?.trim() || DEFAULT_MAILTO
     return `mailto=${encodeURIComponent(email)}`

@@ -5,18 +5,14 @@
  * 摘要（如有）为 JATS XML，剥离为纯文本。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { LiteratureHttpClient, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
+import { connectorHttp, type ConnectorHttpOptions } from './connector-http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.crossref.org/works'
 const MAILTO = 'mailto=sati@users.noreply.github.com'
 
 /** 创建 Crossref 连接器的选项。 */
-export interface CreateCrossrefConnectorOptions extends LiteratureBudgetOptions {
-  fetchImpl?: typeof fetch
-  /** 共享 HTTP 客户端（registry 注入；省略时连接器自建）。 */
-  client?: LiteratureHttpClient
-}
+export type CreateCrossrefConnectorOptions = ConnectorHttpOptions
 
 interface Author {
   given?: string
@@ -73,13 +69,7 @@ function toHit(w: Work): ConnectorHit {
  * @returns Crossref 连接器。
  */
 export function createCrossrefConnector(options: CreateCrossrefConnectorOptions = {}): Connector {
-  const client = options.client ?? new LiteratureHttpClient()
-  const http: LiteratureFetchOptions = {
-    fetchImpl: options.fetchImpl,
-    timeoutMs: options.timeoutMs,
-    cacheTtlMs: options.cacheTtlMs,
-    retry: options.retry,
-  }
+  const { client, http } = connectorHttp(options)
   return {
     id: 'crossref',
     name: 'Crossref',

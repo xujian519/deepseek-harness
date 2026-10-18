@@ -9,12 +9,8 @@
  * `fetch` 用 `id_list` 形式精确取记录。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import {
-  LiteratureHttpClient,
-  type LiteratureBudgetOptions,
-  type LiteratureFetchOptions,
-  type LiteratureRateLimit,
-} from '../http.ts'
+import type { LiteratureFetchOptions, LiteratureHttpClient } from '../http.ts'
+import { connectorHttp, type ConnectorHttpOptions } from './connector-http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 import { xmlAttr, xmlBlocks, xmlSelfClosing, xmlText } from '../shared/xml.ts'
 
@@ -25,13 +21,7 @@ const RATE_LIMIT = { minIntervalMs: 3000 }
 const FIELDED = /^(ti|au|abs|co|jr|cat|rn|id|all):/i
 
 /** 创建 arXiv 连接器的选项（fetch/限速/预算注入）。 */
-export interface CreateArxivConnectorOptions extends LiteratureBudgetOptions {
-  fetchImpl?: typeof fetch
-  /** 覆盖默认 3s per-host 限速（测试注入小值/0）。 */
-  rateLimit?: LiteratureRateLimit
-  /** 共享 HTTP 客户端（registry 注入；省略时连接器自建）。 */
-  client?: LiteratureHttpClient
-}
+export type CreateArxivConnectorOptions = ConnectorHttpOptions
 
 interface Entry {
   id: string
@@ -122,14 +112,7 @@ function toHit(e: Entry): ConnectorHit {
  * @returns arXiv 连接器。
  */
 export function createArxivConnector(options: CreateArxivConnectorOptions = {}): Connector {
-  const client = options.client ?? new LiteratureHttpClient()
-  const http: LiteratureFetchOptions = {
-    fetchImpl: options.fetchImpl,
-    rateLimit: options.rateLimit ?? RATE_LIMIT,
-    timeoutMs: options.timeoutMs,
-    cacheTtlMs: options.cacheTtlMs,
-    retry: options.retry,
-  }
+  const { client, http } = connectorHttp(options, RATE_LIMIT)
   return {
     id: 'arxiv',
     name: 'arXiv',
