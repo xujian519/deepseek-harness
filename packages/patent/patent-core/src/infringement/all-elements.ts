@@ -21,7 +21,7 @@
  * 的输入列）。
  */
 
-import type { ChartRow, ClaimElement, Mapping } from '../claim-chart/protocol/types.ts'
+import type { ChartRowMatch, ClaimElementRef, Mapping } from '../claim-chart/protocol/types.ts'
 
 /** 全面覆盖的判定结果。 */
 export type AllElementsOutcome =
@@ -63,9 +63,9 @@ const CONSTRUCTION_MAPPINGS = new Set<Mapping>(['literal-construction-dependent'
  * @returns 全面覆盖判定结果；要素为空时 `outcome` 为 `not-covered`。
  */
 export function deriveAllElementsCoverage(
-  rows: readonly ChartRow[],
+  rows: readonly ChartRowMatch[],
   targetId: string,
-  elements: readonly ClaimElement[],
+  elements: readonly ClaimElementRef[],
 ): AllElementsCoverage {
   const targetRows = rows.filter(row => row.targetId === targetId)
   const literalElements: string[] = []

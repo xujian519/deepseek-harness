@@ -55,7 +55,8 @@ export function loadClaimChart(caseId: string, chartId: string): ClaimChart | nu
     // 引用关系是后加的字段：旧文件没有它，按"引用关系未知"处理（不得据此断言全部权项独立）。
     if (!Array.isArray(parsed.claims)) parsed.claims = []
     // 旧文件用 gaps[].mapping 表示缺口类别；kind 是后加字段，先迁移再交给渲染。
-    for (const gap of (parsed.gaps ?? []) as { kind?: GapKind; mapping?: GapKind }[]) {
+    if (!Array.isArray(parsed.gaps)) parsed.gaps = []
+    for (const gap of parsed.gaps as { kind?: GapKind; mapping?: GapKind }[]) {
       if (gap.kind === undefined && gap.mapping !== undefined) gap.kind = gap.mapping
     }
     return parsed as ClaimChart

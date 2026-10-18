@@ -48,6 +48,32 @@ export type Mapping =
   | 'needs-evidence'
   | 'construction-dependent'
 
+/**
+ * 全部映射结论取值（运行时校验与 JSON schema 枚举共用）。
+ *
+ * 新增映射时与 {@link Mapping} 联合类型一起维护。
+ */
+export const MAPPINGS: readonly Mapping[] = [
+  'literal',
+  'literal-construction-dependent',
+  'doe',
+  'anticipation',
+  'obviousness-combination',
+  'partial',
+  'not-found',
+  'needs-evidence',
+  'construction-dependent',
+]
+
+/**
+ * 判定映射结论是否为已知取值。
+ * @param value - 待判定的值。
+ * @returns 值是否为 `Mapping`。
+ */
+export function isMapping(value: unknown): value is Mapping {
+  return typeof value === 'string' && MAPPINGS.some(entry => entry === value)
+}
+
 /** 行状态：与 Mapping 同值，承载行的当前映射结论。 */
 export type RowState = Mapping
 
@@ -209,3 +235,12 @@ export interface ClaimChart {
   gaps: GapEntry[]
   draftNotice: string
 }
+
+/** 行级映射的最小读取面：全面覆盖与等同核验只读这三列。 */
+export type ChartRowMatch = Pick<ChartRow, 'elementId' | 'targetId' | 'mapping'>
+
+/** 目标的最小读取面：全面覆盖判定只读 id 与 kind。 */
+export type ChartTargetRef = Pick<ChartTarget, 'id' | 'kind'>
+
+/** 权利要求要素的最小读取面：全面覆盖判定只读 id。 */
+export type ClaimElementRef = Pick<ClaimElement, 'id'>

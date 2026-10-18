@@ -107,6 +107,24 @@ describe('createLlmModelPort', () => {
     expect(events).toEqual([{ type: 'delta', text: '答' }, { type: 'done' }])
   })
 
+  it('bindSession keeps the route and adds the session id', async () => {
+    captured = undefined
+    const port = createLlmModelPort(streamOf([{ type: 'finish', reason: { kind: 'stop' } }]), {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      temperature: 0.2,
+      maxTokens: 128,
+    })
+    const sessionId = 'session-1' as NonNullable<GenerateOptions['sessionId']>
+    const bound = port.bindSession?.(sessionId)
+    if (bound === undefined) throw new Error('bindSession missing')
+    expect(bound.route).toEqual(port.route)
+    await collectPortText(bound, '你好')
+    expect(captured!.sessionId).toBe('session-1')
+    expect(captured!.temperature).toBe(0.2)
+    expect(captured!.maxTokens).toBe(128)
+  })
+
   it('rethrows an error finish so the atoms degrade the stage', async () => {
     captured = undefined
     const port = createLlmModelPort(

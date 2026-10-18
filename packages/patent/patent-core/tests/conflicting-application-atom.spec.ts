@@ -293,6 +293,56 @@ describe('conflicting-application atom', () => {
     expect(String(out._error)).toContain('目标时间基准')
   })
 
+  it('reference_date 缺失时对申请日的月级与不可解析输入降级', async () => {
+    const month = await handler.execute({
+      state: stateWith([entry()], { reference_date: undefined, filing_date: '2024-06' }),
+    })
+    expect(String(month._error)).toContain('目标申请日')
+    expect(String(month._error)).toContain('仅精确到月')
+    const invalid = await handler.execute({
+      state: stateWith([entry()], { reference_date: undefined, filing_date: '2024-13-01' }),
+    })
+    expect(String(invalid._error)).toContain('目标申请日')
+    expect(String(invalid._error)).toContain('无法解析')
+  })
+
+  it('目标日期键参数非法时分别降级', async () => {
+    const dateKey = await handler.execute({ state: stateWith([entry()], { target_date_key: '' }) })
+    expect(String(dateKey._error)).toContain('target_date_key')
+    const filingKey = await handler.execute({ state: stateWith([entry()], { target_filing_date_key: 1 }) })
+    expect(String(filingKey._error)).toContain('target_filing_date_key')
+  })
+
+  it('标题与标识相同时不重复渲染书名号', async () => {
+    const confirmed = await handler.execute({
+      state: stateWith([entry({ title: undefined, applicant: '某公司' })]),
+    })
+    expect(confirmed.conflicting_applications).toMatchObject([{ title: 'CN123456A', applicant: '某公司' }])
+    expect(String(confirmed.conflicting_application_report)).not.toContain('《CN123456A》')
+
+    const excluded = await handler.execute({
+      state: stateWith([entry({ title: undefined, filingDate: '2024-06-01' })]),
+    })
+    expect(String(excluded.conflicting_application_report)).toContain('- E1 CN123456A：')
+    expect(String(excluded.conflicting_application_report)).not.toContain('《CN123456A》')
+
+    const unknown = await handler.execute({
+      state: stateWith([entry({ title: undefined, filingDate: undefined })]),
+    })
+    expect(String(unknown.conflicting_application_report)).toContain('- E1 CN123456A：缺少申请日')
+    expect(String(unknown.conflicting_application_report)).not.toContain('《CN123456A》')
+  })
+
+  it('排除条目缺少公开日时只列申请日', async () => {
+    const out = await handler.execute({
+      state: stateWith([entry({ publicationDate: undefined, filingDate: '2024-07-01' })]),
+    })
+    expect(out.conflicting_application_excluded).toMatchObject([{ reason: 'filed-after-target' }])
+    const report = String(out.conflicting_application_report)
+    expect(report).toContain('申请日 2024-07-01，申请日不早于目标申请日')
+    expect(report).not.toContain('公开日 undefined')
+  })
+
   it('自定义状态键与非法键参数', async () => {
     const custom = await handler.execute({
       state: {

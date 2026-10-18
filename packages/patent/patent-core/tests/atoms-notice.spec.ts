@@ -127,6 +127,20 @@ describe('response-plan 原子', () => {
     expect(text).toContain('- 权利要求2（从属）：从属引用调整')
   })
 
+  it('解析产出缺少 affectedClaims 或不是合法 JSON 时降级', async () => {
+    const noClaims = await run('response-plan', {
+      office_action: JSON.stringify({
+        rejectionType: 'inventiveness',
+        rejectionTypes: ['inventiveness'],
+        citations: [],
+      }),
+    })
+    expect(String(noClaims._error)).toContain('缺少 affectedClaims 数组')
+
+    const invalid = await run('response-plan', { office_action: '{"rejectionType":' })
+    expect(String(invalid._error)).toContain('不是合法 JSON')
+  })
+
   it('缺少解析产出时降级（不猜计划）', async () => {
     const out = await run('response-plan', { claims: '1. 一种装置。' })
     expect(String(out._error)).toContain('[response-plan]')

@@ -132,6 +132,10 @@ describe('detectIndependentClaims', () => {
     expect(detectIndependentClaims(text)).toEqual([1, 4])
   })
 
+  it('忽略编号小于 1 的标题', () => {
+    expect(detectIndependentClaims('0. 一种装置。\n1. 一种方法。')).toEqual([1])
+  })
+
   it('无法切分时不作判定（返回空数组，由缺口提示人工确认）', () => {
     expect(detectIndependentClaims('')).toEqual([])
     expect(detectIndependentClaims('权利要求1不具备创造性。')).toEqual([])

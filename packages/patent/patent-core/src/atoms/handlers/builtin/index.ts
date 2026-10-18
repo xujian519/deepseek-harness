@@ -57,7 +57,7 @@ export {
   GROUNDEDNESS_THRESHOLD,
 } from './reason.ts'
 export { draftClaimsAtom, DraftClaimsHandler } from './draft.ts'
-export { degraded } from './llm.ts'
+export { degraded, type DegradedOptions } from './llm.ts'
 export {
   approvalGateAtom,
   ApprovalGateHandler,
@@ -67,7 +67,7 @@ export {
   isApprovalGateHandler,
   isGateApproved,
 } from './gate.ts'
-export { claimChartAtom, ClaimChartHandler } from './chart.ts'
+export { claimChartAtom, ClaimChartHandler, deriveOfficeActionTargets } from './chart.ts'
 export {
   oaParseAtom,
   OaParseHandler,

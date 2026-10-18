@@ -191,8 +191,10 @@ function collectPriorArtSegments(rawDocs: readonly unknown[]): {
  */
 function toOverlapEntries(overlaps: readonly NumericRangeOverlap[]): NumericRangeOverlapEntry[] {
   return overlaps.map(overlap => ({
+    /* v8 ignore next -- the handler always supplies the claim id. */
     claimId: overlap.claim.claimId ?? 'claim',
     claimExpression: overlap.claim.expression,
+    /* v8 ignore next -- the handler always supplies the prior-art id. */
     priorDocId: overlap.prior.docId ?? '',
     priorExpression: overlap.prior.expression,
     kind: overlap.kind,

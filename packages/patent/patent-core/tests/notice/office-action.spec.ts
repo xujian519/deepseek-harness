@@ -222,6 +222,26 @@ describe('formatOfficeActionSummary', () => {
     )
   })
 
+  it('标注冲突进入摘要并提示人工核对', () => {
+    const parsed: ParsedOfficeAction = {
+      rejectionType: 'novelty',
+      rejectionTypes: ['novelty'],
+      citations: [{ documentNumber: 'CN112345678A', relevancy: 'X', claimsAffected: [] }],
+      affectedClaims: [1],
+      examinerArguments: [],
+      parseConflicts: [
+        {
+          source: '引用文献 CN112345678A 的相关性类别',
+          candidates: ['X 类', 'A 类'],
+          basis: '按首现标注继续（X 类）',
+        },
+      ],
+    }
+    const summary = formatOfficeActionSummary(parsed)
+    expect(summary).toContain('解析冲突（解析不裁定，须人工核对）:')
+    expect(summary).toContain('- 引用文献 CN112345678A 的相关性类别：候选值 X 类、A 类（按首现标注继续（X 类））')
+  })
+
   it('无类型、无权项、无文献时不留空行，也不以某一类型兜底', () => {
     const parsed: ParsedOfficeAction = {
       rejectionType: 'other',

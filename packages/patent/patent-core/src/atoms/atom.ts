@@ -38,12 +38,19 @@ export class AtomRegistry {
 
   /**
    * 同名注册覆盖先前定义（对齐 Mady 覆盖语义，便于测试与扩展）。
+   *
+   * 注册是 effect：返回的 disposer 在名称仍指向本次注册时删除它。名称已被后续注册
+   * 覆盖时，旧 disposer 不得删除后继（插件卸载不得拆掉后来者的贡献）。
    * @param atom - 待注册的 Atom。
+   * @returns 撤销本次注册的 disposer；可重复调用。
    */
-  register(atom: Atom): void {
+  register(atom: Atom): () => void {
     if (!atom.name.trim()) throw new AtomRegistryError('Atom 缺少 name')
     if (!atom.description.trim()) throw new AtomRegistryError(`Atom "${atom.name}" 缺少 description`)
     this.atoms.set(atom.name, atom)
+    return () => {
+      if (this.atoms.get(atom.name) === atom) this.atoms.delete(atom.name)
+    }
   }
 
   /**
@@ -87,9 +94,10 @@ export const globalAtomRegistry = new AtomRegistry()
 /**
  * 向全局注册表登记一个 Atom（同名覆盖）。
  * @param atom - 待注册的 Atom。
+ * @returns 撤销本次注册的 disposer。
  */
-export function RegisterAtom(atom: Atom): void {
-  globalAtomRegistry.register(atom)
+export function RegisterAtom(atom: Atom): () => void {
+  return globalAtomRegistry.register(atom)
 }
 
 /**

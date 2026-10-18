@@ -31,6 +31,7 @@ export {
   type ResponsePlan,
   type ResponsePlanGap,
   type ResponsePlanGapKind,
+  type ResponsePlanNotice,
   type ResponsePlanOptions,
   type ResponsePlanSection,
 } from './plan.ts'

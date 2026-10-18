@@ -166,6 +166,20 @@ describe('PfeConsistencyHandler：回退信号与降级', () => {
     expect(result.error).toMatch(/非对象/)
   })
 
+  it('超长问题在报告中截断为可定位片段', async () => {
+    const result = await runConsistency({
+      pfe_triples: [triple({ problem: `通过设置${'长'.repeat(120)}防止位移` })],
+    })
+    expect(result.passed).toBe(false)
+    expect(result.summary).toContain('…')
+  })
+
+  it('空对象四元组按缺失字段补默认值', async () => {
+    const result = await runConsistency({ pfe_triples: [{}] })
+    expect(result.summary).toContain('1 组')
+    expect(result.passed).toBe(true)
+  })
+
   it('容忍可选字段缺失：裸四元组不抛错', async () => {
     const result = await runConsistency({ pfe_triples: [{ id: 'T1', problem: 'P', features: [], effects: [] }] })
     expect(result.passed).toBe(false)

@@ -111,10 +111,12 @@ export function checkEmbodimentCoverage(
 
   if (allValid) {
     numbers.sort((left, right) => left - right)
-    for (let i = 1; i < numbers.length; i++) {
-      const previous = numbers[i - 1] ?? 0
-      const current = numbers[i] ?? 0
-      for (let n = previous + 1; n < current; n++) matrix.gaps.push(n)
+    let previous: number | undefined
+    for (const current of numbers) {
+      if (previous !== undefined) {
+        for (let n = previous + 1; n < current; n++) matrix.gaps.push(n)
+      }
+      previous = current
     }
   }
   return matrix

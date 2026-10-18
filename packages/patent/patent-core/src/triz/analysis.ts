@@ -64,6 +64,7 @@ function resolveMatrix(
   if (ids.length === 0) return { status: 'gap', principles: [] }
   return {
     status: 'recommended',
+    /* v8 ignore next -- the matrix only uses declared principle ids. */
     principles: ids.map(no => ({ number: no, name: principleById(no)?.name ?? '' })),
   }
 }

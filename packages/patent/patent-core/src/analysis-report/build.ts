@@ -101,6 +101,7 @@ export function computeCompletenessScore(claims: readonly string[], abstract?: s
     score -= MISSING_ABSTRACT_PENALTY
     notes.push('缺摘要')
   }
+  /* v8 ignore next -- claims.length was checked above. */
   const independent = claims[0] ?? ''
   if (independent.length < INDEPENDENT_MIN_LENGTH) {
     score -= NARROW_INDEPENDENT_PENALTY

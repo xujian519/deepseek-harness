@@ -11,7 +11,13 @@ import {
   getStateString,
 } from '../../handler.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
+import {
+  parseJsonRecordArray,
+  parseOptionalJsonStringArray,
+  readJsonString,
+} from '../../../llm-json.ts'
 import { callLlm, degraded, formatPriorArt, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
+import { readAtomTunables } from '../../tunables.ts'
 
 // ---------------------------------------------------------------------------
 // compare —— 特征对比（claim chart）
@@ -48,6 +54,27 @@ const COMPARE_SCHEMA = {
   required: ['claim_chart'],
 } as const
 
+/**
+ * 校验 claim_chart 条目：`feature` 必填且为非空字符串，可选字段给出时类型必须正确。
+ * @param entries - 已确认是对象数组的条目。
+ * @returns 首个错误的原因；全部合法时为 undefined。
+ */
+function checkClaimChartEntries(entries: readonly Record<string, unknown>[]): string | undefined {
+  for (const [index, entry] of entries.entries()) {
+    if (readJsonString(entry.feature) === undefined) return `claim_chart[${index}] 缺少 feature 字符串`
+    if (entry.prior_art_match !== undefined && typeof entry.prior_art_match !== 'string') {
+      return `claim_chart[${index}] 的 prior_art_match 不是字符串`
+    }
+    if (entry.identical !== undefined && typeof entry.identical !== 'boolean') {
+      return `claim_chart[${index}] 的 identical 不是布尔值`
+    }
+    if (entry.note !== undefined && typeof entry.note !== 'string') {
+      return `claim_chart[${index}] 的 note 不是字符串`
+    }
+  }
+  return undefined
+}
+
 /** compare 执行器：逐项对比权利要求特征与现有技术。 */
 export class CompareHandler implements StageHandler {
   readonly name = 'compare'
@@ -60,6 +87,9 @@ export class CompareHandler implements StageHandler {
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = execInput
+    const tuned = readAtomTunables(state, { temperature: 0, promptLimit: 6000 })
+    if (!tuned.ok) return degraded('compare', tuned.reason)
+    const { temperature, promptLimit, promptLimitConfigured } = tuned.tunables
     const missing = requireLlm(provider, 'compare')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')
@@ -71,25 +101,26 @@ export class CompareHandler implements StageHandler {
     const prompt = [
       `对比范围：${scope}`,
       '权利要求：',
-      dataBlock(claim.slice(0, 4000)),
+      dataBlock(claim.slice(0, promptLimitConfigured ? promptLimit : 4000)),
       '现有技术：',
-      dataBlock(priorArt.slice(0, 6000)),
+      dataBlock(priorArt.slice(0, promptLimit)),
       '请逐项对比，严格输出 JSON（claim_chart 每项含 feature/prior_art_match/identical/note，diff_features 为区别特征）。',
     ].join('\n')
-    const res = await callLlm(provider, 'compare', prompt, { schema: COMPARE_SCHEMA, temperature: 0 }, signal)
+    const res = await callLlm(provider, 'compare', prompt, { schema: COMPARE_SCHEMA, temperature }, signal)
     if (!res.ok) return res.error
-    return parseLlmJson(
-      res.raw,
-      (parsed) => {
-        if (!Array.isArray(parsed.claim_chart)) return null
-        return {
-          claim_chart: parsed.claim_chart,
-          diff_features: Array.isArray(parsed.diff_features) ? parsed.diff_features : [],
-        }
-      },
-      raw => ({ claim_chart: raw }),
-    )
+    return parseLlmJson(res.raw, parseCompareChart, raw => ({ claim_chart: raw }))
   }
+}
+
+/** Validate compare output into chart rows and distinguishing features. */
+function parseCompareChart(parsed: Record<string, unknown>): PipelineState {
+  const chart = parseJsonRecordArray(parsed.claim_chart, 'claim_chart')
+  if (!chart.ok) return degraded('compare', chart.reason)
+  const chartError = checkClaimChartEntries(chart.values)
+  if (chartError !== undefined) return degraded('compare', chartError)
+  const diff = parseOptionalJsonStringArray(parsed.diff_features, 'diff_features')
+  if (!diff.ok) return degraded('compare', diff.reason)
+  return { claim_chart: chart.values, diff_features: diff.values }
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +173,25 @@ export function evidenceCoverage(count: number): 'full' | 'partial' | 'none' {
   return 'none'
 }
 
+/**
+ * 校验 novelty 的 assessments 条目：`feature` 与非布尔 `disclosed` 必填，可选字段给出时类型必须正确。
+ * @param entries - 已确认是对象数组的条目。
+ * @returns 首个错误的原因；全部合法时为 undefined。
+ */
+function checkNoveltyAssessments(entries: readonly Record<string, unknown>[]): string | undefined {
+  for (const [index, entry] of entries.entries()) {
+    if (readJsonString(entry.feature) === undefined) return `assessments[${index}] 缺少 feature 字符串`
+    if (typeof entry.disclosed !== 'boolean') return `assessments[${index}] 的 disclosed 不是布尔值`
+    if (entry.prior_art !== undefined && typeof entry.prior_art !== 'string') {
+      return `assessments[${index}] 的 prior_art 不是字符串`
+    }
+    if (entry.reasoning !== undefined && typeof entry.reasoning !== 'string') {
+      return `assessments[${index}] 的 reasoning 不是字符串`
+    }
+  }
+  return undefined
+}
+
 /** novelty 执行器：逐特征新颖性初判。 */
 export class NoveltyHandler implements StageHandler {
   readonly name = 'novelty'
@@ -154,6 +204,9 @@ export class NoveltyHandler implements StageHandler {
    */
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = input
+    const tuned = readAtomTunables(state, { temperature: 0.1, promptLimit: 6000 })
+    if (!tuned.ok) return degraded('novelty', tuned.reason)
+    const { temperature, promptLimit } = tuned.tunables
     const features = getStateArray(state, 'features')
     if (features.length === 0) {
       return degraded('novelty', '无特征可评估（state.features 为空）')
@@ -175,24 +228,33 @@ export class NoveltyHandler implements StageHandler {
       featureLines,
       '',
       '【现有技术证据】',
-      dataBlock(priorArt.slice(0, 6000)),
+      dataBlock(priorArt.slice(0, promptLimit)),
       '',
       '请严格输出 JSON：assessments 为每个特征的 { feature, prior_art, disclosed, reasoning } 列表，',
       'conclusion 为整体新颖性结论（附置信度）。',
     ].join('\n')
-    const res = await callLlm(provider, 'novelty', prompt, { schema: NOVELTY_SCHEMA, temperature: 0.1 }, signal)
+    const res = await callLlm(provider, 'novelty', prompt, { schema: NOVELTY_SCHEMA, temperature }, signal)
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,
-      (parsed) => {
-        if (!Array.isArray(parsed.assessments)) return null
-        return {
-          novelty_result: JSON.stringify(parsed),
-          novelty_conclusion: typeof parsed.conclusion === 'string' ? parsed.conclusion : '',
-          evidence_coverage: coverage,
-        }
-      },
+      parsed => parseNoveltyAssessments(parsed, coverage),
       raw => ({ novelty_result: raw, evidence_coverage: coverage }),
     )
+  }
+}
+
+/** Validate novelty assessments and attach the evidence-coverage grade. */
+function parseNoveltyAssessments(
+  parsed: Record<string, unknown>,
+  coverage: ReturnType<typeof evidenceCoverage>,
+): PipelineState {
+  const assessments = parseJsonRecordArray(parsed.assessments, 'assessments')
+  if (!assessments.ok) return degraded('novelty', assessments.reason)
+  const assessmentError = checkNoveltyAssessments(assessments.values)
+  if (assessmentError !== undefined) return degraded('novelty', assessmentError)
+  return {
+    novelty_result: JSON.stringify(parsed),
+    novelty_conclusion: typeof parsed.conclusion === 'string' ? parsed.conclusion : '',
+    evidence_coverage: coverage,
   }
 }

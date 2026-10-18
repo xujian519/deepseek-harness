@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-claim-chart-legacy-gaps/guide.md
+/:
+  en: f8b63e9996b8ffab
+  zh: 6550151f863404dc
+/legacy-claim-charts-load-with-an-empty-gap-list:
+  en: a464ed8e57d11068
+  zh: aaf4646622bcb542
+/legacy-claim-charts-load-with-an-empty-gap-list/change:
+  en: 1c642f3f3490ce38
+  zh: 79e77b4800e4be66
+/legacy-claim-charts-load-with-an-empty-gap-list/migration:
+  en: f7d8e43612836e64
+  zh: 6420ddef2b38aa38

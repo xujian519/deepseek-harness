@@ -11,7 +11,9 @@ import {
   getStateString,
 } from '../../handler.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
+import { parseJsonStringArray, parseOptionalJsonStringArray } from '../../../llm-json.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
+import { readAtomTunables } from '../../tunables.ts'
 
 // ---------------------------------------------------------------------------
 // extract —— 结构化抽取（JSON Schema 约束）
@@ -27,20 +29,41 @@ export const extractAtom: Atom = {
   usesModel: true,
 }
 
-const EXTRACT_SCHEMA = {
-  type: 'object',
-  properties: {
-    features: { type: 'array', items: { type: 'string' }, description: '技术特征列表' },
-    problems: { type: 'array', items: { type: 'string' }, description: '要解决的技术问题' },
-    effects: { type: 'array', items: { type: 'string' }, description: '技术效果' },
-    insight: {
-      type: 'array',
-      items: { type: 'string' },
-      description: '发明认知：使特征组合得以奏效的机制层认知，逐条按 problems 的顺序对应',
-    },
+/** extract 支持的分键输出；无 output_key 时沿用全量 features 模式。 */
+const EXTRACT_OUTPUT_KEYS = ['features', 'problems', 'effects', 'insight'] as const
+
+type ExtractOutputKey = (typeof EXTRACT_OUTPUT_KEYS)[number]
+
+/** 判断 output_key 是否属于 extract 的分键输出。 */
+function isExtractOutputKey(value: string | undefined): value is ExtractOutputKey {
+  return value !== undefined && (EXTRACT_OUTPUT_KEYS as readonly string[]).includes(value)
+}
+
+/** 四个分键共享的 JSON 属性声明；Schema 只把当前目标键设为 required。 */
+const EXTRACT_PROPERTIES = {
+  features: { type: 'array', items: { type: 'string' }, description: '技术特征列表' },
+  problems: { type: 'array', items: { type: 'string' }, description: '要解决的技术问题' },
+  effects: { type: 'array', items: { type: 'string' }, description: '技术效果' },
+  insight: {
+    type: 'array',
+    items: { type: 'string' },
+    description: '发明认知：使特征组合得以奏效的机制层认知，逐条按 problems 的顺序对应',
   },
-  required: ['features'],
 } as const
+
+/**
+ * 构造当前分键的 JSON Schema：只要求目标键，避免 problems/effects/insight
+ * 提取被 features 的 required 约束逼成“必须同时返回特征”。
+ * @param outputKey - 分键输出；缺省或未知时按 features 全量模式。
+ * @returns 供 LLM 端口使用的对象 Schema。
+ */
+function extractSchema(outputKey: ExtractOutputKey | undefined): Record<string, unknown> {
+  return {
+    type: 'object',
+    properties: EXTRACT_PROPERTIES,
+    required: [outputKey ?? 'features'],
+  }
+}
 
 /**
  * 特征抽取的 MTU（最小技术单元）拆分与反幻觉标注规则（移植 Mady feature-extraction
@@ -65,6 +88,9 @@ export class ExtractHandler implements StageHandler {
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = execInput
+    const tuned = readAtomTunables(state, { temperature: 0, promptLimit: 8000 })
+    if (!tuned.ok) return degraded('extract', tuned.reason)
+    const { temperature, promptLimit } = tuned.tunables
     const missing = requireLlm(provider, 'extract')
     if (missing) return missing
     const text = resolveInputText(state, ['text', 'extraction_input'], '')
@@ -76,40 +102,48 @@ export class ExtractHandler implements StageHandler {
     // 按任务分键（经 stage.params.output_key 注入）：四路提取互不覆盖。
     // 缺省时保持旧行为（全量写 features/problems/effects）。
     const outputKey = getStateString(state, 'output_key')
-    const isFeatureExtraction = outputKey === 'features' || extractionType.includes('特征')
+    const targetKey = isExtractOutputKey(outputKey) ? outputKey : undefined
+    const isFeatureExtraction = targetKey === 'features' || extractionType.includes('特征')
     const prompt = [
       `你是 ${domain} 领域的技术分析助手。任务：${extractionType}。`,
       ...(isFeatureExtraction ? [FEATURE_MTU_GUIDANCE] : []),
-      '请从以下文本中提取结构化结果，严格输出 JSON：',
-      dataBlock(text.slice(0, 8000)),
+      targetKey !== undefined
+        ? `请从以下文本中提取结构化结果，严格输出 JSON：{ "${targetKey}": [...] }`
+        : '请从以下文本中提取结构化结果，严格输出 JSON：',
+      dataBlock(text.slice(0, promptLimit)),
     ].join('\n')
-    const res = await callLlm(provider, 'extract', prompt, { schema: EXTRACT_SCHEMA, temperature: 0 }, signal)
+    const res = await callLlm(
+      provider,
+      'extract',
+      prompt,
+      { schema: extractSchema(targetKey), temperature },
+      signal,
+    )
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,
       (parsed, raw) => {
-        if (!Array.isArray(parsed.features)) return null
-        if (
-          outputKey === 'features' ||
-          outputKey === 'problems' ||
-          outputKey === 'effects' ||
-          outputKey === 'insight'
-        ) {
-          const segment: PipelineState = { extraction_result: raw }
-          if (outputKey === 'features') segment.features = parsed.features
-          if (outputKey === 'problems' && Array.isArray(parsed.problems)) segment.problems = parsed.problems
-          if (outputKey === 'effects' && Array.isArray(parsed.effects)) segment.effects = parsed.effects
-          if (outputKey === 'insight' && Array.isArray(parsed.insight)) segment.insight = parsed.insight
-          return segment
+        if (targetKey !== undefined) {
+          const result = parseJsonStringArray(parsed[targetKey], targetKey)
+          if (!result.ok) return degraded('extract', result.reason)
+          return { extraction_result: raw, [targetKey]: result.values }
         }
+        const features = parseJsonStringArray(parsed.features, 'features')
+        if (!features.ok) return degraded('extract', features.reason)
+        const problems = parseOptionalJsonStringArray(parsed.problems, 'problems')
+        if (!problems.ok) return degraded('extract', problems.reason)
+        const effects = parseOptionalJsonStringArray(parsed.effects, 'effects')
+        if (!effects.ok) return degraded('extract', effects.reason)
         return {
           extraction_result: raw,
-          features: parsed.features,
-          problems: Array.isArray(parsed.problems) ? parsed.problems : [],
-          effects: Array.isArray(parsed.effects) ? parsed.effects : [],
+          features: features.values,
+          problems: problems.values,
+          effects: effects.values,
         }
       },
-      raw => ({ extraction_result: raw }),
+      raw => targetKey !== undefined
+        ? degraded('extract', `LLM 输出不是 JSON 对象，缺少 ${targetKey} 数组`)
+        : { extraction_result: raw },
     )
   }
 }

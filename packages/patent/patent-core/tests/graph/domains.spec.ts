@@ -103,6 +103,27 @@ it('novelty: mock provider + 放行审批 → 跑完全图 + 规则门收口', a
   expect(Array.isArray(result.state.rule_gate_failures)).toBe(true)
 })
 
+it('novelty: 无数值表述时确定性核验段标记（无）', async () => {
+  const prompts: string[] = []
+  const base = noveltyProvider()
+  const provider: StageProvider = {
+    callLLM: async (prompt, options) => {
+      prompts.push(prompt)
+      return await base.callLLM!(prompt, options)
+    },
+    search: base.search!,
+  }
+  const graph = buildNoveltyGraph({ handlers: passthroughHandlers() }).compile('extract')
+  await graph.run(
+    {
+      text: '一种分拣装置，包含传送带与识别传感器',
+      prior_art: [{ title: 'D1', snippet: '公开传送带' }],
+    },
+    { provider },
+  )
+  expect(prompts.some(prompt => prompt.includes('【数值范围确定性核验】\n（无）'))).toBe(true)
+})
+
 it('novelty: 无 provider → LLM 节点降级 + approval 中断', async () => {
   const graph = buildNoveltyGraph({ handlers: globalStageHandlerRegistry }).compile('extract')
   const result = await graph.run({ text: '一种分拣装置' })
@@ -324,6 +345,26 @@ it('checkCitations: 检索结果为空/无引用标识/无文档标识时放行�
   const noDocIds = checkCitations({ refTexts: ['引用 US11111111'], docs: [{ title: '一篇无标识的摘要' }] })
   expect(noDocIds.grounded).toBe(true)
   expect(noDocIds.report).toContain('检索结果无法提取标识')
+})
+
+it('checkCitations: 台账收据存在但检索命中无标识时，专利号列入无法校验', () => {
+  const result = checkCitations({
+    refTexts: ['对比文件1 与 US11111111'],
+    docs: [{ title: '一篇无标识的摘要' }],
+    receiptCitationIds: ['D1'],
+  })
+  expect(result.grounded).toBe(true)
+  expect(result.uncited).toEqual([])
+  expect(result.report).toContain('无法校验的引用已放行')
+  expect(result.report).toContain('US11111111')
+})
+
+it('checkCitations: 非对象检索条目不参与标号推导', () => {
+  const result = checkCitations({
+    refTexts: ['引用 US12345678'],
+    docs: [{ patent: 'US12345678' }, '纯文本条目'],
+  })
+  expect(result.grounded).toBe(true)
 })
 
 it('checkCitations: isGrounded 三种接地方式（相等/包含/被包含）', () => {

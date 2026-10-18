@@ -244,6 +244,9 @@ it('validateWorkflowManifest：guidelineRevision 校验', () => {
     validateWorkflowManifest({ ...declared, guidelineRevision: ' ' }, { guidelineRevision: '2026 年修订版（2026-01-01 施行）' })
   }).toThrow(/不能为空字符串/)
   expect(() => {
+    validateWorkflowManifest(declared, { guidelineRevision: ' ' })
+  }).toThrow(/期望版本不能为空字符串/)
+  expect(() => {
     validateWorkflowManifest(
       { id: 'm', name: 'n', caseType: 'test', stages: [validStage('s1')] },
       { guidelineRevision: '2026 年修订版（2026-01-01 施行）' },

@@ -1849,9 +1849,6 @@
   "packages/patent/methodology/tests/loader-composition.spec.ts": {
     "2577e96b1bb379e2262039c566722773b3830ee1af7e028347c4b2c66eed0c08": 1
   },
-  "packages/patent/patent-core/src/atoms/handlers/builtin/coverage.ts": {
-    "4d4d978716f1972ea7e6679a9909b11791d1955893726363e880e15314867ab0": 1
-  },
   "packages/patent/patent-core/tests/graph/graph-coverage.spec.ts": {
     "0385e0b88bf0830cf9811c44c87719f1652e2c5804ddc88e79e071b002a0a260": 1
   },

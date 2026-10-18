@@ -18,7 +18,7 @@
  *   报缺（等同认定无法复核）。
  */
 
-import type { ChartRow } from '../claim-chart/protocol/types.ts'
+import type { ChartRowMatch } from '../claim-chart/protocol/types.ts'
 
 /** 单条要素的等同三要素记录。 */
 export type EquivalenceTriplet = {
@@ -70,7 +70,7 @@ const UNMAPPED_STATES = new Set(['not-found', 'partial', 'needs-evidence', 'cons
  * @returns 矛盾列表，按行序（按记录序）稳定排列。
  */
 export function findEquivalenceContradictions(
-  rows: readonly ChartRow[],
+  rows: readonly ChartRowMatch[],
   triplets: readonly EquivalenceTriplet[],
 ): EquivalenceContradiction[] {
   const contradictions: EquivalenceContradiction[] = []
@@ -129,7 +129,7 @@ export function findEquivalenceContradictions(
  * @param out - 矛盾收集器。
  */
 function checkTripletAgainstDoe(
-  row: ChartRow,
+  row: ChartRowMatch,
   triplet: EquivalenceTriplet,
   out: EquivalenceContradiction[],
 ): void {

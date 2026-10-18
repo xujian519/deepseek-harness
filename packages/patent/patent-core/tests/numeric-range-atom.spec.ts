@@ -172,6 +172,20 @@ describe('numeric-range atom', () => {
     expect(fromString.numeric_range_verdict).toBe('overlapped')
   })
 
+  it('字符串数组中没有有效文本时视为未提供', async () => {
+    const out = await handler.execute({ state: { claim: ['   ', 3] } })
+    expect(out.numeric_range_verdict).toBe('inconclusive')
+    expect(out.numeric_range_report).toContain('缺少权利要求文本')
+  })
+
+  it('空白字符串条目视为无可读取文本', async () => {
+    const out = await handler.execute({
+      state: { claim: '温度为 50-80℃。', prior_art: ['   '] },
+    })
+    expect(out.numeric_range_verdict).toBe('inconclusive')
+    expect(out.numeric_range_report).toContain('提供的 1 篇现有技术条目均无可读取文本')
+  })
+
   it('prior_art 不是数组 → 降级（输入边界拒绝）', async () => {
     const out = await handler.execute({ state: { claim: '温度为 50-80℃。', prior_art: {} } })
     expect(out._error).toContain('[numeric-range]')

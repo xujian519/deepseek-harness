@@ -13,6 +13,7 @@ import {
 } from '../../handler.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm } from './llm.ts'
+import { DEFAULT_GROUNDEDNESS_THRESHOLD, readAtomTunables } from '../../tunables.ts'
 
 // ---------------------------------------------------------------------------
 // reasoning —— 自由推理
@@ -40,6 +41,9 @@ export class ReasoningHandler implements StageHandler {
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = execInput
+    const tuned = readAtomTunables(state, { temperature: 0.2, promptLimit: 8000 })
+    if (!tuned.ok) return degraded('reasoning', tuned.reason)
+    const { temperature, promptLimit } = tuned.tunables
     const missing = requireLlm(provider, 'reasoning')
     if (missing) return missing
     const explicitPrompt = getStateString(state, 'reasoning_prompt').trim()
@@ -48,9 +52,9 @@ export class ReasoningHandler implements StageHandler {
     const input = explicitInput.length > 0 ? explicitInput : collectStateText(state, { fallback: '(无可用上下文)' })
     const prompt = [
       explicitPrompt.length > 0 ? explicitPrompt : defaultPrompt,
-      dataBlock(input.slice(0, 8000)),
+      dataBlock(input.slice(0, promptLimit)),
     ].join('\n')
-    const res = await callLlm(provider, 'reasoning', prompt, { temperature: 0.2 }, signal)
+    const res = await callLlm(provider, 'reasoning', prompt, { temperature }, signal)
     if (!res.ok) return res.error
     return { reasoning_output: res.raw, conclusion: res.raw }
   }
@@ -95,7 +99,7 @@ const GROUNDEDNESS_SCHEMA = {
 } as const
 
 /** 低依据阈值（对齐 Mady：分数 < 0.6 视为依据不足）。 */
-export const GROUNDEDNESS_THRESHOLD = 0.6
+export const GROUNDEDNESS_THRESHOLD = DEFAULT_GROUNDEDNESS_THRESHOLD
 
 /** groundedness 执行器：评估特征原文依据并反馈低分特征。 */
 export class GroundednessHandler implements StageHandler {
@@ -109,6 +113,14 @@ export class GroundednessHandler implements StageHandler {
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = execInput
+    const tuned = readAtomTunables(state, {
+      temperature: 0.1,
+      promptLimit: 8000,
+      groundednessThreshold: GROUNDEDNESS_THRESHOLD,
+    })
+    if (!tuned.ok) return degraded('groundedness', tuned.reason)
+    const { temperature, promptLimit, groundednessThreshold } = tuned.tunables
+    const thresholdText = String(groundednessThreshold)
     const features = getStateArray(state, 'features')
     if (features.length === 0) {
       // 无特征可过滤，跳过（对齐 Mady GroundednessResult.Skipped）。
@@ -125,20 +137,26 @@ export class GroundednessHandler implements StageHandler {
       '你是专利技术交底书分析师。请评估以下每个提取的技术特征是否在原始交底书中有坚实原文依据。',
       '打分规则：',
       '- 1.0：原文明确记载该特征',
-      '- 0.6-0.9：原文有部分依据，但表述不够明确',
-      '- <0.6：原文未记载或仅能推断，属于提取幻觉',
-      '- 带 [待确认] 标记的特征：原文无对应明确记载时按 <0.6 打分',
+      `- ${thresholdText}-0.9：原文有部分依据，但表述不够明确`,
+      `- <${thresholdText}：原文未记载或仅能推断，属于提取幻觉`,
+      `- 带 [待确认] 标记的特征：原文无对应明确记载时按 <${thresholdText} 打分`,
       '',
       '【原始交底书】',
-      dataBlock(source.slice(0, 8000)),
+      dataBlock(source.slice(0, promptLimit)),
       '',
       '【待评估特征】',
       featureLines,
       '',
       '请严格输出 JSON：scores 为每个特征的 { feature, score, reason } 列表（feature 与输入一致），',
-      'feedback 为整体反馈与低分特征（score < 0.6）的修改建议。',
+      `feedback 为整体反馈与低分特征（score < ${thresholdText}）的修改建议。`,
     ].join('\n')
-    const res = await callLlm(provider, 'groundedness', prompt, { schema: GROUNDEDNESS_SCHEMA, temperature: 0.1 }, signal)
+    const res = await callLlm(
+      provider,
+      'groundedness',
+      prompt,
+      { schema: GROUNDEDNESS_SCHEMA, temperature },
+      signal,
+    )
     if (!res.ok) {
       // fail-open：LLM 失败不阻塞管线（对齐 Mady）。
       return {
@@ -151,7 +169,7 @@ export class GroundednessHandler implements StageHandler {
       (parsed) => {
         const scores = toScores(parsed.scores)
         if (scores === null) return null
-        const low = scores.filter(s => typeof s.score === 'number' && s.score < GROUNDEDNESS_THRESHOLD)
+        const low = scores.filter(s => typeof s.score === 'number' && s.score < groundednessThreshold)
         const lowNames = low.map(s => s.feature ?? '').filter(Boolean)
         return {
           groundedness_result: JSON.stringify(parsed),

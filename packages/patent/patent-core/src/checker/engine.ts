@@ -355,7 +355,7 @@ export function aggregate(results: readonly RuleCheckResult[]): Verdict {
   for (const result of results) {
     if (result.passed) continue
     if (result.level <= LevelShould) return 'blocked'
-    if (result.level === LevelQuality) level2Failures += 1
+    level2Failures += 1
   }
   if (level2Failures >= 3) return 'needs_revision'
   return 'pass'
@@ -374,6 +374,7 @@ function levelLabel(level: RuleCheckResult['level']): string {
     case LevelQuality:
       return '质量'
   }
+  /* v8 ignore next -- closed union: every declared level is handled above. */
   assertNever(level, 'rule level')
 }
 

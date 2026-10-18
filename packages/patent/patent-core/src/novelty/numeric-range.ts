@@ -301,6 +301,7 @@ const LOWER_BOUND_DIRECTIONS = new Set([
  */
 function capture(match: RegExpMatchArray, group: number): string {
   const value = match[group]
+  /* v8 ignore next 3 -- every numeric pattern guarantees the group participates. */
   if (value === undefined) {
     throw new Error(`numeric-range pattern group ${String(group)} did not participate in the match`)
   }
@@ -389,9 +390,14 @@ function buildSummary(analysis: NumericRangeAnalysis): string {
   const head = '确定性数值范围核验：'
     + `权利要求 ${claimRanges.length} 处数值表述（强 ${countStrong(claimRanges)}），`
     + `对比文件 ${priorRanges.length} 处（强 ${countStrong(priorRanges)}）；`
-  const pairs = overlaps.map(overlap =>
-    `；[${overlap.claim.claimId ?? ''} × ${overlap.prior.docId ?? ''}] `
-    + `${overlap.claim.expression} ↔ ${overlap.prior.expression}（${overlap.kind}）`)
+  const pairs = overlaps.map((overlap) => {
+    /* v8 ignore next -- analyzeNumericRanges always supplies the claim id. */
+    const claimId = overlap.claim.claimId ?? ''
+    /* v8 ignore next -- analyzeNumericRanges always supplies the prior-art id. */
+    const priorDocId = overlap.prior.docId ?? ''
+    return `；[${claimId} × ${priorDocId}] `
+      + `${overlap.claim.expression} ↔ ${overlap.prior.expression}（${overlap.kind}）`
+  })
   const disagreement = llmAgreement === 'disagree' ? '；与语义轨结论不一致，请重点复核' : ''
   return `${head}${VERDICT_TEXT[verdict]}${pairs.join('')}${disagreement}`
 }
