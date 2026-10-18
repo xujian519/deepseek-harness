@@ -241,6 +241,7 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
                 errors.append(
                     f"说明书名称段未显式写零首行缩进（模板 Normal 自带 560 twips）：{text[:18]!r}"
                 )
+            assert title_index is not None
             block = title_sections[title_index]
             pos = block.index(title_element)
             following = block[pos + 1] if pos + 1 < len(block) else None
