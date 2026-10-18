@@ -1,7 +1,7 @@
 # patent-teams 模块优化 — 执行任务清单与验证检查清单
 
 - 日期：2026-10-18
-- 基线：`master` @ `011c6abdf129`；`@deepseek-ai/dsh-patent-teams` `0.2.1-rc.2`
+- 基线：`master`（2026-10-18 审查当日）；`@deepseek-ai/dsh-patent-teams` `0.2.1-rc.2`
 - 范围：`packages/patent/patent-teams`（`src/`、`tests/`、`README.md`、`README.zh.md`、`tsconfig.json`、`package.json`）；必要时只读核对 `packages/core/tools`、`packages/subagent/subagent`、`packages/client` 的消费方
 - 依据：2026-10-18 深度审查（17 个源文件 5,078 行；16 个测试文件 280 用例全绿；上游 `@nanmicoder/dsh-agent-teams` 0.1.23 / 0.1.24-rc.1 对比）
 - 用途：按批次推进；每个任务独立 PR、可独立回滚；完成后回写 §9 执行记录
@@ -26,10 +26,10 @@
 |---|---|---|---|---|---|
 | P0-01 | P0 | 退休成员守卫接线（或整体移除） | `src/index.ts`、`src/members.ts`、`tests/composition-dispose.spec.ts` | — | 已完成 |
 | P0-02 | P0 | `create_task` 输出契约补 `worker` | `src/tools.ts`、`src/task-ops.ts`、`tests/tools.spec.ts` | — | 已完成 |
-| P1-01 | P1 | `status` 只 ack 已展示的消息 | `src/service.ts`、`src/task-ops.ts`、`tests/service.spec.ts` | — | 待执行 |
-| P1-02 | P1 | 质量门禁以已存 `output` 触发 | `src/task-ops.ts`、`tests/service.spec.ts` | — | 待执行 |
-| P1-03 | P1 | 拒绝保留队名 `archive` | `src/service.ts`、`src/state.ts` | — | 待执行 |
-| P1-04 | P1 | `delete` 归档保留任务终态 | `src/service.ts`、`src/state.ts` | — | 待执行 |
+| P1-01 | P1 | `status` 只 ack 已展示的消息 | `src/service.ts`、`src/status-view.ts`、`src/tools.ts`、`tests/service.spec.ts` | — | 已完成 |
+| P1-02 | P1 | 质量门禁以已存 `output` 触发 | `src/task-ops.ts`、`tests/service.spec.ts` | — | 已完成 |
+| P1-03 | P1 | 拒绝保留队名 `archive` | `src/service.ts`、`src/state.ts` | — | 已完成 |
+| P1-04 | P1 | `delete` 归档保留任务终态 | `src/service.ts`、`src/state.ts` | — | 已完成 |
 | P2-01 | P2 | 合并 4 组重复实现 | `src/team-lock.ts`、`src/scheduler.ts`、`src/mailbox.ts`、`src/team-access.ts` | B 批完成 | 待执行 |
 | P2-02 | P2 | 降低 `status` 读取放大 | `src/service.ts`、`src/scheduler.ts`、`src/mailbox.ts` | P2-01 | 待执行 |
 | P2-03 | P2 | 补持久化记录校验 | `src/state.ts`、`src/task-ops.ts` | — | 待执行 |
@@ -38,7 +38,7 @@
 | P2-06 | P2 | 修依赖与 tsconfig references | `package.json`、`tsconfig.json` | — | 待执行 |
 | P2-07 | P2 | 修测试真实性与覆盖盲区 | `tests/**`、`src/tools.ts` | P0/P1 | 待执行 |
 | P2-08 | P2 | 邮箱租约提为 Config | `src/mailbox.ts`、`src/index.ts` | — | 待执行 |
-| P2-09 | P2 | `service.ts` 分层拆分（可选） | `src/service.ts` | P1 全部完成 | 待决策 |
+| P2-09 | P2 | `service.ts` 分层拆分（可选） | `src/service.ts`、`src/status-view.ts` | P1 全部完成 | 部分完成（status 已拆出） |
 | U-01 | U | deny 表容忍宿主工具缺失 | `src/members.ts` | — | 待决策 |
 | U-02 | U | 成员延迟到首个任务就绪再启动 | `src/member-runtime.ts`、`src/members.ts` | — | 待决策 |
 | U-03 | U | 缺失 `attempt_id` 时返回当前 attempt | `src/task-ops.ts` | — | 待决策 |
@@ -56,7 +56,7 @@
 - `src/members.ts:427` 定义 `installRetiredMemberGuard`。
 - `src/index.ts:106-152` 的 `apply()` 没有调用；全仓 `rg installRetiredMemberGuard` 仅命中 `tests/members.spec.ts`。
 - 写侧存在：`src/member-runtime.ts:258`、`src/service.ts:599`；读侧唯一生产引用 `src/state.ts:178` 只在守卫内部被调用。
-- 引入自初始移植提交 `b26ce980a1`，不是后续重构回归。
+- 引入自初始移植提交（`git log -S installRetiredMemberGuard` 可复现），不是后续重构回归。
 - `tests/composition-dispose.spec.ts:78-82` 断言 `guardProbe.listChildren` 等于 `stub.listChildren`，而两者在 `:30` 是同一函数引用，恒真。
 
 **改动文件**
@@ -678,10 +678,10 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 |---|---|---|---|---|
 | P0-01 | 已完成 | — | 2026-10-18 | 宿主无 forget/retire seam，选择安装；组合测试改为非恒真并新增 retired 过滤/`sendMessage` 拒绝用例 |
 | P0-02 | 已完成 | — | 2026-10-18 | 输出 schema 补 `worker`，带 worker 时渲染文本也显示该字段；新增真实 ToolRuntime 契约用例；两项变异检查均按预期失败 |
-| P1-01 | 待执行 | — | — | 先定队长/成员展示顺序 |
-| P1-02 | 待执行 | — | — | 无 output 的完成路径需明确拒绝 |
-| P1-03 | 待执行 | — | — | 保留字与归档根同源 |
-| P1-04 | 待执行 | — | — | 检查客户端归档视图 |
+| P1-01 | 已完成 | — | 2026-10-18 | 队长展示最新 10 条并只 ack 这 10 条；成员按 FIFO 展示 10 条完整正文并只 ack 该页；状态投影拆到 `status-view.ts` |
+| P1-02 | 已完成 | — | 2026-10-18 | 以 `args.output ?? task.output` 触发门禁；带 worker 且从未提交 output 的完成被显式拒绝 |
+| P1-03 | 已完成 | — | 2026-10-18 | `RESERVED_TEAM_IDS` 拒绝 `archive`/`Archive`，`archive-2` 可正常创建 |
+| P1-04 | 已完成 | — | 2026-10-18 | `revokeTaskAttempt` 保留 status/assignee/output，仅清 attempt/handoff/reassigning；归档保留失败与取消终态 |
 | P2-01 | 待执行 | — | — | B 批完成后开始 |
 | P2-02 | 待执行 | — | — | 依赖 P2-01 |
 | P2-03 | 待执行 | — | — | 只校验可选字段 |
@@ -690,7 +690,7 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 | P2-06 | 待执行 | — | — | 单独 PR，含 lockfile |
 | P2-07 | 待执行 | — | — | 先做工具清单单一真源 |
 | P2-08 | 待执行 | — | — | 只提租约，不提 token 常量 |
-| P2-09 | 待决策 | — | — | P1 完成后评估是否仍需要 |
+| P2-09 | 部分完成 | — | 2026-10-18 | `status` 已拆到 `status-view.ts`；`sendMessage`/`delete`/`archive` 仍在 service 中 |
 | U-01 | 待决策 | — | — | 先确认部署是否改名宿主工具 |
 | U-02 | 待决策 | — | — | 单独立项 |
 | U-03 | 待决策 | — | — | 需限定 assignee 与状态 |
@@ -704,4 +704,18 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 - `pnpm run build` → 9/9 门禁通过。
 - 变异检查 1：移除 `create_task` 输出 schema 的 `worker` 声明 → `tool-contract.spec.ts` 的带 worker 用例如期失败；已恢复。
 - 变异检查 2：注释 `apply()` 中的守卫安装 → `composition-dispose.spec.ts` 的安装/行为用例如期失败；已恢复。
-- 未提交：工作树中另有 `packages/patent/patent-core` 的无关改动，A 批变更保持未提交状态。
+- 已提交：`111e9c4570`（`fix(patent-teams): install retirement guard and fix create_task output`）。
+
+### B 批验证（2026-10-18）
+
+- `pnpm exec vitest run packages/patent/patent-teams/tests` → 17 个测试文件、292 个用例通过。
+- `pnpm run typecheck` → 5/5 门禁通过。
+- `pnpm exec tsx scripts/run-oxlint.ts packages/patent/patent-teams` → 退出码 0。
+- `pnpm run build` → 9/9 门禁通过。
+- `pnpm run verify-cordis-catalog` → 133 个生成文件/区域最新。
+- `pnpm run verify-export-jsdoc` → 通过。
+- `pnpm run verify-translation-pairing packages/patent/patent-teams/README.md` → 1 对一致。
+- `pnpm run verify-repository-references` → 通过（已移除计划中的 commit hash）。
+- 债务计数：`structure.large-files` 回到 77（拆出 `status-view.ts` 后 `service.ts` 降到 800 行以下）；`lint.v8-ignore` 由 1172 降至 1166 并已回写 `docs/TECH_DEBT.md`。
+- 全量 `pnpm run test:docs` 仍有两项与本批无关的本地失败：`structure.long-functions` 因工作树中未提交的 `packages/patent/patent-core/src/atoms/handlers/builtin/chart.ts` 新增 151 行 `execute`；`verify-translation-pairing` 因被 gitignore 的 `litho.docs/patent/README.md` 缺少中文对照。这两项不进入 B 批提交。
+- P1-01 不变量：队长与成员的 `acknowledged` 集合都严格等于本次展示的消息 id；未展示的消息保持未读。

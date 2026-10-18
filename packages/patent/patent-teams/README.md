@@ -81,7 +81,7 @@ Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member,
 
 #### Token effect
 
-Fixed: one usage section (approximately 2.7 KB) plus the twelve tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings, task output is truncated to 300 characters in status and archive renders, inbox previews to 200.
+Fixed: one usage section (approximately 2.7 KB) plus the twelve tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings and at most 10 inbox messages per viewer (the captain inbox and a member's own inbox show full message text; a captain's cross-member preview is truncated to 200 characters), and task output is truncated to 300 characters in status and archive renders.
 
 #### KV Cache effect
 

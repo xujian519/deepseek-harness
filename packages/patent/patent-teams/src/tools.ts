@@ -45,11 +45,19 @@ function renderStatus(team: PatentTeamsStatus): string {
         : ''
       return `  - ${task.id} [${task.status}] attempt ${task.attempt}${handoff} ${task.subject} → ${task.assignee || 'unassigned'}${deps}${worker}${validation}${gated}${output}`
     }),
-    `Captain inbox (${team.captain_inbox.length}):`,
-    ...team.captain_inbox.map(message => `  - [${message.from}] ${message.content.slice(0, 200)}`),
+    `Captain inbox (${team.captain_inbox.length}${team.captain_inbox_omitted > 0 ? `, ${team.captain_inbox_omitted} older omitted` : ''}):`,
+    ...team.captain_inbox.map(message => `  - [${message.from}] ${message.content}`),
   ]
   for (const [name, inbox] of Object.entries(team.member_inboxes)) {
-    lines.push(`Member inbox ${name} (${inbox.count}): latest — ${inbox.latest.slice(0, 120)}`)
+    const omitted = inbox.omitted > 0 ? `, ${inbox.omitted} omitted` : ''
+    if (inbox.messages !== undefined) {
+      lines.push(`Member inbox ${name} (${inbox.count}${omitted}):`)
+      for (const message of inbox.messages) {
+        lines.push(`  - [${message.from}] ${message.content}`)
+      }
+    } else {
+      lines.push(`Member inbox ${name} (${inbox.count}${omitted}): latest — ${inbox.latest ?? ''}`)
+    }
   }
   if (team.mailbox_warning_count > 0) {
     lines.push(

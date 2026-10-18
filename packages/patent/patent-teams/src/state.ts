@@ -24,6 +24,8 @@ import { atomicWriteText, renameWithRetry, sanitizeKey, stripLeadingBom, withTea
 export const CAPTAIN_KEY = 'captain'
 /** Durable deny-list for PatentTeams members that must never be resumed. */
 const RETIRED_MEMBERS_FILE = 'retired-members.json'
+/** State-root directory names the archive layout reserves; a team id must never collide with them. */
+export const RESERVED_TEAM_IDS: ReadonlySet<string> = new Set(['archive'])
 
 /**
  * Whether `dependencies` are all satisfied (every named task exists and
@@ -121,6 +123,20 @@ export function invalidateTaskAttempt(
   }
   task.reassigning = reassigning
   delete task.output
+  task.updatedAt = Date.now()
+}
+
+/**
+ * Revoke a task's current capability without changing its lifecycle state or
+ * recorded result. Used when a team is archived: late member updates must fail,
+ * while the archived record keeps the terminal status, assignee, and output for
+ * later review.
+ * @param task - the task whose attempt to revoke.
+ */
+export function revokeTaskAttempt(task: TeamTask): void {
+  delete task.attemptId
+  delete task.handoffId
+  delete task.reassigning
   task.updatedAt = Date.now()
 }
 

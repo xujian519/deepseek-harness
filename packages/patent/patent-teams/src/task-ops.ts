@@ -492,19 +492,20 @@ export async function updateTask(
       // composite quality gate passes: a low score / missing contract field /
       // rule violation bounces the task back to the member for rework.
       const targetCompleted = args.status === 'completed'
-      const shouldGate = targetCompleted && host.qualityGate
-        && task.worker !== undefined && args.output !== undefined
-      if (shouldGate) {
-        // shouldGate required task.worker and args.output to reach runQualityGate.
-        // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured task.worker and args.output are defined
-        const gate = runQualityGate(host.ctx, task.worker!, args.output!, host.passThreshold)
+      // A completion may carry its output now or have recorded it in an
+      // earlier in_progress update; gate whichever value will be persisted.
+      const submittedOutput = args.output ?? task.output
+      if (targetCompleted && host.qualityGate && task.worker !== undefined) {
+        if (submittedOutput === undefined) {
+          throw new Error(`task ${task.id} uses worker "${task.worker}" and cannot complete without output; submit the work product as output`)
+        }
+        const gate = runQualityGate(host.ctx, task.worker, submittedOutput, host.passThreshold)
         if (!gate.satisfied) {
           // A bounced submission must fall back to in_progress: leaving a
           // claimed task claimed would make the revised completed submission
           // hit the claimed->completed transition error and wedge the member.
           if (task.status === 'claimed') task.status = 'in_progress'
-          // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured args.output is defined
-          task.output = args.output!
+          task.output = submittedOutput
           task.gateFeedback = gate
           // A bounce keeps the attempt open, so this count is the task's only
           // record that the submission has already been reworked.

@@ -164,6 +164,16 @@ describe('create', () => {
     await expect(createTeam(h, fakeAgent('captain-2', h.workspace), 'alpha'))
       .rejects.toThrow('team id "alpha" is taken by another captain')
   })
+
+  it('rejects the reserved archive team id', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await expect(createTeam(h, captain, 'archive')).rejects.toThrow('reserved for the archive directory')
+    await expect(createTeam(h, captain, 'Archive')).rejects.toThrow('reserved for the archive directory')
+    expect(await readTeam(join(h.workspace, h.stateDir), 'archive')).toBeUndefined()
+    const created = await createTeam(h, captain, 'archive-2')
+    expect(created.team_id).toBe('archive-2')
+  })
 })
 
 describe('addMember', () => {
@@ -801,25 +811,120 @@ describe('status', () => {
     expect(status.members[0]?.name).toBe('alice')
     expect(status.tasks[0]?.subject).toBe('work')
     expect(status.captain_inbox).toHaveLength(1)
+    expect(status.captain_inbox_omitted).toBe(0)
     // The captain reading status acknowledges its own inbox.
     const after = await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'captain')
     expect(after).toHaveLength(0)
   })
 
-  it('shows a member only its own inbox and acknowledges it', async () => {
+  it('shows only the latest ten captain messages and acknowledges only those', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    for (let index = 1; index <= 11; index += 1) {
+      await appendMailbox(
+        join(h.workspace, h.stateDir),
+        'alpha',
+        'captain',
+        createMessage('alice', 'captain', `message-${index}`),
+      )
+    }
+
+    const first = await h.ctx.patentTeams.status(captain)
+    expect(first.captain_inbox.map(message => message.content)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `message-${index + 2}`),
+    )
+    expect(first.captain_inbox_omitted).toBe(1)
+    expect((await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'captain'))
+      .map(message => message.content)).toEqual(['message-1'])
+
+    const second = await h.ctx.patentTeams.status(captain)
+    expect(second.captain_inbox.map(message => message.content)).toEqual(['message-1'])
+    expect(second.captain_inbox_omitted).toBe(0)
+    expect(await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'captain')).toHaveLength(0)
+  })
+
+  it('shows a member whole messages and acknowledges only the shown page', async () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
     await addMember(h, captain, 'alice')
     await addMember(h, captain, 'bob')
-    const message = createMessage('bob', 'alice', 'for you')
-    await appendMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice', message)
+    const long = 'x'.repeat(500)
+    for (let index = 1; index <= 3; index += 1) {
+      await appendMailbox(
+        join(h.workspace, h.stateDir),
+        'alpha',
+        'alice',
+        createMessage('captain', 'alice', `${index}:${long}`),
+      )
+    }
     const status = await h.ctx.patentTeams.status(fakeAgent('member-1', h.workspace))
     expect(status.viewer).toBe('alice')
-    expect(status.member_inboxes.alice).toBeDefined()
+    expect(status.member_inboxes.alice).toMatchObject({ count: 3, omitted: 0 })
+    expect(status.member_inboxes.alice?.messages?.map(message => message.content)).toEqual([
+      `1:${long}`,
+      `2:${long}`,
+      `3:${long}`,
+    ])
     expect(status.member_inboxes.bob).toBeUndefined()
-    const after = await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice')
-    expect(after).toHaveLength(0)
+    expect(await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice')).toHaveLength(0)
+  })
+
+  it('pages a member inbox oldest-first and leaves the rest unread', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    for (let index = 1; index <= 25; index += 1) {
+      await appendMailbox(
+        join(h.workspace, h.stateDir),
+        'alpha',
+        'alice',
+        createMessage('captain', 'alice', `m${index}`),
+      )
+    }
+    const alice = fakeAgent('member-1', h.workspace)
+
+    const first = await h.ctx.patentTeams.status(alice)
+    expect(first.member_inboxes.alice?.messages?.map(message => message.content))
+      .toEqual(Array.from({ length: 10 }, (_, index) => `m${index + 1}`))
+    expect(first.member_inboxes.alice?.omitted).toBe(15)
+    expect(await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice')).toHaveLength(15)
+
+    const second = await h.ctx.patentTeams.status(alice)
+    expect(second.member_inboxes.alice?.messages?.map(message => message.content))
+      .toEqual(Array.from({ length: 10 }, (_, index) => `m${index + 11}`))
+    expect(second.member_inboxes.alice?.omitted).toBe(5)
+    expect(await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice')).toHaveLength(5)
+
+    const third = await h.ctx.patentTeams.status(alice)
+    expect(third.member_inboxes.alice?.messages?.map(message => message.content))
+      .toEqual(Array.from({ length: 5 }, (_, index) => `m${index + 21}`))
+    expect(third.member_inboxes.alice?.omitted).toBe(0)
+    expect(await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice')).toHaveLength(0)
+  })
+
+  it('previews member inboxes for the captain without acknowledging them', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    // Keep the member busy so the captain's status kick does not deliver the
+    // mailbox messages before the preview is rendered.
+    h.agents.set('member-1', fakeAgent('member-1', h.workspace, { status: 'running' }))
+    for (let index = 1; index <= 3; index += 1) {
+      await appendMailbox(
+        join(h.workspace, h.stateDir),
+        'alpha',
+        'alice',
+        createMessage('captain', 'alice', `m${index}`),
+      )
+    }
+    const status = await h.ctx.patentTeams.status(captain)
+    expect(status.member_inboxes.alice).toMatchObject({ count: 3, omitted: 2, latest: 'm3' })
+    expect(status.member_inboxes.alice?.messages).toBeUndefined()
+    expect(await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice')).toHaveLength(3)
   })
 
   it('reports mailbox warnings and unspawned activity', async () => {
@@ -867,6 +972,51 @@ describe('delete', () => {
     await expect(h.ctx.patentTeams.delete(fakeAgent('stranger', h.workspace), new AbortController().signal))
       .rejects.toThrow('you are not leading any team yet')
   })
+
+  it('preserves terminal task states and outputs when archiving', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    const alice = fakeAgent('member-1', h.workspace)
+
+    await h.ctx.patentTeams.createTask(captain, { subject: 'failed task', assignee: 'alice' })
+    const failedClaim = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: failedClaim.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'failed', output: 'boom', attempt_id: failedClaim.attempt_id! })
+
+    await h.ctx.patentTeams.createTask(captain, { subject: 'done task', assignee: 'alice' })
+    const doneClaim = await h.ctx.patentTeams.claimTask(captain, { task_id: 't2', assignee: 'alice' })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't2', status: 'in_progress', attempt_id: doneClaim.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't2', status: 'completed', output: 'done', attempt_id: doneClaim.attempt_id! })
+
+    await h.ctx.patentTeams.createTask(captain, { subject: 'cancelled task', assignee: 'alice' })
+    const cancelledClaim = await h.ctx.patentTeams.claimTask(captain, { task_id: 't3', assignee: 'alice' })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'cancelled', attempt_id: cancelledClaim.attempt_id! })
+
+    await h.ctx.patentTeams.delete(captain, new AbortController().signal)
+
+    const archived = await readArchivedTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(archived?.tasks.map(task => ({
+      id: task.id,
+      status: task.status,
+      output: task.output,
+      attemptId: task.attemptId,
+      assignee: task.assignee,
+    }))).toEqual([
+      { id: 't1', status: 'failed', output: 'boom', attemptId: undefined, assignee: 'alice' },
+      { id: 't2', status: 'completed', output: 'done', attemptId: undefined, assignee: 'alice' },
+      { id: 't3', status: 'cancelled', output: undefined, attemptId: undefined, assignee: 'alice' },
+    ])
+
+    const detail = await h.ctx.patentTeams.archive(captain, 'alpha')
+    if (detail.mode !== 'detail') throw new Error('expected an archive detail record')
+    expect(detail.team.tasks.map(task => [task.id, task.status, task.output])).toEqual([
+      ['t1', 'failed', 'boom'],
+      ['t2', 'completed', 'done'],
+      ['t3', 'cancelled', undefined],
+    ])
+  })
 })
 
 describe('archive', () => {
@@ -904,8 +1054,8 @@ describe('archive', () => {
       tasks: [{
         id: 't1',
         subject: 'search prior art',
-        status: 'pending',
-        assignee: '',
+        status: 'claimed',
+        assignee: 'alice',
         dependencies: [],
       }],
     })
@@ -1341,6 +1491,54 @@ describe('role contract and quality gate', () => {
     await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_COMPLETE, attempt_id: claimed.attempt_id! })
     const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
     expect(team?.tasks[0]?.status).toBe('completed')
+  })
+
+  it('gates a completion that reuses output stored by an earlier update', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', output: CONTRACT_MISSING, attempt_id: claimed.attempt_id! })
+    const gated = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', attempt_id: claimed.attempt_id! })
+    expect(gated).toMatchObject({ gated: true, status: 'in_progress', gate_rejections: 1 })
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('in_progress')
+    expect(team?.tasks[0]?.gateFeedback?.satisfied).toBe(false)
+  })
+
+  it('admits a completion that reuses a passing earlier output', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', output: CONTRACT_COMPLETE, attempt_id: claimed.attempt_id! })
+    const result = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', attempt_id: claimed.attempt_id! })
+    expect(result.gated).toBeUndefined()
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('completed')
+    expect(team?.tasks[0]?.contractValidation?.valid).toBe(true)
+  })
+
+  it('refuses a worker completion that never submitted output', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    await expect(h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', attempt_id: claimed.attempt_id! }))
+      .rejects.toThrow('cannot complete without output')
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('in_progress')
+    expect(team?.tasks[0]?.output).toBeUndefined()
   })
 })
 
