@@ -21,6 +21,11 @@ import {
   writeTeam,
 } from '../src/state.ts'
 
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, readFile: vi.fn(actual.readFile) }
+})
+
 const tmpRoots: string[] = []
 
 async function tmpWorkspace(): Promise<string> {
@@ -985,6 +990,22 @@ describe('status', () => {
     const status = await h.ctx.patentTeams.status(captain)
     expect(status.mailbox_warning_count).toBeGreaterThan(0)
     expect(status.mailbox_warnings[0]).toContain('captain mailbox line 1')
+  })
+
+  it('reads the team record at most twice for a quiet eight-member status', async () => {
+    const h = await makeService({ maxMembers: 8 })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    for (const name of ['alice', 'bob', 'carol', 'dave', 'erin', 'frank', 'grace', 'heidi']) {
+      await addMember(h, captain, name)
+    }
+    const readFileMock = vi.mocked(readFile)
+    readFileMock.mockClear()
+    await h.ctx.patentTeams.status(captain)
+    const teamReads = readFileMock.mock.calls.filter(([file]) => (
+      typeof file === 'string' && file.endsWith('team.json')
+    ))
+    expect(teamReads.length).toBeLessThanOrEqual(2)
   })
 })
 

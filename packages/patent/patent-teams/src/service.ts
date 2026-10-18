@@ -25,6 +25,7 @@ import {
   appendMailbox,
   createMessage,
   releaseMailboxDelivery,
+  withMailboxLease,
 } from './mailbox.ts'
 import {
   addMember as addMemberImpl,
@@ -74,8 +75,9 @@ import {
   withParticipant,
 } from './team-access.ts'
 import { TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS, TeamActivity } from './team-activity.ts'
+import { taskBase } from './task-view.ts'
 import { sanitizeKey, teamLockKey, withTeamLock } from './team-lock.ts'
-import { PatentTeamsError, type TeamState } from './types.ts'
+import { PatentTeamsError, type TeamMessage, type TeamState } from './types.ts'
 
 /** Resolved plugin config consumed by the service. */
 export interface PatentTeamsConfig {
@@ -357,28 +359,14 @@ export class PatentTeamsService extends Service {
       if (to === CAPTAIN_KEY) {
         const message = { ...createMessage(from, CAPTAIN_KEY, args.content), deliveryClaimedAt: Date.now() }
         await appendMailbox(stateRoot, fresh.id, CAPTAIN_KEY, message)
-        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/message-sent', {
-          teamId: PatentTeamsTeamId(fresh.id),
-          messageId: PatentTeamsMessageId(message.id),
-          from,
-          to: CAPTAIN_KEY,
-          content: args.content,
-          ts: message.ts,
-        })
+        recordMessageSent(this.ctx, fresh, agent, message, from, CAPTAIN_KEY)
         this.activity.notify(fresh.id)
         return { kind: 'captain' as const, fresh, identity, message, from }
       }
       const recipient = requireMember(fresh, to)
       const message = { ...createMessage(from, recipient.name, args.content), deliveryClaimedAt: Date.now() }
       await appendMailbox(stateRoot, fresh.id, recipient.name, message)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/message-sent', {
-        teamId: PatentTeamsTeamId(fresh.id),
-        messageId: PatentTeamsMessageId(message.id),
-        from,
-        to: recipient.name,
-        content: args.content,
-        ts: message.ts,
-      })
+      recordMessageSent(this.ctx, fresh, agent, message, from, recipient.name)
       this.activity.notify(fresh.id)
       return { kind: 'member' as const, fresh, identity, message, from, recipient }
     })
@@ -392,12 +380,12 @@ export class PatentTeamsService extends Service {
         delivered = steerCaptainReport(captain, prepared.from, prepared.identity.sessionId, args.content) ? 'live' : 'mailbox'
       }
       if (delivered === 'live') {
-        await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-          acknowledgeMailbox(stateRoot, prepared.fresh.id, CAPTAIN_KEY, [prepared.message.id])
+        await withMailboxLease(stateRoot, prepared.fresh.id, CAPTAIN_KEY, key => (
+          acknowledgeMailbox(stateRoot, prepared.fresh.id, key, [prepared.message.id])
         ))
       } else {
-        await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-          releaseMailboxDelivery(stateRoot, prepared.fresh.id, CAPTAIN_KEY, [prepared.message.id])
+        await withMailboxLease(stateRoot, prepared.fresh.id, CAPTAIN_KEY, key => (
+          releaseMailboxDelivery(stateRoot, prepared.fresh.id, key, [prepared.message.id])
         ))
       }
       return { message_id: prepared.message.id, from: prepared.from, to: CAPTAIN_KEY, delivered }
@@ -412,14 +400,14 @@ export class PatentTeamsService extends Service {
       const accepted = await deliverToMember(this.ctx, captain, prepared.recipient.id, text, signal)
       delivered = accepted ? 'wake' : 'mailbox'
       if (accepted) {
-        await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-          acknowledgeMailbox(stateRoot, prepared.fresh.id, prepared.recipient.name, [prepared.message.id])
+        await withMailboxLease(stateRoot, prepared.fresh.id, prepared.recipient.name, key => (
+          acknowledgeMailbox(stateRoot, prepared.fresh.id, key, [prepared.message.id])
         ))
       }
     }
     if (delivered === 'mailbox') {
-      await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (
-        releaseMailboxDelivery(stateRoot, prepared.fresh.id, prepared.recipient.name, [prepared.message.id])
+      await withMailboxLease(stateRoot, prepared.fresh.id, prepared.recipient.name, key => (
+        releaseMailboxDelivery(stateRoot, prepared.fresh.id, key, [prepared.message.id])
       ))
     }
     return {
@@ -546,11 +534,7 @@ export class PatentTeamsService extends Service {
             role: member.role ?? '',
           })),
           tasks: team.tasks.map(task => ({
-            id: task.id,
-            subject: task.subject,
-            status: task.status,
-            assignee: task.assignee ?? '',
-            dependencies: task.dependencies,
+            ...taskBase(task),
             ...task.output !== undefined ? { output: task.output } : {},
           })),
         },
@@ -672,6 +656,38 @@ export interface PatentTeamsArchiveDetail {
 export type PatentTeamsArchive =
   | { mode: 'list'; teams: PatentTeamsArchiveSummary[] }
   | { mode: 'detail'; team: PatentTeamsArchiveDetail }
+
+/**
+ * Append the durable message-sent event for one outbound mailbox write.
+ * @param ctx - the plugin context carrying the event log.
+ * @param team - the team the message belongs to.
+ * @param agent - the sending agent.
+ * @param message - the persisted message record.
+ * @param from - the sender's team key.
+ * @param to - the recipient's team key.
+ */
+function recordMessageSent(
+  ctx: Context,
+  team: TeamState,
+  agent: Agent,
+  message: TeamMessage,
+  from: string,
+  to: string,
+): void {
+  appendTeamEvent(
+    ctx,
+    captainSessionOf(ctx, SessionId(team.captainSessionId), agent.session),
+    'patent-teams/message-sent',
+    {
+      teamId: PatentTeamsTeamId(team.id),
+      messageId: PatentTeamsMessageId(message.id),
+      from,
+      to,
+      content: message.content,
+      ts: message.ts,
+    },
+  )
+}
 
 /**
  * The calling agent from a tool exec, for the tools Consumer.

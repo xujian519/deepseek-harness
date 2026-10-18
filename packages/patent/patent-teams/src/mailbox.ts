@@ -14,7 +14,8 @@ import type { FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isENOENT, isRecord } from '@deepseek-ai/dsh-value'
 import type { TeamMessage } from './types.ts'
-import { atomicWriteText, sanitizeKey, stripLeadingBom } from './team-lock.ts'
+import { atomicWriteText, sanitizeKey, stripLeadingBom, teamLockKey, withTeamLock } from './team-lock.ts'
+import { isFiniteNumber } from './value.ts'
 
 /** A crashed live-delivery attempt becomes retryable after this interval. */
 const MAILBOX_DELIVERY_LEASE_MS = 60_000
@@ -178,6 +179,25 @@ async function mutateMailbox(
 }
 
 /**
+ * Run one mailbox lease mutation under the team lock.
+ *
+ * Claim, acknowledgement, and release all rewrite the same JSONL file, so they
+ * share the team-wide lock rather than acquiring a mailbox-specific one.
+ * @param stateRoot - resolved absolute state root directory.
+ * @param teamId - the team id.
+ * @param agentKey - `captain` or a member name.
+ * @param mutate - the lease mutation, called with the mailbox key.
+ */
+export async function withMailboxLease(
+  stateRoot: string,
+  teamId: string,
+  agentKey: string,
+  mutate: (agentKey: string) => Promise<void>,
+): Promise<void> {
+  await withTeamLock(teamLockKey(stateRoot, teamId), () => mutate(agentKey))
+}
+
+/**
  * Lease selected fallback messages to one delivery path so the scheduler can
  * retry them without double-delivery while the lease is active.
  * @param stateRoot - resolved absolute state root directory.
@@ -240,11 +260,6 @@ export async function acknowledgeMailbox(
       readAt: message.readAt ?? now,
     }
   })
-}
-
-/** Whether a value is a finite number. */
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
 }
 
 /** Validate a mailbox record so later rendering cannot crash on `{}`/`null`. */

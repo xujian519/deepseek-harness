@@ -12,8 +12,33 @@ import { createHash, randomUUID } from 'node:crypto'
 import { rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** In-process per-team mutation queues (promise chains). */
-const locks = new Map<string, Promise<unknown>>()
+/** In-process mutation queues (promise chains), keyed by mutation scope. */
+const queues = new Map<string, Promise<unknown>>()
+
+/**
+ * Serialize one asynchronous operation against a key across the whole process.
+ *
+ * The operation starts only after the previous holder of the same key settles,
+ * and the queue entry is removed when the last waiter finishes so a long-lived
+ * process does not retain one promise per scope forever.
+ * @param key - the mutation scope.
+ * @param fn - the operation to run exclusively.
+ * @returns the operation's result.
+ */
+export async function serialize<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const previous = queues.get(key) ?? Promise.resolve()
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const tail = previous.then(() => gate)
+  queues.set(key, tail)
+  await previous
+  try {
+    return await fn()
+  } finally {
+    release()
+    if (queues.get(key) === tail) queues.delete(key)
+  }
+}
 
 /**
  * Serialize mutations of one team across the whole process.
@@ -22,18 +47,7 @@ const locks = new Map<string, Promise<unknown>>()
  * @returns the mutation's result.
  */
 export async function withTeamLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const previous = locks.get(key) ?? Promise.resolve()
-  let release!: () => void
-  const gate = new Promise<void>((resolve) => { release = resolve })
-  const tail = previous.then(() => gate)
-  locks.set(key, tail)
-  await previous
-  try {
-    return await fn()
-  } finally {
-    release()
-    if (locks.get(key) === tail) locks.delete(key)
-  }
+  return serialize(key, fn)
 }
 
 /**

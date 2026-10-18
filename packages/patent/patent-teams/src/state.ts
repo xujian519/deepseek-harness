@@ -19,6 +19,7 @@ import { join } from 'node:path'
 import { isENOENT, isRecord } from '@deepseek-ai/dsh-value'
 import type { TaskContractValidation, TaskGateFeedback, TaskStatus, TeamMember, TeamState, TeamTask } from './types.ts'
 import { atomicWriteText, renameWithRetry, sanitizeKey, stripLeadingBom, withTeamLock } from './team-lock.ts'
+import { isFiniteNumber } from './value.ts'
 
 /** Mailbox key of the captain. */
 export const CAPTAIN_KEY = 'captain'
@@ -309,19 +310,9 @@ function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string'
 }
 
-/** Whether a value is a finite timestamp/counter number. */
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
 /** Whether a value is a non-negative safe integer counter. */
 function isNonNegativeInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0
-}
-
-/** Whether a value is an array of strings. */
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every(item => typeof item === 'string')
 }
 
 /** Validate a recorded worker-contract verdict. */
@@ -329,7 +320,8 @@ function isTaskContractValidation(value: unknown): value is TaskContractValidati
   if (!isRecord(value)) return false
   return typeof value['worker'] === 'string'
     && typeof value['valid'] === 'boolean'
-    && isStringArray(value['missingHardFields'])
+    && Array.isArray(value['missingHardFields'])
+    && value['missingHardFields'].every(item => typeof item === 'string')
     && typeof value['degraded'] === 'boolean'
 }
 
@@ -338,7 +330,8 @@ function isTaskGateFeedback(value: unknown): value is TaskGateFeedback {
   if (!isRecord(value)) return false
   return isFiniteNumber(value['score'])
     && typeof value['satisfied'] === 'boolean'
-    && isStringArray(value['failures'])
+    && Array.isArray(value['failures'])
+    && value['failures'].every(item => typeof item === 'string')
     && typeof value['feedback'] === 'string'
 }
 

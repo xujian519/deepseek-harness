@@ -12,10 +12,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { roleContract, workerDeliverables } from '@deepseek-ai/dsh-patent-workflow'
-import { acknowledgeMailbox, readUnreadMailbox } from './mailbox.ts'
+import { acknowledgeMailbox, readUnreadMailbox, withMailboxLease } from './mailbox.ts'
 import { memberActivity } from './members.ts'
 import type { TeamScheduler } from './scheduler.ts'
 import { CAPTAIN_KEY } from './state.ts'
+import { taskBase } from './task-view.ts'
 import { freshParticipant, participantTeam } from './team-access.ts'
 import { teamLockKey, withTeamLock } from './team-lock.ts'
 import type { PatentTeamsMemberInbox, PatentTeamsStatus } from './service.ts'
@@ -56,7 +57,7 @@ export async function buildTeamStatus(
 ): Promise<PatentTeamsStatus> {
   const { workspace, stateRoot, team } = await participantTeam(agent, host.stateDir)
   if (team.captainSessionId === agent.id) {
-    await host.scheduler.kickTeam(workspace, team.id, agent, signal)
+    await host.scheduler.kickTeam(workspace, team.id, agent, signal, team)
   }
   const { team: fresh, identity } = await withTeamLock(
     teamLockKey(stateRoot, team.id),
@@ -82,11 +83,7 @@ export async function buildTeamStatus(
       }
     })
   const tasks = fresh.tasks.map(task => ({
-    id: task.id,
-    subject: task.subject,
-    status: task.status,
-    assignee: task.assignee ?? '',
-    dependencies: task.dependencies,
+    ...taskBase(task),
     attempt: task.attempt ?? 0,
     attempt_id: task.attemptId ?? '',
     reassigning: task.reassigning === true,
@@ -178,9 +175,12 @@ export async function buildTeamStatus(
     ? visibleCaptainInbox.map(message => message.id)
     : memberAcknowledged
   if (acknowledged.length > 0) {
-    await withTeamLock(teamLockKey(stateRoot, team.id), () => (
-      acknowledgeMailbox(stateRoot, team.id, identity.kind === 'captain' ? CAPTAIN_KEY : identity.name, acknowledged)
-    ))
+    await withMailboxLease(
+      stateRoot,
+      team.id,
+      identity.kind === 'captain' ? CAPTAIN_KEY : identity.name,
+      key => acknowledgeMailbox(stateRoot, team.id, key, acknowledged),
+    )
   }
   return result
 }
