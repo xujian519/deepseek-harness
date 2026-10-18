@@ -85,6 +85,15 @@ describe('resolveSvgViewport', () => {
     expect(viewport.note).toContain('slice')
   })
 
+  it('preserveAspectRatio 无法解析时按默认 xMidYMid meet 换算并给出说明', () => {
+    const viewport = resolveSvgViewport(tag('width="100mm" height="50mm" viewBox="0 0 100 100" preserveAspectRatio="bogus"'))
+    expect(viewport.scaleX).toBe(0.5)
+    expect(viewport.scaleY).toBe(0.5)
+    // 无法解析的取值按 xMidYMid 处理：内容 50×50 毫米居中，x 从 25 毫米起。
+    expect(viewport.originX).toBe(-50)
+    expect(viewport.note).toContain('无法解析')
+  })
+
   it('只声明一边的画布尺寸时给出对齐偏移的假设说明', () => {
     const viewport = resolveSvgViewport(tag('width="96mm" viewBox="0 0 96 192"'))
     expect(viewport.heightMm).toBeUndefined()

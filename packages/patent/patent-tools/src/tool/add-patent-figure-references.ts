@@ -19,6 +19,7 @@ import { annotateSvgWithLeaderLines } from '../figure/leader-line.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { SVG_PATH_PARAM, SVG_PATH_RESULT_FIELDS, readSvgInput } from './internal/svg-input.ts'
 import type { SvgAnnotateReference } from '../figure/svg-annotate.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** 依赖注入。cwd 为路径基准，默认 process.cwd()。 */
 export type AddPatentFigureReferencesDeps = {
@@ -93,13 +94,13 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
         properties: {
           ...SVG_PATH_RESULT_FIELDS,
           numReferences: { type: 'integer', required: true },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [
         {
           type: 'text',
-          text: [`已生成标注 SVG：${value.path}`, `绝对路径：${value.absolutePath}`, `参考标号：${value.numReferences}`, ...(value.warnings.length > 0 ? ['', '## 未命中', ...value.warnings.map(w => `- ${w}`)] : [])].join('\n'),
+          text: [`已生成标注 SVG：${value.path}`, `绝对路径：${value.absolutePath}`, `参考标号：${value.numReferences}`, ...warningSection(value.warnings, '未命中')].join('\n'),
         },
       ],
     },
@@ -157,8 +158,10 @@ function resolveOutputPath(dir: string, base: string): string {
   }
   const outPath = resolve(dir, `${base}.svg`)
   const rel = relative(dir, outPath)
+  /* v8 ignore start -- the name checks above reject separators, dots and NUL, so the resolved file stays inside dir */
   if (rel.startsWith('..') || isAbsolute(rel)) {
     throw new PatentToolError('invalid_tool_input', `output_filename 越出图目录：${base}`, { tool: 'add_patent_figure_references' })
   }
+  /* v8 ignore stop */
   return outPath
 }

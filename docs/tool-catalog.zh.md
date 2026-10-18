@@ -6434,6 +6434,7 @@ build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附�
 - 期限自送达日起算。依 2023 年修订的专利法实施细则第4条与 2023 版专利审查指南，电子送达的送达日为进入当事人认可电子系统之日、无更晚证据时以发文日推定，裁判因之期限自发文日起算且不再加 15 日；邮寄送达以当事人举证的实际收到日为准，否则为自发出之日起满15日；直接送交以交付日为准；公告送达自公告之日起满1个月。
 - 默认适用专利法实施细则第5条：期限开始的当日不计算在期限内；以年或月计算的，以其最后一月的相应日为届满日（该月无相应日的以该月最后一日为届满日）；届满日为法定休假日或移用周休息日的，顺延至其后第一个工作日。将 restDayRule 设为 "omit" 即改用不顺延口径，只报每个期限自身届满日；两种口径下均同时返回两个日期，rawDueDate 为未顺延者。
 - 本案主张优先权时，实审请求期限自优先权日起算，否则自申请日起算。是否主张优先权为显式输入，不由是否存在优先权日推断。
+- PCT 申请费自 nationalPhaseEntryDate（进入中国国家阶段之日）起算；缺少该日期时该项保持待补，不按国际申请日计算。
 - 由通知送达起算的期限（授权、驳回、审查意见、复审、无效）在提供该通知送达日期前以待补项返回，并点名所缺输入；本工具不以申请日近似这些期限。
 
 使用说明：
@@ -6469,6 +6470,10 @@ build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附�
     "isPctNationalPhase": {
       "type": "boolean",
       "description": "Whether the case is a PCT application entering the Chinese national phase"
+    },
+    "nationalPhaseEntryDate": {
+      "type": "string",
+      "description": "Date the PCT national-phase entry formalities were completed (进入日); the PCT application fee runs from it"
     },
     "authorizationPublicationDate": {
       "type": "string",
@@ -6580,10 +6585,10 @@ patent_deadlines 报告一件中国专利案件的法定与指定期限，适用
 - 按本次部署随包的费用索引为一件中国专利案件计价：案件应缴的费种、每项的数量、是否适用费用减缴、每个年度的年费档位，以及年费超期时的滞纳金。
 - 传入索引据此计数的案件事实（claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths）。被计价的费种需要而本次调用未给的事实会以待补项返回并点名该输入，而不是被猜。
 - 在 triggers 里列全本案的环节。未点名的环节完全不计价，因此漏掉授权或某个程序环节会被读成"无费用"——这份清单是报告的覆盖范围，不是提示。
-- 金额只来自已转录的数据。每行带 amountStatus：verified（金额与其核验日期都已记录）、unverified（金额已记录，核验日期没有）、unrecorded（尚无金额）。随包索引下每一项都是 unrecorded，因此各行只有适用性与计数，没有数字。
-- 任一适用行未核验时不给合计，并列出挡住合计的 id。不要自己补一个缺失的金额，也不要引用本工具拒绝给出的合计：未转录的金额是未知，不是免费。
+- 金额只来自已转录的数据。每行带 status：verified（金额与其核验日期都已记录）、unverified（金额已记录，核验日期没有）、unrecorded（尚无金额）。随包索引的 19 个费种中 17 个已转录并核验；说明书附加费与延长期限费因分档计价无法落到单一单价而保持 unrecorded，这两行没有数字并会挡住合计。
+- 任一适用行未核验时不给合计，并列出挡住合计的 id。索引未收录的收费阶段会列在 total.uncoveredTriggers 并同样扣留合计。不要自己补一个缺失的金额或未收录的阶段，也不要引用本工具拒绝给出的合计：未转录的金额是未知，不是免费。
 - annuityYears 是要计价的专利年度，来自 patent_deadlines（日期归它）；lateMonths 是已开始的超期月数，同样来自该工具。
-- 这是基于索引的算术，不是报价：索引只含费种的结构，其金额在人工按官方收费标准公告转录前始终未核验。给客户开票前请对照公告确认每一项金额。
+- 这是基于索引的算术，不是报价：索引含费种的结构与已转录金额，并记录核验日期。给客户开票前请对照公告确认每一项金额。
 
 使用说明：
   - 只读且离线；不发起网络请求。

@@ -16,7 +16,7 @@ import type { SubmissionPageMetrics } from '../src/figure/submission-page.ts'
 import { drawingComplianceWarnings } from '../src/figure/compliance.ts'
 import { SvgAnnotateError } from '../src/figure/svg-annotate.ts'
 import { createGeneratePatentFigureTool } from '../src/tool/generate-patent-figure.ts'
-import { resolveSubmission } from '../src/tool/figure-submission.ts'
+import { applySubmissionPage, buildLayout, resolveSubmission } from '../src/tool/figure-submission.ts'
 import { PatentToolError } from '../src/error.ts'
 import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../src/figure/graphviz-renderer.ts'
 
@@ -142,6 +142,13 @@ describe('submission-page：SVG 长度解析与图形几何', () => {
     expect(warnings[0]).toContain('96 dpi')
   })
 
+  it('只声明一边尺寸时把视口对齐的假设说明并入提示', () => {
+    const svg = '<svg width="96mm" viewBox="0 0 96 192" xmlns="http://www.w3.org/2000/svg"><g/></svg>'
+    const { geometry, warnings } = parseDrawingSvg(svg)
+    expect(geometry.heightMm).toBeCloseTo(192 * 25.4 / 96, 10)
+    expect(warnings.join('\n')).toContain('96 dpi')
+  })
+
   it('拒绝非 SVG、缺尺寸与不安全结构', () => {
     expect(() => parseDrawingSvg('<html></html>')).toThrow(SvgAnnotateError)
     expect(() => parseDrawingSvg('<svg xmlns="http://www.w3.org/2000/svg"><g/></svg>')).toThrow(SvgAnnotateError)
@@ -199,6 +206,13 @@ describe('submission-page：落版', () => {
     expect(() => buildSubmissionPage({ ...base, bodyFontSize: 0 })).toThrow(RangeError)
     const crowded: OfficeProfile = { ...officeProfile('cnipa'), margins: { topMm: 200, leftMm: 20, rightMm: 20, bottomMm: 200 } }
     expect(() => buildSubmissionPage({ ...base, profile: crowded })).toThrow(RangeError)
+  })
+
+  it('片段里的空行缩进后仍为空行', () => {
+    const svg = '<svg width="100mm" height="100mm" xmlns="http://www.w3.org/2000/svg">\n<g/>\n\n<rect x="0" y="0" width="10" height="10"/>\n</svg>'
+    const page = buildSubmissionPage({ drawingSvg: svg, profile: officeProfile('cnipa') })
+    // 片段中间的空行在缩进后仍是空行（只有首尾空白被 trim 掉）。
+    expect(page.svg).toContain('\n\n')
   })
 
   it('图号/页码字号与间距按参数落到落版文本', () => {
@@ -277,6 +291,70 @@ describe('submission-page：落版旋转', () => {
   })
 })
 
+describe('figure-submission：落版应用与布局核算', () => {
+  it('把落版页面的警告接进调用方的警告数组', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-submission-'))
+    try {
+      const target = join(dir, 'fig1.svg')
+      const tiny = '<svg width="1mm" height="1mm" xmlns="http://www.w3.org/2000/svg"><g/></svg>'
+      writeFileSync(target, tiny, 'utf8')
+      const plan = resolveSubmission({ target_office: 'uspto' }, '')
+      if (plan === undefined) throw new Error('expected a submission plan')
+      const warnings: string[] = []
+      const applied = await applySubmissionPage(target, plan, 'svg', warnings)
+      expect(applied?.metrics.pageScale).toBe(4)
+      expect(warnings[0]).toContain('落版：图形相对幅面过小')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('落版布局带字高、缩减字高与图号', () => {
+    const plan = resolveSubmission({
+      target_office: 'cnipa',
+      figure_number: 2,
+      figure_count: 2,
+    }, '')
+    if (plan === undefined) throw new Error('expected a submission plan')
+    const warnings: string[] = []
+    const layout = buildLayout(plan, {
+      metrics: {
+        pageScale: 1,
+        placedWidthMm: 100,
+        placedHeightMm: 50,
+        drawingWidthMm: 100,
+        drawingHeightMm: 50,
+        charHeightMm: 3.2,
+        reducedCharHeightMm: 2.1,
+      },
+      caption: '图2',
+      sheetNumber: '1',
+    }, 'grayscale', 2, warnings)
+    expect(layout.charHeightMm).toBe(3.2)
+    expect(layout.reducedCharHeightMm).toBe(2.1)
+    expect(layout.caption).toBe('图2')
+    expect(warnings).toEqual([])
+  })
+
+  it('落版布局在缺字号量测时省略字高字段', () => {
+    const plan = resolveSubmission({ target_office: 'cnipa' }, '')
+    if (plan === undefined) throw new Error('expected a submission plan')
+    const layout = buildLayout(plan, {
+      metrics: {
+        pageScale: 1,
+        placedWidthMm: 100,
+        placedHeightMm: 50,
+        drawingWidthMm: 100,
+        drawingHeightMm: 50,
+      },
+      sheetNumber: '1',
+    }, 'grayscale', 1, [])
+    expect(layout.charHeightMm).toBeUndefined()
+    expect(layout.reducedCharHeightMm).toBeUndefined()
+    expect(layout.caption).toBeUndefined()
+  })
+})
+
 describe('figure-submission：落版参数解析', () => {
   it('rotate_deg 收窄到闭集；非闭集值报 invalid_tool_input', () => {
     expect(resolveSubmission({}, '')).toBeUndefined()
@@ -334,6 +412,15 @@ describe('compliance：合规核算', () => {
     })
     expect(uspto.join('\n')).toContain('1.84(a)(2)')
     expect(uspto).toHaveLength(1)
+    // 美国未标图号时引 37 CFR 1.84(u)（不是 PCT/中国的依据）。
+    const uncaptioned = drawingComplianceWarnings({
+      profile: officeProfile('uspto'),
+      style: 'grayscale',
+      figureCount: 2,
+      hasCaption: false,
+      metrics: metrics(),
+    })
+    expect(uncaptioned.join('\n')).toContain('37 CFR 1.84(u)')
   })
 
   it('中国：彩色提示必要性与「正下方」编号依据', () => {

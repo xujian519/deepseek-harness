@@ -14,6 +14,7 @@ import { FIGURE_TYPE_NAMES } from './analyze-patent-figure.ts'
 import type { FigureAnalysisResult, FigureComponent, FigureConnection, FigureType } from './analyze-patent-figure.ts'
 import { FIGURE_GENERATOR_MODEL_USED, singleLine } from './figure-input.ts'
 import type { GeneratePatentFigureOutput, StructuralFigureInput } from './figure-input.ts'
+import { warningSection } from './internal/tool-output.ts'
 
 /**
  * 构造索引用 analysis（确定性生成：组件/连接由输入还原，置信度 1）。
@@ -100,7 +101,7 @@ export function renderGenerateFigureResult(value: GeneratePatentFigureOutput): {
     '',
     '## 参考标号',
     ...value.numeralMap.map(m => `- ${m.numeral} ${m.label}`),
-    ...(value.warnings.length > 0 ? ['', '## 警告', ...value.warnings.map(w => `- ${w}`)] : []),
+    ...warningSection(value.warnings),
   ]
   return [{ type: 'text', text: lines.join('\n') }]
 }

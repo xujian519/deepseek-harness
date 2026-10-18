@@ -427,6 +427,16 @@ describe('buildSectionDiagram 引线标号、中心线、字号与非剖切轮�
     expect(bad({ labelFontSizeMm: Number.NaN })).toContain('图面字号必须是正有限数：NaN')
   })
 
+  it('labels 未给 from 时只写字、不画引线', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: UNIT, hatch: 'none' }],
+      labels: [{ text: '5', at: [20, 5] }],
+      paddingMm: 0,
+    })
+    expect(lineElements(spec.body)).toEqual([])
+    expect(textElements(spec.body)).toEqual([{ x: 20, y: 6.2, anchor: 'middle', text: '5' }])
+  })
+
   it('引线起点与数字落点重合时不画引线（不画反向残段）', () => {
     const spec = buildSectionDiagram({
       parts: [{ outline: UNIT, hatch: 'none' }],

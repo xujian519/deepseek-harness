@@ -74,6 +74,7 @@ describe('处置资产', () => {
     expect(() => parseIssueDispositions('{}', 'fixture.json')).toThrow(/缺少 kinds 数组/)
     expect(() => parseIssueDispositions('{"kinds":"all"}', 'fixture.json')).toThrow(/缺少 kinds 数组/)
     expect(() => parse(assetRows().slice(1))).toThrow(/缺 kind 行 machine_format/)
+    expect(() => parse([null])).toThrow(/kinds 里有空行/)
   })
 
   it('词表外的 kind、非法的处置与阻塞档位、空判据都抛错', () => {

@@ -11,6 +11,8 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { resolveNodeTypes } from '@deepseek-ai/dsh-patent-knowledge'
 import type { KgNode, RelevantHit } from '@deepseek-ai/dsh-patent-knowledge'
 import { PatentToolError } from '../error.ts'
+import { knowledgeInstallGuidance, truncateSnippet } from './internal/knowledge.ts'
+import { resolveResultLimit } from './internal/query-limit.ts'
 
 /** Citation-class relations used for id-mode neighbor expansion. */
 const CITE_RELATIONS = ['CITES', 'CITES_LAW', 'FREQUENTLY_CITES', 'REFERENCES'] as const
@@ -81,16 +83,10 @@ export type PatentKgQueryDeps = {
   dbPath?: string
 }
 
-const INSTALL_GUIDANCE = '知识图谱不可用：knowledge.db 缺失或版本不符。请先运行 patent-knowledge-install 准备本地 knowledge.db，或配置知识库目录。'
-
-/** Truncate an over-long node content fragment. */
-function truncateContent(content: string | undefined, maxChars = 600): string | undefined {
-  if (!content || content.length <= maxChars) return content
-  return `${content.slice(0, maxChars)}\n…（截断，共 ${content.length} 字）`
-}
+const INSTALL_GUIDANCE = knowledgeInstallGuidance('知识图谱')
 
 function toHit(node: KgNode, via: RelevantHit['via'] | undefined, relation: string | undefined, includeContent: boolean): PatentKgHit {
-  const content = includeContent ? truncateContent(node.content) : undefined
+  const content = includeContent && node.content !== undefined ? truncateSnippet(node.content, 600) : undefined
   return {
     id: node.id,
     nodeType: node.nodeType,
@@ -248,7 +244,7 @@ export function createPatentKgQueryTool(deps: PatentKgQueryDeps): ToolDefinition
       if (deps.dbPath !== undefined && !existsSync(deps.dbPath)) {
         throw new PatentToolError('setup_required', INSTALL_GUIDANCE, { tool: 'patent_kg_query' })
       }
-      const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
+      const limit = resolveResultLimit(args.limit)
       const includeContent = args.include_content === true
       let output: PatentKgQueryOutput
       if (args.id?.trim()) {

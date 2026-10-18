@@ -206,6 +206,7 @@ export function createVerifyPatentFigureTool(deps: VerifyPatentFigureDeps = {}):
           ...(minFontMm === undefined ? {} : { minFontMm }),
         })
       } catch (error) {
+        /* v8 ignore next -- checkFigureRendering only throws SvgAnnotateError; the else arm is invariant drift */
         if (error instanceof SvgAnnotateError) {
           throw new PatentToolError('invalid_tool_input', `SVG 复核被拒：${error.message}`, { tool: 'verify_patent_figure' })
         }

@@ -95,12 +95,12 @@ describe('CaseLawSearchEngine', () => {
     expect(d1!.snippet.length).toBeGreaterThan(0)
   })
 
-  it('orders hits by bm25 descending', () => {
+  it('orders hits by bm25 ascending (lower is more relevant)', () => {
     const engine = withEngine()
     const hits = engine.search('创造性')
     const ranks = hits.map(h => h.ftsRank ?? 0)
     for (let i = 1; i < ranks.length; i++) {
-      expect(ranks[i - 1]!).toBeGreaterThanOrEqual(ranks[i]!)
+      expect(ranks[i - 1]!).toBeLessThanOrEqual(ranks[i]!)
     }
   })
 
@@ -425,23 +425,33 @@ describe('CaseLawSearchEngine edge paths', () => {
     expect(missingRow[0]!.snippet).toBe('')
   })
 
-  it('de-duplicates rows with null ranks, replacing with the better effective rank', () => {
+  it('de-duplicates rows keeping the best (lowest) bm25 rank', () => {
     const engine = withEngine()
     const internals = asInternals(engine)
     const rows: RowLike[] = [
       rowFor({ document_id: 'A', chunk_index: 0, fts_rank: -5 }),
-      rowFor({ document_id: 'A', chunk_index: 1, fts_rank: null }), // effective 0 > -5 → replace
+      rowFor({ document_id: 'A', chunk_index: 1, fts_rank: null }), // null is worst → keep -5
       rowFor({ document_id: 'B', chunk_index: 0, fts_rank: null }),
-      rowFor({ document_id: 'B', chunk_index: 1, fts_rank: -2 }), // -2 > 0 → keep first
+      rowFor({ document_id: 'B', chunk_index: 1, fts_rank: -2 }), // -2 beats null → keep second
       rowFor({ document_id: 'C', chunk_index: 0, fts_rank: null }),
       rowFor({ document_id: 'C', chunk_index: 1, fts_rank: -3 }),
-      rowFor({ document_id: 'C', chunk_index: 2, fts_rank: -9 }),
+      rowFor({ document_id: 'C', chunk_index: 2, fts_rank: -9 }), // most relevant
     ]
     const hits = internals.dedupeByDocument(rows, 10)
     const byDoc = new Map(hits.map(h => [h.documentId, h]))
-    expect(byDoc.get('A')!.chunkIndex).toBe(1)
-    expect(byDoc.get('B')!.chunkIndex).toBe(0)
-    expect(byDoc.get('C')!.chunkIndex).toBe(0)
-    expect(hits.length).toBe(3)
+    expect(byDoc.get('A')!.chunkIndex).toBe(0)
+    expect(byDoc.get('B')!.chunkIndex).toBe(1)
+    expect(byDoc.get('C')!.chunkIndex).toBe(2)
+    expect(hits.map(h => h.documentId)).toEqual(['C', 'A', 'B'])
+  })
+
+  it('keeps a document whose only matched chunk has no bm25 rank', () => {
+    const engine = withEngine()
+    const internals = asInternals(engine)
+    const hits = internals.dedupeByDocument([
+      rowFor({ document_id: 'D', chunk_index: 0, fts_rank: null }),
+    ], 10)
+    expect(hits).toHaveLength(1)
+    expect(hits[0]).toMatchObject({ documentId: 'D', ftsRank: null })
   })
 })

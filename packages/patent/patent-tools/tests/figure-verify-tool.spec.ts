@@ -104,6 +104,23 @@ describe('verify_patent_figure', () => {
 })
 
 describe('verify_patent_figure 量测缺省', () => {
+  it('未注入 cwd 时以 process.cwd 为基准解析绝对路径', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    try {
+      const file = join(dir, 'abs.svg')
+      writeFileSync(file, svg('<text x="10" y="10" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">1</text>'))
+      const ctx = new Context()
+      await ctx.plugin(SystemPrompt)
+      await ctx.plugin(ToolRuntime)
+      ctx.tools.register(createVerifyPatentFigureTool())
+      const result = await ctx.tools.execute({ signal, callId: ToolCallId('vf-abs'), name: 'verify_patent_figure', arguments: { svg_path: file } })
+      expect(result.isError).toBe(false)
+      expect(text(result)).toContain('文字元素 1 个')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('画布尺寸缺失与无量测图元时给出缺省文本', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
     const ctx = await ctxWith(dir)

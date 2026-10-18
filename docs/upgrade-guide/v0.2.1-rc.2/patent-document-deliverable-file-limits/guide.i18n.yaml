@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-document-deliverable-file-limits/guide.md
+/:
+  en: f3e1a9d3b828b5ea
+  zh: 9430b2b29ed66445
+/deliverable-paths-must-be-regular-files-within-the-hash-limit:
+  en: 4a734af34288b1ef
+  zh: 2d014f4a9515259f
+/deliverable-paths-must-be-regular-files-within-the-hash-limit/change:
+  en: 912b8e85b214c4d2
+  zh: 01c58e29c5d4f91d
+/deliverable-paths-must-be-regular-files-within-the-hash-limit/migration:
+  en: f1a4ef9f9ee22955
+  zh: 23d32f79b7a7fa65

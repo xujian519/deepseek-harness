@@ -1,5 +1,5 @@
 ---
-description: "Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh-plugins-plan.md](../../docs/sati-as-dsh-plugins-plan.md): no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages."
+description: "Native port of the Sati patent domain into harness plugins per the [historical migration plan](../../docs/sati-as-dsh-plugins-plan.md): no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages."
 kind: "package-group"
 ---
 
@@ -9,11 +9,11 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The patent group is the native port of the Sati patent domain into harness plugins per `docs/sati-as-dsh-plugins-plan.md`: no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages. The table below maps each package's half, and child READMEs own each package contract.
+The patent group is the native port of the Sati patent domain into harness plugins per the historical `docs/sati-as-dsh-plugins-plan.md`: no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages. The table below maps each package's half, and child READMEs own each package contract.
 
 ## Packages
 
-Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh-plugins-plan.md](../../docs/sati-as-dsh-plugins-plan.md): no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages.
+Native port of the Sati patent domain into harness plugins per the [historical migration plan](../../docs/sati-as-dsh-plugins-plan.md): no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages.
 
 | Package | Role | ctx key |
 |---|---|---|

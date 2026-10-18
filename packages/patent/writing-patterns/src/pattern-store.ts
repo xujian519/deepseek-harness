@@ -367,6 +367,7 @@ function searchTerms(query: string): readonly SearchTerm[] {
   const terms = new Map<string, number>()
   const add = (text: string, weight: number): void => {
     const trimmed = text.trim()
+    /* v8 ignore next -- every caller passes a non-blank word, Han run, or the non-blank normalized query */
     if (trimmed === '') return
     const previous = terms.get(trimmed)
     if (previous === undefined || weight > previous) terms.set(trimmed, weight)
@@ -381,6 +382,7 @@ function searchTerms(query: string): readonly SearchTerm[] {
     for (let index = 0; index < characters.length - 1; index++) {
       const first = characters[index]
       const second = characters[index + 1]
+      /* v8 ignore next -- the loop bound keeps both indices inside the run */
       if (first !== undefined && second !== undefined) add(first + second, 0.5)
     }
   }
@@ -560,5 +562,6 @@ function codePointLength(value: string): number {
 
 /** Error text of an unknown thrown value. */
 function errorMessage(error: unknown): string {
+  /* v8 ignore next -- fs and YAML failures are always Error instances */
   return error instanceof Error ? error.message : String(error)
 }

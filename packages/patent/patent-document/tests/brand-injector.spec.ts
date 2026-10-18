@@ -27,6 +27,19 @@ describe('brandInjector', () => {
     expect(css).toMatch(/--sati-doc-firm: "A\\"B";/)
   })
 
+  it('escapes style-closing tags so a brand value cannot inject HTML', () => {
+    const payload = 'x</style><script>alert(1)</script>'
+    const quoted = buildBrandStyle({ firm: payload })
+    expect(quoted).not.toContain('</style')
+    expect(quoted).not.toContain('<script')
+    expect(quoted).toContain('\\3C ')
+
+    const unquoted = buildBrandStyle({ accent: payload })
+    expect(unquoted).not.toContain('</style')
+    expect(unquoted).not.toContain('<script')
+    expect(unquoted).toContain('\\3C ')
+  })
+
   it('skips unknown keys and blank values', () => {
     const css = buildBrandStyle({ notAKey: 'x', firm: '   ' })
     expect(css).not.toContain('notAKey')

@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type {
   ConstitutionalRule,
@@ -8,6 +11,7 @@ import {
   DEFAULT_ELIGIBILITY_TEXT_KEYS,
   EligibilityHandler,
   eligibilityAtom,
+  loadEligibilityRules,
   type EligibilityCategory,
   type EligibilityCheckLoader,
   type EligibilityPending,
@@ -377,5 +381,136 @@ describe('eligibility atom', () => {
     expect(output.eligibility_report).toContain('限制说明')
     expect(output.eligibility_report).toContain('结论为 eligible')
     expect(output.eligibility_report).toContain('最终客体结论需人工复核')
+  })
+
+  it('技术方案键类型错误时降级', async () => {
+    const output = await handler.execute({ state: { source_text: 1 } })
+    expect(degradedReason(output)).toContain('state.source_text 不是字符串')
+  })
+
+  it('技术方案里出现权利要求标记时按权项切分', async () => {
+    const output = readOutput(await handler.execute({
+      state: {
+        source_text: ['1. 一种阀体，其特征在于，包括阀座。', '2. 一种治疗糖尿病的方法，包括：向患者给予二甲双胍。'].join('\n'),
+      },
+    }))
+    expect(output.eligibility_report).toContain('审查对象：权利要求（共 2 项）')
+    expect(output.eligibility_passed).toBe(false)
+  })
+
+  it('声明为权利要求但没有任何编号权项时按整体文本筛查', async () => {
+    const output = readOutput(await handler.execute({
+      state: { claims: '权利要求书：一种阀体，包括阀座和阀芯。' },
+    }))
+    expect(output.eligibility_units).toHaveLength(1)
+    expect(output.eligibility_units[0]?.claimNo).toBeUndefined()
+  })
+
+  it('科学发现与印刷品图案设计各给提示', async () => {
+    const discovery = readOutput(await handler.execute({
+      state: { claims: '1. 一种科学发现，涉及自然规律。' },
+    }))
+    expect(categories(discovery)).toEqual(['discovery'])
+    expect(codes(discovery)).toEqual(['ELIG-A25-DISCOVERY'])
+    expect(discovery.eligibility_report).toContain('A25.1(1)')
+
+    const printed = readOutput(await handler.execute({
+      state: { claims: '1. 一种印刷品的图案设计。' },
+    }))
+    expect(categories(printed)).toEqual(['printed-matter'])
+    expect(codes(printed)).toEqual(['ELIG-A25-PRINTED'])
+    expect(printed.eligibility_report).toContain('A25.1(6)')
+  })
+
+  it('计算机程序本身即使命中强标记仍按智力活动排除', async () => {
+    const output = readOutput(await handler.execute({
+      state: { claims: '1. 一种计算机程序本身，运行于处理器。' },
+    }))
+    expect(categories(output)).toEqual(['mental-activity'])
+    expect(output.eligibility_passed).toBe(false)
+  })
+
+  it('商业主题只命中弱技术标记时提示商业问题', async () => {
+    const output = readOutput(await handler.execute({
+      state: { claims: '1. 一种商业方法，包括：处理数据。' },
+    }))
+    expect(categories(output)).toEqual(['business-method'])
+    expect(output.eligibility_verdict).toBe('needs-review')
+  })
+
+  it('边界主题命中强技术标记时按技术方案处理', async () => {
+    const output = readOutput(await handler.execute({
+      state: { claims: '1. 一种分类方法，包括：由处理器对图像进行分类。' },
+    }))
+    expect(categories(output)).toEqual(['technical-solution'])
+    expect(output.eligibility_passed).toBe(true)
+  })
+
+  it('规则资产缺失且没有编号清单时报告默认规则编号', async () => {
+    const loader: EligibilityCheckLoader = () => ({ missingIds: [], warnings: [] })
+    const output = readOutput(await new EligibilityHandler(loader).execute({
+      state: { claims: '1. 一种阀体，包括阀座和阀芯。' },
+    }))
+    expect(output.eligibility_pending[0]?.message).toContain('EX-SEL-004')
+  })
+
+  it('规则资产警告超过三条时注明总数', async () => {
+    const loader: EligibilityCheckLoader = () => ({
+      rule: A5_RULE,
+      missingIds: [],
+      warnings: ['w1', 'w2', 'w3', 'w4'],
+    })
+    const output = readOutput(await new EligibilityHandler(loader).execute({
+      state: { claims: '1. 一种阀体，包括阀座和阀芯。' },
+    }))
+    expect(output.eligibility_pending[0]?.message).toContain('等 4 条')
+  })
+
+  it('规则命中但证据为空且没有法律依据时省略两个字段', async () => {
+    const rule: ConstitutionalRule = {
+      id: 'EX-SEL-004',
+      name: '无依据规则',
+      severity: 'critical',
+      action: 'warn',
+      check: { type: 'pattern_analysis', patterns: ['z*'], minMatches: 1 },
+    }
+    const loader: EligibilityCheckLoader = () => ({ rule, missingIds: [], warnings: [] })
+    const output = readOutput(await new EligibilityHandler(loader).execute({
+      state: { claims: '1. 一种阀体，包括阀座和阀芯。' },
+    }))
+    const finding = output.eligibility_violations.find(item => item.code === 'ELIG-A5-PUBLIC-ORDER')
+    expect(finding?.legalBasis).toBeUndefined()
+    expect(finding?.evidence).toBeUndefined()
+    expect(output.eligibility_report).not.toContain('依据：')
+  })
+
+  it('规则加载抛出非 Error 时仍列入待核', async () => {
+    const loader: EligibilityCheckLoader = () => {
+      throw 'asset broken'
+    }
+    const output = readOutput(await new EligibilityHandler(loader).execute({
+      state: { claims: '1. 一种阀体，包括阀座和阀芯。' },
+    }))
+    expect(output.eligibility_pending[0]?.message).toContain('asset broken')
+  })
+})
+
+describe('loadEligibilityRules', () => {
+  it('资产缺少 EX-SEL-004 时报告规则缺失', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-elig-rules-'))
+    try {
+      const patentDir = join(root, 'patent')
+      mkdirSync(patentDir)
+      writeFileSync(
+        join(patentDir, 'compliance.yaml'),
+        'rules:\n  - id: C1\n    name: 其它规则\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+        'utf8',
+      )
+      const loaded = loadEligibilityRules(root)
+      expect(loaded.rule).toBeUndefined()
+      expect(loaded.missingIds).toEqual(['EX-SEL-004'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

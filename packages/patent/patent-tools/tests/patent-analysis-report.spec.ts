@@ -91,4 +91,73 @@ describe('patent_analysis_report', () => {
     expect(value.scores.map(s => s.domain)).not.toContain('novelty')
     expect(value.scores.map(s => s.domain)).toContain('clarity')
   })
+
+  it('ignores model entries that are not score objects or are out of range', async () => {
+    for (const payload of [{ novelty: 5 }, { novelty: null }, { novelty: { score: 200 } }]) {
+      const tool = createPatentAnalysisReportTool({ model: jsonModel(payload) })
+      const value = (await tool.execute(ARGS, exec)) as PatentAnalysisReportOutput
+      expect(value.scores.map(s => s.domain)).not.toContain('novelty')
+    }
+  })
+
+  it('defaults a non-string rationale and keeps a partial score set', async () => {
+    const tool = createPatentAnalysisReportTool({ model: jsonModel({ novelty: { score: 61, rationale: 7 } }) })
+    const value = (await tool.execute(ARGS, exec)) as PatentAnalysisReportOutput
+    expect(value.scores.find(s => s.domain === 'novelty')).toMatchObject({ score: 61, rationale: '' })
+    expect(value.scores.map(s => s.domain)).not.toContain('technical_strength')
+  })
+
+  it('falls back when the model output is not JSON or carries no usable score', async () => {
+    for (const text of ['not json at all', '{}']) {
+      const tool = createPatentAnalysisReportTool({
+        model: {
+          stream: async function* () {
+            yield { type: 'delta', text }
+            yield { type: 'done' }
+          },
+        },
+      })
+      const value = (await tool.execute(ARGS, exec)) as PatentAnalysisReportOutput
+      expect(value.scores.map(s => s.domain)).not.toContain('novelty')
+    }
+  })
+
+  it('renders without title, patent number, detail, keywords or search strategy', async () => {
+    const tool = createPatentAnalysisReportTool()
+    const unclassified = (await tool.execute({ claims: ['zqx'] }, exec)) as PatentAnalysisReportOutput
+    const text = tool.output.render({}, unclassified as never)
+      .map(block => ('text' in block && typeof block.text === 'string' ? block.text : '')).join('')
+    expect(text).toContain('# 专利分析报告')
+    expect(text).not.toContain('专利号：')
+    expect(text).not.toContain('，大类 ')
+    expect(text).not.toContain('- 关键词：')
+    expect(text).toContain('## 检索策略')
+
+    const empty = (await tool.execute({ claims: [] }, exec)) as PatentAnalysisReportOutput
+    expect(empty.patentId).toBeUndefined()
+    expect(empty.title).toBeUndefined()
+    expect(empty.searchStrategy).toBeUndefined()
+    const emptyText = tool.output.render({}, empty as never)
+      .map(block => ('text' in block && typeof block.text === 'string' ? block.text : '')).join('')
+    expect(emptyText).toContain('# 专利分析报告')
+    expect(emptyText).not.toContain('## 检索策略')
+  })
+
+  it('renders a checker verdict and a strategy without IPC or keywords', () => {
+    const tool = createPatentAnalysisReportTool()
+    const text = tool.output.render({}, {
+      ipc: [],
+      technicalFeatures: [],
+      featureStatistics: { total: 0 },
+      scores: [],
+      innovationInsights: [],
+      expertConsiderations: [],
+      checkerVerdict: '需人工复核',
+      searchStrategy: { query: '检索式', ipc: [] },
+    }).map(block => ('text' in block && typeof block.text === 'string' ? block.text : '')).join('')
+    expect(text).toContain('检查判定：需人工复核')
+    expect(text).toContain('- 检索式：检索式')
+    expect(text).not.toContain('- IPC：')
+    expect(text).not.toContain('- 关键词：')
+  })
 })

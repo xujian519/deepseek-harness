@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { extractNumericFindings } from '@deepseek-ai/dsh-patent-core'
-import { extractClaimFeatures } from '../src/tool/spec-claim-coverage.ts'
+import { checkClaimSet, extractClaimFeatures } from '../src/tool/spec-claim-coverage.ts'
 import {
   checkFigureMarkConsistency,
   extractAbstractDrawingNumber,
@@ -454,6 +454,8 @@ describe('abstract and claim coverage edge cases', () => {
     ]
     expect(knownFigureNumbers('## 附图说明\n图1是结构示意图；图中：100-壳体；', figures)).toEqual([2])
     expect(knownFigureNumbers('## 附图说明\n图1是主视图；图2是图1的剖视图；')).toEqual([1, 2])
+    // 分析结果未带图号时退回「图N」提取。
+    expect(knownFigureNumbers('## 附图说明\n图3是俯视图。', [{ usable: true, components: [] }])).toEqual([3])
     expect(knownFigureNumbers('## 技术领域\n本发明涉及一种装置。')).toEqual([])
     const out = validateSpecification({
       text: VALID_SPEC,
@@ -605,6 +607,19 @@ describe('validateSpecification: 权项—实施例覆盖矩阵', () => {
     })
     const entry = out.violations.find(v => v.rule === 'claim_coverage_entry')
     expect(entry?.message).toContain('claim 编号超出权利要求数量')
+  })
+
+  it('单一性取相似度最低的一对，三份独立权利要求逐个比较', () => {
+    const violations = checkClaimSet({
+      text: VALID_SPEC,
+      claim_units: [
+        { number: 1, kind: 'independent', preamble: '一种检测装置', characterized: '包括壳体' },
+        { number: 2, kind: 'independent', preamble: '一种检测装置', characterized: '包括壳体' },
+        { number: 3, kind: 'independent', preamble: '一种通信方法', characterized: '发送数据包' },
+      ],
+    })
+    const unity = violations.find(v => v.rule === 'claim_unity')
+    expect(unity?.message).toContain('独立权利要求 1 与 3')
   })
 
   it('条目缺少技术特征 → 按条目非法报出，不给覆盖率读数', () => {

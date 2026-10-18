@@ -10,10 +10,10 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { datedOutputDir, inspectPdfBody, isHtmlContentType, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
+import { inspectPdfBody, isHtmlContentType, resolveDatedOutputDir, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
 import { EgoExtractor, type PageExtractor } from '@deepseek-ai/dsh-browser-backend'
 import type { Connector } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
@@ -87,8 +87,7 @@ function pdfBodyFaultMessage(fault: PdfBodyFault): string {
 
 /** Default output directory resolution: explicit outputDir relative to cwd, else <cwd>/论文原文/YYYY-MM-DD. */
 function defaultResolveOutputDir(outputDir: string | undefined, cwd: string): string {
-  if (outputDir) return resolve(cwd, outputDir)
-  return datedOutputDir(cwd, '论文原文')
+  return resolveDatedOutputDir(outputDir, cwd, '论文原文')
 }
 
 /** A fetched PDF body with the download duration. */
@@ -97,15 +96,14 @@ export type FetchedPdf = { ok: true; body: Buffer; durationMs: number }
 /** Download a URL and verify it is a real PDF (magic + minimum size + not an HTML shell). */
 async function fetchPdfBody(
   url: string,
-  options: { signal: AbortSignal; timeoutMs: number; fetchImpl?: typeof fetch },
+  options: { signal: AbortSignal; callerSignal: AbortSignal; timeoutMs: number; fetchImpl?: typeof fetch },
 ): Promise<FetchedPdf | { ok: false; error: string; durationMs: number }> {
   const start = Date.now()
   try {
     const fetchFn = options.fetchImpl ?? globalThis.fetch
-    const signal = AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs)])
     const res = await fetchFn(url, {
       headers: { 'User-Agent': PAPER_DOWNLOAD_USER_AGENT, Accept: 'application/pdf' },
-      signal,
+      signal: options.signal,
     })
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
     const contentType = res.headers.get('content-type') ?? ''
@@ -115,9 +113,9 @@ async function fetchPdfBody(
     if (fault !== undefined) throw new Error(pdfBodyFaultMessage(fault))
     return { ok: true, body: buf, durationMs: Date.now() - start }
   } catch (error) {
-    // A caller cancellation is not a download fault; only the per-request timeout
-    // (a separate signal) becomes a failed result.
-    if (options.signal.aborted) throw error
+    // A caller cancellation is not a download fault; the whole-call deadline is.
+    if (isAborted(options.callerSignal)) throw error
+    if (isAborted(options.signal)) return { ok: false, error: timeoutMessage(options.timeoutMs), durationMs: Date.now() - start }
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
@@ -220,6 +218,7 @@ type DownloadInput = {
   record: unknown
   override: string | undefined
   signal: AbortSignal
+  callerSignal: AbortSignal
   timeoutMs: number
   fetchImpl: typeof fetch | undefined
   extractor: PageExtractor
@@ -235,6 +234,16 @@ function failed(error: string, pdfUrl: string | undefined): DownloadOutcome {
   return pdfUrl === undefined ? { ok: false, error } : { ok: false, error, pdfUrl }
 }
 
+/** Message for a call that exhausted its whole-call budget. */
+function timeoutMessage(timeoutMs: number): string {
+  return `paper_download timed out after ${timeoutMs}ms`
+}
+
+/** Read a signal's state through a call: control-flow narrowing must not assume it stays current across awaits. */
+function isAborted(signal: AbortSignal): boolean {
+  return signal.aborted
+}
+
 /** Throw the caller's abort reason, normalized to an `Error`, when the signal is aborted. */
 function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw abortReason(signal.reason)
@@ -242,15 +251,22 @@ function throwIfAborted(signal: AbortSignal): void {
 
 /**
  * Fetch the connector record for a paper id. Caller cancellation propagates
- * unchanged; any other failure becomes actionable source guidance.
+ * unchanged, the whole-call deadline becomes a `timedOut` result, and any other
+ * failure becomes actionable source guidance.
  */
-async function fetchRecord(connector: Connector, id: string, signal: AbortSignal): Promise<unknown> {
-  throwIfAborted(signal)
-  if (connector.fetch === undefined) return null
+async function fetchRecord(
+  connector: Connector,
+  id: string,
+  signal: AbortSignal,
+  callerSignal: AbortSignal,
+): Promise<{ record: unknown } | { timedOut: true }> {
+  throwIfAborted(callerSignal)
+  if (connector.fetch === undefined) return { record: null }
   try {
-    return await connector.fetch(id, { signal })
+    return { record: await connector.fetch(id, { signal }) }
   } catch (error) {
-    if (signal.aborted) throw error
+    if (isAborted(callerSignal)) throw error
+    if (isAborted(signal)) return { timedOut: true }
     throw new LiteratureToolError('tool_execution_failed', describeSourceError(connector, error), {
       tool: 'paper_download',
       db: connector.id,
@@ -276,8 +292,10 @@ async function downloadPdf(input: DownloadInput): Promise<DownloadOutcome> {
   }
 
   // A caller cancellation that landed while the direct link was failing is not
-  // a download fault; it propagates before any fallback work starts.
-  throwIfAborted(input.signal)
+  // a download fault; it propagates before any fallback work starts. The
+  // whole-call deadline ends the call where it stands.
+  throwIfAborted(input.callerSignal)
+  if (isAborted(input.signal)) return failed(timeoutMessage(input.timeoutMs), directPdfUrl)
   const pageUrl = recordPageUrl(input.record)
   if (pageUrl === undefined) {
     const fallback = input.override?.trim()
@@ -289,7 +307,8 @@ async function downloadPdf(input: DownloadInput): Promise<DownloadOutcome> {
     timeoutMs: input.timeoutMs,
     signal: input.signal,
   })
-  throwIfAborted(input.signal)
+  throwIfAborted(input.callerSignal)
+  if (isAborted(input.signal)) return failed(timeoutMessage(input.timeoutMs), directPdfUrl)
   if (!extracted.ok || extracted.value === null) {
     const reason = extracted.ok ? 'no PDF link on the record page' : extracted.error
     return failed(`${directError}; browser extraction failed: ${reason}`, directPdfUrl)
@@ -355,6 +374,9 @@ export function createPaperDownloadTool(deps: PaperDownloadDeps): ToolDefinition
         })
       }
       const effectiveTimeout = timeoutMs ?? DEFAULT_TIMEOUT_MS
+      // One deadline bounds record lookup, direct fetch, browser extraction,
+      // and the fallback fetch; per-request timers cannot outlive the call.
+      const signal = AbortSignal.any([exec.signal, AbortSignal.timeout(effectiveTimeout)])
       const connector = deps.registry.get(db)
       if (connector === undefined) {
         const available = deps.registry.catalog().map(e => e.id).join(', ')
@@ -369,11 +391,24 @@ export function createPaperDownloadTool(deps: PaperDownloadDeps): ToolDefinition
 
       // An explicit override is the whole resolution: skip the connector call.
       const override = args.pdfUrl?.trim()
-      const record = override === undefined || override === '' ? await fetchRecord(connector, id, exec.signal) : null
+      let record: unknown = null
+      if (override === undefined || override === '') {
+        const fetched = await fetchRecord(connector, id, signal, exec.signal)
+        if ('timedOut' in fetched) {
+          return {
+            db,
+            id,
+            result: { status: 'failed' as const, error: timeoutMessage(effectiveTimeout) },
+            outputDir,
+          }
+        }
+        record = fetched.record
+      }
       const outcome = await downloadPdf({
         record,
         override,
-        signal: exec.signal,
+        signal,
+        callerSignal: exec.signal,
         timeoutMs: effectiveTimeout,
         fetchImpl: deps.fetchImpl,
         extractor,

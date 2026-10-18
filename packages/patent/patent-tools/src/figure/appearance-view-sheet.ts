@@ -92,6 +92,94 @@ const DEFAULT_PADDING_MM = 8
 /** 缩放后最长边低于单元格边长该比例时提示「可能过小」。 */
 const TINY_CELL_RATIO = 1 / 3
 
+/**
+ * 片段中会引入可执行内容或外部文档的元素。命名空间前缀（`svg:script`）
+ * 在 SVG 文档中仍是同一元素，故必须一起拒绝。
+ */
+const UNSAFE_SVG_ELEMENT = /^<\s*\/?\s*(?:[A-Z_][\w.-]*:)?(?:script|style|foreignObject|iframe|object|embed|animate|set)\b/i
+
+/** 标签上的事件处理属性（onload、onclick…），只在引号外的属性名上匹配。 */
+const EVENT_HANDLER_ATTRIBUTE = /\son[a-z]+\s*=/i
+
+/** 去掉引号内的属性值，避免值里的 `on...=` 文本被当成属性名。 */
+const QUOTED_ATTRIBUTE_VALUE = /"[^"]*"|'[^']*'/g
+
+/** 解码数字字符引用，避免 `&#x6a;avascript:` 这类写法绕过关键字检查。 */
+function decodeNumericReferences(text: string): string {
+  return text.replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex: string | undefined, decimal: string | undefined) => {
+    /* v8 ignore next -- the reference pattern always captures exactly one of the hex/decimal groups. */
+    const code = Number.parseInt(hex ?? decimal ?? '', hex === undefined ? 10 : 16)
+    return Number.isSafeInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match
+  })
+}
+
+/**
+ * 按 XML 引号规则切出完整标签：引号内的 `>` 不结束标签。
+ * @param source - 已解码的片段。
+ * @returns 每个 `<...>` 标签的原文，按出现顺序。
+ */
+function svgTags(source: string): string[] {
+  const tags: string[] = []
+  let index = 0
+  while (index < source.length) {
+    const start = source.indexOf('<', index)
+    if (start === -1) break
+    // Text such as `2 < 3` is not a tag start; resume after it so a later tag
+    // is still scanned.
+    if (!/[A-Za-z_/!?]/.test(source.charAt(start + 1))) {
+      index = start + 1
+      continue
+    }
+    let quote: string | undefined
+    let cursor = start + 1
+    while (cursor < source.length) {
+      const char = source.charAt(cursor)
+      if (quote !== undefined) {
+        if (char === quote) quote = undefined
+      } else if (char === '"' || char === "'") {
+        quote = char
+      } else if (char === '>') {
+        break
+      }
+      cursor += 1
+    }
+    if (cursor >= source.length) break
+    tags.push(source.slice(start, cursor + 1))
+    index = cursor + 1
+  }
+  return tags
+}
+
+/**
+ * Reject a model-supplied view fragment that carries executable content.
+ * The fragment is embedded verbatim into the delivered SVG, so `<script>`,
+ * event handlers, `javascript:` URLs, and embedded HTML documents must not
+ * reach the file.
+ * @param name - the view name, used to locate the offending input.
+ * @param body - the SVG fragment supplied by the model.
+ * @throws VectorFigureError 片段包含可执行内容时。
+ */
+function assertSafeSvgFragment(name: string, body: string): void {
+  // 注释不渲染，先移除，避免注释内容被误判或用来干扰标签扫描。
+  const decoded = decodeNumericReferences(body).replace(/<!--[\s\S]*?-->/g, '')
+  // URLs may contain tab/newline/control characters that browsers ignore.
+  const compact = decoded.toLowerCase().replace(/[\u0000-\u0020\u007f-\u009f]/g, '')
+  if (compact.includes('javascript:')) {
+    throw new VectorFigureError('invalid_input', `视图片段包含 javascript: URL，拒绝落版：${name}`)
+  }
+  if (/<!entity/.test(compact) || /<!\[cdata\[/.test(compact)) {
+    throw new VectorFigureError('invalid_input', `视图片段包含 ENTITY/CDATA 等不安全结构，拒绝落版：${name}`)
+  }
+  for (const tag of svgTags(decoded)) {
+    if (UNSAFE_SVG_ELEMENT.test(tag)) {
+      throw new VectorFigureError('invalid_input', `视图片段包含可执行元素，拒绝落版：${name}（${tag.slice(0, 40)}）`)
+    }
+    if (EVENT_HANDLER_ATTRIBUTE.test(tag.replace(QUOTED_ATTRIBUTE_VALUE, '""'))) {
+      throw new VectorFigureError('invalid_input', `视图片段包含事件处理属性，拒绝落版：${name}`)
+    }
+  }
+}
+
 /** 网格格位：列号向右递增，行号向下递增。 */
 type GridSlot = readonly [number, number]
 
@@ -162,6 +250,7 @@ function assertCellGeometry(name: string, body: string, widthMm: number, heightM
   if (body.trim() === '') {
     throw new VectorFigureError('invalid_input', `视图片段为空：${name}`)
   }
+  assertSafeSvgFragment(name, body)
   if (!Number.isFinite(widthMm) || widthMm <= 0 || !Number.isFinite(heightMm) || heightMm <= 0) {
     throw new VectorFigureError(
       'invalid_input',

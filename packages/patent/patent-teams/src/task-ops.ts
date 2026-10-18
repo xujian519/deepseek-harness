@@ -17,7 +17,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { appendTeamEvent, captainSessionOf } from './events.ts'
 import { PatentTeamsAttemptId, PatentTeamsTaskId, PatentTeamsTeamId } from './ids.ts'
 import { interruptMember, waitForMemberIdle } from './members.ts'
-import type { TeamScheduler } from './scheduler.ts'
+import { kickAfterPersist, type TeamScheduler } from './scheduler.ts'
 import {
   beginTaskAttempt,
   CAPTAIN_KEY,
@@ -248,8 +248,9 @@ export async function createTask(
     if (args.worker !== undefined && workerContract(args.worker) === undefined) {
       throw new Error(`patent_teams_create_task: worker "${args.worker}" is not in the patent worker catalog`)
     }
+    const seq = nextTaskSeq(fresh.tasks, fresh.taskSeq)
     const task: TeamTask = {
-      id: `t${fresh.taskSeq + 1}`,
+      id: `t${seq + 1}`,
       subject: args.subject,
       ...args.description === undefined ? {} : { description: args.description },
       status: 'pending',
@@ -260,7 +261,7 @@ export async function createTask(
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    fresh.taskSeq += 1
+    fresh.taskSeq = seq + 1
     fresh.tasks.push(task)
     await writeTeam(stateRoot, fresh)
     appendTeamEvent(host.ctx, captainSessionOf(host.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-created', {
@@ -279,8 +280,30 @@ export async function createTask(
       ...task.worker !== undefined ? { worker: task.worker } : {},
     }
   })
-  await host.scheduler.kickTeam(workspace, team.id, agent, signal)
+  await kickAfterPersist(host.ctx, `dispatch after creating task ${created.task_id}`, () =>
+    host.scheduler.kickTeam(workspace, team.id, agent, signal))
   return created
+}
+
+/**
+ * Next task sequence that cannot collide with an id already in the record.
+ *
+ * A hand-edited or legacy record may carry `taskSeq` below its highest task id;
+ * allocating `t${taskSeq + 1}` would then write a duplicate id, and the next read
+ * validation would reject the whole team as unreadable.
+ * @param tasks - the team's current tasks.
+ * @param taskSeq - the persisted sequence counter.
+ * @returns the highest safe sequence at or above both inputs.
+ */
+function nextTaskSeq(tasks: readonly TeamTask[], taskSeq: number): number {
+  let next = taskSeq
+  for (const task of tasks) {
+    const match = /^t(\d+)$/.exec(task.id)
+    if (match === null) continue
+    const value = Number(match[1])
+    if (Number.isSafeInteger(value) && value > next) next = value
+  }
+  return next
 }
 
 /**
@@ -363,7 +386,10 @@ export async function reassignTask(
       ? quiescenceError
       : new Error(`task quiescence failed: ${JSON.stringify(quiescenceError)}`)
   }
-  if (target !== CAPTAIN_KEY) await host.scheduler.kickMember(workspace, team.id, target, agent, signal)
+  if (target !== CAPTAIN_KEY) {
+    await kickAfterPersist(host.ctx, `dispatch after reassigning task ${args.task_id}`, () =>
+      host.scheduler.kickMember(workspace, team.id, target, agent, signal))
+  }
   const current = await readTeam(stateRoot, team.id)
   const task = current === undefined ? undefined : requireTask(current, args.task_id)
   if (task === undefined) throw new Error(`team "${team.name}" ended during reassignment`)
@@ -587,7 +613,8 @@ export async function updateTask(
     }
     return taskView(task)
   })
-  await host.scheduler.kickTeam(workspace, team.id, team.captainSessionId === agent.id ? agent : undefined, signal)
+  await kickAfterPersist(host.ctx, `dispatch after updating task ${updated.task_id}`, () =>
+    host.scheduler.kickTeam(workspace, team.id, team.captainSessionId === agent.id ? agent : undefined, signal))
   return updated
 }
 

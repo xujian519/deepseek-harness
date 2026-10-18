@@ -5,7 +5,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { createPatentSearchTool, baseNumber, dedupeByFamily } from '../src/tool/patent-search.ts'
-import { createPatentMetadataTool } from '../src/tool/patent-metadata.ts'
+import { createPatentMetadataTool, compactPatentNumber } from '../src/tool/patent-metadata.ts'
 import { createPatentLegalStatusTool } from '../src/tool/patent-legal-status.ts'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from '../src/tool/internal/upstream-channel.ts'
 import type { LegalStatusOptions, PatentData } from '@deepseek-ai/nuo-patent'
@@ -271,6 +271,45 @@ describe('patent_search through the CNIPR channel', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain(`channel: ${GOOGLE_PATENTS_CHANNEL}`)
   })
+
+  it('passes the caller signal to the CNIPR channel', async () => {
+    const controller = new AbortController()
+    let seen: AbortSignal | undefined
+    const tool = createPatentSearchTool({
+      search: async () => googleEmpty,
+      cnipr: () => ({
+        search: async (_query, options) => {
+          seen = options?.signal
+          return { total: 1, hits: [cnpirHit] }
+        },
+      }),
+    })
+    await tool.execute({ query: 'q' }, { signal: controller.signal } as never)
+    expect(seen).toBe(controller.signal)
+  })
+
+  it('names a non-Error CNIPR failure with its string form', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => googleEmpty,
+      cnipr: () => ({
+        search: async () => {
+          throw 'channel offline'
+        },
+      }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-cnipr-string')
+    expect(text(result)).toContain('channel offline')
+  })
+
+  it('rethrows the original engine failure when no second channel is wired', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => {
+        throw new Error('socket hang up')
+      },
+    })
+    await expect(tool.execute({ query: 'q' }, { signal } as never)).rejects.toThrow('socket hang up')
+  })
 })
 
 describe('patent_metadata', () => {
@@ -313,6 +352,8 @@ describe('patent_metadata', () => {
       await execute(ctx, 'patent_metadata', { patent: input }, `m-c-${index}`)
     }
     expect(seen).toEqual(['CN202122978405', 'CN202122978405', 'CN218483312U'])
+    // 没有国家码前缀时只去掉校验位，不补 CN。
+    expect(compactPatentNumber('202122978405.0')).toBe('202122978405')
   })
 
   it('rejects a number without a country code with actionable guidance', async () => {
@@ -552,5 +593,49 @@ describe('patent_legal_status', () => {
     expect(result.isError).toBe(false)
     // 缺失结果的号按 UNKNOWN 报出，不因缺第二个通道而报错。
     expect(text(result)).toContain('US2A')
+  })
+
+  it('falls back to the record status, keeps the newest record, and ignores unknown numbers', async () => {
+    const tool = createPatentLegalStatusTool({
+      checker: { checkBatch: async () => ({ 'CN2023113560975': { ...activeRecord, patent_number: 'CN2023113560975', status: 'UNKNOWN' } }) },
+      cnipr: () => ({
+        legalStatus: async () => [
+          {
+            number: 'CN2023113560975',
+            appNumber: '202311356097.5',
+            total: 2,
+            records: [
+              { app_number: '202311356097.5', announce_date: '2024.01.05', status: '驳回', status_info: '' },
+              { app_number: '202311356097.5', announce_date: '2023.12.29', status: '公开', status_info: '公开' },
+            ],
+          },
+          {
+            number: 'CN9999999999999',
+            appNumber: '999999999.9',
+            total: 1,
+            records: [{ app_number: '999999999.9', announce_date: '2024.01.01', status: '公开', status_info: '公开' }],
+          },
+        ],
+      }),
+    })
+    const value = await tool.execute({ patents: ['CN2023113560975'] }, { signal } as never)
+    const rendered = text({ content: tool.output.render({ patents: ['CN2023113560975'] }, value as never) })
+    expect(rendered).toContain('驳回')
+    expect(rendered).not.toContain('(公开)')
+    expect(rendered).toContain(`通道：${CNIPR_CHANNEL}`)
+  })
+
+  it('reports a non-Error CNIPR failure with its string form', async () => {
+    const tool = createPatentLegalStatusTool({
+      checker: { checkBatch: async () => ({ 'CN2023113560975': { ...activeRecord, patent_number: 'CN2023113560975', status: 'UNKNOWN' } }) },
+      cnipr: () => ({
+        legalStatus: async () => {
+          throw 'channel offline'
+        },
+      }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_legal_status', { patents: ['CN2023113560975'] }, 'l-cnipr-string')
+    expect(text(result)).toContain('channel offline')
   })
 })

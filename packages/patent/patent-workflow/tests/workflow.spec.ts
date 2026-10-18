@@ -29,6 +29,15 @@ describe('runWorkflow — fail-fast and cancellation', () => {
     ).rejects.toThrow(/工作流执行已取消/)
   })
 
+  it('forwards the expected guideline revision to manifest validation', async () => {
+    const declared = { ...manifest('guideline', [stage('a')]), guidelineRevision: '2026' }
+    const result = await runWorkflow(declared, { input: 'x' }, okExecutor, { guidelineRevision: '2026' })
+    expect(result.completed).toBe(true)
+    await expect(
+      runWorkflow(declared, { input: 'x' }, okExecutor, { guidelineRevision: '2025' }),
+    ).rejects.toThrow(/与当前指南版本（2025）不一致/)
+  })
+
   it('rejects a manifest declaring an unknown atom before executing anything', async () => {
     await expect(
       runWorkflow(manifest('unknown-atom', [stage('a', { atom: 'no-such-atom' })]), { input: 'x' }, okExecutor),
@@ -269,6 +278,58 @@ describe('runWorkflow — stage chaining', () => {
     )
     // a、b 并发（2 个在跑），c 声明了 consumes 而单跑；并入窗口会看到 3。
     expect(maxLive).toBe(2)
+  })
+  it('keeps the shared atom main key out of state for a parallel group', async () => {
+    const handlers = new StageHandlerRegistry()
+    handlers.register({
+      name: 'extract',
+      category: 'extract',
+      execute: async ({ state }) => {
+        const tag = String(state.tag)
+        return { out: tag, [String(state.key)]: tag }
+      },
+    })
+    const seen: PipelineState[] = []
+    await runWorkflow(
+      manifest('parallel-main-key', [
+        stage('a', { atom: 'extract', params: { tag: 'a', key: 'a' } }),
+        stage('b', { atom: 'extract', params: { tag: 'b', key: 'b' } }),
+        stage('read'),
+      ]),
+      { input: 'x' },
+      async (_s, _ctx, state) => {
+        seen.push({ ...state })
+        return '读到了'
+      },
+      { handlers, atoms: atomRegistry(['extract']) },
+    )
+    expect(seen).toHaveLength(1)
+    // 主键 `out` 在并行组内被跳过；各阶段的唯一键与 stage.id 命名空间都保留。
+    expect(seen[0]!.out).toBeUndefined()
+    expect(seen[0]!.a).toBe('a')
+    expect(seen[0]!.b).toBe('b')
+  })
+
+  it('does not parallelize a stage that declares retry', async () => {
+    let live = 0
+    let maxLive = 0
+    await runWorkflow(
+      manifest('parallel-retry', [
+        stage('a', { atom: 'extract', retry: { whenOutputMatches: '不一致' } }),
+        stage('b', { atom: 'extract' }),
+      ]),
+      { input: 'x' },
+      async (s) => {
+        live += 1
+        maxLive = Math.max(maxLive, live)
+        await Promise.resolve()
+        live -= 1
+        return `${s.id} 完成`
+      },
+      { atoms: atomRegistry(['extract']) },
+    )
+    // 带 retry 的阶段单跑，回退语义不会被 Promise.all 静默跳过。
+    expect(maxLive).toBe(1)
   })
 })
 

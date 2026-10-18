@@ -51,6 +51,38 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
+// 产物读取失败可被单次置为「非 Error 拒绝」：验证失败文案对非 Error 拒绝值同样成立。
+const mockFsRead = vi.hoisted(() => ({ failReadPath: '' }))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    readFile: ((...args: Parameters<typeof actual.readFile>) => {
+      if (args[0] === mockFsRead.failReadPath) {
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- drives the non-Error rejection branch
+        return Promise.reject('plain-read-boom')
+      }
+      return actual.readFile(...args)
+    }) as typeof actual.readFile,
+  }
+})
+
+// assertSafeSvg 的契约只抛 SvgAnnotateError；带标记的产物用以验证「非该类错误」的
+// 文案分支（依赖方违约时的防御路径）。
+const mockSvg = vi.hoisted(() => ({ plainThrowMarker: '' }))
+
+vi.mock('../src/figure/svg-annotate.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/figure/svg-annotate.ts')>()
+  return {
+    ...actual,
+    assertSafeSvg: (text: string, maxBytes: number) => {
+      if (mockSvg.plainThrowMarker !== '' && text.includes(mockSvg.plainThrowMarker)) throw 'plain-svg-boom'
+      actual.assertSafeSvg(text, maxBytes)
+    },
+  }
+})
+
 // dirname(absolute) never returns '' on POSIX; the empty-dirname cwd fallback
 // is exercised through a marker path (same trick as pdf-renderer.spec).
 vi.mock('node:path', async (importOriginal) => {
@@ -105,6 +137,8 @@ function fakeDot(): { dir: string; dot: string } {
 
 afterEach(() => {
   cleanEnv()
+  mockFsRead.failReadPath = ''
+  mockSvg.plainThrowMarker = ''
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
@@ -479,6 +513,118 @@ describe('renderWithGraphviz', () => {
       const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('syntax error')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('产物读取失败时报 render_failed；非 Error 拒绝值按 String(error) 报错', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      const outputPath = join(dir, 'f.svg')
+      writeFileSync(outputPath, MINIMAL_SVG)
+      mockFsRead.failReadPath = outputPath
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('读取渲染产物失败：plain-read-boom')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('产物路径是目录（EISDIR）时按 Error.message 报读取失败', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      mkdirSync(join(dir, 'f.svg'))
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('读取渲染产物失败：EISDIR')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('空 SVG 产物按无效产物拒绝', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      writeFileSync(join(dir, 'f.svg'), '')
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('渲染产物为空文件')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('SVG 安全校验失败时报 render_failed（SvgAnnotateError 用其消息）', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      writeFileSync(join(dir, 'f.svg'), '<svg')
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('SVG 校验失败')
+      expect((result as { error: string }).error).toContain('缺少 <svg> 根元素')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('SVG 校验抛非 SvgAnnotateError 时按 String(error) 报错', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      writeFileSync(join(dir, 'f.svg'), MINIMAL_SVG.replace('></svg>', '>plain-svg-marker</svg>'))
+      mockSvg.plainThrowMarker = 'plain-svg-marker'
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('渲染产物 SVG 校验失败：plain-svg-boom')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('PNG 产物按 magic bytes 校验：合法放行、截断拒绝', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const spec = { dot: 'x', filename: 'f', format: 'png' as const, engine: 'dot' as const, outputDir: dir }
+      writeFileSync(join(dir, 'f.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      expect(await renderWithGraphviz(runtime, spec, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }))
+        .toEqual({ ok: true, path: join(dir, 'f.png') })
+
+      writeFileSync(join(dir, 'f.png'), 'not-a-png')
+      const invalid = await renderWithGraphviz(runtime, spec, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(invalid).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((invalid as { error: string }).error).toContain('不是合法 PNG')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('PDF 产物按 %PDF 头校验：合法放行、缺头拒绝', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const spec = { dot: 'x', filename: 'f', format: 'pdf' as const, engine: 'dot' as const, outputDir: dir }
+      writeFileSync(join(dir, 'f.pdf'), '%PDF-1.5\n%%EOF\n', 'latin1')
+      expect(await renderWithGraphviz(runtime, spec, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS }))
+        .toEqual({ ok: true, path: join(dir, 'f.pdf') })
+
+      writeFileSync(join(dir, 'f.pdf'), 'not-a-pdf', 'latin1')
+      const invalid = await renderWithGraphviz(runtime, spec, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(invalid).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((invalid as { error: string }).error).toContain('缺 %PDF 头')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

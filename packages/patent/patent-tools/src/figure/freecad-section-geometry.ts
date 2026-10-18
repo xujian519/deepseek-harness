@@ -165,6 +165,7 @@ export function resolveSectionFrame(plane: SectionPlane): SectionFrame {
   if (length <= BASIS_EPSILON) {
     throw new SectionGeometryError(
       'invalid_input',
+      /* v8 ignore next -- reference is defined whenever this throw is reachable: defaultReference always returns a non-parallel axis */
       `剖切平面参考方向 reference=[${plane.reference?.join(', ') ?? ''}] 与法向 normal=[${normal.join(', ')}] 平行，`
       + '图面内的「向右」无定义：请另给一个与法向不平行的参考方向',
     )

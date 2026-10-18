@@ -313,6 +313,12 @@ export async function spawnMember(
       agentOptions: {
         provider: llmSelection.provider,
         model: llmSelection.model,
+        // The child runs on the resolved route, so its effort must ride the
+        // same request; resolving it here but omitting it would silently run
+        // at the parent's effort while status/output report the explicit one.
+        ...llmSelection.reasoningEffort === undefined
+          ? {}
+          : { reasoningEffort: ReasoningEffortId(llmSelection.reasoningEffort) },
       },
       ...config.maxDepth !== undefined ? { maxDepth: config.maxDepth } : {},
     },

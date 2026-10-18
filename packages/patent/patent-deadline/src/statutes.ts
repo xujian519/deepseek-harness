@@ -101,6 +101,13 @@ export type DeadlineQuery = {
   priorityDate?: CalendarDate
   /** Whether the case is a PCT application entering the Chinese national phase. */
   isPctNationalPhase?: boolean
+  /**
+   * Date the applicant completed the formalities for entering the Chinese
+   * national phase (进入日). The PCT application fee runs from this date; when
+   * it is absent the report keeps that entry pending instead of counting from
+   * the international filing date.
+   */
+  nationalPhaseEntryDate?: CalendarDate
   /** Grant publication date (授权公告日), which fixes the granted patent year. */
   authorizationPublicationDate?: CalendarDate
   /** Date the drug obtained marketing approval in China (新药上市许可日). */
@@ -391,10 +398,11 @@ function priorityItems(query: DeadlineQuery, options: EvaluateOptions): Deadline
 }
 
 /**
- * Build the application-fee entry, which runs from the filing date.
+ * Build the application-fee entry: from the filing date for a domestic
+ * application, or from the national-phase entry date for a PCT application.
  * @param query - the case inputs.
  * @param options - calendar and reminder policy.
- * @returns the fee entry.
+ * @returns the fee entry, or a pending entry when a PCT case has no entry date.
  */
 function applicationFeeItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
   const filing = query.filingDate
@@ -402,6 +410,28 @@ function applicationFeeItems(query: DeadlineQuery, options: EvaluateOptions): De
 
   // ── 细则第112条 — application fee; a priority claim adds its fee to the same payment.
   const priorityFee = query.claimsPriority ? '及优先权要求费' : ''
+
+  // ── 细则第120条 — a PCT applicant pays on entering the national phase, so the
+  // period runs from the entry date rather than from the international filing date.
+  if (query.isPctNationalPhase === true) {
+    const entry = query.nationalPhaseEntryDate
+    const label = `缴纳申请费、公布印刷费、必要的申请附加费${priorityFee}（自进入中国国家阶段之日起2个月内）`
+    const legalBasis = '专利法实施细则第120条'
+    return entry === undefined
+      ? [pending({
+        id: 'application-fee',
+        label,
+        legalBasis,
+        requiredInput: 'nationalPhaseEntryDate（进入中国国家阶段之日）',
+        reason: 'PCT 国家阶段的申请费自进入日起算；未记录进入日时无法计算，不以国际申请日等其他日期替代。',
+      })]
+      : [fromPeriod({
+        base: { id: 'application-fee', label, legalBasis, query, options },
+        start: entry,
+        period: { unit: 'month', count: 2 },
+      })]
+  }
+
   items.push(fromPeriod({
     base: {
       id: 'application-fee',

@@ -359,8 +359,12 @@ const VECTOR_INPUT_FIELDS: readonly { field: keyof GeneratePatentFigureInput; fi
   { field: 'appearance_views', figureType: 'appearance_view' },
 ]
 
-/** 矢量图型输入的存在性（用于图型推断与互斥校验）。 */
-function presentVectorFields(input: GeneratePatentFigureInput): { field: string; figureType: GenerateFigureType }[] {
+/**
+ * 矢量图型输入的存在性（用于图型推断与互斥校验）。
+ * @param input - 待检测的输入字段。
+ * @returns 已给出的矢量输入及其图型，顺序固定。
+ */
+export function presentVectorFields(input: GeneratePatentFigureInput): { field: string; figureType: GenerateFigureType }[] {
   return VECTOR_INPUT_FIELDS
     .filter(entry => input[entry.field] !== undefined)
     .map(entry => ({ field: entry.field, figureType: entry.figureType }))

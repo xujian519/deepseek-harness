@@ -6430,6 +6430,7 @@ build_patent_filing assembles one CNIPA application document (abstract, abstract
 - Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.
 - Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to "omit" for the un-rolled criterion, which reports each period's own end date; both dates are always returned, with rawDueDate holding the un-rolled one.
 - Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.
+- Counts a PCT application fee from nationalPhaseEntryDate (the national-phase entry date); without that date the entry stays pending rather than counting from the international filing date.
 - Deadlines that start at a notice's delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice's delivery date is supplied; they are never approximated from the filing date.
 
 Usage notes:
@@ -6465,6 +6466,10 @@ Usage notes:
     "isPctNationalPhase": {
       "type": "boolean",
       "description": "Whether the case is a PCT application entering the Chinese national phase"
+    },
+    "nationalPhaseEntryDate": {
+      "type": "string",
+      "description": "Date the PCT national-phase entry formalities were completed (进入日); the PCT application fee runs from it"
     },
     "authorizationPublicationDate": {
       "type": "string",
@@ -6576,10 +6581,10 @@ patent_deadlines reports the statutory and designated deadlines of one Chinese p
 - Prices the official fees of one Chinese patent case against the fee index shipped with this deployment: the items the case owes, how many units of each, whether a fee reduction applies, the annual-fee tier of each year, and the surcharge on a late annual fee.
 - Report the case facts the index counts with (claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths). A fact the priced items need but the call omits comes back under pending, naming the input, rather than being guessed.
 - Announce every step of the case in triggers. A step you do not name is not priced at all, so a grant or a procedure left out reads as "no fee" — this list is the report's coverage, not a hint.
-- Money is reported only from transcribed amounts. Each line carries amountStatus: verified (amount and its verification date are recorded), unverified (amount recorded, verification date is not), or unrecorded (no amount yet). With the shipped index every item is unrecorded, so lines carry applicability and counts and no figures.
-- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. Never fill in a missing amount yourself and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.
+- Money is reported only from transcribed amounts. Each line carries status: verified (amount and its verification date are recorded), unverified (amount recorded, verification date is not), or unrecorded (no amount yet). With the shipped index 17 of 19 items carry transcribed, verified amounts; specification-surcharge and extension-fee stay unrecorded because their tiered pricing does not fit one unit amount, so those two lines carry no figures and withhold the total.
+- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. A trigger the index carries no item for is reported under total.uncoveredTriggers and also withholds the total. Never fill in a missing amount or an unindexed stage yourself, and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.
 - annuityYears is the list of patent years to price; it comes from patent_deadlines, which owns the dates. lateMonths is the number of started months of delay, likewise from that tool.
-- This is arithmetic over an index, not a fee quote: the index carries a fee item's structure, and its amounts stay unverified until a person transcribes them from the official fee standard. Confirm any amount against the official announcement before invoicing a client.
+- This is arithmetic over an index, not a fee quote: the index carries a fee item's structure and transcribed amount with its verification date. Confirm any amount against the official announcement before invoicing a client.
 
 Usage notes:
   - Read-only, offline, and makes no network request.

@@ -81,6 +81,16 @@ export const DEFAULT_RETRY: Required<Pick<NetworkRetryOptions, 'maxRetries' | 'b
 /** 缓存条目上限：超限按 LRU 淘汰最久未访问项，防止长时间运行（分页检索等）无限增长。 */
 const MAX_CACHE_ENTRIES = 500
 
+/** Whether a body parses as JSON, used to keep non-JSON 200 responses out of the GET cache. */
+function isJsonBody(body: string): boolean {
+  try {
+    JSON.parse(body)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * 部署网络预算（超时/缓存/重试）。连接器构造选项与本插件的 `Config` 都以此
  * 承载同一组值：随部署改变的部分（代理、内网镜像、离线或限流环境）由
@@ -240,7 +250,15 @@ export class LiteratureHttpClient {
    * @returns 解析出的 JSON 值。
    */
   async getJSON<T = unknown>(url: string, opts?: LiteratureFetchOptions): Promise<T> {
-    const res = await this.request(url, { ...opts, accept: opts?.accept ?? 'application/json' })
+    const looksValid = opts?.looksValid
+    const res = await this.request(url, {
+      ...opts,
+      accept: opts?.accept ?? 'application/json',
+      // `request` caches the raw body before this method parses it, so an HTML
+      // error page with status 200 would otherwise be served from cache for the
+      // whole TTL and keep failing as "Non-JSON response".
+      looksValid: body => isJsonBody(body) && (looksValid?.(body) ?? true),
+    })
     if (!res.ok) {
       throw new LiteratureHttpError(res.status, `HTTP ${res.status} for ${url}: ${res.body.slice(0, 500)}`)
     }

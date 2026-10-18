@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parseOfficeAction, type PipelineState, type RuleViolation } from '@deepseek-ai/dsh-patent-core'
+import { parseOfficeAction, type ConstitutionalRule, type PipelineState, type RuleViolation } from '@deepseek-ai/dsh-patent-core'
 import {
   loadResponseCheckRules,
   ResponseCheckHandler,
@@ -251,5 +254,112 @@ describe('response-check atom', () => {
     expect(output.response_check_passed).toBe(true)
     expect(output.response_check_unevaluated).toEqual([])
     expect(output.response_check_report).toContain('未识别到具体驳回理由')
+  })
+
+  it('office_action 为空串 → 降级', async () => {
+    const output = await handler.execute({ state: { draft: PASSING_RESPONSE, office_action: '  ' } })
+    expect(degradedReason(output)).toContain('state.office_action 为空')
+  })
+
+  it('office_action 的 rejectionTypes 结构损坏 → 降级', async () => {
+    for (const value of ['null', '"text"', '{"rejectionTypes":{}}', '{"rejectionTypes":[1]}']) {
+      const output = await handler.execute({ state: { draft: PASSING_RESPONSE, office_action: value } })
+      expect(degradedReason(output), value).toContain('缺少合法的 rejectionTypes')
+    }
+  })
+
+  it('office_action_key 或 notice_key 非法 → 降级', async () => {
+    const badOfficeAction = await handler.execute({
+      state: { draft: PASSING_RESPONSE, office_action_key: ' ' },
+    })
+    expect(degradedReason(badOfficeAction)).toContain('params.office_action_key')
+
+    const badNotice = await handler.execute({
+      state: { draft: PASSING_RESPONSE, notice_key: 1 },
+    })
+    expect(degradedReason(badNotice)).toContain('params.notice_key')
+  })
+
+  it('通知书正文类型错误 → 降级', async () => {
+    const output = await handler.execute({ state: { draft: PASSING_RESPONSE, notice: 1 } })
+    expect(degradedReason(output)).toContain('state.notice 不是字符串')
+  })
+
+  it('规则加载抛出非 Error 时仍降级', async () => {
+    const loader: ResponseCheckLoader = () => {
+      throw 'asset broken'
+    }
+    const output = await new ResponseCheckHandler(loader).execute({
+      state: { draft: PASSING_RESPONSE, office_action: officeAction(NOTICE) },
+    })
+    expect(degradedReason(output)).toContain('规则资产加载失败：asset broken')
+  })
+
+  it('规则加载警告超过三条时注明总数', async () => {
+    const loaded = loadResponseCheckRules()
+    const loader: ResponseCheckLoader = () => ({
+      rules: loaded.rules,
+      missingIds: [],
+      warnings: ['w1', 'w2', 'w3', 'w4'],
+    })
+    const output = readOutput(await new ResponseCheckHandler(loader).execute({
+      state: { draft: PASSING_RESPONSE, office_action: officeAction(NOTICE) },
+    }))
+    expect(output.response_check_report).toContain('规则加载警告：w1；w2；w3 等 4 条')
+  })
+
+  it('违规带行号时报告定位到行', async () => {
+    const rule: ConstitutionalRule = {
+      id: 'CUSTOM-1',
+      name: '禁止词',
+      severity: 'major',
+      action: 'warn',
+      legalBasis: '依据文本',
+      check: { type: 'keyword_blocklist', keywords: ['禁止词'] },
+    }
+    const loader: ResponseCheckLoader = () => ({ rules: [rule], missingIds: [], warnings: [] })
+    const output = readOutput(await new ResponseCheckHandler(loader).execute({
+      state: { draft: '答复第一行。\n答复包含禁止词。' },
+    }))
+    expect(output.response_check_report).toContain('（依据：依据文本）')
+    expect(output.response_check_report).toContain('（第 2 行')
+  })
+
+  it('违规没有法律依据与行号时两段说明都省略', async () => {
+    const rule: ConstitutionalRule = {
+      id: 'CUSTOM-2',
+      name: '重复引证',
+      severity: 'major',
+      action: 'warn',
+      check: { type: 'quote_repetition', minLength: 12, minOccurrences: 2 },
+    }
+    const loader: ResponseCheckLoader = () => ({ rules: [rule], missingIds: [], warnings: [] })
+    const quote = '这是一段被重复引用的完整内容'
+    const output = readOutput(await new ResponseCheckHandler(loader).execute({
+      state: { draft: `“${quote}”……“${quote}”。` },
+    }))
+    expect(output.response_check_passed).toBe(false)
+    expect(output.response_check_report).not.toContain('依据：')
+    expect(output.response_check_report).not.toContain('（第 ')
+  })
+})
+
+describe('loadResponseCheckRules', () => {
+  it('资产缺少答复规则时逐个报告缺失编号', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-response-rules-'))
+    try {
+      const patentDir = join(root, 'patent')
+      mkdirSync(patentDir)
+      writeFileSync(
+        join(patentDir, 'compliance.yaml'),
+        'rules:\n  - id: C1\n    name: 其它规则\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+        'utf8',
+      )
+      const loaded = loadResponseCheckRules(root)
+      expect(loaded.rules).toEqual([])
+      expect(loaded.missingIds).toEqual(['PR-OA-007', 'PR-OA-008', 'PR-OA-009'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

@@ -67,6 +67,8 @@ describe('检索质量指标', () => {
     expect(rankOfFirstRelevant(missed)).toBeNull()
     expect(rankOfFirstRelevant({ ranking: [], relevance: { a: 1 } })).toBeNull()
     expect(ndcgAtK(missed, 5)).toBe(0)
+    // 判读里没有任何相关文档时理想增益为 0，nDCG 定义为 0。
+    expect(ndcgAtK({ ranking: ['a'], relevance: {} }, 5)).toBe(0)
     expect(meanReciprocalRank([missed])).toBe(0)
     // 位次 1 与 4 的倒数均值，漏检按 0 计入分母。
     expect(meanReciprocalRank([

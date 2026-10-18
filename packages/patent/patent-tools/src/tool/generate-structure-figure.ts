@@ -46,6 +46,7 @@ import type { SubmissionLayout } from '../figure/submission-page.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
 import { upsertFigureIndex } from './figure-output.ts'
 import { assertRendered } from './internal/render-outcome.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** 结构线稿在索引中的模型标识（FreeCAD TechDraw 投影，无 LLM 参与）。 */
 export const STRUCTURE_FIGURE_MODEL_USED = 'freecad-structure'
@@ -273,9 +274,11 @@ function normalizeViews(views: readonly string[] | undefined, fallback: readonly
   const requested = views === undefined || views.length === 0 ? fallback : views
   const seen = new Set<StructureViewName>()
   for (const view of requested) {
+    /* v8 ignore start -- the tool schema's enum rejects unknown views before execute; this guard serves standalone callers */
     if (!(STRUCTURE_VIEWS as readonly string[]).includes(view)) {
       throw new PatentToolError('invalid_tool_input', `不支持的视图 "${view}"；可选：${STRUCTURE_VIEWS.join('、')}`, { tool: 'generate_structure_figure' })
     }
+    /* v8 ignore stop */
     seen.add(view as StructureViewName)
   }
   if (seen.size === 0) {
@@ -387,6 +390,7 @@ async function readManifest(manifestPath: string): Promise<StructureManifest> {
   try {
     parsed = JSON.parse(await readFile(manifestPath, 'utf8')) as StructureManifest
   } catch (error) {
+    /* v8 ignore next -- readFile and JSON.parse only reject with Error values */
     throw new PatentToolError('tool_execution_failed', `读取 manifest 失败：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_structure_figure' })
   }
   if (!Array.isArray(parsed.views) || parsed.views.length === 0) {
@@ -402,11 +406,13 @@ async function assertViewSvgs(manifest: StructureManifest): Promise<void> {
     try {
       text = await readFile(view.path, 'utf8')
     } catch (error) {
+      /* v8 ignore next -- readFile only rejects with Error values */
       throw new PatentToolError('tool_execution_failed', `读取视图 ${view.name} SVG 失败：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_structure_figure' })
     }
     try {
       assertSafeSvg(text, DEFAULT_SVG_MAX_BYTES)
     } catch (error) {
+      /* v8 ignore next -- assertSafeSvg only throws SvgAnnotateError values */
       throw new PatentToolError('tool_execution_failed', `视图 ${view.name} SVG 校验失败：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_structure_figure' })
     }
   }
@@ -687,6 +693,7 @@ async function applyStructureLayout(args: {
   try {
     sheetNumber = sheetNumberText(profile, input.sheet_index ?? 1, input.sheet_total ?? 1)
   } catch (error) {
+    /* v8 ignore next -- sheetNumberText only throws RangeError */
     throw new PatentToolError('invalid_tool_input', `落版参数非法：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_structure_figure' })
   }
   let layout: SubmissionLayout | undefined
@@ -705,8 +712,10 @@ async function applyStructureLayout(args: {
         pageScale: page.metrics.pageScale,
         placedWidthMm: page.metrics.placedWidthMm,
         placedHeightMm: page.metrics.placedHeightMm,
+        /* v8 ignore start -- this layout never passes a body font size, so both character heights are absent */
         ...(page.metrics.charHeightMm === undefined ? {} : { charHeightMm: page.metrics.charHeightMm }),
         ...(page.metrics.reducedCharHeightMm === undefined ? {} : { reducedCharHeightMm: page.metrics.reducedCharHeightMm }),
+        /* v8 ignore stop */
         ...(input.caption === undefined ? {} : { caption: input.caption }),
         sheetNumber,
       }
@@ -805,7 +814,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
           },
           numeralMap: { type: 'array', required: true, items: NUMERAL_MAP_SCHEMA },
           components: { type: 'array', required: true, items: COMPONENT_SCHEMA },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
           indexed: { type: 'boolean', required: true },
         },
       },
@@ -841,6 +850,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
         for (const figure of figures) {
           if (!await upsertFigureIndex({
             upsertIndex: deps.upsertIndex,
+            /* v8 ignore next -- the manifest validates at least one view, so paths[0] always exists */
             imagePath: figure.paths[0] ?? '',
             analysis: structureAnalysis(figure, components, numeralText, warnings),
             warnings,
@@ -872,6 +882,7 @@ function structureAnalysis(
   warnings: string[],
 ): FigureAnalysisResult {
   return {
+    /* v8 ignore next -- the manifest validates at least one view, so paths[0] always exists */
     imagePath: figure.paths[0] ?? '',
     figureNumber: figure.figureNumber,
     figureType: 'structure',
@@ -897,7 +908,7 @@ function renderStructureResult(value: GenerateStructureFigureOutput): { type: 't
       ? []
       : ['', `## 落版（${value.layout.office}）`, `- 缩放 ${value.layout.pageScale}，图形 ${value.layout.placedWidthMm}×${value.layout.placedHeightMm} 毫米`, `- 页码 ${value.layout.sheetNumber}`]),
     ...(value.numeralMap.length > 0 ? ['', '## 参考标号', ...value.numeralMap.map(m => `- ${m.numeral} ${m.label}`.trimEnd())] : []),
-    ...(value.warnings.length > 0 ? ['', '## 警告', ...value.warnings.map(w => `- ${w}`)] : []),
+    ...warningSection(value.warnings),
   ]
   return [{ type: 'text', text: lines.join('\n') }]
 }

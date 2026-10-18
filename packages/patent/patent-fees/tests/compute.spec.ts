@@ -484,6 +484,56 @@ describe('pricing a case', () => {
     expect(report.lines.map(line => line.id)).toEqual(['reexamination-fee'])
   })
 
+  it('withholds the total when a named trigger has no indexed item', () => {
+    const report = computeFees(loadFeeTable(), query({ triggers: ['grant-registration'] }), POLICY)
+    expect(report.lines).toEqual([])
+    expect(report.total).toEqual({
+      amount: null,
+      complete: false,
+      unverifiedIds: [],
+      uncoveredTriggers: ['grant-registration'],
+    })
+    expect(report.notes.some(note => note.includes('索引未收录'))).toBe(true)
+  })
+
+  it('does not treat a trigger with items excluded by patent type as unindexed', () => {
+    const report = computeFees(
+      loadFeeTable(),
+      query({ patentType: 'design', triggers: ['substantive-examination'] }),
+      POLICY,
+    )
+    expect(report.lines).toEqual([])
+    expect(report.total.uncoveredTriggers).toBeUndefined()
+  })
+
+  it('does not charge claims or specification surcharges to a design case', () => {
+    const report = computeFees(
+      loadFeeTable(),
+      query({ patentType: 'design', triggers: ['filing'], claims: 15, specificationPages: 40 }),
+      POLICY,
+    )
+    expect(report.lines.map(line => line.id)).toEqual(['application-fee-utility-design'])
+    expect(report.total.amount).toBe('500.00')
+    expect(report.notes.some(note => note.includes('权利要求附加费') && note.includes('说明书附加费'))).toBe(true)
+  })
+
+  it('does not withhold the total for an unrecorded surcharge with zero units', () => {
+    const report = computeFees(
+      loadFeeTable(),
+      query({ triggers: ['filing'], claims: 5, specificationPages: 20 }),
+      POLICY,
+    )
+    expect(report.lines.find(line => line.id === 'specification-surcharge')).toMatchObject({
+      quantity: 0,
+      status: 'unrecorded',
+    })
+    expect(report.total).toEqual({
+      amount: '950.00',
+      complete: true,
+      unverifiedIds: [],
+    })
+  })
+
   it('prices the shipped index and withholds the total while one item has no amount', () => {
     const report = computeFees(
       loadFeeTable(),

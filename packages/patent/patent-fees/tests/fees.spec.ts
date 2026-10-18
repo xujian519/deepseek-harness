@@ -227,8 +227,14 @@ items:
       basis: 'per-claim-beyond',
       freeUnits: 10,
       amount: '150',
+      patentTypes: ['invention', 'utility-model'],
     })
-    expect(pages).toMatchObject({ basis: 'per-page-beyond', freeUnits: 30, amount: null })
+    expect(pages).toMatchObject({
+      basis: 'per-page-beyond',
+      freeUnits: 30,
+      amount: null,
+      patentTypes: ['invention', 'utility-model'],
+    })
     expect(annual?.latePayment).toMatchObject({ monthlyPercent: 5, maxMonths: 6 })
     expect(annual?.tiers).toEqual([
       { fromYear: 1, toYear: 3, amount: '900' },

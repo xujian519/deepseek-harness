@@ -28,6 +28,29 @@ import {
   writeTeam,
 } from './state.ts'
 import { memberOpenTask } from './team-access.ts'
+
+/**
+ * Run a scheduler kick after durable state has already been committed.
+ *
+ * A dispatch failure must not turn the committed operation into a tool error:
+ * the caller would retry and duplicate the entity (or hit "already exists").
+ * The durable record is the source of truth; the next idle edge retries the
+ * dispatch.
+ * @param ctx - plugin context used for the warning.
+ * @param operation - what the kick was dispatching, for the warning.
+ * @param kick - the scheduler call.
+ */
+export async function kickAfterPersist(
+  ctx: Context,
+  operation: string,
+  kick: () => Promise<void>,
+): Promise<void> {
+  try {
+    await kick()
+  } catch (error) {
+    ctx.logger.warn(`patent-teams: ${operation} failed after the change was persisted: ${String(error)}`)
+  }
+}
 import {
   serialize,
   stateRootOf,
@@ -183,30 +206,33 @@ async function deliverMailboxFallback(ctx: Context, args: {
   // The caller may hold a pre-removal team snapshot. Revalidate membership
   // under the same lock that claims the lease, so a member removed after the
   // snapshot cannot receive fallback mail from a stale kick.
-  const claimed = await withTeamLock(teamLockKey(stateRoot, teamId), async () => {
+  const claimedIds = await withTeamLock(teamLockKey(stateRoot, teamId), async () => {
     const fresh = await readTeam(stateRoot, teamId)
     const current = fresh?.members.find(candidate => candidate.id === member.id
       && candidate.name === member.name
       && candidate.status !== 'removed')
-    if (current === undefined) return false
-    await claimMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
-    return true
+    if (current === undefined) return undefined
+    return claimMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
   })
-  if (!claimed) return true
+  if (claimedIds === undefined || claimedIds.length === 0) return true
+  // The snapshot may contain messages acknowledged after it was read; deliver
+  // only the records the claim actually leased.
+  const claimed = new Set(claimedIds)
+  const messages = unread.filter(message => claimed.has(message.id))
   const accepted = await deliverToMember(
     ctx,
     captain,
     member.id,
-    fallbackMailboxPrompt(unread),
+    fallbackMailboxPrompt(messages),
     signal,
   )
   if (accepted) {
     await withMailboxLease(stateRoot, teamId, member.name, key => (
-      acknowledgeMailbox(stateRoot, teamId, key, unread.map(message => message.id))
+      acknowledgeMailbox(stateRoot, teamId, key, claimedIds)
     ))
   } else {
     await withMailboxLease(stateRoot, teamId, member.name, key => (
-      releaseMailboxDelivery(stateRoot, teamId, key, unread.map(message => message.id))
+      releaseMailboxDelivery(stateRoot, teamId, key, claimedIds)
     ))
   }
   return true
@@ -404,15 +430,17 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
     const stateRoot = stateRootOf(workspace, config.stateDir)
     const located = await findTeamByParticipant(stateRoot, agent.id)
     if (located === undefined || located.captainSessionId === agent.id) {
+      /* v8 ignore next -- a cached undefined entry only exists when the key is absent */
       if (!memberIndex.has(agent.id)) memberIndex.set(agent.id, null)
       return
     }
-    // v8 ignore next 3 -- findTeamByParticipant only matches surviving members, so this guard is defensive
+    /* v8 ignore start -- findTeamByParticipant only matches surviving members, so this guard and its return are defensive */
     const member = located.members.find(candidate => candidate.id === agent.id && candidate.status !== 'removed')
     if (member === undefined) {
       if (!memberIndex.has(agent.id)) memberIndex.set(agent.id, null)
       return
     }
+    /* v8 ignore stop */
     const entry = { teamId: located.id, memberName: member.name }
     memberIndex.set(agent.id, entry)
     await syncKnownMember(agent, status, entry)

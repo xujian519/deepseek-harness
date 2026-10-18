@@ -308,6 +308,72 @@ describe('registerPatentTeamsTools', () => {
     expect(text).toContain('gated ×3: 0.40 (质量评分:0.40/1.0 未达 0.70、内容充分性(0.10))')
   })
 
+  it('renders a degraded contract validation', () => {
+    const ctx = new Context()
+    const tools = register(ctx, makeService())
+    const status: PatentTeamsStatus = {
+      team_id: 'alpha', team_name: 'Alpha', description: '', viewer: 'captain',
+      members: [],
+      tasks: [{
+        id: 't1', subject: 'bad', status: 'completed', assignee: 'alice', dependencies: [],
+        attempt: 1, attempt_id: 'a1', reassigning: false, output: 'x', worker: 'patent-search-commander',
+        contract_validation: { valid: false, missing_hard_fields: ['公开日', '对比文件'], degraded: true },
+      }],
+      captain_inbox: [], captain_inbox_omitted: 0, member_inboxes: {}, mailbox_warnings: [], mailbox_warning_count: 0,
+    }
+    const text = tools.get('patent_teams_status')!.output.render({}, status)
+      .map(block => block.text).join('\n')
+    expect(text).toContain('contract: degraded(公开日、对比文件)')
+  })
+
+  it('renders no gate annotation for satisfied feedback and an empty member preview', () => {
+    const ctx = new Context()
+    const tools = register(ctx, makeService())
+    const status: PatentTeamsStatus = {
+      team_id: 'alpha', team_name: 'Alpha', description: '', viewer: 'captain',
+      members: [],
+      tasks: [{
+        id: 't1', subject: 'ok', status: 'in_progress', assignee: 'alice', dependencies: [],
+        attempt: 1, attempt_id: 'a1', reassigning: false, output: 'x',
+        gate_feedback: { score: 1, satisfied: true, failures: [], feedback: '' },
+      }],
+      captain_inbox: [], captain_inbox_omitted: 0,
+      member_inboxes: { bob: { count: 0, omitted: 0 } },
+      mailbox_warnings: [], mailbox_warning_count: 0,
+    }
+    const text = tools.get('patent_teams_status')!.output.render({}, status)
+      .map(block => block.text).join('\n')
+    expect(text).not.toContain('gated')
+    expect(text).toContain('Member inbox bob (0): latest — ')
+  })
+
+  it('renders a status gate annotation with the default rejection count', () => {
+    const ctx = new Context()
+    const tools = register(ctx, makeService())
+    const status: PatentTeamsStatus = {
+      team_id: 'alpha', team_name: 'Alpha', description: '', viewer: 'captain',
+      members: [],
+      tasks: [{
+        id: 't1', subject: 'bad', status: 'in_progress', assignee: 'alice', dependencies: [],
+        attempt: 1, attempt_id: 'a1', reassigning: false,
+        gate_feedback: { score: 0.2, satisfied: false, failures: ['内容充分性'], feedback: 'revise' },
+      }],
+      captain_inbox: [], captain_inbox_omitted: 0, member_inboxes: {}, mailbox_warnings: [], mailbox_warning_count: 0,
+    }
+    const text = tools.get('patent_teams_status')!.output.render({}, status)
+      .map(block => block.text).join('\n')
+    expect(text).toContain('gated ×1: 0.20 (内容充分性)')
+  })
+
+  it('renders a gated update without recorded details', () => {
+    const ctx = new Context()
+    const tools = register(ctx, makeService())
+    const text = tools.get('patent_teams_update_task')!.output.render({}, {
+      task_id: 't1', status: 'in_progress', attempt: 1, gated: true,
+    }).map(block => block.text).join('\n')
+    expect(text).toContain('未过质量门禁（第 1 次被打回；保持 in_progress）')
+  })
+
   it('renders a gated update result', () => {
     const ctx = new Context()
     const tools = register(ctx, makeService())

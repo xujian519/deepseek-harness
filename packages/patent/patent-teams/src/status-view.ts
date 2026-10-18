@@ -79,6 +79,7 @@ export async function buildTeamStatus(
         model: member.model ?? '',
         reasoning_effort: member.reasoningEffort ?? '',
         status: member.status,
+        /* v8 ignore next -- durable state validation rejects empty member ids, so only the live-id branch is reachable */
         activity: member.id !== '' ? (activity.get(member.id) ?? 'unknown') : 'unspawned',
         ...summary !== undefined ? { role_contract: summary } : {},
       }
@@ -143,6 +144,7 @@ export async function buildTeamStatus(
       memberInboxes[member.name] = {
         count: messages.length,
         omitted: messages.length - 1,
+        /* v8 ignore next -- the empty-mailbox continue above guarantees a last message */
         latest: messages[messages.length - 1]?.content.slice(0, 200) ?? '',
       }
       continue

@@ -677,6 +677,27 @@ describe('patent_pdf_download', () => {
     }
   })
 
+  it('reports a 429 without a retry-after header and treats an empty retry config as one attempt', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const rateLimited: typeof fetch = async () => new Response(null, { status: 429, statusText: 'Too Many Requests' })
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async () => ({ items: [{ channel: GOOGLE, patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        resolveOutputDir: () => dir,
+        fetchImpl: rateLimited,
+        fetchFallbackRetry: {},
+      })
+      const value = (await tool.execute({ patents: ['US1A'] }, { signal } as never)) as {
+        results: Array<{ error?: string; retryAfterMs?: number }>
+      }
+      expect(value.results[0]?.error).toContain('HTTP 429 (rate limited)')
+      expect(value.results[0]?.error).not.toContain('等待约')
+      expect(value.results[0]?.retryAfterMs).toBeUndefined()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('surfaces a rate-limit wait hint when the fetch fallback stays rate-limited', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
     try {

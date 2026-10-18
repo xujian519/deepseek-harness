@@ -7,8 +7,10 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { createToolInputReader } from './internal/tool-input.ts'
 import { DOMAIN_KEYWORDS } from './draft-claims.ts'
 import type { PatentType, TechDomain } from './draft-claims.ts'
+import { WARNINGS_SCHEMA } from './internal/tool-output.ts'
 
 /** Minimal figure-analysis shape the drafting layer reads (Sati figure/types.ts). */
 export type FigureAnalysisResult = {
@@ -191,6 +193,63 @@ const SECTION_SCHEMA = {
   },
 } as const
 
+const input = createToolInputReader('draft_specification')
+const invalidToolInput = input.invalid
+const requireString = input.requireString
+
+/**
+ * Validate `figure_analysis` before drafting reads it. The tool schema types the
+ * items as JSON, so a null entry or an object without `figureDescription` would
+ * otherwise reach `.trim()` / `.length` as a bare TypeError.
+ */
+function parseFigureAnalysis(raw: unknown): FigureAnalysisResult[] {
+  /* v8 ignore next -- the tool schema rejects a non-array before execute; the guard serves direct callers */
+  if (!Array.isArray(raw)) throw invalidToolInput('figure_analysis 必须是数组')
+  return raw.map((entry, index) => {
+    const field = `figure_analysis[${index}]`
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw invalidToolInput(`${field} 必须是对象`)
+    }
+    const record = entry as Record<string, unknown>
+    const figureDescription = requireString(record.figureDescription, `${field}.figureDescription`)
+    if (record.electrical === undefined) return { figureDescription }
+    if (record.electrical === null || typeof record.electrical !== 'object' || Array.isArray(record.electrical)) {
+      throw invalidToolInput(`${field}.electrical 必须是对象`)
+    }
+    const electrical = record.electrical as Record<string, unknown>
+    if (!Array.isArray(electrical.components)) {
+      throw invalidToolInput(`${field}.electrical.components 必须是数组`)
+    }
+    const components = electrical.components.map((component, componentIndex) => {
+      const componentField = `${field}.electrical.components[${componentIndex}]`
+      if (component === null || typeof component !== 'object' || Array.isArray(component)) {
+        throw invalidToolInput(`${componentField} 必须是对象`)
+      }
+      const item = component as Record<string, unknown>
+      const value = item.value === undefined ? undefined : requireString(item.value, `${componentField}.value`)
+      return {
+        ref: requireString(item.ref, `${componentField}.ref`),
+        name: requireString(item.name, `${componentField}.name`),
+        ...(value === undefined ? {} : { value }),
+      }
+    })
+    return { figureDescription, electrical: { components } }
+  })
+}
+
+/** Arguments before figure analysis validation; the tool schema types every other field. */
+type DraftSpecificationArgs = Omit<DraftSpecificationInput, 'figure_analysis'> & { figure_analysis?: unknown }
+
+/** Build the typed drafting input from the model's JSON arguments. */
+function parseDraftSpecificationInput(args: DraftSpecificationArgs): DraftSpecificationInput {
+  const { figure_analysis: rawFigureAnalysis, ...rest } = args
+  const figureAnalysis = rawFigureAnalysis === undefined ? undefined : parseFigureAnalysis(rawFigureAnalysis)
+  return {
+    ...rest,
+    ...(figureAnalysis === undefined ? {} : { figure_analysis: figureAnalysis }),
+  }
+}
+
 /**
  * Build the `draft_specification` tool (pure, no dependencies).
  * @returns a registry-ready tool definition.
@@ -221,14 +280,14 @@ export function createDraftSpecificationTool(): ToolDefinition {
           tech_domain: { type: 'string', required: true, enum: ['mechanical', 'electrical', 'chemical', 'software', 'general'] },
           patent_type: { type: 'string', required: true, enum: ['invention', 'utility_model'] },
           sections: { type: 'array', required: true, items: SECTION_SCHEMA },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderDraftSpecification(value) }],
     },
     // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
-      return draftSpecification(args as unknown as DraftSpecificationInput)
+      return draftSpecification(parseDraftSpecificationInput(args))
     },
   })
 }

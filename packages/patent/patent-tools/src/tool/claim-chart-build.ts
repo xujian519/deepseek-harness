@@ -19,6 +19,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   ClaimChartHandler,
+  assertSafePathSegment,
   deriveInfringementConclusion,
   renderInvalidityConclusion,
   type AllElementsOutcome,
@@ -35,6 +36,7 @@ import {
   type StageProvider,
 } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
+import { createToolInputReader } from './internal/tool-input.ts'
 import { loggedToolModel } from './internal/model-call-log.ts'
 
 /** One claim-chart mapping target (prior art or accused product). */
@@ -171,30 +173,45 @@ function renderClaimChart(value: ClaimChartOutput): string {
 /** 抗辩成立可能性的取值域。 */
 const DEFENSE_VIABILITIES: readonly string[] = ['high', 'medium', 'low']
 
-/** 工具入参是模型 JSON 边界：构造一条字段级输入错误（不静默丢弃非法值）。 */
-function invalidRiskInput(message: string): PatentToolError {
-  return new PatentToolError('invalid_tool_input', message, { tool: 'claim_chart_build' })
-}
+const input = createToolInputReader('claim_chart_build')
+const invalidToolInput = input.invalid
+const requireString = input.requireString
+const requireBoolean = input.requireBoolean
 
-/** 读取必填字符串字段。 */
-function requireString(raw: unknown, field: string): string {
-  if (typeof raw !== 'string') throw invalidRiskInput(`${field} 必须是字符串`)
-  return raw
-}
-
-/** 读取必填布尔字段。 */
-function requireBoolean(raw: unknown, field: string): boolean {
-  if (typeof raw !== 'boolean') throw invalidRiskInput(`${field} 必须是布尔值`)
-  return raw
+/** 校验映射目标列表；数组元素是模型 JSON，可能为 null、缺 id 或给未知 kind。 */
+function parseTargets(raw: unknown): ClaimChartTargetInput[] {
+  /* v8 ignore next -- the tool schema rejects a non-array before execute; the guard serves direct callers */
+  if (!Array.isArray(raw)) throw invalidToolInput('targets 必须是数组')
+  return raw.map((entry, index) => {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw invalidToolInput(`targets[${index}] 必须是对象`)
+    }
+    const record = entry as Record<string, unknown>
+    const id = requireString(record.id, `targets[${index}].id`)
+    if (id.trim() === '') throw invalidToolInput(`targets[${index}].id 不能为空`)
+    if (record.kind !== 'prior-art' && record.kind !== 'accused-product') {
+      throw invalidToolInput(`targets[${index}].kind 必须是 prior-art 或 accused-product`)
+    }
+    const title = record.title === undefined ? undefined : requireString(record.title, `targets[${index}].title`)
+    const sourcePath = record.source_path === undefined
+      ? undefined
+      : requireString(record.source_path, `targets[${index}].source_path`)
+    return {
+      id,
+      kind: record.kind,
+      ...(title === undefined ? {} : { title }),
+      ...(sourcePath === undefined ? {} : { source_path: sourcePath }),
+    }
+  })
 }
 
 /** 校验抗辩成立可能性数组；缺省为空（按"无抗辩"处理）。 */
 function parseDefenses(raw: unknown): DefenseViability[] {
   if (raw === undefined) return []
-  if (!Array.isArray(raw)) throw invalidRiskInput('risk.defenses 必须是数组（每项 high|medium|low）')
+  if (!Array.isArray(raw)) throw invalidToolInput('risk.defenses 必须是数组（每项 high|medium|low）')
   return raw.map((entry) => {
     if (typeof entry !== 'string' || !DEFENSE_VIABILITIES.includes(entry)) {
-      throw invalidRiskInput(`risk.defenses 取值非法: ${JSON.stringify(entry)}（须为 high|medium|low）`)
+      throw invalidToolInput(`risk.defenses 取值非法: ${JSON.stringify(entry)}（须为 high|medium|low）`)
     }
     return entry as DefenseViability
   })
@@ -202,10 +219,10 @@ function parseDefenses(raw: unknown): DefenseViability[] {
 
 /** 校验等同三要素认定记录（字段名与内核 EquivalenceTriplet 一致）。 */
 function parseEquivalents(raw: unknown): EquivalenceTriplet[] {
-  if (!Array.isArray(raw)) throw invalidRiskInput('risk.equivalents 必须是数组（逐要素等同三要素认定记录）')
+  if (!Array.isArray(raw)) throw invalidToolInput('risk.equivalents 必须是数组（逐要素等同三要素认定记录）')
   return raw.map((entry) => {
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-      throw invalidRiskInput('risk.equivalents 的每一项必须是对象')
+      throw invalidToolInput('risk.equivalents 的每一项必须是对象')
     }
     const record = entry as Record<string, unknown>
     return {
@@ -230,11 +247,11 @@ function parseEquivalents(raw: unknown): EquivalenceTriplet[] {
 function parseConclusionInput(raw: unknown): InfringementConclusionInput | undefined {
   if (raw === undefined) return undefined
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw invalidRiskInput('risk 必须是对象（{ defenses, remedyExposureRatio, estoppelApplied?, dedicationApplied?, equivalents? }）')
+    throw invalidToolInput('risk 必须是对象（{ defenses, remedyExposureRatio, estoppelApplied?, dedicationApplied?, equivalents? }）')
   }
   const input = raw as Record<string, unknown>
   if (typeof input.remedyExposureRatio !== 'number') {
-    throw invalidRiskInput('risk.remedyExposureRatio 必须是 0–1 的数（按案件金额量程归一）')
+    throw invalidToolInput('risk.remedyExposureRatio 必须是 0–1 的数（按案件金额量程归一）')
   }
   return {
     ...(input.equivalents !== undefined ? { triplets: parseEquivalents(input.equivalents) } : {}),
@@ -286,12 +303,24 @@ export function createClaimChartBuildTool(deps: ClaimChartBuildDeps = {}): ToolD
       if (args.claim_text.trim().length === 0) {
         throw new PatentToolError('invalid_tool_input', 'claim_text 为空', { tool: 'claim_chart_build' })
       }
+      if (args.case_id !== undefined) {
+        try {
+          assertSafePathSegment(args.case_id, 'case_id')
+        } catch (error) {
+          throw new PatentToolError(
+            'invalid_tool_input',
+            /* v8 ignore next -- assertSafePathSegment only throws RangeError */
+            error instanceof Error ? error.message : String(error),
+            { tool: 'claim_chart_build' },
+          )
+        }
+      }
       const model = loggedToolModel(exec, deps.model, { callSite: 'claim_chart_build' })
       if (model === undefined) {
         throw new PatentToolError('setup_required', '未配置 LLM（模型客户端缺失），无法执行要素拆分与映射', { tool: 'claim_chart_build' })
       }
       const conclusionInput = parseConclusionInput(args.risk)
-      const inputTargets = args.targets as unknown as ClaimChartTargetInput[]
+      const inputTargets = parseTargets(args.targets)
       const targets: ChartTarget[] = inputTargets.map(t => ({
         id: t.id,
         kind: t.kind,

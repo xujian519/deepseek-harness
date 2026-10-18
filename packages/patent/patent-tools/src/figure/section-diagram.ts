@@ -785,6 +785,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
       // 数字落在轮廓之外、自重心引出：落在轮廓内会被剖面线或轮廓边贯穿。
       const at = outsideLabelAt(part.outline, fontSizeMm)
       const leader = labelLeader(labelText, polygonCentroid(part.outline), at, fontSizeMm)
+      /* v8 ignore next -- outsideLabelAt places the label above the outline, so the centroid is never inside its box. */
       if (leader !== undefined) leaders.push(leader)
       texts.push({ text: labelText, at, anchor: 'middle', fontSizeMm })
       extents.push(...textExtent(labelText, at, 'middle', fontSizeMm))

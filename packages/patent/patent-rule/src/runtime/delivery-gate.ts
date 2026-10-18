@@ -6,10 +6,10 @@
  * 「没跑」。本模块把纪律落成执行点：部署声明「哪个交付工具被调用前，本会话内必须已成功
  * 执行过哪些工具」，未满足即拒绝该次调用，使缺闸门证据的交付件不落盘。
  *
- * 台账以调用方（agent）为归属单位：只有本会话内成功返回、且未在结果中声明
- * `blocked: true` 的前置调用才算数，跨会话不继承，因此同一部署下的不同案件互不顶替。
- * 归属不明的调用（无 agent）一律按未满足处理——无法归属的交付件同样拿不出本会话的
- * 闸门证据。
+ * 台账以调用方（agent）与案卷键为归属单位：只有本会话内成功返回、且未在结果中声明
+ * `blocked: true` 的前置调用才算数，跨会话不继承。声明了案卷的调用只满足同一案卷的交付；
+ * 未声明案卷的调用是会话级记录，只在交付的案卷没有专属记录时采用。归属不明的调用
+ * （无 agent）一律按未满足处理——无法归属的交付件同样拿不出本会话的闸门证据。
  * @module @deepseek-ai/dsh-patent-rule/runtime/delivery-gate
  */
 
@@ -36,19 +36,46 @@ export type DeliveryGatePlan = {
   warnings: string[]
 }
 
-/** 本会话内成功执行过的工具名台账，按归属单位（agent）分组。 */
+/** Argument names that name the case a call belongs to, in precedence order. */
+const CASE_ARG_NAMES = ['caseId', 'case_id', 'case_dir', 'caseDir'] as const
+
+/**
+ * Case key carried by one call's arguments, or undefined when the call names none.
+ *
+ * The ledger scopes case-named evidence to that case only; a call that names no
+ * case is session-scoped, because there is nothing to attribute it to.
+ * @param args - the tool call arguments.
+ * @returns the trimmed case key, or undefined.
+ */
+export function caseKeyOfArguments(args: unknown): string | undefined {
+  if (args === null || typeof args !== 'object') return undefined
+  const record = args as Record<string, unknown>
+  for (const name of CASE_ARG_NAMES) {
+    const value = record[name]
+    if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  }
+  return undefined
+}
+
+/** 本会话内成功执行过的工具名台账，按归属单位（agent）与案卷键分组。 */
 export class DeliveryAttemptLedger {
-  readonly #byAgent = new WeakMap<object, Set<string>>()
+  readonly #byAgent = new WeakMap<object, Map<string | undefined, Set<string>>>()
 
   /**
    * 记录一次成功返回的调用。
    * @param agent - 调用归属单位（`ToolExecution.agent`）。
    * @param tool - 已完成、未报错且未声明 `blocked: true` 的工具名。
+   * @param caseKey - 该调用声明的案卷键；未声明时为 undefined（会话级）。
    */
-  record(agent: object, tool: string): void {
-    const seen = this.#byAgent.get(agent)
+  record(agent: object, tool: string, caseKey?: string): void {
+    let scopes = this.#byAgent.get(agent)
+    if (scopes === undefined) {
+      scopes = new Map()
+      this.#byAgent.set(agent, scopes)
+    }
+    const seen = scopes.get(caseKey)
     if (seen === undefined) {
-      this.#byAgent.set(agent, new Set([tool]))
+      scopes.set(caseKey, new Set([tool]))
       return
     }
     seen.add(tool)
@@ -56,12 +83,31 @@ export class DeliveryAttemptLedger {
 
   /**
    * 该归属单位是否已成功执行过该工具。
+   *
+   * A case-named query reads only that case's records; when none exist it falls
+   * back to session-level records (calls that named no case), which are the only
+   * evidence an unscoped prerequisite can leave. Another case's records are
+   * never consulted.
    * @param agent - 调用归属单位。
    * @param tool - 被查询的前置工具名。
+   * @param caseKey - 本次交付声明的案卷键。
    * @returns 本会话内成功执行过时为 true。
    */
-  has(agent: object, tool: string): boolean {
-    return this.#byAgent.get(agent)?.has(tool) ?? false
+  has(agent: object, tool: string, caseKey?: string): boolean {
+    const scopes = this.#byAgent.get(agent)
+    if (scopes === undefined) return false
+    if (scopes.get(caseKey)?.has(tool) === true) return true
+    if (caseKey !== undefined) {
+      // A case-named delivery reads its own case and the session-level bucket;
+      // another case's records never satisfy it.
+      return scopes.get(undefined)?.has(tool) === true
+    }
+    // A delivery that names no case cannot be isolated, so any record made in
+    // this session (including one that named a case) is valid evidence.
+    for (const seen of scopes.values()) {
+      if (seen.has(tool)) return true
+    }
+    return false
   }
 }
 
@@ -103,10 +149,11 @@ export function deliveryGateMissing(
   args: unknown,
 ): string[] {
   const missing: string[] = []
+  const caseKey = caseKeyOfArguments(args)
   for (const entry of plan.entries) {
     if (entry.tool !== tool || !declaredArgsMatch(entry.whenArgs, args)) continue
     for (const required of entry.requires) {
-      if (agent !== undefined && ledger.has(agent, required)) continue
+      if (agent !== undefined && ledger.has(agent, required, caseKey)) continue
       if (!missing.includes(required)) missing.push(required)
     }
   }

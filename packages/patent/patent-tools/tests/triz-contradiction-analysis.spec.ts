@@ -107,6 +107,16 @@ describe('triz_contradiction_analysis', () => {
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('JSON')
   })
+
+  it('focus 参数进入识别调用', async () => {
+    const model = jsonModel(JSON.stringify({ contradictions: [], parameter_gaps: [], unmapped: [] }))
+    const ctx = await ctxWith(createTrizContradictionAnalysisTool({ model }))
+    const result = await execute(ctx, 'triz_contradiction_analysis', { text: SOURCE, focus: '节拍' }, 'tca-5')
+
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('矛盾 0 条')
+  })
 })
 
 describe('renderTrizContradictionAnalysis', () => {
@@ -142,5 +152,33 @@ describe('renderTrizContradictionAnalysis', () => {
     expect(out).toContain('物理矛盾（对角格，经典矩阵无条目）')
     expect(out).toContain('矩阵转录空缺（无推荐原理）')
     expect(out.match(/推荐原理：无（矩阵无条目或转录空缺）/g)).toHaveLength(2)
+  })
+
+  it('renders malformed entries defensively without throwing', () => {
+    const out = renderTrizContradictionAnalysis({
+      contradictions: [
+        null,
+        {
+          id: 5,
+          improving: null,
+          worsening: { name: '恶化参数' },
+          statement: 7,
+          evidence: 8,
+          principles: [null, { number: 3 }, { name: '局部质量' }],
+          matrixStatus: 'unknown-status',
+          solutionDirections: ['候选方向', ''],
+        },
+      ],
+      parameter_gaps: [null, { parameter: 7, missing: ['unknown-kind', ''], detail: '' }],
+      unmapped: [null, { statement: '', reason: 'r' }],
+      dropped_for_evidence: 'not-a-number',
+    })
+
+    expect(out).toContain('C2 改善「未命名参数」↔ 恶化「恶化参数」｜unknown-status')
+    expect(out).toContain('推荐原理：3；局部质量')
+    expect(out).toContain('候选方案方向：')
+    expect(out).toContain('- 未命名参数：unknown-kind')
+    expect(out).toContain('证据未定位丢弃 0 条')
+    expect(out).toContain('## 未采纳')
   })
 })

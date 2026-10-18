@@ -335,6 +335,33 @@ describe('buildCircuitDiagram 文字落位', () => {
     expect(crossedLabels(spec)).toEqual([])
   })
 
+  it('超长标签的全部候选都越出画布时退回首选落位', () => {
+    const label = '名'.repeat(40)
+    const spec = buildCircuitDiagram({
+      components: [{ id: 'a1', kind: 'resistor', label, col: 0, row: 0 }],
+      connections: [],
+    })
+    // 画布宽 30 毫米，内容宽 120 毫米：没有候选能完全落在画布内，退回首选（符号上方居中）。
+    expect(spec.body).toContain('>名名')
+    expect(spec.labels).toEqual([label])
+  })
+
+  it('已落位文字外框挡住候选时继续尝试下一个候选', () => {
+    const label = 'SIGNAL'.repeat(2)
+    const spec = buildCircuitDiagram({
+      components: [
+        { id: 'a1', kind: 'resistor', col: 0, row: 0 },
+        { id: 'b1', kind: 'resistor', col: 1, row: 0 },
+      ],
+      // 两条同路径连线的说明文字候选完全重合：第二条跳过被占用的首选候选。
+      connections: [
+        { from: 'a1', to: 'b1', label },
+        { from: 'a1', to: 'b1', label },
+      ],
+    })
+    expect(spec.body.match(/>SIGNAL/g)).toHaveLength(2)
+  })
+
   it('文字落位不压元件符号：多字元件名不与相邻符号相交', () => {
     const spec = buildCircuitDiagram({
       components: [

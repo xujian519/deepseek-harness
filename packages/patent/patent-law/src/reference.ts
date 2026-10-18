@@ -302,8 +302,8 @@ function narrowingUnits(units: readonly ContinuationUnit[]): boolean {
 
 /**
  * Extract every law reference in `text`, in order of appearance and deduplicated
- * by the reference as written. The three base patterns match disjoint spans, so
- * they only need ordering; a pass over the gap between two base matches then
+ * by the provision it resolves to. The three base patterns match disjoint spans,
+ * so they only need ordering; a pass over the gap between two base matches then
  * resolves the references that inherit their context (`、第23条`, `、第3款`).
  * @param text - the text to scan.
  * @returns the parsed references.
@@ -362,11 +362,25 @@ export function extractLawReferences(text: string): LawReference[] {
   const seen = new Set<string>()
   const references: LawReference[] = []
   for (const candidate of withContinuations) {
-    if (seen.has(candidate.reference.raw)) continue
-    seen.add(candidate.reference.raw)
+    // Continuation tokens share their written form (`第4款` under two articles),
+    // so dedupe by the reference they resolve to, not by the text as written.
+    const identity = referenceIdentity(candidate.reference)
+    if (seen.has(identity)) continue
+    seen.add(identity)
     references.push(candidate.reference)
   }
   return references
+}
+
+/**
+ * Stable identity of a resolved reference: the law plus the narrowest cited
+ * article/paragraph/item, or the guideline path.
+ * @param reference - the resolved reference.
+ * @returns a string equal for two references to the same provision.
+ */
+function referenceIdentity(reference: LawReference): string {
+  if (reference.kind === 'guideline-section') return `guideline:${reference.path}`
+  return `article:${reference.law}:${reference.article}:${reference.paragraph ?? ''}:${reference.item ?? ''}`
 }
 
 /**

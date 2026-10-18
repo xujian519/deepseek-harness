@@ -17,6 +17,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 import type { ChemistryIndexEntry } from '../chemistry/index-store.ts'
+import { WARNINGS_SCHEMA } from './internal/tool-output.ts'
 
 /** 化学实体识别类型。 */
 export const CHEMICAL_KINDS = ['formula', 'structure', 'markush'] as const
@@ -189,7 +190,7 @@ export function createRecognizeChemicalStructureTool(deps: RecognizeChemicalStru
           formula: { type: 'string' },
           names: { type: 'array', required: true, items: { type: 'string' } },
           confidence: { type: 'number', required: true },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
           needHumanReview: { type: 'boolean', required: true },
           usable: { type: 'boolean', required: true },
           modelUsed: { type: 'string', required: true },

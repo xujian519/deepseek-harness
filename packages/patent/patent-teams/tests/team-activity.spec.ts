@@ -45,6 +45,14 @@ describe('TeamActivity', () => {
     await expect(wait).rejects.toThrow('caller cancelled')
   })
 
+  it('wraps a non-Error abort reason in an Error', async () => {
+    const activity = new TeamActivity()
+    const controller = new AbortController()
+    const wait = activity.wait('team1', 60_000, controller.signal)
+    controller.abort('caller gave up')
+    await expect(wait).rejects.toThrow('patent_teams_wait aborted: caller gave up')
+  })
+
   it('rejects immediately when the signal is already aborted', async () => {
     const activity = new TeamActivity()
     const controller = new AbortController()

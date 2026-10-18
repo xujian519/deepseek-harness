@@ -144,6 +144,7 @@ function buildSuggestedSearchStrategy(combined: string, ipc: readonly IpcClassif
   const top = ipc[0]
   if (top === undefined) return undefined
   const codes: string[] = []
+  /* v8 ignore next -- every IPC section produced by classifyIpc is non-empty */
   if (top.section !== '') codes.push(top.section)
   if (top.detail !== undefined) codes.push(top.detail)
   return {
@@ -217,6 +218,7 @@ export function createPatentAnalysisReportTool(deps: PatentAnalysisReportDeps = 
         expertConsiderations: report.expertConsiderations as unknown as JsonValue,
         ...(report.patentId !== undefined ? { patentId: report.patentId } : {}),
         ...(report.title !== undefined ? { title: report.title } : {}),
+        /* v8 ignore next -- this tool never supplies checker failures, so the report has no verdict */
         ...(report.checkerVerdict !== undefined ? { checkerVerdict: report.checkerVerdict } : {}),
         ...(report.searchStrategy !== undefined ? { searchStrategy: report.searchStrategy as unknown as JsonValue } : {}),
       }

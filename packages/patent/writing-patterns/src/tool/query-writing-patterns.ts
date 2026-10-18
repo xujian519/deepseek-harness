@@ -196,6 +196,7 @@ function selectPatterns(
 ): readonly WritingPattern[] {
   switch (mode) {
     case 'search':
+      /* v8 ignore next -- selectMode chooses search only for a non-blank query */
       return store.search(args.query ?? '', {
         ...(args.category !== undefined ? { category: args.category } : {}),
         limit,
@@ -203,22 +204,28 @@ function selectPatterns(
     case 'match':
       return store.match({
         ...(args.category !== undefined ? { caseType: args.category } : {}),
+        /* v8 ignore next -- selectMode chooses match only when a non-blank feature is present */
         features: (args.features ?? []).filter(feature => feature.trim() !== ''),
         limit,
       })
     case 'category':
+      /* v8 ignore next -- selectMode chooses category only when a category is present */
       return store.byCategory(args.category ?? '').slice(0, limit)
     case 'catalog':
       return store.all().slice(0, limit)
+    /* v8 ignore start -- closed-union exhaustiveness backstop; selectMode returns only the four cases above */
     default:
       return unreachableMode(mode)
+    /* v8 ignore stop */
   }
 }
 
+/* v8 ignore start -- closed-union exhaustiveness backstop; only the ignored default can call it */
 /** 穷尽性收尾：封闭联合的默认分支不可达（未来新增 mode 时此处编译失败）。 */
 function unreachableMode(mode: never): never {
   throw new Error(`未知 query_writing_patterns 选择模式：${String(mode)}`)
 }
+/* v8 ignore stop */
 
 /** One pattern as the model sees it; its summary lives in the compiled block alone. */
 function toView(pattern: WritingPattern): WritingPatternView {

@@ -277,17 +277,23 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
     return rows.map(row => this.toHit(row, null, 'like'))
   }
 
-  /** 同一文档多 chunk 命中时按文档去重，保留 bm25 最高 chunk（一文档一行）。 */
+  /**
+   * 同一文档多 chunk 命中时按文档去重，保留 bm25 最优（最小值）chunk（一文档一行）。
+   * FTS5 的 bm25() 为负值，越接近负无穷越相关；缺 rank 的行按最差处理。
+   */
   private dedupeByDocument(rows: CaseLawRow[], limit: number): CaseLawHit[] {
     const bestByDoc = new Map<string, CaseLawRow>()
     for (const row of rows) {
       const best = bestByDoc.get(row.document_id)
-      if (!best || (row.fts_rank ?? 0) > (best.fts_rank ?? 0)) {
+      if (!best || (row.fts_rank ?? Infinity) < (best.fts_rank ?? Infinity)) {
         bestByDoc.set(row.document_id, row)
       }
     }
-    const sorted = Array.from(bestByDoc.values()).sort((a, b) => (b.fts_rank ?? 0) - (a.fts_rank ?? 0))
-    return sorted.slice(0, limit).map(row => this.toHit(row, row.fts_rank ?? null, 'fts'))
+    const ranked = Array.from(bestByDoc.values())
+      .map(row => ({ row, rank: row.fts_rank ?? Infinity }))
+      .sort((left, right) => left.rank - right.rank)
+      .slice(0, limit)
+    return ranked.map(({ row }) => this.toHit(row, row.fts_rank ?? null, 'fts'))
   }
 
   private toHit(row: CaseLawRow, ftsRank: number | null, via: CaseLawHit['via']): CaseLawHit {

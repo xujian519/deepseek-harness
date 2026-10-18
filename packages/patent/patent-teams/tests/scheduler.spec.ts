@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
-import { installTeamScheduler } from '../src/scheduler.ts'
+import { installTeamScheduler, kickAfterPersist } from '../src/scheduler.ts'
 import { TeamActivity } from '../src/team-activity.ts'
 import {
   appendMailbox,
@@ -107,6 +107,17 @@ async function makeHarness(options?: {
 
 afterEach(() => {
   vi.restoreAllMocks()
+})
+
+describe('kickAfterPersist', () => {
+  it('swallows a dispatch failure after the change was persisted and logs it', async () => {
+    const ctx = new Context()
+    const warn = vi.spyOn(ctx.logger, 'warn')
+    await expect(kickAfterPersist(ctx, 'dispatch after test', async () => {
+      throw new Error('scheduler offline')
+    })).resolves.toBeUndefined()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('scheduler offline'))
+  })
 })
 
 describe('installTeamScheduler kickTeam', () => {
@@ -399,6 +410,22 @@ describe('installTeamScheduler kickMember', () => {
     // The newer attempt survived the failed dispatch.
     expect(afterDispatch!.tasks[0]!.attemptId).toBe('newer-attempt')
     expect(afterDispatch!.tasks[0]!.status).toBe('claimed')
+  })
+
+  it('leaves an already idle member untouched when the snapshot task vanished', async () => {
+    const { workspace, stateDir, scheduler } = await makeHarness()
+    const captain = fakeAgent('captain-1', workspace)
+    await createTeamDir(join(workspace, stateDir), makeState({
+      members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'idle' }],
+    }))
+    const snapshot = makeState({
+      members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'idle' }],
+      tasks: [makeTask()],
+    })
+    await scheduler.kickMember(workspace, 'team1', 'alice', captain, undefined, snapshot)
+    const team = await readTeam(join(workspace, stateDir), 'team1')
+    expect(team?.members[0]?.status).toBe('idle')
+    expect(team?.tasks).toEqual([])
   })
 
   it('marks a working member idle when no ready work remains', async () => {

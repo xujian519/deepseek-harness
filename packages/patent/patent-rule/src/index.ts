@@ -58,6 +58,7 @@ import {
 } from './runtime/patent-compliance.ts'
 import { formatViolation, RuleOutputGate } from './runtime/output-gate.ts'
 import {
+  caseKeyOfArguments,
   deliveryGateMissing,
   DeliveryAttemptLedger,
   renderDeliveryGateDenial,
@@ -129,6 +130,7 @@ export {
   patentCaseDomains,
   selectGateRules,
   PATENT_CASE_DOMAINS,
+  PatentRuleAssetError,
   type ActivationOverrides,
   type GateCheckType,
   type PatentCaseScope,
@@ -149,6 +151,7 @@ export {
   type DeclaredArgValue,
 } from './runtime/args-match.ts'
 export {
+  caseKeyOfArguments,
   DeliveryAttemptLedger,
   deliveryGateMissing,
   renderDeliveryGateDenial,
@@ -416,7 +419,7 @@ export function apply(ctx: Context, config: Config): void {
     // 先登记再判定：前置工具本身通常不在 gateToolNames 里，下面的输出门禁会直接放行。
     // 登记的是「跑过且通过」：工具成功返回但自带 blocked:true 时不算满足前置。
     if (!result.isError && !isBlockedResult(result.value) && exec.agent !== undefined && requiredTools.has(exec.name)) {
-      deliveryLedger.record(exec.agent, exec.name)
+      deliveryLedger.record(exec.agent, exec.name, caseKeyOfArguments(exec.arguments))
     }
     if (!gateToolNames.has(exec.name) || result.isError) return next()
     const text = resultText(result)

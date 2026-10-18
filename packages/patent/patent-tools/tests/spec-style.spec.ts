@@ -96,6 +96,12 @@ describe('checkFigureMarkParentheses', () => {
     expect(v?.suggestion).toContain('模块1')
   })
 
+  it('falls back to the whole window when the boundary cut leaves one character', () => {
+    const [v] = checkFigureMarkParentheses('所述连接件（4）固定到底座。')
+    expect(v?.message).toContain('连接件（4）')
+    expect(v?.suggestion).toContain('连接件4')
+  })
+
   it('reports each distinct mark once, in text order', () => {
     const text = '模块（1）与模块（1）连接，还有单元（2）。'
     expect(checkFigureMarkParentheses(text).map(v => v.message)).toEqual([
