@@ -9,14 +9,21 @@
   ],
   "references": [
     {
+      "path": "../../util/brand"
+    },
+    {
       "path": "../../util/value"
+    },
+    {
+      "path": "../../util/values"
     },
     {
       "path": "../../../vendor/cordis"
     },
     {
       "path": "../../../vendor/schemastery"
-    },    {
+    },
+    {
       "path": "../../core/agent"
     },
     {
@@ -29,13 +36,13 @@
       "path": "../../core/tools"
     },
     {
+      "path": "../../interaction/user-approval"
+    },
+    {
       "path": "../../llm/llm"
     },
     {
       "path": "../../subagent/subagent"
-    },
-    {
-      "path": "../patent-core"
     },
     {
       "path": "../patent-tools"
