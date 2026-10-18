@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  BASELINE_PATH,
   modeBaselineFindings,
   parseModeBaseline,
   personaPrefixBody,
@@ -65,7 +68,13 @@ const DROPPED_DELIVERY = preset(DELIVERY, [row('preset-delivery'), personaRow(),
 
 /** A baseline declaration for `delivery.patch.yml`. */
 function declaration(overrides: Partial<ModeDeclaration> = {}): ModeDeclaration {
-  return { class: 'delivery', requiredRows: ['persona', 'tool-fs', 'tool-goal'], personaMaxChars: 1000, ...overrides }
+  return {
+    class: 'delivery',
+    requiredRows: ['persona', 'tool-fs', 'tool-goal'],
+    personaMaxChars: 1000,
+    forbiddenKeys: [],
+    ...overrides,
+  }
 }
 
 /** A baseline over the authority preset plus a delivery declaration. */
@@ -135,6 +144,8 @@ describe('parseModeBaseline', () => {
       .toThrow(/explainedAbsences must map a row id to a reason string/u)
     expect(() => parseModeBaseline(of({ class: 'delivery', personaMaxChars: 0 })))
       .toThrow(/personaMaxChars must be a positive integer/u)
+    expect(() => parseModeBaseline(of({ class: 'delivery', forbiddenKeys: 'deliveryGate' })))
+      .toThrow(/forbiddenKeys must be an array of row key names/u)
   })
 })
 
@@ -195,7 +206,7 @@ describe('modeBaselineFindings', () => {
   })
 
   it('rejects a delivery mode with no requiredRows', () => {
-    expect(findingsFor(COMPLETE_DELIVERY, { class: 'delivery', personaMaxChars: 1000 })).toEqual([
+    expect(findingsFor(COMPLETE_DELIVERY, { class: 'delivery', personaMaxChars: 1000, forbiddenKeys: [] })).toEqual([
       `${DELIVERY}: is a delivery mode with no requiredRows`,
     ])
   })
@@ -268,5 +279,79 @@ describe('modeBaselineFindings', () => {
     expect(findingsFor(bare, declaration())).toEqual([
       `${DELIVERY}: declares personaMaxChars but carries no persona prefix body`,
     ])
+  })
+})
+
+describe('forbiddenKeys', () => {
+  /** A delivery mode whose `doc-template` row carries a gate declaration. */
+  const GATED = preset(DELIVERY, [
+    row('preset-delivery'),
+    personaRow(),
+    row('tool-fs'),
+    row('tool-goal'),
+    row('tool-market'),
+    [
+      '          - id: doc-template',
+      "            name: '@deepseek-ai/dsh-doc-template'",
+      '            config:',
+      '              deliveryGate:',
+      '                - tool: render_doc_template',
+    ].join('\n'),
+  ])
+
+  it('rejects a delivery mode that carries a forbidden row key, naming the row', () => {
+    const findings = findingsFor(GATED, declaration({ forbiddenKeys: ['deliveryGate'] }))
+    expect(findings).toHaveLength(1)
+    expect(findings[0]).toContain('carries deliveryGate in row doc-template')
+    expect(findings[0]).toContain('packages/document/document-deliver/README.md')
+  })
+
+  it('accepts the key when the declaration exempts the mode with an empty list', () => {
+    expect(findingsFor(GATED, declaration({ forbiddenKeys: [] }))).toEqual([])
+  })
+
+  it('does not read a commented-out key as carrying it', () => {
+    const commented = preset(DELIVERY, [
+      row('preset-delivery'),
+      personaRow(),
+      row('tool-fs'),
+      row('tool-goal'),
+      row('tool-market'),
+      [
+        '          - id: doc-template',
+        "            name: '@deepseek-ai/dsh-doc-template'",
+        '            config:',
+        '              # deliveryGate: deliberately not declared',
+        '              styleGuide: assistant-neutral',
+      ].join('\n'),
+    ])
+    expect(findingsFor(commented, declaration({ forbiddenKeys: ['deliveryGate'] }))).toEqual([])
+  })
+
+  it('rejects a delivery mode with no forbiddenKeys', () => {
+    const { forbiddenKeys: _dropped, ...withoutField } = declaration()
+    expect(findingsFor(COMPLETE_DELIVERY, withoutField)).toEqual([
+      `${DELIVERY}: is a delivery mode with no forbiddenKeys`,
+    ])
+  })
+
+  it('rejects a utility mode that declares forbiddenKeys', () => {
+    const findings = modeBaselineFindings([AUTHORITY_PRESET, COMPLETE_DELIVERY], {
+      authority: AUTHORITY,
+      modes: {
+        [AUTHORITY]: { class: 'utility' },
+        [DELIVERY]: { class: 'utility', forbiddenKeys: ['deliveryGate'] },
+      },
+    })
+    expect(findings.map(finding => finding.detail))
+      .toContain('declares forbiddenKeys, which a utility mode does not carry')
+  })
+
+  it('holds the shipped baseline to the ruling: the document mode forbids deliveryGate, patent exempts it', () => {
+    const shipped = parseModeBaseline(readFileSync(resolve(import.meta.dirname, '..', BASELINE_PATH), 'utf8'))
+    expect(shipped.modes['document.patch.yml']?.forbiddenKeys).toEqual(['deliveryGate'])
+    // The exemption is the shipped patent mode's own `deliveryGate`, ruled on in
+    // the same README the finding points at.
+    expect(shipped.modes['patent.patch.yml']?.forbiddenKeys).toEqual([])
   })
 })

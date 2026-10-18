@@ -1342,9 +1342,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'one entry per direct child, in stable name order.',
       },
       {
-        signature: 'abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>',
+        signature: 'abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsTextWriteOutcome>',
         description: 'Atomically create or replace UTF-8 text. `expected` guards intent and staleness; omission allows unconditional overwrite.',
         parameters: [{ name: 'target', description: 'the resolved target to write.' }, { name: 'content', description: 'the full new file content.' }, { name: 'expected', description: 'the write intent guarding the write; omit for unconditional.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this write runs under; a sandboxing backend fences the write by it, the bare backend ignores it. Omit to leave the backend its own default.' }],
+        returns: 'the outcome, including the version the write produced.',
+      },
+      {
+        signature: 'abstract writeBytes( target: FsTarget, bytes: Uint8Array, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>',
+        description: 'Atomically create or replace raw bytes with no text decoding or encoding. This is the mutation twin of readBytes: a consumer writes binary content (a rendered document package, an image, an archive) through the same provider, intent guard, and per-target critical section as writeText, instead of escaping to a host path. `expected` guards intent and staleness exactly as it does for text; omission allows unconditional overwrite. The outcome\'s `before` and `after` are `null`, because bytes have no text projection; `operation` and `version` carry the same meaning they do for text.',
+        parameters: [{ name: 'target', description: 'the resolved target to write.' }, { name: 'bytes', description: 'the full new file content.' }, { name: 'expected', description: 'the write intent guarding the write; omit for unconditional.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this write runs under; a sandboxing backend fences the write by it, the bare backend ignores it. Omit to leave the backend its own default.' }],
         returns: 'the outcome, including the version the write produced.',
       },
       {
@@ -4863,8 +4869,8 @@ export const EVENT_API: readonly EventApiEntry[] = [
     name: 'fs/write-intent',
     mode: 'waterfall',
     signature: '\'fs/write-intent\'(target: FsTarget, actor: object | undefined, next: () => FsWriteIntent | undefined | Promise<FsWriteIntent | undefined>): Promise<FsWriteIntent | undefined>',
-    summary: 'Single-slot decision for the next FileSystem.writeText.',
-    description: 'Single-slot decision for the next FileSystem.writeText. Calling `next()` yields the bare provider\'s unconditional write; the first listener that returns an intent owns the decision rather than composing with peers.',
+    summary: 'Single-slot decision for the next text or byte file write.',
+    description: 'Single-slot decision for the next text or byte file write. Calling `next()` yields the bare provider\'s unconditional write; the first listener that returns an intent owns the decision rather than composing with peers.',
     parameters: [{ name: 'target', description: 'the resolved target about to be written.' }, { name: 'actor', description: 'the opaque tool-execution context the decider keys off.' }],
   },
   {
@@ -6380,6 +6386,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type FsTargetKey = Branded<\'FsTargetKey\'>;',
   },
   {
+    name: 'FsTextWriteOutcome',
+    declaration: 'export interface FsTextWriteOutcome extends FsWriteOutcome {\n    after: string;\n}',
+  },
+  {
     name: 'FsVersion',
     declaration: 'export type FsVersion = Branded<\'FsVersion\'>;',
   },
@@ -6389,7 +6399,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'FsWriteOutcome',
-    declaration: 'export interface FsWriteOutcome {\n    operation: \'create\' | \'update\';\n    version: FsVersion;\n    before: string | null;\n    after: string;\n}',
+    declaration: 'export interface FsWriteOutcome {\n    operation: \'create\' | \'update\';\n    version: FsVersion;\n    before: string | null;\n    after: string | null;\n}',
   },
   {
     name: 'GenerateOptions',

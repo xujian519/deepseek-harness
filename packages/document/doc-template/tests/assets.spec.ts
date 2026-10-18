@@ -17,18 +17,24 @@ function categoriesOf(category: string): string[] {
 }
 
 describe('shipped template assets', () => {
-  it('ships the twelve templates of the four introduced categories', () => {
-    expect(TEMPLATES).toHaveLength(12)
+  it('ships the twelve patent templates and the five document templates', () => {
+    expect(TEMPLATES).toHaveLength(17)
     expect(categoriesOf('specification')).toHaveLength(4)
     expect(categoriesOf('claims')).toHaveLength(3)
     expect(categoriesOf('oa-response')).toHaveLength(3)
     expect(categoriesOf('disclosure')).toHaveLength(2)
+    expect(categoriesOf('document')).toHaveLength(5)
   })
 
   it('ships no template of the categories this batch leaves out', () => {
     expect(TEMPLATES.filter(template => template.category === 'legal')).toEqual([])
     expect(TEMPLATES.filter(template => template.category === 'patent-report')).toEqual([])
-    expect(TEMPLATES.filter(template => template.domain !== 'patent')).toEqual([])
+    expect(TEMPLATES.filter(template => template.domain === 'patent')).toHaveLength(12)
+  })
+
+  it('ships the five document-domain templates, one per document deliverable', () => {
+    expect(TEMPLATES.filter(template => template.domain === 'document').map(template => template.name).sort())
+      .toEqual(['faq', 'meeting-notes', 'prd', 'release-notes', 'report'])
   })
 
   it('describes every template in Chinese, with a title, a version, and a domain', () => {
@@ -37,7 +43,7 @@ describe('shipped template assets', () => {
       expect(template.title).not.toBe('')
       expect(template.description).not.toBe('')
       expect(template.version).toMatch(/^\d+\.\d+/u)
-      expect(template.domain).toBe('patent')
+      expect(['patent', 'document']).toContain(template.domain)
     }
   })
 
@@ -71,11 +77,13 @@ describe('shipped template assets', () => {
     }
   })
 
-  it('declares every variable as a snake_case name that appears in the body', () => {
+  it('declares at least one variable, as a snake_case name that appears in the body', () => {
     for (const template of TEMPLATES) {
+      expect(template.varSchema.definitions.length, template.name).toBeGreaterThan(0)
       for (const definition of template.varSchema.definitions) {
         expect(definition.name).toMatch(/^[a-z][a-z0-9_]*$/u)
         expect(template.body).toContain(`{{${definition.name}}}`)
+        expect(definition.description, `${template.name}.${definition.name}`).not.toBe('')
       }
     }
   })

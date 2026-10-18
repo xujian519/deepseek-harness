@@ -17,13 +17,8 @@
   gap: 8px;
 }
 
-.title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-}
-
 .count {
+  flex: 0 0 auto;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -38,10 +33,37 @@
 
 .empty {
   grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 46em;
+}
+
+.emptyText {
   font-size: 13px;
   line-height: 22px;
   color: var(--dsw-alias-label-secondary);
-  max-width: 46em;
+}
+
+.candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.candidateList {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.candidate {
+  overflow-wrap: anywhere;
 }
 
 .file {
@@ -59,15 +81,12 @@
   cursor: pointer;
 }
 
-.file:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
 .fileActive {
   border-color: var(--dsw-alias-state-business-primary);
 }
 
 .fileName {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -86,9 +105,17 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* Only a machine verdict may wear the success color. */
 .gatePassed {
   background: var(--dsw-alias-state-success-tertiary);
   color: var(--dsw-alias-state-success-primary);
+}
+
+/* The declared quality gate is the model's own claim: neutral, never success. */
+.gateClaim {
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  border: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .gateMissing {
@@ -100,8 +127,15 @@
   color: var(--dsw-alias-state-warning-primary, var(--dsw-alias-state-business-primary));
 }
 
+/* A verdict whose bytes moved: neither pass nor finding, but visibly withdrawn. */
+.checkStale {
+  background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, var(--dsw-alias-state-business-primary)) 12%, transparent);
+  color: var(--dsw-alias-state-warning-primary, var(--dsw-alias-state-business-primary));
+}
+
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-left: auto;
 }
@@ -117,8 +151,9 @@
   cursor: pointer;
 }
 
-.action:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+.action:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
 }
 
 .preview {
@@ -133,12 +168,75 @@
 
 .previewBar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
   border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+/* The selected name yields width before the actions do, and never pushes them out. */
+.previewName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.printNote {
+  margin: 0;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.claim {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%;
+  padding: 0 12px;
+  overflow: auto;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.claimList {
+  margin: 4px 0;
+  padding-left: 18px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.sections {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  max-height: 30%;
+  padding: 0 12px;
+  overflow: auto;
+}
+
+.select {
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-base);
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.sidebarOnly {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
 }
 
 .frame {
@@ -164,11 +262,31 @@
 }
 
 .note {
+  margin: 0;
+  padding: 0 12px;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
 
+.textPreview .note {
+  padding: 0;
+}
+
 .error {
+  margin: 0;
+  padding: 0 12px;
   font-size: 12px;
   color: var(--dsw-alias-state-error-primary);
+}
+
+/* Pointer-only affordances stay off touch screens, where they would linger
+   after a tap. */
+@media (hover: hover) {
+  .file:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  .action:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }

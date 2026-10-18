@@ -6,6 +6,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import * as DocTemplate from '@deepseek-ai/dsh-doc-template'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -31,6 +32,7 @@ async function boot(configLines: readonly string[] = []): Promise<Context> {
   await writeFile(configPath, [
     "- name: '@deepseek-ai/dsh-system-prompt'",
     "- name: '@deepseek-ai/dsh-tools'",
+    "- name: '@deepseek-ai/dsh-fs-local'",
     "- name: '@deepseek-ai/dsh-doc-template'",
     ...configLines.length > 0 ? ['  config:', ...configLines] : [],
     '',
@@ -44,6 +46,7 @@ async function boot(configLines: readonly string[] = []): Promise<Context> {
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
     ['@deepseek-ai/dsh-tools', ToolRuntime],
+    ['@deepseek-ai/dsh-fs-local', LocalFileSystem],
     ['@deepseek-ai/dsh-doc-template', DocTemplate],
   ])
   ctx.loader.internal = {
@@ -98,14 +101,14 @@ describe('doc-template real Loader composition through cordis.yml', () => {
     const result = await execute(ctx, 'list_doc_templates', {})
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect((result.value as { count: number }).count).toBe(12)
+    expect((result.value as { count: number }).count).toBe(17)
     expect(textOf(result)).toContain('- [specification] chemical-spec — 化学领域说明书')
   }, 30_000)
 
   it('renders a packaged template through the booted composition', async () => {
     const ctx = await boot()
-    // A packaged template declares no variables, so an empty map substitutes
-    // nothing and leaves the placeholders residual instead of failing the call.
+    // Every packaged variable is optional, so an empty map substitutes nothing
+    // and leaves the placeholders residual instead of failing the call.
     const empty = await execute(ctx, 'render_doc_template', { template: 'simplified-disclosure', variables: {} })
     expect(empty.isError).toBe(false)
     const result = await execute(ctx, 'render_doc_template', { template: 'simplified-disclosure', variables: SIMPLIFIED_DISCLOSURE_VARIABLES })

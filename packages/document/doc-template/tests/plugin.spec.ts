@@ -3,6 +3,7 @@
 // 资产在加载期装入，故资产错误会让部署加载失败。
 
 import { Context } from '@deepseek-ai/cordis'
+import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -26,11 +27,12 @@ async function tempDir(): Promise<string> {
   return root
 }
 
-/** A context with the tool registry, before the plugin is applied. */
+/** A context with the tool registry and a host filesystem, before the plugin is applied. */
 async function toolContext(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(LocalFileSystem)
   return ctx
 }
 
@@ -49,7 +51,7 @@ function toolNames(ctx: Context): string[] {
 describe('@deepseek-ai/dsh-doc-template plugin surface', () => {
   it('exports the function-plugin surface', () => {
     expect(Pkg.name).toBe('doc-template')
-    expect(Pkg.inject).toEqual(['tools', 'systemPrompt'])
+    expect(Pkg.inject).toEqual(['tools', 'systemPrompt', 'fs'])
     expect(Pkg.STYLE_GUIDE_SECTION_NAME).toBe('doc-template:style-guide')
     expect(typeof Pkg.apply).toBe('function')
     expect(typeof Pkg.Config).toBe('function')

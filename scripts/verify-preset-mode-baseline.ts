@@ -14,6 +14,12 @@
  * preset-declaration row (`preset-*`) is per-file by construction and is
  * excluded from the shared set.
  *
+ * A delivery mode also states which row keys it must not carry
+ * (`forbiddenKeys`). That is where a ruling like "this mode declares no
+ * `deliveryGate`" becomes a failing condition instead of a sentence in a README:
+ * an empty list is an explicit exemption, so a mode that may carry the key says
+ * so, and a mode that may not fails in the row that carries it.
+ *
  * Run `pnpm run verify-preset-mode-baseline --list` to print what the shipped
  * presets currently carry.
  * @module scripts/verify-preset-mode-baseline
@@ -31,12 +37,15 @@ export const BASELINE_PATH = 'scripts/preset-mode-baseline.json'
 /** Row ids shaped like a preset's own `@deepseek-ai/dsh-agent-preset` declaration row. */
 const PRESET_DECLARATION_RE = /^preset-/u
 
+/** Where the ruling behind a forbidden row key is recorded, so the failure names its reason. */
+const FORBIDDEN_KEY_RULING = 'packages/document/document-deliver/README.md'
+
 /** A preset's persona `prefix` key in block scalar form. */
 const PERSONA_PREFIX_RE = /^(\s*)prefix:[ \t]*[|>][-+]?[0-9]*[ \t]*$/u
 
 /** The declaration fields each mode class may carry. */
 const CLASS_FIELDS: Readonly<Record<ModeClass, readonly string[]>> = {
-  delivery: ['class', 'requiredRows', 'explainedAbsences', 'personaMaxChars'],
+  delivery: ['class', 'requiredRows', 'explainedAbsences', 'personaMaxChars', 'forbiddenKeys'],
   utility: ['class', 'personaMaxChars'],
 }
 
@@ -62,6 +71,13 @@ export interface ModeDeclaration {
    * Required for a delivery mode; optional elsewhere.
    */
   readonly personaMaxChars?: number
+  /**
+   * Row-level keys this mode must not carry, at any nesting depth inside a row.
+   * Required for a delivery mode, where the empty list is an explicit exemption:
+   * a mode that may carry the key states it, so a ruling that forbids the key
+   * has somewhere to fail instead of living only in prose.
+   */
+  readonly forbiddenKeys?: readonly string[]
   /** Whether the mode is held to the shared row set. */
   readonly class: ModeClass
 }
@@ -212,16 +228,22 @@ function parseModeDeclaration(file: string, value: unknown): ModeDeclaration {
   if (personaMaxChars !== undefined && !isPositiveInteger(personaMaxChars)) {
     malformed(file, 'personaMaxChars must be a positive integer')
   }
+  const forbiddenKeys = record['forbiddenKeys']
+  if (forbiddenKeys !== undefined && !isStringArray(forbiddenKeys)) {
+    malformed(file, 'forbiddenKeys must be an array of row key names')
+  }
 
   const declaration: {
     class: ModeClass
     requiredRows?: readonly string[]
     explainedAbsences?: Record<string, string>
     personaMaxChars?: number
+    forbiddenKeys?: readonly string[]
   } = { class: modeClass }
   if (isStringArray(requiredRows)) declaration.requiredRows = requiredRows
   if (isReasonMap(explainedAbsences)) declaration.explainedAbsences = explainedAbsences
   if (isPositiveInteger(personaMaxChars)) declaration.personaMaxChars = personaMaxChars
+  if (isStringArray(forbiddenKeys)) declaration.forbiddenKeys = forbiddenKeys
   return declaration
 }
 
@@ -251,6 +273,35 @@ export function parseModeBaseline(source: string): ModeBaseline {
 }
 
 /**
+ * Escape one row key for a literal match inside a regular expression.
+ * @param key - the row key as declared in the baseline.
+ * @returns the key with regular-expression metacharacters escaped.
+ */
+function escapeRegExp(key: string): string {
+  return key.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+}
+
+/**
+ * Row ids carrying one mapping key at any depth inside their block.
+ *
+ * Comments are skipped: a preset that explains why it does not carry the key is
+ * not carrying it. The match is a YAML mapping key at the start of a line, which
+ * is the only position a row key occupies.
+ * @param blocks - one preset's row blocks, in file order.
+ * @param key - the row key to look for.
+ * @returns the carrying row ids, in file order.
+ */
+function rowsCarryingKey(blocks: ReadonlyMap<string, string>, key: string): string[] {
+  const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*:`, 'mu')
+  const carriers: string[] = []
+  for (const [id, block] of blocks) {
+    const withoutComments = block.split('\n').filter(line => !line.trimStart().startsWith('#')).join('\n')
+    if (pattern.test(withoutComments)) carriers.push(id)
+  }
+  return carriers
+}
+
+/**
  * Compare every shipped preset against the declared baseline.
  * @param presets - the shipped presets with their raw text.
  * @param baseline - the declared baseline.
@@ -261,8 +312,8 @@ export function modeBaselineFindings(
   baseline: ModeBaseline,
 ): ModeFinding[] {
   const findings: ModeFinding[] = []
-  const blocks = new Map(presets.map(preset => [preset.file, presetRowBlocks(preset.source)]))
-  const carriedBy = new Map([...blocks].map(([file, rows]) => [file, new Set(rows.keys())]))
+  const presetBlocks = new Map(presets.map(preset => [preset.file, presetRowBlocks(preset.source)]))
+  const carriedBy = new Map([...presetBlocks].map(([file, rows]) => [file, new Set(rows.keys())]))
   const authorityRows = carriedBy.get(baseline.authority)
   if (authorityRows === undefined) {
     findings.push({ mode: baseline.authority, detail: 'names an authority preset that does not ship' })
@@ -331,8 +382,24 @@ export function modeBaselineFindings(
       }
     }
 
+    const forbidden = declaration.forbiddenKeys ?? []
+    if (declaration.class === 'delivery' && declaration.forbiddenKeys === undefined) {
+      findings.push({ mode: file, detail: 'is a delivery mode with no forbiddenKeys' })
+    }
+    const rowBlocks = presetBlocks.get(file)
+    if (rowBlocks !== undefined) {
+      for (const key of forbidden) {
+        for (const id of rowsCarryingKey(rowBlocks, key)) {
+          findings.push({
+            mode: file,
+            detail: `carries ${key} in row ${id}, which this mode forbids; the ruling is recorded in ${FORBIDDEN_KEY_RULING}`,
+          })
+        }
+      }
+    }
+
     if (declaration.personaMaxChars !== undefined) {
-      const body = personaPrefixBody(blocks.get(file)?.get('persona'))
+      const body = personaPrefixBody(presetBlocks.get(file)?.get('persona'))
       if (body === undefined) {
         findings.push({ mode: file, detail: 'declares personaMaxChars but carries no persona prefix body' })
       }

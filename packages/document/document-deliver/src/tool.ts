@@ -11,17 +11,46 @@
  * (see `./checks.ts`). A finding the checker rates `block` throws instead of
  * registering, so a deliverable that still carries an unfilled variable never
  * reaches the registration path on the model's word alone.
+ *
+ * Registration holds the declaration too, because a declaration is what a
+ * consumer reads back. A path whose extension contradicts the declared format
+ * is read the way its extension says and the contradiction is reported beside
+ * the check outcome; a file the checker cannot read has to carry an
+ * `unreadable_ack` reason unless the read hit the size cap, so "not checked"
+ * can never be read as "checked"; the P0 checklist a call names is compared
+ * with the gate's stable ids, so a result can name the id the call left out;
+ * and a `brief_ref` that names no file is reported while the registration
+ * proceeds, because a brief may legitimately be gone by delivery time.
  * @module @deepseek-ai/dsh-document-deliver/tool
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { FsTarget } from '@deepseek-ai/dsh-fs'
+import { FsError } from '@deepseek-ai/dsh-fs'
 import { findStyleByName, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
 import { extractDocxText, type ZipReadLimits } from '@deepseek-ai/dsh-docx-kit'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { ParameterSchemaSpec, ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import { checkDocumentText, type DocumentCheckFinding } from './checks.ts'
+import {
+  briefReferenceWarnings,
+  p0ChecklistWarnings,
+  READ_CAP_REASON_PREFIX,
+  resolveCheckFormat,
+  resolveTarget,
+  resolveUnreadableReports,
+} from './registration.ts'
+import type { UnreadableAckInput } from './registration.ts'
+
+export {
+  briefReferenceWarnings,
+  p0ChecklistWarnings,
+  P0_CHECKLIST,
+  resolveCheckFormat,
+  resolveUnreadableReports,
+} from './registration.ts'
+export type { P0ChecklistEntry, ResolvedCheckFormat, UnreadableAckInput } from './registration.ts'
 
 /** The formats the document workline delivers. */
 export const DELIVERABLE_FORMATS = ['markdown', 'html', 'pdf', 'docx', 'pptx', 'other'] as const
@@ -43,7 +72,7 @@ export interface DeliverFileInput {
 
 /** The quality-gate outcome for one registration. */
 export interface DeliverGateInput {
-  /** Verified P0 checklist items (P0 non-passing may not be delivered). */
+  /** Verified P0 checklist ids (see {@link P0_CHECKLIST}); P0 non-passing may not be delivered. */
   p0: string[]
   /** Met P1 checklist items; empty when none were met or none apply. */
   p1?: string[]
@@ -58,6 +87,8 @@ export interface DocumentDeliverInput {
   style?: string
   /** Declared length budget of the delivered document, in characters. */
   char_budget?: number
+  /** One reason per file the checker reported `unreadable`; the read-cap case needs none. */
+  unreadable_ack?: UnreadableAckInput[]
 }
 
 /**
@@ -72,6 +103,8 @@ export interface DeliverableCheckReport {
   status: 'checked' | 'unchecked' | 'unreadable'
   /** Why the checks did not run, or ran over incomplete text; absent when they ran over the whole file. */
   reason?: string
+  /** The caller's declared reason for shipping an `unreadable` file, when one was required. */
+  ack?: string
   findings: DocumentCheckFinding[]
 }
 
@@ -86,6 +119,8 @@ export interface DocumentDeliverResult {
     /** One check report per registered file, in declaration order. */
     checks: DeliverableCheckReport[]
   }
+  /** Registration-level warnings: what the declaration got wrong, one line each; absent when nothing did. */
+  warnings?: string[]
   brief_ref?: string
 }
 
@@ -98,6 +133,8 @@ export interface DocumentDeliverSpec {
   styleName?: string
   /** Declared character budget, absent when the call declared none. */
   charBudget?: number
+  /** One declared reason per unreadable file, when the call declared any. */
+  unreadableAck?: Array<{ path: string; reasonText: string }>
 }
 
 /** The loaded styles and the default one, resolved once at plugin load. */
@@ -139,7 +176,8 @@ function isNonBlank(value: string): boolean {
  * schema covers shape and enums; this covers the semantic invariants the
  * schema subset cannot express: at least one file, no blank or duplicate
  * paths, a non-empty P0 list, no blank checklist items, a non-blank style
- * name, and a positive whole character budget.
+ * name, a positive whole character budget, and one non-blank reason per
+ * declared unreadable path.
  * @param args - the schema-validated raw arguments.
  * @returns the normalized spec, or throws on the first violation.
  */
@@ -171,34 +209,37 @@ export function parseDocumentDeliverArgs(args: DocumentDeliverInput): DocumentDe
   if (args.char_budget !== undefined && (args.char_budget <= 0 || !Number.isInteger(args.char_budget))) {
     throw new Error('document_deliver: char_budget must be a positive whole number of characters')
   }
+  const unreadableAck: NonNullable<DocumentDeliverSpec['unreadableAck']> = []
+  const acked = new Set<string>()
+  for (const entry of args.unreadable_ack ?? []) {
+    if (!isNonBlank(entry.path) || !isNonBlank(entry.reason_text)) {
+      throw new Error('document_deliver: every unreadable_ack entry needs a non-empty path and reason_text')
+    }
+    if (acked.has(entry.path)) throw new Error(`document_deliver: duplicate unreadable_ack path "${entry.path}"`)
+    acked.add(entry.path)
+    unreadableAck.push({ path: entry.path, reasonText: entry.reason_text })
+  }
   return {
     files,
     gate: { p0: args.gate.p0, p1 },
     ...args.brief_ref !== undefined ? { briefRef: args.brief_ref } : {},
     ...args.style !== undefined ? { styleName: args.style } : {},
     ...args.char_budget !== undefined ? { charBudget: args.char_budget } : {},
+    ...unreadableAck.length > 0 ? { unreadableAck } : {},
   }
 }
 
 /** Format the parsed input and the check reports into the canonical JSON result. */
-function toResult(spec: DocumentDeliverSpec, checks: readonly DeliverableCheckReport[], style: DocumentStyle): DocumentDeliverResult {
+function toResult(
+  spec: DocumentDeliverSpec, checks: readonly DeliverableCheckReport[], style: DocumentStyle, warnings: readonly string[],
+): DocumentDeliverResult {
   const result: DocumentDeliverResult = {
     registered: spec.files.map(file => ({ path: file.path, format: file.format })),
     gate: { p0: spec.gate.p0, p1: spec.gate.p1, style: style.name, checks: [...checks] },
   }
   if (spec.briefRef !== undefined) result.brief_ref = spec.briefRef
+  if (warnings.length > 0) result.warnings = [...warnings]
   return result
-}
-
-/** Resolve one registered path against the calling session's workspace. */
-async function resolveTarget(
-  ctx: Context, exec: ToolRunContext, path: string,
-): Promise<FsTarget> {
-  const cwd = exec.agent?.session.header.cwd
-  return ctx.fs.resolve(path, {
-    ...cwd !== undefined ? { cwd } : {},
-    signal: exec.signal,
-  })
 }
 
 /**
@@ -230,6 +271,12 @@ export async function missingDeliverableFiles(
  * removed one), and a DOCX package that projects no text all report their own
  * status with the reason attached: the registration stays possible, and the
  * result never implies a check that did not run.
+ *
+ * The file is read as {@link resolveCheckFormat} says, not as the call labelled
+ * it, so a `.html` declared `pdf` still gets its placeholders checked and the
+ * contradiction goes into the same `reason` the studio renders beside the
+ * badge. A reason that already explains a failed read keeps both halves, in
+ * that order.
  * @param ctx - plugin context carrying `ctx.fs`.
  * @param exec - the current tool execution (signal, agent).
  * @param file - the declared path and format.
@@ -242,26 +289,41 @@ async function checkDeliverable(
   ctx: Context, exec: ToolRunContext, file: { path: string; format: DeliverableFormat },
   style: DocumentStyle, charBudget: number | undefined, limits: DeliverableCheckLimits,
 ): Promise<DeliverableCheckReport> {
-  const base = { path: file.path, format: file.format }
+  const resolved = resolveCheckFormat(file.path, file.format)
+  const format = resolved.format
+  const base = { path: file.path, format }
+  /**
+   * The `reason` field of a report, omitted when there is nothing to say.
+   *
+   * The declaration contradiction comes first, so a reader sees why the file
+   * was read this way before the outcome of reading it.
+   */
+  const reasonField = (...rest: Array<string | undefined>): { reason?: string } => {
+    const all = [resolved.mismatch, ...rest].filter((entry): entry is string => entry !== undefined && entry !== '')
+    return all.length === 0 ? {} : { reason: all.join('；') }
+  }
   const options = {
     style,
     lengthTolerance: limits.lengthTolerance,
     maxFindingsPerCheck: limits.maxFindingsPerCheck,
+    // The budget counts prose, so HTML is measured after its markup is removed
+    // (checks.ts owns that projection); a Markdown body is already prose.
+    ...format === 'html' ? { format: 'html' as const } : {},
     ...charBudget === undefined ? {} : { charBudget },
   }
-  if (!TEXT_FORMATS.includes(file.format) && file.format !== 'docx') {
-    return { ...base, status: 'unchecked', reason: `${file.format} 格式没有文本读取器`, findings: [] }
+  if (!TEXT_FORMATS.includes(format) && format !== 'docx') {
+    return { ...base, status: 'unchecked', ...reasonField(`${format} 格式没有文本读取器`), findings: [] }
   }
   const target = await resolveTarget(ctx, exec, file.path)
   try {
-    if (file.format === 'docx') {
+    if (format === 'docx') {
       const bytes = await ctx.fs.readBytes(target, exec.signal, limits.maxCheckBytes)
       const projected = extractDocxText(bytes, limits.docxReadLimits)
       const problems = projected.problems.map(problem => problem.code).join('、')
       // An empty projection always carries at least the `no-text` problem, so
       // the joined codes are the reason.
       if (projected.text === '') {
-        return { ...base, status: 'unreadable', reason: problems, findings: [] }
+        return { ...base, status: 'unreadable', ...reasonField(problems), findings: [] }
       }
       // A package whose parts did not all project is reported as unreadable even
       // though the projected part was checked: a passing status would claim
@@ -269,7 +331,7 @@ async function checkDeliverable(
       return {
         ...base,
         status: problems === '' ? 'checked' : 'unreadable',
-        ...problems === '' ? {} : { reason: `DOCX 结构报告 ${problems}，投影文本可能不完整` },
+        ...problems === '' ? {} : reasonField(`DOCX 结构报告 ${problems}，投影文本可能不完整`),
         findings: checkDocumentText(projected.text, options),
       }
     }
@@ -277,10 +339,21 @@ async function checkDeliverable(
     // file is reported below instead of being read whole.
     const bytes = await ctx.fs.readBytes(target, exec.signal, limits.maxCheckBytes)
     const text = new TextDecoder().decode(bytes)
-    return { ...base, status: 'checked', findings: checkDocumentText(text, options) }
+    return {
+      ...base,
+      status: 'checked',
+      ...reasonField(),
+      findings: checkDocumentText(text, options),
+    }
   } catch (error) {
     // A file the checker cannot read is reported with its reason, never skipped silently.
-    return { ...base, status: 'unreadable', reason: errorMessage(error), findings: [] }
+    // The read cap is named with this tool's own marker, so the registration can
+    // tell a deployment budget apart from a defect without reading a backend's
+    // message (see `stoppedAtDeploymentBudget`).
+    const reason = error instanceof FsError && error.code === 'FS_TOO_LARGE'
+      ? `${READ_CAP_REASON_PREFIX}${errorMessage(error)}`
+      : errorMessage(error)
+    return { ...base, status: 'unreadable', ...reasonField(reason), findings: [] }
   }
 }
 
@@ -324,10 +397,11 @@ function statusText(report: DeliverableCheckReport): string {
   return report.findings.length === 0 ? '通过' : `${String(report.findings.length)} 项提示`
 }
 
-/** One file's check outcome as one line, with the reason it did not fully run. */
+/** One file's check outcome as one line, with the reason it did not fully run and any declared reason. */
 function describeCheck(report: DeliverableCheckReport): string {
   const status = `${report.path} ${statusText(report)}`
-  return report.reason === undefined ? status : `${status}（${report.reason}）`
+  const withReason = report.reason === undefined ? status : `${status}（${report.reason}）`
+  return report.ack === undefined ? withReason : `${withReason}（已声明：${report.ack}）`
 }
 
 /** Model-facing text of one registration result. */
@@ -342,6 +416,9 @@ function renderResult(result: DocumentDeliverResult): string {
   ]
   if (result.brief_ref !== undefined) lines.push(`brief 参考：${result.brief_ref}`)
   if (warnings.length > 0) lines.push(`提示（${String(warnings.length)}）：`, ...warnings)
+  if (result.warnings !== undefined && result.warnings.length > 0) {
+    lines.push(`登记提示（${String(result.warnings.length)}）：`, ...result.warnings.map(line => `- ${line}`))
+  }
   return lines.join('\n')
 }
 
@@ -363,6 +440,7 @@ function checksMeta(checks: readonly DeliverableCheckReport[]) {
       format: report.format,
       status: report.status,
       ...report.reason === undefined ? {} : { reason: report.reason },
+      ...report.ack === undefined ? {} : { ack: report.ack },
       findings: report.findings.map(finding => ({
         check: finding.check,
         level: finding.level,
@@ -384,8 +462,133 @@ function deliverDescription(lengthTolerance: number): string {
   const percent = Math.round(lengthTolerance * 100 * 100) / 100
   return `登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。
 
-工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±${String(percent)}% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。`
+工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±${String(percent)}% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
+
+两条与声明本身有关的判定：文件按扩展名决定用哪种读取器（声明格式与扩展名不一致会提示，并按扩展名核验）；读不出内容的文件必须在 unreadable_ack 里写一条原因（path + reason_text）才允许登记，超出本部署读取上限的文件除外。p0 用质量门技能里的稳定 id（P0-1 … P0-6）填写，工具会把缺失或无法识别的项列出来。`
 }
+
+const PARAMETERS = {
+
+  files: {
+    type: 'array',
+    required: true,
+    description: '本次交付的全部成品文件与格式（至少一个）；path 为工作区相对路径（或绝对路径），如 out/report.html',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: { type: 'string', required: true, description: '工作区相对路径（或绝对路径）' },
+        format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS], description: '成品导出格式' },
+      },
+    },
+  },
+  gate: {
+    type: 'object',
+    required: true,
+    additionalProperties: false,
+    description: '质量门结果：P0 全过才允许登记',
+    properties: {
+      p0: {
+        type: 'array',
+        required: true,
+        items: { type: 'string' },
+        description: '已通过并核验的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；缺失项与无法识别的写法会在结果里列出',
+      },
+      p1: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '已满足的 P1 自检项（无则省略）',
+      },
+    },
+  },
+  brief_ref: {
+    type: 'string',
+    description: '本次交付依据的 brief 文件路径（如 brief.md），可省略',
+  },
+  style: {
+    type: 'string',
+    description: '核验所用的书写风格名（如 assistant-neutral、patent-standard）；省略时用本部署配置的默认风格',
+  },
+  char_budget: {
+    type: 'integer',
+    description: '全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅',
+  },
+  unreadable_ack: {
+    type: 'array',
+    description: '为每个"无法核验"（unreadable）的交付文件写一条原因；缺失时登记被拒，超出本部署读取上限的文件不需要',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: { type: 'string', required: true, description: '无法核验的文件路径，与 files 中的 path 一致' },
+        reason_text: { type: 'string', required: true, description: '为什么该文件在无法核验的情况下仍要交付' },
+      },
+    },
+  },
+
+} as const satisfies ParameterSchemaSpec
+
+const OUTPUT_SCHEMA = {
+
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    registered: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          path: { type: 'string', required: true },
+          format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS] },
+        },
+      },
+      required: true,
+    },
+    gate: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        p0: { type: 'array', items: { type: 'string' }, required: true },
+        p1: { type: 'array', items: { type: 'string' }, required: true },
+        style: { type: 'string', required: true },
+        checks: {
+          type: 'array',
+          required: true,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              path: { type: 'string', required: true },
+              format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS] },
+              status: { type: 'string', required: true, enum: ['checked', 'unchecked', 'unreadable'] },
+              reason: { type: 'string' },
+              ack: { type: 'string' },
+              findings: {
+                type: 'array',
+                required: true,
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    check: { type: 'string', required: true, enum: ['placeholder', 'broken_anchor', 'empty_section', 'anti_pattern', 'length_budget'] },
+                    level: { type: 'string', required: true, enum: ['block', 'warn'] },
+                    detail: { type: 'string', required: true },
+                    line: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      required: true,
+    },
+    brief_ref: { type: 'string' },
+    warnings: { type: 'array', items: { type: 'string' } },
+  },
+
+} as const satisfies ValueSchemaSpec
 
 /**
  * Register one `document_deliver` tool definition over the plugin's context.
@@ -403,110 +606,9 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
   return defineTool({
     name: 'document_deliver',
     description: deliverDescription(deps.lengthTolerance),
-    parameters: {
-      files: {
-        type: 'array',
-        required: true,
-        description: '本次交付的全部成品文件与格式（至少一个）；path 为工作区相对路径（或绝对路径），如 out/report.html',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            path: { type: 'string', required: true, description: '工作区相对路径（或绝对路径）' },
-            format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS], description: '成品导出格式' },
-          },
-        },
-      },
-      gate: {
-        type: 'object',
-        required: true,
-        additionalProperties: false,
-        description: '质量门结果：P0 全过才允许登记',
-        properties: {
-          p0: {
-            type: 'array',
-            required: true,
-            items: { type: 'string' },
-            description: '已通过并核验的 P0 自检项（每项一句话）',
-          },
-          p1: {
-            type: 'array',
-            items: { type: 'string' },
-            description: '已满足的 P1 自检项（无则省略）',
-          },
-        },
-      },
-      brief_ref: {
-        type: 'string',
-        description: '本次交付依据的 brief 文件路径（如 brief.md），可省略',
-      },
-      style: {
-        type: 'string',
-        description: '核验所用的书写风格名（如 assistant-neutral、patent-standard）；省略时用本部署配置的默认风格',
-      },
-      char_budget: {
-        type: 'integer',
-        description: '全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅',
-      },
-    },
+    parameters: PARAMETERS,
     output: {
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          registered: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                path: { type: 'string', required: true },
-                format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS] },
-              },
-            },
-            required: true,
-          },
-          gate: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              p0: { type: 'array', items: { type: 'string' }, required: true },
-              p1: { type: 'array', items: { type: 'string' }, required: true },
-              style: { type: 'string', required: true },
-              checks: {
-                type: 'array',
-                required: true,
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  properties: {
-                    path: { type: 'string', required: true },
-                    format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS] },
-                    status: { type: 'string', required: true, enum: ['checked', 'unchecked', 'unreadable'] },
-                    reason: { type: 'string' },
-                    findings: {
-                      type: 'array',
-                      required: true,
-                      items: {
-                        type: 'object',
-                        additionalProperties: false,
-                        properties: {
-                          check: { type: 'string', required: true, enum: ['placeholder', 'broken_anchor', 'empty_section', 'anti_pattern', 'length_budget'] },
-                          level: { type: 'string', required: true, enum: ['block', 'warn'] },
-                          detail: { type: 'string', required: true },
-                          line: { type: 'integer' },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            required: true,
-          },
-          brief_ref: { type: 'string' },
-        },
-      },
+      schema: OUTPUT_SCHEMA,
       render: (_args, value) => [{ type: 'text', text: renderResult(value) }],
       // The deliverable panel reads the same computed reports back on replay;
       // the model-facing text above is only their summary.
@@ -541,6 +643,10 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
       if (missing.length > 0) {
         throw new Error(`document_deliver: 以下交付文件在工作区中不存在，先修复或从登记中移除: ${missing.join('、')}`)
       }
+      const warnings = p0ChecklistWarnings(spec.gate.p0)
+      if (spec.briefRef !== undefined) {
+        warnings.push(...await briefReferenceWarnings(ctx, exec, spec.briefRef))
+      }
       const checks = await checkDeliverables(ctx, exec, spec, style, limits)
       const blocking = blockingLines(checks)
       if (blocking.length > 0) {
@@ -549,7 +655,9 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
           ...blocking,
         ].join('\n'))
       }
-      return toResult(spec, checks, style)
+      const readable = resolveUnreadableReports(spec, checks)
+      warnings.push(...readable.warnings)
+      return toResult(spec, readable.reports, style, warnings)
     },
   })
 }

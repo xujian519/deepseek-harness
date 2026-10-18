@@ -20,6 +20,7 @@ import type {
   FsInfo,
   FsPathInfo,
   FsTarget,
+  FsTextWriteOutcome,
   FsWriteIntent,
   FsWriteOutcome,
 } from '@deepseek-ai/dsh-fs'
@@ -88,12 +89,19 @@ class FakeFs extends FileSystem {
   override async listDir(_target: FsTarget): Promise<FsDirEntry[]> {
     return []
   }
-  override async writeText(target: FsTarget, content: string, expected?: FsWriteIntent): Promise<FsWriteOutcome> {
+  override async writeText(target: FsTarget, content: string, expected?: FsWriteIntent): Promise<FsTextWriteOutcome> {
     this.throwIfArmed()
     this.writeIntents.push(expected)
     const before = this.files.get(target.targetKey) ?? null
     this.files.set(target.targetKey, content)
     return { operation: before !== null ? 'update' : 'create', version: FsVersion('v2'), before, after: content }
+  }
+  override async writeBytes(target: FsTarget, bytes: Uint8Array, expected?: FsWriteIntent): Promise<FsWriteOutcome> {
+    this.throwIfArmed()
+    this.writeIntents.push(expected)
+    const before = this.files.get(target.targetKey) ?? null
+    this.files.set(target.targetKey, new TextDecoder().decode(bytes))
+    return { operation: before !== null ? 'update' : 'create', version: FsVersion('v2'), before: null, after: null }
   }
   override async editText(target: FsTarget, edit: FsEditRequest, expected?: { version: FsVersion }): Promise<FsEditOutcome> {
     this.throwIfArmed()
@@ -841,7 +849,7 @@ describe('sandbox escalation API (write/edit)', () => {
       expected?: FsWriteIntent,
       _signal?: AbortSignal,
       sandboxPolicy?: SandboxExecutionPolicy,
-    ): Promise<FsWriteOutcome> {
+    ): Promise<FsTextWriteOutcome> {
       this.stamped.push(sandboxPolicy)
       return super.writeText(target, content, expected)
     }

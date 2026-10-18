@@ -2,7 +2,8 @@
 name: document-word
 description: |
   Word 交付管线：用 render_doc_template 从模板生成 .docx（Markdown 源 + 模板变量），
-  需要页眉页脚、目录字段等模板不覆盖的样式时再用 officecli 技能加工。
+  面向合同、规范、论文等明确要求 Word 的交付；页眉页脚、目录字段等模板不覆盖的
+  样式再用 officecli 技能加工。
 whenToUse: 用户明确要求 .docx/Word 文件（合同、规范、报告、论文等）。
 ---
 
@@ -19,9 +20,10 @@ whenToUse: 用户明确要求 .docx/Word 文件（合同、规范、报告、论
 3. 撰写变量内容（正文段落、表格以 Markdown 片段传入），调用 `render_doc_template`：
    - `variables` 必须填齐模板的全部必填变量，缺失会让调用失败并指名变量；
    - 读回 `residual`（未填占位符）与 `warnings`，两者都必须清空再交付；
+   - 传 `output_path`（如 `out/report.docx`）由工具直接落盘，返回 `path` 与 `bytes`；
    - 需要时用 `title` / `author` / `date` / `filename` 覆盖元数据。
-4. 落盘：`content` 是 base64 的 DOCX 包，用 shell 解码写入成品路径
-   （`printf '%s' '<base64>' | base64 -d > out/report.docx`；macOS 旧版 `base64` 用 `-D`）。
+4. 未传 `output_path` 时才需要自己落盘：`content` 是 base64 的 DOCX 包，用 shell 解码写入
+   成品路径（`printf '%s' '<base64>' | base64 -d > out/report.docx`；macOS 旧版 `base64` 用 `-D`）。
    随后用 shell 的 `ls -l` 复核文件存在与字节数。
 5. 需要页眉页脚、目录字段、页码或命名样式套用时，交 officecli 技能继续加工同一文件。
 6. 自检（document-quality-gate）后交付：`<name>.docx` 路径与摘要；登记时格式填 `docx`。

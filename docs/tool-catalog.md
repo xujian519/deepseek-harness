@@ -2901,6 +2901,8 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
 
 工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±20% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
 
+两条与声明本身有关的判定：文件按扩展名决定用哪种读取器（声明格式与扩展名不一致会提示，并按扩展名核验）；读不出内容的文件必须在 unreadable_ack 里写一条原因（path + reason_text）才允许登记，超出本部署读取上限的文件除外。p0 用质量门技能里的稳定 id（P0-1 … P0-6）填写，工具会把缺失或无法识别的项列出来。
+
 ```json
 {
   "type": "object",
@@ -2942,7 +2944,7 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
       "properties": {
         "p0": {
           "type": "array",
-          "description": "已通过并核验的 P0 自检项（每项一句话）",
+          "description": "已通过并核验的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；缺失项与无法识别的写法会在结果里列出",
           "items": {
             "type": "string"
           }
@@ -2970,6 +2972,28 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
     "char_budget": {
       "type": "integer",
       "description": "全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅"
+    },
+    "unreadable_ack": {
+      "type": "array",
+      "description": "为每个\"无法核验\"（unreadable）的交付文件写一条原因；缺失时登记被拒，超出本部署读取上限的文件不需要",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "无法核验的文件路径，与 files 中的 path 一致"
+          },
+          "reason_text": {
+            "type": "string",
+            "description": "为什么该文件在无法核验的情况下仍要交付"
+          }
+        },
+        "required": [
+          "path",
+          "reason_text"
+        ]
+      }
     }
   },
   "required": [
@@ -6825,12 +6849,14 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 - Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.
 - Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.
-- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: write `content` to the delivered file, because a file written from `markdown` loses both.
-- Variables the template does not declare are ignored, and a placeholder with no supplied value is left in the document and reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.
+- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` carries the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: the delivered file is `content`, and a file written from `markdown` loses both.
+- `output_path` (workspace-relative or absolute) writes the rendered document through the session filesystem and reports `path` and `bytes`: text formats write UTF-8, `docx` writes the package bytes. Omit it to receive the render result without touching the filesystem.
+- Variables are substituted by name; a placeholder with no supplied value stays in the document and is reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.
 
 Usage notes:
   - Offline; renders the packaged template assets, the configured override directories, and the packaged styles.
   - A template that declares a writing style carries that style's disclaimer into the rendered document when the deployment enabled disclaimers.
+  - A write is governed by the deployment's file policy; a denied `output_path` fails the call with the filesystem error.
 
 ```json
 {
@@ -6869,6 +6895,10 @@ Usage notes:
     "filename": {
       "type": "string",
       "description": "Suggested file name stem without extension; defaults to the template name"
+    },
+    "output_path": {
+      "type": "string",
+      "description": "Write the rendered document here (workspace-relative or absolute) and report path and bytes; omit to return the content without writing"
     }
   },
   "required": [

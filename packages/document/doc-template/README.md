@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-doc-template` loads the document templates shipped with the harness and renders the one a caller selects. Each template is a Markdown asset whose YAML front-matter declares its category, domain, language, writing style, supported formats, and variable schema; its body fills `{{snake_case}}` placeholders from the variables the call supplies. Rendering returns the document together with the placeholders that stayed unfilled and the variable warnings, so a caller can tell a complete document from an incomplete one without re-parsing it.
+`@deepseek-ai/dsh-doc-template` loads the document templates shipped with the harness and renders the one a caller selects. Each template is a Markdown asset whose YAML front-matter declares its category, domain, language, writing style, supported formats, and variable schema; its body fills `{{name}}` placeholders from the variables the call supplies (a name may be CJK or carry inner spaces; it is trimmed before lookup). Rendering returns the document together with the placeholders that stayed unfilled and the variable warnings, so a caller can tell a complete document from an incomplete one without re-parsing it.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ English | [中文](README.zh.md)
 <a id="template-assets"></a>
 ## Template assets
 
-Twelve templates ship under `assets/templates/`, grouped by directory: `specification/` (4), `claims/` (3), `oa-response/` (3), and `disclosure/` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch, and neither is the patent domain's own deliverables — those render from a controlled draft in [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.md) instead of a variable-substitution asset. The `oa-response/` category is document-mode only: its three templates are generic variable-substitution skeletons, not the patent response channel — a reply to a real office action renders from `dsh-patent-document`'s controlled draft, and the patent preset mounts no doc-template row.
+Seventeen templates ship under `assets/templates/`: twelve patent-domain assets grouped by directory — `specification/` (4), `claims/` (3), `oa-response/` (3), and `disclosure/` (2) — and five `document/` templates for the document preset (`prd`, `report`, `faq`, `release-notes`, `meeting-notes`). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch, and neither is the patent domain's own deliverables — those render from a controlled draft in [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.md) instead of a variable-substitution asset. The `oa-response/` category is document-mode only: its three templates are generic variable-substitution skeletons, not the patent response channel — a reply to a real office action renders from `dsh-patent-document`'s controlled draft, and the patent preset mounts no doc-template row.
 
 Front-matter fields, read from the upstream template contract:
 
@@ -55,7 +55,7 @@ A variable's `type` is one of `string`, `multiline`, `number`, or `bool`; an abs
 <a id="render_doc_template-tool"></a>
 ## render_doc_template tool
 
-`render_doc_template` resolves one template's variables and renders it. The result carries the rendered document, the suggested file name, the content type, the encoding, the resolved Markdown body, the residual placeholders, and the validation warnings. `format` defaults to Markdown and must be one the template declares; `title`, `author`, `date`, and `filename` override the template's own values.
+`render_doc_template` resolves one template's variables and renders it. The result carries the rendered document, the suggested file name, the content type, the encoding, the resolved Markdown body, the residual placeholders, and the validation warnings. `format` defaults to Markdown and must be one the template declares; `title`, `author`, `date`, and `filename` override the template's own values, and an optional `output_path` writes the rendered document through the session filesystem — UTF-8 text through `writeText`, a DOCX package through `writeBytes` — reporting the written path and byte count.
 
 The call fails rather than returning a degraded document for an unknown template, an unknown style name, a format the template does not support, a variable whose value is not a string, and a missing required variable. A type mismatch and an unfilled placeholder are not failures: they are reported as a warning and as a residual placeholder, because a caller may still want the partially filled document.
 
@@ -67,7 +67,7 @@ The call fails rather than returning a degraded document for an unknown template
 - `VarSchema.validate` reports a missing required variable before its type, since an absent value has no type, and reports `invalid_type` for a value that is not a number or not `true`/`false`.
 - `VarSchema.applyDefaults` copies the variables and fills the declared defaults; an empty default is no default.
 - `substitutePlaceholders` replaces only the placeholders it has a value for, so an unfilled placeholder stays in the text.
-- The returned `residual` lists every distinct `{{snake_case}}` placeholder still present, in first-occurrence order, and `warnings` lists the validation issues in declaration order.
+- The returned `residual` lists every distinct `{{name}}` placeholder still present (CJK and inner-space names included, the name trimmed), in first-occurrence order, and `warnings` lists the validation issues in declaration order.
 
 Upstream returned both lists to the caller and stopped there. This package keeps that pipeline and adds one decision above it: the render path turns a `missing_required` warning into an error, because a document missing a required variable is not a document a caller should deliver. The residual list is the deterministic evidence a document gate reads; it is reported for every successful render.
 
@@ -118,7 +118,7 @@ The section is static text, so it sits in the prefix: registering or removing th
 
 #### What the model sees
 
-The `render_doc_template` tool definition and its result. The result text names the template, the format, the suggested file name, the content type, and the encoding, then the residual placeholders and the warnings, then the document. A base64 DOCX result reports the package's size instead of printing it, and shows the resolved Markdown as the readable document.
+The `render_doc_template` tool definition and its result. The result text names the template, the format, the suggested file name, the content type, and the encoding, then the residual placeholders and the warnings, then the document. A base64 DOCX result reports the package's size instead of printing it, and shows the resolved Markdown as the readable document; a render written to `output_path` reports the path and byte count instead.
 
 #### Token effect
 
@@ -144,7 +144,7 @@ Append-only; the listing follows the reusable request prefix and does not invali
 
 ## Known Limitations and Deferred Work
 
-- **Twelve templates declare no variables** — the claims, specification, oa-response, and disclosure assets upstream carry a `填写指引` section in their bodies instead of a `vars` block, so `list_doc_templates` reports no variables for them and a render reports their placeholders as residual. The model fills them from the residual list or from the asset's own guidance; transcribing the guidance into `vars` declarations is deferred rather than invented here.
+- **Every template declares its variables, none of them required** — all seventeen templates carry a `vars` block whose names match the `{{name}}` placeholders in their bodies, declared `required: false` so a render degrades to `residual` instead of failing; a deployment that needs a variable enforced can mark it required in its own override. A template with a placeholder no `vars` entry names still reports it as residual.
 - **Only one template per name** — a store keeps one entry per name, so a language variant needs its own name, as the upstream store documented. `findByNameAndLanguage` therefore filters the single entry rather than selecting among variants.
 - **Template version drift is reported, not resolved** — `listConflicts` names an override whose version differs from the first-loaded one; nothing consumes it yet, and no template is merged or downgraded.
 - **`systemPromptForTemplate` has no consumer yet** — the template-context projection of [`@deepseek-ai/dsh-doc-style`](../doc-style/README.md) is available, but the style guide this package injects is the template-free one (`systemPrompt`) and the render path uses `toRenderStyle` and `disclaimerFor` only.
@@ -152,7 +152,8 @@ Append-only; the listing follows the reusable request prefix and does not invali
 - **An empty `styleGuide` leaves the gate unannounced** — [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.md) refuses a word its style marks `block` whether or not the model was shown the guide, so a deployment that enables the checks and injects no guide can refuse a registration the model had no way to predict. Set `styleGuide` to the style the gate uses.
 - **The shipped templates are Chinese only** — the assets self-describe with `language: zh-CN` and no bilingual twin ships, so a document in another language needs its own template asset.
 - **`rendererRegistry` has no consumer yet** — the store hands out the registry a consumer would call to add a render format; every shipped format is registered at construction, so nothing reads it.
-- **DOCX bytes travel base64** — a `docx` result carries the package base64-encoded in its `content` field, which is roughly a third larger than the package; the tool text keeps the package out of the transcript.
+- **A written render runs under the deployment's file policy** — `output_path` is resolved against the session workspace and written without a per-call `sandboxPolicy`, so a workspace-confined deployment uses its configured root: a session whose working directory sits outside that root cannot write through this tool. Per-call escalation is deferred.
+- **DOCX bytes travel base64 unless a path is given** — without `output_path` a `docx` result carries the package base64-encoded in its `content` field, which is roughly a third larger than the package and never reaches the model as bytes; with `output_path` the package is written and the result reports the path and size. The transcription keeps the package out of the transcript either way.
 
 ### Dev Note
 

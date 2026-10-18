@@ -1,10 +1,10 @@
 ---
 name: document-html
 description: |
-  单页 HTML 工件管线：落地页/原型/仪表盘/海报等单文件成品。优先复用
-  OpenDesign 渲染模板（web-prototype / saas-landing / dashboard 等）或
+  单页 HTML 工件管线：网页原型/落地页/KPI 仪表盘/海报/单页视觉报告等单文件成品。
+  优先复用 OpenDesign 渲染模板（web-prototype / saas-landing / dashboard 等）或
   render_doc_template 的 html 输出，否则用内置基线模板。输出自包含的 index.html。
-whenToUse: 需要交付 HTML 单页工件（网页原型、落地页、KPI 仪表盘、海报、报告页）。
+whenToUse: 需要交付 HTML 单页工件（网页原型、落地页、KPI 仪表盘、海报、单页视觉报告）。
 ---
 
 # HTML 单页工件管线
@@ -35,5 +35,5 @@ whenToUse: 需要交付 HTML 单页工件（网页原型、落地页、KPI 仪�
 
 - 单文件：所有 CSS 内联于 `<style>`，必要时内联少量 JS；不引用外部 CDN。
 - 一个强调色，每屏最多用两处（eyebrow + 主 CTA 是默认预算）。
-- 每个 `<section>` 带 `data-doc-id`，便于评审精确定位。
+- 每个 `<section>` 带 `data-doc-id`，便于评审精确定位；交付物面板按这些小节点插入返工引用（`引用 <文件> §<data-doc-id>`），所以 id 要短、稳定、可读。
 - 移动端可读性：默认 920px 媒体查询重排，不写死固定宽度。

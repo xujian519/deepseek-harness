@@ -93,7 +93,7 @@ export type { RenderDocTemplateInput, RenderDocTemplateOutput } from './tool/ren
 export const name = 'doc-template'
 
 /** Services the plugin requires before registration. */
-export const inject = ['tools', 'systemPrompt']
+export const inject = ['tools', 'systemPrompt', 'fs']
 
 /** Language a template that declares none renders in by default. */
 export const DEFAULT_TEMPLATE_LANGUAGE = 'zh-CN'
@@ -172,7 +172,7 @@ export function apply(ctx: Context, config: Config): void {
     includeDisclaimer: config.includeDisclaimer ?? DEFAULT_INCLUDE_DISCLAIMER,
   })
   ctx.tools.register(createListDocTemplatesTool(store))
-  ctx.tools.register(createRenderDocTemplateTool(store))
+  ctx.tools.register(createRenderDocTemplateTool(ctx, store))
   registerStyleGuide(ctx, styles, {
     name: config.styleGuide ?? '',
     order: config.styleSectionOrder ?? DEFAULT_STYLE_SECTION_ORDER,

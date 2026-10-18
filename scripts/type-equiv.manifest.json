@@ -1453,6 +1453,11 @@
     },
     {
       "doc": "docs/subsystems/filesystem.md",
+      "symbol": "FsTextWriteOutcome",
+      "source": "packages/fs/fs/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/filesystem.md",
       "symbol": "FsEditRequest",
       "source": "packages/fs/fs/src/types.ts"
     },

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
-import { FileSystem, FsError, FsVersion, type FsDirEntry, type FsEditOutcome, type FsEditRequest, type FsInfo, type FsPathInfo, type FsTarget, type FsWriteOutcome } from '@deepseek-ai/dsh-fs'
+import { FileSystem, FsError, FsVersion, type FsDirEntry, type FsEditOutcome, type FsEditRequest, type FsInfo, type FsPathInfo, type FsTarget, type FsTextWriteOutcome, type FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import * as SkillFileSystem from '../src/index.ts'
 
 /** Every temp dir created by this file, removed after each test. */
@@ -140,10 +140,16 @@ class TestFileSystem extends FileSystem {
     return result
   }
 
-  override async writeText(target: FsTarget, content: string): Promise<FsWriteOutcome> {
+  override async writeText(target: FsTarget, content: string): Promise<FsTextWriteOutcome> {
     await mkdir(dirname(target.displayPath), { recursive: true })
     await writeFile(target.displayPath, content)
     return { operation: 'create', version: FsVersion('test'), before: null, after: content }
+  }
+
+  override async writeBytes(target: FsTarget, bytes: Uint8Array): Promise<FsWriteOutcome> {
+    await mkdir(dirname(target.displayPath), { recursive: true })
+    await writeFile(target.displayPath, bytes)
+    return { operation: 'create', version: FsVersion('test'), before: null, after: null }
   }
 
   override async editText(_target: FsTarget, _request: FsEditRequest): Promise<FsEditOutcome> {

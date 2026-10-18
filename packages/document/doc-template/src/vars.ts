@@ -20,12 +20,6 @@ import {
   type VarSchema as VarSchemaContract,
 } from './types.ts'
 
-/** Placeholder pattern for substitution: a variable name of word characters between double braces. */
-const PLACEHOLDER_PATTERN = /\{\{\w+\}\}/gu
-
-/** Placeholder pattern for extraction: the shared residual form the quality gate also rejects. */
-const EXTRACTION_PATTERN = placeholderBracePattern()
-
 /**
  * The constraints of one template's variables, indexed for lookup.
  * A duplicate name keeps the last definition, as the upstream schema did.
@@ -147,15 +141,19 @@ function typeIssue(definition: VarDefinition, value: string): VarIssue | undefin
 }
 
 /**
- * Every distinct `{{variable}}` name in a text, in first-occurrence order.
+ * Every distinct `{{name}}` placeholder in a text, in first-occurrence order.
+ *
+ * The name is the one a caller supplies: surrounding spaces are trimmed, so
+ * `{{ case_id }}` reports `case_id`, which is also the name substitution looks
+ * up — a residual name is therefore always a variable that would have filled it.
  * @param body - the text to scan.
  * @returns the placeholder names, without their braces.
  */
 export function extractPlaceholders(body: string): readonly string[] {
   const names: string[] = []
   const seen = new Set<string>()
-  for (const match of body.match(EXTRACTION_PATTERN) ?? []) {
-    const name = match.slice(2, -2)
+  for (const match of body.match(placeholderBracePattern()) ?? []) {
+    const name = placeholderName(match)
     if (seen.has(name)) continue
     seen.add(name)
     names.push(name)
@@ -164,14 +162,27 @@ export function extractPlaceholders(body: string): readonly string[] {
 }
 
 /**
+ * The variable name one `{{…}}` placeholder carries.
+ * @param placeholder - the matched placeholder, braces included.
+ * @returns the trimmed name between the braces.
+ */
+function placeholderName(placeholder: string): string {
+  return placeholder.slice(2, -2).trim()
+}
+
+/**
  * Substitute the supplied variables into a body. A placeholder with no supplied
  * value is left in place, so it is reported as residual rather than erased.
+ *
+ * Substitution reads the same expression the residual report and the quality
+ * gate read, so every brace form the gate rejects is one a variable can fill:
+ * CJK names and padded names included.
  * @param body - the body to substitute into.
- * @param vars - the variables to substitute.
+ * @param vars - the variables to substitute, keyed by trimmed name.
  * @returns the body with every supplied placeholder replaced.
  */
 export function substitutePlaceholders(body: string, vars: Readonly<Record<string, string>>): string {
-  return body.replace(PLACEHOLDER_PATTERN, (placeholder: string) => vars[placeholder.slice(2, -2)] ?? placeholder)
+  return body.replace(placeholderBracePattern(), (placeholder: string) => vars[placeholderName(placeholder)] ?? placeholder)
 }
 
 /**

@@ -57,8 +57,8 @@ async function styledStore(overrides: Partial<TemplateStoreOptions> = {}) {
 describe('TemplateStore construction', () => {
   it('loads the packaged templates and their declared language', () => {
     const store = storeOf()
-    expect(store.count).toBe(12)
-    expect(store.allTemplates).toHaveLength(12)
+    expect(store.count).toBe(17)
+    expect(store.allTemplates).toHaveLength(17)
     expect(store.findByName('simplified-disclosure')?.language).toBe('zh-CN')
     expect(store.languageOf(store.findByName('simplified-disclosure')!)).toBe('zh-CN')
   })
@@ -83,7 +83,7 @@ describe('TemplateStore construction', () => {
     const root = await tempDir()
     await writeTemplate(root, 'simplified-disclosure.md', 'name: simplified-disclosure\nversion: "2.0"\n', '覆盖后的正文')
     const store = storeOf({ templateDirs: [templatesDirectory(), root] })
-    expect(store.count).toBe(12)
+    expect(store.count).toBe(17)
     expect(store.findByName('simplified-disclosure')?.version).toBe('2.0')
     expect(store.findByName('simplified-disclosure')?.body).toBe('覆盖后的正文')
     expect(store.listConflicts()).toEqual([
@@ -160,7 +160,8 @@ describe('TemplateStore listing and lookup', () => {
     expect(store.list({ category: 'legal' })).toEqual([])
     expect(store.list({ domain: 'legal' })).toEqual([])
     expect(store.list({ domain: 'patent' })).toHaveLength(12)
-    expect(store.list({ language: 'zh-CN' })).toHaveLength(12)
+    expect(store.list({ domain: 'document' })).toHaveLength(5)
+    expect(store.list({ language: 'zh-CN' })).toHaveLength(17)
     expect(store.list({ language: 'en-US' })).toEqual([])
   })
 
@@ -170,8 +171,8 @@ describe('TemplateStore listing and lookup', () => {
     expect(store.list({ query: '系统级' }).map(template => template.name)).toEqual(['system-claim'])
     expect(store.list({ query: '装置' }).map(template => template.name)).toEqual(['apparatus-claim'])
     expect(store.list({ query: '不需要检索时' })).toEqual([])
-    expect(store.list({ query: '  ' })).toHaveLength(12)
-    expect(store.list()).toHaveLength(12)
+    expect(store.list({ query: '  ' })).toHaveLength(17)
+    expect(store.list()).toHaveLength(17)
   })
 
   it('searches the use-when text of a template that declares one', async () => {
