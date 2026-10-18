@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { createArxivConnector } from '../../../src/runtime/connectors/arxiv.ts'
-import { clearCache } from '../../../src/runtime/http.ts'
 import type { Connector } from '../../../src/protocol/types.ts'
 
 /** Test injection: skip arXiv's 3s per-host rate limit to keep the suite fast. */
@@ -155,7 +154,6 @@ describe('arxiv connector', () => {
   })
 
   it('falls back to title or a fixed message for error entries without a summary', async () => {
-    clearCache()
     const NO_SUMMARY_FEED = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>

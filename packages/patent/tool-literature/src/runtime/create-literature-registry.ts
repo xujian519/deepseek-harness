@@ -12,7 +12,7 @@ import { createArxivConnector } from './connectors/arxiv.ts'
 import { createOpenAlexConnector } from './connectors/openalex.ts'
 import { createSemanticScholarConnector } from './connectors/semantic-scholar.ts'
 import { createCrossrefConnector } from './connectors/crossref.ts'
-import type { LiteratureBudgetOptions } from './http.ts'
+import { LiteratureHttpClient, type LiteratureBudgetOptions } from './http.ts'
 
 /** 默认文献注册表装配选项（各源开关、可选凭据与部署网络预算）。 */
 export type CreateLiteratureRegistryOptions = LiteratureBudgetOptions & {
@@ -39,16 +39,21 @@ export type CreateLiteratureRegistryOptions = LiteratureBudgetOptions & {
  */
 export function createLiteratureRegistry(options: CreateLiteratureRegistryOptions = {}): ConnectorRegistry {
   const registry = new ConnectorRegistry()
+  // One client per registry: rate limiting and the GET cache are deployment state,
+  // shared by the connectors that registry owns.
+  const client = new LiteratureHttpClient()
   const budget: LiteratureBudgetOptions = {
     timeoutMs: options.timeoutMs,
     cacheTtlMs: options.cacheTtlMs,
     retry: options.retry,
   }
   if (options.arxiv !== false) {
-    registry.register(createArxivConnector({ ...budget, fetchImpl: options.fetchImpl }))
+    registry.register(createArxivConnector({ ...budget, fetchImpl: options.fetchImpl, client }))
   }
   if (options.openalex !== false) {
-    registry.register(createOpenAlexConnector({ ...budget, mailto: options.openalexMailto, fetchImpl: options.fetchImpl }))
+    registry.register(
+      createOpenAlexConnector({ ...budget, mailto: options.openalexMailto, fetchImpl: options.fetchImpl, client }),
+    )
   }
   if (options.semanticScholar !== false) {
     registry.register(
@@ -56,11 +61,12 @@ export function createLiteratureRegistry(options: CreateLiteratureRegistryOption
         ...budget,
         apiKey: options.semanticScholarApiKey,
         fetchImpl: options.fetchImpl,
+        client,
       }),
     )
   }
   if (options.crossref !== false) {
-    registry.register(createCrossrefConnector({ ...budget, fetchImpl: options.fetchImpl }))
+    registry.register(createCrossrefConnector({ ...budget, fetchImpl: options.fetchImpl, client }))
   }
   return registry
 }

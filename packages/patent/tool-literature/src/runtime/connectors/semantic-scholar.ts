@@ -6,7 +6,12 @@
  * id 可以是 paperId 或外部 id（"DOI:10.…"、"ARXIV:…"、"PMID:…"）。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getJSON, type LiteratureBudgetOptions, type LiteratureRateLimit } from '../http.ts'
+import {
+  LiteratureHttpClient,
+  type LiteratureBudgetOptions,
+  type LiteratureFetchOptions,
+  type LiteratureRateLimit,
+} from '../http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.semanticscholar.org/graph/v1/paper'
@@ -20,6 +25,8 @@ export interface CreateSemanticScholarConnectorOptions extends LiteratureBudgetO
   fetchImpl?: typeof fetch
   /** 覆盖默认 1s per-host 限速（测试注入小值/0）。 */
   rateLimit?: LiteratureRateLimit
+  /** 共享 HTTP 客户端（registry 注入；省略时连接器自建）。 */
+  client?: LiteratureHttpClient
 }
 
 interface Author {
@@ -46,8 +53,6 @@ interface SearchResponse {
 
 function authors(p: Paper): string | undefined {
   return formatAuthors((p.authors ?? []).map(a => a.name))
-
-
 }
 
 function toHit(p: Paper): ConnectorHit {
@@ -68,6 +73,14 @@ function toHit(p: Paper): ConnectorHit {
  * @returns Semantic Scholar 连接器。
  */
 export function createSemanticScholarConnector(options: CreateSemanticScholarConnectorOptions = {}): Connector {
+  const client = options.client ?? new LiteratureHttpClient()
+  const http: LiteratureFetchOptions = {
+    fetchImpl: options.fetchImpl,
+    rateLimit: options.rateLimit ?? RATE_LIMIT,
+    timeoutMs: options.timeoutMs,
+    cacheTtlMs: options.cacheTtlMs,
+    retry: options.retry,
+  }
   const apiHeaders = (): Record<string, string> | undefined => {
     const key = options.apiKey?.trim() || process.env.SEMANTIC_SCHOLAR_API_KEY?.trim()
     return key ? { 'x-api-key': key } : undefined
@@ -80,31 +93,18 @@ export function createSemanticScholarConnector(options: CreateSemanticScholarCon
     homepage: 'https://www.semanticscholar.org',
     async search(query, opts) {
       const limit = clampLimit(opts?.limit)
-      const data = await getJSON<SearchResponse>(
+      const data = await client.getJSON<SearchResponse>(
         `${BASE}/search?query=${encodeURIComponent(query)}&limit=${limit}&fields=${FIELDS}`,
-        {
-          signal: opts?.signal,
-          fetchImpl: options.fetchImpl,
-          rateLimit: options.rateLimit ?? RATE_LIMIT,
-          timeoutMs: options.timeoutMs,
-          cacheTtlMs: options.cacheTtlMs,
-          retry: options.retry,
-          headers: apiHeaders(),
-        },
+        { ...http, signal: opts?.signal, headers: apiHeaders() },
       )
       return (data.data ?? []).map(toHit)
     },
     async fetch(id, opts) {
       // 外部 id 的冒号/斜杠必须原样保留在路径段中（"DOI:10.x/y"、"ARXIV:…"）。
-      const data = await getJSON<Paper | null>(`${BASE}/${id.trim()}?fields=${FIELDS},references.title,citations.title`, {
-        signal: opts?.signal,
-        fetchImpl: options.fetchImpl,
-        rateLimit: options.rateLimit ?? RATE_LIMIT,
-        timeoutMs: options.timeoutMs,
-        cacheTtlMs: options.cacheTtlMs,
-        retry: options.retry,
-        headers: apiHeaders(),
-      })
+      const data = await client.getJSON<Paper | null>(
+        `${BASE}/${id.trim()}?fields=${FIELDS},references.title,citations.title`,
+        { ...http, signal: opts?.signal, headers: apiHeaders() },
+      )
       return data ?? null
     },
   }

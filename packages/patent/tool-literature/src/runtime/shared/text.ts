@@ -74,12 +74,15 @@ export function formatAuthors(names: Array<string | undefined>): string | undefi
 }
 
 /**
- * Clamp a requested result limit to the 1-50 range (default 10).
+ * Clamp a requested result limit to the 1-50 range (default 10). A fractional
+ * request truncates; a non-finite one (NaN/Infinity, e.g. from model JSON) falls
+ * back to the default rather than propagating an unusable value.
  * @param limit - requested result limit (optional).
  * @returns the clamped limit.
  */
 export function clampLimit(limit: number | undefined): number {
-  return Math.min(Math.max(limit ?? 10, 1), 50)
+  if (limit === undefined || !Number.isFinite(limit)) return 10
+  return Math.min(Math.max(Math.trunc(limit), 1), 50)
 }
 
 /**

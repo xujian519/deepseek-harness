@@ -33,7 +33,7 @@ kind: "package-reference"
 
 ### paper_download
 
-按 `db` + `id`（来自 `paper_search` 命中）下载一篇论文的 PDF，保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）。直链优先——arXiv `extra.pdf`、OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url`、Semantic Scholar `openAccessPdf.url`——经 PDF 魔数与最小字节数校验；直链失败（403/404/HTML 壳页）时，ego 提取器打开记录页提取 PDF 链接，再由同一 fetch 路径下载。显式 `pdfUrl` 覆盖可跳过连接器解析。与 patent_pdf_download 的通道设计一致（直链优先、浏览器兜底）。
+按 `db` + `id`（来自 `paper_search` 命中）下载一篇论文的 PDF，保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）。直链优先——依次取 `extra.pdf_url` / `extra.pdf` / `pdf_url` / `pdf`、OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url` / `primary_location.pdf_url` 与 Semantic Scholar `openAccessPdf.url` 中第一个非空值——经 PDF 魔数与最小字节数校验。直链缺失或 fetch 失败（403/404/HTML 壳页）时，ego 提取器打开记录页（`url`、`URL`、`landing_page_url`、嵌套 location 的 landing page，或本身是 HTTP URL 的 `id`）提取 PDF 链接，再由同一 fetch 路径下载。显式 `pdfUrl` 覆盖可跳过连接器解析。与 patent_pdf_download 的通道设计一致（直链优先、浏览器兜底）。
 
 <a id="configuration"></a>
 ## 配置
@@ -71,13 +71,13 @@ Schemastery 配置，所有字段均可选。
 
 #### KV Cache 影响
 
-只要两个定义及其可见性不变，前缀就保持稳定；插件的注册或销毁会从第一个变化的定义 token 起使复用失效。
+只要三个定义及其可见性不变，前缀就保持稳定；插件的注册或销毁会从第一个变化的定义 token 起使复用失效。
 
 ### 搜索结果
 
 #### 模型看到的内容
 
-成功的 `paper_search` 为每个命中渲染一个 Markdown 块——`## <title>` 标题，后跟 `**id**`、可选的 `**url**`、可选的 `**pdf**`（arXiv）、可选的 ` · score` 以及摘要。零命中查询渲染 `No results for "<query>" in <db>.`；数据源故障渲染其可行动的指引文本。
+成功的 `paper_search` 为每个命中渲染一个 Markdown 块——`## <title>` 标题，后跟 `**id**`、可选的 `**url**`、数据源报告时输出的可选 `**pdf**` 链接、可选的 ` · score` 以及摘要。零命中查询渲染 `No results for "<query>" in <db>.`；数据源故障渲染其可行动的指引文本。
 
 #### Token 影响
 
@@ -106,7 +106,8 @@ Schemastery 配置，所有字段均可选。
 
 - **仅限免费的公开数据源** — 四个连接器覆盖免费、无需 API key 的数据源；没有认证或付费档位的建模，也没有连接器要求凭据才能工作（Semantic Scholar key 只是提高限额）。
 - **按主机限速可能带来延迟** — arXiv 每 3 秒 1 次请求、keyless Semantic Scholar 每秒 1 次请求，因此包含大量 arXiv 命中的多源并发展开可能排在礼貌间隔之后；限速按主机隔离，无关的数据源会并行推进。
-- **PDF 可用性取决于数据源的开放获取状态** — `paper_download` 解析数据源报告的链接（arXiv pdf、OpenAlex best-oa location、Semantic Scholar openAccessPdf）；付费墙内的记录自然没有可下载的链接。
+- **PDF 可用性取决于数据源的开放获取状态** — `paper_download` 解析数据源报告的链接（arXiv pdf、OpenAlex best-oa / primary location、Semantic Scholar openAccessPdf，Crossref 仅有记录页 URL）；付费墙内的记录没有直链，调用要么给出指引后失败，要么仅在记录页仍暴露 PDF 时成功。
+- **直链 PDF 只尝试一次** — `paper_download` 不对直链或浏览器提取出的链接重试；瞬时 5xx 会以失败结果返回并附带已尝试的 `pdfUrl`，模型可经 `pdfUrl` 重试。
 - **浏览器兜底通道为统一 ego 栈** — `paper_download` 的兜底经 `EgoExtractor` 打开记录页；browser-use 提取不再是下载通道兜底。
 
 ### 开发备注

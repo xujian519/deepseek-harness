@@ -6,7 +6,7 @@
  * 可选 `OPENALEX_MAILTO` 环境变量覆盖默认值。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getJSON, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
+import { LiteratureHttpClient, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
 import { clampLimit, formatAuthors, fromInverted, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.openalex.org/works'
@@ -17,6 +17,8 @@ export interface CreateOpenAlexConnectorOptions extends LiteratureBudgetOptions 
   /** polite pool 标识邮箱；默认回退 OPENALEX_MAILTO 环境变量。 */
   mailto?: string
   fetchImpl?: typeof fetch
+  /** 共享 HTTP 客户端（registry 注入；省略时连接器自建）。 */
+  client?: LiteratureHttpClient
 }
 
 interface Authorship {
@@ -55,8 +57,6 @@ function shortId(id?: string): string {
 
 function authors(w: Work): string | undefined {
   return formatAuthors((w.authorships ?? []).map(a => a.author?.display_name))
-
-
 }
 
 /** Best open-access PDF link: the best-oa location's pdf, else the oa_url. */
@@ -82,6 +82,7 @@ function toHit(w: Work): ConnectorHit {
  * @returns OpenAlex 连接器。
  */
 export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions = {}): Connector {
+  const client = options.client ?? new LiteratureHttpClient()
   const http: LiteratureFetchOptions = {
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
@@ -100,7 +101,7 @@ export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions 
     homepage: 'https://openalex.org',
     async search(query, opts) {
       const per = clampLimit(opts?.limit)
-      const data = await getJSON<SearchResponse>(
+      const data = await client.getJSON<SearchResponse>(
         `${BASE}?search=${encodeURIComponent(query)}&per-page=${per}&${polite()}`,
         { ...http, signal: opts?.signal },
       )
@@ -110,7 +111,7 @@ export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions 
       // OpenAlex 接受裸 work id（W…）或 DOI 原样路径段（"works/doi:10.x/y"）；
       // DOI 的斜杠/冒号不能编码。
       const path = /^10\.\d/.test(id) ? `doi:${id}` : encodeURIComponent(shortId(id) || id)
-      const data = await getJSON<Work | null>(`${BASE}/${path}?${polite()}`, { ...http, signal: opts?.signal })
+      const data = await client.getJSON<Work | null>(`${BASE}/${path}?${polite()}`, { ...http, signal: opts?.signal })
       return data ?? null
     },
   }

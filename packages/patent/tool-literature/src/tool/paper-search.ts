@@ -13,6 +13,7 @@ import type { ConnectorHit } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
 import { LiteratureToolError } from '../error.ts'
 import { clampLimit } from '../runtime/shared/text.ts'
+import { describeSourceError } from './source-error.ts'
 
 /** Input for the paper_search tool. */
 export type PaperSearchInput = {
@@ -39,7 +40,7 @@ const DESCRIPTION = [
   '',
   'Usage notes:',
   '  - Call `paper_list_sources` first to discover available `db` ids',
-  '  - Fielded queries are supported by arXiv (e.g. `ti:transformer AND cat:cs.LG`) and OpenAlex',
+  '  - Fielded queries are supported by arXiv (e.g. `ti:transformer AND cat:cs.LG`); other sources take free-text queries',
   '  - This tool is read-only and does not modify files',
 ].join('\n')
 
@@ -52,7 +53,13 @@ function renderSearch(value: PaperSearchOutput): string {
   const rows = hits.map((h) => {
     const lines = [`## ${h.title}`, `**id**: ${h.id}${h.score !== undefined ? ` · score: ${h.score}` : ''}`]
     if (h.url) lines.push(`**url**: ${h.url}`)
-    const pdf = typeof h.extra?.pdf === 'string' ? h.extra.pdf : undefined
+    // Sources disagree on the extra key: arXiv adds `pdf`, the others `pdf_url`.
+    const pdf =
+      typeof h.extra?.pdf === 'string'
+        ? h.extra.pdf
+        : typeof h.extra?.pdf_url === 'string'
+          ? h.extra.pdf_url
+          : undefined
     if (pdf) lines.push(`**pdf**: ${pdf}`)
     if (h.summary) lines.push(h.summary)
     return lines.join('\n')
@@ -117,12 +124,10 @@ export function createPaperSearchTool(registry: ConnectorRegistry): ToolDefiniti
         // guidance instead of an empty result the model misreads as "no such paper". Caller
         // cancellation propagates unchanged.
         if (exec.signal.aborted) throw err
-        const message = err instanceof Error ? err.message : String(err)
-        const rateLimited = /\b(429|503|408)\b/.test(message) || /rate.?limit/i.test(message)
-        const guidance = rateLimited
-          ? `${connector.name} is rate limiting requests. Wait a few seconds, then retry${connector.id === 'arxiv' ? ' (arXiv allows ~1 request every 3s)' : ''}.`
-          : `${connector.name} returned an error: ${message}`
-        throw new LiteratureToolError('tool_execution_failed', guidance, { tool: 'paper_search', db: connector.id })
+        throw new LiteratureToolError('tool_execution_failed', describeSourceError(connector, err), {
+          tool: 'paper_search',
+          db: connector.id,
+        })
       }
 
       // The output schema declares `hits` as an unconstrained array (matching Sati); the

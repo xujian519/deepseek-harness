@@ -1,8 +1,9 @@
 /**
  * `paper_download` tool: download one academic paper's PDF from the literature
- * connectors. The direct link wins (arXiv extra.pdf / OpenAlex pdf_url /
- * Semantic Scholar openAccessPdf), verified by PDF magic and minimum size;
- * when the direct fetch fails (403/404/HTML shell page), the ego extractor
+ * connectors. The direct link wins (arXiv extra.pdf / OpenAlex
+ * best_oa_location.pdf_url, open_access.oa_url / Semantic Scholar
+ * openAccessPdf), verified by PDF magic and minimum size; when the direct link
+ * is missing or the fetch fails (403/404/HTML shell page), the ego extractor
  * opens the record page, extracts the PDF link, and the same fetch path
  * downloads it. Mirrors the patent_pdf_download channel design.
  * @module @deepseek-ai/dsh-tool-literature/tool/paper-download
@@ -14,8 +15,11 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { datedOutputDir, inspectPdfBody, isHtmlContentType, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
 import { EgoExtractor, type PageExtractor } from '@deepseek-ai/dsh-browser-backend'
+import type { Connector } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
+import { abortReason } from '../runtime/http.ts'
 import { LiteratureToolError } from '../error.ts'
+import { describeSourceError } from './source-error.ts'
 
 /** Browser UA for sources that reject non-browser clients. */
 const PAPER_DOWNLOAD_USER_AGENT =
@@ -111,6 +115,9 @@ async function fetchPdfBody(
     if (fault !== undefined) throw new Error(pdfBodyFaultMessage(fault))
     return { ok: true, body: buf, durationMs: Date.now() - start }
   } catch (error) {
+    // A caller cancellation is not a download fault; only the per-request timeout
+    // (a separate signal) becomes a failed result.
+    if (options.signal.aborted) throw error
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
@@ -122,9 +129,10 @@ async function fetchPdfBody(
 /**
  * Resolve the PDF link for a download: an explicit override wins, else the
  * connector record's PDF field. A connector `fetch` returns its raw source
- * record (arXiv `pdf`, OpenAlex `pdf_url`, Semantic Scholar `openAccessPdf.url`)
- * or a normalized hit carrying those under `.extra`; accept both shapes so the
- * source record is read without its wrapper.
+ * record (arXiv `pdf`, OpenAlex `best_oa_location.pdf_url` /
+ * `open_access.oa_url`, Semantic Scholar `openAccessPdf.url`, Crossref none) or
+ * a normalized hit carrying those under `.extra`; accept both so the source
+ * record is read without its wrapper.
  */
 function pdfUrlFrom(
   record: unknown,
@@ -137,18 +145,48 @@ function pdfUrlFrom(
     pdf_url?: unknown
     pdf?: unknown
     openAccessPdf?: { url?: unknown }
+    best_oa_location?: { pdf_url?: unknown }
+    primary_location?: { pdf_url?: unknown }
+    open_access?: { oa_url?: unknown }
   } | null | undefined
-  const candidates = [r?.extra?.pdf_url, r?.extra?.pdf, r?.pdf_url, r?.pdf, r?.openAccessPdf?.url]
+  const candidates = [
+    r?.extra?.pdf_url,
+    r?.extra?.pdf,
+    r?.pdf_url,
+    r?.pdf,
+    r?.best_oa_location?.pdf_url,
+    r?.open_access?.oa_url,
+    r?.primary_location?.pdf_url,
+    r?.openAccessPdf?.url,
+  ]
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate !== '') return { pdfUrl: candidate }
   }
   return { error: 'no PDF link available for this record (no pdf_url in the record and no direct pdfUrl given)' }
 }
 
-/** The record page to open in the browser fallback: the record's url, else its id when it is a URL. */
+/**
+ * The record page the browser fallback opens: the record's own `url`/`URL`, then
+ * a nested OpenAlex landing page, then its id when that id is itself a URL.
+ */
 function recordPageUrl(record: unknown): string | undefined {
-  const r = record as { url?: unknown; landing_page_url?: unknown; id?: unknown }
-  for (const candidate of [r.url, r.landing_page_url, r.id]) {
+  const r = record as {
+    url?: unknown
+    URL?: unknown
+    landing_page_url?: unknown
+    primary_location?: { landing_page_url?: unknown }
+    best_oa_location?: { landing_page_url?: unknown }
+    id?: unknown
+  } | null | undefined
+  const candidates = [
+    r?.url,
+    r?.URL,
+    r?.landing_page_url,
+    r?.primary_location?.landing_page_url,
+    r?.best_oa_location?.landing_page_url,
+    r?.id,
+  ]
+  for (const candidate of candidates) {
     if (typeof candidate === 'string' && /^https?:\/\//.test(candidate)) return candidate
   }
   return undefined
@@ -168,14 +206,98 @@ function renderDownload(value: PaperDownloadOutput): string {
 
 const DESCRIPTION = [
   '- Downloads one academic paper PDF identified by `db` + `id` (from `paper_search`)',
-  "- Prefers the source's direct PDF link (arXiv extra.pdf / OpenAlex pdf_url / Semantic Scholar openAccessPdf), verified by PDF magic and minimum size",
-  '- When the direct link fails (403/404/HTML shell), falls back to ego opening the record page and extracting the PDF link',
+  "- Prefers the source's direct PDF link (`extra.pdf_url` / `pdf_url` / `pdf`, OpenAlex location links, Semantic Scholar `openAccessPdf`), verified by PDF magic and minimum size",
+  '- When the direct link is missing or fails (403/404/HTML shell), falls back to ego opening the record page and extracting the PDF link',
   '- Saves as `<outputDir>/<id>.pdf` (default `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`)',
   '',
   'Usage notes:',
   '  - Call `paper_search` first to obtain a `db` id and paper `id`',
   '  - `pdfUrl` overrides the connector-resolved link (diagnostics / manual retry)',
 ].join('\n')
+
+/** Input for the download pipeline. */
+type DownloadInput = {
+  record: unknown
+  override: string | undefined
+  signal: AbortSignal
+  timeoutMs: number
+  fetchImpl: typeof fetch | undefined
+  extractor: PageExtractor
+}
+
+/** A verified PDF body plus the link it came from. */
+type DownloadOutcome =
+  | { ok: true; body: Buffer; pdfUrl: string; method: 'direct' | 'browser' }
+  | { ok: false; error: string; pdfUrl?: string }
+
+/** Build a failed outcome without carrying an absent retry link. */
+function failed(error: string, pdfUrl: string | undefined): DownloadOutcome {
+  return pdfUrl === undefined ? { ok: false, error } : { ok: false, error, pdfUrl }
+}
+
+/** Throw the caller's abort reason, normalized to an `Error`, when the signal is aborted. */
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) throw abortReason(signal.reason)
+}
+
+/**
+ * Fetch the connector record for a paper id. Caller cancellation propagates
+ * unchanged; any other failure becomes actionable source guidance.
+ */
+async function fetchRecord(connector: Connector, id: string, signal: AbortSignal): Promise<unknown> {
+  throwIfAborted(signal)
+  if (connector.fetch === undefined) return null
+  try {
+    return await connector.fetch(id, { signal })
+  } catch (error) {
+    if (signal.aborted) throw error
+    throw new LiteratureToolError('tool_execution_failed', describeSourceError(connector, error), {
+      tool: 'paper_download',
+      db: connector.id,
+    })
+  }
+}
+
+/**
+ * Resolve, fetch, and verify the PDF: the direct link first, then the record
+ * page through the extractor when the direct link is missing or fails.
+ */
+async function downloadPdf(input: DownloadInput): Promise<DownloadOutcome> {
+  const direct = pdfUrlFrom(input.record, input.override)
+  let directError: string
+  let directPdfUrl: string | undefined
+  if ('pdfUrl' in direct) {
+    directPdfUrl = direct.pdfUrl
+    const body = await fetchPdfBody(direct.pdfUrl, input)
+    if (body.ok) return { ok: true, body: body.body, pdfUrl: direct.pdfUrl, method: 'direct' }
+    directError = body.error
+  } else {
+    directError = direct.error
+  }
+
+  // A caller cancellation that landed while the direct link was failing is not
+  // a download fault; it propagates before any fallback work starts.
+  throwIfAborted(input.signal)
+  const pageUrl = recordPageUrl(input.record)
+  if (pageUrl === undefined) {
+    const fallback = input.override?.trim()
+      ? 'record-page fallback skipped for the pdfUrl override'
+      : 'no record page for browser extraction'
+    return failed(`${directError}; ${fallback}`, directPdfUrl)
+  }
+  const extracted = await input.extractor.extract(pageUrl, PDF_LINK_EXPR, {
+    timeoutMs: input.timeoutMs,
+    signal: input.signal,
+  })
+  throwIfAborted(input.signal)
+  if (!extracted.ok || extracted.value === null) {
+    const reason = extracted.ok ? 'no PDF link on the record page' : extracted.error
+    return failed(`${directError}; browser extraction failed: ${reason}`, directPdfUrl)
+  }
+  const viaBrowser = await fetchPdfBody(extracted.value, input)
+  if (!viaBrowser.ok) return failed(viaBrowser.error, extracted.value)
+  return { ok: true, body: viaBrowser.body, pdfUrl: extracted.value, method: 'browser' }
+}
 
 /**
  * Build the `paper_download` tool over the literature registry and an optional
@@ -245,57 +367,36 @@ export function createPaperDownloadTool(deps: PaperDownloadDeps): ToolDefinition
       const outputDir = resolveDir(args.outputDir, deps.cwd ?? process.cwd())
       await mkdir(outputDir, { recursive: true })
 
-      // 1. Resolve the PDF link: explicit override, else the connector record's extra.
-      const record = connector.fetch !== undefined ? await connector.fetch(id, { signal: exec.signal }) : null
-      const resolved = pdfUrlFrom(record, args.pdfUrl)
-      if ('error' in resolved) {
-        return {
-          db,
-          id,
-          result: { status: 'failed' as const, error: resolved.error },
-          outputDir,
-        }
-      }
-
-      const pdfUrl = resolved.pdfUrl
-      // 2. Direct fetch first.
-      const direct = await fetchPdfBody(pdfUrl, {
+      // An explicit override is the whole resolution: skip the connector call.
+      const override = args.pdfUrl?.trim()
+      const record = override === undefined || override === '' ? await fetchRecord(connector, id, exec.signal) : null
+      const outcome = await downloadPdf({
+        record,
+        override,
         signal: exec.signal,
         timeoutMs: effectiveTimeout,
         fetchImpl: deps.fetchImpl,
+        extractor,
       })
-      if (direct.ok) {
-        const target = await writePdf(outputDir, id, direct.body)
-        return { db, id, result: { status: 'ok' as const, path: target, pdfUrl, method: 'direct' as const }, outputDir }
-      }
-
-      // 3. Browser fallback: open the record page and extract the PDF link.
-      const pageUrl = recordPageUrl(record)
-      if (pageUrl === undefined) {
-        return { db, id, result: { status: 'failed' as const, pdfUrl, error: `${direct.error}; no record page for browser extraction` }, outputDir }
-      }
-      const extracted = await extractor.extract(pageUrl, PDF_LINK_EXPR, {
-        timeoutMs: effectiveTimeout,
-        signal: exec.signal,
-      })
-      if (!extracted.ok || extracted.value === null) {
+      if (!outcome.ok) {
         return {
           db,
           id,
-          result: { status: 'failed' as const, pdfUrl, error: `${direct.error}; browser extraction failed: ${extracted.ok ? 'no PDF link on the record page' : extracted.error}` },
+          result: {
+            status: 'failed' as const,
+            ...(outcome.pdfUrl === undefined ? {} : { pdfUrl: outcome.pdfUrl }),
+            error: outcome.error,
+          },
           outputDir,
         }
       }
-      const viaBrowser = await fetchPdfBody(extracted.value, {
-        signal: exec.signal,
-        timeoutMs: effectiveTimeout,
-        fetchImpl: deps.fetchImpl,
-      })
-      if (viaBrowser.ok) {
-        const target = await writePdf(outputDir, id, viaBrowser.body)
-        return { db, id, result: { status: 'ok' as const, path: target, pdfUrl: extracted.value, method: 'browser' as const }, outputDir }
+      const target = await writePdf(outputDir, id, outcome.body)
+      return {
+        db,
+        id,
+        result: { status: 'ok' as const, path: target, pdfUrl: outcome.pdfUrl, method: outcome.method },
+        outputDir,
       }
-      return { db, id, result: { status: 'failed' as const, pdfUrl: extracted.value, error: viaBrowser.error }, outputDir }
     },
   })
 }

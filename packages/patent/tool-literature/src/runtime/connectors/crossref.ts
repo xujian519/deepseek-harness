@@ -5,7 +5,7 @@
  * 摘要（如有）为 JATS XML，剥离为纯文本。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getJSON, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
+import { LiteratureHttpClient, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.crossref.org/works'
@@ -14,6 +14,8 @@ const MAILTO = 'mailto=sati@users.noreply.github.com'
 /** 创建 Crossref 连接器的选项。 */
 export interface CreateCrossrefConnectorOptions extends LiteratureBudgetOptions {
   fetchImpl?: typeof fetch
+  /** 共享 HTTP 客户端（registry 注入；省略时连接器自建）。 */
+  client?: LiteratureHttpClient
 }
 
 interface Author {
@@ -51,8 +53,6 @@ function year(w: Work): number | undefined {
 
 function authors(w: Work): string | undefined {
   return formatAuthors((w.author ?? []).map(a => a.name ?? [a.given, a.family].filter(Boolean).join(' ')))
-
-
 }
 
 function toHit(w: Work): ConnectorHit {
@@ -73,6 +73,7 @@ function toHit(w: Work): ConnectorHit {
  * @returns Crossref 连接器。
  */
 export function createCrossrefConnector(options: CreateCrossrefConnectorOptions = {}): Connector {
+  const client = options.client ?? new LiteratureHttpClient()
   const http: LiteratureFetchOptions = {
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
@@ -87,7 +88,7 @@ export function createCrossrefConnector(options: CreateCrossrefConnectorOptions 
     homepage: 'https://www.crossref.org',
     async search(query, opts) {
       const rows = clampLimit(opts?.limit)
-      const data = await getJSON<SearchResponse>(
+      const data = await client.getJSON<SearchResponse>(
         `${BASE}?query=${encodeURIComponent(query)}&rows=${rows}&select=DOI,title,subtitle,abstract,author,container-title,publisher,type,URL,score,is-referenced-by-count,issued&${MAILTO}`,
         { ...http, signal: opts?.signal },
       )
@@ -95,7 +96,7 @@ export function createCrossrefConnector(options: CreateCrossrefConnectorOptions 
     },
     async fetch(id, opts) {
       const doi = id.replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').trim()
-      const data = await getJSON<WorkResponse>(`${BASE}/${encodeURIComponent(doi)}?${MAILTO}`, { ...http, signal: opts?.signal })
+      const data = await client.getJSON<WorkResponse>(`${BASE}/${encodeURIComponent(doi)}?${MAILTO}`, { ...http, signal: opts?.signal })
       return data.message ?? null
     },
   }
