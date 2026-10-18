@@ -22,6 +22,7 @@ import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { PatentTeamsService, type PatentTeamsConfig } from './service.ts'
+import { installRetiredMemberGuard } from './members.ts'
 import { registerPatentTeamsTools } from './tools.ts'
 
 // Re-export the service class so the Typert catalog projection can render
@@ -125,6 +126,11 @@ export function apply(ctx: Context, config: Config): void {
   // registers the service on the current (plugin) fiber, which parent contexts
   // resolve through the fiber chain; the fiber disposes it on unload.
   new PatentTeamsService(ctx, resolved)
+
+  // The host exposes no targeted forget/retire seam, so the plugin owns the
+  // per-child retirement boundary: retired members must disappear from
+  // `list_agents` and reject `sendMessage` instead of cold-resuming.
+  installRetiredMemberGuard(ctx, resolved.stateDir)
 
   const toolNames = [
     'patent_teams_create',

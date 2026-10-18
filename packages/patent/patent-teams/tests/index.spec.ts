@@ -76,6 +76,11 @@ describe('apply', () => {
     } as never)
     ctx.provide('llm', { resolveCallConfig: async (c: unknown) => c } as never)
     ctx.provide('agents', { get: () => undefined } as never)
+    ctx.provide('subagents', {
+      listChildren: async () => [],
+      listDescendants: async () => [],
+      sendMessage: async () => 'msg',
+    } as never)
     apply(ctx, Config(config))
     return { ctx, registered, sections }
   }
@@ -124,6 +129,11 @@ describe('apply', () => {
     ctx.provide('systemPrompt', { section: (section: { name: string; order: number; text: string }) => { sections.push(section); return () => {} } } as never)
     ctx.provide('llm', { resolveCallConfig: async (c: unknown) => c } as never)
     ctx.provide('agents', { get: () => undefined } as never)
+    ctx.provide('subagents', {
+      listChildren: async () => [],
+      listDescendants: async () => [],
+      sendMessage: async () => 'msg',
+    } as never)
     // A raw partial config bypasses the schema defaults.
     apply(ctx, {})
     expect(sections[0]!.order).toBe(117)

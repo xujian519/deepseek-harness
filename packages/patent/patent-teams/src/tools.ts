@@ -250,11 +250,12 @@ function registerTaskOwnershipTools(ctx: Context, teams: PatentTeamsService): vo
           subject: { type: 'string', required: true },
           status: { type: 'string', required: true },
           assignee: { type: 'string' },
+          worker: { type: 'string' },
         },
       },
       render: (_args, value) => [{
         type: 'text',
-        text: `Task "${value.subject}" created as ${value.task_id} (status ${value.status}${value.assignee ? `, assigned to ${value.assignee}` : ''}).`,
+        text: `Task "${value.subject}" created as ${value.task_id} (status ${value.status}${value.assignee ? `, assigned to ${value.assignee}` : ''}${value.worker ? `, worker ${value.worker}` : ''}).`,
       }],
     },
     async execute(args, exec) {
