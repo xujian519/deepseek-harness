@@ -733,8 +733,9 @@ describe('updateTask', () => {
 
     await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
     const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't3', assignee: 'alice' })
-    await expect(h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'in_progress', attempt_id: 'stale' }))
-      .rejects.toMatchObject({ code: 'STALE_ATTEMPT' })
+    const staleUpdate = h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'in_progress', attempt_id: 'stale' })
+    await expect(staleUpdate).rejects.toMatchObject({ code: 'STALE_ATTEMPT' })
+    await expect(staleUpdate).rejects.toThrow('STALE_ATTEMPT')
     await expect(h.ctx.patentTeams.updateTask(captain, { task_id: 't3', status: 'in_progress' }))
       .rejects.toMatchObject({ code: 'ALREADY_CLAIMED' })
     await h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'in_progress', attempt_id: claimed.attempt_id! })

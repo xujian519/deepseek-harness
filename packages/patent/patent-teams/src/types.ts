@@ -33,8 +33,8 @@ export type PatentTeamsErrorCode =
 /**
  * A PatentTeams operation failure with a stable machine-readable code.
  *
- * The message stays human-readable and may change; consumers that branch on
- * the failure read {@link code} instead.
+ * The message stays human-readable and carries the code suffix so a tool
+ * result rendered as text still exposes the stable failure class.
  */
 export class PatentTeamsError extends Error {
   /** Stable failure code. */
@@ -46,7 +46,7 @@ export class PatentTeamsError extends Error {
    * @param options - optional wrapped cause.
    */
   constructor(code: PatentTeamsErrorCode, message: string, options?: ErrorOptions) {
-    super(message, options)
+    super(`${message} (code: ${code})`, options)
     this.name = 'PatentTeamsError'
     this.code = code
   }
