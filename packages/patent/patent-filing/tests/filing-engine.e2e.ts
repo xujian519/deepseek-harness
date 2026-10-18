@@ -133,6 +133,69 @@ describe.skipIf(interpreter === undefined)('filing engine end to end', () => {
     expect(verified.info.template?.sections).toBe(5)
   }, 120_000)
 
+  it('checks font size, color, and internal marks inside table cells', async () => {
+    const python = enginePython()
+    if (python === undefined) throw new Error('本机缺少可运行引擎的解释器')
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-filing-e2e-table-'))
+    try {
+      const subprocess = new LocalSubprocessRuntime(new Context())
+      const signal = new AbortController().signal
+      const figure = join(dir, 'fig1.png')
+      await writeFile(figure, Buffer.from(SQUARE_PNG_BASE64, 'base64'))
+      const common = {
+        subprocess,
+        specPath: defaultSpecPath(),
+        templatePath: defaultTemplatePath(),
+        timeoutMs: DEFAULT_ENGINE_TIMEOUT_MS,
+      }
+      const built = await buildFiling({
+        content: {
+          abstract: ['本发明公开了一种用于校验表格验收的装置。'],
+          claims: ['1. 一种用于校验表格验收的装置，其特征在于，包括本体。'],
+          specification: [
+            { kind: 'h3', text: '技术领域' },
+            { kind: 'p', text: '本发明属于机械领域。' },
+            { kind: 'h3', text: '背景技术' },
+            { kind: 'p', text: '现有装置缺少表格验收。' },
+            { kind: 'h3', text: '发明内容' },
+            { kind: 'p', text: '本发明提供一种装置。' },
+            { kind: 'h3', text: '附图说明' },
+            { kind: 'p', text: '图1为装置的立体图。' },
+            { kind: 'h3', text: '具体实施方式' },
+            { kind: 'p', text: '下面结合附图对本发明作进一步说明。' },
+            { kind: 'table', rows: [['部位', '标记'], ['本体', '1']] },
+          ] as { kind: 'h3' | 'p' | 'table'; text?: string; rows?: string[][] }[],
+          figures: [figure],
+        },
+        outputName: '表格验收',
+        outputDir: dir,
+      }, { ...common, defaultOutputDir: dir, figureScale: 1 }, process.cwd(), signal)
+
+      // Mutate only the table cell: a passing document with one defective cell must fail.
+      const mutate = [
+        'import sys',
+        'from docx import Document',
+        'from docx.shared import Pt, RGBColor',
+        'd = Document(sys.argv[1])',
+        'run = d.tables[0].rows[1].cells[0].paragraphs[0].runs[0]',
+        'run.text = "内部复核稿"',
+        'run.font.size = Pt(10)',
+        'run.font.color.rgb = RGBColor(0xFF, 0, 0)',
+        'd.save(sys.argv[1])',
+      ].join('\n')
+      const mutated = spawnSync(python, ['-c', mutate, built.docxPath], { encoding: 'utf8' })
+      expect(mutated.status).toBe(0)
+
+      const verified = await verifyFiling({ docxPath: built.docxPath }, common, signal)
+      expect(verified.passed).toBe(false)
+      expect(verified.errors.join('\n')).toContain('内部复核稿')
+      expect(verified.errors.join('\n')).toContain('字号 10')
+      expect(verified.errors.join('\n')).toContain('非黑色文字')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 120_000)
+
   it('入文「摘要附图」节的是 draft 指定的那张图，不是第 1 张', async () => {
     const python = enginePython()
     // describe.skipIf 已在收集期保证本机有可用解释器：缺失时显式失败，不静默通过。

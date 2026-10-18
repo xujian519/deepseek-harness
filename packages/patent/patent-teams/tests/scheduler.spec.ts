@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
-import { installTeamScheduler } from '../src/scheduler.ts'
+import { installTeamScheduler, kickAfterPersist } from '../src/scheduler.ts'
 import { TeamActivity } from '../src/team-activity.ts'
 import {
   appendMailbox,
@@ -107,6 +107,17 @@ async function makeHarness(options?: {
 
 afterEach(() => {
   vi.restoreAllMocks()
+})
+
+describe('kickAfterPersist', () => {
+  it('swallows a dispatch failure after the change was persisted and logs it', async () => {
+    const ctx = new Context()
+    const warn = vi.spyOn(ctx.logger, 'warn')
+    await expect(kickAfterPersist(ctx, 'dispatch after test', async () => {
+      throw new Error('scheduler offline')
+    })).resolves.toBeUndefined()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('scheduler offline'))
+  })
 })
 
 describe('installTeamScheduler kickTeam', () => {

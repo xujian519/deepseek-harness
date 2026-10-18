@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-deadlines-pct-application-fee/guide.md
+/:
+  en: f8570f8717504d3b
+  zh: de6c88f1290b66e9
+/pct-application-fees-start-at-the-national-phase-entry-date:
+  en: 8549bf963ebffbc8
+  zh: cfa59a3e2ffceeae
+/pct-application-fees-start-at-the-national-phase-entry-date/change:
+  en: 8e0c527b6eb4c4b1
+  zh: 0b857ab6f4e36717
+/pct-application-fees-start-at-the-national-phase-entry-date/migration:
+  en: d2cda944a0466167
+  zh: 1efc0e177fd6bce0

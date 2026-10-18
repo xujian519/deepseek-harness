@@ -133,6 +133,34 @@ describe('DeliveryAttemptLedger', () => {
     expect(ledger.has(AGENT, 'law_verify')).toBe(true)
     expect(ledger.has(OTHER_AGENT, 'rule_check')).toBe(false)
   })
+
+  it('把声明了案卷键的前置记录限定在该案卷内', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    ledger.record(AGENT, 'rule_check', 'case-A')
+    expect(ledger.has(AGENT, 'rule_check', 'case-A')).toBe(true)
+    expect(ledger.has(AGENT, 'rule_check', 'case-B')).toBe(false)
+    // 未声明案卷的查询无法区分案卷，采用本会话内任一条记录。
+    expect(ledger.has(AGENT, 'rule_check')).toBe(true)
+  })
+
+  it('案卷没有专属记录时回退到会话级记录', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    ledger.record(AGENT, 'rule_check')
+    expect(ledger.has(AGENT, 'rule_check', 'case-A')).toBe(true)
+    ledger.record(AGENT, 'law_verify', 'case-B')
+    expect(ledger.has(AGENT, 'law_verify', 'case-A')).toBe(false)
+  })
+})
+
+describe('caseKeyOfArguments', () => {
+  it('reads the case id from the documented argument names', () => {
+    expect(PatentRule.caseKeyOfArguments({ caseId: ' A ' })).toBe('A')
+    expect(PatentRule.caseKeyOfArguments({ case_id: 'B' })).toBe('B')
+    expect(PatentRule.caseKeyOfArguments({ case_dir: '/cases/C' })).toBe('/cases/C')
+    expect(PatentRule.caseKeyOfArguments({ caseDir: 'D' })).toBe('D')
+    expect(PatentRule.caseKeyOfArguments({ template: 'claims-spec' })).toBeUndefined()
+    expect(PatentRule.caseKeyOfArguments(null)).toBeUndefined()
+  })
 })
 
 describe('deliveryGateMissing', () => {
@@ -262,6 +290,21 @@ describe('tools/guard 交付前置门禁', () => {
     expect((await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)).isError).toBe(true)
     expect((await call(ctx, 'rule_check', { text: '权利要求 1' }, AGENT)).isError).toBe(false)
     expect((await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)).isError).toBe(false)
+  })
+
+  it('does not let one case satisfy another case delivery', async () => {
+    const ctx = await mount({ deliveryGate: [{ tool: 'render_patent_document', requires: ['rule_check'] }] })
+    ctx.tools.register(documentTool())
+    ctx.tools.register(okTool('rule_check'))
+
+    expect((await call(ctx, 'rule_check', { caseId: 'case-A' }, AGENT)).isError).toBe(false)
+    const denied = await call(ctx, 'render_patent_document', { template: 'claims-spec', caseId: 'case-B' }, AGENT)
+    expect(denied.isError).toBe(true)
+    expect(denied.error?.message).toMatch(/rule_check/)
+
+    expect((await call(ctx, 'rule_check', { caseId: 'case-B' }, AGENT)).isError).toBe(false)
+    expect((await call(ctx, 'render_patent_document', { template: 'claims-spec', caseId: 'case-B' }, AGENT)).isError)
+      .toBe(false)
   })
 
   it('前置调用报错不算跑过', async () => {

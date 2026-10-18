@@ -154,6 +154,13 @@ it('matchKeyword: 扩充否定词表不误报（缺乏/没有/未给出/未记�
   expect(matchKeyword('对比文件未公开该特征，因此具备新颖性', '新颖性')).toBe(true)
 })
 
+it('matchKeyword: 前一处否定不毒化后一处肯定（D1 缺少 X；D2 公开 X）', () => {
+  expect(matchKeyword('对比文件1缺少技术特征A；对比文件2公开了技术特征A', '技术特征')).toBe(true)
+  expect(matchKeyword('对比文件2缺少技术特征A；对比文件1公开了技术特征A', '技术特征')).toBe(true)
+  // 每一次出现都处于否定语境时才判未命中。
+  expect(matchKeyword('对比文件1缺少技术特征A；对比文件2也缺少技术特征A', '技术特征')).toBe(false)
+})
+
 it('matchKeyword: 双重否定不误判（并非没有/并不缺乏 = 肯定语义）', () => {
   // 窗口含命中词后，嵌目标词的否定模式会命中"并非没有新颖性"——
   // 反否定前缀守卫应将其翻转为肯定（典型紧邻形式）
@@ -267,6 +274,37 @@ it('推理模式: 公知常识路径缺步骤 → 阻断并指出缺失步骤', 
   expect(r).toBeTruthy()
   expect(r!.level).toBe(0)
   expect(r!.message).toMatch(/推理路径步骤3不完整/)
+})
+
+it('推理模式: 多对比文件路径成立时不报互斥的公知常识路径', () => {
+  const local = new RuleEngine()
+  local.registerMany(reasoningPatternRules())
+  const text =
+    '创造性分析：最接近的现有技术为D1；权利要求1相对于D1的区别技术特征为X；' +
+    'D2给出了将X应用于D1的技术启示；本领域技术人员认为该结合显而易见，故不具备创造性。'
+  const failures = local.evaluate(text, { domain: 'patent_inventiveness' })
+  expect(failures.some(f => f.ruleId === 'REASON-CREATIVITY-01A')).toBe(false)
+  expect(failures.some(f => f.ruleId === 'REASON-CREATIVITY-02')).toBe(false)
+})
+
+it('推理模式: 公知常识路径成立时不报互斥的多对比文件路径', () => {
+  const local = new RuleEngine()
+  local.registerMany(reasoningPatternRules())
+  const text =
+    '创造性分析：最接近的现有技术为D1；区别技术特征为X；该区别特征属于本领域公知常识；' +
+    '本领域技术人员无需创造性劳动即可获得，显而易见。'
+  const failures = local.evaluate(text, { domain: 'patent_inventiveness' })
+  expect(failures.some(f => f.ruleId === 'REASON-CREATIVITY-01A')).toBe(false)
+  expect(failures.some(f => f.ruleId === 'REASON-CREATIVITY-02')).toBe(false)
+})
+
+it('推理模式: 互斥路径都不成立时两条都报', () => {
+  const local = new RuleEngine()
+  local.registerMany(reasoningPatternRules())
+  const text = '最接近的现有技术为D1，区别技术特征在于X，故不具备创造性。'
+  const failures = local.evaluate(text, { domain: 'patent_inventiveness' })
+  expect(failures.some(f => f.ruleId === 'REASON-CREATIVITY-01A')).toBe(true)
+  expect(failures.some(f => f.ruleId === 'REASON-CREATIVITY-02')).toBe(true)
 })
 
 it('推理模式: 四相同标准路径（单独对比）→ 通过', () => {

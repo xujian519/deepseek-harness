@@ -138,9 +138,19 @@ describe('parseLawReference', () => {
 })
 
 describe('extractLawReferences', () => {
-  it('keeps the order of appearance and deduplicates by written form', () => {
+  it('keeps the order of appearance and deduplicates by reference identity', () => {
     const references = extractLawReferences('依据专利法第22条第3款、专利法实施细则第5条与专利法第22条第3款。')
     expect(references.map(reference => reference.raw)).toEqual(['专利法第22条第3款', '专利法实施细则第5条'])
+  })
+
+  it('keeps same-written continuations under different articles', () => {
+    const text = '专利法第22条第3款、第4款；专利法第26条第3款、第4款'
+    const references = extractLawReferences(text)
+    expect(references.map(reference => reference.kind === 'law-article'
+      ? [reference.article, reference.paragraph]
+      : [0, 0]))
+      .toEqual([[22, 3], [22, 4], [26, 3], [26, 4]])
+    expect(scanUnrecognizedCitations(text, references)).toEqual([])
   })
 
   it('inherits the law across coordinated references', () => {

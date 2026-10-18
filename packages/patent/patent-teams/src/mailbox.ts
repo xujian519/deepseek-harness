@@ -216,10 +216,15 @@ export async function claimMailboxDelivery(
   messageIds: readonly string[],
 ): Promise<void> {
   const now = Date.now()
-  await mutateMailbox(stateRoot, teamId, agentKey, messageIds, message => ({
-    ...message,
-    deliveryClaimedAt: now,
-  }))
+  // Re-check readAt under the lock: the scheduler's snapshot may predate an
+  // acknowledgement from the status path, and leasing an already-read message
+  // would report it as in flight and deliver it twice.
+  await mutateMailbox(stateRoot, teamId, agentKey, messageIds, message => message.readAt !== undefined
+    ? message
+    : {
+      ...message,
+      deliveryClaimedAt: now,
+    })
 }
 
 /**

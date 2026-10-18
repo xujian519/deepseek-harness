@@ -32,7 +32,7 @@ export type CaseLawHit = CaseLawRecord & {
   chunkIndex: number
   /** Matched chunk body fragment (the tool layer truncates). */
   snippet: string
-  /** FTS5 BM25 score (negative; higher is more relevant; only on the fts path). */
+  /** FTS5 BM25 score (negative; lower is more relevant; only on the fts path). */
   ftsRank?: number | null
   /** Hit path: fts=FTS5 BM25 match, like=LIKE degraded match. */
   via: 'fts' | 'like'

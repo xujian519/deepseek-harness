@@ -338,6 +338,25 @@ describe('createTask', () => {
     expect(task).toMatchObject({ task_id: 't1', subject: 'research', status: 'pending', assignee: 'alice' })
   })
 
+  it('allocates past existing ids when taskSeq is stale', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await h.ctx.patentTeams.createTask(captain, { subject: 'first' })
+    const root = join(h.workspace, h.stateDir)
+    const legacy = await readTeam(root, 'alpha')
+    expect(legacy).toBeDefined()
+    legacy!.taskSeq = 0
+    await writeTeam(root, legacy!)
+
+    const second = await h.ctx.patentTeams.createTask(captain, { subject: 'second' })
+    expect(second.task_id).toBe('t2')
+    // The written record survives the reader's duplicate-id check.
+    const reread = await readTeam(root, 'alpha')
+    expect(reread?.tasks.map(task => task.id)).toEqual(['t1', 't2'])
+    expect(reread?.taskSeq).toBe(2)
+  })
+
   it('rejects missing dependencies and missing assignees', async () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)

@@ -35,9 +35,26 @@ function hasNegation(before: string): boolean {
 /** 反否定前缀（出现在否定模式前构成双重否定 → 肯定语义）。 */
 const REVERSE_NEGATION_PREFIXES = ['并非', '并不', '不能说', '不能认为', '不可谓', '绝非', '不无']
 
+/** 分句符：否定只作用于当前分句，不跨句、跨分号或跨行污染后文。 */
+const CLAUSE_DELIMITER = /[。；;！？!?\n]/g
+
+/**
+ * 只保留窗口内最后一个分句符之后的部分。
+ * @param windowText - 命中词及其前文窗口。
+ * @returns 当前分句的文本。
+ */
+function currentClause(windowText: string): string {
+  let start = 0
+  for (const match of windowText.matchAll(CLAUSE_DELIMITER)) {
+    start = match.index + match[0].length
+  }
+  return windowText.slice(start)
+}
+
 /**
  * 检查关键词（或任一扩展同义词）是否在文本中被"肯定地"提及。
- * 命中位置前 NEGATION_WINDOW 字符内出现否定模式视为否定表述，不算命中。
+ * 检查每一次出现：命中位置前 NEGATION_WINDOW 字符内、且同一分句内出现否定模式视为否定表述，
+ * 不算命中；前一处的否定不会毒化后一处的肯定。
  * 窗口含命中词本身（slice 到 idx+candidate.length），使"缺乏创造性"这类
  * "否定词+目标词"组合模式可命中（窗口只到 idx 时仅含"缺乏"）。
  * @param text - 待检查的文本。
@@ -48,11 +65,15 @@ export function matchKeyword(text: string, keyword: string): boolean {
   const candidates = [keyword, ...(synonymMap[keyword] ?? [])]
   const lower = text.toLowerCase()
   for (const candidate of candidates) {
-    const idx = lower.indexOf(candidate.toLowerCase())
-    if (idx === -1) continue
-    const start = Math.max(0, idx - NEGATION_WINDOW)
-    const windowText = text.slice(start, idx + candidate.length)
-    if (!hasNegation(windowText)) return true
+    const needle = candidate.toLowerCase()
+    let idx = lower.indexOf(needle)
+    // 前一处命中的否定语境不能毒化后文：D1 缺少 X；D2 公开了 X 是常见句式。
+    while (idx !== -1) {
+      const start = Math.max(0, idx - NEGATION_WINDOW)
+      const windowText = text.slice(start, idx + candidate.length)
+      if (!hasNegation(currentClause(windowText))) return true
+      idx = lower.indexOf(needle, idx + needle.length)
+    }
   }
   return false
 }
@@ -320,21 +341,39 @@ export class RuleEngine {
     const rules = options.rules ?? this.all()
     const domains = normalizeDomains(options.domain)
     const results: RuleCheckResult[] = []
+    const alternatives = new Map<string, { anyPassed: boolean; failures: RuleCheckResult[] }>()
     for (const rule of rules) {
       if (domains.length > 0 && rule.domain !== '' && !domains.includes(rule.domain)) continue
       const { passed, detail } = evaluateRule(rule, text)
+      const group = rule.alternativeGroup
+      if (group !== undefined && group !== '') {
+        const entry = alternatives.get(group) ?? { anyPassed: false, failures: [] }
+        if (passed) entry.anyPassed = true
+        else entry.failures.push(failureOf(rule, detail))
+        alternatives.set(group, entry)
+        continue
+      }
       if (passed) continue
-      results.push({
-        ruleId: rule.id,
-        ruleName: rule.name,
-        passed: false,
-        level: rule.level,
-        severity: rule.severity,
-        message: detail !== '' ? detail : rule.message,
-        fixSuggestion: rule.fixSuggestion,
-      })
+      results.push(failureOf(rule, detail))
+    }
+    // 互斥路径：任一条成立即视为该组通过，其余成员的失败不报。
+    for (const entry of alternatives.values()) {
+      if (!entry.anyPassed) results.push(...entry.failures)
     }
     return results
+  }
+}
+
+/** Build the reported failure for one rule. */
+function failureOf(rule: CheckRule, detail: string): RuleCheckResult {
+  return {
+    ruleId: rule.id,
+    ruleName: rule.name,
+    passed: false,
+    level: rule.level,
+    severity: rule.severity,
+    message: detail !== '' ? detail : rule.message,
+    fixSuggestion: rule.fixSuggestion,
   }
 }
 

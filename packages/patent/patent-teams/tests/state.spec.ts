@@ -658,6 +658,19 @@ describe('mailbox persistence', () => {
     expect(raw.split('\n')).toHaveLength(4)
   })
 
+  it('does not lease a message that was already acknowledged', async () => {
+    const root = await tmpRoot()
+    await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })
+    await writeFile(
+      join(root, 'alpha', 'inbox', 'alice.jsonl'),
+      JSON.stringify(message('read-1', { readAt: 1234 })) + '\n',
+    )
+    await claimMailboxDelivery(root, 'alpha', 'alice', ['read-1'])
+    const [kept] = await readMailbox(root, 'alpha', 'alice')
+    expect(kept!.readAt).toBe(1234)
+    expect(kept!.deliveryClaimedAt).toBeUndefined()
+  })
+
   it('acknowledge preserves an existing readAt and mutating an empty or missing mailbox is a no-op', async () => {
     const root = await tmpRoot()
     await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })

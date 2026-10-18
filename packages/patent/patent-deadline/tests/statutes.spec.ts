@@ -417,6 +417,38 @@ describe('statutory deadline set', () => {
     })
   })
 
+  it('starts the PCT application fee at the national-phase entry date', () => {
+    const query: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2024-01-01'),
+      claimsPriority: false,
+      isPctNationalPhase: true,
+      nationalPhaseEntryDate: date('2025-07-01'),
+      today: date('2025-07-10'),
+    }
+    expect(find(query, 'application-fee')).toMatchObject({
+      dueDate: '2025-09-01',
+      legalBasis: '专利法实施细则第120条',
+      label: '缴纳申请费、公布印刷费、必要的申请附加费（自进入中国国家阶段之日起2个月内）',
+    })
+  })
+
+  it('keeps the PCT application fee pending until the entry date is recorded', () => {
+    const query: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2024-01-01'),
+      claimsPriority: false,
+      isPctNationalPhase: true,
+      today: date('2025-07-10'),
+    }
+    const report = evaluateDeadlines(query, base)
+    expect(report.computed.some(entry => entry.id === 'application-fee')).toBe(false)
+    expect(report.pending.find(entry => entry.id === 'application-fee')).toMatchObject({
+      legalBasis: '专利法实施细则第120条',
+      requiredInput: 'nationalPhaseEntryDate（进入中国国家阶段之日）',
+    })
+  })
+
   it('computes the new-drug compensation request from the marketing approval date', () => {
     const query: DeadlineQuery = {
       ...invention,

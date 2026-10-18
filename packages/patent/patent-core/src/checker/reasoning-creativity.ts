@@ -58,6 +58,8 @@ export function creativityReasoningRules(): CheckRule[] {
       message: '创造性分析未完整论证公知常识路径',
       checkType: 'patent_inventiveness',
       domain: DOMAIN_INVENTIVENESS,
+      // 与 REASON-CREATIVITY-02 是互斥的否定路径：只要一条成立即可。
+      alternativeGroup: 'creativity-negation-path',
       pathElements: [
         ['最接近的现有技术', TERM_CLOSEST_PRIOR_ART],
         [TERM_DISTINGUISHING_FEATURES, TERM_DIFF_FEATURES],
@@ -89,6 +91,8 @@ export function creativityReasoningRules(): CheckRule[] {
       message: '多对比文件结合缺少组合动机论证',
       checkType: 'patent_inventiveness',
       domain: DOMAIN_INVENTIVENESS,
+      // 与 REASON-CREATIVITY-01A 是互斥的否定路径：只要一条成立即可。
+      alternativeGroup: 'creativity-negation-path',
       pathElements: [
         ['最接近的现有技术', TERM_CLOSEST_PRIOR_ART, '对比文件1'],
         [TERM_DISTINGUISHING_FEATURES, TERM_DIFF_FEATURES],

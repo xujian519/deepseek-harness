@@ -364,7 +364,10 @@ function reductionReason(reduction: ReductionContext, applied: boolean): string 
 
 /** Sum the verified payable amounts, or refuse when one is missing or a named stage is unindexed. */
 function totalOf(lines: ComputedLine[], policy: FeePolicy, uncoveredTriggers: readonly string[]): FeeTotal {
-  const incomplete = lines.filter(line => line.line.status !== 'verified' || line.payableFen === null)
+  // A zero-quantity line owes nothing, so an unrecorded unit price for it cannot
+  // make the case total incomplete (specification pages ≤ 30, claims ≤ 10).
+  const incomplete = lines.filter(line =>
+    line.line.quantity > 0 && (line.line.status !== 'verified' || line.payableFen === null))
   const verified = lines.filter((line): line is ComputedLine & { payableFen: number } =>
     line.line.status === 'verified' && line.payableFen !== null)
   const verifiedFen = sumFen(verified.map(line => line.payableFen))

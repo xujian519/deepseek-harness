@@ -28,6 +28,29 @@ import {
   writeTeam,
 } from './state.ts'
 import { memberOpenTask } from './team-access.ts'
+
+/**
+ * Run a scheduler kick after durable state has already been committed.
+ *
+ * A dispatch failure must not turn the committed operation into a tool error:
+ * the caller would retry and duplicate the entity (or hit "already exists").
+ * The durable record is the source of truth; the next idle edge retries the
+ * dispatch.
+ * @param ctx - plugin context used for the warning.
+ * @param operation - what the kick was dispatching, for the warning.
+ * @param kick - the scheduler call.
+ */
+export async function kickAfterPersist(
+  ctx: Context,
+  operation: string,
+  kick: () => Promise<void>,
+): Promise<void> {
+  try {
+    await kick()
+  } catch (error) {
+    ctx.logger.warn(`patent-teams: ${operation} failed after the change was persisted: ${String(error)}`)
+  }
+}
 import {
   serialize,
   stateRootOf,

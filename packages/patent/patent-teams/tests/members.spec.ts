@@ -322,7 +322,7 @@ describe('spawnMember', () => {
     const captain = makeCaptain('captain-1')
     const team = makeTeam()
     const member: TeamMember = { ...validMember, id: '' }
-    await spawnMember(ctx, config, { provider: 'p', model: 'm' }, captain, team, member, '.patent-teams', new AbortController().signal)
+    await spawnMember(ctx, config, { provider: 'p', model: 'm', reasoningEffort: 'high' }, captain, team, member, '.patent-teams', new AbortController().signal)
     expect(member.id).toBe('child-1')
     const spec = started[0] as {
       label: string
@@ -334,6 +334,7 @@ describe('spawnMember', () => {
         agentOptions: {
           provider: string
           model: string
+          reasoningEffort?: string
         }
         maxDepth?: number
       }
@@ -344,7 +345,7 @@ describe('spawnMember', () => {
     expect(spec.request.toolFilter.deny).toContain('patent_teams_create')
     expect(spec.request.toolFilter.deny).toContain('patent_teams_delete')
     expect(spec.request.toolFilter.deny).toContain('send_message')
-    expect(spec.request.agentOptions).toEqual({ provider: 'p', model: 'm' })
+    expect(spec.request.agentOptions).toEqual({ provider: 'p', model: 'm', reasoningEffort: 'high' })
     expect(spec.request.prompt).toHaveLength(1)
     expect(spec.request.maxDepth).toBeUndefined()
   })
