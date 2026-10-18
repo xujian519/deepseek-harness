@@ -432,7 +432,7 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 
 **动作**
 
-1. 在 `types.ts` 或新 `errors.ts` 定义 `PatentTeamsError`，带稳定 `code`：`STALE_ATTEMPT`、`ALREADY_CLAIMED`、`TASK_TERMINAL`、`DEPENDENCIES_OPEN`、`WORKER_OUTPUT_REQUIRED`、`WORKER_CONTRACT_UNKNOWN`、`TEAM_RESERVED_ID`。
+1. 在 `types.ts` 或新 `errors.ts` 定义 `PatentTeamsError`，带稳定 `code`：`STALE_ATTEMPT`、`ALREADY_CLAIMED`、`OWNERSHIP_MISMATCH`、`TASK_TERMINAL`、`INVALID_TRANSITION`、`DEPENDENCIES_OPEN`、`WORKER_OUTPUT_REQUIRED`、`WORKER_CONTRACT_UNKNOWN`、`TEAM_RESERVED_ID`。
 2. 先改 `task-ops.ts` 的模型可见失败路径；消息保留人类可读文本，测试同时断言 `code`。
 3. 更新 persona：引用 `code` 而不是具体文案。
 4. 不要求一次改完 30+ 处；按文件拆分，避免大 diff。
@@ -722,7 +722,7 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 
 ### C 批验证（2026-10-18）
 
-- `pnpm exec vitest run packages/patent/patent-teams/tests` → 16 个测试文件、295 个用例通过（删除 `probe.spec.ts`，新增真实 ToolRuntime 与租约/错误码/读取次数用例）。
+- `pnpm exec vitest run packages/patent/patent-teams/tests` → 16 个测试文件、296 个用例通过（删除 `probe.spec.ts`，新增真实 ToolRuntime、租约、读取次数与 review 回归用例）。
 - `pnpm exec tsx scripts/run-oxlint.ts packages/patent/patent-teams` → 退出码 0。
 - `pnpm run verify-export-jsdoc` → 通过。
 - `pnpm run verify-repository-references` → 通过。
@@ -735,3 +735,4 @@ pnpm exec vitest run packages/patent/patent-teams/tests/state.spec.ts packages/p
 - 全量 `pnpm run test:docs` 的剩余失败为上述工作树债务计数与 gitignore 的 `litho.docs/patent/README.md` 缺中文对照，均与本批提交无关。
 - P2-02 的读取下降集中在 `team.json` 与无候选 claim 重读；邮箱仍按成员单次整读，未引入跨请求缓存。
 - 本批按内容分多个本地提交：持久化校验与错误码；共享队列与 status 读取优化；邮箱租约 Config 与文档；依赖/references 对齐；工具名单单一真源与真实运行时测试；稳定错误码文本可见性。
+- Review 跟进：非终态非法转换改报 `INVALID_TRANSITION`，所有权冲突改报 `OWNERSHIP_MISMATCH`；`deliverMailboxFallback` 在租约锁内重新校验成员，旧快照不再向已移除成员投递；README 明确 `retired-members.json` 位于工作区级 `<stateDir>/`。

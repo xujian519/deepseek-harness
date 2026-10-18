@@ -24,7 +24,9 @@ export const TERMINAL_TASK_STATUSES: readonly TaskStatus[] = ['completed', 'fail
 export type PatentTeamsErrorCode =
   | 'STALE_ATTEMPT'
   | 'ALREADY_CLAIMED'
+  | 'OWNERSHIP_MISMATCH'
   | 'TASK_TERMINAL'
+  | 'INVALID_TRANSITION'
   | 'DEPENDENCIES_OPEN'
   | 'WORKER_OUTPUT_REQUIRED'
   | 'WORKER_CONTRACT_UNKNOWN'

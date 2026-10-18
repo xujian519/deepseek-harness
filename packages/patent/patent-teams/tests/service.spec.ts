@@ -509,8 +509,9 @@ describe('claimTask', () => {
     h.agents.set('member-2', fakeAgent('member-2', h.workspace, { status: 'running' }))
     await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
     const bob = fakeAgent('member-2', h.workspace)
-    await expect(h.ctx.patentTeams.claimTask(bob, { task_id: 't1' }))
-      .rejects.toThrow('assigned to "alice", not you')
+    const foreignClaim = h.ctx.patentTeams.claimTask(bob, { task_id: 't1' })
+    await expect(foreignClaim).rejects.toThrow('assigned to "alice", not you')
+    await expect(foreignClaim).rejects.toMatchObject({ code: 'OWNERSHIP_MISMATCH' })
     await expect(h.ctx.patentTeams.claimTask(bob, { task_id: 't1', assignee: 'alice' }))
       .rejects.toThrow('members cannot set assignee when claiming a task')
     // An unassigned shared task claimed by the captain without an assignee.
@@ -536,8 +537,9 @@ describe('claimTask', () => {
     await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
     await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
     // The captain claims for bob on alice's task.
-    await expect(h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'bob' }))
-      .rejects.toThrow('already claimed by "alice"')
+    const alreadyClaimed = h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'bob' })
+    await expect(alreadyClaimed).rejects.toThrow('already claimed by "alice"')
+    await expect(alreadyClaimed).rejects.toMatchObject({ code: 'ALREADY_CLAIMED' })
     // A task mid-handoff cannot be claimed.
     await h.ctx.patentTeams.createTask(captain, { subject: 'handoff' })
     const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
@@ -670,12 +672,14 @@ describe('updateTask', () => {
     await h.ctx.patentTeams.createTask(captain, { subject: 'other', assignee: 'alice' })
     await h.ctx.patentTeams.claimTask(captain, { task_id: 't2', assignee: 'alice' })
     const bob = fakeAgent('member-2', h.workspace)
-    await expect(h.ctx.patentTeams.updateTask(bob, { task_id: 't2', status: 'failed' }))
-      .rejects.toThrow('assigned to "alice", not you')
+    const foreignUpdate = h.ctx.patentTeams.updateTask(bob, { task_id: 't2', status: 'failed' })
+    await expect(foreignUpdate).rejects.toThrow('assigned to "alice", not you')
+    await expect(foreignUpdate).rejects.toMatchObject({ code: 'OWNERSHIP_MISMATCH' })
     // Invalid transition: claimed -> completed directly on the still-claimed t2.
     const t2Claim = await h.ctx.patentTeams.claimTask(captain, { task_id: 't2', assignee: 'alice' })
-    await expect(h.ctx.patentTeams.updateTask(alice, { task_id: 't2', status: 'completed', attempt_id: t2Claim.attempt_id! }))
-      .rejects.toThrow('task status cannot move from "claimed" to "completed"')
+    const invalidTransition = h.ctx.patentTeams.updateTask(alice, { task_id: 't2', status: 'completed', attempt_id: t2Claim.attempt_id! })
+    await expect(invalidTransition).rejects.toThrow('task status cannot move from "claimed" to "completed"')
+    await expect(invalidTransition).rejects.toMatchObject({ code: 'INVALID_TRANSITION' })
   })
 
   it('lets the captain update its own terminal task idempotently', async () => {
@@ -730,6 +734,8 @@ describe('updateTask', () => {
     await h.ctx.patentTeams.createTask(captain, { subject: 'blocked', dependencies: ['t1'], assignee: 'alice' })
     await expect(h.ctx.patentTeams.claimTask(captain, { task_id: 't2', assignee: 'alice' }))
       .rejects.toMatchObject({ code: 'DEPENDENCIES_OPEN' })
+    await expect(h.ctx.patentTeams.updateTask(alice, { task_id: 't2', status: 'in_progress' }))
+      .rejects.toMatchObject({ code: 'INVALID_TRANSITION' })
 
     await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
     const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't3', assignee: 'alice' })
@@ -737,7 +743,7 @@ describe('updateTask', () => {
     await expect(staleUpdate).rejects.toMatchObject({ code: 'STALE_ATTEMPT' })
     await expect(staleUpdate).rejects.toThrow('STALE_ATTEMPT')
     await expect(h.ctx.patentTeams.updateTask(captain, { task_id: 't3', status: 'in_progress' }))
-      .rejects.toMatchObject({ code: 'ALREADY_CLAIMED' })
+      .rejects.toMatchObject({ code: 'OWNERSHIP_MISMATCH' })
     await h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'in_progress', attempt_id: claimed.attempt_id! })
     await h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'failed', output: 'x', attempt_id: claimed.attempt_id! })
     await expect(h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'completed', attempt_id: claimed.attempt_id! }))

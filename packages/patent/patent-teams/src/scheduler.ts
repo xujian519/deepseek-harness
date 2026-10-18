@@ -156,7 +156,9 @@ function fallbackMailboxPrompt(messages: Awaited<ReturnType<typeof readUnreadMai
 /**
  * Deliver a member's unread mailbox as its fallback work item. A mailbox-only
  * fallback is real pending work, so it is delivered before a fresh task, and
- * the claim is acknowledged only after the Harness accepts the follow-up.
+ * the claim is acknowledged only after the Harness accepts the follow-up. The
+ * durable member record is re-read under the team lock so a stale team
+ * snapshot cannot deliver to a member removed after the snapshot.
  * @param ctx - registrant context carrying the agent registry.
  * @param args - state root, team id, member, live captain, cancellation signal, and lease duration.
  * @returns whether the mailbox path handled this kick.
@@ -178,9 +180,19 @@ async function deliverMailboxFallback(ctx: Context, args: {
     deliveryLeaseMs,
   )
   if (unread.length === 0) return false
-  await withMailboxLease(stateRoot, teamId, member.name, key => (
-    claimMailboxDelivery(stateRoot, teamId, key, unread.map(message => message.id))
-  ))
+  // The caller may hold a pre-removal team snapshot. Revalidate membership
+  // under the same lock that claims the lease, so a member removed after the
+  // snapshot cannot receive fallback mail from a stale kick.
+  const claimed = await withTeamLock(teamLockKey(stateRoot, teamId), async () => {
+    const fresh = await readTeam(stateRoot, teamId)
+    const current = fresh?.members.find(candidate => candidate.id === member.id
+      && candidate.name === member.name
+      && candidate.status !== 'removed')
+    if (current === undefined) return false
+    await claimMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
+    return true
+  })
+  if (!claimed) return true
   const accepted = await deliverToMember(
     ctx,
     captain,

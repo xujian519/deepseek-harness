@@ -43,6 +43,7 @@ import {
   TERMINAL_TASK_STATUSES,
   type TaskContractValidation,
   type TaskGateFeedback,
+  type TaskStatus,
   type TeamState,
   type TeamTask,
 } from './types.ts'
@@ -66,6 +67,22 @@ export interface TaskOpsHost {
   readonly qualityGate: boolean
   /** Comprehensive-eval score below which the gate reports the composite score as advisory. */
   readonly passThreshold: number
+}
+
+/**
+ * Build the typed failure for an illegal task transition.
+ *
+ * `TASK_TERMINAL` is reserved for transitions out of a terminal status; other
+ * invalid jumps must not read as terminal to a model that branches on code.
+ * @param current - the task's current status.
+ * @param next - the requested status.
+ * @returns the typed failure, or undefined when the transition is legal.
+ */
+function transitionFailure(current: TaskStatus, next: TaskStatus): PatentTeamsError | undefined {
+  const message = transitionError(current, next)
+  if (message === undefined) return undefined
+  const code = TERMINAL_TASK_STATUSES.includes(current) ? 'TASK_TERMINAL' : 'INVALID_TRANSITION'
+  return new PatentTeamsError(code, message)
 }
 
 /** Arguments of one `patent_teams_create_task` call. */
@@ -393,7 +410,10 @@ export async function claimTask(
         throw new Error('members cannot set assignee when claiming a task')
       }
       if (assignee !== undefined && assignee !== identity.name) {
-        throw new PatentTeamsError('ALREADY_CLAIMED', `task ${task.id} is assigned to "${assignee}", not you`)
+        const code = task.status === 'claimed' || task.status === 'in_progress'
+          ? 'ALREADY_CLAIMED'
+          : 'OWNERSHIP_MISMATCH'
+        throw new PatentTeamsError(code, `task ${task.id} is assigned to "${assignee}", not you`)
       }
       assignee = identity.name
     }
@@ -418,8 +438,8 @@ export async function claimTask(
     if (pending.length > 0) {
       throw new PatentTeamsError('DEPENDENCIES_OPEN', `task ${task.id} is blocked by unfinished dependencies: ${pending.join(', ')} — complete them first`)
     }
-    const transition = transitionError(task.status, 'claimed')
-    if (transition !== undefined) throw new PatentTeamsError('TASK_TERMINAL', transition)
+    const transition = transitionFailure(task.status, 'claimed')
+    if (transition !== undefined) throw transition
     if (assignee === undefined) {
       throw new Error('claiming an unassigned task needs an assignee (claim on behalf of a member)')
     }
@@ -470,11 +490,11 @@ export async function updateTask(
     if (identity.kind === 'captain'
       && task.assignee !== undefined
       && task.assignee !== CAPTAIN_KEY) {
-      throw new PatentTeamsError('ALREADY_CLAIMED', `task ${task.id} is owned by member "${task.assignee}"; call patent_teams_reassign_task with assignee="captain" before takeover`)
+      throw new PatentTeamsError('OWNERSHIP_MISMATCH', `task ${task.id} is owned by member "${task.assignee}"; call patent_teams_reassign_task with assignee="captain" before takeover`)
     }
     if (identity.kind === 'member') {
       if (task.assignee !== identity.name) {
-        throw new PatentTeamsError('ALREADY_CLAIMED', `task ${task.id} is assigned to "${task.assignee ?? 'nobody'}", not you`)
+        throw new PatentTeamsError('OWNERSHIP_MISMATCH', `task ${task.id} is assigned to "${task.assignee ?? 'nobody'}", not you`)
       }
       if (task.attemptId !== undefined && args.attempt_id !== task.attemptId) {
         throw new PatentTeamsError('STALE_ATTEMPT', `stale attempt for task ${task.id}: expected the current attempt_id; stop work and request fresh assignment`)
@@ -536,8 +556,8 @@ export async function updateTask(
           // v8 ignore stop
         }
       }
-      const transition = transitionError(task.status, args.status as never)
-      if (transition !== undefined) throw new PatentTeamsError('TASK_TERMINAL', transition)
+      const transition = transitionFailure(task.status, args.status as TaskStatus)
+      if (transition !== undefined) throw transition
       task.status = args.status as never
     }
     if (args.output !== undefined) task.output = args.output
