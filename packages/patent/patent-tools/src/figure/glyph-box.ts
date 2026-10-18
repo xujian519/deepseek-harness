@@ -78,6 +78,7 @@ const UPPER_RANGE: readonly [number, number] = [0x41, 0x5a]
 export function textWidthMm(content: string, fontSizeMm: number): number {
   let ratio = 0
   for (const character of content) {
+    /* v8 ignore next -- for…of yields non-empty strings, so codePointAt(0) is always defined. */
     const code = character.codePointAt(0) ?? 0
     if (FULL_WIDTH_RANGES.some(([from, to]) => code >= from && code <= to)) ratio += FULL_WIDTH_RATIO
     else if (code >= UPPER_RANGE[0] && code <= UPPER_RANGE[1]) ratio += UPPER_WIDTH_RATIO

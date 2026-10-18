@@ -136,6 +136,13 @@ describe('leaderEnd', () => {
     expect(leaderEnd('接地', [20, 10], 4, 'middle', [40, 10])?.[0]).toBeCloseTo(24, 10)
   })
 
+  it('引线方向与框心同高时按水平边求止点（竖直后退量为无穷大）', () => {
+    // 框心 y=8.74；同一高度自左侧来，只有左右边界决定后退量。
+    const end = leaderEnd('1', [20, 10], 4, 'middle', [10, 8.74])
+    expect(end?.[0]).toBeCloseTo(18.8, 10)
+    expect(end?.[1]).toBeCloseTo(8.74, 10)
+  })
+
   it('起点与数字中心重合、或起点已落在占位框内时不画引线', () => {
     // 框心在 (20, 8.74)（基线 10 减去上升 3、下降 0.48 的中点）。
     expect(leaderEnd('1', [20, 10], 4, 'middle', [20, 8.74])).toBeUndefined()
@@ -150,6 +157,13 @@ describe('inflateQuad', () => {
     expect(quad.origin).toEqual([8.5, 18.5])
     expect(quad.edgeWidth).toEqual([7, 0])
     expect(quad.edgeHeight).toEqual([0, 7])
+  })
+
+  it('退化矩形（一条边向量为零）按零方向外扩，不产生 NaN', () => {
+    const inflated = inflateQuad({ origin: [0, 0], edgeWidth: [0, 0], edgeHeight: [0, 10] }, 1)
+    expect(inflated.origin).toEqual([0, -1])
+    expect(inflated.edgeWidth).toEqual([0, 0])
+    expect(inflated.edgeHeight).toEqual([0, 12])
   })
 
   it('零净距原样返回', () => {

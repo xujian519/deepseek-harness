@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -428,6 +428,22 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
     }
   })
 
+  it('sections 文件解析抛出非 Error 时仍报 invalid_tool_input', async () => {
+    const { dir, run } = await setup()
+    writeFileSync(join(dir, 'fig5.json'), '{}')
+    const spy = vi.spyOn(JSON, 'parse').mockImplementationOnce(() => {
+      throw 'parse boom'
+    })
+    try {
+      const result = await run({ figure_type: 'cross_section', sections: 'fig5.json' }, 's-json')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('parse boom')
+    } finally {
+      spy.mockRestore()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('leader_lines 对直绘图型给出「不生效」提示而不是静默忽略', async () => {
     const { dir, run } = await setup()
     try {
@@ -693,6 +709,25 @@ describe('generate_patent_figure：从 CAD 模型切出剖视图（sections.sour
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('FreeCAD')
       expect(existsSync(join(outDir, 'fig1.svg'))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('剖切端口抛出非 SectionSourceError 时原样上抛', async () => {
+    const ports: SectionSourcePorts = {
+      sectionGeometry: async () => {
+        throw new Error('port exploded')
+      },
+      sectionHatch: async () => {
+        throw new Error('hatch must not run')
+      },
+    }
+    const { dir, run } = await setup(true, ports)
+    try {
+      const result = await run(sourceArgs(), 'src-port-error')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('port exploded')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

@@ -60,6 +60,29 @@ describe('patent_case_search', () => {
     expect(result.isError).toBe(false)
     expect(seen).toEqual([2])
   })
+
+  it('records only the supplied filter in the search strategy', async () => {
+    const seen: { docType?: string; court?: string }[] = []
+    const tool = createPatentCaseSearchTool({
+      search: (_query, options) => {
+        seen.push({
+          ...(options?.docType === undefined ? {} : { docType: options.docType }),
+          ...(options?.court === undefined ? {} : { court: options.court }),
+        })
+        return [hit]
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const byType = await execute(ctx, 'patent_case_search', { query: 'x', doc_type: 'judgment' }, 'c-4')
+    expect(seen[0]).toEqual({ docType: 'judgment' })
+    expect((byType.value as { searchStrategy: { filters?: Record<string, string> } }).searchStrategy.filters)
+      .toEqual({ docType: 'judgment' })
+
+    const byCourt = await execute(ctx, 'patent_case_search', { query: 'x', court: '最高人民法院' }, 'c-5')
+    expect(seen[1]).toEqual({ court: '最高人民法院' })
+    expect((byCourt.value as { searchStrategy: { filters?: Record<string, string> } }).searchStrategy.filters)
+      .toEqual({ court: '最高人民法院' })
+  })
 })
 
 describe('patent_wiki_search', () => {

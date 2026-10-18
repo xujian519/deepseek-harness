@@ -36,6 +36,7 @@ import {
   type StageProvider,
 } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
+import { createToolInputReader } from './internal/tool-input.ts'
 import { loggedToolModel } from './internal/model-call-log.ts'
 
 /** One claim-chart mapping target (prior art or accused product). */
@@ -172,25 +173,14 @@ function renderClaimChart(value: ClaimChartOutput): string {
 /** 抗辩成立可能性的取值域。 */
 const DEFENSE_VIABILITIES: readonly string[] = ['high', 'medium', 'low']
 
-/** 工具入参是模型 JSON 边界：构造一条字段级输入错误（不静默丢弃非法值）。 */
-function invalidToolInput(message: string): PatentToolError {
-  return new PatentToolError('invalid_tool_input', message, { tool: 'claim_chart_build' })
-}
-
-/** 读取必填字符串字段。 */
-function requireString(raw: unknown, field: string): string {
-  if (typeof raw !== 'string') throw invalidToolInput(`${field} 必须是字符串`)
-  return raw
-}
-
-/** 读取必填布尔字段。 */
-function requireBoolean(raw: unknown, field: string): boolean {
-  if (typeof raw !== 'boolean') throw invalidToolInput(`${field} 必须是布尔值`)
-  return raw
-}
+const input = createToolInputReader('claim_chart_build')
+const invalidToolInput = input.invalid
+const requireString = input.requireString
+const requireBoolean = input.requireBoolean
 
 /** 校验映射目标列表；数组元素是模型 JSON，可能为 null、缺 id 或给未知 kind。 */
 function parseTargets(raw: unknown): ClaimChartTargetInput[] {
+  /* v8 ignore next -- the tool schema rejects a non-array before execute; the guard serves direct callers */
   if (!Array.isArray(raw)) throw invalidToolInput('targets 必须是数组')
   return raw.map((entry, index) => {
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -319,6 +309,7 @@ export function createClaimChartBuildTool(deps: ClaimChartBuildDeps = {}): ToolD
         } catch (error) {
           throw new PatentToolError(
             'invalid_tool_input',
+            /* v8 ignore next -- assertSafePathSegment only throws RangeError */
             error instanceof Error ? error.message : String(error),
             { tool: 'claim_chart_build' },
           )

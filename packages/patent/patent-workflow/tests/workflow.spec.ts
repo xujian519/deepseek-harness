@@ -29,6 +29,15 @@ describe('runWorkflow — fail-fast and cancellation', () => {
     ).rejects.toThrow(/工作流执行已取消/)
   })
 
+  it('forwards the expected guideline revision to manifest validation', async () => {
+    const declared = { ...manifest('guideline', [stage('a')]), guidelineRevision: '2026' }
+    const result = await runWorkflow(declared, { input: 'x' }, okExecutor, { guidelineRevision: '2026' })
+    expect(result.completed).toBe(true)
+    await expect(
+      runWorkflow(declared, { input: 'x' }, okExecutor, { guidelineRevision: '2025' }),
+    ).rejects.toThrow(/与当前指南版本（2025）不一致/)
+  })
+
   it('rejects a manifest declaring an unknown atom before executing anything', async () => {
     await expect(
       runWorkflow(manifest('unknown-atom', [stage('a', { atom: 'no-such-atom' })]), { input: 'x' }, okExecutor),

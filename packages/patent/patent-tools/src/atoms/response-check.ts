@@ -172,6 +172,7 @@ function readNotice(
     try {
       parsed = JSON.parse(text)
     } catch (error) {
+      /* v8 ignore next -- JSON.parse only rejects with Error values */
       const message = error instanceof Error ? error.message : String(error)
       return { kind: 'error', reason: `state.${officeActionKey} 不是合法 JSON：${message}` }
     }
@@ -282,6 +283,7 @@ export class ResponseCheckHandler implements StageHandler {
     if (officeActionKey === undefined) {
       return degraded('response-check', 'params.office_action_key 必须是非空字符串')
     }
+    /* v8 ignore next -- the default key list is non-empty by declaration */
     const noticeKey = resolveKey(state, 'notice_key', DEFAULT_NOTICE_TEXT_KEYS[0] ?? 'notice')
     if (noticeKey === undefined) {
       return degraded('response-check', 'params.notice_key 必须是非空字符串')

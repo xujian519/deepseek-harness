@@ -157,6 +157,21 @@ describe('readSectionGeometry 环归并', () => {
     ]))
     expect(geometry.regions).toEqual([{ outer: 0, holes: [1, 2], netAreaMm2: 1800 - 16 - 36 }])
   })
+
+  it('同深度父环按包含关系筛选：不包含的候选跳过，相等深度取先出现的', () => {
+    // A 是外轮廓；P1/P2 的探针都落在 A 内、但都伸出 A 之外；C 同时落在 P1 与 P2 内、
+    // 却在 A 外 —— 于是 C 的深度为 2，两个深度 1 的候选都包含它，父环取环序在前者。
+    const geometry = readSectionGeometry(payload([
+      ring([[10, 10], [-10, 10], [-10, -10], [10, -10]]),
+      ring([[2, 2], [-20, 2], [-20, -20], [2, -20]]),
+      ring([[1, 6], [-21, 6], [-21, -18], [1, -18]]),
+      ring(rect(4, 4, -15, 0)),
+      ring(rect(2, 2, 30, 30)),
+    ]))
+    expect(geometry.rings.map(item => item.depth)).toEqual([0, 1, 1, 2, 0])
+    expect(geometry.regions[0]).toEqual({ outer: 0, holes: [1, 2], netAreaMm2: 400 - 484 - 528 })
+    expect(geometry.regions[1]).toEqual({ outer: 3, holes: [], netAreaMm2: 16 })
+  })
 })
 
 describe('readSectionGeometry 面积核对', () => {

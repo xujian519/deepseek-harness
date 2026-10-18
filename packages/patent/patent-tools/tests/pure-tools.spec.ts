@@ -184,6 +184,30 @@ describe('draft_specification', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('壳体')
   })
+
+  it('accepts entries without electrical data or without component values', async () => {
+    const ctx = await ctxWith(createDraftSpecificationTool())
+    const result = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [
+        { figureDescription: '整体结构示意图' },
+        { figureDescription: '电路原理图', electrical: { components: [{ ref: '2', name: '电源' }] } },
+      ],
+    }, 'ds-15')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('电源')
+  })
+
+  it('rejects a null electrical component entry', async () => {
+    const ctx = await ctxWith(createDraftSpecificationTool())
+    const result = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [{ figureDescription: '电路原理图', electrical: { components: [null] } }],
+    }, 'ds-16')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('figure_analysis[0].electrical.components[0] 必须是对象')
+  })
 })
 
 describe('draft_claims additional-fee threshold', () => {

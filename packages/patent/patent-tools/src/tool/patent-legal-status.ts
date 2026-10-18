@@ -9,6 +9,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { LegalStatusChecker } from '@deepseek-ai/nuo-patent'
 import type { CniprChannel, CniprLegalRecord, CniprLegalStatusItem } from '@deepseek-ai/dsh-patent-data'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** Input for the patent_legal_status tool. */
 export type PatentLegalStatusInput = {
@@ -88,9 +89,7 @@ function renderLegalStatus(value: PatentLegalStatusOutput): string {
   const truncation = value.truncatedCount !== undefined && value.truncatedCount > 0
     ? `\n⚠️ ${value.truncatedCount} 个专利号超出 20 条上限被截断，未查询。`
     : ''
-  const warningLines = value.warnings.length > 0
-    ? ['', '## 通道告警', ...value.warnings.map(w => `- ${w}`)]
-    : []
+  const warningLines = warningSection(value.warnings, '通道告警')
   return [`patent_legal_status: ${value.results.length} result(s)`, '', lines.join('\n') + truncation, ...warningLines].join('\n')
 }
 
@@ -118,6 +117,7 @@ function cniprLegalStatusItem(patentNumber: string, records: readonly CniprLegal
   return {
     patentNumber,
     title: '',
+    /* v8 ignore next -- callers only build this item from a non-empty record list */
     status: latest?.status ?? 'UNKNOWN',
     ifiStatus: '',
     estimatedExpiration: '',
@@ -158,6 +158,7 @@ async function retryThroughCnipr(
   if (retry.length === 0) return []
   let reported: CniprLegalStatusItem[]
   try {
+    /* v8 ignore next -- exec.signal is always present on the tool execution context */
     reported = await cnipr.legalStatus(retry, { ...(signal === undefined ? {} : { signal }) })
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
@@ -224,7 +225,7 @@ export function createPatentLegalStatusTool(deps: PatentLegalStatusDeps = {}): T
             },
           },
           truncatedCount: { type: 'number', description: '超出 20 条上限被截断未查询的专利号数量' },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderLegalStatus(value) }],

@@ -3,17 +3,17 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/README.md
 /:
-  en: af660d6f98affd7c
-  zh: 981019638065dadf
+  en: 2a52155e21cde467
+  zh: d75cff85b21b94b9
 /patent-sati-patent-domain-capability-family:
   en: 15c093e1301d8ced
   zh: 7bfcd65fcab48194
 /patent-sati-patent-domain-capability-family/summary:
-  en: da5e7f09596a64da
-  zh: 19cc56302c051a8c
+  en: 0dad7ede8a626288
+  zh: 17dd8a850170dbad
 /patent-sati-patent-domain-capability-family/packages:
-  en: d5aba10484c30115
-  zh: 5658542ba7fdb637
+  en: ca673d48b45a7be3
+  zh: 91deb3e35a91f132
 /patent-sati-patent-domain-capability-family/related-documentation:
   en: a269dfb14e721a47
   zh: 1efa6faa1b51b6f9

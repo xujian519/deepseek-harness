@@ -567,6 +567,15 @@ describe('mailbox persistence', () => {
     expect(mailbox[0]).toMatchObject({ from: 'alice', to: 'captain', content: 'hello m1' })
   })
 
+  it('appends without a separator to an existing empty mailbox', async () => {
+    const root = await tmpRoot()
+    await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })
+    await writeFile(join(root, 'alpha', 'inbox', 'captain.jsonl'), '')
+    await appendMailbox(root, 'alpha', CAPTAIN_KEY, message('m1'))
+    expect(await readFile(join(root, 'alpha', 'inbox', 'captain.jsonl'), 'utf8'))
+      .toBe(`${JSON.stringify(message('m1'))}\n`)
+  })
+
   it('readMailbox returns [] when the mailbox does not exist', async () => {
     const root = await tmpRoot()
     expect(await readMailbox(root, 'alpha', CAPTAIN_KEY)).toEqual([])

@@ -10,10 +10,10 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { datedOutputDir, inspectPdfBody, isHtmlContentType, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
+import { inspectPdfBody, isHtmlContentType, resolveDatedOutputDir, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
 import { EgoExtractor, type PageExtractor } from '@deepseek-ai/dsh-browser-backend'
 import type { Connector } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
@@ -87,8 +87,7 @@ function pdfBodyFaultMessage(fault: PdfBodyFault): string {
 
 /** Default output directory resolution: explicit outputDir relative to cwd, else <cwd>/论文原文/YYYY-MM-DD. */
 function defaultResolveOutputDir(outputDir: string | undefined, cwd: string): string {
-  if (outputDir) return resolve(cwd, outputDir)
-  return datedOutputDir(cwd, '论文原文')
+  return resolveDatedOutputDir(outputDir, cwd, '论文原文')
 }
 
 /** A fetched PDF body with the download duration. */

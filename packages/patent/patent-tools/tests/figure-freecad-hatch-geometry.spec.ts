@@ -257,6 +257,16 @@ describe('readHatchGeometry 取向、间距与落点核对', () => {
     expect(error.message).toContain('孔 #1 内')
   })
 
+  it('中点不在孔内时放行（孔环只排除孔内的线段）', () => {
+    const withHole: SectionHatchRequest = {
+      regions: [{ outline: rect(40, 20), holes: [polygon(64, 3)] }],
+      angleDeg: 45,
+      spacingMm: 3,
+    }
+    const payload = payloadOf(withHole, [[familySegment(45, 'forward', 6)]])
+    expect(readHatchGeometry(payload, withHole).segments).toHaveLength(1)
+  })
+
   it('线段中点落在材料外轮廓之外即报错', () => {
     const payload = payloadOf(request, [[familySegment(45, 'forward', 200)]])
     const error = captureError(() => readHatchGeometry(payload, request))
@@ -278,6 +288,13 @@ describe('readHatchGeometry 取向、间距与落点核对', () => {
 
     const zeroLength = payloadOf(request, [[[[1, 1], [1, 1]]]])
     expect(captureError(() => readHatchGeometry(zeroLength, request)).message).toContain('零长线段')
+
+    // 端点不是数组（子进程产物可能给标量）：按 JSON 文本构造，与真实产物同形。
+    const reportedPattern = payloadOf(request, [[]]).pattern
+    const scalarEndpoint = JSON.parse(
+      `{"pattern": ${JSON.stringify(reportedPattern)}, "regions": [{"segments_mm": [[[0, 0], 5]]}]}`,
+    ) as HatchGeometryPayload
+    expect(captureError(() => readHatchGeometry(scalarEndpoint, request)).message).toContain('不是有限二维坐标')
 
     // 产物少了线段数组：按 JSON 文本构造（结构出错正是产物来自子进程时的真实可能）。
     const reported = payloadOf(request, [[]]).pattern

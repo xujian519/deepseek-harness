@@ -271,6 +271,7 @@ describe('evaluate_evidence deeper paths', () => {
       claimRefs: ['c1'],
       evidenceType: 'internet_publication',
       filingDate: '2020-01-01',
+      priorityDate: '2019-06-01',
       caseType: 'invalidation',
       notarized: true,
       legalized: true,

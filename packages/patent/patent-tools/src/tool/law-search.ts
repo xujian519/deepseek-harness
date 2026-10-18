@@ -19,6 +19,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { LawSearchResult } from '@deepseek-ai/dsh-patent-knowledge'
 import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
+import { knowledgeInstallGuidance, truncateSnippet } from './internal/knowledge.ts'
 import { resolveResultLimit } from './internal/query-limit.ts'
 
 /** Which normative corpus of the knowledge base to search. */
@@ -68,13 +69,7 @@ export type LawSearchDeps = {
   dbPath?: string
 }
 
-const INSTALL_GUIDANCE = '本地规范库不可用：knowledge.db 缺失或版本不符。请先运行 patent-knowledge-install 准备本地 knowledge.db，或配置知识库目录（Config.knowledgeDir）。'
-
-/** Truncate an over-long hit snippet (avoid oversized context). */
-function truncateSnippet(content: string, maxChars = 800): string {
-  if (content.length <= maxChars) return content
-  return `${content.slice(0, maxChars)}\n…（截断，共 ${content.length} 字）`
-}
+const INSTALL_GUIDANCE = knowledgeInstallGuidance('本地规范库', '（Config.knowledgeDir）')
 
 const DESCRIPTION = [
   '检索部署的外接 IP 知识库（knowledge.db 全文索引）里的规范原文：scope=law 取法律法规条文，scope=guideline 取《专利审查指南》全文。',

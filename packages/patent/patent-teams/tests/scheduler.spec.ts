@@ -412,6 +412,22 @@ describe('installTeamScheduler kickMember', () => {
     expect(afterDispatch!.tasks[0]!.status).toBe('claimed')
   })
 
+  it('leaves an already idle member untouched when the snapshot task vanished', async () => {
+    const { workspace, stateDir, scheduler } = await makeHarness()
+    const captain = fakeAgent('captain-1', workspace)
+    await createTeamDir(join(workspace, stateDir), makeState({
+      members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'idle' }],
+    }))
+    const snapshot = makeState({
+      members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'idle' }],
+      tasks: [makeTask()],
+    })
+    await scheduler.kickMember(workspace, 'team1', 'alice', captain, undefined, snapshot)
+    const team = await readTeam(join(workspace, stateDir), 'team1')
+    expect(team?.members[0]?.status).toBe('idle')
+    expect(team?.tasks).toEqual([])
+  })
+
   it('marks a working member idle when no ready work remains', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness()
     await createTeamDir(join(workspace, stateDir), makeState({

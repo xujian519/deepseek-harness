@@ -35,6 +35,7 @@ import { loggedToolModel } from './internal/model-call-log.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
 import { COMPONENT_SCHEMA, FIGURE_COMPONENT_KINDS } from './internal/figure-schemas.ts'
 import type { FigureComponentKind } from './internal/figure-schemas.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** 附图类型（PatentVision 分类 + 专利实务常见图型）。 */
 export const FIGURE_TYPES = [
@@ -539,9 +540,7 @@ export function renderFigureAnalysis(value: FigureAnalysisResult): string {
   if (value.connections.length > 0) {
     lines.push('', '## 连接关系', ...value.connections.map(c => `- ${c.source} → ${c.target}（${c.kind}）：${c.description}`))
   }
-  if (value.warnings.length > 0) {
-    lines.push('', '## 警告', ...value.warnings.map(w => `- ${w}`))
-  }
+  lines.push(...warningSection(value.warnings))
   return lines.join('\n')
 }
 
@@ -589,7 +588,7 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
           connections: { type: 'array', required: true, items: CONNECTION_SCHEMA },
           figureDescription: { type: 'string', required: true },
           confidence: { type: 'number', required: true },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
           usable: { type: 'boolean', required: true },
           modelUsed: { type: 'string', required: true },
         },

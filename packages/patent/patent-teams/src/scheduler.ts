@@ -427,15 +427,17 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
     const stateRoot = stateRootOf(workspace, config.stateDir)
     const located = await findTeamByParticipant(stateRoot, agent.id)
     if (located === undefined || located.captainSessionId === agent.id) {
+      /* v8 ignore next -- a cached undefined entry only exists when the key is absent */
       if (!memberIndex.has(agent.id)) memberIndex.set(agent.id, null)
       return
     }
-    // v8 ignore next 3 -- findTeamByParticipant only matches surviving members, so this guard is defensive
+    /* v8 ignore start -- findTeamByParticipant only matches surviving members, so this guard and its return are defensive */
     const member = located.members.find(candidate => candidate.id === agent.id && candidate.status !== 'removed')
     if (member === undefined) {
       if (!memberIndex.has(agent.id)) memberIndex.set(agent.id, null)
       return
     }
+    /* v8 ignore stop */
     const entry = { teamId: located.id, memberName: member.name }
     memberIndex.set(agent.id, entry)
     await syncKnownMember(agent, status, entry)

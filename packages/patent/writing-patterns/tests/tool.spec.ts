@@ -121,6 +121,43 @@ describe('query_writing_patterns execution', () => {
     expect(value.skills).not.toContain('wp-spec-background')
   })
 
+  it('searches within a category when both a query and a category are given', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { query: '新颖性', category: 'oa_novelty' })
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as QueryWritingPatternsOutput
+    expect(value.mode).toBe('search')
+    expect(value.patterns.map(pattern => pattern.id)).toEqual(['wp-oa-novelty-separate'])
+  })
+
+  it('matches features within a category and ignores blank features', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { category: 'claim_drafting', features: ['引用关系', '   '] })
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as QueryWritingPatternsOutput
+    expect(value.mode).toBe('match')
+    expect(value.patterns.map(pattern => pattern.id)).toContain('wp-claim-dependent-layering')
+  })
+
+  it('matches case features without a category', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { features: ['创造性'] })
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as QueryWritingPatternsOutput
+    expect(value.mode).toBe('match')
+    expect(value.patterns.map(pattern => pattern.id)).toContain('wp-oa-inventiveness-3step')
+  })
+
+  it('caps an argument-free catalog listing with an explicit limit', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { limit: 2 })
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as QueryWritingPatternsOutput
+    expect(value.mode).toBe('catalog')
+    expect(value.patterns).toHaveLength(2)
+    expect(value.librarySize).toBeGreaterThan(2)
+  })
+
   it('searches by keyword and honours a per-call limit', async () => {
     const ctx = await host()
     const result = await execute(ctx, { query: '三步法', limit: 1 })

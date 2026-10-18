@@ -145,6 +145,7 @@ export function parseDrawingSvg(svgText: string): { geometry: SvgGeometry; warni
   assertSafeSvg(svgText, DEFAULT_SVG_MAX_BYTES)
   const openTag = /<svg\b[^>]*>/i.exec(svgText)?.[0]
   const closeIndex = svgText.toLowerCase().lastIndexOf('</svg>')
+  /* v8 ignore next 2 -- assertSafeSvg already requires both the <svg…> open tag and </svg>. */
   if (openTag === undefined || closeIndex < 0) {
     throw new SvgAnnotateError('invalid_svg', '非 SVG 文档：缺少 <svg> 根元素')
   }

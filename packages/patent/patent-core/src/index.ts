@@ -152,6 +152,7 @@ export {
   datedOutputDir,
   inspectPdfBody,
   isHtmlContentType,
+  resolveDatedOutputDir,
 } from './pdf-download.ts'
 export type { PdfBodyFault } from './pdf-download.ts'
 

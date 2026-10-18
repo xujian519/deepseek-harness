@@ -7,9 +7,10 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { PatentToolError } from '../error.ts'
+import { createToolInputReader } from './internal/tool-input.ts'
 import { DOMAIN_KEYWORDS } from './draft-claims.ts'
 import type { PatentType, TechDomain } from './draft-claims.ts'
+import { WARNINGS_SCHEMA } from './internal/tool-output.ts'
 
 /** Minimal figure-analysis shape the drafting layer reads (Sati figure/types.ts). */
 export type FigureAnalysisResult = {
@@ -192,16 +193,9 @@ const SECTION_SCHEMA = {
   },
 } as const
 
-/** Model JSON boundary: a field-level input error that names the offending path. */
-function invalidToolInput(message: string): PatentToolError {
-  return new PatentToolError('invalid_tool_input', message, { tool: 'draft_specification' })
-}
-
-/** Read a required string field. */
-function requireString(raw: unknown, field: string): string {
-  if (typeof raw !== 'string') throw invalidToolInput(`${field} 必须是字符串`)
-  return raw
-}
+const input = createToolInputReader('draft_specification')
+const invalidToolInput = input.invalid
+const requireString = input.requireString
 
 /**
  * Validate `figure_analysis` before drafting reads it. The tool schema types the
@@ -209,6 +203,7 @@ function requireString(raw: unknown, field: string): string {
  * otherwise reach `.trim()` / `.length` as a bare TypeError.
  */
 function parseFigureAnalysis(raw: unknown): FigureAnalysisResult[] {
+  /* v8 ignore next -- the tool schema rejects a non-array before execute; the guard serves direct callers */
   if (!Array.isArray(raw)) throw invalidToolInput('figure_analysis 必须是数组')
   return raw.map((entry, index) => {
     const field = `figure_analysis[${index}]`
@@ -285,7 +280,7 @@ export function createDraftSpecificationTool(): ToolDefinition {
           tech_domain: { type: 'string', required: true, enum: ['mechanical', 'electrical', 'chemical', 'software', 'general'] },
           patent_type: { type: 'string', required: true, enum: ['invention', 'utility_model'] },
           sections: { type: 'array', required: true, items: SECTION_SCHEMA },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderDraftSpecification(value) }],

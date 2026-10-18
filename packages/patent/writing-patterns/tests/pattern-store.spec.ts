@@ -99,6 +99,19 @@ describe('packaged pattern corpus', () => {
     expect(store.byCategory('claim_drafting')).toHaveLength(1)
   })
 
+  it('keeps the last record for a duplicate id, which the file boundary forbids', () => {
+    const store = new PatternStore([
+      makePattern({ id: 'dup', name: 'first' }),
+      makePattern({ id: 'dup', name: 'second' }),
+    ])
+    expect(store.get('dup')?.name).toBe('second')
+  })
+
+  it('extracts a sub-category and tolerates a pattern without authored keywords', () => {
+    const pattern = makePattern({ id: 'p2', subCategory: 'background', steps: [] })
+    expect(patternKeywords(pattern)).toEqual(['pattern p2', 'claim_drafting', 'background'])
+  })
+
   it('extracts authored keywords and step names, skipping one-character entries and rule text', () => {
     const pattern = makePattern({
       id: 'p1',
@@ -303,6 +316,18 @@ describe('corpus loading is fail-loud', () => {
       'p1.yaml': `${MINIMAL}dos:\n  - rule: Follow\n    reason: because\n`,
     })
     expect(() => loadPatternCorpus(principle)).toThrow(/根节点\.dos\[0\] 含未知字段：reason/)
+  })
+
+  it('keeps authored example context and note, and omits both when absent', async () => {
+    const dir = await writeCorpus({
+      'p1.yaml': `${MINIMAL}examples:\n  - text: Example\n    context: 场景\n    note: 备注\n`,
+      'p2.yaml': MINIMAL.replace('id: p1', 'id: p2').replace('name: P1', 'name: P2')
+        + 'examples:\n  - text: Plain\n',
+    })
+    expect(loadPatternCorpus(dir).map(pattern => pattern.examples)).toEqual([
+      [{ text: 'Example', context: '场景', note: '备注' }],
+      [{ text: 'Plain' }],
+    ])
   })
 
   it('reports a YAML syntax error', async () => {

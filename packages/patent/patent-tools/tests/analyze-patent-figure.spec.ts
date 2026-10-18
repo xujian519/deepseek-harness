@@ -8,6 +8,7 @@ import type { PatentModelPort, PatentModelRequest } from '@deepseek-ai/dsh-paten
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { FigureAnalysisResult } from '../src/tool/analyze-patent-figure.ts'
 import type { FigureIndexEntry } from '../src/figure/index-store.ts'
+import { PatentToolError } from '../src/error.ts'
 import { createAnalyzePatentFigureTool, resolveGateRoute } from '../src/tool/analyze-patent-figure.ts'
 import { createTwoStepAnalysisEngine } from '../src/figure/analysis-engine.ts'
 
@@ -178,6 +179,48 @@ describe('analyze_patent_figure vision path', () => {
     })
   })
 
+  it('names the missing extension when the path has none', async () => {
+    const tool = createAnalyzePatentFigureTool({ ...visionDeps })
+    await expect(tool.execute({ image_path: 'figure' }, exec)).rejects.toThrow('无扩展名')
+  })
+
+  it('rethrows a typed attachment-store failure unchanged', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-gate-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const tool = createAnalyzePatentFigureTool({
+        ...visionDeps,
+        saveImage: async () => {
+          throw new PatentToolError('setup_required', 'store unavailable', { tool: 'analyze_patent_figure' })
+        },
+        cwd: dir,
+      })
+      await expect(tool.execute({ image_path: 'fig1.png' }, exec)).rejects.toMatchObject({
+        code: 'setup_required',
+        message: 'store unavailable',
+      })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('maps a non-Error attachment-store failure to invalid_tool_input', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-gate-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const tool = createAnalyzePatentFigureTool({
+        ...visionDeps,
+        saveImage: async () => {
+          throw 'store exploded'
+        },
+        cwd: dir,
+      })
+      await expect(tool.execute({ image_path: 'fig1.png' }, exec)).rejects.toThrow('store exploded')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('maps a store admission failure to invalid_tool_input', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-gate-'))
     try {
@@ -329,5 +372,48 @@ describe('analyze_patent_figure two-step mode', () => {
     await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
       code: 'model_cannot_accept_image',
     })
+  })
+
+  it('第一步的组件连接进入第二步提示词与最终结果', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-2step-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const structureWithConnection = JSON.stringify({
+        figure_type: 'block_diagram',
+        overall_description: '整体结构',
+        confidence: 0.8,
+        components: [
+          { ref_number: '1', name: '壳体', kind: 'mechanical', description: '外壳' },
+          { ref_number: '2', name: '盖板', kind: 'mechanical', description: '顶盖' },
+        ],
+        connections: [{ source: '1', target: '2', kind: 'mechanical', description: '螺栓连接' }],
+        warnings: [],
+      })
+      const seen: PatentModelRequest[] = []
+      const tool = twoStepTool(dir, [structureWithConnection, '图1是本发明实施例提供的装置的框图。'], seen)
+      const result = (await tool.execute({ image_path: 'fig1.png', figure_number: 1 }, exec)) as FigureAnalysisResult
+      expect(seen).toHaveLength(2)
+      expect(seen[1]?.messages[0]?.content).toContain('螺栓连接')
+      expect(result.connections).toHaveLength(1)
+      expect(result.connections[0]).toMatchObject({ source: '1', target: '2', description: '螺栓连接' })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('第二步只给空白说明时保留第一步结构生成的附图说明', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-2step-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const seen: PatentModelRequest[] = []
+      const tool = twoStepTool(dir, [STRUCTURE_PASS, '   '], seen)
+      const result = (await tool.execute({ image_path: 'fig1.png', figure_number: 1, invention_name: '一种装置' }, exec)) as FigureAnalysisResult
+      expect(seen).toHaveLength(2)
+      expect(result.figureDescription).toContain('图1')
+      expect(result.figureDescription).toContain('壳体')
+      expect(result.components).toHaveLength(1)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

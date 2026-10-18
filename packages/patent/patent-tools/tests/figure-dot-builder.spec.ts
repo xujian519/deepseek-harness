@@ -7,6 +7,7 @@ import {
   buildComponentHierarchyDOT,
   buildDotHeader,
   buildFlowchartDOT,
+  buildStateDiagramDOT,
   escapeDotLabel,
   findFileReferenceAttribute,
   getDiagramTemplate,
@@ -129,6 +130,9 @@ describe('findFileReferenceAttribute', () => {
       'digraph { /* fontpath="/usr/share/fonts" */ a -> b }',
       'digraph { a [ image_scale=true ]; b [ imagepath="/tmp" ] }',
       'digraph { a [ label="a\\"b image=/x" ] }',
+      // 未闭合的注释一路延伸到文件末尾：掩码到输入尾部而不是越界。
+      'digraph { /* image="/etc/passwd"',
+      'digraph { // image="/etc/passwd"',
     ]
     for (const dot of cases) {
       expect(findFileReferenceAttribute(dot), dot).toBeUndefined()
@@ -268,6 +272,50 @@ describe('buildComponentHierarchyDOT', () => {
   })
 })
 
+describe('buildStateDiagramDOT', () => {
+  it('initial 伪状态不分配标号；final 双圆；空标签与 embedNumerals:false 不写标号', () => {
+    const dot = buildStateDiagramDOT(
+      [
+        { id: 'start', label: '', kind: 'initial' },
+        { id: 'idle', label: '待机' },
+        { id: 'done', label: '完成', kind: 'final' },
+        { id: 'anon', label: '  ' },
+      ],
+      [
+        { from: 'start', to: 'idle', label: '开机' },
+        { from: 'idle', to: 'anon' },
+        { from: 'anon', to: 'done', label: '' },
+      ],
+      { fontName: 'Arial', page: { pageSize: 'a4' } },
+    )
+    expect(dot).toContain('"start" [label="", shape=circle, style=filled, fillcolor=black')
+    expect(dot).toContain('"idle" [label="100. 待机", shape=box, style=rounded]')
+    expect(dot).toContain('"done" [label="102. 完成", shape=doublecircle]')
+    expect(dot).toContain('"anon" [label=')
+    expect(dot).toContain('"start" -> "idle" [label="开机"]')
+    expect(dot).toContain('"idle" -> "anon";')
+    expect(dot).toContain('fontname="Arial"')
+    expect(dot).toContain('page="')
+
+    const plain = buildStateDiagramDOT([{ id: 'a', label: '待机' }], [], { embedNumerals: false })
+    expect(plain).toContain('"a" [label="待机", shape=box, style=rounded]')
+    expect(plain).toContain('fontname="Helvetica"')
+  })
+
+  it('拒绝空状态、重复 id 与不存在的转移端点', () => {
+    expect(() => buildStateDiagramDOT([], [])).toThrow(DotBuildError)
+    expect(() => buildStateDiagramDOT([{ id: 'a', label: 'A' }, { id: 'a', label: 'B' }], [])).toThrow(/状态 id 重复/)
+    expect(() => buildStateDiagramDOT(
+      [{ id: 'a', label: 'A' }],
+      [{ from: 'ghost', to: 'a' }],
+    )).toThrow(/转移源状态不存在/)
+    expect(() => buildStateDiagramDOT(
+      [{ id: 'a', label: 'A' }],
+      [{ from: 'a', to: 'ghost' }],
+    )).toThrow(/转移目标状态不存在/)
+  })
+})
+
 describe('getDiagramTemplate', () => {
   it('四个内置模板均可构建（默认黑白）', () => {
     for (const name of ['simple_flowchart', 'system_block', 'method_steps', 'component_hierarchy'] as const) {
@@ -357,6 +405,19 @@ describe('page attributes in DOT header', () => {
     const header = lines.join('\n')
     expect(header).toContain('margin="0.5,0.5";')
     expect(header).not.toContain('page=')
+  })
+
+  it('既无页面尺寸也无边距时只输出 dpi（不臆造 margin）', () => {
+    const header = buildDotHeader('Flowchart', {
+      rankdir: 'TB',
+      fontName: 'Helvetica',
+      filled: false,
+      page: { dpi: 600 },
+    }).join('\n')
+    expect(header).toContain('dpi=600;')
+    expect(header).not.toContain('page=')
+    expect(header).not.toContain('margin=')
+    expect(header).not.toMatch(/^\s+size="/m)
   })
 
   it('流程图/框图/层级图/模板构建器透传页面属性', () => {

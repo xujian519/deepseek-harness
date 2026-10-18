@@ -304,6 +304,18 @@ describe('buildAppearanceViewSheet 校验', () => {
     })).toThrow(/事件处理属性/)
   })
 
+  it('十进制字符引用同样解码后再检查，超出 Unicode 范围的引用原样保留', () => {
+    // &#106; 是 j：解码后仍是 javascript: URL。
+    expectError({
+      views: [{ name: '主视图', body: '<a href="&#106;avascript:alert(1)"><rect/></a>', widthMm: 40, heightMm: 20 }],
+    }, 'invalid_input')
+    // 超出 0x10ffff 的码点不转成字符，作为普通文本落版。
+    const sheet = buildAppearanceViewSheet({
+      views: [{ name: '主视图', body: '<rect x="0" y="0" width="40" height="20" data-note="&#x110000;"/>', widthMm: 40, heightMm: 20 }],
+    })
+    expect(sheet.spec.body).toContain('&#x110000;')
+  })
+
   it('版面参数非正或非有限报 invalid_input', () => {
     const invalid: readonly AppearanceSheetInput[] = [
       { views: [view('主视图')], cellMm: 0 },

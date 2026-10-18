@@ -61,6 +61,7 @@ import {
 } from './figure-tool-schemas.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
 import { assertRendered, sectionSourceError } from './internal/render-outcome.ts'
+import { WARNINGS_SCHEMA } from './internal/tool-output.ts'
 
 const DESCRIPTION = [
   '生成专利风格附图：流程图（方法步骤）、状态图（状态+转移条件）、系统框图（组件+连接）、组件层级图，以及直接绘制 SVG 的电路图、曲线图/坐标图、剖视图（含剖面线与剖切符号）、时序图、外观设计六面视图排布；另有内置模板与原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。',
@@ -185,6 +186,7 @@ async function resolveSectionsFile(
   } catch (error) {
     throw new PatentToolError(
       'invalid_tool_input',
+      /* v8 ignore next -- JSON.parse only rejects with Error values */
       `sections 文件不是合法 JSON：${sections}（${error instanceof Error ? error.message : String(error)}）`,
       { tool: 'generate_patent_figure' },
     )
@@ -717,6 +719,7 @@ async function finishSvgChain(args: {
     if (staged.layout !== undefined) args.output.layout = staged.layout
     return 'done'
   }
+  /* v8 ignore next -- chain implies the export port is wired, so the call always returns an outcome */
   const reason = exported === undefined ? '宿主未注入格式导出端口' : exported.error
   if (!args.hasDirectRender) {
     throw new PatentToolError(exported?.code === 'not_installed' ? 'setup_required' : 'tool_execution_failed', `导出 ${args.format} 失败：${reason}`, { tool: 'generate_patent_figure' })
@@ -844,10 +847,12 @@ async function renderSingleFigure(
         ...(deps.figureFontMm === undefined ? {} : { defaultFontMm: deps.figureFontMm }),
       })
     } catch (error) {
+      /* v8 ignore start -- buildVectorFigure only throws VectorFigureError; keep the rethrow loud for invariant drift */
       if (error instanceof VectorFigureError) {
         throw new PatentToolError('invalid_tool_input', `${normalized.figure_type} 输入校验失败：${error.message}`, { tool: 'generate_patent_figure' })
       }
       throw error
+      /* v8 ignore stop */
     }
     const path = join(run.outputDir, `${sanitizeDotFilename(filename)}.svg`)
     const svg = vectorFigureSvg(build.spec, vectorTitle(normalized.invention_name, toFigureType(normalized.figure_type)))
@@ -1037,8 +1042,10 @@ async function checkRenderedFigure(args: { path: string; warnings: string[]; fig
   try {
     svg = await readFile(args.path, 'utf8')
   } catch (error) {
+    /* v8 ignore start -- the delivered file was just written; a read failure is reported without aborting */
     args.warnings.push(`渲染复核被跳过：读取 ${args.path} 失败（${error instanceof Error ? error.message : String(error)}）`)
     return
+    /* v8 ignore stop */
   }
   try {
     const report = checkFigureRendering(svg, {
@@ -1047,9 +1054,10 @@ async function checkRenderedFigure(args: { path: string; warnings: string[]; fig
     })
     args.warnings.push(...report.findings.map(finding => `渲染复核：${finding.message}`))
   } catch (error) {
-    /* v8 ignore next -- 复核只抛 SvgAnnotateError；其余异常原样上抛（不变量漂移） */
+    /* v8 ignore start -- the rendered file already passed the same safety check during layout/write */
     if (!(error instanceof SvgAnnotateError)) throw error
     args.warnings.push(`渲染复核被跳过：${error.message}`)
+    /* v8 ignore stop */
   }
 }
 
@@ -1183,7 +1191,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
               },
             },
           },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
           indexed: { type: 'boolean', required: true },
           layout: { ...LAYOUT_SCHEMA, description: '落版与合规核算结果（给定 target_office 时）' },
           panels: {

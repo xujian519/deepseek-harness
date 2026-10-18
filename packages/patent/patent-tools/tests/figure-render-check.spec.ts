@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkFigureRendering } from '../src/figure/render-check.ts'
+import { scanSvg } from '../src/figure/render-check-scan.ts'
 import { buildSectionDiagram } from '../src/figure/section-diagram.ts'
 import { SvgAnnotateError } from '../src/figure/svg-annotate.ts'
 import { vectorFigureSvg } from '../src/figure/vector-figure.ts'
@@ -906,5 +907,149 @@ describe('checkFigureRendering 字高与字高下限', () => {
     const report = checkFigureRendering(many, { minFontMm: 3 })
     expect(report.findings[0]?.message).toContain('6 处图面文字')
     expect(report.findings[0]?.message).toContain('等。')
+  })
+})
+
+describe('scanSvg 解析边界补充', () => {
+  it('行内 style 的无冒号声明被跳过，后续声明仍生效', () => {
+    const scan = scanSvg(svg('<rect x="0" y="0" width="4" height="4" style="fill;stroke-width:0.5"/>'))
+    expect(scan.shapes).toHaveLength(1)
+    expect(scan.shapes[0]?.strokeWidthMm).toBe(0.5)
+  })
+
+  it('font-size 支持 em、百分比与物理单位，非法文本按未量测记', () => {
+    const scan = scanSvg(svg([
+      '<g font-size="10">',
+      '<text x="0" y="10" style="font-size:2em">A</text>',
+      '<text x="20" y="10" style="font-size:150%">B</text>',
+      '<text x="40" y="10" style="font-size:3mm">C</text>',
+      '<text x="60" y="10" style="font-size:auto">D</text>',
+      '<text x="80" y="10" style="font-size:2ex">E</text>',
+      '</g>',
+    ].join('\n')))
+    const height = (index: number): number => {
+      const box = scan.texts[index]!.box
+      return box.maxY - box.minY
+    }
+    expect(height(0)).toBeCloseTo(20 * (0.75 + 0.12), 6)
+    expect(height(1)).toBeCloseTo(15 * (0.75 + 0.12), 6)
+    expect(height(2)).toBeCloseTo((3 / (25.4 / 96)) * (0.75 + 0.12), 5)
+    // 无法解析的字号按父级 10 估算，并记入未量测。
+    expect(height(3)).toBeCloseTo(10 * (0.75 + 0.12), 6)
+    expect(scan.unmeasured.join('\n')).toContain('font-size')
+  })
+
+  it('stroke-dasharray 的负值、全零与非数值都按实线处理', () => {
+    const scan = scanSvg(svg([
+      '<line x1="0" y1="0" x2="10" y2="0" stroke-width="0.5" stroke-dasharray="-1 2"/>',
+      '<line x1="0" y1="2" x2="10" y2="2" stroke-width="0.5" stroke-dasharray="0 0"/>',
+      '<line x1="0" y1="4" x2="10" y2="4" stroke-width="0.5" stroke-dasharray="auto 2"/>',
+      '<line x1="0" y1="6" x2="10" y2="6" stroke-width="0.5" stroke-dasharray="8 2 0.4"/>',
+    ].join('\n')))
+    expect(scan.shapes).toHaveLength(4)
+    expect(scan.shapes.slice(0, 3).every(shape => shape.dashPatternMm === undefined)).toBe(true)
+    // 奇数个取值按 SVG 规则重复一遍。
+    expect(scan.shapes[3]?.dashPatternMm).toEqual([8, 2, 0.4, 8, 2, 0.4])
+  })
+
+  it('非法变换参数使该图元未量测，合法 matrix 参与换算', () => {
+    const invalid = scanSvg(svg([
+      '<line transform="translate()" x1="0" y1="0" x2="4" y2="0" stroke-width="0.5"/>',
+      '<line transform="scale(1 2 3)" x1="0" y1="0" x2="4" y2="0" stroke-width="0.5"/>',
+      '<line transform="rotate(10 20)" x1="0" y1="0" x2="4" y2="0" stroke-width="0.5"/>',
+      '<line transform="matrix(1 0 0 1 5)" x1="0" y1="0" x2="4" y2="0" stroke-width="0.5"/>',
+      '<line transform="translate(a b)" x1="0" y1="0" x2="4" y2="0" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(invalid.shapes).toEqual([])
+    expect(invalid.unmeasured.join('\n')).toContain('参数非法')
+
+    const shifted = scanSvg(svg('<line transform="matrix(1 0 0 1 5 6)" x1="0" y1="0" x2="4" y2="0" stroke-width="0.5"/>'))
+    expect(shifted.shapes[0]?.subpaths[0]?.points).toEqual([[5, 6], [9, 6]])
+  })
+
+  it('路径解析覆盖裸数值、非数值参数、未知命令、只含 M 与缺 d', () => {
+    const scan = scanSvg(svg([
+      '<path d="1 2 L 3 4" stroke-width="0.5"/>',
+      '<path d="L 1 ? 2" stroke-width="0.5"/>',
+      '<path d="X 1 2" stroke-width="0.5"/>',
+      '<path d="M 1 2" stroke-width="0.5"/>',
+      '<path stroke-width="0.5"/>',
+      '<path d="L 3 4 L 5 6" stroke-width="0.5"/>',
+      '<text x="12" y="12"/>',
+    ].join('\n')))
+    // 只有最后一条（以 L 开头、隐式从当前点出发）产生几何。
+    expect(scan.shapes).toHaveLength(1)
+    expect(scan.shapes[0]?.subpaths[0]?.points).toEqual([[0, 0], [3, 4], [5, 6]])
+    expect(scan.unmeasured.join('\n')).toContain('无法解析')
+  })
+
+  it('缺 points 的折线、缺 x/y 的矩形与缺 cx/cy 的圆/椭圆按默认值量测', () => {
+    const scan = scanSvg(svg([
+      '<polyline stroke-width="0.5"/>',
+      '<rect width="4" height="4" stroke-width="0.5"/>',
+      '<circle r="2" stroke-width="0.5"/>',
+      '<ellipse rx="3" ry="2" stroke-width="0.5"/>',
+      '<ellipse rx="3" stroke-width="0.5"/>',
+    ].join('\n')))
+    expect(scan.shapes).toHaveLength(3)
+    expect(scan.shapes[0]?.subpaths[0]?.points).toEqual([[0, 0], [4, 0], [4, 4], [0, 4]])
+    expect(scan.shapes[1]?.subpaths[0]?.points[0]).toEqual([2, 0])
+    expect(scan.shapes[2]?.subpaths[0]?.points[0]).toEqual([3, 0])
+  })
+
+  it('直接扫描不带根元素的片段时按 96 dpi 用户单位换算', () => {
+    const scan = scanSvg('<line x1="0" y1="0" x2="96" y2="0" stroke-width="0.5"/>')
+    expect(scan.widthMm).toBeUndefined()
+    expect(scan.shapes).toHaveLength(1)
+    // 96 用户单位 = 25.4 毫米，线宽 0.5 用户单位同比换算。
+    expect(scan.shapes[0]?.subpaths[0]?.points[1]?.[0]).toBeCloseTo(25.4, 10)
+    expect(scan.shapes[0]?.strokeWidthMm).toBeCloseTo(0.5 * (25.4 / 96), 10)
+  })
+})
+
+describe('checkFigureRendering 遮挡与零长度线段', () => {
+  const numeral = '<text x="80" y="20" font-size="4" text-anchor="middle" fill="#000000" stroke="none">3</text>'
+
+  it('线段被更晚的白色填充从中间盖住：按交点切分后取可见段，不误报净距', () => {
+    const report = checkFigureRendering(svg([
+      '<line x1="77.5" y1="4" x2="77.5" y2="36" stroke-width="0.25"/>',
+      '<rect x="60" y="8" width="40" height="24" fill="#ffffff" stroke="none"/>',
+      numeral,
+    ].join('\n')))
+    expect(report.findings).toEqual([])
+  })
+
+  it('线段正好压在文字上边界时按 0 毫米净距报出', () => {
+    const report = checkFigureRendering(svg([
+      '<line x1="70" y1="17" x2="90" y2="17" stroke-width="0.25"/>',
+      numeral,
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    expect(report.findings[0]?.message).toContain('仅 0 毫米')
+  })
+
+  it('线段仅擦过文字框边缘（进入深度小于容差）时仍按相交距离 0 报净距', () => {
+    const report = checkFigureRendering(svg([
+      // 框上边界 y=20.48；线在框内 0.005 毫米处横向穿过左右两条边。
+      '<line x1="70" y1="20.475" x2="90" y2="20.475" stroke-width="0.25"/>',
+      numeral,
+    ].join('\n')))
+    expect(report.findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    expect(report.findings[0]?.message).toContain('仅 0 毫米')
+  })
+
+  it('零长度实线落在净距内时报出；零长度虚线不产生线段', () => {
+    const solid = checkFigureRendering(svg([
+      '<line x1="77.5" y1="20" x2="77.5" y2="20" stroke-width="0.25"/>',
+      numeral,
+    ].join('\n')))
+    expect(solid.findings.map(finding => finding.check)).toEqual(['text-clearance'])
+    expect(solid.findings[0]?.message).toContain('仅 1.3 毫米')
+
+    const dashed = checkFigureRendering(svg([
+      '<line x1="10" y1="10" x2="10" y2="10" stroke-width="0.25" stroke-dasharray="2 1"/>',
+      numeral,
+    ].join('\n')))
+    expect(dashed.findings).toEqual([])
   })
 })

@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createVizWasmRenderer,
   renderWithVizWasm,
@@ -10,9 +10,27 @@ import {
 import type { GraphvizRenderSpec } from '../src/figure/graphviz-renderer.ts'
 import type { VizInstance } from '../src/figure/viz-wasm-renderer.ts'
 
+// 写盘失败可被单次置为「非 Error 抛出」：验证错误文案对非 Error 拒绝值同样成立。
+const mockFs = vi.hoisted(() => ({ failWritePath: '' }))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    writeFile: ((...args: Parameters<typeof actual.writeFile>) => {
+      if (args[0] === mockFs.failWritePath) {
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- drives the non-Error rejection branch
+        return Promise.reject('plain-write-boom')
+      }
+      return actual.writeFile(...args)
+    }) as typeof actual.writeFile,
+  }
+})
+
 let temp: string | undefined
 
 afterEach(async () => {
+  mockFs.failWritePath = ''
   if (temp !== undefined) {
     await rm(temp, { recursive: true, force: true })
     temp = undefined
@@ -113,5 +131,57 @@ describe('renderWithVizWasm', () => {
     const outcome = await render(spec({ outputDir: dir, signal: caller.signal }))
     expect(!outcome.ok && outcome.code).toBe('aborted')
     expect(rendered).toBe(0)
+  })
+
+  it('加载失败原因不是 Error 时按 String(error) 报错', async () => {
+    const dir = await tempDir()
+    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- drives the non-Error rejection branch
+    const render = createVizWasmRenderer({ loadViz: () => Promise.reject('plain-load-boom') })
+    const outcome = await render(spec({ outputDir: dir }))
+    expect(outcome).toEqual({ ok: false, code: 'not_installed', error: vizLoadFailureMessage('plain-load-boom') })
+  })
+
+  it('渲染抛错原因不是 Error 时按 String(error) 报错', async () => {
+    const dir = await tempDir()
+    const render = createVizWasmRenderer({
+      loadViz: () => Promise.resolve(stubViz(() => { throw 'plain-render-boom' })),
+    })
+    const outcome = await render(spec({ outputDir: dir }))
+    expect(outcome).toEqual({ ok: false, code: 'render_failed', error: 'Graphviz WASM 渲染失败：plain-render-boom' })
+  })
+
+  it('渲染期间被取消时，渲染抛错仍归为 aborted', async () => {
+    const dir = await tempDir()
+    const caller = new AbortController()
+    const render = createVizWasmRenderer({
+      loadViz: () => Promise.resolve(stubViz(() => {
+        caller.abort()
+        throw new Error('boom')
+      })),
+    })
+    const outcome = await render(spec({ outputDir: dir, signal: caller.signal }))
+    expect(outcome).toEqual({ ok: false, code: 'aborted', error: 'Graphviz WASM 渲染被调用方取消' })
+  })
+
+  it('渲染成功但写盘前被取消时归为 aborted 且不写盘', async () => {
+    const dir = await tempDir()
+    const caller = new AbortController()
+    const render = createVizWasmRenderer({
+      loadViz: () => Promise.resolve(stubViz(() => {
+        caller.abort()
+        return '<svg/>'
+      })),
+    })
+    const outcome = await render(spec({ outputDir: dir, signal: caller.signal }))
+    expect(outcome).toEqual({ ok: false, code: 'aborted', error: 'Graphviz WASM 渲染被调用方取消' })
+    await expect(readFile(join(dir, 'fig1.svg'), 'utf8')).rejects.toThrow()
+  })
+
+  it('写盘失败原因不是 Error 时按 String(error) 报错', async () => {
+    const dir = await tempDir()
+    mockFs.failWritePath = join(dir, 'fig1.svg')
+    const render = createVizWasmRenderer({ loadViz: () => Promise.resolve(stubViz(() => '<svg/>')) })
+    const outcome = await render(spec({ outputDir: dir }))
+    expect(outcome).toEqual({ ok: false, code: 'render_failed', error: 'Graphviz WASM 渲染输出写盘失败：plain-write-boom' })
   })
 })

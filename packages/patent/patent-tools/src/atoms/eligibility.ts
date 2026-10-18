@@ -243,6 +243,7 @@ function splitUnits(text: string, scope: 'claims' | 'material'): UnitInput[] {
  */
 function extractSubject(text: string): string {
   const trimmed = text.trim().replace(/^\s*\d+[.、．]\s*/, '')
+  /* v8 ignore next -- split always yields at least the first element */
   const first = trimmed.split(/[，,。；;\n]/)[0]?.trim() ?? ''
   return first.slice(0, 120)
 }
@@ -368,6 +369,7 @@ function classifySubject(subject: string, signal: TechnicalSignal): EligibilityC
   if (MEDICAL_PREPARATION_RE.test(subject)) return 'technical-solution'
   if (MEDICAL_PRODUCT_RE.test(subject) && !subject.includes('方法')) return 'medical-use'
   const medical = MEDICAL_ACTION_RE.exec(subject)
+  /* v8 ignore next -- the action pattern always captures the gap group, empty at worst */
   if (medical !== null && !MEDICAL_TOOL_GAP_RE.test(medical[2] ?? '')) return 'medical-method'
   if (!MICROORGANISM_RE.test(subject)) {
     if (VARIETY_METHOD_RE.test(subject)) return 'variety-method'
@@ -419,6 +421,7 @@ function finding(input: FindingInput): EligibilityViolation {
     label: input.label,
     message: input.message,
     ...(input.claimNo !== undefined ? { claimNo: input.claimNo } : {}),
+    /* v8 ignore next -- every finding call site supplies a legal basis */
     ...(input.legalBasis !== undefined ? { legalBasis: input.legalBasis } : {}),
   }
 }

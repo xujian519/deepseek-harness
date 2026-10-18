@@ -1307,6 +1307,33 @@ describe('generate_patent_figure 文字转路径', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('模板落版时把页面参数与引线开关一并交给模板构建器', async () => {
+    const dir = tempDir()
+    const calls: GraphvizRenderSpec[] = []
+    const render = (spec: GraphvizRenderSpec): Promise<GraphvizRenderOutcome> => {
+      calls.push(spec)
+      const out = join(spec.outputDir, `${spec.filename}.${spec.format}`)
+      writeFileSync(out, '<svg width="400pt" height="500pt" viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg"><text font-size="10">A</text></svg>')
+      return Promise.resolve({ ok: true, path: out })
+    }
+    const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir })
+    try {
+      const result = await tool.execute({
+        figure_type: 'template',
+        template: 'method_steps',
+        target_office: 'cnipa',
+        page_size: 'a4',
+        leader_lines: true,
+        persist_index: false,
+      }, exec)
+      expect((result as { layout?: { office: string } }).layout?.office).toBe('cnipa')
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.format).toBe('svg')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('generate_patent_figure：部署图面字号（小四／四号）', () => {
@@ -1360,6 +1387,200 @@ describe('generate_patent_figure：部署图面字号（小四／四号）', () 
         sections: { ...sections, label_font_size_mm: 5 },
       }, 'fontsec2')
       expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).toContain('font-size="5"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure：面板与非 SVG 全链', () => {
+  const SIZED_SVG = '<svg width="400pt" height="500pt" viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">'
+    + '<g stroke="#000000" stroke-width="0.35"><line x1="1" y1="1" x2="9" y2="9"/><text x="1" y="2" font-size="10">开始</text></g></svg>'
+
+  /** 写带画布尺寸的 SVG（落版可解析），并记录渲染规格。 */
+  function sizedRenderer(): { render: (spec: GraphvizRenderSpec) => Promise<GraphvizRenderOutcome>; calls: GraphvizRenderSpec[] } {
+    const calls: GraphvizRenderSpec[] = []
+    return {
+      calls,
+      render: (spec) => {
+        calls.push(spec)
+        const out = join(spec.outputDir, `${spec.filename}.${spec.format}`)
+        writeFileSync(out, SIZED_SVG)
+        return Promise.resolve({ ok: true, path: out })
+      },
+    }
+  }
+
+  /** 假导出端口：成功时写出目标文件。 */
+  function exportPort(result: { ok: true } | { ok: false; code: 'not_installed' | 'render_failed'; error: string }) {
+    const calls: { path: string; outcomePath: string; format: string; dpi?: number }[] = []
+    return {
+      calls,
+      exportFigure: async (spec: { path: string; outcomePath: string; format: string; dpi?: number }) => {
+        calls.push(spec)
+        if (result.ok) writeFileSync(spec.outcomePath, 'EXPORTED', 'utf8')
+        return result
+      },
+    }
+  }
+
+  const panels = [
+    { suffix: 'A', figure_type: 'flowchart', steps: flowSteps },
+    { suffix: 'B', figure_type: 'block_diagram', blocks: [{ id: 'x', label: '块' }], connections: [] },
+  ]
+
+  it('面板非 SVG + 落版：走全链导出，并写索引', async () => {
+    const dir = tempDir()
+    const { render } = sizedRenderer()
+    const { exportFigure, calls } = exportPort({ ok: true })
+    const upserted: FigureIndexEntry[] = []
+    const tool = createGeneratePatentFigureTool({
+      render,
+      outputDir: dir,
+      cwd: dir,
+      exportFigure,
+      dpi: 300,
+      upsertIndex: async entry => void upserted.push(entry),
+    })
+    try {
+      const value = await tool.execute({
+        panels,
+        figure_number: 1,
+        target_office: 'cnipa',
+        figure_count: 2,
+        format: 'png',
+        dpi: 150,
+      }, exec) as { indexed: boolean; path: string; warnings: string[]; panels: { path: string }[] }
+      expect(value.path).toBe('fig1A.png')
+      expect(value.panels.map(panel => panel.path)).toEqual(['fig1A.png', 'fig1B.png'])
+      expect(value.indexed).toBe(true)
+      expect(upserted).toHaveLength(2)
+      expect(calls.map(call => call.dpi)).toEqual([150, 150])
+      expect(calls[0]?.format).toBe('png')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('面板全链导出失败：退回渲染器直出并记录索引失败', async () => {
+    const dir = tempDir()
+    const { render } = sizedRenderer()
+    const { exportFigure } = exportPort({ ok: false, code: 'render_failed', error: '导出失败' })
+    const tool = createGeneratePatentFigureTool({
+      render,
+      outputDir: dir,
+      cwd: dir,
+      exportFigure,
+      dpi: 200,
+      upsertIndex: async () => { throw new Error('index down') },
+    })
+    try {
+      const value = await tool.execute({
+        panels,
+        target_office: 'cnipa',
+        format: 'png',
+      }, exec) as { indexed: boolean; path: string; warnings: string[] }
+      expect(value.path).toBe('fig1A.png')
+      expect(value.indexed).toBe(false)
+      expect(value.warnings.join('\n')).toContain('附图索引写入失败')
+      // 回退产物来自渲染器直接出图。
+      expect(readFileSync(join(dir, 'fig1A.png'), 'utf8')).toBe(SIZED_SVG)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('面板引线在非 SVG 输出时给出警告', async () => {
+    const dir = tempDir()
+    const { render } = sizedRenderer()
+    const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir })
+    try {
+      const value = await tool.execute({
+        panels: [{ suffix: 'A', figure_type: 'block_diagram', blocks: [{ id: 'x', label: '块' }] }],
+        format: 'png',
+      }, exec) as { warnings: string[] }
+      expect(value.warnings.join('\n')).toContain('引线标号仅支持 SVG 矢量输出')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('无组件的模板面板不写「图中」标号表', async () => {
+    const dir = tempDir()
+    const { render } = sizedRenderer()
+    const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir })
+    try {
+      const value = await tool.execute({
+        panels: [{ suffix: 'A', figure_type: 'template', template: 'method_steps' }],
+        format: 'svg',
+      }, exec) as { figureDescription: string; numeralMap: unknown[] }
+      expect(value.numeralMap).toEqual([])
+      expect(value.figureDescription).not.toContain('图中：')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('直绘图型非 SVG 导出成功但无落版时 layout 缺省', async () => {
+    const dir = tempDir()
+    const { render } = sizedRenderer()
+    const { exportFigure } = exportPort({ ok: true })
+    const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir, exportFigure })
+    try {
+      const value = await tool.execute({
+        figure_type: 'circuit',
+        circuit: {
+          components: [
+            { id: 'v1', kind: 'voltage_source', label: '电源', col: 0, row: 0 },
+            { id: 'r1', kind: 'resistor', label: '电阻', col: 1, row: 0 },
+          ],
+          connections: [{ from: 'v1', to: 'r1' }],
+        },
+        format: 'png',
+      }, exec) as { layout?: unknown; path: string }
+      expect(value.path).toBe('fig1.png')
+      expect(value.layout).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('直绘图型导出以非 not_installed 码失败时报 tool_execution_failed', async () => {
+    const dir = tempDir()
+    const { render } = sizedRenderer()
+    const { exportFigure } = exportPort({ ok: false, code: 'render_failed', error: '导出失败' })
+    const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir, exportFigure })
+    try {
+      await expect(tool.execute({
+        figure_type: 'circuit',
+        circuit: {
+          components: [{ id: 'r1', kind: 'resistor', label: '电阻', col: 0, row: 0 }],
+          connections: [],
+        },
+        format: 'png',
+      }, exec)).rejects.toMatchObject({ code: 'tool_execution_failed' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('流程图显式引线在全链回退时按直绘图型处理', async () => {
+    const dir = tempDir()
+    const { render, calls } = sizedRenderer()
+    const { exportFigure } = exportPort({ ok: false, code: 'render_failed', error: '导出失败' })
+    const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir, exportFigure })
+    try {
+      const value = await tool.execute({
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        leader_lines: true,
+        target_office: 'cnipa',
+        figure_count: 2,
+        format: 'png',
+      }, exec) as { path: string; warnings: string[] }
+      expect(value.path).toBe('fig1.png')
+      // 中间 SVG 的 DOT 已按引线模式关闭内嵌标号；回退直出仍沿用同一份 DOT。
+      expect(calls[0]?.dot).not.toContain('"start" [label="100. 开始"')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

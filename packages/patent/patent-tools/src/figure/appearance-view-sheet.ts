@@ -104,6 +104,7 @@ const SVG_TAG = /<[^>]*>/g
 /** 解码数字字符引用，避免 `&#x6a;avascript:` 这类写法绕过关键字检查。 */
 function decodeNumericReferences(text: string): string {
   return text.replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex: string | undefined, decimal: string | undefined) => {
+    /* v8 ignore next -- the reference pattern always captures exactly one of the hex/decimal groups. */
     const code = Number.parseInt(hex ?? decimal ?? '', hex === undefined ? 10 : 16)
     return Number.isSafeInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match
   })

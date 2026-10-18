@@ -675,6 +675,7 @@ function sizeAttribute(tag: string, name: string): { value: number; unit: string
  */
 function parseCanvas(svgText: string): Canvas | undefined {
   const tagMatch = /<svg\b[^>]*>/i.exec(svgText)
+  /* v8 ignore next -- annotateSvgWithLeaderLines runs assertSafeSvg, which requires an <svg…> open tag. */
   if (tagMatch === null) return undefined
   const tag = tagMatch[0]
   const width = sizeAttribute(tag, 'width')

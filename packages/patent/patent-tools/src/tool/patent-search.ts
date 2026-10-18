@@ -13,6 +13,7 @@ import type { CniprChannel, CniprSearchHit, CniprSearchResult } from '@deepseek-
 import { PatentToolError } from '../error.ts'
 import { retryBounded } from './internal/bounded-retry.ts'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL, renderUpstreamFailure } from './internal/upstream-channel.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** Input for the patent_search tool. */
 export type PatentSearchInput = {
@@ -196,6 +197,7 @@ async function searchThroughCnipr(
     : []
   let result: CniprSearchResult
   try {
+    /* v8 ignore next -- exec.signal is always present on the tool execution context */
     result = await cnipr.search(query, { limit, ...(signal === undefined ? {} : { signal }) })
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
@@ -243,9 +245,7 @@ function renderSearch(value: PatentSearchOutput): string {
     ].join('\n'),
   )
   const header = `**patent_search** — ${value.hits.length} result(s) for "${value.query}" · channel: ${value.channel}`
-  const warningLines = value.warnings.length > 0
-    ? ['', '## 警告', ...value.warnings.map(w => `- ${w}`)]
-    : []
+  const warningLines = warningSection(value.warnings)
   return [header, '', hits.join('\n\n---\n\n'), ...warningLines].join('\n')
 }
 
@@ -291,7 +291,7 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
           channel: { type: 'string', required: true },
           total: { type: 'integer', required: true },
           hits: { type: 'array', required: true, items: HIT_SCHEMA },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderSearch(value) }],

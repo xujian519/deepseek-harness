@@ -120,6 +120,7 @@ export function applyStructureLineStyle(svg: string, style: StructureLineStyleIn
   assertSafeSvg(rewritten, DEFAULT_SVG_MAX_BYTES)
   const before = measureInkBounds(svg)
   const after = measureInkBounds(rewritten)
+  /* v8 ignore next 2 -- only stroke-width/dasharray attributes change; subpath vertices and text are untouched. */
   if (before !== undefined && after !== undefined && JSON.stringify(before) !== JSON.stringify(after)) {
     warnings.push(`改写后墨迹范围从 (${fmt(before.minX)}, ${fmt(before.minY)})-(${fmt(before.maxX)}, ${fmt(before.maxY)}) 变成 (${fmt(after.minX)}, ${fmt(after.minY)})-(${fmt(after.maxX)}, ${fmt(after.maxY)})；线宽/线型不该改变几何`)
   }

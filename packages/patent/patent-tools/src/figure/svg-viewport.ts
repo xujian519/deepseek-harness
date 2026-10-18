@@ -77,6 +77,7 @@ export function parseLengthMm(raw: string): number | undefined {
   const match = /^\s*(-?\d+(?:\.\d+)?)\s*([a-z%]*)\s*$/i.exec(raw)
   if (match === null) return undefined
   const value = Number(match[1])
+  /* v8 ignore next -- the unit group always participates, so the fallback is unreachable. */
   switch ((match[2] ?? '').toLowerCase()) {
     case '':
     case 'px':
@@ -121,6 +122,7 @@ function alignRatio(keyword: string): number {
       return 0
     case 'Mid':
       return 0.5
+    /* v8 ignore next 2 -- parseAspectRatio's regex only admits Min/Mid/Max. */
     default:
       return 1
   }

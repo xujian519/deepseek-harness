@@ -13,6 +13,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { CaseLawDocType, CaseLawHit, CaseLawSearchOptions } from '@deepseek-ai/dsh-patent-knowledge'
 import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
+import { knowledgeInstallGuidance, truncateSnippet } from './internal/knowledge.ts'
 import { resolveResultLimit } from './internal/query-limit.ts'
 
 /** Input for the patent_case_search tool. */
@@ -57,13 +58,7 @@ export type PatentCaseSearchDeps = {
   dbPath?: string
 }
 
-const INSTALL_GUIDANCE = '判例库不可用：knowledge.db 缺失或版本不符。请先运行 patent-knowledge-install 准备本地 knowledge.db，或配置知识库目录。'
-
-/** Truncate an over-long hit snippet (avoid oversized context). */
-function truncateSnippet(content: string, maxChars = 800): string {
-  if (content.length <= maxChars) return content
-  return `${content.slice(0, maxChars)}\n…（截断，共 ${content.length} 字）`
-}
+const INSTALL_GUIDANCE = knowledgeInstallGuidance('判例库')
 
 function toResult(hit: CaseLawHit, includeContent: boolean): PatentCaseSearchOutput['results'][number] {
   return {
@@ -88,6 +83,7 @@ function renderCaseSearch(value: PatentCaseSearchOutput): string {
   const header = [`**patent_case_search** — ${value.results.length} result(s):`]
   const s = value.searchStrategy
   let line = `检索式：${s.query}`
+  /* v8 ignore next -- this tool never writes an IPC field into its search strategy */
   if (s.ipc !== undefined && s.ipc.length > 0) line += `（IPC ${s.ipc.join('、')}）`
   header.push(line)
   if (value.results.length === 0) {

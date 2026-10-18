@@ -337,8 +337,41 @@ describe('patent_workflow_run', () => {
     expect(started).toHaveLength(1)
   })
 
-  it('starts the same case run again once the previous one settled', async () => {
-    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+  it('refuses a new run while a previous job for the same case is stopping', async () => {
+    const jobs: WorkflowRunJobRegistry = {
+      list: () => [{
+        id: JobId('patent-workflow-live'),
+        kind: 'patent-workflow',
+        label: 'patent_disclosure_v1 (CN2024-0009)',
+        status: 'stopping',
+        startedAt: 0,
+        output: { total: 0, earliest: 0 },
+      }],
+      start: () => {
+        throw new Error('must not start')
+      },
+    }
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs })
+    await expect(tool.execute({
+      manifestId: 'patent_disclosure_v1',
+      input: 'technical disclosure',
+      caseId: 'CN2024-0009',
+      run_in_background: true,
+    }, exec)).rejects.toThrow('已有一个后台运行')
+  })
+
+  it('treats a blank date as absent', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    const value = (await tool.execute({
+      manifestId: 'patent_disclosure_v1',
+      input: 'technical disclosure',
+      filingDate: '   ',
+      priorityDate: ' ',
+    }, exec)) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+  })
+
+  it('starts the same case run again once the previous one settled', async () => {    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
     const { jobs, started, hooks } = fakeJobRegistry()
     const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => jobs, cwd: temp })
     const args = {

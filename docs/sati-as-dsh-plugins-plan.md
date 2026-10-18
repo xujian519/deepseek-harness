@@ -1,7 +1,7 @@
 # Sati 专利域插件化迁移至 deepseek-harness 实施计划（路线 A：原生移植）
 
 - 创建日期：2026-08-17
-- 状态：**实施中（2026-08-17 用户指示「根据本计划执行」，视为批准；P0 已落地，执行记录见 §10）**
+- 状态：**历史记录（2026-10-18 归档）**。本文件保留 2026-08 的迁移计划与当时的执行记录，不再随实现更新；文中的 ⬜ 是计划时状态，不代表当前未完成。专利域的当前状态以 `.agents/audits/` 下的审查与计划文件为准，入口为 `2026-09-21-patent-domain-review.md` 与 `2026-09-23-patent-domain-followup-issues.md`。
 - 决策记录：2026-08-17 用户确认路线 A（原生移植），先出详细实施计划再动手；同日评审修订：许可证策略定案（迁入包 MIT，见 §1.4）、耦合面 6 点→9 点勘误、post-execute/subprocess 契约勘误
 - 文档副本：主副本 Sati `docs/sati-as-dsh-plugins-plan.md`；实施副本 deepseek-harness `docs/sati-as-dsh-plugins-plan.md`（2026-08-17 复制）
 - 上游调研：`deepseek-harness/docs/plugin-authoring.md`（插件契约）、`docs/architecture.md`（扩展点地图）、`docs/capability-seams.md`（能力接缝）、`docs/cookbook/adding-a-tool.md`（工具契约）、`docs/cordis-primer.md`（框架语义）、`packages/AGENTS.md`（包规则）、`packages/todo/tool-todo`（参考插件）

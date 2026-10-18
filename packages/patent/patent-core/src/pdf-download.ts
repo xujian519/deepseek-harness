@@ -10,7 +10,7 @@
  * @module @deepseek-ai/dsh-patent-core/pdf-download
  */
 
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 /** PDF 魔数（%PDF-，5 字节）。 */
 export const PDF_MAGIC = '%PDF-'
@@ -54,4 +54,16 @@ export function inspectPdfBody(body: Buffer): PdfBodyFault | undefined {
 export function datedOutputDir(cwd: string, folder: string, now: Date = new Date()): string {
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   return join(cwd, folder, date)
+}
+
+/**
+ * Resolve a download tool's output directory: an explicit relative path against
+ * cwd, otherwise the caller's dated folder under cwd.
+ * @param outputDir - the caller-supplied directory, if any.
+ * @param cwd - the working directory used for both branches.
+ * @param folder - the tool's default folder name.
+ * @returns the absolute output directory.
+ */
+export function resolveDatedOutputDir(outputDir: string | undefined, cwd: string, folder: string): string {
+  return outputDir ? resolve(cwd, outputDir) : datedOutputDir(cwd, folder)
 }
