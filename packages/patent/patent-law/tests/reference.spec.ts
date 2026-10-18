@@ -5,6 +5,7 @@ import {
   formatLawReference,
   parseCnNumber,
   parseLawReference,
+  scanUnrecognizedCitations,
 } from '../src/reference.ts'
 
 describe('parseCnNumber', () => {
@@ -30,6 +31,8 @@ describe('parseCnNumber', () => {
     expect(parseCnNumber('abc')).toBeNull()
     expect(parseCnNumber('十十')).toBeNull()
     expect(parseCnNumber('一百百')).toBeNull()
+    expect(parseCnNumber('十二三')).toBeNull()
+    expect(parseCnNumber('一二三')).toBeNull()
   })
 
   it('rejects a digit string beyond the safe integer range', () => {
@@ -82,6 +85,24 @@ describe('parseLawReference', () => {
     expect(parseLawReference('专利法第22条第3款。')?.raw).toBe('专利法第22条第3款')
   })
 
+  it('accepts the spaced and full-width forms the shipped skills use', () => {
+    expect(parseLawReference('专利法第 22 条第 3 款')).toMatchObject({ article: 22, paragraph: 3 })
+    expect(parseLawReference('《专利法》第 22 条第 3 款')).toMatchObject({ article: 22, paragraph: 3 })
+    expect(parseLawReference('专利法第２２条第３款')).toMatchObject({ article: 22, paragraph: 3 })
+    expect(parseLawReference('细则第 112 条')).toMatchObject({ law: '专利法实施细则', article: 112 })
+  })
+
+  it('accepts the parenthesized item form and quotation marks', () => {
+    expect(parseLawReference('专利法第22条第3款第（二）项'))
+      .toMatchObject({ article: 22, paragraph: 3, item: 2 })
+    expect(parseLawReference('“专利法第22条”')).toMatchObject({ article: 22 })
+    expect(parseLawReference('「专利法第22条」')).toMatchObject({ article: 22 })
+  })
+
+  it('does not read article zero', () => {
+    expect(parseLawReference('专利法第〇条')).toBeNull()
+  })
+
   it('maps the abbreviated statute names onto the full ones', () => {
     expect(parseLawReference('细则第112条')?.law).toBe('专利法实施细则')
     expect(parseLawReference('实施细则第5条')?.law).toBe('专利法实施细则')
@@ -122,6 +143,72 @@ describe('extractLawReferences', () => {
     expect(references.map(reference => reference.raw)).toEqual(['专利法第22条第3款', '专利法实施细则第5条'])
   })
 
+  it('inherits the law across coordinated references', () => {
+    const references = extractLawReferences('专利法第22条、第23条')
+    expect(references).toHaveLength(2)
+    expect(references[0]).toMatchObject({ law: '专利法', article: 22 })
+    expect(references[1]).toMatchObject({ law: '专利法', article: 23 })
+    expect(references[1]?.raw).toBe('第23条')
+  })
+
+  it('inherits the article and paragraph across coordinated references', () => {
+    const references = extractLawReferences('专利法第22条第2款、第3款')
+    expect(references).toHaveLength(2)
+    expect(references[0]).toMatchObject({ article: 22, paragraph: 2 })
+    expect(references[1]).toMatchObject({ article: 22, paragraph: 3 })
+  })
+
+  it('carries the context through a narrowing chain', () => {
+    const references = extractLawReferences('专利法第22条、第23条第3款第（二）项')
+    expect(references).toHaveLength(2)
+    expect(references[0]).toMatchObject({ article: 22 })
+    expect(references[1]).toMatchObject({ article: 23, paragraph: 3, item: 2 })
+  })
+
+  it('resolves the fee-asset citation form', () => {
+    const references = extractLawReferences('专利法实施细则第110条第1款第（一）项、第112条')
+    expect(references).toHaveLength(2)
+    expect(references[0]).toMatchObject({ law: '专利法实施细则', article: 110, paragraph: 1, item: 1 })
+    expect(references[1]).toMatchObject({ law: '专利法实施细则', article: 112 })
+  })
+
+  it('stops scanning at the end of the continuation run', () => {
+    expect(extractLawReferences('专利法第22条、第23条以及权利要求1')).toHaveLength(2)
+    expect(extractLawReferences('专利法第22条、第23条第3款第4项')).toHaveLength(2)
+    expect(extractLawReferences('专利法第22条、第23条第（二）项')).toHaveLength(2)
+  })
+
+  it('stops a continuation at an unreadable or non-narrowing token', () => {
+    expect(extractLawReferences('专利法第22条、第（二）条')).toHaveLength(1)
+    expect(extractLawReferences('专利法第22条、第〇条')).toHaveLength(1)
+    expect(extractLawReferences('专利法第22条、第十十条')).toHaveLength(1)
+    expect(extractLawReferences('专利法第22条、第23条第〇款')).toHaveLength(1)
+    expect(extractLawReferences('专利法第22条、第23条第3款第〇项')).toHaveLength(1)
+    expect(extractLawReferences('专利法第22条、第23项第2款')).toHaveLength(1)
+  })
+
+  it('does not fold a citation in the next sentence into the previous one', () => {
+    expect(extractLawReferences('专利法第22条。第23条')).toHaveLength(1)
+  })
+
+  it('accepts a guideline section written with spaces', () => {
+    expect(extractLawReferences('审查指南第二部分第二章第 2.1.3 节')[0])
+      .toMatchObject({ path: '第二部分第二章2.1.3' })
+  })
+
+  it('reports fragments the parser could not resolve', () => {
+    const text = '专利法第22条，另见第99条、第99条。'
+    expect(scanUnrecognizedCitations(text, extractLawReferences(text))).toEqual(['第99条'])
+    expect(scanUnrecognizedCitations('专利法第22条、第23条', extractLawReferences('专利法第22条、第23条')))
+      .toEqual([])
+  })
+
+  it('caps the unresolved fragments it reports', () => {
+    const cited = Array.from({ length: 11 }, (_, index) => `第${index + 1}条`).join('、')
+    const text = `专利法第22条，另见${cited}。`
+    expect(scanUnrecognizedCitations(text, extractLawReferences(text))).toHaveLength(10)
+  })
+
   it('prefers the longer statute name over an inner one', () => {
     const references = extractLawReferences('专利法实施细则第112条')
     expect(references).toHaveLength(1)
@@ -148,6 +235,7 @@ describe('extractLawReferences', () => {
 
   it('skips a statute reference whose number the numeral parser rejects', () => {
     expect(extractLawReferences('依据专利法第十十条')).toHaveLength(0)
+    expect(extractLawReferences('依据专利法第十二三条')).toHaveLength(0)
   })
 
   it('keeps a guideline reference that names only a part', () => {
@@ -175,6 +263,12 @@ describe('formatLawReference', () => {
       item: 1,
       raw: '细则第112条第1项',
     })).toBe('《专利法实施细则》第一百一十二条第一项')
+    expect(formatLawReference({
+      kind: 'law-article',
+      law: '专利法',
+      article: 1000,
+      raw: '专利法第1000条',
+    })).toBe('《专利法》第1000条')
   })
 
   it('renders a guideline reference by its section path', () => {

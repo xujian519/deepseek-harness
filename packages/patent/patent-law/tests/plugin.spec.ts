@@ -42,6 +42,7 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
 
   it('exports the library API', () => {
     expect(typeof Pkg.parseLawReference).toBe('function')
+    expect(typeof Pkg.scanUnrecognizedCitations).toBe('function')
     expect(typeof Pkg.parseCnNumber).toBe('function')
     expect(typeof Pkg.formatCnNumber).toBe('function')
     expect(typeof Pkg.extractLawReferences).toBe('function')

@@ -167,4 +167,45 @@ describe('law_verify tool', () => {
     const result = await execute(ctx, { text: '本案未引用条文。' })
     expect(JSON.stringify(result.content)).toContain('未在文本中识别到法条引用')
   })
+
+  it('checks the spaced citation style the shipped skills use', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { text: '依据《专利法》第 22 条第 3 款，权利要求 1 不具备创造性。' })
+    const value = result.value as LawVerifyOutput
+    expect(value.findings).toHaveLength(1)
+    expect(value.findings[0]).toMatchObject({ article: 22, paragraph: 3, decision: 'valid' })
+    expect(value.unrecognized).toEqual([])
+    expect(JSON.stringify(result.content)).toContain('《专利法》第二十二条第三款')
+  })
+
+  it('renders a citation beyond the Chinese numeral range without throwing', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { text: '专利法第1000条。' })
+    const value = result.value as LawVerifyOutput
+    expect(result.isError).toBe(false)
+    expect(value.blocked).toBe(true)
+    expect(JSON.stringify(result.content)).toContain('《专利法》第1000条')
+  })
+
+  it('checks every coordinated citation and reports the unresolved ones', async () => {
+    const ctx = await host()
+    const value = await run(ctx, { text: '专利法第22条第5款、第22条第2款、第22条第3款；另见第99条。' })
+    expect(value.findings).toHaveLength(3)
+    expect(value.findings.map(finding => finding.paragraph)).toEqual([5, 2, 3])
+    expect(value.unrecognized).toEqual(['第99条'])
+    expect(value.blocked).toBe(false)
+  })
+
+  it('reports the item number of a reference', async () => {
+    const ctx = await host()
+    const value = await run(ctx, { references: ['专利法第22条第3款第2项'] })
+    expect(value.findings[0]?.item).toBe(2)
+    expect(value.unrecognized).toEqual([])
+  })
+
+  it('renders the unresolved-fragment warning', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, { text: '专利法第22条，另见第99条。' })
+    expect(JSON.stringify(result.content)).toContain('未被识别')
+  })
 })

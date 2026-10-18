@@ -9,7 +9,7 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { parseLawReference } from '../reference.ts'
+import { formatLawReference, parseLawReference, scanUnrecognizedCitations } from '../reference.ts'
 import { renderCitationRows, resolveCitationPolicy, verifyCitation, verifyCitations } from '../verify.ts'
 import type { VerifyOptions } from '../verify.ts'
 import type {
@@ -19,11 +19,12 @@ import type {
   CitationPolicySet,
   LawBaseline,
   LawName,
+  StatuteName,
 } from '../types.ts'
 
 /** Thrown when the tool input cannot be turned into references to check. */
 export class LawVerifyToolError extends Error {
-  /** Stable error code for the model and logs. */
+  /** Stable error code for callers that catch this error. */
   readonly code: string
 
   /**
@@ -57,6 +58,8 @@ export type LawVerifyFinding = {
   article?: number
   /** Paragraph number, when the reference names one. */
   paragraph?: number
+  /** Item number, when the reference names one; reported, not checked. */
+  item?: number
   /** Normalized guideline section path, for a guideline reference. */
   sectionPath?: string
   decision: CitationDecision
@@ -71,6 +74,12 @@ export type LawVerifyOutput = {
   /** True when at least one finding is treated as a block. */
   blocked: boolean
   counts: Record<CitationDecision, number>
+  /**
+   * Citation-like fragments in the input text that the parser did not resolve.
+   * They were not checked, so a table with findings is not a complete check
+   * when this list is non-empty.
+   */
+  unrecognized: string[]
 }
 
 /** Injected collaborators: the loaded index and the deployment's policy. */
@@ -85,6 +94,7 @@ const DESCRIPTION = [
   '- Checks law citations against the law index shipped with this deployment: 《专利法》《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path.',
   '- Each citation is decided as 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验, and an article beyond an article ceiling that has itself not been verified also comes back as 未核验.',
   '- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error, so a typo surfaces instead of being skipped.',
+  '- A citation-like fragment in the text that the parser cannot resolve is returned in `unrecognized` and was not checked. A result with findings is not a complete check while that list is non-empty: rewrite the fragment as a full reference or verify it separately.',
   '- Pass proposition when a citation is offered in support of a specific claim. The cited entry must carry that claim, by naming its subject in the entry\'s own topic keywords or by sharing the entry\'s transcribed wording; 与所引命题不符 means another entry of the same law carries the claim instead (the reason names it), and 未与条文对应（未判定） means no entry does, so nothing here decides the claim and a person must.',
   '- This checks citation form and index membership, not legal correctness of the actual text: the index carries transcribed text only after a person records the transcription source. An article that is 未核验 still has to be verified against an official source (patent_case_search / cnlaw / web_fetch on the official page) before it is relied on.',
   '',
@@ -132,11 +142,12 @@ export function createLawVerifyTool(options: LawVerifyToolOptions): ToolDefiniti
               'unverified': { type: 'number', required: true },
             },
           },
+          unrecognized: { type: 'array', required: true, items: { type: 'string' } },
         },
       },
       render: (_args, value) => [{
         type: 'text',
-        text: renderToolReport(value.findings, value.blocked),
+        text: renderToolReport(value.findings, value.blocked, value.unrecognized),
       }],
     },
     execute(args) {
@@ -153,6 +164,7 @@ const FINDING_SCHEMA = {
     law: { type: 'string' },
     article: { type: 'number' },
     paragraph: { type: 'number' },
+    item: { type: 'number' },
     sectionPath: { type: 'string' },
     decision: {
       type: 'string',
@@ -177,6 +189,9 @@ function runVerify(
     findings: projected,
     blocked: projected.some(finding => finding.policy === 'block'),
     counts: countDecisions(projected),
+    unrecognized: args.text === undefined
+      ? []
+      : scanUnrecognizedCitations(args.text, findings.map(finding => finding.reference)),
   }
 }
 
@@ -215,6 +230,9 @@ function toFinding(finding: CitationFinding, policies: CitationPolicySet): LawVe
     ...(reference.kind === 'law-article' && reference.paragraph !== undefined
       ? { paragraph: reference.paragraph }
       : {}),
+    ...(reference.kind === 'law-article' && reference.item !== undefined
+      ? { item: reference.item }
+      : {}),
     ...(reference.kind === 'guideline-section' ? { sectionPath: reference.path } : {}),
     decision: finding.decision,
     policy: resolveCitationPolicy(finding, policies),
@@ -236,14 +254,37 @@ function countDecisions(findings: LawVerifyFinding[]): Record<CitationDecision, 
   return counts
 }
 
+/** Render one finding as the canonical reference the table shows. */
+function findingLabel(finding: LawVerifyFinding): string {
+  if (finding.sectionPath !== undefined) {
+    return formatLawReference({
+      kind: 'guideline-section',
+      law: '专利审查指南',
+      path: finding.sectionPath,
+      raw: finding.raw,
+    })
+  }
+  return formatLawReference({
+    kind: 'law-article',
+    law: finding.law as StatuteName,
+    article: finding.article as number,
+    ...(finding.paragraph === undefined ? {} : { paragraph: finding.paragraph }),
+    ...(finding.item === undefined ? {} : { item: finding.item }),
+    raw: finding.raw,
+  })
+}
+
 /** Render the tool report: the decision table plus what a block or a gap means. */
-function renderToolReport(findings: LawVerifyFinding[], blocked: boolean): string {
+function renderToolReport(findings: LawVerifyFinding[], blocked: boolean, unrecognized: string[]): string {
   const lines = [renderCitationRows(findings.map(finding => ({
-    label: finding.raw,
+    label: findingLabel(finding),
     decision: finding.decision,
     policy: finding.policy,
     reason: finding.reason,
   })))]
+  if (unrecognized.length > 0) {
+    lines.push('', `文本中仍有 ${unrecognized.length} 处形如法条引用的片段未被识别，未参与判定：${unrecognized.join('、')}。请改写为完整引用或另行核验。`)
+  }
   if (blocked) {
     lines.push('', '**存在被拦截的引用**：先补证或改写该断言，再交付。')
   }

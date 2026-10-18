@@ -36,7 +36,7 @@ export interface CnlawDeclaration {
  * actionable — the section is settled by retrieval, never by memory.
  */
 const GUIDELINE_TEXT = [
-  '- Examination-guideline chapters are not in the cnlaw index, and the packed law index behind `law_verify` holds guideline sections without their text, so a guidelines citation it reports as 未核验 is not a verdict on the rule.',
+  '- Examination-guideline chapters are not in the cnlaw index. The packed law index behind `law_verify` transcribes the guideline sections it holds (the 2023 revision, plus the 2026 overrides it records), so a citation it decides as 已核验, 与所引命题不符, or 未判定 was decided against that text; 未核验 means the cited section and every section under it are untranscribed, not that the rule is absent.',
   '- Retrieve the rule text from this deployment\'s external IP knowledge base: `law_search` with scope=guideline searches the guideline chapters (scope=law searches the statute text), and every hit carries its corpus path as the citation source; `patent_kg_query` (node_type=GuidelineRule) and `patent_wiki_search` hold the rule cards; `patent_case_search` holds decisions that apply a rule.',
   '- A guideline section that no retrieval returns stays 未核验: report it as such instead of reconstructing the section from memory.',
 ].join('\n')

@@ -48,6 +48,7 @@ export {
   formatLawReference,
   parseCnNumber,
   parseLawReference,
+  scanUnrecognizedCitations,
 } from './reference.ts'
 export {
   createOverlapIndex,

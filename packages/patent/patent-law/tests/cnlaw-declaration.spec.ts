@@ -41,6 +41,10 @@ describe('cnlaw declaration section text', () => {
     const text = renderCnlawDeclaration(DECLARED)
     expect(text).toContain('not in the cnlaw index')
     expect(text).toContain('not the examination guidelines')
+    // The packed index transcribes the sections it holds; the declaration must
+    // not tell the model otherwise.
+    expect(text).toContain('transcribes the guideline sections it holds')
+    expect(text).not.toContain('without their text')
     // 规则取自外接 IP 知识库：声明段点名取原文的工具，未核验的节号才有落点。
     expect(text).toContain('law_search')
     expect(text).toContain('scope=guideline')

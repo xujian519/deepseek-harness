@@ -70,6 +70,12 @@ export function loadLawBaselines(baselineDir?: string): Map<LawName, LawBaseline
     }
     baselines.set(baseline.law, baseline)
   }
+  // A directory missing one document would load, and every citation to that
+  // document would report not-indexed instead of failing the deployment.
+  const missing = LAW_NAMES.filter(name => !baselines.has(name))
+  if (missing.length > 0) {
+    throw new LawBaselineError(`法条索引缺少：${missing.join('、')}`, dir)
+  }
   return baselines
 }
 
@@ -169,6 +175,32 @@ function readTopics(value: unknown, fail: AssetFail, where: string): string[] {
   })
 }
 
+/**
+ * Enforce that an entry's transcription record is all-or-nothing.
+ *
+ * A text without a source or a date would be reported as verified while the
+ * copy has no recorded source, and a source without a text claims a copy
+ * that does not exist. Both are load errors, so a hand-edited index cannot
+ * create the fail-open state the verifier is designed to avoid.
+ * @param text - the entry's transcribed text, or null.
+ * @param source - the recorded source and verification date.
+ * @param fail - the caller's error factory.
+ * @param where - the entry's label, used in the error message.
+ */
+function checkRecordedSource(
+  text: string | null,
+  source: { sourceDoc: string | null; verifiedOn: string | null },
+  fail: AssetFail,
+  where: string,
+): void {
+  if (text !== null && (source.sourceDoc === null || source.verifiedOn === null)) {
+    throw fail(`${where} 的 text 已转录，但 sourceDoc 与 verifiedOn 必须同时记录`)
+  }
+  if (text === null && (source.sourceDoc !== null || source.verifiedOn !== null)) {
+    throw fail(`${where} 尚未转录 text，不能单独记录 sourceDoc 或 verifiedOn`)
+  }
+}
+
 /** Read the article list, rejecting duplicate numbers. */
 function readArticles(value: unknown, fail: AssetFail): ArticleEntry[] {
   if (value === undefined || value === null) return []
@@ -180,12 +212,15 @@ function readArticles(value: unknown, fail: AssetFail): ArticleEntry[] {
     if (article === null) throw fail('article 必须是正整数')
     if (seen.has(article)) throw fail(`article 重复：${article}`)
     seen.add(article)
+    const text = readOptionalString(entry, 'text', fail)
+    const source = readRecordedSource(entry, fail)
+    checkRecordedSource(text, source, fail, `第${article}条`)
     return {
       article,
       ...readParagraphs(entry['paragraphs'], fail, article),
       topics: readTopics(entry['topics'], fail, `第${article}条`),
-      text: readOptionalString(entry, 'text', fail),
-      ...readRecordedSource(entry, fail),
+      text,
+      ...source,
     }
   })
 }
@@ -215,11 +250,14 @@ function readSections(value: unknown, fail: AssetFail): SectionEntry[] {
     const path = readString(entry, 'path', fail)
     if (seen.has(path)) throw fail(`section path 重复：${path}`)
     seen.add(path)
+    const text = readOptionalString(entry, 'text', fail)
+    const source = readRecordedSource(entry, fail)
+    checkRecordedSource(text, source, fail, path)
     return {
       path,
       topics: readTopics(entry['topics'], fail, path),
-      text: readOptionalString(entry, 'text', fail),
-      ...readRecordedSource(entry, fail),
+      text,
+      ...source,
     }
   })
 }

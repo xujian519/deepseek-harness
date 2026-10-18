@@ -4,7 +4,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { defineContentToolFixture, defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionInput } from '@deepseek-ai/dsh-tools'
 import * as PatentRule from '@deepseek-ai/dsh-patent-rule'
 
@@ -55,6 +55,20 @@ function documentTool() {
     description: 'render',
     parameters: { template: { type: 'string' } },
     async execute(): Promise<ContentBlock[]> { return [{ type: 'text', text: 'HTML written: out.html' }] },
+  })
+}
+
+/** A prerequisite whose canonical result is the given JSON value. */
+function resultTool(name: string, value: null | { blocked: boolean } | string) {
+  return defineTool({
+    name,
+    description: name,
+    parameters: {},
+    output: {
+      schema: { type: 'json' },
+      render: () => [{ type: 'text', text: `${name} result` }],
+    },
+    execute: () => Promise.resolve(value),
   })
 }
 
@@ -259,6 +273,27 @@ describe('tools/guard 交付前置门禁', () => {
     const result = await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/rule_check/)
+  })
+
+  it('前置结果声明 blocked:true 不算跑过', async () => {
+    const ctx = await mount({ deliveryGate: [{ tool: 'render_patent_document', requires: ['law_verify'] }] })
+    ctx.tools.register(documentTool())
+    ctx.tools.register(resultTool('law_verify', { blocked: true }))
+
+    expect((await call(ctx, 'law_verify', {}, AGENT)).isError).toBe(false)
+    const denied = await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)
+    expect(denied.isError).toBe(true)
+    expect(denied.error?.message).toMatch(/law_verify/)
+  })
+
+  it('前置结果没有 blocked:true 时放行', async () => {
+    for (const value of [{ blocked: false }, 'ok', null] as const) {
+      const ctx = await mount({ deliveryGate: [{ tool: 'render_patent_document', requires: ['law_verify'] }] })
+      ctx.tools.register(documentTool())
+      ctx.tools.register(resultTool('law_verify', value))
+      expect((await call(ctx, 'law_verify', {}, AGENT)).isError).toBe(false)
+      expect((await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)).isError).toBe(false)
+    }
   })
 
   it('台账按会话隔离：别的会话跑过不算本会话跑过', async () => {

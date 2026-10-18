@@ -12,27 +12,37 @@
  */
 import { describe, expect, it } from 'vitest'
 import { findArticle, loadLawBaselines } from '../src/baseline.ts'
+import { extractLawReferences } from '../src/reference.ts'
 import { scannedFiles } from './asset-scan.ts'
 
-/** 细则条号的引用形式。 */
-const REGULATION_CITATION = /(?:专利法实施细则|实施细则|细则)第([0-9]{1,3})条/g
+/** 随包法条索引自身的正文会引用细则；那是被转录的引文，不是本包作出的引用。 */
+const LAW_INDEX_PREFIX = 'packages/patent/patent-law/assets/law/'
 
-/** 一处引用：条号与所在文件。 */
-type Citation = { article: number; file: string }
+/** 一处引用：条号、所在文件，以及是否以中文数字书写。 */
+type Citation = { article: number; file: string; chinese: boolean }
 
 /**
  * 收集扫描范围内的全部细则条号引用。
+ *
+ * 用 `reference.ts` 的解析器而不是另写一条正则：索引键与扫描口径必须同源，
+ * 否则中文数字写法会被静默漏掉（本组用例最初就是这样漏掉细则第十三条的）。
  * @returns 按文件、条号去重后的引用列表。
  */
 function collectCitations(): Citation[] {
   const seen = new Set<string>()
   const citations: Citation[] = []
   for (const { file, text } of scannedFiles()) {
-    for (const match of text.matchAll(REGULATION_CITATION)) {
-      const key = `${file}#${match[1]}`
+    if (file.startsWith(LAW_INDEX_PREFIX)) continue
+    for (const reference of extractLawReferences(text)) {
+      if (reference.kind !== 'law-article' || reference.law !== '专利法实施细则') continue
+      const key = `${file}#${reference.article}`
       if (seen.has(key)) continue
       seen.add(key)
-      citations.push({ article: Number(match[1]), file })
+      citations.push({
+        article: reference.article,
+        file,
+        chinese: /[〇零一二三四五六七八九十百]/.test(reference.raw),
+      })
     }
   }
   return citations
@@ -51,5 +61,9 @@ describe('细则条号引用的索引覆盖', () => {
   it('scans the shipped assets rather than an empty set', () => {
     // 扫描规则写错（目录名或路径片段）会让上一条用例空过，这里固定住它的下限。
     expect(collectCitations().length).toBeGreaterThan(20)
+  })
+
+  it('reads Chinese-numeral citations, not only Arabic forms', () => {
+    expect(collectCitations().some(citation => citation.chinese)).toBe(true)
   })
 })
