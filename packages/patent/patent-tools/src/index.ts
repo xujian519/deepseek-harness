@@ -1,5 +1,5 @@
 /**
- * Function plugin registering the 32 model-facing patent tools ported from Sati:
+ * Function plugin registering the 33 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * office-action parsing, drafting, specification validation, evidence judgment,
  * rule check, figure analysis + generation, PDF download, chemical recognition,
@@ -646,7 +646,7 @@ function registerPackageAtoms(
 }
 
 /**
- * Register the 32 patent tools.
+ * Register the 33 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */
@@ -721,10 +721,21 @@ export function apply(ctx: Context, config: Config): void {
       formatAsContext: (id, maxChars) => wiki.formatAsContext(id, maxChars),
       wikiDir: knowledge.paths.wikiDir,
     }))
-    const kgDeps = existsSync(knowledge.paths.queryDbPath)
-      ? { adapter: new PatentKgAdapter(new KgStore(knowledge.paths.queryDbPath)), dbPath: knowledge.paths.queryDbPath }
-      : { dbPath: knowledge.paths.queryDbPath }
-    ctx.tools.register(createPatentKgQueryTool(kgDeps))
+    if (existsSync(knowledge.paths.queryDbPath)) {
+      const adapter = new PatentKgAdapter(new KgStore(knowledge.paths.queryDbPath))
+      // The adapter owns a read-only SQLite handle: close it on plugin dispose so an
+      // HMR reload does not accumulate handles (the knowledge service holds its own).
+      // The flag keeps a repeated teardown from closing the handle twice.
+      let closed = false
+      ctx.effect(() => () => {
+        if (closed) return
+        closed = true
+        adapter.close()
+      }, 'patent-tools: knowledge graph store')
+      ctx.tools.register(createPatentKgQueryTool({ adapter, dbPath: knowledge.paths.queryDbPath }))
+    } else {
+      ctx.tools.register(createPatentKgQueryTool({ dbPath: knowledge.paths.queryDbPath }))
+    }
   } else {
     ctx.tools.register(createPatentCaseSearchTool({}))
     ctx.tools.register(createLawSearchTool({}))
