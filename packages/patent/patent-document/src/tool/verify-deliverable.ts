@@ -113,7 +113,7 @@ function faultMessage(fault: FileRecordFault): string {
     case 'not_file':
       return '路径不是普通文件（目录、设备或管道不能作为交付件）'
     case 'too_large':
-      return `文件超过 ${String(MAX_DELIVERABLE_FILE_BYTES)} 字节上限`
+      return `超过 ${String(MAX_DELIVERABLE_FILE_BYTES)} 字节上限`
   }
 }
 

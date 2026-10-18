@@ -208,23 +208,26 @@ export async function withMailboxLease(
  * @param teamId - the team id.
  * @param agentKey - `captain` or a member name.
  * @param messageIds - the message ids to lease.
+ * @returns the ids actually claimed; an already-read message is skipped because
+ * the scheduler's snapshot may predate an acknowledgement from the status path.
  */
 export async function claimMailboxDelivery(
   stateRoot: string,
   teamId: string,
   agentKey: string,
   messageIds: readonly string[],
-): Promise<void> {
+): Promise<readonly string[]> {
   const now = Date.now()
-  // Re-check readAt under the lock: the scheduler's snapshot may predate an
-  // acknowledgement from the status path, and leasing an already-read message
-  // would report it as in flight and deliver it twice.
-  await mutateMailbox(stateRoot, teamId, agentKey, messageIds, message => message.readAt !== undefined
-    ? message
-    : {
+  const claimed: string[] = []
+  await mutateMailbox(stateRoot, teamId, agentKey, messageIds, (message) => {
+    if (message.readAt !== undefined) return message
+    claimed.push(message.id)
+    return {
       ...message,
       deliveryClaimedAt: now,
-    })
+    }
+  })
+  return claimed
 }
 
 /**

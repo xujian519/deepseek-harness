@@ -292,6 +292,12 @@ describe('buildAppearanceViewSheet 校验', () => {
       '<a href="&#x6a;avascript:alert(1)"><rect/></a>',
       '<foreignObject><body xmlns="http://www.w3.org/1999/xhtml">x</body></foreignObject>',
       '<style>rect { fill: url(javascript:alert(1)) }</style>',
+      '<svg:script xmlns:svg="http://www.w3.org/2000/svg">alert(1)</svg:script>',
+      '<svg:foreignObject xmlns:svg="http://www.w3.org/2000/svg"><body/></svg:foreignObject>',
+      '<rect fill="a>b" onload="alert(1)"/>',
+      "</script><rect onload='alert(1)'/>",
+      '<!ENTITY x "y">',
+      '<![CDATA[<rect/>]]>',
     ]
     for (const body of bodies) {
       expectError({ views: [{ name: '主视图', body, widthMm: 40, heightMm: 20 }] }, 'invalid_input')
@@ -302,6 +308,23 @@ describe('buildAppearanceViewSheet 校验', () => {
     expect(() => buildAppearanceViewSheet({
       views: [{ name: '主视图', body: '<rect onload="alert(1)"/>', widthMm: 40, heightMm: 20 }],
     })).toThrow(/事件处理属性/)
+  })
+
+  it('keeps quoted ">" and on…= text inside attribute values while scanning past bare "<"', () => {
+    const bodies = [
+      '<rect x="1" y="1" width="2" height="2" fill="a>b"/>',
+      '<rect fill="a>b" aria-label="text onload=alert(1)"/>',
+      '<rect aria-label="on load=" />',
+      "<rect aria-label='on load=' />",
+      '<text>2 < 3</text>',
+      '<rect/> ',
+      '<rect',
+    ]
+    for (const body of bodies) {
+      expect(() => buildAppearanceViewSheet({
+        views: [{ name: '主视图', body, widthMm: 40, heightMm: 20 }],
+      })).not.toThrow()
+    }
   })
 
   it('十进制字符引用同样解码后再检查，超出 Unicode 范围的引用原样保留', () => {

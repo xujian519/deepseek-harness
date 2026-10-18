@@ -27,24 +27,26 @@ export function assertSafeId(id: string, what: string): void {
 }
 
 /**
- * 校验一个值可直接作为单段路径名：非空、不是 `.`/`..`、不含路径分隔符或 NUL。
+ * 校验一个值可直接作为单段路径名：非空、不是 `.`/`..`、不以空格或点结尾、
+ * 不含路径分隔符或 NUL。
  *
  * 与 {@link assertSafeId} 的差别是允许中文等非 ASCII 字符：案卷号常写作
  * `CN2024-0001` 或中文案卷名，但仍不得越出 `data/cases/<caseId>/`。
+ * 尾部空格和点在 Windows 上会被文件系统忽略，`".. "` 因而可能解析为父目录。
  * @param value - 待校验的路径段。
  * @param what - 错误消息中的对象名（如 "caseId"）。
  */
 export function assertSafePathSegment(value: string, what: string): void {
   if (
     value.trim() === '' ||
-    value === '.' ||
-    value === '..' ||
+    value !== value.trim() ||
+    value.endsWith('.') ||
     value.includes('/') ||
     value.includes('\\') ||
     value.includes('\0')
   ) {
     throw new RangeError(
-      `Invalid ${what} ${JSON.stringify(value)}: must be a single path segment without ".."`,
+      `Invalid ${what} ${JSON.stringify(value)}: must be a single path segment without ".." or trailing dots/spaces`,
     )
   }
 }
