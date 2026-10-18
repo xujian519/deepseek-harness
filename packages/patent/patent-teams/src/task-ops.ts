@@ -39,6 +39,7 @@ import {
 import type { TeamActivity } from './team-activity.ts'
 import { teamLockKey, withTeamLock } from './team-lock.ts'
 import {
+  PatentTeamsError,
   TERMINAL_TASK_STATUSES,
   type TaskContractValidation,
   type TaskGateFeedback,
@@ -288,7 +289,7 @@ export async function reassignTask(
   const revoked = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
     const fresh = await freshCaptainTeam(stateRoot, team.id, agent.id)
     const task = requireTask(fresh, args.task_id)
-    if (task.status === 'completed') throw new Error(`completed task ${task.id} is immutable and cannot be reassigned`)
+    if (task.status === 'completed') throw new PatentTeamsError('TASK_TERMINAL', `completed task ${task.id} is immutable and cannot be reassigned`)
     if (task.reassigning === true) throw new Error(`task ${task.id} is already being reassigned`)
     const targetMember = target === CAPTAIN_KEY ? undefined : requireMember(fresh, target)
     if (targetMember !== undefined) {
@@ -392,7 +393,7 @@ export async function claimTask(
         throw new Error('members cannot set assignee when claiming a task')
       }
       if (assignee !== undefined && assignee !== identity.name) {
-        throw new Error(`task ${task.id} is assigned to "${assignee}", not you`)
+        throw new PatentTeamsError('ALREADY_CLAIMED', `task ${task.id} is assigned to "${assignee}", not you`)
       }
       assignee = identity.name
     }
@@ -401,7 +402,7 @@ export async function claimTask(
     if (task.status === 'claimed' || task.status === 'in_progress') {
       if (assignee === undefined || task.assignee !== assignee) {
         // v8 ignore next -- a claimed task always has an assignee
-        throw new Error(`task ${task.id} is already claimed by "${task.assignee ?? 'nobody'}"`)
+        throw new PatentTeamsError('ALREADY_CLAIMED', `task ${task.id} is already claimed by "${task.assignee ?? 'nobody'}"`)
       }
       // v8 ignore start -- a claimed task always carries attempt/attemptId; fallbacks are unreachable
       return {
@@ -415,10 +416,10 @@ export async function claimTask(
     }
     const pending = unsatisfiedDependencies(fresh.tasks, task.dependencies)
     if (pending.length > 0) {
-      throw new Error(`task ${task.id} is blocked by unfinished dependencies: ${pending.join(', ')} — complete them first`)
+      throw new PatentTeamsError('DEPENDENCIES_OPEN', `task ${task.id} is blocked by unfinished dependencies: ${pending.join(', ')} — complete them first`)
     }
     const transition = transitionError(task.status, 'claimed')
-    if (transition !== undefined) throw new Error(transition)
+    if (transition !== undefined) throw new PatentTeamsError('TASK_TERMINAL', transition)
     if (assignee === undefined) {
       throw new Error('claiming an unassigned task needs an assignee (claim on behalf of a member)')
     }
@@ -469,21 +470,21 @@ export async function updateTask(
     if (identity.kind === 'captain'
       && task.assignee !== undefined
       && task.assignee !== CAPTAIN_KEY) {
-      throw new Error(`task ${task.id} is owned by member "${task.assignee}"; call patent_teams_reassign_task with assignee="captain" before takeover`)
+      throw new PatentTeamsError('ALREADY_CLAIMED', `task ${task.id} is owned by member "${task.assignee}"; call patent_teams_reassign_task with assignee="captain" before takeover`)
     }
     if (identity.kind === 'member') {
       if (task.assignee !== identity.name) {
-        throw new Error(`task ${task.id} is assigned to "${task.assignee ?? 'nobody'}", not you`)
+        throw new PatentTeamsError('ALREADY_CLAIMED', `task ${task.id} is assigned to "${task.assignee ?? 'nobody'}", not you`)
       }
       if (task.attemptId !== undefined && args.attempt_id !== task.attemptId) {
-        throw new Error(`stale attempt for task ${task.id}: expected the current attempt_id; stop work and request fresh assignment`)
+        throw new PatentTeamsError('STALE_ATTEMPT', `stale attempt for task ${task.id}: expected the current attempt_id; stop work and request fresh assignment`)
       }
     }
     if (TERMINAL_TASK_STATUSES.includes(task.status)) {
       const sameStatus = args.status === undefined || args.status === task.status
       const sameOutput = args.output === undefined || args.output === task.output
       if (!sameStatus || !sameOutput) {
-        throw new Error(`terminal task ${task.id} is immutable; use patent_teams_reassign_task to retry failed/cancelled work`)
+        throw new PatentTeamsError('TASK_TERMINAL', `terminal task ${task.id} is immutable; use patent_teams_reassign_task to retry failed/cancelled work`)
       }
       return taskView(task)
     }
@@ -497,7 +498,7 @@ export async function updateTask(
       const submittedOutput = args.output ?? task.output
       if (targetCompleted && host.qualityGate && task.worker !== undefined) {
         if (submittedOutput === undefined) {
-          throw new Error(`task ${task.id} uses worker "${task.worker}" and cannot complete without output; submit the work product as output`)
+          throw new PatentTeamsError('WORKER_OUTPUT_REQUIRED', `task ${task.id} uses worker "${task.worker}" and cannot complete without output; submit the work product as output`)
         }
         const gate = runQualityGate(host.ctx, task.worker, submittedOutput, host.passThreshold)
         if (!gate.satisfied) {
@@ -536,7 +537,7 @@ export async function updateTask(
         }
       }
       const transition = transitionError(task.status, args.status as never)
-      if (transition !== undefined) throw new Error(transition)
+      if (transition !== undefined) throw new PatentTeamsError('TASK_TERMINAL', transition)
       task.status = args.status as never
     }
     if (args.output !== undefined) task.output = args.output
@@ -571,15 +572,30 @@ export async function updateTask(
 }
 
 /**
+ * Resolve one worker contract, or fail with a stable error code.
+ * @param workerName - the catalog worker the task was created with.
+ * @returns the registered worker contract.
+ * @throws PatentTeamsError with `WORKER_CONTRACT_UNKNOWN` when the name is not
+ * registered (possible only in a hand-edited or older team record).
+ */
+function requireWorkerContract(workerName: string): NonNullable<ReturnType<typeof workerContract>> {
+  const worker = workerContract(workerName)
+  if (worker === undefined) {
+    throw new PatentTeamsError('WORKER_CONTRACT_UNKNOWN', `worker contract "${workerName}" is not registered; the task cannot be validated`)
+  }
+  return worker
+}
+
+/**
  * Validate one task's completed output against its worker contract (soft, never blocks).
  * @param workerName - the catalog worker the task was created with.
  * @param output - the completed output to validate.
  * @returns the recorded contract verdict.
+ * @throws PatentTeamsError with `WORKER_CONTRACT_UNKNOWN` when the recorded
+ * worker is not in the catalog.
  */
 function validateTaskContract(workerName: string, output: string): TaskContractValidation {
-  // v8 ignore next -- createTask rejects unknown workers, so a completing task always resolves its worker
-  // oxlint-disable-next-line typescript/no-non-null-assertion -- createTask rejects unknown workers
-  const worker = workerContract(workerName)!
+  const worker = requireWorkerContract(workerName)
   const validation = validateWorkerOutput(worker, output)
   return {
     worker: workerName,
@@ -602,18 +618,19 @@ function validateTaskContract(workerName: string, output: string): TaskContractV
  * threshold at which the advisory composite score is called out in the feedback,
  * not the bounce decision.
  *
- * Never throws; `satisfied` is false on any failure.
+ * A gate failure is reported in the returned verdict; only an unknown worker
+ * contract throws.
  * @param ctx - the plugin context (reads the optional `patentRuleGate` service).
  * @param workerName - the catalog worker the task was created with.
  * @param output - the submitted completion to gate.
  * @param passThreshold - score below which the advisory line is appended.
  * @returns the gate verdict recorded on the task.
+ * @throws PatentTeamsError with `WORKER_CONTRACT_UNKNOWN` when the recorded
+ * worker is not in the catalog.
  */
 function runQualityGate(ctx: Context, workerName: string, output: string, passThreshold: number): TaskGateFeedback {
   const failures: string[] = []
-  // v8 ignore next -- createTask rejects unknown workers, so a gated task always resolves its worker
-  // oxlint-disable-next-line typescript/no-non-null-assertion -- createTask rejects unknown workers
-  const validation = validateWorkerOutput(workerContract(workerName)!, output)
+  const validation = validateWorkerOutput(requireWorkerContract(workerName), output)
   if (validation.missingHardFields.length > 0) {
     failures.push(`契约缺字段:${validation.missingHardFields.join('、')}（${workerName}）`)
   }

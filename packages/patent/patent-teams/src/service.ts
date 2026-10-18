@@ -75,7 +75,7 @@ import {
 } from './team-access.ts'
 import { TEAM_WAIT_MAX_MS, TEAM_WAIT_MIN_MS, TeamActivity } from './team-activity.ts'
 import { sanitizeKey, teamLockKey, withTeamLock } from './team-lock.ts'
-import type { TeamState } from './types.ts'
+import { PatentTeamsError, type TeamState } from './types.ts'
 
 /** Resolved plugin config consumed by the service. */
 export interface PatentTeamsConfig {
@@ -191,7 +191,7 @@ export class PatentTeamsService extends Service {
     if (teamName === '') throw new Error('team name must not be empty')
     const teamId = sanitizeKey(teamName)
     if (RESERVED_TEAM_IDS.has(teamId)) {
-      throw new Error(`team id "${teamId}" is reserved for the archive directory — pick a different team name`)
+      throw new PatentTeamsError('TEAM_RESERVED_ID', `team id "${teamId}" is reserved for the archive directory — pick a different team name`)
     }
     const captainLockKey = `captain:${stateRoot}:${agent.id}`
     return withTeamLock(captainLockKey, async () => {

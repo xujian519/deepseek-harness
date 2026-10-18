@@ -20,6 +20,38 @@ export type TaskStatus =
 /** Statuses after which a task can no longer be claimed or worked on. */
 export const TERMINAL_TASK_STATUSES: readonly TaskStatus[] = ['completed', 'failed', 'cancelled']
 
+/** Stable failure codes for model-visible PatentTeams operations. */
+export type PatentTeamsErrorCode =
+  | 'STALE_ATTEMPT'
+  | 'ALREADY_CLAIMED'
+  | 'TASK_TERMINAL'
+  | 'DEPENDENCIES_OPEN'
+  | 'WORKER_OUTPUT_REQUIRED'
+  | 'WORKER_CONTRACT_UNKNOWN'
+  | 'TEAM_RESERVED_ID'
+
+/**
+ * A PatentTeams operation failure with a stable machine-readable code.
+ *
+ * The message stays human-readable and may change; consumers that branch on
+ * the failure read {@link code} instead.
+ */
+export class PatentTeamsError extends Error {
+  /** Stable failure code. */
+  readonly code: PatentTeamsErrorCode
+
+  /**
+   * @param code - stable failure code.
+   * @param message - model-facing explanation.
+   * @param options - optional wrapped cause.
+   */
+  constructor(code: PatentTeamsErrorCode, message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'PatentTeamsError'
+    this.code = code
+  }
+}
+
 /** One task of a team's task list. */
 export interface TeamTask {
   /** Stable task id within the team (`t1`, `t2`, …). */

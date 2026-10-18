@@ -168,8 +168,10 @@ describe('create', () => {
   it('rejects the reserved archive team id', async () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
-    await expect(createTeam(h, captain, 'archive')).rejects.toThrow('reserved for the archive directory')
-    await expect(createTeam(h, captain, 'Archive')).rejects.toThrow('reserved for the archive directory')
+    const reserved = createTeam(h, captain, 'archive')
+    await expect(reserved).rejects.toThrow('reserved for the archive directory')
+    await expect(reserved).rejects.toMatchObject({ code: 'TEAM_RESERVED_ID' })
+    await expect(createTeam(h, captain, 'Archive')).rejects.toMatchObject({ code: 'TEAM_RESERVED_ID' })
     expect(await readTeam(join(h.workspace, h.stateDir), 'archive')).toBeUndefined()
     const created = await createTeam(h, captain, 'archive-2')
     expect(created.team_id).toBe('archive-2')
@@ -707,6 +709,51 @@ describe('updateTask', () => {
       task_id: 't1', status: 'completed', output: 'ok', attempt_id: claimed.attempt_id!,
     })
     expect(resubmitted).toMatchObject({ gated: true, status: 'in_progress' })
+  })
+
+  it('returns stable error codes for blocked, stale, ownership, terminal, and worker failures', async () => {
+    const h = await makeService({ maxMembers: 2, qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    const alice = fakeAgent('member-1', h.workspace, { status: 'running' })
+    h.agents.set('member-1', alice)
+
+    await h.ctx.patentTeams.createTask(captain, { subject: 'root' })
+    await h.ctx.patentTeams.createTask(captain, { subject: 'blocked', dependencies: ['t1'], assignee: 'alice' })
+    await expect(h.ctx.patentTeams.claimTask(captain, { task_id: 't2', assignee: 'alice' }))
+      .rejects.toMatchObject({ code: 'DEPENDENCIES_OPEN' })
+
+    await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't3', assignee: 'alice' })
+    await expect(h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'in_progress', attempt_id: 'stale' }))
+      .rejects.toMatchObject({ code: 'STALE_ATTEMPT' })
+    await expect(h.ctx.patentTeams.updateTask(captain, { task_id: 't3', status: 'in_progress' }))
+      .rejects.toMatchObject({ code: 'ALREADY_CLAIMED' })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'failed', output: 'x', attempt_id: claimed.attempt_id! })
+    await expect(h.ctx.patentTeams.updateTask(alice, { task_id: 't3', status: 'completed', attempt_id: claimed.attempt_id! }))
+      .rejects.toMatchObject({ code: 'TASK_TERMINAL' })
+
+    await h.ctx.patentTeams.createTask(captain, {
+      subject: 'worker', assignee: 'alice', worker: 'patent-search-commander',
+    })
+    const workerClaim = await h.ctx.patentTeams.claimTask(captain, { task_id: 't4', assignee: 'alice' })
+    await h.ctx.patentTeams.updateTask(alice, {
+      task_id: 't4', status: 'in_progress', attempt_id: workerClaim.attempt_id!,
+    })
+    await expect(h.ctx.patentTeams.updateTask(alice, {
+      task_id: 't4', status: 'completed', attempt_id: workerClaim.attempt_id!,
+    })).rejects.toMatchObject({ code: 'WORKER_OUTPUT_REQUIRED' })
+
+    const stateRoot = join(h.workspace, h.stateDir)
+    const team = await readTeam(stateRoot, 'alpha')
+    team!.tasks[3]!.worker = 'ghost-worker'
+    await writeTeam(stateRoot, team!)
+    await expect(h.ctx.patentTeams.updateTask(alice, {
+      task_id: 't4', status: 'completed', output: 'x', attempt_id: workerClaim.attempt_id!,
+    })).rejects.toMatchObject({ code: 'WORKER_CONTRACT_UNKNOWN' })
+    expect((await readTeam(stateRoot, 'alpha'))?.tasks[3]?.status).toBe('in_progress')
   })
 })
 
