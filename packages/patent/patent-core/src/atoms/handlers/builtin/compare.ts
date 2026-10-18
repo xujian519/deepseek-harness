@@ -90,6 +90,8 @@ export class CompareHandler implements StageHandler {
     const tuned = readAtomTunables(state, { temperature: 0, promptLimit: 6000 })
     if (!tuned.ok) return degraded('compare', tuned.reason)
     const { temperature, promptLimit, promptLimitConfigured } = tuned.tunables
+    // 未显式配置时保留两类文本的原有上限；配置后同一上限作用于两者。
+    const claimLimit = promptLimitConfigured ? promptLimit : 4000
     const missing = requireLlm(provider, 'compare')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')
@@ -101,7 +103,7 @@ export class CompareHandler implements StageHandler {
     const prompt = [
       `对比范围：${scope}`,
       '权利要求：',
-      dataBlock(claim.slice(0, promptLimitConfigured ? promptLimit : 4000)),
+      dataBlock(claim.slice(0, claimLimit)),
       '现有技术：',
       dataBlock(priorArt.slice(0, promptLimit)),
       '请逐项对比，严格输出 JSON（claim_chart 每项含 feature/prior_art_match/identical/note，diff_features 为区别特征）。',

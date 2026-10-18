@@ -21,7 +21,7 @@ description: "专利原子在月级日期、复合证据、畸形 JSON、非法 
 
 1. 将申请日、优先权日与截止日规范为 `yyyy-MM-dd`；公开日可以保留具体日期或月级写法。
 2. 对复合证据显式填写 `translated`、`notarized`、`legalized`、`notarizedExempt`、`legalizedExempt` 与 `witnessDisclosed`。缺失布尔值会成为待核项，`false` 会成为违规。
-3. 在阶段执行前校验生成的 `office_action`、`claim_chart_doc` 与 `chart_targets`。每个目标需要非空 `id` 与 `kind`（`prior-art` 或 `accused-product`）；每行需要 `MAPPINGS` 中的 `mapping`。
+3. 在阶段执行前校验生成的 `office_action`、`claim_chart_doc` 与 `chart_targets`。每个目标需要非空 `id` 与 `kind`：`prior-art`，或被控产品使用 `product` / `accused-product`。`claim_chart_doc` 的每一行需要以下 `mapping` 之一：`literal`、`literal-construction-dependent`、`doe`、`anticipation`、`obviousness-combination`、`partial`、`not-found`、`needs-evidence`、`construction-dependent`。
 4. 将 `chart_mode` 设为 `infringement`、`invalidity`、`oa-response`、`reexamination` 或 `patentability`。从 stage params 中移除越界的调参值。
 5. 要求模型输出字符串数组，或包含必需 `feature` / `disclosed` 字段的记录。
 6. 确认：`pnpm exec vitest run packages/patent/patent-core` 通过，且合法输入的工作流运行输出中没有 `[WORKFLOW_DEGRADED]`。

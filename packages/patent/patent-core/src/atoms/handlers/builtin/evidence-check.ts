@@ -189,7 +189,8 @@ function readDate(
     const parsed = parseDateFlexible(text)
     /* v8 ignore next -- isMonthOnlyDate guarantees parseDateFlexible succeeds. */
     if (parsed === null) return { error: `${field} 无法解析：${text}` }
-    return { date: parsed, text: inferredMonthEnd(parsed) }
+    const monthEndDate = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 0))
+    return { date: monthEndDate, text: inferredMonthEnd(parsed) }
   }
   const parsed = parseDateFlexible(text)
   if (parsed === null) return { error: `${field} 不是可识别的日期：${text}` }
@@ -639,8 +640,7 @@ function renderReport(params: {
 
   for (const { ctx, result } of params.entries) {
     const name = displayName(ctx.record, ctx.index)
-    const labels = formLabels(ctx.forms)
-    const kindLabel = labels.length > 0 ? `[${labels.join('/')}]` : ''
+    const kindLabel = formLabel(ctx.forms)
     if (result.violations.length === 0 && result.pending.length === 0) {
       lines.push(`- ${ctx.label}《${name}》${kindLabel}：通过`)
       continue
@@ -669,18 +669,18 @@ function renderReport(params: {
 }
 
 /**
- * 证据形式属性对应的中文标签，按固定顺序拼接。
+ * 证据形式属性对应的报告标签，按固定顺序拼接。
  * @param forms - 证据形式属性集合。
- * @returns 已命中的标签；全部未命中时为空数组。
+ * @returns 形如 `[现有技术/外文证据]` 的标签；全部未命中时为空串。
  */
-function formLabels(forms: EvidenceForms): string[] {
+function formLabel(forms: EvidenceForms): string {
   const labels: string[] = []
   if (forms.priorArt) labels.push('现有技术')
   if (forms.foreignLanguage) labels.push('外文证据')
   if (forms.overseas) labels.push('域外证据')
   if (forms.witness) labels.push('证人证言')
   if (forms.electronic) labels.push('电子数据')
-  return labels
+  return labels.length > 0 ? `[${labels.join('/')}]` : ''
 }
 
 /** evidence-check 执行器：逐条核对证据的形式、期限与关联性。 */

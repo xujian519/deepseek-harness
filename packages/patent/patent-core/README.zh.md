@@ -37,6 +37,15 @@ kind: "package-reference"
 
 atoms 层定义工作流阶段词汇：`Atom`/`AtomRegistry`（声明式契约）与 `StageHandler`/`StageHandlerRegistry`（运行时）。`registerBuiltinAtoms()` 注册 24 个 handler：模型/检索阶段 `search`、`keywords`、`extract`、`merge`、`compare`、`novelty`、`reasoning`、`groundedness`、`draft-claims`、`approval-gate` 与 `claim-chart`，以及确定性法律检查 `oa-parse`（通知书解析）、`grounds`（程序理由识别）、`response-plan`（答复计划骨架）、`coverage`（全面覆盖与等同核验）、`pfe-consistency`、`citation-check`、`time-baseline`、`prior-art-filter`、`conflicting-application`、`numeric-range`、`problem-check`、`amendment-basis` 与 `evidence-check`。`@deepseek-ai/dsh-patent-tools` 通过插件 effect 另注册 6 个包内原子：`slop-gate`、`draft-specification`、`spec-check`、`response-check`、`eligibility` 与 `legal-gaps`。宿主注入一个 `StageProvider`（`callLLM` 字符串接缝或流式 `llm` 端口，以及 `search`），handler 消费它并在缺失时降级而非抛错。
 
+Stage params 可调整这些 handler。缺省键保留各原子默认值；畸形值会在调用模型前降级。
+
+| 键 | 类型 | 默认值 | 适用范围 |
+| --- | --- | --- | --- |
+| `temperature` | 数字，0–2 | 按原子（`0`、`0.1` 或 `0.2`） | 调用模型的原子 |
+| `prompt_char_limit` | 正整数 | 按原子 | prompt 中引用的来源摘录；短小生成行不受限 |
+| `max_retries` | 整数，0–10 | `2` | `claim-chart` 的校验重做 |
+| `groundedness_threshold` | 数字，0–1 | `0.6` | `groundedness` 低分过滤与提示词分数分界 |
+
 <a id="modelport"></a>
 ## ModelPort
 

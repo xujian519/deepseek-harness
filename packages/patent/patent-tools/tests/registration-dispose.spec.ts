@@ -21,12 +21,14 @@ describe('patent-tools atom effects', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     const fiber = await ctx.plugin(tool, {})
-    for (const name of PACKAGE_ATOMS) {
-      expect(globalAtomRegistry.lookup(name)).toBeDefined()
-      expect(globalStageHandlerRegistry.lookup(name)).toBeDefined()
+    try {
+      for (const name of PACKAGE_ATOMS) {
+        expect(globalAtomRegistry.lookup(name)).toBeDefined()
+        expect(globalStageHandlerRegistry.lookup(name)).toBeDefined()
+      }
+    } finally {
+      await fiber.dispose()
     }
-
-    await fiber.dispose()
 
     for (const name of PACKAGE_ATOMS) {
       expect(globalAtomRegistry.lookup(name)).toBeUndefined()

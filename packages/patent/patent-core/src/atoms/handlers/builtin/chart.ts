@@ -195,8 +195,8 @@ export function derivePriorArtTargets(priorArt: unknown): ChartTarget[] {
   const targets: ChartTarget[] = []
   const seen = new Set<string>()
   priorArt.forEach((entry, index) => {
-    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return
-    const record = entry as Record<string, unknown>
+    const record = asJsonRecord(entry)
+    if (record === undefined) return
     const rawLabel = typeof record.dLabel === 'string' ? record.dLabel.trim() : ''
     const id = /^D\d+$/.test(rawLabel) ? rawLabel : `D${index + 1}`
     if (seen.has(id)) return
@@ -298,6 +298,13 @@ function validateChart(
   return errors
 }
 
+/** 未显式提供目标时，按场景模式从上一阶段产出派生。 */
+function deriveModeTargets(mode: ChartMode, state: PipelineState): ChartTarget[] {
+  if (mode === 'oa-response') return deriveOfficeActionTargets(getStateString(state, 'office_action'))
+  if (mode === 'patentability') return derivePriorArtTargets(state['prior_art'])
+  return []
+}
+
 /**
  * 预读目标源文件一次（重做 attempt 间复用，避免循环内重复 I/O）。
  * 读取失败不缓存，由 validateChart 对引用该源的每行报"源文件不可读"。
@@ -366,14 +373,7 @@ export class ClaimChartHandler implements StageHandler {
     const targetsRes = parseTargets(getStateString(state, 'chart_targets'))
     if (targetsRes.error) return degraded('claim-chart', targetsRes.error)
     // 显式传入的目标优先；OA 答复由解析产出派生，可专利性由过滤后的检索命中派生。
-    const targets =
-      targetsRes.targets.length > 0
-        ? targetsRes.targets
-        : mode === 'oa-response'
-          ? deriveOfficeActionTargets(getStateString(state, 'office_action'))
-          : mode === 'patentability'
-            ? derivePriorArtTargets(state['prior_art'])
-            : []
+    const targets = targetsRes.targets.length > 0 ? targetsRes.targets : deriveModeTargets(mode, state)
 
     const sourceCache = readTargetSources(targets)
     const targetLines = renderTargetLines(targets)

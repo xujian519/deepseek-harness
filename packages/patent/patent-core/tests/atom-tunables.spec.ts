@@ -37,7 +37,7 @@ describe('atomic tunable readers', () => {
   it('rejects non-numbers, non-finite values and out-of-range values', () => {
     expect(readTemperature({ temperature: '0.5' }, 0)).toEqual({
       ok: false,
-      reason: 'params.temperature 必须是0-2 的数字',
+      reason: 'params.temperature 必须是：0-2 的数字',
     })
     expect(readTemperature({ temperature: Number.NaN }, 0).ok).toBe(false)
     expect(readTemperature({ temperature: Number.POSITIVE_INFINITY }, 0).ok).toBe(false)
@@ -84,13 +84,13 @@ describe('handler tunable degradation', () => {
     let calls = 0
     const provider: StageProvider = { callLLM: async () => { calls += 1; return '{}' } }
     const out = await handler.execute({ state: { ...state, temperature: 3 }, provider })
-    expect(String(out._error)).toBe(`[${name}] params.temperature 必须是0-2 的数字`)
+    expect(String(out._error)).toBe(`[${name}] params.temperature 必须是：0-2 的数字`)
     expect(calls).toBe(0)
   })
 
   it.each(PROMPT_HANDLERS)('$name rejects an invalid prompt_char_limit', async ({ name, handler, state }) => {
     const out = await handler.execute({ state: { ...state, prompt_char_limit: 0 }, provider: {} })
-    expect(String(out._error)).toBe(`[${name}] params.prompt_char_limit 必须是正整数`)
+    expect(String(out._error)).toBe(`[${name}] params.prompt_char_limit 必须是：正整数`)
   })
 
   it('claim-chart rejects an invalid max_retries', async () => {
@@ -98,7 +98,7 @@ describe('handler tunable degradation', () => {
       state: { claim: '权利要求', chart_targets: '[]', max_retries: 1.5 },
       provider: {},
     })
-    expect(String(out._error)).toBe('[claim-chart] params.max_retries 必须是0-10 的整数')
+    expect(String(out._error)).toBe('[claim-chart] params.max_retries 必须是：0-10 的整数')
   })
 
   it('groundedness rejects an invalid groundedness_threshold', async () => {
@@ -106,7 +106,7 @@ describe('handler tunable degradation', () => {
       state: { features: ['F1'], source_text: '原文', groundedness_threshold: 1.5 },
       provider: {},
     })
-    expect(String(out._error)).toBe('[groundedness] params.groundedness_threshold 必须是0-1 的数字')
+    expect(String(out._error)).toBe('[groundedness] params.groundedness_threshold 必须是：0-1 的数字')
   })
 })
 

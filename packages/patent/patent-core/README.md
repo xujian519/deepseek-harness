@@ -36,6 +36,15 @@ Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines 
 
 The atoms layer defines the workflow stage vocabulary: `Atom`/`AtomRegistry` (declarative contract) and `StageHandler`/`StageHandlerRegistry` (runtime). `registerBuiltinAtoms()` registers twenty-four handlers: the model/search stages `search`, `keywords`, `extract`, `merge`, `compare`, `novelty`, `reasoning`, `groundedness`, `draft-claims`, `approval-gate`, and `claim-chart`, plus the deterministic legal checks `oa-parse` (office-action parsing), `grounds` (procedure grounds), `response-plan` (reply-plan skeleton), `coverage` (all-elements and equivalence), `pfe-consistency`, `citation-check`, `time-baseline`, `prior-art-filter`, `conflicting-application`, `numeric-range`, `problem-check`, `amendment-basis`, and `evidence-check`. `@deepseek-ai/dsh-patent-tools` adds six package-owned atoms through its plugin effect: `slop-gate`, `draft-specification`, `spec-check`, `response-check`, `eligibility`, and `legal-gaps`. A host injects a `StageProvider` (a `callLLM` string seam or a streaming `llm` port, plus `search`) that the handlers consume and degrade over instead of throwing.
 
+Stage params tune these handlers. Absent keys keep the per-atom defaults; malformed values degrade the stage before any model call.
+
+| Key | Type | Default | Applies to |
+| --- | --- | --- | --- |
+| `temperature` | number, 0–2 | per atom (`0`, `0.1`, or `0.2`) | model-calling atoms |
+| `prompt_char_limit` | positive integer | per atom | source excerpts embedded in prompts; short generated lines stay uncapped |
+| `max_retries` | integer, 0–10 | `2` | `claim-chart` validation redos |
+| `groundedness_threshold` | number, 0–1 | `0.6` | `groundedness` low-score filtering and its prompt bands |
+
 ## ModelPort
 
 `PatentModelPort.stream(request, signal?)` is the canonical streaming LLM vocabulary. `createLlmModelPort(stream, { provider, model })` adapts the harness `LlmRuntime.stream(options: GenerateOptions)` into it, and `collectPortText` bridges the port back to the string the LLM-dependent atoms use. Provider selection stays with the harness `ctx.llm` adapters and the `agent/request` waterfall (the Sati router is not ported). The port also carries `route` (which provider/model answered) and `bindSession(sessionId)`, which rebinds it so every request identifies its session — a tool that calls the model from inside its own body binds the session first, so the call is attributable and recordable instead of anonymous.

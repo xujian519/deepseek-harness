@@ -68,6 +68,26 @@ describe('registry', () => {
     expect(atoms.lookup('search')).toBeUndefined()
   })
 
+  it('重复注册同一对象时，旧 disposer 不删除后继注册', () => {
+    const atoms = new AtomRegistry()
+    const atom = { ...searchAtom }
+    const disposeFirst = atoms.register(atom)
+    const disposeSecond = atoms.register(atom)
+    disposeFirst()
+    expect(atoms.lookup('search')).toBe(atom)
+    disposeSecond()
+    expect(atoms.lookup('search')).toBeUndefined()
+
+    const handlers = new StageHandlerRegistry()
+    const handler: StageHandler = { name: 'same', category: 'search', execute: async () => ({}) }
+    const disposeHandlerFirst = handlers.register(handler)
+    const disposeHandlerSecond = handlers.register(handler)
+    disposeHandlerFirst()
+    expect(handlers.lookup('same')).toBe(handler)
+    disposeHandlerSecond()
+    expect(handlers.lookup('same')).toBeUndefined()
+  })
+
   it('StageHandlerRegistry disposer 与 RegisterAtom 全局撤销', () => {
     const handlers = new StageHandlerRegistry()
     const first: StageHandler = { name: 't', category: 'search', execute: async () => ({ v: '1' }) }

@@ -21,7 +21,7 @@ English | [中文](guide.zh.md)
 
 1. Normalize filing, priority, and reference dates to `yyyy-MM-dd`. Publication dates may stay exact or month-level.
 2. For compound evidence, state `translated`, `notarized`, `legalized`, `notarizedExempt`, `legalizedExempt`, and `witnessDisclosed` explicitly. A missing boolean becomes a pending check; `false` becomes a violation.
-3. Validate generated `office_action`, `claim_chart_doc`, and `chart_targets` before the stage. Every target needs a non-empty `id` and `kind` (`prior-art` or `accused-product`); every row needs a `mapping` from `MAPPINGS`.
+3. Validate generated `office_action`, `claim_chart_doc`, and `chart_targets` before the stage. Every target needs a non-empty `id` and `kind`: `prior-art`, or `product` / `accused-product` for an accused product. Every `claim_chart_doc` row needs one of `literal`, `literal-construction-dependent`, `doe`, `anticipation`, `obviousness-combination`, `partial`, `not-found`, `needs-evidence`, or `construction-dependent`.
 4. Set `chart_mode` to `infringement`, `invalidity`, `oa-response`, `reexamination`, or `patentability`. Remove out-of-range tunables from stage params.
 5. Ask the model for arrays of strings, or for records with the required `feature` / `disclosed` fields.
 6. Confirm: `pnpm exec vitest run packages/patent/patent-core` passes, and a workflow run on valid inputs contains no `[WORKFLOW_DEGRADED]` output.

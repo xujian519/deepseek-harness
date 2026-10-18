@@ -36,7 +36,7 @@ type ExtractOutputKey = (typeof EXTRACT_OUTPUT_KEYS)[number]
 
 /** 判断 output_key 是否属于 extract 的分键输出。 */
 function isExtractOutputKey(value: string | undefined): value is ExtractOutputKey {
-  return value !== undefined && (EXTRACT_OUTPUT_KEYS as readonly string[]).includes(value)
+  return value !== undefined && EXTRACT_OUTPUT_KEYS.some(key => key === value)
 }
 
 /** 四个分键共享的 JSON 属性声明；Schema 只把当前目标键设为 required。 */

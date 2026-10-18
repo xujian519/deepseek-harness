@@ -125,20 +125,26 @@ export function isInterruptStageError(err: unknown): err is InterruptStageError 
 /** StageHandler 注册表：按 name 登记、查询执行器。 */
 export class StageHandlerRegistry {
   private readonly handlers = new Map<string, StageHandler>()
+  /** 每次注册的独立令牌：同名覆盖时旧 disposer 不能删除后继，即使对象相同。 */
+  private readonly tokens = new Map<string, object>()
 
   /**
    * 同名注册覆盖先前定义（对齐 Mady 覆盖语义，便于测试与扩展）。
    *
-   * 注册是 effect：返回的 disposer 在名称仍指向本次注册时删除它。名称已被后续注册
-   * 覆盖时，旧 disposer 不得删除后继（插件卸载不得拆掉后来者的贡献）。
+   * 注册是 effect：返回的 disposer 只撤销本次注册。名称已被后续注册覆盖时，旧
+   * disposer 不删除后继（插件卸载不得拆掉后来者的贡献），重复注册同一对象亦然。
    * @param handler - 待注册的 StageHandler。
    * @returns 撤销本次注册的 disposer；可重复调用。
    */
   register(handler: StageHandler): () => void {
     if (!handler.name.trim()) throw new StageHandlerRegistryError('StageHandler 缺少 name')
+    const token = {}
     this.handlers.set(handler.name, handler)
+    this.tokens.set(handler.name, token)
     return () => {
-      if (this.handlers.get(handler.name) === handler) this.handlers.delete(handler.name)
+      if (this.tokens.get(handler.name) !== token) return
+      this.tokens.delete(handler.name)
+      this.handlers.delete(handler.name)
     }
   }
 

@@ -40,7 +40,7 @@ function readTunable(
   const raw = state[key]
   if (raw === undefined) return { ok: true, value: fallback, configured: false }
   if (typeof raw !== 'number' || !Number.isFinite(raw) || !isValid(raw)) {
-    return { ok: false, reason: `params.${key} 必须是${expected}` }
+    return { ok: false, reason: `params.${key} 必须是：${expected}` }
   }
   return { ok: true, value: raw, configured: true }
 }
@@ -135,7 +135,9 @@ export function readMaxRetries(state: PipelineState, fallback: number): TunableR
 }
 
 /**
- * Read the character cap applied to each prompt data block.
+ * Read the character cap for quoted source text embedded in a prompt. Handlers apply
+ * it to their source excerpts; short generated lines (target lists, feature lists,
+ * revision hints) keep their own handling.
  * @param state - stage state, including merged params.
  * @param fallback - handler default cap.
  * @returns a positive integer, or a degradation reason.

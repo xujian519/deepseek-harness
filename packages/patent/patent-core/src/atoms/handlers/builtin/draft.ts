@@ -49,6 +49,8 @@ export class DraftClaimsHandler implements StageHandler {
     const tuned = readAtomTunables(state, { temperature: 0.2, promptLimit: 8000 })
     if (!tuned.ok) return degraded('draft-claims', tuned.reason)
     const { temperature, promptLimit, promptLimitConfigured } = tuned.tunables
+    // 未显式配置时保留各文本块的原有上限；配置后同一上限作用于所有块。
+    const noveltyLimit = promptLimitConfigured ? promptLimit : 2000
     const missing = requireLlm(provider, 'draft-claims')
     if (missing) return missing
     const mergeResult = getStateString(state, 'merge_result')
@@ -73,7 +75,7 @@ export class DraftClaimsHandler implements StageHandler {
       '【分析结果】',
       dataBlock(input.slice(0, promptLimit)),
       novelty.trim().length > 0
-        ? `【新颖性结论】\n${dataBlock(novelty.slice(0, promptLimitConfigured ? promptLimit : 2000))}`
+        ? `【新颖性结论】\n${dataBlock(novelty.slice(0, noveltyLimit))}`
         : '',
       revisionHint.trim().length > 0
         ? `【上一轮反套话评审意见（仅修订提示，不含评分）】\n${dataBlock(revisionHint)}`

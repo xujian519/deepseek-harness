@@ -257,6 +257,15 @@ describe('evidence-check atom', () => {
     expect(codes(after)).toContain('EVID-TIME-NOT-PRIOR-ART')
   })
 
+  it('月级公开日的月末晚于月中截止日 → 不构成现有技术', async () => {
+    const out = await handler.execute({
+      state: stateWith([priorArt({ publicationDate: '2024-06' })], { reference_date: '2024-06-15' }),
+    })
+    expect(out.evidence_check_passed).toBe(false)
+    expect(codes(out)).toContain('EVID-TIME-NOT-PRIOR-ART')
+    expect(String(out.evidence_check_report)).toContain('公开日 2024-06-30 不早于现有技术截止日 2024-06-15')
+  })
+
   it('A24 宽限期标注只提示，不在本原子判断是否适用', async () => {
     const out = await handler.execute({
       state: stateWith([priorArt({ publicationDate: '2024-06-01', a24Exception: 'A24.2' })]),

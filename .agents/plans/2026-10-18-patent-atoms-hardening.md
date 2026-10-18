@@ -558,6 +558,7 @@ git diff --check
 - 快照：
   - `pnpm run test:snapshot -t patent` → 11 个 `snapshots/session/patent-*` 场景全部通过，215 个非 patent 用例跳过。
   - 默认路径的输出未变化，因此没有需要接受的快照差异，也未改动 `snapshots/session/patent-*`。
+  - 未新增降级快照：`[WORKFLOW_DEGRADED]` 是执行器生成的确定性文本，`workflow-degradation.spec.ts` 已覆盖终态、重试成功、重试耗尽与部分结果四条路径；现有 11 个 patent 会话都是成功路径，新增 authored 降级会话只会复制执行器断言，不增加模型可见知识。
 - 升级指南：根 `package.json` 版本为 `0.2.1-rc.2`，新增 4 个条目，每个含 `guide.md`、`guide.zh.md` 与 `guide.i18n.yaml`：
   - `patent-atom-fail-closed`：月级日期、复合证据、畸形 JSON、非法 `chart_mode`、严格 LLM 数组与非法调参改为降级。
   - `patent-workflow-degradation-output`：失败阶段输出 `[WORKFLOW_DEGRADED] <原因>`；终态失败不重试，临时失败按 `maxRetries` 重试；`_error`/`_retryable` 不进入共享 state。
@@ -569,3 +570,14 @@ git diff --check
   - `pnpm run verify-md-links` → 2,738 个文件，相对链接与锚点全部可解析。
   - `pnpm run test:docs` → 29 passed, 0 failed（验证时临时移出被忽略的 `litho.docs/`，跑完恢复）。
 - 行为变化：仅文档；默认路径的会话输出未变。
+
+### 2026-10-18 审查修复
+
+- 状态：已完成
+- `evidence-check` 月级公开日：比较日期改为月末（`Date.UTC(year, month + 1, 0)`），与报告文案及 `prior-art-filter` 一致；新增截止日为月中（`2024-06-15`）的负向用例，确认 `EVID-TIME-NOT-PRIOR-ART` 阻断。
+- 调参文档：`patent-core` 中英文 README 的 Atoms 段新增键、类型、默认值与适用范围表；`tunables.ts` 的 `prompt_char_limit` JSDoc 收窄为“prompt 中引用的来源文本”，不再声称覆盖每个数据块。
+- 计数与指南：`vitest.config.ts` 的 patent-core 文件数由 127 更新为 128；`patent-atom-fail-closed` 指南补充 `product` 是 `accused-product` 的合法别名，并直接列出全部 mapping 取值，不再引用未导出的 `MAPPINGS`。
+- 注册表 disposer：`AtomRegistry` / `StageHandlerRegistry` 为每次注册生成独立令牌；即使重复注册同一对象，旧 disposer 也不会删除后继。新增同对象重复注册用例。
+- 测试清理：`registration-dispose.spec.ts` 用 `try/finally` 保证断言失败时仍释放插件 effect。
+- 快照理由：在 P2-05 记录中写明降级输出由 `workflow-degradation.spec.ts` 覆盖，新增 authored 降级会话不会增加模型可见知识，因此不改 `snapshots/session/patent-*`。
+- 验证：`patent-core` 1,297 tests passed、覆盖率 100%；`patent-workflow` 与 tools 相关 27 files / 304 tests passed；`typecheck` 5/5；`oxlint` 0/0；`duplication` 0 克隆；`build` 9/9；`test:docs` 29/29。

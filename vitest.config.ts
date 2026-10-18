@@ -261,7 +261,7 @@ export default defineConfig({
         // deliberately. Eight already pass the per-file gate and stay measured:
         // methodology, patent-data, patent-document, patent-knowledge,
         // patent-rule, tool-literature, patent-deadline, and patent-core.
-        // patent-core measured 100/127 on 2026-10-18. Measured 2026-09-28 over
+        // patent-core measured 100/128 on 2026-10-18. Measured 2026-09-28 over
         // `npx vitest run packages/patent/{patent-tools,patent-workflow,patent-teams,writing-patterns}
         // --coverage --coverage.reporter=json-summary --coverage.exclude='packages/*/*/src/worker.ts'`
         // — the entries below are excluded from the gate, so the exclude override
