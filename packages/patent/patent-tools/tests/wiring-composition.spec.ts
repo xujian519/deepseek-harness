@@ -205,6 +205,17 @@ function indexEntry(imagePath: string): FigureIndexEntry {
   }
 }
 
+/** 在指定平台上执行断言，结束后恢复原平台。 */
+function onPlatform<T>(platform: NodeJS.Platform, run: () => T): T {
+  const original = Object.getOwnPropertyDescriptor(process, 'platform')
+  try {
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+    return run()
+  } finally {
+    if (original !== undefined) Object.defineProperty(process, 'platform', original)
+  }
+}
+
 describe('registerPatentTools 缺省配置', () => {
   it('Config 全缺省时回落到模块默认值，且未挂 subprocess 时所有渲染端口缺省', async () => {
     await mount({})
@@ -253,22 +264,21 @@ describe('registerPatentTools 缺省配置', () => {
 
   it('dotFont 为空串时按 CJK/平台选择字体（darwin）', async () => {
     await mount({ dotFont: '' })
-    expect(mock.figures.at(-1)?.resolveFont?.(['壳体'])).toBe('PingFang SC')
+    onPlatform('darwin', () => {
+      expect(mock.figures.at(-1)?.resolveFont?.(['壳体'])).toBe('PingFang SC')
+    })
   })
 
   it('CJK 标签在 win32 / 其他平台分别选平台字体', async () => {
     await mount({})
     const resolveFont = mock.figures.at(-1)?.resolveFont
     if (resolveFont === undefined) throw new Error('缺少字体解析端口')
-    const original = Object.getOwnPropertyDescriptor(process, 'platform')
-    try {
-      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    onPlatform('win32', () => {
       expect(resolveFont(['壳体'])).toBe('Microsoft YaHei')
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+    })
+    onPlatform('linux', () => {
       expect(resolveFont(['壳体'])).toBe('Noto Sans CJK SC')
-    } finally {
-      if (original !== undefined) Object.defineProperty(process, 'platform', original)
-    }
+    })
   })
 })
 
