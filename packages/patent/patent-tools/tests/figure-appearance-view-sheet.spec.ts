@@ -284,6 +284,26 @@ describe('buildAppearanceViewSheet 校验', () => {
       .toThrow(/主视图 的片段尺寸必须为正有限数（毫米）：40×0/)
   })
 
+  it('视图片段含脚本、事件属性或嵌入文档时报 invalid_input', () => {
+    const bodies = [
+      '<script>alert(1)</script>',
+      '<rect onload="alert(1)"/>',
+      '<a href="javascript:alert(1)"><rect/></a>',
+      '<a href="&#x6a;avascript:alert(1)"><rect/></a>',
+      '<foreignObject><body xmlns="http://www.w3.org/1999/xhtml">x</body></foreignObject>',
+      '<style>rect { fill: url(javascript:alert(1)) }</style>',
+    ]
+    for (const body of bodies) {
+      expectError({ views: [{ name: '主视图', body, widthMm: 40, heightMm: 20 }] }, 'invalid_input')
+    }
+    expect(() => buildAppearanceViewSheet({
+      views: [{ name: '主视图', body: '<script>alert(1)</script>', widthMm: 40, heightMm: 20 }],
+    })).toThrow(/可执行元素/)
+    expect(() => buildAppearanceViewSheet({
+      views: [{ name: '主视图', body: '<rect onload="alert(1)"/>', widthMm: 40, heightMm: 20 }],
+    })).toThrow(/事件处理属性/)
+  })
+
   it('版面参数非正或非有限报 invalid_input', () => {
     const invalid: readonly AppearanceSheetInput[] = [
       { views: [view('主视图')], cellMm: 0 },

@@ -315,4 +315,18 @@ describe('getJSON / getText', () => {
     await expect(client.getJSON('https://json.test/html', { fetchImpl, retry: { maxRetries: 0 } as const }))
       .rejects.toThrow(/Non-JSON response from/)
   })
+
+  it('does not cache a non-JSON 200 response', async () => {
+    const client = new LiteratureHttpClient()
+    let calls = 0
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1
+      return new Response('<html>maintenance</html>', { status: 200 })
+    }
+    const url = 'https://json.test/html-cache'
+    const opts = { fetchImpl, retry: { maxRetries: 0 } as const }
+    await expect(client.getJSON(url, opts)).rejects.toThrow(/Non-JSON response from/)
+    await expect(client.getJSON(url, opts)).rejects.toThrow(/Non-JSON response from/)
+    expect(calls).toBe(2)
+  })
 })

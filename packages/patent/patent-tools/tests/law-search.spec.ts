@@ -81,11 +81,13 @@ describe('law_search', () => {
     expect(text(result)).toContain('0 条审查指南全文命中')
   })
 
-  it('limit 收敛到 1–10，include_content=false 不带片段', async () => {
+  it('limit 收敛到 1–10 的整数，include_content=false 不带片段', async () => {
     const rec = recorder()
     const ctx = await ctxWith(rec.deps)
     await call(ctx, { query: '说明书', limit: 99 }, 'law-max')
     expect(rec.calls[0]?.limit).toBe(10)
+    await call(ctx, { query: '说明书', limit: 2.9 }, 'law-frac')
+    expect(rec.calls[1]?.limit).toBe(2)
     const result = await call(ctx, { query: '说明书', limit: 0, include_content: false }, 'law-min')
     expect(text(result)).not.toContain('第二十六条')
   })

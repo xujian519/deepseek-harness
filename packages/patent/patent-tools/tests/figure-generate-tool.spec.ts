@@ -1067,8 +1067,18 @@ describe('generate_patent_figure panels', () => {
     const tool = createGeneratePatentFigureTool({ render: okRenderer(dir).render, outputDir: dir, cwd: dir })
     try {
       await expect(tool.execute({ ...twoPanels, steps: flowSteps }, exec)).rejects.toThrow('顶层结构输入')
+      await expect(tool.execute({
+        ...twoPanels,
+        circuit: { components: [], connections: [] },
+      }, exec)).rejects.toThrow('顶层结构输入')
       await expect(tool.execute({ panels: [] }, exec)).rejects.toThrow('不能为空列表')
       await expect(tool.execute({ panels: [{ suffix: '../x', blocks: [{ id: 'a', label: 'A' }] }] }, exec)).rejects.toThrow('面板后缀')
+      await expect(tool.execute({
+        panels: [
+          { suffix: 'A', blocks: [{ id: 'a', label: 'A' }] },
+          { suffix: 'A', blocks: [{ id: 'b', label: 'B' }] },
+        ],
+      }, exec)).rejects.toThrow('面板后缀重复')
       await expect(tool.execute({ ...twoPanels, filename: 'custom' }, exec)).rejects.toThrow('filename')
       await expect(tool.execute({
         panels: [{ suffix: 'A', steps: flowSteps, blocks: [{ id: 'a', label: 'A' }] }],

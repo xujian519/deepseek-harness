@@ -19,6 +19,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { LawSearchResult } from '@deepseek-ai/dsh-patent-knowledge'
 import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
+import { resolveResultLimit } from './internal/query-limit.ts'
 
 /** Which normative corpus of the knowledge base to search. */
 export type LawSearchScope = 'law' | 'guideline'
@@ -158,7 +159,7 @@ export function createLawSearchTool(deps: LawSearchDeps): ToolDefinition {
       if (deps.dbPath !== undefined && !existsSync(deps.dbPath)) {
         throw new PatentToolError('setup_required', INSTALL_GUIDANCE, { tool: 'law_search', scope })
       }
-      const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
+      const limit = resolveResultLimit(args.limit)
       const includeContent = args.include_content ?? true
       let hits: LawSearchResult[]
       try {

@@ -67,8 +67,11 @@ describe('buildDownloadScript', () => {
     expect(script).toContain('Date.now() + 90000')
   })
 
-  it('emits the evidence directory when record is true', () => {
+  it('writes evidence into the directory the payload reports', () => {
     const script = buildDownloadScript(request({ record: true }))
+    expect(script).toContain('const evidenceDir = outputDir + \'/evidence\'')
+    expect(script).toContain('fs.mkdirSync(evidenceDir, { recursive: true })')
+    expect(script).toContain('const evidencePath = evidenceDir + \'/evidence-\' + patent + \'.png\'')
     expect(script).toContain('payload.recorded = outputDir + \'/evidence\'')
   })
 })

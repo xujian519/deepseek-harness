@@ -37,7 +37,7 @@ import type { SectionSourceExpansion } from '../figure/section-source.ts'
 import { SvgAnnotateError } from '../figure/svg-annotate.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { FIGURE_TYPE_NAMES, FIGURE_TYPES } from './analyze-patent-figure.ts'
-import { collectComponents, collectFigureWording, inferFigureType, presentStructuralFields, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
+import { collectComponents, collectFigureWording, inferFigureType, presentStructuralFields, presentVectorFields, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
 import type { DotFigureType, GenerateFigureType, GeneratePatentFigureDeps, GeneratePatentFigureInput, GeneratePatentFigureOutput, GeneratePatentFigurePanelInput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
 import type { SectionFigureJson } from '../figure/vector-figure-build.ts'
 import { buildOutput, indexAnalysis, renderGenerateFigureResult, upsertFigureIndex } from './figure-output.ts'
@@ -445,7 +445,9 @@ function normalizeSingleFigure(input: ResolvedFigureInput): NormalizedFigureInpu
  * @throws PatentToolError for each violated constraint.
  */
 function assertPanelInput(input: GeneratePatentFigureInput, panels: readonly GeneratePatentFigurePanelInput[]): void {
-  const topLevelFields = presentStructuralFields(input).map(p => p.field)
+  // Vector inputs are not panel fields, and sending one alongside `panels` would
+  // otherwise be parsed, validated, and then silently dropped.
+  const topLevelFields = [...presentStructuralFields(input), ...presentVectorFields(input)].map(p => p.field)
   if (topLevelFields.length > 0) {
     throw new PatentToolError('invalid_tool_input', `panels 不能与顶层结构输入（${topLevelFields.join('、')}）同时提供`, { tool: 'generate_patent_figure' })
   }
@@ -455,10 +457,18 @@ function assertPanelInput(input: GeneratePatentFigureInput, panels: readonly Gen
   if (input.filename !== undefined) {
     throw new PatentToolError('invalid_tool_input', 'panels 模式按 figN<suffix> 命名输出文件，不接受 filename', { tool: 'generate_patent_figure' })
   }
+  const suffixes = new Set<string>()
   for (const panel of panels) {
     if (!/^[A-Za-z0-9_-]+$/.test(panel.suffix)) {
       throw new PatentToolError('invalid_tool_input', `面板后缀只能包含字母/数字/下划线/连字符：${panel.suffix}`, { tool: 'generate_patent_figure' })
     }
+    // Compare case-insensitively: fig1A.svg and fig1a.svg are one file on
+    // case-insensitive filesystems, so the second panel would overwrite the first.
+    const normalized = panel.suffix.toLowerCase()
+    if (suffixes.has(normalized)) {
+      throw new PatentToolError('invalid_tool_input', `面板后缀重复：${panel.suffix}（每个面板必须使用不同后缀，否则会覆盖同一输出文件）`, { tool: 'generate_patent_figure' })
+    }
+    suffixes.add(normalized)
   }
 }
 

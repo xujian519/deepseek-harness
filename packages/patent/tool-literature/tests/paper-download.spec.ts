@@ -610,6 +610,61 @@ describe('paper_download', () => {
     }
   })
 
+  it('enforces the whole-call deadline while the connector record fetch hangs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const registry = new ConnectorRegistry()
+      registry.register({
+        id: 'fake',
+        name: 'Fake',
+        domain: 'literature',
+        description: 'fake',
+        search: async () => [],
+        fetch: async (_id, options) => new Promise<never>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => { reject(new Error('aborted by deadline')) })
+        }),
+      })
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', timeoutMs: 20, outputDir: dir },
+        { registry, fetchImpl: pdfFetch() },
+      )
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      const value = result.value as { result: { status: string; error?: string } }
+      expect(value.result.status).toBe('failed')
+      expect(value.result.error).toBe('paper_download timed out after 20ms')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('enforces the whole-call deadline during browser extraction', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      const extractor = extractorWith(async (_script, options) => {
+        await new Promise<void>((resolve) => {
+          options?.signal?.addEventListener('abort', () => { resolve() })
+        })
+        return { exitCode: null, stdout: '', stderr: '', timedOut: true }
+      })
+      const result = await executeTool(
+        { db: 'fake', id: 'W123', timeoutMs: 20, outputDir: dir },
+        {
+          registry: registryWith({ extra: { pdf_url: 'https://pdf.example/x.pdf' }, url: 'https://record.example/x' }),
+          fetchImpl: failingFetch(403),
+          extractor,
+        },
+      )
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      const value = result.value as { result: { status: string; error?: string } }
+      expect(value.result.status).toBe('failed')
+      expect(value.result.error).toBe('paper_download timed out after 20ms')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('reports failed when the connector has no fetch implementation', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
     try {

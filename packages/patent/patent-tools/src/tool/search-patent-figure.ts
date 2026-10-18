@@ -210,6 +210,9 @@ export function renderSearchFigure(value: SearchPatentFigureOutput): string {
     if (r.components.length > 0) {
       lines.push('', '组件：' + r.components.map(c => `${c.refNumber} ${c.name}`).join('、'))
     }
+    if (r.warnings.length > 0) {
+      lines.push('', '**警告**', ...r.warnings.map(w => `- ${w}`))
+    }
     return lines.join('\n')
   })
   return [`**search_patent_figure** — ${value.results.length} result(s):`, '', rows.join('\n\n---\n\n')].join('\n')

@@ -49,6 +49,17 @@ describe('patent_case_search', () => {
     const result = await execute(ctx, 'patent_case_search', { query: 'x' }, 'c-2')
     expect(result.isError).toBe(true)
   })
+
+  it('truncates a fractional limit before calling the search', async () => {
+    const seen: number[] = []
+    const tool = createPatentCaseSearchTool({
+      search: (_query, options) => { seen.push(options?.limit ?? 0); return [hit] },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_case_search', { query: 'x', limit: 2.9 }, 'c-3')
+    expect(result.isError).toBe(false)
+    expect(seen).toEqual([2])
+  })
 })
 
 describe('patent_wiki_search', () => {
@@ -101,5 +112,21 @@ describe('patent_kg_query', () => {
     const ctx = await ctxWith(tool)
     const result = await execute(ctx, 'patent_kg_query', {}, 'k-3')
     expect(result.isError).toBe(true)
+  })
+
+  it('truncates a fractional limit before querying the graph', async () => {
+    const seen: number[] = []
+    const recording = {
+      ...adapter,
+      searchRelevant: (_query: string, options?: { keywordLimit?: number }) => {
+        seen.push(options?.keywordLimit ?? 0)
+        return [{ node, via: 'keyword' as const }]
+      },
+    }
+    const tool = createPatentKgQueryTool({ adapter: recording })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_kg_query', { query: 'x', limit: 2.9 }, 'k-4')
+    expect(result.isError).toBe(false)
+    expect(seen).toEqual([2])
   })
 })

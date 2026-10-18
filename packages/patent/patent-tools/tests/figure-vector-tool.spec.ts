@@ -208,7 +208,7 @@ describe('generate_patent_figure：矢量图型（直接绘制 SVG）', () => {
     }
   })
 
-  it('外观视图片段带复核拒绝的结构时记一条跳过说明，不吞掉已生成的图', async () => {
+  it('外观视图片段带可执行结构时拒绝落盘', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-vec-'))
     const outDir = join(dir, 'figs')
     const tracker = trackingRenderer()
@@ -226,11 +226,9 @@ describe('generate_patent_figure：矢量图型（直接绘制 SVG）', () => {
           }],
         },
       }, 'v11')
-      expect(result.isError).toBe(false)
-      const value = result as { value: { warnings: string[]; absolutePath: string } }
-      // 复核因调用方片段里的实体声明被拒：图照常交付，只记一条跳过说明。
-      expect(value.value.warnings.join('\n')).toContain('渲染复核被跳过')
-      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).toContain('<!ENTITY')
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('不安全结构')
+      expect(existsSync(join(outDir, 'fig1.svg'))).toBe(false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

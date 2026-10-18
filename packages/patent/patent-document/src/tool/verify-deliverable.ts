@@ -91,19 +91,52 @@ export interface VerifyDeliverableOutput {
 }
 
 /**
- * SHA-256 and mtime of one file.
- * @param path - the file to read.
- * @returns the record, or `undefined` when the path does not exist or is not readable.
+ * Largest file the check will hash. Deliverables are documents and drawings;
+ * the cap keeps a model-supplied path such as `/dev/zero` or a huge sparse file
+ * from exhausting memory during hashing.
  */
-function readFileRecord(path: string): { sha256: string; mtimeMs: number } | undefined {
+export const MAX_DELIVERABLE_FILE_BYTES = 64 * 1024 * 1024
+
+/** Why a path could not be read as a deliverable. */
+type FileRecordFault = 'missing' | 'not_file' | 'too_large'
+
+/** One readable file's hash and mtime, or the reason it was rejected. */
+type FileRecord =
+  | { ok: true; sha256: string; mtimeMs: number }
+  | { ok: false; fault: FileRecordFault }
+
+/** Model-facing explanation of a rejected path. */
+function faultMessage(fault: FileRecordFault): string {
+  switch (fault) {
+    case 'missing':
+      return '路径不存在或不可读'
+    case 'not_file':
+      return '路径不是普通文件（目录、设备或管道不能作为交付件）'
+    case 'too_large':
+      return `文件超过 ${String(MAX_DELIVERABLE_FILE_BYTES)} 字节上限`
+  }
+}
+
+/**
+ * SHA-256 and mtime of one regular file.
+ * @param path - the file to read.
+ * @returns the record, or the reason the path is not a hashable deliverable.
+ */
+function readFileRecord(path: string): FileRecord {
   try {
+    const stats = statSync(path)
+    // Check the kind before reading: readFileSync on a character device or FIFO
+    // never reaches EOF and would hang or exhaust memory.
+    if (!stats.isFile()) return { ok: false, fault: 'not_file' }
+    if (stats.size > MAX_DELIVERABLE_FILE_BYTES) return { ok: false, fault: 'too_large' }
     return {
+      ok: true,
       sha256: createHash('sha256').update(readFileSync(path)).digest('hex'),
-      mtimeMs: statSync(path).mtimeMs,
+      mtimeMs: stats.mtimeMs,
     }
   } catch {
     // A missing or unreadable path is reported as a violation by the caller, which names the role.
-    return undefined
+    return { ok: false, fault: 'missing' }
   }
 }
 
@@ -134,14 +167,20 @@ export function verifyDeliverable(input: VerifyDeliverableInput): VerifyDelivera
   for (const artifact of input.artifacts) {
     const canonical = readFileRecord(artifact.canonical_path)
     const delivered = readFileRecord(artifact.delivered_path)
-    if (canonical === undefined || delivered === undefined) {
-      const missing = canonical === undefined ? artifact.canonical_path : artifact.delivered_path
+    const failArtifact = (fault: FileRecordFault, path: string): void => {
       violations.push({
         rule: 'artifact_missing',
         severity: 'error',
-        message: `${artifact.role}：路径不存在或不可读 ${missing}`,
+        message: `${artifact.role}：${faultMessage(fault)} ${path}`,
         suggestion: '核对路径；被取代的旧版应先归档再移出主路径，不要留一个打不开的引用',
       })
+    }
+    if (!canonical.ok) {
+      failArtifact(canonical.fault, artifact.canonical_path)
+      continue
+    }
+    if (!delivered.ok) {
+      failArtifact(delivered.fault, artifact.delivered_path)
       continue
     }
     manifest.push({ role: artifact.role, path: artifact.delivered_path, sha256: delivered.sha256, mtimeMs: delivered.mtimeMs })
@@ -158,11 +197,11 @@ export function verifyDeliverable(input: VerifyDeliverableInput): VerifyDelivera
 
   for (const figure of input.figures ?? []) {
     const record = readFileRecord(figure)
-    if (record === undefined) {
+    if (!record.ok) {
       violations.push({
         rule: 'figure_missing',
         severity: 'error',
-        message: `附图不存在或不可读：${figure}`,
+        message: `附图：${faultMessage(record.fault)} ${figure}`,
         suggestion: '核对附图路径；附图是交付件的一部分，缺图按未完成交付处理',
       })
       continue
@@ -173,11 +212,11 @@ export function verifyDeliverable(input: VerifyDeliverableInput): VerifyDelivera
 
   if (input.rendered !== undefined) {
     const rendered = readFileRecord(input.rendered)
-    if (rendered === undefined) {
+    if (!rendered.ok) {
       violations.push({
         rule: 'rendered_missing',
         severity: 'error',
-        message: `渲染件不存在或不可读：${input.rendered}`,
+        message: `渲染件：${faultMessage(rendered.fault)} ${input.rendered}`,
         suggestion: '核对渲染输出路径；交付报告要引用渲染件的指纹，缺件无法核对',
       })
     } else {
@@ -233,12 +272,12 @@ function checkRequirements(
     }
     for (const path of entry.evidence) {
       const record = readFileRecord(path)
-      if (record === undefined) {
+      if (!record.ok) {
         satisfied = false
         violations.push({
           rule: 'requirement_evidence_missing',
           severity: 'error',
-          message: `要求「${entry.requirement}」的证据文件不存在或不可读：${path}`,
+          message: `要求「${entry.requirement}」的证据文件${faultMessage(record.fault)}：${path}`,
           suggestion: '先产出该证据再交付；路径写错时改成实际文件',
         })
         continue

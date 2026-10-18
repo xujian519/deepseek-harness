@@ -631,6 +631,58 @@ describe('claim_chart_build success paths', () => {
     expect(text(result)).toContain('single path segment')
   })
 
+  it('rejects null and incomplete targets with a field-level input error', async () => {
+    const tool = createClaimChartBuildTool({ model: jsonModel(chartJson) })
+    const ctx = await ctxWith(tool)
+    const nullEntry = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: '1. 一种装置，包括壳体。',
+      targets: [null],
+    }, 'cc-target-null')
+    expect(nullEntry.isError).toBe(true)
+    expect(text(nullEntry)).toContain('targets[0] 必须是对象')
+
+    const missingId = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: '1. 一种装置，包括壳体。',
+      targets: [{}],
+    }, 'cc-target-id')
+    expect(missingId.isError).toBe(true)
+    expect(text(missingId)).toContain('targets[0].id 必须是字符串')
+
+    const blankId = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: '1. 一种装置，包括壳体。',
+      targets: [{ id: '  ', kind: 'prior-art' }],
+    }, 'cc-target-blank-id')
+    expect(blankId.isError).toBe(true)
+    expect(text(blankId)).toContain('targets[0].id 不能为空')
+
+    const badKind = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: '1. 一种装置，包括壳体。',
+      targets: [{ id: 'D1', kind: 'other' }],
+    }, 'cc-target-kind')
+    expect(badKind.isError).toBe(true)
+    expect(text(badKind)).toContain('targets[0].kind 必须是 prior-art 或 accused-product')
+
+    const badTitle = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: '1. 一种装置，包括壳体。',
+      targets: [{ id: 'D1', kind: 'prior-art', title: 1 }],
+    }, 'cc-target-title')
+    expect(badTitle.isError).toBe(true)
+    expect(text(badTitle)).toContain('targets[0].title 必须是字符串')
+
+    const badSource = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: '1. 一种装置，包括壳体。',
+      targets: [{ id: 'D1', kind: 'prior-art', source_path: 1 }],
+    }, 'cc-target-source')
+    expect(badSource.isError).toBe(true)
+    expect(text(badSource)).toContain('targets[0].source_path 必须是字符串')
+  })
+
   it('builds a gap-free chart when no targets are mapped', async () => {
     const tool = createClaimChartBuildTool({
       model: jsonModel(JSON.stringify({

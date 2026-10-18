@@ -11,6 +11,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { resolveNodeTypes } from '@deepseek-ai/dsh-patent-knowledge'
 import type { KgNode, RelevantHit } from '@deepseek-ai/dsh-patent-knowledge'
 import { PatentToolError } from '../error.ts'
+import { resolveResultLimit } from './internal/query-limit.ts'
 
 /** Citation-class relations used for id-mode neighbor expansion. */
 const CITE_RELATIONS = ['CITES', 'CITES_LAW', 'FREQUENTLY_CITES', 'REFERENCES'] as const
@@ -248,7 +249,7 @@ export function createPatentKgQueryTool(deps: PatentKgQueryDeps): ToolDefinition
       if (deps.dbPath !== undefined && !existsSync(deps.dbPath)) {
         throw new PatentToolError('setup_required', INSTALL_GUIDANCE, { tool: 'patent_kg_query' })
       }
-      const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
+      const limit = resolveResultLimit(args.limit)
       const includeContent = args.include_content === true
       let output: PatentKgQueryOutput
       if (args.id?.trim()) {

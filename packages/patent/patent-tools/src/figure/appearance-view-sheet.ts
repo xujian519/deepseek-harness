@@ -92,6 +92,53 @@ const DEFAULT_PADDING_MM = 8
 /** 缩放后最长边低于单元格边长该比例时提示「可能过小」。 */
 const TINY_CELL_RATIO = 1 / 3
 
+/** 片段中会引入可执行内容或外部文档的元素。 */
+const UNSAFE_SVG_ELEMENT = /^<\s*(?:script|style|foreignObject|iframe|object|embed|animate|set)\b/i
+
+/** 标签上的事件处理属性（onload、onclick…）。 */
+const EVENT_HANDLER_ATTRIBUTE = /\son[a-z]+\s*=/i
+
+/** 片段中的标签（用于按属性检查；文本节点不参与）。 */
+const SVG_TAG = /<[^>]*>/g
+
+/** 解码数字字符引用，避免 `&#x6a;avascript:` 这类写法绕过关键字检查。 */
+function decodeNumericReferences(text: string): string {
+  return text.replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex: string | undefined, decimal: string | undefined) => {
+    const code = Number.parseInt(hex ?? decimal ?? '', hex === undefined ? 10 : 16)
+    return Number.isSafeInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match
+  })
+}
+
+/**
+ * Reject a model-supplied view fragment that carries executable content.
+ * The fragment is embedded verbatim into the delivered SVG, so `<script>`,
+ * event handlers, `javascript:` URLs, and embedded HTML documents must not
+ * reach the file.
+ * @param name - the view name, used to locate the offending input.
+ * @param body - the SVG fragment supplied by the model.
+ * @throws VectorFigureError 片段包含可执行内容时。
+ */
+function assertSafeSvgFragment(name: string, body: string): void {
+  const decoded = decodeNumericReferences(body)
+  // URLs may contain tab/newline/control characters that browsers ignore.
+  const compact = decoded.toLowerCase().replace(/[\u0000-\u0020\u007f-\u009f]/g, '')
+  if (compact.includes('javascript:')) {
+    throw new VectorFigureError('invalid_input', `视图片段包含 javascript: URL，拒绝落版：${name}`)
+  }
+  if (/<!entity/.test(compact) || /<!\[cdata\[/.test(compact)) {
+    throw new VectorFigureError('invalid_input', `视图片段包含 ENTITY/CDATA 等不安全结构，拒绝落版：${name}`)
+  }
+  for (const match of decoded.matchAll(SVG_TAG)) {
+    const tag = match[0]
+    if (UNSAFE_SVG_ELEMENT.test(tag)) {
+      throw new VectorFigureError('invalid_input', `视图片段包含可执行元素，拒绝落版：${name}（${tag.slice(0, 40)}）`)
+    }
+    if (EVENT_HANDLER_ATTRIBUTE.test(tag)) {
+      throw new VectorFigureError('invalid_input', `视图片段包含事件处理属性，拒绝落版：${name}`)
+    }
+  }
+}
+
 /** 网格格位：列号向右递增，行号向下递增。 */
 type GridSlot = readonly [number, number]
 
@@ -162,6 +209,7 @@ function assertCellGeometry(name: string, body: string, widthMm: number, heightM
   if (body.trim() === '') {
     throw new VectorFigureError('invalid_input', `视图片段为空：${name}`)
   }
+  assertSafeSvgFragment(name, body)
   if (!Number.isFinite(widthMm) || widthMm <= 0 || !Number.isFinite(heightMm) || heightMm <= 0) {
     throw new VectorFigureError(
       'invalid_input',

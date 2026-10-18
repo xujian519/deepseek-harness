@@ -7,6 +7,7 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { PatentToolError } from '../error.ts'
 import { DOMAIN_KEYWORDS } from './draft-claims.ts'
 import type { PatentType, TechDomain } from './draft-claims.ts'
 
@@ -191,6 +192,69 @@ const SECTION_SCHEMA = {
   },
 } as const
 
+/** Model JSON boundary: a field-level input error that names the offending path. */
+function invalidToolInput(message: string): PatentToolError {
+  return new PatentToolError('invalid_tool_input', message, { tool: 'draft_specification' })
+}
+
+/** Read a required string field. */
+function requireString(raw: unknown, field: string): string {
+  if (typeof raw !== 'string') throw invalidToolInput(`${field} 必须是字符串`)
+  return raw
+}
+
+/**
+ * Validate `figure_analysis` before drafting reads it. The tool schema types the
+ * items as JSON, so a null entry or an object without `figureDescription` would
+ * otherwise reach `.trim()` / `.length` as a bare TypeError.
+ */
+function parseFigureAnalysis(raw: unknown): FigureAnalysisResult[] {
+  if (!Array.isArray(raw)) throw invalidToolInput('figure_analysis 必须是数组')
+  return raw.map((entry, index) => {
+    const field = `figure_analysis[${index}]`
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw invalidToolInput(`${field} 必须是对象`)
+    }
+    const record = entry as Record<string, unknown>
+    const figureDescription = requireString(record.figureDescription, `${field}.figureDescription`)
+    if (record.electrical === undefined) return { figureDescription }
+    if (record.electrical === null || typeof record.electrical !== 'object' || Array.isArray(record.electrical)) {
+      throw invalidToolInput(`${field}.electrical 必须是对象`)
+    }
+    const electrical = record.electrical as Record<string, unknown>
+    if (!Array.isArray(electrical.components)) {
+      throw invalidToolInput(`${field}.electrical.components 必须是数组`)
+    }
+    const components = electrical.components.map((component, componentIndex) => {
+      const componentField = `${field}.electrical.components[${componentIndex}]`
+      if (component === null || typeof component !== 'object' || Array.isArray(component)) {
+        throw invalidToolInput(`${componentField} 必须是对象`)
+      }
+      const item = component as Record<string, unknown>
+      const value = item.value === undefined ? undefined : requireString(item.value, `${componentField}.value`)
+      return {
+        ref: requireString(item.ref, `${componentField}.ref`),
+        name: requireString(item.name, `${componentField}.name`),
+        ...(value === undefined ? {} : { value }),
+      }
+    })
+    return { figureDescription, electrical: { components } }
+  })
+}
+
+/** Arguments before figure analysis validation; the tool schema types every other field. */
+type DraftSpecificationArgs = Omit<DraftSpecificationInput, 'figure_analysis'> & { figure_analysis?: unknown }
+
+/** Build the typed drafting input from the model's JSON arguments. */
+function parseDraftSpecificationInput(args: DraftSpecificationArgs): DraftSpecificationInput {
+  const { figure_analysis: rawFigureAnalysis, ...rest } = args
+  const figureAnalysis = rawFigureAnalysis === undefined ? undefined : parseFigureAnalysis(rawFigureAnalysis)
+  return {
+    ...rest,
+    ...(figureAnalysis === undefined ? {} : { figure_analysis: figureAnalysis }),
+  }
+}
+
 /**
  * Build the `draft_specification` tool (pure, no dependencies).
  * @returns a registry-ready tool definition.
@@ -228,7 +292,7 @@ export function createDraftSpecificationTool(): ToolDefinition {
     },
     // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
-      return draftSpecification(args as unknown as DraftSpecificationInput)
+      return draftSpecification(parseDraftSpecificationInput(args))
     },
   })
 }

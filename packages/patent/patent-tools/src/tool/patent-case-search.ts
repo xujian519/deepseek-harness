@@ -13,6 +13,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { CaseLawDocType, CaseLawHit, CaseLawSearchOptions } from '@deepseek-ai/dsh-patent-knowledge'
 import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
+import { resolveResultLimit } from './internal/query-limit.ts'
 
 /** Input for the patent_case_search tool. */
 export type PatentCaseSearchInput = {
@@ -160,7 +161,7 @@ export function createPatentCaseSearchTool(deps: PatentCaseSearchDeps): ToolDefi
       if (deps.dbPath !== undefined && !existsSync(deps.dbPath)) {
         throw new PatentToolError('setup_required', INSTALL_GUIDANCE, { tool: 'patent_case_search' })
       }
-      const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
+      const limit = resolveResultLimit(args.limit)
       const includeContent = args.include_content ?? true
       let hits: CaseLawHit[]
       try {

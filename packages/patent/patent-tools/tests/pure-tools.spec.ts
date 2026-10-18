@@ -105,6 +105,85 @@ describe('draft_specification', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('说明书草案')
   })
+
+  it('rejects null or incomplete figure_analysis entries at the tool boundary', async () => {
+    const ctx = await ctxWith(createDraftSpecificationTool())
+    const nullEntry = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [null],
+    }, 'ds-2')
+    expect(nullEntry.isError).toBe(true)
+    expect(text(nullEntry)).toContain('figure_analysis[0] 必须是对象')
+
+    const missingDescription = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [{}],
+    }, 'ds-3')
+    expect(missingDescription.isError).toBe(true)
+    expect(text(missingDescription)).toContain('figure_analysis[0].figureDescription 必须是字符串')
+  })
+
+  it('rejects invalid optional fields with field-level input errors', async () => {
+    const ctx = await ctxWith(createDraftSpecificationTool())
+    const badProblem = await execute(ctx, 'draft_specification', { title: '一种装置', technical_problem: 1 }, 'ds-6')
+    expect(text(badProblem)).toContain('invalid arguments')
+
+    const badDrawings = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      drawing_descriptions: [1],
+    }, 'ds-7')
+    expect(text(badDrawings)).toContain('invalid arguments')
+
+    const badDrawingsFlag = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      has_drawings: 'yes',
+    }, 'ds-9')
+    expect(text(badDrawingsFlag)).toContain('invalid arguments')
+  })
+
+  it('validates nested figure_analysis structure before drafting', async () => {
+    const ctx = await ctxWith(createDraftSpecificationTool())
+    const badElectrical = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [{ figureDescription: '结构示意图', electrical: [] }],
+    }, 'ds-10')
+    expect(text(badElectrical)).toContain('figure_analysis[0].electrical 必须是对象')
+
+    const badComponents = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [{ figureDescription: '结构示意图', electrical: { components: 'x' } }],
+    }, 'ds-11')
+    expect(text(badComponents)).toContain('figure_analysis[0].electrical.components 必须是数组')
+
+    const badComponent = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [{ figureDescription: '结构示意图', electrical: { components: [{}] } }],
+    }, 'ds-12')
+    expect(text(badComponent)).toContain('figure_analysis[0].electrical.components[0].ref 必须是字符串')
+
+    const badValue = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [{
+        figureDescription: '结构示意图',
+        electrical: { components: [{ ref: '1', name: '壳体', value: 1 }] },
+      }],
+    }, 'ds-13')
+    expect(text(badValue)).toContain('figure_analysis[0].electrical.components[0].value 必须是字符串')
+  })
+
+  it('accepts validated figure_analysis and auto-generates drawing descriptions', async () => {
+    const ctx = await ctxWith(createDraftSpecificationTool())
+    const result = await execute(ctx, 'draft_specification', {
+      title: '一种装置',
+      figure_analysis: [{
+        figureDescription: '整体结构示意图',
+        electrical: { components: [{ ref: '1', name: '壳体', value: '金属' }] },
+      }],
+    }, 'ds-4')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('壳体')
+  })
 })
 
 describe('draft_claims additional-fee threshold', () => {

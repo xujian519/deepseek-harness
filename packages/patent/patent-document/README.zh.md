@@ -40,7 +40,7 @@ render_patent_document 将十三个随包模板之一（patentability-opinion、
 <a id="verify_deliverable-tool"></a>
 ## verify_deliverable 工具
 
-verify_deliverable 判定一次交付是不是案卷主路径所呈现的那一版。传入 artifacts（每组给一个角色、案卷主路径 `canonical_path` 与交付版 `delivered_path`），可另传 figures 与 rendered。每组逐字节比对，rendered 与本次读到的全部输入件按修改时间排序。返回 passed、manifest（角色 + 路径 + SHA-256 + mtime）与违规项：`artifact_mismatch` 表示读者打开案卷主路径看到的是被取代的旧版，`render_order` 表示渲染件早于它呈现的某个输入件。可选 requirements（每条给指令原话与证据文件路径）把本工具变成交付验收的**要求核对表**：要求没有证据、或证据文件不存在即判未通过，返回结果按条给出 requirement/evidence/satisfied，交付报告直接引用它，不用「已按要求复核」这类概括句。
+verify_deliverable 判定一次交付是不是案卷主路径所呈现的那一版。传入 artifacts（每组给一个角色、案卷主路径 `canonical_path` 与交付版 `delivered_path`），可另传 figures 与 rendered。每组逐字节比对，rendered 与本次读到的全部输入件按修改时间排序。每个路径必须是普通文件且不超过 64 MiB：目录、设备、管道或超限文件按违规项报告，不会被读取。返回 passed、manifest（角色 + 路径 + SHA-256 + mtime）与违规项：`artifact_mismatch` 表示读者打开案卷主路径看到的是被取代的旧版，`render_order` 表示渲染件早于它呈现的某个输入件。可选 requirements（每条给指令原话与证据文件路径）把本工具变成交付验收的**要求核对表**：要求没有证据、或证据文件不存在即判未通过，返回结果按条给出 requirement/evidence/satisfied，交付报告直接引用它，不用「已按要求复核」这类概括句。
 
 <a id="document-engine-library-api"></a>
 ## 文档引擎（库 API）
