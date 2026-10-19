@@ -104,4 +104,15 @@ describe('scoreboard persistence', () => {
     await appendScoreboard(dir, benchmarkId, { version: 3, score: 100, cases: [] })
     await expect(readScoreboard(dir, benchmarkId)).resolves.toEqual([{ version: 3, score: 100, cases: [] }])
   })
+
+  it('persists both entries when two appends race', async () => {
+    await mkdir(join(dir, BENCHMARK_ROOT, benchmarkId), { recursive: true })
+    // An unlocked read-modify-write loses whichever append commits first.
+    await Promise.all([
+      appendScoreboard(dir, benchmarkId, { version: 1, score: 60, cases: [] }),
+      appendScoreboard(dir, benchmarkId, { version: 2, score: 80, cases: [] }),
+    ])
+    const entries = await readScoreboard(dir, benchmarkId)
+    expect(entries.map(entry => entry.version).sort()).toEqual([1, 2])
+  })
 })

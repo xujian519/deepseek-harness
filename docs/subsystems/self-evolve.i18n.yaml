@@ -5,3 +5,18 @@
 /self-evolve:
   en: fdcdf63f5cb785ca
   zh: a5e3ad3dae72fe23
+/self-evolve/triggers:
+  en: c47dbe138ef4fc3f
+  zh: ff919340d6ec1740
+/self-evolve/request-queue:
+  en: 4201f6836d96769d
+  zh: 7da9858002101ae3
+/self-evolve/shipped-defaults:
+  en: c7931c27e8367cb0
+  zh: 2376e82d0525cb30
+/self-evolve/benchmark-state-directory:
+  en: 5806cedeeecc7f22
+  zh: e5dfe222c3cfb9ab
+/self-evolve/testing:
+  en: d1bcb65dcd47da16
+  zh: 827268b8375a7e88

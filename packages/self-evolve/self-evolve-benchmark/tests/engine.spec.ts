@@ -86,6 +86,15 @@ describe('BenchmarkEngineCore', () => {
       await expect(engine.readScoreboard(benchmarkId)).resolves.toHaveLength(1)
     })
 
+    it('rejects a non-finite or out-of-range evaluator score instead of clamping it', async () => {
+      await prepareBenchmark()
+      for (const score of [Number.NaN, Number.POSITIVE_INFINITY, -1, 101]) {
+        const engine = new BenchmarkEngineCore(options({ evaluateCase: vi.fn(async () => ({ score })) }))
+        await expect(engine.runBenchmark(benchmarkId, { signal: signal() }))
+          .rejects.toThrow(/invalid score for case "c1"/)
+      }
+    })
+
     it('executes each case before scoring and threads the deliverable into evaluation', async () => {
       await prepareBenchmark([
         { caseId: CaseId('c1'), statement: 'Task one', rubric: 'R1' },

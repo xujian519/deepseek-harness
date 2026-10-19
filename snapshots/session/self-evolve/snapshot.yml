@@ -1,0 +1,13 @@
+version: 1
+scenario: self-evolve
+profile: headless
+composition: self-evolve
+recording: live
+header:
+  class: self-evolve
+  pin: true
+input:
+  task: |
+    分两步完成，不要使用 shell 或其它工具。
+    第一步：调用 self_evolve_now 一次，levels 保持默认值。
+    第二步：等排队请求的 follow-up 摘要到达后，用一句话复述摘要中的挖掘、提案、提交三个数字。

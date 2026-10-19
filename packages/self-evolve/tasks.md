@@ -31,7 +31,7 @@
 - [ ] P1.7 Phase 1 snapshot 录制（需 API key 的 keyless 录制，待 `pnpm run test:snapshot:record` 环境）。
 - [x] P1.9b Workspace verifier 具体实现：`captureWorkspaceBaseline`（重放前 git 基线）+ `collectWorkspaceSignal`（重放后净脏增量 `git diff HEAD --numstat`/未跟踪行数，排除 `.dsh/`，+ `buildCommand` 健康判定）；未配置 `workspaceVerifier.buildCommand`、非 git 仓库或 shell 服务缺失时退化为弱路径。`_verifyHeldInCase` 新增 `build-failed` 原因；`validateProposal` 改为顺序采集（先重放、后工作区检查）。
 - [x] P1.10a 评估脚手架（PR11/P1-14 支撑）：`packages/test-support/self-evolve-eval`——确定性 `selectSubset`（seed 可复现）、配对 `results.json` schema 与 `validateResults`、`summarize`/`bootstrapCi`（10k 重采样分位数 95% CI）/`wilsonCi`、`decide`/决策记录 I/O、CLI（subset/score/decide --write）+ `verify-self-evolve-eval` CI 停开关（记录为 rollback 时门禁失败）；单测覆盖确定性、评分、区间与决策路径。
-- [ ] P1.10 60 题离线子集评估：baseline vs self-evolve 净胜分 95% CI（含 CI 跨零自动停开关，PR11/P1-14）——实机双跑需 keyed+docker 环境，尚未执行。
+- [ ] P1.10 60 题离线子集评估：baseline vs self-evolve 净胜分 95% CI（含 CI  跨零自动停开关，PR11/P1-14）——实机双跑需 keyed+docker 环境，尚未执行。数据集 `install` 命令现在默认不执行，需显式传 `--allow-dataset-install`；逐行阅读后仍不传时，`setup.log` 会记录被跳过的命令与 cwd。
 
 ## P3 L3 + L4 审批（Phase 2）
 

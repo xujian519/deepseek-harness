@@ -285,8 +285,15 @@ export interface OptimizeResult {
 export interface BenchmarkEvolveConfig {
   /** Benchmark/snapshot data root; defaults to `~/.dsh/self-evolve-benchmark`. */
   baseDir?: string
-  /** Agent-state directory to snapshot and roll back; defaults to `process.cwd()`. */
-  agentStateDir?: string
+  /**
+   * Agent-state directory to snapshot and roll back. Required: a rejected
+   * round wipes and restores this directory, so it must be an absolute path
+   * that is not the data root, the cwd, home, or the filesystem root, and a
+   * non-empty directory must carry the `.self-evolve-benchmark` marker. The
+   * provider validates all of this at construction and refuses an unsafe
+   * directory rather than falling back to `process.cwd()`.
+   */
+  agentStateDir: string
   /** Runs per case when a method does not specify one; defaults to 1. */
   runsPerCase?: number
   /** Default maximum candidate rounds per optimize loop; defaults to 1. */

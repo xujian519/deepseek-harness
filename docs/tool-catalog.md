@@ -1935,7 +1935,7 @@ Source: [`packages/self-evolve/tool-self-evolve/src/index.ts`](../packages/self-
 
 ### `self_evolve_now`
 
-Initiate one explicit self-evolve loop for the current session: mine the projected failure patterns, propose narrow edits for the requested levels, and commit proposals that pass the provider's validation gate. `levels` defaults to skill and prompt-section edits (L1-skill, L2-context). L3-workflow and L4-harness are accepted for forward compatibility but the base provider produces no proposals for those levels yet.
+Queue one explicit self-evolve loop for the current session. The loop runs at the next idle boundary — never inside the calling turn — and this call returns a receipt with the request id, queue position, and coalescing status. The loop result arrives later as a follow-up message. `levels` defaults to skill and prompt-section edits (L1-skill, L2-context). L3-workflow and L4-harness are accepted for forward compatibility but the base provider produces no proposals for those levels yet.
 
 ```json
 {

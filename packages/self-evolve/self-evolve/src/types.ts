@@ -18,9 +18,10 @@
 
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import type { EvolveProposalId, FailurePatternId } from './brand.ts'
 import { SelfEvolveRunId } from './brand.ts'
 
-export type { SelfEvolveRunId }
+export type { EvolveProposalId, FailurePatternId, SelfEvolveRunId }
 
 /** The four harness edit surfaces, ordered from narrowest to widest blast radius. */
 export type EvolveLevel = 'L1-skill' | 'L2-context' | 'L3-workflow' | 'L4-harness'
@@ -31,7 +32,7 @@ export type EvolveTrigger = 'idle-maintenance' | 'pressure' | 'user-command' | '
 /** Stable classification of one verifier-grounded failure pattern. */
 export interface FailurePattern {
   /** Opaque stable identifier for this pattern class. */
-  patternId: string
+  patternId: FailurePatternId
   /**
    * Verifier layer that grounded this pattern. Weak tiers lift the
    * `minPatternOccurrences` threshold so poorly-grounded signals do not
@@ -71,7 +72,7 @@ export interface FailurePatternsProjection {
 /** One immutable proposal as produced by the harness-proposal stage. */
 export interface EvolveProposal {
   /** Opaque stable identity minted by the registry when the proposal is defined. */
-  proposalId: string
+  proposalId: EvolveProposalId
   /** The owning run this proposal was generated within. */
   runId: SelfEvolveRunId
   /** The level and edit surface this proposal targets. */
@@ -316,6 +317,21 @@ export interface SelfEvolveAgentContext {
   sessionId: SessionId
   options: { provider?: string; model?: string }
   runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>
+}
+
+/**
+ * Acknowledgement for one explicit evolve request. The loop itself runs at the
+ * next idle boundary, so the caller learns its queue identity instead of the
+ * run result. The queue is process-local: a restart drops requests that have
+ * not started, and the receipt is the only record that they were asked for.
+ */
+export interface EvolveRequestReceipt {
+  /** Process-local identity of the accepted request. */
+  requestId: string
+  /** `queued` for a new request, `coalesced` when it merged into a queued one. */
+  status: 'queued' | 'coalesced'
+  /** 1-based position in the session's pending queue at acknowledgement time. */
+  queuePosition: number
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {

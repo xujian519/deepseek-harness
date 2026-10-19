@@ -1098,6 +1098,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     ownerPropsReferences: [
       'InputState',
+      'Point',
       'SessionSnapshot',
     ],
     standardProps: [

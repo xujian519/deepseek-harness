@@ -9,12 +9,13 @@ kind: "package-reference"
 
 ## 概述
 
-**`BasicSelfEvolveEngine`** 是 `ctx.selfEvolve` 的默认提供方。它连接 `failure-patterns` 投影单元，在 idle 或显式请求时触发进化循环，并通过可逆 Cordis effect 提交窄范围的 L1（技能）与 L2（提示片段）提案。
+**`BasicSelfEvolveEngine`** 是 `ctx.selfEvolve` 的默认提供方。它连接 `failure-patterns` 投影单元，把进化请求排队并在 agent 的 idle 边界驱动，再通过可逆 Cordis effect 提交窄范围的 L1（技能）与 L2（提示片段）提案。
 
 
 ## 目录
 
 - [角色](#role)
+- [触发器与队列](#triggers-and-queue)
 - [配置](#configuration)
 - [验证管线（Phase 1）](#validation-pipeline-phase-1)
 - [负面结果（P1.7b）](#negative-results-p17b)
@@ -29,6 +30,15 @@ kind: "package-reference"
 | `@deepseek-ai/dsh-self-evolve` | Service Definition：抽象 `SelfEvolveEngine` + 持久事件 |
 | `@deepseek-ai/dsh-self-evolve-basic`（本包） | Service Provider：基于投影的 idle 压力策略 + 基础提案/验证器 |
 | `@deepseek-ai/dsh-tool-self-evolve` | Consumer：面向模型的工具与提示片段 |
+
+<a id="triggers-and-queue"></a>
+## 触发器与队列
+
+四条触发链都能到达循环。`idle-maintenance` 在 agent 上报 `agent/status` 为 `idle` 且会话不是 subagent（origin 为 `subagent`、存在父会话或委派深度大于零）时启动。`pressure` 在 `compaction/start` 的 `turn` 非空时启动，因此自动压缩计入、手动 `/compact` 不计入。`user-command` 由 `requestEvolve` 启动，调用者是 `self_evolve_now`；它绕过 `minIntervalMs` 与 `maxDailyLoopsPerSession`，且永不被淘汰。`validation-retry` 由提供方自身启动：一次 `low-confidence` 拒绝为每个 pattern 排一次重试，上限为 `maxValidationRetriesPerPattern`，其他拒绝原因一律不排队。
+
+`requestEvolve` 维护 per-session 的内存 FIFO，优先级为 `user-command` > `validation-retry` > `pressure` > `idle-maintenance`。level 集合相同则合并并返回 `status: 'coalesced'`；队列达到 `maxPendingEvolveRequests` 时淘汰最旧的自主请求，保留所有显式请求。每次 drain 最多启动一个请求，进程退出时仍在排队的请求会丢失。drain 在启动维护前重新检查 `agent.status === 'idle'` 与会话打开状态，agent 忙时请求留在队列里等下一个 idle 边界。
+
+显式请求完成后，若启用了 `notifyOnExplicitRun` 且该次运行产生了提案或提交，则发送一条 follow-up 消息；自主运行从不通知。
 
 <a id="configuration"></a>
 ## 配置
@@ -57,6 +67,15 @@ kind: "package-reference"
 | `reflectionMinConfidence` | `0.85` | 步骤反思强化模式的模型置信度下限（P3.1），低于此值丢弃；命中后追加 `self-evolve/reflection` 事件。 |
 | `patternFreezeHours` | `24` | 每模式提案冻结（P3.3）：同一模式被提案两次后在该窗口内跳过（多样性坍缩防护）。 |
 | `maxBudgetCharsPerLoop` | `32768` | 单循环 LLM 调用与搜索的字节预算（P3.4）；超限以 `budget-exceeded` 中止循环并以错误关闭括号。 |
+| `allowUnverifiedAutonomousRuns` | `false` | 部署无法验证提案（未配置 `workspaceVerifier.buildCommand` 或 `validatorTarget`）时，自主触发是否仍可运行。`user-command` 请求无论此项如何都执行，并报告 `verifier-unavailable`。 |
+| `maxValidationRetriesPerPattern` | `1` | 每个 pattern 的 `validation-retry` 上限；`0` 关闭该触发器。 |
+| `maxPendingEvolveRequests` | `8` | 每会话排队请求数上限；超出时丢弃最旧的自主请求，显式请求永不被丢弃。 |
+| `notifyOnExplicitRun` | `true` | 显式请求完成且产生提案或提交后，发送一条 follow-up 摘要。 |
+| `maxNegativeResultRows` | `500` | `negative-results.jsonl` 保留行数；超限后以原子重写保留最新行。 |
+| `maxGlobalPatternRows` | `1000` | `global-patterns.jsonl` 保留行数，同样原子裁剪。 |
+| `maxTrackedSessions` | `64` | 会话级速率、反思、提案、回归与重试状态保留数量，超出按最近最少使用淘汰。 |
+| `maxTrackedPatternsPerSession` | `256` | 上述 map 中每会话保留的 pattern 键控条目数。 |
+| `maxLiveSkills` | `32` | 本提供方可拥有的存活 runtime 技能数；新增 L1 提交超出上限时以 `apply-failed` 拒绝，而不淘汰存活技能。 |
 
 L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全地子类化 `proposeForPatterns()` 与 `validateProposal()`。
 
@@ -94,6 +113,8 @@ L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全�
 - **重放证明"确实做过"，而非"确实修好"** — `replayCase` 要求子代理正常结束、至少执行过一次工具调用、且未重新触发任何失败模式。三者都读自持久事件，但都不能证明原失败真的被修复：跑错命令的子代理同样会通过。客观评判需要失败模式携带可重放的命令与预期结果。
 - **L4 仅由人工审批授权** — `validateL4Proposal` 记录 `L4_APPROVAL_SCORES` 并把 `confidence` 固定为 1；聚合门不评估 L4，人工审批流是它唯一的防线。
 - **无 keyed 端到端验证** — 提案效果是可逆提交，由单元测试覆盖；实机 `dsh --profile` 循环运行需要 keyed 环境。
+- **首次提交回滚写入 tombstone** — 回滚本提供方首次提交的技能时，运行时会恢复技能，但 `.dsh/skills/<name>/SKILL.md` 被重写为无 frontmatter 的内容，因为 `fs` seam 没有删除原语；skill 文件系统会忽略该文件并记一条扫描 warning。回滚到 champion 时则用 champion 内容重写该文件。
+- **队列状态在内存中** — 活过进程的排队请求会丢失；`self-evolve/start|end` 与工具回执作为持久记录留在 session log 中。
 
 ### 开发备注
 

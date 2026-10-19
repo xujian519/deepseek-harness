@@ -1112,7 +1112,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-doc-template`
 
-- `inject`: `tools` · `systemPrompt`
+- `inject`: `tools` · `systemPrompt` · `fs`
 - `source`: [`packages/document/doc-template/src/index.ts:111`](../packages/document/doc-template/src/index.ts)
 
 ```ts config-catalog
@@ -1140,7 +1140,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-document-deliver`
 
 - `inject`: `tools` · `fs`
-- `source`: [`packages/document/document-deliver/src/index.ts:70`](../packages/document/document-deliver/src/index.ts)
+- `source`: [`packages/document/document-deliver/src/index.ts:78`](../packages/document/document-deliver/src/index.ts)
 
 ```ts config-catalog
 /** Document-delivery plugin configuration. */
@@ -1703,7 +1703,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-fs-local`
 
-- `source`: [`packages/fs/fs-local/src/index.ts:45`](../packages/fs/fs-local/src/index.ts)
+- `source`: [`packages/fs/fs-local/src/index.ts:46`](../packages/fs/fs-local/src/index.ts)
 
 ```ts config-catalog
 /** Configuration for the local filesystem backend. */
@@ -3054,7 +3054,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:212`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:215`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3197,10 +3197,10 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:304`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/config.ts:16`](../packages/patent/patent-tools/src/config.ts)
 
 ```ts config-catalog
-/** Model-facing patent-tools plugin configuration. */
+/** Model-facing patent plugin configuration: LLM routes, workflow budgets, knowledge locations, and figure knobs. */
 export interface Config {
   /** LLM provider route for the LLM-consuming tools (claim_chart_build / workflow run / figure analysis). */
   provider?: string
@@ -3915,6 +3915,45 @@ export interface BasicSelfEvolveConfig {
    * no build command is configured, or the shell service is absent.
    */
   workspaceVerifier?: WorkspaceVerifierConfig
+  /**
+   * Whether autonomous triggers (idle / pressure / validation-retry) may run
+   * when the deployment cannot verify a proposal: no
+   * `workspaceVerifier.buildCommand` or no `validatorTarget`. Default false —
+   * such a loop rejects every proposal, so running it unattended burns model
+   * budget for a guaranteed no-op. Explicit `user-command` requests are never
+   * blocked by this switch.
+   */
+  allowUnverifiedAutonomousRuns?: boolean
+  /**
+   * Maximum validation-triggered retries per pattern (Phase 3): a
+   * `low-confidence` rejection queues one retry until this many have run.
+   * `verifier-unavailable` and every other rejection reason never retry.
+   */
+  maxValidationRetriesPerPattern?: number
+  /**
+   * Maximum queued evolve requests per session (default 8). Explicit requests
+   * are never evicted; a full queue drops the oldest autonomous request.
+   */
+  maxPendingEvolveRequests?: number
+  /**
+   * Whether a completed explicit request sends a follow-up summary message
+   * back into the session (default true). Autonomous runs never notify.
+   */
+  notifyOnExplicitRun?: boolean
+  /** Retained rows in `negative-results.jsonl`; older rows are dropped (default 500). */
+  maxNegativeResultRows?: number
+  /** Retained rows in `global-patterns.jsonl`; older rows are dropped (default 1000). */
+  maxGlobalPatternRows?: number
+  /** Per-session rate/reflection state maps retained before eviction (default 64). */
+  maxTrackedSessions?: number
+  /** Per-session pattern-keyed entries retained before eviction (default 256). */
+  maxTrackedPatternsPerSession?: number
+  /**
+   * Live runtime skills this provider may own (default 32). A new L1 commit
+   * past the cap is rejected as `apply-failed` rather than evicting a live
+   * skill.
+   */
+  maxLiveSkills?: number
 }
 
 /** Per-trigger rate-limiting policy for the basic provider. */
@@ -3960,8 +3999,15 @@ export interface WorkspaceVerifierConfig {
 export interface BenchmarkEvolveConfig {
   /** Benchmark/snapshot data root; defaults to `~/.dsh/self-evolve-benchmark`. */
   baseDir?: string
-  /** Agent-state directory to snapshot and roll back; defaults to `process.cwd()`. */
-  agentStateDir?: string
+  /**
+   * Agent-state directory to snapshot and roll back. Required: a rejected
+   * round wipes and restores this directory, so it must be an absolute path
+   * that is not the data root, the cwd, home, or the filesystem root, and a
+   * non-empty directory must carry the `.self-evolve-benchmark` marker. The
+   * provider validates all of this at construction and refuses an unsafe
+   * directory rather than falling back to `process.cwd()`.
+   */
+  agentStateDir: string
   /** Runs per case when a method does not specify one; defaults to 1. */
   runsPerCase?: number
   /** Default maximum candidate rounds per optimize loop; defaults to 1. */

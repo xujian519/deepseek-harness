@@ -92,6 +92,12 @@ export interface CampaignOptions {
   verifyTimeoutMs: number
   setupTimeoutMs: number
   installTimeoutMs: number
+  /**
+   * Run each dataset row's `install` command. Defaults to false: the command is
+   * dataset-provided shell, so running it is an explicit opt-in. The setup log
+   * always records the command and its working directory.
+   */
+  allowDatasetInstall?: boolean
   taskLimit?: number
   skipExisting: boolean
   keepWork: boolean
@@ -134,6 +140,9 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
     console.log(`  baseline: node --import ${options.tsxImport} ${options.dshEntry} --profile ${options.profile} "<problem_statement>"`)
     console.log(`  evolved:  above + --patch <taskDir>/evolved-overlay.yml (build: ${options.buildCommandTemplate})`)
     console.log(`  env tool: ${options.envTool}${options.envTool === 'uv' ? ' (uv must be installed)' : ' (python3 -m venv)'}`)
+    console.log(`  dataset install: ${options.allowDatasetInstall === true
+      ? 'enabled (each row\'s install command runs in the base checkout)'
+      : 'disabled (pass --allow-dataset-install to run each row\'s install command)'}`)
     for (const entry of chosen.slice(0, 5)) {
       console.log(`  - ${entry.taskId} ${entry.repo}@${entry.baseCommit}`)
     }
@@ -200,6 +209,7 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
         workDir: options.workDir, task: entryTask(entry, row), row,
         pythonVersion: options.pythonVersion ?? row.python ?? DEFAULT_PYTHON_VERSION,
         envTool: options.envTool, setupTimeoutMs: options.setupTimeoutMs, installTimeoutMs: options.installTimeoutMs,
+        allowDatasetInstall: options.allowDatasetInstall === true,
         logPath: join(options.workDir, entry.taskId, 'setup.log'),
       })
     } catch (error) {

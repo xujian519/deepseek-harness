@@ -101,7 +101,7 @@ Example:
 <a id="dsh-headless"></a>
 ## `dsh headless`
 
-Invocations: `dsh headless --help`, `dsh --profile headless --help`
+Invocations: `dsh headless --help`, `dsh --profile headless --help`, `dsh self-evolve --help`, `dsh --profile self-evolve --help`
 
 ```text
 Usage: dsh --profile headless [options] [command] [task...]
@@ -134,7 +134,7 @@ Examples:
 <a id="dsh-headless-browsers"></a>
 ## `dsh headless browsers`
 
-Invocations: `dsh headless browsers --help`, `dsh --profile headless browsers --help`
+Invocations: `dsh headless browsers --help`, `dsh --profile headless browsers --help`, `dsh self-evolve browsers --help`, `dsh --profile self-evolve browsers --help`
 
 ```text
 Usage: dsh --profile headless browsers [options]

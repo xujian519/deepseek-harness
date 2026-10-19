@@ -25,7 +25,7 @@ kind: "package-reference"
 | 包 | 角色 |
 |---|---|
 | `@deepseek-ai/dsh-self-evolve` | Service Definition：抽象 `SelfEvolveEngine` + 持久事件 |
-| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider：基于投影的 idle 压力策略 |
+| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider：基于投影的 idle 压力策略 + per-session 请求队列 |
 | `@deepseek-ai/dsh-tool-self-evolve`（本包） | Consumer：面向模型的工具与提示片段 |
 
 <a id="tools"></a>
@@ -34,7 +34,9 @@ kind: "package-reference"
 | 工具 | 用途 |
 |---|---|
 | `self_evolve_inspect_patterns` | 读取会话投影出的失败模式状态，使模型能够针对真实模式而非猜测进行定位。 |
-| `self_evolve_now` | 为请求的编辑面启动一次显式的 self-evolve 循环（默认 `L1-skill` + `L2-context`）。`L3-workflow` 与 `L4-harness` 为向前兼容而接受，但基础提供方目前不会为这些层级生成提案。 |
+| `self_evolve_now` | 为请求的编辑面排队一次显式请求（默认 `L1-skill` + `L2-context`），并返回回执 `{ requestId, status, queuePosition, note }`。运行在下一个 idle 边界启动，结果以 follow-up 消息报告。`L3-workflow` 与 `L4-harness` 为向前兼容而接受，但基础提供方目前不会为这些层级生成提案。 |
+
+`self_evolve_now` 从不在工具调用内执行循环：agent 仍在运行调用该工具的 turn，因此维护工作会被拒绝。`status: 'queued'` 回执表示请求已被接受，而不是已有提案；`status: 'coalesced'` 表示相同 level 集合已在队列中，返回的 `requestId` 就是该条目的。回执写在工具结果里，因此 session log 记录了谁请求了什么，但进程退出时仍在排队的请求会丢失。
 
 <a id="model-experience"></a>
 ## Model Experience
@@ -57,7 +59,8 @@ kind: "package-reference"
 ## Known Limitations and Deferred Work
 
 - **受 provider 面限制** — 工具暴露接缝，但提案广度受所加载 provider 限制（当前为 L1/L2）。
-- **无 keyed 端到端验证** — `self_evolve_now` 运行由单元测试覆盖；实机循环运行需要 keyed 环境。
+- **构造上就是异步的** — `self_evolve_now` 返回队列回执，因此调用方必须读 follow-up 消息或 `self-evolve/*` 事件才能得知运行结果。
+- **无 keyed 端到端验证** — `self_evolve_now` 的排队行为由单元测试覆盖；实机循环运行需要 keyed 环境。
 
 ### 开发备注
 

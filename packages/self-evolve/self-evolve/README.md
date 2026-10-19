@@ -16,7 +16,7 @@ This package owns the capability's Service Definition role, split so each role c
 | Package | Role |
 |---|---|
 | `@deepseek-ai/dsh-self-evolve` (this) | Service Definition: abstract service + `self-evolve/*` events + `FailurePattern` vocabulary + projection-unit contract |
-| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider: idle-pressure trigger, rate limits, L1/L2 proposals, and reversible effect commits |
+| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider: idle-pressure trigger, request queue, rate limits, L1/L2 proposals, and reversible effect commits |
 | `@deepseek-ai/dsh-tool-self-evolve` | Consumer: model-facing tools and prompt section over `ctx.selfEvolve` |
 
 ## Table of Contents
@@ -33,13 +33,14 @@ This package owns the capability's Service Definition role, split so each role c
 |---|---|
 | `evolveIfNeeded(agent, trigger, signal, levels?)` | Consider an evolution loop for the given trigger. Returns `null` when policy decides no run is needed. |
 | `evolveNow(agent, signal, levels?)` | Explicitly run one evolution loop now, regardless of pressure policy. |
-| `readPatterns(sessionId)` | Read the latest projected failure-pattern state for a session. |
+| `requestEvolve(agent, levels?)` | Queue an explicit request for the session's next idle boundary and return an `EvolveRequestReceipt`. A tool cannot start maintenance inside its own turn, so this is the tool-facing entry point. |
+| `readPatterns(sessionId)` | Read the latest projected failure-pattern state for a session; `sessionId` is a branded `SessionId`. |
 
 The four edit surfaces, narrowest to widest, are `L1-skill`, `L2-context`, `L3-workflow`, and `L4-harness`. A backend owns trigger policy, rate limiting, the proposer model route, verifier grounding, and held-in/held-out regression execution.
 
 ## Events
 
-The `self-evolve/*` events extend `SessionEventMap` via declaration merging. They are session events, not cordis `Events`, and are all log-only. The bracket pair `self-evolve/start` → `self-evolve/end` shares a run identity across `mined`, `proposed`, `validated`, and `commit` events.
+The `self-evolve/*` events extend `SessionEventMap` via declaration merging. They are session events, not cordis `Events`, and are all log-only. The bracket pair `self-evolve/start` → `self-evolve/end` shares a run identity across `mined`, `proposed`, `validated`, and `commit` events. A cancelled loop, a failed stage, and a throwing listener still close the bracket exactly once.
 
 ## Failure-pattern projection
 
@@ -56,6 +57,7 @@ No direct request changes; consumers own any prompt-section or tool registration
 ## Known Limitations and Deferred Work
 
 - **Scaffold-stage seam** — the Service Definition declares the abstract lifecycle and the durable event vocabulary; trigger policy, rate limits, proposals, and effect commits are owned by the provider, and no provider implements the L3-workflow or L4-harness proposal levels yet.
+- **Queue is in memory** — `requestEvolve` receipts survive in the session log, but a request still queued at process exit is lost; durable queue state would need a new session event and a format version.
 - **Projection scope** — `failure-patterns` folds only the documented event surface (tool results, agent request errors, compaction ends, `self-evolve/end`); non-verifier signals stay outside the pattern vocabulary.
 
 ### Dev Note

@@ -3,16 +3,18 @@
  * three-stage evolution loop; consumers start runs or observe lifecycle events.
  *
  * A single provider registers at a time (like `ctx.compaction`). The base
- * `self-evolve-basic` provider hooks into `turn/end` for idle-pressure
- * triggering and uses the projection-based weakness miner; higher-level
- * providers may extend it with L4 harness-level validation.
+ * `self-evolve-basic` provider watches `agent/status` for the idle boundary and
+ * uses the projection-based weakness miner; higher-level providers may extend
+ * it with L4 harness-level validation.
  *
  * @module @deepseek-ai/dsh-self-evolve
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {
   EvolveLevel,
+  EvolveRequestReceipt,
   EvolveTrigger,
   FailurePattern,
   SelfEvolveAgentContext,
@@ -20,7 +22,7 @@ import type {
 } from './types.ts'
 import type { SelfEvolveRunId } from './brand.ts'
 
-export type { SelfEvolveResult, FailurePattern, EvolveProposal, EvolveLevel, EvolveTrigger, SelfEvolveAgentContext } from './types.ts'
+export type { SelfEvolveResult, FailurePattern, EvolveProposal, EvolveLevel, EvolveTrigger, SelfEvolveAgentContext, EvolveRequestReceipt } from './types.ts'
 export { SelfEvolveRunId, FailurePatternId, EvolveProposalId } from './brand.ts'
 export {
   failurePatternsProjectionDefinition,
@@ -108,6 +110,19 @@ export abstract class SelfEvolveEngine extends Service {
   ): Promise<SelfEvolveResult>
 
   /**
+   * Queue an explicit evolution request for the session's next idle boundary.
+   * Tools and other in-turn callers cannot start maintenance work themselves —
+   * the agent is still running the turn that invoked them — so the request is
+   * recorded and drained once the agent settles. Requests with the same level
+   * set coalesce into one queued entry.
+   *
+   * @param agent Owner session and maintenance runner.
+   * @param levels Restrict the edit surfaces the queued loop may propose against.
+   * @returns the request receipt: identity, coalescing status, and queue position.
+   */
+  abstract requestEvolve(agent: SelfEvolveAgentContext, levels?: EvolveLevel[]): EvolveRequestReceipt
+
+  /**
    * Read the latest projected failure-pattern state for a session, or the
    * empty state if the projection has not folded yet. Implementations may
    * return a stale view; callers do not rely on synchronous freshness.
@@ -115,5 +130,5 @@ export abstract class SelfEvolveEngine extends Service {
    * @param sessionId - opaque session identity.
    * @returns ranked failure patterns for the session.
    */
-  abstract readPatterns(sessionId: string): Promise<FailurePattern[]>
+  abstract readPatterns(sessionId: SessionId): Promise<FailurePattern[]>
 }

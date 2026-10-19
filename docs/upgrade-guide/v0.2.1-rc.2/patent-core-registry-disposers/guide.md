@@ -16,7 +16,7 @@ English | [中文](guide.zh.md)
 ## Migration
 
 1. Replace fire-and-forget registration with a lifetime:
-   ```ts
+   ```ts ignore-check
    ctx.effect(() => globalAtomRegistry.register(atom), 'my-plugin: atom')
    ```
    For a pair, collect both disposers and call them in reverse order.

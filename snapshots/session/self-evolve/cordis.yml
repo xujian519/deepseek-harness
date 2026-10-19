@@ -1,0 +1,16 @@
+# Live-recording patch: mount the self-evolve capability seam over the ordinary
+# headless composition. The shipped `self-evolve` profile carries these rows for
+# real sessions, but a snapshot profile composes through patches, so the owner
+# restates the bundle's insert here.
+
+- insert:
+    - id: self-evolve-basic
+      name: '@deepseek-ai/dsh-self-evolve-basic'
+      config:
+        defaultLevels:
+          - L1-skill
+          - L2-context
+        minPatternOccurrences: 1
+
+    - id: tool-self-evolve
+      name: '@deepseek-ai/dsh-tool-self-evolve'

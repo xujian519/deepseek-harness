@@ -37,7 +37,7 @@ function usage(): void {
   console.log('           --work-dir <dir> [--arm both|baseline|evolved] [--profile headless] [--env-tool uv|venv] \\')
   console.log('           [--dsh-entry <bin.ts>] [--tsx-import <absolute hook path>] [--build-command <template>] [--python <v>] \\')
   console.log('           [--concurrency <n>] [--agent-timeout <ms>] [--verify-timeout <ms>] \\')
-  console.log('           [--setup-timeout <ms>] [--install-timeout <ms>] [--task-limit <n>] \\')
+  console.log('           [--setup-timeout <ms>] [--install-timeout <ms>] [--allow-dataset-install] [--task-limit <n>] \\')
   console.log('           [--skip-existing] [--keep-work] [--dry-run]')
 }
 
@@ -180,6 +180,7 @@ async function main(): Promise<void> {
         verifyTimeoutMs,
         setupTimeoutMs,
         installTimeoutMs,
+        allowDatasetInstall: has('--allow-dataset-install'),
         ...(taskLimit === undefined ? {} : { taskLimit }),
         skipExisting: has('--skip-existing'),
         keepWork: has('--keep-work'),

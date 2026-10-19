@@ -9,6 +9,7 @@
 - **衡量什么**：在确定性 SWE-bench_Verified 子集上的配对净胜信号——baseline harness 对比挂载 `self-evolve-app` bundle 的同一 harness（每任务 `uv` venv、本地 `pytest` FAIL_TO_PASS 判定，**P-B 轻量路径，无 Docker**）。
 - **不是什么**：这是**本地复现**判定，**不是官方 SWE-bench 打分**。报告请表述为"本地复现环境下的净胜信号"；任何"生死攸关"的结论都应再用 Docker/云跑一次交叉校验（路径 P-C）。
 - **门禁只感受决策记录**：`verify-self-evolve-eval` 在 `packages/self-evolve/evaluation/eval-decision.json` 记录为 `rollback` 时失败。脚手架从不伪造结果；数据缺失时如实失败。
+- **当前 blocker（尚无决策记录）**：本代码树尚未跑过 campaign，因此 `results.json` 与 `eval-decision.json` 都不存在，`verify-self-evolve-eval` 保持休眠。实跑需要 operator 具备：（a）两条 arm 都可用的 `DEEPSEEK_API_KEY`；（b）本地导出的 SWE-bench_Verified（`swebench-verified.jsonl`，联网、一次性）；（c）`uv` 生成的每任务 Python 环境；（d）逐行阅读 `install` 命令后显式决定是否传 `--allow-dataset-install`。在此之前，评估路径没有任何绿灯，也不应被暗示有。
 
 ## 0. 前置自检 — 环境自检
 
@@ -29,7 +30,7 @@ python -c "import datasets; print(datasets.__version__)" || echo "WARN: 安装 '
 
 # 脚手架自检（评估单测必须全绿）
 pnpm exec vitest run packages/test-support/self-evolve-eval
-#   预期: Test Files 9 passed (9), Tests 136 passed (136)
+#   预期: Test Files 9 passed (9), Tests 157 passed (157)
 ```
 
 > 若找不到 `pnpm`/`node`，先 prepend nvm/homebrew bin 目录，例如 `export PATH="$HOME/.nvm/versions/node/v22.22.3/bin:/opt/homebrew/bin:$PATH"`。
@@ -98,6 +99,7 @@ pnpm eval:self-evolve campaign \
 ```
 
 - 中断后加 `--skip-existing` 续跑。
+- 数据集 `install` 命令只有在传入 `--allow-dataset-install` 时才会执行。被跳过的行会在该任务的 `setup.log` 中记录为 `dataset install skipped (allowDatasetInstall=false, cwd=…)`，因此遗漏可审计；请先读完 `subset.json` 中每行的 `install` 命令再传该标志，因为它会在共享 venv 中运行第三方代码。
 - 默认值：`--dsh-entry apps/cli/src/bin.ts`、`--tsx-import tsx/esm`、 `--build-command '{python} -m compileall -q .'`、`--python 3.11`、 `--agent-timeout 1800000`、`--verify-timeout 1800000`。
 - 其他超时：`--setup-timeout 300000`、`--install-timeout 600000`。
 - **`{python}` 占位符会替换为每任务 venv 的 python**，因此 `--build-command` 控制 evolved 臂的 held-in workspace verifier。请用真实的项目健康命令（如 `{python} -m compileall -q <src>` 或该仓库自身的测试搜集命令）——无副作用的编译命令 会让 verifier 的 build 维度几乎无信息量。

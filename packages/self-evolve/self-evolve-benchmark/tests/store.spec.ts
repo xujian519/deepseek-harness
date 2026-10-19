@@ -7,6 +7,7 @@ import {
   CONFIG_FILENAME,
   RUBRIC_FILENAME,
   STATEMENT_FILENAME,
+  assertSafeId,
   benchmarkConfigPath,
   benchmarkDir,
   benchmarkRoot,
@@ -118,5 +119,22 @@ describe('benchmark store persistence', () => {
     await writeCase(dir, benchmarkId, CaseId('c1'), { statement: 'Task one' })
     await mkdir(rubricPath(dir, benchmarkId, CaseId('c1')), { recursive: true })
     await expect(loadBenchmark(dir, benchmarkId)).rejects.toThrow()
+  })
+
+  it('rejects on-disk ids that are not safe single path segments', async () => {
+    await ensureBenchmark(dir, benchmarkId, 'Traversal')
+    await mkdir(caseDir(dir, benchmarkId, CaseId('c1')), { recursive: true })
+    await writeFile(statementPath(dir, benchmarkId, CaseId('c1')), 'Task one', 'utf8')
+    // A case directory named `..` would address the parent of the benchmark.
+    await mkdir(join(benchmarkDir(dir, benchmarkId), '..name'), { recursive: true })
+    await writeFile(join(benchmarkDir(dir, benchmarkId), '..name', STATEMENT_FILENAME), 'x', 'utf8')
+
+    expect(() => { assertSafeId('c1', 'caseId') }).not.toThrow()
+    expect(() => { assertSafeId('a.b-c_1', 'caseId') }).not.toThrow()
+    expect(() => { assertSafeId('..', 'caseId') }).toThrow(/unsafe caseId/)
+    expect(() => { assertSafeId('.hidden', 'caseId') }).toThrow(/unsafe caseId/)
+    expect(() => { assertSafeId('a/b', 'benchmarkId') }).toThrow(/unsafe benchmarkId/)
+    await expect(listCaseIds(dir, benchmarkId)).rejects.toThrow(/unsafe caseId/)
+    await expect(loadBenchmark(dir, BenchmarkId('../etc'))).rejects.toThrow(/unsafe benchmarkId/)
   })
 })
