@@ -146,10 +146,11 @@ describe('dsh-tool-ralph over the real spawn and sandboxed PTC stack', () => {
       toolCallResponse('round-1', STRUCTURED_OUTPUT_TOOL, firstReport),
       maxTokensResponse('unfinished child output'),
     ], { maxRounds: 2 })
-    const children: Agent[] = []
+    // Capture the id from the event payload: a failing child can be disposed
+    // before a listener that looks the live agent up runs.
+    const children: SessionId[] = []
     ctx.on('workflow/agent-start', (_run, child) => {
-      const agent = ctx.agents.get(child.childId)
-      if (agent !== undefined) children.push(agent)
+      children.push(child.childId)
     })
 
     const result = await ctx.tools.execute({
@@ -166,7 +167,7 @@ describe('dsh-tool-ralph over the real spawn and sandboxed PTC stack', () => {
     expect(text).toContain('Last successful handoff:')
     expect(text).toContain('ROUND_ONE_HANDOFF')
     expect(children).toHaveLength(2)
-    for (const child of children) expect(ctx.agents.get(child.id)).toBeUndefined()
+    for (const childId of children) expect(ctx.agents.get(childId)).toBeUndefined()
     await parentHandle.dispose()
   })
 
