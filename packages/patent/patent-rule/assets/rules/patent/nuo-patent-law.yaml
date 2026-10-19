@@ -46,6 +46,9 @@ rules:
     action: block
     check:
       type: keyword_blocklist
+      # 「不得编造/禁止虚构」是否定式合规要求，不是编造行为本身。
+      negationContext: true
+      quoteImmune: true
       keywords:
         - 编造
         - 虚构
@@ -61,13 +64,11 @@ rules:
     check:
       type: structural_analysis
       requiresAll:
-        - element: 期望模式
-          description: 新颖性分析必须引用法律依据
+        - element: legal_citation
+          description: 新颖性分析必须引用专利法第二十二条（或第22条）
           patterns:
-            - 第二十二条
-            - 新颖性
-            - 现有技术
-            - 单独对比
+            - '专利法[^。；\n]{0,12}第\s*(?:二十二|22)\s*条'
+            - '第\s*(?:二十二|22)\s*条'
       minConfidence: 1
   - id: CON-104
     name: 创造性三步法结构检查
@@ -161,7 +162,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 专利法实施细则第二十条第二款
+    legalBasis: 专利法实施细则第二十三条第二款
     check:
       type: structural_analysis
       requiresAll:
@@ -187,6 +188,8 @@ rules:
             - 容易想到
             - 常规技术手段
             - 惯用技术手段
+            - 具备创造性
+            - 非显而易见
       minConfidence: 1
   - id: CON-402
     name: 预料不到的技术效果
@@ -226,11 +229,12 @@ rules:
       minConfidence: 1
   - id: CON-502
     name: 权利要求修改不得扩大保护范围
+    description: 与授权的权利要求相比，不得扩大原专利的保护范围
     domain: patent_procedure
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 专利法实施细则第五十一条第三款
+    legalBasis: 专利法第三十三条；审查指南第四部分第三章4.6.1
     check:
       type: structural_analysis
       requiresAll:

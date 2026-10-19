@@ -50,15 +50,28 @@ export function evi011GuardConditionFields(ruleDirs: readonly string[] = []): Re
 const OVERSEAS_EVIDENCE_TYPES = new Set(['overseas'])
 
 /** 外文证据类型（需附中文译本）。域外（overseas）是来源地分类而非语言分类——
- * 中文原件不要求译本，误拒会阻断合法证据；语言属性由 foreign_language 表达。 */
+ * 中文原件不要求译本，误拒会阻断合法证据；语言属性由 foreign_language 或
+ * `language` 字段表达，后者让「域外 + 外文」同时触发公证/认证与译本两道守卫。 */
 const FOREIGN_LANGUAGE_TYPES = new Set(['foreign_language'])
+
+/** 中文语言标识；其余非空标识按外文处理。 */
+const CHINESE_LANGUAGE = /^(?:zh(?:[-_].*)?|cn|中文|汉语|简体中文|中文简体)$/iu
 
 /** evaluate_evidence 输入的结构视图（字段改名时守卫读取仍稳定）。 */
 interface EvaluateEvidenceInput {
   evidenceType?: unknown
+  language?: unknown
   notarized?: unknown
   legalized?: unknown
   translated?: unknown
+}
+
+/** 证据是否声明为外文：显式 foreign_language，或域外证据附带非中文 language。 */
+function isForeignLanguageEvidence(evidence: EvaluateEvidenceInput | undefined): boolean {
+  if (evidence === undefined) return false
+  if (typeof evidence.evidenceType === 'string' && FOREIGN_LANGUAGE_TYPES.has(evidence.evidenceType)) return true
+  const language = typeof evidence.language === 'string' ? evidence.language.trim() : ''
+  return language.length > 0 && !CHINESE_LANGUAGE.test(language)
 }
 
 function readEvidenceInput(input: unknown): EvaluateEvidenceInput | undefined {
@@ -110,12 +123,14 @@ export function createForeignTranslationGuard(conditions: ReadonlySet<string>): 
   return (execution) => {
     if (execution.name !== EVIDENCE_COMPLIANCE_TOOL) return undefined
     const evidence = readEvidenceInput(execution.arguments)
-    const evidenceType = evidence?.evidenceType
-    if (typeof evidenceType !== 'string' || !FOREIGN_LANGUAGE_TYPES.has(evidenceType)) return undefined
+    if (!isForeignLanguageEvidence(evidence)) return undefined
     if (conditions.has('translated') && !isTrue(evidence?.translated)) {
+      const label = evidence?.evidenceType === 'foreign_language'
+        ? 'evidenceType=foreign_language'
+        : `evidenceType=${String(evidence?.evidenceType)}，language=${String(evidence?.language)}`
       return formatDenial(
         'EVI-011-translation',
-        `外文证据（evidenceType=${evidenceType}）必须附中文译本（translated=true），否则无法采信。`,
+        `外文证据（${label}）必须附中文译本（translated=true），否则无法采信。`,
       )
     }
     return undefined

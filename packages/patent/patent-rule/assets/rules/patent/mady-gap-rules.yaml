@@ -75,8 +75,9 @@ rules:
             - 实施例
             - 证据
             - 公开
-      # 三项中至少两项（上游 minCategories = 2/3）
-      minConfidence: 0.6
+      # 结论、法律依据、事实依据三项都不可缺：2/3 阈值会让“没有引用法条”的
+      # 结论照样通过，与规则名称相反。
+      minConfidence: 1
 
   # ---------------------------------------------------------------------------
   # 检索—对比文件来源标注：只并入 antiPatterns 半（占位式指代），
@@ -107,7 +108,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 专利法第22条第5款；审查指南第二部分第三章2.1
+    legalBasis: 专利法第22条第5款；审查指南第二部分第三章2.1.2
     check:
       type: structural_analysis
       requiresAll:

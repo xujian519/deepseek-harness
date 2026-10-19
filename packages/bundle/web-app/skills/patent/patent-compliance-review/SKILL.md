@@ -11,7 +11,7 @@ description: 合规审查闸门：用 dsh-patent-rule 的 rule_check 工具与�
 
 ## 流程
 
-1. 用 rule_check 工具（patent-tools 注册，dsh-patent-rule 规则引擎）对产物运行规则检查（规则库：dsh-patent-rule 专利域规则，覆盖撰写合规/法条对应/缺陷模式）。
+1. 用 rule_check 工具（patent-tools 注册，dsh-patent-rule 规则引擎）对产物运行规则检查。按产物选 scope：撰写用 `patent-drafting`，专利性/新颖性/创造性分析用 `patent-analysis`，答复用 `patent-oa-response`（并传 notice），无效/复审/侵权用对应作业 scope；不要用默认 `patent`（只有 4 条通用合规规则）。
 2. 逐条核对规则输出：命中的规则、涉及文本位置、违反类型。
 3. 不通过项 → 修订产物 → 重跑 rule_check → 全部通过才放行。
 4. 与 patent-fact-check 顺序：先事实核验、再合规审查；两闸门均过才进 quality-gate 交付放行。

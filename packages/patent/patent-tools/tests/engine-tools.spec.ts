@@ -37,7 +37,7 @@ describe('rule_check', () => {
   })
 
   it('evaluates a keyword blocklist rule', async () => {
-    const ruleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'block', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] } as unknown as RuleSet
+    const ruleSet: RuleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
     const ctx = await ctxWith(tool)
     const result = await execute(ctx, 'rule_check', { text: '包含禁止词的文本', scope: 'patent' }, 'r-2')
@@ -45,6 +45,8 @@ describe('rule_check', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('1 条违规')
     expect(text(result)).toContain('r1')
+    expect(text(result)).toContain('门禁结论: 存在 block 级违规')
+    expect(result.value).toMatchObject({ blocked: true })
   })
 
   it('renders where the hit is, so a warning can be judged without re-reading the whole text', async () => {
@@ -63,7 +65,7 @@ describe('rule_check', () => {
   })
 
   it('states the identity of the text it read, so a second run can be compared with it', async () => {
-    const ruleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'block', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] } as unknown as RuleSet
+    const ruleSet: RuleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
     const ctx = await ctxWith(tool)
     const body = '包含禁止词的文本'
@@ -81,6 +83,7 @@ describe('rule_check', () => {
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('无违规')
+    expect(result.value).toMatchObject({ blocked: false })
   })
 
   const dualRules: RuleSet = {
@@ -104,6 +107,16 @@ describe('rule_check', () => {
     expect(text(result)).not.toContain('PR-OA-099')
     expect(text(result)).toContain(`评估输入: text ${response.length} 字 · `)
     expect(text(result)).toContain(`notice ${notice.length} 字 · `)
+  })
+
+  it('reports a notice that the selected scope cannot evaluate', async () => {
+    const ruleSet: RuleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }
+    const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'rule_check', { text: '干净文本', scope: 'patent', notice: '通知书正文' }, 'r-8')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain("scope 'patent' 没有可评估的双输入规则，notice 未参与判定")
   })
 
   it('lists the dual-input rules it did not evaluate when notice is missing', async () => {

@@ -79,7 +79,7 @@ rules:
     phase: 撰写
     severity: major
     action: warn
-    legalBasis: 专利法第26条第4款；审查指南第二部分第二章 3.2.2
+    legalBasis: 专利法第26条第4款；审查指南第二部分第二章 3.2.1
     check:
       type: structural_analysis
       requiresAll:
@@ -111,7 +111,7 @@ rules:
     phase: 撰写
     severity: minor
     action: warn
-    legalBasis: 专利法第26条第4款；审查指南第二部分第二章 3.2.1
+    legalBasis: 专利法第26条第4款；审查指南第二部分第二章 3.2.2
     check:
       type: keyword_blocklist
       keywords:

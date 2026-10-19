@@ -12,6 +12,7 @@
  */
 
 import {
+  parseCnNumber,
   REJECTION_SHORT_LABELS,
   type ConstitutionalRule,
   type NoticeRejectionGround,
@@ -66,8 +67,11 @@ const STATUTE_GROUNDS: readonly {
   { article: 33, grounds: ['scope'] },
 ]
 
-/** 答复中的专利法驳回条款引用：`专利法第22条第3款` / `专利法第 33 条`。 */
-const STATUTE_CITATION = /专利法第\s*(\d+)\s*条(?:\s*第\s*(\d+)\s*款)?/gu
+/**
+ * 答复中的专利法驳回条款引用：`专利法第22条第3款` / `《专利法》第二十二条第三款`。
+ * 条号与款号都接受阿拉伯数字或中文数字；书名号可选，与中文文书通行写法一致。
+ */
+const STATUTE_CITATION = /(?:《\s*)?专利法\s*》?\s*第\s*([0-9零一二三四五六七八九十百]+)\s*条(?:\s*第\s*([0-9零一二三四五六七八九十百]+)\s*款)?/gu
 
 /**
  * 取条号在对照表中最具体的条目：带款号先精确匹配，退回同条不带款号的族。
@@ -128,8 +132,11 @@ export function evaluateDualRule(rule: ConstitutionalRule, input: DualInputRuleI
       if (input.notice.rejectionTypes.length === 0) return null
       const unraised: string[] = []
       for (const match of input.response.matchAll(STATUTE_CITATION)) {
-        const article = Number(match[1])
-        const paragraph = match[2] === undefined ? undefined : Number(match[2])
+        /* v8 ignore next -- the capture group always participates. */
+        const article = parseCnNumber(match[1] ?? '')
+        if (article === null) continue
+        const parsedParagraph = match[2] === undefined ? null : parseCnNumber(match[2])
+        const paragraph = parsedParagraph ?? undefined
         const entry = statuteEntry(article, paragraph)
         if (entry === undefined) continue
         const raised = entry.grounds.some(ground => input.notice.rejectionTypes.includes(ground))

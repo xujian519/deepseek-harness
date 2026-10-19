@@ -82,10 +82,17 @@ describe('EVI-011 evidence-compliance guards', () => {
 
   it('denies foreign-language evidence missing a translation', () => {
     const [, translationGuard] = createEvidenceComplianceGuards([])
+    expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, null))).toBeUndefined()
     expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'foreign_language', translated: false }))).toMatch(/EVI-011-translation/)
     expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'foreign_language', translated: true }))).toBeUndefined()
-    // 域外（overseas）是来源地分类而非语言分类：中文原件不再被误要求译本。
+    // 域外（overseas）是来源地分类而非语言分类：未声明语言或声明中文时不要求译本。
     expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'overseas', translated: false }))).toBeUndefined()
+    expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'overseas', language: '中文', translated: false }))).toBeUndefined()
+    // 域外 + 外文：语言字段让两道 EVI-011 守卫同时生效。
+    expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'overseas', language: 'en', translated: false })))
+      .toMatch(/EVI-011-translation/)
+    expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'overseas', language: 'ja', translated: true })))
+      .toBeUndefined()
   })
 
   it('is monotonic deny: a pre-execute allow cannot override it', async () => {

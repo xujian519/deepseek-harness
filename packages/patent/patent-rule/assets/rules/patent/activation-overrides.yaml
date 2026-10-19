@@ -188,6 +188,67 @@ premise-vocab:
     - "专利权归属"
     - "发明人资格"
     - "离职"
+  utility-model: &utility-model
+    - "实用新型"
+  technical-solution: &technical-solution
+    - "技术方案"
+    - "技术问题"
+    - "技术效果"
+  legal-citation: &legal-citation
+    - "专利法"
+    - "法律依据"
+    - "法条"
+    - "第\\s*[0-9零一二三四五六七八九十百]+\\s*条"
+  equivalence: &equivalence
+    - "等同"
+    - "基本相同"
+    - "一一对应"
+    - "单独比对"
+    - "全面覆盖"
+  legitimate-source: &legitimate-source
+    - "合法来源"
+    - "抗辩"
+    - "购销"
+    - "发票"
+    - "送货单"
+  dedicated-use: &dedicated-use
+    - "专门用于"
+    - "唯一用途"
+    - "非侵权用途"
+  prosecution-history: &prosecution-history
+    - "禁止反悔"
+    - "审查历史"
+    - "审查档案"
+    - "限缩"
+  method-claim: &method-claim
+    - "方法"
+    - "步骤"
+    - "S1"
+    - "流程"
+  pharma: &pharma
+    - "医药"
+    - "药物"
+    - "化合物"
+    - "药效"
+    - "适应症"
+    - "临床"
+    - "制剂"
+  chemistry: &chemistry
+    - "化学"
+    - "化合物"
+    - "取代基"
+    - "通式"
+    - "马库什"
+    - "晶型"
+  vehicle: &vehicle
+    - "车辆"
+    - "汽车"
+    - "整车"
+  construction: &construction
+    - "建筑"
+    - "模壳"
+    - "构件"
+    - "施工"
 
 overrides:
   # ---- block → review（编造风险保留人工关注，但词有正常合规用法）----
@@ -205,9 +266,9 @@ overrides:
     additionalNegationWords: ["防", "反", "抑制", "检测"]
     reason: "误伤『防窃听装置』等合法专利主题；公序良俗需人工留意但不宜硬拦。2026-09-16（issue #357）补上否定语境：原 asset 未开该开关 ⇒ 连默认词表也用不上，4 个安防放行词（裸「防」不在默认词表里）随本条目生效。放行词是**紧邻前缀**语义（只在该词紧接命中位置之前时豁免），不走 24 字窗口：窗口版会让「检测用户行为，诱导其参与赌博」中的「检测」放行红线命中，公序良俗告警静默丢失。后缀式「窃听检测」仍命中（非对称性已钉为回归判据）。"
   EX-CLM-002:
-    action: warn
+    action: log
     premise: *claims
-    reason: "完整性提醒（权利要求是否以说明书为依据）；不完整 ≠ 违规，不应强制审批"
+    reason: "以说明书为依据是跨文档判断；单份权利要求文本无法证明支持关系，保留记录"
   EX-CMP-001:
     action: warn
     premise: *computer-program
@@ -226,14 +287,16 @@ overrides:
     reason: "OA 高频场景提醒（修改不得超范围）"
   CON-101:
     action: warn
-    reason: "完整性提醒（发明定义技术方案三要素）"
+    premise: *technical-solution
+    reason: "完整性提醒（发明定义技术方案三要素）；只在文本讨论技术方案时评估"
   CON-201:
     action: warn
-    reason: "完整性提醒（充分公开能够实现）"
+    premise: *specification
+    reason: "完整性提醒（充分公开能够实现）；只在说明书主题上评估"
   CON-302:
-    action: warn
+    action: log
     premise: *claims
-    reason: "完整性提醒（权利要求以说明书为依据）"
+    reason: "完整性提醒（权利要求以说明书为依据）。与 EX-CLM-002 同一判据，保留 warn 一条即可"
   CON-401:
     action: warn
     premise: *inventiveness
@@ -257,7 +320,9 @@ overrides:
   # ---- block → log（语义弱 / pattern 过宽 / 领域窄 / 重复，仅 rule_check 可检）----
   CON-COMP-0104:
     action: log
-    reason: "单 element pattern=「审查指南」，缺失即违规语义错乱（讨论不应以是否提及『审查指南』判定合规）"
+    premise:
+      - "审查指南"
+    reason: "单 element pattern=「审查指南」，缺失即违规语义错乱；只在文本确实讨论指南时评估，避免无关文本产生噪声"
   EX-SEL-001:
     action: log
     premise: *eligibility
@@ -272,7 +337,7 @@ overrides:
     reason: "pattern 含「算法/经营」宽泛词，缺失即违规无意义"
   IPC-B60-INV-003:
     action: log
-    premise: *inventiveness
+    premise: *vehicle
     reason: "车辆领域过窄（IPC 单一场景），自动门禁价值低"
   IPC-GEN-INV-001:
     action: log
@@ -325,14 +390,16 @@ overrides:
     premise: *novelty
     reason: "前提=新颖性主题"
   CON-104:
+    action: log
     premise: *inventiveness
-    reason: "前提=创造性主题（三步法结构检查）"
+    reason: "前提=创造性主题（三步法结构检查）。与 EX-INV-001 同一判据，保留 warn 一条即可"
   CON-402:
+    action: log
     premise: *inventiveness
-    reason: "前提=创造性主题（预料不到的技术效果）"
+    reason: "辅助判断因素不是每份创造性分析的必需要素；命中只记录，不提示缺失"
   CON-601:
-    premise: *inventiveness
-    reason: "前提=创造性主题（实用新型创造性标准）"
+    premise: *utility-model
+    reason: "前提=实用新型主题；发明创造性分析不评估实用新型标准"
   P-INV-004:
     premise: *inventiveness
     reason: "前提=创造性主题（辅助判断因素）"
@@ -344,8 +411,9 @@ overrides:
     premise: *reexamination
     reason: "前提=复审程序主题（驳回理由全面回应）"
   X-STR-004:
+    action: log
     premise: *claims
-    reason: "前提=权利要求主题（技术特征与权利要求锚定）"
+    reason: "技术特征与权利要求锚定是跨文档检查；单份文本无法完成"
   X-QC-001:
     premise: *claims
     reason: "前提=权利要求主题（术语一致性）"
@@ -356,11 +424,13 @@ overrides:
     premise: *eligibility
     reason: "前提=不授权客体主题（动植物品种）"
   EX-CLM-004:
+    action: log
     premise: *claim-drafting
-    reason: "前提=权利要求书产物形态（从属权利要求引用规范）"
+    reason: "从属权利要求引用规范只在存在从属权利要求时适用；单份独立权利要求不是缺陷"
   EX-CLM-005:
+    action: log
     premise: *claim-drafting
-    reason: "前提=权利要求书产物形态（功能性限定）"
+    reason: "功能性限定审查只在权利要求确实使用功能限定时适用；缺失不是缺陷"
   EX-NOV-001:
     premise: *novelty
     reason: "前提=新颖性主题（公开方式）"
@@ -377,8 +447,9 @@ overrides:
     premise: *inventiveness
     reason: "前提=创造性主题（技术启示/公知常识）"
   EX-INV-005:
+    action: log
     premise: *inventiveness
-    reason: "前提=创造性主题（公知常识举证）"
+    reason: "公知常识举证不是每份创造性分析的必需要素；命中只记录，不提示缺失"
   EX-INV-006:
     premise: *inventiveness
     reason: "前提=创造性主题（预料不到的技术效果）"
@@ -410,22 +481,22 @@ overrides:
     premise: *specification
     reason: "前提=说明书主题（附图说明规范）"
   IPC-A61-INV-003:
-    premise: *evidence-forensics
+    premise: *pharma
     reason: "前提=证据审查主题（网络证据真实性）"
   IPC-A61-INV-004:
-    premise: *inventiveness
+    premise: *pharma
     reason: "前提=创造性主题（医药区别特征的有益效果）"
   IPC-A61-INV-005:
-    premise: *inventiveness
+    premise: *pharma
     reason: "前提=创造性主题（结构特征与使用效果区分）"
   IPC-C07-INV-002:
-    premise: *inventiveness
+    premise: *chemistry
     reason: "前提=创造性主题（选择发明）"
   IPC-GEN-INV-003:
     premise: *inventiveness
     reason: "前提=创造性主题（公知常识需举证）"
   IPC-E04-INV-002:
-    premise: *inventiveness
+    premise: *construction
     reason: "前提=创造性主题（结构替换判断）"
   IPC-C12-DIS-001:
     premise: *biomaterial
@@ -461,14 +532,16 @@ overrides:
     premise: *specification
     reason: "前提=说明书主题（术语定义统一）"
   PR-CLM-002:
+    action: log
     premise: *claim-drafting
-    reason: "前提=权利要求书产物形态（多层次防御体系）"
+    reason: "多层次防御体系是撰写建议；单一独立权利要求合法，不提示缺失"
   PR-CLM-003:
-    premise: *claim-drafting
-    reason: "前提=权利要求书产物形态（方法步骤编号）"
+    premise: *method-claim
+    reason: "前提=方法权利要求；产品权利要求不评估步骤编号"
   PR-CLM-004:
+    action: log
     premise: *claim-drafting
-    reason: "前提=权利要求书产物形态（功能性限定使用规范）"
+    reason: "功能性限定使用规范是撰写建议；未使用功能限定不是缺陷"
   PR-CLM-005:
     premise: *claim-drafting
     reason: "前提=权利要求书产物形态（避免纯功能性限定）"
@@ -499,3 +572,58 @@ overrides:
   P-UTL-001:
     premise: *utility
     reason: "前提=实用性主题"
+  CON-303:
+    action: log
+    premise: *claims
+    reason: "权利要求必要技术特征只能人工判断；词语存在性检查不作为 warn 提示"
+  CON-701:
+    action: log
+    premise:
+      - "答复期限"
+      - "指定期限"
+      - "四个月"
+      - "两个月"
+      - "期限届满"
+    reason: "期限由 patent_deadlines 计算；文本规则不承担期限判断"
+  CON-702:
+    action: log
+    reason: "与 PR-OA-001 同一判据（逐点回应）；保留 PR-OA-001 的 warn 提示"
+  EX-PRC-003:
+    action: log
+    reason: "与 PR-OA-001 同一判据（答复完整性）；保留 PR-OA-001 的 warn 提示"
+  X-STR-003:
+    action: log
+    reason: "与 PR-OA-001 同一判据（答复完整性）；保留 PR-OA-001 的 warn 提示"
+  X-REF-001:
+    action: log
+    premise: *legal-citation
+    reason: "法律依据引用完整性为通用检查；只在文本讨论法条引用时记录"
+  CON-COMP-0106:
+    premise:
+      - "结论"
+      - "综上"
+      - "因此"
+      - "判断"
+      - "认定"
+    reason: "只在文本给出分析结论时评估；无结论的草案不适用"
+  JD-INF-001:
+    premise: *equivalence
+    reason: "前提=等同/全面覆盖比对主题"
+  JD-INF-005:
+    premise: *equivalence
+    reason: "前提=等同/特征比对主题"
+  JD-INF-006:
+    premise: *prosecution-history
+    reason: "前提=禁止反悔/审查历史主题"
+  JD-DEF-005:
+    premise: *legitimate-source
+    reason: "前提=合法来源抗辩主题"
+  JD-DEF-008:
+    premise: *dedicated-use
+    reason: "前提=专门用于/非侵权用途主题"
+  PR-INV-002:
+    premise:
+      - "无效宣告"
+      - "无效请求"
+      - "请求人"
+    reason: "无效请求书的证据组织规则；答复与侵权文书不适用"

@@ -18,6 +18,7 @@ import {
   asRecord,
   asStringArray,
   hasNonEmptyWord,
+  hasUsableKeywordEntry,
   isRuleAction,
   isSafeRegex,
   isUsablePremise,
@@ -206,9 +207,12 @@ function parseActivationPatch(
     const raw = record[key]
     if (raw === undefined) continue
     const list = asStringArray(raw)
-    // 与资产解析器（RuleLoader.parseCheck）同一判据：空表、非法类型与全空串元素都整条跳过
-    // ——三者都让表在消费侧恒不生效。带首尾空白的元素保留：两条消费路径都会让它参与匹配。
-    if (list === null || !hasNonEmptyWord(list)) {
+    // 与资产解析器（RuleLoader.parseCheck）同一判据：空表、非法类型、全空白元素与只含
+    // 分隔符的 OR 组都整条跳过——它们让表在消费侧恒不生效。带首尾空白的实词保留。
+    if (
+      list === null
+      || (key === 'addKeywords' ? !hasUsableKeywordEntry(list) : !hasNonEmptyWord(list))
+    ) {
       warnings.push(`激活覆盖 ${id}: ${key} 必须是非空字符串数组，已跳过`)
       return null
     }
@@ -286,6 +290,9 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
       warnings.push(`激活覆盖文件加载失败 ${path}: ${(error as Error).message}`)
     }
   }
+  warnings.push(
+    `未找到激活覆盖资产（${ACTIVATION_OVERRIDES_FILE}）：评审降级不会生效，规则将按原始 action 执行`,
+  )
   return { byId: new Map(), source: null, warnings }
 }
 
@@ -379,7 +386,9 @@ export function loadPatentFullRuleSet(rulesDir?: string): PatentComplianceLoadRe
     mergedSets.push(loaded.ruleSet)
     warnings.push(...loaded.warnings)
   }
-  const mergedRuleSet = mergeRuleSets(mergedSets)
+  const mergeIssues: RuleSetValidationIssue[] = []
+  const mergedRuleSet = mergeRuleSets(mergedSets, mergeIssues)
+  warnings.push(...mergeIssues.map(issue => issue.message))
   const { byId, source: overrideSource, warnings: overrideWarnings } = loadActivationOverrides(rulesDir)
   warnings.push(...overrideWarnings)
   const patchIssues: RuleSetValidationIssue[] = []
@@ -421,10 +430,13 @@ const ANSWER_BRIEF_DOMAINS = [
 ] as const
 
 /**
- * 作业类别 scope（`rule_check` 的 scope 取值）。前四个与四类作业 manifest 一一对应；
+ * 作业类别 scope（`rule_check` 的 scope 取值）。答复、无效、复审、侵权四类与作业
+ * manifest 对应；`patent-drafting` / `patent-analysis` 是撰写与分析作业的收敛入口；
  * `patent-invalidation-defense` 与 `patent_invalidation_v1` 同一作业，只是被请求人侧。
  */
 export type PatentCaseScope =
+  | 'patent-drafting'
+  | 'patent-analysis'
   | 'patent-oa-response'
   | 'patent-invalidation'
   | 'patent-invalidation-defense'
@@ -441,13 +453,15 @@ export type PatentCaseScope =
  *
  * | scope | 对应 manifest | 理由来源 |
  * | --- | --- | --- |
+ * | `patent-drafting` | 撰写作业 | 权利要求/说明书产物 + 客体/新颖性/创造性/实用性 |
+ * | `patent-analysis` | 专利性分析作业 | 新颖性/创造性/实用性/充分公开 |
  * | `patent-oa-response` | `patent_oa_response_v1` | 驳回类型表（7 类） |
  * | `patent-invalidation` | `patent_invalidation_v1` | 无效理由表（12 项），**请求人侧** |
  * | `patent-invalidation-defense` | `patent_invalidation_v1` | 无效理由表，**被请求人（专利权人）侧** |
  * | `patent-reexamination` | `patent_reexamination_v1` | 复审理由表（6 项） |
- * | `patent-infringement` | `patent_infringement_v1` | 侵权比对与抗辩 |
+ * | `patent-infringement` | `patent_infringement_v1` | 侵权比对与抗辩 + 诉讼程序/证据 |
  *
- * 五个 scope 的并集覆盖 `patent-full` 里的全部域（测试断言）：任一域的规则都至少有一个作业入口，
+ * 七个 scope 的并集覆盖 `patent-full` 里的全部域（测试断言）：任一域的规则都至少有一个作业入口，
  * 新增资产域若不属于任何作业，构建期就会失败而不是只能靠 `patent-full` 触及。
  *
  * 答复、复审与无效答辩今日域集合相同：复审理由表 = 无效理由表 + 实用新型客体缺陷（客体规则在通用域），
@@ -455,9 +469,30 @@ export type PatentCaseScope =
  * 入口，不必知道域表；任一作业的资产域分化时（例如上游带来 `patent_invalidation` 域的规则）在此处
  * 拆开，scope 名称不变。无效 scopes 的请求人侧与答辩侧分列：答复实践域（逐点回应、答复期限、禁止计数
  * 式论证、重复引证）的语义是答复对方主张，对**请求书**会误报，对**答辩意见陈述书**正适用；请求人侧
- * 因此不带该域，答辩侧带。侵权 scope 只含侵权域：撰写与审查域的结构完整性规则对侵权意见书会误报。
+ * 因此不带该域，答辩侧带。侵权 scope 带侵权域与程序域：诉讼程序/证据规则（举证妨碍、技术鉴定、
+ * 网络证据）与审查程序规则同处 `patent_procedure`，后者由 premise 在无关文本上静默；撰写形态域
+ * 仍不进入侵权 scope，避免权项布局等结构完整性规则对侵权意见书误报。
  */
 export const PATENT_CASE_DOMAINS: Record<PatentCaseScope, readonly string[]> = {
+  // 撰写：权利要求与说明书产物 + 客体/新颖性/创造性/实用性判断。不含答复实践域，
+  // 避免把“逐点回应审查意见”这类答复规则套到草案上。
+  'patent-drafting': [
+    ...COMMON_CASE_DOMAINS,
+    'patent_claims',
+    'patent_disclosure',
+    'patent_novelty',
+    'patent_inventiveness',
+    'patent_utility',
+  ],
+  // 分析报告：专利性/新颖性/创造性结论，不取权利要求撰写形态规则（权项布局、
+  // 从属引用等对分析文本是结构性误报）。
+  'patent-analysis': [
+    ...COMMON_CASE_DOMAINS,
+    'patent_novelty',
+    'patent_inventiveness',
+    'patent_utility',
+    'patent_disclosure',
+  ],
   'patent-oa-response': ANSWER_BRIEF_DOMAINS,
   'patent-invalidation-defense': ANSWER_BRIEF_DOMAINS,
   'patent-reexamination': ANSWER_BRIEF_DOMAINS,
@@ -470,7 +505,9 @@ export const PATENT_CASE_DOMAINS: Record<PatentCaseScope, readonly string[]> = {
     'patent_claims',
     'patent_procedure',
   ],
-  'patent-infringement': [...COMMON_CASE_DOMAINS, 'patent_infringement'],
+  // 侵权意见书同时需要诉讼程序/证据规则（举证妨碍、技术鉴定、网络证据），
+  // 这些规则与审查程序规则同处 patent_procedure；后者由 premise 在无关文本上静默。
+  'patent-infringement': [...COMMON_CASE_DOMAINS, 'patent_infringement', 'patent_procedure'],
 }
 
 /**

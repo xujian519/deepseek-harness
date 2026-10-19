@@ -122,6 +122,63 @@ rules:
     expect(issues.some(i => i.message.includes('灾难性回溯'))).toBe(true)
   })
 
+  it('parseRuleSetFromYaml rejects a quantifier after a repetition brace', () => {
+    const { issues } = parseRuleSetFromYaml(
+      `
+rules:
+  - id: CON-REDOS-BRACE
+    name: redos brace
+    severity: major
+    action: warn
+    check: { type: pattern_analysis, patterns: ["a}+"] }
+`,
+    )
+    expect(issues.some(i => i.message.includes('灾难性回溯'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml rejects overlapping alternation under a quantifier', () => {
+    const { issues } = parseRuleSetFromYaml(
+      `
+rules:
+  - id: CON-REDOS-ALT
+    name: redos alternation
+    severity: major
+    action: warn
+    check: { type: pattern_analysis, patterns: ["(a|aa)+"] }
+`,
+    )
+    expect(issues.some(i => i.message.includes('灾难性回溯'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml rejects overlapping alternation inside a non-capturing group', () => {
+    const { issues } = parseRuleSetFromYaml(
+      `
+rules:
+  - id: CON-REDOS-NC
+    name: redos non-capturing alternation
+    severity: major
+    action: warn
+    check: { type: pattern_analysis, patterns: ["(?:a|aa)+"] }
+`,
+    )
+    expect(issues.some(i => i.message.includes('灾难性回溯'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml keeps mutually exclusive alternation under a quantifier', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      `
+rules:
+  - id: CON-OK-ALT
+    name: safe alternation
+    severity: major
+    action: warn
+    check: { type: pattern_analysis, patterns: ["(a|b)+"] }
+`,
+    )
+    expect(issues).toEqual([])
+    expect(ruleSet.rules).toHaveLength(1)
+  })
+
   it('parseRuleSetFromYaml applies the ReDoS guard to structural_analysis patterns too', () => {
     const { issues } = parseRuleSetFromYaml(
       `
@@ -204,7 +261,7 @@ rules:
     check: { type: keyword_blocklist, keywords: ["x"], severityIfFound: "catastrophic" }
 `,
     )
-    expect(issues.length).toBe(0)
+    expect(issues.some(i => i.message.includes('severityIfFound'))).toBe(true)
     const rule = ruleSet.rules[0]
     expect(rule?.check.type).toBe('keyword_blocklist')
     if (rule?.check.type === 'keyword_blocklist') {
@@ -429,15 +486,58 @@ rules:
     const nonArray = parseRuleSetFromYaml(
       'rules:\n  - id: K1\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: "x" }\n',
     )
-    expect(nonArray.issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+    expect(nonArray.issues.some(i => i.message.includes('非空关键词'))).toBe(true)
     const mixed = parseRuleSetFromYaml(
       'rules:\n  - id: K2\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x", 42] }\n',
     )
-    expect(mixed.issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+    expect(mixed.issues.some(i => i.message.includes('非空关键词'))).toBe(true)
     const empty = parseRuleSetFromYaml(
       'rules:\n  - id: K3\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: [] }\n',
     )
-    expect(empty.issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+    expect(empty.issues.some(i => i.message.includes('非空关键词'))).toBe(true)
+  })
+
+  it('keyword_blocklist reports a non-boolean negationContext instead of silently disabling it', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: K-NEG\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"], negationContext: "true" }\n',
+    )
+    expect(issues.some(i => i.message.includes('negationContext'))).toBe(true)
+    const rule = ruleSet.rules[0]
+    if (rule?.check.type === 'keyword_blocklist') expect(rule.check.negationContext).toBe(false)
+  })
+
+  it('pattern_analysis reports an invalid minMatches and falls back to 1', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: P-MIN\n    name: n\n    severity: minor\n    action: warn\n    check: { type: pattern_analysis, patterns: ["x"], minMatches: 0 }\n',
+    )
+    expect(issues.some(i => i.message.includes('minMatches'))).toBe(true)
+    const rule = ruleSet.rules[0]
+    if (rule?.check.type === 'pattern_analysis') expect(rule.check.minMatches).toBe(1)
+  })
+
+  it('structural_analysis reports an out-of-range minConfidence and falls back to 1', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: S-CONF\n    name: n\n    severity: minor\n    action: warn\n    check: { type: structural_analysis, minConfidence: 2, requiresAll: [{ element: e, patterns: ["x"] }] }\n',
+    )
+    expect(issues.some(i => i.message.includes('minConfidence'))).toBe(true)
+    const rule = ruleSet.rules[0]
+    if (rule?.check.type === 'structural_analysis') expect(rule.check.minConfidence).toBe(1)
+  })
+
+  it('synonym_match reports an out-of-range minConfidence and falls back to 1', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: Y-CONF\n    name: n\n    severity: minor\n    action: warn\n    check: { type: synonym_match, minConfidence: -1, requirements: [{ element: e, keywords: ["x"] }] }\n',
+    )
+    expect(issues.some(i => i.message.includes('minConfidence'))).toBe(true)
+    const rule = ruleSet.rules[0]
+    if (rule?.check.type === 'synonym_match') expect(rule.check.minConfidence).toBe(1)
+  })
+
+  it('synonym_match rejects empty requirement keywords', () => {
+    const { issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: Y-EMPTY\n    name: n\n    severity: minor\n    action: warn\n    check: { type: synonym_match, requirements: [{ element: e, keywords: [""] }] }\n',
+    )
+    expect(issues.some(i => i.message.includes('至少一个非空 keyword'))).toBe(true)
   })
 
   it('keyword_blocklist keeps a valid severityIfFound override', () => {
@@ -518,7 +618,7 @@ rules:
     const ok = parseRuleSetFromYaml(
       'rules:\n  - id: CT1\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics:\n            "2": [新颖性, 创造性]\n            "not-a-number": [其他]\n',
     )
-    expect(ok.issues.length).toBe(0)
+    expect(ok.issues.some(i => i.message.includes('topics'))).toBe(true)
     const rule = ok.ruleSet.rules[0]
     if (rule?.check.type === 'citation_analysis') {
       expect(rule.check.statutes['专利法']?.max).toBe(78)
@@ -566,7 +666,7 @@ rules:
     )
     expect(ruleSet.rules.length).toBe(1)
     expect(ruleSet.rules[0]?.id).toBe('G1')
-    expect(issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+    expect(issues.some(i => i.message.includes('非空关键词'))).toBe(true)
   })
 
   it('validateRuleSet reports duplicates without a source', () => {

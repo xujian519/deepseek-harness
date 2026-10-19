@@ -52,6 +52,15 @@ function makeRulesFixture(): string {
       '      requiresAll:',
       '        - element: effect',
       '          patterns: ["有益效果"]',
+      '  - id: TEST-SYN',
+      '    name: 测试同义词',
+      '    severity: critical',
+      '    action: block',
+      '    check:',
+      '      type: synonym_match',
+      '      requirements:',
+      '        - element: claim',
+      '          keywords: ["权利要求"]',
     ].join('\n'),
     'utf8',
   )
@@ -102,6 +111,24 @@ describe('resolveStructuralGate', () => {
       '制品结构门禁 other_tool: 规则集内不存在规则 NO-SUCH-RULE，该条已忽略',
       '制品结构门禁 other_tool: 没有可用规则，该条不生效',
     ])
+  })
+
+  it('空 textArgs 告警并剔除该条', () => {
+    const plan = planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: [], ruleIds: ['TEST-LAYOUT'] },
+    ])
+    expect(plan.entries).toEqual([])
+    expect(plan.warnings).toEqual([
+      '制品结构门禁 render_patent_document: 未声明承载制品文本的 textArgs，该条不生效',
+    ])
+  })
+
+  it('非 block 规则告警，说明该条不会拒绝调用', () => {
+    const plan = planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: ['sections'], ruleIds: ['TEST-SOFT'] },
+    ])
+    expect(plan.entries).toHaveLength(1)
+    expect(plan.warnings.some(w => w.includes('action 为 warn') && w.includes('不会拒绝调用'))).toBe(true)
   })
 
   it('空声明得到空计划', () => {
@@ -155,6 +182,17 @@ describe('structuralGateViolations', () => {
     expect(PatentRule.structuralGateViolations(plan, 'other_tool', { sections: { claims: '一种装置' } })).toEqual([])
     expect(PatentRule.structuralGateViolations(plan, 'render_patent_document', { sections: { claims: '   ' } })).toEqual([])
     expect(PatentRule.structuralGateViolations(plan, 'render_patent_document', { sections: { page: 3 } })).toEqual([])
+  })
+
+  it('synonym_match 使用传入的同义词表', () => {
+    const plan = planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: ['sections'], ruleIds: ['TEST-SYN'] },
+    ])
+    const args = { sections: { claims: '权项 1 限定了一种装置。' } }
+    expect(PatentRule.structuralGateViolations(plan, 'render_patent_document', args).map(v => v.ruleId))
+      .toEqual(['TEST-SYN'])
+    const synonyms = new Map([['权利要求', ['权项']]])
+    expect(PatentRule.structuralGateViolations(plan, 'render_patent_document', args, synonyms)).toEqual([])
   })
 
   it('只取 block 级：warn 级结构规则命中不算门禁违规', () => {
@@ -335,7 +373,7 @@ describe('OA 答复的制品结构门禁：PR-OA-007（2026-10-16 审阅甲7）'
 
   it('判据修复：插词写法（第N段记载）计入依据，否定式（未记载）不计入', () => {
     if (oaRule === undefined) throw new Error('规则集缺少 PR-OA-007')
-    const base = '本领域技术人员认为该方案。符合专利法第二十六条第三款的规定。'
+    const base = '本领域技术人员能够实现该方案。符合专利法第二十六条第三款的规定。'
     const negative = PatentRule.evaluateText(`说明书第3段未记载相关特征。${base}`, { rules: [oaRule] })
     expect(negative.violations.map(violation => violation.ruleId)).toEqual(['PR-OA-007'])
     const interpolated = PatentRule.evaluateText(`说明书第3段记载了相关特征。${base}`, { rules: [oaRule] })

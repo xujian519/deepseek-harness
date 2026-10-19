@@ -2015,14 +2015,10 @@
     "b599acf6d78395fa3cfa6a6b38e78e5c669109aa04ab3f0ba4e483a6483bf0fb": 1
   },
   "packages/patent/patent-tools/tests/drafting-engine.spec.ts": {
-    "1a8b366de6e25467756c1d816e097f0cc0db03354ca2cf860fc736996b335987": 1,
-    "260686996a39148b0bf054a6e310a33e3de3288be60942fc6a5b21d4e234d977": 1,
     "4f98033bd7a4c368486ffd04d7d564d0bc7dc31166f72eee1786491cf8685258": 1,
-    "523655feeee4214aee3a97b0e75e894ddcfe5a891a6e9094b07e0ea155c64d9e": 1,
-    "9ccb9fd1707fee64a99ff6fb4130fa0a066ae42a5c555521a00194821017cb44": 1
+    "523655feeee4214aee3a97b0e75e894ddcfe5a891a6e9094b07e0ea155c64d9e": 1
   },
   "packages/patent/patent-tools/tests/engine-tools.spec.ts": {
-    "3ea15aa85e938d29621c924d2a856397e7d2eab28173a2b699691602c234ac4a": 2,
     "8b791f0a0cedc7d4a74380b60475151e13d2bac243a2d135c052d688323e836e": 1
   },
   "packages/patent/patent-tools/tests/figure-circuit-diagram.spec.ts": {

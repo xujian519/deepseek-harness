@@ -37,7 +37,6 @@
     "packages/patent/patent-knowledge/src/case-law/case-law-search.ts|packages/patent/patent-knowledge/src/legal/knowledge-law-search.ts",
     "packages/patent/patent-knowledge/src/patent/patent-kg-adapter.ts|packages/patent/patent-knowledge/src/patent/patent-kg-adapter.ts",
     "packages/patent/patent-knowledge/src/shared/kg-store.ts|packages/patent/patent-knowledge/src/shared/kg/graph-traversal.ts",
-    "packages/patent/patent-rule/src/guard/evidenceComplianceGuards.ts|packages/patent/patent-rule/src/guard/evidenceComplianceGuards.ts",
     "packages/patent/patent-teams/src/tools.ts|packages/patent/patent-teams/src/tools.ts",
     "packages/patent/patent-teams/src/tools.ts|packages/patent/patent-tools/src/tool/analyze-patent-figure.ts",
     "packages/patent/patent-teams/src/tools.ts|packages/patent/patent-tools/src/tool/parse-office-action.ts",

@@ -176,7 +176,7 @@ export type ConstitutionalRule = {
   description?: string
   /** 适用领域（patent / general 等），用于按域过滤规则。 */
   domain?: string
-  /** 生命周期阶段（自由文本，如 "申请前" / "撰写"）。 */
+  /** 生命周期阶段（自由文本，如 "申请前" / "撰写"）。当前只作资产元数据，不参与评估过滤。 */
   phase?: string
   severity: RuleSeverity
   action: RuleAction

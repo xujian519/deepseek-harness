@@ -3345,6 +3345,10 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
         "design_comparison"
       ]
     },
+    "language": {
+      "type": "string",
+      "description": "证据原文语言（zh/中文/en/ja 等）。域外证据声明非中文时，EVI-011 同时要求中文译本；中文原件不要求。"
+    },
     "filingDate": {
       "type": "string",
       "description": "专利申请日（公开日是否早于申请日）。"
@@ -5882,7 +5886,7 @@ Usage notes:
 
 ### `rule_check`
 
-对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、作业 scope patent-oa-response / patent-invalidation / patent-invalidation-defense / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域；无效作业分请求人侧与答辩侧两个入口，答辩侧含答复实践域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。手头已有通知书正文时，作业 scope 还可传 notice=通知书正文：两条双输入规则（PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用）随该通知书一并评估答复；未提供 notice 时，这两条在结果中显式列为未评估。每条结果末尾的「评估输入」给出本次实际读到的文本的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
+对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配 / 引文重复），返回带严重级别、处置建议与法条依据的违规项。多数规则声明适用前提：前提不命中的规则不产生任何结果，文本只按其实际讨论的主题接受检查（未触及新颖性的答复不会收到新颖性完整性命中）。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（全部随包资产：通用合规 + nuo 镜像 + 手写并入规则，需激活评审）、撰写 scope patent-drafting（权利要求/说明书撰写）、分析 scope patent-analysis（专利性/新颖性/创造性）、作业 scope patent-oa-response / patent-invalidation / patent-invalidation-defense / patent-reexamination / patent-infringement（把 patent-full 资产按该作业的规则域收窄：本作业的文书域加上它必须答复或论证的条款所在的域；无效作业分请求人侧与答辩侧两个入口，答辩侧含答复实践域），或 pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。手头已有通知书正文时，作业 scope 还可传 notice=通知书正文：两条双输入规则（PR-OA-008 驳回理由覆盖 / PR-OA-009 未提条款引用）随该通知书一并评估答复；未提供 notice 时，这两条在结果中显式列为未评估。每条结果末尾的「评估输入」给出本次实际读到的文本的字数与指纹：转述结果时请一并保留，便于与另一次运行对照是否读的是同一份文本。
 
 ```json
 {
@@ -5894,7 +5898,7 @@ Usage notes:
     },
     "scope": {
       "type": "string",
-      "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
+      "description": "Rule set scope. Defaults to 'patent' (4 general compliance rules only; choose a job scope for substantive checks). 'patent-drafting' / 'patent-analysis' cover claim/spec drafting and patentability analysis; 'patent-oa-response' / 'patent-invalidation' / 'patent-invalidation-defense' / 'patent-reexamination' / 'patent-infringement' evaluate the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
     },
     "notice": {
       "type": "string",

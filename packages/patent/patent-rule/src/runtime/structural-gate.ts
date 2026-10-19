@@ -18,6 +18,7 @@
 import type { ConstitutionalRule, RuleSet, RuleViolation } from '@deepseek-ai/dsh-patent-core'
 import { declaredArgsMatch, jsonRecord } from './args-match.ts'
 import { evaluateText } from './RuleEngine.ts'
+import type { SynonymMap } from './synonym-engine.ts'
 
 /** 一条制品结构门禁声明。 */
 export type StructuralGateEntry = {
@@ -96,12 +97,21 @@ export function resolveStructuralGate(
   const warnings: string[] = []
   const resolved: ResolvedStructuralGateEntry[] = []
   for (const entry of entries) {
+    if (entry.textArgs.length === 0) {
+      warnings.push(`制品结构门禁 ${entry.tool}: 未声明承载制品文本的 textArgs，该条不生效`)
+      continue
+    }
     const rules: ConstitutionalRule[] = []
     for (const id of entry.ruleIds) {
       const rule = byId.get(id)
       if (rule === undefined) {
         warnings.push(`制品结构门禁 ${entry.tool}: 规则集内不存在规则 ${id}，该条已忽略`)
         continue
+      }
+      if (rule.action !== 'block') {
+        warnings.push(
+          `制品结构门禁 ${entry.tool}: 规则 ${id} 的 action 为 ${rule.action}，门禁只执行 block 级规则，该条不会拒绝调用`,
+        )
       }
       rules.push(rule)
     }
@@ -119,19 +129,21 @@ export function resolveStructuralGate(
  * @param plan - 运行计划。
  * @param tool - 本次调用的工具名。
  * @param args - 本次调用的入参。
+ * @param synonyms - 同义词表（synonym_match 规则用；缺省空表）。
  * @returns block 级违规（无命中为空数组）。
  */
 export function structuralGateViolations(
   plan: StructuralGatePlan,
   tool: string,
   args: unknown,
+  synonyms?: SynonymMap,
 ): RuleViolation[] {
   const violations: RuleViolation[] = []
   for (const { entry, rules } of plan.entries) {
     if (entry.tool !== tool || !declaredArgsMatch(entry.whenArgs, args)) continue
     const text = structuralGateText(args, entry.textArgs)
     if (text.trim().length === 0) continue
-    const evaluation = evaluateText(text, { rules })
+    const evaluation = evaluateText(text, { rules }, synonyms)
     violations.push(...evaluation.violations.filter(violation => violation.action === 'block'))
   }
   return violations
