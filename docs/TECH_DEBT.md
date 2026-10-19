@@ -360,13 +360,13 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | --- | --- |
 | `structure.long-functions` | 186 |
 | `structure.large-files` | 76 |
-| `lint.v8-ignore` | 1261 |
+| `lint.v8-ignore` | 1257 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
 
 - **2026-10-18 专利域覆盖率豁免退休**:`patent-tools`、`patent-workflow`、`patent-teams`、`writing-patterns` 四个包移出 `coverage.exclude`,逐文件覆盖率补齐到四项 100%。补齐过程新增 **77** 条带理由的 `v8 ignore`(`lint.v8-ignore` 1178 → **1255**),集中在类型系统不变量(JSON.parse 必抛 Error、正则必选捕获组、闭合联合兜底、schema 已先行拒绝的直调守卫)与宿主保证(工具执行上下文恒带 signal);可达的输入错误路径与错误映射由用例覆盖。同一批改动把 `render-check.ts`(1664 行)拆为扫描、判据与再导出三层,`apply()` 接线移入 `wiring.ts`,仓库 >800 行源文件 77 → **76**。`docs/tool-catalog.md` 随之重生成。
-- **2026-10-18 patent-rule 规则门禁收口**:`lint.v8-ignore` 由 1178 升至 **1180**;`RuleLoader` 的正则组捕获与 `dual-input` 的必选捕获组各补一处带理由的豁免,其余新增分支由用例覆盖。
+- **2026-10-18 patent-rule 规则门禁收口**:`lint.v8-ignore` 由 1255 升至 **1257**;`RuleLoader` 的正则组捕获与 `dual-input` 的必选捕获组各补一处带理由的豁免,其余新增分支由用例覆盖。
 
 - **2026-10-18 patent-core 覆盖率收口**:`lint.v8-ignore` 由 1166 升至 **1178**;`patent-core` 逐文件覆盖率补齐时,对正则必选捕获组、数值模式捕获组与矩阵原理编号等类型不变量守卫补了带理由的豁免,其余分支均由用例覆盖。`structure.long-functions` 保持 186(同一批改动把 `claim-chart` 执行器的目标预读与清单渲染拆成模块级函数)。
 
