@@ -21,7 +21,7 @@ import {
 } from '@deepseek-ai/dsh-patent-rule'
 import type { RulePackLoadResult } from '@deepseek-ai/dsh-patent-rule'
 import { parseOfficeAction } from '@deepseek-ai/dsh-patent-core'
-import type { RuleSet, RuleViolation } from '@deepseek-ai/dsh-patent-core'
+import type { RuleAction, RuleSeverity, RuleSet, RuleViolation } from '@deepseek-ai/dsh-patent-core'
 import type { SynonymMap } from '@deepseek-ai/dsh-patent-rule'
 import { PatentToolError } from '../error.ts'
 import { evaluatedTexts, EVALUATED_TEXT_SCHEMA, renderEvaluatedTexts } from '../internal/evaluated-input.ts'
@@ -40,20 +40,11 @@ export type RuleCheckInput = {
   notice?: string
 }
 
-/** One rule violation rendered for the tool output. */
-export type RuleViolationView = {
-  ruleId: string
-  ruleName: string
-  severity: string
-  action: string
-  legalBasis?: string
-  message: string
-  evidence: string[]
-  /** Line (1-based) of the earliest literal hit; absent for checks that match no literal text. */
-  line?: number
-  /** Sentence containing that hit; absent for checks that match no literal text. */
-  matchedSentence?: string
-}
+/** One rule violation rendered for the tool output; the canonical fields are owned by patent-core. */
+export type RuleViolationView = Pick<
+  RuleViolation,
+  'ruleId' | 'ruleName' | 'severity' | 'action' | 'legalBasis' | 'message' | 'evidence' | 'line' | 'matchedSentence'
+>
 
 /** Output of the rule_check tool. */
 export type RuleCheckOutput = {
@@ -104,8 +95,8 @@ const DESCRIPTION = [
 ].join(' ')
 
 /** 处置级别排序：先让硬拦截与待审项出现在前，避免 block 被几十条 warn 淹没。 */
-const ACTION_RANK: Record<string, number> = { block: 0, review: 1, warn: 2, log: 3 }
-const SEVERITY_RANK: Record<string, number> = { critical: 0, major: 1, minor: 2 }
+const ACTION_RANK: Record<RuleAction, number> = { block: 0, review: 1, warn: 2, log: 3 }
+const SEVERITY_RANK: Record<RuleSeverity, number> = { critical: 0, major: 1, minor: 2 }
 
 /**
  * 按处置级别、再按严重度排序违规；同级保持规则集原顺序。
@@ -114,8 +105,8 @@ const SEVERITY_RANK: Record<string, number> = { critical: 0, major: 1, minor: 2 
  */
 function orderedViolations(violations: readonly RuleViolationView[]): RuleViolationView[] {
   return [...violations].sort((a, b) =>
-    (ACTION_RANK[a.action] ?? 9) - (ACTION_RANK[b.action] ?? 9)
-    || (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9))
+    ACTION_RANK[a.action] - ACTION_RANK[b.action]
+    || SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
 }
 
 /** Render the canonical rule-check value into model-facing prose. */
@@ -159,8 +150,8 @@ const VIOLATION_SCHEMA = {
   properties: {
     ruleId: { type: 'string', required: true },
     ruleName: { type: 'string', required: true },
-    severity: { type: 'string', required: true },
-    action: { type: 'string', required: true },
+    severity: { type: 'string', required: true, enum: ['critical', 'major', 'minor'] },
+    action: { type: 'string', required: true, enum: ['block', 'review', 'warn', 'log'] },
     legalBasis: { type: 'string' },
     message: { type: 'string', required: true },
     evidence: { type: 'array', required: true, items: { type: 'string' } },

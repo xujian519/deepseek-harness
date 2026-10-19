@@ -475,7 +475,7 @@ describe('rule_check default scopes', () => {
   it('assembles an injected pack with header, warnings, and per-rule rendering', async () => {
     const ruleSet = {
       rules: [
-        { id: 'p1', name: '规则一', severity: 'block', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止'] }, legalBasis: '专利法 A2' },
+        { id: 'p1', name: '规则一', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止'] }, legalBasis: '专利法 A2' },
       ],
     } as unknown as RuleSet
     const pack = () => ({
@@ -502,7 +502,7 @@ describe('rule_check default scopes', () => {
   })
 
   it('runs the electrical scope through an injected loader', async () => {
-    const ruleSet = { rules: [{ id: 'e1', name: '电学规则', severity: 'block', action: 'block', check: { type: 'keyword_blocklist', keywords: ['电路'] } }] } as unknown as RuleSet
+    const ruleSet = { rules: [{ id: 'e1', name: '电学规则', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['电路'] } }] } as unknown as RuleSet
     const tool = createRuleCheckTool({ loader: scope => (scope === 'patent-electrical' ? ruleSet : { rules: [] }) })
     const ctx = await ctxWith(tool)
     const result = await execute(ctx, 'rule_check', { text: '电路', scope: 'patent-electrical' }, 'rc-4')
@@ -571,7 +571,7 @@ describe('rule_check default scopes', () => {
         {
           id: 's1',
           name: '结构规则',
-          severity: 'block',
+          severity: 'critical',
           action: 'block',
           check: { type: 'structural_analysis', minConfidence: 1, requiresAll: [{ element: '结构', patterns: ['结构完整'] }] },
         },
