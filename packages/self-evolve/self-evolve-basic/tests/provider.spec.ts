@@ -4367,6 +4367,34 @@ describe('workspace verifier degradation and engine edges (P0-2/P0-4/P1.9b)', ()
     }
   })
 
+  it('falls back to the process cwd when the tracked session is gone', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-rollback-no-session-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      const resolved: (string | undefined)[] = []
+      ctx.provide('fs', {
+        resolve: async (path: string, options?: { cwd?: string }) => { resolved.push(options?.cwd); return path },
+        writeText: async () => {},
+      })
+      const engine = new ProbeEngine(ctx, baseConfig({ defaultLevels: [] }))
+      // evolveNow registers the session in the rate map; hiding it from the
+      // sessions service afterwards models a session that closed before the
+      // rollback, which must fall back to the process cwd.
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'champion body', pattern!.patternId))
+      await engine.commit(agentFor(session), l1Proposal('p2', 'cwd-guard', 'regressing body', pattern!.patternId))
+      ctx.set('sessions', { get: () => undefined })
+      await engine.rollback(pattern!.patternId)
+      expect(resolved.at(-1)).toBe(process.cwd())
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('reports an aborted untracked line count as an unavailable dimension', async () => {
     const route = (command: string): ScriptedShellOutcome => {
       if (command.startsWith('git ls-files')) return { kind: 'run', stdout: 'scratch.txt\n' }
