@@ -182,9 +182,9 @@ describe('金标与问题空间 DAG', () => {
 
   it('rubric 满分合计不为 100 即失败', () => {
     const shrunken = gold.map(goldCase => goldCase.caseId === 'oa-answer'
-      ? { ...goldCase, rubric: goldCase.rubric.replace('(30 分)', '(20 分)') }
+      ? { ...goldCase, rubric: goldCase.rubric.replace('(28 分)', '(20 分)') }
       : goldCase)
-    expect(validateProblemSpace(space, shrunken).join('\n')).toContain('映射权重合计 30,rubric 满分为 20')
+    expect(validateProblemSpace(space, shrunken).join('\n')).toContain('映射权重合计 28,rubric 满分为 20')
   })
 })
 
@@ -254,7 +254,7 @@ describe('run 记录校验', () => {
     const target = tampered.cases.find(entry => entry.caseId === 'oa-answer')
     expect(target).toBeDefined()
     if (target !== undefined) first(target.dimensions).points = 99
-    expect(validateRunRecord(tampered, space, gold, 'run.json').join('\n')).toContain('满分 99,rubric 为 30')
+    expect(validateRunRecord(tampered, space, gold, 'run.json').join('\n')).toContain('满分 99,rubric 为 28')
   })
 
   it('缺少某个 case 的观测即失败', () => {
@@ -273,8 +273,8 @@ describe('判定与归因', () => {
   it('节点分按 DAG 权重聚合,跨 case 的同一节点合并计权', () => {
     const run = recordFrom(gold, (caseId, index) => (caseId === 'oa-answer' && index === 1 ? 80 : 60))
     const scores = nodeScores(space, run)
-    // oa-answer#1 权重 30 记 80,novelty-creative#2 权重 20 记 60。
-    expect(scores.get('distinguishing-features')).toBeCloseTo((80 * 30 + 60 * 20) / 50, 10)
+    // oa-answer#1 权重 28 记 80,novelty-creative#2 权重 20 记 60。
+    expect(scores.get('distinguishing-features')).toBeCloseTo((80 * 28 + 60 * 20) / 48, 10)
     expect(scores.get('infringement-all-elements')).toBeCloseTo(60, 10)
   })
 
@@ -284,7 +284,7 @@ describe('判定与归因', () => {
     expect(scores.get('prior-art-search')).toBeCloseTo(100, 10)
     expect(scores.get('deliverable-format')).toBeCloseTo(100, 10)
     const scores70 = caseScores(run)
-    expect(scores70.find(entry => entry.caseId === 'oa-answer')?.score).toBeCloseTo((30 * 70 + 20 * 70 + 20 * 70 + 15 * 70 + 15 * 100) / 100, 10)
+    expect(scores70.find(entry => entry.caseId === 'oa-answer')?.score).toBeCloseTo((28 * 70 + 18 * 70 + 18 * 70 + 13 * 70 + 13 * 100 + 10 * 70) / 100, 10)
   })
 
   it('回退超过 maxDrop 的节点判为 regressed 并排在最前', () => {
@@ -342,7 +342,7 @@ describe('门禁进程', () => {
     const result = runGate()
     expect(result.error).toBeUndefined()
     expect(result.signal).toBeNull()
-    expect(String(result.stdout)).toContain('17 节点')
+    expect(String(result.stdout)).toContain('18 节点')
     if (recorded) {
       expect(result.status, String(result.stderr)).toBe(0)
       expect(String(result.stdout)).toContain('基线已记录')

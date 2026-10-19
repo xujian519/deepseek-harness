@@ -27,11 +27,12 @@ cases:
   oa-answer:
     label: 审查意见答复(OA 答复)
     dimensions:
-      1: { nodes: { distinguishing-features: 30 } }
-      2: { nodes: { technical-problem: 20 } }
-      3: { nodes: { technical-teaching: 20 } }
-      4: { nodes: { conclusion-and-statute: 15 } }
-      5: { nodes: { prior-art-search: 8, deliverable-format: 7 } }
+      1: { nodes: { distinguishing-features: 28 } }
+      2: { nodes: { technical-problem: 18 } }
+      3: { nodes: { technical-teaching: 18 } }
+      4: { nodes: { conclusion-and-statute: 13 } }
+      5: { nodes: { prior-art-search: 7, deliverable-format: 6 } }
+      6: { nodes: { amendment-grounding: 10 } }
   claim-drafting:
     label: 权利要求撰写
     dimensions:
@@ -93,6 +94,11 @@ nodes:
     label: 结论与法条依据
     observable: 结论明确、与论证一致,正确引用专利法第二十二条第二款/第三款及三步法
     dependsOn: [technical-teaching]
+  amendment-grounding:
+    domain: inventive-step
+    label: 修改接地与幅度
+    observable: 修改落在审查员点名被攻击的限定上并给出依据,幅度与缺陷相称(不欠修改、不过度限缩)
+    dependsOn: [distinguishing-features, technical-problem]
   claim-essential-features:
     domain: claim-drafting
     label: 独立权利要求的必要技术特征
