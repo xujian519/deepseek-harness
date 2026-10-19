@@ -2,8 +2,9 @@
  * 宪法规则引擎 — 内置资产加载（专利合规规则）。
  *
  * 资产路径定位（dsh 适配）：包内 assets/rules/patent/，可经 `rulesDir`
- * 覆盖项替换基础资产根（布局镜像 assets/rules/）。全部失败时返回空规则集 +
- * 警告（不抛错，门禁降级为放行）。
+ * 覆盖项替换基础资产根（布局镜像 assets/rules/）。基础合规资产缺失或损坏时
+ * 抛 {@link PatentRuleAssetError}：空规则集会让门禁静默放行，不能作为安装
+ * 故障的降级结果。单个后续规则文件损坏仍只告警并跳过。
  * @module @deepseek-ai/dsh-patent-rule/runtime/patent-compliance
  */
 
@@ -55,6 +56,23 @@ const NUO_RULE_FILES = [
  */
 const MERGED_RULE_FILES = ['current-law.yaml', 'mady-gap-rules.yaml', 'oa-response-form.yaml'] as const
 
+/**
+ * 基础合规规则资产缺失或无法解析。门禁不能以空规则集放行，故加载期失败。
+ */
+export class PatentRuleAssetError extends Error {
+  /** Stable failure code for callers that route on the cause. */
+  readonly code = 'RULE_ASSET_MISSING' as const
+
+  /**
+   * @param message - model/deployment-facing explanation, naming the expected asset.
+   * @param options - optional wrapped cause.
+   */
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'PatentRuleAssetError'
+  }
+}
+
 /** 专利合规规则集加载结果（规则集、来源、警告）。 */
 export type PatentComplianceLoadResult = {
   ruleSet: RuleSet
@@ -82,22 +100,27 @@ function loadFirstExistingRuleSet(fileName: string, rulesDir?: string): PatentCo
 }
 
 /**
- * 加载基础合规规则集，并在资产缺失时追加"门禁降级为放行"警告。
+ * 加载基础合规规则集；缺失或解析失败时抛 {@link PatentRuleAssetError}。
  * @param rulesDir - 可选的规则根目录覆盖。
  * @returns 加载结果（规则集、来源、警告）。
+ * @throws PatentRuleAssetError when the base compliance asset is absent or unreadable.
  */
 function loadBaseCompliance(rulesDir?: string): PatentComplianceLoadResult {
   const result = loadFirstExistingRuleSet(COMPLIANCE_FILE, rulesDir)
   if (result.source === null) {
-    result.warnings.push('未找到专利合规规则资产（assets/rules/patent/compliance.yaml），门禁降级为放行')
+    throw new PatentRuleAssetError(
+      `未找到可解析的专利合规规则资产（${COMPLIANCE_FILE}，候选目录：${candidateRuleDirs(rulesDir).join('、')}）；`
+      + '门禁不能以空规则集放行，请检查资产目录或重新安装 @deepseek-ai/dsh-patent-rule',
+    )
   }
   return result
 }
 
 /**
- * 加载内置专利合规规则集；找不到资产时返回空规则集并附警告。
+ * 加载内置专利合规规则集；基础资产缺失或损坏时抛错。
  * @param rulesDir - 可选的规则根目录覆盖。
  * @returns 加载结果（规则集、来源、警告）。
+ * @throws PatentRuleAssetError when the base compliance asset is absent or unreadable.
  */
 export function loadPatentComplianceRuleSet(rulesDir?: string): PatentComplianceLoadResult {
   return loadBaseCompliance(rulesDir)
@@ -111,9 +134,6 @@ export function loadPatentComplianceRuleSet(rulesDir?: string): PatentCompliance
  */
 export function loadPatentElectricalRuleSet(rulesDir?: string): PatentComplianceLoadResult {
   const base = loadBaseCompliance(rulesDir)
-  if (base.source === null) {
-    return base
-  }
   const extra = loadFirstExistingRuleSet(ELECTRICAL_FILE, rulesDir)
   const merged: RuleSet = {
     version: base.ruleSet.version ?? extra.ruleSet.version ?? '1.0',
@@ -347,16 +367,14 @@ export function selectGateRules(
  * 加载专利全量规则集（compliance.yaml + nuo-*.yaml + 手写并入资产，经
  * activation-overrides 降级）。
  * 供 rule_check scope=patent-full 与规则驱动输出门禁（B 链）使用。
- * 任一并入文件缺失/损坏均跳过并告警（不拖垮整个规则集）；compliance 缺失时
- * 沿用既有「门禁降级为放行」语义。
+ * 任一并入文件缺失/损坏均跳过并告警（不拖垮整个规则集）；compliance 基础资产
+ * 缺失或损坏时抛 {@link PatentRuleAssetError}，不以空规则集放行。
  * @param rulesDir - 可选的规则根目录覆盖。
  * @returns 加载结果（规则集、来源、警告）。
+ * @throws PatentRuleAssetError when the base compliance asset is absent or unreadable.
  */
 export function loadPatentFullRuleSet(rulesDir?: string): PatentComplianceLoadResult {
   const base = loadBaseCompliance(rulesDir)
-  if (base.source === null) {
-    return base
-  }
   const mergedSets: RuleSet[] = []
   const warnings = [...base.warnings]
   for (const file of [...NUO_RULE_FILES, ...MERGED_RULE_FILES]) {

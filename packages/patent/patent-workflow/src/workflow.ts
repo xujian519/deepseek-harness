@@ -190,6 +190,9 @@ function stageWindow(manifest: WorkflowManifest, index: number, maxParallelStage
   let window = 1
   const current = manifest.stages[index]
   if (current === undefined) return 0
+  // 声明 retry 的阶段必须单跑：并行窗口走 Promise.all，回退/重试会被静默跳过。
+  // 声明 consumes 的首阶段同样单跑，避免与同组上游并发读写同一 state。
+  if (current.retry !== undefined || current.consumes !== undefined) return 1
   const groupAtom = current.atom
   while (index + window < manifest.stages.length && window < maxParallelStages) {
     const candidate = manifest.stages[index + window]
@@ -225,7 +228,8 @@ async function runParallelGroup(
     if (groupStage === undefined) break
     run.options.onStage?.(groupStage.id, startIndex + gi, run.manifest.stages.length)
   }
-  const outcomes = await Promise.all(group.map(stage => runStageOnce(stage, run.state, run.stageOptions)))
+  const outcomes = await Promise.all(group.map(stage =>
+    runStageOnce(stage, run.state, { ...run.stageOptions, isolateMainKey: true })))
   for (let gi = 0; gi < outcomes.length; gi += 1) {
     const outcome = outcomes[gi]
     const groupStage = group[gi]

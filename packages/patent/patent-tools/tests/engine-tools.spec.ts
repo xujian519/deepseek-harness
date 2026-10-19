@@ -137,6 +137,20 @@ describe('rule_check', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('PR-OA-008、PR-OA-009、PR-OA-099')
   })
+
+  it('reports no dual violation when the response covers every notice ground', async () => {
+    const ruleSet: RuleSet = {
+      rules: [{ id: 'PR-OA-008', name: '答复—驳回理由覆盖', severity: 'major', action: 'warn', check: { type: 'notice_ground_coverage' } }],
+    }
+    const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const notice = '权利要求 1 不具备创造性，不符合专利法第22条第3款的规定。'
+    const response = '关于创造性：对比文件 1 无技术启示，符合专利法第22条第3款的规定。'
+    const result = await execute(ctx, 'rule_check', { text: response, scope: 'patent-oa-response', notice }, 'r-9')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('无违规')
+  })
 })
 
 describe('evaluate_evidence', () => {

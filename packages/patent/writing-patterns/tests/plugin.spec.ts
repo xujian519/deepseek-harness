@@ -78,6 +78,32 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
     expect(narrowText).not.toContain('wp-oa-inventiveness-3step')
   })
 
+  it('uses its built-in defaults when a direct caller supplies no optional config', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    Pkg.apply(ctx, {})
+    expect(ctx.tools.schemas().some(schema => schema.name === 'query_writing_patterns')).toBe(true)
+    expect((await ctx.systemPrompt.assemble()).sections.map(section => section.name))
+      .toContain(WRITING_PATTERNS_SECTION_NAME)
+  })
+
+  it('lists a pattern once when a requested category is also its sub-category', async () => {
+    root = await mkdtemp(join(tmpdir(), 'dsh-writing-patterns-overlap-'))
+    await writeFile(join(root, 'overlap.yaml'), [
+      'id: overlap-pattern',
+      'name: 重叠类目模式',
+      'category: spec_drafting',
+      'sub_category: disclosure',
+      'summary: 同时属于两个请求类目',
+      '',
+    ].join('\n'))
+    const { ctx } = await install({ patternDir: root, sectionCategories: ['spec_drafting', 'disclosure'] })
+    const text = (await ctx.systemPrompt.assemble()).sections
+      .find(section => section.name === WRITING_PATTERNS_SECTION_NAME)?.text ?? ''
+    expect(text.match(/<skill id="overlap-pattern">/gu)).toHaveLength(1)
+  })
+
   it('fences the compiled block so the section keeps one physical line per paragraph', async () => {
     const { ctx } = await install({ sectionCategories: ['claim_drafting'] })
     const text = (await ctx.systemPrompt.assemble()).sections

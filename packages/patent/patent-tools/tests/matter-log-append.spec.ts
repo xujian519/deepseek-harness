@@ -23,6 +23,7 @@ import {
   matterStamps,
   parseMatterEntries,
   renderMatterEntry,
+  toCasePath,
   MATTER_ACTIONS,
   MATTER_LOG_FILE,
   type MatterLogRequest,
@@ -85,6 +86,25 @@ describe('matter-entry rendering and parsing', () => {
     const line = renderMatterEntry(request(), new Date('2026-10-12T00:00:00Z'))
     expect(line).toContain('取代 —')
     expect(parseMatterEntries(line)[0]?.supersedes).toEqual([])
+  })
+
+  it('uses a minus offset west of UTC and a plus offset east of it', () => {
+    const original = process.env.TZ
+    const instant = new Date('2026-10-12T12:00:00Z')
+    try {
+      process.env.TZ = 'America/New_York'
+      expect(matterStamps(instant).local).toContain('-04:00')
+      process.env.TZ = 'Asia/Shanghai'
+      expect(matterStamps(instant).local).toContain('+08:00')
+    } finally {
+      process.env.TZ = original
+    }
+  })
+
+  it('keeps an absolute path that resolves to the case directory itself', () => {
+    expect(toCasePath('/cases/CN1', '/cases/CN1')).toBe('/cases/CN1')
+    expect(toCasePath('/cases/CN1', '/cases/CN1/v1.md')).toBe('v1.md')
+    expect(toCasePath('/cases/CN1', '/elsewhere/v1.md')).toBe('/elsewhere/v1.md')
   })
 
   it('skips a hand-written line the format does not cover', () => {
@@ -272,5 +292,34 @@ describe('matter_log_append', () => {
     const tool = createMatterLogAppendTool()
     const properties = (tool.parameters as { properties?: { action?: { enum?: string[] } } }).properties
     expect(properties?.action?.enum).toEqual([...MATTER_ACTIONS])
+  })
+
+  it('records the approver and note when supplied', async () => {
+    const dir = await openedCase('v1.md')
+    try {
+      await writeFile(join(dir, 'v2.md'), 'y', 'utf8')
+      const result = await run(dir, {
+        action: '修订', artifacts: ['v2.md'], changes: '改独权。', approver: '用户', note: '同日复核',
+      })
+      expect(result.isError).toBe(false)
+      const log = await readFile(join(dir, MATTER_LOG_FILE), 'utf8')
+      expect(log).toContain('| 用户 | 改独权。（备注：同日复核）')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('starts a new line when an existing log has no trailing newline', async () => {
+    const dir = await caseDirWith(['x.md'])
+    try {
+      await writeFile(join(dir, MATTER_LOG_FILE), '2026-08-19 手工记录', 'utf8')
+      const result = await run(dir, { action: '交付', artifacts: ['x.md'], changes: '交付首版。' })
+      expect(result.isError).toBe(false)
+      const log = await readFile(join(dir, MATTER_LOG_FILE), 'utf8')
+      expect(log).toContain('2026-08-19 手工记录\n- ')
+      expect(parseMatterEntries(log)).toHaveLength(1)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

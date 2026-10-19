@@ -88,10 +88,17 @@ export function buildBrandStyle(brand: DocumentBrand): string {
 /**
  * 对 CSS 值做最小转义：未引号值（颜色/字体等）剔除会破坏 CSS 结构的
  * 分号与花括号，并转义反斜杠；引号值额外转义双引号与换行。
+ *
+ * `<`/`>` 转成 CSS 十六进制转义（`\3C ` / `\3E `）：品牌值来自模型或
+ * theme.json，原样保留会让 `</style>` 提前结束 `<style>` 并注入 HTML。
+ * 十六进制转义在 CSS 中仍表示同一字符，样式值不受影响。
  * @param value - 原始 CSS 值。
  * @returns 转义后的安全 CSS 值。
  */
 function cssValueEscape(value: string): string {
   const withoutBraces = value.replace(/[{};]/g, '').replace(/\\/g, '\\\\').replace(/\n/g, '\\A ')
-  return withoutBraces.replace(/"/g, '\\"')
+  return withoutBraces
+    .replace(/"/g, '\\"')
+    .replace(/</g, '\\3C ')
+    .replace(/>/g, '\\3E ')
 }

@@ -567,6 +567,15 @@ describe('mailbox persistence', () => {
     expect(mailbox[0]).toMatchObject({ from: 'alice', to: 'captain', content: 'hello m1' })
   })
 
+  it('appends without a separator to an existing empty mailbox', async () => {
+    const root = await tmpRoot()
+    await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })
+    await writeFile(join(root, 'alpha', 'inbox', 'captain.jsonl'), '')
+    await appendMailbox(root, 'alpha', CAPTAIN_KEY, message('m1'))
+    expect(await readFile(join(root, 'alpha', 'inbox', 'captain.jsonl'), 'utf8'))
+      .toBe(`${JSON.stringify(message('m1'))}\n`)
+  })
+
   it('readMailbox returns [] when the mailbox does not exist', async () => {
     const root = await tmpRoot()
     expect(await readMailbox(root, 'alpha', CAPTAIN_KEY)).toEqual([])
@@ -656,6 +665,37 @@ describe('mailbox persistence', () => {
     const raw = await readFile(join(root, 'alpha', 'inbox', 'alice.jsonl'), 'utf8')
     expect(raw).toContain('broken-line')
     expect(raw.split('\n')).toHaveLength(4)
+  })
+
+  it('does not lease a message that was already acknowledged', async () => {
+    const root = await tmpRoot()
+    await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })
+    await writeFile(
+      join(root, 'alpha', 'inbox', 'alice.jsonl'),
+      JSON.stringify(message('read-1', { readAt: 1234 })) + '\n',
+    )
+    const claimed = await claimMailboxDelivery(root, 'alpha', 'alice', ['read-1'])
+    expect(claimed).toEqual([])
+    const [kept] = await readMailbox(root, 'alpha', 'alice')
+    expect(kept!.readAt).toBe(1234)
+    expect(kept!.deliveryClaimedAt).toBeUndefined()
+  })
+
+  it('returns only the ids leased by the claim', async () => {
+    const root = await tmpRoot()
+    await mkdir(join(root, 'alpha', 'inbox'), { recursive: true })
+    await writeFile(
+      join(root, 'alpha', 'inbox', 'alice.jsonl'),
+      [
+        JSON.stringify(message('read-1', { readAt: 1234 })),
+        JSON.stringify(message('unread-1')),
+      ].join('\n') + '\n',
+    )
+    const claimed = await claimMailboxDelivery(root, 'alpha', 'alice', ['read-1', 'unread-1'])
+    expect(claimed).toEqual(['unread-1'])
+    const mailbox = await readMailbox(root, 'alpha', 'alice')
+    expect(mailbox[0]!.deliveryClaimedAt).toBeUndefined()
+    expect(mailbox[1]!.deliveryClaimedAt).toBeGreaterThan(0)
   })
 
   it('acknowledge preserves an existing readAt and mutating an empty or missing mailbox is a no-op', async () => {

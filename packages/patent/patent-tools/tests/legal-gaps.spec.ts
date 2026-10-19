@@ -322,4 +322,23 @@ describe('legal-gaps 原子', () => {
     const unknown = await new LegalGapsHandler().execute({ state: { profile: 'unknown' } })
     expect(String(unknown['_error'])).toContain('params.profile')
   })
+
+  it('数组形式的评估产出算已评估', async () => {
+    const items = await itemsOf({
+      profile: 'novelty',
+      compare: [{ citationId: 'D1' }],
+    })
+    expect(items.find(item => item.id === 'novelty')).toMatchObject({
+      status: 'passed',
+      evidence: '已由 state.compare 评估',
+    })
+  })
+
+  it('显式 null 的评估键不算已评估', async () => {
+    const items = await itemsOf({
+      profile: 'novelty',
+      reference_date: null,
+    })
+    expect(items.find(item => item.id === 'time-baseline')?.status).toBe('not-assessed')
+  })
 })

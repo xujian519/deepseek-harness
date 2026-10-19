@@ -2903,6 +2903,8 @@ paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、Open
 
 工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±20% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
 
+两条与声明本身有关的判定：文件按扩展名决定用哪种读取器（声明格式与扩展名不一致会提示，并按扩展名核验）；读不出内容的文件必须在 unreadable_ack 里写一条原因（path + reason_text）才允许登记，超出本部署读取上限的文件除外。p0 用质量门技能里的稳定 id（P0-1 … P0-6）填写，工具会把缺失或无法识别的项列出来。
+
 ```json
 {
   "type": "object",
@@ -2944,7 +2946,7 @@ paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、Open
       "properties": {
         "p0": {
           "type": "array",
-          "description": "已通过并核验的 P0 自检项（每项一句话）",
+          "description": "已通过并核验的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；缺失项与无法识别的写法会在结果里列出",
           "items": {
             "type": "string"
           }
@@ -2972,6 +2974,28 @@ paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、Open
     "char_budget": {
       "type": "integer",
       "description": "全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅"
+    },
+    "unreadable_ack": {
+      "type": "array",
+      "description": "为每个\"无法核验\"（unreadable）的交付文件写一条原因；缺失时登记被拒，超出本部署读取上限的文件不需要",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "无法核验的文件路径，与 files 中的 path 一致"
+          },
+          "reason_text": {
+            "type": "string",
+            "description": "为什么该文件在无法核验的情况下仍要交付"
+          }
+        },
+        "required": [
+          "path",
+          "reason_text"
+        ]
+      }
     }
   },
   "required": [
@@ -5399,7 +5423,7 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
 - 返回标题、状态、预计到期日、申请/授权日、申请人、发明人及状态事件历史
 
 使用说明：
-  - 只读；每篇专利发起一次网络请求（默认并发 4）
+  - 只读；每篇专利发起一次网络请求（默认并发 4，范围 1-20）
   - 每个结果点名服务它的 channel。中国申请号/公开(公告)号在 Google Patents 通道查不到时，部署启用 CNIPR 通道重查一次：该通道只出法律状态公告记录（announce_date / status / status_info），其余字段为空，status 取其中公告日最新的一条
   - 通道失败不是整批失败：失败的号保留 nuo 通道的原因，被咨询过但未能服务的通道写在 warnings 里
 
@@ -5416,7 +5440,7 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
     },
     "maxConcurrency": {
       "type": "number",
-      "description": "Max concurrent requests (default 4)"
+      "description": "Max concurrent requests (default 4, 1-20)"
     }
   },
   "required": [
@@ -6438,6 +6462,7 @@ build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附�
 - 期限自送达日起算。依 2023 年修订的专利法实施细则第4条与 2023 版专利审查指南，电子送达的送达日为进入当事人认可电子系统之日、无更晚证据时以发文日推定，裁判因之期限自发文日起算且不再加 15 日；邮寄送达以当事人举证的实际收到日为准，否则为自发出之日起满15日；直接送交以交付日为准；公告送达自公告之日起满1个月。
 - 默认适用专利法实施细则第5条：期限开始的当日不计算在期限内；以年或月计算的，以其最后一月的相应日为届满日（该月无相应日的以该月最后一日为届满日）；届满日为法定休假日或移用周休息日的，顺延至其后第一个工作日。将 restDayRule 设为 "omit" 即改用不顺延口径，只报每个期限自身届满日；两种口径下均同时返回两个日期，rawDueDate 为未顺延者。
 - 本案主张优先权时，实审请求期限自优先权日起算，否则自申请日起算。是否主张优先权为显式输入，不由是否存在优先权日推断。
+- PCT 申请费自 nationalPhaseEntryDate（进入中国国家阶段之日）起算；缺少该日期时该项保持待补，不按国际申请日计算。
 - 由通知送达起算的期限（授权、驳回、审查意见、复审、无效）在提供该通知送达日期前以待补项返回，并点名所缺输入；本工具不以申请日近似这些期限。
 
 使用说明：
@@ -6473,6 +6498,10 @@ build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附�
     "isPctNationalPhase": {
       "type": "boolean",
       "description": "Whether the case is a PCT application entering the Chinese national phase"
+    },
+    "nationalPhaseEntryDate": {
+      "type": "string",
+      "description": "Date the PCT national-phase entry formalities were completed (进入日); the PCT application fee runs from it"
     },
     "authorizationPublicationDate": {
       "type": "string",
@@ -6584,10 +6613,10 @@ patent_deadlines 报告一件中国专利案件的法定与指定期限，适用
 - 按本次部署随包的费用索引为一件中国专利案件计价：案件应缴的费种、每项的数量、是否适用费用减缴、每个年度的年费档位，以及年费超期时的滞纳金。
 - 传入索引据此计数的案件事实（claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths）。被计价的费种需要而本次调用未给的事实会以待补项返回并点名该输入，而不是被猜。
 - 在 triggers 里列全本案的环节。未点名的环节完全不计价，因此漏掉授权或某个程序环节会被读成"无费用"——这份清单是报告的覆盖范围，不是提示。
-- 金额只来自已转录的数据。每行带 amountStatus：verified（金额与其核验日期都已记录）、unverified（金额已记录，核验日期没有）、unrecorded（尚无金额）。随包索引下每一项都是 unrecorded，因此各行只有适用性与计数，没有数字。
-- 任一适用行未核验时不给合计，并列出挡住合计的 id。不要自己补一个缺失的金额，也不要引用本工具拒绝给出的合计：未转录的金额是未知，不是免费。
+- 金额只来自已转录的数据。每行带 status：verified（金额与其核验日期都已记录）、unverified（金额已记录，核验日期没有）、unrecorded（尚无金额）。随包索引的 19 个费种中 17 个已转录并核验；说明书附加费与延长期限费因分档计价无法落到单一单价而保持 unrecorded，这两行没有数字并会挡住合计。
+- 任一适用行未核验时不给合计，并列出挡住合计的 id。索引未收录的收费阶段会列在 total.uncoveredTriggers 并同样扣留合计。不要自己补一个缺失的金额或未收录的阶段，也不要引用本工具拒绝给出的合计：未转录的金额是未知，不是免费。
 - annuityYears 是要计价的专利年度，来自 patent_deadlines（日期归它）；lateMonths 是已开始的超期月数，同样来自该工具。
-- 这是基于索引的算术，不是报价：索引只含费种的结构，其金额在人工按官方收费标准公告转录前始终未核验。给客户开票前请对照公告确认每一项金额。
+- 这是基于索引的算术，不是报价：索引含费种的结构与已转录金额，并记录核验日期。给客户开票前请对照公告确认每一项金额。
 
 使用说明：
   - 只读且离线；不发起网络请求。
@@ -6828,12 +6857,14 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 - 用给定变量渲染一个文档模板，返回文档本体、未填充的占位符与变量警告
 - 先用 `list_doc_templates` 取得模板名与其变量。每个必填变量都必须提供：缺一个即调用失败并点名该变量，而不是返回一份带缺口的文档
-- `format` 默认取模板的兜底格式；模板只渲染它声明的格式。`markdown` 与 `html` 返回文本，`docx` 把包体以 base64 放在 `content`；无论哪种格式，`markdown` 都是注入文档标题与风格免责声明之前的解析正文：落盘写 `content`，用 `markdown` 写出的文件会丢掉这两者
-- 模板未声明的变量被忽略；未提供值的占位符保留在文档中并在 `residual` 中报告，而不是被抹掉。每次成功渲染都会返回残余占位符与警告：把文档当作成品之前先读它们
+- `format` 默认取模板的兜底格式；模板只渲染它声明的格式。`markdown` 与 `html` 返回文本，`docx` 把包体以 base64 放在 `content`；无论哪种格式，`markdown` 都是注入文档标题与风格免责声明之前的解析正文：落盘的成品是 `content`，用 `markdown` 写出的文件会丢掉这两者
+- `output_path`（工作区相对或绝对）把渲染结果经会话文件系统写盘并回报 `path` 与 `bytes`：文本格式写 UTF-8，`docx` 写包体字节。省略它则只返回渲染结果、不碰文件系统
+- 变量按名替换；没有提供值的占位符保留在文档中并在 `residual` 中报告，而不是被抹掉。每次成功渲染都会返回残余占位符与警告：把文档当作成品之前先读它们
 
 使用说明：
   - 离线；渲染随包模板资产、已配置的覆盖目录与随包样式。
   - 声明了书写风格的模板，在本部署启用免责声明时把该风格的免责声明带进渲染结果。
+  - 写入受部署文件策略约束；被拒绝的 `output_path` 会让调用以文件系统错误失败。
 
 ```json
 {
@@ -6872,6 +6903,10 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
     "filename": {
       "type": "string",
       "description": "Suggested file name stem without extension; defaults to the template name"
+    },
+    "output_path": {
+      "type": "string",
+      "description": "Write the rendered document here (workspace-relative or absolute) and report path and bytes; omit to return the content without writing"
     }
   },
   "required": [

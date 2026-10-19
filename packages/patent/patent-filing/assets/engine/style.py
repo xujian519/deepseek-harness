@@ -93,15 +93,20 @@ def template_style(path: Path) -> dict:
             enders += 1
         if rpr is not None:
             sz = rpr.find(f"{W}sz")
-            if sz is not None and sz.get(f"{W}val") is not None:
-                sizes.add(int(sz.get(f"{W}val")) / 2)
-        if spacing is not None and spacing.get(f"{W}line") is not None:
-            value = int(spacing.get(f"{W}line"))
-            rule = spacing.get(f"{W}lineRule") or "auto"
-            # 倍数行距按 OOXML 口径换算（240 twips = 1 倍）；定值行距保留 twips。
-            lines.add(round(value / 240, 3) if rule == "auto" else float(value))
-        if ind is not None and ind.get(f"{W}firstLine") is not None:
-            indents.add(int(ind.get(f"{W}firstLine")) / 20)
+            size = sz.get(f"{W}val") if sz is not None else None
+            if size is not None:
+                sizes.add(int(size) / 2)
+        if spacing is not None:
+            line = spacing.get(f"{W}line")
+            if line is not None:
+                value = int(line)
+                rule = spacing.get(f"{W}lineRule") or "auto"
+                # 倍数行距按 OOXML 口径换算（240 twips = 1 倍）；定值行距保留 twips。
+                lines.add(round(value / 240, 3) if rule == "auto" else float(value))
+        if ind is not None:
+            first_line = ind.get(f"{W}firstLine")
+            if first_line is not None:
+                indents.add(int(first_line) / 20)
 
     fonts = _rfonts(styles)
     return {

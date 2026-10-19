@@ -48,7 +48,7 @@ kind: "package-reference"
 
 这道门禁存在的原因是：只写在提示词里的纪律与没有纪律，在调用记录上无法区分——跑过的那次与没跑过的那次留下同样的痕迹，若没有任何环节核对。台账保存**成功返回**的工具名，由 `tools/post-execute` 登记，因为派发前作出的拒绝无法知道它即将放行的调用会不会成功。登记与判定因此分开：guard 读的是 post-execute 监听器填写的台账。
 
-台账按调用方（agent）归属，一个案件的门禁调用不会顶替另一个案件的交付。没有 agent 的调用无法归属到任何会话，一律按未满足处理：无法归属的交付件同样拿不出本会话的记录。随包默认不声明任何条目——一次交付欠哪些闸门调用，是本部署的交付政策，不是本包的政策。
+台账按调用方（agent）与调用声明的案卷键（`caseId`、`case_id`、`case_dir` 或 `caseDir`）归属。声明了案卷的前置调用只满足该案卷的交付；未声明案卷的前置调用属于会话级记录，只在交付的案卷没有该工具的专属记录时才被采用。没有 agent 的调用无法归属到任何会话，一律按未满足处理：无法归属的交付件同样拿不出本会话的记录。随包默认不声明任何条目——一次交付欠哪些闸门调用，是本部署的交付政策，不是本包的政策。
 
 生产消费者是 `render_patent_document` 与 `build_patent_filing`：`patent` 预置要求任何交付渲染或提交格式成文前已跑过 `rule_check`、`law_verify` 与 `matter_log_append`，凡按 manifest 收口的模板另要求 `patent_workflow_run`——分析类模板，以及 `claims-spec`（其 `patent_disclosure_v1` 的末段就是权利要求草稿）。随包模板中有两个不在第二条要求内：`rectification-response` 无 manifest 入口，交付技能以逐项替换页核验记录替代该次运行；`right-evaluation-report` 作转制用时只是把行政机关已出具的报告排成模板版式，没有分析可收口。
 
@@ -117,7 +117,7 @@ Schemastery 配置。
 
 - **资产定位与 Sati 不同** — 规则经 `import.meta.url` 从随包 `assets/rules/` 解析（可选 `rulesDir` 覆盖）；丢弃 `SATI_RULES_DIR` 环境变量、cwd/工作区根向上 walk 与项目 `.sati/rules.yaml` 自动发现。`loadRulePack` 仅接受显式 `manifestPath`。
 - **分层包默认仅 base** — 无清单时 `loadRulePack` 只加载随包的 base 包；domain 与 override 层需显式清单。
-- **规则集加载 fail-soft** — 资产缺失或损坏时降级为空规则集（门禁放行），而非使部署失败。
+- **基础合规资产缺失即失败。** `compliance.yaml` 缺失或无法解析时在加载期抛 `PatentRuleAssetError`；空规则集会让门禁静默放行。单个后续包文件（`nuo-*.yaml`、`current-law.yaml`、`mady-gap-rules.yaml`、`oa-response-form.yaml`）缺失或损坏仍只告警并跳过，一个坏包不会拖垮其余规则。
 - **并入资产只覆盖可机器判定的规则** — 载荷为正文表述（分析原则、法条条件、判例引用）的上游规则未转成检查，留在本包之外；转换清单、检查类型映射与边界见[并入边界说明](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.zh.md)。
 - **规则按域与前提收窄，不按文书类型判定** — 作业 scope 只留本作业的域，规则的适用前提在文本未触及该主题时保持沉默，但没有任何环节判定文书类型：前提命中的规则（例如答复引述了权利要求文字）仍会报出它缺失的要素。
 - **随包制品门禁条目是模板专用的** — `patent` 预置在 `render_patent_document` 的 `template=oa-response` 上启用 `PR-OA-007`，判定 `draft` 中作者撰写的论证文本。其余缺失规则仍要求入参承载文书全文；模板生成的标题/权项固定措辞不是它们的安全目标。

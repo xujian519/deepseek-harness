@@ -59,6 +59,7 @@ import {
 import { formatViolation, RuleOutputGate } from './runtime/output-gate.ts'
 import { loadSynonymsAsset } from './runtime/synonym-engine.ts'
 import {
+  caseKeyOfArguments,
   deliveryGateMissing,
   DeliveryAttemptLedger,
   renderDeliveryGateDenial,
@@ -130,6 +131,7 @@ export {
   patentCaseDomains,
   selectGateRules,
   PATENT_CASE_DOMAINS,
+  PatentRuleAssetError,
   type ActivationOverrides,
   type GateCheckType,
   type PatentCaseScope,
@@ -150,6 +152,7 @@ export {
   type DeclaredArgValue,
 } from './runtime/args-match.ts'
 export {
+  caseKeyOfArguments,
   DeliveryAttemptLedger,
   deliveryGateMissing,
   renderDeliveryGateDenial,
@@ -427,7 +430,7 @@ export function apply(ctx: Context, config: Config): void {
       && requiredTools.has(exec.name)
     const recordIfPassed = (decision: PostToolDecision): PostToolDecision => {
       if (shouldRecord && decision.kind !== 'block' && agent) {
-        deliveryLedger.record(agent, exec.name)
+        deliveryLedger.record(agent, exec.name, caseKeyOfArguments(exec.arguments))
       }
       return decision
     }

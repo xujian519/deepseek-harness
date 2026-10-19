@@ -45,6 +45,12 @@ import { checkFigureRendering } from '../src/figure/render-check.ts'
 /** 用例显式声明的渲染预算（毫秒）；生产由宿主 Config.freecadRenderTimeoutMs 解析后注入。 */
 const TEST_RENDER_TIMEOUT_MS = DEFAULT_FREECAD_RENDER_TIMEOUT_MS
 
+/**
+ * 两条「陷阱」用例直接跑 freecadcmd 的同步预算：它们等待的是崩溃或失败，
+ * 不等待正常渲染。超时用来兜住「挂起而不是崩溃」的 FreeCAD 构建。
+ */
+const FREECAD_TRAP_TIMEOUT_MS = 15_000
+
 /** 用例显式声明的探测预算（毫秒）；宿主插件不探测 freecadcmd，无对应 Config 字段。 */
 const TEST_PROBE_TIMEOUT_MS = DEFAULT_FREECAD_PROBE_TIMEOUT_MS
 
@@ -662,9 +668,13 @@ describe.skipIf(!hasFreeCad)('real FreeCAD section geometry (needs `freecadcmd` 
       // 故渲染器必须在 spawn 前先 mkdir 隔离目录（freecad-renderer 的 FREECAD_HOME_DIRNAME）：
       // 否则这条链路会「无产物、无诊断」地失败。断言只钉住产品关心的部分。
       const absent = join(dir, '.absent-tmp')
+      // 超时是这条用例的一部分：某些 FreeCAD 构建在 TMPDIR 不可用时挂起而不是
+      // SIGSEGV。挂起同样是「没有产出、没有成功」，超时让套件结束，避免同步
+      // spawnSync 阻塞事件循环后 vitest 的用例超时也无法生效。
       const run = spawnSync(findFreeCadCmd() as string, [scriptPath], {
         cwd: dir,
         encoding: 'utf8',
+        timeout: FREECAD_TRAP_TIMEOUT_MS,
         env: { ...process.env, HOME: dir, TMPDIR: absent, TEMP: absent, TMP: absent },
       })
       expect(run.status).not.toBe(0)
@@ -847,6 +857,7 @@ describe.skipIf(!hasFreeCad)('real FreeCAD section hatching (needs `freecadcmd` 
       const run = spawnSync(findFreeCadCmd() as string, [scriptPath], {
         cwd: dir,
         encoding: 'utf8',
+        timeout: FREECAD_TRAP_TIMEOUT_MS,
         env: { ...process.env, HOME: dir, TMPDIR: dir, TEMP: dir, TMP: dir },
       })
       // 实测退出码 139（SIGSEGV）；即使某个 FreeCAD 版本改成返回空 Compound，脚本也会因 0 条边

@@ -72,7 +72,7 @@ export function buildDownloadScript(request: EgoDownloadRequest): string {
     ? [
       '    const shot = await page.cdp(\'Page.captureScreenshot\', { format: \'png\' })',
       '    const shotPayload = shot && shot.result ? shot.result : shot',
-      '    if (shotPayload && shotPayload.data) { const evidencePath = outputDir + \'/evidence-\' + patent + \'.png\'; fs.writeFileSync(evidencePath, Buffer.from(shotPayload.data, \'base64\')); evidence.push(evidencePath) }',
+      '    if (shotPayload && shotPayload.data) { const evidenceDir = outputDir + \'/evidence\'; fs.mkdirSync(evidenceDir, { recursive: true }); const evidencePath = evidenceDir + \'/evidence-\' + patent + \'.png\'; fs.writeFileSync(evidencePath, Buffer.from(shotPayload.data, \'base64\')); evidence.push(evidencePath) }',
     ]
     : []
   const recordedLine = request.record

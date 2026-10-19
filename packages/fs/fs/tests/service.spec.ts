@@ -15,6 +15,7 @@ import type {
   FsInfo,
   FsPathInfo,
   FsTarget,
+  FsTextWriteOutcome,
   FsWriteIntent,
   FsWriteOutcome,
 } from '@deepseek-ai/dsh-fs'
@@ -72,10 +73,15 @@ class FakeFileSystem extends FileSystem {
       },
     ]
   }
-  override async writeText(target: FsTarget, content: string, _expected?: FsWriteIntent): Promise<FsWriteOutcome> {
+  override async writeText(target: FsTarget, content: string, _expected?: FsWriteIntent): Promise<FsTextWriteOutcome> {
     const before = this.files.get(target.targetKey) ?? null
     this.files.set(target.targetKey, content)
     return { operation: before !== null ? 'update' : 'create', version: FsVersion('v2'), before, after: content }
+  }
+  override async writeBytes(target: FsTarget, bytes: Uint8Array, _expected?: FsWriteIntent): Promise<FsWriteOutcome> {
+    const before = this.files.get(target.targetKey) ?? null
+    this.files.set(target.targetKey, new TextDecoder().decode(bytes))
+    return { operation: before !== null ? 'update' : 'create', version: FsVersion('v2'), before: null, after: null }
   }
   override async editText(target: FsTarget, edit: FsEditRequest): Promise<FsEditOutcome> {
     const content = this.files.get(target.targetKey) ?? ''
@@ -96,6 +102,19 @@ describe('FileSystem provider seam', () => {
     const target = await fs.resolve('a.txt')
     expect((await fs.stat(target))?.type).toBe('file')
     expect(await fs.readText(target)).toBe('hi')
+  })
+
+  it('serves the byte write primitive with the same intent and outcome vocabulary', async () => {
+    const ctx = new Context()
+    await ctx.plugin(FakeFileSystem)
+    const fs = ctx.fs as FakeFileSystem
+    const target = await fs.resolve('a.bin')
+    const outcome = await fs.writeBytes(target, new TextEncoder().encode('bytes'))
+    expect(outcome.operation).toBe('create')
+    // A byte write has no text projection, so both diff-basis sides are null.
+    expect(outcome.before).toBeNull()
+    expect(outcome.after).toBeNull()
+    expect(fs.files.get(target.targetKey)).toBe('bytes')
   })
 
   it('throws when a second implementation is loaded (duplicate service)', async () => {

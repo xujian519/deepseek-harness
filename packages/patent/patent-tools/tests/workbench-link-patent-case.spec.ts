@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../src/error.ts'
 import {
@@ -116,6 +119,10 @@ describe('parseMatterLogStages', () => {
 
   it('returns an empty projection when no stage is mentioned', () => {
     expect(parseMatterLogStages('客户来电，讨论费用')).toEqual({})
+  })
+
+  it('marks a mentioned stage without progress or completion words as todo and skips blank lines', () => {
+    expect(parseMatterLogStages('\n\nL4 等待补充材料\n')).toEqual({ l4: 'todo' })
   })
 })
 
@@ -308,5 +315,169 @@ describe('workbench_link_patent_case', () => {
   it('throws PatentToolError instances (stable taxonomy)', async () => {
     const tool = createWorkbenchLinkPatentCaseTool({ caseRoot: '/cases', readMatterLog: async () => null })
     await expect(tool.execute({ caseNumber: '' }, exec)).rejects.toThrow(PatentToolError)
+  })
+
+  it('renders a bare failure and the created/changed/dictionary markers', () => {
+    expect(renderLinkResult({ ok: false } as WorkbenchLinkPatentCaseOutput))
+      .toBe('workbench_link_patent_case: 失败')
+    const tool = makeTool(new WorkbenchSim(), null)
+    const blocks = tool.output.render({}, { ok: false, error: '网络错误' })
+    expect(blocks.map(block => ('text' in block ? block.text : '')).join('')).toContain('网络错误')
+    const text = renderLinkResult({
+      ok: true,
+      caseNumber: 'CN1',
+      caseDir: '/cases/CN1',
+      rootTaskId: 't1',
+      matterLogFound: false,
+      dictionariesEnsured: [],
+      stages: [
+        { stage: 'l1', typeCode: 'patent_stage_l1', taskId: 't2', statusCode: 'done', created: true, changed: true },
+        { stage: 'l2', typeCode: 'patent_stage_l2', taskId: 't3', statusCode: 'doing', created: false, changed: true },
+        { stage: 'l3', typeCode: 'patent_stage_l3', taskId: null, statusCode: null, created: false, changed: false },
+      ],
+    })
+    expect(text).toContain('- l1 L1 交底书理解: done（新建）（已同步）')
+    expect(text).toContain('- l2 L2 现有技术检索: doing（已同步）')
+    expect(text).toContain('- l3 L3 申请文件撰写: （无状态）')
+    expect(text).not.toContain('新增字典')
+  })
+
+  it('rejects a blank case root override', async () => {
+    const sim = new WorkbenchSim()
+    await expect(makeTool(sim, null).execute({ caseNumber: 'CN1', caseRoot: '  ' }, exec))
+      .rejects.toMatchObject({ code: 'invalid_tool_input' })
+    expect(sim.calls).toHaveLength(0)
+  })
+
+  it('reads the matter log from disk by default and treats a missing file as absent', async () => {
+    const sim = new WorkbenchSim()
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-workbench-'))
+    try {
+      mkdirSync(join(dir, 'CN1'))
+      writeFileSync(join(dir, 'CN1', '_matter-log.md'), 'L1 完成\n', 'utf8')
+      const withLog = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: dir, fetchJson: sim.fetchJson })
+      const value = await withLog.execute({ caseNumber: 'CN1' }, exec) as WorkbenchLinkPatentCaseOutput
+      expect(value.matterLogFound).toBe(true)
+      expect(value.stages.find(stage => stage.stage === 'l1')?.statusCode).toBe('done')
+
+      const withoutLog = await withLog.execute({ caseNumber: 'CN2' }, exec) as WorkbenchLinkPatentCaseOutput
+      expect(withoutLog.matterLogFound).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rethrows an unreadable matter log that is not a missing file', async () => {
+    const sim = new WorkbenchSim()
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-workbench-'))
+    try {
+      writeFileSync(join(dir, 'CN1'), 'not a directory', 'utf8')
+      const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: dir, fetchJson: sim.fetchJson })
+      await expect(tool.execute({ caseNumber: 'CN1' }, exec)).rejects.toThrow()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a malformed dictionary or task payload at the wire boundary', async () => {
+    const fetchJson: FetchJson = async (url, init) => {
+      if (init?.method !== undefined) {
+        return { status: 201, json: { ok: true, task: { id: 't1', parentId: null, title: 'CN1', typeCode: 'patent_case', statusCode: 'todo', source: 'patent' } } }
+      }
+      if (url.includes('/dictionaries')) return { status: 200, json: { ok: true, dictionaries: [{ code: 42 }] } }
+      return { status: 200, json: {} }
+    }
+    const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: '/cases', fetchJson, readMatterLog: async () => null })
+    const value = await tool.execute({ caseNumber: 'CN1' }, exec) as WorkbenchLinkPatentCaseOutput
+    expect(value.ok).toBe(true)
+    expect(value.dictionariesEnsured).toHaveLength(6)
+
+    const badTasks = createWorkbenchLinkPatentCaseTool({
+      baseUrl: 'http://127.0.0.1:3180',
+      caseRoot: '/cases',
+      fetchJson: async () => ({ status: 200, json: { ok: true, tasks: [null] } }),
+      readMatterLog: async () => null,
+    })
+    await expect(badTasks.execute({ caseNumber: 'CN1' }, exec)).rejects.toThrow('不是对象')
+  })
+
+  it('normalizes a non-string parent id and a non-string source', async () => {
+    const task = { id: 't1', parentId: 42, title: 'CN1', typeCode: 'patent_case', statusCode: 'todo', source: 'patent' }
+    const stranger = { id: 't9', parentId: null, title: '其它', typeCode: 'manual', statusCode: 'todo', source: 7 }
+    const fetchJson: FetchJson = async (url, init) => {
+      if (init?.method !== undefined) return { status: 200, json: { ok: true, task: { ...task, id: 't2' } } }
+      if (url.includes('/dictionaries')) return { status: 200, json: { ok: true, dictionaries: [] } }
+      return { status: 200, json: { ok: true, tasks: [task, stranger] } }
+    }
+    const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: '/cases', fetchJson, readMatterLog: async () => null })
+    const value = await tool.execute({ caseNumber: 'CN1' }, exec) as WorkbenchLinkPatentCaseOutput
+    expect(value.ok).toBe(true)
+    expect(value.rootTaskId).toBe('t1')
+  })
+
+  it('reports a non-Error transport failure and an error body without a message', async () => {
+    const stringThrow = createWorkbenchLinkPatentCaseTool({
+      baseUrl: 'http://127.0.0.1:3180',
+      caseRoot: '/cases',
+      fetchJson: async () => {
+        throw 'transport died'
+      },
+      readMatterLog: async () => null,
+    })
+    await expect(stringThrow.execute({ caseNumber: 'CN1' }, exec)).rejects.toThrow('transport died')
+
+    const emptyBody = createWorkbenchLinkPatentCaseTool({
+      baseUrl: 'http://127.0.0.1:3180',
+      caseRoot: '/cases',
+      fetchJson: async () => ({ status: 500, json: {} }),
+      readMatterLog: async () => null,
+    })
+    await expect(emptyBody.execute({ caseNumber: 'CN1' }, exec)).rejects.toThrow('返回 HTTP 500')
+  })
+
+  it('uses the default JSON-over-HTTP transport when none is injected', async () => {
+    const fetchStub = vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+      const path = new URL(url).pathname
+      const json = async (): Promise<unknown> => {
+        if (init?.method !== undefined) {
+          return { ok: true, task: { id: 't2', parentId: init.body === undefined ? null : 't1', title: 'CN1', typeCode: 'patent_case', statusCode: 'todo', source: 'patent' } }
+        }
+        if (path === '/api/workbench/dictionaries') return { ok: true, dictionaries: [] }
+        return { ok: true, tasks: [] }
+      }
+      return { status: 200, json }
+    })
+    vi.stubGlobal('fetch', fetchStub)
+    try {
+      const dir = mkdtempSync(join(tmpdir(), 'dsh-workbench-'))
+      try {
+        mkdirSync(join(dir, 'CN1'))
+        writeFileSync(join(dir, 'CN1', '_matter-log.md'), 'L1 完成\n', 'utf8')
+        const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: dir })
+        const value = await tool.execute({ caseNumber: 'CN1' }, exec) as WorkbenchLinkPatentCaseOutput
+        expect(value.ok).toBe(true)
+        expect(fetchStub).toHaveBeenCalled()
+        const methods = fetchStub.mock.calls.map(call => call[1]?.method ?? 'GET')
+        expect(methods).toContain('GET')
+        expect(methods).toContain('POST')
+        expect(fetchStub.mock.calls.some(call => call[1]?.body !== undefined)).toBe(true)
+        expect(fetchStub.mock.calls.every(call => (call[1] as { signal?: AbortSignal } | undefined)?.signal !== undefined)).toBe(true)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('survives an unparseable transport body', async () => {
+    const fetchStub = vi.fn(async () => ({ status: 200, json: async () => { throw new SyntaxError('bad body') } }))
+    vi.stubGlobal('fetch', fetchStub)
+    try {
+      const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: '/cases', readMatterLog: async () => null })
+      await expect(tool.execute({ caseNumber: 'CN1' }, exec)).rejects.toThrow()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

@@ -19,6 +19,7 @@ import type {
   FsPathInfo,
   FsObservation,
   FsTarget,
+  FsTextWriteOutcome,
   FsVersion,
   FsWriteIntent,
   FsWriteOutcome,
@@ -38,6 +39,7 @@ export type {
   FsObservation,
   FsPathInfo,
   FsTarget,
+  FsTextWriteOutcome,
   FsWriteIntent,
   FsWriteOutcome,
 } from './types.ts'
@@ -49,7 +51,7 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
-     * Single-slot decision for the next {@link FileSystem.writeText}. Calling
+     * Single-slot decision for the next text or byte file write. Calling
      * `next()` yields the bare provider's unconditional write; the first listener
      * that returns an intent owns the decision rather than composing with peers.
      * @param target - the resolved target about to be written.
@@ -266,6 +268,33 @@ export abstract class FileSystem extends Service {
   abstract writeText(
     target: FsTarget,
     content: string,
+    expected?: FsWriteIntent,
+    signal?: AbortSignal,
+    sandboxPolicy?: SandboxExecutionPolicy,
+  ): Promise<FsTextWriteOutcome>
+
+  /**
+   * Atomically create or replace raw bytes with no text decoding or encoding.
+   * This is the mutation twin of {@link readBytes}: a consumer writes binary
+   * content (a rendered document package, an image, an archive) through the
+   * same provider, intent guard, and per-target critical section as
+   * {@link writeText}, instead of escaping to a host path. `expected` guards
+   * intent and staleness exactly as it does for text; omission allows
+   * unconditional overwrite. The outcome's `before` and `after` are `null`,
+   * because bytes have no text projection; `operation` and `version` carry the
+   * same meaning they do for text.
+   * @param target - the resolved target to write.
+   * @param bytes - the full new file content.
+   * @param expected - the write intent guarding the write; omit for unconditional.
+   * @param signal - aborts before atomic publication takes effect.
+   * @param sandboxPolicy - the per-call mode and workspace root this write
+   *   runs under; a sandboxing backend fences the write by it, the bare backend
+   *   ignores it. Omit to leave the backend its own default.
+   * @returns the outcome, including the version the write produced.
+   */
+  abstract writeBytes(
+    target: FsTarget,
+    bytes: Uint8Array,
     expected?: FsWriteIntent,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,

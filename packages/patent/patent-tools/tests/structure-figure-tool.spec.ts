@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join, relative } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
@@ -387,6 +387,155 @@ describe('generate_structure_figure wording & validation', () => {
       const { render } = okRenderer()
       const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
       await expect(tool.execute({ model_path: join(dir, 'missing.step') }, exec)).rejects.toMatchObject({ code: 'file_not_found' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('callouts 的 point3d 不是三个有限数时报字段级错误', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({
+        model_path: model,
+        views: ['iso'],
+        callouts: [{ numeral: '1', point3d: [0, 0] }],
+      }, exec)).rejects.toThrow('point3d 必须是恰好三个有限数')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('缺省视图列表为空时报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir, defaultViews: [] })
+      await expect(tool.execute({ model_path: model }, exec)).rejects.toThrow('视图列表不能为空')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('model_path 指向非文件非目录时报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    try {
+      const { render } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: '/dev/null' }, exec)).rejects.toThrow('既不是文件也不是目录')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('渲染器返回的 manifest 读不到时报 tool_execution_failed', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const render = async (spec: StructureRenderSpec): Promise<StructureRenderOutcome> => ({
+        ok: true,
+        manifestPath: join(spec.outputDir, 'missing-manifest.json'),
+      })
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: model, views: ['iso'] }, exec))
+        .rejects.toThrow('读取 manifest 失败')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('manifest 指向的视图文件缺失时报 tool_execution_failed', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const render = async (spec: StructureRenderSpec): Promise<StructureRenderOutcome> => {
+        mkdirSync(spec.outputDir, { recursive: true })
+        const manifestPath = join(spec.outputDir, STRUCTURE_MANIFEST_FILENAME)
+        writeFileSync(manifestPath, JSON.stringify({
+          figureNumber: spec.figureNumber,
+          modelPaths: spec.modelPaths,
+          scale: spec.scale,
+          showHidden: spec.showHidden,
+          generator: 'freecad-structure',
+          views: [{ name: 'iso', kind: 'view', order: 0, path: join(spec.outputDir, 'missing.svg'), bbox: [0, 0, 1, 1], anchors: [] }],
+        }))
+        return { ok: true, manifestPath }
+      }
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: model, views: ['iso'] }, exec))
+        .rejects.toThrow('读取视图 iso SVG 失败')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未注入 cwd 时以 process.cwd 为基准解析相对模型路径', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir })
+      const value = await tool.execute({ model_path: model, views: ['iso'] }, exec) as { paths: string[] }
+      expect(value.paths).toHaveLength(1)
+      expect(isAbsolute(value.paths[0] ?? '')).toBe(false)
+      expect(existsSync(resolve(process.cwd(), value.paths[0] ?? ''))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('落版使用缺省页序与图号，并带出字高与图号', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer({
+        svg: '<svg width="100mm" height="50mm" viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><g stroke="#000000" stroke-width="0.35"><path d="M0 0 L10 10"/><text x="20" y="20" font-size="10">1</text></g></svg>',
+      })
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      const value = await tool.execute({
+        model_path: model,
+        views: ['iso'],
+        target_office: 'cnipa',
+        caption: '图1',
+        fit_to_page: false,
+        persist_index: false,
+      }, exec) as { layout?: { sheetNumber: string; caption?: string } }
+      expect(value.layout?.sheetNumber).toBe('1')
+      expect(value.layout?.caption).toBe('图1')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('页序越界时落版参数报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({
+        model_path: model,
+        views: ['iso'],
+        target_office: 'cnipa',
+        sheet_index: 3,
+        sheet_total: 2,
+      }, exec)).rejects.toThrow('落版参数非法')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('极小图形落版时把放大限制记成警告', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer({ svg: '<svg width="1mm" height="1mm" viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"><g/></svg>' })
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      const value = await tool.execute({ model_path: model, views: ['iso'], target_office: 'cnipa' }, exec) as { warnings: string[] }
+      expect(value.warnings.some(warning => warning.startsWith('落版：'))).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

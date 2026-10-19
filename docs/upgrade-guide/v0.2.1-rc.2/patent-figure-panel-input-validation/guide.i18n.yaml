@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-figure-panel-input-validation/guide.md
+/:
+  en: a4fe2f48c6b37aa2
+  zh: a1dcb69d3c4a4eec
+/panel-inputs-are-validated-before-rendering:
+  en: e8d3f11b2eddbe55
+  zh: 81e7ae8fdf095e4c
+/panel-inputs-are-validated-before-rendering/change:
+  en: fda36c2e983f5783
+  zh: e2ef6c32e6a9f06d
+/panel-inputs-are-validated-before-rendering/migration:
+  en: 6a19193a1ff7ce98
+  zh: 6d9a71e894161c74

@@ -171,6 +171,23 @@ describe('patent_deadlines tool', () => {
     expect(JSON.stringify(result.content)).toContain('新药')
   })
 
+  it('passes the PCT entry date through to the application-fee entry', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2024-01-01',
+      claimsPriority: false,
+      isPctNationalPhase: true,
+      nationalPhaseEntryDate: '2025-07-01',
+    })
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as PatentDeadlinesOutput
+    expect(value.computed.find(entry => entry.id === 'application-fee')).toMatchObject({
+      dueDate: '2025-09-01',
+      legalBasis: '专利法实施细则第120条',
+    })
+  })
+
   it('accepts every optional case date and echoes the compensation and paid-through inputs', async () => {
     const ctx = await host()
     const result = await execute(ctx, {

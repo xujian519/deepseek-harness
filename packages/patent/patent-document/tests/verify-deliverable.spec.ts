@@ -1,8 +1,13 @@
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, truncateSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { createVerifyDeliverableTool, renderDeliverableResult, verifyDeliverable } from '../src/tool/verify-deliverable.ts'
+import {
+  MAX_DELIVERABLE_FILE_BYTES,
+  createVerifyDeliverableTool,
+  renderDeliverableResult,
+  verifyDeliverable,
+} from '../src/tool/verify-deliverable.ts'
 import type { VerifyDeliverableOutput } from '../src/tool/verify-deliverable.ts'
 
 const ROOT = mkdtempSync(join(tmpdir(), 'dsh-deliverable-'))
@@ -61,6 +66,34 @@ describe('verifyDeliverable', () => {
     expect(out.violations.map(v => v.rule)).toEqual(['artifact_missing', 'artifact_missing'])
     expect(out.violations[0]?.message).toContain('权利要求书')
     expect(out.violations[1]?.message).toContain('说明书')
+    expect(out.manifest).toEqual([])
+  })
+
+  it('rejects a directory in place of a deliverable path', () => {
+    const dir = join(ROOT, 'directory')
+    const present = write(join(dir, 'a.md'), '正文。', 1_000)
+    const directory = join(dir, 'a-directory')
+    mkdirSync(directory, { recursive: true })
+    const out = verifyDeliverable({
+      artifacts: [{ role: '权利要求书', canonical_path: directory, delivered_path: present }],
+    })
+    expect(out.violations.map(v => v.rule)).toEqual(['artifact_missing'])
+    expect(out.violations[0]?.message).toContain('不是普通文件')
+    expect(out.manifest).toEqual([])
+  })
+
+  it('rejects a file above the hash limit without reading it', () => {
+    const dir = join(ROOT, 'oversized')
+    const present = write(join(dir, 'a.md'), '正文。', 1_000)
+    const huge = join(dir, 'huge.pdf')
+    writeFileSync(huge, '')
+    truncateSync(huge, MAX_DELIVERABLE_FILE_BYTES + 1)
+    const out = verifyDeliverable({
+      artifacts: [{ role: '渲染件', canonical_path: present, delivered_path: huge }],
+      rendered: huge,
+    })
+    expect(out.violations.map(v => v.rule)).toEqual(['artifact_missing', 'rendered_missing'])
+    expect(out.violations[0]?.message).toContain('超过')
     expect(out.manifest).toEqual([])
   })
 

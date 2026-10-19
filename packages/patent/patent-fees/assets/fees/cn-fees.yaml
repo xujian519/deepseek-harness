@@ -104,7 +104,7 @@ items:
   - id: claims-surcharge
     name: 权利要求附加费
     trigger: filing
-    patentTypes: null
+    patentTypes: [invention, utility-model]
     basis: per-claim-beyond
     freeUnits: 10
     amount: '150'
@@ -119,7 +119,7 @@ items:
   - id: specification-surcharge
     name: 说明书附加费
     trigger: filing
-    patentTypes: null
+    patentTypes: [invention, utility-model]
     basis: per-page-beyond
     freeUnits: 30
     amount: null

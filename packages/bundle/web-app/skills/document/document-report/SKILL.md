@@ -2,7 +2,8 @@
 name: document-report
 description: |
   长报告/手册管线：模板或自建 Markdown 源 → 单页 HTML 渲染（目录、页码、引用）→
-  交付 md + html（含 docx），并按需提供 PDF 导出说明。面向 PRD、方案书、调研报告、FAQ。
+  交付 md + html（含 docx），并按需提供 PDF 导出说明。面向多章节文档：报告、PRD、
+  方案书、调研报告、手册、FAQ。
 whenToUse: 需要交付多章节文档（报告、PRD、手册、FAQ、方案书）。
 ---
 

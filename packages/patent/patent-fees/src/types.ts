@@ -236,10 +236,15 @@ export type ReductionOutcome = {
 export type FeeTotal = {
   /** The total in yuan, or null when it must not be stated. */
   amount: string | null
-  /** Whether every applicable line carries a verified payable amount. */
+  /** Whether every named trigger is indexed and every applicable line carries a verified payable amount. */
   complete: boolean
   /** Ids of the lines that keep the total incomplete. */
   unverifiedIds: string[]
+  /**
+   * Triggers the query named but the index carries no item for. Present only
+   * when non-empty; such a stage is unknown, not free, so the total is withheld.
+   */
+  uncoveredTriggers?: string[]
 }
 
 /** The priced case. */

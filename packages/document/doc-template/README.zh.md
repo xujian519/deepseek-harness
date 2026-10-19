@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@deepseek-ai/dsh-doc-template` 加载随 harness 分发的文档模板，并渲染调用方选中的那一份。每个模板是一个 Markdown 资产：YAML front-matter 声明类别、领域、语言、写作风格、支持的格式与变量模式，正文用 `{{snake_case}}` 占位符接收调用方传入的变量。渲染结果同时返回文档、仍然未被填充的占位符与变量警告，调用方无需重新解析就能区分完整文档与残缺文档。
+`@deepseek-ai/dsh-doc-template` 加载随 harness 分发的文档模板，并渲染调用方选中的那一份。每个模板是一个 Markdown 资产：YAML front-matter 声明类别、领域、语言、写作风格、支持的格式与变量模式，正文用 `{{name}}` 占位符接收调用方传入的变量（变量名可用中文，也可带内部空格，查找前会 trim）。渲染结果同时返回文档、仍然未被填充的占位符与变量警告，调用方无需重新解析就能区分完整文档与残缺文档。
 
 ## 目录
 
@@ -27,7 +27,7 @@ kind: "package-reference"
 <a id="template-assets"></a>
 ## 模板资产
 
-十二个模板随包分发在 `assets/templates/` 下，按目录分组：`specification/`（4）、`claims/`（3）、`oa-response/`（3）、`disclosure/`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内，专利域自己的交付文书也不在——那些由 [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.zh.md) 从受控草稿成文，而不是走变量替换资产。`oa-response/` 类别仅面向文档模式：三条模板是通用变量替换骨架，不是专利答复通道——针对真实通知书的答复由 `@deepseek-ai/dsh-patent-document` 的受控草稿成文，专利预设不挂 doc-template 行。
+十七个模板随包分发在 `assets/templates/` 下：十二个专利域资产按目录分组——`specification/`（4）、`claims/`（3）、`oa-response/`（3）、`disclosure/`（2）——外加五个面向文档模式的 `document/` 模板（`prd`、`report`、`faq`、`release-notes`、`meeting-notes`）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内，专利域自己的交付文书也不在——那些由 [`@deepseek-ai/dsh-patent-document`](../../patent/patent-document/README.zh.md) 从受控草稿成文，而不是走变量替换资产。`oa-response/` 类别仅面向文档模式：三条模板是通用变量替换骨架，不是专利答复通道——针对真实通知书的答复由 `@deepseek-ai/dsh-patent-document` 的受控草稿成文，专利预设不挂 doc-template 行。
 
 front-matter 字段如下，读取自上游模板约定：
 
@@ -55,7 +55,7 @@ front-matter 字段如下，读取自上游模板约定：
 <a id="render_doc_template-tool"></a>
 ## render_doc_template 工具
 
-`render_doc_template` 解析一个模板的变量并渲染它。结果包含渲染后的文档、建议文件名、内容类型、编码方式、解析后的 Markdown 正文、残余占位符与校验警告。`format` 默认 Markdown，且必须是该模板声明的格式之一；`title`、`author`、`date`、`filename` 可覆盖模板自带的值。
+`render_doc_template` 解析一个模板的变量并渲染它。结果包含渲染后的文档、建议文件名、内容类型、编码方式、解析后的 Markdown 正文、残余占位符与校验警告。`format` 默认 Markdown，且必须是该模板声明的格式之一；`title`、`author`、`date`、`filename` 可覆盖模板自带的值；可选的 `output_path` 把渲染结果经会话文件系统写盘——UTF-8 文本走 `writeText`、DOCX 包走 `writeBytes`——并回报写入路径与字节数。
 
 以下情形直接报错，而不是返回一份降级文档：未知模板、未知样式名、模板不支持的格式、变量值不是字符串、缺少必填变量。类型不匹配与未填充的占位符不算失败：它们分别以警告和残余占位符的形式报告，因为调用方可能仍需要这份部分填充的文档。
 
@@ -67,7 +67,7 @@ front-matter 字段如下，读取自上游模板约定：
 - `VarSchema.validate` 先报必填变量缺失再报类型，因为不存在的值没有类型；值不是数值或不是 `true`/`false` 时报 `invalid_type`。
 - `VarSchema.applyDefaults` 复制变量并填入声明的默认值；空的默认值视为没有默认值。
 - `substitutePlaceholders` 只替换它拿到值的占位符，因此没有值的占位符会留在正文里。
-- 返回的 `residual` 按首次出现顺序列出仍然存在的每一个 `{{snake_case}}` 占位符，`warnings` 按声明顺序列出校验问题。
+- 返回的 `residual` 按首次出现顺序列出仍然存在的每一个 `{{name}}` 占位符（含中文名与带内部空格的名字，按 trim 后的名字去重），`warnings` 按声明顺序列出校验问题。
 
 上游把这两个列表交回调用方就结束了。本包保留该流水线，并在其上补一个判断：渲染路径把 `missing_required` 警告升级为错误，因为缺少必填变量的文档不该被当作交付件。残余占位符列表是确定性文档门禁唯一可依据的证据，因此每次渲染成功都会返回它。
 
@@ -118,7 +118,7 @@ Schemastery 配置，所有字段可选。
 
 #### What the model sees
 
-`render_doc_template` 的工具定义与结果。结果文本依次给出模板名、格式、建议文件名、内容类型与编码，然后给出残余占位符与警告，最后是文档正文。base64 的 DOCX 结果只报告包大小而不打印它，并把解析后的 Markdown 作为可读文档展示。
+`render_doc_template` 的工具定义与结果。结果文本依次给出模板名、格式、建议文件名、内容类型与编码，然后给出残余占位符与警告，最后是文档正文。base64 的 DOCX 结果只报告包大小而不打印它，并把解析后的 Markdown 作为可读文档展示；写入 `output_path` 的渲染则报告路径与字节数。
 
 #### Token effect
 
@@ -145,7 +145,7 @@ Schemastery 配置，所有字段可选。
 <a id="known-limitations-and-deferred-work"></a>
 ## 已知局限与延期工作
 
-- **十二个模板未声明变量** — claims、specification、oa-response、disclosure 的上游资产在正文里给了 `填写指引` 段而不是 `vars` 块，因此 `list_doc_templates` 对它们报告「无变量」，渲染时它们的占位符进入残余列表。模型依据残余列表或资产自带的填写指引补齐；把指引转写成 `vars` 声明属于待办，而不是在这里凭空发明。
+- **每个模板都声明变量，且都不是必填** — 十七个模板都带 `vars` 块，变量名与正文里的 `{{name}}` 占位符一一对应，全部声明为 `required: false`，因此缺值只降级为 `residual` 而不会失败；需要强约束的部署可在自己的覆盖模板里标 `required: true`。正文里有、`vars` 却没声明的占位符仍会进入残余列表。
 - **同名只保留一个模板** — store 对每个名字只保留一项，语言变体需要各自的名字，这台上游 store 已说明。因此 `findByNameAndLanguage` 是在唯一一项上做过滤，而不是在多个变体之间选择。
 - **模板版本漂移只报告不处理** — `listConflicts` 会指出版本与首次加载不一致的覆盖项；目前没有消费者，也不会合并或降级任何模板。
 - **`systemPromptForTemplate` 目前没有消费者** — [`@deepseek-ai/dsh-doc-style`](../doc-style/README.zh.md) 的模板上下文投影已可用，但本包注入的是不带模板上下文的 `systemPrompt`，渲染路径只用到 `toRenderStyle` 与 `disclaimerFor`。
@@ -153,7 +153,8 @@ Schemastery 配置，所有字段可选。
 - **`styleGuide` 留空会让门禁无预告** — [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.zh.md) 只看风格的 `block` 判定，与模型是否见过指南无关；因此"开了核验但不注入指南"的部署可能拒绝掉模型无从预判的登记。请把 `styleGuide` 设成门禁所用的那套风格。
 - **随包模板只有中文** — 资产用 `language: zh-CN` 自描述，不提供双语孪生版本，其他语言的文档需要自己的模板资产。
 - **`rendererRegistry` 目前没有消费者** — store 会把「注册新渲染格式」所需的注册表交出去；随包格式在构造时全部注册完毕，因此没有人读它。
-- **DOCX 以 base64 传输** — `docx` 结果把包以 base64 放在 `content` 字段里，体积比原包大约三成；工具文本本身不把包带进对话记录。
+- **不给路径时 DOCX 以 base64 传输** — 没有 `output_path` 时，`docx` 结果把包以 base64 放在 `content` 字段里，体积比原包大约三成，且模型永远拿不到字节；给了 `output_path` 则写盘并回报路径与大小。两种情况下转录都不包含包体。
+- **写盘按部署的文件策略执行** — `output_path` 按会话工作区解析，调用不传逐次 `sandboxPolicy`，因此工作区围栏部署使用其配置的根：会话工作目录在该根之外时无法经此工具写入。逐次升级协商属于待办。
 
 ### 开发备注
 

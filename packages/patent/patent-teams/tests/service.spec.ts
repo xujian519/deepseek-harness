@@ -338,6 +338,40 @@ describe('createTask', () => {
     expect(task).toMatchObject({ task_id: 't1', subject: 'research', status: 'pending', assignee: 'alice' })
   })
 
+  it('allocates past existing ids when taskSeq is stale', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await h.ctx.patentTeams.createTask(captain, { subject: 'first' })
+    const root = join(h.workspace, h.stateDir)
+    const legacy = await readTeam(root, 'alpha')
+    expect(legacy).toBeDefined()
+    legacy!.taskSeq = 0
+    await writeTeam(root, legacy!)
+
+    const second = await h.ctx.patentTeams.createTask(captain, { subject: 'second' })
+    expect(second.task_id).toBe('t2')
+    // The written record survives the reader's duplicate-id check.
+    const reread = await readTeam(root, 'alpha')
+    expect(reread?.tasks.map(task => task.id)).toEqual(['t1', 't2'])
+    expect(reread?.taskSeq).toBe(2)
+  })
+
+  it('ignores task ids outside the t<N> sequence when allocating', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await h.ctx.patentTeams.createTask(captain, { subject: 'first' })
+    const root = join(h.workspace, h.stateDir)
+    const legacy = await readTeam(root, 'alpha')
+    legacy!.taskSeq = 0
+    legacy!.tasks[0]!.id = 'legacy-task'
+    await writeTeam(root, legacy!)
+
+    const second = await h.ctx.patentTeams.createTask(captain, { subject: 'second' })
+    expect(second.task_id).toBe('t1')
+  })
+
   it('rejects missing dependencies and missing assignees', async () => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
@@ -496,6 +530,19 @@ describe('claimTask', () => {
     const alice = fakeAgent('member-1', h.workspace)
     const claimed = await h.ctx.patentTeams.claimTask(alice, { task_id: 't1' })
     expect(claimed.assignee).toBe('alice')
+  })
+
+  it('labels a member claim on a task another member already owns', async () => {
+    const h = await makeService({ maxMembers: 2 })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await setup(h, captain)
+    await addMember(h, captain, 'bob')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
+    await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const bob = fakeAgent('member-2', h.workspace)
+    const claim = h.ctx.patentTeams.claimTask(bob, { task_id: 't1' })
+    await expect(claim).rejects.toThrow('task t1 is assigned to "alice", not you')
+    await expect(claim).rejects.toMatchObject({ code: 'ALREADY_CLAIMED' })
   })
 
   it('rejects foreign claims, blocked tasks, and busy members', async () => {
@@ -1001,6 +1048,33 @@ describe('status', () => {
     expect(status.mailbox_warnings[0]).toContain('captain mailbox line 1')
   })
 
+  it('renders legacy members and tasks that omit optional fields', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'legacy' })
+    const root = join(h.workspace, h.stateDir)
+    const team = await readTeam(root, 'alpha')
+    const member = team!.members[0]!
+    delete member.provider
+    delete member.model
+    delete member.reasoningEffort
+    delete team!.tasks[0]!.attempt
+    await writeTeam(root, team!)
+
+    // A member view skips the captain's dispatch kick, so the legacy task keeps
+    // its absent attempt counter.
+    const status = await h.ctx.patentTeams.status(fakeAgent('member-1', h.workspace))
+    expect(status.members[0]).toMatchObject({
+      provider: '',
+      model: '',
+      reasoning_effort: '',
+      activity: 'unknown',
+    })
+    expect(status.tasks[0]?.attempt).toBe(0)
+  })
+
   it('reads the team record at most twice for a quiet eight-member status', async () => {
     const h = await makeService({ maxMembers: 8 })
     const captain = fakeAgent('captain-1', h.workspace)
@@ -1030,6 +1104,16 @@ describe('delete', () => {
     const archived = await readArchivedTeam(join(h.workspace, h.stateDir), 'alpha')
     expect(archived?.name).toBe('Alpha')
     expect(await readTeam(join(h.workspace, h.stateDir), 'alpha')).toBeUndefined()
+  })
+
+  it('refuses to reuse the name of an archived team', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain, 'Alpha')
+    await h.ctx.patentTeams.delete(captain, new AbortController().signal)
+    await expect(createTeam(h, captain, 'Alpha')).rejects.toMatchObject({ code: 'TEAM_NAME_ARCHIVED' })
+    const archived = await readArchivedTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(archived?.name).toBe('Alpha')
   })
 
   it('still archives when a member does not quiesce cleanly', async () => {
@@ -1136,6 +1220,14 @@ describe('archive', () => {
         dependencies: [],
       }],
     })
+  })
+
+  it('skips an archive directory without a team record', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(join(h.workspace, h.stateDir, 'archive', 'empty-team'), { recursive: true })
+    expect(await h.ctx.patentTeams.archive(captain)).toEqual({ mode: 'list', teams: [] })
   })
 
   it('is workspace-scoped and empty before any archive exists', async () => {

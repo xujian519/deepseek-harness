@@ -284,6 +284,61 @@ describe('buildAppearanceViewSheet 校验', () => {
       .toThrow(/主视图 的片段尺寸必须为正有限数（毫米）：40×0/)
   })
 
+  it('视图片段含脚本、事件属性或嵌入文档时报 invalid_input', () => {
+    const bodies = [
+      '<script>alert(1)</script>',
+      '<rect onload="alert(1)"/>',
+      '<a href="javascript:alert(1)"><rect/></a>',
+      '<a href="&#x6a;avascript:alert(1)"><rect/></a>',
+      '<foreignObject><body xmlns="http://www.w3.org/1999/xhtml">x</body></foreignObject>',
+      '<style>rect { fill: url(javascript:alert(1)) }</style>',
+      '<svg:script xmlns:svg="http://www.w3.org/2000/svg">alert(1)</svg:script>',
+      '<svg:foreignObject xmlns:svg="http://www.w3.org/2000/svg"><body/></svg:foreignObject>',
+      '<rect fill="a>b" onload="alert(1)"/>',
+      "</script><rect onload='alert(1)'/>",
+      '<!ENTITY x "y">',
+      '<![CDATA[<rect/>]]>',
+    ]
+    for (const body of bodies) {
+      expectError({ views: [{ name: '主视图', body, widthMm: 40, heightMm: 20 }] }, 'invalid_input')
+    }
+    expect(() => buildAppearanceViewSheet({
+      views: [{ name: '主视图', body: '<script>alert(1)</script>', widthMm: 40, heightMm: 20 }],
+    })).toThrow(/可执行元素/)
+    expect(() => buildAppearanceViewSheet({
+      views: [{ name: '主视图', body: '<rect onload="alert(1)"/>', widthMm: 40, heightMm: 20 }],
+    })).toThrow(/事件处理属性/)
+  })
+
+  it('keeps quoted ">" and on…= text inside attribute values while scanning past bare "<"', () => {
+    const bodies = [
+      '<rect x="1" y="1" width="2" height="2" fill="a>b"/>',
+      '<rect fill="a>b" aria-label="text onload=alert(1)"/>',
+      '<rect aria-label="on load=" />',
+      "<rect aria-label='on load=' />",
+      '<text>2 < 3</text>',
+      '<rect/> ',
+      '<rect',
+    ]
+    for (const body of bodies) {
+      expect(() => buildAppearanceViewSheet({
+        views: [{ name: '主视图', body, widthMm: 40, heightMm: 20 }],
+      })).not.toThrow()
+    }
+  })
+
+  it('十进制字符引用同样解码后再检查，超出 Unicode 范围的引用原样保留', () => {
+    // &#106; 是 j：解码后仍是 javascript: URL。
+    expectError({
+      views: [{ name: '主视图', body: '<a href="&#106;avascript:alert(1)"><rect/></a>', widthMm: 40, heightMm: 20 }],
+    }, 'invalid_input')
+    // 超出 0x10ffff 的码点不转成字符，作为普通文本落版。
+    const sheet = buildAppearanceViewSheet({
+      views: [{ name: '主视图', body: '<rect x="0" y="0" width="40" height="20" data-note="&#x110000;"/>', widthMm: 40, heightMm: 20 }],
+    })
+    expect(sheet.spec.body).toContain('&#x110000;')
+  })
+
   it('版面参数非正或非有限报 invalid_input', () => {
     const invalid: readonly AppearanceSheetInput[] = [
       { views: [view('主视图')], cellMm: 0 },

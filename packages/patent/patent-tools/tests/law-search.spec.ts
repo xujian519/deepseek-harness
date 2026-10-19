@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
@@ -81,11 +84,13 @@ describe('law_search', () => {
     expect(text(result)).toContain('0 条审查指南全文命中')
   })
 
-  it('limit 收敛到 1–10，include_content=false 不带片段', async () => {
+  it('limit 收敛到 1–10 的整数，include_content=false 不带片段', async () => {
     const rec = recorder()
     const ctx = await ctxWith(rec.deps)
     await call(ctx, { query: '说明书', limit: 99 }, 'law-max')
     expect(rec.calls[0]?.limit).toBe(10)
+    await call(ctx, { query: '说明书', limit: 2.9 }, 'law-frac')
+    expect(rec.calls[1]?.limit).toBe(2)
     const result = await call(ctx, { query: '说明书', limit: 0, include_content: false }, 'law-min')
     expect(text(result)).not.toContain('第二十六条')
   })
@@ -110,5 +115,49 @@ describe('law_search', () => {
     )
     expect(failure?.code).toBe('setup_required')
     expect(failure?.details?.['cause']).toBe('database is locked')
+  })
+
+  it('等级过滤与缺省库路径写入检索策略；命中缺文件名/正文时降级', async () => {
+    const bareHit: LawSearchResult = { id: 'law:x', name: '无出处条文', level: '行政法规', score: 0, expired: 0, categoryId: 0 }
+    const rec = recorder({ law: [bareHit] })
+    const ctx = await ctxWith(rec.deps)
+    const result = await call(ctx, { query: '说明书', level: '行政法规' }, 'law-level')
+    expect(result.isError).toBe(false)
+    const value = result.value as {
+      searchStrategy: { level?: string; results?: unknown[] }
+      results: { sourcePath?: string; charCount: number }[]
+    }
+    expect(value.searchStrategy.level).toBe('行政法规')
+    expect(value.results[0]).toEqual(expect.objectContaining({ charCount: 0 }))
+    expect(value.results[0]?.sourcePath).toBeUndefined()
+    const body = text(result)
+    expect(body).not.toContain('sourcePath**')
+  })
+
+  it('注入已存在的库路径时在结果与渲染中回显', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-law-'))
+    try {
+      const dbPath = join(dir, 'knowledge.db')
+      await writeFile(dbPath, '', 'utf8')
+      const ctx = await ctxWith(recorder({ dbPath }).deps)
+      const result = await call(ctx, { query: '说明书' }, 'law-db')
+      expect((result.value as { dbPath?: string }).dbPath).toBe(dbPath)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('检索抛非 Error 时仍把字符串原因带进错误详情', async () => {
+    const tool = createLawSearchTool({
+      searchLaw: () => {
+        throw 'engine offline'
+      },
+    })
+    const failure = await tool.execute({ query: '说明书' }, { signal } as never).then(
+      () => undefined,
+      (error: unknown) => error as { code?: string; details?: Record<string, unknown> },
+    )
+    expect(failure?.code).toBe('setup_required')
+    expect(failure?.details?.['cause']).toBe('engine offline')
   })
 })

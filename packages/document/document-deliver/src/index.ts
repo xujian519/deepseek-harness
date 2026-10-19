@@ -26,12 +26,17 @@ export {
   type DocumentTextCheckOptions,
 } from './checks.ts'
 export {
+  briefReferenceWarnings,
   checkDeliverables,
   createDocumentDeliverTool,
   DEFAULT_MAX_CHECK_BYTES,
   DELIVERABLE_FORMATS,
   missingDeliverableFiles,
+  P0_CHECKLIST,
+  p0ChecklistWarnings,
   parseDocumentDeliverArgs,
+  resolveCheckFormat,
+  resolveUnreadableReports,
   type DeliverableCheckReport,
   type DeliverableFormat,
   type DeliverFileInput,
@@ -40,6 +45,9 @@ export {
   type DocumentDeliverInput,
   type DocumentDeliverResult,
   type DocumentDeliverSpec,
+  type P0ChecklistEntry,
+  type ResolvedCheckFormat,
+  type UnreadableAckInput,
 } from './tool.ts'
 
 /** Cordis plugin name used by loader diagnostics. */

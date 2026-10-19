@@ -141,6 +141,7 @@ export function knownFigureNumbers(text: string, figureAnalysis?: FigureAnalysis
     let match: RegExpExecArray | null
     while ((match = pattern.exec(section)) !== null) {
       const value = Number(match[1])
+      /* v8 ignore next -- the pattern captures digits only, so the value is always an integer */
       if (Number.isInteger(value)) numbers.add(value)
     }
   }

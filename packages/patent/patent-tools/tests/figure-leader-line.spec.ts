@@ -66,6 +66,7 @@ describe('annotateSvgWithLeaderLines 坐标帧', () => {
   it('matrix 形式的纯平移被接受，缩放/旋转/斜切退化为内嵌标号并告警', () => {
     const accepted = [
       'matrix(1 0 0 1 5 6)',
+      'translate()',
       'translate(4)',
       'translate(4 6)',
       'scale(1 1)',
@@ -324,5 +325,121 @@ describe('annotateSvgWithLeaderLines 斜向二次扫描', () => {
     // 右上斜向：自角点 (100,50) 沿 45° 外向 gap*√½≈7.1 → (107.1,42.9)。
     expect(out).toContain('<line x1="100" y1="50" x2="107.1" y2="42.9"')
     expect(out).not.toContain('主控板 (10)')
+  })
+})
+
+describe('annotateSvgWithLeaderLines 线段相交的端点与共线情形', () => {
+  /** 单节点 + 一条边路径：路径坐标在组坐标系（GRAPHVIZ_FRAME 平移 (4 66)）。 */
+  function scenario(pathD: string): string {
+    return document(
+      ROOT_GRAPHVIZ,
+      [
+        node('a', '传感器', '40,-44 40,-12 120,-12 120,-44'),
+        edge('a-b', `<path fill="none" stroke="black" d="${pathD}"/>`),
+      ].join('\n'),
+      GRAPHVIZ_FRAME,
+    )
+  }
+
+  it('穿越引线（真交叉）、端点落在引线上、引线端点落在障碍线上都使候选不可用', () => {
+    const paths = [
+      // 真交叉：竖直线穿过右向引线（根坐标 x=129，y 26–46）。
+      'M125,-40 L125,-20',
+      // 障碍终点落在引线上（根坐标 131,38）。
+      'M127,-34 L127,-28',
+      // 引线起点落在障碍线上（根坐标 124,38）。
+      'M120,-34 L120,-20',
+      // 引线终点落在障碍线上（根坐标 134,38）。
+      'M130,-34 L130,-20',
+      // 障碍起点落在引线起点上。
+      'M120,-28 L120,-20',
+    ]
+    for (const pathD of paths) {
+      const { svg: out, warnings } = annotateSvgWithLeaderLines(scenario(pathD), [{ label: '传感器', numeral: '100' }])
+      expect(warnings, pathD).toEqual([])
+      expect(out, pathD).toContain('<line ')
+      expect(out, pathD).not.toContain('<line x1="124" y1="38" x2="134" y2="38"')
+    }
+  })
+
+  it('边标签缺坐标、非数值坐标与空 polygon 不产生障碍，也不阻断放置', () => {
+    const svg = document(
+      ROOT_GRAPHVIZ,
+      [
+        node('a', '传感器', '40,-44 40,-12 120,-12 120,-44'),
+        edge('bad-text', '<text x="NaN" y="-24" font-size="10.00">忽略</text>'),
+        edge('no-anchor', '<text x="145" y="-24" font-size="10.00">信号</text>'),
+        edge('empty-poly', '<polygon fill="black" points=""/>'),
+        edge('bad-poly', '<polygon fill="black" points="a,b c,d"/>'),
+      ].join('\n'),
+      GRAPHVIZ_FRAME,
+    )
+    const { svg: out, warnings } = annotateSvgWithLeaderLines(svg, [{ label: '传感器', numeral: '100' }])
+    expect(warnings).toEqual([])
+    expect(out).toContain('<line ')
+  })
+})
+
+describe('annotateSvgWithLeaderLines 节点组结构边界', () => {
+  it('空 polygon、非数值 polygon 与缺 ry 的 ellipse 都按「缺少形状轮廓」内嵌', () => {
+    const svg = `<svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+<g class="node"><title>a</title><polygon points=""/><text x="10" y="20" font-size="10">甲</text></g>
+<g class="node"><title>b</title><polygon points="a,b c,d"/><text x="100" y="20" font-size="10">乙</text></g>
+<g class="node"><title>c</title><ellipse cx="200" cy="20" rx="10"/><text x="200" y="20" font-size="10">丙</text></g>
+</svg>`
+    const { svg: out, warnings } = annotateSvgWithLeaderLines(svg, [
+      { label: '甲', numeral: '10' },
+      { label: '乙', numeral: '20' },
+      { label: '丙', numeral: '30' },
+    ])
+    expect(out).toContain('甲 (10)')
+    expect(out).toContain('乙 (20)')
+    expect(out).toContain('丙 (30)')
+    expect(warnings.every(warning => warning.includes('缺少形状轮廓'))).toBe(true)
+  })
+
+  it('节点有多个 text 时只用第一个的 font-size 归一 scale，text-anchor 缺省按 start', () => {
+    const svg = document(
+      ROOT_GRAPHVIZ,
+      '<g class="node"><title>a</title><polygon points="40,-44 40,-12 120,-12 120,-44"/><text x="80" y="-24" font-size="10.00">传感器</text><text x="80" y="-14" font-size="30.00">副标</text></g>',
+      GRAPHVIZ_FRAME,
+    )
+    const { svg: out, warnings } = annotateSvgWithLeaderLines(svg, [{ label: '传感器', numeral: '100' }])
+    expect(warnings).toEqual([])
+    // scale 取首个 text 的 10（不是 30）：gap 10，右向引线自根坐标 124 到 134。
+    expect(out).toContain('<line x1="124" y1="38" x2="134" y2="38"')
+  })
+
+  it('节点组没有 title 时照常放置，标题只在退化告警里使用', () => {
+    const svg = `<svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+<g class="node"><polygon points="10,10 10,40 60,40 60,10"/><text x="35" y="30" font-size="10">无标题</text></g>
+</svg>`
+    const { svg: out, warnings } = annotateSvgWithLeaderLines(svg, [{ label: '无标题', numeral: '7' }])
+    expect(warnings).toEqual([])
+    expect(out).toContain('<line ')
+  })
+
+  it('最后文本含 tspan 时标号插在 </tspan> 之前', () => {
+    const svg = document(
+      ROOT_GRAPHVIZ,
+      '<g class="node"><title>a</title><polygon points="40,-44 40,-12 120,-12 120,-44"/><text x="80" y="-24" font-size="10.00"><tspan>传感器</tspan></text></g>',
+      'scale(2 2)',
+    )
+    const { svg: out, warnings } = annotateSvgWithLeaderLines(svg, [{ label: '传感器', numeral: '100' }])
+    expect(out).toContain('<tspan>传感器 (100)</tspan>')
+    expect(warnings).toEqual(['节点 "a" 所在组的坐标含缩放/旋转，标号 100 已内嵌'])
+  })
+
+  it('下方候选使标号越出画布底边时向下扩边', () => {
+    const wall = (id: string, points: string): string => `<g class="node"><title>${id}</title><polygon points="${points}"/><text x="0" y="0" font-size="10">墙</text></g>`
+    const svg = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<g class="node"><title>a</title><polygon points="30,20 30,80 50,80 50,20"/><text x="40" y="50" font-size="10">核心</text></g>
+${wall('right', '55,10 55,90 90,90 90,10')}
+${wall('left', '0,10 0,90 25,90 25,10')}
+${wall('top', '25,0 25,15 55,15 55,0')}
+</svg>`
+    const { svg: out, warnings } = annotateSvgWithLeaderLines(svg, [{ label: '核心', numeral: '10' }])
+    expect(warnings).toEqual([])
+    expect(out).toContain('viewBox="0 0 100 104"')
   })
 })

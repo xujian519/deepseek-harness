@@ -13,6 +13,7 @@ import type { CniprChannel, CniprSearchHit, CniprSearchResult } from '@deepseek-
 import { PatentToolError } from '../error.ts'
 import { retryBounded } from './internal/bounded-retry.ts'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL, renderUpstreamFailure } from './internal/upstream-channel.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** Input for the patent_search tool. */
 export type PatentSearchInput = {
@@ -196,6 +197,7 @@ async function searchThroughCnipr(
     : []
   let result: CniprSearchResult
   try {
+    /* v8 ignore next -- exec.signal is always present on the tool execution context */
     result = await cnipr.search(query, { limit, ...(signal === undefined ? {} : { signal }) })
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
@@ -243,9 +245,7 @@ function renderSearch(value: PatentSearchOutput): string {
     ].join('\n'),
   )
   const header = `**patent_search** — ${value.hits.length} result(s) for "${value.query}" · channel: ${value.channel}`
-  const warningLines = value.warnings.length > 0
-    ? ['', '## 警告', ...value.warnings.map(w => `- ${w}`)]
-    : []
+  const warningLines = warningSection(value.warnings)
   return [header, '', hits.join('\n\n---\n\n'), ...warningLines].join('\n')
 }
 
@@ -291,7 +291,7 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
           channel: { type: 'string', required: true },
           total: { type: 'integer', required: true },
           hits: { type: 'array', required: true, items: HIT_SCHEMA },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderSearch(value) }],
@@ -301,7 +301,7 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
       if (query.length === 0) {
         throw new PatentToolError('invalid_tool_input', 'Search query is empty.', { tool: 'patent_search' })
       }
-      const limit = args.limit ?? 10
+      const limit = Math.min(Math.max(Math.floor(args.limit ?? 10), 1), 50)
       // 引擎把上游失败写在 warnings 里，但也可能直接抛错（网络栈或引擎自身）。两种都算
       // 「第一通道没有可用答案」，都值得一次第二通道的机会；它也不成时原错误照旧抛出。
       let settled: { result: PatentSearchResult; attempts: number } | undefined

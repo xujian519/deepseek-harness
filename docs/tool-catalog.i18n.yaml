@@ -339,8 +339,8 @@
   en: d5b714d8bdd80c24
   zh: d5b714d8bdd80c24
 /tool-schema-catalog/deepseek-ai-dsh-document-deliver/document-deliver:
-  en: cea1fe1444b4c451
-  zh: 912bf9fbf4dff225
+  en: 9f9669d3d5e22906
+  zh: e396433e3c60f115
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools:
   en: 8eb7d5b8022ad7df
   zh: 8eb7d5b8022ad7df
@@ -396,8 +396,8 @@
   en: 91da802ef497201d
   zh: eee534b36b1d44cc
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/patent-legal-status:
-  en: 8ac6d7a0f83b8c5a
-  zh: d7af8c61f69798e0
+  en: 8b0d2e50332cc617
+  zh: 33fdbc3b16224553
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/patent-metadata:
   en: 7df2631f4dd0f100
   zh: 18dbcae74fc2350d
@@ -465,14 +465,14 @@
   en: ba0d1ad10812e2db
   zh: ba0d1ad10812e2db
 /tool-schema-catalog/deepseek-ai-dsh-patent-deadline/patent-deadlines:
-  en: 3e6d3cff43c37196
-  zh: 6499881ca2f6ae30
+  en: 64192fe47d603fb5
+  zh: 851c78d7ccfe9ef8
 /tool-schema-catalog/deepseek-ai-dsh-patent-fees:
   en: e97c71632d45c9e8
   zh: e97c71632d45c9e8
 /tool-schema-catalog/deepseek-ai-dsh-patent-fees/patent-fees:
-  en: 2512e708668bd0f2
-  zh: 062225a6d3f94ef6
+  en: d3893fa3465324c6
+  zh: 75fa858d12f7e0bf
 /tool-schema-catalog/deepseek-ai-dsh-patent-law:
   en: b645c1bf635769c1
   zh: b645c1bf635769c1
@@ -492,8 +492,8 @@
   en: 2ee6edf9744b8f65
   zh: dd4836d68c00cb54
 /tool-schema-catalog/deepseek-ai-dsh-doc-template/render-doc-template:
-  en: 738389cd31395947
-  zh: 26cc30bfe58535d2
+  en: 42b2f79f07be379e
+  zh: 79c0f3396dec9041
 /tool-schema-catalog/deepseek-ai-dsh-patent-teams:
   en: d70f7596ad4947b8
   zh: d70f7596ad4947b8

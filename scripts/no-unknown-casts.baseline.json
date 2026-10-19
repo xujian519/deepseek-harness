@@ -862,9 +862,6 @@
     "b389b0e1e7980c94c4b86fa1281f4eacb07905bdd938b159ef54cb4445441118": 1
   },
   "packages/client/ui-document-studio/tests/StudioView.client.spec.tsx": {
-    "326597b335539db945b2e3b7c86638d40849d2077c0a5670d064e45486f4e407": 3,
-    "59d7bf81028b3b340c794d11c264be14f169e1b4eb639a788ea4853251e0fe97": 1,
-    "cb67486cf588aacfb6a31f275614c17a3c5831f50d978b637234780a0312d026": 1,
     "e2c3d60c33dd58914b46dd36519c25180518529ea267b61db4f9ed69062e0ff3": 1
   },
   "packages/client/ui-goal/tests/browser-plugin.client.spec.tsx": {
@@ -1936,14 +1933,10 @@
     "d022f3c83ccd16c130388e4cfb5b50bddd40f3ebfe42ee6371a8a21c4cbaad8d": 1
   },
   "packages/patent/patent-tools/src/tool/claim-chart-build.ts": {
-    "6319edd6e18d145fac7db16ef5d66ee1ae113130dee5057407602b2b87ab8c55": 1,
     "6fe9024d30e0d4757a348b83d246925b3f5aeaf2e79a0eff4bf12f3c9fb5826b": 1,
     "7fa5bf2f25c773cd6bda56fee021a221e2c2980e21ad6c7b6c4937ef78c52dc4": 1,
     "b930e629c373b86a09b767d2f84f3dabe22b74ca22d4867735751460458df8b2": 1,
     "e3105130544f4d4a867fd41954908c917955bfa0a58c6992d3cd02e0c6e6e672": 1
-  },
-  "packages/patent/patent-tools/src/tool/draft-specification.ts": {
-    "5caa67998f2ce5307c656888310019f46c6daef0a9cd29aca11c531f6eec8bc2": 1
   },
   "packages/patent/patent-tools/src/tool/evaluate-evidence.ts": {
     "6fe9024d30e0d4757a348b83d246925b3f5aeaf2e79a0eff4bf12f3c9fb5826b": 1,

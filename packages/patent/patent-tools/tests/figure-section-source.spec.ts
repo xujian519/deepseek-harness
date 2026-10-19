@@ -8,7 +8,7 @@ import {
   expandSectionSource,
   type SectionSourcePorts,
 } from '../src/figure/section-source.ts'
-import { readSectionGeometry, type SectionGeometryPayload } from '../src/figure/freecad-section-geometry.ts'
+import { readSectionGeometry, SectionGeometryError, type SectionGeometryPayload } from '../src/figure/freecad-section-geometry.ts'
 import type { SectionGeometryOutcome, SectionGeometrySpec, SectionHatchOutcome, SectionHatchSpec } from '../src/figure/freecad-renderer.ts'
 import type { SectionFigureJson } from '../src/figure/vector-figure-build.ts'
 
@@ -150,6 +150,17 @@ describe('expandSectionSource 输入校验', () => {
     await expectFailure(sourceSections({ parts: [] }), ports, 'invalid_input', '至少一项')
   })
 
+  it('plane.reference 给出时透传到几何端口', async () => {
+    const { ports, geometrySpecs } = fakePorts()
+    await expand(sourceSections({
+      source: {
+        model_path: 'plate.step',
+        plane: { origin: [0, 0, 4], normal: [0, 0, 1], reference: [1, 0, 0] },
+      },
+    }), ports)
+    expect(geometrySpecs[0]?.plane.reference).toEqual([1, 0, 0])
+  })
+
   it('scale 非正、plane 分量不是三个有限数都报 invalid_input', async () => {
     const { ports } = fakePorts()
     await expectFailure(sourceSections(), ports, 'invalid_input', 'scale', 0)
@@ -278,6 +289,44 @@ describe('expandSectionSource 区域匹配', () => {
     await expectFailure(sourceSections({ parts: [{ anchor: [15, 0] }] }), ports, 'invalid_input', '不在任何材料区域内')
   })
 
+  it('anchor 同时落在两个区域、两个零件认领同一区域都报 invalid_input', async () => {
+    // 两个部分重叠的方块：两个外环的探针点都不在对方内，故各成一个材料区域。
+    const overlapping: SectionGeometryPayload = {
+      model: { path: modelPath, solids: 1, bound_box_mm: { min: [-10, -10, 0], max: [25, 25, 8] } },
+      plane: { origin: [0, 0, 4], normal: [0, 0, 1], right: [1, 0, 0], down: [0, 1, 0], distance: 4 },
+      rings: [
+        { points_mm: [[-10, -10], [10, -10], [10, 10], [-10, 10]], closed: true, area_mm2: 400 },
+        { points_mm: [[5, 25], [25, 25], [25, 5], [5, 5]], closed: true, area_mm2: 400 },
+      ],
+      slice_face_area_mm2: null,
+    }
+    const overlapPorts = fakePorts({ geometry: { ok: true, geometry: readSectionGeometry(overlapping) } }).ports
+    await expectFailure(
+      sourceSections({ parts: [{ anchor: [7, 7] }, { anchor: [-5, -5] }] }),
+      overlapPorts,
+      'invalid_input',
+      '同时落在区域',
+    )
+
+    // 两个分离的区域，但两个 anchor 都落在左件上：第二个 anchor 无区域可认领。
+    const separated: SectionGeometryPayload = {
+      model: { path: modelPath, solids: 1, bound_box_mm: { min: [-60, -10, 0], max: [60, 10, 8] } },
+      plane: { origin: [0, 0, 4], normal: [0, 0, 1], right: [1, 0, 0], down: [0, 1, 0], distance: 4 },
+      rings: [
+        { points_mm: [[-50, -5], [-30, -5], [-30, 5], [-50, 5]], closed: true, area_mm2: 200 },
+        { points_mm: [[30, -5], [50, -5], [50, 5], [30, 5]], closed: true, area_mm2: 200 },
+      ],
+      slice_face_area_mm2: null,
+    }
+    const separatedPorts = fakePorts({ geometry: { ok: true, geometry: readSectionGeometry(separated) } }).ports
+    await expectFailure(
+      sourceSections({ parts: [{ anchor: [-40, 0] }, { anchor: [-35, 0] }] }),
+      separatedPorts,
+      'invalid_input',
+      '同一个材料区域',
+    )
+  })
+
   it('展开：outline 是材料外环、holes 是孔环、剖面线段按 regionCounts 切分', async () => {
     const segments = [
       { from: [-30, -10] as const, to: [30, -10] as const },
@@ -403,6 +452,25 @@ describe('expandSectionSource 失败映射与提示', () => {
       'aborted',
       '取消',
     )
+  })
+
+  it('几何端口抛 SectionGeometryError 时翻成 invalid_input 并保留原文', async () => {
+    const failure = await expandError(sourceSections(), {
+      sectionGeometry: async () => { throw new SectionGeometryError('invalid_payload', '轮廓环未闭合') },
+      sectionHatch: vi.fn(),
+    })
+    expect(failure.code).toBe('invalid_input')
+    expect(failure.message).toBe('轮廓环未闭合')
+  })
+
+  it('剖面线端口抛出的非本模块错误同样原样冒泡', async () => {
+    const { ports } = fakePorts()
+    const failure = await expand(sourceSections(), {
+      ...ports,
+      sectionHatch: async () => { throw new Error('剖面线端口炸了') },
+    }).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as Error).message).toBe('剖面线端口炸了')
   })
 
   it('剖面线端口的两类失败各按码抛出', async () => {

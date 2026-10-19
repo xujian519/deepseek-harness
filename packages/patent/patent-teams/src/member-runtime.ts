@@ -22,7 +22,7 @@ import {
   waitForMemberIdle,
   type MemberRuntimeConfig,
 } from './members.ts'
-import type { TeamScheduler } from './scheduler.ts'
+import { kickAfterPersist, type TeamScheduler } from './scheduler.ts'
 import { CAPTAIN_KEY, invalidateTaskAttempt, recordRetiredMemberIds, writeTeam } from './state.ts'
 import { captainTeam, freshCaptainTeam, requireAddableMember, requireMember } from './team-access.ts'
 import type { TeamActivity } from './team-activity.ts'
@@ -212,7 +212,8 @@ export async function addMember(
     throw error
   }
   host.scheduler.trackMember(member.id, team.id, member.name)
-  await host.scheduler.kickMember(workspace, team.id, created.member_name, agent, signal)
+  await kickAfterPersist(host.ctx, `dispatch after adding member ${created.member_name}`, () =>
+    host.scheduler.kickMember(workspace, team.id, created.member_name, agent, signal))
   return created
 }
 
@@ -259,7 +260,8 @@ export async function removeMember(
     interruptMember(host.ctx, agent, revoked.member.id)
     await waitForMemberIdle(host.ctx, revoked.member, signal)
   }
-  await host.scheduler.kickTeam(workspace, team.id, agent, signal)
+  await kickAfterPersist(host.ctx, `dispatch after removing member ${revoked.member.name}`, () =>
+    host.scheduler.kickTeam(workspace, team.id, agent, signal))
   return {
     member_name: revoked.member.name,
     status: revoked.member.status,

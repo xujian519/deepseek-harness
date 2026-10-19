@@ -10,9 +10,14 @@ import {
   findFreeCadCmd,
   freecadInstallMessage,
   probeFreeCad,
+  renderSectionGeometry,
+  renderSectionHatch,
   renderStructureViews,
+  type SectionHatchSpec,
   type StructureRenderSpec,
 } from '../src/figure/freecad-renderer.ts'
+import { HATCH_GEOMETRY_FILENAME } from '../src/figure/freecad-hatch-script.ts'
+import { SECTION_GEOMETRY_FILENAME } from '../src/figure/freecad-section-script.ts'
 
 /** 用例显式声明的渲染预算（毫秒）；生产由宿主 Config.freecadRenderTimeoutMs 解析后注入。 */
 const TEST_RENDER_TIMEOUT_MS = DEFAULT_FREECAD_RENDER_TIMEOUT_MS
@@ -407,6 +412,271 @@ describe('renderStructureViews', () => {
       const result = await pending
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('渲染超时')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('脚本准备失败（输出目录被同名文件占用）时报 render_failed', async () => {
+    const { exe } = fakeFreecad()
+    const base = tempDir()
+    const outputDir = join(base, 'blocked')
+    try {
+      writeFileSync(outputDir, 'not a directory')
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('准备 FreeCAD 脚本失败')
+    } finally {
+      rmSync(base, { recursive: true, force: true })
+    }
+  })
+
+  it('调用方取消且子进程非零退出时分类为 aborted', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const caller = new AbortController()
+      const { runtime } = fakeSubprocess(() => {
+        caller.abort()
+        return handleWith({ exitCode: 1, signal: null }, 'boom')
+      })
+      const result = await renderStructureViews(
+        runtime,
+        spec({ outputDir, signal: caller.signal }),
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'aborted' })
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+})
+
+/** 正方形材料区域（视图帧毫米）。 */
+const SECTION_REGION: readonly (readonly [number, number])[] = [[0, 0], [10, 0], [10, 10], [0, 10]]
+
+/** 一次合法的剖切请求参数。 */
+function sectionPlane(): { origin: [number, number, number]; normal: [number, number, number] } {
+  return { origin: [0, 0, 0], normal: [0, 0, 1] }
+}
+
+describe('renderSectionGeometry', () => {
+  it('未安装时返回 not_installed', async () => {
+    const dir = tempDir()
+    try {
+      process.env.PATH = dir
+      const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderSectionGeometry(
+        runtime,
+        { modelPath: '/abs/model.step', plane: sectionPlane(), outputDir: dir },
+        { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'not_installed' })
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('剖切平面非法时报 geometry_failed，不启动子进程', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderSectionGeometry(
+        runtime,
+        {
+          modelPath: '/abs/model.step',
+          plane: { origin: [0, 0, 0], normal: [0, 0, 1], reference: [0, 0, 2] },
+          outputDir,
+        },
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'geometry_failed' })
+      expect((result as { error: string }).error).toContain('平行')
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('调用方取消且子进程非零退出时分类为 aborted', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const caller = new AbortController()
+      const { runtime } = fakeSubprocess(() => {
+        caller.abort()
+        return handleWith({ exitCode: 1, signal: null }, 'boom')
+      })
+      const result = await renderSectionGeometry(
+        runtime,
+        { modelPath: '/abs/model.step', plane: sectionPlane(), outputDir, signal: caller.signal },
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'aborted' })
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('产物不是合法 JSON 时报 geometry_failed 并带上产物路径', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime } = fakeSubprocess((spawnSpec) => {
+        writeFileSync(join(spawnSpec.cwd, SECTION_GEOMETRY_FILENAME), 'not json')
+        return handleWith({ exitCode: 0, signal: null })
+      })
+      const signal = new AbortController().signal
+      const result = await renderSectionGeometry(
+        runtime,
+        { modelPath: '/abs/model.step', plane: sectionPlane(), outputDir, signal },
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'geometry_failed' })
+      expect((result as { error: string }).error).toContain('剖切几何产物不可用')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('产物结构非法时报 SectionGeometryError 的原文', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime } = fakeSubprocess((spawnSpec) => {
+        writeFileSync(join(spawnSpec.cwd, SECTION_GEOMETRY_FILENAME), '{"rings":[]}')
+        return handleWith({ exitCode: 0, signal: null })
+      })
+      const result = await renderSectionGeometry(
+        runtime,
+        { modelPath: '/abs/model.step', plane: sectionPlane(), outputDir },
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'geometry_failed' })
+      expect((result as { error: string }).error).toContain('剖切产物不含任何轮廓环')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('子进程非零退出且未取消时归入 geometry_failed', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 1, signal: null }, 'boom'))
+      const result = await renderSectionGeometry(
+        runtime,
+        { modelPath: '/abs/model.step', plane: sectionPlane(), outputDir },
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'geometry_failed' })
+      expect((result as { error: string }).error).toContain('FreeCAD 剖切几何失败')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('renderSectionHatch', () => {
+  function hatchSpec(outputDir: string, overrides: Partial<SectionHatchSpec> = {}): SectionHatchSpec {
+    return { regions: [{ outline: SECTION_REGION }], angleDeg: 45, spacingMm: 3, outputDir, ...overrides }
+  }
+
+  it('未安装时返回 not_installed', async () => {
+    const dir = tempDir()
+    try {
+      process.env.PATH = dir
+      const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderSectionHatch(runtime, hatchSpec(dir), { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'not_installed' })
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('剖面线参数非法时报 hatch_failed，不启动子进程', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderSectionHatch(runtime, hatchSpec(outputDir, { angleDeg: 0 }), {
+        executable: exe,
+        renderTimeoutMs: TEST_RENDER_TIMEOUT_MS,
+      })
+      expect(result).toMatchObject({ ok: false, code: 'hatch_failed' })
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('调用方取消且子进程非零退出时分类为 aborted', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const caller = new AbortController()
+      const { runtime } = fakeSubprocess(() => {
+        caller.abort()
+        return handleWith({ exitCode: 1, signal: null }, 'boom')
+      })
+      const result = await renderSectionHatch(runtime, hatchSpec(outputDir, { signal: caller.signal }), {
+        executable: exe,
+        renderTimeoutMs: TEST_RENDER_TIMEOUT_MS,
+      })
+      expect(result).toMatchObject({ ok: false, code: 'aborted' })
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('产物不是合法 JSON 时报 hatch_failed 并带上产物路径', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime } = fakeSubprocess((spawnSpec) => {
+        writeFileSync(join(spawnSpec.cwd, HATCH_GEOMETRY_FILENAME), 'not json')
+        return handleWith({ exitCode: 0, signal: null })
+      })
+      const result = await renderSectionHatch(runtime, hatchSpec(outputDir), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'hatch_failed' })
+      expect((result as { error: string }).error).toContain('剖面线产物不可用')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('产物结构非法时报 HatchGeometryError 的原文', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime } = fakeSubprocess((spawnSpec) => {
+        writeFileSync(join(spawnSpec.cwd, HATCH_GEOMETRY_FILENAME), '{"regions":[]}')
+        return handleWith({ exitCode: 0, signal: null })
+      })
+      const result = await renderSectionHatch(runtime, hatchSpec(outputDir), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+      expect(result).toMatchObject({ ok: false, code: 'hatch_failed' })
+      expect((result as { error: string }).error).toContain('与请求的 1 个不符')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('显式 direction 透传，子进程非零退出且未取消时归入 hatch_failed', async () => {
+    const { exe } = fakeFreecad()
+    const outputDir = tempDir()
+    try {
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 1, signal: null }, 'boom'))
+      const result = await renderSectionHatch(
+        runtime,
+        hatchSpec(outputDir, { direction: 'backward' }),
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
+      expect(result).toMatchObject({ ok: false, code: 'hatch_failed' })
+      expect((result as { error: string }).error).toContain('FreeCAD 剖面线失败')
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
     }

@@ -344,6 +344,29 @@ describe('render helpers', () => {
     const value: SearchPatentFigureOutput = { query: 'x', total: 0, indexedCount: 0, method: 'keyword', results: [] }
     expect(renderSearchFigure(value)).toContain('0 张附图命中')
   })
+
+  it('renders per-result analysis warnings', () => {
+    const value: SearchPatentFigureOutput = {
+      query: '壳体',
+      total: 1,
+      indexedCount: 1,
+      method: 'keyword',
+      results: [{
+        figureNumber: 1,
+        figureType: 'structure',
+        imagePath: 'a.png',
+        score: 1,
+        usable: true,
+        overallDescription: '整体结构',
+        figureDescription: '图1是装置的结构示意图。',
+        components: [],
+        warnings: ['附图标记步进不一致：1、3、5'],
+      }],
+    }
+    const text = renderSearchFigure(value)
+    expect(text).toContain('**警告**')
+    expect(text).toContain('附图标记步进不一致：1、3、5')
+  })
 })
 
 describe('retrieveFiguresKeyword', () => {

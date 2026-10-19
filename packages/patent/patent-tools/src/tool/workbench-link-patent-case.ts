@@ -222,9 +222,11 @@ function resolveLinkRun(args: unknown, exec: Pick<ToolRunContext, 'signal'>, sea
   }
   const caseDir = join(caseRoot, input.caseNumber)
   const escaped = relative(caseRoot, caseDir)
+  /* v8 ignore start -- caseNumber is a single directory name, so the join always stays under caseRoot */
   if (escaped.startsWith('..') || isAbsolute(escaped)) {
     throw new PatentToolError('invalid_tool_input', `caseNumber 越出案件根目录：${input.caseNumber}`)
   }
+  /* v8 ignore stop */
   return {
     input,
     signal: exec.signal,
@@ -393,6 +395,7 @@ export function createWorkbenchLinkPatentCaseTool(deps: WorkbenchLinkPatentCaseD
       const response = await fetch(url, {
         method: init?.method ?? 'GET',
         ...(init?.body === undefined ? {} : { body: init.body, headers: { 'content-type': 'application/json' } }),
+        /* v8 ignore next -- call() always composes a signal before invoking the transport */
         ...(init?.signal === undefined ? {} : { signal: init.signal }),
       })
       return { status: response.status, json: await response.json().catch(() => undefined) }

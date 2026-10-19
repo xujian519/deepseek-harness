@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-fees-surcharge-scope-and-zero-quantity/guide.md
+/:
+  en: 174f0d649efd4524
+  zh: 882006b34ef8100c
+/fee-surcharges-follow-the-patent-type-and-zero-units:
+  en: 3b036b1759e44f0d
+  zh: 78d3d6318b919970
+/fee-surcharges-follow-the-patent-type-and-zero-units/change:
+  en: 61241bbeef085134
+  zh: dc36cd7edb432a2e
+/fee-surcharges-follow-the-patent-type-and-zero-units/migration:
+  en: 772fc6e800b19207
+  zh: 2553c95dd647c2ae

@@ -90,6 +90,35 @@ describe('SpecCheckHandler', () => {
     expect(out.spec_check_passed).toBe(true)
   })
 
+  it('reads claim units, coverage entries and tech domain through their configured keys', async () => {
+    const out = await run({
+      mode: 'claims',
+      text: VALID_SPEC,
+      claims: '1. 一种检测装置。\n2. 一种通信方法。',
+      tech_domain: 'mechanical',
+      claim_units_key: 'units',
+      coverage_entries_key: 'coverage',
+      units: [
+        { number: 1, kind: 'independent', preamble: '一种检测装置', characterized: '包括壳体与弹簧' },
+        { number: 2, kind: 'independent', preamble: '一种通信方法', characterized: '发送数据包' },
+      ],
+      coverage: [{ claim_id: 'claim_1', features: ['壳体'], embodiment_refs: ['壳体'] }],
+    })
+    const violations = out.spec_check_violations as SpecViolation[]
+    expect(violations.find(v => v.rule === 'claim_unity')).toBeDefined()
+    expect(violations.find(v => v.rule === 'claim_embodiment_coverage')).toBeUndefined()
+  })
+
+  it('reads coverage entries from the default key', async () => {
+    const out = await run({
+      mode: 'claims',
+      text: VALID_SPEC,
+      claims: '1. 一种检测装置，其特征在于，包括所述壳体。',
+      coverage_entries: [{ claim_id: 'claim_1', features: ['壳体'], embodiment_refs: ['壳体'] }],
+    })
+    expect(out.spec_check_passed).toBe(true)
+  })
+
   it('fails loud as degraded when the specification text is missing', async () => {
     const out = await run({ mode: 'spec' })
     expect(String(out._error)).toContain('[spec-check]')

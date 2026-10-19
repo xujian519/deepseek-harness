@@ -42,6 +42,11 @@ export type RunStageOnceOptions = {
   ctx: WorkflowContext
   /** 调用方取消信号；透传给 handler（LLM 端口流）。 */
   signal?: AbortSignal
+  /**
+   * 并行组内不写 atom 的共享主输出键：同 atom 的多个阶段会互相覆盖，结果取决于完成
+   * 顺序；并行时只写 `state[stage.id]`，主键留给串行阶段。
+   */
+  isolateMainKey?: boolean
 }
 
 /**
@@ -88,6 +93,12 @@ export async function runStageOnce(
         const delta: PipelineState = { ...segment }
         Reflect.deleteProperty(delta, DEGRADED_ERROR_KEY)
         Reflect.deleteProperty(delta, DEGRADED_RETRYABLE_KEY)
+        // 主输出键 = atom.outputSchema[0]（对齐 Mady 约定，文本/JSON 均可）；兜底按 stage.id 引用。
+        const mainKey = stage.atom !== undefined ? options.atoms.lookup(stage.atom)?.outputSchema[0] : undefined
+        const raw = mainKey !== undefined ? delta[mainKey] : undefined
+        if (options.isolateMainKey === true && mainKey !== undefined) {
+          Reflect.deleteProperty(delta, mainKey)
+        }
         Object.assign(state, delta)
         if (typeof diagnostic === 'string' && diagnostic.trim().length > 0) {
           const message = diagnostic.trim()
@@ -100,9 +111,6 @@ export async function runStageOnce(
           state[stage.id] = output
           return { output, retries: attempt }
         }
-        // 主输出键 = atom.outputSchema[0]（对齐 Mady 约定，文本/JSON 均可）；兜底按 stage.id 引用。
-        const mainKey = stage.atom !== undefined ? options.atoms.lookup(stage.atom)?.outputSchema[0] : undefined
-        const raw = mainKey !== undefined ? delta[mainKey] : undefined
         output = typeof raw === 'string' ? raw : raw === undefined ? '' : JSON.stringify(raw, null, 2)
         if (output.trim().length === 0) {
           const fallback = state[stage.id]

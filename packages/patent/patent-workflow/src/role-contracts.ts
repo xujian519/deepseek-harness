@@ -228,6 +228,7 @@ export function workerDeliverables(role: string): string {
  *   workers declare no tools.
  */
 export function workerTools(role: string): string {
+  /* v8 ignore next -- every registered worker declares allowedTools; the field is optional only for external contracts */
   return [...new Set(roleWorkers(role).flatMap(worker => worker.allowedTools ?? []))].join('、')
 }
 

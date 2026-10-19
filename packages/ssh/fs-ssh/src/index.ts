@@ -2,7 +2,7 @@
 import { posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { FileSystem, FsError } from '@deepseek-ai/dsh-fs'
-import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsErrorCode, FsInfo, FsPathInfo, FsTarget, FsVersion, FsWriteIntent, FsWriteOutcome } from '@deepseek-ai/dsh-fs'
+import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsErrorCode, FsInfo, FsPathInfo, FsTarget, FsTextWriteOutcome, FsVersion, FsWriteIntent, FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-ssh'
@@ -82,9 +82,24 @@ export class SshFileSystem extends FileSystem {
 
   override async writeText(
     target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy,
-  ): Promise<FsWriteOutcome> {
+  ): Promise<FsTextWriteOutcome> {
     const policy = sandboxPolicy ?? this.ctx.sandboxPolicy.resolve()
-    return await this.call('fs.write', { target, content, expected, policy }, writeResultSchema, signal) as FsWriteOutcome
+    return await this.call('fs.write', { target, content, expected, policy }, writeResultSchema, signal) as FsTextWriteOutcome
+  }
+
+  override writeBytes(
+    _target: FsTarget, _bytes: Uint8Array, _expected?: FsWriteIntent, _signal?: AbortSignal,
+  ): Promise<FsWriteOutcome> {
+    // TODO(fs-write-bytes): the private helper protocol has no byte-write
+    // operation yet. Adding one needs `fs.writeBytes` in
+    // packages/ssh/ssh/src/helper.ts (base64 or chunked payload), a response
+    // schema in schemas.ts, and an SSH_PROTOCOL_VERSION decision for already
+    // installed helpers. The client-side call is already in place; nothing here
+    // can write bytes until the remote operation exists.
+    return Promise.reject(new FsError(
+      'binary writes are not supported by the SSH filesystem provider yet; write the bytes on the remote host or render a text format',
+      'FS_IO_ERROR',
+    ))
   }
 
   override async editText(

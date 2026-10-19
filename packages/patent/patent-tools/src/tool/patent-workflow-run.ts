@@ -481,6 +481,7 @@ async function runManifest(
     stages: result.stages as unknown as JsonValue[],
     degradedSteps: result.degradedSteps,
     persistNote,
+    /* v8 ignore next -- the run always records its non-empty input as a MATERIAL receipt */
     ...(result.evidenceLedger !== undefined ? { evidenceLedger: result.evidenceLedger } : {}),
     ...(interruptNote !== undefined ? { interruptNote } : {}),
     /* v8 ignore next -- the built-in run stores surface no persist warning in this build. */
@@ -544,6 +545,7 @@ function startBackgroundManifestRun(
         } catch (error: unknown) {
           return {
             status: controller.signal.aborted ? 'killed' : 'failed',
+            /* v8 ignore next -- a failed run surfaces Error values; stage failures are degraded rather than thrown */
             detail: error instanceof Error ? error.message : String(error),
           }
         }

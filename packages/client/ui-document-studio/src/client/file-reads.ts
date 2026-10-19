@@ -111,6 +111,24 @@ export function decodeByteWindow(window: WorkspaceFileBytes): ReadFileText {
 }
 
 /**
+ * A produced-file read the studio must report.
+ *
+ * The `code` is the Host's wire code when the read failed there, so the view
+ * localizes by code and keeps the raw message for the detail it cannot name;
+ * `undefined` marks a client-side decode failure (the bytes are not UTF-8).
+ */
+export class WorkspaceReadError extends Error {
+  /**
+   * @param message - the Host's message, or the client's decode note.
+   * @param code - the Host wire code when the failure came from a failed read.
+   */
+  constructor(message: string, readonly code: string | undefined) {
+    super(message)
+    this.name = 'WorkspaceReadError'
+  }
+}
+
+/**
  * Bind the produced-file reads to one Client Remote face.
  * @param remote - the Client Remote carrying the `workspaceFiles` namespace.
  * @param sessionId - the Session whose workspace resolves every path.
@@ -127,14 +145,14 @@ export function createFileReads(
       return decodeByteWindow(window)
     } catch {
       // A raw byte window's one decode failure is undecodable text; the view
-      // renders this message verbatim.
-      throw new Error(`not valid UTF-8: ${path}`)
+      // localizes the code and keeps this note as its detail.
+      throw new WorkspaceReadError(`not valid UTF-8: ${path}`, undefined)
     }
   }
   return {
     readFileText: async (path: string): Promise<ReadFileText> => {
       const result = await remote.readBytes(sessionId, resolve(path), { range: {} })
-      if (!result.ok) throw new Error(result.error.message)
+      if (!result.ok) throw new WorkspaceReadError(result.error.message, result.error.code)
       return decode(path, result.value)
     },
     readFileTextComplete: async (path: string): Promise<CompleteReadText> => {
@@ -147,7 +165,7 @@ export function createFileReads(
       if (result.error.code === 'workspace-file/too-large') {
         return { truncated: true, limitBytes: result.error.details.limit }
       }
-      throw new Error(result.error.message)
+      throw new WorkspaceReadError(result.error.message, result.error.code)
     },
   }
 }

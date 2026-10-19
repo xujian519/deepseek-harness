@@ -1,11 +1,15 @@
 /**
  * Deterministic document checks: residual placeholders and their fenced
  * exemption, same-document anchors, empty sections, style forbidden words, and
- * the declared character budget.
+ * the declared character budget — plus the cross-package property that every
+ * placeholder the gate blocks is one the template engine can fill by name.
  */
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 import type { AntiPattern, DocumentStyle, StyleSections } from '@deepseek-ai/dsh-doc-style'
-import { extractPlaceholders } from '@deepseek-ai/dsh-doc-template'
+import { extractPlaceholders, substitutePlaceholders, templatesDirectory } from '@deepseek-ai/dsh-doc-template'
 import { checkDocumentText, DOCUMENT_CHECK_IDS } from '../src/checks.ts'
 
 /** A style whose sections default to empty, so a test declares only what it exercises. */
@@ -114,12 +118,32 @@ describe('checkDocumentText', () => {
     expect(checkDocumentText('# 报告\n\n正文。\n\n```\n[x](#x)\n```\n')).toEqual([])
   })
 
+  it('accepts the fragment a renderer answers at the document top', () => {
+    expect(checkDocumentText('# 报告\n\n正文。\n\n<a href="#top">回到顶部</a>\n')).toEqual([])
+    // 反向：白名单只给渲染器惯例锚点，其它未声明的片段照样提示。
+    expect(checkDocumentText('# 报告\n\n正文。\n\n<a href="#bottom">到底部</a>\n')).toEqual([
+      { check: 'broken_anchor', level: 'warn', detail: '第 5 行链接到本文档未声明的锚点 "#bottom"', line: 5 },
+    ])
+  })
+
   it('warns about a heading whose section holds nothing', () => {
     expect(checkDocumentText('# 报告\n\n正文。\n\n## 待办\n\n## 结论\n\n完成。\n')).toEqual([
       { check: 'empty_section', level: 'warn', detail: '第 5 行的标题 "待办" 下没有任何内容', line: 5 },
     ])
     expect(checkDocumentText('<h1>报告</h1>\n<p>正文。</p>\n<h2>空节</h2>\n<h2>结论</h2>\n<p>完成。</p>\n')).toEqual([
       { check: 'empty_section', level: 'warn', detail: '第 3 行的标题 "空节" 下没有任何内容', line: 3 },
+    ])
+  })
+
+  it('does not call an H1 empty when its first subheading is deeper', () => {
+    // 干净文档的写法：H1 是文档标题，正文落在紧随其后的子标题下。
+    expect(checkDocumentText('# 季度报告\n\n## 结论\n\n本季度交付 12 份文档。\n')).toEqual([])
+    // 反向：H1 之后没有任何标题（或同级标题）时仍判空，例外只覆盖"子标题紧随"的写法。
+    expect(checkDocumentText('# 只有标题\n')).toEqual([
+      { check: 'empty_section', level: 'warn', detail: '第 1 行的标题 "只有标题" 下没有任何内容', line: 1 },
+    ])
+    expect(checkDocumentText('# 一\n\n# 二\n\n正文。\n')).toEqual([
+      { check: 'empty_section', level: 'warn', detail: '第 1 行的标题 "一" 下没有任何内容', line: 1 },
     ])
   })
 
@@ -161,6 +185,20 @@ describe('checkDocumentText', () => {
     ])
   })
 
+  it('only reports a forbidden word the document quotes instead of using', () => {
+    // 复述禁用词的写作规范，把词放进行内代码或围栏里——那是它在谈论这个词。
+    expect(checkDocumentText('# 报告\n\n正文。\n\n复述规则：`绝对` 是要避开的词。\n', { style: FORBIDDEN })).toEqual([
+      { check: 'anti_pattern', level: 'warn', detail: '第 5 行引用文本中出现样式禁用词 "绝对"（不影响判定）', line: 5 },
+    ])
+    expect(checkDocumentText('# 报告\n\n正文。\n\n```\n绝对\n```\n', { style: FORBIDDEN })).toEqual([
+      { check: 'anti_pattern', level: 'warn', detail: '第 6 行引用文本中出现样式禁用词 "绝对"（不影响判定）', line: 6 },
+    ])
+    // 反向：正文里的 block 级词仍然拒绝登记，引用豁免不是绕过检查的通道。
+    expect(checkDocumentText('# 报告\n\n正文。\n\n绝对可行。\n', { style: FORBIDDEN })).toEqual([
+      { check: 'anti_pattern', level: 'block', detail: '第 5 行出现样式禁用词 "绝对"，建议改用 "通常"', line: 5 },
+    ])
+  })
+
   it('orders findings by line across the syntaxes and the anti-pattern list', () => {
     // The Markdown pass runs before the HTML one, so only the sort can put the
     // earlier line first.
@@ -181,6 +219,47 @@ describe('checkDocumentText', () => {
     expect(checkDocumentText(text, { charBudget: 80 })).toEqual([
       { check: 'length_budget', level: 'warn', detail: '全文 103 字，超出声明的 80 字预算（允许 64–96 字）' },
     ])
+  })
+
+  it('measures an HTML document body text, not its markup', () => {
+    // 每段正文 19 个非空白字符；标签、注释、内联 CSS/JS 都不算正文。
+    const body = '<p>本季度交付 12 份文档，来源：内部台账。</p>'
+    const html = [
+      '<!doctype html>',
+      '<html lang="zh-CN"><head><meta charset="utf-8"><title></title>',
+      '<style>body{font-family:sans-serif;color:#222}@media print{body{margin:0}}</style>',
+      '<script>window.addEventListener("load",function(){console.log("ready")})</script>',
+      '</head><body>',
+      '<!-- 打印时隐藏 -->',
+      body.repeat(5),
+      '</body></html>',
+    ].join('\n')
+    // 正文 19 × 5 = 95 字，落在 100 字预算的 20% 容差内。
+    expect(checkDocumentText(html, { charBudget: 100, format: 'html' })).toEqual([])
+    // 同一份文件声明 10 字预算仍然报，且报的是正文的 95 字。
+    expect(checkDocumentText(html, { charBudget: 10, format: 'html' })).toEqual([
+      { check: 'length_budget', level: 'warn', detail: '全文 95 字，超出声明的 10 字预算（允许 8–12 字）' },
+    ])
+    // 反向：不声明 html 口径就按交付字节量，标签与内联 CSS/JS 一起算，误报超预算。
+    expect(checkDocumentText(html, { charBudget: 100 }).map(finding => finding.check)).toEqual(['length_budget'])
+  })
+
+  it('reads HTML the way a renderer takes it, for the budget measure', () => {
+    /** 用一次低于预算的提示读出正文口径实际量到的字数。 */
+    const measured = (html: string): number => {
+      const detail = checkDocumentText(html, { charBudget: 100, format: 'html' })[0]?.detail ?? ''
+      return Number(/全文 (\d+) 字/u.exec(detail)?.[1])
+    }
+    expect(measured('正文')).toBe(2)
+    expect(measured('a < 1')).toBe(3)                                  // 未开元素的 < 是正文
+    expect(measured('正文<p')).toBe(4)                                 // 未闭合的标签把后面的文本当标签
+    expect(measured('正文<!-- 未闭合')).toBe(2)                         // 未闭合的注释吞到文末
+    expect(measured('正文<!doctype')).toBe(2)                           // 未闭合的声明也是标记
+    expect(measured('正文</style>尾')).toBe(3)                          // 孤立的闭合标签不吞内容
+    expect(measured('<p>x</p><script>var a=1')).toBe(1)                // 未闭合的 script 吞到文末
+    expect(measured('<p>A&amp;B</p>')).toBe(3)                         // 命名字符引用
+    expect(measured('<p>&#65;&#x42;</p>')).toBe(2)                     // 十进制与十六进制字符引用
+    expect(measured('<p>&#0;&bogus;</p>')).toBe(11)                    // 越界码点与未知名按原样计
   })
 
   it('caps each check independently', () => {
@@ -229,6 +308,33 @@ describe('checkDocumentText', () => {
     for (const text of cases) {
       expect(extractPlaceholders(text)).toEqual([])
       expect(checkDocumentText(text).filter(f => f.check === 'placeholder')).toEqual([])
+    }
+  })
+
+  it('the gate blocks exactly the brace forms the fill side can name (cross-package)', () => {
+    // 门禁判 block 的集合必须是"填得掉"的子集，否则调用方过不了门禁也无从修改。
+    const text = '{{client_name}} 与 {{客户名称}}、{{ case_id }}、{{a b}}'
+    const names = extractPlaceholders(text)
+    expect(names).toEqual(['client_name', '客户名称', 'case_id', 'a b'])
+    expect(checkDocumentText(text).filter(finding => finding.level === 'block')).toHaveLength(4)
+    const filled = substitutePlaceholders(text, Object.fromEntries(names.map(name => [name, '已填'])))
+    expect(checkDocumentText(filled).filter(finding => finding.check === 'placeholder' && finding.level === 'block')).toEqual([])
+  })
+
+  it('every placeholder the gate blocks is one a variable removes (cross-package)', () => {
+    // 门禁判 block 的串必须落在"可用变量修复"的集合里，否则调用方既过不了门禁、也无从修。
+    const root = templatesDirectory()
+    const files = readdirSync(root, { recursive: true, withFileTypes: true })
+      .filter(entry => entry.isFile() && entry.name.endsWith('.md'))
+    expect(files.length).toBeGreaterThan(0)
+    for (const entry of files) {
+      const path = join(entry.parentPath, entry.name)
+      const body = readFileSync(path, 'utf8')
+      const blocked = checkDocumentText(body).filter(finding => finding.check === 'placeholder' && finding.level === 'block')
+      expect(blocked.length, path).toBeGreaterThan(0)
+      const names = extractPlaceholders(body)
+      const filled = substitutePlaceholders(body, Object.fromEntries(names.map(name => [name, '已填'])))
+      expect(checkDocumentText(filled).filter(finding => finding.check === 'placeholder' && finding.level === 'block'), path).toEqual([])
     }
   })
 })

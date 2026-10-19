@@ -7,6 +7,7 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** Patent technical domain (mechanical / electrical / chemical / software / general). */
 export type TechDomain = 'mechanical' | 'electrical' | 'chemical' | 'software' | 'general'
@@ -99,9 +100,7 @@ export function renderDraftClaims(value: DraftClaimsOutput): string {
   if (value.violations.length > 0) {
     lines.push('', '## 形式校验违规', ...value.violations.map(v => `- [${v.severity}] ${v.rule}${v.claimNumber !== undefined ? `（权${v.claimNumber}）` : ''}: ${v.message}${v.suggestion ? ` → ${v.suggestion}` : ''}`))
   }
-  if (value.warnings.length > 0) {
-    lines.push('', '## 警告', ...value.warnings.map(w => `- ${w}`))
-  }
+  lines.push(...warningSection(value.warnings))
   return lines.join('\n')
 }
 
@@ -256,7 +255,7 @@ export function createDraftClaimsTool(): ToolDefinition {
           tech_domain: { type: 'string', required: true, enum: ['mechanical', 'electrical', 'chemical', 'software', 'general'] },
           claims: { type: 'array', required: true, items: CLAIM_SCHEMA },
           violations: { type: 'array', required: true, items: VIOLATION_SCHEMA },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderDraftClaims(value) }],

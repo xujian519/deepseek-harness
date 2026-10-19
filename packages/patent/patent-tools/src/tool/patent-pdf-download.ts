@@ -15,10 +15,10 @@
 
 import { appendFile, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { datedOutputDir, inspectPdfBody, isHtmlContentType, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
+import { inspectPdfBody, isHtmlContentType, resolveDatedOutputDir, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
 import {
   networkFetch,
   NetworkFetchError,
@@ -26,6 +26,7 @@ import {
   type NetworkRetryOptions,
 } from '@deepseek-ai/dsh-tool-literature'
 import { PatentToolError } from '../error.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 const MAX_PATENTS = 50
 /**
@@ -198,8 +199,7 @@ function pdfBodyFaultMessage(fault: PdfBodyFault): string {
 
 /** 默认输出目录解析：显式 outputDir 相对 cwd，否则 <cwd>/专利原文/YYYY-MM-DD。 */
 function defaultResolveOutputDir(outputDir: string | undefined, cwd: string): string {
-  if (outputDir) return resolve(cwd, outputDir)
-  return datedOutputDir(cwd, '专利原文')
+  return resolveDatedOutputDir(outputDir, cwd, '专利原文')
 }
 
 /** 校验 + 归一化 + 去重专利号（含目录穿越拒绝）。 */
@@ -425,9 +425,7 @@ function renderPdfDownload(value: PatentPdfDownloadOutput): string {
       lines.push(`- ${r.patent}: ${r.path ?? 'ok'}${method}${channelNote}`)
     }
   }
-  const warningLines = value.warnings.length > 0
-    ? ['', '## 通道告警', ...value.warnings.map(w => `- ${w}`)]
-    : []
+  const warningLines = warningSection(value.warnings, '通道告警')
   return [...lines, ...warningLines].join('\n')
 }
 
@@ -494,7 +492,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
           },
           outputDir: { type: 'string', required: true },
           recorded: { type: 'string' },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderPdfDownload(value) }],

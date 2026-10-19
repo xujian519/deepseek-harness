@@ -14,6 +14,7 @@ English | [中文](README.zh.md)
 ## Table of Contents
 
 - [Style assets](#style-assets)
+- [Placeholder vocabulary](#placeholder-vocabulary)
 - [Projections](#projections)
 - [Loading](#loading)
 - [Model Experience](#model-experience)
@@ -36,6 +37,13 @@ Four styles ship under `assets/styles/`, transcribed from the upstream project: 
 | `output_conventions` | Whether to attach confidence labels and to de-emphasize low-confidence content. |
 
 An asset is a file boundary, so every declared value is validated when the style loads: a formality outside `casual`/`professional`/`academic`, a severity outside `block`/`warn`, a citation style outside `inline`/`footnote`/`endnote`, a blank disclaimer, or a non-boolean convention fails the load. A section the asset omits keeps its empty value.
+
+<a id="placeholder-vocabulary"></a>
+## Placeholder vocabulary
+
+The document pipeline rejects and fills one shared vocabulary of placeholders rather than one per consumer. `placeholderBracePattern()` is the fillable form: any non-empty, at-most-80-character run between `{{` and `}}` holding no brace and no newline, so `{{client_name}}`, `{{客户名称}}`, and the padded `{{ case_id }}` are all placeholders — a consumer trims the name before matching a variable, which is what makes every brace form the quality gate blocks one a caller can fill. `residualPlaceholderPatterns()` adds the markers no variable fills: the bracketed `[TBD]`/`[TODO]`/`[REPLACE]`/`[PLACEHOLDER]`/`[XXX]`, `Lorem ipsum`, and `待补充`/`待填写`/`此处填写`, read from the `PLACEHOLDER_MARKERS` table so documentation and skill text enumerate the same list the gate enforces.
+
+Every call returns fresh expressions: a scan site owns its `lastIndex`, so no two consumers share scanning state. The template engine substitutes by name with the brace form and reports what substitution left behind; the `document_deliver` checks reject the residual forms. Both read this module, so a change to either form cannot land on only one side.
 
 <a id="projections"></a>
 ## Projections

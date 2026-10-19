@@ -89,7 +89,7 @@ export async function renderPdf(
     ...sandboxFlags(),
     '--run-all-compositor-stages-before-draw',
     '--virtual-time-budget=5000',
-    '--print-to-pdf-no-header',
+    '--no-pdf-header-footer',
     `--print-to-pdf=${pdfPath}`,
     pathToFileURL(htmlPath).href,
   ]

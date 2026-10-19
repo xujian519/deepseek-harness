@@ -63,6 +63,11 @@ export interface CheckRule {
   dimensions?: string[]
   /** 推理路径步骤完整性：每步至少命中其一（任意 CheckType 后置校验）。 */
   pathElements?: string[][]
+  /**
+   * 可替代规则组：同一非空组内只要有一条规则通过，其余成员的失败就不计入结果。
+   * 用于互斥的审查路径（如创造性否定既可以是单对比文件+公知常识，也可以是多对比文件结合）。
+   */
+  alternativeGroup?: string
   /** 禁止短语：命中任一即失败（CheckSpec 禁语/超范围检查，如商业宣传、超出原始公开范围）。 */
   banPhrases?: string[]
   /** CheckNovelty：强制单独对比原则（命中禁止短语即失败）。 */

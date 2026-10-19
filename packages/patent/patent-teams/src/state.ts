@@ -158,6 +158,7 @@ function parseTeamRecord(raw: string, teamId: string, file: string): TeamState {
   try {
     value = JSON.parse(stripLeadingBom(raw))
   } catch (error: unknown) {
+    /* v8 ignore next -- JSON.parse throws SyntaxError, which is an Error */
     const detail = error instanceof Error ? error.message : String(error)
     throw new Error(`invalid PatentTeams state in team "${teamId}" (${file}): ${detail}`, { cause: error })
   }

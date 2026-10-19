@@ -9,6 +9,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { LegalStatusChecker } from '@deepseek-ai/nuo-patent'
 import type { CniprChannel, CniprLegalRecord, CniprLegalStatusItem } from '@deepseek-ai/dsh-patent-data'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from './internal/upstream-channel.ts'
+import { WARNINGS_SCHEMA, warningSection } from './internal/tool-output.ts'
 
 /** Input for the patent_legal_status tool. */
 export type PatentLegalStatusInput = {
@@ -62,6 +63,8 @@ export type PatentLegalStatusDeps = {
 }
 
 const MAX_PATENTS = 20
+/** 单次调用允许的上游并发上限：更大的值会把一批查询同时压到上游。 */
+const MAX_CONCURRENCY = 20
 
 const DESCRIPTION = [
   '- Queries patent legal status (Active / Expired / Abandoned) and estimated expiration from Google Patents',
@@ -69,7 +72,7 @@ const DESCRIPTION = [
   '- Returns title, status, estimated expiration, filing/grant dates, applicant, inventor, and status event history',
   '',
   'Usage notes:',
-  '  - Read-only; makes one network request per patent (concurrency 4 by default)',
+  '  - Read-only; makes one network request per patent (concurrency 4 by default, 1-20)',
   '  - 每个结果点名服务它的 channel。中国申请号/公开(公告)号在 Google Patents 通道查不到时，部署启用 CNIPR 通道重查一次：该通道只出法律状态公告记录（announce_date / status / status_info），其余字段为空，status 取其中公告日最新的一条',
   '  - 通道失败不是整批失败：失败的号保留 nuo 通道的原因，被咨询过但未能服务的通道写在 warnings 里',
 ].join('\n')
@@ -86,9 +89,7 @@ function renderLegalStatus(value: PatentLegalStatusOutput): string {
   const truncation = value.truncatedCount !== undefined && value.truncatedCount > 0
     ? `\n⚠️ ${value.truncatedCount} 个专利号超出 20 条上限被截断，未查询。`
     : ''
-  const warningLines = value.warnings.length > 0
-    ? ['', '## 通道告警', ...value.warnings.map(w => `- ${w}`)]
-    : []
+  const warningLines = warningSection(value.warnings, '通道告警')
   return [`patent_legal_status: ${value.results.length} result(s)`, '', lines.join('\n') + truncation, ...warningLines].join('\n')
 }
 
@@ -116,6 +117,7 @@ function cniprLegalStatusItem(patentNumber: string, records: readonly CniprLegal
   return {
     patentNumber,
     title: '',
+    /* v8 ignore next -- callers only build this item from a non-empty record list */
     status: latest?.status ?? 'UNKNOWN',
     ifiStatus: '',
     estimatedExpiration: '',
@@ -156,6 +158,7 @@ async function retryThroughCnipr(
   if (retry.length === 0) return []
   let reported: CniprLegalStatusItem[]
   try {
+    /* v8 ignore next -- exec.signal is always present on the tool execution context */
     reported = await cnipr.legalStatus(retry, { ...(signal === undefined ? {} : { signal }) })
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
@@ -191,7 +194,7 @@ export function createPatentLegalStatusTool(deps: PatentLegalStatusDeps = {}): T
     description: DESCRIPTION,
     parameters: {
       patents: { type: 'array', required: true, items: { type: 'string' }, description: "Patent numbers (1-20), e.g. ['US11452699B2', 'US2668287A']" },
-      maxConcurrency: { type: 'number', description: 'Max concurrent requests (default 4)' },
+      maxConcurrency: { type: 'number', description: 'Max concurrent requests (default 4, 1-20)' },
     },
     output: {
       schema: {
@@ -222,7 +225,7 @@ export function createPatentLegalStatusTool(deps: PatentLegalStatusDeps = {}): T
             },
           },
           truncatedCount: { type: 'number', description: '超出 20 条上限被截断未查询的专利号数量' },
-          warnings: { type: 'array', required: true, items: { type: 'string' } },
+          warnings: WARNINGS_SCHEMA,
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderLegalStatus(value) }],
@@ -230,9 +233,10 @@ export function createPatentLegalStatusTool(deps: PatentLegalStatusDeps = {}): T
     async execute(args, exec) {
       const dropped = args.patents.length - Math.min(args.patents.length, MAX_PATENTS)
       const patents = args.patents.slice(0, MAX_PATENTS)
+      const maxConcurrency = Math.min(Math.max(Math.floor(args.maxConcurrency ?? 4), 1), MAX_CONCURRENCY)
       const results = await checker.checkBatch(patents, {
         signal: exec.signal,
-        maxConcurrency: args.maxConcurrency ?? 4,
+        maxConcurrency,
       })
       const items: PatentLegalStatusItem[] = patents.map((pn) => {
         const r = results[pn]

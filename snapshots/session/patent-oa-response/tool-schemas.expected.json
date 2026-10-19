@@ -2461,7 +2461,7 @@
     },
     {
       "name": "patent_deadlines",
-      "description": "- Computes the Chinese patent statutory and designated deadlines of one case: priority window and its restoration, priority-claim addition/correction, application fee, substantive-examination request, voluntary amendment, registration and divisional filing, patent term, annual fees with the six-month surcharge window, PCT national-phase entry, the invalidation period for adding grounds or evidence, reexamination, office-action and invalidation responses, and term-compensation requests.\n- Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.\n- Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to \"omit\" for the un-rolled criterion, which reports each period's own end date; both dates are always returned, with rawDueDate holding the un-rolled one.\n- Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.\n- Deadlines that start at a notice's delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice's delivery date is supplied; they are never approximated from the filing date.\n\nUsage notes:\n  - Dates are YYYY-MM-DD. Supply the notices the case actually received, with how each was delivered.\n  - Read-only and offline; makes no network request.\n  - Results are decision support, not a filing instruction: verify against the notice and the current 审查指南 before acting.",
+      "description": "- Computes the Chinese patent statutory and designated deadlines of one case: priority window and its restoration, priority-claim addition/correction, application fee, substantive-examination request, voluntary amendment, registration and divisional filing, patent term, annual fees with the six-month surcharge window, PCT national-phase entry, the invalidation period for adding grounds or evidence, reexamination, office-action and invalidation responses, and term-compensation requests.\n- Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.\n- Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to \"omit\" for the un-rolled criterion, which reports each period's own end date; both dates are always returned, with rawDueDate holding the un-rolled one.\n- Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.\n- Counts a PCT application fee from nationalPhaseEntryDate (the national-phase entry date); without that date the entry stays pending rather than counting from the international filing date.\n- Deadlines that start at a notice's delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice's delivery date is supplied; they are never approximated from the filing date.\n\nUsage notes:\n  - Dates are YYYY-MM-DD. Supply the notices the case actually received, with how each was delivered.\n  - Read-only and offline; makes no network request.\n  - Results are decision support, not a filing instruction: verify against the notice and the current 审查指南 before acting.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2489,6 +2489,10 @@
           "isPctNationalPhase": {
             "type": "boolean",
             "description": "Whether the case is a PCT application entering the Chinese national phase"
+          },
+          "nationalPhaseEntryDate": {
+            "type": "string",
+            "description": "Date the PCT national-phase entry formalities were completed (进入日); the PCT application fee runs from it"
           },
           "authorizationPublicationDate": {
             "type": "string",
@@ -2655,7 +2659,7 @@
     },
     {
       "name": "patent_legal_status",
-      "description": "- Queries patent legal status (Active / Expired / Abandoned) and estimated expiration from Google Patents\n- Batch: pass 1-20 patent numbers; individual failures are reported per-patent without aborting the batch\n- Returns title, status, estimated expiration, filing/grant dates, applicant, inventor, and status event history\n\nUsage notes:\n  - Read-only; makes one network request per patent (concurrency 4 by default)\n  - 每个结果点名服务它的 channel。中国申请号/公开(公告)号在 Google Patents 通道查不到时，部署启用 CNIPR 通道重查一次：该通道只出法律状态公告记录（announce_date / status / status_info），其余字段为空，status 取其中公告日最新的一条\n  - 通道失败不是整批失败：失败的号保留 nuo 通道的原因，被咨询过但未能服务的通道写在 warnings 里",
+      "description": "- Queries patent legal status (Active / Expired / Abandoned) and estimated expiration from Google Patents\n- Batch: pass 1-20 patent numbers; individual failures are reported per-patent without aborting the batch\n- Returns title, status, estimated expiration, filing/grant dates, applicant, inventor, and status event history\n\nUsage notes:\n  - Read-only; makes one network request per patent (concurrency 4 by default, 1-20)\n  - 每个结果点名服务它的 channel。中国申请号/公开(公告)号在 Google Patents 通道查不到时，部署启用 CNIPR 通道重查一次：该通道只出法律状态公告记录（announce_date / status / status_info），其余字段为空，status 取其中公告日最新的一条\n  - 通道失败不是整批失败：失败的号保留 nuo 通道的原因，被咨询过但未能服务的通道写在 warnings 里",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2668,7 +2672,7 @@
           },
           "maxConcurrency": {
             "type": "number",
-            "description": "Max concurrent requests (default 4)"
+            "description": "Max concurrent requests (default 4, 1-20)"
           }
         },
         "required": [

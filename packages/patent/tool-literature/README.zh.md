@@ -33,7 +33,7 @@ kind: "package-reference"
 
 ### paper_download
 
-按 `db` + `id`（来自 `paper_search` 命中）下载一篇论文的 PDF，保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）。直链优先——依次取 `extra.pdf_url` / `extra.pdf` / `pdf_url` / `pdf`、OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url` / `primary_location.pdf_url` 与 Semantic Scholar `openAccessPdf.url` 中第一个非空值——经 PDF 魔数与最小字节数校验。直链缺失或 fetch 失败（403/404/HTML 壳页）时，ego 提取器打开记录页（`url`、`URL`、`landing_page_url`、嵌套 location 的 landing page，或本身是 HTTP URL 的 `id`）提取 PDF 链接，再由同一 fetch 路径下载。显式 `pdfUrl` 覆盖可跳过连接器解析。与 patent_pdf_download 的通道设计一致（直链优先、浏览器兜底）。
+按 `db` + `id`（来自 `paper_search` 命中）下载一篇论文的 PDF，保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）。直链优先——依次取 `extra.pdf_url` / `extra.pdf` / `pdf_url` / `pdf`、OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url` / `primary_location.pdf_url` 与 Semantic Scholar `openAccessPdf.url` 中第一个非空值——经 PDF 魔数与最小字节数校验。直链缺失或 fetch 失败（403/404/HTML 壳页）时，ego 提取器打开记录页（`url`、`URL`、`landing_page_url`、嵌套 location 的 landing page，或本身是 HTTP URL 的 `id`）提取 PDF 链接，再由同一 fetch 路径下载。显式 `pdfUrl` 覆盖可跳过连接器解析。`timeoutMs`（默认 60000，最大 300000）约束整通调用：连接器查询、直链 fetch、浏览器提取与兜底 fetch 共用一个截止时间。与 patent_pdf_download 的通道设计一致（直链优先、浏览器兜底）。
 
 <a id="configuration"></a>
 ## 配置

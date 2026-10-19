@@ -73,6 +73,12 @@ describe('read-only', () => {
     expect(existsSync(path)).toBe(false)
   })
 
+  it('denies a byte write, leaving no file on disk', async () => {
+    const path = join(workspace, 'denied.bin')
+    await expect(fs.writeBytes(await target(path), new Uint8Array([1, 2]))).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(path)).toBe(false)
+  })
+
   it('denies edit of an existing file (the content is unchanged)', async () => {
     const path = join(workspace, 'file.txt')
     await writeFile(path, 'original')
@@ -113,6 +119,28 @@ describe('workspace-write containment', () => {
     const path = join(outside, 'escape.txt')
     await expect(fs.writeText(await target(path), 'x')).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
     expect(existsSync(path)).toBe(false)
+  })
+
+  it('a byte write outside the workspace is denied, no file created', async () => {
+    const path = join(outside, 'escape.bin')
+    await expect(fs.writeBytes(await target(path), new Uint8Array([1]))).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(path)).toBe(false)
+  })
+
+  it('a byte write under the workspace lands intact', async () => {
+    const path = join(workspace, 'nested', 'ok.bin')
+    const bytes = new Uint8Array([0x50, 0x4b, 0x00, 0xff])
+    const outcome = await fs.writeBytes(await target(path), bytes)
+    expect(outcome.operation).toBe('create')
+    expect(outcome.before).toBeNull()
+    expect(outcome.after).toBeNull()
+    expect(new Uint8Array(await readFile(path))).toEqual(bytes)
+  })
+
+  it('a byte write honors the per-call policy instead of the deployment default', async () => {
+    const path = join(outside, 'stamped.bin')
+    await fs.writeBytes(await target(path), new Uint8Array([7]), undefined, undefined, { mode: 'danger-full-access', workspaceRoot: workspace })
+    expect(new Uint8Array(await readFile(path))).toEqual(new Uint8Array([7]))
   })
 
   it('a `..` traversal out of the workspace is denied', async () => {

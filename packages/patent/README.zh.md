@@ -1,5 +1,5 @@
 ---
-description: "按 [docs/sati-as-dsh-plugins-plan.md](../../docs/sati-as-dsh-plugins-plan.md) 将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。"
+description: "按[历史迁移计划](../../docs/sati-as-dsh-plugins-plan.md)将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。"
 kind: "package-group"
 ---
 
@@ -9,11 +9,11 @@ kind: "package-group"
 
 ## 概述
 
-patent 组按 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。下表映射各包的分工，各包契约由子 README 负责。
+patent 组按历史迁移计划 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。下表映射各包的分工，各包契约由子 README 负责。
 
 ## 包
 
-按 [docs/sati-as-dsh-plugins-plan.md](../../docs/sati-as-dsh-plugins-plan.md) 将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。
+按[历史迁移计划](../../docs/sati-as-dsh-plugins-plan.md)将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。
 
 | 包 | 职责 | ctx key |
 |---|---|---|

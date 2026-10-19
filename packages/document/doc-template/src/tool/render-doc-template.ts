@@ -9,8 +9,10 @@
  * @module @deepseek-ai/dsh-doc-template/tool/render-doc-template
  */
 
+import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type {} from '@deepseek-ai/dsh-fs'
 import type { RenderRequest, TemplateStore } from '../store.ts'
 import {
   DocTemplateError,
@@ -37,6 +39,8 @@ export interface RenderDocTemplateInput {
   readonly date?: string
   /** Suggested file name without extension; the template name when omitted. */
   readonly filename?: string
+  /** Write the rendered document to this path instead of returning only its content. */
+  readonly outputPath?: string
 }
 
 /** The rendered document as the model receives it. */
@@ -62,6 +66,10 @@ export interface RenderDocTemplateOutput {
   readonly residual: string[]
   /** Non-blocking variable validation issues. */
   readonly warnings: VarIssue[]
+  /** Canonical path the document was written to; present only when `outputPath` was supplied. */
+  readonly path?: string
+  /** Bytes written to `path`; present only when `outputPath` was supplied. */
+  readonly bytes?: number
 }
 
 /** A mutable render request under construction. */
@@ -100,6 +108,36 @@ export function renderDocTemplate(store: TemplateStore, input: RenderDocTemplate
 }
 
 /**
+ * Write one rendered document through the calling session's filesystem.
+ *
+ * Text formats go through `writeText` and a DOCX package through `writeBytes`,
+ * so a binary deliverable reaches disk intact instead of travelling as base64
+ * the model would have to decode itself. No per-call sandbox policy is passed:
+ * the write runs under the deployment's resolved policy for this session.
+ * @param ctx - plugin context carrying `ctx.fs`.
+ * @param exec - the current tool execution (signal, agent cwd).
+ * @param rendered - the rendered document.
+ * @param outputPath - the caller's absolute or workspace-relative destination.
+ * @returns the rendered document plus the canonical path and the bytes written.
+ */
+async function writeRenderedDocument(
+  ctx: Context, exec: ToolRunContext, rendered: RenderDocTemplateOutput, outputPath: string,
+): Promise<RenderDocTemplateOutput> {
+  const cwd = exec.agent?.session.header.cwd
+  const target = await ctx.fs.resolve(outputPath, {
+    ...cwd === undefined ? {} : { cwd },
+    signal: exec.signal,
+  })
+  if (rendered.format === 'docx') {
+    const bytes = Buffer.from(rendered.content, 'base64')
+    await ctx.fs.writeBytes(target, bytes, undefined, exec.signal)
+    return { ...rendered, path: ctx.fs.processPath(target), bytes: bytes.length }
+  }
+  await ctx.fs.writeText(target, rendered.content, undefined, exec.signal)
+  return { ...rendered, path: ctx.fs.processPath(target), bytes: Buffer.byteLength(rendered.content, 'utf8') }
+}
+
+/**
  * Convert the model's variable object into string values.
  * The parameter schema cannot express a string-valued map, so the values are
  * checked here; a non-string value would otherwise be substituted into the
@@ -133,7 +171,9 @@ export function renderDocumentResult(value: RenderDocTemplateOutput): string {
     `${value.template} · ${value.format} · ${value.fileName} · ${value.mimeType} · ${value.encoding}`,
     '',
   ]
-  if (value.encoding === 'base64') {
+  if (value.path !== undefined) {
+    lines.push(`Written to ${value.path} (${String(value.bytes ?? 0)} bytes).`, '')
+  } else if (value.encoding === 'base64') {
     lines.push(`The rendered package is ${String(value.content.length)} base64 characters in the content field.`, '')
   }
   lines.push(
@@ -153,12 +193,14 @@ export function renderDocumentResult(value: RenderDocTemplateOutput): string {
 const DESCRIPTION = [
   '- Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.',
   '- Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.',
-  '- `format` defaults to the template\'s fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: write `content` to the delivered file, because a file written from `markdown` loses both.',
-  '- Variables the template does not declare are ignored, and a placeholder with no supplied value is left in the document and reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.',
+  '- `format` defaults to the template\'s fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` carries the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: the delivered file is `content`, and a file written from `markdown` loses both.',
+  '- `output_path` (workspace-relative or absolute) writes the rendered document through the session filesystem and reports `path` and `bytes`: text formats write UTF-8, `docx` writes the package bytes. Omit it to receive the render result without touching the filesystem.',
+  '- Variables are substituted by name; a placeholder with no supplied value stays in the document and is reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.',
   '',
   'Usage notes:',
   '  - Offline; renders the packaged template assets, the configured override directories, and the packaged styles.',
   '  - A template that declares a writing style carries that style\'s disclaimer into the rendered document when the deployment enabled disclaimers.',
+  '  - A write is governed by the deployment\'s file policy; a denied `output_path` fails the call with the filesystem error.',
 ].join('\n')
 
 const WARNING_SCHEMA = {
@@ -173,10 +215,11 @@ const WARNING_SCHEMA = {
 
 /**
  * Build the `render_doc_template` tool.
+ * @param ctx - plugin context carrying `ctx.fs` for a write to `output_path`.
  * @param store - the loaded templates and styles.
  * @returns the tool definition.
  */
-export function createRenderDocTemplateTool(store: TemplateStore): ToolDefinition {
+export function createRenderDocTemplateTool(ctx: Context, store: TemplateStore): ToolDefinition {
   return defineTool({
     name: 'render_doc_template',
     description: DESCRIPTION,
@@ -196,6 +239,10 @@ export function createRenderDocTemplateTool(store: TemplateStore): ToolDefinitio
       author: { type: 'string', description: 'Author or attorney, written into the HTML metadata' },
       date: { type: 'string', description: 'Document date, written into the HTML metadata' },
       filename: { type: 'string', description: 'Suggested file name stem without extension; defaults to the template name' },
+      output_path: {
+        type: 'string',
+        description: 'Write the rendered document here (workspace-relative or absolute) and report path and bytes; omit to return the content without writing',
+      },
     },
     output: {
       schema: {
@@ -211,11 +258,13 @@ export function createRenderDocTemplateTool(store: TemplateStore): ToolDefinitio
           markdown: { type: 'string', required: true },
           residual: { type: 'array', required: true, items: { type: 'string' } },
           warnings: { type: 'array', required: true, items: WARNING_SCHEMA },
+          path: { type: 'string', description: 'Canonical path written, when output_path was supplied' },
+          bytes: { type: 'number', description: 'Bytes written to path, when output_path was supplied' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderDocumentResult(value) }],
     },
-    execute(args) {
+    async execute(args, exec) {
       const input: RenderDocTemplateInput = {
         template: args.template,
         variables: coerceStringRecord(args.variables),
@@ -224,9 +273,13 @@ export function createRenderDocTemplateTool(store: TemplateStore): ToolDefinitio
         ...(args.author === undefined ? {} : { author: args.author }),
         ...(args.date === undefined ? {} : { date: args.date }),
         ...(args.filename === undefined ? {} : { filename: args.filename }),
+        ...(args.output_path === undefined ? {} : { outputPath: args.output_path }),
       }
-      // Rendering is pure over the loaded assets, so the value is already settled.
-      return Promise.resolve(renderDocTemplate(store, input))
+      // Rendering is pure over the loaded assets; only an explicit output_path
+      // turns this call into a filesystem mutation.
+      const rendered = renderDocTemplate(store, input)
+      if (input.outputPath === undefined) return rendered
+      return writeRenderedDocument(ctx, exec, rendered, input.outputPath)
     },
   })
 }

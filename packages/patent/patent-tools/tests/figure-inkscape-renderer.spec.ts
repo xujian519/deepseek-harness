@@ -57,6 +57,47 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
+// 读取失败可被单次置为「非 Error 拒绝」、临时目录清理可被置为失败：分别验证
+// 非 Error 文案分支与「清理失败不顶掉转换结果」的收尾分支。
+const mockFsOps = vi.hoisted(() => ({ failReadPath: '', failRm: false, failMkdtemp: false }))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    readFile: ((...args: Parameters<typeof actual.readFile>) => {
+      if (args[0] === mockFsOps.failReadPath) {
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- drives the non-Error rejection branch
+        return Promise.reject('plain-read-boom')
+      }
+      return actual.readFile(...args)
+    }) as typeof actual.readFile,
+    rm: ((...args: Parameters<typeof actual.rm>) => {
+      if (mockFsOps.failRm) return Promise.reject(new Error('rm 不可用'))
+      return actual.rm(...args)
+    }),
+    mkdtemp: ((...args: Parameters<typeof actual.mkdtemp>) => {
+      if (mockFsOps.failMkdtemp) return Promise.reject(new Error('mkdtemp 不可用'))
+      return actual.mkdtemp(...args)
+    }) as typeof actual.mkdtemp,
+  }
+})
+
+// assertSafeSvg 的契约只抛 SvgAnnotateError；带标记的产物用以验证「非该类错误」的
+// 文案分支（依赖方违约时的防御路径）。
+const mockSvg = vi.hoisted(() => ({ plainThrowMarker: '' }))
+
+vi.mock('../src/figure/svg-annotate.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/figure/svg-annotate.ts')>()
+  return {
+    ...actual,
+    assertSafeSvg: (text: string, maxBytes: number) => {
+      if (mockSvg.plainThrowMarker !== '' && text.includes(mockSvg.plainThrowMarker)) throw 'plain-svg-boom'
+      actual.assertSafeSvg(text, maxBytes)
+    },
+  }
+})
+
 /** 已生成图形的样本（画布尺寸与线宽是转换必须保留的值）。 */
 function sampleSvg(text = '<text x="1" y="2" font-size="3">接地</text>'): string {
   return [
@@ -122,6 +163,10 @@ const dirs: string[] = []
 afterEach(() => {
   mockFs.existing.clear()
   mockAtomic.fail = false
+  mockFsOps.failReadPath = ''
+  mockFsOps.failRm = false
+  mockFsOps.failMkdtemp = false
+  mockSvg.plainThrowMarker = ''
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -249,6 +294,75 @@ describe('outlineSvgText', () => {
     expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
     expect(outcome.ok ? '' : outcome.error).toContain('没有可量测的图形')
     expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('原图与产物都没有可量测图形时按几何一致放行', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const EMPTY = '<svg xmlns="http://www.w3.org/2000/svg" width="30mm" height="20mm" viewBox="0 0 30 20"></svg>'
+    const path = figureFile(EMPTY)
+    const { runtime } = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), EMPTY, 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    expect(await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })).toEqual({ ok: true })
+    expect(readFileSync(path, 'utf8')).toBe(EMPTY)
+  })
+
+  it('原图没有可量测图形、产物有时按几何一致放行（不因新增墨迹拒收）', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const EMPTY = '<svg xmlns="http://www.w3.org/2000/svg" width="30mm" height="20mm" viewBox="0 0 30 20"></svg>'
+    const path = figureFile(EMPTY)
+    const { runtime } = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), OUTLINED, 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    expect(await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })).toEqual({ ok: true })
+    expect(readFileSync(path, 'utf8')).toBe(OUTLINED)
+  })
+
+  it('读取待转换文件被非 Error 拒绝时按 String(error) 报错', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    mockFsOps.failReadPath = join(tmpdir(), 'dsh-outline-plain-read.svg')
+    const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+    const outcome = await outlineSvgText(runtime, { path: mockFsOps.failReadPath }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(outcome.ok ? '' : outcome.error).toContain('读取待转换的 SVG 失败：plain-read-boom')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('SVG 校验抛非 SvgAnnotateError 时按 String(error) 报错', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const path = figureFile()
+    mockSvg.plainThrowMarker = 'plain-svg-marker'
+    const { runtime } = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), OUTLINED.replace('</svg>', '<desc>plain-svg-marker</desc></svg>'), 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    const outcome = await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(outcome.ok ? '' : outcome.error).toContain('SVG 校验失败：plain-svg-boom')
+  })
+
+  it('临时目录清理失败不顶掉转换结果', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const path = figureFile()
+    mockFsOps.failRm = true
+    const { runtime } = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), OUTLINED, 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    expect(await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })).toEqual({ ok: true })
+    expect(readFileSync(path, 'utf8')).toBe(OUTLINED)
+  })
+
+  it('临时目录创建失败时报 render_failed（收尾不清理不存在的目录）', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const path = figureFile()
+    mockFsOps.failMkdtemp = true
+    const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+    const outcome = await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(outcome.ok ? '' : outcome.error).toContain('mkdtemp 不可用')
   })
 
   it('写回失败时报 render_failed，原文件保持原样', async () => {

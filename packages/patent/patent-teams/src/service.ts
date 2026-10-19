@@ -214,6 +214,15 @@ export class PatentTeamsService extends Service {
         if (existing !== undefined) {
           throw new Error(`team id "${teamId}" is taken by another captain — pick a different team name`)
         }
+        // Archive directories are keyed by team id. Reusing a name would make
+        // the next delete overwrite the previous generation, so a name stays
+        // reserved once its team has been archived.
+        if (await readArchivedTeam(stateRoot, teamId) !== undefined) {
+          throw new PatentTeamsError(
+            'TEAM_NAME_ARCHIVED',
+            `team name "${teamName}" belongs to an archived team — pick a different team name; archived teams stay reviewable through patent_teams_archive`,
+          )
+        }
         const state: TeamState = {
           name: teamName,
           id: teamId,

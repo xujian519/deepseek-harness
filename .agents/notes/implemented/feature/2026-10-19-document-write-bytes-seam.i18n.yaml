@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-19-document-write-bytes-seam.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-19-document-write-bytes-seam.md
+/agent-note-a-byte-write-path-on-the-filesystem-seam-so-a-rendered-docx-can-reach-disk:
+  en: 3993301fd8e5ac09
+  zh: 788bad06c0f791a8
+/agent-note-a-byte-write-path-on-the-filesystem-seam-so-a-rendered-docx-can-reach-disk/problem:
+  en: d68b2c7e41355cf8
+  zh: 0a2b2d8544583a0a
+/agent-note-a-byte-write-path-on-the-filesystem-seam-so-a-rendered-docx-can-reach-disk/decision:
+  en: a314b06e5388da6c
+  zh: c1c4b2c1ba71e899
+/agent-note-a-byte-write-path-on-the-filesystem-seam-so-a-rendered-docx-can-reach-disk/alternatives-considered:
+  en: 7c885b84ce79594d
+  zh: 05dcd6264b478394
+/agent-note-a-byte-write-path-on-the-filesystem-seam-so-a-rendered-docx-can-reach-disk/consequences:
+  en: 4d63c4457b00f513
+  zh: 4ea3c6096c177446
+/agent-note-a-byte-write-path-on-the-filesystem-seam-so-a-rendered-docx-can-reach-disk/deferred:
+  en: c2b7c085a021b0ed
+  zh: 6769741c8bbd29e2

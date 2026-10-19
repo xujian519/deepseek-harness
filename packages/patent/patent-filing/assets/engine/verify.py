@@ -33,6 +33,7 @@ from pathlib import Path
 
 from docx import Document
 from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
 
 from style import template_style
 
@@ -46,6 +47,19 @@ def _iter_body(doc):
             yield "p", el
         elif el.tag == qn("w:tbl"):
             yield "tbl", el
+
+
+def _iter_paragraph_elements(doc):
+    """按 body 顺序产出全部段落元素，包括表格单元格里的段落。
+
+    ``python-docx`` 的 ``doc.paragraphs`` 不含表格单元格，只遍历它会让表格里的字号、
+    颜色、内部复核标记与权利要求项逃过验收。
+    """
+    for kind, el in _iter_body(doc):
+        if kind == "p":
+            yield el
+        else:
+            yield from el.iter(WP)
 
 
 def _text(el) -> str:
@@ -104,7 +118,7 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
     d = Document(str(docx_path))
     a = spec["assertions"]
     style = spec["style"]
-    body_text = "\n".join(_text(el) for kind, el in _iter_body(d) if kind == "p")
+    body_text = "\n".join(_text(el) for el in _iter_paragraph_elements(d))
 
     # spec 声明 specification_title 时，说明书第一行是"顶格"的名称行：按段核对缩进时要豁免它
     # （它显式写 0），并对它单独做三项断言（文本＝权1 主题名称／左右居中／其后空一行）。
@@ -142,9 +156,10 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
     if headers != a["headers"]:
         errors.append(f"各节页眉不匹配：{headers} ≠ {a['headers']}")
 
-    # ---- 体例：段落格式
+    # ---- 体例：段落格式（含表格单元格）
     n_par = 0
-    for p in d.paragraphs:
+    for el in _iter_paragraph_elements(d):
+        p = Paragraph(el, d)
         if not p.text.strip():
             continue
         n_par += 1
@@ -153,9 +168,9 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
             errors.append(f"行距 {pf.line_spacing} ≠ {style['line_spacing']}：{p.text[:18]!r}")
         # 图片段与名称行都要求**显式零缩进**：居中内容带首行缩进会被渲染器整体右移一个
         # 缩进量（t63 受控 A/B 实测 24.00 pt）。期望值随段落性质变化，断言不放宽。
-        has_drawing = bool(p._p.findall(".//" + qn("w:drawing")))
+        has_drawing = bool(el.findall(".//" + qn("w:drawing")))
         expected_indent = (
-            0.0 if has_drawing or (title_exempt and p._p is title_element)
+            0.0 if has_drawing or (title_exempt and el is title_element)
             else style["first_line_indent"]
         )
         if pf.first_line_indent is not None and abs(pf.first_line_indent.pt - expected_indent) > 1e-6:
@@ -226,6 +241,7 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
                 errors.append(
                     f"说明书名称段未显式写零首行缩进（模板 Normal 自带 560 twips）：{text[:18]!r}"
                 )
+            assert title_index is not None
             block = title_sections[title_index]
             pos = block.index(title_element)
             following = block[pos + 1] if pos + 1 < len(block) else None

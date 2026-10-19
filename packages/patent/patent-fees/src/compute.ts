@@ -106,12 +106,18 @@ export function computeFees(table: FeeTable, query: FeeQuery, options: ComputeOp
   if (excludedByType.length > 0) {
     notes.push(`已按专利类型过滤：${excludedByType.join('、')} 不适用本次类型，未列入本报告。`)
   }
+  // 已点名但索引没有任何条目的阶段是未知，不是零：保留在 total 里并扣留合计。
+  const indexedTriggers = new Set(table.items.map(item => item.trigger))
+  const uncoveredTriggers = [...new Set(query.triggers.filter(trigger => !indexedTriggers.has(trigger)))]
+  if (uncoveredTriggers.length > 0) {
+    notes.push(`索引未收录以下收费阶段：${uncoveredTriggers.join('、')}；本次合计不予给出。`)
+  }
   return {
     currency: table.currency,
     lines: lines.map(computed => computed.line),
     pending,
     reduction: reduction === null ? null : reductionOutcome(reduction, lines),
-    total: totalOf(lines, options.policy),
+    total: totalOf(lines, options.policy, uncoveredTriggers),
     notes,
   }
 }
@@ -356,19 +362,29 @@ function reductionReason(reduction: ReductionContext, applied: boolean): string 
     : '本案没有落在减缴范围内的费用项。'
 }
 
-/** Sum the verified payable amounts, or refuse when one is missing. */
-function totalOf(lines: ComputedLine[], policy: FeePolicy): FeeTotal {
-  const incomplete = lines.filter(line => line.line.status !== 'verified' || line.payableFen === null)
+/** Sum the verified payable amounts, or refuse when one is missing or a named stage is unindexed. */
+function totalOf(lines: ComputedLine[], policy: FeePolicy, uncoveredTriggers: readonly string[]): FeeTotal {
+  // A zero-quantity line owes nothing, so an unrecorded unit price for it cannot
+  // make the case total incomplete (specification pages ≤ 30, claims ≤ 10).
+  const incomplete = lines.filter(line =>
+    line.line.quantity > 0 && (line.line.status !== 'verified' || line.payableFen === null))
   const verified = lines.filter((line): line is ComputedLine & { payableFen: number } =>
     line.line.status === 'verified' && line.payableFen !== null)
   const verifiedFen = sumFen(verified.map(line => line.payableFen))
-  const complete = incomplete.length === 0
-  const amount = complete
-    ? formatFen(verifiedFen)
-    : policy.failOnUnverified || verified.length === 0
-      ? null
-      : formatFen(verifiedFen)
-  return { amount, complete, unverifiedIds: incomplete.map(line => line.line.id) }
+  const complete = incomplete.length === 0 && uncoveredTriggers.length === 0
+  const amount = uncoveredTriggers.length > 0
+    ? null
+    : complete
+      ? formatFen(verifiedFen)
+      : policy.failOnUnverified || verified.length === 0
+        ? null
+        : formatFen(verifiedFen)
+  return {
+    amount,
+    complete,
+    unverifiedIds: incomplete.map(line => line.line.id),
+    ...uncoveredTriggers.length === 0 ? {} : { uncoveredTriggers: [...uncoveredTriggers] },
+  }
 }
 
 /** The amount's status: recorded and verified, recorded only, or absent. */

@@ -10,7 +10,7 @@
       config:
         id: document
         name: 文档模式
-        description: 面向产品/技术/运营/市场团队的文档交付 Agent：把需求拆解为规范成品——Markdown/Word 文档、HTML 单页工件、PDF（HTML 渲染导出）与 PPTX 演示。可挂载 OpenDesign 技能库（OPEN_DESIGN_DIR）增强模板与设计系统。输出前强制质量门禁。
+        description: 面向产品/技术/运营/市场团队的文档交付 Agent：把需求拆解为规范成品——Markdown/Word 文档、HTML 单页工件、PDF（HTML 渲染导出）与 PPTX 演示。可挂载 OpenDesign 技能库（OPEN_DESIGN_DIR）增强模板与设计系统。交付前按 P0/P1 清单自检，登记交付物时做确定性复核。
         order: 6
         plugins:
           # ── identity ────────────────────────────────────────────────────────────────
@@ -53,9 +53,10 @@
 
           # ── clock ───────────────────────────────────────────────────────────────────
 
-          # persona 的「无来源即撤回」把人设要求的页脚版本与日期、事实性断言的来源
-          # 都算在交付质量里，模型需要知道「今天」：没有此行时只能绕道跑 `date`。
-          # 插件在 agent/pre-step 追加一条带来源的时间快照 user 消息，模型可见且入日志。
+          # `document-quality-gate` 的 P1 页脚项要求文档名、日期与版本，persona 的
+          # 「无来源即撤回」要求日期与版本可核验：模型需要知道「今天」，没有此行时
+          # 只能绕道跑 `date`。插件在 agent/pre-step 追加一条带来源的时间快照 user
+          # 消息，模型可见且入日志。
           - id: time-context
             name: '@deepseek-ai/dsh-time-context'
 
@@ -202,17 +203,19 @@
                 name: '@deepseek-ai/dsh-plan-mode'
                 config:
                   section: |
-                    你在计划模式中。面向文档交付作业：交付规范（目标/受众/格式/设计系统）、文档大纲与结构、模板与渲染方案、导出清单都属于"计划"范畴，获批前不得生成对外交付文件（成品 html/pdf/docx/pptx）。先完成：brief 拆解 → 方案 → 用 exit_plan_mode 提交计划。计划须包含：交付目标与成功标准、文档结构与大纲、模板与设计系统、阶段产物清单、HITL 确认点、风险与备选方案。
+                    计划正文与计划产物一律使用简体中文；在计划与思考过程中使用简体中文表述。
 
-                    You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+                    你在计划模式中。面向文档交付作业：交付规范（目标/受众/格式/设计系统）、文档大纲与结构、模板与渲染方案、导出清单都属于"计划"范畴；获批前不得生成对外交付文件（`document_deliver` 接受的格式：markdown / html / pdf / docx / pptx / other）。先完成：brief 拆解 → 方案 → 用 exit_plan_mode 提交计划。计划须包含：交付目标与成功标准、文档结构与大纲、模板与设计系统、阶段产物清单、HITL 确认点、风险与备选方案、验收方式。brief 与大纲在计划模式下以计划正文提交，获批后再落盘。
 
-                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual workspace. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
 
                     The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
 
-                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where something lives or how current behavior works when you can find out.
 
-                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+                    Make the plan decision-complete: state the goal and success criteria; group the work into ordered steps; name what each step hands to the next; cover edge cases, failure modes, checks, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another person can carry it out without making design decisions.
 
                     When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
 

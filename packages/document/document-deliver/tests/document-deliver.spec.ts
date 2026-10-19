@@ -5,7 +5,7 @@
  * card.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -20,13 +20,19 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import * as plugin from '../src/index.ts'
 import {
-  createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES, missingDeliverableFiles, parseDocumentDeliverArgs,
-  type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult,
+  briefReferenceWarnings,
+  createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES, missingDeliverableFiles, P0_CHECKLIST,
+  p0ChecklistWarnings, parseDocumentDeliverArgs, resolveCheckFormat, resolveUnreadableReports,
+  type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult, type DocumentDeliverSpec,
+  type DeliverableCheckReport,
 } from '../src/tool.ts'
 import { DEFAULT_LENGTH_TOLERANCE, DEFAULT_MAX_FINDINGS_PER_CHECK } from '../src/checks.ts'
 
 const signal = new AbortController().signal
 const exec = { signal } as unknown as ToolRunContext
+
+/** Every P0 id the shipped checklist declares: the declaration of a call that has nothing to report. */
+const P0_IDS = P0_CHECKLIST.map(entry => entry.id)
 
 /**
  * DOCX read budgets for tools built straight from `deps()`; wide enough that no
@@ -83,6 +89,16 @@ async function run(ctx: Context, args: unknown): Promise<{ isError: boolean; con
   const block = result.content[0]
   if (block === undefined || block.type !== 'text') throw new Error('expected a text content block')
   return { isError: result.isError, content: block.text }
+}
+
+/** Register one declaration through the tool itself and render its result. */
+async function register(
+  ctx: Context, args: Readonly<Record<string, unknown>>,
+): Promise<{ value: DocumentDeliverResult; content: string }> {
+  const tool = createDocumentDeliverTool(ctx, deps())
+  const value = await tool.execute(args, exec) as DocumentDeliverResult
+  const block = tool.output.render({}, value as never)[0]
+  return { value, content: block?.type === 'text' ? block.text : '' }
 }
 
 describe('parseDocumentDeliverArgs', () => {
@@ -289,13 +305,13 @@ describe('document_deliver tool', () => {
     await writeFile(join(temp, 'deck.html'), '<h1>x</h1>\n<p>正文。</p>\n')
     const tool = createDocumentDeliverTool(ctx, deps())
     const result = await tool.execute(
-      { files: [{ path: 'deck.html', format: 'html' }], gate: { p0: ['命名规范'] } },
+      { files: [{ path: 'deck.html', format: 'html' }], gate: { p0: P0_IDS } },
       { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext,
     ) as DocumentDeliverResult
     expect(result).toEqual({
       registered: [{ path: 'deck.html', format: 'html' }],
       gate: {
-        p0: ['命名规范'],
+        p0: P0_IDS,
         p1: [],
         style: 'assistant-neutral',
         checks: [{ path: 'deck.html', format: 'html', status: 'checked', findings: [] }],
@@ -367,16 +383,6 @@ describe('document_deliver plugin configuration', () => {
 })
 
 describe('document_deliver deterministic checks', () => {
-  /** Register one declaration through the tool itself and render its result. */
-  async function register(
-    ctx: Context, args: Readonly<Record<string, unknown>>,
-  ): Promise<{ value: DocumentDeliverResult; content: string }> {
-    const tool = createDocumentDeliverTool(ctx, deps())
-    const value = await tool.execute(args, exec) as DocumentDeliverResult
-    const block = tool.output.render({}, value as never)[0]
-    return { value, content: block?.type === 'text' ? block.text : '' }
-  }
-
   it('refuses a deliverable that still carries a residual placeholder', async () => {
     const ctx = await mounted()
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
@@ -465,13 +471,41 @@ describe('document_deliver deterministic checks', () => {
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
     const path = join(temp, 'broken.docx')
     await writeFile(path, 'not a zip package')
-    const broken = await register(ctx, { files: [{ path, format: 'docx' }], gate: { p0: ['命名规范'] } })
+    // A package the reader cannot open is a property of the document, so the
+    // call has to say why it still ships; the declared reason comes back beside
+    // the check outcome.
+    const broken = await register(ctx, {
+      files: [{ path, format: 'docx' }],
+      gate: { p0: P0_IDS },
+      unreadable_ack: [{ path, reason_text: '历史归档件，本部署的 DOCX 读取器打不开' }],
+    })
     expect(broken.value.gate.checks[0]?.status).toBe('unreadable')
+    expect(broken.value.gate.checks[0]?.ack).toBe('历史归档件，本部署的 DOCX 读取器打不开')
     expect(broken.content).toContain(`确定性核验（样式 assistant-neutral）：${path} 无法核验`)
+    expect(broken.content).toContain('（已声明：历史归档件，本部署的 DOCX 读取器打不开）')
 
-    const unreadable = await register(ctx, { files: [{ path: temp, format: 'markdown' }], gate: { p0: ['命名规范'] } })
+    // A directory resolves and stats, then fails the read: same rule, same ack.
+    const unreadable = await register(ctx, {
+      files: [{ path: temp, format: 'markdown' }],
+      gate: { p0: P0_IDS },
+      unreadable_ack: [{ path: temp, reason_text: '声明错了路径，交付物是另一份文件' }],
+    })
     expect(unreadable.value.gate.checks[0]?.status).toBe('unreadable')
     expect(unreadable.value.gate.checks[0]?.reason).toBeDefined()
+  })
+
+  it('refuses an unreadable DOCX that declares no reason, naming the structure and the fix', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'broken.docx')
+    await writeFile(path, 'not a zip package')
+    const result = await run(ctx, { files: [{ path, format: 'docx' }], gate: { p0: P0_IDS } })
+    expect(result.isError).toBe(true)
+    // V-B4-1: the refusal names the structure and tells the caller what to do.
+    expect(result.content).toContain('无法核验，且没有 unreadable_ack 说明原因')
+    expect(result.content).toContain('not-a-zip')
+    expect(result.content).toContain('重新渲染或检查写盘方式')
+    expect(result.content).toContain('给每个文件补一条 unreadable_ack')
   })
 
   it('refuses a text deliverable beyond the configured read cap instead of scanning it', async () => {
@@ -479,9 +513,12 @@ describe('document_deliver deterministic checks', () => {
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
     const path = join(temp, 'huge.md')
     await writeFile(path, `# 报告\n\n${'内'.repeat(64)}\n`)
-    const result = await run(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: ['命名规范'] } })
+    const result = await run(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: P0_IDS } })
+    // V-B4-2: the deployment's own byte cap is not a defect, so no ack is
+    // required; the reason says which budget stopped the read.
     expect(result.isError).toBe(false)
     expect(result.content).toContain(`${path} 无法核验（`)
+    expect(result.content).toContain('超过读取上限（too-large）：')
     expect(result.content).toContain('exceeds the 64-byte limit')
   })
 
@@ -559,10 +596,17 @@ describe('document_deliver deterministic checks', () => {
       { name: 'word/document.xml', data: encoded.encode('<?xml version="1.0"?><w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>正文。</w:t></w:r></w:p></w:body></w:document>') },
       { name: 'word/header1.xml', data: encoded.encode('<w:p>未闭合') },
     ]))
-    const result = await register(ctx, { files: [{ path, format: 'docx' }], gate: { p0: ['命名规范'] } })
+    const result = await register(ctx, {
+      files: [{ path, format: 'docx' }],
+      gate: { p0: P0_IDS },
+      // The body projected; a broken header part is still a defect in the
+      // document, so the call declares why it ships anyway.
+      unreadable_ack: [{ path, reason_text: '页眉部件由第三方工具写入，正文完整' }],
+    })
     expect(result.value.gate.checks[0]?.status).toBe('unreadable')
     expect(result.value.gate.checks[0]?.reason).toContain('DOCX 结构报告 malformed-xml')
     expect(result.value.gate.checks[0]?.findings).toEqual([])
+    expect(result.value.gate.checks[0]?.ack).toBe('页眉部件由第三方工具写入，正文完整')
     expect(result.content).toContain(`${path} 无法核验（DOCX 结构报告 malformed-xml`)
   })
 
@@ -585,9 +629,283 @@ describe('document_deliver deterministic checks', () => {
             ],
           },
           { path: 'deck.pdf', format: 'pdf', status: 'unchecked', reason: 'pdf 格式没有文本读取器', findings: [] },
+          { path: 'archive.docx', format: 'docx', status: 'unreadable', reason: 'DOCX 结构报告 not-a-zip', ack: '历史归档件', findings: [] },
         ],
       },
     }
     expect(tool.output.presentationMeta?.({}, value as never)).toEqual({ checks: value.gate.checks })
+  })
+})
+
+describe('brief_ref existence', () => {
+  it('warns once and still registers when the brief names no file', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    const brief = join(temp, 'brief.md')
+    await writeFile(path, '# 报告\n\n正文。\n')
+    const result = await run(ctx, {
+      files: [{ path, format: 'markdown' }],
+      gate: { p0: P0_IDS },
+      brief_ref: brief,
+    })
+    // V-A3-1: the registration is unchanged and exactly one line reports the brief.
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain('已登记 1 个交付文件')
+    const reported = result.content.split('\n').filter(line => line.includes('brief 参考文件不存在'))
+    expect(reported).toEqual([`- brief 参考文件不存在，登记继续但要修正或省略：${brief}`])
+  })
+
+  it('says nothing when the brief exists or when the call declared none', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    const brief = join(temp, 'brief.md')
+    await writeFile(path, '# 报告\n\n正文。\n')
+    await writeFile(brief, '# brief\n\n目标。\n')
+    const present = await run(ctx, {
+      files: [{ path, format: 'markdown' }],
+      gate: { p0: P0_IDS },
+      brief_ref: brief,
+    })
+    // V-A3-2: an existing brief, and an omitted one, produce no brief warning.
+    expect(present.content).toContain(`brief 参考：${brief}`)
+    expect(present.content).not.toContain('brief 参考文件不存在')
+    const absent = await run(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: P0_IDS } })
+    expect(absent.content).not.toContain('brief 参考')
+  })
+
+  it('warns instead of failing when the brief path cannot be resolved', async () => {
+    // A context with no `fs` service cannot resolve the path at all; the brief
+    // is context rather than a deliverable, so the failure is reported the same
+    // way a missing file is instead of escaping the tool.
+    const warnings = await briefReferenceWarnings(new Context(), exec, 'brief.md')
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('brief 参考文件无法读取')
+  })
+})
+
+describe('format declaration against the extension', () => {
+  it('reads a .html declared pdf as HTML, so its placeholder still blocks (V-B3-1)', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.html')
+    await writeFile(path, '<h1>报告</h1><p>客户：{{client_name}}</p>\n')
+    const result = await run(ctx, { files: [{ path, format: 'pdf' }], gate: { p0: P0_IDS } })
+    expect(result.isError).toBe(true)
+    expect(result.content).toContain('[placeholder]')
+    expect(result.content).toContain('{{client_name}}')
+  })
+
+  it('reports the contradiction beside a passing check, and the report carries the extension format', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.html')
+    await writeFile(path, '<h1>报告</h1><p>正文。</p>\n')
+    const result = await register(ctx, { files: [{ path, format: 'pdf' }], gate: { p0: P0_IDS } })
+    // V-B3-3: the mismatch travels in `reason`, the field the studio renders.
+    expect(result.value.gate.checks[0]?.status).toBe('checked')
+    expect(result.value.gate.checks[0]?.format).toBe('html')
+    expect(result.value.gate.checks[0]?.reason).toBe('声明格式 pdf 与扩展名 .html 不一致，已按 html 核验')
+    expect(result.value.registered[0]?.format).toBe('pdf')
+    expect(result.content).toContain('声明格式 pdf 与扩展名 .html 不一致，已按 html 核验')
+  })
+
+  it('reads a .md declared docx as Markdown, not as a DOCX package (V-B3-2)', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    await writeFile(path, '# 报告\n\n客户：{{client_name}}\n')
+    const result = await run(ctx, { files: [{ path, format: 'docx' }], gate: { p0: P0_IDS } })
+    expect(result.isError).toBe(true)
+    // A DOCX reading would have reported a structure problem instead.
+    expect(result.content).not.toContain('DOCX 结构报告')
+    expect(result.content).toContain('[placeholder]')
+    expect(result.content).toContain('{{client_name}}')
+  })
+
+  it('keeps the declared format for `other` and for an unknown extension', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const text = join(temp, 'notes.txt')
+    const other = join(temp, 'report.md')
+    await writeFile(text, '# 报告\n\n正文。\n')
+    await writeFile(other, '# 报告\n\n正文。\n')
+    const declared = await register(ctx, { files: [{ path: text, format: 'markdown' }], gate: { p0: P0_IDS } })
+    expect(declared.value.gate.checks[0]?.status).toBe('checked')
+    expect(declared.value.gate.checks[0]?.reason).toBeUndefined()
+    const opaque = await register(ctx, { files: [{ path: other, format: 'other' }], gate: { p0: P0_IDS } })
+    expect(opaque.value.gate.checks[0]?.status).toBe('unchecked')
+    expect(opaque.value.gate.checks[0]?.reason).toBe('other 格式没有文本读取器')
+  })
+
+  it('measures a declared HTML budget over the prose, not the inline stylesheet', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.html')
+    // 500 characters of stylesheet around 6 characters of prose: the markup-only
+    // reading would report a budget miss, the body reading stays inside it.
+    await writeFile(path, `<style>${'x'.repeat(500)}</style><p>${'正'.repeat(6)}</p>`)
+    const result = await run(ctx, {
+      files: [{ path, format: 'html' }],
+      gate: { p0: P0_IDS },
+      char_budget: 8,
+    })
+    expect(result.isError).toBe(false)
+    expect(result.content).not.toContain('[length_budget]')
+    // The same declaration on a Markdown file still reports, because a Markdown
+    // body is already prose.
+    const markdown = join(temp, 'report.md')
+    await writeFile(markdown, `# 标题\n\n${'正'.repeat(6)}\n`)
+    const declared = await run(ctx, { files: [{ path: markdown, format: 'markdown' }], gate: { p0: P0_IDS }, char_budget: 2 })
+    expect(declared.content).toContain('[length_budget]')
+  })
+
+  it('resolves the format a path is checked as, without a context', () => {
+    expect(resolveCheckFormat('out/report.html', 'pdf')).toEqual({
+      format: 'html',
+      mismatch: '声明格式 pdf 与扩展名 .html 不一致，已按 html 核验',
+    })
+    expect(resolveCheckFormat('out/report.md', 'markdown')).toEqual({ format: 'markdown' })
+    expect(resolveCheckFormat('out/report.MD', 'markdown')).toEqual({ format: 'markdown' })
+    expect(resolveCheckFormat('out/report.dat', 'other')).toEqual({ format: 'other' })
+    expect(resolveCheckFormat('out/report', 'pdf')).toEqual({ format: 'pdf' })
+  })
+})
+
+describe('P0 checklist ids', () => {
+  it('accepts every id and reports nothing when all of them are named', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    await writeFile(path, '# 报告\n\n正文。\n')
+    const result = await run(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: P0_IDS } })
+    // V-B5-1: the id form passes, and a complete list adds no registration warning.
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain(`P0 ${String(P0_IDS.length)} 项通过`)
+    expect(result.content).not.toContain('登记提示')
+  })
+
+  it('names the ids a partial declaration left out (V-B5-2)', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    await writeFile(path, '# 报告\n\n正文。\n')
+    const result = await run(ctx, {
+      files: [{ path, format: 'markdown' }],
+      gate: { p0: ['P0-1'] },
+    })
+    // V-B5-1: one known id still registers; V-B5-2: the result names what is missing.
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain('登记提示（1）：')
+    expect(result.content).toContain('缺少 P0 项：P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言')
+    expect(result.content).not.toContain('未知的 P0 项')
+  })
+
+  it('reports a free-text item as unknown instead of refusing it (V-B5-1)', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    await writeFile(path, '# 报告\n\n正文。\n')
+    const result = await run(ctx, {
+      files: [{ path, format: 'markdown' }],
+      gate: { p0: ['命名'] },
+    })
+    // A transcript recorded before the ids existed still registers; the item is
+    // reported as unknown and the free-text form is not nagged about every id.
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain('未知的 P0 项 "命名"')
+    expect(result.content).toContain('P0-1 命名')
+    expect(result.content).not.toContain('缺少 P0 项')
+  })
+
+  it('still refuses an empty P0 list', async () => {
+    const ctx = await mounted()
+    const result = await run(ctx, { files: [{ path: 'a.html', format: 'html' }], gate: { p0: [] } })
+    expect(result.isError).toBe(true)
+    expect(result.content).toContain('p0 must list')
+  })
+
+  it('keeps the constant and the delivery skill in sync', async () => {
+    // The skill prints the checklist the model reads; the constant is what the
+    // tool compares against. A rename on one side alone would silently turn
+    // every registration into "unknown id", so this fails on the drift.
+    const skill = await readFile(
+      new URL('../../../bundle/web-app/skills/document/document-quality-gate/SKILL.md', import.meta.url),
+      'utf8',
+    )
+    for (const entry of P0_CHECKLIST) expect(skill).toContain(`**${entry.id} ${entry.label}**`)
+    const declared = new Set([...skill.matchAll(/\bP0-\d+\b/gu)].map(match => match[0]))
+    expect([...declared].sort()).toEqual(P0_CHECKLIST.map(entry => entry.id).sort())
+  })
+
+  it('reports unknown and missing ids as pure functions', () => {
+    expect(p0ChecklistWarnings(P0_IDS)).toEqual([])
+    expect(p0ChecklistWarnings(['P0-6'])).toEqual([
+      '缺少 P0 项：P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源',
+    ])
+    expect(p0ChecklistWarnings(['写法一'])[0]).toContain('未知的 P0 项 "写法一"')
+  })
+})
+
+describe('unreadable acknowledgement', () => {
+  it('warns about a reason for a path that needs none', () => {
+    const checks: DeliverableCheckReport[] = [
+      { path: 'report.md', format: 'markdown', status: 'checked', findings: [] },
+    ]
+    const resolved = resolveUnreadableReports({
+      files: [{ path: 'report.md', format: 'markdown' }],
+      gate: { p0: P0_IDS, p1: [] },
+      unreadableAck: [
+        { path: 'report.md', reasonText: '多余的原因' },
+        { path: 'ghost.docx', reasonText: '未登记的路径' },
+      ],
+    }, checks)
+    expect(resolved.reports).toEqual(checks)
+    expect(resolved.warnings).toEqual([
+      'unreadable_ack 的 report.md 不是无法核验状态，不需要说明原因',
+      'unreadable_ack 指向未登记的路径：ghost.docx',
+    ])
+  })
+
+  it('names every undeclared unreadable reason with its repair advice', () => {
+    const checks: DeliverableCheckReport[] = [
+      { path: 'broken.docx', format: 'docx', status: 'unreadable', reason: 'not-a-zip', findings: [] },
+      { path: 'empty.docx', format: 'docx', status: 'unreadable', reason: 'no-text', findings: [] },
+      { path: 'bad.docx', format: 'docx', status: 'unreadable', reason: 'malformed-xml', findings: [] },
+      { path: 'odd.md', format: 'markdown', status: 'unreadable', reason: 'permission denied', findings: [] },
+      { path: 'silent.md', format: 'markdown', status: 'unreadable', findings: [] },
+    ]
+    const spec: DocumentDeliverSpec = {
+      files: checks.map(report => ({ path: report.path, format: report.format })),
+      gate: { p0: P0_IDS, p1: [] },
+    }
+    let message = ''
+    try {
+      resolveUnreadableReports(spec, checks)
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    expect(message).toContain('- broken.docx：not-a-zip → 这不是有效的 docx 包：重新渲染或检查写盘方式')
+    expect(message).toContain('- empty.docx：no-text → 包内没有可读正文：检查是否只写了页眉、图片或空正文')
+    expect(message).toContain('- bad.docx：malformed-xml → 包内 XML 无法解析：重新渲染该文件')
+    expect(message).toContain('- odd.md：permission denied → 修复文件后重新登记')
+    expect(message).toContain('- silent.md：读取失败 → 修复文件后重新登记')
+  })
+
+  it('rejects a declared reason with a blank text', () => {
+    expect(() => parseDocumentDeliverArgs({
+      files: [{ path: 'a.md', format: 'markdown' }],
+      gate: { p0: P0_IDS },
+      unreadable_ack: [{ path: 'a.md', reason_text: '   ' }],
+    })).toThrow(/unreadable_ack entry needs a non-empty path and reason_text/)
+    expect(() => parseDocumentDeliverArgs({
+      files: [{ path: 'a.md', format: 'markdown' }],
+      gate: { p0: P0_IDS },
+      unreadable_ack: [
+        { path: 'a.md', reason_text: '一' },
+        { path: 'a.md', reason_text: '二' },
+      ],
+    })).toThrow(/duplicate unreadable_ack path/)
   })
 })

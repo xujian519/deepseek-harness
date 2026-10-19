@@ -2901,6 +2901,8 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
 
 工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±20% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
 
+两条与声明本身有关的判定：文件按扩展名决定用哪种读取器（声明格式与扩展名不一致会提示，并按扩展名核验）；读不出内容的文件必须在 unreadable_ack 里写一条原因（path + reason_text）才允许登记，超出本部署读取上限的文件除外。p0 用质量门技能里的稳定 id（P0-1 … P0-6）填写，工具会把缺失或无法识别的项列出来。
+
 ```json
 {
   "type": "object",
@@ -2942,7 +2944,7 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
       "properties": {
         "p0": {
           "type": "array",
-          "description": "已通过并核验的 P0 自检项（每项一句话）",
+          "description": "已通过并核验的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；缺失项与无法识别的写法会在结果里列出",
           "items": {
             "type": "string"
           }
@@ -2970,6 +2972,28 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
     "char_budget": {
       "type": "integer",
       "description": "全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅"
+    },
+    "unreadable_ack": {
+      "type": "array",
+      "description": "为每个\"无法核验\"（unreadable）的交付文件写一条原因；缺失时登记被拒，超出本部署读取上限的文件不需要",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "无法核验的文件路径，与 files 中的 path 一致"
+          },
+          "reason_text": {
+            "type": "string",
+            "description": "为什么该文件在无法核验的情况下仍要交付"
+          }
+        },
+        "required": [
+          "path",
+          "reason_text"
+        ]
+      }
     }
   },
   "required": [
@@ -5397,7 +5421,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 - Returns title, status, estimated expiration, filing/grant dates, applicant, inventor, and status event history
 
 Usage notes:
-  - Read-only; makes one network request per patent (concurrency 4 by default)
+  - Read-only; makes one network request per patent (concurrency 4 by default, 1-20)
   - 每个结果点名服务它的 channel。中国申请号/公开(公告)号在 Google Patents 通道查不到时，部署启用 CNIPR 通道重查一次：该通道只出法律状态公告记录（announce_date / status / status_info），其余字段为空，status 取其中公告日最新的一条
   - 通道失败不是整批失败：失败的号保留 nuo 通道的原因，被咨询过但未能服务的通道写在 warnings 里
 
@@ -5414,7 +5438,7 @@ Usage notes:
     },
     "maxConcurrency": {
       "type": "number",
-      "description": "Max concurrent requests (default 4)"
+      "description": "Max concurrent requests (default 4, 1-20)"
     }
   },
   "required": [
@@ -6434,6 +6458,7 @@ build_patent_filing assembles one CNIPA application document (abstract, abstract
 - Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.
 - Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to "omit" for the un-rolled criterion, which reports each period's own end date; both dates are always returned, with rawDueDate holding the un-rolled one.
 - Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.
+- Counts a PCT application fee from nationalPhaseEntryDate (the national-phase entry date); without that date the entry stays pending rather than counting from the international filing date.
 - Deadlines that start at a notice's delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice's delivery date is supplied; they are never approximated from the filing date.
 
 Usage notes:
@@ -6469,6 +6494,10 @@ Usage notes:
     "isPctNationalPhase": {
       "type": "boolean",
       "description": "Whether the case is a PCT application entering the Chinese national phase"
+    },
+    "nationalPhaseEntryDate": {
+      "type": "string",
+      "description": "Date the PCT national-phase entry formalities were completed (进入日); the PCT application fee runs from it"
     },
     "authorizationPublicationDate": {
       "type": "string",
@@ -6580,10 +6609,10 @@ patent_deadlines reports the statutory and designated deadlines of one Chinese p
 - Prices the official fees of one Chinese patent case against the fee index shipped with this deployment: the items the case owes, how many units of each, whether a fee reduction applies, the annual-fee tier of each year, and the surcharge on a late annual fee.
 - Report the case facts the index counts with (claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths). A fact the priced items need but the call omits comes back under pending, naming the input, rather than being guessed.
 - Announce every step of the case in triggers. A step you do not name is not priced at all, so a grant or a procedure left out reads as "no fee" — this list is the report's coverage, not a hint.
-- Money is reported only from transcribed amounts. Each line carries amountStatus: verified (amount and its verification date are recorded), unverified (amount recorded, verification date is not), or unrecorded (no amount yet). With the shipped index every item is unrecorded, so lines carry applicability and counts and no figures.
-- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. Never fill in a missing amount yourself and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.
+- Money is reported only from transcribed amounts. Each line carries status: verified (amount and its verification date are recorded), unverified (amount recorded, verification date is not), or unrecorded (no amount yet). With the shipped index 17 of 19 items carry transcribed, verified amounts; specification-surcharge and extension-fee stay unrecorded because their tiered pricing does not fit one unit amount, so those two lines carry no figures and withhold the total.
+- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. A trigger the index carries no item for is reported under total.uncoveredTriggers and also withholds the total. Never fill in a missing amount or an unindexed stage yourself, and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.
 - annuityYears is the list of patent years to price; it comes from patent_deadlines, which owns the dates. lateMonths is the number of started months of delay, likewise from that tool.
-- This is arithmetic over an index, not a fee quote: the index carries a fee item's structure, and its amounts stay unverified until a person transcribes them from the official fee standard. Confirm any amount against the official announcement before invoicing a client.
+- This is arithmetic over an index, not a fee quote: the index carries a fee item's structure and transcribed amount with its verification date. Confirm any amount against the official announcement before invoicing a client.
 
 Usage notes:
   - Read-only, offline, and makes no network request.
@@ -6824,12 +6853,14 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 - Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.
 - Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.
-- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: write `content` to the delivered file, because a file written from `markdown` loses both.
-- Variables the template does not declare are ignored, and a placeholder with no supplied value is left in the document and reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.
+- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` carries the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: the delivered file is `content`, and a file written from `markdown` loses both.
+- `output_path` (workspace-relative or absolute) writes the rendered document through the session filesystem and reports `path` and `bytes`: text formats write UTF-8, `docx` writes the package bytes. Omit it to receive the render result without touching the filesystem.
+- Variables are substituted by name; a placeholder with no supplied value stays in the document and is reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.
 
 Usage notes:
   - Offline; renders the packaged template assets, the configured override directories, and the packaged styles.
   - A template that declares a writing style carries that style's disclaimer into the rendered document when the deployment enabled disclaimers.
+  - A write is governed by the deployment's file policy; a denied `output_path` fails the call with the filesystem error.
 
 ```json
 {
@@ -6868,6 +6899,10 @@ Usage notes:
     "filename": {
       "type": "string",
       "description": "Suggested file name stem without extension; defaults to the template name"
+    },
+    "output_path": {
+      "type": "string",
+      "description": "Write the rendered document here (workspace-relative or absolute) and report path and bytes; omit to return the content without writing"
     }
   },
   "required": [

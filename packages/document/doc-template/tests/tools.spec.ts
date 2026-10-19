@@ -49,7 +49,7 @@ async function host(templateDirs?: readonly string[]): Promise<Context> {
   await ctx.plugin(ToolRuntime)
   const store = storeOf(templateDirs)
   ctx.tools.register(createListDocTemplatesTool(store))
-  ctx.tools.register(createRenderDocTemplateTool(store))
+  ctx.tools.register(createRenderDocTemplateTool(ctx, store))
   return ctx
 }
 
@@ -95,7 +95,7 @@ describe('toTemplateFilter', () => {
 describe('listDocTemplates', () => {
   it('orders the catalog by category then name', () => {
     const catalog = listDocTemplates(storeOf(), {})
-    expect(catalog.count).toBe(12)
+    expect(catalog.count).toBe(17)
     expect(catalog.templates.map(template => template.name)).toEqual([
       'chemical-spec',
       'electrical-spec',
@@ -109,6 +109,11 @@ describe('listDocTemplates', () => {
       'novelty-defense',
       'simplified-disclosure',
       'standard-9-section',
+      'faq',
+      'meeting-notes',
+      'prd',
+      'release-notes',
+      'report',
     ])
   })
 
@@ -153,6 +158,8 @@ describe('listDocTemplates', () => {
 
   it('applies the model filters', () => {
     expect(listDocTemplates(storeOf(), { category: 'disclosure' }).count).toBe(2)
+    expect(listDocTemplates(storeOf(), { category: 'document' }).count).toBe(5)
+    expect(listDocTemplates(storeOf(), { domain: 'document' }).count).toBe(5)
     expect(listDocTemplates(storeOf(), { domain: 'legal' }).count).toBe(0)
     expect(listDocTemplates(storeOf(), { language: 'en-US' }).count).toBe(0)
     expect(listDocTemplates(storeOf(), { query: '三步法' }).templates.map(template => template.name)).toEqual([
@@ -160,12 +167,15 @@ describe('listDocTemplates', () => {
     ])
   })
 
-  it('sorts a template of an unlisted category after the listed ones', async () => {
+  it('sorts a template of an unlisted category after the listed ones, by name among its peers', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-doc-template-tools-'))
     roots.push(root)
     await writeFile(join(root, 'legal.md'), '---\nname: legal-brief\ncategory: legal\n---\n正文\n')
     const catalog = listDocTemplates(storeOf([templatesDirectory(), root]), {})
-    expect(catalog.templates[catalog.templates.length - 1]?.name).toBe('legal-brief')
+    const names = catalog.templates.map(template => template.name)
+    // The four listed categories hold the first twelve rows; the unlisted
+    // `document` and `legal` categories follow, ordered by name among themselves.
+    expect(names.slice(12)).toEqual(['faq', 'legal-brief', 'meeting-notes', 'prd', 'release-notes', 'report'])
   })
 })
 
@@ -180,6 +190,26 @@ describe('renderTemplateList', () => {
     expect(text).toContain('- [claims] method-claim — 方法权利要求')
     expect(text).toContain('description: 方法类发明专利权利要求模板')
     expect(text).toContain('formats: markdown, html, docx · language: zh-CN · style: none')
+    expect(text).toContain('variables: method_name: string; step_1: multiline;')
+  })
+
+  it('renders a template that declares no variables as none', () => {
+    const text = renderTemplateList({
+      count: 1,
+      templates: [{
+        name: 'bare',
+        title: 'Bare',
+        category: 'claims',
+        description: 'd',
+        domain: 'patent',
+        version: '1',
+        language: 'zh-CN',
+        style: '',
+        useWhen: '',
+        formats: ['markdown'],
+        variables: [],
+      }],
+    })
     expect(text).toContain('variables: none')
   })
 
@@ -269,6 +299,11 @@ describe('renderDocumentResult', () => {
     expect(text).toContain('--- document ---\n正文')
   })
 
+  it('renders a written path even when the byte count is absent', () => {
+    const text = renderDocumentResult({ ...base, path: 'out/t.md' })
+    expect(text).toContain('Written to out/t.md (0 bytes).')
+  })
+
   it('renders the residual placeholders, the warnings, and the encoded package size', () => {
     const text = renderDocumentResult({
       ...base,
@@ -301,9 +336,26 @@ describe('list_doc_templates tool', () => {
     const result = await execute(ctx, 'list_doc_templates', {})
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect(textOf(result)).toContain('12 document templates')
+    expect(textOf(result)).toContain('17 document templates')
     expect(textOf(result)).toContain('- [specification] chemical-spec — 化学领域说明书')
-    expect((result.value as { count: number }).count).toBe(12)
+    expect(textOf(result)).toContain('- [document] prd — 产品需求文档')
+    expect(textOf(result)).toContain('variables: product_name: string;')
+    const value = result.value as { count: number; templates: { name: string; domain: string; variables: unknown[] }[] }
+    expect(value.count).toBe(17)
+    // The structured value carries the domain and a non-empty variable table per row.
+    expect(value.templates.filter(template => template.domain === 'document').map(template => template.name).sort())
+      .toEqual(['faq', 'meeting-notes', 'prd', 'release-notes', 'report'])
+    expect(value.templates.filter(template => template.variables.length === 0)).toEqual([])
+  })
+
+  it('filters the catalog by domain', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, 'list_doc_templates', { domain: 'document' })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect((result.value as { count: number }).count).toBe(5)
+    expect(textOf(result)).toContain('- [document] meeting-notes — 会议纪要')
+    expect(textOf(result)).not.toContain('chemical-spec')
   })
 
   it('reports no match and rejects malformed arguments', async () => {

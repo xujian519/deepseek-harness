@@ -14,6 +14,7 @@ kind: "package-reference"
 ## 目录
 
 - [样式资产](#style-assets)
+- [占位符词表](#placeholder-vocabulary)
 - [投影](#projections)
 - [加载](#loading)
 - [模型体验](#model-experience)
@@ -36,6 +37,13 @@ kind: "package-reference"
 | `output_conventions` | 是否标注置信度、是否弱化低置信度内容。 |
 
 样式资产是文件边界，因此加载时对每个声明值都做校验：正式程度超出 `casual`/`professional`/`academic`、严重度超出 `block`/`warn`、引用风格超出 `inline`/`footnote`/`endnote`、免责声明为空、约定不是布尔值，都会让加载失败。资产省略的段落保持空值。
+
+<a id="placeholder-vocabulary"></a>
+## 占位符词表
+
+文档流水线拒绝与填充的是同一份共享词表，而不是每个消费方各持一份。`placeholderBracePattern()` 是可填形式：`{{` 与 `}}` 之间不含花括号与换行、长度 1–80 的任意内容，因此 `{{client_name}}`、`{{客户名称}}` 与带空格的 `{{ case_id }}` 都算占位符——消费方匹配变量名之前先 trim，这正是「门禁拦下的每一种花括号形式都填得掉」的由来。`residualPlaceholderPatterns()` 追加没人能填的标记形式：方括号里的 `[TBD]`/`[TODO]`/`[REPLACE]`/`[PLACEHOLDER]`/`[XXX]`、`Lorem ipsum`，以及 `待补充`/`待填写`/`此处填写`；它们从 `PLACEHOLDER_MARKERS` 表读出来，文档与技能正文据此枚举的清单与门禁实际执行的一致。
+
+每次调用都返回新的表达式：扫描方各自持有 `lastIndex`，两个消费方不共享扫描状态。模板引擎用花括号形式按名替换并报出替换后仍然剩下的内容；`document_deliver` 的核验拒绝那些残余形式。两者都读本模块，因此改动任一种形式都不可能只落在一边。
 
 <a id="projections"></a>
 ## 投影

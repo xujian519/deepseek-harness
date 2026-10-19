@@ -67,6 +67,7 @@ export function sectionSourceError(error: SectionSourceError, tool: FigureToolNa
     case 'geometry_failed':
     case 'hatch_failed':
       return new PatentToolError('tool_execution_failed', error.message, { tool })
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new source error code here */
     default:
       return assertNever(error.code, 'section source error code')
   }

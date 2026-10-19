@@ -6,7 +6,7 @@
 
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { atomicWriteJson, assertSafeId } from '../../persist-utils.ts'
+import { atomicWriteJson, assertSafeId, assertSafePathSegment } from '../../persist-utils.ts'
 import { caseOutputsDir } from '../../paths.ts'
 import type { ClaimChart, GapKind } from '../protocol/types.ts'
 
@@ -17,7 +17,8 @@ import type { ClaimChart, GapKind } from '../protocol/types.ts'
  * @returns 不含扩展名的文件路径基名。
  */
 export function chartFileBase(caseId: string, chartId: string): string {
-  // 防御路径注入：chartId 直接拼入文件名，仅允许安全字符集（对齐 persist-utils 惯例）。
+  // 防御路径注入：caseId 与 chartId 都直接拼入路径，必须各自校验。
+  assertSafePathSegment(caseId, 'caseId')
   assertSafeId(chartId, 'chartId')
   return join(caseOutputsDir(caseId), `claim-chart-${chartId}`)
 }

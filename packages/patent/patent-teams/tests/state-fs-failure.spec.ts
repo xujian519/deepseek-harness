@@ -3,10 +3,11 @@
 // need fs/promises failures that real-fs tests cannot arrange deterministically
 // on POSIX, so the module under test is loaded against a delegating mock of
 // `node:fs/promises` (the real functions still run unless a test overrides).
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp, open, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { appendMailbox, createMessage } from '../src/mailbox.ts'
 import { archiveTeamDir, createTeamDir, writeTeam } from '../src/state.ts'
 import type { TeamState } from '../src/types.ts'
 
@@ -14,6 +15,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
   return {
     ...actual,
+    open: vi.fn((...args: Parameters<typeof actual.open>) => actual.open(...args)),
     rm: vi.fn((...args: Parameters<typeof actual.rm>) => actual.rm(...args)),
     rename: vi.fn((...args: Parameters<typeof actual.rename>) => actual.rename(...args)),
   }
@@ -21,6 +23,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 // The mocked bindings; the module under test calls these same wrappers.
 const { rm, rename } = await import('node:fs/promises')
+const openMock = vi.mocked(open)
 const rmMock = vi.mocked(rm)
 const renameMock = vi.mocked(rename)
 
@@ -47,6 +50,7 @@ function makeState(id = 'alpha'): TeamState {
 afterEach(() => {
   // Clear call history only; the vi.fn(impl) wrappers keep delegating to the
   // real fs/promises functions for every test that does not inject a failure.
+  openMock.mockClear()
   rmMock.mockClear()
   renameMock.mockClear()
 })
@@ -59,6 +63,15 @@ describe('fs failure injection', () => {
     // The temp write fails (missing team dir); the cleanup rm fails too.
     await expect(writeTeam(join(root, 'missing'), makeState())).rejects.toThrow()
     expect(rmMock).toHaveBeenCalled()
+  })
+
+  it('propagates a non-ENOENT mailbox open failure', async () => {
+    const root = await tmpRoot()
+    openMock.mockRejectedValueOnce(new Error('permission denied'))
+    await expect(
+      appendMailbox(root, 'alpha', 'captain', createMessage('alice', 'captain', 'hello')),
+    ).rejects.toThrow('permission denied')
+    expect(openMock).toHaveBeenCalled()
   })
 
   it('reports an AggregateError when restoring the displaced archive also fails', async () => {
