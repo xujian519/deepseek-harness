@@ -22,7 +22,7 @@ import {
   type CitedReference,
   type ParsedOfficeAction,
 } from '@deepseek-ai/dsh-patent-core'
-import { PatentToolError } from '../error.ts'
+import { requireNonBlankText } from './internal/tool-input.ts'
 
 /** Input for the parse_office_action tool. */
 export type ParseOfficeActionInput = {
@@ -95,9 +95,7 @@ export function createParseOfficeActionTool(): ToolDefinition {
     },
     // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
-      if (args.text.trim().length === 0) {
-        throw new PatentToolError('invalid_tool_input', 'text 为空（须为审查意见通知书正文）', { tool: 'parse_office_action' })
-      }
+      requireNonBlankText(args.text, 'parse_office_action', 'text 为空（须为审查意见通知书正文）')
       const parsed = parseOfficeAction(args.text)
       return { parsed: parsed as unknown as JsonValue, summary: formatOfficeActionSummary(parsed) }
     },
