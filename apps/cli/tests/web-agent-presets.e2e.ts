@@ -285,6 +285,20 @@ describe('the shipped Web composition', () => {
     expect(ctx.agentPresets.defaultId).toBe('standard')
   })
 
+  it('mounts every shipped preset', async () => {
+    for (const id of ['cordis', 'document', 'minimal', 'patent', 'ptc', 'standard']) {
+      const handle = await ctx.agents.create({
+        sessionId: SessionId(`preset-mount-${id}`),
+        setup: agentCtx => ctx.agentPresets.mount(agentCtx, id).then(() => undefined),
+      })
+      try {
+        expect(toolNames(ctx, handle.agent).length, `${id} tool catalog`).toBeGreaterThan(0)
+      } finally {
+        await handle.dispose()
+      }
+    }
+  })
+
   it('composes the full agent from `standard`', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('preset-standard'),

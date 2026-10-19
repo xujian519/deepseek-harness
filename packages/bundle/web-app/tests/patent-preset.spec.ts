@@ -617,8 +617,6 @@ describe('patent work-mode routing', () => {
  * policy edit.
  */
 describe('patent preset delivery rows', () => {
-  const SCHEDULE_TOOLS = ['schedule_create', 'schedule_delete', 'schedule_list', 'schedule_update']
-
   it('mounts the clock, the reminder tools, and the goal command beside the goal tool', async () => {
     const rows = new Map((await patentRows()).flatMap(row => (typeof row.id === 'string' ? [[row.id, row] as const] : [])))
     for (const [id, name] of [
@@ -632,11 +630,14 @@ describe('patent preset delivery rows', () => {
     }
   })
 
-  it('keeps a delegated child off the reminder tools', async () => {
+  it('declares no per-child composition the delegation tool rejects', async () => {
     const rows = new Map((await patentRows()).flatMap(row => (typeof row.id === 'string' ? [[row.id, row] as const] : [])))
     for (const id of ['tool-subagent', 'tool-subagent-fork']) {
-      const config = rows.get(id)?.config as { toolFilter?: { deny?: string[] } } | undefined
-      expect(config?.toolFilter?.deny, `${id} toolFilter.deny`).toEqual(SCHEDULE_TOOLS)
+      const config = rows.get(id)?.config as { persona?: unknown; toolFilter?: unknown } | undefined
+      // `dsh-tool-subagent` fails its mount on either field; a preset carrying
+      // one can never compose a new Session in this mode.
+      expect(config?.persona, `${id} persona`).toBeUndefined()
+      expect(config?.toolFilter, `${id} toolFilter`).toBeUndefined()
     }
   })
 })
