@@ -46,11 +46,13 @@ kind: "package-reference"
 
 部署可声明 `deliveryGate` 条目：每条给出一个交付工具，以及它被调用前必须已在本会话成功执行、且结果未声明 `blocked: true` 的工具（可选 `whenArgs` 把该条收窄到匹配的调用——字符串为精确匹配，字符串数组为取值集合）。未满足的条目经 `ctx.tools.guard()` 这一单调 guard 拒绝该次调用，故监听器顺序或权限规则都无法把拒绝还原成一次执行。拒绝理由点出尚缺的前置工具，模型据此补跑，而不是让这次交付静默地少一道闸门。
 
-这道门禁存在的原因是：只写在提示词里的纪律与没有纪律，在调用记录上无法区分——跑过的那次与没跑过的那次留下同样的痕迹，若没有任何环节核对。台账保存**成功返回**的工具名，由 `tools/post-execute` 登记，因为派发前作出的拒绝无法知道它即将放行的调用会不会成功。登记与判定因此分开：guard 读的是 post-execute 监听器填写的台账。
+条目还可声明 `evidence`，按前置工具名分组，给出该工具规范结果上的条件：每个条件点名一个顶层结果字段，并给出可接受的精确值（`equals`，字符串数组表示取其中任一值）或数组最小长度（`minItems`）。成功返回但不满足全部声明条件的调用仍算缺失，因此零字节 `rule_check`、没有识别到引用的 `law_verify`、或另一个模板的收口记录都不能冒充本次交付欠的那次运行。台账只保留声明过的字段，由 `deliveryEvidence` 从结果中提取。证据声明挂在条目未 require 的工具上会在加载期失败，因为该条件永远不会被读取。
+
+这道门禁存在的原因是：只写在提示词里的纪律与没有纪律，在调用记录上无法区分——跑过的那次与没跑过的那次留下同样的痕迹，若没有任何环节核对。台账记录**成功返回**的调用（含声明过的结果字段），由 `tools/post-execute` 登记，因为派发前作出的拒绝无法知道它即将放行的调用会不会成功。登记与判定因此分开：guard 读的是 post-execute 监听器填写的台账。
 
 台账按调用方（agent）与调用声明的案卷键（`caseId`、`case_id`、`case_dir` 或 `caseDir`）归属。声明了案卷的前置调用只满足该案卷的交付；未声明案卷的前置调用属于会话级记录，只在交付的案卷没有该工具的专属记录时才被采用。没有 agent 的调用无法归属到任何会话，一律按未满足处理：无法归属的交付件同样拿不出本会话的记录。随包默认不声明任何条目——一次交付欠哪些闸门调用，是本部署的交付政策，不是本包的政策。
 
-生产消费者是 `render_patent_document` 与 `build_patent_filing`：`patent` 预置要求任何交付渲染或提交格式成文前已跑过 `rule_check`、`law_verify` 与 `matter_log_append`，凡按 manifest 收口的模板另要求 `patent_workflow_run`——分析类模板，以及 `claims-spec`（其 `patent_disclosure_v1` 的末段就是权利要求草稿）。随包模板中有两个不在第二条要求内：`rectification-response` 无 manifest 入口，交付技能以逐项替换页核验记录替代该次运行；`right-evaluation-report` 作转制用时只是把行政机关已出具的报告排成模板版式，没有分析可收口。
+生产消费者是 `render_patent_document` 与 `build_patent_filing`：`patent` 预置要求任何交付渲染或提交格式成文前已跑过 `rule_check`、`law_verify` 与 `matter_log_append`，凡按 manifest 收口的模板另要求 `patent_workflow_run`——分析类模板，以及 `claims-spec`（其 `patent_disclosure_v1` 的末段就是权利要求草稿）。收口条目写明模板对应的 manifest 并要求 `ok: true`，其他 manifest 的运行不能顶替。引用型模板另要求 `law_verify` 识别到引用，而申请文件与表格可以合法地不引用法条。随包模板中有两个不在收口条目内：`rectification-response` 无 manifest 入口，交付技能以逐项替换页核验记录替代该次运行；`right-evaluation-report` 作转制用时只是把行政机关已出具的报告排成模板版式，没有分析可收口。
 
 <a id="evi-011-evidence-guards"></a>
 ## EVI-011 证据守卫
@@ -60,7 +62,7 @@ kind: "package-reference"
 <a id="rule-engine-library-api"></a>
 ## 规则引擎（库 API）
 
-包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`isGateCheckType`、`PATENT_CASE_DOMAINS`、`patentCaseDomains`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`，制品门禁的 `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`，以及交付门禁的 `DeliveryAttemptLedger` / `deliveryGateMissing` / `renderDeliveryGateDenial` / `resolveDeliveryGate` 与共用的 `jsonRecord` / `declaredArgsMatch`。
+包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`isGateCheckType`、`PATENT_CASE_DOMAINS`、`patentCaseDomains`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`，制品门禁的 `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`，以及交付门禁的 `DeliveryAttemptLedger` / `deliveryEvidence` / `deliveryGateMissing` / `renderDeliveryGateDenial` / `resolveDeliveryGate` 与 `DeliveryEvidenceRequirement` / `DeliveryGateEntry` 类型，外加共用的 `jsonRecord` / `declaredArgsMatch`。
 
 <a id="rule-assets"></a>
 ## 规则资产
@@ -100,7 +102,7 @@ Schemastery 配置。
 | `gateToolNames` | string[] | 交付物工具 | 结果经输出门禁评估的工具名。 |
 | `gateCheckTypes` | string[] | `keyword_blocklist` | 结果门禁保留的检查族；点名缺失即违规族会告警拒绝。 |
 | `structuralGate` | object[] | `[]` | 制品门禁条目（`tool`、`textArgs`、`ruleIds`，可选 `whenArgs`）：制品文本命中 block 级规则即在调用前拒绝。 |
-| `deliveryGate` | object[] | `[]` | 交付门禁条目（`tool`、`requires`，可选 `whenArgs`）：前置工具未在本会话成功执行、或结果声明了 `blocked: true` 的调用由单调 guard 拒绝。 |
+| `deliveryGate` | object[] | `[]` | 交付门禁条目（`tool`、`requires`，可选 `whenArgs` 与 `evidence`）：前置工具未在本会话成功执行、结果声明了 `blocked: true`、或声明过的结果证据缺失/不符的调用由单调 guard 拒绝。 |
 | `approvalDisabled` | boolean | `false` | 对 review 级违规直接拦截，不经审批往返。 |
 
 <a id="model-experience"></a>
@@ -122,7 +124,7 @@ Schemastery 配置。
 - **规则按域与前提收窄，不按文书类型判定** — 作业 scope 只留本作业的域，规则的适用前提在文本未触及该主题时保持沉默，但没有任何环节判定文书类型：前提命中的规则（例如答复引述了权利要求文字）仍会报出它缺失的要素。
 - **随包制品门禁条目是模板专用的** — `patent` 预置在 `render_patent_document` 的 `template=oa-response` 上启用 `PR-OA-007`，判定 `draft` 中作者撰写的论证文本。其余缺失规则仍要求入参承载文书全文；模板生成的标题/权项固定措辞不是它们的安全目标。
 - **交付台账不跨恢复保留** — 台账保存在插件挂载内、以活动 agent 对象为键，故在新进程里恢复的会话从零开始，即使此前已跑过前置调用也会要求重跑。失败方向是多跑一次闸门，不是少跑。
-- **前置条件认「成功调用且未声明 `blocked: true`」而非「通过结论」** — 台账记录的是某工具未报错返回、且结果没有 `blocked: true`。`rule_check` 结果里报了违规、或 `patent_workflow_run` 停在人工确认门，仍算满足；`law_verify` 的 `blocked: true` 不算，因为那是该检查自己的拒绝。门禁强制的是这次闸门在本会话跑过且没有自报拒绝，结论由交付报告承载供人核阅。
+- **前置条件认「成功调用且未声明 `blocked: true` 且满足条目证据」而非「通过结论」** — 台账记录的是某工具未报错返回、且结果没有 `blocked: true`。`rule_check` 结果里报了违规、或 `patent_workflow_run` 停在人工确认门，仍算满足，除非条目要求的证据不在该结果里；`law_verify` 的 `blocked: true` 不算，因为那是该检查自己的拒绝。没有声明 `evidence` 的条目强制的是这次闸门在本会话跑过且没有自报拒绝；结论由交付报告承载供人核阅。
 - **指南引用是自由文本** — `legalBasis` 原样进入输出，没有任何环节解析它，故规则引的《专利审查指南》节号只与其转录来源一样正确；`tests/guideline-citations.spec.ts` 只守住节号的写法（带零段、例如「2.0」的不是节号）；节号是否在索引里由 patent-law 的 `guideline-citation-coverage.spec.ts` 回答；命题是否落在所引节及其子节内需用 `law_verify` 带命题核对（该覆盖测试只查路径存在）。
 
 ### 开发备注

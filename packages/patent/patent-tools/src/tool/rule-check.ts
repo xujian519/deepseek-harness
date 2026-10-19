@@ -24,6 +24,7 @@ import { parseOfficeAction } from '@deepseek-ai/dsh-patent-core'
 import type { RuleAction, RuleSeverity, RuleSet, RuleViolation } from '@deepseek-ai/dsh-patent-core'
 import type { SynonymMap } from '@deepseek-ai/dsh-patent-rule'
 import { PatentToolError } from '../error.ts'
+import { requireNonBlankText } from './internal/tool-input.ts'
 import { evaluatedTexts, EVALUATED_TEXT_SCHEMA, renderEvaluatedTexts } from '../internal/evaluated-input.ts'
 import type { EvaluatedText } from '../internal/evaluated-input.ts'
 
@@ -223,6 +224,11 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
     },
     // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
+      requireNonBlankText(
+        args.text,
+        'rule_check',
+        'rule_check: text 不能为空白；请传入本次要判定的文本，零字节调用不能作为交付前置证据。',
+      )
       const scope = args.scope ?? 'patent'
       const { ruleSet, pack } = resolve(scope)
       if (ruleSet.rules.length === 0) {

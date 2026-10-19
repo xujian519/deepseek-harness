@@ -70,11 +70,19 @@ interface DeclarationRow {
   config?: { id?: unknown; plugins?: unknown }
 }
 
+/** One `deliveryGate` evidence condition as the `patent` preset declares it. */
+interface DeliveryEvidenceDeclaration {
+  field?: string
+  equals?: string | boolean | string[]
+  minItems?: number
+}
+
 /** One `deliveryGate` entry as the `patent` preset declares it. */
 interface DeliveryGateDeclaration {
   tool?: string
   requires?: string[]
   whenArgs?: { template?: string[] }
+  evidence?: Record<string, DeliveryEvidenceDeclaration[]>
 }
 
 /** One `structuralGate` entry as the `patent` preset declares it. */
@@ -347,19 +355,50 @@ describe('patent preset composition', () => {
     // armed and never fires.
     const rows = await patentRows()
     const row = rows.find(entry => entry.id === 'patent-rule')
-    const gate = (row?.config as { deliveryGate?: DeliveryGateDeclaration[] } | undefined)?.deliveryGate
-    expect(gate).toHaveLength(3)
+    const gate = (row?.config as { deliveryGate?: DeliveryGateDeclaration[] } | undefined)?.deliveryGate ?? []
+    expect(gate).toHaveLength(10)
 
-    const [compliance, filing, closure] = gate ?? []
-    expect(compliance?.tool).toBe('render_patent_document')
+    const compliance = gate.find(entry => entry.tool === 'render_patent_document'
+      && entry.requires?.includes('matter_log_append') === true)
     expect(compliance?.requires).toEqual(['rule_check', 'law_verify', 'matter_log_append'])
+    // A zero-byte rule check reports an empty `evaluated` list; the gate requires the
+    // identity of the text actually read.
+    expect(compliance?.evidence?.rule_check).toEqual([{ field: 'evaluated', minItems: 1 }])
+
     // The DOCX that goes to the office is a deliverable too, and it carries no argument
     // to narrow a gate on, so its entry applies to the tool unconditionally.
-    expect(filing?.tool).toBe('build_patent_filing')
+    const filing = gate.find(entry => entry.tool === 'build_patent_filing')
     expect(filing?.requires).toEqual(['rule_check', 'law_verify', 'matter_log_append'])
     expect(filing?.whenArgs).toBeUndefined()
-    expect(closure?.tool).toBe('render_patent_document')
-    expect(closure?.requires).toEqual(['patent_workflow_run'])
+    expect(filing?.evidence?.rule_check).toEqual([{ field: 'evaluated', minItems: 1 }])
+
+    // Citation-bearing deliverables require a law_verify run that actually recognized
+    // at least one citation; an application document or form may legitimately cite none.
+    const citation = gate.find(entry => entry.requires?.length === 1 && entry.requires[0] === 'law_verify')
+    expect(citation?.evidence?.law_verify).toEqual([{ field: 'findings', minItems: 1 }])
+    expect(citation?.whenArgs?.template).toContain('oa-response')
+    expect(citation?.whenArgs?.template).not.toContain('claims-spec')
+    expect(citation?.whenArgs?.template).not.toContain('search-report-form')
+
+    const closures = gate.filter(entry => entry.requires?.includes('patent_workflow_run') === true)
+    expect(closures).toHaveLength(7)
+    const closure = (template: string): DeliveryGateDeclaration | undefined =>
+      closures.find(entry => entry.whenArgs?.template?.includes(template) === true)
+    expect(closure('oa-response')?.evidence?.patent_workflow_run).toEqual([
+      { field: 'ok', equals: true },
+      { field: 'manifestId', equals: 'patent_oa_response_v1' },
+    ])
+    expect(closure('claims-spec')?.evidence?.patent_workflow_run).toEqual([
+      { field: 'ok', equals: true },
+      { field: 'manifestId', equals: 'patent_disclosure_v1' },
+    ])
+    for (const entry of closures) {
+      expect(entry.tool).toBe('render_patent_document')
+      expect(entry.requires).toEqual(['patent_workflow_run'])
+      expect(entry.evidence?.patent_workflow_run).toContainEqual({ field: 'ok', equals: true })
+      expect(entry.evidence?.patent_workflow_run?.some(requirement => requirement.field === 'manifestId'))
+        .toBe(true)
+    }
 
     // Every gated tool, and every tool a gate requires, comes from a build package this
     // preset enables: rule_check, patent_workflow_run and matter_log_append from
@@ -383,8 +422,8 @@ describe('patent preset composition', () => {
       'utf8',
     )) as { templates?: string[] }
     const shippedTemplates = catalog.templates ?? []
-    const closureTemplates = [...(closure?.whenArgs?.template ?? [])].sort()
-    expect(closureTemplates.length).toBeGreaterThan(0)
+    const closureTemplates = closures.flatMap(entry => entry.whenArgs?.template ?? []).sort()
+    expect(closureTemplates).toHaveLength(11)
     expect(closureTemplates.filter(template => !shippedTemplates.includes(template))).toEqual([])
     expect(closureTemplates).toContain('claims-spec')
     expect(closureTemplates).toContain('search-report-form')

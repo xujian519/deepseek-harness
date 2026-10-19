@@ -3056,7 +3056,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:215`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:221`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3095,9 +3095,11 @@ export interface Config {
    * entry denies the call through a monotonic guard, so a deliverable cannot
    * ship while the gate runs its discipline requires are missing from the
    * session's call record. `whenArgs` narrows an entry to matching calls, which
-   * lets one tool's forms carry different prerequisites. No entry ships: the
-   * prerequisites a deployment requires are its delivery policy, not this
-   * package's.
+   * lets one tool's forms carry different prerequisites. `evidence` requires
+   * fields on a prerequisite's result as well, so a zero-byte run or another
+   * template's closure cannot stand in for the run this delivery owes. No entry
+   * ships: the prerequisites a deployment requires are its delivery policy, not
+   * this package's.
    */
   deliveryGate?: DeliveryGateEntry[]
   /** When true, review-level violations block without an approval round-trip (unattended fail-closed). */
@@ -3130,10 +3132,32 @@ export type DeliveryGateEntry = {
    * 用于同一个工具的不同交付形态各要各的前置条件（如按 `template` 区分分析与撰写）。
    */
   whenArgs?: Record<string, DeclaredArgValue>
+  /**
+   * 前置调用结果必须携带的证据，按前置工具名分组。每个条件都成立才算满足：
+   * 例如 `rule_check` 的 `evaluated` 非空、`patent_workflow_run` 的 `manifestId`
+   * 与本次模板要求的 manifest 一致。未声明的前置工具仍只按成功返回判定。
+   */
+  evidence?: Record<string, DeliveryEvidenceRequirement[]>
 }
 
 /** 一条声明的入参取值：字符串为精确匹配，字符串数组为取值集合。 */
 export type DeclaredArgValue = string | string[]
+
+/**
+ * 一个前置调用结果必须携带的证据条件。
+ *
+ * 交付门禁原先只认「工具名成功返回过」，于是零字节的 `rule_check` 或另一个模板的
+ * 收口记录都能冒充本次交付所需的运行。证据条件把判定落到结果的字段上：身份字段
+ * 不符、数组为空或字段缺失的调用仍然算未满足前置。
+ */
+export type DeliveryEvidenceRequirement = {
+  /** 前置工具结果里的顶层字段名。 */
+  field: string
+  /** 期望的精确值；字符串数组表示取其中任一值。 */
+  equals?: string | boolean | string[]
+  /** 字段为数组时要求的最小长度。 */
+  minItems?: number
+}
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-rule -->
 

@@ -93,7 +93,7 @@ export type LawVerifyToolOptions = {
 const DESCRIPTION = [
   '- Checks law citations against the law index shipped with this deployment: 《专利法》《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path.',
   '- Each citation is decided as 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验, and an article beyond an article ceiling that has itself not been verified also comes back as 未核验.',
-  '- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error, so a typo surfaces instead of being skipped.',
+  '- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error, so a typo surfaces instead of being skipped. Blank text without references is an input error, so a zero-byte call cannot stand in for a completed check.',
   '- A citation-like fragment in the text that the parser cannot resolve is returned in `unrecognized` and was not checked. A result with findings is not a complete check while that list is non-empty: rewrite the fragment as a full reference or verify it separately.',
   '- Pass proposition when a citation is offered in support of a specific claim. The cited entry must carry that claim, by naming its subject in the entry\'s own topic keywords or by sharing the entry\'s transcribed wording; 与所引命题不符 means another entry of the same law carries the claim instead (the reason names it), and 未与条文对应（未判定） means no entry does, so nothing here decides the claim and a person must.',
   '- This checks citation form and index membership, not legal correctness of the actual text: the index carries transcribed text only after a person records the transcription source. An article that is 未核验 still has to be verified against an official source (patent_case_search / cnlaw / web_fetch on the official page) before it is relied on.',
@@ -183,6 +183,13 @@ function runVerify(
   policies: CitationPolicySet,
   supportThreshold: number | undefined,
 ): LawVerifyOutput {
+  const references = args.references ?? []
+  if (args.text === undefined && references.length === 0) {
+    throw new LawVerifyToolError('no_input', '至少要给出 text 或 references 之一')
+  }
+  if (args.text !== undefined && args.text.trim().length === 0 && references.length === 0) {
+    throw new LawVerifyToolError('no_input', 'text 不能为空白：请给出要检查的文本，或用 references 列出引用')
+  }
   const findings = collectFindings(args, baselines, supportThreshold)
   const projected = findings.map(finding => toFinding(finding, policies))
   return {
@@ -213,9 +220,6 @@ function collectFindings(
       throw new LawVerifyToolError('unparsable_reference', `无法把「${raw}」解析为单条法条引用：请给出条号（如 专利法第22条第3款）或指南节（如 审查指南第二部分第四章3.2.1.1）`)
     }
     findings.push(verifyCitation(reference, baselines, options))
-  }
-  if (findings.length === 0 && args.text === undefined && references.length === 0) {
-    throw new LawVerifyToolError('no_input', '至少要给出 text 或 references 之一')
   }
   return findings
 }

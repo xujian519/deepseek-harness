@@ -32,6 +32,20 @@ export interface ToolInputReader {
 }
 
 /**
+ * Reject blank text at a tool entry.
+ *
+ * A zero-byte call must not stand in for a completed check, so the tool fails
+ * instead of evaluating an empty draft.
+ * @param text - the caller-supplied text.
+ * @param tool - the registered tool name carried in the error context.
+ * @param message - model-facing reason naming the text the tool needs.
+ * @throws PatentToolError('invalid_tool_input') when the text is empty or whitespace.
+ */
+export function requireNonBlankText(text: string, tool: string, message: string): void {
+  if (text.trim().length === 0) throw new PatentToolError('invalid_tool_input', message, { tool })
+}
+
+/**
  * Create field readers whose errors name one tool.
  * @param tool - the registered tool name carried in the error context.
  * @returns the field readers.

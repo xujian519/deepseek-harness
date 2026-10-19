@@ -36,6 +36,16 @@ describe('rule_check', () => {
     expect(result.isError).toBe(true)
   })
 
+  it('rejects blank text so a zero-byte call cannot stand in for a gate run', async () => {
+    const tool = createRuleCheckTool({ loader: () => ({ rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }), synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    for (const [label, text] of [['r-blank-1', ''], ['r-blank-2', ' \n\t ']] as const) {
+      const result = await execute(ctx, 'rule_check', { text, scope: 'patent' }, label)
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result.content)).toContain('text 不能为空白')
+    }
+  })
+
   it('evaluates a keyword blocklist rule', async () => {
     const ruleSet: RuleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })

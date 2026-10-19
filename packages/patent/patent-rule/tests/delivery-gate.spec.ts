@@ -6,6 +6,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture, defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionInput } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import * as PatentRule from '@deepseek-ai/dsh-patent-rule'
 
 const signal = new AbortController().signal
@@ -59,7 +60,7 @@ function documentTool() {
 }
 
 /** A prerequisite whose canonical result is the given JSON value. */
-function resultTool(name: string, value: null | { blocked: boolean } | string) {
+function resultTool(name: string, value: JsonValue) {
   return defineTool({
     name,
     description: name,
@@ -121,6 +122,22 @@ describe('resolveDeliveryGate', () => {
     expect(plan.entries.map(entry => entry.tool)).toEqual(['render_patent_document'])
     expect(plan.warnings).toEqual(['交付前置门禁 draft_claims: 未声明任何前置调用，该条不生效'])
   })
+
+  it('rejects evidence declared for a tool the entry does not require', () => {
+    expect(() => PatentRule.resolveDeliveryGate([{
+      tool: 'render_patent_document',
+      requires: ['rule_check'],
+      evidence: { law_verify: [{ field: 'findings', minItems: 1 }] },
+    }])).toThrow(/evidence.*requires.*law_verify/)
+  })
+
+  it('collects every declared field across entries that share a prerequisite', () => {
+    const plan = PatentRule.resolveDeliveryGate([
+      { tool: 'render_patent_document', requires: ['rule_check'], evidence: { rule_check: [{ field: 'evaluated', minItems: 1 }] } },
+      { tool: 'build_patent_filing', requires: ['rule_check'], evidence: { rule_check: [{ field: 'scope', equals: 'patent' }] } },
+    ])
+    expect(plan.evidenceFields.get('rule_check')).toEqual(new Set(['evaluated', 'scope']))
+  })
 })
 
 describe('DeliveryAttemptLedger', () => {
@@ -149,6 +166,16 @@ describe('DeliveryAttemptLedger', () => {
     expect(ledger.has(AGENT, 'rule_check', 'case-A')).toBe(true)
     ledger.record(AGENT, 'law_verify', 'case-B')
     expect(ledger.has(AGENT, 'law_verify', 'case-A')).toBe(false)
+  })
+
+  it('records result evidence and reports which condition a call failed', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    const findings = [{ field: 'findings', minItems: 1 }] as const
+    ledger.record(AGENT, 'law_verify', undefined, { findings: [] })
+    expect(ledger.evidenceFailure(AGENT, 'law_verify', undefined, findings)).toContain('findings')
+    // A later record that carries the evidence satisfies the same prerequisite.
+    ledger.record(AGENT, 'law_verify', undefined, { findings: [{ raw: '专利法第22条' }] })
+    expect(ledger.evidenceFailure(AGENT, 'law_verify', undefined, findings)).toBeUndefined()
   })
 })
 
@@ -197,6 +224,122 @@ describe('deliveryGateMissing', () => {
   })
 })
 
+describe('deliveryEvidence', () => {
+  it('extracts only the declared fields from a record result', () => {
+    expect(PatentRule.deliveryEvidence({ evaluated: [], manifestId: 'm' }, new Set(['evaluated'])))
+      .toEqual({ evaluated: [] })
+    expect(PatentRule.deliveryEvidence({ manifestId: 'm' }, new Set(['evaluated']))).toEqual({})
+    expect(PatentRule.deliveryEvidence({ manifestId: 'm' }, undefined)).toBeUndefined()
+    expect(PatentRule.deliveryEvidence({ manifestId: 'm' }, new Set())).toBeUndefined()
+    expect(PatentRule.deliveryEvidence('m', new Set(['manifestId']))).toEqual({})
+  })
+})
+
+describe('evidence matching', () => {
+  it('matches exact strings, booleans, value sets, and minimum array lengths', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    ledger.record(AGENT, 'probe', undefined, { manifestId: 'patent_oa_response_v1', ok: true, findings: [{}], scope: 'patent' })
+
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [])).toBeUndefined()
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'manifestId', equals: 'patent_oa_response_v1' }]))
+      .toBeUndefined()
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'manifestId', equals: ['other', 'patent_oa_response_v1'] }]))
+      .toBeUndefined()
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'ok', equals: true }])).toBeUndefined()
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'findings', minItems: 1 }])).toBeUndefined()
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'scope' }])).toBeUndefined()
+
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'manifestId', equals: 'other' }]))
+      .toContain('manifestId')
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'manifestId', equals: ['other'] }]))
+      .toContain('manifestId')
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'ok', equals: false }])).toContain('ok')
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'findings', minItems: 2 }]))
+      .toContain('不足 2 项')
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'absent' }]))
+      .toContain('未携带 absent')
+    // A minimum length on a non-array field, and a value set on a non-string field, fail.
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'manifestId', minItems: 1 }]))
+      .toContain('不足 1 项')
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'ok', equals: ['true'] }]))
+      .toContain('ok')
+  })
+
+  it('requires one record to satisfy every condition', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    ledger.record(AGENT, 'probe', undefined, { ok: true, manifestId: 'patent_disclosure_v1' })
+    ledger.record(AGENT, 'probe', undefined, { ok: false, manifestId: 'patent_oa_response_v1' })
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [
+      { field: 'ok', equals: true },
+      { field: 'manifestId', equals: 'patent_oa_response_v1' },
+    ])).toBeDefined()
+  })
+
+  it('reports a missing field when the prerequisite has no record at all', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    expect(ledger.evidenceFailure(AGENT, 'probe', undefined, [{ field: 'evaluated', minItems: 1 }]))
+      .toContain('未携带 evaluated')
+  })
+})
+
+describe('delivery evidence', () => {
+  const plan = PatentRule.resolveDeliveryGate([
+    {
+      tool: 'render_patent_document',
+      requires: ['rule_check', 'law_verify'],
+      evidence: {
+        rule_check: [{ field: 'evaluated', minItems: 1 }],
+        law_verify: [{ field: 'findings', minItems: 1 }],
+      },
+    },
+    {
+      tool: 'render_patent_document',
+      requires: ['patent_workflow_run'],
+      whenArgs: { template: 'oa-response' },
+      evidence: {
+        patent_workflow_run: [
+          { field: 'ok', equals: true },
+          { field: 'manifestId', equals: 'patent_oa_response_v1' },
+        ],
+      },
+    },
+  ])
+
+  it('a successful call with an empty evaluated list or findings does not satisfy the gate', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    ledger.record(AGENT, 'rule_check', undefined, { evaluated: [] })
+    ledger.record(AGENT, 'law_verify', undefined, { findings: [] })
+    ledger.record(AGENT, 'patent_workflow_run', undefined, { ok: true, manifestId: 'patent_disclosure_v1' })
+
+    const missing = PatentRule.deliveryGateMissing(plan, ledger, AGENT, 'render_patent_document', { template: 'oa-response' })
+    expect(missing).toHaveLength(3)
+    expect(missing[0]).toMatch(/^rule_check（/)
+    expect(missing[1]).toMatch(/^law_verify（/)
+    expect(missing[2]).toMatch(/^patent_workflow_run（/)
+  })
+
+  it('a failed manifest run does not satisfy the closure gate', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    ledger.record(AGENT, 'rule_check', undefined, { evaluated: [{ field: 'text', chars: 120, digest: 'd' }] })
+    ledger.record(AGENT, 'law_verify', undefined, { findings: [{ raw: '专利法第22条第3款' }] })
+    ledger.record(AGENT, 'patent_workflow_run', undefined, { ok: false, manifestId: 'patent_oa_response_v1' })
+
+    const missing = PatentRule.deliveryGateMissing(plan, ledger, AGENT, 'render_patent_document', { template: 'oa-response' })
+    expect(missing).toHaveLength(1)
+    expect(missing[0]).toMatch(/^patent_workflow_run（/)
+  })
+
+  it('accepts only the manifest the template requires', () => {
+    const ledger = new PatentRule.DeliveryAttemptLedger()
+    ledger.record(AGENT, 'rule_check', undefined, { evaluated: [{ field: 'text', chars: 120, digest: 'd' }] })
+    ledger.record(AGENT, 'law_verify', undefined, { findings: [{ raw: '专利法第22条第3款' }] })
+    ledger.record(AGENT, 'patent_workflow_run', undefined, { ok: true, manifestId: 'patent_oa_response_v1' })
+
+    expect(PatentRule.deliveryGateMissing(plan, ledger, AGENT, 'render_patent_document', { template: 'oa-response' }))
+      .toEqual([])
+  })
+})
+
 describe('renderDeliveryGateDenial', () => {
   it('点名缺失的前置调用，并说明补哪一步', () => {
     const text = PatentRule.renderDeliveryGateDenial('render_patent_document', ['rule_check', 'law_verify'])
@@ -219,13 +362,36 @@ describe('Config.deliveryGate', () => {
       ],
     })
     expect(parsed.deliveryGate).toEqual([
-      { tool: 'render_patent_document', requires: ['rule_check', 'law_verify'], whenArgs: {} },
+      { tool: 'render_patent_document', requires: ['rule_check', 'law_verify'], whenArgs: {}, evidence: {} },
       {
         tool: 'render_patent_document',
         requires: ['patent_workflow_run'],
         whenArgs: { template: ['patentability-opinion', 'search-report'] },
+        evidence: {},
       },
     ])
+  })
+
+  it('accepts result evidence declared for a required prerequisite', () => {
+    const parsed = PatentRule.Config({
+      deliveryGate: [{
+        tool: 'render_patent_document',
+        requires: ['patent_workflow_run'],
+        whenArgs: { template: 'oa-response' },
+        evidence: {
+          patent_workflow_run: [
+            { field: 'ok', equals: true },
+            { field: 'manifestId', equals: 'patent_oa_response_v1' },
+          ],
+        },
+      }],
+    })
+    expect(parsed.deliveryGate?.[0]?.evidence).toEqual({
+      patent_workflow_run: [
+        { field: 'ok', equals: true },
+        { field: 'manifestId', equals: 'patent_oa_response_v1' },
+      ],
+    })
   })
 
   it('未声明时门禁缺省为空（opt-in）', () => {
@@ -327,6 +493,66 @@ describe('tools/guard 交付前置门禁', () => {
     const denied = await call(ctx, 'render_patent_document', { template: 'claims-spec' }, AGENT)
     expect(denied.isError).toBe(true)
     expect(denied.error?.message).toMatch(/law_verify/)
+  })
+
+  it('denies a delivery whose prerequisite results lack the declared evidence', async () => {
+    const ctx = await mount({
+      deliveryGate: [{
+        tool: 'render_patent_document',
+        requires: ['rule_check', 'law_verify', 'patent_workflow_run'],
+        whenArgs: { template: 'oa-response' },
+        evidence: {
+          rule_check: [{ field: 'evaluated', minItems: 1 }],
+          law_verify: [{ field: 'findings', minItems: 1 }],
+          patent_workflow_run: [
+            { field: 'ok', equals: true },
+            { field: 'manifestId', equals: 'patent_oa_response_v1' },
+          ],
+        },
+      }],
+    })
+    ctx.tools.register(documentTool())
+    ctx.tools.register(resultTool('rule_check', { blocked: false, evaluated: [] }))
+    ctx.tools.register(resultTool('law_verify', { blocked: false, findings: [] }))
+    ctx.tools.register(resultTool('patent_workflow_run', { ok: true, manifestId: 'patent_disclosure_v1' }))
+
+    expect((await call(ctx, 'rule_check', { text: '' }, AGENT)).isError).toBe(false)
+    expect((await call(ctx, 'law_verify', {}, AGENT)).isError).toBe(false)
+    expect((await call(ctx, 'patent_workflow_run', { input: '交底书' }, AGENT)).isError).toBe(false)
+
+    const denied = await call(ctx, 'render_patent_document', { template: 'oa-response' }, AGENT)
+    expect(denied.isError).toBe(true)
+    expect(denied.error?.message).toMatch(/rule_check（/)
+    expect(denied.error?.message).toMatch(/law_verify（/)
+    expect(denied.error?.message).toMatch(/patent_workflow_run（/)
+  })
+
+  it('allows a delivery once the prerequisite results carry the declared evidence', async () => {
+    const ctx = await mount({
+      deliveryGate: [{
+        tool: 'render_patent_document',
+        requires: ['rule_check', 'law_verify', 'patent_workflow_run'],
+        whenArgs: { template: 'oa-response' },
+        evidence: {
+          rule_check: [{ field: 'evaluated', minItems: 1 }],
+          law_verify: [{ field: 'findings', minItems: 1 }],
+          patent_workflow_run: [
+            { field: 'ok', equals: true },
+            { field: 'manifestId', equals: 'patent_oa_response_v1' },
+          ],
+        },
+      }],
+    })
+    ctx.tools.register(documentTool())
+    ctx.tools.register(resultTool('rule_check', { blocked: false, evaluated: [{ field: 'text', chars: 120, digest: 'd' }] }))
+    ctx.tools.register(resultTool('law_verify', { blocked: false, findings: [{ raw: '专利法第22条第3款' }] }))
+    ctx.tools.register(resultTool('patent_workflow_run', { ok: true, manifestId: 'patent_oa_response_v1' }))
+
+    expect((await call(ctx, 'rule_check', { text: '答复正文' }, AGENT)).isError).toBe(false)
+    expect((await call(ctx, 'law_verify', { text: '专利法第22条第3款' }, AGENT)).isError).toBe(false)
+    expect((await call(ctx, 'patent_workflow_run', { manifestId: 'patent_oa_response_v1', input: '通知书' }, AGENT)).isError)
+      .toBe(false)
+    expect((await call(ctx, 'render_patent_document', { template: 'oa-response' }, AGENT)).isError).toBe(false)
   })
 
   it('前置结果没有 blocked:true 时放行', async () => {

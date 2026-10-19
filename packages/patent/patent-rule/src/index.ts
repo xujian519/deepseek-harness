@@ -27,7 +27,9 @@
  *   earlier in the same session, so a deliverable cannot ship without the gate
  *   runs the delivery discipline requires. Prerequisite calls that return
  *   without an error and without declaring `blocked: true` are recorded from
- *   tools/post-execute; the deny is a monotonic guard.
+ *   tools/post-execute, together with the result fields each entry declares as
+ *   evidence; a declared field that is missing or mismatched leaves the
+ *   prerequisite unsatisfied. The deny is a monotonic guard.
  * - evaluate_evidence calls are denied by two monotonic EVI-011 guards when an
  *   overseas/foreign evidence record omits its required notarization /
  *   legalization / translation declaration.
@@ -60,6 +62,7 @@ import { formatViolation, RuleOutputGate } from './runtime/output-gate.ts'
 import { loadSynonymsAsset } from './runtime/synonym-engine.ts'
 import {
   caseKeyOfArguments,
+  deliveryEvidence,
   deliveryGateMissing,
   DeliveryAttemptLedger,
   renderDeliveryGateDenial,
@@ -153,10 +156,13 @@ export {
 } from './runtime/args-match.ts'
 export {
   caseKeyOfArguments,
+  deliveryEvidence,
   DeliveryAttemptLedger,
   deliveryGateMissing,
   renderDeliveryGateDenial,
   resolveDeliveryGate,
+  type DeliveryEvidence,
+  type DeliveryEvidenceRequirement,
   type DeliveryGateEntry,
   type DeliveryGatePlan,
 } from './runtime/delivery-gate.ts'
@@ -247,9 +253,11 @@ export interface Config {
    * entry denies the call through a monotonic guard, so a deliverable cannot
    * ship while the gate runs its discipline requires are missing from the
    * session's call record. `whenArgs` narrows an entry to matching calls, which
-   * lets one tool's forms carry different prerequisites. No entry ships: the
-   * prerequisites a deployment requires are its delivery policy, not this
-   * package's.
+   * lets one tool's forms carry different prerequisites. `evidence` requires
+   * fields on a prerequisite's result as well, so a zero-byte run or another
+   * template's closure cannot stand in for the run this delivery owes. No entry
+   * ships: the prerequisites a deployment requires are its delivery policy, not
+   * this package's.
    */
   deliveryGate?: DeliveryGateEntry[]
   /** When true, review-level violations block without an approval round-trip (unattended fail-closed). */
@@ -270,6 +278,11 @@ export const Config: z<Config> = z.object({
     tool: z.string().required(),
     requires: z.array(z.string()).required(),
     whenArgs: z.dict(z.union([z.string(), z.array(z.string())])),
+    evidence: z.dict(z.array(z.object({
+      field: z.string().required(),
+      equals: z.union([z.string(), z.boolean(), z.array(z.string())]),
+      minItems: z.number(),
+    }))),
   })).default([]),
   approvalDisabled: z.boolean().default(false),
 })
@@ -430,7 +443,12 @@ export function apply(ctx: Context, config: Config): void {
       && requiredTools.has(exec.name)
     const recordIfPassed = (decision: PostToolDecision): PostToolDecision => {
       if (shouldRecord && decision.kind !== 'block' && agent) {
-        deliveryLedger.record(agent, exec.name, caseKeyOfArguments(exec.arguments))
+        deliveryLedger.record(
+          agent,
+          exec.name,
+          caseKeyOfArguments(exec.arguments),
+          deliveryEvidence(result.value, deliveryGate.evidenceFields.get(exec.name)),
+        )
       }
       return decision
     }
