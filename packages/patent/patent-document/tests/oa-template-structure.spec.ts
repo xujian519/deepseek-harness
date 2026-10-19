@@ -29,4 +29,14 @@ describe('oa-response 模板结构（乙3 防线）', () => {
   it('example 的小节集合与顺序与 template 一致（覆盖度断言）', () => {
     expect(exampleSections).toEqual(templateSections)
   })
+
+  it('template 与 example 的签名行不含下划线占位（人工签署时填写）', () => {
+    for (const file of ['assets/template.html', 'example.html']) {
+      const html = readFileSync(join(TEMPLATE_DIR, file), 'utf8')
+      const signatureRows = [...html.matchAll(/<div class="sign-block"[^>]*>([\s\S]*?)<\/div>/g)]
+        .map(match => (match[1] ?? '').trim())
+      expect(signatureRows).toEqual(['代理人：', '日期：'])
+      expect(signatureRows.join('')).not.toContain('________')
+    }
+  })
 })
