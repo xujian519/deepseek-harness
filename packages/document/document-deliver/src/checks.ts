@@ -9,20 +9,27 @@
  *
  * Finding levels. `block` refuses the registration and is reserved for the two
  * findings the shipped quality gate calls P0 with no legitimate reading: a
- * residual `{{placeholder}}` outside quoted text (a code fence or an inline code
- * span), and a word the selected style forbids outright. Everything else is `warn` — an empty section, a
- * fragment no declared anchor serves, a word the style only discourages, a
- * format with no text reader, and a declared character budget the document
- * misses. A `warn` finding is reported and the registration proceeds, because
- * each of them has a reading a reviewer may accept (a placeholder shown inside
- * a code sample or quoted in inline code while the document talks about that
- * placeholder, an anchor a renderer derives differently, an intentionally short
- * summary). A deployment that needs a forbidden word allowed overrides
- * the style asset instead of silencing the check.
+ * residual placeholder outside quoted text (a code fence or an inline code
+ * span), and a word the selected style forbids outright outside quoted text.
+ * Everything else is `warn` — an empty section, a fragment no declared anchor
+ * serves, a word the style only discourages, a forbidden word quoted as text
+ * the document talks about or sample code the document shows, a format with no
+ * text reader, and a declared character budget the document misses. A `warn`
+ * finding is reported and the registration proceeds, because each of them has a
+ * reading a reviewer may accept (a placeholder shown inside a code sample or
+ * quoted in inline code while the document talks about that placeholder, an
+ * anchor a renderer derives differently, an intentionally short summary). A
+ * deployment that needs a forbidden word allowed overrides the style asset
+ * instead of silencing the check.
+ *
+ * A declared character budget measures body text. Markdown and DOCX-projected
+ * text are body text already; an HTML document's markup, comments, and the
+ * contents of its `script` and `style` elements are not, so `format: 'html'`
+ * measures the text a renderer shows.
  * @module @deepseek-ai/dsh-document-deliver/checks
  */
 
-import { placeholderBracePattern, type AntiPattern, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
+import { residualPlaceholderPatterns, type AntiPattern, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
 
 /** Every check this module can report. */
 export const DOCUMENT_CHECK_IDS = [
@@ -58,6 +65,13 @@ export interface DocumentTextCheckOptions {
   /** Declared character budget, in non-whitespace characters; absent when none was declared. */
   readonly charBudget?: number
   /**
+   * The format of the checked bytes, when it changes how the text is measured.
+   * `html` measures the body text a renderer shows, with markup stripped; the
+   * default measures the delivered text, which for Markdown and for DOCX
+   * projection is body text already.
+   */
+  readonly format?: 'markdown' | 'html'
+  /**
    * Fraction of the declared budget the document may fall short of or exceed.
    * Defaults to {@link DEFAULT_LENGTH_TOLERANCE}; `document_deliver` always
    * supplies its configured value.
@@ -87,13 +101,19 @@ export const DEFAULT_MAX_FINDINGS_PER_CHECK = 5
 /** Tolerance the shipped quality gate applies to a declared character budget. */
 export const DEFAULT_LENGTH_TOLERANCE = 0.2
 
-/** Residual placeholder forms: the unfilled-variable braces plus the marker list the quality gate names. */
-const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
-  placeholderBracePattern(),
-  /\[(?:TBD|TODO|REPLACE|PLACEHOLDER|XXX)\]/giu,
-  /lorem ipsum/giu,
-  /(?:待补充|待填写|此处填写)/gu,
-]
+/**
+ * Residual placeholder forms: the unfilled-variable braces plus the marker list
+ * an unfinished draft carries. Both come from the style package the render side
+ * reads, so a form cannot be rejected by the gate and fillable by no variable.
+ */
+const PLACEHOLDER_PATTERNS: readonly RegExp[] = residualPlaceholderPatterns()
+
+/**
+ * Fragments a renderer answers without a heading or an explicit anchor. `top`
+ * is the document top: browsers resolve it with no element declaring it, and
+ * renderers conventionally emit `#top` back-links.
+ */
+const RENDERER_ANCHORS: readonly string[] = ['top']
 
 /** A Markdown ATX heading line. */
 const MARKDOWN_HEADING = /^#{1,6}[ \t]+(\S.*?)[ \t]*$/gmu
@@ -113,8 +133,31 @@ const HTML_FRAGMENT = /(?:href|src)\s*=\s*"#([^"]*)"/giu
 /** An explicit HTML anchor: an element id or a named anchor. */
 const EXPLICIT_ANCHOR = /\s(?:id|name)\s*=\s*"([^"]+)"/giu
 
-/** An HTML comment, which never counts as a section's content. */
-const HTML_COMMENT = /<!--[\s\S]*?-->/gu
+/**
+ * A tag opening, closing slash included; sticky, so a scan resumes at one tag.
+ * The element name is the match's suffix, so the scan reads it from the matched
+ * text rather than from a capture group that could be absent.
+ */
+const TAG_OPENING = /<[ \t]*\/?[ \t]*[a-z][a-z0-9-]*/iuy
+
+/** The `<`, whitespace, and closing slash a tag opening carries before its element name. */
+const TAG_PREFIX = /^<[ \t]*\/?[ \t]*/u
+
+/** The character references a document's prose carries. */
+const CHARACTER_REFERENCE = /&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([A-Za-z][A-Za-z0-9]*));/gu
+
+/** The named character references worth decoding; an unknown name stays source text. */
+const NAMED_CHARACTER_REFERENCES: Readonly<Record<string, string>> = {
+  amp: '&',
+  apos: "'",
+  gt: '>',
+  lt: '<',
+  nbsp: ' ',
+  quot: '"',
+}
+
+/** Elements whose content is code for the renderer rather than document body text. */
+const NON_TEXT_ELEMENTS: readonly string[] = ['script', 'style']
 
 /** A character range of the checked text. */
 interface TextRange {
@@ -122,10 +165,12 @@ interface TextRange {
   readonly end: number
 }
 
-/** One heading occurrence: where it sits and what it renders to. */
+/** One heading occurrence: where it sits, what it renders to, and its outline level. */
 interface HeadingSpan extends TextRange {
   /** The heading text with its Markdown or HTML markup removed. */
   readonly text: string
+  /** Outline level: the `#` count of an ATX heading or the digit of an `h` element. */
+  readonly level: number
 }
 
 /** One occurrence of a global expression: where it starts, what it matched, and its first group. */
@@ -209,11 +254,11 @@ function fenceRanges(text: string): TextRange[] {
 const INLINE_CODE = /(`+)([^`\n]*?)\1/gu
 
 /**
- * Quoted spans the placeholder check treats as displayed text rather than residual
- * content: fenced blocks plus inline code spans.
+ * Quoted spans the checks treat as displayed text rather than content the
+ * document asserts: fenced blocks plus inline code spans.
  *
  * A document that quotes the checks — a delivery checklist naming `[TBD]` or
- * `{{variable}}` inside inline code — carries the very strings this check looks
+ * `{{variable}}` inside inline code — carries the very strings these checks look
  * for, and quoting them is the way such a document talks about them. Both are
  * reported at `warn` instead of blocking.
  * @param text - the checked text.
@@ -222,6 +267,97 @@ const INLINE_CODE = /(`+)([^`\n]*?)\1/gu
 function quotedRanges(text: string): TextRange[] {
   const inline = matches(text, INLINE_CODE).map(match => ({ start: match.index, end: match.index + match.text.length }))
   return [...fenceRanges(text), ...inline]
+}
+
+/**
+ * The index just past the closing tag of one non-text element.
+ * @param html - the document text.
+ * @param from - the index just past the element's opening tag.
+ * @param name - the element name, as the tag carried it.
+ * @returns the index after `</name>`, or the document end when the element is
+ * never closed, which is how a renderer treats the rest of such a document.
+ */
+function endOfNonTextElement(html: string, from: number, name: string): number {
+  const closing = new RegExp(`</${name}\\s*>`, 'giu')
+  closing.lastIndex = from
+  const match = closing.exec(html)
+  return match === null ? html.length : match.index + match[0].length
+}
+
+/**
+ * Decode the character references a document's prose carries, so `AT&amp;T`
+ * measures as five characters rather than seven.
+ * @param text - the text, with markup already removed.
+ * @returns the text a reader sees; an unknown reference or an out-of-range code
+ * point stays as written.
+ */
+function decodeCharacterReferences(text: string): string {
+  return text.replace(
+    CHARACTER_REFERENCE,
+    (reference: string, decimal?: string, hexadecimal?: string, named?: string) => {
+      if (named !== undefined) return NAMED_CHARACTER_REFERENCES[named.toLowerCase()] ?? reference
+      // The two numeric alternatives are exclusive: `hexadecimal` is present
+      // exactly when `decimal` is absent, so the fallback always carries digits.
+      const codePoint = Number(decimal ?? `0x${hexadecimal}`)
+      return codePoint > 0 && codePoint <= 0x10_ffff ? String.fromCodePoint(codePoint) : reference
+    },
+  )
+}
+
+/**
+ * The body text of one HTML document: comments, declarations, tags, and the
+ * contents of the elements that carry code for the renderer rather than text
+ * for a reader (`script`, `style`) removed, character references decoded.
+ *
+ * The scan stays deliberately small because the checker reads a document, not a
+ * browser's build of one: a stray `<` that opens no element stays prose, an
+ * unclosed comment, declaration, or non-text element runs to the end the way a
+ * renderer takes it, and quoted attributes holding `>` are out of scope.
+ * @param html - the document text.
+ * @returns the text a reader sees.
+ */
+function htmlBodyText(html: string): string {
+  let body = ''
+  let index = 0
+  while (index < html.length) {
+    const opening = html.indexOf('<', index)
+    if (opening === -1) {
+      body += html.slice(index)
+      break
+    }
+    body += html.slice(index, opening)
+    if (html.startsWith('<!--', opening)) {
+      const commentEnd = html.indexOf('-->', opening)
+      index = commentEnd === -1 ? html.length : commentEnd + 3
+      continue
+    }
+    if (html.startsWith('<!', opening)) {
+      // A declaration (`<!doctype html>`) is markup, never prose.
+      const declarationEnd = html.indexOf('>', opening)
+      index = declarationEnd === -1 ? html.length : declarationEnd + 1
+      continue
+    }
+    TAG_OPENING.lastIndex = opening
+    const tag = TAG_OPENING.exec(html)
+    if (tag === null) {
+      // No element name follows the `<`, so it is prose, as in "a < b".
+      body += '<'
+      index = opening + 1
+      continue
+    }
+    const tagEnd = html.indexOf('>', TAG_OPENING.lastIndex)
+    if (tagEnd === -1) {
+      body += html.slice(opening)
+      break
+    }
+    index = tagEnd + 1
+    const tagOpening = tag[0]
+    const name = tagOpening.replace(TAG_PREFIX, '').toLowerCase()
+    // A closing tag of a non-text element carries no opening of its own.
+    if (tagOpening.includes('/') || !NON_TEXT_ELEMENTS.includes(name)) continue
+    index = endOfNonTextElement(html, index, name)
+  }
+  return decodeCharacterReferences(body)
 }
 
 /** Strip the markup a heading may carry, so its slug matches what a renderer shows. */
@@ -244,17 +380,40 @@ function headingSlug(heading: string): string {
   return heading.toLowerCase().replace(/[^\p{L}\p{N}_ -]/gu, '').replaceAll(' ', '-')
 }
 
+/**
+ * The length of a Markdown heading line's `#` run.
+ * @param line - a matched ATX heading line.
+ * @returns the outline level.
+ */
+function markdownLevel(line: string): number {
+  return line.length - line.replace(/^#+/u, '').length
+}
+
+/**
+ * The digit of an HTML heading element.
+ * @param element - a matched `<h1>`…`<h6>` element.
+ * @returns the outline level.
+ */
+function htmlLevel(element: string): number {
+  return Number(element.charAt(2))
+}
+
 /** Every heading of the text, in order; a `#` line inside a fence is not a heading. */
 function headingSpans(text: string, fences: readonly TextRange[]): HeadingSpan[] {
   const spans: HeadingSpan[] = []
-  for (const match of matches(text, MARKDOWN_HEADING)) {
-    if (within(fences, match.index)) continue
-    spans.push({ start: match.index, end: match.index + match.text.length, text: renderedHeading(match.group) })
+  const collect = (pattern: RegExp, levelOf: (line: string) => number): void => {
+    for (const match of matches(text, pattern)) {
+      if (within(fences, match.index)) continue
+      spans.push({
+        start: match.index,
+        end: match.index + match.text.length,
+        text: renderedHeading(match.group),
+        level: levelOf(match.text),
+      })
+    }
   }
-  for (const match of matches(text, HTML_HEADING)) {
-    if (within(fences, match.index)) continue
-    spans.push({ start: match.index, end: match.index + match.text.length, text: renderedHeading(match.group) })
-  }
+  collect(MARKDOWN_HEADING, markdownLevel)
+  collect(HTML_HEADING, htmlLevel)
   return spans.sort((left, right) => left.start - right.start)
 }
 
@@ -355,7 +514,7 @@ function anchorDrafts(
         // raw text is what the lookup reports missing.
         fragment = match.group
       }
-      if (fragment === '' || anchors.has(fragment) || seen.has(fragment)) continue
+      if (fragment === '' || RENDERER_ANCHORS.includes(fragment) || anchors.has(fragment) || seen.has(fragment)) continue
       seen.add(fragment)
       const line = lineOf(starts, match.index)
       drafts.push({ detail: `第 ${String(line)} 行链接到本文档未声明的锚点 "#${fragment}"`, line })
@@ -364,13 +523,22 @@ function anchorDrafts(
   return drafts.sort((left, right) => left.line - right.line)
 }
 
-/** Headings whose section holds no content before the next heading. */
+/**
+ * Headings whose section holds no content before the next heading.
+ *
+ * An H1 is the document title, and a document conventionally writes it directly
+ * above its first section heading; the content under that deeper heading is the
+ * H1's own section, so the pair is not an empty section. An H1 with no heading
+ * after it, and one followed by another H1, still are empty sections, and a
+ * deeper heading keeps the rule it always had.
+ */
 function emptySectionDrafts(text: string, starts: readonly number[], headings: readonly HeadingSpan[]): DraftFinding[] {
   const drafts: DraftFinding[] = []
   for (const [index, heading] of headings.entries()) {
     const next = headings[index + 1]
+    if (heading.level === 1 && next !== undefined && next.level > 1) continue
     const body = text.slice(heading.end, next?.start ?? text.length)
-    if (body.replace(HTML_COMMENT, '').replace(/<[^>]*>/gu, '').trim() !== '') continue
+    if (htmlBodyText(body).trim() !== '') continue
     const line = lineOf(starts, heading.start)
     drafts.push({ detail: `第 ${String(line)} 行的标题 ${JSON.stringify(heading.text)} 下没有任何内容`, line })
   }
@@ -378,14 +546,19 @@ function emptySectionDrafts(text: string, starts: readonly number[], headings: r
 }
 
 /** Occurrences of the style's forbidden words, at the severity the style declares. */
-function antiPatternDrafts(text: string, starts: readonly number[], patterns: readonly AntiPattern[]): DraftFinding[] {
+function antiPatternDrafts(
+  text: string, starts: readonly number[], patterns: readonly AntiPattern[], quoted: readonly TextRange[],
+): DraftFinding[] {
   const drafts: DraftFinding[] = []
   for (const pattern of patterns) {
     for (const match of matches(text, literal(pattern.word))) {
       const line = lineOf(starts, match.index)
+      const quotedHit = within(quoted, match.index)
       drafts.push({
-        level: pattern.severity === 'block' ? 'block' : 'warn',
-        detail: `第 ${String(line)} 行出现样式禁用词 ${JSON.stringify(pattern.word)}，建议改用 ${JSON.stringify(pattern.replace)}`,
+        level: pattern.severity === 'block' && !quotedHit ? 'block' : 'warn',
+        detail: quotedHit
+          ? `第 ${String(line)} 行引用文本中出现样式禁用词 ${JSON.stringify(pattern.word)}（不影响判定）`
+          : `第 ${String(line)} 行出现样式禁用词 ${JSON.stringify(pattern.word)}，建议改用 ${JSON.stringify(pattern.replace)}`,
         line,
       })
     }
@@ -393,9 +566,15 @@ function antiPatternDrafts(text: string, starts: readonly number[], patterns: re
   return drafts.sort((left, right) => left.line - right.line)
 }
 
-/** The declared character budget against the document's non-whitespace character count. */
-function budgetDrafts(text: string, charBudget: number, tolerance: number): DraftFinding[] {
-  const actual = text.replace(/\s/gu, '').length
+/**
+ * The declared character budget against the body text's non-whitespace
+ * character count. An HTML document is measured after {@link htmlBodyText}, so
+ * its markup, stylesheet, and script never inflate the count.
+ */
+function budgetDrafts(
+  text: string, charBudget: number, tolerance: number, format: DocumentTextCheckOptions['format'],
+): DraftFinding[] {
+  const actual = (format === 'html' ? htmlBodyText(text) : text).replace(/\s/gu, '').length
   const minimum = Math.floor(charBudget * (1 - tolerance))
   const maximum = Math.ceil(charBudget * (1 + tolerance))
   if (actual >= minimum && actual <= maximum) return []
@@ -408,21 +587,27 @@ function budgetDrafts(text: string, charBudget: number, tolerance: number): Draf
 /**
  * Run every deterministic check over one document's text.
  * @param text - the document text: a rendered Markdown or HTML file, or the text projected out of a DOCX package.
- * @param options - the style whose forbidden words are enforced, and the declared character budget.
+ * @param options - the style whose forbidden words are enforced, the declared
+ * character budget, and the format when it changes how the text is measured.
  * @returns the findings in check order, empty for a document that passes every check.
  */
 export function checkDocumentText(text: string, options: DocumentTextCheckOptions = {}): DocumentCheckFinding[] {
   const starts = lineStarts(text)
   const fences = fenceRanges(text)
   const headings = headingSpans(text, fences)
+  const quoted = quotedRanges(text)
   const findings: DocumentCheckFinding[] = []
   const maxFindings = options.maxFindingsPerCheck ?? DEFAULT_MAX_FINDINGS_PER_CHECK
-  report(findings, 'placeholder', 'block', placeholderDrafts(text, starts, quotedRanges(text)), maxFindings)
+  report(findings, 'placeholder', 'block', placeholderDrafts(text, starts, quoted), maxFindings)
   report(findings, 'broken_anchor', 'warn', anchorDrafts(text, starts, fences, headings), maxFindings)
   report(findings, 'empty_section', 'warn', emptySectionDrafts(text, starts, headings), maxFindings)
-  report(findings, 'anti_pattern', 'warn', antiPatternDrafts(text, starts, options.style?.sections.antiPatterns ?? []), maxFindings)
+  report(findings, 'anti_pattern', 'warn', antiPatternDrafts(text, starts, options.style?.sections.antiPatterns ?? [], quoted), maxFindings)
   if (options.charBudget !== undefined) {
-    report(findings, 'length_budget', 'warn', budgetDrafts(text, options.charBudget, options.lengthTolerance ?? DEFAULT_LENGTH_TOLERANCE), maxFindings)
+    report(
+      findings, 'length_budget', 'warn',
+      budgetDrafts(text, options.charBudget, options.lengthTolerance ?? DEFAULT_LENGTH_TOLERANCE, options.format),
+      maxFindings,
+    )
   }
   return findings
 }

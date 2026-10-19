@@ -2,7 +2,7 @@
   "rows": {
     "agent-instructions": {
       "cordis.patch.yml": "bec4a41f82",
-      "document.patch.yml": "8179385488",
+      "document.patch.yml": "6fcd59e7d0",
       "patent.patch.yml": "6c49266e16",
       "ptc.patch.yml": "bec4a41f82",
       "standard.patch.yml": "bec4a41f82"
@@ -47,11 +47,11 @@
       "standard.patch.yml": "3255d0a919"
     },
     "plan-mode": {
-      "cordis.patch.yml": "fff5e9684e",
-      "document.patch.yml": "f20f111abc",
-      "patent.patch.yml": "f45ef1a894",
-      "ptc.patch.yml": "fff5e9684e",
-      "standard.patch.yml": "b155ff30d8"
+      "cordis.patch.yml": "d6d045acc3",
+      "document.patch.yml": "3b9d82f73e",
+      "patent.patch.yml": "01fc7c7376",
+      "ptc.patch.yml": "d6d045acc3",
+      "standard.patch.yml": "93d708626a"
     },
     "skill-filesystem": {
       "cordis.patch.yml": "1ae627441e",

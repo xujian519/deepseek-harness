@@ -862,9 +862,6 @@
     "b389b0e1e7980c94c4b86fa1281f4eacb07905bdd938b159ef54cb4445441118": 1
   },
   "packages/client/ui-document-studio/tests/StudioView.client.spec.tsx": {
-    "326597b335539db945b2e3b7c86638d40849d2077c0a5670d064e45486f4e407": 3,
-    "59d7bf81028b3b340c794d11c264be14f169e1b4eb639a788ea4853251e0fe97": 1,
-    "cb67486cf588aacfb6a31f275614c17a3c5831f50d978b637234780a0312d026": 1,
     "e2c3d60c33dd58914b46dd36519c25180518529ea267b61db4f9ed69062e0ff3": 1
   },
   "packages/client/ui-goal/tests/browser-plugin.client.spec.tsx": {

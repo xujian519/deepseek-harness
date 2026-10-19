@@ -113,7 +113,7 @@ interface FsDirEntry {
 
 ## 写入与编辑守卫（提供方约定）
 
-`writeText` 和 `editText` 的版本守卫都是可选的：省略守卫时执行无条件的裸提供方变更，提供守卫时则执行相应的条件检查。`writeText` 的守卫是 `FsWriteIntent`：`createIfAbsent` 在目标缺失时创建，目标已存在时以 `FS_NOT_OBSERVED` 拒绝；即使目标在提供方初始探测后才出现，也必须拒绝，因为发布操作本身不得替换。`replaceIfVersion` 仅在目标存在且版本匹配时替换，否则报 `FS_STALE_VERSION`。省略 `expected` 则无条件创建或覆盖。联合类型本身只包含两种有守卫的意图；「无守卫」通过省略表达，因此 write 和 edit 都使用同一个可选的 `expected` 字段。
+`writeText`/`writeBytes` 和 `editText` 的版本守卫都是可选的：省略守卫时执行无条件的裸提供方变更，提供守卫时则执行相应的条件检查。`writeText` 的守卫是 `FsWriteIntent`：`createIfAbsent` 在目标缺失时创建，目标已存在时以 `FS_NOT_OBSERVED` 拒绝；即使目标在提供方初始探测后才出现，也必须拒绝，因为发布操作本身不得替换。`replaceIfVersion` 仅在目标存在且版本匹配时替换，否则报 `FS_STALE_VERSION`。省略 `expected` 则无条件创建或覆盖。联合类型本身只包含两种有守卫的意图；「无守卫」通过省略表达，因此 write 和 edit 都使用同一个可选的 `expected` 字段。
 
 ```ts type-equiv
 /**
@@ -136,14 +136,30 @@ interface FsWriteOutcome {
   version: FsVersion
   /**
    * The file's content BEFORE the write, or `null` when the file did not exist
-   * (a create) or the backend declined a contextual basis (for example, a
-   * binary/non-UTF-8 prior file or either overwrite side reaching its exclusive limit).
+   * (a create), the write carried raw bytes rather than text, or the backend
+   * declined a contextual basis (for example, a binary/non-UTF-8 prior file or
+   * either overwrite side reaching its exclusive limit).
    * LF-normalized storage text (the diff basis), never a diff — a consumer
    * computes the result-time contextual diff from `before`/`after` when
    * `before` is present, else falls back to a whole-file diff.
    */
   before: string | null
-  /** The file's content AFTER the write, LF-normalized to share `before`'s diff basis. */
+  /**
+   * The file's content AFTER the write, LF-normalized to share `before`'s diff
+   * basis, or `null` for a byte write whose content has no text projection.
+   */
+  after: string | null
+}
+```
+
+```ts type-equiv
+/**
+ * Outcome of a full-file text write: identical to {@link FsWriteOutcome} except
+ * that `after` is the written text rather than `null`, because a text write
+ * always has a text projection.
+ */
+interface FsTextWriteOutcome extends FsWriteOutcome {
+  /** The written text, LF-normalized to share `before`'s diff basis. */
   after: string
 }
 ```
@@ -275,7 +291,7 @@ type FsErrorCode =
 
 ## 服务与插件
 
-`FileSystem`（`ctx.fs`，abstract）拥有提供方原语：`resolve`、`processPath`、`processPathFromHostPath`、`fileUrl`、`contains`、`stat`、`lstat`、`readText`、`streamText`、`readBytes`、`listDir`、`writeText` 与 `editText`。`dsh-fs-observation-policy` **不注册服务**。它通过 `fs/*` 事件门禁添加策略，根据未见、缺失或存在状态对写入与编辑意图 waterfall 作出决策，并记录 `FsObservation` 值。执行器是 `dsh-tool-fs`：它通过 `ctx.fs` 读取、写入或编辑，分发 waterfall，并 emit 记录事件。下方生成的 [`ctx.fs` 小节](#ctxfs--filesystem-abstract-seam) 展示确切的 `ctx.fs` 签名。
+`FileSystem`（`ctx.fs`，abstract）拥有提供方原语：`resolve`、`processPath`、`processPathFromHostPath`、`fileUrl`、`contains`、`stat`、`lstat`、`readText`、`streamText`、`readBytes`、`listDir`、`writeText`、`writeBytes` 与 `editText`。`dsh-fs-observation-policy` **不注册服务**。它通过 `fs/*` 事件门禁添加策略，根据未见、缺失或存在状态对写入与编辑意图 waterfall 作出决策，并记录 `FsObservation` 值。执行器是 `dsh-tool-fs`：它通过 `ctx.fs` 读取、写入或编辑，分发 waterfall，并 emit 记录事件。下方生成的 [`ctx.fs` 小节](#ctxfs--filesystem-abstract-seam) 展示确切的 `ctx.fs` 签名。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -442,7 +458,28 @@ abstract listDir(target: FsTarget, signal?: AbortSignal): Promise<FsDirEntry[]>
  *   ignores it. Omit to leave the backend its own default.
  * @returns the outcome, including the version the write produced.
  */
-abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>
+abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsTextWriteOutcome>
+
+/**
+ * Atomically create or replace raw bytes with no text decoding or encoding.
+ * This is the mutation twin of {@link readBytes}: a consumer writes binary
+ * content (a rendered document package, an image, an archive) through the
+ * same provider, intent guard, and per-target critical section as
+ * {@link writeText}, instead of escaping to a host path. `expected` guards
+ * intent and staleness exactly as it does for text; omission allows
+ * unconditional overwrite. The outcome's `before` and `after` are `null`,
+ * because bytes have no text projection; `operation` and `version` carry the
+ * same meaning they do for text.
+ * @param target - the resolved target to write.
+ * @param bytes - the full new file content.
+ * @param expected - the write intent guarding the write; omit for unconditional.
+ * @param signal - aborts before atomic publication takes effect.
+ * @param sandboxPolicy - the per-call mode and workspace root this write
+ *   runs under; a sandboxing backend fences the write by it, the bare backend
+ *   ignores it. Omit to leave the backend its own default.
+ * @returns the outcome, including the version the write produced.
+ */
+abstract writeBytes( target: FsTarget, bytes: Uint8Array, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>
 
 /**
  * Atomically edit literal text. When supplied, the version guard is checked
@@ -512,11 +549,11 @@ Source: [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)
 
 #### `fs/write-intent` — waterfall
 
-Single-slot decision for the next FileSystem.writeText. Calling `next()` yields the bare provider's unconditional write; the first listener that returns an intent owns the decision rather than composing with peers.
+Single-slot decision for the next text or byte file write. Calling `next()` yields the bare provider's unconditional write; the first listener that returns an intent owns the decision rather than composing with peers.
 
 ```ts cordis-catalog
 /**
- * Single-slot decision for the next {@link FileSystem.writeText}. Calling
+ * Single-slot decision for the next text or byte file write. Calling
  * `next()` yields the bare provider's unconditional write; the first listener
  * that returns an intent owns the decision rather than composing with peers.
  * @param target - the resolved target about to be written.

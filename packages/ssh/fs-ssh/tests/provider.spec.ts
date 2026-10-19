@@ -117,6 +117,15 @@ describe('SSH filesystem provider', () => {
     expect(dispatch).toHaveBeenLastCalledWith('fs.edit', { target, edit, expected: { version: 'v2' }, policy }, signal)
   })
 
+  it('reports byte writes unsupported without sending a remote request', async () => {
+    const { fs, dispatch } = await setup()
+    const rejected = fs.writeBytes(target, new Uint8Array([1, 2, 3])).catch((error: unknown) => error)
+    const failure = await rejected
+    expect(failure).toMatchObject({ code: 'FS_IO_ERROR' })
+    expect(failure instanceof Error ? failure.message : '').toContain('binary writes are not supported')
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
   it('resolves deployment policy for mutations without an explicit policy', async () => {
     const { fs, dispatch } = await setup()
     dispatch.mockResolvedValueOnce({ operation: 'create', version: 'v1', before: null, after: 'new' })

@@ -6,6 +6,9 @@
     },
     "document.patch.yml": {
       "class": "delivery",
+      "forbiddenKeys": [
+        "deliveryGate"
+      ],
       "personaMaxChars": 1820,
       "requiredRows": [
         "persona",
@@ -50,6 +53,7 @@
     },
     "patent.patch.yml": {
       "class": "delivery",
+      "forbiddenKeys": [],
       "personaMaxChars": 12000,
       "requiredRows": [
         "persona",

@@ -21,20 +21,20 @@ kind: "package-reference"
 <a id="what-it-mounts"></a>
 ## 挂载内容
 
-- **`document_deliver`** —— 声明 `files`（`{ path, format }`，format 取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（必填的 `p0` 已通过项列表、可选 `p1` 列表）、可选 `brief_ref`、可选 `style` 风格名、可选 `char_budget` 字数预算。按调用方会话工作区解析每个路径；文件不存在（幽灵文件不算交付物）即报错；随后读取每个交付文件跑确定性核验，回执 P0/P1 项数、所用风格与每个文件一份核验报告。
+- **`document_deliver`** —— 声明 `files`（`{ path, format }`，format 取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（必填的 `p0` 质量门技能稳定 id 列表、可选 `p1` 列表）、可选的 `unreadable_ack` 原因（每个读不出的文件一条 `{ path, reason_text }`）、可选 `brief_ref`、可选 `style` 风格名、可选 `char_budget` 字数预算。按调用方会话工作区解析每个路径；文件不存在（幽灵文件不算交付物）即报错；随后读取每个交付文件跑确定性核验，回执 P0/P1 项数、所用风格与每个文件一份核验报告。
 
 <a id="deterministic-checks"></a>
 ## 确定性核验
 
-工具读取交付文件本身，而不是相信模型的自述。Markdown 与 HTML 按文本读取；`.docx` 包经 [`@deepseek-ai/dsh-docx-kit`](../docx-kit/README.zh.md) 投影为文本，读取受 `maxArchiveEntries` 与 `maxUncompressedBytes` 两个配置预算约束；没有文本读取器的格式（`pdf`、`pptx`、`other`）报为 `unchecked` 并附原因，而不是"通过"。超出任一读取预算的包报为 `unreadable` 并在原因中带 `too-large`，绝不截断。
+工具读取交付文件本身，而不是相信模型的自述。文件扩展名决定用哪个读取器（`.md`/`.markdown` 按 Markdown、`.html`/`.htm` 按 HTML、`.docx` 按包、`.pdf`/`.pptx` 按无文本读取器的格式），声明与扩展名不一致时按扩展名核验，并把不一致写进该文件的原因里；`other` 与未知扩展名沿用声明的格式。Markdown 与 HTML 按文本读取；`.docx` 包经 [`@deepseek-ai/dsh-docx-kit`](../docx-kit/README.zh.md) 投影为文本，读取受 `maxArchiveEntries` 与 `maxUncompressedBytes` 两个配置预算约束；没有文本读取器的格式（`pdf`、`pptx`、`other`）报为 `unchecked` 并附原因，而不是"通过"。超出任一读取预算的包报为 `unreadable` 并在原因中带 `too-large`，绝不截断，也不需要声明原因；其余 `unreadable` 文件必须在 `unreadable_ack` 里写一条原因，否则调用失败——"没核验"不能被读成"核验通过"。
 
 | 检查 | 触发条件 | 级别 |
 | --- | --- | --- |
-| `placeholder` | 残留 `{{变量}}`、`[TBD]`、`[REPLACE]`、`Lorem ipsum` 或 `待补充` | 引用文本之外 `block`，代码块或行内代码之内 `warn` |
-| `anti_pattern` | 所选风格把该词列为禁用 | 沿用风格自身的 `block` / `warn` |
-| `empty_section` | 标题到下一个标题之间没有任何内容 | `warn` |
-| `broken_anchor` | `](#片段)` 或 `href="#片段"` 指向本文档未声明的 id、命名锚点或标题 slug | `warn` |
-| `length_budget` | 声明的 `char_budget` 偏差超过配置的 `lengthTolerance`（随包默认 20%） | `warn` |
+| `placeholder` | 仍有残余占位符：可填的 `{{变量}}`，或 `[TBD]`、`Lorem ipsum`、`待补充` 等共享词表（定义在 [`@deepseek-ai/dsh-doc-style`](../doc-style/README.zh.md)）里的标记形式 | 引用文本之外 `block`，代码块或行内代码之内 `warn` |
+| `anti_pattern` | 所选风格把该词列为禁用 | 沿用风格自身的 `block` / `warn`；作为代码或示例文本被引用的词一律 `warn` |
+| `empty_section` | 标题到下一个标题之间没有任何内容；直接写在更深标题之上的 H1 是文档标题，其内容在子标题之下 | `warn` |
+| `broken_anchor` | `](#片段)` 或 `href="#片段"` 指向本文档未声明的 id、命名锚点或标题 slug，且不是渲染器惯例应答的 `top` | `warn` |
+| `length_budget` | 声明的 `char_budget` 偏差超过配置的 `lengthTolerance`（随包默认 20%）。HTML 文档按正文计字数：先剥掉标签、注释与 `script`/`style` 元素的内容 | `warn` |
 
 `block` 级问题直接抛错：拒绝登记，错误信息指出文件、检查项与行号，模型修复文档而不是把它登记出去。`warn` 级问题记录在结果里、登记照常进行——它们都存在评审可以接受的读法。风格取自 `defaultStyle`、篇幅容差取自 `lengthTolerance`，两者都由工具描述给出；未加载的风格名会让调用失败并列出可用名称。每项检查最多列出 `maxFindingsPerCheck` 条（默认 5 条），其余汇总一行，不静默丢弃。
 
@@ -62,9 +62,11 @@ kind: "package-reference"
 - **无跨会话聚合** —— 交付工作室只折叠单个会话的日志窗口；跨会话历史、搜索与批量导出属于延期的文档工作台 v2（见[工作台提案](../../../.agents/notes/proposed/feature/2026-08-23-document-mode-workbench.zh.md)）。
 - **核验不等于评审** —— 它只覆盖质量门里可机械判定的部分（占位符、风格禁用词、空章节、同文档片段、声明字数预算），对来源、正确性、可访问性不发一言。P0/P1 项仍是模型的自述；工具把结论并列展示而不去验证它，面板两列都显示。
 - **只强制已配置风格的词表** —— 需要避开风格词表之外用词的部署，应把这些词加进风格资产（或用 `styleDirs` 指向自己的目录）。单次调用的豁免参数会让禁用词无理由地溜过去且不留记录，故本工具不提供。
-- **锚点检查是启发式** —— 它接受 `id`/`name` 属性声明的片段，或按 GitHub 规则命名的标题 slug，因此采用其他 slug 约定的渲染器可能产生"其实没断"的 `broken_anchor` 提示；正因为如此该检查只报提示。
+- **锚点检查是启发式** —— 它接受 `id`/`name` 属性声明的片段、按 GitHub 规则命名的标题 slug，以及渲染器无需声明即可应答的 `top` 惯例，因此采用其他 slug 约定的渲染器可能产生"其实没断"的 `broken_anchor` 提示；正因为如此该检查只报提示。
+- **HTML 字数是扫描而非解析** —— 它剥掉注释、声明、标签与 `script`/`style` 元素的内容，并解码字符引用；属性值里带引号的 `>` 不在覆盖范围内，代价是随后那段标记的字数偏差，而不是跳过某项检查。
 - **超限是跳过而非截断** —— 超过 `maxCheckBytes`（随包默认 4 MiB）的交付物不再读取，报为 `unreadable` 并附原因；核验跑在"什么都没查"上，而不是跑在一个可能恰好通过的开头上。
 - **DOCX 读取预算是部署级预算** —— 声明条目数超过 `maxArchiveEntries`、或解压后超过 `maxUncompressedBytes` 的包报为 `unreadable` 并带 `too-large`；交付超大可重复文档的部署应在 `cordis.yml` 上调高该上限，而不是接受一次不完整的核验。
+- **读不出的文件必须给出原因** —— 核验读不出的文件，调用方必须在 `unreadable_ack` 里写一条原因，否则登记失败；"没核验"因此永远不会被读成"核验通过"。读取预算这一档（`too-large`）例外：那是部署自己的预算，不是文档本身的缺陷。
 
 ### 开发备注
 

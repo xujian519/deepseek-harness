@@ -2903,6 +2903,8 @@ paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、Open
 
 工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±20% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
 
+两条与声明本身有关的判定：文件按扩展名决定用哪种读取器（声明格式与扩展名不一致会提示，并按扩展名核验）；读不出内容的文件必须在 unreadable_ack 里写一条原因（path + reason_text）才允许登记，超出本部署读取上限的文件除外。p0 用质量门技能里的稳定 id（P0-1 … P0-6）填写，工具会把缺失或无法识别的项列出来。
+
 ```json
 {
   "type": "object",
@@ -2944,7 +2946,7 @@ paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、Open
       "properties": {
         "p0": {
           "type": "array",
-          "description": "已通过并核验的 P0 自检项（每项一句话）",
+          "description": "已通过并核验的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；缺失项与无法识别的写法会在结果里列出",
           "items": {
             "type": "string"
           }
@@ -2972,6 +2974,28 @@ paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、Open
     "char_budget": {
       "type": "integer",
       "description": "全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅"
+    },
+    "unreadable_ack": {
+      "type": "array",
+      "description": "为每个\"无法核验\"（unreadable）的交付文件写一条原因；缺失时登记被拒，超出本部署读取上限的文件不需要",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "无法核验的文件路径，与 files 中的 path 一致"
+          },
+          "reason_text": {
+            "type": "string",
+            "description": "为什么该文件在无法核验的情况下仍要交付"
+          }
+        },
+        "required": [
+          "path",
+          "reason_text"
+        ]
+      }
     }
   },
   "required": [
@@ -6829,12 +6853,14 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 - 用给定变量渲染一个文档模板，返回文档本体、未填充的占位符与变量警告
 - 先用 `list_doc_templates` 取得模板名与其变量。每个必填变量都必须提供：缺一个即调用失败并点名该变量，而不是返回一份带缺口的文档
-- `format` 默认取模板的兜底格式；模板只渲染它声明的格式。`markdown` 与 `html` 返回文本，`docx` 把包体以 base64 放在 `content`；无论哪种格式，`markdown` 都是注入文档标题与风格免责声明之前的解析正文：落盘写 `content`，用 `markdown` 写出的文件会丢掉这两者
-- 模板未声明的变量被忽略；未提供值的占位符保留在文档中并在 `residual` 中报告，而不是被抹掉。每次成功渲染都会返回残余占位符与警告：把文档当作成品之前先读它们
+- `format` 默认取模板的兜底格式；模板只渲染它声明的格式。`markdown` 与 `html` 返回文本，`docx` 把包体以 base64 放在 `content`；无论哪种格式，`markdown` 都是注入文档标题与风格免责声明之前的解析正文：落盘的成品是 `content`，用 `markdown` 写出的文件会丢掉这两者
+- `output_path`（工作区相对或绝对）把渲染结果经会话文件系统写盘并回报 `path` 与 `bytes`：文本格式写 UTF-8，`docx` 写包体字节。省略它则只返回渲染结果、不碰文件系统
+- 变量按名替换；没有提供值的占位符保留在文档中并在 `residual` 中报告，而不是被抹掉。每次成功渲染都会返回残余占位符与警告：把文档当作成品之前先读它们
 
 使用说明：
   - 离线；渲染随包模板资产、已配置的覆盖目录与随包样式。
   - 声明了书写风格的模板，在本部署启用免责声明时把该风格的免责声明带进渲染结果。
+  - 写入受部署文件策略约束；被拒绝的 `output_path` 会让调用以文件系统错误失败。
 
 ```json
 {
@@ -6873,6 +6899,10 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
     "filename": {
       "type": "string",
       "description": "Suggested file name stem without extension; defaults to the template name"
+    },
+    "output_path": {
+      "type": "string",
+      "description": "Write the rendered document here (workspace-relative or absolute) and report path and bytes; omit to return the content without writing"
     }
   },
   "required": [

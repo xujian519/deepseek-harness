@@ -1,10 +1,10 @@
 /**
  * `SandboxedFileSystem`: the sandbox-enforcing implementation of the
  * `@deepseek-ai/dsh-fs` Service Definition. It extends `LocalFileSystem` so all
- * text-storage mechanics — resolve, stat, read/stream, list, the atomic
- * write and the read-match-write edit critical section — are the local
+ * text-storage mechanics — resolve, stat, read/stream, list, the atomic text and
+ * byte writes and the read-match-write edit critical section — are the local
  * implementation's, verbatim; this package adds only the per-call POLICY fence
- * on the two mutations. Reads pass through untouched: every mode permits
+ * on the mutations. Reads pass through untouched: every mode permits
  * reading.
  *
  * The fence is a policy check in TRUSTED code over a MODEL-CONTROLLED path,
@@ -30,7 +30,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import type { Config as LocalConfig } from '@deepseek-ai/dsh-fs-local'
 import { FsError } from '@deepseek-ai/dsh-fs'
-import type { FsEditOutcome, FsEditRequest, FsTarget, FsVersion, FsWriteIntent, FsWriteOutcome } from '@deepseek-ai/dsh-fs'
+import type { FsEditOutcome, FsEditRequest, FsTarget, FsTextWriteOutcome, FsVersion, FsWriteIntent, FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import { writableRoots } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
@@ -83,8 +83,29 @@ export class SandboxedFileSystem extends LocalFileSystem {
     expected?: FsWriteIntent,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
-  ): Promise<FsWriteOutcome> {
+  ): Promise<FsTextWriteOutcome> {
     return super.writeText(await this.checkedTarget(target, sandboxPolicy), content, expected, signal)
+  }
+
+  /**
+   * Fence the byte write by the per-call policy, then delegate to the inherited
+   * atomic byte write. See {@link checkedTarget}.
+   * @param target - the resolved target to write.
+   * @param bytes - the full new file content.
+   * @param expected - the write intent guarding the write; omit for unconditional.
+   * @param signal - aborts before atomic publication takes effect.
+   * @param sandboxPolicy - the per-call mode and workspace root; omit to use
+   *   the deployment fallback.
+   * @returns the write outcome from the inherited backend.
+   */
+  override async writeBytes(
+    target: FsTarget,
+    bytes: Uint8Array,
+    expected?: FsWriteIntent,
+    signal?: AbortSignal,
+    sandboxPolicy?: SandboxExecutionPolicy,
+  ): Promise<FsWriteOutcome> {
+    return super.writeBytes(await this.checkedTarget(target, sandboxPolicy), bytes, expected, signal)
   }
 
   /**

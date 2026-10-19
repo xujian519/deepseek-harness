@@ -366,6 +366,33 @@ describe('document_deliver registrations', () => {
     ])
   })
 
+  it('drops a recorded verdict when a later registration carries no check report', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliver(2, 'reg-1', JSON.stringify({
+        files: [{ path: 'out/report.md', format: 'markdown' }],
+        gate: { p0: ['命名规范'] },
+      })),
+      result(3, 'reg-1', false, 1, {
+        checks: [{ path: 'out/report.md', format: 'markdown', status: 'checked', findings: [] }],
+      }),
+      // 第二次登记声明了质量门，但没有可读的核验结论：声明续上了，核验没续上。
+      deliver(4, 'reg-2', JSON.stringify({
+        files: [{ path: 'out/report.md', format: 'markdown' }],
+        gate: { p0: ['命名规范', '自包含'] },
+      })),
+      result(5, 'reg-2'),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([
+      {
+        seq: 3, path: 'out/report.md', format: 'markdown',
+        gate: { p0: ['命名规范', '自包含'], p1: [] },
+      },
+    ])
+  })
+
   it('attaches no checks for a registration whose result carried none or an unreadable payload', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),

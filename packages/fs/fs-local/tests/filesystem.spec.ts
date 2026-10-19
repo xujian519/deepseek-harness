@@ -654,6 +654,65 @@ describe('writeText', () => {
   })
 })
 
+describe('writeBytes', () => {
+  it('writes raw bytes and reports a null text projection', async () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0xff, 0x80])
+    const target = await fs.resolve('package.docx')
+    const outcome = await fs.writeBytes(target, bytes)
+    expect(outcome.operation).toBe('create')
+    expect(outcome.before).toBeNull()
+    expect(outcome.after).toBeNull()
+    expect(new Uint8Array(await readFile(join(dir, 'package.docx')))).toEqual(bytes)
+  })
+
+  it('createIfAbsent creates a byte target and rejects an existing one', async () => {
+    const fresh = await fs.resolve('fresh.bin')
+    expect((await fs.writeBytes(fresh, new Uint8Array([1]), { kind: 'createIfAbsent' })).operation).toBe('create')
+
+    await expect(fs.writeBytes(fresh, new Uint8Array([2]), { kind: 'createIfAbsent' }))
+      .rejects.toMatchObject({ code: 'FS_NOT_OBSERVED' })
+    expect(new Uint8Array(await readFile(join(dir, 'fresh.bin')))).toEqual(new Uint8Array([1]))
+  })
+
+  it('replaceIfVersion rejects a stale version without touching the file', async () => {
+    await writeFile(join(dir, 'a.bin'), 'old')
+    const target = await fs.resolve('a.bin')
+    const stale = await versionOf(target)
+    await writeFile(join(dir, 'a.bin'), 'changed-externally')
+
+    await expect(fs.writeBytes(target, new Uint8Array([9]), { kind: 'replaceIfVersion', version: stale }))
+      .rejects.toMatchObject({ code: 'FS_STALE_VERSION' })
+    expect(await readFile(join(dir, 'a.bin'), 'utf8')).toBe('changed-externally')
+  })
+
+  it('rejects a non-regular-file target', async () => {
+    await mkdir(join(dir, 'directory.bin'))
+    const target = await fs.resolve('directory.bin')
+    await expect(fs.writeBytes(target, new Uint8Array([1])))
+      .rejects.toMatchObject({ code: 'FS_NOT_REGULAR_FILE' })
+  })
+
+  it('replaces a non-UTF-8 file, which the text write path cannot diff', async () => {
+    const path = join(dir, 'binary.dat')
+    await writeFile(path, new Uint8Array([0xff, 0xfe, 0x00]))
+    const target = await fs.resolve('binary.dat')
+    const outcome = await fs.writeBytes(target, new Uint8Array([0x50, 0x4b]))
+    expect(outcome.operation).toBe('update')
+    expect(outcome.before).toBeNull()
+    expect(new Uint8Array(await readFile(path))).toEqual(new Uint8Array([0x50, 0x4b]))
+  })
+
+  it('serializes with a concurrent byte write under the per-target lock', async () => {
+    const target = await fs.resolve('race.bin')
+    const results = await Promise.allSettled([
+      fs.writeBytes(target, new Uint8Array([1])),
+      fs.writeBytes(target, new Uint8Array([2])),
+    ])
+    expect(results.every(result => result.status === 'fulfilled')).toBe(true)
+    expect(lockCount(fs)).toBe(0)
+  })
+})
+
 describe('editText', () => {
   it('applies a literal edit at the matching version', async () => {
     await writeFile(join(dir, 'a.txt'), 'hello world')

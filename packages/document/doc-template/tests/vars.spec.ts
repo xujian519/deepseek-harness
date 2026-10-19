@@ -109,13 +109,13 @@ describe('extractPlaceholders', () => {
     expect(extractPlaceholders('{{}}')).toEqual([])
   })
 
-  it('reports non-ASCII and hyphenated placeholders that the substitution regex misses', () => {
+  it('reports non-ASCII and hyphenated placeholders, which a variable can fill', () => {
     expect(extractPlaceholders('{{机构名称}}')).toEqual(['机构名称'])
     expect(extractPlaceholders('{{doc-no}}')).toEqual(['doc-no'])
   })
 
-  it('reports placeholders with spaces, which the substitution regex misses', () => {
-    expect(extractPlaceholders('{{ not_a_placeholder }}')).toEqual([' not_a_placeholder '])
+  it('reports the trimmed name, so the residual name is the variable to supply', () => {
+    expect(extractPlaceholders('{{ not_a_placeholder }}')).toEqual(['not_a_placeholder'])
   })
 })
 
@@ -124,6 +124,12 @@ describe('substitutePlaceholders', () => {
     expect(substitutePlaceholders('{{a}}/{{b}}', { a: '1' })).toBe('1/{{b}}')
     expect(substitutePlaceholders('{{a}}', { a: '' })).toBe('')
     expect(substitutePlaceholders('{{a}}', { b: '2' })).toBe('{{a}}')
+  })
+
+  it('fills a CJK name and a padded name, which the quality gate blocks until filled', () => {
+    // 门禁按共享的 {{…}} 形式判残余；替换若只认 \w，这两种就永远填不掉（能力死锁）。
+    expect(substitutePlaceholders('{{客户名称}} 与 {{ case_id }}', { 客户名称: '示例公司', case_id: 'C-1' }))
+      .toBe('示例公司 与 C-1')
   })
 })
 
@@ -138,6 +144,11 @@ describe('validatedResolve', () => {
     expect(result.output).toBe('# 标题\n\n正文\n\n{{missing_required}}\n')
     expect(result.warnings).toEqual([])
     expect(result.residual).toEqual(['missing_required'])
+  })
+
+  it('leaves no residual once a CJK and a padded placeholder are given values', () => {
+    const result = validatedResolve(templateOf('{{客户名称}}\n\n{{ case_id }}\n', []), { 客户名称: '示例公司', case_id: 'C-1' })
+    expect(result.residual).toEqual([])
   })
 
   it('warns about a required variable the call omitted even when the schema declares a default', () => {

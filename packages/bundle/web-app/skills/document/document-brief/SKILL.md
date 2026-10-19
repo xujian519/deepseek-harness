@@ -2,8 +2,8 @@
 name: document-brief
 description: |
   把需求拆解为交付规范：目标、受众、格式、设计系统与成功标准。任何文档交付
-  任务的第一站；产出物是后续所有技能（html/report/deck/word/quality-gate）的
-  输入契约。
+  任务的第一站，信息不足或需求不清时也先做本步；产出物是后续所有技能
+  （html/report/deck/word/quality-gate）的输入契约。
 whenToUse: 用户提出文档/HTML/PPTX 交付需求、或信息不足无法直接动手时。
 ---
 
@@ -22,7 +22,7 @@ whenToUse: 用户提出文档/HTML/PPTX 交付需求、或信息不足无法直�
 
 ## 流程
 
-1. 逐项询问或用 ask_user_question 确认缺口字段；可以从用户的原话中提取已给出的项。
+1. 逐项询问或用 ask_user_question 确认缺口字段；可以从用户的原话中提取已给出的项。若技能目录有 OpenDesign 的 `pm-spec` 产品规格模板族（`OPEN_DESIGN_DIR` 已配置时挂载），按它的栏目结构核对六字段是否齐全。
 2. 篇幅预算写成机器可读的数字（如"正文约 3000 字"→ `char_budget: 3000`），
    登记交付物时原样传给 `document_deliver`，工具会按本部署配置的容差核验（容差见工具说明）。
 3. 输出结构化 brief（一段 markdown，含上述六字段），写进工作区 `brief.md`。

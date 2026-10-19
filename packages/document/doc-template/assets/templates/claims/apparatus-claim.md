@@ -10,6 +10,55 @@ formats:
   - markdown
   - html
   - docx
+vars:
+  - name: apparatus_name
+    type: string
+    required: false
+    description: "装置名称"
+  - name: comp_1
+    type: string
+    required: false
+    description: "第一部件名称"
+  - name: func_1
+    type: string
+    required: false
+    description: "第一部件的功能"
+  - name: comp_2
+    type: string
+    required: false
+    description: "第二部件名称"
+  - name: func_2
+    type: string
+    required: false
+    description: "第二部件的功能"
+  - name: comp_3
+    type: string
+    required: false
+    description: "第三部件名称"
+  - name: func_3
+    type: string
+    required: false
+    description: "第三部件的功能"
+  - name: comp_1_sub_1
+    type: multiline
+    required: false
+    description: "第一部件包括的第一子部件或子结构"
+  - name: comp_1_sub_2
+    type: multiline
+    required: false
+    description: "第一部件包括的第二子部件或子结构"
+  - name: comp_2_type
+    type: string
+    required: false
+    description: "第二部件的具体类型或结构"
+  - name: additional_comp
+    type: string
+    required: false
+    description: "附加部件名称"
+  - name: additional_func
+    type: string
+    required: false
+    description: "附加部件的功能"
 ---
 # 权利要求书
 

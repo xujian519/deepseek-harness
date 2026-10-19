@@ -1,8 +1,8 @@
 ---
 name: document-deck
 description: |
-  演示文稿管线：章节大纲 → HTML Deck（横向滑动、杂志版式）→ 交付 deck.html，
-  并按需用 officecli 生成 .pptx 或给出导出说明。
+  演示文稿管线：章节大纲 → HTML Deck（横向滑动、杂志版式）→ 交付 deck.html；
+  面向路演、周报、培训课件与方案汇报，按需用 officecli 生成 .pptx 或给出导出说明。
 whenToUse: 需要交付演示文稿（路演 Deck、周报、培训课件、方案汇报）。
 ---
 
@@ -19,6 +19,7 @@ whenToUse: 需要交付演示文稿（路演 Deck、周报、培训课件、方�
 3. 撰写内容：每页一个主张（header + 3–5 行要点 + 可视元素占位）；
    数据页带来源标注。
 4. 渲染 `deck.html`：
+   - 模板族：若技能目录有 OpenDesign 的 `html-ppt-*` 演示模板族（`OPEN_DESIGN_DIR` 已配置时挂载），按需选一个作种子，并保留下面三条呈现要求；
    - 每节 `<section class="slide">`，`data-doc-id` 标注；
    - 杂志版式基线：大标题衬线、正文无衬线、数字等宽；
    - 键盘 `→`/`←` 翻页 + 触控/滚轮节流；

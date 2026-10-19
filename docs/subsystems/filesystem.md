@@ -113,7 +113,7 @@ interface FsDirEntry {
 
 ## Write and edit guards (provider contract)
 
-Both `writeText` and `editText` take their version guard OPTIONALLY: omit it for an unconditional (bare-provider) mutation, supply it to guard. `writeText`'s guard is an `FsWriteIntent` — `createIfAbsent` creates a missing target and rejects an existing one with `FS_NOT_OBSERVED`, including a target that appears after the provider's initial probe because publication itself must be no-replace; `replaceIfVersion` replaces only when the target exists at the observed version, else `FS_STALE_VERSION`. Omitting `expected` unconditionally creates-or-overwrites. The union itself carries only the two guarded intents; "no guard" is expressed by omission, so write and edit both use the same optional `expected` field.
+Both `writeText`/`writeBytes` and `editText` take their version guard OPTIONALLY: omit it for an unconditional (bare-provider) mutation, supply it to guard. `writeText`'s guard is an `FsWriteIntent` — `createIfAbsent` creates a missing target and rejects an existing one with `FS_NOT_OBSERVED`, including a target that appears after the provider's initial probe because publication itself must be no-replace; `replaceIfVersion` replaces only when the target exists at the observed version, else `FS_STALE_VERSION`. Omitting `expected` unconditionally creates-or-overwrites. The union itself carries only the two guarded intents; "no guard" is expressed by omission, so write and edit both use the same optional `expected` field.
 
 ```ts type-equiv
 /**
@@ -136,14 +136,30 @@ interface FsWriteOutcome {
   version: FsVersion
   /**
    * The file's content BEFORE the write, or `null` when the file did not exist
-   * (a create) or the backend declined a contextual basis (for example, a
-   * binary/non-UTF-8 prior file or either overwrite side reaching its exclusive limit).
+   * (a create), the write carried raw bytes rather than text, or the backend
+   * declined a contextual basis (for example, a binary/non-UTF-8 prior file or
+   * either overwrite side reaching its exclusive limit).
    * LF-normalized storage text (the diff basis), never a diff — a consumer
    * computes the result-time contextual diff from `before`/`after` when
    * `before` is present, else falls back to a whole-file diff.
    */
   before: string | null
-  /** The file's content AFTER the write, LF-normalized to share `before`'s diff basis. */
+  /**
+   * The file's content AFTER the write, LF-normalized to share `before`'s diff
+   * basis, or `null` for a byte write whose content has no text projection.
+   */
+  after: string | null
+}
+```
+
+```ts type-equiv
+/**
+ * Outcome of a full-file text write: identical to {@link FsWriteOutcome} except
+ * that `after` is the written text rather than `null`, because a text write
+ * always has a text projection.
+ */
+interface FsTextWriteOutcome extends FsWriteOutcome {
+  /** The written text, LF-normalized to share `before`'s diff basis. */
   after: string
 }
 ```
@@ -275,7 +291,7 @@ type FsErrorCode =
 
 ## The service and the plugin
 
-`FileSystem` (`ctx.fs`, abstract) owns the provider primitives: `resolve`, `processPath`, `processPathFromHostPath`, `fileUrl`, `contains`, `stat`, `lstat`, `readText`, `streamText`, `readBytes`, `listDir`, `writeText`, and `editText`. `dsh-fs-observation-policy` registers **no service** — it is a plugin that adds policy through the `fs/*` event gate: it decides the write/edit intent waterfalls from unseen/absent/present state and records `FsObservation` values. The executor is `dsh-tool-fs`: it reads/writes/edits through `ctx.fs`, dispatches the waterfalls, and emits the recording event. The generated [`ctx.fs` section](#ctxfs--filesystem-abstract-seam) below shows the exact signatures.
+`FileSystem` (`ctx.fs`, abstract) owns the provider primitives: `resolve`, `processPath`, `processPathFromHostPath`, `fileUrl`, `contains`, `stat`, `lstat`, `readText`, `streamText`, `readBytes`, `listDir`, `writeText`, `writeBytes`, and `editText`. `dsh-fs-observation-policy` registers **no service** — it is a plugin that adds policy through the `fs/*` event gate: it decides the write/edit intent waterfalls from unseen/absent/present state and records `FsObservation` values. The executor is `dsh-tool-fs`: it reads/writes/edits through `ctx.fs`, dispatches the waterfalls, and emits the recording event. The generated [`ctx.fs` section](#ctxfs--filesystem-abstract-seam) below shows the exact signatures.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -442,7 +458,28 @@ abstract listDir(target: FsTarget, signal?: AbortSignal): Promise<FsDirEntry[]>
  *   ignores it. Omit to leave the backend its own default.
  * @returns the outcome, including the version the write produced.
  */
-abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>
+abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsTextWriteOutcome>
+
+/**
+ * Atomically create or replace raw bytes with no text decoding or encoding.
+ * This is the mutation twin of {@link readBytes}: a consumer writes binary
+ * content (a rendered document package, an image, an archive) through the
+ * same provider, intent guard, and per-target critical section as
+ * {@link writeText}, instead of escaping to a host path. `expected` guards
+ * intent and staleness exactly as it does for text; omission allows
+ * unconditional overwrite. The outcome's `before` and `after` are `null`,
+ * because bytes have no text projection; `operation` and `version` carry the
+ * same meaning they do for text.
+ * @param target - the resolved target to write.
+ * @param bytes - the full new file content.
+ * @param expected - the write intent guarding the write; omit for unconditional.
+ * @param signal - aborts before atomic publication takes effect.
+ * @param sandboxPolicy - the per-call mode and workspace root this write
+ *   runs under; a sandboxing backend fences the write by it, the bare backend
+ *   ignores it. Omit to leave the backend its own default.
+ * @returns the outcome, including the version the write produced.
+ */
+abstract writeBytes( target: FsTarget, bytes: Uint8Array, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>
 
 /**
  * Atomically edit literal text. When supplied, the version guard is checked
@@ -512,11 +549,11 @@ Source: [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)
 
 #### `fs/write-intent` — waterfall
 
-Single-slot decision for the next FileSystem.writeText. Calling `next()` yields the bare provider's unconditional write; the first listener that returns an intent owns the decision rather than composing with peers.
+Single-slot decision for the next text or byte file write. Calling `next()` yields the bare provider's unconditional write; the first listener that returns an intent owns the decision rather than composing with peers.
 
 ```ts cordis-catalog
 /**
- * Single-slot decision for the next {@link FileSystem.writeText}. Calling
+ * Single-slot decision for the next text or byte file write. Calling
  * `next()` yields the bare provider's unconditional write; the first listener
  * that returns an intent owns the decision rather than composing with peers.
  * @param target - the resolved target about to be written.

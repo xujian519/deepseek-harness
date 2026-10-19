@@ -67,6 +67,7 @@ This provider contributes no request-prefix content. Its consumers own model-vis
 <a id="known-limitations-and-deferred-work"></a>
 
 - Whole-text reads and individual byte windows are limited to 8 MiB by the helper. Use text streaming or multiple byte windows for larger reads; other JSON transfers also obey the connection’s frame cap.
+- `writeBytes` is unsupported: the private helper protocol has no byte-write operation, so a binary write fails with `FS_IO_ERROR` before any remote request. Render a text format, or write the bytes on the remote host.
 - Filesystem watching is unsupported: the provider keeps no `watch()` override, so the base `FS_IO_ERROR` rejection applies without polling or opening a local watcher for a remote path. Ordinary reads and consumer-owned manual refresh remain available.
 - Remote file URLs are execution coordinates, not host filesystem handles or Web download links.
 

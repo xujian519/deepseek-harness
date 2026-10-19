@@ -90,13 +90,15 @@ describe('document preset style pairing', () => {
 })
 
 /**
- * A delivery mode mounts the clock row (the persona's "unsourced facts are
- * withdrawn" rule covers the dates and versions a document carries), the
- * reminder tools, and both halves of the goal pair: `command-goal` with
- * `tool-goal`, since the web patch ships its own `command-goal` row disabled and
- * leaves the human command to the preset. `scripts/preset-mode-baseline.json`
- * holds every delivery mode to the shared row set; this spec keeps the rows
- * named here from disappearing behind a policy edit.
+ * A delivery mode mounts the clock row (the P1 footer item in
+ * `document-quality-gate` requires a document name, date, and version, and the
+ * persona's "unsourced facts are withdrawn" rule covers the dates and versions
+ * a document carries), the reminder tools, and both halves of the goal pair:
+ * `command-goal` with `tool-goal`, since the web patch ships its own
+ * `command-goal` row disabled and leaves the human command to the preset.
+ * `scripts/preset-mode-baseline.json` holds every delivery mode to the shared
+ * row set; this spec keeps the rows named here from disappearing behind a
+ * policy edit.
  */
 describe('document preset delivery rows', () => {
   const SCHEDULE_TOOLS = ['schedule_create', 'schedule_delete', 'schedule_list', 'schedule_update']

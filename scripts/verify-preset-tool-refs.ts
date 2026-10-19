@@ -64,9 +64,12 @@ const EXEMPT_REFERENCES: ReadonlyMap<string, string> = new Map([
   ['patent_inventiveness_v1', 'workflow manifest id'],
   ['patent_novelty_v1', 'workflow manifest id'],
   ['patent_oa_response_v1', 'workflow manifest id'],
+  ['output_path', 'render_doc_template parameter'],
+  ['reason_text', 'document_deliver parameter'],
   ['run_in_background', 'bash tool parameter'],
   ['section_order', 'validate_specification result key'],
   ['source_path', 'patent evidence field'],
+  ['unreadable_ack', 'document_deliver parameter'],
   ['spawn_teammate', 'tool of @deepseek-ai/dsh-experimental-tool-agent-team, which no shipped preset mounts; named only to prohibit its use'],
   ['wait_agent', 'tool of @deepseek-ai/dsh-experimental-tool-agent-team, which no shipped preset mounts; named only to prohibit its use'],
 ])

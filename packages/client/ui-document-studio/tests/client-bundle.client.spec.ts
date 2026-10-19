@@ -18,6 +18,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-document-studio'
 
+/** Event window of a session that already registered one deliverable. */
+function registeredEntries() {
+  return [
+    { type: 'event', event: { seq: 1, time: 1_000, type: 'tool/call', data: { turn: 1, step: 1, callId: 'reg', name: 'document_deliver', arguments: '{}' } } },
+    { type: 'event', event: { seq: 2, time: 2_000, type: 'tool/result', surfaceOp: 'append', data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'reg' }, content: [], isError: false } } } },
+  ]
+}
+
+/** The session binding the auto-switch reads its event window from. */
+function sessionBinding() {
+  const entries = registeredEntries()
+  return { eventSource: { getSnapshot: () => ({ entries }), subscribe: () => () => {} } }
+}
+
 interface Handoff { id: string; factory: (require: (spec: string) => unknown) => Record<string, unknown> }
 type Win = { __ModuleLoader__?: { load(h: Handoff): void } }
 
@@ -82,7 +96,7 @@ describe('tsdown client artifact', () => {
     const sessionsList = createSnapshotStore<SessionsState>(state)
     ctx.provide('sessions', {
       list: sessionsList,
-      binding: () => undefined,
+      binding: () => sessionBinding(),
     } as never)
     const viewSetters: Array<[string, string]> = []
     ctx.provide('conversation', {
@@ -172,7 +186,7 @@ describe('tsdown client artifact', () => {
       const sessionsList = createSnapshotStore<SessionsState>({
         byId: { s1: { id: 's1', projectionValues: { agentPreset: 'document' }, retainedBy: { mainView: 1 } } },
       })
-      ctx.provide('sessions', { list: sessionsList, binding: () => undefined } as never)
+      ctx.provide('sessions', { list: sessionsList, binding: () => sessionBinding() } as never)
       // Setter reports false until it exists: exercise the retry cadence.
       let attempts = 0
       ctx.provide('conversation', {

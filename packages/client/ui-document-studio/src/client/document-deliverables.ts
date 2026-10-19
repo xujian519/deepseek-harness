@@ -356,25 +356,25 @@ const EMPTY: DocumentDeliverablesSnapshot = { produced: [] }
 /**
  * Upgrade one stored entry with a later entry's registration metadata, keeping its first seq.
  *
- * A later entry with no registration metadata at all is a mutation-derived entry
- * (a supported file-mutation call records only its target path): the file's bytes
- * changed after the registration, so the recorded check verdict belongs to text
- * that is no longer there and is dropped. The announced format, gate, and brief
- * reference stay, because the registration is still what the deliverable was
- * declared with.
+ * A machine-check verdict describes the exact bytes it was computed from, so it
+ * survives only when the newest entry carries one. A mutation-derived entry (a
+ * supported file-mutation call records only its target path) rewrote those
+ * bytes, and a registration whose result carried no readable check metadata
+ * renewed the declaration without renewing the verification: both leave the
+ * file unverified rather than inheriting an older verdict. The announced
+ * format, gate, and brief reference stay when the later entry omits them,
+ * because the registration is still what the deliverable was declared with.
  */
 function augmented(previous: DocumentDeliverable, next: DocumentDeliverable): DocumentDeliverable {
-  const isBareMutation = next.format === undefined && next.gate === undefined
-    && next.checks === undefined && next.briefRef === undefined
-  const base: DocumentDeliverable = isBareMutation
-    ? {
-      seq: previous.seq,
-      path: previous.path,
-      ...previous.format === undefined ? {} : { format: previous.format },
-      ...previous.gate === undefined ? {} : { gate: previous.gate },
-      ...previous.briefRef === undefined ? {} : { briefRef: previous.briefRef },
-    }
-    : previous
+  // The check report is deliberately excluded here; only `next.checks` (below)
+  // can put one back, so an entry without one withdraws the earlier verdict.
+  const base: DocumentDeliverable = {
+    seq: previous.seq,
+    path: previous.path,
+    ...previous.format === undefined ? {} : { format: previous.format },
+    ...previous.gate === undefined ? {} : { gate: previous.gate },
+    ...previous.briefRef === undefined ? {} : { briefRef: previous.briefRef },
+  }
   return {
     ...base,
     ...next.format !== undefined ? { format: next.format } : {},
