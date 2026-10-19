@@ -16,7 +16,7 @@ Terminal failures (missing input, missing provider configuration, invalid JSON, 
 ## Migration
 
 1. Replace empty-output checks with a prefix check:
-   ```ts
+   ```ts ignore-check
    const failed = output.startsWith('[WORKFLOW_DEGRADED]')
    const reason = failed ? output.slice('[WORKFLOW_DEGRADED] '.length) : undefined
    ```

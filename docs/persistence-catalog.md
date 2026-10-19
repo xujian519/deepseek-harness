@@ -231,7 +231,7 @@ Source: [`packages/core/agent/src/types.ts:96`](../packages/core/agent/src/types
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:204`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `agent-preset/*`
 
@@ -1096,7 +1096,7 @@ Source: [`packages/schedule/schedule/src/types.ts:365`](../packages/schedule/sch
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:264`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:265`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveend--log-only"></a>
 
@@ -1115,7 +1115,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:264`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:287`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:288`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvemined--log-only"></a>
 
@@ -1138,7 +1138,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:287`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:234`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:235`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveproposed--log-only"></a>
 
@@ -1156,7 +1156,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:234`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:245`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:246`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvereflection--log-only"></a>
 
@@ -1180,7 +1180,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:245`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:275`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvestart--log-only"></a>
 
@@ -1204,7 +1204,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:216`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:217`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvevalidated--log-only"></a>
 
@@ -1223,7 +1223,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:216`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:254`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:255`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `session/*`
 
@@ -4374,7 +4374,7 @@ Sources: [`packages/schedule/schedule/src/types.ts:244`](../packages/schedule/sc
 
 SHA-256: `fd820fd75ea0cc9ef7a033d8ffb12a9f2f25942b93f563ba2cdb81d0c5745d62`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:181`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:182`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4392,7 +4392,7 @@ Sources: [`packages/self-evolve/self-evolve/src/types.ts:181`](../packages/self-
 
 SHA-256: `7fa25c3602b46a827ba8ca306297b6aa783d17fc7b65301bf6738c70bbb4a912`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:26`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:27`](../packages/self-evolve/self-evolve/src/types.ts)
 
 One of:
 
@@ -4419,7 +4419,7 @@ Array of [`EvolveLevel`](#persistence-type-sha256-7fa25c3602b46a827ba8ca306297b6
 
 SHA-256: `142a9246ba492fca06bfe53be13dbb754f5ee642034904cf655d0c546422405f`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:72`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:73`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4442,7 +4442,7 @@ Sources: [`packages/self-evolve/self-evolve/src/types.ts:72`](../packages/self-e
 
 SHA-256: `636cb339c5c4428b7fe28ed358cf3fec0e2bf72add76d63612a1209822fdbc35`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:29`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:30`](../packages/self-evolve/self-evolve/src/types.ts)
 
 One of:
 
@@ -4461,7 +4461,7 @@ One of:
 
 SHA-256: `c14c8e71a39904541e4288bd3faa6de5a99e5d6979ef9757c20c646a261b386a`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:32`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:33`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5628,7 +5628,7 @@ Sources: [`packages/patent/patent-teams/src/event-types.ts:94`](../packages/pate
 
 SHA-256: `30cf4ff4cab601c1d21278109d4b0ee928ae1bebbcc1697d97a9dfd7bfc706b6`
 
-Sources: [`packages/patent/patent-teams/src/types.ts:135`](../packages/patent/patent-teams/src/types.ts)
+Sources: [`packages/patent/patent-teams/src/types.ts:170`](../packages/patent/patent-teams/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5899,7 +5899,7 @@ Sources: [`packages/typert/protocol/src/types.ts:457`](../packages/typert/protoc
 
 SHA-256: `f3dc4f6436c0da94d88ce69f69add141848c655555c5adc7d216cf7192fb0e53`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:101`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:102`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | kind | Form property | Other required fields | Full definition |
 |---|---|---|---|
@@ -5994,7 +5994,7 @@ Sources: [`packages/llm/llm/src/types.ts:455`](../packages/llm/llm/src/types.ts)
 
 SHA-256: `4580c52ce18d1a542d28f2310fc175b7d991aa0f05018ef871eaea8b40d40830`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:167`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:168`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6898,7 +6898,7 @@ Array of [`UserMessage`](#persistence-type-sha256-0650681a1072e365a6dcd2f05bafe1
 
 SHA-256: `e3abac4cbedc8b78ea9d0a1af760b0d4d1f7a611c33cd6485e4b24871217f51c`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:155`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:156`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -7150,6 +7150,10 @@ Array of `number`.
 
 <a id="persistence-type-compactionid"></a>
 
+<a id="persistence-type-evolveproposalid"></a>
+
+<a id="persistence-type-failurepatternid"></a>
+
 <a id="persistence-type-goalid"></a>
 
 <a id="persistence-type-jobid"></a>
@@ -7208,6 +7212,10 @@ Array of `number`.
 
 <a id="persistence-type-packagesscheduleschedulesrctypestsscheduleid"></a>
 
+<a id="persistence-type-packagesself-evolveself-evolvesrcbrandtsevolveproposalid"></a>
+
+<a id="persistence-type-packagesself-evolveself-evolvesrcbrandtsfailurepatternid"></a>
+
 <a id="persistence-type-packagesself-evolveself-evolvesrcbrandtsselfevolverunid"></a>
 
 <a id="persistence-type-packagessessionsession-titlesrcindextssessiontitleproviderid"></a>
@@ -7260,7 +7268,7 @@ Array of `number`.
 
 SHA-256: `4cd48f3e5108bd6ebedf7301c3638839b8b2b9db8dbd493974177fbdeb91a01b`
 
-Sources: [`packages/api/session-controller/src/types.ts:409`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:21`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:21`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:33`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:9`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/webhook/src/brand.ts:12`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:6`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:9`](../packages/experimental/webhook/src/brand.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/goal/goal/src/types.ts:17`](../packages/goal/goal/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/jobs/jobs/src/brand.ts:19`](../packages/jobs/jobs/src/brand.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/patent/patent-teams/src/ids.ts:15`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:27`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:39`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:51`](../packages/patent/patent-teams/src/ids.ts) · [`packages/schedule/schedule/src/types.ts:14`](../packages/schedule/schedule/src/types.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:4`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/session/session-title/src/index.ts:43`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts)
+Sources: [`packages/api/session-controller/src/types.ts:409`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:21`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:21`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:33`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:9`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/webhook/src/brand.ts:12`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:6`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:9`](../packages/experimental/webhook/src/brand.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/goal/goal/src/types.ts:17`](../packages/goal/goal/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/jobs/jobs/src/brand.ts:19`](../packages/jobs/jobs/src/brand.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/patent/patent-teams/src/ids.ts:15`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:27`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:39`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:51`](../packages/patent/patent-teams/src/ids.ts) · [`packages/schedule/schedule/src/types.ts:14`](../packages/schedule/schedule/src/types.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:16`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:28`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:4`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/session/session-title/src/index.ts:43`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts)
 
 `string`
 
@@ -7748,7 +7756,7 @@ Sources: [`packages/interaction/commands/src/types.ts:112`](../packages/interact
 
 SHA-256: `de143b7c0b38e4d64926ca5c519f3d051db0e078cfbcb49197e96629be9f8081`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:264`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:265`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -7761,7 +7769,7 @@ Sources: [`packages/self-evolve/self-evolve/src/types.ts:264`](../packages/self-
 
 SHA-256: `2b39373f8a8e300ea87db6f576d1a3089e427a189245618a87094c9e3aa105c1`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:287`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:288`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -7846,7 +7854,7 @@ Sources: [`packages/compaction/compaction/src/types.ts:24`](../packages/compacti
 
 SHA-256: `c775ecf5dce95b68d14031cdc6fbf380a3b53ecaa738f87af760b3e50ddc4378`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:275`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8026,7 +8034,7 @@ Sources: [`packages/core/session/src/types.ts:376`](../packages/core/session/src
 
 SHA-256: `ee229fe34bd35f57133df6b6627dd49bc7b9bb620197a5df4c7e3e13d73a29ec`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:204`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8211,7 +8219,7 @@ Sources: [`packages/core/session/src/types.ts:342`](../packages/core/session/src
 
 SHA-256: `6f2e63e0dc6aefae21107d9f4654ce631bbba244f7cda618f4a1df333fea16c5`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:89`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:90`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8226,7 +8234,7 @@ Sources: [`packages/self-evolve/self-evolve/src/types.ts:89`](../packages/self-e
 
 SHA-256: `d86fa8b4f8d0af9861765376a24b8cfbadc72cf7d6f452d0dc77f22c069358a3`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:90`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:91`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8242,7 +8250,7 @@ Sources: [`packages/self-evolve/self-evolve/src/types.ts:90`](../packages/self-e
 
 SHA-256: `904dbbc760aaf9d12d94471e8181f38489186ac2a8d7870fd83475e4a933bf0b`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:91`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:92`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8256,7 +8264,7 @@ Sources: [`packages/self-evolve/self-evolve/src/types.ts:91`](../packages/self-e
 
 SHA-256: `0224345d8e8bddc0ba76b002334c6068ee18389c55a465fccd7926776906fb14`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:92`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:93`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8284,7 +8292,7 @@ Sources: [`packages/core/session/src/types.ts:205`](../packages/core/session/src
 
 SHA-256: `d737fc218aaaf3ffa5f4c5623be64a8a5ddba637057f37ecaf5d7435d28b1a41`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:102`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:103`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8930,7 +8938,7 @@ Sources: [`packages/core/tools/src/ptc.ts:15`](../packages/core/tools/src/ptc.ts
 
 SHA-256: `8e7b0f10c916365c344936703ceedd786574ace855960df6628d1b93dba3885d`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:123`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:124`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -9185,7 +9193,7 @@ SHA-256: `28936c614bd4e7e2774806edcbb3cbfd3ee643ac1cbf0bbdff43d915505a8fe3`
 
 SHA-256: `dbf7655764e39c88320d8febc9e903c174343fd20a484d98c2b95054ca1a498f`
 
-Sources: [`packages/self-evolve/self-evolve-basic/src/index.ts:86`](../packages/self-evolve/self-evolve-basic/src/index.ts)
+Sources: [`packages/self-evolve/self-evolve-basic/src/index.ts:89`](../packages/self-evolve/self-evolve-basic/src/index.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -9694,7 +9702,7 @@ Sources: [`packages/session/working-directory/src/index.ts:29`](../packages/sess
 
 SHA-256: `5bb74226ee686497cc2e7b4746b1caacfbb4ee3104df621d292fb8f441892477`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:216`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:217`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -9797,7 +9805,7 @@ Sources: [`packages/sandbox/sandbox-policy/src/session-mode.ts:33`](../packages/
 
 SHA-256: `eb370a5df89925a2d4a4a6fb8ac4fd59f0df4d7bfa70175cc2655978ab76abcd`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:254`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:255`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -9811,7 +9819,7 @@ Sources: [`packages/self-evolve/self-evolve/src/types.ts:254`](../packages/self-
 
 SHA-256: `6252a7de453d3c800c46c704149b08c5367108dfa800cf32bc624eca76bb8c62`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:234`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:235`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -9850,7 +9858,7 @@ Sources: [`packages/interaction/permission-presets/src/index.ts:59`](../packages
 
 SHA-256: `0a19d2ca10446c91bceeb070409a1feeb0c592152b53d875a33f396a724747c1`
 
-Sources: [`packages/self-evolve/self-evolve/src/types.ts:245`](../packages/self-evolve/self-evolve/src/types.ts)
+Sources: [`packages/self-evolve/self-evolve/src/types.ts:246`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

@@ -24,7 +24,7 @@ The **`tool-self-evolve`** package is the model-facing Consumer of `ctx.selfEvol
 | Package | Role |
 |---|---|
 | `@deepseek-ai/dsh-self-evolve` | Service Definition: abstract `SelfEvolveEngine` + durable events |
-| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider: projection-driven idle-pressure policy |
+| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider: projection-driven idle-pressure policy + per-session request queue |
 | `@deepseek-ai/dsh-tool-self-evolve` (this) | Consumer: model-facing tools and prompt section |
 
 ## Tools
@@ -32,7 +32,9 @@ The **`tool-self-evolve`** package is the model-facing Consumer of `ctx.selfEvol
 | Tool | Purpose |
 |---|---|
 | `self_evolve_inspect_patterns` | Read the session's projected failure-pattern state so the model can target real patterns instead of guessing. |
-| `self_evolve_now` | Start one explicit self-evolve loop for the requested levels (default `L1-skill` + `L2-context`). L3-workflow and L4-harness are accepted for forward compatibility, but the base provider produces no proposals for those levels yet. |
+| `self_evolve_now` | Queue one explicit request for the requested levels (default `L1-skill` + `L2-context`) and return the receipt `{ requestId, status, queuePosition, note }`. The run starts at the next idle boundary, and a follow-up message reports the outcome. L3-workflow and L4-harness are accepted for forward compatibility, but the base provider produces no proposals for those levels yet. |
+
+`self_evolve_now` never runs the loop inside the tool call: the agent is still running the turn that invoked the tool, so maintenance work would be rejected. A `status: 'queued'` receipt means the request is accepted, not that a proposal exists; `status: 'coalesced'` means an identical level set is already queued and the returned `requestId` is that entry's. The receipt lives in the tool result, so the session log records who asked for what, but a request still queued at process exit is lost.
 
 ## Model Experience
 
@@ -53,7 +55,8 @@ The stable prompt section is part of the request prefix on every turn while the 
 ## Known Limitations and Deferred Work
 
 - **Bounded by the provider surface** — the tools expose the seam, but proposal breadth is limited by the loaded provider (L1/L2 today).
-- **No keyed end-to-end verification** — `self_evolve_now` runs are unit-covered; a live loop run requires a keyed environment.
+- **Asynchronous by construction** — `self_evolve_now` returns a queue receipt, so a caller must read the follow-up message or the `self-evolve/*` events to learn the run outcome.
+- **No keyed end-to-end verification** — `self_evolve_now` queue behavior is unit-covered; a live loop run requires a keyed environment.
 
 ### Dev Note
 

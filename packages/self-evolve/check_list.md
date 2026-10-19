@@ -34,7 +34,7 @@
 | P1-7 | Negative results 写入 `$DSH_HOME/self-evolve/negative-results.jsonl` | reject 次数 = jsonl 行数（临时 DSH_HOME 实测） | ☑ |
 | P1-8 | Champion-Challenger 回滚（P1.8） | 连续 2 次同 patternId rejection → 最新 champion 经 owning seam 恢复（单测） | ☑ |
 | P1-9 | Prompt 膨胀 pruning（P1.9） | 超 `maxPromptInflationBytesPerWeek`（按 UTF-8 字节）→ 最旧 section 归档到 l2-archive/ 且 disposer 撤销（单测，含多字节用例） | ☑ |
-| P1-10 | 60 题离线子集净胜分（精确 McNemar） | 提供 evaluation report：McNemar p < 调整后 α 且 delta ≥ minEffect；未达标自动停开关 | ☐ |
+| P1-10 | 60 题离线子集净胜分（精确 McNemar） | 提供 evaluation report：McNemar p < 调整后 α 且 delta ≥ minEffect；未达标自动停开关（当前 blocker：无 `results.json`/`eval-decision.json`，数据集 `install` 需显式 `--allow-dataset-install`） | ☐ |
 | P1-11 | Phase 1 snapshot 录制 | `pnpm run test:snapshot:record -- -t p1-validator`（需 key 环境） | ☐ |
 
 ## Gate-P3：L3 + L4 审批

@@ -16,7 +16,7 @@ description: "专利原子与阶段 handler 注册表现在返回 disposer，`St
 ## 迁移
 
 1. 把即发即忘的注册改为有生命周期的注册：
-   ```ts
+   ```ts ignore-check
    ctx.effect(() => globalAtomRegistry.register(atom), 'my-plugin: atom')
    ```
    成对注册时收集两个 disposer，并按相反顺序调用。

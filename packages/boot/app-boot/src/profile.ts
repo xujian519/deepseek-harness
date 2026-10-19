@@ -196,6 +196,9 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
   'sdk-minimal': {
     bundles: ['@deepseek-ai/dsh-sdk-minimal'],
   },
+  'self-evolve': {
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@deepseek-ai/dsh-self-evolve-app'],
+  },
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */

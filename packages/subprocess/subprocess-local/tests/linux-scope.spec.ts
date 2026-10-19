@@ -284,6 +284,20 @@ describe('Linux native capability selection', () => {
     }
   })
 
+  it('reports no listener through the real kernel socket table', () => {
+    // Without the seam the lookup reads the platform's own table: Linux lists no row for a fresh
+    // temporary runtime directory, and off Linux the default path does not exist at all. Either
+    // way the unreadable-or-unmatched table reports nothing instead of throwing.
+    const runtime = mkdtempSync(join(tmpdir(), 'dsh-runtime-'))
+    directories.push(runtime)
+    try {
+      vi.stubEnv('XDG_RUNTIME_DIR', runtime)
+      expect(linuxManagerListener()).toBeUndefined()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it.skipIf(process.platform !== 'linux')('reads a real listening socket from the kernel socket table', async () => {
     const runtime = mkdtempSync(join(tmpdir(), 'dsh-运行时-'))
     directories.push(runtime)

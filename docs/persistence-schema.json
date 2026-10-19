@@ -26858,7 +26858,7 @@
       "digest": "0224345d8e8bddc0ba76b002334c6068ee18389c55a465fccd7926776906fb14",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:92"
+        "packages/self-evolve/self-evolve/src/types.ts:93"
       ]
     },
     {
@@ -26992,7 +26992,7 @@
       "digest": "0a19d2ca10446c91bceeb070409a1feeb0c592152b53d875a33f396a724747c1",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:245"
+        "packages/self-evolve/self-evolve/src/types.ts:246"
       ]
     },
     {
@@ -27194,7 +27194,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#EvolveProposal"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:72"
+        "packages/self-evolve/self-evolve/src/types.ts:73"
       ]
     },
     {
@@ -27634,7 +27634,7 @@
       "digest": "2b39373f8a8e300ea87db6f576d1a3089e427a189245618a87094c9e3aa105c1",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:287"
+        "packages/self-evolve/self-evolve/src/types.ts:288"
       ]
     },
     {
@@ -27721,7 +27721,7 @@
         "packages/patent/patent-teams/src/types.ts#PatentTeamsReportSource"
       ],
       "sources": [
-        "packages/patent/patent-teams/src/types.ts:135"
+        "packages/patent/patent-teams/src/types.ts:170"
       ]
     },
     {
@@ -28068,7 +28068,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#ReplayEvidence"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:167"
+        "packages/self-evolve/self-evolve/src/types.ts:168"
       ]
     },
     {
@@ -28211,6 +28211,8 @@
         "packages/patent/patent-teams/src/ids.ts#PatentTeamsTaskId",
         "packages/patent/patent-teams/src/ids.ts#PatentTeamsTeamId",
         "packages/schedule/schedule/src/types.ts#ScheduleId",
+        "packages/self-evolve/self-evolve/src/brand.ts#EvolveProposalId",
+        "packages/self-evolve/self-evolve/src/brand.ts#FailurePatternId",
         "packages/self-evolve/self-evolve/src/brand.ts#SelfEvolveRunId",
         "packages/session/session-title/src/index.ts#SessionTitleProviderId",
         "packages/session/session-title/src/types.ts#SessionTitleProviderId",
@@ -28242,6 +28244,8 @@
         "packages/patent/patent-teams/src/ids.ts:39",
         "packages/patent/patent-teams/src/ids.ts:51",
         "packages/schedule/schedule/src/types.ts:14",
+        "packages/self-evolve/self-evolve/src/brand.ts:16",
+        "packages/self-evolve/self-evolve/src/brand.ts:28",
         "packages/self-evolve/self-evolve/src/brand.ts:4",
         "packages/session/session-title/src/index.ts:43",
         "packages/session/session-title/src/types.ts:17",
@@ -28519,7 +28523,7 @@
       "digest": "5bb74226ee686497cc2e7b4746b1caacfbb4ee3104df621d292fb8f441892477",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:216"
+        "packages/self-evolve/self-evolve/src/types.ts:217"
       ]
     },
     {
@@ -28636,7 +28640,7 @@
       "digest": "6252a7de453d3c800c46c704149b08c5367108dfa800cf32bc624eca76bb8c62",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:234"
+        "packages/self-evolve/self-evolve/src/types.ts:235"
       ]
     },
     {
@@ -28660,7 +28664,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#EvolveTrigger"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:29"
+        "packages/self-evolve/self-evolve/src/types.ts:30"
       ]
     },
     {
@@ -28901,7 +28905,7 @@
       "digest": "6f2e63e0dc6aefae21107d9f4654ce631bbba244f7cda618f4a1df333fea16c5",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:89"
+        "packages/self-evolve/self-evolve/src/types.ts:90"
       ]
     },
     {
@@ -29184,7 +29188,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#EvolveLevel"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:26"
+        "packages/self-evolve/self-evolve/src/types.ts:27"
       ]
     },
     {
@@ -29457,7 +29461,7 @@
       "digest": "8e7b0f10c916365c344936703ceedd786574ace855960df6628d1b93dba3885d",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:123"
+        "packages/self-evolve/self-evolve/src/types.ts:124"
       ]
     },
     {
@@ -29505,7 +29509,7 @@
       "digest": "904dbbc760aaf9d12d94471e8181f38489186ac2a8d7870fd83475e4a933bf0b",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:91"
+        "packages/self-evolve/self-evolve/src/types.ts:92"
       ]
     },
     {
@@ -30451,7 +30455,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#FailurePattern"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:32"
+        "packages/self-evolve/self-evolve/src/types.ts:33"
       ]
     },
     {
@@ -30560,7 +30564,7 @@
       "digest": "c775ecf5dce95b68d14031cdc6fbf380a3b53ecaa738f87af760b3e50ddc4378",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:274"
+        "packages/self-evolve/self-evolve/src/types.ts:275"
       ]
     },
     {
@@ -30743,7 +30747,7 @@
       "digest": "d737fc218aaaf3ffa5f4c5623be64a8a5ddba637057f37ecaf5d7435d28b1a41",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:102"
+        "packages/self-evolve/self-evolve/src/types.ts:103"
       ]
     },
     {
@@ -30760,7 +30764,7 @@
       "digest": "d86fa8b4f8d0af9861765376a24b8cfbadc72cf7d6f452d0dc77f22c069358a3",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:90"
+        "packages/self-evolve/self-evolve/src/types.ts:91"
       ]
     },
     {
@@ -30830,7 +30834,7 @@
       "digest": "dbf7655764e39c88320d8febc9e903c174343fd20a484d98c2b95054ca1a498f",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve-basic/src/index.ts:86"
+        "packages/self-evolve/self-evolve-basic/src/index.ts:89"
       ]
     },
     {
@@ -30852,7 +30856,7 @@
       "digest": "de143b7c0b38e4d64926ca5c519f3d051db0e078cfbcb49197e96629be9f8081",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:264"
+        "packages/self-evolve/self-evolve/src/types.ts:265"
       ]
     },
     {
@@ -30964,7 +30968,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#ValidationScores"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:155"
+        "packages/self-evolve/self-evolve/src/types.ts:156"
       ]
     },
     {
@@ -31098,7 +31102,7 @@
       "digest": "eb370a5df89925a2d4a4a6fb8ac4fd59f0df4d7bfa70175cc2655978ab76abcd",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:254"
+        "packages/self-evolve/self-evolve/src/types.ts:255"
       ]
     },
     {
@@ -31141,7 +31145,7 @@
       "digest": "ee229fe34bd35f57133df6b6627dd49bc7b9bb620197a5df4c7e3e13d73a29ec",
       "names": [],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:203"
+        "packages/self-evolve/self-evolve/src/types.ts:204"
       ]
     },
     {
@@ -31270,7 +31274,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#ProposalValidationOutcome"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:101"
+        "packages/self-evolve/self-evolve/src/types.ts:102"
       ]
     },
     {
@@ -31494,7 +31498,7 @@
         "packages/self-evolve/self-evolve/src/types.ts#EvolveCommit"
       ],
       "sources": [
-        "packages/self-evolve/self-evolve/src/types.ts:181"
+        "packages/self-evolve/self-evolve/src/types.ts:182"
       ]
     },
     {

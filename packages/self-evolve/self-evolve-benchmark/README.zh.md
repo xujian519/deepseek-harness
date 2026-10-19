@@ -38,7 +38,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 语义 |
 |---|---|---|
 | `baseDir` | `~/.dsh/self-evolve-benchmark` | benchmark 存储与快照的数据根目录(`$DSH_HOME` 覆盖 `~/.dsh`)。 |
-| `agentStateDir` | `process.cwd()` | agent 状态目录,每轮候选前打快照、被拒绝时恢复。 |
+| `agentStateDir` | 必填 | agent 状态目录,每轮候选前打快照、被拒绝时恢复。构造时拒绝相对路径、不是目录的路径,以及与 `baseDir`、`cwd`、home 目录或文件系统根相同的路径;非空目录必须带有 `.self-evolve-benchmark` 标记。 |
 | `runsPerCase` | `1` | 方法未指定时每个用例的 run 次数。 |
 | `maxRoundsPerLoop` | `1` | 每次 optimize loop 的默认最大候选轮数。 |
 | `targetScore` | 无 | optimize loop 的默认分数目标;缺省禁用提前接受。 |
@@ -68,7 +68,7 @@ kind: "package-reference"
 
 ## Optimization loop (C1 + C3)
 
-`optimizeLoop` 的每一轮都会铸造一个新的快照版本(版本只增不减、永不回收),打包当前 agent 状态,只基于公共 statement 面提出一个候选,应用它,评估完整矩阵,并且仅当候选分数严格高于参考时才接受该轮。被拒绝的候选回滚到其快照;被接受的候选成为新的参考,配置了 `targetScore` 时循环提前停止。
+`optimizeLoop` 的每一轮都会铸造一个新的快照版本(版本只增不减、永不回收),打包当前 agent 状态,只基于公共 statement 面提出一个候选,应用它,评估完整矩阵,并且仅当候选分数严格高于参考时才接受该轮。被拒绝的候选回滚到其快照;被接受的候选成为新的参考,配置了 `targetScore` 时循环提前停止。回滚会恢复快照内容并删除被拒候选新增的文件,同时保留 `.vault.toml` 与 `.self-evolve-benchmark` 标记;解包前会校验归档条目的绝对路径、`..` 与路径穿越。铸造快照与追加 scoreboard 都持有 benchmark 级文件锁,因此并发写入方看到的是完整的旧文件或新文件,而不是部分内容。从磁盘加载的 case id 与 benchmark id 必须是安全路径段(`^[A-Za-z0-9][A-Za-z0-9._-]*$`),evaluator 返回的 score 必须是 0–100 内的有限数——超出范围以类型化错误拒绝,而不做 clamp。
 
 <a id="statementrubric-separation-c2"></a>
 ## Statement/rubric 分离(C2)

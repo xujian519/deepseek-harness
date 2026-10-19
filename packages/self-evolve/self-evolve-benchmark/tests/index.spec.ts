@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +8,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import BenchmarkEvolveEngine, { BenchmarkEvolveEngine as NamedBenchmarkEvolveEngine } from '../src/index.ts'
 import { BenchmarkId, CaseId } from '../src/brand.ts'
 import { appendScoreboard } from '../src/scoreboard.ts'
+import { AGENT_STATE_MARKER } from '../src/snapshot.ts'
 import { ensureBenchmark, writeCase } from '../src/store.ts'
 
 function textBlock(text: string): ContentBlock {
@@ -77,10 +78,64 @@ describe('BenchmarkEvolveEngine service wiring', () => {
     expect(ctx.selfEvolveBenchmark.core).toBe(engine.core)
   })
 
-  it('can be constructed with default paths without touching the disk', () => {
+  it('refuses to construct without an explicit agentStateDir', () => {
     const ctx = new Context()
-    expect(() => new BenchmarkEvolveEngine(ctx)).not.toThrow()
-    expect(ctx.selfEvolveBenchmark).toBeInstanceOf(BenchmarkEvolveEngine)
+    // The cwd fallback would make a rejected round wipe the caller's work tree.
+    expect(() => new BenchmarkEvolveEngine(ctx, {} as never)).toThrow(/agentStateDir is required/)
+  })
+
+  it('refuses a relative, forbidden, or unmarked agentStateDir', async () => {
+    const signal = (): AbortSignal => new AbortController().signal
+    const relative = new BenchmarkEvolveEngine(new Context(), { baseDir: dir, agentStateDir: 'relative/state' })
+    await expect(relative.runBenchmark(benchmarkId, { signal: signal() }))
+      .rejects.toThrow(/must be an absolute path/)
+
+    const cwd = new BenchmarkEvolveEngine(new Context(), { baseDir: dir, agentStateDir: process.cwd() })
+    await expect(cwd.runBenchmark(benchmarkId, { signal: signal() }))
+      .rejects.toThrow(/must not be the current working directory/)
+
+    const root = new BenchmarkEvolveEngine(new Context(), { baseDir: dir, agentStateDir: '/' })
+    await expect(root.runBenchmark(benchmarkId, { signal: signal() }))
+      .rejects.toThrow(/must not be the filesystem root/)
+
+    const missing = await mkdtemp(join(tmpdir(), 'dsh-index-missing-'))
+    await rm(missing, { recursive: true, force: true })
+    const gone = new BenchmarkEvolveEngine(new Context(), { baseDir: dir, agentStateDir: missing })
+    await expect(gone.runBenchmark(benchmarkId, { signal: signal() }))
+      .rejects.toThrow(/does not exist/)
+
+    // A non-empty directory without the marker is someone's workspace.
+    await writeFile(join(agentDir, 'notes.md'), 'do not wipe me')
+    const unmarked = new BenchmarkEvolveEngine(new Context(), { baseDir: dir, agentStateDir: agentDir })
+    await expect(unmarked.runBenchmark(benchmarkId, { signal: signal() }))
+      .rejects.toThrow(/lacks the \.self-evolve-benchmark marker/)
+  })
+
+  it('refuses an agentStateDir that is not a directory or cannot be inspected', async () => {
+    const signal = (): AbortSignal => new AbortController().signal
+    const stateFile = join(dir, 'state-file')
+    await writeFile(stateFile, 'not a directory\n')
+    const file = new BenchmarkEvolveEngine(new Context(), { baseDir: dir, agentStateDir: stateFile })
+    await expect(file.runBenchmark(benchmarkId, { signal: signal() }))
+      .rejects.toThrow(/agentStateDir is not a directory/)
+
+    // A path below a regular file fails with ENOTDIR: not a missing directory.
+    const nested = new BenchmarkEvolveEngine(new Context(), {
+      baseDir: dir,
+      agentStateDir: join(stateFile, 'nested'),
+    })
+    await expect(nested.runBenchmark(benchmarkId, { signal: signal() }))
+      .rejects.toThrow(/ENOTDIR/)
+  })
+
+  it('accepts a marked non-empty agent state directory', async () => {
+    const ctx = new Context()
+    provideRuntime(ctx, async () => stubRun([textBlock('{"score": 70}')]))
+    await writeFile(join(agentDir, AGENT_STATE_MARKER), '')
+    await writeFile(join(agentDir, 'guidance.md'), 'guidance')
+    const engine = makeEngine(ctx)
+    await prepareBenchmark()
+    await expect(engine.runBenchmark(benchmarkId, { signal: new AbortController().signal, sessionId: 'sess-1' })).resolves.toBeDefined()
   })
 
   it('delegates readScoreboard to the core', async () => {

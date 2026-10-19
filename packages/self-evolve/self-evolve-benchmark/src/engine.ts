@@ -16,7 +16,7 @@
 import { assertNoPrivateLeak, publicBenchmarkView } from './contamination.ts'
 import type { BenchmarkId } from './brand.ts'
 import { aggregateRuns, appendScoreboard, mean, readScoreboard, roundCost, roundScore } from './scoreboard.ts'
-import { createSnapshot, nextVersion } from './snapshot.ts'
+import { createNextSnapshot } from './snapshot.ts'
 import { loadBenchmark } from './store.ts'
 import type {
   BenchmarkEngineOptions,
@@ -35,6 +35,25 @@ import type {
 function sumWhenPresent(...values: Array<number | undefined>): number | undefined {
   if (values.every(value => value === undefined)) return undefined
   return values.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+}
+
+/**
+ * Assert an evaluator's score is a usable 0–100 number.
+ *
+ * A seam that reports `NaN`, `Infinity`, a negative number, or a value above
+ * 100 would otherwise be averaged into the scoreboard as-is: `NaN` makes every
+ * later mean `NaN`, and an out-of-range value silently breaks the 0–100 range
+ * every consumer assumes. Clamping is the wrong remedy — it hides a broken
+ * evaluator behind a plausible score.
+ *
+ * @param score The evaluator's reported score.
+ * @param caseId The case being scored, for the diagnostic.
+ * @throws when the score is not a finite number in 0–100.
+ */
+function assertScored(score: number, caseId: string): void {
+  if (!Number.isFinite(score) || score < 0 || score > 100) {
+    throw new Error(`self-evolve-benchmark: evaluator returned an invalid score for case "${caseId}": ${String(score)} (expected a finite number in 0–100)`)
+  }
 }
 
 /** Pure orchestration core over injected evaluation and optimization seams. */
@@ -118,8 +137,7 @@ export class BenchmarkEngineCore {
     for (let round = 1; round <= maxRounds; round++) {
       if (options.signal.aborted) break
       rounds = round
-      const version = await nextVersion(this.options.baseDir)
-      await createSnapshot(this.options.baseDir, version, this.options.agentStateDir)
+      const { version } = await createNextSnapshot(this.options.baseDir, this.options.agentStateDir)
       const candidate: CandidateProposal = await this.options.proposeCandidate({
         benchmarkId,
         reference: current,
@@ -206,6 +224,7 @@ export class BenchmarkEngineCore {
         if (spec.rubric !== undefined) request.rubric = spec.rubric
         if (opts.sessionId !== undefined) request.sessionId = opts.sessionId
         const result = await this.options.evaluateCase(request)
+        assertScored(result.score, spec.caseId)
 
         const record: CaseRunRecord = { score: result.score }
         const cost = sumWhenPresent(attempt.cost, result.cost)

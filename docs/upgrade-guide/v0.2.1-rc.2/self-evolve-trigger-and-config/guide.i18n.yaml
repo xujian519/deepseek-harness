@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/self-evolve-trigger-and-config/guide.md
+/:
+  en: aee4e3f2b0cef4ef
+  zh: 8bf5912556547670
+/self-evolve-triggers-queue-and-configuration:
+  en: 340ed3c9c9f8d6fd
+  zh: b908a696508ff52b
+/self-evolve-triggers-queue-and-configuration/change:
+  en: e9d6e3ffcc2a5546
+  zh: 3e50eb4c6868452b
+/self-evolve-triggers-queue-and-configuration/migration:
+  en: cde80e9c82caff08
+  zh: 4dda9dd1b0530e96

@@ -120,6 +120,25 @@ describe('runCampaign execute path', () => {
     expect(results.tasks).toHaveLength(1)
   })
 
+  it('passes the dataset-install opt-in to the workspace preparation', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-ok')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-ok', { instance_id: 't-ok' }]]))
+    mocks.normalizeSwebenchRow.mockReturnValue(workspace('t-ok').row)
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-ok'))
+    mocks.runAgent.mockResolvedValue({ exitCode: 0, seconds: 1, timeout: false, spawnError: null })
+    mocks.collectPrediction.mockResolvedValue('/work/t-ok/pred.patch')
+    mocks.verifyVerdict.mockResolvedValue({ passed: true, detail: 'ok' })
+
+    await runCampaign(options(dir, { dshHome: '/home' }))
+    // Absent means false: dataset-provided shell never runs unless asked for.
+    expect(mocks.prepareTaskWorkspace.mock.calls[0]?.[0]).toMatchObject({ allowDatasetInstall: false })
+    mocks.prepareTaskWorkspace.mockClear()
+    await runCampaign(options(dir, { dshHome: '/home', allowDatasetInstall: true }))
+    expect(mocks.prepareTaskWorkspace.mock.calls[0]?.[0]).toMatchObject({ allowDatasetInstall: true })
+  })
+
   it('marks an infra failure when the manifest has no row for a task', async () => {
     const dir = await tempDir()
     mocks.loadTaskManifest.mockResolvedValue([task('t-missing')])
@@ -408,6 +427,24 @@ describe('runCampaign execute path', () => {
     const summary = await runCampaign(options(dir, { taskLimit: 2, dryRun: true }))
     expect(summary.planned).toBe(2)
     expect(summary.armRuns).toBe(4)
+  })
+
+  it('reports the dataset install policy a dry run would use', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-1')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map())
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const printed = () => log.mock.calls.flat().join('\n')
+    try {
+      await runCampaign(options(dir, { dryRun: true }))
+      expect(printed()).toContain('dataset install: disabled')
+      log.mockClear()
+      await runCampaign(options(dir, { dryRun: true, allowDatasetInstall: true }))
+      expect(printed()).toContain('dataset install: enabled')
+    } finally {
+      log.mockRestore()
+    }
   })
 
   it('does not skip an arm when the results file has no settled row for the task', async () => {

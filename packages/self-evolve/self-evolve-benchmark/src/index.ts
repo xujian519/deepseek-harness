@@ -25,9 +25,12 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SubagentResult, SubagentRuntime } from '@deepseek-ai/dsh-subagent'
+import { homedir } from 'node:os'
+import { isAbsolute, parse as parsePath, resolve as resolvePath } from 'node:path'
+import { readdir, stat } from 'node:fs/promises'
 import type { BenchmarkId } from './brand.ts'
 import { BenchmarkEngineCore } from './engine.ts'
-import { restoreSnapshot } from './snapshot.ts'
+import { AGENT_STATE_MARKER, restoreSnapshot } from './snapshot.ts'
 import type {
   ApplyCandidate,
   BenchmarkEvolveConfig,
@@ -131,6 +134,52 @@ function finalOutputText(result: SubagentResult): string {
     .map(block => (block.type === 'text' ? block.text : ''))
     .join('\n')
     .trim()
+}
+
+/**
+ * Validate the agent-state directory at construction time.
+ *
+ * `agentStateDir` is snapshotted and, on a rejected round, wiped and restored.
+ * A caller that omits it must not fall back to `process.cwd()`: the rollback
+ * would then delete the caller's working tree. The directory must therefore be
+ * stated explicitly, be absolute, be distinct from the data root, cwd, home,
+ * and filesystem root, and — when non-empty — carry the benchmark marker that
+ * proves it is a benchmark state directory rather than someone's project.
+ *
+ * @param agentStateDir The configured agent-state directory.
+ * @param baseDir The configured benchmark data root.
+ * @throws when the directory is missing, unsafe, or not a benchmark state dir.
+ */
+async function assertAgentStateDir(agentStateDir: string, baseDir: string): Promise<void> {
+  if (!isAbsolute(agentStateDir)) {
+    throw new Error(`self-evolve-benchmark: agentStateDir must be an absolute path, got ${JSON.stringify(agentStateDir)}`)
+  }
+  const dir = resolvePath(agentStateDir)
+  const forbidden: Array<[string, string]> = [
+    ['the benchmark data root', resolvePath(baseDir)],
+    ['the current working directory', resolvePath(process.cwd())],
+    ['the home directory', resolvePath(homedir())],
+    ['the filesystem root', parsePath(dir).root],
+  ]
+  for (const [label, path] of forbidden) {
+    if (dir === path) {
+      throw new Error(`self-evolve-benchmark: agentStateDir must not be ${label} (${path}) — a rejected round wipes and restores it`)
+    }
+  }
+  let info
+  try {
+    info = await stat(dir)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`self-evolve-benchmark: agentStateDir does not exist: ${dir}`)
+    }
+    throw error
+  }
+  if (!info.isDirectory()) throw new Error(`self-evolve-benchmark: agentStateDir is not a directory: ${dir}`)
+  const entries = await readdir(dir)
+  if (entries.length > 0 && !entries.includes(AGENT_STATE_MARKER)) {
+    throw new Error(`self-evolve-benchmark: agentStateDir ${dir} is non-empty and lacks the ${AGENT_STATE_MARKER} marker — refusing to treat a caller workspace as benchmark state`)
+  }
 }
 
 /** Parse a subagent's terminal output as a JSON object, failing loud on malformed output. */
@@ -280,11 +329,23 @@ export class BenchmarkEvolveEngine extends Service {
   private readonly maxRoundsPerLoop: number
   /** Default score goal for optimize loops; absent disables early acceptance. */
   private readonly targetScore: number | undefined
+  /** Constructor-started validation of `agentStateDir`; every public method awaits it first. */
+  private readonly ready: Promise<void>
 
-  constructor(ctx: Context, config: BenchmarkEvolveConfig = {}) {
+  constructor(ctx: Context, config: BenchmarkEvolveConfig) {
     super(ctx, 'selfEvolveBenchmark')
     const baseDir = config.baseDir ?? dshHomePath('self-evolve-benchmark')
-    const agentStateDir = config.agentStateDir ?? process.cwd()
+    if (typeof config.agentStateDir !== 'string' || config.agentStateDir.length === 0) {
+      throw new Error('self-evolve-benchmark: agentStateDir is required — the provider snapshots it every round and wipes it on a rejected round')
+    }
+    const agentStateDir = config.agentStateDir
+    // The directory is validated before any round can snapshot or wipe it; the
+    // check is async, so the constructor starts it and every public method
+    // awaits it before touching the directory.
+    const ready = assertAgentStateDir(agentStateDir, baseDir)
+    // Awaiters still observe the rejection; the no-op handler only keeps an
+    // unused provider from surfacing it as an unhandled rejection.
+    ready.catch(() => {})
     this.core = new BenchmarkEngineCore({
       baseDir,
       agentStateDir,
@@ -294,6 +355,7 @@ export class BenchmarkEvolveEngine extends Service {
       applyCandidate: createApplyCandidate(ctx),
       restoreSnapshot: options => restoreSnapshot(baseDir, options.version, agentStateDir),
     })
+    this.ready = ready
     this.runsPerCase = config.runsPerCase ?? 1
     this.maxRoundsPerLoop = config.maxRoundsPerLoop ?? 1
     this.targetScore = config.targetScore
@@ -322,7 +384,7 @@ export class BenchmarkEvolveEngine extends Service {
    * @returns The aggregated scoreboard entry.
    */
   runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
-    return this.core.runBenchmark(benchmarkId, this.runDefaults(options))
+    return this.ready.then(() => this.core.runBenchmark(benchmarkId, this.runDefaults(options)))
   }
 
   /**
@@ -333,7 +395,7 @@ export class BenchmarkEvolveEngine extends Service {
    * @returns The baseline scoreboard entry.
    */
   establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
-    return this.core.establishBaseline(benchmarkId, this.runDefaults(options))
+    return this.ready.then(() => this.core.establishBaseline(benchmarkId, this.runDefaults(options)))
   }
 
   /**
@@ -344,7 +406,7 @@ export class BenchmarkEvolveEngine extends Service {
    * @returns The loop outcome.
    */
   optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult> {
-    return this.core.optimizeLoop(benchmarkId, this.loopDefaults(options))
+    return this.ready.then(() => this.core.optimizeLoop(benchmarkId, this.loopDefaults(options)))
   }
 
   /**

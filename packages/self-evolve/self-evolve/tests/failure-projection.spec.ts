@@ -9,6 +9,7 @@ import {
   failurePatternsViewSchema,
   foldEvent,
   parseShellMarkers,
+  verifierMetadata,
 } from '../src/failure-projection.ts'
 import type { FailurePatternsState } from '../src/failure-projection.ts'
 import type { FailurePattern } from '../src/types.ts'
@@ -487,5 +488,33 @@ describe('tool-call identity folding', () => {
     expect(Object.keys(state.toolCalls)).toHaveLength(64)
     expect(state.toolCalls['c-0']).toBeUndefined()
     expect(state.toolCalls['c-64']?.name).toBe('bash')
+  })
+})
+
+describe('verifierMetadata', () => {
+  it('projects every member into a wire-safe JSON value', () => {
+    const projected = verifierMetadata({
+      text: 'value',
+      flag: true,
+      count: 3,
+      notFinite: Number.NaN,
+      infinite: Number.POSITIVE_INFINITY,
+      large: BigInt(10),
+      tag: Symbol('tag'),
+      nested: { kept: 1, dropped: undefined },
+      list: [1, undefined, null],
+      absent: undefined,
+    })
+    expect(projected).toEqual({
+      text: 'value',
+      flag: true,
+      count: 3,
+      notFinite: 'NaN',
+      infinite: 'Infinity',
+      large: '10',
+      tag: 'Symbol(tag)',
+      nested: { kept: 1 },
+      list: [1, null, null],
+    })
   })
 })

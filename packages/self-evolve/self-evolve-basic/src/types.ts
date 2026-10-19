@@ -209,4 +209,43 @@ export interface BasicSelfEvolveConfig {
    * no build command is configured, or the shell service is absent.
    */
   workspaceVerifier?: WorkspaceVerifierConfig
+  /**
+   * Whether autonomous triggers (idle / pressure / validation-retry) may run
+   * when the deployment cannot verify a proposal: no
+   * `workspaceVerifier.buildCommand` or no `validatorTarget`. Default false —
+   * such a loop rejects every proposal, so running it unattended burns model
+   * budget for a guaranteed no-op. Explicit `user-command` requests are never
+   * blocked by this switch.
+   */
+  allowUnverifiedAutonomousRuns?: boolean
+  /**
+   * Maximum validation-triggered retries per pattern (Phase 3): a
+   * `low-confidence` rejection queues one retry until this many have run.
+   * `verifier-unavailable` and every other rejection reason never retry.
+   */
+  maxValidationRetriesPerPattern?: number
+  /**
+   * Maximum queued evolve requests per session (default 8). Explicit requests
+   * are never evicted; a full queue drops the oldest autonomous request.
+   */
+  maxPendingEvolveRequests?: number
+  /**
+   * Whether a completed explicit request sends a follow-up summary message
+   * back into the session (default true). Autonomous runs never notify.
+   */
+  notifyOnExplicitRun?: boolean
+  /** Retained rows in `negative-results.jsonl`; older rows are dropped (default 500). */
+  maxNegativeResultRows?: number
+  /** Retained rows in `global-patterns.jsonl`; older rows are dropped (default 1000). */
+  maxGlobalPatternRows?: number
+  /** Per-session rate/reflection state maps retained before eviction (default 64). */
+  maxTrackedSessions?: number
+  /** Per-session pattern-keyed entries retained before eviction (default 256). */
+  maxTrackedPatternsPerSession?: number
+  /**
+   * Live runtime skills this provider may own (default 32). A new L1 commit
+   * past the cap is rejected as `apply-failed` rather than evicting a live
+   * skill.
+   */
+  maxLiveSkills?: number
 }

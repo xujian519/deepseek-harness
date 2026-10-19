@@ -9,12 +9,13 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It wires the `failure-patterns` projection unit, triggers evolution loops on idle or explicit request, and commits narrow L1 (skill) and L2 (prompt-section) proposals through reversible Cordis effects.
+The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It wires the `failure-patterns` projection unit, queues evolution requests that drain at the agent's idle boundary, and commits narrow L1 (skill) and L2 (prompt-section) proposals through reversible Cordis effects.
 
 
 ## Table of Contents
 
 - [Role](#role)
+- [Triggers and queue](#triggers-and-queue)
 - [Configuration](#configuration)
 - [Validation pipeline (Phase 1)](#validation-pipeline-phase-1)
 - [Negative results (P1.7b)](#negative-results-p17b)
@@ -28,6 +29,14 @@ The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It 
 | `@deepseek-ai/dsh-self-evolve` | Service Definition: abstract `SelfEvolveEngine` + durable events |
 | `@deepseek-ai/dsh-self-evolve-basic` (this) | Service Provider: projection-driven idle-pressure policy + base proposer/validator |
 | `@deepseek-ai/dsh-tool-self-evolve` | Consumer: model-facing tools and prompt section |
+
+## Triggers and queue
+
+Four triggers reach the loop. `idle-maintenance` starts when the agent reports `agent/status` `idle` and the session is not a subagent (origin `subagent`, a parent session, or a delegation depth above zero). `pressure` starts on `compaction/start` with a non-null `turn`, so an automatic compaction counts and a manual `/compact` does not. `user-command` starts from `requestEvolve`, which `self_evolve_now` calls; it bypasses `minIntervalMs` and `maxDailyLoopsPerSession` and is never evicted. `validation-retry` starts from the provider itself: one `low-confidence` rejection queues one retry per pattern, bounded by `maxValidationRetriesPerPattern`, and no other rejection reason queues at all.
+
+`requestEvolve` maintains a per-session in-memory FIFO ordered by priority `user-command` > `validation-retry` > `pressure` > `idle-maintenance`. Identical level sets coalesce and return `status: 'coalesced'`; a queue at `maxPendingEvolveRequests` evicts the oldest autonomous request and keeps every explicit one. Each drain starts at most one request, and a request still queued at process exit is lost. The drain re-checks `agent.status === 'idle'` and the session's open state before starting maintenance, and a busy agent leaves the request queued for the next idle boundary.
+
+A completed explicit request sends one follow-up message when `notifyOnExplicitRun` is set and the run proposed or committed anything; autonomous runs never notify.
 
 ## Configuration
 
@@ -55,6 +64,15 @@ The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It 
 | `reflectionMinConfidence` | `0.85` | Minimum model-reported confidence for a step reflection to reinforce a pattern via a `self-evolve/reflection` event (P3.1). |
 | `patternFreezeHours` | `24` | Per-pattern proposal freeze (P3.3): after two proposals, a pattern is skipped for this window (diversity-collapse guard). |
 | `maxBudgetCharsPerLoop` | `32768` | Per-loop byte budget for LLM calls and searches (P3.4); exceeding it aborts the loop with `budget-exceeded` and closes the bracket with an error. |
+| `allowUnverifiedAutonomousRuns` | `false` | Whether autonomous triggers may run when the deployment cannot verify a proposal (no `workspaceVerifier.buildCommand` or no `validatorTarget`). A `user-command` request runs either way and reports `verifier-unavailable`. |
+| `maxValidationRetriesPerPattern` | `1` | `validation-retry` reach per pattern; `0` disables the trigger. |
+| `maxPendingEvolveRequests` | `8` | Queued requests per session before the oldest autonomous request is dropped. Explicit requests are never dropped. |
+| `notifyOnExplicitRun` | `true` | Send a follow-up summary after a completed explicit request that proposed or committed something. |
+| `maxNegativeResultRows` | `500` | Retained rows in `negative-results.jsonl`; the file is atomically rewritten to the newest rows past the cap. |
+| `maxGlobalPatternRows` | `1000` | Retained rows in `global-patterns.jsonl`, with the same atomic trim. |
+| `maxTrackedSessions` | `64` | Per-session rate, reflection, proposal, regression, and retry state retained before least-recently-used eviction. |
+| `maxTrackedPatternsPerSession` | `256` | Pattern-keyed entries retained per session for the same maps. |
+| `maxLiveSkills` | `32` | Live runtime skills this provider may own; a new L1 commit past the cap is rejected as `apply-failed` rather than evicting a live skill. |
 
 L3 and L4 proposals are not implemented by this base provider; downstream providers can subclass `proposeForPatterns()` and `validateProposal()` safely.
 
@@ -90,6 +108,8 @@ The stable tool-self-evolve prompt section is present on every request while the
 - **Replay proves exercise, not repair** — `replayCase` requires the child to complete, to have made at least one tool call, and to re-trigger no failure pattern. All three read durable events, but none of them verifies that the original failure is actually fixed: a child that runs the wrong command still passes. Objective judging needs the failure pattern to carry a replayable command with an expected result.
 - **L4 is authorized by approval alone** — `validateL4Proposal` records `L4_APPROVAL_SCORES` and pins `confidence: 1`; the aggregate gate does not evaluate L4, and the human approval flow is its only defense.
 - **No keyed end-to-end verification** — proposal effects are reversible commits covered by unit tests; a live `dsh --profile` loop run requires a keyed environment.
+- **First-commit rollback writes a tombstone** — rolling back a skill this provider committed first restores the runtime skill and rewrites `.dsh/skills/<name>/SKILL.md` as front-matter-less content, because the `fs` seam has no remove primitive; the skill filesystem ignores that file and logs one scan warning. Rolling back over a champion rewrites the file with the champion's content instead.
+- **Queue state is in memory** — a queued request that outlives the process is lost; `self-evolve/start|end` and the tool receipt remain in the session log as the durable record.
 
 ### Dev Note
 

@@ -419,6 +419,12 @@ export function normalizeSessionLog(
       if ('startedAt' in data) data.startedAt = 0
       if ('finishedAt' in data) data.finishedAt = 0
     }
+    if ((record.type === 'self-evolve/start' || record.type === 'self-evolve/end')
+      && record.data !== null && typeof record.data === 'object') {
+      const data = record.data as Record<string, unknown>
+      if ('startedAt' in data) data.startedAt = 0
+      if ('endedAt' in data) data.endedAt = 0
+    }
     if (record.type === 'goal/change' && record.data !== null && typeof record.data === 'object') {
       const data = record.data as Record<string, unknown>
       if ('createdAt' in data) data.createdAt = 0

@@ -13,7 +13,7 @@
 
 import { spawn } from 'node:child_process'
 import { closeSync, openSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, appendFile, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { EvalTask } from '../types.ts'
 import type { SwebenchRow } from './manifest.ts'
@@ -164,6 +164,13 @@ export interface PrepareTaskOptions {
   setupTimeoutMs: number
   installTimeoutMs: number
   /**
+   * Run the SWE-bench row's `install` shell command. Defaults to false: the
+   * command comes from the dataset, not this repository, so executing it is an
+   * explicit supply-chain decision. A skipped install still provisions the venv
+   * and clones both arms, and the log records the exact command that was not run.
+   */
+  allowDatasetInstall?: boolean
+  /**
    * Milliseconds between base-repository clone attempts. Callers that cannot
    * wait (tests, an offline CI shard) pass 0.
    */
@@ -236,18 +243,26 @@ export async function prepareTaskWorkspace(options: PrepareTaskOptions): Promise
   }
 
   if (row.install !== undefined) {
-    const installResult = await exec('bash', ['-lc', row.install], {
-      cwd: repoBase,
-      env: {
-        /* v8 ignore next -- a test/CI environment always sets PATH, so the empty fallback is unreachable. */
-        PATH: `${venv}/bin:${process.env.PATH ?? ''}`,
-        VIRTUAL_ENV: venv,
-        PIP_DISABLE_PIP_VERSION_CHECK: '1',
-      },
-      timeoutMs: installTimeoutMs,
-      logPath,
-    })
-    if (installResult.exitCode !== 0) throw new Error(`install command exited ${installResult.exitCode}`)
+    // The command and cwd are recorded either way, so a skipped install is
+    // auditable and an operator can rerun it deliberately.
+    const installCwd = repoBase
+    if (options.allowDatasetInstall !== true) {
+      await appendFile(logPath, `dataset install skipped (allowDatasetInstall=false, cwd=${installCwd}): ${row.install}\n`)
+    } else {
+      await appendFile(logPath, `dataset install (cwd=${installCwd}): ${row.install}\n`)
+      const installResult = await exec('bash', ['-lc', row.install], {
+        cwd: installCwd,
+        env: {
+          /* v8 ignore next -- a test/CI environment always sets PATH, so the empty fallback is unreachable. */
+          PATH: `${venv}/bin:${process.env.PATH ?? ''}`,
+          VIRTUAL_ENV: venv,
+          PIP_DISABLE_PIP_VERSION_CHECK: '1',
+        },
+        timeoutMs: installTimeoutMs,
+        logPath,
+      })
+      if (installResult.exitCode !== 0) throw new Error(`install command exited ${installResult.exitCode}`)
+    }
   }
 
   return {

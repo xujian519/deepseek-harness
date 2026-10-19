@@ -129,13 +129,36 @@ describe('prepareTaskWorkspace', () => {
     expect(ws.venvPython).toContain('.venv/bin/python')
   })
 
-  it('runs the dataset install command when the row declares it', async () => {
+  it('runs and records the dataset install command when the caller opts in', async () => {
     const dir = await tempDir()
     setPlan([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    const logPath = join(dir, 'setup.log')
     const ws = await prepareTaskWorkspace({
-      ...PREPARE_OPTIONS, workDir: dir, row: row({ install: 'pip install -e .' }), logPath: join(dir, 'setup.log'),
+      ...PREPARE_OPTIONS, workDir: dir, row: row({ install: 'pip install -e .' }), allowDatasetInstall: true, logPath,
     })
     expect(ws.taskId).toBe('t-1')
+    const installs = spawnMock.mock.calls.filter(call => call[0] === 'bash')
+    expect(installs.map(call => call[1])).toEqual([['-lc', 'pip install -e .']])
+    // The exact command and its working directory are auditable after the run.
+    expect(await readFile(logPath, 'utf8')).toContain(`dataset install (cwd=${ws.repoBase}): pip install -e .`)
+  })
+
+  it('never runs a dataset install command without the explicit opt-in', async () => {
+    const dir = await tempDir()
+    // Earlier cases left install spawns in the shared mock history.
+    spawnMock.mockClear()
+    // One fewer plan entry than the opt-in case: the install spawn never happens,
+    // so a stray spawn would consume an empty plan and still be visible below.
+    setPlan([0, 0, 0, 0, 0, 0, 0, 0, 0])
+    const logPath = join(dir, 'setup.log')
+    const ws = await prepareTaskWorkspace({
+      ...PREPARE_OPTIONS, workDir: dir, row: row({ install: 'pip install -e .' }), logPath,
+    })
+    expect(ws.taskId).toBe('t-1')
+    expect(spawnMock.mock.calls.filter(call => call[0] === 'bash')).toEqual([])
+    // A skipped install is still recorded with the command and cwd it would have used.
+    expect(await readFile(logPath, 'utf8'))
+      .toContain(`dataset install skipped (allowDatasetInstall=false, cwd=${ws.repoBase}): pip install -e .`)
   })
 
   it('prepares a uv task end to end', async () => {
@@ -209,7 +232,7 @@ describe('prepareTaskWorkspace', () => {
       { code: 0 }, { code: 0 }, { code: 0 }, { code: 0 }, { code: 8 },
     ])
     await expect(prepareTaskWorkspace({
-      ...PREPARE_OPTIONS, workDir: dir, row: row({ install: 'pip install -e .' }),
+      ...PREPARE_OPTIONS, workDir: dir, row: row({ install: 'pip install -e .' }), allowDatasetInstall: true,
     })).rejects.toThrow(/install command exited 8/)
   })
 
