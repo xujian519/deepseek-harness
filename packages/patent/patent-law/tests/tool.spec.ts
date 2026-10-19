@@ -149,6 +149,23 @@ describe('law_verify tool', () => {
     expect(JSON.stringify(result.content)).toContain('至少要给出 text 或 references 之一')
   })
 
+  it('rejects blank text when no references are given, so a zero-byte call cannot satisfy a gate', async () => {
+    const ctx = await host()
+    for (const text of ['', ' \n\t ']) {
+      const result = await execute(ctx, { text })
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result.content)).toContain('text 不能为空白')
+    }
+  })
+
+  it('still checks explicit references when text is absent or blank', async () => {
+    for (const args of [{ references: ['专利法第22条第3款'] }, { text: ' \n', references: ['专利法第22条第3款'] }]) {
+      const value = await run(await host(verifiedIndex), args)
+      expect(value.findings).toHaveLength(1)
+      expect(value.findings[0]).toMatchObject({ decision: 'valid' })
+    }
+  })
+
   it('renders a decision table with the unverified warning', async () => {
     const ctx = await host()
     const result = await execute(ctx, { text: '依据审查指南第二部分第十章。' })

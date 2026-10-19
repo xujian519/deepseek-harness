@@ -362,6 +362,8 @@
                   # 区分：2026-10-03 语料核查中，13 个渲染过交付件的会话里只有 2 个在首次
                   # 渲染前跑过 rule_check，law_verify 一次未跑。门禁按会话归属记账，只认本
                   # 会话内成功返回的调用；未满足即拒绝该次调用，使缺闸门证据的件不落盘。
+                  # evidence 再核结果字段：零字节 rule_check、没有识别到引用的 law_verify、
+                  # 另一个 manifest 的收口记录都不算本次交付的证据。
                   deliveryGate:
                     # 所有交付渲染与提交格式成文：合规规则库逐条 + 法条引用形式与索引收录，各一次。
                     # build_patent_filing 写出的正是交给 CNIPA 的申请文件 docx，与渲染件同属交付物；
@@ -371,27 +373,110 @@
                     # _matter-log.md（案件唯一事实源），交付件才允许落盘。
                     - tool: render_patent_document
                       requires: [rule_check, law_verify, matter_log_append]
+                      evidence:
+                        rule_check:
+                          - field: evaluated
+                            minItems: 1
                     - tool: build_patent_filing
                       requires: [rule_check, law_verify, matter_log_append]
-                    # 分析类与撰写类产物另须收口；补正（rectification-response）
-                    # 无 manifest 入口，以替换页逐项核验记录替代，故按模板收窄。
-                    # right-evaluation-report 是行政机关文书：转制件只把既有报告排成模板版式，
-                    # 没有分析可收口，故不列入；其模拟件的「模拟件 · 非行政机关出具」标注按 persona 执行。
+                      evidence:
+                        rule_check:
+                          - field: evaluated
+                            minItems: 1
+                    # 成文类交付（意见、答复、报告）以法条论证为主体：law_verify 必须真的
+                    # 识别到引用，空文本之外的「无引用可查」同样不满足前置。申请文件、
+                    # 检索报告表格、侵权比对与补正件不在此列，它们可以合法地不引用法条。
                     - tool: render_patent_document
-                      requires: [patent_workflow_run]
+                      requires: [law_verify]
                       whenArgs:
                         template:
                           - patentability-opinion
                           - search-report
-                          - search-report-form
                           - oa-response
                           - invalidation-opinion
                           - invalidation-analysis
                           - invalidation-defense
                           - re-examination-request
-                          - infringement-opinion
                           - litigation-pleading
-                          - claims-spec
+                      evidence:
+                        law_verify:
+                          - field: findings
+                            minItems: 1
+                    # 分析类与撰写类产物另须收口，且收口必须来自该模板对应的 manifest；
+                    # 任意 manifest 的成功记录不能冒充。补正（rectification-response）无
+                    # manifest 入口，以替换页逐项核验记录替代，故按模板收窄。
+                    # right-evaluation-report 是行政机关文书：转制件只把既有报告排成模板版式，
+                    # 没有分析可收口，故不列入；其模拟件的「模拟件 · 非行政机关出具」标注按 persona 执行。
+                    - tool: render_patent_document
+                      requires: [patent_workflow_run]
+                      whenArgs:
+                        template: [patentability-opinion]
+                      evidence:
+                        patent_workflow_run:
+                          - field: ok
+                            equals: true
+                          - field: manifestId
+                            equals: [patent_patentability_v1, patent_novelty_v1, patent_inventiveness_v1]
+                    - tool: render_patent_document
+                      requires: [patent_workflow_run]
+                      whenArgs:
+                        template: [search-report, search-report-form]
+                      evidence:
+                        patent_workflow_run:
+                          - field: ok
+                            equals: true
+                          - field: manifestId
+                            equals: [patent_patentability_v1, patent_novelty_v1]
+                    - tool: render_patent_document
+                      requires: [patent_workflow_run]
+                      whenArgs:
+                        template: [oa-response]
+                      evidence:
+                        patent_workflow_run:
+                          - field: ok
+                            equals: true
+                          - field: manifestId
+                            equals: patent_oa_response_v1
+                    - tool: render_patent_document
+                      requires: [patent_workflow_run]
+                      whenArgs:
+                        template: [invalidation-opinion, invalidation-analysis, invalidation-defense]
+                      evidence:
+                        patent_workflow_run:
+                          - field: ok
+                            equals: true
+                          - field: manifestId
+                            equals: patent_invalidation_v1
+                    - tool: render_patent_document
+                      requires: [patent_workflow_run]
+                      whenArgs:
+                        template: [re-examination-request]
+                      evidence:
+                        patent_workflow_run:
+                          - field: ok
+                            equals: true
+                          - field: manifestId
+                            equals: patent_reexamination_v1
+                    - tool: render_patent_document
+                      requires: [patent_workflow_run]
+                      whenArgs:
+                        template: [infringement-opinion, litigation-pleading]
+                      evidence:
+                        patent_workflow_run:
+                          - field: ok
+                            equals: true
+                          - field: manifestId
+                            equals: patent_infringement_v1
+                    - tool: render_patent_document
+                      requires: [patent_workflow_run]
+                      whenArgs:
+                        template: [claims-spec]
+                      evidence:
+                        patent_workflow_run:
+                          - field: ok
+                            equals: true
+                          - field: manifestId
+                            equals: patent_disclosure_v1
                   # 制品结构门禁（2026-10-16 审阅甲7 裁决）：把「26.3 判准落位」从
                   # warn 自检升级为渲染前的执行点——判定的是本次调用的 `draft` 入参，
                   # 命中 block 级规则即拒绝渲染。规则 id 取自随包的 patent-full 规则集，

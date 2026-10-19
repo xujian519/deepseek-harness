@@ -223,6 +223,13 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
     },
     // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
+      if (args.text.trim().length === 0) {
+        throw new PatentToolError(
+          'invalid_tool_input',
+          'rule_check: text 不能为空白；请传入本次要判定的文本，零字节调用不能作为交付前置证据。',
+          { tool: 'rule_check' },
+        )
+      }
       const scope = args.scope ?? 'patent'
       const { ruleSet, pack } = resolve(scope)
       if (ruleSet.rules.length === 0) {

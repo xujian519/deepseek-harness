@@ -450,7 +450,7 @@ HITL 确认点、风险与备选方案。
 
 **防线 4 · 计算交给工具（数字层）**：期限/日期用 `patent_deadlines`、官费/年费/减缴/滞纳金用 `patent_fees` 计算，禁止心算；命中数、页码以工具返回为准，禁止"约 X 条"。随包费用索引只登记"有哪些费种、按什么基准计数"，金额须人工按官方收费标准公告转录；未转录时工具给出费种清单并拒绝给合计——未转录是未知，不是零。
 
-**防线 5 · 输出门禁（`patent-quality-gate` 技能）**：强制检查清单——每条法条引用有出处、每个对比文件已打开验证、新颖性结论有检索报告支撑、数字有计算依据、免责声明在场。**检查不过不得交付**；任何一项不满足就把产出打回补证。「不得交付」是拒绝条件而非约定：`patent-rule` 的交付前置门禁（`deliveryGate`）要求 `rule_check`、`law_verify` 与本轮留档 `matter_log_append` 在同一会话内先成功，`render_patent_document` 与 `build_patent_filing` 才允许落盘。
+**防线 5 · 输出门禁（`patent-quality-gate` 技能）**：强制检查清单——每条法条引用有出处、每个对比文件已打开验证、新颖性结论有检索报告支撑、数字有计算依据、免责声明在场。**检查不过不得交付**；任何一项不满足就把产出打回补证。「不得交付」是拒绝条件而非约定：`patent-rule` 的交付前置门禁（`deliveryGate`）要求 `rule_check`、`law_verify` 与本轮留档 `matter_log_append` 在同一会话内先成功，且结果证据匹配（`rule_check` 报告评估输入、引用型交付件识别到法条引用、分析类的 `patent_workflow_run` 使用模板对应的 manifest），`render_patent_document` 与 `build_patent_filing` 才允许落盘。
 
 **防线 6 · 对抗验证（`subagent_fork`）**：对立审查员 / 新颖性审查员 / 创造性审查员（§8.4）以全新上下文攻击性复核结论——fresh context 更容易识破主 agent 的想当然，尤其针对编造证据与推理漏洞。互评为启发式防线，非真理保证（见 §11.4）。
 

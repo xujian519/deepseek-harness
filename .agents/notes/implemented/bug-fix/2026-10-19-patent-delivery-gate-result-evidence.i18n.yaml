@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-19-patent-delivery-gate-result-evidence.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-19-patent-delivery-gate-result-evidence.md
+/agent-note-patent-delivery-gates-require-result-evidence:
+  en: 9b97650b55f6d2c1
+  zh: 9f833acb1db3db6d
+/agent-note-patent-delivery-gates-require-result-evidence/problem:
+  en: 13f8e369f489a8a9
+  zh: dd08d729fde35dd6
+/agent-note-patent-delivery-gates-require-result-evidence/decision:
+  en: 6c602ebd749d49f3
+  zh: baf64c1cf5d5f5f4
+/agent-note-patent-delivery-gates-require-result-evidence/alternatives-considered:
+  en: 3b422c2fe4432802
+  zh: abcab3fe32d01a9b
+/agent-note-patent-delivery-gates-require-result-evidence/consequences:
+  en: 8d6a1f6a481dd8e1
+  zh: 50aa1d87b029d370
