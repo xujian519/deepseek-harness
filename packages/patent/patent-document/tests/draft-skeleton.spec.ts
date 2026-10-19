@@ -204,6 +204,15 @@ describe('草案模板骨架契约', () => {
     })
   }
 
+  it('oa-response 最小草案渲染后不残留签署栏占位下划线', async () => {
+    const output = await renderTemplate('oa-response', {
+      templateDraft: minimalDraft(GENERIC_TEMPLATE_SCHEMAS['oa-response']),
+    })
+    expect(output).not.toContain('________')
+    expect(output).toContain('<div class="sign-block">代理人：</div>')
+    expect(output).toContain('<div class="sign-block">日期：</div>')
+  })
+
   it('claims-spec 最小草案渲染后模板标题全部保留，且无伪造编号占位', async () => {
     const output = await renderTemplate('claims-spec', { draft: minimalSpecDraft() })
     const actual = headingTexts(output)
