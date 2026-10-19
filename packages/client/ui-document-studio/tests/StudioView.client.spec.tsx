@@ -7,8 +7,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  allowAllAccess, bindSnapshotSelector, conversationSnapshot, makeTranslate, sessionSnapshot, workspaceSnapshot,
+} from '@deepseek-ai/dsh-client-test-runtime'
+import type {
+  ConversationSnapshot, ConversationViewSnapshotMap,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
+import { DOCUMENT_DELIVERABLES_TARGET } from '../src/client/document-deliverables.ts'
 import {
   StudioView, isHtmlPath, isTextPreviewable, parseDocumentSections,
   type StudioViewInjected, type StudioViewProps,
@@ -20,6 +29,12 @@ import { en, zh } from '../src/client/locales.ts'
 import type {} from '../src/client/index.ts'
 
 const t: StudioViewProps['t'] = makeTranslate(zh, en)
+
+/** Empty global standard-kit hooks the studio does not read. */
+const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
+const useResource = (() => ({
+  status: 'none' as const, value: undefined, failure: undefined, reload: () => {},
+})) as GlobalStandardProps['useResource']
 
 interface ProducedFile {
   seq: number
@@ -35,26 +50,34 @@ interface ProducedFile {
 }
 
 function session(produced: Array<ProducedFile>) {
-  const store = createSnapshotStore<ConversationSnapshot>({
-    views: {
-      get: () => (produced.length === 0 ? undefined : { produced }),
-    },
-  } as unknown as ConversationSnapshot)
-  return {
-    store,
-    useConversation: ((select: (snapshot: ConversationSnapshot) => unknown) =>
-      select(store.getSnapshot())) as StudioViewProps['useConversation'],
+  const views: ConversationSnapshot['views'] = {
+    // The target check makes this assertion exact for the one registered target.
+    get: <Target extends Extract<keyof ConversationViewSnapshotMap, string>>(target: Target) =>
+      (target === DOCUMENT_DELIVERABLES_TARGET ? { produced } : undefined) as
+        ConversationViewSnapshotMap[Target] | undefined,
+    grouped: () => undefined,
   }
+  const store = createSnapshotStore<ConversationSnapshot>(conversationSnapshot({ views }))
+  return { store, useConversation: bindSnapshotSelector(store) }
 }
 
 function sessionsOf(preset: string | null = 'document') {
-  const state = {
-    ids: ['s1'],
-    byId: { s1: { id: 's1', projectionValues: { agentPreset: preset } } },
+  const summary: SessionSummary = {
+    id: SessionId('s1'),
+    displayTitle: 's1',
+    running: false,
+    retainedBy: {},
+    blank: false,
+    updatedAt: 0,
+    projectionValues: { agentPreset: preset },
+  }
+  const store = createSnapshotStore<SessionListState>({
+    ids: [summary.id],
+    byId: { [summary.id]: summary },
     phase: 'ready',
     projectionsBySession: {},
-  }
-  return ((select: (snapshot: unknown) => unknown) => select(state)) as unknown as StudioViewProps['useSessions']
+  })
+  return bindSnapshotSelector(store)
 }
 
 function injected(overrides: Partial<StudioViewInjected> = {}): StudioViewInjected {
@@ -85,18 +108,28 @@ function studioProps(
   // The full session-scope standard kit the outlet would bake; members the
   // studio does not read are stubbed inert (the trajectory spec pattern).
   return {
-    sessionId: 's1',
+    sessionId: SessionId('s1'),
     useConversation: s.useConversation,
     useSessions: sessionsOf(preset),
-    useWorkspaces: (() => undefined) as never,
-    useProjection: (() => undefined) as never,
-    useInput: (() => undefined) as never,
-    inputActions: {} as never,
+    useSession: bindSnapshotSelector(createSnapshotStore(sessionSnapshot(SessionId('s1')))),
+    useSessionStatus: bindSnapshotSelector(createSnapshotStore<SessionStatusSnapshot>(new Map())),
+    useChat: () => { throw new Error('unused') },
+    useTrajectory: () => { throw new Error('unused') },
+    useSessionRetainInfo: () => undefined,
+    useWorkspaces: bindSnapshotSelector(createSnapshotStore(workspaceSnapshot())),
+    useProjection: () => undefined,
+    useInput: (() => undefined) as StudioViewProps['useInput'],
+    inputActions: {} as StudioViewProps['inputActions'],
+    ...allowAllAccess,
+    usePanelInfo,
+    useResource,
+    inspectCall: undefined,
     viewRequest: null,
+    openView: () => {},
     completeViewRequest: vi.fn(),
     ...injected(overrides),
     t,
-  } as unknown as StudioViewProps
+  }
 }
 
 afterEach(cleanup)

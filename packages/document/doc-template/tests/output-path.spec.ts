@@ -18,6 +18,7 @@ import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import * as DocumentDeliver from '@deepseek-ai/dsh-document-deliver'
 import * as DocTemplate from '../src/index.ts'
 import { templatesDirectory } from '../src/asset-location.ts'
@@ -79,6 +80,16 @@ function execute(ctx: Context, name: string, args: unknown) {
   })
 }
 
+/** Render through the tool definition with the session cwd the agent loop supplies. */
+async function renderWithCwd(ctx: Context, args: unknown, cwd: string): Promise<RenderDocTemplateOutput> {
+  const tool = ctx.tools.get('render_doc_template')
+  if (tool === undefined) throw new Error('test setup: render_doc_template is not registered')
+  return await tool.execute(args, {
+    signal: new AbortController().signal,
+    agent: { session: { header: { cwd } } },
+  } as ToolRunContext) as RenderDocTemplateOutput
+}
+
 /** The rendered value of a successful render call. */
 function renderedValue(result: { isError: boolean; value?: unknown }): RenderDocTemplateOutput {
   if (result.isError) throw new Error('expected a successful render')
@@ -121,6 +132,20 @@ describe('render_doc_template output_path', () => {
     const written = join(cwd, 'out', 'report.md')
     expect(value.path).toBe(await realpath(written))
     expect(value.bytes).toBe(Buffer.byteLength(value.content, 'utf8'))
+    expect(await readFile(written, 'utf8')).toBe(value.content)
+  })
+
+  it('resolves a relative output_path against the agent session cwd', async () => {
+    const cwd = await tempWorkspace()
+    const ctx = await mounted(cwd)
+    const value = await renderWithCwd(ctx, {
+      template: 'method-claim',
+      variables: variablesFor('method-claim'),
+      format: 'markdown',
+      output_path: 'out/report.md',
+    }, cwd)
+    const written = join(cwd, 'out', 'report.md')
+    expect(value.path).toBe(await realpath(written))
     expect(await readFile(written, 'utf8')).toBe(value.content)
   })
 

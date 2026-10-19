@@ -3,8 +3,9 @@
  * session has logged a successful `document_deliver` registration.
  */
 import { describe, expect, it } from 'vitest'
-import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionLiveEventEntry, SessionTransientEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import { LlmAttemptId } from '@deepseek-ai/dsh-llm'
 import { hasDeliverRegistration } from '../src/client/auto-switch.ts'
 
 function at(seq: number, type: string, data: unknown, surfaceOp?: 'append' | 'replace'): SessionLiveEventEntry {
@@ -57,7 +58,20 @@ describe('hasDeliverRegistration', () => {
   })
 
   it('ignores transient entries and pairs results with their own call', () => {
-    const transient = { type: 'transient', event: { type: 'assistant/chunk' } } as unknown as SessionLiveEventEntry
+    const transient: SessionTransientEventEntry = {
+      type: 'transient',
+      event: {
+        type: 'assistant/live-chunk',
+        seq: 1,
+        time: 1,
+        data: {
+          attemptId: LlmAttemptId('transient-probe'),
+          turn: 1,
+          step: 1,
+          chunk: { type: 'text-delta', index: 0, text: 'live' },
+        },
+      },
+    }
     expect(hasDeliverRegistration([
       transient,
       call(1, 'other', 'write'),

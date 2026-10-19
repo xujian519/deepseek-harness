@@ -23,7 +23,8 @@ import {
   briefReferenceWarnings,
   createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES, missingDeliverableFiles, P0_CHECKLIST,
   p0ChecklistWarnings, parseDocumentDeliverArgs, resolveCheckFormat, resolveUnreadableReports,
-  type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult, type DeliverableCheckReport,
+  type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult, type DocumentDeliverSpec,
+  type DeliverableCheckReport,
 } from '../src/tool.ts'
 import { DEFAULT_LENGTH_TOLERANCE, DEFAULT_MAX_FINDINGS_PER_CHECK } from '../src/checks.ts'
 
@@ -865,6 +866,31 @@ describe('unreadable acknowledgement', () => {
       'unreadable_ack 的 report.md 不是无法核验状态，不需要说明原因',
       'unreadable_ack 指向未登记的路径：ghost.docx',
     ])
+  })
+
+  it('names every undeclared unreadable reason with its repair advice', () => {
+    const checks: DeliverableCheckReport[] = [
+      { path: 'broken.docx', format: 'docx', status: 'unreadable', reason: 'not-a-zip', findings: [] },
+      { path: 'empty.docx', format: 'docx', status: 'unreadable', reason: 'no-text', findings: [] },
+      { path: 'bad.docx', format: 'docx', status: 'unreadable', reason: 'malformed-xml', findings: [] },
+      { path: 'odd.md', format: 'markdown', status: 'unreadable', reason: 'permission denied', findings: [] },
+      { path: 'silent.md', format: 'markdown', status: 'unreadable', findings: [] },
+    ]
+    const spec: DocumentDeliverSpec = {
+      files: checks.map(report => ({ path: report.path, format: report.format })),
+      gate: { p0: P0_IDS, p1: [] },
+    }
+    let message = ''
+    try {
+      resolveUnreadableReports(spec, checks)
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    expect(message).toContain('- broken.docx：not-a-zip → 这不是有效的 docx 包：重新渲染或检查写盘方式')
+    expect(message).toContain('- empty.docx：no-text → 包内没有可读正文：检查是否只写了页眉、图片或空正文')
+    expect(message).toContain('- bad.docx：malformed-xml → 包内 XML 无法解析：重新渲染该文件')
+    expect(message).toContain('- odd.md：permission denied → 修复文件后重新登记')
+    expect(message).toContain('- silent.md：读取失败 → 修复文件后重新登记')
   })
 
   it('rejects a declared reason with a blank text', () => {

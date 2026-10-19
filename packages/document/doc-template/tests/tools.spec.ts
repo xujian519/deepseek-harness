@@ -299,6 +299,11 @@ describe('renderDocumentResult', () => {
     expect(text).toContain('--- document ---\n正文')
   })
 
+  it('renders a written path even when the byte count is absent', () => {
+    const text = renderDocumentResult({ ...base, path: 'out/t.md' })
+    expect(text).toContain('Written to out/t.md (0 bytes).')
+  })
+
   it('renders the residual placeholders, the warnings, and the encoded package size', () => {
     const text = renderDocumentResult({
       ...base,

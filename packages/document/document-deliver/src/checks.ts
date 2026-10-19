@@ -401,24 +401,19 @@ function htmlLevel(element: string): number {
 /** Every heading of the text, in order; a `#` line inside a fence is not a heading. */
 function headingSpans(text: string, fences: readonly TextRange[]): HeadingSpan[] {
   const spans: HeadingSpan[] = []
-  for (const match of matches(text, MARKDOWN_HEADING)) {
-    if (within(fences, match.index)) continue
-    spans.push({
-      start: match.index,
-      end: match.index + match.text.length,
-      text: renderedHeading(match.group),
-      level: markdownLevel(match.text),
-    })
+  const collect = (pattern: RegExp, levelOf: (line: string) => number): void => {
+    for (const match of matches(text, pattern)) {
+      if (within(fences, match.index)) continue
+      spans.push({
+        start: match.index,
+        end: match.index + match.text.length,
+        text: renderedHeading(match.group),
+        level: levelOf(match.text),
+      })
+    }
   }
-  for (const match of matches(text, HTML_HEADING)) {
-    if (within(fences, match.index)) continue
-    spans.push({
-      start: match.index,
-      end: match.index + match.text.length,
-      text: renderedHeading(match.group),
-      level: htmlLevel(match.text),
-    })
-  }
+  collect(MARKDOWN_HEADING, markdownLevel)
+  collect(HTML_HEADING, htmlLevel)
   return spans.sort((left, right) => left.start - right.start)
 }
 
