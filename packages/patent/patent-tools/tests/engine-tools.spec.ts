@@ -37,7 +37,7 @@ describe('rule_check', () => {
   })
 
   it('evaluates a keyword blocklist rule', async () => {
-    const ruleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] } as unknown as RuleSet
+    const ruleSet: RuleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
     const ctx = await ctxWith(tool)
     const result = await execute(ctx, 'rule_check', { text: '包含禁止词的文本', scope: 'patent' }, 'r-2')
@@ -65,7 +65,7 @@ describe('rule_check', () => {
   })
 
   it('states the identity of the text it read, so a second run can be compared with it', async () => {
-    const ruleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] } as unknown as RuleSet
+    const ruleSet: RuleSet = { rules: [{ id: 'r1', name: '禁止词', severity: 'critical', action: 'block', check: { type: 'keyword_blocklist', keywords: ['禁止词'] } }] }
     const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
     const ctx = await ctxWith(tool)
     const body = '包含禁止词的文本'
