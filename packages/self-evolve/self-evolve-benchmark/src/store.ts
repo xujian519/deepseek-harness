@@ -32,6 +32,29 @@ export const RUBRIC_FILENAME = 'rubric'
 export const CONFIG_FILENAME = 'benchmark_config.yaml'
 
 /**
+ * Safe single path segment: ids become directory names, so a `.`/`..` or a
+ * separator would let a loaded definition address a path outside the store.
+ */
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+/**
+ * Assert one on-disk id is a safe path segment.
+ *
+ * Applied where ids are read from disk (directory listings, benchmark
+ * documents) rather than at every typed call boundary: an id that reached a
+ * typed caller from trusted code cannot become a traversal.
+ *
+ * @param id The id to check.
+ * @param kind Human-readable id kind for the diagnostic.
+ * @throws when the id is not a safe single path segment.
+ */
+export function assertSafeId(id: string, kind: 'benchmarkId' | 'caseId'): void {
+  if (!SAFE_ID.test(id)) {
+    throw new Error(`self-evolve-benchmark: unsafe ${kind} ${JSON.stringify(id)} — expected a single path segment matching ${SAFE_ID.source}`)
+  }
+}
+
+/**
  * Absolute path of the benchmarks root under a data root.
  *
  * @param baseDir Data root for benchmark stores.
@@ -171,7 +194,10 @@ export async function listCaseIds(baseDir: string, benchmarkId: BenchmarkId): Pr
   }
   return entries
     .filter(entry => entry.isDirectory())
-    .map(entry => CaseId(entry.name))
+    .map((entry) => {
+      assertSafeId(entry.name, 'caseId')
+      return CaseId(entry.name)
+    })
     .sort()
 }
 
@@ -185,6 +211,7 @@ export async function listCaseIds(baseDir: string, benchmarkId: BenchmarkId): Pr
  * @returns The benchmark title and its bound case set.
  */
 export async function loadBenchmark(baseDir: string, benchmarkId: BenchmarkId): Promise<BoundBenchmark> {
+  assertSafeId(benchmarkId, 'benchmarkId')
   const title = await readBenchmarkTitle(baseDir, benchmarkId)
   const caseIds = await listCaseIds(baseDir, benchmarkId)
   const cases: CaseSpec[] = []

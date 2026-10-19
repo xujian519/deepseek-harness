@@ -3,6 +3,11 @@
 import { isRecord } from '@deepseek-ai/dsh-value'
 
 const UUID_FRAGMENT_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+/** A prefixed opaque id — `receipt-<uuid>-0` — as echoed into prose by a tool result or summary. */
+const PREFIXED_ID_IN_TEXT_RE = new RegExp(
+  `\\b[A-Za-z][A-Za-z0-9]*-${UUID_FRAGMENT_RE.source}(?:-[0-9A-Za-z]+)*\\b`,
+  'gi',
+)
 const SHORT_JOB_ID_RE = /-[0-9a-f]{16}$/i
 const LEGACY_TOKEN_RE = /^\{\{(?:sessionId|messageId)\}\}$/
 const CANONICAL_TOKEN_RE = /^\{\{(session|message|approval|workflow|command|rpc|retry|id):([1-9]\d*)\}\}$/
@@ -73,6 +78,10 @@ export function redactSessionSnapshotIds(logs: readonly string[]): string[] {
     if (typeof value === 'string') {
       for (const match of value.matchAll(/\bas message ([0-9a-f-]{36})\b/gi)) claim(match[1], 'message')
       for (const match of value.matchAll(/\bAnonymous user: ([0-9a-f-]{36})\b/gi)) claim(match[1], 'id')
+      // A tool result or summary can echo the opaque id it received. Claim the
+      // whole prefixed token so both the echo and its source record redact
+      // identically; bare UUIDs in prose stay regression-visible on purpose.
+      for (const match of value.matchAll(PREFIXED_ID_IN_TEXT_RE)) claim(match[0], 'id')
       return
     }
     if (Array.isArray(value)) {

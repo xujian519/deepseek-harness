@@ -38,7 +38,7 @@ The **`BenchmarkEvolveEngine`** is the provider of `ctx.selfEvolveBenchmark`. It
 | Field | Default | Semantics |
 |---|---|---|
 | `baseDir` | `~/.dsh/self-evolve-benchmark` | Data root for benchmark stores and snapshots (`$DSH_HOME` overrides `~/.dsh`). |
-| `agentStateDir` | `process.cwd()` | Agent-state directory snapshotted before each candidate round and restored on rejection. |
+| `agentStateDir` | required | Agent-state directory snapshotted before each candidate round and restored on rejection. Construction rejects a relative path, a path that is not a directory, and a path equal to `baseDir`, `cwd`, the home directory, or a filesystem root; a non-empty directory must carry the `.self-evolve-benchmark` marker. |
 | `runsPerCase` | `1` | Runs per case when a method does not specify one. |
 | `maxRoundsPerLoop` | `1` | Default maximum candidate rounds per optimize loop. |
 | `targetScore` | none | Default score goal for optimize loops; absent disables early acceptance. |
@@ -68,7 +68,7 @@ All work routes through a `BenchmarkEngineCore` whose seams are injected; the re
 
 ## Optimization loop (C1 + C3)
 
-Each round of `optimizeLoop` mints a fresh snapshot version (versions only increase and never recycle), packs the current agent state, proposes one candidate against the reference using only the public statement surface, applies it, evaluates the full matrix, and accepts the round only when the candidate score strictly beats the reference. A rejected candidate is rolled back to its snapshot; an accepted one becomes the new reference, and a configured `targetScore` stops the loop early.
+Each round of `optimizeLoop` mints a fresh snapshot version (versions only increase and never recycle), packs the current agent state, proposes one candidate against the reference using only the public statement surface, applies it, evaluates the full matrix, and accepts the round only when the candidate score strictly beats the reference. A rejected candidate is rolled back to its snapshot; an accepted one becomes the new reference, and a configured `targetScore` stops the loop early. Rollback restores the snapshot's contents and removes files the rejected candidate created, while keeping `.vault.toml` and the `.self-evolve-benchmark` marker; archive entries are validated against absolute paths, `..`, and path traversal before extraction. Snapshot minting and scoreboard appends take the benchmark-level file lock, so concurrent writers see a complete previous or next file rather than a partial one. A case id or benchmark id loaded from disk must be a safe path segment (`^[A-Za-z0-9][A-Za-z0-9._-]*$`), and an evaluator score must be a finite number within 0–100 — it is rejected as a typed error rather than clamped.
 
 ## Statement/rubric separation (C2)
 

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,7 @@ import {
 } from '../src/index.ts'
 import type { BasicSelfEvolveConfig, TriggerPolicy, WorkspaceBaseline, WorkspaceSignal } from '../src/types.ts'
 import { failurePatternsProjectionDefinition } from '@deepseek-ai/dsh-self-evolve'
+import { EvolveProposalId, FailurePatternId } from '@deepseek-ai/dsh-self-evolve'
 import type { EvolveLevel, EvolveProposal, FailurePattern, SelfEvolveAgentContext } from '@deepseek-ai/dsh-self-evolve'
 import type { Agent, RequestErrorAction } from '@deepseek-ai/dsh-agent'
 import type { ProposalValidationOutcome, ReplayEvidence, ValidationScores } from '@deepseek-ai/dsh-self-evolve/types'
@@ -33,7 +34,7 @@ function appendShellResult(session: Session, callId: string, text: string): void
 
 function pattern(text: string, tier: FailurePattern['verifierTier'], occurrences: number): FailurePattern {
   return {
-    patternId: `${tier}:${text}`,
+    patternId: FailurePatternId(`${tier}:${text}`),
     verifierTier: tier,
     causalSignature: text,
     level: 'L1-skill',
@@ -67,7 +68,7 @@ function provideServices(ctx: Context, session: Session, parent?: unknown, syste
   })
   ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
   ctx.provide('agents', { get: () => parent })
-  ctx.provide('skills', { register: () => () => {} })
+  ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
   ctx.provide('systemPrompt', systemPrompt ?? { section: () => () => {} })
 }
 
@@ -93,6 +94,14 @@ function baseConfig(overrides: Partial<BasicSelfEvolveConfig> = {}): BasicSelfEv
 const PASSING_SCORES: ValidationScores = {
   activatesWhenCorrect: 1,
   clarity: 1,
+  noRegressionIntroduced: 1,
+  safety: 1,
+}
+
+/** Judge scores that clear every signal dimension but miss the confidence gate. */
+const LOW_CONFIDENCE_SCORES: ValidationScores = {
+  activatesWhenCorrect: 1,
+  clarity: 0.4,
   noRegressionIntroduced: 1,
   safety: 1,
 }
@@ -169,6 +178,10 @@ class ProbeEngine extends BasicSelfEvolveEngine {
     return this.persistGlobalPatterns(agent, patterns)
   }
 
+  readProjection(sessionId: string): Promise<FailurePattern[]> {
+    return Promise.resolve(this.readProjectedPatterns(sessionId))
+  }
+
   readGlobal(sessionId: string): Promise<Map<string, number>> {
     return this.readGlobalPatternOccurrences(sessionId)
   }
@@ -185,8 +198,8 @@ class ProbeEngine extends BasicSelfEvolveEngine {
     return this.pruneInflatedSections()
   }
 
-  archive(p: EvolveProposal): Promise<void> {
-    return this.archiveChampion(p)
+  archive(p: EvolveProposal, commitSeq = 1): Promise<void> {
+    return this.archiveChampion(p, commitSeq)
   }
 
   rollback(patternId: string): Promise<void> {
@@ -215,16 +228,20 @@ class ProbeEngine extends BasicSelfEvolveEngine {
   }
 }
 
-function proposal(overrides: Partial<EvolveProposal> = {}): EvolveProposal {
+/** Proposal overrides with the id still a plain string, branded inside the factory. */
+type ProposalOverrides = Omit<Partial<EvolveProposal>, 'proposalId'> & { proposalId?: string }
+
+function proposal(overrides: ProposalOverrides = {}): EvolveProposal {
+  const { proposalId, ...rest } = overrides
   return {
-    proposalId: 'prop-1',
+    proposalId: EvolveProposalId(proposalId ?? 'prop-1'),
     runId: 'run-1' as never,
     level: 'L2-context',
     name: 'patch',
     purpose: 'test',
     addressesPatternIds: ['L1-skill:abc'],
     candidate: { kind: 'L2-context', sectionName: 's', sectionText: 't', order: 260, estimatedBytes: 1 },
-    ...overrides,
+    ...rest,
   }
 }
 
@@ -660,6 +677,9 @@ describe('agent/request-error producer (G1)', () => {
       return undefined
     })
     expect(nextCalled).toBe(true)
+    await vi.waitFor(() => {
+      expect(session.snapshotEvents().some(e => e.type === 'agent/request-error')).toBe(true)
+    })
     const event = session.snapshotEvents().find(e => e.type === 'agent/request-error')
     expect(event).toBeDefined()
     const data = event?.data as { turn?: unknown; step?: unknown; provider?: unknown; statusCode?: unknown; error?: { code?: unknown } }
@@ -890,7 +910,10 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
       }))
       await engine.prune()
       expect(disposed).toContain('old-section')
-      const archived = await readFile(join(dir, 'self-evolve', 'l2-archive', 'old-section.md'), 'utf8')
+      const archiveDir = join(dir, 'self-evolve', 'l2-archive')
+      const archivedFile = (await readdir(archiveDir)).find(name => name.startsWith('old-section.'))
+      expect(archivedFile).toBeDefined()
+      const archived = await readFile(join(archiveDir, archivedFile as string), 'utf8')
       expect(archived).toContain('xxxx')
     } finally {
       vi.unstubAllEnvs()
@@ -1627,10 +1650,10 @@ describe('config resolution edges', () => {
 })
 
 describe('constructor lifecycle listeners', () => {
-  function turnEndSetup(
+  function idleSetup(
     status: string,
     runMaintenance?: (task: (signal: AbortSignal) => Promise<unknown>) => Promise<unknown>,
-  ): { ctx: Context; session: Session } {
+  ): { ctx: Context; session: Session; agent: unknown } {
     const ctx = new Context()
     const session = sessionFactory()
     appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
@@ -1642,11 +1665,11 @@ describe('constructor lifecycle listeners', () => {
       runMaintenance: runMaintenance ?? (async (task: (signal: AbortSignal) => Promise<unknown>) => task(new AbortController().signal)),
     }
     provideServices(ctx, session, agent)
-    new BasicSelfEvolveEngine(ctx, baseConfig())
-    return { ctx, session }
+    new BasicSelfEvolveEngine(ctx, baseConfig({ allowUnverifiedAutonomousRuns: true }))
+    return { ctx, session, agent }
   }
 
-  it('ignores non-turn/end and unresolved-agent session events', () => {
+  it('ignores session events other than automatic compaction', () => {
     const ctx = new Context()
     const session = sessionFactory()
     provideServices(ctx, session)
@@ -1657,19 +1680,20 @@ describe('constructor lifecycle listeners', () => {
     }).not.toThrow()
   })
 
-  it('skips a turn/end whose agent is not idle', () => {
-    const { ctx, session } = turnEndSetup('running')
+  it('skips an idle status transition for a non-idle status', () => {
+    const { ctx, session, agent } = idleSetup('running')
     expect(() => {
-      ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+      ctx.emit('agent/status', { agent, status: 'running' } as never)
     }).not.toThrow()
+    expect(session.snapshotEvents().some(e => e.type === 'self-evolve/start')).toBe(false)
   })
 
-  it('runs an idle-maintenance loop on turn/end for an idle agent', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-turnend-'))
+  it('runs an idle-maintenance loop when the agent reports idle', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-idle-'))
     vi.stubEnv('DSH_HOME', dir)
     try {
-      const { ctx, session } = turnEndSetup('idle')
-      ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+      const { ctx, session, agent } = idleSetup('idle')
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
       await vi.waitFor(() => {
         expect(session.snapshotEvents().some(e => e.type === 'self-evolve/end')).toBe(true)
       })
@@ -1679,19 +1703,62 @@ describe('constructor lifecycle listeners', () => {
   })
 
   it('logs idle-maintenance failures that happen outside the loop bracket', async () => {
-    const { ctx, session } = turnEndSetup('idle', async () => { throw new Error('maintenance exploded') })
+    const { ctx, agent } = idleSetup('idle', async () => { throw new Error('maintenance exploded') })
     const logs: string[] = []
     ctx.logger.exporter({ levels: { default: 2 }, export: (message) => { logs.push(String(message.args[0])) } })
-    ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+    ctx.emit('agent/status', { agent, status: 'idle' } as never)
     await vi.waitFor(() => { expect(logs.some(line => line.includes('maintenance exploded'))).toBe(true) })
   })
 
   it('logs non-Error idle-maintenance failures with String coercion', async () => {
-    const { ctx, session } = turnEndSetup('idle', async () => { throw 'exploded-string' })
+    const { ctx, agent } = idleSetup('idle', async () => { throw 'exploded-string' })
     const logs: string[] = []
     ctx.logger.exporter({ levels: { default: 2 }, export: (message) => { logs.push(String(message.args[0])) } })
-    ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+    ctx.emit('agent/status', { agent, status: 'idle' } as never)
     await vi.waitFor(() => { expect(logs.some(line => line.includes('exploded-string'))).toBe(true) })
+  })
+
+  it('does not start autonomous maintenance when the verifier is unconfigured', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    const agent = {
+      session,
+      options: {},
+      status: 'idle',
+      runMaintenance: async (task: (signal: AbortSignal) => Promise<unknown>) => task(new AbortController().signal),
+    }
+    provideServices(ctx, session, agent)
+    new BasicSelfEvolveEngine(ctx, baseConfig())
+    ctx.emit('agent/status', { agent, status: 'idle' } as never)
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(session.snapshotEvents().some(e => e.type === 'self-evolve/start')).toBe(false)
+  })
+
+  it('skips subagent and forked sessions', async () => {
+    const ctx = new Context()
+    const child = Session.create(SessionId('subagent-child'), [], {
+      version: SESSION_FORMAT_VERSION,
+      id: SessionId('subagent-child'),
+      createdAt: Date.now(),
+      origin: 'subagent',
+      delegationDepth: 1,
+      isSeeded: false,
+    })
+    appendShellResult(child, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(child, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    const agent = {
+      session: child,
+      options: {},
+      status: 'idle',
+      runMaintenance: async (task: (signal: AbortSignal) => Promise<unknown>) => task(new AbortController().signal),
+    }
+    provideServices(ctx, child, agent)
+    new BasicSelfEvolveEngine(ctx, baseConfig({ allowUnverifiedAutonomousRuns: true }))
+    ctx.emit('agent/status', { agent, status: 'idle' } as never)
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(child.snapshotEvents().some(e => e.type === 'self-evolve/start')).toBe(false)
   })
 
   it('the request-error producer survives a session that rejects appends', () => {
@@ -1901,7 +1968,7 @@ describe('mining and proposer gates', () => {
     ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => ({ values: {} }) })
     ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
     ctx.provide('agents', { get: () => undefined })
-    ctx.provide('skills', { register: () => () => {} })
+    ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
     ctx.provide('systemPrompt', { section: () => () => {} })
     const engine = new ProbeEngine(ctx, baseConfig())
     expect(await engine.readPatterns(session.id)).toEqual([])
@@ -1966,7 +2033,7 @@ describe('mining and proposer gates', () => {
     const session = sessionFactory()
     provideServices(ctx, session)
     const engine = new ProbeEngine(ctx, baseConfig({ maxProposalsPerLoop: 3 }))
-    const bare = { ...pattern('bare', 'subprocess-exit', 2), patternId: 'nocolon', supportingSeqs: [] }
+    const bare = { ...pattern('bare', 'subprocess-exit', 2), patternId: FailurePatternId('nocolon'), supportingSeqs: [] }
     const proposals = await engine.propose(
       [pattern('a', 'subprocess-exit', 2), bare],
       ['L1-skill', 'L2-context'],
@@ -2269,7 +2336,7 @@ describe('applyCommit across candidate kinds', () => {
     ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
     ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
     ctx.provide('agents', { get: () => undefined })
-    ctx.provide('skills', { register: (skill: unknown) => { skills.push(skill) } })
+    ctx.provide('skills', { register: (skill: unknown) => { skills.push(skill) }, snapshot: async () => ({ skills: [], complete: true }) })
     ctx.provide('systemPrompt', { section: () => () => {} })
     const engine = new ProbeEngine(ctx, baseConfig())
     await engine.commit(agentFor(session), proposal({
@@ -2288,7 +2355,7 @@ describe('applyCommit across candidate kinds', () => {
     ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
     ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
     ctx.provide('agents', { get: () => undefined })
-    ctx.provide('skills', { register: () => () => {} })
+    ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
     ctx.provide('systemPrompt', { section: () => () => {} })
     ctx.provide('fs', {
       resolve: async (path: unknown, options: { cwd?: string }) => ({ kind: 'resolved', path, cwd: options.cwd }),
@@ -2312,7 +2379,7 @@ describe('applyCommit across candidate kinds', () => {
     ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
     ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
     ctx.provide('agents', { get: () => undefined })
-    ctx.provide('skills', { register: () => () => {} })
+    ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
     ctx.provide('systemPrompt', { section: () => () => {} })
     ctx.provide('fs', {
       resolve: async (_path: unknown, options: { cwd?: string }) => ({ kind: 'resolved', cwd: options.cwd }),
@@ -2482,16 +2549,17 @@ describe('step-reflection gate surfaces (P3.1)', () => {
   it('returns early when the projection has no patterns yet', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    // A tool error without an assistant message produces a failure surface but no pattern.
-    session.append('tool/result', {
-      turn: 1,
-      step: 1,
-      message: { role: 'tool', toolCallId: 'lone', content: [], isError: true } as never,
-      error: { name: 'LoneError', code: 'E_LONE' },
-    }, { surfaceOp: 'append' })
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
     provideServices(ctx, session)
+    // A projection that has not folded any pattern yet: the failure gate still
+    // sees the failed turn, but there is nothing to reinforce.
+    class EmptyProjectionEngine extends ProbeEngine {
+      protected override readProjectedPatterns(): FailurePattern[] {
+        return []
+      }
+    }
     fakeLlm(ctx, '{}')
-    const engine = new ProbeEngine(ctx, baseConfig())
+    const engine = new EmptyProjectionEngine(ctx, baseConfig())
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
@@ -2511,6 +2579,33 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'retry later' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
+  })
+
+  it('reflects from the projection alone, without reading the JSONL logs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-reflect-projection-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      session.append('agent/request-error', {
+        turn: 1, step: 2, provider: 'deepseek', statusCode: 429,
+        error: { code: 'rate_limit_exceeded', name: 'LlmFailure', message: 'rate limited' },
+      })
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session)
+      // A directory where the JSONL file belongs makes any read of it throw
+      // EISDIR; the reflection path must not touch it.
+      await mkdir(join(dir, 'self-evolve', 'negative-results.jsonl'), { recursive: true })
+      await mkdir(join(dir, 'self-evolve', 'global-patterns.jsonl'), { recursive: true })
+      const engine = new ProbeEngine(ctx, baseConfig())
+      const [pattern] = await engine.readProjection(session.id)
+      fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'retry later' }))
+      await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+      expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('a second turn resets the per-turn reflection count', async () => {
@@ -2973,5 +3068,1507 @@ describe('workspace verifier (P1.9b)', () => {
 
     expect(await engine.baseline(agent, signal)).toBeNull()
     expect(await engine.signal(agent, proposal(), signal, null)).toBeNull()
+  })
+})
+
+/** Two identical shell failures: one eligible `subprocess-exit` pattern at the default threshold. */
+function sessionWithBoom(id?: string): Session {
+  const session = Session.create(SessionId(id ?? `test-${Math.random().toString(36).slice(2, 10)}`))
+  appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+  appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+  return session
+}
+
+/** The live-agent surface the provider drives: status, maintenance, follow-up. */
+interface FakeAgent {
+  session: Session
+  options: Record<string, unknown>
+  status: string
+  runMaintenance: (task: (signal: AbortSignal) => Promise<unknown>) => Promise<unknown>
+  followup: (message: unknown) => void
+}
+
+function fakeAgent(session: Session): FakeAgent {
+  return {
+    session,
+    options: {},
+    status: 'idle',
+    runMaintenance: async (task: (signal: AbortSignal) => Promise<unknown>) => task(new AbortController().signal),
+    followup: () => {},
+  }
+}
+
+/** Triggers recorded by the run brackets this session opened, in order. */
+function triggerRuns(session: Session): string[] {
+  return session.snapshotEvents()
+    .filter(event => event.type === 'self-evolve/start')
+    .map(event => String((event.data as { trigger?: unknown }).trigger))
+}
+
+/** Collect every log line the context emits, including debug. */
+function captureLogs(ctx: Context): string[] {
+  const logs: string[] = []
+  ctx.logger.exporter({ levels: { default: 4 }, export: (message) => { logs.push(String(message.args[0])) } })
+  return logs
+}
+
+describe('pressure trigger producer (P0-3)', () => {
+  interface PressureSetup {
+    ctx: Context
+    session: Session
+    agent: FakeAgent
+  }
+
+  function pressureSetup(options: {
+    config?: Partial<BasicSelfEvolveConfig>
+    session?: Session
+    withAgent?: boolean
+  } = {}): PressureSetup {
+    const ctx = new Context()
+    const session = options.session ?? sessionWithBoom()
+    const agent = fakeAgent(session)
+    provideServices(ctx, session, options.withAgent === false ? undefined : agent)
+    new BasicSelfEvolveEngine(ctx, baseConfig({ allowUnverifiedAutonomousRuns: true, ...options.config }))
+    return { ctx, session, agent }
+  }
+
+  /** Emit one compaction/start and give the dispatch a chance to finish. */
+  async function compaction(ctx: Context, session: Session, turn: number | null, settleMs = 30): Promise<void> {
+    ctx.emit('session/event', session, { type: 'compaction/start', seq: 0, data: { compactionId: 'cmp-1', turn } } as never)
+    await new Promise(resolve => setTimeout(resolve, settleMs))
+  }
+
+  it('runs a pressure loop for an in-turn automatic compaction', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-pressure-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session } = pressureSetup()
+      await compaction(ctx, session, 1)
+      // The drain re-enters after a queued run, so the idle policy gets its turn next.
+      await vi.waitFor(() => { expect(triggerRuns(session)).toEqual(['pressure', 'idle-maintenance']) })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('ignores a standalone manual compaction (turn === null)', async () => {
+    const { ctx, session } = pressureSetup()
+    await compaction(ctx, session, null)
+    expect(triggerRuns(session)).toEqual([])
+  })
+
+  it('ignores compaction when the pressure trigger is disabled', async () => {
+    const { ctx, session } = pressureSetup({ config: { triggers: {
+      'idle-maintenance': { enabled: true, minIntervalMs: 0 },
+      pressure: { enabled: false, minIntervalMs: 0 },
+      'user-command': { enabled: true, minIntervalMs: 0 },
+      'validation-retry': { enabled: true, minIntervalMs: 0 },
+    } } })
+    await compaction(ctx, session, 1)
+    expect(triggerRuns(session)).toEqual([])
+  })
+
+  it('ignores compaction for a subagent session', async () => {
+    const child = Session.create(SessionId('pressure-subagent'), [], {
+      version: SESSION_FORMAT_VERSION,
+      id: SessionId('pressure-subagent'),
+      createdAt: Date.now(),
+      origin: 'subagent',
+      delegationDepth: 1,
+      isSeeded: false,
+    })
+    appendShellResult(child, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(child, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    const { ctx } = pressureSetup({ session: child })
+    await compaction(ctx, child, 1)
+    expect(triggerRuns(child)).toEqual([])
+  })
+
+  it('ignores compaction for a session with no live agent', async () => {
+    const { ctx, session } = pressureSetup({ withAgent: false })
+    await compaction(ctx, session, 1)
+    expect(triggerRuns(session)).toEqual([])
+  })
+
+  it('skips an autonomous pressure run when the deployment cannot verify a proposal', async () => {
+    const { ctx, session } = pressureSetup({ config: { allowUnverifiedAutonomousRuns: false } })
+    const logs = captureLogs(ctx)
+    await compaction(ctx, session, 1)
+    expect(triggerRuns(session)).toEqual([])
+    expect(logs.some(line => line.includes('pressure trigger skipped'))).toBe(true)
+  })
+
+  it('does not record a request-error that a retry owner consumed', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    provideServices(ctx, session)
+    new BasicSelfEvolveEngine(ctx, baseConfig())
+    ctx.emit('agent/request-error', {
+      agent: { session },
+      turn: 1,
+      step: 1,
+      provider: 'deepseek',
+      failure: { message: 'rate limited', code: 'rate_limit_exceeded', status: 429 },
+      retryPolicy: undefined,
+      signal: new AbortController().signal,
+    } as never, async (): Promise<RequestErrorAction> => ({ kind: 'retry' }))
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(session.snapshotEvents().some(e => e.type === 'agent/request-error')).toBe(false)
+  })
+})
+
+describe('explicit request queue (P0-2)', () => {
+  interface QueueSetup {
+    ctx: Context
+    session: Session
+    agent: FakeAgent
+    engine: BasicSelfEvolveEngine
+  }
+
+  function queueSetup(overrides: Partial<BasicSelfEvolveConfig> = {}): QueueSetup {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    provideServices(ctx, session, agent)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ allowUnverifiedAutonomousRuns: true, ...overrides }))
+    return { ctx, session, agent, engine }
+  }
+
+  it('queues an explicit request and runs it as a user-command loop', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-queue-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { session, agent, engine } = queueSetup()
+      const receipt = engine.requestEvolve(agentFor(session))
+      expect(receipt.status).toBe('queued')
+      expect(receipt.requestId.length).toBeGreaterThan(0)
+      expect(receipt.queuePosition).toBe(1)
+      await vi.waitFor(() => { expect(triggerRuns(session)).toEqual(['user-command', 'idle-maintenance']) })
+      expect(agent.status).toBe('idle')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('coalesces a duplicate explicit request for the same levels', async () => {
+    const { session, agent, engine } = queueSetup()
+    agent.status = 'running'
+    const first = engine.requestEvolve(agentFor(session))
+    const second = engine.requestEvolve(agentFor(session))
+    expect(second.status).toBe('coalesced')
+    expect(second.requestId).toBe(first.requestId)
+    expect(second.queuePosition).toBe(1)
+  })
+
+  it('serves the highest-priority queued trigger first and re-enters the drain', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-queue-order-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, agent, engine } = queueSetup()
+      agent.status = 'running'
+      ctx.emit('session/event', session, { type: 'compaction/start', seq: 0, data: { compactionId: 'cmp-1', turn: 1 } } as never)
+      engine.requestEvolve(agentFor(session))
+      agent.status = 'idle'
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      // Priority order decides which queued trigger runs first; the drain
+      // re-enters afterwards to serve the remaining request.
+      await vi.waitFor(() => { expect(triggerRuns(session)).toHaveLength(2) })
+      expect(triggerRuns(session)).toEqual(['user-command', 'pressure'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('sends an explicit-run follow-up summary when the loop produced proposals', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-queue-followup-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { session, agent, engine } = queueSetup()
+      const followups: unknown[] = []
+      agent.followup = (message: unknown) => { followups.push(message) }
+      engine.requestEvolve(agentFor(session))
+      await vi.waitFor(() => { expect(followups).toHaveLength(1) })
+      expect(JSON.stringify(followups[0])).toContain('self-evolve 完成')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('keeps an explicit request when the autonomous queue is full', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-queue-full-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, agent, engine } = queueSetup({ maxPendingEvolveRequests: 1 })
+      agent.status = 'running'
+      engine.requestEvolve(agentFor(session))
+      const logs = captureLogs(ctx)
+      ctx.emit('session/event', session, { type: 'compaction/start', seq: 0, data: { compactionId: 'cmp-1', turn: 1 } } as never)
+      // The all-explicit queue never yields: the autonomous request is dropped.
+      expect(logs.some(line => line.includes('queue full of explicit requests'))).toBe(true)
+      agent.status = 'idle'
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await vi.waitFor(() => { expect(triggerRuns(session)).toEqual(['user-command', 'idle-maintenance']) })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('replaces the oldest autonomous request when the queue is full', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-queue-evict-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, agent } = queueSetup({ maxPendingEvolveRequests: 1 })
+      agent.status = 'running'
+      const logs = captureLogs(ctx)
+      for (const turn of [1, 2]) {
+        ctx.emit('session/event', session, { type: 'compaction/start', seq: turn, data: { compactionId: `cmp-${turn}`, turn } } as never)
+      }
+      expect(logs.some(line => line.includes('dropped autonomous request'))).toBe(true)
+      agent.status = 'idle'
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await vi.waitFor(() => { expect(triggerRuns(session)).toEqual(['pressure', 'idle-maintenance']) })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('returns null instead of racing a loop already in flight', async () => {
+    const { session, agent, engine } = queueSetup()
+    let release = (): void => {}
+    agent.runMaintenance = async (task: (signal: AbortSignal) => Promise<unknown>) => {
+      await new Promise<void>((resolve) => { release = resolve })
+      return task(new AbortController().signal)
+    }
+    const first = engine.evolveIfNeeded(agentFor(session), 'user-command', new AbortController().signal)
+    const second = await engine.evolveIfNeeded(agentFor(session), 'user-command', new AbortController().signal)
+    expect(second).toBeNull()
+    release()
+    expect(await first).not.toBeNull()
+  })
+
+  it('reads no projected patterns when the projection has not folded any', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => ({ values: {} }) })
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    ctx.provide('agents', { get: () => undefined })
+    ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
+    ctx.provide('systemPrompt', { section: () => () => {} })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    expect(await engine.readProjection(session.id)).toEqual([])
+  })
+})
+
+/** A context whose skill catalog reports the given entries. */
+function provideSkillCatalog(
+  ctx: Context,
+  session: Session,
+  catalog: { skills: { name: string }[]; complete: boolean },
+  register: (input: { name: string }) => () => void = () => () => {},
+  systemPrompt: unknown = { section: () => () => {} },
+): void {
+  ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
+  ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+  ctx.provide('agents', { get: () => undefined })
+  ctx.provide('skills', { register, snapshot: async () => catalog })
+  ctx.provide('systemPrompt', systemPrompt)
+}
+
+/** Accepted-validation config: judge + proposer routes, all verifier signals injected. */
+const ACCEPT_CONFIG = {
+  proposerTarget: { provider: 'deepseek', model: 'proposer' },
+  validatorTarget: { provider: 'deepseek', model: 'judge' },
+} satisfies Partial<BasicSelfEvolveConfig>
+
+function l1Proposal(proposalId: string, skillName: string, content: string, patternId: string): EvolveProposal {
+  return proposal({
+    proposalId,
+    addressesPatternIds: [patternId],
+    candidate: { kind: 'L1-skill', skillName, content },
+  })
+}
+
+/** The mounted engine instance, narrowed to the probe subclass that exposes the protected hooks. */
+function probeOf(ctx: Context): ProbeEngine {
+  const engine = ctx.selfEvolve
+  if (!(engine instanceof ProbeEngine)) throw new Error('expected the mounted ProbeEngine')
+  return engine
+}
+
+/** One L2 prompt-section candidate addressing `patternId`, shared by the L2 undo tests. */
+function l2Section(proposalId: string, text: string, patternId: string): EvolveProposal {
+  return proposal({
+    proposalId,
+    addressesPatternIds: [patternId],
+    candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: text, order: 260, estimatedBytes: text.length },
+  })
+}
+
+describe('apply-failed and registration undo (P0-4)', () => {
+  /** Reject every append of the named event type, as a closed log would. */
+  function failingAppend(session: Session, eventType: string): void {
+    const original = session.append.bind(session) as (...args: unknown[]) => unknown
+    session.append = ((type: string, ...rest: unknown[]) => {
+      if (type === eventType) throw new Error(`log closed for ${type}`)
+      return original(type, ...rest)
+    }) as typeof session.append
+  }
+
+  it('records apply-failed when another provider owns the proposed skill name', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-apply-failed-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [{ name: 'cwd-guard' }], complete: true })
+      const engine = new SignalEngine(ctx, baseConfig({ ...ACCEPT_CONFIG }), session)
+      engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+      engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
+      const [pattern] = await engine.readPatterns(session.id)
+      fakeLlmQueue(ctx, [
+        JSON.stringify([{
+          name: 'cwd-guard',
+          purpose: 'guard cwd',
+          addressesPatternIds: [pattern!.patternId],
+          candidate: { kind: 'L1-skill', skillName: 'cwd-guard', content: 'check the cwd first' },
+        }]),
+        JSON.stringify(PASSING_SCORES),
+      ])
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(result.commits).toHaveLength(0)
+      const outcome = (session.snapshotEvents().find(event => event.type === 'self-evolve/validated')?.data as {
+        outcome?: { reason?: string }
+      }).outcome
+      expect(outcome?.reason).toBe('apply-failed')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('rejects an L1 candidate past maxLiveSkills as apply-failed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-max-live-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      const engine = new ProbeEngine(ctx, baseConfig({ maxLiveSkills: 0 }))
+      const [pattern] = await engine.readPatterns(session.id)
+      await expect(engine.commit(agentFor(session), l1Proposal('p1', 'fresh-skill', 'x', pattern!.patternId)))
+        .rejects.toThrow(/maxLiveSkills/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('rejects an L1 candidate when the skill catalog never completes', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-skill-catalog-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: false })
+      const engine = new ProbeEngine(ctx, baseConfig())
+      const [pattern] = await engine.readPatterns(session.id)
+      await expect(engine.commit(agentFor(session), l1Proposal('p1', 'fresh-skill', 'x', pattern!.patternId)))
+        .rejects.toThrow(/did not complete a stable observation/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('undoes a live L1 registration when the commit append fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-undo-l1-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const disposed: string[] = []
+      provideSkillCatalog(ctx, session, { skills: [], complete: true }, input => () => { disposed.push(input.name) })
+      failingAppend(session, 'self-evolve/commit')
+      const engine = new ProbeEngine(ctx, baseConfig())
+      const [pattern] = await engine.readPatterns(session.id)
+      await expect(engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'x', pattern!.patternId)))
+        .rejects.toThrow(/log closed for self-evolve\/commit/)
+      expect(disposed).toEqual(['cwd-guard'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('restores the previous L1 contribution when a later commit append fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-undo-l1-previous-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const registered: string[] = []
+      provideSkillCatalog(ctx, session, { skills: [], complete: true }, (input) => {
+        registered.push(input.name)
+        return () => {}
+      })
+      const engine = new ProbeEngine(ctx, baseConfig())
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'v1', pattern!.patternId))
+      failingAppend(session, 'self-evolve/commit')
+      await expect(engine.commit(agentFor(session), l1Proposal('p2', 'cwd-guard', 'v2', pattern!.patternId)))
+        .rejects.toThrow(/log closed/)
+      // v1, v2, then the restored v1 contribution.
+      expect(registered).toEqual(['cwd-guard', 'cwd-guard', 'cwd-guard'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('restores the previous L2 section when a later registration collides', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-l2-collision-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const texts: string[] = []
+      let colliding = false
+      provideSkillCatalog(ctx, session, { skills: [], complete: true }, undefined, {
+        section: (input: { name: string; order: number; text: string }) => {
+          if (colliding) {
+            colliding = false
+            throw new Error('duplicate section name')
+          }
+          texts.push(input.text)
+          return () => {}
+        },
+      })
+      const engine = new ProbeEngine(ctx, baseConfig())
+      const [pattern] = await engine.readPatterns(session.id)
+      const patternId = pattern!.patternId
+      await engine.commit(agentFor(session), l2Section('p1', 'v1', patternId))
+      colliding = true
+      await expect(engine.commit(agentFor(session), l2Section('p2', 'v2', patternId)))
+        .rejects.toThrow(/section sec rejected: duplicate section name/)
+      expect(texts).toEqual(['v1', 'v1'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('undoes a live L2 section and restores its predecessor when the commit append fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-undo-l2-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const texts: string[] = []
+      provideSkillCatalog(ctx, session, { skills: [], complete: true }, undefined, {
+        section: (input: { name: string; order: number; text: string }) => {
+          texts.push(input.text)
+          return () => {}
+        },
+      })
+      const engine = new ProbeEngine(ctx, baseConfig())
+      const [pattern] = await engine.readPatterns(session.id)
+      const patternId = pattern!.patternId
+      await engine.commit(agentFor(session), l2Section('p1', 'v1', patternId))
+      failingAppend(session, 'self-evolve/commit')
+      await expect(engine.commit(agentFor(session), l2Section('p2', 'v2', patternId))).rejects.toThrow(/log closed/)
+      expect(texts).toEqual(['v1', 'v2', 'v1'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('disposes every live contribution when the provider fiber is disposed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-dispose-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const disposed: string[] = []
+      provideSkillCatalog(ctx, session, { skills: [], complete: true }, input => () => { disposed.push(input.name) })
+      const scope = await ctx.plugin(ProbeEngine, baseConfig())
+      const engine = probeOf(ctx)
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'x', pattern!.patternId))
+      await scope.dispose()
+      expect(disposed).toEqual(['cwd-guard'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+})
+
+describe('champion rollback and validation retry (P0-3/P0-4)', () => {
+  interface RollbackHarness {
+    ctx: Context
+    session: Session
+    engine: ProbeEngine
+    writes: { path: string; text: string }[]
+  }
+
+  function rollbackHarness(ctx: Context, session: Session): RollbackHarness {
+    const writes: { path: string; text: string }[] = []
+    ctx.provide('fs', {
+      resolve: async (path: string) => path,
+      writeText: async (path: string, text: string) => { writes.push({ path, text }) },
+    })
+    return { ctx, session, engine: new ProbeEngine(ctx, baseConfig()), writes }
+  }
+
+  it('writes a tombstone when a first-commit L1 skill is rolled back', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-tombstone-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      const { engine, writes } = rollbackHarness(ctx, session)
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'v1', pattern!.patternId))
+      await engine.rollback(pattern!.patternId)
+      expect(writes.at(-1)?.text).toContain('self-evolve rollback tombstone: cwd-guard')
+      expect(writes.at(-1)?.path).toBe(join('.dsh', 'skills', 'cwd-guard', 'SKILL.md'))
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('restores the champion skill file when a later L1 commit is rolled back', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-rollback-l1-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      const { engine, writes } = rollbackHarness(ctx, session)
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'champion body', pattern!.patternId))
+      await engine.commit(agentFor(session), l1Proposal('p2', 'cwd-guard', 'regressing body', pattern!.patternId))
+      await engine.rollback(pattern!.patternId)
+      expect(writes.at(-1)?.text).toContain('champion body')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('restores the champion L2 section when a later L2 commit is rolled back', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-rollback-l2-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const texts: string[] = []
+      provideSkillCatalog(ctx, session, { skills: [], complete: true }, undefined, {
+        section: (input: { name: string; order: number; text: string }) => {
+          texts.push(input.text)
+          return () => {}
+        },
+      })
+      const { engine } = rollbackHarness(ctx, session)
+      const [pattern] = await engine.readPatterns(session.id)
+      const patternId = pattern!.patternId
+      await engine.commit(agentFor(session), l2Section('p1', 'champion text', patternId))
+      await engine.commit(agentFor(session), l2Section('p2', 'regressing text', patternId))
+      await engine.rollback(patternId)
+      expect(texts.at(-1)).toBe('champion text')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  interface RetryHarness {
+    ctx: Context
+    session: Session
+    agent: FakeAgent
+    engine: SignalEngine
+  }
+
+  async function retryHarness(
+    overrides: Partial<BasicSelfEvolveConfig> = {},
+    options: { proposer?: boolean } = {},
+  ): Promise<RetryHarness> {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    ctx.provide('agents', { get: () => agent })
+    ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
+    ctx.provide('systemPrompt', { section: () => () => {} })
+    const engine = new SignalEngine(ctx, baseConfig({
+      ...(options.proposer === false
+        ? { validatorTarget: ACCEPT_CONFIG.validatorTarget }
+        : ACCEPT_CONFIG),
+      allowUnverifiedAutonomousRuns: true,
+      ...overrides,
+    }), session)
+    engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
+    const [pattern] = await engine.readPatterns(session.id)
+    const judge = JSON.stringify(LOW_CONFIDENCE_SCORES)
+    // Without a proposer route the template proposer runs and the first LLM
+    // response belongs to the judge.
+    fakeLlmQueue(ctx, options.proposer === false
+      ? [judge]
+      : [
+        JSON.stringify([{
+          name: 'cwd-guard',
+          purpose: 'guard cwd',
+          addressesPatternIds: [pattern!.patternId],
+          candidate: { kind: 'L2-context', sectionName: 'cwd-guard', sectionText: 'check cwd first', order: 260 },
+        }]),
+        judge,
+      ])
+    return { ctx, session, agent, engine }
+  }
+
+  it('queues one validation retry for a low-confidence rejection', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, agent, engine } = await retryHarness()
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(result.commits).toHaveLength(0)
+      expect(triggerRuns(session)).toEqual(['user-command'])
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await vi.waitFor(() => { expect(triggerRuns(session)).toContain('validation-retry') })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('never retries past maxValidationRetriesPerPattern', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-cap-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, agent, engine } = await retryHarness({ maxValidationRetriesPerPattern: 0 })
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await new Promise(resolve => setTimeout(resolve, 40))
+      expect(triggerRuns(session).filter(trigger => trigger === 'validation-retry')).toHaveLength(0)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('drops a retry when the per-session retry map is full', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-map-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, engine } = await retryHarness({ maxTrackedPatternsPerSession: 0 })
+      const logs = captureLogs(ctx)
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(logs.some(line => line.includes('retry map at maxTrackedPatternsPerSession'))).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('logs and swallows a throwing explicit-run follow-up', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-followup-throw-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const agent = fakeAgent(session)
+      agent.followup = () => { throw new Error('inbox closed') }
+      provideServices(ctx, session, agent)
+      const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ allowUnverifiedAutonomousRuns: true }))
+      const logs = captureLogs(ctx)
+      engine.requestEvolve(agentFor(session))
+      await vi.waitFor(() => { expect(logs.some(line => line.includes('explicit-run follow-up skipped'))).toBe(true) })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('keeps the original error when the end append and end emit both fail', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const original = session.append.bind(session) as (...args: unknown[]) => unknown
+    session.append = ((type: string, ...rest: unknown[]) => {
+      if (type === 'self-evolve/mined' || type === 'self-evolve/end') throw new Error(`log closed for ${type}`)
+      return original(type, ...rest)
+    }) as typeof session.append
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    const logs = captureLogs(ctx)
+    ctx.on('self-evolve-loop/end', () => { throw new Error('listener exploded') })
+    await expect(engine.evolveNow(agentFor(session), new AbortController().signal))
+      .rejects.toThrow(/log closed for self-evolve\/mined/)
+    expect(logs.some(line => line.includes('self-evolve/end append failed'))).toBe(true)
+    expect(logs.some(line => line.includes('self-evolve-loop/end emit failed'))).toBe(true)
+  })
+
+  it('leaves no bracket open when the start append itself fails', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const original = session.append.bind(session) as (...args: unknown[]) => unknown
+    session.append = ((type: string, ...rest: unknown[]) => {
+      if (type === 'self-evolve/start') throw new Error('log closed for self-evolve/start')
+      return original(type, ...rest)
+    }) as typeof session.append
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    await expect(engine.evolveNow(agentFor(session), new AbortController().signal))
+      .rejects.toThrow(/log closed for self-evolve\/start/)
+    expect(session.snapshotEvents().some(event => event.type === 'self-evolve/end')).toBe(false)
+  })
+
+  it('retries nothing when the deployment has no LLM proposer to re-prompt', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-no-proposer-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      // The template proposer is deterministic: re-running it after a
+      // low-confidence rejection would produce the same proposal again.
+      const { ctx, session, engine } = await retryHarness({}, { proposer: false })
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(result.commits).toHaveLength(0)
+      ctx.emit('agent/status', { agent: fakeAgent(session), status: 'idle' } as never)
+      await new Promise(resolve => setTimeout(resolve, 40))
+      expect(triggerRuns(session)).not.toContain('validation-retry')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('retries nothing when the validation-retry trigger is disabled', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-disabled-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, agent, engine } = await retryHarness({
+        triggers: {
+          'idle-maintenance': { enabled: true, minIntervalMs: 0 },
+          pressure: { enabled: true, minIntervalMs: 0 },
+          'user-command': { enabled: true, minIntervalMs: 0 },
+          'validation-retry': { enabled: false, minIntervalMs: 0 },
+        },
+      })
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await new Promise(resolve => setTimeout(resolve, 40))
+      expect(triggerRuns(session)).not.toContain('validation-retry')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('retries nothing when an unattended run cannot verify a proposal', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-unverified-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      // A judge route alone cannot verify: no build command means the
+      // autonomous loop would run only to produce a rejection.
+      const { ctx, session, agent, engine } = await retryHarness({ allowUnverifiedAutonomousRuns: false })
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await new Promise(resolve => setTimeout(resolve, 40))
+      expect(triggerRuns(session)).not.toContain('validation-retry')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('drops the retry when the autonomous queue is full of explicit requests', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-queue-full-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session, agent, engine } = await retryHarness({ maxPendingEvolveRequests: 1 })
+      // A running agent keeps the explicit request parked, so the rejected
+      // loop finds the queue full when it tries to append its retry.
+      agent.status = 'running'
+      engine.requestEvolve(agentFor(session))
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      agent.status = 'idle'
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await new Promise(resolve => setTimeout(resolve, 40))
+      expect(triggerRuns(session)).not.toContain('validation-retry')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('counts an existing retry key against the per-session retry budget', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-retry-budget-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = Session.create(SessionId(`two-${Math.random().toString(36).slice(2, 10)}`))
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c3', '[stderr]\nkaboom\n[exit code: 2]')
+      appendShellResult(session, 'c4', '[stderr]\nkaboom\n[exit code: 2]')
+      const agent = fakeAgent(session)
+      ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
+      ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+      ctx.provide('agents', { get: () => agent })
+      ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
+      ctx.provide('systemPrompt', { section: () => () => {} })
+      const engine = new SignalEngine(ctx, baseConfig({
+        ...ACCEPT_CONFIG,
+        allowUnverifiedAutonomousRuns: true,
+        maxTrackedPatternsPerSession: 1,
+      }), session)
+      engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+      engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
+      const patterns = await engine.readPatterns(session.id)
+      expect(patterns).toHaveLength(2)
+      const proposalFor = (index: number) => ({
+        name: `fix-${index}`,
+        purpose: 'fix',
+        addressesPatternIds: [patterns[index]!.patternId],
+        candidate: { kind: 'L2-context', sectionName: `sec-${index}`, sectionText: `text-${index}`, order: 260 },
+      })
+      fakeLlmQueue(ctx, [
+        JSON.stringify([proposalFor(0), proposalFor(1)]),
+        JSON.stringify(LOW_CONFIDENCE_SCORES),
+        JSON.stringify(LOW_CONFIDENCE_SCORES),
+      ])
+      const logs = captureLogs(ctx)
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(result.commits).toHaveLength(0)
+      // The first rejection spends the single tracked retry; the second one is
+      // dropped because an untracked retry would be unlimited.
+      expect(logs.some(line => line.includes('retry map at maxTrackedPatternsPerSession'))).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('refuses a second concurrent evolveNow instead of opening a second bracket', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    let release = (): void => {}
+    agent.runMaintenance = async (task: (signal: AbortSignal) => Promise<unknown>) => {
+      await new Promise<void>((resolve) => { release = resolve })
+      return task(new AbortController().signal)
+    }
+    provideServices(ctx, session, agent)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    const first = engine.evolveNow(agentFor(session), new AbortController().signal)
+    await expect(engine.evolveNow(agentFor(session), new AbortController().signal))
+      .rejects.toThrow(/produced no result/)
+    release()
+    await first
+  })
+})
+
+/** One shell outcome a scripted executor can return. */
+type ScriptedShellOutcome =
+  | { kind: 'run'; exitCode?: number; stdout?: string; aborted?: boolean }
+  | { kind: 'throw'; value: unknown }
+
+/** A shell route whose `git diff --numstat` read fails: the dirty delta is unmeasurable. */
+const failingNumstatRoute = (command: string): ScriptedShellOutcome => command.startsWith('git diff')
+  ? { kind: 'run', exitCode: 1 }
+  : { kind: 'run' }
+
+/** A `ctx.shell` double that answers every command from a script and never spawns. */
+function scriptedShell(route: (command: string) => ScriptedShellOutcome): Pick<ShellExecutor, 'resolve' | 'execute'> {
+  return {
+    resolve: (request: ShellExecRequest): ShellExecSpec => ({
+      command: request.command,
+      workdir: request.workdir ?? process.cwd(),
+      timeoutMs: request.timeoutMs ?? 60_000,
+      onExpiry: request.onExpiry ?? 'kill',
+      stdoutMaxBytes: request.stdoutMaxBytes ?? 1_000_000,
+      signal: request.signal,
+      sandboxPolicy: undefined,
+    }),
+    execute: async (spec: ShellExecSpec): Promise<ShellExecution> => ({
+      result: async (): Promise<ShellRunResult> => {
+        const outcome = route(spec.command)
+        if (outcome.kind === 'throw') throw outcome.value
+        return {
+          exitCode: outcome.exitCode ?? 0,
+          signal: null,
+          timedOut: false,
+          aborted: outcome.aborted ?? false,
+          timeoutMs: spec.timeoutMs,
+          stdout: { text: outcome.stdout ?? '', truncated: false },
+          stderr: { text: '', truncated: false },
+        }
+      },
+    } as ShellExecution),
+  }
+}
+
+describe('workspace verifier degradation and engine edges (P0-2/P0-4/P1.9b)', () => {
+  /** Subclass exposing the protected workspace hooks. */
+  class WsProbe extends BasicSelfEvolveEngine {
+    baseline(agent: SelfEvolveAgentContext, signal: AbortSignal): ReturnType<BasicSelfEvolveEngine['captureWorkspaceBaseline']> {
+      return this.captureWorkspaceBaseline(agent, signal)
+    }
+
+    signal(
+      agent: SelfEvolveAgentContext,
+      p: EvolveProposal,
+      signal: AbortSignal,
+      baseline: WorkspaceBaseline | null,
+    ): ReturnType<BasicSelfEvolveEngine['collectWorkspaceSignal']> {
+      return this.collectWorkspaceSignal(agent, p, signal, baseline)
+    }
+  }
+
+  function wsSession(cwd?: string): Session {
+    const id = SessionId(`wsx-${Math.random().toString(36).slice(2, 10)}`)
+    if (cwd === undefined) return Session.create(id)
+    const header: SessionHeader = { version: SESSION_FORMAT_VERSION, id, createdAt: Date.now(), cwd, isSeeded: false }
+    return Session.create(id, undefined, header)
+  }
+
+  function wsEnv(session: Session | undefined, route: (command: string) => ScriptedShellOutcome): Context {
+    const ctx = new Context()
+    ctx.provide('sessions', { get: (id: string) => (session !== undefined && id === session.id ? session : undefined) })
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => ({ values: {} }) })
+    ctx.provide('shell', scriptedShell(route))
+    return ctx
+  }
+
+  function wsConfig(withBuild: boolean): BasicSelfEvolveConfig {
+    return withBuild
+      ? baseConfig({ workspaceVerifier: { buildCommand: 'node build-check.js', gitTimeoutMs: 5_000, buildTimeoutMs: 5_000 } })
+      : baseConfig()
+  }
+
+  async function wsBaseline(
+    route: (command: string) => ScriptedShellOutcome,
+    session: Session = wsSession('/tmp/ws'),
+  ): Promise<WorkspaceBaseline | null> {
+    const engine = new WsProbe(wsEnv(session, route), wsConfig(true))
+    return engine.baseline(agentFor(session), new AbortController().signal)
+  }
+
+  async function wsSignal(
+    route: (command: string) => ScriptedShellOutcome,
+    baseline: WorkspaceBaseline | null,
+    withBuild = true,
+  ): Promise<WorkspaceSignal | null> {
+    const session = wsSession('/tmp/ws')
+    const engine = new WsProbe(wsEnv(session, route), wsConfig(withBuild))
+    return engine.signal(agentFor(session), proposal(), new AbortController().signal, baseline)
+  }
+
+  it('measures in process.cwd() when the session header carries no cwd', async () => {
+    const session = wsSession()
+    const engine = new WsProbe(wsEnv(session, () => ({ kind: 'run' })), wsConfig(true))
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+    expect(await engine.baseline(agent, signal)).toEqual({ gitAvailable: true, dirtyLines: 0 })
+    expect(await engine.signal(agent, proposal(), signal, { gitAvailable: true, dirtyLines: 0 }))
+      .toEqual({ dirtyLines: 0, noDirtyFallback: false, buildHealthy: true })
+  })
+
+  it('degrades the baseline when the numstat read fails', async () => {
+    const route = failingNumstatRoute
+    expect(await wsBaseline(route)).toEqual({ gitAvailable: false, dirtyLines: 0 })
+  })
+
+  it('degrades the baseline when the untracked listing fails', async () => {
+    const route = (command: string): ScriptedShellOutcome => command.startsWith('git ls-files')
+      ? { kind: 'run', exitCode: 128 }
+      : { kind: 'run' }
+    expect(await wsBaseline(route)).toEqual({ gitAvailable: false, dirtyLines: 0 })
+  })
+
+  it('degrades the baseline when the untracked line count fails', async () => {
+    const route = (command: string): ScriptedShellOutcome => {
+      if (command.startsWith('git ls-files')) return { kind: 'run', stdout: 'scratch.txt\n' }
+      if (command.startsWith('wc -l')) return { kind: 'run', exitCode: 2 }
+      return { kind: 'run' }
+    }
+    expect(await wsBaseline(route)).toEqual({ gitAvailable: false, dirtyLines: 0 })
+  })
+
+  it('degrades the baseline when the untracked line count throws', async () => {
+    const route = (command: string): ScriptedShellOutcome => {
+      if (command.startsWith('git ls-files')) return { kind: 'run', stdout: 'scratch.txt\n' }
+      if (command.startsWith('wc -l')) return { kind: 'throw', value: new Error('spawn wc failed') }
+      return { kind: 'run' }
+    }
+    expect(await wsBaseline(route)).toEqual({ gitAvailable: false, dirtyLines: 0 })
+    const nonErrorRoute = (command: string): ScriptedShellOutcome => {
+      if (command.startsWith('git ls-files')) return { kind: 'run', stdout: 'scratch.txt\n' }
+      if (command.startsWith('wc -l')) return { kind: 'throw', value: 'spawn wc failed' }
+      return { kind: 'run' }
+    }
+    expect(await wsBaseline(nonErrorRoute)).toEqual({ gitAvailable: false, dirtyLines: 0 })
+  })
+
+  it('degrades the baseline when git itself cannot be spawned', async () => {
+    expect(await wsBaseline(() => ({ kind: 'throw', value: new Error('git missing') })))
+      .toEqual({ gitAvailable: false, dirtyLines: 0 })
+    expect(await wsBaseline(() => ({ kind: 'throw', value: 'git missing' })))
+      .toEqual({ gitAvailable: false, dirtyLines: 0 })
+  })
+
+  it('degrades the baseline when the git probe is aborted', async () => {
+    expect(await wsBaseline(() => ({ kind: 'run', aborted: true })))
+      .toEqual({ gitAvailable: false, dirtyLines: 0 })
+  })
+
+  it('degrades the signal when the build run is aborted or cannot start', async () => {
+    const baseline: WorkspaceBaseline = { gitAvailable: true, dirtyLines: 0 }
+    expect(await wsSignal(() => ({ kind: 'run', aborted: true }), baseline)).toBeNull()
+    expect(await wsSignal(() => ({ kind: 'throw', value: new Error('build spawn failed') }), baseline)).toBeNull()
+    expect(await wsSignal(() => ({ kind: 'throw', value: 'build spawn failed' }), baseline)).toBeNull()
+  })
+
+  it('reports no workspace signal for a git-less baseline without a build command', async () => {
+    expect(await wsSignal(() => ({ kind: 'run' }), { gitAvailable: false, dirtyLines: 0 }, false)).toBeNull()
+  })
+
+  it('reports no workspace signal when the dirty delta cannot be measured', async () => {
+    const route = failingNumstatRoute
+    expect(await wsSignal(route, { gitAvailable: true, dirtyLines: 0 })).toBeNull()
+  })
+
+  it('reports no workspace signal without a live session', async () => {
+    const ctx = wsEnv(undefined, () => ({ kind: 'run' }))
+    const engine = new WsProbe(ctx, wsConfig(true))
+    const gone: SelfEvolveAgentContext = {
+      sessionId: SessionId('gone'),
+      options: {},
+      runMaintenance: async task => task(new AbortController().signal),
+    }
+    const signal = new AbortController().signal
+    expect(await engine.baseline(gone, signal)).toBeNull()
+    expect(await engine.signal(gone, proposal(), signal, { gitAvailable: true, dirtyLines: 0 })).toBeNull()
+  })
+
+  it('queues an explicit request even when no live agent is mounted', () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    const receipt = engine.requestEvolve(agentFor(session))
+    expect(receipt.status).toBe('queued')
+    expect(triggerRuns(session)).toEqual([])
+  })
+
+  it('accepts one more explicit request past a queue that holds only explicit requests', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    agent.status = 'running'
+    provideServices(ctx, session, agent)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ maxPendingEvolveRequests: 1 }))
+    expect(engine.requestEvolve(agentFor(session), ['L1-skill']).status).toBe('queued')
+    expect(engine.requestEvolve(agentFor(session), ['L2-context']).status).toBe('queued')
+  })
+
+  it('keeps the queued request order when the head outranks the tail', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    agent.status = 'running'
+    provideServices(ctx, session, agent)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    engine.requestEvolve(agentFor(session), ['L1-skill'])
+    engine.requestEvolve(agentFor(session), ['L2-context'])
+    agent.status = 'idle'
+    ctx.emit('agent/status', { agent, status: 'idle' } as never)
+    await vi.waitFor(() => { expect(triggerRuns(session)).toContain('user-command') })
+    expect(triggerRuns(session)[0]).toBe('user-command')
+  })
+
+  it('contains a throwing queued loop inside the drain', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    agent.runMaintenance = async () => { throw new Error('maintenance exploded') }
+    provideServices(ctx, session, agent)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    const logs = captureLogs(ctx)
+    engine.requestEvolve(agentFor(session))
+    await vi.waitFor(() => {
+      expect(logs.some(line => line.includes('user-command loop failed: maintenance exploded'))).toBe(true)
+    })
+  })
+
+  it('skips an autonomous idle run when the deployment cannot verify a proposal', async () => {
+    const skipLog = async (overrides: Partial<BasicSelfEvolveConfig>): Promise<string[]> => {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      const agent = fakeAgent(session)
+      provideServices(ctx, session, agent)
+      // The engine only has to mount the idle listener.
+      new BasicSelfEvolveEngine(ctx, baseConfig(overrides))
+      const logs = captureLogs(ctx)
+      ctx.emit('agent/status', { agent, status: 'idle' } as never)
+      await vi.waitFor(() => {
+        expect(logs.some(line => line.includes('idle-maintenance skipped'))).toBe(true)
+      })
+      return logs
+    }
+    // No judge route, verifier disabled, and no build command each withhold consent.
+    await skipLog({})
+    await skipLog({ validatorTarget: ACCEPT_CONFIG.validatorTarget, workspaceVerifier: { enabled: false } })
+    await skipLog({ validatorTarget: ACCEPT_CONFIG.validatorTarget })
+  })
+
+  it('reads a tool error as a failed turn for step reflection', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    session.append('tool/result', {
+      turn: 1,
+      step: 1,
+      message: { role: 'tool', toolCallId: 'x', content: [{ type: 'text', text: 'Error: boom' }], isError: true } as never,
+      error: { name: 'ToolError', code: 'E_TOOL' },
+    }, { surfaceOp: 'append' })
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'check cwd' }))
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    expect(session.snapshotEvents().some(event => event.type === 'self-evolve/reflection')).toBe(true)
+  })
+
+  it('logs and swallows a follow-up that throws a non-Error', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    agent.followup = () => { throw 'inbox closed' }
+    provideServices(ctx, session, agent)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ allowUnverifiedAutonomousRuns: true }))
+    const logs = captureLogs(ctx)
+    engine.requestEvolve(agentFor(session))
+    await vi.waitFor(() => { expect(logs.some(line => line.includes('explicit-run follow-up skipped'))).toBe(true) })
+  })
+
+  it('keeps the original error when the end append and end emit throw non-Errors', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const original = session.append.bind(session) as (...args: unknown[]) => unknown
+    session.append = ((type: string, ...rest: unknown[]) => {
+      if (type === 'self-evolve/end') throw 'log closed for self-evolve/end'
+      return original(type, ...rest)
+    }) as typeof session.append
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    const logs = captureLogs(ctx)
+    ctx.on('self-evolve-loop/end', () => { throw 'listener exploded' })
+    await expect(engine.evolveNow(agentFor(session), new AbortController().signal))
+      .rejects.toThrow(/log closed for self-evolve\/end/)
+    expect(logs.some(line => line.includes('self-evolve/end append failed'))).toBe(true)
+    expect(logs.some(line => line.includes('self-evolve-loop/end emit failed'))).toBe(true)
+  })
+
+  it('records apply-failed when the L2 registration collides inside the loop', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-loop-apply-failed-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true }, undefined, {
+        section: () => { throw new Error('static section owns this name') },
+      })
+      const engine = new SignalEngine(ctx, baseConfig({
+        ...ACCEPT_CONFIG,
+        allowUnverifiedAutonomousRuns: true,
+      }), session)
+      engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+      engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
+      const [pattern] = await engine.readPatterns(session.id)
+      fakeLlmQueue(ctx, [
+        JSON.stringify([{
+          name: 'cwd-guard',
+          purpose: 'guard cwd',
+          addressesPatternIds: [pattern!.patternId],
+          candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: 'v1', order: 260 },
+        }]),
+        JSON.stringify(PASSING_SCORES),
+      ])
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(result.commits).toHaveLength(0)
+      const validated = session.snapshotEvents().filter(event => event.type === 'self-evolve/validated')
+      expect(validated).toHaveLength(1)
+      expect((validated[0]!.data as { outcome: { reason?: string } }).outcome.reason).toBe('apply-failed')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('disposes an L2 section that had no predecessor to restore', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const removed: string[] = []
+    provideSkillCatalog(ctx, session, { skills: [], complete: true }, undefined, {
+      section: (input: { name: string }) => () => { removed.push(input.name) },
+    })
+    const scope = await ctx.plugin(ProbeEngine, baseConfig())
+    const engine = probeOf(ctx)
+    const [pattern] = await engine.readPatterns(session.id)
+    await engine.commit(agentFor(session), proposal({
+      addressesPatternIds: [pattern!.patternId],
+      candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: 'v1', order: 260, estimatedBytes: 2 },
+    }))
+    await scope.dispose()
+    expect(removed).toEqual(['sec'])
+  })
+
+  it('reports an L2 conflict on a first registration without a predecessor', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    provideSkillCatalog(ctx, session, { skills: [], complete: true }, undefined, {
+      section: () => { throw 'static section owns this name' },
+    })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    await expect(engine.commit(agentFor(session), proposal({
+      addressesPatternIds: [pattern!.patternId],
+      candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: 'v1', order: 260, estimatedBytes: 2 },
+    }))).rejects.toThrow(/section sec rejected: static section owns this name/)
+  })
+
+  it('skips the tombstone when no fs service is mounted', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-tombstone-no-fs-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      const engine = new ProbeEngine(ctx, baseConfig())
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'v1', pattern!.patternId))
+      await expect(engine.rollback(pattern!.patternId)).resolves.toBeUndefined()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('writes a rolled-back skill file into the session cwd', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-rollback-cwd-'))
+    const cwd = await mkdtemp(join(tmpdir(), 'self-evolve-workspace-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const id = SessionId(`cwd-${Math.random().toString(36).slice(2, 10)}`)
+      const header: SessionHeader = { version: SESSION_FORMAT_VERSION, id, createdAt: Date.now(), cwd, isSeeded: false }
+      const session = Session.create(id, undefined, header)
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      const resolved: (string | undefined)[] = []
+      ctx.provide('fs', {
+        resolve: async (path: string, options?: { cwd?: string }) => { resolved.push(options?.cwd); return path },
+        writeText: async () => {},
+      })
+      const engine = new ProbeEngine(ctx, baseConfig({ defaultLevels: [] }))
+      // A no-proposal run registers the session, which is what a rollback reads
+      // its working directory from.
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'champion body', pattern!.patternId))
+      await engine.commit(agentFor(session), l1Proposal('p2', 'cwd-guard', 'regressing body', pattern!.patternId))
+      await engine.rollback(pattern!.patternId)
+      expect(resolved.at(-1)).toBe(cwd)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('falls back to the process cwd when the tracked session is gone', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-rollback-no-session-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      const resolved: (string | undefined)[] = []
+      ctx.provide('fs', {
+        resolve: async (path: string, options?: { cwd?: string }) => { resolved.push(options?.cwd); return path },
+        writeText: async () => {},
+      })
+      const engine = new ProbeEngine(ctx, baseConfig({ defaultLevels: [] }))
+      // evolveNow registers the session in the rate map; hiding it from the
+      // sessions service afterwards models a session that closed before the
+      // rollback, which must fall back to the process cwd.
+      await engine.evolveNow(agentFor(session), new AbortController().signal)
+      const [pattern] = await engine.readPatterns(session.id)
+      await engine.commit(agentFor(session), l1Proposal('p1', 'cwd-guard', 'champion body', pattern!.patternId))
+      await engine.commit(agentFor(session), l1Proposal('p2', 'cwd-guard', 'regressing body', pattern!.patternId))
+      ctx.set('sessions', { get: () => undefined })
+      await engine.rollback(pattern!.patternId)
+      expect(resolved.at(-1)).toBe(process.cwd())
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('reports an aborted untracked line count as an unavailable dimension', async () => {
+    const route = (command: string): ScriptedShellOutcome => {
+      if (command.startsWith('git ls-files')) return { kind: 'run', stdout: 'scratch.txt\n' }
+      if (command.startsWith('wc -l')) return { kind: 'run', aborted: true }
+      return { kind: 'run' }
+    }
+    expect(await wsBaseline(route)).toEqual({ gitAvailable: false, dirtyLines: 0 })
+  })
+
+  it('reports no workspace signal when the baseline was never captured', async () => {
+    expect(await wsSignal(() => ({ kind: 'run' }), null)).toBeNull()
+  })
+
+  it('treats an unregistered replay child as an empty replay', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    const child = sessionFactory()
+    const parent = { session, options: {} }
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    // The fork reports a child id the agent registry never saw; the replay then
+    // cannot fold the child's session and must fail the gate on tool calls.
+    ctx.provide('agents', { get: (id: string) => (id === session.id ? parent : undefined) })
+    ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
+    ctx.provide('systemPrompt', { section: () => () => {} })
+    ctx.provide('subagents', {
+      getProvider: () => ({}),
+      startActivation: async () => ({
+        childId: child.id,
+        result: Promise.resolve({ stopReason: 'completed', output: [] }),
+        dispose: async () => {},
+      }),
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const replay = await engine.replay(agentFor(session), proposal(), 'case', new AbortController().signal)
+    expect(replay).toEqual({ exitCode: 1, retriggeredPatternIds: [] })
+  })
+
+  it('undoes a first L2 registration when the commit append fails', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const removed: string[] = []
+    provideSkillCatalog(ctx, session, { skills: [], complete: true }, undefined, {
+      section: (input: { name: string }) => () => { removed.push(input.name) },
+    })
+    const original = session.append.bind(session) as (...args: unknown[]) => unknown
+    session.append = ((type: string, ...rest: unknown[]) => {
+      if (type === 'self-evolve/commit') throw new Error('log closed for self-evolve/commit')
+      return original(type, ...rest)
+    }) as typeof session.append
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    await expect(engine.commit(agentFor(session), proposal({
+      addressesPatternIds: [pattern!.patternId],
+      candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: 'v1', order: 260, estimatedBytes: 2 },
+    }))).rejects.toThrow(/log closed for self-evolve\/commit/)
+    expect(removed).toEqual(['sec'])
+  })
+
+  it('ignores an idle boundary while a loop is already in flight', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    let release = (): void => {}
+    agent.runMaintenance = async (task: (signal: AbortSignal) => Promise<unknown>) => {
+      await new Promise<void>((resolve) => { release = resolve })
+      return task(new AbortController().signal)
+    }
+    provideServices(ctx, session, agent)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    const running = engine.evolveNow(agentFor(session), new AbortController().signal)
+    ctx.emit('agent/status', { agent, status: 'idle' } as never)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(triggerRuns(session)).toHaveLength(1)
+    release()
+    await running
+  })
+
+  it('runs no idle loop when the idle-maintenance trigger is disabled', async () => {
+    const ctx = new Context()
+    const session = sessionWithBoom()
+    const agent = fakeAgent(session)
+    provideServices(ctx, session, agent)
+    new BasicSelfEvolveEngine(ctx, baseConfig({
+      triggers: {
+        'idle-maintenance': { enabled: false, minIntervalMs: 0 },
+        pressure: { enabled: true, minIntervalMs: 0 },
+        'user-command': { enabled: true, minIntervalMs: 0 },
+        'validation-retry': { enabled: true, minIntervalMs: 0 },
+      },
+    }))
+    ctx.emit('agent/status', { agent, status: 'idle' } as never)
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(triggerRuns(session)).toEqual([])
+  })
+
+  it('rethrows an application failure that is not a candidate rejection', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-apply-throw-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionWithBoom()
+      provideSkillCatalog(ctx, session, { skills: [], complete: true })
+      ctx.provide('fs', {
+        resolve: async (path: string) => path,
+        writeText: async () => { throw new Error('disk full') },
+      })
+      const engine = new SignalEngine(ctx, baseConfig({
+        ...ACCEPT_CONFIG,
+        allowUnverifiedAutonomousRuns: true,
+      }), session)
+      engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+      engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
+      const [pattern] = await engine.readPatterns(session.id)
+      fakeLlmQueue(ctx, [
+        JSON.stringify([{
+          name: 'cwd-guard',
+          purpose: 'guard cwd',
+          addressesPatternIds: [pattern!.patternId],
+          candidate: { kind: 'L1-skill', skillName: 'cwd-guard', content: 'check cwd' },
+        }]),
+        JSON.stringify(PASSING_SCORES),
+      ])
+      // An fs failure is not a candidate rejection: it must surface unchanged.
+      await expect(engine.evolveNow(agentFor(session), new AbortController().signal)).rejects.toThrow(/disk full/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('evicts the least recently used session state and counts foreign retry keys', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-evict-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const sessions = [sessionWithBoom(), sessionWithBoom(), sessionWithBoom()]
+      const agents = new Map<string, FakeAgent>(
+        sessions.map(session => [String(session.id), fakeAgent(session)]),
+      )
+      ctx.provide('sessionProjections', {
+        register: () => () => {},
+        snapshot: (session: Session) => projectedState(session),
+      })
+      ctx.provide('sessions', { get: (id: string) => sessions.find(session => String(session.id) === id) })
+      ctx.provide('agents', { get: (id: string) => agents.get(id) })
+      ctx.provide('skills', { register: () => () => {}, snapshot: async () => ({ skills: [], complete: true }) })
+      ctx.provide('systemPrompt', { section: () => () => {} })
+      const engine = new SignalEngine(ctx, baseConfig({
+        ...ACCEPT_CONFIG,
+        allowUnverifiedAutonomousRuns: true,
+        maxTrackedSessions: 2,
+      }), sessions[0]!)
+      engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+      engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
+      const responses: string[] = []
+      for (const [index, session] of sessions.entries()) {
+        const [pattern] = await engine.readPatterns(session.id)
+        responses.push(JSON.stringify([{
+          name: `fix-${index}`,
+          purpose: 'fix',
+          addressesPatternIds: [pattern!.patternId],
+          candidate: { kind: 'L2-context', sectionName: `sec-${index}`, sectionText: `text-${index}`, order: 260 },
+        }]))
+        responses.push(JSON.stringify(LOW_CONFIDENCE_SCORES))
+      }
+      fakeLlmQueue(ctx, responses)
+      // Each run registers one session and leaves a retry key behind; the third
+      // run pushes the oldest session out and sweeps its retry bookkeeping.
+      for (const session of sessions) {
+        await engine.evolveNow(agentFor(session), new AbortController().signal)
+      }
+      expect(triggerRuns(sessions[2]!)).toEqual(['user-command'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

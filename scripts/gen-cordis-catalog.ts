@@ -992,6 +992,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   EvolveLevel: 'self-evolve edit-surface vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
   SelfEvolveAgentContext: 'self-evolve service input is owned by packages/self-evolve/self-evolve/src/types.ts',
   SelfEvolveResult: 'self-evolve service result is owned by packages/self-evolve/self-evolve/src/types.ts',
+  EvolveRequestReceipt: 'self-evolve queue receipt is owned by packages/self-evolve/self-evolve/src/types.ts',
   FailurePattern: 'self-evolve pattern vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
   RunBenchmarkOptions: 'benchmark-driven evaluation options are owned by packages/self-evolve/self-evolve-benchmark/src/types.ts',
   ScoreboardEntry: 'benchmark scoreboard entry is owned by packages/self-evolve/self-evolve-benchmark/src/types.ts',

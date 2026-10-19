@@ -12,11 +12,12 @@
  * @module @deepseek-ai/dsh-self-evolve-basic
  */
 
-import { appendFile, mkdir, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
-import { readJsonlRows, readLatestJsonRow } from './jsonl.ts'
+import { readJsonlRowsCached, readLatestJsonRow, appendJsonlCapped } from './jsonl.ts'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
@@ -33,6 +34,7 @@ import {
 import type {
   EvolveLevel,
   EvolveProposal,
+  EvolveRequestReceipt,
   EvolveTrigger,
   FailurePattern,
   SelfEvolveAgentContext,
@@ -54,6 +56,7 @@ import type {} from '@deepseek-ai/dsh-cordis-host-runner'
 import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-projection'
+import type {} from '@deepseek-ai/dsh-compaction'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 export type {
@@ -312,14 +315,18 @@ function parseJudgeScores(text: string): ValidationScores | null {
   return { activatesWhenCorrect, clarity, noRegressionIntroduced, safety }
 }
 
+/** Per-process id sequence whose opaque core is a UUID, so committed session
+ * snapshots redact the id wherever a run, proposal, or request reference
+ * appears — including inside summary text. */
 function makeIdSeq<T>(prefix: string, brand: (id: string) => T): () => T {
   let counter = 0
-  const fullPrefix = `${prefix}-${Date.now().toString(36)}`
-  return () => brand(`${fullPrefix}-${(counter++).toString(36)}`)
+  const instance = randomUUID()
+  return () => brand(`${prefix}-${instance}-${(counter++).toString(36)}`)
 }
 
 const runIdSeq = makeIdSeq('selfev', SelfEvolveRunId)
 const proposalIdSeq = makeIdSeq('prop', EvolveProposalId)
+const requestIdSeq = makeIdSeq('req', (id: string) => id)
 
 const MAX_SECTION_NAME_DIGEST = 8
 const SECTION_ORDER_PATCH = 260
@@ -405,6 +412,11 @@ export interface ChampionArchiveRow {
   /** The candidate this commit made live. */
   candidate: EvolveProposal['candidate']
   /**
+   * Durable seq of the `self-evolve/commit` event that made this row's
+   * candidate live. Rows written before that seq existed are not champions.
+   */
+  commitSeq?: number
+  /**
    * The candidate the commit replaced — the true champion a rollback
    * restores. `null` on the first commit for a pattern (nothing to restore).
    * L1 previous state is derived from the archive history because the skill
@@ -430,6 +442,23 @@ function recentNegatives(rows: NegativeResultRow[], patternId: string, limit: nu
   const matches: NegativeResultRow[] = []
   for (const row of rows) if (row.patternId === patternId) matches.push(row)
   return matches.slice(-limit)
+}
+
+/** Convert a validated candidate that could not be applied into `apply-failed`. */
+function applyRejected(
+  accepted: Extract<ProposalValidationOutcome, { kind: 'accepted' }>,
+  error: Error,
+): Extract<ProposalValidationOutcome, { kind: 'rejected' }> {
+  return {
+    kind: 'rejected',
+    reason: 'apply-failed',
+    regressions: [],
+    diagnostic: error.message,
+    deconstructedScores: accepted.deconstructedScores,
+    confidence: accepted.confidence,
+    replayEvidence: accepted.replayEvidence,
+    nextRoundSuggestion: '候选与已存在的 skill/section 名称冲突或超出上限；换一个名称后重新提案。',
+  }
 }
 
 /** Resolve and validate public configuration; throw at load time. */
@@ -466,6 +495,15 @@ function resolveConfig(config: BasicSelfEvolveConfig): ResolvedBasicSelfEvolveCo
     reflectionMinConfidence: config.reflectionMinConfidence ?? 0.85,
     patternFreezeHours: config.patternFreezeHours ?? 24,
     maxBudgetCharsPerLoop: config.maxBudgetCharsPerLoop ?? 32_768,
+    allowUnverifiedAutonomousRuns: config.allowUnverifiedAutonomousRuns ?? false,
+    maxValidationRetriesPerPattern: config.maxValidationRetriesPerPattern ?? 1,
+    maxPendingEvolveRequests: config.maxPendingEvolveRequests ?? 8,
+    notifyOnExplicitRun: config.notifyOnExplicitRun ?? true,
+    maxNegativeResultRows: config.maxNegativeResultRows ?? 500,
+    maxGlobalPatternRows: config.maxGlobalPatternRows ?? 1000,
+    maxTrackedSessions: config.maxTrackedSessions ?? 64,
+    maxTrackedPatternsPerSession: config.maxTrackedPatternsPerSession ?? 256,
+    maxLiveSkills: config.maxLiveSkills ?? 32,
     workspaceVerifier,
   }
   if (requireCompleteTarget(config.proposerTarget, 'proposerTarget')) resolved.proposerTarget = config.proposerTarget
@@ -488,7 +526,38 @@ interface SessionRateState {
   lastStartByTrigger: Record<string, number>
   /** patternId → frozen-until epoch for the 24h proposal freeze (P3.3). */
   frozenPatterns: Map<string, number>
+  /** Last time this session's state was touched, for bounded retention. */
+  touchedAt: number
 }
+
+/** One queued evolve request. The queue is process-local (see EvolveRequestReceipt). */
+interface QueuedEvolveRequest {
+  requestId: string
+  trigger: EvolveTrigger
+  levels: EvolveLevel[]
+  /** Explicit requests outrank autonomous ones and are never evicted. */
+  explicit: boolean
+}
+
+/** One live runtime skill contribution this provider owns (P0-4). */
+interface LiveSkill {
+  dispose: () => void
+  proposalId: string
+  candidate: Extract<EvolveProposal['candidate'], { kind: 'L1-skill' }>
+  description: string
+  source: string
+}
+
+/** Trigger precedence when several requests are queued for one session. */
+const TRIGGER_PRIORITY: Record<EvolveTrigger, number> = {
+  'user-command': 0,
+  'validation-retry': 1,
+  pressure: 2,
+  'idle-maintenance': 3,
+}
+
+/** Raised when a candidate cannot be applied; the loop records `apply-failed`. */
+class ApplyRejectedError extends Error {}
 
 /**
  * Dependency-light self-evolve backend. Real implementations subclass
@@ -540,6 +609,15 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       model: z.string(),
     }),
     maxDirtyLinesAddedPerCommit: z.number().step(1).min(0).default(2),
+    allowUnverifiedAutonomousRuns: z.boolean().default(false),
+    maxValidationRetriesPerPattern: z.number().step(1).min(0).default(1),
+    maxPendingEvolveRequests: z.number().step(1).min(1).default(8),
+    notifyOnExplicitRun: z.boolean().default(true),
+    maxNegativeResultRows: z.number().step(1).min(1).default(500),
+    maxGlobalPatternRows: z.number().step(1).min(1).default(1000),
+    maxTrackedSessions: z.number().step(1).min(1).default(64),
+    maxTrackedPatternsPerSession: z.number().step(1).min(1).default(256),
+    maxLiveSkills: z.number().step(1).min(1).default(32),
     workspaceVerifier: z.object({
       enabled: z.boolean().default(true),
       buildCommand: z.string(),
@@ -550,9 +628,19 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /** Resolved provider configuration with defaults applied. */
   readonly config: ResolvedBasicSelfEvolveConfig
+  /** Queued evolve requests per session; drained at the next idle boundary. */
+  private readonly evolveQueues = new Map<string, QueuedEvolveRequest[]>()
+  /** Trigger currently executing per session; a second start is a busy no-op. */
+  private readonly inFlight = new Map<string, EvolveTrigger>()
+  /** Live self-evolve runtime skills this provider owns, keyed by skill name (P0-4). */
+  private readonly liveSkills = new Map<string, LiveSkill>()
+  /** Candidate the latest commit made live, keyed by pattern id (rollback bookkeeping). */
+  private readonly liveByPattern = new Map<string, EvolveProposal['candidate']>()
+  /** Validation-retry counters keyed by `sessionId:patternId` (P0-3). */
+  private readonly retryCounts = new Map<string, number>()
   private readonly sessionRateStates = new Map<string, SessionRateState>()
   /** Live self-evolve-generated L2 sections, for prompt-inflation pruning (P1.9). */
-  private readonly liveSections = new Map<string, { text: string; registeredAt: number; dispose: () => void }>()
+  private readonly liveSections = new Map<string, { text: string; order: number; registeredAt: number; dispose: () => void }>()
   /** Consecutive same-pattern regressions, for champion rollback (P1.8). */
   private readonly regressionCounts = new Map<string, number>()
   /** L4 plugins this provider drove, keyed by pluginId → current proposalId (P2.2). */
@@ -563,8 +651,8 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   private readonly l4RequestByRun = new Map<string, { pluginId: CordisDynamicPluginId; agentId: SessionId }>()
   /** Per-session step-reflection counts for the current turn (P3.1). */
   private readonly reflectionCounts = new Map<string, { turn: number; count: number }>()
-  /** Per-session per-pattern proposal counts for the 24h freeze (P3.3). */
-  private readonly proposalCounts = new Map<string, { count: number; at: number }>()
+  /** Per-session per-pattern proposal counts for the 24h freeze (P3.3), one bounded map per session. */
+  private readonly proposalCounts = new Map<string, Map<string, { count: number; at: number }>>()
   /** Byte budget charged across one loop's LLM calls and searches (P3.4); null outside a loop. */
   private loopBudget: { used: number } | null = null
 
@@ -572,36 +660,40 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     super(ctx)
     this.config = resolveConfig(config)
     ctx.effect(() => ctx.sessionProjections.register(failurePatternsProjectionDefinition))
+    // Every runtime contribution this provider makes unwinds with the fiber.
+    ctx.effect(() => () => {
+      this.disposeLiveContributions()
+    })
+    // Idle boundary: the agent reports `idle` while the maintenance phase runs
+    // too, so `agent/status` fires exactly when a turn releases the loop — the
+    // `turn/end` event is still inside the running phase.
+    ctx.effect(() => ctx.on('agent/status', ({ agent, status }) => {
+      if (status !== 'idle') return
+      if (this.isSubagentSession(agent.session)) return
+      void this.drain(agent)
+    }))
+    // Pressure trigger: an in-turn automatic compaction signals context
+    // pressure; a standalone manual compaction (`turn === null`) does not.
     ctx.effect(() => ctx.on('session/event', (session: Session, event) => {
-      if (event.type !== 'turn/end') return
-      if (!this.config.triggers['idle-maintenance'].enabled) return
+      if (event.type !== 'compaction/start') return
+      if (event.data.turn === null) return
+      if (!this.config.triggers.pressure.enabled) return
+      if (this.isSubagentSession(session)) return
       const agent = ctx.agents.get(session.id)
       if (agent === undefined) return
-      if (agent.status !== 'idle') return
-      void (async () => {
-        try {
-          await this.evolveIfNeeded(
-            {
-              sessionId: agent.session.id,
-              options: agent.options,
-              runMaintenance: agent.runMaintenance.bind(agent),
-            },
-            'idle-maintenance',
-            new AbortController().signal,
-          )
-        } catch (error: unknown) {
-          // The loop itself emits the bracket-closing end event with its error
-          // when the failure happened inside executeLoop; failures outside it
-          // (mining or policy errors) surface only here, so log them instead
-          // of swallowing.
-          ctx.logger('self-evolve').warn(`idle-maintenance evolveIfNeeded failed: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      })()
+      if (!this.autonomousRunsAllowed()) {
+        this.ctx.logger('self-evolve').debug('pressure trigger skipped: no verifier is configured and allowUnverifiedAutonomousRuns is false')
+        return
+      }
+      this.enqueue(agent, 'pressure', this.config.defaultLevels, false)
     }))
-    ctx.effect(() => ctx.on('agent/request-error', (payload, next) => {
-      // Durable record of a failed model request (G1): the failure projection
-      // classifies it as the llm-provider tier keyed on failure.code. The
-      // waterfall must delegate regardless of our recording outcome.
+    ctx.effect(() => ctx.on('agent/request-error', async (payload, next) => {
+      // Durable record of a terminating model-request failure (G1): the failure
+      // projection classifies it as the llm-provider tier keyed on failure.code.
+      // The waterfall must delegate first — a retry owner consumes the failure
+      // and the retry attempts must not each count as a new occurrence.
+      const action = await next()
+      if (action !== undefined) return action
       try {
         payload.agent.session.append('agent/request-error', {
           turn: payload.turn,
@@ -613,9 +705,9 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       } catch (error: unknown) {
         // A session closed during teardown cannot take appends; the projection
         // is best-effort and the failure is already durable in the log.
-        ctx.logger('self-evolve').debug(`agent/request-error append skipped: ${error instanceof Error ? error.message : String(error)}`)
+        this.ctx.logger('self-evolve').debug(`agent/request-error append skipped: ${error instanceof Error ? error.message : String(error)}`)
       }
-      return next()
+      return undefined
     }))
     ctx.effect(() => ctx.on('cordis/before-approval', (info, next) => next().then((base) => {
       // L4 re-approval guard (P2.3): a plugin this provider drove before is
@@ -684,6 +776,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     levels: EvolveLevel[] = this.config.defaultLevels,
   ): Promise<SelfEvolveResult | null> {
     if (!this.config.triggers[trigger].enabled) return null
+    if (this.inFlight.has(agent.sessionId)) return null
     const state = this.rateState(agent.sessionId)
     const now = Date.now()
     const lastStart = state.lastStartByTrigger[trigger] ?? 0
@@ -693,9 +786,10 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     if (this.isAutonomousTrigger(trigger) && this.recentLoopCount(state) >= this.config.maxDailyLoopsPerSession) {
       return null
     }
-    const patterns = await this.filterEligiblePatterns(agent.sessionId)
-    if (patterns.length === 0) return null
-    return this.runLoop(agent, trigger, patterns, levels, signal)
+    // Mining stays inside the maintenance job: the phase must be reserved
+    // before the first await, or a concurrent turn claims the agent while the
+    // projection/JSONL reads are still in flight.
+    return this.runLoop(agent, trigger, () => this.filterEligiblePatterns(agent.sessionId), levels, signal, true)
   }
 
   async evolveNow(
@@ -703,8 +797,33 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     signal: AbortSignal,
     levels: EvolveLevel[] = this.config.defaultLevels,
   ): Promise<SelfEvolveResult> {
-    const patterns = await this.filterEligiblePatterns(agent.sessionId)
-    return this.runLoop(agent, 'user-command', patterns, levels, signal)
+    const result = await this.runLoop(
+      agent,
+      'user-command',
+      () => this.filterEligiblePatterns(agent.sessionId),
+      levels,
+      signal,
+      false,
+    )
+    /* A concurrent caller already owns the in-flight slot, so this call starts
+     * no loop at all; reporting that is more honest than returning a fake run. */
+    if (result === null) throw new Error('self-evolve: evolveNow produced no result')
+    return result
+  }
+
+  /**
+   * Queue one explicit evolution request for the next idle boundary and return
+   * its receipt. The tool that calls this is inside a turn, so starting the
+   * loop synchronously would always collide with the running agent.
+   */
+  requestEvolve(
+    agent: SelfEvolveAgentContext,
+    levels: EvolveLevel[] = this.config.defaultLevels,
+  ): EvolveRequestReceipt {
+    const receipt = this.enqueueFor(agent.sessionId, 'user-command', levels, true)
+    const live = this.ctx.agents.get(agent.sessionId)
+    if (live !== undefined) void this.drain(live)
+    return receipt
   }
 
   async readPatterns(sessionId: string): Promise<FailurePattern[]> {
@@ -735,6 +854,24 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       })
     }
     return enriched
+  }
+
+  /**
+   * Projection-only pattern read: the sorted failure patterns contributed by
+   * this session, without the cross-session occurrence merge or the durable
+   * negative-result enrichment. Hot per-step callers (step reflection) use
+   * this so a failing step never re-reads two JSONL files; the public
+   * `readPatterns` keeps the enriched behaviour the proposer needs.
+   *
+   * @param sessionId - the session whose projection to read.
+   * @returns the session-local patterns, most frequent first.
+   */
+  protected readProjectedPatterns(sessionId: string): FailurePattern[] {
+    const session = this.requireSession(sessionId)
+    const snapshot = this.ctx.sessionProjections.snapshot(session)
+    const state = snapshot.values[FAILURE_PATTERNS_PROJECTION_KEY] as { patterns?: Record<string, FailurePattern> } | undefined
+    if (state === undefined || state.patterns === undefined) return []
+    return Object.values(state.patterns).sort((a, b) => b.occurrences - a.occurrences)
   }
 
   /** Hook point for subclass implementations; base produces L2 prompt sections for L1-skill patterns.
@@ -1090,7 +1227,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         query: pattern.summary,
         limit: this.config.maxHeldOutCases,
       }, { signal })
-      this.chargeBudget(pattern.summary.length + page.items.length * 200)
+      this.chargeBudget(utf8Bytes(pattern.summary) + page.items.length * 200)
       for (const hit of page.items) {
         // The supporting seqs are the evidence that minted this pattern, so
         // replaying them would re-test the same events. Seq numbers are
@@ -1133,7 +1270,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       + '{"activatesWhenCorrect": 只在目标失败类上激活的准确性, "clarity": 措辞无歧义且自包含, '
       + '"noRegressionIntroduced": 未引入已观察到的回归, "safety": 不包含破坏性或过宽编辑}'
     const payload = JSON.stringify({ proposal: candidateText(proposal), evidence })
-    this.chargeBudget(payload.length + system.length)
+    this.chargeBudget(utf8Bytes(payload) + utf8Bytes(system))
     const text = await streamText(llm.stream({
       provider: target.provider,
       model: target.model,
@@ -1405,6 +1542,8 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /**
    * Append one rejected proposal to the durable negative-results log (P1.7b).
+   * Once the log exceeds `maxNegativeResultRows`, the oldest rows are dropped
+   * by an atomic under-lock rewrite so the file cannot grow without bound.
    * Failures propagate: a negative result that cannot be persisted is a
    * harness-data failure and closes the loop bracket with an error.
    *
@@ -1415,7 +1554,6 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     proposal: EvolveProposal,
     outcome: Extract<ProposalValidationOutcome, { kind: 'rejected' }>,
   ): Promise<void> {
-    const file = this.negativeResultsFile()
     const row: NegativeResultRow = {
       ts: Date.now(),
       patternId: proposal.addressesPatternIds[0] ?? '',
@@ -1425,8 +1563,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       ...(outcome.deconstructedScores !== undefined ? { deconstructedScores: outcome.deconstructedScores } : {}),
       nextRoundSuggestion: outcome.nextRoundSuggestion,
     }
-    await mkdir(dirname(file), { recursive: true })
-    await appendFile(file, `${JSON.stringify(row)}\n`, { flag: 'a' })
+    await appendJsonlCapped(this.negativeResultsFile(), [JSON.stringify(row)], this.config.maxNegativeResultRows)
   }
 
   /**
@@ -1441,9 +1578,9 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     return recentNegatives(await this.readAllNegativeResults(), patternId, limit)
   }
 
-  /** All durable negative-result rows, one file read (P1.7b). */
+  /** All durable negative-result rows, one cached file read (P1.7b). */
   protected async readAllNegativeResults(): Promise<NegativeResultRow[]> {
-    return readJsonlRows(this.negativeResultsFile(), raw => raw as NegativeResultRow)
+    return readJsonlRowsCached(this.negativeResultsFile(), raw => raw as NegativeResultRow)
   }
 
   /** Commit one accepted proposal. Base handles L1 skill and L2 prompt sections.
@@ -1460,15 +1597,18 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   ): Promise<{ commitSeq: number }> {
     const session = this.requireSession(agent.sessionId)
     const candidate = proposal.candidate
-    await this.archiveChampion(proposal)
+    let undo: (() => void) | null = null
     switch (candidate.kind) {
-      case 'L1-skill':
-        this.registerL1Skill(candidate, proposal.purpose, 'runtime-evolve')
+      case 'L1-skill': {
+        await this.assertL1Available(agent, candidate.skillName, proposal.proposalId)
+        undo = this.registerL1Skill(candidate, proposal.purpose, 'runtime-evolve', proposal.proposalId)
         await this.persistSkillFile(agent, proposal)
         break
-      case 'L2-context':
-        this.registerL2Section(candidate)
+      }
+      case 'L2-context': {
+        undo = this.registerL2Section(candidate)
         break
+      }
       case 'L3-workflow': {
         // The validation smoke already gated the candidate; re-running it at
         // commit time confirms the script still completes before the commit
@@ -1479,22 +1619,66 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         }
         break
       }
-      case 'L4-harness': {
-        // The plugin was defined and run during validation; committing records
-        // the accepted candidate and updates the approval ledger (P2.3).
-        for (const [pluginId, proposalId] of this.l4Pending) {
-          if (proposalId === proposal.proposalId) {
-            this.l4Ledger.set(pluginId, { proposalId, approvedAt: Date.now() })
-          }
-        }
+      case 'L4-harness':
         break
-      }
       /* v8 ignore next -- candidate.kind is a closed union of the four switch cases */
       default:
         throw new Error('applyCommit: unsupported candidate kind')
     }
-    const commitEvent = session.append('self-evolve/commit', { runId: proposal.runId, commit: { proposal, validation } })
+    let commitEvent
+    try {
+      commitEvent = session.append('self-evolve/commit', { runId: proposal.runId, commit: { proposal, validation } })
+    } catch (error: unknown) {
+      // The runtime contribution is already live; undo it before rethrowing so
+      // the session never carries an un-logged behaviour change.
+      undo?.()
+      throw error
+    }
+    if (candidate.kind === 'L4-harness') {
+      // The plugin was defined and run during validation; committing records
+      // the accepted candidate and updates the approval ledger (P2.3).
+      for (const [pluginId, proposalId] of this.l4Pending) {
+        if (proposalId === proposal.proposalId) {
+          this.l4Ledger.set(pluginId, { proposalId, approvedAt: Date.now() })
+        }
+      }
+    }
+    // Archive only after the commit is durable: a failed apply must never leave
+    // a champion row for a candidate that never went live.
+    await this.archiveChampion(proposal, commitEvent.seq)
+    const patternId = proposal.addressesPatternIds[0]
+    if (patternId !== undefined) this.liveByPattern.set(patternId, candidate)
     return { commitSeq: commitEvent.seq }
+  }
+
+  /**
+   * Refuse an L1 candidate whose skill name another provider already owns.
+   * A same-name static or filesystem skill is shadowed first-wins by the
+   * registry, so registering over it would look committed while changing
+   * nothing.
+   */
+  private async assertL1Available(agent: SelfEvolveAgentContext, skillName: string, proposalId: string): Promise<void> {
+    if (!this.liveSkills.has(skillName) && this.liveSkills.size >= this.config.maxLiveSkills) {
+      throw new ApplyRejectedError(
+        `skill ${skillName} rejected: ${this.liveSkills.size} live self-evolve skills already reach maxLiveSkills (${this.config.maxLiveSkills})`,
+      )
+    }
+    const session = this.requireSession(agent.sessionId)
+    const cwd = session.header.cwd ?? process.cwd()
+    let snapshot = await this.ctx.skills.snapshot({ cwd })
+    if (!snapshot.complete) snapshot = await this.ctx.skills.snapshot({ cwd })
+    if (!snapshot.complete) {
+      throw new ApplyRejectedError(
+        `skill ${skillName} rejected: the skill catalog did not complete a stable observation, so a name collision cannot be ruled out`,
+      )
+    }
+    const collision = snapshot.skills.find(skill => skill.name === skillName)
+    if (collision !== undefined && !this.liveSkills.has(skillName)) {
+      throw new ApplyRejectedError(`skill ${skillName} rejected: another provider already owns that skill name`)
+    }
+    // The proposal id is recorded on the live entry; keep the parameter part of
+    // the message-free contract even when no collision exists.
+    void proposalId
   }
 
   /**
@@ -1510,20 +1694,32 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     if (candidate.kind !== 'L1-skill') return
     const session = this.requireSession(agent.sessionId)
     const cwd = session.header.cwd ?? process.cwd()
+    await this.writeSkillFile(cwd, candidate.skillName, proposal.purpose, candidate.whenToUse ?? '', candidate.content)
+  }
+
+  private async writeSkillFile(
+    cwd: string,
+    skillName: string,
+    description: string,
+    whenToUse: string,
+    content: string,
+  ): Promise<void> {
+    const fs = this.ctx.get('fs')
+    if (fs === undefined) return
     const frontmatter = (value: string): string => value.replace(/\n/g, ' ')
-    const content = `---\nname: ${candidate.skillName}\ndescription: ${frontmatter(proposal.purpose)}\nwhenToUse: ${frontmatter(candidate.whenToUse ?? '')}\n---\n\n${candidate.content}\n`
-    const target = await fs.resolve(join('.dsh', 'skills', candidate.skillName, 'SKILL.md'), { cwd })
-    await fs.writeText(target, content)
+    const text = `---\nname: ${skillName}\ndescription: ${frontmatter(description)}\nwhenToUse: ${frontmatter(whenToUse)}\n---\n\n${content}\n`
+    const target = await fs.resolve(join('.dsh', 'skills', skillName, 'SKILL.md'), { cwd })
+    await fs.writeText(target, text)
   }
 
   /**
-   * Archive the state this commit replaces BEFORE the new candidate goes
-   * live (P1.8): one JSON row per proposal under
+   * Archive the state this commit replaced AFTER the commit is durable (P1.8):
+   * one JSON row per proposal under
    * `$DSH_HOME/self-evolve/archive/<patternId>/<proposalId>.json`. The row's
    * `previousCandidate` is the pattern's last committed candidate (the
    * champion a rollback restores), or null on the first commit.
    */
-  protected async archiveChampion(proposal: EvolveProposal): Promise<void> {
+  protected async archiveChampion(proposal: EvolveProposal, commitSeq: number): Promise<void> {
     const patternId = proposal.addressesPatternIds[0]
     if (patternId === undefined) return
     const archiveDir = dshHomePath('self-evolve', 'archive', patternId)
@@ -1534,6 +1730,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       patternId,
       proposalId: proposal.proposalId,
       name: proposal.name,
+      commitSeq,
       candidate: proposal.candidate,
       previousCandidate,
     }
@@ -1543,71 +1740,166 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /** The last committed candidate for a pattern, or null when it has none. */
   private async latestArchivedCandidate(patternId: string): Promise<EvolveProposal['candidate'] | null> {
+    const row = await this.latestCommittedRow(patternId)
+    return row?.candidate ?? null
+  }
+
+  /** The latest archive row that carries a durable commit seq. */
+  private async latestCommittedRow(patternId: string): Promise<ChampionArchiveRow | null> {
     const row = await readLatestJsonRow(
       dshHomePath('self-evolve', 'archive', patternId),
       raw => raw as ChampionArchiveRow,
     )
-    return row?.candidate ?? null
+    return row !== null && row.commitSeq !== undefined ? row : null
   }
 
   /**
    * Restore the latest archived champion candidate for a pattern after
    * repeated regressions (P1.8): re-register the state the last commit
    * replaced through the owning seam (L1 skill / L2 section) without
-   * re-validating. No-op when the pattern has no previous state (first
-   * commit) or the candidate kind has no base-provider apply path.
+   * re-validating. A first commit has no champion, so an L1 rollback writes a
+   * frontmatter-less tombstone that skill-filesystem ignores.
    */
   protected async rollbackPattern(patternId: string): Promise<void> {
-    const row = await readLatestJsonRow(
-      dshHomePath('self-evolve', 'archive', patternId),
-      raw => raw as ChampionArchiveRow,
-    )
-    if (row === null || row.previousCandidate === null) return
+    const row = await this.latestCommittedRow(patternId)
+    if (row === null || row.previousCandidate === null) {
+      const stale = this.liveByPattern.get(patternId)
+      if (stale?.kind === 'L1-skill') await this.tombstoneSkill(this.rollbackCwd(), stale.skillName)
+      this.liveByPattern.delete(patternId)
+      return
+    }
     const champion = row.previousCandidate
+    const cwd = this.rollbackCwd()
     switch (champion.kind) {
-      case 'L1-skill':
-        this.registerL1Skill(champion, row.name, 'runtime-evolve-rollback')
+      case 'L1-skill': {
+        const current = this.liveSkills.get(champion.skillName)
+        this.registerL1Skill(
+          champion,
+          current?.description ?? champion.skillName,
+          'runtime-evolve-rollback',
+          row.proposalId,
+        )
+        await this.writeSkillFile(
+          cwd,
+          champion.skillName,
+          current?.description ?? champion.skillName,
+          champion.whenToUse ?? '',
+          champion.content,
+        )
         break
+      }
       case 'L2-context':
         this.registerL2Section(champion)
         break
       default:
         return
     }
+    this.liveByPattern.set(patternId, champion)
   }
 
-  /** Register one runtime skill; the registration unwinds with the provider fiber. */
+  /** Working directory for restoring a skill file; the first live session's cwd. */
+  private rollbackCwd(): string {
+    for (const sessionId of this.sessionRateStates.keys()) {
+      const session = this.ctx.sessions.get(SessionId(sessionId))
+      if (session?.header.cwd !== undefined) return session.header.cwd
+    }
+    return process.cwd()
+  }
+
+  /** Replace an L1 skill file with a frontmatter-less body skill-filesystem ignores. */
+  private async tombstoneSkill(cwd: string, skillName: string): Promise<void> {
+    const fs = this.ctx.get('fs')
+    if (fs === undefined) return
+    const previous = this.liveSkills.get(skillName)
+    previous?.dispose()
+    this.liveSkills.delete(skillName)
+    const target = await fs.resolve(join('.dsh', 'skills', skillName, 'SKILL.md'), { cwd })
+    await fs.writeText(target, `<!-- self-evolve rollback tombstone: ${skillName} retired at ${new Date().toISOString()} -->\n`)
+  }
+
+  /**
+   * Register one runtime skill, replacing any self-evolve contribution of the
+   * same name. `ctx.skills.register` is first-wins per name, so the previous
+   * contribution must be disposed before the new one or the commit is a no-op.
+   * Returns an undo that restores the previous contribution.
+   */
   private registerL1Skill(
     candidate: Extract<EvolveProposal['candidate'], { kind: 'L1-skill' }>,
     description: string,
     source: string,
-  ): void {
-    this.ctx.effect(() => this.ctx.skills.register({
+    proposalId: string,
+  ): () => void {
+    const previous = this.liveSkills.get(candidate.skillName)
+    previous?.dispose()
+    const dispose = this.ctx.skills.register({
       name: candidate.skillName,
       description,
       whenToUse: candidate.whenToUse ?? '',
       source,
       content: candidate.content,
-    }))
+    })
+    this.liveSkills.set(candidate.skillName, { dispose, proposalId, candidate, description, source })
+    return () => {
+      dispose()
+      this.liveSkills.delete(candidate.skillName)
+      if (previous === undefined) return
+      const restore = this.ctx.skills.register({
+        name: previous.candidate.skillName,
+        description: previous.description,
+        whenToUse: previous.candidate.whenToUse ?? '',
+        source: previous.source,
+        content: previous.candidate.content,
+      })
+      this.liveSkills.set(candidate.skillName, { ...previous, dispose: restore })
+    }
   }
 
-  /** Register one runtime prompt section and track it for inflation pruning (P1.9). */
-  private registerL2Section(candidate: Extract<EvolveProposal['candidate'], { kind: 'L2-context' }>): void {
-    this.ctx.effect(() => {
-      const disposer = this.ctx.systemPrompt.section({
+  /**
+   * Register one runtime prompt section, replacing any self-evolve section of
+   * the same name. Registration happens only after the previous self-evolve
+   * section is disposed; a rejected registration (a colliding static section)
+   * restores the previous one before rethrowing. Returns an undo.
+   */
+  private registerL2Section(candidate: Extract<EvolveProposal['candidate'], { kind: 'L2-context' }>): () => void {
+    const previous = this.liveSections.get(candidate.sectionName)
+    previous?.dispose()
+    let dispose: () => void
+    try {
+      dispose = this.ctx.systemPrompt.section({
         name: candidate.sectionName,
         order: candidate.order,
         text: candidate.sectionText,
       })
-      const previous = this.liveSections.get(candidate.sectionName)
-      if (previous !== undefined) previous.dispose()
-      this.liveSections.set(candidate.sectionName, {
-        text: candidate.sectionText,
-        registeredAt: Date.now(),
-        dispose: disposer,
-      })
-      return disposer
+    } catch (error: unknown) {
+      if (previous !== undefined) {
+        const restore = this.ctx.systemPrompt.section({
+          name: candidate.sectionName,
+          order: previous.order,
+          text: previous.text,
+        })
+        this.liveSections.set(candidate.sectionName, { ...previous, dispose: restore })
+      }
+      throw new ApplyRejectedError(
+        `section ${candidate.sectionName} rejected: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    this.liveSections.set(candidate.sectionName, {
+      text: candidate.sectionText,
+      order: candidate.order,
+      registeredAt: Date.now(),
+      dispose,
     })
+    return () => {
+      dispose()
+      this.liveSections.delete(candidate.sectionName)
+      if (previous === undefined) return
+      const restore = this.ctx.systemPrompt.section({
+        name: candidate.sectionName,
+        order: previous.order,
+        text: previous.text,
+      })
+      this.liveSections.set(candidate.sectionName, { ...previous, dispose: restore })
+    }
   }
 
   /**
@@ -1626,15 +1918,17 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const ordered = [...this.liveSections.entries()].sort((a, b) => a[1].registeredAt - b[1].registeredAt)
     for (const [name, section] of ordered) {
       if (total <= budget) break
-      await this.archiveSection(name, section.text)
+      await this.archiveSection(name, section.text, section.registeredAt)
       section.dispose()
       this.liveSections.delete(name)
       total -= utf8Bytes(section.text)
     }
   }
 
-  private async archiveSection(name: string, text: string): Promise<void> {
-    const file = join(dshHomePath('self-evolve', 'l2-archive'), `${name}.md`)
+  private async archiveSection(name: string, text: string, registeredAt: number): Promise<void> {
+    // The registered-at stamp keeps a section that is pruned, re-proposed and
+    // pruned again from appending to one archive file forever.
+    const file = join(dshHomePath('self-evolve', 'l2-archive'), `${name}.${registeredAt}.md`)
     await mkdir(dirname(file), { recursive: true })
     await writeFile(file, `${text}\n`, { flag: 'a' })
   }
@@ -1650,7 +1944,10 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     this.regressionCounts.delete(patternId)
   }
 
-  /** Charge one LLM/search byte cost against the running loop budget (P3.4). */
+  /** Charge one LLM/search byte cost against the running loop budget (P3.4).
+   * Text costs must be measured in UTF-8 bytes, matching the documented byte
+   * budget; `String.length` counts UTF-16 code units and under-charges CJK.
+   */
   private chargeBudget(cost: number): void {
     if (this.loopBudget === null) return
     this.loopBudget.used += cost
@@ -1690,7 +1987,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const state = this.reflectionCounts.get(agent.session.id)
     if (state !== undefined && state.turn === turn && state.count >= this.config.maxStepReflectionsPerTurn) return
     if (!this.turnHasFailure(session, turn)) return
-    const patterns = await this.readPatterns(agent.session.id)
+    const patterns = this.readProjectedPatterns(agent.session.id)
     if (patterns.length === 0) return
     const prior = state !== undefined && state.turn === turn ? state.count : 0
     this.reflectionCounts.set(agent.session.id, { turn, count: prior + 1 })
@@ -1739,7 +2036,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const prompt = `你是一个自进化修补提案器。为以下失败模式生成最多 ${this.config.maxProposalsPerLoop} 个 L1-skill 或 L2-context 修补提案。`
       + '只输出 JSON 数组：[{"name","purpose","addressesPatternIds":["patternId"],"candidate":{"kind":"L1-skill","skillName","content","whenToUse"?} 或 {"kind":"L2-context","sectionName","sectionText","order":260}}]。'
       + '\n\n' + section
-    this.chargeBudget(prompt.length)
+    this.chargeBudget(utf8Bytes(prompt))
     const text = await streamText(llm.stream({
       provider: target.provider,
       model: target.model,
@@ -1785,33 +2082,53 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
    * freeze a pattern for `patternFreezeHours` once it has been proposed
    * twice; the third targeting attempt skips it. The count decays with the
    * freeze window, so a pattern proposed again after an expired freeze
-   * restarts at one.
+   * restarts at one. Each session's counters are bounded by
+   * `maxTrackedPatternsPerSession`, evicting the least recently proposed
+   * pattern, so a long session cannot grow the map without limit.
    */
   private markProposed(sessionId: string, patternId: string): void {
-    const key = `${sessionId}:${patternId}`
+    let counts = this.proposalCounts.get(sessionId)
+    if (counts === undefined) {
+      counts = new Map()
+      this.proposalCounts.set(sessionId, counts)
+    }
     const windowMs = this.config.patternFreezeHours * 3_600_000
-    const prior = this.proposalCounts.get(key)
+    const prior = counts.get(patternId)
     const count = prior === undefined || Date.now() - prior.at > windowMs ? 1 : prior.count + 1
-    this.proposalCounts.set(key, { count, at: Date.now() })
+    counts.set(patternId, { count, at: Date.now() })
     if (count >= 2) {
       const state = this.rateState(sessionId)
       state.frozenPatterns.set(patternId, Date.now() + windowMs)
-      this.proposalCounts.delete(key)
+      counts.delete(patternId)
+    }
+    const overflow = counts.size - this.config.maxTrackedPatternsPerSession
+    if (overflow > 0) {
+      const stale = [...counts.entries()]
+        .sort((a, b) => a[1].at - b[1].at)
+        .slice(0, overflow)
+      for (const [staleId] of stale) counts.delete(staleId)
     }
   }
 
-  /** Append the run's patterns to the cross-session global log (P4.1). */
+  /**
+   * Append the run's patterns to the cross-session global log (P4.1), keeping
+   * only the last `maxGlobalPatternRows` rows so the file stays bounded.
+   */
   protected async persistGlobalPatterns(agent: SelfEvolveAgentContext, patterns: FailurePattern[]): Promise<void> {
     if (patterns.length === 0) return
     const file = dshHomePath('self-evolve', 'global-patterns.jsonl')
-    await mkdir(dirname(file), { recursive: true })
-    const rows = patterns.map(p => `${JSON.stringify({ ts: Date.now(), sessionId: agent.sessionId, patternId: p.patternId, occurrences: p.occurrences })}\n`).join('')
-    await appendFile(file, rows, { flag: 'a' })
+    const rows = patterns.map(p => JSON.stringify({
+      ts: Date.now(),
+      sessionId: agent.sessionId,
+      patternId: p.patternId,
+      occurrences: p.occurrences,
+    }))
+    await appendJsonlCapped(file, rows, this.config.maxGlobalPatternRows)
   }
 
   /** Cross-session occurrences for a session's patterns within the 24h window (P4.2). */
   protected async readGlobalPatternOccurrences(sessionId: string): Promise<Map<string, number>> {
-    const rows = await readJsonlRows(
+    const rows = await readJsonlRowsCached(
       dshHomePath('self-evolve', 'global-patterns.jsonl'),
       raw => raw as { ts: number; sessionId: string; patternId: string; occurrences: number },
     )
@@ -1826,10 +2143,37 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   private rateState(sessionId: string): SessionRateState {
     const existing = this.sessionRateStates.get(sessionId)
-    if (existing !== undefined) return existing
-    const created: SessionRateState = { loopStarts: [], lastStartByTrigger: {}, frozenPatterns: new Map() }
+    if (existing !== undefined) {
+      existing.touchedAt = Date.now()
+      return existing
+    }
+    const created: SessionRateState = {
+      loopStarts: [],
+      lastStartByTrigger: {},
+      frozenPatterns: new Map(),
+      touchedAt: Date.now(),
+    }
     this.sessionRateStates.set(sessionId, created)
+    this.evictSessionState()
     return created
+  }
+
+  /** Keep the per-session rate/reflection maps bounded by least-recent use. */
+  private evictSessionState(): void {
+    const overflow = this.sessionRateStates.size - this.config.maxTrackedSessions
+    if (overflow <= 0) return
+    const oldest = [...this.sessionRateStates.entries()]
+      .sort((a, b) => a[1].touchedAt - b[1].touchedAt)
+      .slice(0, overflow)
+    for (const [sessionId] of oldest) {
+      this.sessionRateStates.delete(sessionId)
+      this.reflectionCounts.delete(sessionId)
+      this.regressionCounts.delete(sessionId)
+      this.proposalCounts.delete(sessionId)
+      for (const key of this.retryCounts.keys()) {
+        if (key.startsWith(`${sessionId}:`)) this.retryCounts.delete(key)
+      }
+    }
   }
 
   private async filterEligiblePatterns(sessionId: string): Promise<FailurePattern[]> {
@@ -1853,23 +2197,190 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     return state.loopStarts.length
   }
 
-  private runLoop(
+  /**
+   * Reserve the agent's maintenance phase synchronously, then mine and run.
+   * The reservation happens before the first `await` so a turn that starts
+   * concurrently cannot claim the agent between mining and the loop.
+   */
+  private async runLoop(
     agent: SelfEvolveAgentContext,
     trigger: EvolveTrigger,
-    patterns: FailurePattern[],
+    mine: () => Promise<FailurePattern[]>,
     levels: readonly EvolveLevel[],
     signal: AbortSignal,
-  ): Promise<SelfEvolveResult> {
-    const state = this.rateState(agent.sessionId)
+    skipWhenEmpty: boolean,
+  ): Promise<SelfEvolveResult | null> {
+    if (this.inFlight.has(agent.sessionId)) return null
+    this.inFlight.set(agent.sessionId, trigger)
     const runId = runIdSeq()
-    return agent.runMaintenance(async (maintenanceSignal) => {
-      // Rate-limit accounting only counts runs the maintenance phase actually
-      // accepted; a rejected start (busy agent) must not consume the daily cap.
-      state.loopStarts.push(Date.now())
-      state.lastStartByTrigger[trigger] = Date.now()
-      const combined = AbortSignal.any([signal, maintenanceSignal])
-      return this.executeLoop(runId, agent, trigger, patterns, levels.slice(), combined)
-    })
+    try {
+      return await agent.runMaintenance(async (maintenanceSignal) => {
+        const patterns = await mine()
+        if (skipWhenEmpty && patterns.length === 0) return null
+        // Rate-limit accounting only counts runs that actually mined patterns;
+        // a busy agent or an empty mining result must not consume the daily cap.
+        const state = this.rateState(agent.sessionId)
+        state.loopStarts.push(Date.now())
+        state.lastStartByTrigger[trigger] = Date.now()
+        const combined = AbortSignal.any([signal, maintenanceSignal])
+        return this.executeLoop(runId, agent, trigger, patterns, levels.slice(), combined)
+      })
+    } finally {
+      this.inFlight.delete(agent.sessionId)
+    }
+  }
+
+  /** Session-level FIFO queue; higher-priority triggers are served first. */
+  private queueFor(sessionId: string): QueuedEvolveRequest[] {
+    const existing = this.evolveQueues.get(sessionId)
+    if (existing !== undefined) return existing
+    const created: QueuedEvolveRequest[] = []
+    this.evolveQueues.set(sessionId, created)
+    return created
+  }
+
+  private enqueueFor(
+    sessionId: string,
+    trigger: EvolveTrigger,
+    levels: readonly EvolveLevel[],
+    explicit: boolean,
+  ): EvolveRequestReceipt {
+    const queue = this.queueFor(sessionId)
+    const key = [...levels].sort().join(',')
+    if (explicit) {
+      const existing = queue.findIndex(request => request.explicit && [...request.levels].sort().join(',') === key)
+      const coalesced = queue[existing]
+      if (coalesced !== undefined) {
+        return { requestId: coalesced.requestId, status: 'coalesced', queuePosition: existing + 1 }
+      }
+    }
+    if (queue.length >= this.config.maxPendingEvolveRequests) {
+      const victim = queue.findIndex(request => !request.explicit)
+      const dropped = queue[victim]
+      if (dropped !== undefined) {
+        queue.splice(victim, 1)
+        this.ctx.logger('self-evolve').debug(`evolve queue full; dropped autonomous request ${dropped.requestId}`)
+      } else if (!explicit) {
+        // An all-explicit queue never drops an explicit request; the autonomous
+        // request is the one that yields.
+        this.ctx.logger('self-evolve').debug(`evolve queue full of explicit requests; dropped ${trigger}`)
+        return { requestId: '', status: 'coalesced', queuePosition: queue.length }
+      }
+    }
+    const request: QueuedEvolveRequest = { requestId: requestIdSeq(), trigger, levels: [...levels], explicit }
+    queue.push(request)
+    return { requestId: request.requestId, status: 'queued', queuePosition: queue.length }
+  }
+
+  private enqueue(agent: Agent, trigger: EvolveTrigger, levels: readonly EvolveLevel[], explicit: boolean): void {
+    this.enqueueFor(agent.session.id, trigger, levels, explicit)
+    void this.drain(agent)
+  }
+
+  private nextQueued(sessionId: string): QueuedEvolveRequest | undefined {
+    const queue = this.evolveQueues.get(sessionId)
+    if (queue === undefined || queue.length === 0) return undefined
+    // The strict comparison keeps the earlier entry on a tie, so requests that
+    // share a trigger priority stay in arrival order.
+    const best = queue.reduce((left, right) =>
+      TRIGGER_PRIORITY[right.trigger] < TRIGGER_PRIORITY[left.trigger] ? right : left)
+    queue.splice(queue.indexOf(best), 1)
+    return best
+  }
+
+  /**
+   * Serve at most one queued request (or the idle policy when the queue is
+   * empty), then re-enter once to pick up work queued while it ran. Every
+   * rejected start is contained here: an idle listener must never throw into
+   * the dispatch path.
+   */
+  private async drain(agent: Agent): Promise<void> {
+    const sessionId = agent.session.id
+    if (this.inFlight.has(sessionId)) return
+    if (agent.status !== 'idle') return
+    const queued = this.nextQueued(sessionId)
+    let ran = false
+    try {
+      if (queued === undefined) {
+        await this.runIdleMaintenance(agent)
+      } else {
+        ran = true
+        const result = await this.runLoop(
+          this.agentContext(agent),
+          queued.trigger,
+          () => this.filterEligiblePatterns(sessionId),
+          queued.levels,
+          new AbortController().signal,
+          queued.trigger !== 'user-command',
+        )
+        if (queued.explicit && this.config.notifyOnExplicitRun && result !== null) {
+          this.notifyExplicitRun(agent, result)
+        }
+      }
+    } catch (error: unknown) {
+      this.ctx.logger('self-evolve').warn(
+        `${queued?.trigger ?? 'idle-maintenance'} loop failed: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    } finally {
+      if (ran) void this.drain(agent)
+    }
+  }
+
+  /** Idle-maintenance policy pass; the queue is empty at this point. */
+  private async runIdleMaintenance(agent: Agent): Promise<void> {
+    if (!this.config.triggers['idle-maintenance'].enabled) return
+    if (!this.autonomousRunsAllowed()) {
+      this.ctx.logger('self-evolve').debug(
+        'idle-maintenance skipped: no verifier is configured and allowUnverifiedAutonomousRuns is false',
+      )
+      return
+    }
+    await this.evolveIfNeeded(this.agentContext(agent), 'idle-maintenance', new AbortController().signal)
+  }
+
+  /** Whether an unattended loop can produce a verified commit in this deployment. */
+  private autonomousRunsAllowed(): boolean {
+    if (this.config.allowUnverifiedAutonomousRuns) return true
+    return this.config.validatorTarget !== undefined
+      && this.config.workspaceVerifier.enabled
+      && this.config.workspaceVerifier.buildCommand !== undefined
+  }
+
+  private agentContext(agent: Agent): SelfEvolveAgentContext {
+    return {
+      sessionId: agent.session.id,
+      options: agent.options,
+      runMaintenance: agent.runMaintenance.bind(agent),
+    }
+  }
+
+  /** Fork and subagent sessions inherit a parent's history; they never evolve it. */
+  private isSubagentSession(session: Session): boolean {
+    const header = session.header
+    return header.origin === 'subagent'
+      || header.parentSession !== undefined
+      || (header.delegationDepth ?? 0) > 0
+  }
+
+  /** Follow-up summary for a completed explicit request (autonomous runs stay silent). */
+  private notifyExplicitRun(agent: Agent, result: SelfEvolveResult): void {
+    const committed = result.commits.length
+    const rejected = result.proposals.length - committed
+    const text = `self-evolve 完成：run ${String(result.runId)} 挖掘 ${result.patterns.length} 个失败模式，`
+      + `提案 ${result.proposals.length} 个，提交 ${committed} 个，未通过 ${rejected} 个。`
+    try {
+      agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'self-evolve' } }))
+    } catch (error: unknown) {
+      this.ctx.logger('self-evolve').debug(`explicit-run follow-up skipped: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /** Dispose every runtime contribution this provider registered. */
+  private disposeLiveContributions(): void {
+    for (const skill of this.liveSkills.values()) skill.dispose()
+    this.liveSkills.clear()
+    for (const section of this.liveSections.values()) section.dispose()
+    this.liveSections.clear()
   }
 
   private async executeLoop(
@@ -1882,25 +2393,31 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   ): Promise<SelfEvolveResult> {
     const session = this.requireSession(agent.sessionId)
     const targeting = patterns.slice(0, this.config.maxProposalsPerLoop).map(p => p.patternId)
-    const startEvent = session.append('self-evolve/start', { runId, sessionId: agent.sessionId, trigger, startedAt: Date.now(), levels, targeting })
-    this.ctx.emit('self-evolve-loop/start', { runId, trigger })
-    session.append('self-evolve/mined', {
-      runId,
-      patterns: patterns.map(p => ({
-        patternId: p.patternId,
-        verifierTier: p.verifierTier,
-        causalSignature: p.causalSignature,
-        level: p.level,
-        summary: p.summary,
-        occurrences: p.occurrences,
-        supportingSeqs: p.supportingSeqs,
-        verifierMeta: p.verifierMeta,
-      })),
-      targeting,
-    })
     const committed: EvolveCommit[] = []
+    let proposals: EvolveProposal[] = []
+    let startSeq = 0
+    let started = false
+    let ended = false
     this.loopBudget = { used: 0 }
     try {
+      const startEvent = session.append('self-evolve/start', { runId, sessionId: agent.sessionId, trigger, startedAt: Date.now(), levels, targeting })
+      startSeq = startEvent.seq
+      started = true
+      this.ctx.emit('self-evolve-loop/start', { runId, trigger })
+      session.append('self-evolve/mined', {
+        runId,
+        patterns: patterns.map(p => ({
+          patternId: p.patternId,
+          verifierTier: p.verifierTier,
+          causalSignature: p.causalSignature,
+          level: p.level,
+          summary: p.summary,
+          occurrences: p.occurrences,
+          supportingSeqs: p.supportingSeqs,
+          verifierMeta: p.verifierMeta,
+        })),
+        targeting,
+      })
       if (signal.aborted) throw new DOMException('aborted', 'AbortError')
       // Long-horizon prompt-inflation guard (P1.9): prune before mining so the
       // loop never proposes while the prompt budget is already over.
@@ -1911,7 +2428,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         agentOptions.model = this.config.proposerTarget.model
       }
       const proposalsRaw = await this.proposeForPatterns(patterns, levels, agentOptions, signal, agent.sessionId)
-      const proposals = proposalsRaw
+      proposals = proposalsRaw
         .map(p => ({ ...p, runId }))
         .slice(0, this.config.maxProposalsPerLoop)
       for (const proposal of proposals) {
@@ -1920,19 +2437,25 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         if (addressed !== undefined) this.markProposed(agent.sessionId, addressed)
         session.append('self-evolve/proposed', { runId, proposal })
         const outcome = await this.validateProposal(agent, proposal, signal)
-        session.append('self-evolve/validated', { runId, proposalId: proposal.proposalId, outcome })
         if (outcome.kind !== 'accepted') {
-          await this.persistNegativeResult(proposal, outcome)
-          const patternId = proposal.addressesPatternIds[0]
-          if (patternId !== undefined && this.trackRegression(patternId)) {
-            await this.rollbackPattern(patternId)
-            this.resetRegressions(patternId)
-          }
+          session.append('self-evolve/validated', { runId, proposalId: proposal.proposalId, outcome })
+          await this.settleRejected(agent, proposal, outcome)
           continue
         }
+        let commitResult: { commitSeq: number }
+        try {
+          commitResult = await this.applyCommit(agent, proposal, outcome)
+        } catch (error: unknown) {
+          if (!(error instanceof ApplyRejectedError)) throw error
+          const rejection = applyRejected(outcome, error)
+          session.append('self-evolve/validated', { runId, proposalId: proposal.proposalId, outcome: rejection })
+          await this.settleRejected(agent, proposal, rejection)
+          continue
+        }
+        session.append('self-evolve/validated', { runId, proposalId: proposal.proposalId, outcome })
         this.resetRegressions(proposal.addressesPatternIds[0] ?? '')
-        const result = await this.applyCommit(agent, proposal, outcome)
-        committed.push({ proposal, validation: outcome, commitSeq: result.commitSeq })
+        this.clearRetry(agent.sessionId, proposal.addressesPatternIds[0])
+        committed.push({ proposal, validation: outcome, commitSeq: commitResult.commitSeq })
       }
       // Cross-session global pattern log (P4.1): recorded before the end event
       // so a fresh session can meet thresholds earlier (P4.2).
@@ -1942,6 +2465,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         committedProposalIds: committed.map(c => c.proposal.proposalId),
         endedAt: Date.now(),
       })
+      ended = true
       this.ctx.emit('self-evolve-loop/end', { runId })
       return {
         runId,
@@ -1949,22 +2473,97 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         patterns,
         proposals,
         commits: committed,
-        startSeq: startEvent.seq,
+        startSeq,
         endSeq: endEvent.seq,
       }
     } catch (error: unknown) {
       const diagnostic = error instanceof Error ? error.stack ?? error.message : String(error)
-      session.append('self-evolve/end', {
-        runId,
-        committedProposalIds: committed.map(c => c.proposal.proposalId),
-        error: diagnostic,
-        endedAt: Date.now(),
-      })
-      this.ctx.emit('self-evolve-loop/end', { runId, error: diagnostic })
+      if (started && !ended) {
+        // Best-effort bracket close: a failed append must not replace the
+        // original error, which is what the caller needs to see.
+        try {
+          session.append('self-evolve/end', {
+            runId,
+            committedProposalIds: committed.map(c => c.proposal.proposalId),
+            error: diagnostic,
+            endedAt: Date.now(),
+          })
+          ended = true
+        } catch (appendError: unknown) {
+          this.ctx.logger('self-evolve').debug(
+            `self-evolve/end append failed: ${appendError instanceof Error ? appendError.message : String(appendError)}`,
+          )
+        }
+        try {
+          this.ctx.emit('self-evolve-loop/end', { runId, error: diagnostic })
+        } catch (emitError: unknown) {
+          this.ctx.logger('self-evolve').debug(
+            `self-evolve-loop/end emit failed: ${emitError instanceof Error ? emitError.message : String(emitError)}`,
+          )
+        }
+      }
       throw error
     } finally {
       this.loopBudget = null
     }
+  }
+
+  /** Record one rejected proposal and its rollback/retry follow-ups. */
+  private async settleRejected(
+    agent: SelfEvolveAgentContext,
+    proposal: EvolveProposal,
+    outcome: Extract<ProposalValidationOutcome, { kind: 'rejected' }>,
+  ): Promise<void> {
+    await this.persistNegativeResult(proposal, outcome)
+    const patternId = proposal.addressesPatternIds[0]
+    if (patternId === undefined) return
+    if (this.trackRegression(patternId)) {
+      await this.rollbackPattern(patternId)
+      this.resetRegressions(patternId)
+    }
+    this.maybeQueueRetry(agent, patternId, outcome)
+  }
+
+  /**
+   * Validation-retry producer: a `low-confidence` rejection of a fully
+   * configured deployment queues one bounded retry for the pattern. Every
+   * other reason (including `verifier-unavailable`, which means "could not be
+   * judged") stays terminal.
+   */
+  private maybeQueueRetry(
+    agent: SelfEvolveAgentContext,
+    patternId: string,
+    outcome: Extract<ProposalValidationOutcome, { kind: 'rejected' }>,
+  ): void {
+    if (outcome.reason !== 'low-confidence') return
+    if (this.config.proposerTarget === undefined) return
+    if (!this.config.triggers['validation-retry'].enabled) return
+    if (!this.autonomousRunsAllowed()) return
+    const state = this.rateState(agent.sessionId)
+    const frozenUntil = state.frozenPatterns.get(patternId)
+    if (frozenUntil !== undefined && frozenUntil > Date.now()) return
+    const key = `${agent.sessionId}:${patternId}`
+    const used = this.retryCounts.get(key) ?? 0
+    if (used >= this.config.maxValidationRetriesPerPattern) return
+    const receipt = this.enqueueFor(agent.sessionId, 'validation-retry', this.config.defaultLevels, false)
+    if (receipt.status !== 'queued') return
+    if (this.sessionRetryKeys(agent.sessionId) >= this.config.maxTrackedPatternsPerSession) {
+      // An untracked retry would be unlimited; drop it instead of growing the map.
+      this.ctx.logger('self-evolve').debug(`validation-retry skipped for ${patternId}: retry map at maxTrackedPatternsPerSession`)
+      return
+    }
+    this.retryCounts.set(key, used + 1)
+  }
+
+  private sessionRetryKeys(sessionId: string): number {
+    let count = 0
+    for (const key of this.retryCounts.keys()) if (key.startsWith(`${sessionId}:`)) count += 1
+    return count
+  }
+
+  private clearRetry(sessionId: string, patternId: string | undefined): void {
+    if (patternId === undefined) return
+    this.retryCounts.delete(`${sessionId}:${patternId}`)
   }
 
   private requireSession(sessionId: string): Session {

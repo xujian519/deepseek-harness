@@ -18,6 +18,7 @@ import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { EvolveLevel, FailurePattern, FailurePatternsProjection } from './types.ts'
+import { FailurePatternId } from './brand.ts'
 
 /** Projection-unit key registered under `ctx.sessionProjections`. */
 export const FAILURE_PATTERNS_PROJECTION_KEY = 'failure-patterns'
@@ -25,7 +26,9 @@ export const FAILURE_PATTERNS_PROJECTION_KEY = 'failure-patterns'
 type VerifierTier = FailurePattern['verifierTier']
 
 const failurePatternSchema = z.object({
-  patternId: z.string(),
+  // The wire form is a plain string; the parsed form carries the brand so a
+  // pattern id cannot be confused with any other string identity.
+  patternId: z.string().transform(value => FailurePatternId(value)),
   verifierTier: z.enum(['tool-runtime', 'subprocess-exit', 'llm-provider', 'agent-loop']),
   causalSignature: z.string(),
   level: z.enum(['L1-skill', 'L2-context', 'L3-workflow', 'L4-harness']),
@@ -323,7 +326,7 @@ function foldEventSync(state: FailurePatternsState, id: string, signal: Classifi
   const existing = state.patterns[id]
   if (existing === undefined) {
     const pattern: FailurePattern = {
-      patternId: id,
+      patternId: FailurePatternId(id),
       verifierTier: signal.verifierTier,
       causalSignature: signal.causalSignature,
       level: signal.level,

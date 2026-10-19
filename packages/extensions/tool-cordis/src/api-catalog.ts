@@ -2496,7 +2496,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the loop result.',
       },
       {
-        signature: 'abstract readPatterns(sessionId: string): Promise<FailurePattern[]>',
+        signature: 'abstract requestEvolve(agent: SelfEvolveAgentContext, levels?: EvolveLevel[]): EvolveRequestReceipt',
+        description: 'Queue an explicit evolution request for the session\'s next idle boundary. Tools and other in-turn callers cannot start maintenance work themselves — the agent is still running the turn that invoked them — so the request is recorded and drained once the agent settles. Requests with the same level set coalesce into one queued entry.',
+        parameters: [{ name: 'agent', description: 'Owner session and maintenance runner.' }, { name: 'levels', description: 'Restrict the edit surfaces the queued loop may propose against.' }],
+        returns: 'the request receipt: identity, coalescing status, and queue position.',
+      },
+      {
+        signature: 'abstract readPatterns(sessionId: SessionId): Promise<FailurePattern[]>',
         description: 'Read the latest projected failure-pattern state for a session, or the empty state if the projection has not folded yet. Implementations may return a stale view; callers do not rely on synchronous freshness.',
         parameters: [{ name: 'sessionId', description: 'opaque session identity.' }],
         returns: 'ranked failure patterns for the session.',
@@ -6267,7 +6273,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'EvolveProposal',
-    declaration: 'export interface EvolveProposal {\n    proposalId: string;\n    runId: SelfEvolveRunId;\n    level: EvolveLevel;\n    name: string;\n    purpose: string;\n    addressesPatternIds: string[];\n    preliminaryValidation?: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    candidate: {\n        kind: \'L1-skill\';\n        skillName: string;\n        content: string;\n        whenToUse?: string;\n    } | {\n        kind: \'L2-context\';\n        sectionName: string;\n        sectionText: string;\n        order: number;\n        estimatedBytes: number;\n    } | {\n        kind: \'L3-workflow\';\n        scriptName: string;\n        scriptBody: string;\n    } | {\n        kind: \'L4-harness\';\n        pluginIdPrefix: string;\n        hostCode?: string;\n        clientCode?: string;\n    };\n}',
+    declaration: 'export interface EvolveProposal {\n    proposalId: EvolveProposalId;\n    runId: SelfEvolveRunId;\n    level: EvolveLevel;\n    name: string;\n    purpose: string;\n    addressesPatternIds: string[];\n    preliminaryValidation?: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    candidate: {\n        kind: \'L1-skill\';\n        skillName: string;\n        content: string;\n        whenToUse?: string;\n    } | {\n        kind: \'L2-context\';\n        sectionName: string;\n        sectionText: string;\n        order: number;\n        estimatedBytes: number;\n    } | {\n        kind: \'L3-workflow\';\n        scriptName: string;\n        scriptBody: string;\n    } | {\n        kind: \'L4-harness\';\n        pluginIdPrefix: string;\n        hostCode?: string;\n        clientCode?: string;\n    };\n}',
+  },
+  {
+    name: 'EvolveProposalId',
+    declaration: 'export type EvolveProposalId = Branded<\'EvolveProposalId\'>;',
+  },
+  {
+    name: 'EvolveRequestReceipt',
+    declaration: 'export interface EvolveRequestReceipt {\n    requestId: string;\n    status: \'queued\' | \'coalesced\';\n    queuePosition: number;\n}',
   },
   {
     name: 'EvolveTrigger',
@@ -6287,7 +6301,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'FailurePattern',
-    declaration: 'export interface FailurePattern {\n    patternId: string;\n    verifierTier: \'tool-runtime\' | \'subprocess-exit\' | \'llm-provider\' | \'agent-loop\';\n    causalSignature: string;\n    level: EvolveLevel;\n    summary: string;\n    supportingSeqs: number[];\n    occurrences: number;\n    verifierMeta: Record<string, JsonValue>;\n}',
+    declaration: 'export interface FailurePattern {\n    patternId: FailurePatternId;\n    verifierTier: \'tool-runtime\' | \'subprocess-exit\' | \'llm-provider\' | \'agent-loop\';\n    causalSignature: string;\n    level: EvolveLevel;\n    summary: string;\n    supportingSeqs: number[];\n    occurrences: number;\n    verifierMeta: Record<string, JsonValue>;\n}',
+  },
+  {
+    name: 'FailurePatternId',
+    declaration: 'export type FailurePatternId = Branded<\'FailurePatternId\'>;',
   },
   {
     name: 'FeedbackCategory',

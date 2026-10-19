@@ -233,7 +233,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:204`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `agent-preset/*`
 
@@ -1098,7 +1098,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:264`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:265`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveend--log-only"></a>
 
@@ -1117,7 +1117,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:287`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:288`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvemined--log-only"></a>
 
@@ -1140,7 +1140,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:234`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:235`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveproposed--log-only"></a>
 
@@ -1158,7 +1158,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:245`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:246`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvereflection--log-only"></a>
 
@@ -1182,7 +1182,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:275`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvestart--log-only"></a>
 
@@ -1206,7 +1206,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:216`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:217`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvevalidated--log-only"></a>
 
@@ -1225,7 +1225,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:254`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:255`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `session/*`
 
@@ -4376,7 +4376,7 @@ SHA-256: `e6063d0451dc02026fd9b54ad3f77c7b1b6392ad3e872a7737ac84e13ca72344`
 
 SHA-256: `fd820fd75ea0cc9ef7a033d8ffb12a9f2f25942b93f563ba2cdb81d0c5745d62`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:181`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:182`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4394,7 +4394,7 @@ SHA-256: `fd820fd75ea0cc9ef7a033d8ffb12a9f2f25942b93f563ba2cdb81d0c5745d62`
 
 SHA-256: `7fa25c3602b46a827ba8ca306297b6aa783d17fc7b65301bf6738c70bbb4a912`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:26`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:27`](../packages/self-evolve/self-evolve/src/types.ts)
 
 以下类型之一：
 
@@ -4421,7 +4421,7 @@ SHA-256: `72f2eee0f345b17bb9f40d0c947b115bee46311d07c9746c9e6b5d9a7512c8e4`
 
 SHA-256: `142a9246ba492fca06bfe53be13dbb754f5ee642034904cf655d0c546422405f`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:72`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:73`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4444,7 +4444,7 @@ SHA-256: `142a9246ba492fca06bfe53be13dbb754f5ee642034904cf655d0c546422405f`
 
 SHA-256: `636cb339c5c4428b7fe28ed358cf3fec0e2bf72add76d63612a1209822fdbc35`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:29`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:30`](../packages/self-evolve/self-evolve/src/types.ts)
 
 以下类型之一：
 
@@ -4463,7 +4463,7 @@ SHA-256: `636cb339c5c4428b7fe28ed358cf3fec0e2bf72add76d63612a1209822fdbc35`
 
 SHA-256: `c14c8e71a39904541e4288bd3faa6de5a99e5d6979ef9757c20c646a261b386a`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:32`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:33`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -5630,7 +5630,7 @@ SHA-256: `edef425b3a57e34b31f8cea3caf75ffc3aefbbe2ff8f7f0e7aaee915c915b354`
 
 SHA-256: `30cf4ff4cab601c1d21278109d4b0ee928ae1bebbcc1697d97a9dfd7bfc706b6`
 
-来源：[`packages/patent/patent-teams/src/types.ts:135`](../packages/patent/patent-teams/src/types.ts)
+来源：[`packages/patent/patent-teams/src/types.ts:170`](../packages/patent/patent-teams/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -5901,7 +5901,7 @@ SHA-256: `deebfc7c62177ea840f23c6362b8615bc78ffa93377dd5d243c04e541c413af5`
 
 SHA-256: `f3dc4f6436c0da94d88ce69f69add141848c655555c5adc7d216cf7192fb0e53`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:101`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:102`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | kind | form 属性 | 其他必需字段 | 完整定义 |
 |---|---|---|---|
@@ -5996,7 +5996,7 @@ SHA-256: `0acd94fe8794574c9ae72c7855ee16d29c546096d4af760d16d1225385764555`
 
 SHA-256: `4580c52ce18d1a542d28f2310fc175b7d991aa0f05018ef871eaea8b40d40830`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:167`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:168`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6900,7 +6900,7 @@ SHA-256: `d435e804c1ec2f92c80f62916f213cc79dbfc5e7767cdc6d2b5a1f6c3560b625`
 
 SHA-256: `e3abac4cbedc8b78ea9d0a1af760b0d4d1f7a611c33cd6485e4b24871217f51c`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:155`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:156`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -7152,6 +7152,10 @@ SHA-256: `5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78`
 
 <a id="persistence-type-compactionid"></a>
 
+<a id="persistence-type-evolveproposalid"></a>
+
+<a id="persistence-type-failurepatternid"></a>
+
 <a id="persistence-type-goalid"></a>
 
 <a id="persistence-type-jobid"></a>
@@ -7210,6 +7214,10 @@ SHA-256: `5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78`
 
 <a id="persistence-type-packagesscheduleschedulesrctypestsscheduleid"></a>
 
+<a id="persistence-type-packagesself-evolveself-evolvesrcbrandtsevolveproposalid"></a>
+
+<a id="persistence-type-packagesself-evolveself-evolvesrcbrandtsfailurepatternid"></a>
+
 <a id="persistence-type-packagesself-evolveself-evolvesrcbrandtsselfevolverunid"></a>
 
 <a id="persistence-type-packagessessionsession-titlesrcindextssessiontitleproviderid"></a>
@@ -7262,7 +7270,7 @@ SHA-256: `5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78`
 
 SHA-256: `4cd48f3e5108bd6ebedf7301c3638839b8b2b9db8dbd493974177fbdeb91a01b`
 
-来源：[`packages/api/session-controller/src/types.ts:409`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:21`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:21`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:33`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:9`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/webhook/src/brand.ts:12`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:6`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:9`](../packages/experimental/webhook/src/brand.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/goal/goal/src/types.ts:17`](../packages/goal/goal/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/jobs/jobs/src/brand.ts:19`](../packages/jobs/jobs/src/brand.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/patent/patent-teams/src/ids.ts:15`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:27`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:39`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:51`](../packages/patent/patent-teams/src/ids.ts) · [`packages/schedule/schedule/src/types.ts:14`](../packages/schedule/schedule/src/types.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:4`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/session/session-title/src/index.ts:43`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts)
+来源：[`packages/api/session-controller/src/types.ts:409`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:21`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:21`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:33`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:9`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/webhook/src/brand.ts:12`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:6`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:9`](../packages/experimental/webhook/src/brand.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/goal/goal/src/types.ts:17`](../packages/goal/goal/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/jobs/jobs/src/brand.ts:19`](../packages/jobs/jobs/src/brand.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/patent/patent-teams/src/ids.ts:15`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:27`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:39`](../packages/patent/patent-teams/src/ids.ts) · [`packages/patent/patent-teams/src/ids.ts:51`](../packages/patent/patent-teams/src/ids.ts) · [`packages/schedule/schedule/src/types.ts:14`](../packages/schedule/schedule/src/types.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:16`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:28`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/self-evolve/self-evolve/src/brand.ts:4`](../packages/self-evolve/self-evolve/src/brand.ts) · [`packages/session/session-title/src/index.ts:43`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts)
 
 `string`
 
@@ -7750,7 +7758,7 @@ SHA-256: `5b6fb1f226ff56402db08a6aae82af76100b14056271875f69ec526a1ae05d51`
 
 SHA-256: `de143b7c0b38e4d64926ca5c519f3d051db0e078cfbcb49197e96629be9f8081`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:264`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:265`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -7763,7 +7771,7 @@ SHA-256: `de143b7c0b38e4d64926ca5c519f3d051db0e078cfbcb49197e96629be9f8081`
 
 SHA-256: `2b39373f8a8e300ea87db6f576d1a3089e427a189245618a87094c9e3aa105c1`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:287`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:288`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -7848,7 +7856,7 @@ SHA-256: `3e4e7683b0192c9f0e6a75c59076108f017892cdb302a98032c2632fd79c356f`
 
 SHA-256: `c775ecf5dce95b68d14031cdc6fbf380a3b53ecaa738f87af760b3e50ddc4378`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:275`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -8028,7 +8036,7 @@ SHA-256: `5302e763151277614b97e77f00e3b326694c6c1247b916a20503c344dc970777`
 
 SHA-256: `ee229fe34bd35f57133df6b6627dd49bc7b9bb620197a5df4c7e3e13d73a29ec`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:204`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -8213,7 +8221,7 @@ SHA-256: `c106f69a347a32c3f0cdf9e4a9ecb89d0fb2718c144c86c1c86d29ea603432cc`
 
 SHA-256: `6f2e63e0dc6aefae21107d9f4654ce631bbba244f7cda618f4a1df333fea16c5`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:89`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:90`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -8228,7 +8236,7 @@ SHA-256: `6f2e63e0dc6aefae21107d9f4654ce631bbba244f7cda618f4a1df333fea16c5`
 
 SHA-256: `d86fa8b4f8d0af9861765376a24b8cfbadc72cf7d6f452d0dc77f22c069358a3`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:90`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:91`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -8244,7 +8252,7 @@ SHA-256: `d86fa8b4f8d0af9861765376a24b8cfbadc72cf7d6f452d0dc77f22c069358a3`
 
 SHA-256: `904dbbc760aaf9d12d94471e8181f38489186ac2a8d7870fd83475e4a933bf0b`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:91`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:92`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -8258,7 +8266,7 @@ SHA-256: `904dbbc760aaf9d12d94471e8181f38489186ac2a8d7870fd83475e4a933bf0b`
 
 SHA-256: `0224345d8e8bddc0ba76b002334c6068ee18389c55a465fccd7926776906fb14`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:92`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:93`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -8286,7 +8294,7 @@ SHA-256: `0a30c3be336cdd4f8f34e66543a3d46d611c43986edd9b3ce6cbb9b721d3b5d3`
 
 SHA-256: `d737fc218aaaf3ffa5f4c5623be64a8a5ddba637057f37ecaf5d7435d28b1a41`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:102`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:103`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -8932,7 +8940,7 @@ SHA-256: `dba54c09c6e7aafc9acbed7792ecc920d99f92d0784aeeed10af55f7fe0bc8cd`
 
 SHA-256: `8e7b0f10c916365c344936703ceedd786574ace855960df6628d1b93dba3885d`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:123`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:124`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -9187,7 +9195,7 @@ SHA-256: `28936c614bd4e7e2774806edcbb3cbfd3ee643ac1cbf0bbdff43d915505a8fe3`
 
 SHA-256: `dbf7655764e39c88320d8febc9e903c174343fd20a484d98c2b95054ca1a498f`
 
-来源：[`packages/self-evolve/self-evolve-basic/src/index.ts:86`](../packages/self-evolve/self-evolve-basic/src/index.ts)
+来源：[`packages/self-evolve/self-evolve-basic/src/index.ts:89`](../packages/self-evolve/self-evolve-basic/src/index.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -9696,7 +9704,7 @@ SHA-256: `2235d957bf4b7c6cf959231d480f0ba1f3a6d72d82981493fb6c7c963021d3d5`
 
 SHA-256: `5bb74226ee686497cc2e7b4746b1caacfbb4ee3104df621d292fb8f441892477`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:216`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:217`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -9799,7 +9807,7 @@ SHA-256: `9890113e97dd3541787bfe6704f2b223d3a890b5325ca0acae2b0398909b413e`
 
 SHA-256: `eb370a5df89925a2d4a4a6fb8ac4fd59f0df4d7bfa70175cc2655978ab76abcd`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:254`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:255`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -9813,7 +9821,7 @@ SHA-256: `eb370a5df89925a2d4a4a6fb8ac4fd59f0df4d7bfa70175cc2655978ab76abcd`
 
 SHA-256: `6252a7de453d3c800c46c704149b08c5367108dfa800cf32bc624eca76bb8c62`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:234`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:235`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -9852,7 +9860,7 @@ SHA-256: `8a9c990773f798eac10ca8878e6bcc531ee080bc589cac956730e462cc6a09ad`
 
 SHA-256: `0a19d2ca10446c91bceeb070409a1feeb0c592152b53d875a33f396a724747c1`
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:245`](../packages/self-evolve/self-evolve/src/types.ts)
+来源：[`packages/self-evolve/self-evolve/src/types.ts:246`](../packages/self-evolve/self-evolve/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

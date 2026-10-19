@@ -99,6 +99,25 @@ describe('session snapshot identity redaction', () => {
     expect(redacted?.endsWith('\n')).toBe(false)
   })
 
+  it('redacts a prefixed opaque id echoed into prose', () => {
+    const echoed = `receipt-${otherId}-0`
+    const source = [
+      JSON.stringify({ type: 'session', id: parentId }),
+      JSON.stringify({
+        type: 'tool/result',
+        data: { message: { content: [{ type: 'text', text: `{"requestId":"${echoed}"}` }] } },
+      }),
+      JSON.stringify({ type: 'assistant/message', data: { text: `queued as ${echoed}; keep ${proseUuid}` } }),
+      '',
+    ].join('\n')
+
+    const [redacted] = redactSessionSnapshotIds([source])
+    expect(redacted?.match(/\{\{id:1\}\}/g)).toHaveLength(2)
+    expect(redacted).toContain('queued as {{id:1}}')
+    expect(redacted).toContain(proseUuid)
+    expect(redactSessionSnapshotIds([redacted!])).toEqual([redacted])
+  })
+
   it('keeps a canonical token first seen through a generic id key', () => {
     const canonical = '{{message:7}}'
     const nextMessage = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'

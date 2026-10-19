@@ -9,6 +9,7 @@ Run the 60-task offline paired baseline-vs-self-evolve evaluation, record the co
 - **What it measures**: a paired net-win signal over a deterministic SWE-bench_Verified subset — baseline harness vs. the same harness with the `self-evolve-app` bundle mounted (per-task `uv` venv, local `pytest` FAIL_TO_PASS verdict, **P-B light path, no Docker**).
 - **What it is not**: this is **local-reproduction** verdicts, not official SWE-bench scoring. Report the result as a local-reproduction net-win signal, and cross-check any do-or-die conclusion against a Docker/cloud run (path P-C).
 - **The gate feels only the decision record**: `verify-self-evolve-eval` fails when `packages/self-evolve/evaluation/eval-decision.json` records `rollback`. The scaffold never fabricates results; it fails honest when the data is missing.
+- **Current blocker (no decision recorded)**: no campaign has been run against this tree, so `results.json` and `eval-decision.json` are absent and `verify-self-evolve-eval` stays dormant. Running it needs an operator with (a) `DEEPSEEK_API_KEY` for both arms, (b) a local SWE-bench_Verified export (`swebench-verified.jsonl`, networked, one-time), (c) per-task Python environments from `uv`, and (d) a deliberate `--allow-dataset-install` decision per row's `install` command. Until then the evaluation path has no green light and none is implied.
 
 ## 0. Preflight — environment self-check
 
@@ -29,7 +30,7 @@ python -c "import datasets; print(datasets.__version__)" || echo "WARN: install 
 
 # Scaffold self-check (the eval unit suite must be green)
 pnpm exec vitest run packages/test-support/self-evolve-eval
-#   Expect: Test Files 9 passed (9), Tests 136 passed (136)
+#   Expect: Test Files 9 passed (9), Tests 157 passed (157)
 ```
 
 > If `pnpm`/`node` are not found, prepend the nvm/homebrew bin dir, e.g. `export PATH="$HOME/.nvm/versions/node/v22.22.3/bin:/opt/homebrew/bin:$PATH"`.
@@ -98,6 +99,7 @@ pnpm eval:self-evolve campaign \
 ```
 
 - After an abort, resume with `--skip-existing`.
+- Dataset `install` commands never run unless `--allow-dataset-install` is passed. A skipped row is recorded in the task's `setup.log` as `dataset install skipped (allowDatasetInstall=false, cwd=…)`, so the omission is auditable; pass the flag only after reading each row's `install` command in `subset.json`, because it runs third-party code in the shared venv.
 - Defaults: `--dsh-entry apps/cli/src/bin.ts`, `--tsx-import tsx/esm`, `--build-command '{python} -m compileall -q .'`, `--python 3.11`, `--agent-timeout 1800000`, `--verify-timeout 1800000`.
 - The other timeouts: `--setup-timeout 300000`, `--install-timeout 600000`.
 - **The `{python}` placeholder is replaced by the per-task venv python**, so `--build-command` controls the evolved arm's held-in workspace verifier. Use a real project health command (e.g. `{python} -m compileall -q <src>` or the repo's own test-collection command) — a no-op compiler command leaves the verifier's build dimension nearly uninformative.

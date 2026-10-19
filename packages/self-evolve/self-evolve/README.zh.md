@@ -16,7 +16,7 @@ kind: "package-reference"
 | 包 | 角色 |
 |---|---|
 | `@deepseek-ai/dsh-self-evolve`（本包） | Service Definition：抽象服务 + `self-evolve/*` 事件 + `FailurePattern` 词汇表 + projection-unit 契约 |
-| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider：idle 压力触发、速率限制、L1/L2 提案与可逆 effect 提交 |
+| `@deepseek-ai/dsh-self-evolve-basic` | Service Provider：idle 压力触发、请求队列、速率限制、L1/L2 提案与可逆 effect 提交 |
 | `@deepseek-ai/dsh-tool-self-evolve` | Consumer：面向模型的工具与基于 `ctx.selfEvolve` 的提示片段 |
 
 ## 目录
@@ -34,14 +34,15 @@ kind: "package-reference"
 |---|---|
 | `evolveIfNeeded(agent, trigger, signal, levels?)` | 针对给定触发器考虑是否执行一次进化循环。当策略判定无需运行时返回 `null`。 |
 | `evolveNow(agent, signal, levels?)` | 无视压力策略，立即显式执行一次进化循环。 |
-| `readPatterns(sessionId)` | 读取某会话最新的失败模式投影状态。 |
+| `requestEvolve(agent, levels?)` | 把显式请求排队到该会话的下一个 idle 边界，并返回 `EvolveRequestReceipt`。工具无法在自己的 turn 内启动维护工作，因此这是面向工具的入口。 |
+| `readPatterns(sessionId)` | 读取某会话最新的失败模式投影状态；`sessionId` 是品牌类型 `SessionId`。 |
 
 四种编辑面，由窄到宽依次为 `L1-skill`、`L2-context`、`L3-workflow` 和 `L4-harness`。后端拥有触发策略、速率限制、提案模型路由、验证器 grounding 以及 held-in/held-out 回归执行的实现。
 
 <a id="events"></a>
 ## 事件
 
-`self-evolve/*` 事件通过声明合并扩展 `SessionEventMap`。它们是 session 事件，而非 cordis 的 `Events`，且均为仅日志事件。成对的 `self-evolve/start` → `self-evolve/end` 共享一次运行身份，贯穿 `mined`、`proposed`、`validated` 与 `commit` 事件。
+`self-evolve/*` 事件通过声明合并扩展 `SessionEventMap`。它们是 session 事件，而非 cordis 的 `Events`，且均为仅日志事件。成对的 `self-evolve/start` → `self-evolve/end` 共享一次运行身份，贯穿 `mined`、`proposed`、`validated` 与 `commit` 事件。被取消的循环、失败的阶段与抛错的监听器都仍会闭合该括号，且只闭合一次。
 
 <a id="failure-pattern-projection"></a>
 ## 失败模式投影
@@ -59,6 +60,7 @@ kind: "package-reference"
 ## Known Limitations and Deferred Work
 
 - **脚手架级接缝** — Service Definition 只声明抽象生命周期与持久事件词汇；触发策略、速率限制、提案与效果提交由 provider 拥有，且目前没有任何 provider 实现 L3-workflow 或 L4-harness 提案层级。
+- **队列在内存中** — `requestEvolve` 的回执保留在 session log 里，但进程退出时仍在排队的请求会丢失；耐久队列状态需要新增 session 事件并升格式版本。
 - **投影范围** — `failure-patterns` 只折叠已文档化的事件面（工具结果、agent 请求错误、compaction 结束、`self-evolve/end`）；非验证器信号不在模式词汇表内。
 
 ### 开发备注

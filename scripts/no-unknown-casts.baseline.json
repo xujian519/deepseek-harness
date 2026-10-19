@@ -2234,9 +2234,6 @@
   "packages/self-evolve/self-evolve-benchmark/src/scoreboard.ts": {
     "2c9ba39e81686c06ba145c700f54db6c1d79fcb6bc44448083a0eae8bd818aad": 1
   },
-  "packages/self-evolve/tool-self-evolve/src/index.ts": {
-    "760e98e3a1c8b0dc15a88d4d5170285e690122d41d586d5f2de35a075f551eb4": 1
-  },
   "packages/self-evolve/tool-self-evolve/tests/tool-self-evolve.spec.ts": {
     "e670dc706f494b495934bdce0182f4abd46ba4e387209c50fec9ce0042b3f940": 1
   },

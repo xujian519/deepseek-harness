@@ -16,7 +16,7 @@ description: "失败的专利工作流阶段现在输出 `[WORKFLOW_DEGRADED] <�
 ## 迁移
 
 1. 把空输出判断换成前缀判断：
-   ```ts
+   ```ts ignore-check
    const failed = output.startsWith('[WORKFLOW_DEGRADED]')
    const reason = failed ? output.slice('[WORKFLOW_DEGRADED] '.length) : undefined
    ```

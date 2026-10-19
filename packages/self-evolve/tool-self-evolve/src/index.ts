@@ -21,16 +21,19 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { EvolveLevel, FailurePattern, SelfEvolveResult } from '@deepseek-ai/dsh-self-evolve'
+import type { EvolveLevel, FailurePattern } from '@deepseek-ai/dsh-self-evolve'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
 const SECTION_NAME = 'tool:self-evolve'
 const SECTION_ORDER = 130
+/** Safety caps for the inspect tool's model-facing output. */
+const MAX_INSPECT_PATTERNS = 50
+const MAX_SUPPORTING_SEQS = 20
 const PROMPT_SECTION_TEXT
   = `Self-evolve capability (experimental): the harness observes tool and request failures incrementally and, on idle or explicit request, proposes narrow edits to skills and prompt sections.
 - Call self_evolve_inspect_patterns to read failure patterns observed for this session.
-- Call self_evolve_now with an explicit level list to start one loop.
+- Call self_evolve_now with an explicit level list to queue one loop. It always queues for the next idle boundary and returns a receipt; the loop's outcome arrives as a follow-up message, not as this tool's result.
 - The base provider targets L1-skill and L2-context only; requesting L3-workflow or L4-harness produces no proposals yet.
 - Proposal validation covers a fork replay, a workspace check, an LLM judge, and a held-out replay. Each needs its own prerequisite (workspaceVerifier.buildCommand, validatorTarget, similar history); any dimension left without a signal rejects the proposal, so an under-configured profile commits nothing — treat any commit as experimental.
 - Do not fabricate failure patterns or proposals. The projection-driven pattern view is the authoritative source; inspect it before making any proposal-level claims.`
@@ -58,7 +61,7 @@ function toLevels(raw: unknown): EvolveLevel[] {
 }
 
 /** Model-facing projection of one failure pattern: task-relevant fields only. */
-interface InspectPatternView {
+type InspectPatternView = {
   patternId: string
   level: EvolveLevel
   verifierTier: FailurePattern['verifierTier']
@@ -81,7 +84,7 @@ function toInspectView(pattern: FailurePattern): InspectPatternView {
     verifierTier: pattern.verifierTier,
     summary: pattern.summary,
     occurrences: pattern.occurrences,
-    supportingSeqs: pattern.supportingSeqs,
+    supportingSeqs: pattern.supportingSeqs.slice(-MAX_SUPPORTING_SEQS),
   }
 }
 
@@ -103,18 +106,22 @@ export function apply(ctx: Context): void {
     },
     async execute(_args, exec): Promise<JsonValue> {
       const agent = requireAgent(exec)
-      const patterns = (await ctx.selfEvolve.readPatterns(agent.session.id)).map(toInspectView)
-      return { patterns } as unknown as JsonValue
+      const patterns = await ctx.selfEvolve.readPatterns(agent.session.id)
+      const shown = patterns.slice(0, MAX_INSPECT_PATTERNS).map(toInspectView)
+      return {
+        patterns: shown,
+        truncated: patterns.length > shown.length,
+      }
     },
   }))
 
   ctx.tools.register(defineTool({
     name: 'self_evolve_now',
     description:
-      'Initiate one explicit self-evolve loop for the current session: mine the projected '
-      + 'failure patterns, propose narrow edits for the requested levels, and commit proposals '
-      + 'that pass the provider\'s validation gate. '
-      + '`levels` defaults to skill and prompt-section edits (L1-skill, L2-context). '
+      'Queue one explicit self-evolve loop for the current session. The loop runs at the next '
+      + 'idle boundary — never inside the calling turn — and this call returns a receipt with the '
+      + 'request id, queue position, and coalescing status. The loop result arrives later as a '
+      + 'follow-up message. `levels` defaults to skill and prompt-section edits (L1-skill, L2-context). '
       + 'L3-workflow and L4-harness are accepted for forward compatibility but the base provider '
       + 'produces no proposals for those levels yet.',
     parameters: {
@@ -131,43 +138,23 @@ export function apply(ctx: Context): void {
       schema: { type: 'json' },
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
-    async execute(args, exec): Promise<JsonValue> {
+    execute(args, exec): Promise<JsonValue> {
       const agent = requireAgent(exec)
       const levels = toLevels(args.levels)
-      let result: SelfEvolveResult
-      try {
-        result = await ctx.selfEvolve.evolveNow(
-          {
-            sessionId: agent.session.id,
-            options: agent.options,
-            runMaintenance: agent.runMaintenance.bind(agent),
-          },
-          exec.signal,
-          levels,
-        )
-      } catch (error: unknown) {
-        // The agent's maintenance phase rejects a second loop on a busy
-        // agent; translate that raw guard error into a model-facing message.
-        if (error instanceof Error && /already has active work/.test(error.message)) {
-          throw new Error('self-evolve loop is already running for this agent; wait for it to settle before starting another')
-        }
-        throw error
-      }
-      return {
-        runId: String(result.runId),
-        trigger: result.trigger,
-        patternsMined: result.patterns.length,
-        proposals: result.proposals.map(p => ({
-          proposalId: p.proposalId,
-          level: p.level,
-          name: p.name,
-          addressesPatternIds: p.addressesPatternIds,
-        })),
-        commits: result.commits.map(c => ({
-          proposalId: c.proposal.proposalId,
-          regressions: c.validation.regressions.length,
-        })),
-      }
+      const receipt = ctx.selfEvolve.requestEvolve(
+        {
+          sessionId: agent.session.id,
+          options: agent.options,
+          runMaintenance: agent.runMaintenance.bind(agent),
+        },
+        levels,
+      )
+      return Promise.resolve({
+        requestId: receipt.requestId,
+        status: receipt.status,
+        queuePosition: receipt.queuePosition,
+        note: 'Queued for the next idle boundary; the run summary arrives as a follow-up message.',
+      })
     },
   }))
 }

@@ -5,10 +5,13 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  AGENT_STATE_MARKER,
   EXCLUDED_SNAPSHOT_PATHS,
   SNAPSHOT_EXT,
   SNAPSHOT_PREFIX,
   SNAPSHOT_ROOT,
+  assertSafeArchiveEntry,
+  createNextSnapshot,
   createSnapshot,
   listSnapshotVersions,
   nextVersion,
@@ -102,5 +105,46 @@ describe('snapshot persistence', () => {
 
   it('fails loud when restoring a missing snapshot archive', async () => {
     await expect(restoreSnapshot(dir, 1, join(dir, 'target'))).rejects.toThrow()
+  })
+
+  it('removes target entries the archive never carried, keeping the marker and secret', async () => {
+    await writeFile(join(source, 'agent.js'), 'kept', 'utf8')
+    await createSnapshot(dir, 1, source)
+
+    const target = join(dir, 'restored')
+    await mkdir(target, { recursive: true })
+    await writeFile(join(target, 'agent.js'), 'stale', 'utf8')
+    await writeFile(join(target, 'rejected-round.js'), 'left behind', 'utf8')
+    await mkdir(join(target, 'rejected-dir'), { recursive: true })
+    await writeFile(join(target, 'rejected-dir', 'x.js'), 'x', 'utf8')
+    await writeFile(join(target, AGENT_STATE_MARKER), '', 'utf8')
+    await writeFile(join(target, '.vault.toml'), 'secret = true', 'utf8')
+    await restoreSnapshot(dir, 1, target)
+
+    await expect(readFile(join(target, 'agent.js'), 'utf8')).resolves.toBe('kept')
+    // A rejected candidate's extra files must not survive the rollback.
+    await expect(readFile(join(target, 'rejected-round.js'), 'utf8')).rejects.toThrow()
+    await expect(readFile(join(target, 'rejected-dir', 'x.js'), 'utf8')).rejects.toThrow()
+    await expect(readFile(join(target, AGENT_STATE_MARKER), 'utf8')).resolves.toBe('')
+    await expect(readFile(join(target, '.vault.toml'), 'utf8')).resolves.toBe('secret = true')
+  })
+
+  it('refuses archive entries that escape the restore target', () => {
+    expect(() => { assertSafeArchiveEntry('agent.js') }).not.toThrow()
+    expect(() => { assertSafeArchiveEntry('./nested/agent.js') }).not.toThrow()
+    expect(() => { assertSafeArchiveEntry('../escape.js') }).toThrow(/outside the restore target/)
+    expect(() => { assertSafeArchiveEntry('/etc/passwd') }).toThrow(/outside the restore target/)
+    expect(() => { assertSafeArchiveEntry('a/../../b') }).toThrow(/outside the restore target/)
+    expect(() => { assertSafeArchiveEntry('C:/Windows') }).toThrow(/outside the restore target/)
+  })
+
+  it('mints the next version and packs the source under one lock', async () => {
+    await writeFile(join(source, 'agent.js'), 'x', 'utf8')
+    const first = await createNextSnapshot(dir, source)
+    const second = await createNextSnapshot(dir, source)
+    expect(first.version).toBe(1)
+    expect(second.version).toBe(2)
+    expect(first.archive).toBe(snapshotPath(dir, 1))
+    await expect(readFile(second.archive)).resolves.toBeDefined()
   })
 })

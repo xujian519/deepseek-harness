@@ -572,6 +572,22 @@ describe('normalizeSessionLog', () => {
     expect(normalized[6]?.data).toEqual({ startedAt: 300, finishedAt: 400 })
   })
 
+  it('normalizes self-evolve run clocks while preserving run identity', () => {
+    const input = [
+      header({}),
+      { type: 'self-evolve/start', data: { runId: '{{workflow:1}}', startedAt: 100, trigger: 'user-command' } },
+      { type: 'self-evolve/end', data: { runId: '{{workflow:1}}', endedAt: 200, committedProposalIds: [] } },
+      { type: 'self-evolve/mined', data: { runId: '{{workflow:1}}', patterns: [] } },
+      { type: 'tool/result', data: { startedAt: 300, endedAt: 400 } },
+    ].map(value => typeof value === 'string' ? value : JSON.stringify(value)).join('\n') + '\n'
+    const normalized = normalizeSessionLog(input, ctx).trim().split('\n')
+      .map(line => JSON.parse(line) as { data?: unknown })
+    expect(normalized[1]?.data).toEqual({ runId: '{{workflow:1}}', startedAt: 0, trigger: 'user-command' })
+    expect(normalized[2]?.data).toEqual({ runId: '{{workflow:1}}', endedAt: 0, committedProposalIds: [] })
+    expect(normalized[3]?.data).toEqual({ runId: '{{workflow:1}}', patterns: [] })
+    expect(normalized[4]?.data).toEqual({ startedAt: 300, endedAt: 400 })
+  })
+
   it('normalizes subagent catalog child creation clocks', () => {
     const catalog = JSON.stringify({
       type: 'subagent/catalog',

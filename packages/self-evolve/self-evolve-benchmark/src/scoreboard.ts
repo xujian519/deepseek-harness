@@ -10,9 +10,10 @@
  * @module @deepseek-ai/dsh-self-evolve-benchmark/scoreboard
  */
 
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { BenchmarkId } from './brand.ts'
 import type { CaseAggregate, CaseRunRecord, ScoreboardEntry } from './types.ts'
 
@@ -105,12 +106,21 @@ export async function readScoreboard(baseDir: string, benchmarkId: BenchmarkId):
 /**
  * Append one entry to the scoreboard, preserving history.
  *
+ * The read-modify-write cycle runs under the scoreboard's writer lock and
+ * commits through an atomic rename, so two concurrent rounds both persist:
+ * a plain read-then-write loses whichever entry was written first, and a
+ * reader of a half-written document sees a parse error.
+ *
  * @param baseDir Data root for benchmark stores.
  * @param benchmarkId Benchmark id.
  * @param entry Entry to append.
  */
 export async function appendScoreboard(baseDir: string, benchmarkId: BenchmarkId, entry: ScoreboardEntry): Promise<void> {
-  const entries = await readScoreboard(baseDir, benchmarkId)
-  entries.push(entry)
-  await writeFile(scoreboardPath(baseDir, benchmarkId), stringifyYaml(entries), 'utf8')
+  const path = scoreboardPath(baseDir, benchmarkId)
+  await mkdir(dirname(path), { recursive: true })
+  await withFileLock(path, async () => {
+    const entries = await readScoreboard(baseDir, benchmarkId)
+    entries.push(entry)
+    await writeFileAtomic(path, stringifyYaml(entries), { mode: 0o600 })
+  }, { waitMs: 30_000 })
 }

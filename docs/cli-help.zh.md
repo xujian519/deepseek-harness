@@ -103,7 +103,7 @@ Example:
 <a id="dsh-headless"></a>
 ## `dsh headless`
 
-调用方式: `dsh headless --help`, `dsh --profile headless --help`
+调用方式: `dsh headless --help`, `dsh --profile headless --help`, `dsh self-evolve --help`, `dsh --profile self-evolve --help`
 
 ```text
 Usage: dsh --profile headless [options] [command] [task...]
@@ -136,7 +136,7 @@ Examples:
 <a id="dsh-headless-browsers"></a>
 ## `dsh headless browsers`
 
-调用方式: `dsh headless browsers --help`, `dsh --profile headless browsers --help`
+调用方式: `dsh headless browsers --help`, `dsh --profile headless browsers --help`, `dsh self-evolve browsers --help`, `dsh --profile self-evolve browsers --help`
 
 ```text
 Usage: dsh --profile headless browsers [options]
