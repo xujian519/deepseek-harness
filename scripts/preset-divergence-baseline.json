@@ -150,8 +150,8 @@
     },
     "tool-subagent": {
       "cordis.patch.yml": "cf47f743a7",
-      "document.patch.yml": "3c86f8e770",
-      "patent.patch.yml": "3c86f8e770",
+      "document.patch.yml": "2a916d7eda",
+      "patent.patch.yml": "2a916d7eda",
       "ptc.patch.yml": "cf47f743a7",
       "standard.patch.yml": "cf47f743a7"
     },
@@ -164,8 +164,8 @@
     },
     "tool-subagent-fork": {
       "cordis.patch.yml": "a0bca0cb97",
-      "document.patch.yml": "99fe8d59c2",
-      "patent.patch.yml": "5be24c2ecb",
+      "document.patch.yml": "98bf1182da",
+      "patent.patch.yml": "69e3fbf193",
       "ptc.patch.yml": "a0bca0cb97",
       "standard.patch.yml": "a0bca0cb97"
     },

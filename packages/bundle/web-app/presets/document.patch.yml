@@ -284,24 +284,12 @@
                 config:
                   provider: spawn
                   toolName: subagent
-                  toolFilter:
-                    deny:
-                      - schedule_create
-                      - schedule_delete
-                      - schedule_list
-                      - schedule_update
 
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: fork
                   toolName: subagent_fork
-                  toolFilter:
-                    deny:
-                      - schedule_create
-                      - schedule_delete
-                      - schedule_list
-                      - schedule_update
 
               # Production dsh does not install these optional providers. Install the
               # matching Bundle in this Profile and restart the Host, then copy this

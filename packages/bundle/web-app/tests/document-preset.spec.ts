@@ -101,8 +101,6 @@ describe('document preset style pairing', () => {
  * policy edit.
  */
 describe('document preset delivery rows', () => {
-  const SCHEDULE_TOOLS = ['schedule_create', 'schedule_delete', 'schedule_list', 'schedule_update']
-
   it('mounts the clock, the reminder tools, and the goal command beside the goal tool', async () => {
     for (const [id, name] of [
       ['time-context', '@deepseek-ai/dsh-time-context'],
@@ -116,10 +114,13 @@ describe('document preset delivery rows', () => {
     }
   })
 
-  it('keeps a delegated child off the reminder tools', async () => {
+  it('declares no per-child composition the delegation tool rejects', async () => {
     for (const id of ['tool-subagent', 'tool-subagent-fork']) {
-      const config = configOf(await rowOf(id)) as { toolFilter?: { deny?: string[] } }
-      expect(config.toolFilter?.deny, `${id} toolFilter.deny`).toEqual(SCHEDULE_TOOLS)
+      const config = configOf(await rowOf(id))
+      // `dsh-tool-subagent` fails its mount on either field; a preset carrying
+      // one can never compose a new Session in this mode.
+      expect(config['persona'], `${id} persona`).toBeUndefined()
+      expect(config['toolFilter'], `${id} toolFilter`).toBeUndefined()
     }
   })
 })
