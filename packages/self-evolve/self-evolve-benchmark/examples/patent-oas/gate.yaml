@@ -9,17 +9,20 @@
 #
 # 门槛的来源:
 #   - node 是单个问题空间切面的保守下限,可随实测调高;
-#   - case 与 aggregate 的 maxDrop 比 node 更紧(3 vs 5):case 分是 5 个维度观测的加权
-#     均值、聚合分是 4 个 case 的均值,它们的抽样噪声更小,容忍回退的理由也更少。
+#   - case 与 aggregate 的 maxDrop 比 node 更紧(3 vs 5):case 分是该 case 各维度观测的
+#     加权均值、聚合分是 4 个 case 的均值,它们的抽样噪声更小,容忍回退的理由也更少。
 #     不设这一层时,单个 case 的掉分会被跨 case 的节点均值摊薄掉;
 #   - 两条逐节点覆盖只加在 DAG 的前置脊柱上(区别特征认定、实际解决的技术问题):
-#     它们失败会把下游全部拖偏,所以下限高于 node 门槛。其余节点用 node 门槛。
+#     它们失败会把下游全部拖偏,所以下限高于 node 门槛。其余节点用 node 门槛;
+#   - amendment-grounding 是 B4 新增的观测面,首测三次 55/58/55(均值 56),低于统一
+#     node 下限 70。单列 50 只用来固定当前水平做回退检测,不把首测值读成合格线;
+#     待修改指令与评分口径收敛后按实测调高。
 # 基线记录后(`--accept`),门槛必须仍能被基线满足,否则门禁自己永远红——那是配置错误,
 # 由门禁直接报出。
 
 benchmarkId: patent-oas
 
-goldDigest: "sha256:2a2b1d95d5093904b19d571e667cd439bc41c873c7e20ea574a39f5a2f31fbe8"
+goldDigest: "sha256:fcdd7807b8ec2d43a42c24320ce93ae44c5b65d2aa137f48a604834f774d1c0a"
 
 # 基线由一次实测产生,再由门禁提升:
 #   pnpm run gate:patent-oas                        # 采集(需要 key),写出 run 记录
@@ -33,3 +36,4 @@ thresholds:
   nodes:
     distinguishing-features: { minScore: 75 }
     technical-problem: { minScore: 75 }
+    amendment-grounding: { minScore: 50 }

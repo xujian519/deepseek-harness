@@ -8,7 +8,7 @@ A patent-practice example benchmark for `@deepseek-ai/dsh-self-evolve-benchmark`
 
 | case | task | scored dimensions |
 |---|---|---|
-| `oa-answer` | Office-action response: search → distinguishing features → actual technical problem → technical teaching → conclusion (five steps) | distinguishing features, technical problem, teaching, conclusion and statute, search and format |
+| `oa-answer` | Office-action response: search → distinguishing features → actual technical problem → technical teaching → conclusion → claim amendment (six steps) | distinguishing features, technical problem, teaching, conclusion and statute, search and format, amendment grounding |
 | `claim-drafting` | Disclosure → claims: independent claim + dependent claims + reference relationships | essential features, scope, dependent layout, reference hierarchy, form and support |
 | `infringement-comparison` | Infringement comparison: all-elements + doctrine of equivalents, per-feature comparison + risk rating | comparison completeness, equivalents, conclusion clarity, risk rating, legal basis |
 | `novelty-creative` | Novelty/inventiveness analysis: A22.2 separate comparison + A22.3 three-step | separate comparison, distinguishing features, technical problem, teaching, conclusion and statute |
@@ -35,7 +35,7 @@ A run record is the contract between measurement and the threshold: it stores on
 
 A captured score measures the model plus the work specification under the profile the caller passed (default `headless`), not the patent preset's tools and persona, so records are comparable with each other only under the same profile — which is what the `provider` and `modelId` fields are for.
 
-The checked-in baseline is one keyed run: 2026-10-10 under the `headless` profile, one run per case, 24 agent calls, aggregate 97.95 with cases at 95.9, 100.0, 98.4, and 97.5. That run exercises the capture seam end to end with a real model and gives the gate a measurement to compare against; it says nothing about run-to-run stability, and it carries no `provider` or `modelId`, because the runner writes those only when the caller passes `--provider` and `--model`. Everything except the model calls is covered keylessly as well: the capture seam is injectable, and the specs drive the whole pipeline with a stub that writes the two artifacts, covering the prompts, the artifact contract, the dimension-wise aggregation, the launcher arguments, and the record's acceptance by the gate.
+The checked-in baseline is one keyed run: 2026-10-19 under the `headless` profile, three runs per case, aggregate 94.65 with cases at 95.65, 98.60, 90.42, and 93.93. The run follows the `--runs=3` set by the B7 measurement protocol and adds the `oa-answer` amendment-grounding observation node — 55/58/55 across the three runs, the weakest dimension measured so far, so the gate pins that node at 50 to hold the first measurement without reading it as a passing bar. It says nothing about run-to-run stability, and it carries no `provider` or `modelId`, because the runner writes those only when the caller passes `--provider` and `--model`. Everything except the model calls is covered keylessly as well: the capture seam is injectable, and the specs drive the whole pipeline with a stub that writes the two artifacts, covering the prompts, the artifact contract, the dimension-wise aggregation, the launcher arguments, and the record's acceptance by the gate.
 
 ## Seeding
 

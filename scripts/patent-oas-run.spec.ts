@@ -274,7 +274,7 @@ describe('凭据信号', () => {
 describe('编排', () => {
   it('每个 case 一次执行者、每维度一次评估者,记录与金标维度一一对应', async () => {
     const { record, calls } = await collect({})
-    expect(calls.length).toBe(4 + 20)
+    expect(calls.length).toBe(4 + 21)
     expect(record.cases.length).toBe(4)
     expect(record.benchmarkId).toBe('patent-oas')
     expect(record.runsPerCase).toBe(1)
@@ -294,8 +294,9 @@ describe('编排', () => {
   it('计划给出逐 case 维度数与调用总数,重复 case 被拒', () => {
     const plan = planRun({ space, gold })
     expect(plan.cases.length).toBe(4)
-    expect(plan.calls).toBe(24)
-    expect(plan.cases.every(entry => entry.dimensions === 5)).toBe(true)
+    expect(plan.calls).toBe(25)
+    expect(plan.cases.find(entry => entry.caseId === 'oa-answer')?.dimensions).toBe(6)
+    expect(plan.cases.filter(entry => entry.caseId !== 'oa-answer').every(entry => entry.dimensions === 5)).toBe(true)
     expect(() => planRun({ space, gold, caseIds: ['oa-answer', 'oa-answer'] })).toThrow('被选中多次')
   })
 
@@ -313,7 +314,7 @@ describe('编排', () => {
   it('--case 只跑选中的 case', async () => {
     const { record, calls } = await collect({ caseIds: ['oa-answer'] })
     expect(record.cases.map(entry => entry.caseId)).toEqual(['oa-answer'])
-    expect(calls.length).toBe(6)
+    expect(calls.length).toBe(7)
   })
 
   it('runsPerCase 取多次运行的均值', async () => {
