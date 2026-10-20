@@ -1,9 +1,9 @@
 /**
  * 知识库运行时状态聚合（可观测性出口的数据源）。
  *
- * 由各 MemoryResolver（Patent/Legal）在检索路径打点，熔断器实例注册后
- * 透传状态；诊断端（diagnostics.resolveKnowledgeCapabilities）与 gateway
- * `knowledge.capabilities` 命令通过 `snapshot()` 只读消费。
+ * 两个全文引擎在检索路径打点 `legalFtsDegraded` / `caseLawFtsDegraded` /
+ * `likeFallbacks`，`snapshot()` 供外部诊断只读消费。语义召回、重排、缓存与
+ * 熔断器字段预留给后续版本，本仓库暂无写入方。
  *
  * 设计约束：
  * - 打点全部为可选注入（provider 不传 stats 时行为与现状完全一致）；
@@ -21,26 +21,26 @@ export type WikiSemanticIndexState = 'disabled' | 'warming' | 'ready' | 'failed'
 
 /** 知识库运行时统计快照。 */
 export type KnowledgeRuntimeStatsSnapshot = {
-  /** 检索结果缓存命中/未命中次数（同 query 60s TTL 复用）。 */
+  /** 检索结果缓存命中/未命中次数（预留，本仓库暂无写入方）。 */
   cacheHits: number
   cacheMisses: number
-  /** 语义召回（embedding/vectors.db）发起次数与失败次数。 */
+  /** 语义召回（embedding/vectors.db）发起次数与失败次数（预留，暂无写入方）。 */
   semanticCalls: number
   semanticFailures: number
-  /** 重排（rerank）发起次数与失败次数。 */
+  /** 重排（rerank）发起次数与失败次数（预留，暂无写入方）。 */
   rerankCalls: number
   rerankFailures: number
-  /** 已注册熔断器状态（semantic/rerank × 各 provider）。 */
+  /** 已注册熔断器状态（预留，暂无写入方）。 */
   breakers: Array<{ name: string; state: CircuitBreakerState }>
-  /** KG FTS tokenizer 模式（无 KG 时 unknown）。 */
+  /** KG FTS tokenizer 模式（预留，暂无写入方；无 KG 时为 unknown）。 */
   kgFtsMode: KgFtsMode
-  /** wiki 卡语义索引状态。 */
+  /** wiki 卡语义索引状态（预留，暂无写入方）。 */
   wikiSemanticIndex: WikiSemanticIndexState
-  /** 判例自动注入（CaseLawMemoryProvider）是否可用。 */
+  /** 判例自动注入是否可用（预留，暂无写入方）。 */
   caseLawAvailable: boolean
-  /** 判例自动注入累计条数。 */
+  /** 判例自动注入累计条数（预留，暂无写入方）。 */
   caseLawInjects: number
-  /** embedding 查询端与 knowledge.db 库向量一致性自检结果（未自检时 undefined）。 */
+  /** embedding 查询端与 knowledge.db 库向量一致性自检结果（预留；未自检时 undefined）。 */
   embeddingConsistency?: { ok: boolean; meanCosine: number } | undefined
   /** 法规全文引擎 FTS5 已粘性降级（查询期异常后永久走 LIKE；false=未降级/无引擎）。 */
   legalFtsDegraded: boolean
@@ -185,7 +185,9 @@ export class KnowledgeRuntimeStats {
       wikiSemanticIndex: this.wikiSemanticIndex,
       caseLawAvailable: this.caseLawAvailable,
       caseLawInjects: this.caseLawInjects,
-      embeddingConsistency: this.embeddingConsistency,
+      embeddingConsistency: this.embeddingConsistency === undefined
+        ? undefined
+        : { ...this.embeddingConsistency },
       legalFtsDegraded: this.legalFtsDegraded,
       caseLawFtsDegraded: this.caseLawFtsDegraded,
       likeFallbacks: this.likeFallbacks,

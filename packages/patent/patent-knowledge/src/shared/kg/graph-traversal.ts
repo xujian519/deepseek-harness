@@ -17,14 +17,14 @@ export type KgNeighbor = {
   relation: string
 }
 
-/** 图谱路径边。 */
+/** 图谱路径边（公开类型，当前无消费方；保留给后续最短路径实现）。 */
 export type KgPathEdge = {
   source: string
   target: string
   relation: string
 }
 
-/** 图谱遍历（邻居/最短路径/按类型列表等图操作）。 */
+/** 图谱遍历（邻居/按类型列表/多跳展开等图操作）。 */
 export class GraphTraversal {
   constructor(
     private readonly stmts: {
@@ -68,17 +68,17 @@ export class GraphTraversal {
    * @param nodeId 节点 id。
    * @param relation 关系类型过滤，省略时不限关系。
    * @param depth 展开深度。
-   * @param limit 每层返回数量上限。
+   * @param limit 每个前沿节点返回的邻居上限（不是整层总量）。
    * @returns 展开得到的邻居节点及其关系列表。
    */
   expandNeighbors(nodeId: string, relation?: string, depth = 2, limit = 20): Array<{ node: KgNode; relation: string }> {
     const seen = new Set<string>([nodeId])
     const result: Array<{ node: KgNode; relation: string }> = []
-    let frontier = [{ id: nodeId, relation: '' }]
+    let frontier = [nodeId]
 
     for (let d = 0; d < depth && frontier.length > 0; d++) {
-      const next: Array<{ id: string; relation: string }> = []
-      for (const { id } of frontier) {
+      const next: string[] = []
+      for (const id of frontier) {
         const neighbors = this.getNeighbors(id, relation, limit)
         for (const n of neighbors) {
           if (seen.has(n.targetId)) continue
@@ -86,7 +86,7 @@ export class GraphTraversal {
           const node = this.getNode(n.targetId)
           if (node) {
             result.push({ node, relation: n.relation })
-            next.push({ id: n.targetId, relation: n.relation })
+            next.push(n.targetId)
           }
         }
       }

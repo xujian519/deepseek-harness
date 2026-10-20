@@ -6,29 +6,34 @@
  */
 
 import { FTS_MIN_RUNES } from './fts.ts'
-import { extractLawKeywords } from '../legal/keywords.ts'
+import { extractLawKeywords } from './keywords.ts'
 import { errorMessage } from '@deepseek-ai/dsh-value'
+
+/** 检索阶梯的输入（引擎注入各路径的查询函数）。 */
+export type FtsSearchLadder<T> = {
+  /** 已 trim 的非空检索词。 */
+  keyword: string
+  /** FTS 表是否存在且运行时可用。 */
+  hasFts: boolean
+  /** 是否已粘性降级（异常后置 true，后续直接 LIKE）。 */
+  ftsDegraded: boolean
+  /** 整句 FTS 查询。 */
+  searchFts: (keyword: string) => T[]
+  /** 切词 OR FTS 查询。 */
+  searchFtsKeywords: (keywords: string[]) => T[]
+  /** LIKE 兜底查询。 */
+  searchLike: (keyword: string) => T[]
+  /** 降级回调（入参为异常消息）。 */
+  degrade: (reason: string) => void
+}
 
 /**
  * 执行一次 FTS 优先、LIKE 兜底的检索（含切词降级阶梯）。
- * @param keyword 已 trim 的非空检索词。
- * @param hasFts FTS 表是否存在且运行时可用。
- * @param ftsDegraded 是否已粘性降级（异常后置 true，后续直接 LIKE）。
- * @param searchFts 整句 FTS 查询。
- * @param searchFtsKeywords 切词 OR FTS 查询。
- * @param searchLike LIKE 兜底查询。
- * @param degrade 降级回调（入参为异常消息）。
+ * @param ladder 检索词、FTS 可用性、三条查询路径与降级回调。
  * @returns 检索结果列表（行或命中，由调用方映射）。
  */
-export function runFtsSearch<T>(
-  keyword: string,
-  hasFts: boolean,
-  ftsDegraded: boolean,
-  searchFts: (keyword: string) => T[],
-  searchFtsKeywords: (keywords: string[]) => T[],
-  searchLike: (keyword: string) => T[],
-  degrade: (reason: string) => void,
-): T[] {
+export function runFtsSearch<T>(ladder: FtsSearchLadder<T>): T[] {
+  const { keyword, hasFts, ftsDegraded, searchFts, searchFtsKeywords, searchLike, degrade } = ladder
   const runes = Array.from(keyword)
   if (!hasFts || ftsDegraded || runes.length < FTS_MIN_RUNES) {
     return searchLike(keyword)

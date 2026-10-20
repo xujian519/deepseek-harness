@@ -71,6 +71,14 @@ describe('KnowledgeRuntimeStats', () => {
     expect(snap.likeFallbacks).toBe(3)
   })
 
+  it('copies embedding consistency so snapshot mutations cannot alter internal state', () => {
+    const stats = new KnowledgeRuntimeStats()
+    stats.setEmbeddingConsistency({ ok: false, meanCosine: 0.1 })
+    const snap = stats.snapshot()
+    snap.embeddingConsistency!.ok = true
+    expect(stats.snapshot().embeddingConsistency).toEqual({ ok: false, meanCosine: 0.1 })
+  })
+
   it('returns a fresh snapshot object each call', () => {
     const stats = new KnowledgeRuntimeStats()
     const a = stats.snapshot()
