@@ -22,7 +22,7 @@ Consumers inside this repository compile unchanged, and the query engines behave
 ## Migration
 
 1. Replace `CircuitBreaker` / `guarded` imports with a local breaker or your host's retry helper.
-2. Replace `KgPathEdge` with `KgNeighbor`, or declare the `{ source, target, relation }` record where you need path edges.
+2. Declare the `{ source, target, relation }` record where you need path edges; `KgNeighbor` is the neighbor projection (`targetId`, `relation`), not a replacement.
 3. Read only `legalFtsDegraded`, `caseLawFtsDegraded`, and `likeFallbacks` from `snapshot()`, and delete calls to the removed setters.
 4. Import removed modules through the package root, or delete the import.
 5. Confirm: `pnpm exec tsc --noEmit` reports no missing export, and `pnpm exec vitest run packages/patent/patent-knowledge` passes.

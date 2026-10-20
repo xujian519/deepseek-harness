@@ -22,7 +22,7 @@ description: "`@deepseek-ai/dsh-patent-knowledge` 移除 `CircuitBreaker`、`gua
 ## 迁移
 
 1. 把 `CircuitBreaker` / `guarded` 的导入替换为本地熔断器或宿主提供的重试助手。
-2. 用 `KgNeighbor` 替换 `KgPathEdge`；需要路径边时自行声明 `{ source, target, relation }` 记录。
+2. 需要路径边时自行声明 `{ source, target, relation }` 记录；`KgNeighbor` 是邻居投影（`targetId`、`relation`），不能替代路径边。
 3. 只从 `snapshot()` 读取 `legalFtsDegraded`、`caseLawFtsDegraded` 与 `likeFallbacks`，并删除对被移除 setter 的调用。
 4. 改从包根导入模块，或删除该导入。
 5. 确认：`pnpm exec tsc --noEmit` 不再报缺失导出，且 `pnpm exec vitest run packages/patent/patent-knowledge` 通过。

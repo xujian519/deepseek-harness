@@ -20,7 +20,7 @@ describe('patent-knowledge-install bin', () => {
       '--no-compress-chunks',
       '--keep-embeddings',
       '--no-fts',
-      '--no-search-prefix',
+      '--search-prefix',
       '--search-prefix-chars <n>',
       '--skip-verify',
     ]) {

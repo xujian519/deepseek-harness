@@ -4,7 +4,7 @@
  * knowledge data directory. Usage:
  *   patent-knowledge-install [--from <source>] [--output <path>]
  *     [--no-compress-chunks] [--keep-embeddings] [--no-fts]
- *     [--no-search-prefix] [--search-prefix-chars <n>] [--skip-verify]
+ *     [--search-prefix] [--search-prefix-chars <n>] [--skip-verify]
  * @module @deepseek-ai/dsh-patent-knowledge/bin
  */
 
@@ -19,7 +19,7 @@ const { values } = parseArgs({
     'no-compress-chunks': { type: 'boolean', default: false },
     'keep-embeddings': { type: 'boolean', default: false },
     'no-fts': { type: 'boolean', default: false },
-    'no-search-prefix': { type: 'boolean', default: false },
+    'search-prefix': { type: 'boolean', default: false },
     'search-prefix-chars': { type: 'string' },
     'skip-verify': { type: 'boolean', default: false },
     help: { type: 'boolean', default: false, short: 'h' },
@@ -38,7 +38,7 @@ if (values.help) {
     '  --no-compress-chunks      Skip chunks.content gzip compression.',
     '  --keep-embeddings         Keep the embeddings tables (dropped by default).',
     '  --no-fts                  Drop the FTS5 indexes (degrades full-text to LIKE).',
-    '  --no-search-prefix        Skip documents.search_prefix (case-law short-query speedup).',
+    '  --search-prefix           Write documents.search_prefix (case-law short-query speedup; bounds recall).',
     '  --search-prefix-chars <n> Prefix length in code points (default 512; range 64-2048).',
     '  --skip-verify             Skip the post-trim component verification.',
     '  -h, --help                Print this help.',
@@ -53,7 +53,7 @@ try {
     compressChunks: !values['no-compress-chunks'],
     keepEmbeddings: values['keep-embeddings'],
     noFts: values['no-fts'],
-    searchPrefix: !values['no-search-prefix'],
+    searchPrefix: values['search-prefix'],
     searchPrefixChars: values['search-prefix-chars'] === undefined
       ? undefined
       : Number(values['search-prefix-chars']),

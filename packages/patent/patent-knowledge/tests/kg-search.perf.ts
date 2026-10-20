@@ -4,7 +4,7 @@
  * knowledge.db to compare the trigram fast path with the LIKE fallback.
  *
  *   DSH_KNOWLEDGE_BENCH_DB=~/.dsh/knowledge/knowledge-lite.db \
- *     npx tsx packages/patent/patent-knowledge/tests/kg-search.perf.ts
+ *     pnpm exec tsx packages/patent/patent-knowledge/tests/kg-search.perf.ts
  */
 
 import { performance } from 'node:perf_hooks'

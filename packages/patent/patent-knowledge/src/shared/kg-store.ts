@@ -130,7 +130,9 @@ export class KgStore {
   /**
    * 探测统一 schema 的 trigram 索引是否覆盖正文并与节点表同步。
    * 行数一致只排除“缺少/多余索引行”；内容原地更新仍需数据管道重建索引。
-   * @returns 索引覆盖 name/title/content 且行数与 kg_nodes 一致时 true。
+   * 行数与 content 列都存在时，再取一个有正文的节点做列过滤 MATCH 抽查，
+   * 排除“列已声明但正文未写入索引”的管道产物。
+   * @returns 索引覆盖 name/title/content 且与 kg_nodes 对齐时 true。
    */
   private detectContentIndexComplete(): boolean {
     const columns = this.db.prepare("SELECT name FROM pragma_table_info('kg_nodes_fts')").all() as Array<{
@@ -139,7 +141,17 @@ export class KgStore {
     if (!columns.some(column => column.name === 'content')) return false
     const fts = this.db.prepare('SELECT COUNT(*) AS c FROM kg_nodes_fts').get() as { c: number }
     const nodes = this.db.prepare('SELECT COUNT(*) AS c FROM kg_nodes').get() as { c: number }
-    return fts.c === nodes.c
+    if (fts.c !== nodes.c) return false
+    // 取一段不含空格的正文片段做列过滤抽查；没有可抽查的正文时以行数一致性为准。
+    const probe = this.db
+      .prepare("SELECT content FROM kg_nodes WHERE content IS NOT NULL AND length(content) >= 8 AND instr(content, ' ') = 0 LIMIT 1")
+      .get() as { content: string } | undefined
+    if (probe === undefined) return true
+    const term = Array.from(probe.content).slice(2, 6).join('')
+    const hit = this.db
+      .prepare('SELECT 1 AS present FROM kg_nodes_fts WHERE kg_nodes_fts MATCH ? LIMIT 1')
+      .get(`content : ${escapeFtsPhrase(term)}`)
+    return hit !== undefined
   }
 
   /**

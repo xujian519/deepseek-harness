@@ -72,9 +72,13 @@ function makeUnifiedDb(dir: string, withFts = true): string {
 
 /**
  * Unified fixture whose trigram FTS indexes name/title/content and stays row-aligned
- * with kg_nodes. `stale` omits n6 from the FTS index to exercise the LIKE fallback.
+ * with kg_nodes. `stale` omits n6 from the FTS index; `unindexedContent` keeps the
+ * row count aligned while indexing NULL content; both exercise the LIKE fallback.
  */
-function makeContentFtsDb(dir: string, options: { stale?: boolean } = {}): string {
+function makeContentFtsDb(
+  dir: string,
+  options: { stale?: boolean; unindexedContent?: boolean; emptyContent?: boolean } = {},
+): string {
   const dbPath = join(dir, 'knowledge.db')
   const db = new DatabaseSync(dbPath)
   createUnifiedSchema(db)
@@ -86,6 +90,7 @@ function makeContentFtsDb(dir: string, options: { stale?: boolean } = {}): strin
   // them in rowid order (n1 then n6).
   db.prepare("UPDATE kg_nodes SET content = ? WHERE id = 'n1'")
     .run('创造性判断标准是指与现有技术相比具有突出的实质性特点。')
+  if (options.emptyContent) db.exec('UPDATE kg_nodes SET content = NULL')
   const rows = db.prepare('SELECT rowid, id, name, title, content FROM kg_nodes ORDER BY rowid').all() as Array<{
     rowid: number
     id: string
@@ -96,7 +101,7 @@ function makeContentFtsDb(dir: string, options: { stale?: boolean } = {}): strin
   const insFts = db.prepare('INSERT INTO kg_nodes_fts (rowid, name, title, content) VALUES (?, ?, ?, ?)')
   for (const row of rows) {
     if (options.stale && row.id === 'n6') continue
-    insFts.run(row.rowid, row.name, row.title, row.content)
+    insFts.run(row.rowid, row.name, row.title, options.unindexedContent ? null : row.content)
   }
   db.close()
   return dbPath
@@ -241,6 +246,22 @@ describe('KgStore unified schema', () => {
     // n6 is missing from the FTS index: the count check disables the fast path,
     // so the content-only phrase still comes back through LIKE.
     expect(store.searchByKeyword('判断标准应当', 10).map(n => n.id)).toContain('n6')
+  })
+
+  it('falls back to LIKE when the declared content column was indexed empty', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-content-unindexed-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeContentFtsDb(dir, { unindexedContent: true }))
+    // Row counts match, but the column-filtered probe misses: LIKE still finds n6.
+    expect(store.searchByKeyword('判断标准应当', 10).map(n => n.id)).toContain('n6')
+  })
+
+  it('keeps the fast path when no node carries content to probe', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-content-empty-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeContentFtsDb(dir, { emptyContent: true }))
+    expect(store.searchByKeyword('创造性', 10).map(n => n.id)).toEqual(['n1'])
+    expect(store.searchByKeyword('判断标准应当', 10)).toEqual([])
   })
 
   it('traverses neighbors, lists by type, and expands to depth', () => {

@@ -103,6 +103,18 @@ function buildSearchPrefix(db: DatabaseSync, chars: number): number | null {
   return documents
 }
 
+/**
+ * 删除输出库中可能由上一次 install 继承的 documents.search_prefix。
+ * 关闭前缀路径时必须移除该列，否则读取端仍会按列存在走有界召回路径。
+ * @param db 已打开的输出库连接。
+ * @returns 删除了列时 true；源库没有该列时 false。
+ */
+function dropSearchPrefix(db: DatabaseSync): boolean {
+  if (!tableColumns(db, 'documents').has('search_prefix')) return false
+  db.exec('ALTER TABLE documents DROP COLUMN search_prefix')
+  return true
+}
+
 function countRows(db: DatabaseSync, table: string): number {
   try {
     const row = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get() as { c: number }
@@ -159,7 +171,7 @@ export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}
   const keepEmbeddings = options.keepEmbeddings ?? false
   const noFts = options.noFts ?? false
   const skipVerify = options.skipVerify ?? false
-  const searchPrefix = options.searchPrefix ?? true
+  const searchPrefix = options.searchPrefix ?? false
   const searchPrefixChars = options.searchPrefixChars ?? SEARCH_PREFIX_DEFAULT_CHARS
   if (!Number.isInteger(searchPrefixChars) || searchPrefixChars < SEARCH_PREFIX_MIN_CHARS || searchPrefixChars > SEARCH_PREFIX_MAX_CHARS) {
     throw new Error(`searchPrefixChars 必须是 ${SEARCH_PREFIX_MIN_CHARS}–${SEARCH_PREFIX_MAX_CHARS} 之间的整数（收到 ${searchPrefixChars}）`)
@@ -209,20 +221,23 @@ export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}
   {
     const db = new DatabaseSync(output)
     try {
+      log('[2/3] 裁剪副本（检索辅助列 / 压缩 / 删表）…')
       if (searchPrefix) {
-        log(`[2/3] 生成 documents.search_prefix（每文档前 ${searchPrefixChars} 个字符）…`)
+        log(`    生成 documents.search_prefix（每文档前 ${searchPrefixChars} 个字符）…`)
         const prefixDocs = buildSearchPrefix(db, searchPrefixChars)
         log(prefixDocs === null
           ? '    跳过：源库缺少 documents.id 或 chunks(document_id, char_count)'
           : `    完成：search_prefix ${prefixDocs.toLocaleString()} 个文档`)
+      } else if (dropSearchPrefix(db)) {
+        log('    已删除继承的 documents.search_prefix（未启用前缀路径）')
       }
       if (compress) {
-        log('[2/3] 压缩 chunks.content（长 chunk 转 gzip BLOB）…')
+        log('    压缩 chunks.content（长 chunk 转 gzip BLOB）…')
         compressedChunks = compressChunksTable(db)
         log(`    完成：压缩 ${compressedChunks.toLocaleString()} 条（其余明文保留）`)
       }
       if (dropped.length > 0) {
-        log(`[2/3] 删除: ${dropped.join(', ')}…`)
+        log(`    删除: ${dropped.join(', ')}…`)
         db.exec(dropped.map(t => `DROP TABLE IF EXISTS "${t}"`).join(';\n'))
       }
       log('[3/3] 二次 VACUUM 释放空间…')

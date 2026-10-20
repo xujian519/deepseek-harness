@@ -87,7 +87,7 @@ describe('installKnowledgeDb search_prefix', () => {
     const input = makeFullSourceDb(dir, { match: true })
     const output = join(dir, 'knowledge-lite.db')
     const log: string[] = []
-    await installKnowledgeDb({ sourceDbPath: input, output, skipVerify: true, log: line => log.push(line) })
+    await installKnowledgeDb({ sourceDbPath: input, output, searchPrefix: true, skipVerify: true, log: line => log.push(line) })
 
     const prefix = withOutDb(output, (db) => {
       expect(columnNames(db, 'documents')).toContain('search_prefix')
@@ -112,7 +112,7 @@ describe('installKnowledgeDb search_prefix', () => {
     db.prepare("INSERT INTO chunks (document_id, chunk_index, content, char_count) VALUES ('d2', 1, ?, 100)").run('最长内容'.repeat(50))
     db.close()
     const output = join(dir, 'knowledge-lite.db')
-    await installKnowledgeDb({ sourceDbPath: dbPath, output, searchPrefixChars: 64, skipVerify: true })
+    await installKnowledgeDb({ sourceDbPath: dbPath, output, searchPrefix: true, searchPrefixChars: 64, skipVerify: true })
 
     withOutDb(output, (outDb) => {
       const rows = outDb.prepare('SELECT id, search_prefix FROM documents ORDER BY id').all() as Array<{ id: string; search_prefix: string }>
@@ -128,7 +128,7 @@ describe('installKnowledgeDb search_prefix', () => {
     const input = makeSourceDb(dir)
     const output = join(dir, 'knowledge-lite.db')
     const log: string[] = []
-    await installKnowledgeDb({ sourceDbPath: input, output, skipVerify: true, log: line => log.push(line) })
+    await installKnowledgeDb({ sourceDbPath: input, output, searchPrefix: true, skipVerify: true, log: line => log.push(line) })
 
     withOutDb(output, (db) => {
       expect(columnNames(db, 'documents')).not.toContain('search_prefix')
@@ -136,18 +136,34 @@ describe('installKnowledgeDb search_prefix', () => {
     expect(log.some(l => l.includes('跳过：源库缺少'))).toBe(true)
   })
 
-  it('omits search_prefix when searchPrefix is false', async () => {
+  it('omits search_prefix by default', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-off-'))
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
     const input = makeFullSourceDb(dir, { match: true })
     const output = join(dir, 'knowledge-lite.db')
     const log: string[] = []
-    await installKnowledgeDb({ sourceDbPath: input, output, searchPrefix: false, skipVerify: true, log: line => log.push(line) })
+    await installKnowledgeDb({ sourceDbPath: input, output, skipVerify: true, log: line => log.push(line) })
 
     withOutDb(output, (db) => {
       expect(columnNames(db, 'documents')).not.toContain('search_prefix')
     })
     expect(log.some(l => l.includes('search_prefix'))).toBe(false)
+  })
+
+  it('drops a search_prefix column inherited from a prefixed lite source', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-drop-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeFullSourceDb(dir, { match: true })
+    const first = join(dir, 'first.db')
+    const second = join(dir, 'second.db')
+    const log: string[] = []
+    await installKnowledgeDb({ sourceDbPath: input, output: first, searchPrefix: true, skipVerify: true })
+    await installKnowledgeDb({ sourceDbPath: first, output: second, skipVerify: true, log: line => log.push(line) })
+
+    withOutDb(second, (db) => {
+      expect(columnNames(db, 'documents')).not.toContain('search_prefix')
+    })
+    expect(log.some(l => l.includes('已删除继承的 documents.search_prefix'))).toBe(true)
   })
 
   it('skips chunk rows whose document id is not text', async () => {
@@ -162,7 +178,7 @@ describe('installKnowledgeDb search_prefix', () => {
     db.close()
     const output = join(dir, 'knowledge-lite.db')
     const log: string[] = []
-    await installKnowledgeDb({ sourceDbPath: dbPath, output, skipVerify: true, log: line => log.push(line) })
+    await installKnowledgeDb({ sourceDbPath: dbPath, output, searchPrefix: true, skipVerify: true, log: line => log.push(line) })
 
     withOutDb(output, (outDb) => {
       const row = outDb.prepare('SELECT search_prefix FROM documents').get() as { search_prefix: string | null }
@@ -175,9 +191,9 @@ describe('installKnowledgeDb search_prefix', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-range-'))
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
     const input = makeSourceDb(dir)
-    await expect(installKnowledgeDb({ sourceDbPath: input, output: join(dir, 'out.db'), searchPrefixChars: 32, skipVerify: true }))
+    await expect(installKnowledgeDb({ sourceDbPath: input, output: join(dir, 'out.db'), searchPrefix: true, searchPrefixChars: 32, skipVerify: true }))
       .rejects.toThrow(/searchPrefixChars/)
-    await expect(installKnowledgeDb({ sourceDbPath: input, output: join(dir, 'out.db'), searchPrefixChars: 2049, skipVerify: true }))
+    await expect(installKnowledgeDb({ sourceDbPath: input, output: join(dir, 'out.db'), searchPrefix: true, searchPrefixChars: 2049, skipVerify: true }))
       .rejects.toThrow(/searchPrefixChars/)
   })
 
@@ -187,10 +203,10 @@ describe('installKnowledgeDb search_prefix', () => {
     const input = makeFullSourceDb(dir, { match: true })
     const first = join(dir, 'first.db')
     const second = join(dir, 'second.db')
-    await installKnowledgeDb({ sourceDbPath: input, output: first, skipVerify: true })
+    await installKnowledgeDb({ sourceDbPath: input, output: first, searchPrefix: true, skipVerify: true })
     // The first output stores long chunk bodies as gzip BLOBs; rebuilding the
     // prefix must decompress them instead of truncating binary data.
-    await installKnowledgeDb({ sourceDbPath: first, output: second, skipVerify: true })
+    await installKnowledgeDb({ sourceDbPath: first, output: second, searchPrefix: true, skipVerify: true })
 
     withOutDb(second, (db) => {
       const prefix = (db.prepare("SELECT search_prefix FROM documents WHERE id = 'case:d1'").get() as { search_prefix: string }).search_prefix

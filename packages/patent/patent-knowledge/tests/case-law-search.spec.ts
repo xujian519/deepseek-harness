@@ -84,8 +84,8 @@ function createEngine(includeFts = true, includePrefix = false): { engine: CaseL
   return { engine: new CaseLawSearchEngine(dbPath), dir }
 }
 
-function withEngine(includeFts = true): CaseLawSearchEngine {
-  const { engine, dir } = createEngine(includeFts)
+function withEngine(includeFts = true, includePrefix = false): CaseLawSearchEngine {
+  const { engine, dir } = createEngine(includeFts, includePrefix)
   cleanups.push(() => {
     engine.close()
     rmSync(dir, { recursive: true, force: true })
