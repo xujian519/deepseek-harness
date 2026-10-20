@@ -1,12 +1,16 @@
 // Real-service test: mounts the patent-data plugin on a real Context (over the
 // real subprocess provider) and drives the search provider/cache with an
 // injected search function; only the external search seam is mocked.
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import PatentData, {
   CniprChannel,
   cachedSearchPatents,
+  DEFAULT_CNIPR_PAGE_BUDGETS,
   DEFAULT_EGO_COMMAND_NAME,
   DEFAULT_EGO_MAX_OUTPUT_BYTES,
   DEFAULT_EGO_MAX_TIMEOUT_MS,
@@ -25,6 +29,17 @@ function recordingRunner(specs: EgoSpawnSpec[]): EgoSpawnRunner {
       // The probe marker plus padding, so one runner serves both the probe and a
       // run whose merged output exceeds a small configured cap.
       return { exitCode: 0, stdout: `EGO_DOCTOR_OK\n${'y'.repeat(64)}`, stderr: '', timedOut: false, durationMs: 1 }
+    },
+  }
+}
+
+/** A runner that answers the probe and returns an empty CNIPR receipt for script runs. */
+function receiptRunner(specs: EgoSpawnSpec[]): EgoSpawnRunner {
+  return {
+    spawn: async (spec) => {
+      specs.push(spec)
+      const stdout = spec.stdinData === undefined ? 'EGO_DOCTOR_OK' : 'EGO_CNIPR_PDFLINKS:{"items":[]}'
+      return { exitCode: 0, stdout, stderr: '', timedOut: false, durationMs: 1 }
     },
   }
 }
@@ -107,6 +122,14 @@ describe('PatentData service', () => {
       maxOutputBytes: DEFAULT_EGO_MAX_OUTPUT_BYTES,
       nuoRequestChannel: 'auto',
       cniprEnabled: false,
+      cniprLoginPollMs: DEFAULT_CNIPR_PAGE_BUDGETS.loginPollMs,
+      cniprLoginAttempts: DEFAULT_CNIPR_PAGE_BUDGETS.loginAttempts,
+      cniprLoginRounds: DEFAULT_CNIPR_PAGE_BUDGETS.loginRounds,
+      cniprNavigationTimeoutMs: DEFAULT_CNIPR_PAGE_BUDGETS.navigationTimeoutMs,
+      cniprActionTimeoutMs: DEFAULT_CNIPR_PAGE_BUDGETS.actionTimeoutMs,
+      cniprResultTimeoutMs: DEFAULT_CNIPR_PAGE_BUDGETS.resultTimeoutMs,
+      cniprRenderTimeoutMs: DEFAULT_CNIPR_PAGE_BUDGETS.renderTimeoutMs,
+      cniprDetailTimeoutMs: DEFAULT_CNIPR_PAGE_BUDGETS.detailTimeoutMs,
     })
   })
 
@@ -120,6 +143,10 @@ describe('PatentData service', () => {
         .toThrow(/maxOutputBytes must be a positive integer/)
       expect(() => new PatentData(ctx, { commandName: '' }))
         .toThrow(/commandName must not be empty/)
+      expect(() => new PatentData(ctx, { cniprLoginRounds: 0 }))
+        .toThrow(/cniprLoginRounds must be a positive integer/)
+      expect(() => new PatentData(ctx, { cniprDetailTimeoutMs: 1.5 }))
+        .toThrow(/cniprDetailTimeoutMs must be a positive integer/)
     } finally {
       await ctx.fiber.dispose()
     }
@@ -134,6 +161,55 @@ describe('PatentData service', () => {
       expect(channel).toBeInstanceOf(CniprChannel)
     } finally {
       await ctx.fiber.dispose()
+    }
+  })
+
+  it('carries configured CNIPR page budgets into the generated script', async () => {
+    // 可用性检查看文件系统：在临时主目录放一个可执行的 ego-browser。
+    const root = await mkdtemp(join(tmpdir(), 'dsh-patent-data-budgets-'))
+    await mkdir(join(root, '.local', 'bin'), { recursive: true })
+    const cli = join(root, '.local', 'bin', 'ego-browser')
+    await writeFile(cli, '')
+    await chmod(cli, 0o755)
+
+    const specs: EgoSpawnSpec[] = []
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    await ctx.plugin(PatentData, {
+      cniprEnabled: true,
+      cniprLoginPollMs: 250,
+      cniprLoginAttempts: 3,
+      cniprLoginRounds: 1,
+      cniprNavigationTimeoutMs: 12_000,
+      cniprActionTimeoutMs: 4_000,
+      cniprResultTimeoutMs: 5_000,
+      cniprRenderTimeoutMs: 6_000,
+      cniprDetailTimeoutMs: 7_000,
+    })
+    try {
+      const service = ctx.patentData
+      const createSession = service.createEgoSession.bind(service)
+      vi.spyOn(service, 'createEgoSession').mockImplementation(() =>
+        createSession({ runner: receiptRunner(specs), homeDir: root, platform: 'darwin' }))
+
+      // 逐字段覆盖：只换渲染预算，其余沿用 Config。
+      const channel = service.createCniprChannel({ pageBudgets: { renderTimeoutMs: 9_111 } })
+      expect(channel).toBeInstanceOf(CniprChannel)
+      await channel?.pdfLinks(['CN122072823A'])
+
+      const script = specs.at(-1)?.stdinData ?? ''
+      expect(script).toContain('const LOGIN_POLL_MS = 250')
+      expect(script).toContain('const LOGIN_ATTEMPTS = 3')
+      expect(script).toContain('const LOGIN_ROUNDS = 1')
+      expect(script).toContain('const NAVIGATION_TIMEOUT_MS = 12000')
+      expect(script).toContain('const ACTION_TIMEOUT_MS = 4000')
+      expect(script).toContain('const RESULT_TIMEOUT_MS = 5000')
+      expect(script).toContain('const RENDER_TIMEOUT_MS = 9111')
+      expect(script).toContain('const DETAIL_TIMEOUT_MS = 7000')
+    } finally {
+      vi.restoreAllMocks()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
     }
   })
 

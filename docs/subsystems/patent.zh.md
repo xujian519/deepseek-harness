@@ -38,10 +38,11 @@ createEgoSession(options?: EgoSessionOptions): EgoBrowserSession
 /**
  * Build a CNIPR channel over an ego-browser session, or nothing when this deployment
  * has not enabled the channel (`Config.cniprEnabled`, default false).
- * @param options - optional per-channel overrides; a channel option replaces the same-named field the service resolved.
+ * @param options - optional per-channel overrides; a channel option replaces the same-named field
+ * the service resolved, and a `pageBudgets` entry replaces only that wait.
  * @returns the channel, or undefined while CNIPR is disabled.
  */
-createCniprChannel(options?: CniprChannelOverrides): CniprChannel | undefined
+createCniprChannel(options: CniprChannelOverrides = {}): CniprChannel | undefined
 ```
 
 Source: [`packages/patent/patent-data/src/index.ts`](../../packages/patent/patent-data/src/index.ts)

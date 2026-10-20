@@ -8,7 +8,7 @@
  * @module @deepseek-ai/dsh-patent-data/cnipr-channel
  */
 
-import { CNIPR_LEGAL_TAG, CNIPR_PDF_TAG, CNIPR_SEARCH_TAG, buildCniprLegalScript, buildCniprPdfLinksScript, buildCniprSearchScript } from './cnipr-script.ts'
+import { CNIPR_LEGAL_TAG, CNIPR_PDF_TAG, CNIPR_SEARCH_TAG, DEFAULT_CNIPR_PAGE_BUDGETS, buildCniprLegalScript, buildCniprPdfLinksScript, buildCniprSearchScript } from './cnipr-script.ts'
 import { SerialQueue } from './serial-queue.ts'
 import {
   alignCniprResults,
@@ -25,6 +25,7 @@ import type {
   CniprEgoSession,
   CniprFailureCode,
   CniprLegalStatusItem,
+  CniprPageBudgets,
   CniprPdfLinkItem,
   CniprSearchOptions,
   CniprSearchResult,
@@ -72,15 +73,17 @@ export class CniprChannel {
   private readonly session: CniprEgoSession
   private readonly queue: SerialQueue
   private readonly timeoutMs: number | undefined
+  private readonly pageBudgets: CniprPageBudgets
   private readonly cwd: string
 
   /**
-   * @param options - 注入的 ego 会话、共享串行队列、单次运行的期限与工作目录。
+   * @param options - 注入的 ego 会话、共享串行队列、单次运行的期限、页面等待预算与工作目录。
    */
   constructor(options: CniprChannelOptions) {
     this.session = options.session
     this.queue = options.queue ?? new SerialQueue()
     this.timeoutMs = options.timeoutMs
+    this.pageBudgets = { ...DEFAULT_CNIPR_PAGE_BUDGETS, ...options.pageBudgets }
     this.cwd = options.cwd ?? process.cwd()
   }
 
@@ -93,7 +96,7 @@ export class CniprChannel {
   async pdfLinks(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprPdfLinkItem[]> {
     const { requested, unsupported } = planCniprPdfRequests(numbers)
     if (requested.length === 0) return alignCniprResults(numbers, unsupported, cniprPdfMissing)
-    const payload = await this.run(buildCniprPdfLinksScript(requested), CNIPR_PDF_TAG, options)
+    const payload = await this.run(buildCniprPdfLinksScript(requested, this.pageBudgets), CNIPR_PDF_TAG, options)
     const read = readCniprPdfLinksPayload(payload)
     if (read.failure !== undefined) throw new CniprChannelError(read.failure.code, read.failure.message)
     return alignCniprResults(numbers, [...read.items, ...unsupported], cniprPdfMissing)
@@ -109,7 +112,7 @@ export class CniprChannel {
   async legalStatus(numbers: readonly string[], options: CniprCallOptions = {}): Promise<CniprLegalStatusItem[]> {
     const { queries, unsupported } = planCniprLegalQueries(numbers)
     if (queries.length === 0) return alignCniprResults(numbers, unsupported, cniprLegalMissing)
-    const payload = await this.run(buildCniprLegalScript(queries), CNIPR_LEGAL_TAG, options)
+    const payload = await this.run(buildCniprLegalScript(queries, this.pageBudgets), CNIPR_LEGAL_TAG, options)
     const read = readCniprLegalPayload(payload)
     if (read.failure !== undefined) throw new CniprChannelError(read.failure.code, read.failure.message)
     return alignCniprResults(numbers, [...read.items, ...unsupported], cniprLegalMissing)
@@ -124,7 +127,7 @@ export class CniprChannel {
    */
   async search(query: string, options: CniprSearchOptions = {}): Promise<CniprSearchResult> {
     const request = planCniprSearchRequest(options.limit)
-    const payload = await this.run(buildCniprSearchScript(query, request.pages), CNIPR_SEARCH_TAG, options)
+    const payload = await this.run(buildCniprSearchScript(query, request.pages, this.pageBudgets), CNIPR_SEARCH_TAG, options)
     const read = readCniprSearchPayload(payload)
     if (read.failure !== undefined) throw new CniprChannelError(read.failure.code, read.failure.message)
     if (read.total === null) {

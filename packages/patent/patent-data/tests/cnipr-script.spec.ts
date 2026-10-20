@@ -6,10 +6,12 @@ import {
   CNIPR_PDF_TAG,
   CNIPR_SEARCH_TAG,
   CNIPR_TASK_SPACE,
+  DEFAULT_CNIPR_PAGE_BUDGETS,
   buildCniprLegalScript,
   buildCniprPdfLinksScript,
   buildCniprSearchScript,
 } from '@deepseek-ai/dsh-patent-data'
+import type { CniprPageBudgets } from '@deepseek-ai/dsh-patent-data'
 
 /** Constructor shape for compiling a script body that contains top-level await. */
 type AsyncFunctionConstructor = new (body: string) => (...args: unknown[]) => Promise<unknown>
@@ -24,6 +26,56 @@ describe('generated script bodies', () => {
       buildCniprSearchScript('石墨烯 "quoted" \\ backslash', 3),
     ]
     for (const body of bodies) expect(() => new AsyncFunction(body)).not.toThrow()
+  })
+})
+
+describe('page budgets', () => {
+  const budgets: CniprPageBudgets = {
+    loginPollMs: 250,
+    loginAttempts: 3,
+    loginRounds: 1,
+    navigationTimeoutMs: 12_000,
+    actionTimeoutMs: 4_000,
+    resultTimeoutMs: 5_000,
+    renderTimeoutMs: 6_000,
+    detailTimeoutMs: 7_000,
+  }
+
+  const scripts = (values: CniprPageBudgets): string[] => [
+    buildCniprPdfLinksScript(['CN122072823A'], values),
+    buildCniprLegalScript([{ number: '2023113560975', appNumber: '202311356097.5' }], values),
+    buildCniprSearchScript('石墨烯电池', 1, values),
+  ]
+
+  it('ships the measured waits as the defaults', () => {
+    for (const script of scripts(DEFAULT_CNIPR_PAGE_BUDGETS)) {
+      expect(script).toContain(`const LOGIN_POLL_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.loginPollMs}`)
+      expect(script).toContain(`const LOGIN_ATTEMPTS = ${DEFAULT_CNIPR_PAGE_BUDGETS.loginAttempts}`)
+      expect(script).toContain(`const LOGIN_ROUNDS = ${DEFAULT_CNIPR_PAGE_BUDGETS.loginRounds}`)
+      expect(script).toContain(`const NAVIGATION_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.navigationTimeoutMs}`)
+      expect(script).toContain(`const ACTION_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.actionTimeoutMs}`)
+      expect(script).toContain(`const RESULT_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.resultTimeoutMs}`)
+      expect(script).toContain(`const RENDER_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.renderTimeoutMs}`)
+      expect(script).toContain(`const DETAIL_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.detailTimeoutMs}`)
+    }
+  })
+
+  it('embeds non-default waits in every generated script', () => {
+    for (const script of scripts(budgets)) {
+      expect(script).toContain('const LOGIN_POLL_MS = 250')
+      expect(script).toContain('const LOGIN_ATTEMPTS = 3')
+      expect(script).toContain('const LOGIN_ROUNDS = 1')
+      expect(script).toContain('const NAVIGATION_TIMEOUT_MS = 12000')
+      expect(script).toContain('const ACTION_TIMEOUT_MS = 4000')
+      expect(script).toContain('const RESULT_TIMEOUT_MS = 5000')
+      expect(script).toContain('const RENDER_TIMEOUT_MS = 6000')
+      expect(script).toContain('const DETAIL_TIMEOUT_MS = 7000')
+      // 单轮配置不再 reload 首页；多轮时只在轮间 reload。
+      expect(script).toContain('if (round < LOGIN_ROUNDS - 1)')
+      expect(script).not.toContain('45000')
+    }
+    // 详情 XHR 的失败文案跟随配置，而不是写死秒数。
+    expect(scripts(budgets)[0]).toContain("'详情检索 ' + DETAIL_TIMEOUT_MS + ' 毫秒未返回'")
   })
 })
 

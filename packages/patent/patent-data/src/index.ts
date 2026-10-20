@@ -22,9 +22,10 @@ import {
 import { SubprocessEgoSpawnRunner } from './subprocess-runner.ts'
 import { applyNuoRequestChannel } from './nuo-channel.ts'
 import { CniprChannel } from './cnipr-channel.ts'
+import { DEFAULT_CNIPR_PAGE_BUDGETS } from './cnipr-script.ts'
 import { SerialQueue } from './serial-queue.ts'
 import { NUO_REQUEST_CHANNELS } from './types.ts'
-import type { CniprChannelOverrides, CreateNuoSearchProviderOptions, EgoSessionOptions, NuoRequestChannel } from './types.ts'
+import type { CniprChannelOverrides, CniprPageBudgets, CreateNuoSearchProviderOptions, EgoSessionOptions, NuoRequestChannel } from './types.ts'
 
 export { createNuoSearchProvider } from './search-provider.ts'
 export {
@@ -54,6 +55,7 @@ export {
   CNIPR_PDF_TAG,
   CNIPR_SEARCH_TAG,
   CNIPR_TASK_SPACE,
+  DEFAULT_CNIPR_PAGE_BUDGETS,
   buildCniprLegalScript,
   buildCniprPdfLinksScript,
   buildCniprSearchScript,
@@ -102,6 +104,7 @@ export type {
   CniprLegalQuery,
   CniprLegalRecord,
   CniprLegalStatusItem,
+  CniprPageBudgets,
   CniprPdfLinkItem,
   CniprScriptFailure,
   CniprScriptFailureCode,
@@ -127,7 +130,10 @@ export type {
  * probe and run deadlines, and the output cap differ between hosts (a wrapper
  * on the PATH, a slower machine, a larger scrape), so each is a validated
  * field here; every default is the value the seam shipped before it was
- * configurable, and a per-call option still overrides it.
+ * configurable, and a per-call option still overrides it. The CNIPR page waits
+ * are the same kind of value: site latency, login-state refresh, and network
+ * conditions decide them per deployment, so every step the generated scripts
+ * wait on is a field rather than a literal.
  */
 export interface Config {
   /** ego-browser CLI command name (default `ego-browser`). */
@@ -155,6 +161,22 @@ export interface Config {
    * 消费方据此按号回退到 nuo 引擎，并在结果里点名实际服务的通道。
    */
   cniprEnabled?: boolean
+  /** CNIPR 登录态轮询间隔（毫秒，默认 1000）。 */
+  cniprLoginPollMs?: number
+  /** 每轮 CNIPR 登录态轮询次数（默认 10）。 */
+  cniprLoginAttempts?: number
+  /** CNIPR 登录态轮询轮数；除最后一轮外每轮结束 reload 首页（默认 2）。 */
+  cniprLoginRounds?: number
+  /** CNIPR 页面导航期限（毫秒，默认 45000）：首页 goto/reload 与检索结果页 URL。 */
+  cniprNavigationTimeoutMs?: number
+  /** CNIPR 点击与表单提交期限（毫秒，默认 15000）。 */
+  cniprActionTimeoutMs?: number
+  /** CNIPR 结果页结构出现期限（毫秒，默认 30000）：详情表单、法律状态表单与结果 URL、翻页标记。 */
+  cniprResultTimeoutMs?: number
+  /** CNIPR 结果内容渲染期限（毫秒，默认 20000）：结果行、申请号、法律状态结果标题。 */
+  cniprRenderTimeoutMs?: number
+  /** CNIPR 详情检索接口的响应期限（毫秒，默认 20000）。 */
+  cniprDetailTimeoutMs?: number
 }
 
 /**
@@ -181,9 +203,18 @@ export class PatentData extends Service {
     maxOutputBytes: z.natural().min(1).default(DEFAULT_EGO_MAX_OUTPUT_BYTES),
     nuoRequestChannel: z.union(NUO_REQUEST_CHANNELS).default('auto'),
     cniprEnabled: z.boolean().default(false),
+    cniprLoginPollMs: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.loginPollMs),
+    cniprLoginAttempts: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.loginAttempts),
+    cniprLoginRounds: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.loginRounds),
+    cniprNavigationTimeoutMs: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.navigationTimeoutMs),
+    cniprActionTimeoutMs: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.actionTimeoutMs),
+    cniprResultTimeoutMs: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.resultTimeoutMs),
+    cniprRenderTimeoutMs: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.renderTimeoutMs),
+    cniprDetailTimeoutMs: z.natural().min(1).default(DEFAULT_CNIPR_PAGE_BUDGETS.detailTimeoutMs),
   })
 
   private readonly egoDefaults: ResolvedEgoDefaults
+  private readonly cniprBudgets: CniprPageBudgets
   private readonly cniprRuns = new SerialQueue()
   private readonly cniprEnabled: boolean
 
@@ -191,8 +222,10 @@ export class PatentData extends Service {
     // Resolve and validate before super() registers the service: an invalid
     // mount must fail without leaving a half-registered ctx.patentData behind.
     const egoDefaults = resolveEgoDefaults(config)
+    const cniprBudgets = resolveCniprBudgets(config)
     super(ctx, 'patentData')
     this.egoDefaults = egoDefaults
+    this.cniprBudgets = cniprBudgets
     this.cniprEnabled = config.cniprEnabled ?? false
     const restoreNuoChannel = applyNuoRequestChannel(config.nuoRequestChannel ?? 'auto')
     if (restoreNuoChannel !== undefined) {
@@ -227,12 +260,19 @@ export class PatentData extends Service {
   /**
    * Build a CNIPR channel over an ego-browser session, or nothing when this deployment
    * has not enabled the channel (`Config.cniprEnabled`, default false).
-   * @param options - optional per-channel overrides; a channel option replaces the same-named field the service resolved.
+   * @param options - optional per-channel overrides; a channel option replaces the same-named field
+   * the service resolved, and a `pageBudgets` entry replaces only that wait.
    * @returns the channel, or undefined while CNIPR is disabled.
    */
-  createCniprChannel(options?: CniprChannelOverrides): CniprChannel | undefined {
+  createCniprChannel(options: CniprChannelOverrides = {}): CniprChannel | undefined {
     if (!this.cniprEnabled) return undefined
-    return new CniprChannel({ session: this.createEgoSession(), queue: this.cniprRuns, ...options })
+    const { pageBudgets, ...rest } = options
+    return new CniprChannel({
+      session: this.createEgoSession(),
+      queue: this.cniprRuns,
+      pageBudgets: { ...this.cniprBudgets, ...pageBudgets },
+      ...rest,
+    })
   }
 }
 
@@ -264,6 +304,33 @@ function resolveEgoDefaults(config: Config): ResolvedEgoDefaults {
     )
   }
   return resolved
+}
+
+/**
+ * Resolve the CNIPR page budgets: the validated Config fields, each falling
+ * back to the value the generated scripts shipped before it was configurable.
+ *
+ * The checks repeat the schema's constraints because a direct constructor call
+ * bypasses cordis' validation; a zero deadline would otherwise turn every page
+ * wait into an immediate timeout instead of failing at load.
+ * @param config - the service's validated configuration.
+ * @returns the page budgets every channel the service creates starts from.
+ * @throws when a value is not a positive integer.
+ */
+function resolveCniprBudgets(config: Config): CniprPageBudgets {
+  return {
+    loginPollMs: positiveInteger('cniprLoginPollMs', config.cniprLoginPollMs ?? DEFAULT_CNIPR_PAGE_BUDGETS.loginPollMs),
+    loginAttempts: positiveInteger('cniprLoginAttempts', config.cniprLoginAttempts ?? DEFAULT_CNIPR_PAGE_BUDGETS.loginAttempts),
+    loginRounds: positiveInteger('cniprLoginRounds', config.cniprLoginRounds ?? DEFAULT_CNIPR_PAGE_BUDGETS.loginRounds),
+    navigationTimeoutMs: positiveInteger(
+      'cniprNavigationTimeoutMs',
+      config.cniprNavigationTimeoutMs ?? DEFAULT_CNIPR_PAGE_BUDGETS.navigationTimeoutMs,
+    ),
+    actionTimeoutMs: positiveInteger('cniprActionTimeoutMs', config.cniprActionTimeoutMs ?? DEFAULT_CNIPR_PAGE_BUDGETS.actionTimeoutMs),
+    resultTimeoutMs: positiveInteger('cniprResultTimeoutMs', config.cniprResultTimeoutMs ?? DEFAULT_CNIPR_PAGE_BUDGETS.resultTimeoutMs),
+    renderTimeoutMs: positiveInteger('cniprRenderTimeoutMs', config.cniprRenderTimeoutMs ?? DEFAULT_CNIPR_PAGE_BUDGETS.renderTimeoutMs),
+    detailTimeoutMs: positiveInteger('cniprDetailTimeoutMs', config.cniprDetailTimeoutMs ?? DEFAULT_CNIPR_PAGE_BUDGETS.detailTimeoutMs),
+  }
 }
 
 /**
