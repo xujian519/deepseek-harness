@@ -3,9 +3,15 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  declaredCountTotal,
+  declaredToolCounts,
+  findTemplateCountViolations,
+  findTemplateStatementViolations,
+  findToolCountViolations,
   findToolRefViolations,
   loadPresetCorpus,
   mountedToolNames,
+  mountedToolsByPackage,
   parseToolCatalog,
   toolReferences,
   type PresetCorpus,
@@ -23,16 +29,52 @@ const CATALOG = [
   '| `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools` | `tool/call` | - | - |',
 ].join('\n')
 
-/** One corpus entry over a preset YAML and an optional skill file. */
-function corpusOf(preset: string, presetSource: string, skillSource = ''): PresetCorpus {
+/** One corpus entry over a preset YAML and an optional README and skill file. */
+function corpusOf(preset: string, presetSource: string, skillSource = '', readmeSource = ''): PresetCorpus {
   return {
     preset,
     presetFile: { path: `presets/${preset}.patch.yml`, source: presetSource },
+    readmeFiles: readmeSource === '' ? [] : [{ path: `presets/${preset}.md`, source: readmeSource }],
     skillFiles: skillSource === '' ? [] : [{ path: `skills/${preset}/probe/SKILL.md`, source: skillSource }],
   }
 }
 
 const FS_PRESET = ['- insert:', "    - name: '@deepseek-ai/dsh-tool-fs'", ''].join('\n')
+
+/** A preset that mounts the patent-tools package. */
+const PATENT_TOOLS_PRESET = ['- insert:', "    - name: '@deepseek-ai/dsh-patent-tools'", ''].join('\n')
+
+/** A catalog whose patent-tools row carries three tools. */
+const COUNT_CATALOG = [
+  '| Tool package | Model-visible names | Requires | Writes / affects | Shipped aliases | Deployment note |',
+  '| --- | --- | --- | --- | --- | --- |',
+  '| `@deepseek-ai/dsh-patent-tools` | `patent_search`, `draft_claims`, `matter_log_append` | `ctx.tools` | `tool/call` | - | - |',
+  '| `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools` | `tool/call` | - | - |',
+].join('\n')
+
+/**
+ * A catalog carrying one `render_patent_document` section.
+ * @param description - the `template` parameter description.
+ * @param ids - the template ids the schema enumerates.
+ * @param mainDescription - the tool description that precedes the schema.
+ * @returns catalog text with a following section, so the scan proves its own boundary.
+ */
+function templateCatalog(description: string, ids: string[], mainDescription = 'Render a document.'): string {
+  return [
+    '## `@deepseek-ai/dsh-patent-document`',
+    '',
+    '### `render_patent_document`',
+    '',
+    mainDescription,
+    '',
+    '```json',
+    JSON.stringify({ type: 'object', properties: { template: { type: 'string', description, enum: ids } } }, null, 2),
+    '```',
+    '',
+    '## `@deepseek-ai/dsh-next`',
+    '',
+  ].join('\n')
+}
 
 const tempRoots: string[] = []
 afterEach(() => {
@@ -42,8 +84,14 @@ afterEach(() => {
 describe('parseToolCatalog', () => {
   it('reads the model-visible names and shipped aliases of each package row', () => {
     const catalog = parseToolCatalog(CATALOG)
-    expect(catalog.get('@deepseek-ai/dsh-tool-fs')).toEqual(new Set(['edit', 'read', 'read_image', 'write']))
-    expect(catalog.get('@deepseek-ai/dsh-tool-subagent')).toEqual(new Set(['subagent', 'subagent_fork']))
+    expect(catalog.get('@deepseek-ai/dsh-tool-fs')).toEqual({
+      names: new Set(['edit', 'read', 'read_image', 'write']),
+      aliases: new Set(),
+    })
+    expect(catalog.get('@deepseek-ai/dsh-tool-subagent')).toEqual({
+      names: new Set(['subagent']),
+      aliases: new Set(['subagent_fork']),
+    })
   })
 
   it('reads no package from prose outside the table', () => {
@@ -102,6 +150,202 @@ describe('mountedToolNames', () => {
     expect(mountedToolNames(preset, parseToolCatalog(CATALOG))).toEqual(new Set(['web_search']))
   })
 })
+
+describe('mountedToolsByPackage', () => {
+  it('groups the catalog names of every plugin the preset names', () => {
+    expect([...mountedToolsByPackage(PATENT_TOOLS_PRESET, parseToolCatalog(COUNT_CATALOG)).entries()]).toEqual([
+      ['@deepseek-ai/dsh-patent-tools', {
+        names: new Set(['patent_search', 'draft_claims', 'matter_log_append']),
+        aliases: new Set(),
+      }],
+    ])
+  })
+
+  it('subtracts a tool the row config turns off', () => {
+    const preset = [
+      '- insert:',
+      "    - name: '@deepseek-ai/dsh-tool-web'",
+      '      config:',
+      '        fetch: false',
+      '',
+    ].join('\n')
+    expect([...mountedToolsByPackage(preset, parseToolCatalog(COUNT_CATALOG)).values()]).toEqual([
+      { names: new Set(['web_search']), aliases: new Set() },
+    ])
+  })
+})
+
+describe('declaredToolCounts', () => {
+  it('reads the English and Chinese catalogue lines', () => {
+    const source = [
+      '- `@deepseek-ai/dsh-patent-tools` — 33 model-facing tools: search, drafting.',
+      '- `@deepseek-ai/dsh-patent-tools` — 33 个模型工具：检索、撰写。',
+    ].join('\n')
+    expect(declaredToolCounts(source)).toEqual([
+      { line: 1, packageName: '@deepseek-ai/dsh-patent-tools', count: 33 },
+      { line: 2, packageName: '@deepseek-ai/dsh-patent-tools', count: 33 },
+    ])
+  })
+
+  it('ignores a count stated without the package it belongs to', () => {
+    expect(declaredToolCounts('The preset ships thirty model-facing tools.')).toEqual([])
+  })
+})
+
+describe('findToolCountViolations', () => {
+  it('accepts a count equal to the tools the package mounts', () => {
+    const readme = '- `@deepseek-ai/dsh-patent-tools` — 3 model-facing tools: the three.'
+    expect(findToolCountViolations(COUNT_CATALOG, [corpusOf('a', PATENT_TOOLS_PRESET, '', readme)])).toEqual([])
+  })
+
+  it('reports a count the mounted tool set contradicts', () => {
+    const readme = 'line one\n- `@deepseek-ai/dsh-patent-tools` — 2 model-facing tools: the two.'
+    expect(findToolCountViolations(COUNT_CATALOG, [corpusOf('a', PATENT_TOOLS_PRESET, '', readme)])).toEqual([
+      'presets/a.md:2: states 2 tools for @deepseek-ai/dsh-patent-tools, but preset a mounts 3',
+    ])
+  })
+
+  it('reports a count for a package the preset does not mount', () => {
+    const readme = '- `@deepseek-ai/dsh-patent-tools` — 3 model-facing tools: the three.'
+    expect(findToolCountViolations(COUNT_CATALOG, [corpusOf('a', FS_PRESET, '', readme)])).toEqual([
+      'presets/a.md:1: states a tool count for @deepseek-ai/dsh-patent-tools, which preset a does not mount',
+    ])
+  })
+
+  it('counts only the tools a config switch leaves mounted', () => {
+    const preset = [
+      '- insert:',
+      "    - name: '@deepseek-ai/dsh-tool-web'",
+      '      config:',
+      '        fetch: false',
+      '',
+    ].join('\n')
+    const readme = '- `@deepseek-ai/dsh-tool-web` — 1 model-facing tool: search.'
+    expect(findToolCountViolations(COUNT_CATALOG, [corpusOf('a', preset, '', readme)])).toEqual([])
+  })
+
+  it('counts registered names, not shipped aliases', () => {
+    const preset = [
+      '- insert:',
+      "    - name: '@deepseek-ai/dsh-tool-subagent'",
+      '',
+    ].join('\n')
+    const readme = '- `@deepseek-ai/dsh-tool-subagent` — 1 model-facing tools: delegation.'
+    expect(findToolCountViolations(CATALOG, [corpusOf('a', preset, '', readme)])).toEqual([])
+  })
+})
+
+describe('findTemplateCountViolations', () => {
+  const IDS = ['patentability-opinion', 'search-report', 'oa-response']
+
+  it('accepts a stated count equal to the registry ids', () => {
+    const catalog = templateCatalog('Template id to render (one of the three shipped patent templates).', IDS)
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([])
+  })
+
+  it('checks the count stated in the tool description too', () => {
+    const catalog = templateCatalog(
+      'Template id to render (one of the three shipped patent templates).',
+      IDS,
+      'All three templates accept a controlled draft.',
+    )
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([])
+  })
+
+  it('reads a capitalized phrase and a digit count', () => {
+    const catalog = templateCatalog(
+      'Template id to render (One of the 3 shipped patent templates).',
+      IDS,
+      'All three templates accept a controlled draft.',
+    )
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([])
+  })
+
+  it('reports a stated count the registry contradicts', () => {
+    const catalog = templateCatalog('Template id to render (one of the eleven shipped patent templates).', IDS)
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([
+      'docs/tool-catalog.md: `render_patent_document` states "one of the eleven shipped patent templates", but the shipped registry carries 3 templates',
+    ])
+  })
+
+  it('reports a count in the main description the registry contradicts', () => {
+    const catalog = templateCatalog(
+      'Template id to render (one of the three shipped patent templates).',
+      IDS,
+      'All eleven templates accept a controlled draft.',
+    )
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([
+      'docs/tool-catalog.md: `render_patent_document` states "All eleven templates accept", but the shipped registry carries 3 templates',
+    ])
+  })
+
+  it('reports a description that no longer states a total count', () => {
+    const catalog = templateCatalog('Template id to render (one of the shipped patent templates).', IDS)
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([
+      'docs/tool-catalog.md: `render_patent_document` no longer states the shipped template count',
+    ])
+  })
+
+  it('reports an enum that differs from the registry ids', () => {
+    const catalog = templateCatalog('Template id to render (one of the three shipped patent templates).', [
+      'a',
+      'b',
+      'c',
+    ])
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([
+      'docs/tool-catalog.md: `render_patent_document` enumerates template ids that differ from the shipped registry (missing patentability-opinion, search-report, oa-response; unexpected a, b, c)',
+    ])
+  })
+
+  it('reports a section that carries no template enum', () => {
+    const catalog = ['### `render_patent_document`', '', 'All three templates accept a draft.', ''].join('\n')
+    expect(findTemplateCountViolations(catalog, IDS)).toEqual([
+      'docs/tool-catalog.md: `render_patent_document` carries no template enum',
+    ])
+  })
+
+  it('reports a catalog with no such section', () => {
+    expect(findTemplateCountViolations('# no tools', IDS)).toEqual([
+      'docs/tool-catalog.md: no `render_patent_document` section to check',
+    ])
+  })
+})
+
+describe('findTemplateStatementViolations', () => {
+  it('reads a hyphenated count', () => {
+    expect(findTemplateStatementViolations('One of the twenty-one shipped patent templates.', 21, 'probe.ts:')).toEqual([])
+  })
+
+  it('fails a text that states no count', () => {
+    expect(findTemplateStatementViolations('No count here.', 13, 'probe.ts:')).toEqual([
+      'probe.ts: no longer states the shipped template count',
+    ])
+  })
+
+  it('reports a phrase that names no known number', () => {
+    expect(findTemplateStatementViolations('One of the umpteen shipped patent templates.', 13, 'probe.ts:')).toEqual([
+      'probe.ts: states "One of the umpteen shipped patent templates", which names no count, while the shipped registry carries 13 templates',
+    ])
+  })
+})
+
+describe('declaredCountTotal', () => {
+  it('totals the counts the READMEs state', () => {
+    const readme = '- `@deepseek-ai/dsh-patent-tools` — 3 model-facing tools: the three.'
+    expect(declaredCountTotal([corpusOf('a', PATENT_TOOLS_PRESET, '', readme)])).toBe(1)
+  })
+
+  it('fails loud when a README corpus states no count', () => {
+    expect(() => declaredCountTotal([corpusOf('a', PATENT_TOOLS_PRESET, '', 'No counts.')])).toThrow(
+      /state no tool counts/,
+    )
+  })
+
+  it('accepts a corpus without READMEs', () => {
+    expect(declaredCountTotal([corpusOf('a', PATENT_TOOLS_PRESET)])).toBe(0)
+  })
+})
+
 
 describe('toolReferences', () => {
   it('keeps only backticked snake_case names carrying an underscore, with line numbers', () => {
@@ -169,6 +413,12 @@ describe('findToolRefViolations', () => {
     ])
   })
 
+  it('scans the preset README pair too', () => {
+    expect(findToolRefViolations(CATALOG, [corpusOf('a', FS_PRESET, '', 'call `foo_bar` here')])).toEqual([
+      'presets/a.md:1: `foo_bar` is not a tool preset a mounts',
+    ])
+  })
+
   it('reports a gate prerequisite no mounted package registers', () => {
     // A prerequisite that names nothing denies the guarded call in every session
     // while the declaration still reads as valid YAML, so it resolves here too.
@@ -223,7 +473,7 @@ describe('findToolRefViolations', () => {
 })
 
 describe('loadPresetCorpus', () => {
-  it('pairs each preset with the skill files under its directory', () => {
+  it('pairs each preset with its README pair and the skill files under its directory', () => {
     const tempRoot = mkdtempSync(join(tmpdir(), 'dsh-preset-tool-refs-'))
     tempRoots.push(tempRoot)
     const presetRoot = join(tempRoot, 'packages/bundle/web-app/presets')
@@ -231,9 +481,15 @@ describe('loadPresetCorpus', () => {
     mkdirSync(presetRoot, { recursive: true })
     mkdirSync(skillDir, { recursive: true })
     writeFileSync(join(presetRoot, 'a.patch.yml'), FS_PRESET)
+    writeFileSync(join(presetRoot, 'a.md'), 'English README')
+    writeFileSync(join(presetRoot, 'a.zh.md'), '中文 README')
     writeFileSync(join(skillDir, 'SKILL.md'), 'use `read`')
     const corpus = loadPresetCorpus(tempRoot)
     expect(corpus.map(entry => entry.preset)).toEqual(['a'])
+    expect(corpus[0]?.readmeFiles.map(file => file.path)).toEqual([
+      'packages/bundle/web-app/presets/a.md',
+      'packages/bundle/web-app/presets/a.zh.md',
+    ])
     expect(corpus[0]?.skillFiles.map(file => file.path)).toEqual(['packages/bundle/web-app/skills/a/probe/SKILL.md'])
   })
 
@@ -244,14 +500,29 @@ describe('loadPresetCorpus', () => {
     mkdirSync(join(tempRoot, 'packages/bundle/web-app/skills/orphan'), { recursive: true })
     expect(() => loadPresetCorpus(tempRoot)).toThrow(/without a preset: orphan/)
   })
+
+  it('fails loud on a README without a preset', () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), 'dsh-preset-tool-refs-'))
+    tempRoots.push(tempRoot)
+    const presetRoot = join(tempRoot, 'packages/bundle/web-app/presets')
+    mkdirSync(presetRoot, { recursive: true })
+    writeFileSync(join(presetRoot, 'a.patch.yml'), FS_PRESET)
+    writeFileSync(join(presetRoot, 'orphan.md'), 'English README')
+    expect(() => loadPresetCorpus(tempRoot)).toThrow(/README\(s\) without a preset: orphan\.md/)
+  })
 })
 
 describe('shipped preset corpus', () => {
-  it('resolves every backticked tool reference', () => {
+  it('resolves every backticked tool reference and stated count', () => {
     const corpus = loadPresetCorpus(root)
     expect(corpus.length).toBeGreaterThan(0)
     expect(corpus.filter(entry => entry.skillFiles.length > 0).length).toBeGreaterThan(0)
-    const violations = findToolRefViolations(readFileSync(resolve(root, 'docs/tool-catalog.md'), 'utf8'), corpus)
-    expect(violations).toEqual([])
+    expect(corpus.filter(entry => entry.readmeFiles.length > 0).length).toBeGreaterThan(0)
+    const catalogSource = readFileSync(resolve(root, 'docs/tool-catalog.md'), 'utf8')
+    expect([
+      ...findToolRefViolations(catalogSource, corpus),
+      ...findToolCountViolations(catalogSource, corpus),
+      ...findTemplateCountViolations(catalogSource),
+    ]).toEqual([])
   })
 })

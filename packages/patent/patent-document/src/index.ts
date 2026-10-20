@@ -14,7 +14,7 @@ import { createVerifyDeliverableTool } from './tool/verify-deliverable.ts'
 
 // Public library API: the ported document engine and the tool factories.
 export * from './document/index.ts'
-export { createRenderPatentDocumentTool, renderDocumentResult } from './tool/render-patent-document.ts'
+export { createRenderPatentDocumentTool, renderDocumentResult, TEMPLATE_IDS } from './tool/render-patent-document.ts'
 export type { RenderPatentDocumentToolOptions } from './tool/render-patent-document.ts'
 export { createVerifyDeliverableTool, renderDeliverableResult, verifyDeliverable } from './tool/verify-deliverable.ts'
 export type { DeliverableArtifactInput, VerifyDeliverableInput, VerifyDeliverableOutput } from './tool/verify-deliverable.ts'

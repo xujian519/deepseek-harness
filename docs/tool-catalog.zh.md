@@ -6237,7 +6237,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
   "properties": {
     "template": {
       "type": "string",
-      "description": "Template id to render (one of the eleven shipped patent templates).",
+      "description": "Template id to render (one of the thirteen shipped patent templates).",
       "enum": [
         "patentability-opinion",
         "search-report",
