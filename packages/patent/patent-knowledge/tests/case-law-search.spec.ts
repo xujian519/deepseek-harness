@@ -17,7 +17,7 @@ afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()!()
 })
 
-function createEngine(includeFts = true): { engine: CaseLawSearchEngine; dir: string } {
+function createEngine(includeFts = true, includePrefix = false): { engine: CaseLawSearchEngine; dir: string } {
   const dir = mkdtempSync(join(tmpdir(), 'case-law-test-'))
   const dbPath = join(dir, 'test.db')
   const db = new DatabaseSync(dbPath)
@@ -59,6 +59,16 @@ function createEngine(includeFts = true): { engine: CaseLawSearchEngine; dir: st
   insertChunk.run(3, 'd2', 0, '判决书正文：创造性判断应采用三步法框架进行认定。', 120)
   insertChunk.run(4, 'd3', 0, '本决定认为权利要求不具备新颖性。', 80)
   insertChunk.run(5, 'd4', 0, '创造性审查标准：技术启示的判断应当结合本领域技术人员认知。', 150)
+
+  if (includePrefix) {
+    // install 以每文档最长 chunk 的前 N 个码点填充；这里正文都很短，等价于全文。
+    db.exec('ALTER TABLE documents ADD COLUMN search_prefix TEXT')
+    const setPrefix = db.prepare('UPDATE documents SET search_prefix = ? WHERE id = ?')
+    setPrefix.run('本案涉及创造性三步法判断，审查员认为技术方案显而易见。', 'd1')
+    setPrefix.run('判决书正文：创造性判断应采用三步法框架进行认定。', 'd2')
+    setPrefix.run('本决定认为权利要求不具备新颖性。', 'd3')
+    setPrefix.run('创造性审查标准：技术启示的判断应当结合本领域技术人员认知。', 'd4')
+  }
 
   if (includeFts) {
     const insertFts = db.prepare(
@@ -124,6 +134,19 @@ describe('CaseLawSearchEngine', () => {
     expect(hits.every(h => h.via === 'like')).toBe(true)
   })
 
+  it('uses the plaintext prefix for short queries when the column exists', () => {
+    const engine = withEngine(true, true)
+    const hits = engine.search('认为')
+    expect(hits.some(h => h.documentId === 'd1' && h.snippet.includes('认为'))).toBe(true)
+    expect(hits.every(h => h.via === 'like')).toBe(true)
+  })
+
+  it('keeps hit fields identical to the legacy LIKE path', () => {
+    const legacy = withEngine(true)
+    const prefixed = withEngine(true, true)
+    expect(prefixed.search('认为')).toEqual(legacy.search('认为'))
+  })
+
   it('degrades to LIKE when no docs_fts table exists', () => {
     const engine = withEngine(false)
     expect(engine.ftsAvailable).toBe(false)
@@ -183,6 +206,99 @@ describe('CaseLawSearchEngine', () => {
     expect(first.length).toBeGreaterThanOrEqual(1)
     expect(first.map(h => h.documentId).sort()).toEqual(second.map(h => h.documentId).sort())
     expect(first.every(h => h.via === 'like')).toBe(true)
+  })
+})
+
+/** Fixture whose search_prefix diverges from chunk bodies, proving which path ran. */
+function createPrefixOnlyFixture(includePrefix: boolean): { engine: CaseLawSearchEngine; dir: string } {
+  const dir = mkdtempSync(join(tmpdir(), 'case-law-prefix-'))
+  const dbPath = join(dir, 'test.db')
+  const db = new DatabaseSync(dbPath)
+  db.exec(`
+    CREATE TABLE documents (
+      id TEXT PRIMARY KEY, source TEXT, doc_type TEXT NOT NULL, domain TEXT NOT NULL DEFAULT 'patent',
+      title TEXT NOT NULL, court TEXT, decision_number TEXT, case_number TEXT, module TEXT,
+      indexed_at TEXT NOT NULL, char_count INTEGER DEFAULT 0
+    );
+    CREATE TABLE chunks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL REFERENCES documents(id),
+      chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0
+    );
+  `)
+  const insertDoc = db.prepare(
+    `INSERT INTO documents (id, source, doc_type, title, court, char_count, indexed_at)
+     VALUES (?, ?, ?, ?, ?, ?, '2026-01-01')`,
+  )
+  insertDoc.run('p1', 'raw', 'case', '无关标题', null, 300)
+  insertDoc.run('p2', 'wiki', 'judgment', '另一判决', '最高人民法院', 50)
+  insertDoc.run('p3', 'raw', 'case', '无分块文档', null, 0)
+  insertDoc.run('p4', 'raw', 'case', '百分号标题', null, 10)
+  insertDoc.run('p5', null, 'case', '对照标题', null, 10)
+  const insertChunk = db.prepare(
+    "INSERT INTO chunks (document_id, chunk_index, chunk_type, content, char_count) VALUES (?, ?, 'paragraph', ?, ?)",
+  )
+  insertChunk.run('p1', 0, '正文不含该词', 100)
+  insertChunk.run('p1', 1, '更长的正文片段', 200)
+  insertChunk.run('p2', 0, '判决正文片段', 50)
+  insertChunk.run('p4', 0, '普通正文', 10)
+  insertChunk.run('p5', 0, '普通正文', 10)
+  if (includePrefix) {
+    db.exec('ALTER TABLE documents ADD COLUMN search_prefix TEXT')
+    const setPrefix = db.prepare('UPDATE documents SET search_prefix = ? WHERE id = ?')
+    setPrefix.run('前缀命中词', 'p1')
+    setPrefix.run('前缀命中词', 'p2')
+    setPrefix.run('前缀命中词', 'p3')
+    setPrefix.run('100%专利', 'p4')
+    setPrefix.run('100X专利', 'p5')
+  }
+  db.close()
+  return { engine: new CaseLawSearchEngine(dbPath), dir }
+}
+
+function withPrefixFixture(includePrefix = true): CaseLawSearchEngine {
+  const { engine, dir } = createPrefixOnlyFixture(includePrefix)
+  cleanups.push(() => {
+    engine.close()
+    rmSync(dir, { recursive: true, force: true })
+  })
+  return engine
+}
+
+describe('CaseLawSearchEngine search_prefix path', () => {
+  it('matches a prefix-only term and takes the longest chunk as snippet', () => {
+    const hits = withPrefixFixture().search('前缀')
+    expect(hits.map(h => h.documentId)).toEqual(['p1', 'p2'])
+    expect(hits[0]!.snippet).toBe('更长的正文片段')
+    expect(hits[0]!.chunkIndex).toBe(1)
+    expect(hits[0]!.via).toBe('like')
+    expect(hits[0]!.ftsRank).toBeNull()
+  })
+
+  it('misses the same prefix-only term without the column (path proof)', () => {
+    expect(withPrefixFixture(false).search('前缀')).toEqual([])
+  })
+
+  it('applies filters on the prefix path', () => {
+    const engine = withPrefixFixture()
+    expect(engine.search('前缀', { docType: 'judgment', court: '最高' }).map(h => h.documentId)).toEqual(['p2'])
+    expect(engine.search('前缀', { docType: 'judgment', court: '最高', excludeSource: 'wiki' })).toEqual([])
+    expect(engine.search('前缀', { docType: 'case' }).map(h => h.documentId)).toEqual(['p1'])
+  })
+
+  it('skips documents without chunks and fills the limit from later candidates', () => {
+    const engine = withPrefixFixture()
+    expect(engine.search('前缀', { limit: 2 }).map(h => h.documentId)).toEqual(['p1', 'p2'])
+    expect(engine.search('前缀', { limit: 1 }).map(h => h.documentId)).toEqual(['p1'])
+  })
+
+  it('escapes LIKE wildcards in the prefix column', () => {
+    expect(withPrefixFixture().search('%').map(h => h.documentId)).toEqual(['p4'])
+  })
+
+  it('maps a NULL source column to undefined on the prefix path', () => {
+    const hits = withPrefixFixture().search('100X')
+    expect(hits.map(h => h.documentId)).toEqual(['p5'])
+    expect(hits[0]!.source).toBeUndefined()
   })
 })
 

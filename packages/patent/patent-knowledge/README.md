@@ -25,7 +25,7 @@ The `PatentKnowledge` service opens the resolved `knowledge.db` read-only (fail-
 
 ### caseLawSearch(query, options?)
 
-Full-text search over the `documents`/`chunks`/`docs_fts` tables (FTS5 BM25 first, LIKE fallback for short queries or a missing FTS index). Returns `CaseLawHit[]`; options filter by `docType`, `court`, and `excludeSource`.
+Full-text search over the `documents`/`chunks`/`docs_fts` tables (FTS5 BM25 first, LIKE fallback for short queries or a missing FTS index). Returns `CaseLawHit[]`; options filter by `docType`, `court`, and `excludeSource`. When `documents.search_prefix` exists (written by install), the LIKE fallback scans each document's title and plaintext prefix instead of decompressing every chunk; a database without that column keeps the full decompression path.
 
 ### legalSearch(query, options?)
 
@@ -63,7 +63,7 @@ The query database resolves as `knowledgeDir/knowledge.db`, then `knowledgeDir/k
 
 ## patent-knowledge:install
 
-The install logic is an exported `installKnowledgeDb(options)` function plus the `patent-knowledge-install` bin; it never runs on plugin load. It trims the local source `knowledge.db` into `knowledgeDir/knowledge-lite.db` by vacuuming into a fresh copy, gzip-compressing `chunks.content` long bodies (readers decompress transparently), and dropping the embeddings tables. Run it once to prepare the data:
+The install logic is an exported `installKnowledgeDb(options)` function plus the `patent-knowledge-install` bin; it never runs on plugin load. It trims the local source `knowledge.db` into `knowledgeDir/knowledge-lite.db` by vacuuming into a fresh copy, gzip-compressing `chunks.content` long bodies (readers decompress transparently), and dropping the embeddings tables. It also writes `documents.search_prefix`: the first 512 code points (configurable) of each document's longest chunk, stored as plaintext. The prefix makes two-character case-law queries scan a compact column instead of decompressing all 81K documents; it adds roughly 137 MB for the bundled corpus. Databases installed before this column existed keep the full decompression path; re-run install to add it. Run it once to prepare the data:
 
 ```sh
 pnpm --filter @deepseek-ai/dsh-patent-knowledge exec patent-knowledge-install
@@ -71,7 +71,7 @@ pnpm --filter @deepseek-ai/dsh-patent-knowledge exec patent-knowledge-install
 patent-knowledge-install --from /path/to/knowledge.db --output ~/.dsh/knowledge/knowledge-lite.db
 ```
 
-Flags: `--from <path>` (source db), `--output <path>`, `--no-compress-chunks`, `--keep-embeddings`, `--no-fts`, `--skip-verify`, `-h/--help`.
+Flags: `--from <path>` (source db), `--output <path>`, `--no-compress-chunks`, `--keep-embeddings`, `--no-fts`, `--no-search-prefix`, `--search-prefix-chars <n>` (64–2048, default 512), `--skip-verify`, `-h/--help`.
 
 ## Model Experience
 
@@ -85,6 +85,7 @@ Independent; the knowledge seam registers no prompt, tool schema, or result of i
 
 - **No vector or semantic retrieval in P1** — the embedding/vector paths (`knowledge-embeddings`, `wiki-card-vector-index`, the three memory providers) are not ported; wiki-card lookup is keyword-only, and case-law/legal/knowledge-graph search is FTS5/LIKE only.
 - **Knowledge-graph index freshness is assumed** — the trigram fast path treats a row-aligned `kg_nodes_fts` as complete and skips the LIKE fallback; rebuild the index after editing node content in place.
+- **Case-law prefix recall is bounded** — while `documents.search_prefix` exists, the short-query LIKE path matches only the first `searchPrefixChars` code points of each document's longest chunk; matches further into the body are not returned. Run install without `searchPrefix` to restore full-body matching.
 - **Source database is not bundled** — the data must be prepared locally via `patent-knowledge:install` or pointed at directly through `sourceDbPath`/`knowledgeDir`; no public download is provided.
 - **`node:sqlite` is experimental** — the engines run on Node's built-in SQLite, which is experimental in the supported Node line and may change between releases.
 

@@ -3,6 +3,8 @@
  *
  * 与 LegalSearchEngine（法条检索）同策略：FTS5（trigram tokenizer，BM25 排序）优先，
  * 短查询（< 3 个 CJK 字符）或缺失 FTS 表时降级 LIKE 匹配。
+ * 降级路径在 documents.search_prefix 存在时只扫标题与前缀列（install 生成，
+ * 每文档最长 chunk 的前 N 个码点），无需解压全部 chunks；缺列时回退整表解压。
  *
  * 数据映射（已验证）：docs_fts 为 contentless FTS5（content=''，tokenize=trigram），
  * 其 rowid 即 chunks.id（144,069/144,178 命中 99.9%），正文必须经
@@ -52,6 +54,20 @@ type CaseLawRow = {
   fts_rank?: number | null
 }
 
+/** 前缀 LIKE 的 documents 投影（片段另取最长 chunk）。 */
+type CaseLawPrefixRow = Omit<CaseLawRow, 'chunk_index' | 'content' | 'fts_rank'>
+
+/** 前缀路径回源的最长 chunk。 */
+type CaseLawChunkRow = {
+  chunk_index: number
+  content: string | Uint8Array | null
+}
+
+/** 前缀路径的两条预编译语句（仅在 documents.search_prefix 存在时创建）。 */
+type CaseLawPrefixStatements = {
+  search: StatementSync
+  longestChunk: StatementSync
+}
 
 /** 判例全文检索引擎（knowledge.db docs_fts/chunks/documents，FTS5 优先，LIKE 降级）。 */
 export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOptions, CaseLawHit> {
@@ -61,10 +77,33 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
   private readonly stmtGetById: StatementSync
   /** 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源，保持"命中 chunk"语义）。 */
   private readonly stmtGetChunkAt: StatementSync
+  /** install 生成的 documents.search_prefix 检索资源；缺列时为 null（整表解压路径）。 */
+  private readonly prefixStatements: CaseLawPrefixStatements | null
   private readonly stmtCount: StatementSync
 
   constructor(dbPath: string, options: CaseLawSearchEngineOptions = {}) {
     super(dbPath, options)
+
+    // documents.search_prefix 由 install 生成（每文档最长 chunk 的前 N 个码点）。
+    // 存在时短查询只扫 title/前缀列；旧库缺列时保留整表解压的 JOIN 路径。
+    const documentColumns = this.db
+      .prepare("SELECT name FROM pragma_table_info('documents')")
+      .all() as Array<{ name: string }>
+    const hasSearchPrefix = documentColumns.some(column => column.name === 'search_prefix')
+    this.prefixStatements = hasSearchPrefix
+      ? {
+        search: this.db.prepare(`
+          SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+                 d.court, d.source, d.module, d.char_count
+          FROM documents d
+          WHERE (d.title LIKE ? ESCAPE '\\' OR d.search_prefix LIKE ? ESCAPE '\\')
+          LIMIT ?
+        `),
+        longestChunk: this.db.prepare(
+          'SELECT chunk_index, content FROM chunks WHERE document_id = ? ORDER BY char_count DESC LIMIT 1',
+        ),
+      }
+      : null
 
     // LIKE 降级：documents.title 或 每文档最长 chunk 的 content（压缩 chunk 先
     // 解压再匹配）；子查询取最长 chunk 作片段。
@@ -255,6 +294,7 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
     // LIKE 回退计数（设计内降级路径：短词/未命中/FTS 降级；不 warn 避免噪音）。
     this.stats?.recordLikeFallback()
     const pattern = `%${keyword.replace(/[%_\\]/g, m => `\\${m}`)}%`
+    if (this.prefixStatements !== null) return this.searchLikePrefix(this.prefixStatements, pattern, options, limit)
     let rows: CaseLawRow[]
     if (!hasCaseLawFilters(options)) {
       rows = this.stmtSearchLike.all(pattern, pattern, limit) as CaseLawRow[]
@@ -275,6 +315,64 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
       rows = this.db.prepare(sql).all(...params) as CaseLawRow[]
     }
     return rows.map(row => this.toHit(row, null, 'like'))
+  }
+
+  /**
+   * 前缀 LIKE：先扫 documents 的 title/search_prefix（无需解压），再按文档取最长
+   * chunk 作片段。候选窗口放大到 `limit * FETCH_MULTIPLIER`，让无 chunk 的文档
+   * 被跳过后仍能补满 limit。
+   * 召回只覆盖每个文档最长 chunk 的前缀；需要前缀之外的正文匹配时，打开未安装
+   * search_prefix 的库走整表解压路径。
+   * @param statements 前缀路径的两条预编译语句。
+   * @param pattern 已转义的 LIKE 模式。
+   * @param options 检索选项（过滤字段）。
+   * @param limit 返回命中上限。
+   * @returns 前缀命中的判例列表（一文档一行，按 documents 扫描序）。
+   */
+  private searchLikePrefix(
+    statements: CaseLawPrefixStatements,
+    pattern: string,
+    options: CaseLawSearchOptions,
+    limit: number,
+  ): CaseLawHit[] {
+    let rows: CaseLawPrefixRow[]
+    if (!hasCaseLawFilters(options)) {
+      rows = statements.search.all(pattern, pattern, limit * FETCH_MULTIPLIER) as CaseLawPrefixRow[]
+    } else {
+      let sql = `
+        SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+               d.court, d.source, d.module, d.char_count
+        FROM documents d
+        WHERE (d.title LIKE ? ESCAPE '\\' OR d.search_prefix LIKE ? ESCAPE '\\')
+      `
+      const params: Array<string | number | null> = [pattern, pattern]
+      sql = this.appendCaseLawFilters(sql, options, params)
+      sql += ' LIMIT ?'
+      params.push(limit * FETCH_MULTIPLIER)
+      rows = this.db.prepare(sql).all(...params) as CaseLawPrefixRow[]
+    }
+    const hits: CaseLawHit[] = []
+    for (const row of rows) {
+      if (hits.length >= limit) break
+      const chunk = statements.longestChunk.get(row.document_id) as CaseLawChunkRow | undefined
+      if (chunk === undefined) continue
+      hits.push({
+        documentId: row.document_id,
+        docType: row.doc_type,
+        title: row.title,
+        decisionNumber: row.decision_number ?? undefined,
+        caseNumber: row.case_number ?? undefined,
+        court: row.court ?? undefined,
+        source: row.source ?? undefined,
+        module: row.module ?? undefined,
+        charCount: row.char_count,
+        chunkIndex: chunk.chunk_index,
+        snippet: decompressChunk(chunk.content),
+        ftsRank: null,
+        via: 'like',
+      })
+    }
+    return hits
   }
 
   /**
