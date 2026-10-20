@@ -1808,9 +1808,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the ego-browser session.',
       },
       {
-        signature: 'createCniprChannel(options?: CniprChannelOverrides): CniprChannel | undefined',
+        signature: 'createCniprChannel(options: CniprChannelOverrides = {}): CniprChannel | undefined',
         description: 'Build a CNIPR channel over an ego-browser session, or nothing when this deployment has not enabled the channel (`Config.cniprEnabled`, default false).',
-        parameters: [{ name: 'options', description: 'optional per-channel overrides; a channel option replaces the same-named field the service resolved.' }],
+        parameters: [{ name: 'options', description: 'optional per-channel overrides; a channel option replaces the same-named field the service resolved, and a `pageBudgets` entry replaces only that wait.' }],
         returns: 'the channel, or undefined while CNIPR is disabled.',
       },
     ],
@@ -5669,7 +5669,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CniprChannelOptions',
-    declaration: 'export interface CniprChannelOptions {\n    session: CniprEgoSession;\n    queue?: SerialQueue;\n    timeoutMs?: number;\n    cwd?: string;\n}',
+    declaration: 'export interface CniprChannelOptions {\n    session: CniprEgoSession;\n    queue?: SerialQueue;\n    timeoutMs?: number;\n    pageBudgets?: Partial<CniprPageBudgets>;\n    cwd?: string;\n}',
   },
   {
     name: 'CniprChannelOverrides',
@@ -5686,6 +5686,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CniprLegalStatusItem',
     declaration: 'export interface CniprLegalStatusItem {\n    number: string;\n    appNumber: string;\n    resolvedFrom?: string;\n    total: number | null;\n    records: CniprLegalRecord[];\n    error?: string;\n}',
+  },
+  {
+    name: 'CniprPageBudgets',
+    declaration: 'export interface CniprPageBudgets {\n    loginPollMs: number;\n    loginAttempts: number;\n    loginRounds: number;\n    navigationTimeoutMs: number;\n    actionTimeoutMs: number;\n    resultTimeoutMs: number;\n    renderTimeoutMs: number;\n    detailTimeoutMs: number;\n}',
   },
   {
     name: 'CniprPdfLinkItem',

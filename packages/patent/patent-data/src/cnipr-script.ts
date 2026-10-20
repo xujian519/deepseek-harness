@@ -12,7 +12,7 @@
  */
 
 import { CNIPR_BASE_URL, CNIPR_LOGIN_HINT_PATTERN, CNIPR_PDF_URL_PATTERN, CNIPR_RESULT_APP_NUMBER_PATTERN } from './cnipr-receipt.ts'
-import type { CniprLegalQuery } from './types.ts'
+import type { CniprLegalQuery, CniprPageBudgets } from './types.ts'
 
 /** 直链脚本的回传标签；`EgoBrowserSession.extractTaggedJson` 按 `EGO_<tag>:` 解析。 */
 export const CNIPR_PDF_TAG = 'CNIPR_PDFLINKS'
@@ -25,6 +25,21 @@ export const CNIPR_SEARCH_TAG = 'CNIPR_SEARCH'
 
 /** 按名复用的任务空间；同一空间复用登录态与标签页，故两次调用之间不做登录。 */
 export const CNIPR_TASK_SPACE = 'sati-patent-cnipr'
+
+/**
+ * 生成脚本的出厂页面等待预算：通道落地时的站点实测值，也就是这些等待改成配置前的行为。
+ * 站点协议常量（每页 10 条、单次最多 30 条）不在这里，它们由站点账号等级决定。
+ */
+export const DEFAULT_CNIPR_PAGE_BUDGETS: CniprPageBudgets = {
+  loginPollMs: 1_000,
+  loginAttempts: 10,
+  loginRounds: 2,
+  navigationTimeoutMs: 45_000,
+  actionTimeoutMs: 15_000,
+  resultTimeoutMs: 30_000,
+  renderTimeoutMs: 20_000,
+  detailTimeoutMs: 20_000,
+}
 
 /**
  * 脚本回传一行载荷：`console.log` 的输出在 ego 里走 stderr，会话把两路合并后再解析。
@@ -43,11 +58,20 @@ function emit(tag: string, extra = ''): string {
  * `waitForLoggedIn` 只认页头的「欢迎您」——CNIPR 的页头晚于搜索框出现，以搜索框存在判定
  * 未登录会在正常页面上误判；失败时按 {@link CNIPR_LOGIN_HINT_PATTERN} 区分「会话失效」
  * 与「页面没按预期跳转」，前者的处置是去 ego lite 重新登录。
+ * @param budgets - 页面等待预算，逐项内嵌进脚本体。
  * @returns 脚本体前缀。
  */
-function sharedPreamble(): string {
+function sharedPreamble(budgets: CniprPageBudgets): string {
   return `const BASE = ${JSON.stringify(CNIPR_BASE_URL)}
 const LOGIN_HINT = ${JSON.stringify(CNIPR_LOGIN_HINT_PATTERN)}
+const LOGIN_POLL_MS = ${budgets.loginPollMs}
+const LOGIN_ATTEMPTS = ${budgets.loginAttempts}
+const LOGIN_ROUNDS = ${budgets.loginRounds}
+const NAVIGATION_TIMEOUT_MS = ${budgets.navigationTimeoutMs}
+const ACTION_TIMEOUT_MS = ${budgets.actionTimeoutMs}
+const RESULT_TIMEOUT_MS = ${budgets.resultTimeoutMs}
+const RENDER_TIMEOUT_MS = ${budgets.renderTimeoutMs}
+const DETAIL_TIMEOUT_MS = ${budgets.detailTimeoutMs}
 const pageText = async (page) => await page.evaluate(() => (document.body ? document.body.innerText : ''))
 const failureOf = (error, fallback) => ({
   code: error && error.cniprCode ? error.cniprCode : fallback,
@@ -64,17 +88,17 @@ const waitForState = async (page, action, expectation) => {
   }
 }
 const waitForLoggedIn = async (page) => {
-  for (let round = 0; round < 2; round += 1) {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let round = 0; round < LOGIN_ROUNDS; round += 1) {
+    for (let attempt = 0; attempt < LOGIN_ATTEMPTS; attempt += 1) {
       if ((await pageText(page)).includes('欢迎您')) return
-      await page.waitForTimeout(1000)
+      await page.waitForTimeout(LOGIN_POLL_MS)
     }
-    if (round === 0) await page.reload({ timeout: 45000, waitUntil: 'domcontentloaded' })
+    if (round < LOGIN_ROUNDS - 1) await page.reload({ timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
   }
   throw Object.assign(new Error('未检测到 CNIPR 登录态：请在 ego lite 里登录 search.cnipr.com 后重试'), { cniprCode: 'login_required' })
 }
 const openHome = async (page) => {
-  await waitForState(page, () => page.goto(BASE + '/', { timeout: 45000, waitUntil: 'domcontentloaded' }), 'CNIPR 首页')
+  await waitForState(page, () => page.goto(BASE + '/', { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'domcontentloaded' }), 'CNIPR 首页')
   await waitForLoggedIn(page)
 }`
 }
@@ -84,10 +108,14 @@ const openHome = async (page) => {
  * 内嵌 `pic.cnipr.com/pdfcn/...` 全文直链，因此每条记录经详情检索接口取回原文再抽直链；
  * `PDF_PID` 由系统生成、无法由公开号反推，所以直链只能这样取。
  * @param numbers - 公开(公告)号列表（调用方已归一与去重）。
+ * @param budgets - 页面等待预算；默认取 {@link DEFAULT_CNIPR_PAGE_BUDGETS}。
  * @returns 交给 `ego-browser nodejs` 的脚本体。
  */
-export function buildCniprPdfLinksScript(numbers: readonly string[]): string {
-  return `${sharedPreamble()}
+export function buildCniprPdfLinksScript(
+  numbers: readonly string[],
+  budgets: CniprPageBudgets = DEFAULT_CNIPR_PAGE_BUDGETS,
+): string {
+  return `${sharedPreamble(budgets)}
 const numbers = ${JSON.stringify(numbers)}
 const extractLinks = (args) => {
   const form = document.getElementById('detailSearch')
@@ -112,7 +140,7 @@ const extractLinks = (args) => {
         resolve({ error: String(error) })
       }
     }
-    setTimeout(() => resolve({ error: '详情检索 20 秒未返回' }), 20000)
+    setTimeout(() => resolve({ error: '详情检索 ' + DETAIL_TIMEOUT_MS + ' 毫秒未返回' }), DETAIL_TIMEOUT_MS)
     xhr.send(body)
   })
 }
@@ -124,11 +152,11 @@ try {
   await openHome(page)
   for (const number of numbers) {
     try {
-      await waitForState(page, () => page.goto(BASE + '/', { timeout: 45000, waitUntil: 'domcontentloaded' }), 'CNIPR 首页')
+      await waitForState(page, () => page.goto(BASE + '/', { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'domcontentloaded' }), 'CNIPR 首页')
       await page.fill('input[name="q"]', number, { clearFirst: true })
-      await page.click('#search-btn', { timeout: 15000 })
-      await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: 45000 }), '检索结果页')
-      await waitForState(page, () => page.waitForSelector('#detailSearch', { timeout: 30000 }), '结果页详情表单')
+      await page.click('#search-btn', { timeout: ACTION_TIMEOUT_MS })
+      await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: NAVIGATION_TIMEOUT_MS }), '检索结果页')
+      await waitForState(page, () => page.waitForSelector('#detailSearch', { timeout: RESULT_TIMEOUT_MS }), '结果页详情表单')
       const found = await page.evaluate(extractLinks, { cursor: 0, pattern: ${JSON.stringify(CNIPR_PDF_URL_PATTERN)} })
       items.push({ number, ...found })
     } catch (error) {
@@ -146,31 +174,35 @@ ${emit(CNIPR_PDF_TAG)}
  * 生成法律状态查询脚本：申请号直接查；公开(公告)号先经检索结果页解析出申请号。
  * `app_number` 的解析用包内的 {@link CNIPR_RESULT_APP_NUMBER_PATTERN}，两处号码形态同源。
  * @param entries - 每个号的查询目标。
+ * @param budgets - 页面等待预算；默认取 {@link DEFAULT_CNIPR_PAGE_BUDGETS}。
  * @returns 交给 `ego-browser nodejs` 的脚本体。
  */
-export function buildCniprLegalScript(entries: readonly CniprLegalQuery[]): string {
-  return `${sharedPreamble()}
+export function buildCniprLegalScript(
+  entries: readonly CniprLegalQuery[],
+  budgets: CniprPageBudgets = DEFAULT_CNIPR_PAGE_BUDGETS,
+): string {
+  return `${sharedPreamble(budgets)}
 const entries = ${JSON.stringify(entries)}
 const APP_NUMBER = new RegExp(${JSON.stringify(CNIPR_RESULT_APP_NUMBER_PATTERN.source)}, 'i')
 const resolveAppNumber = async (page, pubNumber) => {
-  await waitForState(page, () => page.goto(BASE + '/', { timeout: 45000, waitUntil: 'domcontentloaded' }), 'CNIPR 首页')
+  await waitForState(page, () => page.goto(BASE + '/', { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'domcontentloaded' }), 'CNIPR 首页')
   await page.fill('input[name="q"]', pubNumber, { clearFirst: true })
   await page.evaluate(() => {
     const input = document.querySelector('input[name="q"]')
     input.closest('form').querySelector('button').click()
   })
-  await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: 30000 }), '检索结果页')
-  await waitForState(page, () => page.waitForFunction(() => !!document.body && /申请号[：:]/.test(document.body.innerText), undefined, { timeout: 20000 }), '结果页渲染')
+  await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: RESULT_TIMEOUT_MS }), '检索结果页')
+  await waitForState(page, () => page.waitForFunction(() => !!document.body && /申请号[：:]/.test(document.body.innerText), undefined, { timeout: RENDER_TIMEOUT_MS }), '结果页渲染')
   return (await pageText(page)).replace(/\\s+/g, ' ').match(APP_NUMBER)
 }
 const queryLegal = async (page, appNumber) => {
-  await page.goto(BASE + '/pages!legal.action', { timeout: 45000, waitUntil: 'domcontentloaded' })
-  await waitForState(page, () => page.waitForSelector('#strAn', { timeout: 30000 }), '法律状态检索表单')
+  await page.goto(BASE + '/pages!legal.action', { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
+  await waitForState(page, () => page.waitForSelector('#strAn', { timeout: RESULT_TIMEOUT_MS }), '法律状态检索表单')
   await page.fill('#strAn', appNumber, { clearFirst: true })
-  await page.click('input[type=submit][value=检索]', { timeout: 15000 })
-  await waitForState(page, () => page.waitForURL(/doLegalSearch/, { timeout: 30000 }), '法律状态结果页')
+  await page.click('input[type=submit][value=检索]', { timeout: ACTION_TIMEOUT_MS })
+  await waitForState(page, () => page.waitForURL(/doLegalSearch/, { timeout: RESULT_TIMEOUT_MS }), '法律状态结果页')
   // 只等结果区标题：零命中的结果页不输出记录数标记，等它必然超时（实测）。
-  await waitForState(page, () => page.waitForFunction(() => !!document.body && document.body.innerText.indexOf('法律状态检索结果') >= 0, undefined, { timeout: 20000 }), '法律状态结果渲染')
+  await waitForState(page, () => page.waitForFunction(() => !!document.body && document.body.innerText.indexOf('法律状态检索结果') >= 0, undefined, { timeout: RENDER_TIMEOUT_MS }), '法律状态结果渲染')
   return await pageText(page)
 }
 const items = []
@@ -212,10 +244,15 @@ ${emit(CNIPR_LEGAL_TAG)}
  * 包内的 `planCniprSearchRequest` 决定，脚本只按给定页数读取，不自行判断要几页。
  * @param query - 检索词（调用方已确认不含 Google 专有的字段语法）。
  * @param pages - 要读取的结果页数。
+ * @param budgets - 页面等待预算；默认取 {@link DEFAULT_CNIPR_PAGE_BUDGETS}。
  * @returns 交给 `ego-browser nodejs` 的脚本体。
  */
-export function buildCniprSearchScript(query: string, pages: number): string {
-  return `${sharedPreamble()}
+export function buildCniprSearchScript(
+  query: string,
+  pages: number,
+  budgets: CniprPageBudgets = DEFAULT_CNIPR_PAGE_BUDGETS,
+): string {
+  return `${sharedPreamble(budgets)}
 const query = ${JSON.stringify(query)}
 const pages = ${JSON.stringify(pages)}
 const readPage = (args) => {
@@ -248,8 +285,8 @@ const turnToPage = async (page, target) => {
   await waitForState(page, () => page.waitForFunction((wanted) => {
     const marker = document.querySelector('#startPage')
     return !!marker && marker.value === String(wanted)
-  }, target, { timeout: 30000 }), '第 ' + target + ' 页')
-  await waitForState(page, () => page.waitForSelector('div.g_item', { timeout: 20000 }), '第 ' + target + ' 页记录')
+  }, target, { timeout: RESULT_TIMEOUT_MS }), '第 ' + target + ' 页')
+  await waitForState(page, () => page.waitForSelector('div.g_item', { timeout: RENDER_TIMEOUT_MS }), '第 ' + target + ' 页记录')
   return true
 }
 const items = []
@@ -260,9 +297,9 @@ try {
   const page = task.page('p1')
   await openHome(page)
   await waitForState(page, () => page.fill('input[name="q"]', query, { clearFirst: true }), 'CNIPR 检索框')
-  await waitForState(page, () => page.click('#search-btn', { timeout: 15000 }), 'CNIPR 检索提交')
-  await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: 45000 }), '检索结果页')
-  await waitForState(page, () => page.waitForSelector('#detailSearch', { timeout: 30000 }), '结果页详情表单')
+  await waitForState(page, () => page.click('#search-btn', { timeout: ACTION_TIMEOUT_MS }), 'CNIPR 检索提交')
+  await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: NAVIGATION_TIMEOUT_MS }), '检索结果页')
+  await waitForState(page, () => page.waitForSelector('#detailSearch', { timeout: RESULT_TIMEOUT_MS }), '结果页详情表单')
   for (let index = 1; index <= pages; index += 1) {
     if (index > 1 && !(await turnToPage(page, index))) break
     const read = await page.evaluate(readPage, { offset: items.length })

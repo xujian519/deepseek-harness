@@ -2830,7 +2830,7 @@ export interface AutoCommitConfig {
 ## `@deepseek-ai/dsh-patent-data`
 
 - `inject`: `subprocess`
-- `source`: [`packages/patent/patent-data/src/index.ts:132`](../packages/patent/patent-data/src/index.ts)
+- `source`: [`packages/patent/patent-data/src/index.ts:138`](../packages/patent/patent-data/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2838,7 +2838,10 @@ export interface AutoCommitConfig {
  * probe and run deadlines, and the output cap differ between hosts (a wrapper
  * on the PATH, a slower machine, a larger scrape), so each is a validated
  * field here; every default is the value the seam shipped before it was
- * configurable, and a per-call option still overrides it.
+ * configurable, and a per-call option still overrides it. The CNIPR page waits
+ * are the same kind of value: site latency, login-state refresh, and network
+ * conditions decide them per deployment, so every step the generated scripts
+ * wait on is a field rather than a literal.
  */
 export interface Config {
   /** ego-browser CLI command name (default `ego-browser`). */
@@ -2866,6 +2869,22 @@ export interface Config {
    * 消费方据此按号回退到 nuo 引擎，并在结果里点名实际服务的通道。
    */
   cniprEnabled?: boolean
+  /** CNIPR 登录态轮询间隔（毫秒，默认 1000）。 */
+  cniprLoginPollMs?: number
+  /** 每轮 CNIPR 登录态轮询次数（默认 10）。 */
+  cniprLoginAttempts?: number
+  /** CNIPR 登录态轮询轮数；除最后一轮外每轮结束 reload 首页（默认 2）。 */
+  cniprLoginRounds?: number
+  /** CNIPR 页面导航期限（毫秒，默认 45000）：首页 goto/reload 与检索结果页 URL。 */
+  cniprNavigationTimeoutMs?: number
+  /** CNIPR 点击与表单提交期限（毫秒，默认 15000）。 */
+  cniprActionTimeoutMs?: number
+  /** CNIPR 结果页结构出现期限（毫秒，默认 30000）：详情表单、法律状态表单与结果 URL、翻页标记。 */
+  cniprResultTimeoutMs?: number
+  /** CNIPR 结果内容渲染期限（毫秒，默认 20000）：结果行、申请号、法律状态结果标题。 */
+  cniprRenderTimeoutMs?: number
+  /** CNIPR 详情检索接口的响应期限（毫秒，默认 20000）。 */
+  cniprDetailTimeoutMs?: number
 }
 
 /** One nuo request channel: see {@link NUO_REQUEST_CHANNELS}. */

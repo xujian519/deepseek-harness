@@ -1,7 +1,7 @@
 // CNIPR 通道：可用性与期限的分类、收据缺失的收敛、号码级结果的对齐，以及
 // 会话选项（cwd / 期限 / 取消信号）的透传。
 import { describe, expect, it } from 'vitest'
-import { CniprChannel, CniprChannelError, SerialQueue } from '@deepseek-ai/dsh-patent-data'
+import { CniprChannel, CniprChannelError, DEFAULT_CNIPR_PAGE_BUDGETS, SerialQueue } from '@deepseek-ai/dsh-patent-data'
 import type { CniprEgoSession } from '@deepseek-ai/dsh-patent-data'
 
 /** 一次脚本运行的记录：断言通道传给会话的脚本体与选项。 */
@@ -203,6 +203,26 @@ describe('CniprChannel run gating', () => {
     await new CniprChannel({ session }).pdfLinks(['CN122072823A'])
 
     expect(runs[0]?.options).toMatchObject({ cwd: process.cwd() })
+  })
+
+  it('embeds the resolved page budgets and lets one field override the rest', async () => {
+    const defaulted = fakeSession(tagged('CNIPR_PDFLINKS', { items: [] }))
+
+    await new CniprChannel({ session: defaulted.session }).pdfLinks(['CN122072823A'])
+
+    const defaultScript = defaulted.runs[0]?.script ?? ''
+    expect(defaultScript).toContain(`const NAVIGATION_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.navigationTimeoutMs}`)
+    expect(defaultScript).toContain(`const RESULT_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.resultTimeoutMs}`)
+
+    const overridden = fakeSession(tagged('CNIPR_PDFLINKS', { items: [] }))
+
+    await new CniprChannel({ session: overridden.session, pageBudgets: { navigationTimeoutMs: 9_999 } })
+      .pdfLinks(['CN122072823A'])
+
+    const overrideScript = overridden.runs[0]?.script ?? ''
+    expect(overrideScript).toContain('const NAVIGATION_TIMEOUT_MS = 9999')
+    // 只换一个字段：其余步骤仍用默认预算。
+    expect(overrideScript).toContain(`const RESULT_TIMEOUT_MS = ${DEFAULT_CNIPR_PAGE_BUDGETS.resultTimeoutMs}`)
   })
 
   it('recovers a receipt from the raw stderr when the merged output was truncated', async () => {

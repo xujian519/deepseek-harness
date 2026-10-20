@@ -38,7 +38,7 @@ kind: "package-reference"
 <a id="configuration"></a>
 ## 配置
 
-cordis.yml 的 `Config` 声明随部署变化的 ego-browser 取值；逐调用选项覆盖同名字段。
+cordis.yml 的 `Config` 声明随部署变化的 ego-browser 取值与 CNIPR 页面等待；逐调用选项覆盖同名字段。
 
 | 键 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -49,6 +49,14 @@ cordis.yml 的 `Config` 声明随部署变化的 ego-browser 取值；逐调用�
 | `maxOutputBytes` | `500000` | 合并输出的软上限（字节）；截断保留完整的 UTF-8 字符。 |
 | `nuoRequestChannel` | `auto` | nuo 请求走的通道：`auto` 用 nuo 自己的可用性探测且不改环境，`native` 强制原生 fetch，`browser` 强制 ego 浏览器。取后两者会写入进程级 `NUO_PATENT_EGO_BROWSER`——该环境变量是 nuo 唯一的开关；服务销毁时恢复它替换掉的原值。该变量是进程级的，因此多个挂载的显式选择按最后写入者生效。 |
 | `cniprEnabled` | `false` | 本部署是否经 CNIPR 取中国专利全文与法律状态。该通道复用 ego lite 在 `search.cnipr.com` 的登录态，没有该登录态的部署打开它得不到东西；此时 `createCniprChannel()` 返回空，消费方继续走 nuo 引擎并点名自己用的通道。 |
+| `cniprLoginPollMs` | `1000` | 登录态轮询间隔（毫秒）。 |
+| `cniprLoginAttempts` | `10` | 每轮登录态轮询次数。 |
+| `cniprLoginRounds` | `2` | 登录态轮询轮数；除最后一轮外，每轮结束 reload 首页。 |
+| `cniprNavigationTimeoutMs` | `45000` | 页面导航期限（毫秒）：首页 `goto`/reload 与检索结果页 URL。 |
+| `cniprActionTimeoutMs` | `15000` | 点击与表单提交期限（毫秒）。 |
+| `cniprResultTimeoutMs` | `30000` | 结果页结构出现期限（毫秒）：详情检索表单、法律状态表单与结果 URL、翻页标记。 |
+| `cniprRenderTimeoutMs` | `20000` | 结果内容渲染期限（毫秒）：结果行、申请号、法律状态结果标题。 |
+| `cniprDetailTimeoutMs` | `20000` | 详情检索接口的响应期限（毫秒），该接口返回内嵌全文直链的 HTML。 |
 
 其余选项只走逐调用：它们是测试接缝，或本服务无从知晓的取值。
 
@@ -61,6 +69,7 @@ cordis.yml 的 `Config` 声明随部署变化的 ego-browser 取值；逐调用�
 | `createEgoSession` | `env` | `process.env` | 环境变量覆盖。 |
 | `createEgoSession` | `runner` | subprocess 后端 runner | 测试用 spawn runner 注入。 |
 | `createCniprChannel` | `timeoutMs` | 会话 `defaultTimeoutMs` | 单次 CNIPR 脚本运行的期限。 |
+| `createCniprChannel` | `pageBudgets` | `Config` 解析出的取值 | 单个通道的逐项等待覆盖；给出一个字段只换那一项。 |
 | `createCniprChannel` | `cwd` | `process.cwd()` | 脚本子进程的工作目录；脚本不落盘。 |
 
 <a id="model-experience"></a>
@@ -77,7 +86,7 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 
 - **外部 `ego-browser` CLI 依赖** — 反爬抓取路径需要外部 `ego-browser`（ego-lite）CLI 已安装且在 PATH 上（仅 macOS）；本包不随附任何 ego-browser 脚本资产（Sati 的 `skills/ego-browser/` 仅含 learnings），因此站点反爬升级在本包之外维护。
 - **装了 JSON 查看器扩展时，nuo 的浏览器路径会让检索失效** — macOS 上只要装了该 CLI，`fetchHtml` 就优先走 ego 浏览器，因此「不设 `NUO_PATENT_EGO_BROWSER`」不等于留在原生 fetch。该路径下浏览器里的 JSON 查看器扩展会把搜索 XHR 的 `application/json` 响应渲染成 HTML：`parseSearchResultsJson` 拿不到 JSON，HTML 回退也解析不出命中，`patent_search` 只带一条非致命告警返回零命中。2026-10-03 在同一代理下实测：三个查询经浏览器路径均零命中，改走原生 fetch 后各 10 条命中。检索必须可用的部署设 `nuoRequestChannel: native`（专利 preset 已设）；该选择是进程级的，因为 nuo 只以环境变量暴露它。
-- **CNIPR 通道的范围与维护** — 该通道经 ego lite 操作 `search.cnipr.com`，因此需要那份登录态，也继承平台限制：站点声明不支持爬取，故通道按普通页面交互逐号取，从不批量、不并发。同一个 `PatentData` 服务创建的通道共用一个串行队列，因为每个脚本复用同一个命名任务空间与标签页；该服务内的并行工具调用会排队等待，而不是同时驱动同一页面。队列以服务为界：不同 dsh 进程、以及同一 ego lite profile 上挂载的多个服务仍可能互相干扰，因此一个 ego profile 应只运行一个启用 CNIPR 的 patent-data 挂载。它的页面契约（搜索框、详情检索 POST、法律状态表单、结果行字段、`pic.cnipr.com/pdfcn/...` 直链模式）属于站点：站点一变，第一次调用就以 `page_state` 暴露，而不是静默返回空答案——收据要么解析得出，要么解析不出。法律状态记录来自结果页文本；页面上没有记录时计数为 null，不编造 0。检索直接读结果行（行上已带标题、申请人、公开日与摘要，因此不必逐条取详情页）；页面每页十条，其 20/30 条选项对本部署账号等级会被拒，故更大的 `limit` 靠翻站点自身的分页来取，单次上限三页。
+- **CNIPR 通道的范围与维护** — 该通道经 ego lite 操作 `search.cnipr.com`，因此需要那份登录态，也继承平台限制：站点声明不支持爬取，故通道按普通页面交互逐号取，从不批量、不并发。同一个 `PatentData` 服务创建的通道共用一个串行队列，因为每个脚本复用同一个命名任务空间与标签页；该服务内的并行工具调用会排队等待，而不是同时驱动同一页面。队列以服务为界：不同 dsh 进程、以及同一 ego lite profile 上挂载的多个服务仍可能互相干扰，因此一个 ego profile 应只运行一个启用 CNIPR 的 patent-data 挂载。它的页面契约（搜索框、详情检索 POST、法律状态表单、结果行字段、`pic.cnipr.com/pdfcn/...` 直链模式）属于站点：站点一变，第一次调用就以 `page_state` 暴露，而不是静默返回空答案——收据要么解析得出，要么解析不出。法律状态记录来自结果页文本；页面上没有记录时计数为 null，不编造 0。检索直接读结果行（行上已带标题、申请人、公开日与摘要，因此不必逐条取详情页）；页面每页十条，其 20/30 条选项对本部署账号等级会被拒，故更大的 `limit` 靠翻站点自身的分页来取，单次上限三页。这两个上限是站点/账号协议值，固定不变；其余页面等待都是 `Config` 字段，慢主机、登录态刷新或站点改版都不必重新发布。
 - **消费方接线** — 检索 provider 工厂与 ego-session runner 由 `dsh-patent-tools` 消费（patent_search/metadata/legal_status 与 patent_pdf_download）；CNIPR 通道由 `patent_pdf_download`（中国全文）、`patent_legal_status`（中国法律状态记录）与 `patent_search`（引擎失败或零命中时的中国关键词检索）消费。缓存、映射、持久化与路径模块保持库导出供这些消费方使用。
 
 ### 开发备注

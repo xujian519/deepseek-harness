@@ -170,6 +170,29 @@ export interface CniprEgoSession {
   extractTaggedJson: (output: string, tag: string) => unknown
 }
 
+/**
+ * CNIPR 生成脚本的页面等待预算。站点响应速度、登录态刷新节奏与部署网络都会改变这些
+ * 等待的合理取值，故每一项都由部署配置；默认值是通道落地时的站点实测值。
+ */
+export interface CniprPageBudgets {
+  /** 登录态轮询间隔（毫秒）。 */
+  loginPollMs: number
+  /** 每轮登录态轮询次数。 */
+  loginAttempts: number
+  /** 登录态轮询轮数；除最后一轮外，每轮结束 reload 首页。 */
+  loginRounds: number
+  /** 页面导航期限（首页 goto/reload、检索结果页 URL）。 */
+  navigationTimeoutMs: number
+  /** 点击与表单提交期限。 */
+  actionTimeoutMs: number
+  /** 结果页结构出现期限（详情检索表单、法律状态表单与结果 URL、翻页标记）。 */
+  resultTimeoutMs: number
+  /** 结果内容渲染期限（结果行、申请号、法律状态结果标题）。 */
+  renderTimeoutMs: number
+  /** 详情检索接口的响应期限。 */
+  detailTimeoutMs: number
+}
+
 /** 构造一个 CNIPR 通道的选项。 */
 export interface CniprChannelOptions {
   /** 注入的 ego 会话（生产：`ctx.patentData.createEgoSession()`）。 */
@@ -181,6 +204,11 @@ export interface CniprChannelOptions {
   queue?: SerialQueue
   /** 单次脚本运行的期限（毫秒）；缺省取会话自己的默认期限，并受其硬上限约束。 */
   timeoutMs?: number
+  /**
+   * 页面等待预算；未给出的字段沿用通道默认值，服务创建通道时传入自己解析的完整预算。
+   * 它只调单步等待，不改变脚本整体期限（`timeoutMs`）。
+   */
+  pageBudgets?: Partial<CniprPageBudgets>
   /** 脚本运行的工作目录（默认 `process.cwd()`）；脚本不落盘，它只作子进程 cwd。 */
   cwd?: string
 }
