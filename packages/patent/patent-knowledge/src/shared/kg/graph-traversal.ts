@@ -17,13 +17,6 @@ export type KgNeighbor = {
   relation: string
 }
 
-/** 图谱路径边（公开类型，当前无消费方；保留给后续最短路径实现）。 */
-export type KgPathEdge = {
-  source: string
-  target: string
-  relation: string
-}
-
 /** 图谱遍历（邻居/按类型列表/多跳展开等图操作）。 */
 export class GraphTraversal {
   constructor(

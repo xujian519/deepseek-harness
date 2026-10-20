@@ -45,10 +45,8 @@ export { KNOWLEDGE_DB, LAWS_DB, VECTORS_DB } from './shared/schema-versions.ts'
 // Shared query helpers.
 export { FTS_MIN_RUNES, escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from './shared/fts.ts'
 export { MIN_COMPRESS_CHARS, compressChunk, compressIfSmaller, decompressChunk, registerChunkUncompress, shouldCompress } from './shared/chunk-compression.ts'
-export { CircuitBreaker, guarded } from './shared/circuit-breaker.ts'
-export type { CircuitBreakerOptions, CircuitBreakerState } from './shared/circuit-breaker.ts'
 export { KnowledgeRuntimeStats } from './shared/knowledge-stats.ts'
-export type { KgFtsMode, KnowledgeRuntimeStatsSnapshot, WikiSemanticIndexState } from './shared/knowledge-stats.ts'
+export type { KnowledgeRuntimeStatsSnapshot } from './shared/knowledge-stats.ts'
 
 // Case-law surface.
 export { CaseLawSearchEngine } from './case-law/case-law-search.ts'
@@ -71,7 +69,7 @@ export type { LawCategory, LawLevel, LawRecord, LawSearchResult, LegalSearchSour
 export { KgStore } from './shared/kg-store.ts'
 export type { KgSearchOptions } from './shared/kg-store.ts'
 export { GraphTraversal } from './shared/kg/graph-traversal.ts'
-export type { KgNeighbor, KgPathEdge } from './shared/kg/graph-traversal.ts'
+export type { KgNeighbor } from './shared/kg/graph-traversal.ts'
 export { introspectKgStore } from './shared/kg/schema-introspector.ts'
 export type { KgSchema, KgStoreIntrospection, KgStoreStatements } from './shared/kg/schema-introspector.ts'
 export { parseLawRefsCount, toNode } from './shared/kg/row-mapper.ts'

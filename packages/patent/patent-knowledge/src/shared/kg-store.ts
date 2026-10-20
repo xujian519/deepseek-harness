@@ -6,7 +6,7 @@ import { openKnowledgeDb } from './db-version.ts'
 import { KNOWLEDGE_DB } from './schema-versions.ts'
 import { toNode, type FtsHit, type NodeRow } from './kg/row-mapper.ts'
 import { introspectKgStore, type KgSchema } from './kg/schema-introspector.ts'
-import { GraphTraversal, type KgNeighbor, type KgPathEdge } from './kg/graph-traversal.ts'
+import { GraphTraversal, type KgNeighbor } from './kg/graph-traversal.ts'
 
 /**
  * 知识图谱只读存储（双 schema 兼容）。
@@ -23,7 +23,7 @@ import { GraphTraversal, type KgNeighbor, type KgPathEdge } from './kg/graph-tra
 
 // 类型再导出（定义见 kg/ 子模块，保持 "./kg-store.ts" 导出面不变）
 export type { KgSchema }
-export type { KgNeighbor, KgPathEdge }
+export type { KgNeighbor }
 
 /** 分词模式的分隔符（空格 + 中文标点）。 */
 const OR_SEPARATOR_RE = /[\s，。？！、；：,.;!?]+/

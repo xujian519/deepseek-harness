@@ -2,46 +2,15 @@
  * 知识库运行时状态聚合（可观测性出口的数据源）。
  *
  * 两个全文引擎在检索路径打点 `legalFtsDegraded` / `caseLawFtsDegraded` /
- * `likeFallbacks`，`snapshot()` 供外部诊断只读消费。语义召回、重排、缓存与
- * 熔断器字段预留给后续版本，本仓库暂无写入方。
+ * `likeFallbacks`，`snapshot()` 供外部诊断只读消费。
  *
  * 设计约束：
  * - 打点全部为可选注入（provider 不传 stats 时行为与现状完全一致）；
- * - snapshot 为纯读取，不加锁——单进程内 JS 事件循环保证计数自洽；
- * - 不持有 provider 引用，仅注册熔断器（弱引用语义由调用方生命周期保证）。
+ * - snapshot 为纯读取，不加锁——单进程内 JS 事件循环保证计数自洽。
  */
-
-import type { CircuitBreaker, CircuitBreakerState } from './circuit-breaker.ts'
-
-/** 知识图谱 FTS tokenizer 实际生效模式（kg-store 探测结果）。 */
-export type KgFtsMode = 'trigram' | 'unicode61' | 'like' | 'unknown'
-
-/** wiki 卡语义索引（运行时 JSONL）生命周期状态。 */
-export type WikiSemanticIndexState = 'disabled' | 'warming' | 'ready' | 'failed'
 
 /** 知识库运行时统计快照。 */
 export type KnowledgeRuntimeStatsSnapshot = {
-  /** 检索结果缓存命中/未命中次数（预留，本仓库暂无写入方）。 */
-  cacheHits: number
-  cacheMisses: number
-  /** 语义召回（embedding/vectors.db）发起次数与失败次数（预留，暂无写入方）。 */
-  semanticCalls: number
-  semanticFailures: number
-  /** 重排（rerank）发起次数与失败次数（预留，暂无写入方）。 */
-  rerankCalls: number
-  rerankFailures: number
-  /** 已注册熔断器状态（预留，暂无写入方）。 */
-  breakers: Array<{ name: string; state: CircuitBreakerState }>
-  /** KG FTS tokenizer 模式（预留，暂无写入方；无 KG 时为 unknown）。 */
-  kgFtsMode: KgFtsMode
-  /** wiki 卡语义索引状态（预留，暂无写入方）。 */
-  wikiSemanticIndex: WikiSemanticIndexState
-  /** 判例自动注入是否可用（预留，暂无写入方）。 */
-  caseLawAvailable: boolean
-  /** 判例自动注入累计条数（预留，暂无写入方）。 */
-  caseLawInjects: number
-  /** embedding 查询端与 knowledge.db 库向量一致性自检结果（预留；未自检时 undefined）。 */
-  embeddingConsistency?: { ok: boolean; meanCosine: number } | undefined
   /** 法规全文引擎 FTS5 已粘性降级（查询期异常后永久走 LIKE；false=未降级/无引擎）。 */
   legalFtsDegraded: boolean
   /** 判例全文引擎 FTS5 已粘性降级（同上）。 */
@@ -52,100 +21,9 @@ export type KnowledgeRuntimeStatsSnapshot = {
 
 /** 知识库运行时状态聚合（可观测性出口的数据源）。 */
 export class KnowledgeRuntimeStats {
-  private cacheHits = 0
-  private cacheMisses = 0
-  private semanticCalls = 0
-  private semanticFailures = 0
-  private rerankCalls = 0
-  private rerankFailures = 0
-  private readonly breakers = new Map<string, CircuitBreaker>()
-  private kgFtsMode: KgFtsMode = 'unknown'
-  private wikiSemanticIndex: WikiSemanticIndexState = 'disabled'
-  private caseLawAvailable = false
-  private caseLawInjects = 0
-  private embeddingConsistency?: { ok: boolean; meanCosine: number } | undefined
   private legalFtsDegraded = false
   private caseLawFtsDegraded = false
   private likeFallbacks = 0
-
-  /** 缓存命中 +1。 */
-  recordCacheHit(): void {
-    this.cacheHits += 1
-  }
-
-  /** 缓存未命中 +1。 */
-  recordCacheMiss(): void {
-    this.cacheMisses += 1
-  }
-
-  /** 语义召回发起一次（进入 guarded 业务闭包即计数）。 */
-  recordSemanticCall(): void {
-    this.semanticCalls += 1
-  }
-
-  /** 语义召回失败 +1。 */
-  recordSemanticFailure(): void {
-    this.semanticFailures += 1
-  }
-
-  /** 重排发起 +1。 */
-  recordRerankCall(): void {
-    this.rerankCalls += 1
-  }
-
-  /** 重排失败 +1。 */
-  recordRerankFailure(): void {
-    this.rerankFailures += 1
-  }
-
-  /**
-   * 注册熔断器（同名后注册覆盖，供 runtime 重建场景）。
-   * @param name 熔断器名称。
-   * @param breaker 熔断器实例。
-   */
-  registerBreaker(name: string, breaker: CircuitBreaker): void {
-    this.breakers.set(name, breaker)
-  }
-
-  /**
-   * 记录 KG FTS tokenizer 模式。
-   * @param mode 生效的 FTS 模式。
-   */
-  setKgFtsMode(mode: KgFtsMode): void {
-    this.kgFtsMode = mode
-  }
-
-  /**
-   * 记录 wiki 卡语义索引状态。
-   * @param state 语义索引生命周期状态。
-   */
-  setWikiSemanticIndexState(state: WikiSemanticIndexState): void {
-    this.wikiSemanticIndex = state
-  }
-
-  /**
-   * 判例自动注入可用性（CaseLawMemoryProvider 构造时打点）。
-   * @param available 是否可用。
-   */
-  setCaseLawAvailable(available: boolean): void {
-    this.caseLawAvailable = available
-  }
-
-  /**
-   * 判例自动注入一次（记录注入条数，供诊断观察注入强度）。
-   * @param count 本次注入条数。
-   */
-  recordCaseLawInject(count: number): void {
-    this.caseLawInjects += count
-  }
-
-  /**
-   * 记录 embedding 一致性自检结果（不达标时语义召回已降级，此处仅留痕）。
-   * @param result 自检结果（是否达标与平均余弦相似度）。
-   */
-  setEmbeddingConsistency(result: { ok: boolean; meanCosine: number }): void {
-    this.embeddingConsistency = result
-  }
 
   /**
    * 法规全文引擎 FTS5 粘性降级（引擎查询期异常后打点一次）。
@@ -174,20 +52,6 @@ export class KnowledgeRuntimeStats {
    */
   snapshot(): KnowledgeRuntimeStatsSnapshot {
     return {
-      cacheHits: this.cacheHits,
-      cacheMisses: this.cacheMisses,
-      semanticCalls: this.semanticCalls,
-      semanticFailures: this.semanticFailures,
-      rerankCalls: this.rerankCalls,
-      rerankFailures: this.rerankFailures,
-      breakers: Array.from(this.breakers.entries(), ([name, breaker]) => ({ name, state: breaker.state })),
-      kgFtsMode: this.kgFtsMode,
-      wikiSemanticIndex: this.wikiSemanticIndex,
-      caseLawAvailable: this.caseLawAvailable,
-      caseLawInjects: this.caseLawInjects,
-      embeddingConsistency: this.embeddingConsistency === undefined
-        ? undefined
-        : { ...this.embeddingConsistency },
       legalFtsDegraded: this.legalFtsDegraded,
       caseLawFtsDegraded: this.caseLawFtsDegraded,
       likeFallbacks: this.likeFallbacks,
