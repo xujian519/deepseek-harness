@@ -17,7 +17,8 @@ import { GraphTraversal, type KgNeighbor, type KgPathEdge } from './kg/graph-tra
  * 设计：**按需 SQL 查询 + 有界 LRU 节点缓存**（上限见构造参数），避免将 217MB / 116K 节点
  * 全量加载进内存（Mady 的内存邻接表方案在 Node 侧过重），也避免长会话里缓冲过的节点 id 无界累积。edges 表
  * 已建 (source)/(target)/(relation) 索引，FTS5 表 nodes_fts 提供
- * 关键词检索，查询均在毫秒级。
+ * 关键词检索，查询均在毫秒级。统一 schema 的 kg_nodes_fts（trigram，含 content）在
+ * 行数与节点表一致时直接承担整句子串匹配，未命中不再触发全表 LIKE；legacy/短查询/陈旧索引保留回退。
  */
 
 // 类型再导出（定义见 kg/ 子模块，保持 "./kg-store.ts" 导出面不变）
@@ -55,6 +56,17 @@ export class KgStore {
   private readonly stmtGetNode: StatementSync
   private readonly stmtLikeSearch: StatementSync
   private readonly stmtFtsSearch: StatementSync | null
+  /**
+   * OR 模式整句批次：按 rowid 排序保持与 LIKE 全表扫描相同的插入序。
+   * trigram 索引覆盖正文时，整句 MATCH 与 LIKE 子串语义等价，可用它替代 66 ms 级全表扫描。
+   */
+  private readonly stmtFtsPhraseOrdered: StatementSync | null
+  /**
+   * 统一 schema 的 trigram 索引覆盖正文且行数与节点表一致。
+   * 为 true 时，整句 FTS 未命中可直接返回，跳过全表 LIKE；行数一致只能排除部分陈旧，
+   * 内容原地更新仍需数据管道重建索引。
+   */
+  private readonly contentIndexComplete: boolean
 
   /**
    * @param dbPath - 知识图谱数据库路径。
@@ -74,6 +86,12 @@ export class KgStore {
     this.stmtGetNode = introspected.statements.stmtGetNode
     this.stmtLikeSearch = introspected.statements.stmtLikeSearch
     this.stmtFtsSearch = introspected.statements.stmtFtsSearch
+    this.stmtFtsPhraseOrdered = this.schema === 'unified' && this.stmtFtsSearch !== null
+      ? this.db.prepare(
+        'SELECT k.id, k.name, k.title FROM kg_nodes_fts f JOIN kg_nodes k ON k.rowid = f.rowid WHERE kg_nodes_fts MATCH ? ORDER BY k.rowid LIMIT ?',
+      )
+      : null
+    this.contentIndexComplete = this.stmtFtsPhraseOrdered !== null && this.detectContentIndexComplete()
     this.graphTraversal = new GraphTraversal(
       {
         stmtNeighbors: introspected.statements.stmtNeighbors,
@@ -101,6 +119,21 @@ export class KgStore {
     // unified schema（kg_nodes_fts）恒为 trigram。
     if (this.schema === 'unified') return 'trigram'
     return this.ftsTable === 'nodes_fts_trigram' ? 'trigram' : 'unicode61'
+  }
+
+  /**
+   * 探测统一 schema 的 trigram 索引是否覆盖正文并与节点表同步。
+   * 行数一致只排除“缺少/多余索引行”；内容原地更新仍需数据管道重建索引。
+   * @returns 索引覆盖 name/title/content 且行数与 kg_nodes 一致时 true。
+   */
+  private detectContentIndexComplete(): boolean {
+    const columns = this.db.prepare("SELECT name FROM pragma_table_info('kg_nodes_fts')").all() as Array<{
+      name: string
+    }>
+    if (!columns.some(column => column.name === 'content')) return false
+    const fts = this.db.prepare('SELECT COUNT(*) AS c FROM kg_nodes_fts').get() as { c: number }
+    const nodes = this.db.prepare('SELECT COUNT(*) AS c FROM kg_nodes').get() as { c: number }
+    return fts.c === nodes.c
   }
 
   /**
@@ -138,7 +171,8 @@ export class KgStore {
       // FTS 词级匹配未命中且无分隔符时降级 LIKE 子串：unicode61 下长句/短语常无完整 token，
       // 子串匹配比 token 完全匹配宽松（如 "以说明书为依据" 作为 token 不存在时仍可命中正文）。
       // 带分隔符短语的 LIKE（%创造性 三步法%）召回率趋近于零，跳过以避免无谓全表扫描。
-      if (ids.length === 0 && !OR_SEPARATOR_RE.test(trimmed)) {
+      // trigram 索引覆盖正文时整句 MATCH 已具备子串语义，未命中直接返回，跳过 66 ms 级全表扫描。
+      if (ids.length === 0 && !this.contentIndexComplete && !OR_SEPARATOR_RE.test(trimmed)) {
         ids = this.likeSearch(trimmed, limit).map(row => row.id)
       }
     } else {
@@ -193,15 +227,15 @@ export class KgStore {
   /**
    * OR 分词检索（多词召回）。
    *
-   * nodes_fts 为 FTS5 默认 unicode61 tokenizer：连续汉字构成单个 token，
-   * 短语 MATCH 需 token 完全相等且相邻（"创造性 三步法" 基本不命中）。
+   * 统一 schema 的 kg_nodes_fts 为 trigram，legacy nodes_fts 可能为 unicode61。
    * 本模式在单一入口内完成拆词与召回（调用方无需再分词）：
+   *   - trigram 覆盖正文时：无分隔长词先用整句 MATCH（按 rowid 排序）填第一批，
+   *     不足 limit 再用窗口子词补充；整句 MATCH 与 LIKE 子串语义等价，末尾的整句 LIKE 兜底可跳过
+   *   - unicode61：连续汉字构成单个 token，整句 phrase 基本不命中，先用整体 LIKE 精确子串
    *   - 短词（≤3 字）直接整体：3 字走 FTS，2 字降级 LIKE
    *   - 分隔符拆词：≥3 字词 FTS `"词1" OR "词2"`，2 字词 LIKE；1 字词丢弃
    *     （LIKE %单字% 命中数万节点，纯噪音）
-   *   - 无分隔 4+ 字长词：整体 LIKE 精确子串优先（unicode61 下 4+ 字 token 基本不存在），
-   *     窗口子词补充召回（4-5 字 2 字窗 LIKE / ≥6 字 3 字窗 FTS）
-   *   - 全部未命中时整体 LIKE 一次（覆盖 3 字词 FTS 未命中但正文含子串的场景）
+   *   - 无分隔 4+ 字长词：窗口子词补充召回（4-5 字 2 字窗 LIKE / ≥6 字 3 字窗 FTS）
    */
   private searchByKeywordOr(keyword: string, limit: number): KgNode[] {
     const trimmed = keyword.trim()
@@ -209,6 +243,8 @@ export class KgStore {
     if (!trimmed) return []
     const chars = Array.from(trimmed)
     const hasSeparators = OR_SEPARATOR_RE.test(trimmed)
+    /** trigram 整句语句；非 null 表示整句 MATCH 可替代整句 LIKE。 */
+    const trigramPhrase = this.contentIndexComplete ? this.stmtFtsPhraseOrdered : null
 
     const ids = new Set<string>()
     const ftsTerms: string[] = []
@@ -226,14 +262,18 @@ export class KgStore {
     } else if (hasSeparators) {
       for (const part of trimmed.split(OR_SEPARATOR_RE)) collect(part)
     } else {
-      // 无分隔长词：整体 LIKE 优先（精确子串，插入序靠前以保证限流后存活），窗口子词补充
-      /* v8 ignore next 3 -- this branch only runs for words longer than 3 runes */
-      if (chars.length >= 4) {
+      // 无分隔长词：trigram 用整句 MATCH（子串语义与 LIKE 一致），unicode61 用整体 LIKE。
+      if (trigramPhrase !== null) {
+        for (const row of trigramPhrase.all(escapeFtsPhrase(trimmed), limit) as FtsHit[]) ids.add(row.id)
+      } else {
         for (const row of this.likeSearch(trimmed, limit)) ids.add(row.id)
       }
-      const step = chars.length <= 5 ? 2 : 3
-      for (let i = 0; i + step <= chars.length; i += step) {
-        collect(chars.slice(i, i + step).join(''))
+      // 第一批未填满才用窗口子词补充；已满时窗口结果会被末尾 slice 丢弃。
+      if (ids.size < limit) {
+        const step = chars.length <= 5 ? 2 : 3
+        for (let i = 0; i + step <= chars.length; i += step) {
+          collect(chars.slice(i, i + step).join(''))
+        }
       }
     }
 
@@ -252,8 +292,8 @@ export class KgStore {
       for (const row of this.likeSearchTerms(mergedTerms, limit)) ids.add(row.id)
     }
 
-    // 兜底：候选词均未命中时整体 LIKE 一次（带分隔符短语的子串匹配无意义，跳过）
-    if (ids.size === 0 && !hasSeparators && chars.length >= 2) {
+    // 兜底：候选词均未命中时整体 LIKE 一次（带分隔符或 trigram 整句已覆盖时跳过）
+    if (ids.size === 0 && !hasSeparators && chars.length >= 2 && trigramPhrase === null) {
       for (const row of this.likeSearch(trimmed, limit)) ids.add(row.id)
     }
 

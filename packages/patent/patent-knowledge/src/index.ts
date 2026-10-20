@@ -44,7 +44,7 @@ export { KNOWLEDGE_DB, LAWS_DB, VECTORS_DB } from './shared/schema-versions.ts'
 
 // Shared query helpers.
 export { FTS_MIN_RUNES, escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from './shared/fts.ts'
-export { MIN_COMPRESS_CHARS, compressChunk, decompressChunk, registerChunkUncompress, shouldCompress } from './shared/chunk-compression.ts'
+export { MIN_COMPRESS_CHARS, compressChunk, compressIfSmaller, decompressChunk, registerChunkUncompress, shouldCompress } from './shared/chunk-compression.ts'
 export { CircuitBreaker, guarded } from './shared/circuit-breaker.ts'
 export type { CircuitBreakerOptions, CircuitBreakerState } from './shared/circuit-breaker.ts'
 export { KnowledgeRuntimeStats } from './shared/knowledge-stats.ts'

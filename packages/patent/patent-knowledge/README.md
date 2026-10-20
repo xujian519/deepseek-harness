@@ -45,7 +45,7 @@ IPC classification of a patent-domain text via the ported keyword classifier. Re
 
 ### kgSearch / kgGetNode / kgListByType
 
-Knowledge-graph keyword search with relation expansion, node lookup by id, and node listing by type over the `kg_nodes`/`kg_edges` tables (unified schema, with legacy `nodes`/`edges` fallback).
+Knowledge-graph keyword search with relation expansion, node lookup by id, and node listing by type over the `kg_nodes`/`kg_edges` tables (unified schema, with legacy `nodes`/`edges` fallback). Whole-phrase matches use the bundled trigram `kg_nodes_fts` index (which includes node content) when its row count matches `kg_nodes`; short queries and legacy unicode61 schemas fall back to LIKE, and a row-count mismatch disables the fast path.
 
 ### ipcStandards / ipcStandardsByArticle / ipcStandardsSearch
 
@@ -84,6 +84,7 @@ Independent; the knowledge seam registers no prompt, tool schema, or result of i
 ## Known Limitations and Deferred Work
 
 - **No vector or semantic retrieval in P1** — the embedding/vector paths (`knowledge-embeddings`, `wiki-card-vector-index`, the three memory providers) are not ported; wiki-card lookup is keyword-only, and case-law/legal/knowledge-graph search is FTS5/LIKE only.
+- **Knowledge-graph index freshness is assumed** — the trigram fast path treats a row-aligned `kg_nodes_fts` as complete and skips the LIKE fallback; rebuild the index after editing node content in place.
 - **Source database is not bundled** — the data must be prepared locally via `patent-knowledge:install` or pointed at directly through `sourceDbPath`/`knowledgeDir`; no public download is provided.
 - **`node:sqlite` is experimental** — the engines run on Node's built-in SQLite, which is experimental in the supported Node line and may change between releases.
 

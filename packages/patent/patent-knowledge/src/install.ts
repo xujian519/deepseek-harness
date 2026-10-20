@@ -15,14 +15,14 @@
 import { DatabaseSync } from 'node:sqlite'
 import { existsSync, mkdirSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
-import { compressChunk, shouldCompress } from './shared/chunk-compression.ts'
+import { compressIfSmaller } from './shared/chunk-compression.ts'
 import { KgStore } from './shared/kg-store.ts'
 import { KnowledgeLawSearch } from './legal/knowledge-law-search.ts'
 import { CaseLawSearchEngine } from './case-law/case-law-search.ts'
 import { DEFAULT_KNOWLEDGE_DIR, DEFAULT_SOURCE_DB_PATH } from './config.ts'
 import type { InstallKnowledgeDbOptions, InstallResult } from './types.ts'
 
-/** Compress chunks.content long bodies to gzip BLOBs. Returns the compressed count. */
+/** Compress each long chunks.content body once to a gzip BLOB. Returns the compressed count. */
 function compressChunksTable(db: DatabaseSync): number {
   const select = db.prepare('SELECT id, content FROM chunks')
   const update = db.prepare('UPDATE chunks SET content = ? WHERE id = ?')
@@ -31,8 +31,9 @@ function compressChunksTable(db: DatabaseSync): number {
     const content = row.content
     const id = row.id
     if (typeof content !== 'string' || typeof id !== 'number') continue
-    if (shouldCompress(content)) {
-      update.run(compressChunk(content), id)
+    const blob = compressIfSmaller(content)
+    if (blob !== null) {
+      update.run(blob, id)
       compressed += 1
     }
   }

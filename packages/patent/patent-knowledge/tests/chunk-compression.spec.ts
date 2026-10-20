@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import {
   MIN_COMPRESS_CHARS,
   compressChunk,
+  compressIfSmaller,
   decompressChunk,
   registerChunkUncompress,
   shouldCompress,
@@ -25,9 +26,19 @@ describe('chunk-compression', () => {
 
   it('keeps short text plain (threshold)', () => {
     expect(shouldCompress('短文本')).toBe(false)
+    expect(compressIfSmaller('短文本')).toBeNull()
     const long = '超过阈值的长文本'.repeat(Math.ceil(MIN_COMPRESS_CHARS / 8))
     expect(long.length).toBeGreaterThanOrEqual(MIN_COMPRESS_CHARS)
     expect(shouldCompress(long)).toBe(true)
+    const blob = compressIfSmaller(long)
+    expect(blob).not.toBeNull()
+    expect(decompressChunk(blob)).toBe(long)
+  })
+
+  it('returns null when compression does not shrink the text', () => {
+    // Lowering the threshold isolates the size comparison: gzip overhead makes
+    // a one-character body larger than its single UTF-8 byte.
+    expect(compressIfSmaller('a', 1)).toBeNull()
   })
 
   it('falls back to utf8 for a non-gzip BLOB', () => {

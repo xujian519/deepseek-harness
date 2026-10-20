@@ -61,15 +61,27 @@ export function decompressChunk(data: string | Uint8Array | null): string {
 }
 
 /**
+ * 文本 → 压缩 BLOB；长度未达标或压缩后不更小时返回 null。
+ * 只压缩一次，写入路径应优先使用本函数（{@link shouldCompress} 只判定、会丢弃结果）。
+ * @param text 待压缩文本。
+ * @param minChars 压缩阈值（默认 {@link MIN_COMPRESS_CHARS}）。
+ * @returns 值得替换时返回压缩 BLOB，否则 null。
+ */
+export function compressIfSmaller(text: string, minChars = MIN_COMPRESS_CHARS): Buffer | null {
+  if (text.length < minChars) return null
+  const compressed = compressChunk(text)
+  // 压缩后（含魔数）必须更小，否则保留明文。
+  return compressed.length < Buffer.byteLength(text, 'utf8') ? compressed : null
+}
+
+/**
  * 该文本是否值得压缩（长度达标；压缩后应更小才替换）。
+ * 只做判定、不保留结果时使用；需要写入压缩值时用 {@link compressIfSmaller} 避免二次压缩。
  * @param text 待判定文本。
  * @returns 长度达标且压缩后更小时 true。
  */
 export function shouldCompress(text: string): boolean {
-  if (text.length < MIN_COMPRESS_CHARS) return false
-  const compressed = compressChunk(text)
-  // 压缩后（含魔数）必须更小，否则保留明文。
-  return compressed.length < Buffer.byteLength(text, 'utf8')
+  return compressIfSmaller(text) !== null
 }
 
 /**

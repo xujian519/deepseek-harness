@@ -46,7 +46,7 @@ knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全�
 
 ### kgSearch / kgGetNode / kgListByType
 
-在 `kg_nodes`/`kg_edges` 表上做知识图谱关键词检索（含关系扩展）、按 id 取节点、按类型列节点（unified schema，兼容 legacy `nodes`/`edges`）。
+在 `kg_nodes`/`kg_edges` 表上做知识图谱关键词检索（含关系扩展）、按 id 取节点、按类型列节点（unified schema，兼容 legacy `nodes`/`edges`）。当随库的 trigram `kg_nodes_fts`（含节点正文）与 `kg_nodes` 行数一致时，整句匹配直接走 FTS；短查询与 legacy unicode61 schema 回退 LIKE，行数不一致时禁用快路径。
 
 ### ipcStandards / ipcStandardsByArticle / ipcStandardsSearch
 
@@ -89,6 +89,7 @@ Independent; the knowledge seam registers no prompt, tool schema, or result of i
 ## Known Limitations and Deferred Work
 
 - **P1 无向量/语义检索** — embedding/向量路径（`knowledge-embeddings`、`wiki-card-vector-index`、三个 memory provider）未移植；wiki 卡片查询仅关键词路径，判例/法规/知识图谱检索仅 FTS5/LIKE。
+- **知识图谱索引新鲜度由数据管道保证** — trigram 快速路径把行数一致的 `kg_nodes_fts` 视为完整并跳过 LIKE 兜底；原地修改节点正文后必须重建索引。
 - **源数据库不随包分发** — 数据须经 `patent-knowledge:install` 本地准备，或经 `sourceDbPath`/`knowledgeDir` 直接指向；不提供任何公共下载点。
 - **`node:sqlite` 处于实验阶段** — 引擎运行在 Node 内置 SQLite 上，该模块在支持的 Node 版本线中仍为实验特性，可能随版本变更。
 

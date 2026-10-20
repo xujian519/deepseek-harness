@@ -43,6 +43,8 @@ describe('installKnowledgeDb', () => {
 
     expect(result.output).toBe(output)
     expect(result.dropped).toEqual(['embeddings', 'ivf_index', 'index_meta'])
+    // Only the long chunk is compressed; the single-pass helper must not change the count.
+    expect(result.compressedChunks).toBe(1)
 
     const outDb = new DatabaseSync(output, { readOnly: true })
     try {
