@@ -69,6 +69,31 @@ type CaseLawPrefixStatements = {
   longestChunk: StatementSync
 }
 
+/** 一条 LIKE 降级查询的路径片段（投影与过滤子句由 buildLikeQuery 统一拼接）。 */
+type CaseLawLikeQuery = {
+  /** 额外的文档投影（整表路径取命中 chunk 的序号与正文）。 */
+  projection: string
+  /** FROM 之后的 JOIN 子句；前缀路径不 JOIN chunks。 */
+  join: string
+  /** 标题之外用于匹配正文的列表达式。 */
+  contentColumn: string
+}
+
+/** 整表路径：JOIN 每文档最长 chunk 并解压正文，作为片段与匹配来源。 */
+const LIKE_QUERY_LONGEST_CHUNK: CaseLawLikeQuery = {
+  projection: ', c.chunk_index, sati_uncompress(c.content) AS content',
+  join: `JOIN chunks c ON c.id = (
+          SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)`,
+  contentColumn: 'sati_uncompress(c.content)',
+}
+
+/** 前缀路径：只读 documents 的 title/search_prefix，不解压 chunks。 */
+const LIKE_QUERY_SEARCH_PREFIX: CaseLawLikeQuery = {
+  projection: '',
+  join: '',
+  contentColumn: 'd.search_prefix',
+}
+
 /** 判例全文检索引擎（knowledge.db docs_fts/chunks/documents，FTS5 优先，LIKE 降级）。 */
 export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOptions, CaseLawHit> {
   // 热路径 prepared statements（固定 SQL；带过滤的查询走动态 SQL）
@@ -234,6 +259,34 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
   }
 
   /**
+   * 构建带过滤条件的 LIKE 降级查询：投影、匹配列与 JOIN 由路径决定，过滤子句共用。
+   * @param query 该路径的投影、JOIN 与正文匹配列。
+   * @param pattern 已转义的 LIKE 模式（title 与正文各绑定一次）。
+   * @param options 检索选项（过滤字段）。
+   * @param limit 返回行数上限。
+   * @returns 完整 SQL 与按占位符顺序排列的参数（title、正文、过滤值、limit）。
+   */
+  private buildLikeQuery(
+    query: CaseLawLikeQuery,
+    pattern: string,
+    options: CaseLawSearchOptions,
+    limit: number,
+  ): { sql: string; params: Array<string | number | null> } {
+    let sql = `
+      SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+             d.court, d.source, d.module, d.char_count${query.projection}
+      FROM documents d
+      ${query.join}
+      WHERE (d.title LIKE ? ESCAPE '\\' OR ${query.contentColumn} LIKE ? ESCAPE '\\')
+    `
+    const params: Array<string | number | null> = [pattern, pattern]
+    sql = this.appendCaseLawFilters(sql, options, params)
+    sql += ' LIMIT ?'
+    params.push(limit)
+    return { sql, params }
+  }
+
+  /**
    * 追加 docType/court/excludeSource 三个过滤子句（buildFtsQuery 与 searchLike 共用）。
    * @param sql 已构建的查询前缀。
    * @param options 检索选项（过滤字段）。
@@ -304,19 +357,7 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
     if (!hasCaseLawFilters(options)) {
       rows = this.stmtSearchLike.all(pattern, pattern, limit) as CaseLawRow[]
     } else {
-      let sql = `
-        SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
-               d.court, d.source, d.module, d.char_count, c.chunk_index,
-               sati_uncompress(c.content) AS content
-        FROM documents d
-        JOIN chunks c ON c.id = (
-          SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-        WHERE (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
-      `
-      const params: Array<string | number | null> = [pattern, pattern]
-      sql = this.appendCaseLawFilters(sql, options, params)
-      sql += ' LIMIT ?'
-      params.push(limit)
+      const { sql, params } = this.buildLikeQuery(LIKE_QUERY_LONGEST_CHUNK, pattern, options, limit)
       rows = this.db.prepare(sql).all(...params) as CaseLawRow[]
     }
     return rows.map(row => this.toHit(row, null, 'like'))
@@ -344,16 +385,12 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
     if (!hasCaseLawFilters(options)) {
       rows = statements.search.all(pattern, pattern, limit * FETCH_MULTIPLIER) as CaseLawPrefixRow[]
     } else {
-      let sql = `
-        SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
-               d.court, d.source, d.module, d.char_count
-        FROM documents d
-        WHERE (d.title LIKE ? ESCAPE '\\' OR d.search_prefix LIKE ? ESCAPE '\\')
-      `
-      const params: Array<string | number | null> = [pattern, pattern]
-      sql = this.appendCaseLawFilters(sql, options, params)
-      sql += ' LIMIT ?'
-      params.push(limit * FETCH_MULTIPLIER)
+      const { sql, params } = this.buildLikeQuery(
+        LIKE_QUERY_SEARCH_PREFIX,
+        pattern,
+        options,
+        limit * FETCH_MULTIPLIER,
+      )
       rows = this.db.prepare(sql).all(...params) as CaseLawPrefixRow[]
     }
     const hits: CaseLawHit[] = []
@@ -361,21 +398,11 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
       if (hits.length >= limit) break
       const chunk = statements.longestChunk.get(row.document_id) as CaseLawChunkRow | undefined
       if (chunk === undefined) continue
-      hits.push({
-        documentId: row.document_id,
-        docType: row.doc_type,
-        title: row.title,
-        decisionNumber: row.decision_number ?? undefined,
-        caseNumber: row.case_number ?? undefined,
-        court: row.court ?? undefined,
-        source: row.source ?? undefined,
-        module: row.module ?? undefined,
-        charCount: row.char_count,
-        chunkIndex: chunk.chunk_index,
-        snippet: decompressChunk(chunk.content),
-        ftsRank: null,
-        via: 'like',
-      })
+      hits.push(this.toHit({
+        ...row,
+        chunk_index: chunk.chunk_index,
+        content: decompressChunk(chunk.content),
+      }, null, 'like'))
     }
     return hits
   }
