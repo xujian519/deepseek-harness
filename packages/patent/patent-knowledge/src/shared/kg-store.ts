@@ -78,28 +78,34 @@ export class KgStore {
     )
     const opened = openKnowledgeDb(dbPath, KNOWLEDGE_DB, { readOnly: true })
     this.db = opened.db
-    // 探测 + prepared 组装（schema-introspector）：fail-closed（无表抛错）与
-    // FTS prepare 降级（旧 Node 无 FTS5/trigram）契约由 introspectKgStore 承担。
-    const introspected = introspectKgStore(this.db, dbPath)
-    this.schema = introspected.schema
-    this.ftsTable = introspected.ftsTable
-    this.stmtGetNode = introspected.statements.stmtGetNode
-    this.stmtLikeSearch = introspected.statements.stmtLikeSearch
-    this.stmtFtsSearch = introspected.statements.stmtFtsSearch
-    this.stmtFtsPhraseOrdered = this.schema === 'unified' && this.stmtFtsSearch !== null
-      ? this.db.prepare(
-        'SELECT k.id, k.name, k.title FROM kg_nodes_fts f JOIN kg_nodes k ON k.rowid = f.rowid WHERE kg_nodes_fts MATCH ? ORDER BY k.rowid LIMIT ?',
+    // 构造期任一探测/组装失败都必须先关闭连接，避免失败对象泄漏文件句柄。
+    try {
+      // 探测 + prepared 组装（schema-introspector）：fail-closed（缺节点/边表抛错）
+      // 与 FTS prepare 降级（旧 Node 无 FTS5/trigram）契约由 introspectKgStore 承担。
+      const introspected = introspectKgStore(this.db, dbPath)
+      this.schema = introspected.schema
+      this.ftsTable = introspected.ftsTable
+      this.stmtGetNode = introspected.statements.stmtGetNode
+      this.stmtLikeSearch = introspected.statements.stmtLikeSearch
+      this.stmtFtsSearch = introspected.statements.stmtFtsSearch
+      this.stmtFtsPhraseOrdered = this.schema === 'unified' && this.stmtFtsSearch !== null
+        ? this.db.prepare(
+          'SELECT k.id, k.name, k.title FROM kg_nodes_fts f JOIN kg_nodes k ON k.rowid = f.rowid WHERE kg_nodes_fts MATCH ? ORDER BY k.rowid LIMIT ?',
+        )
+        : null
+      this.contentIndexComplete = this.stmtFtsPhraseOrdered !== null && this.detectContentIndexComplete()
+      this.graphTraversal = new GraphTraversal(
+        {
+          stmtNeighbors: introspected.statements.stmtNeighbors,
+          stmtNeighborsByRelation: introspected.statements.stmtNeighborsByRelation,
+          stmtListByType: introspected.statements.stmtListByType,
+        },
+        id => this.getNode(id),
       )
-      : null
-    this.contentIndexComplete = this.stmtFtsPhraseOrdered !== null && this.detectContentIndexComplete()
-    this.graphTraversal = new GraphTraversal(
-      {
-        stmtNeighbors: introspected.statements.stmtNeighbors,
-        stmtNeighborsByRelation: introspected.statements.stmtNeighborsByRelation,
-        stmtListByType: introspected.statements.stmtListByType,
-      },
-      id => this.getNode(id),
-    )
+    } catch (error) {
+      this.db.close()
+      throw error
+    }
   }
 
   /**

@@ -307,3 +307,38 @@ describe('KgStore legacy schema', () => {
     expect(() => new KgStore(dbPath)).toThrow(/知识图谱表/)
   })
 })
+
+describe('KgStore edge-table validation', () => {
+  it('names the missing unified edge table and dbPath, then releases the handle', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-missing-edge-'))
+    const dbPath = join(dir, 'knowledge.db')
+    const db = new DatabaseSync(dbPath)
+    db.exec(`
+      CREATE TABLE kg_nodes (
+        id TEXT PRIMARY KEY, node_type TEXT, name TEXT, title TEXT, content TEXT,
+        law_refs TEXT, source TEXT, full_ref TEXT, chapter TEXT, article_number TEXT
+      );
+    `)
+    db.close()
+    let message = ''
+    try {
+      new KgStore(dbPath)
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toContain('kg_edges')
+    expect(message).toContain(dbPath)
+    // A leaked handle would make this recursive removal fail on Windows.
+    expect(() => { rmSync(dir, { recursive: true, force: true }) }).not.toThrow()
+  })
+
+  it('names the missing legacy edge table', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-missing-legacy-edge-'))
+    const dbPath = join(dir, 'patent_kg.db')
+    const db = new DatabaseSync(dbPath)
+    db.exec('CREATE TABLE nodes (id TEXT PRIMARY KEY)')
+    db.close()
+    expect(() => new KgStore(dbPath)).toThrow(/边表（edges）/)
+    expect(() => { rmSync(dir, { recursive: true, force: true }) }).not.toThrow()
+  })
+})

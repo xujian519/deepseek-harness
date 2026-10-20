@@ -3,7 +3,7 @@
  *
  * 从 kg-store.ts 拆出（A4 轮次 2）：表/列/FTS 探测 + 全部 prepared statements
  * 组装独立成纯探测模块，KgStore 构造器变薄。探测契约保留：
- * - fail-closed：kg_nodes/nodes 均不存在时抛错；
+ * - fail-closed：节点表或对应边表缺失时抛错，消息含表名与 dbPath；
  * - FTS prepare 失败（旧 Node 无 FTS5/trigram）降级 null，不崩构造。
  */
 
@@ -54,6 +54,10 @@ export function introspectKgStore(db: DatabaseSync, dbPath: string): KgStoreIntr
   }
   const schema: KgSchema = hasUnified ? 'unified' : 'legacy'
   const nodeTable = hasUnified ? 'kg_nodes' : 'nodes'
+  const edgeTable = hasUnified ? 'kg_edges' : 'edges'
+  if (!tableExists(db, edgeTable)) {
+    throw new Error(`KgStore: 未找到知识图谱边表（${edgeTable}），dbPath=${dbPath}`)
+  }
 
   const ftsRow = db
     .prepare(

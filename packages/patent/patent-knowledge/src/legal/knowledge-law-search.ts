@@ -84,83 +84,88 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
 
   constructor(dbPath: string, options: KnowledgeLawSearchEngineOptions = {}) {
     super(dbPath, options)
-    // 文档类型取自闭集常量，故可安全拼进 SQL 文本（调用方传的是类型值，不是自由字符串）。
-    const docTypes = options.docTypes ?? ['law_article']
-    const docTypeList = docTypes.map((type) => {
-      if (!(KNOWLEDGE_DOC_TYPES as readonly string[]).includes(type)) {
-        throw new Error(`knowledge: 未知的文档类型 ${type}（可用：${KNOWLEDGE_DOC_TYPES.join(' / ')}）`)
-      }
-      return `'${type}'`
-    }).join(', ')
-    const docTypeIn = `d.doc_type IN (${docTypeList})`
-    this.docTypeIn = docTypeIn
-    const columns = this.db
-      .prepare("SELECT COUNT(*) AS c FROM pragma_table_info('documents') WHERE name = 'file_path'")
-      .get() as { c: number }
-    const filePathColumn = columns.c > 0 ? 'd.file_path' : 'NULL AS file_path'
-    this.filePathColumn = filePathColumn
+    try {
+      // 文档类型取自闭集常量，故可安全拼进 SQL 文本（调用方传的是类型值，不是自由字符串）。
+      const docTypes = options.docTypes ?? ['law_article']
+      const docTypeList = docTypes.map((type) => {
+        if (!(KNOWLEDGE_DOC_TYPES as readonly string[]).includes(type)) {
+          throw new Error(`knowledge: 未知的文档类型 ${type}（可用：${KNOWLEDGE_DOC_TYPES.join(' / ')}）`)
+        }
+        return `'${type}'`
+      }).join(', ')
+      const docTypeIn = `d.doc_type IN (${docTypeList})`
+      this.docTypeIn = docTypeIn
+      const columns = this.db
+        .prepare("SELECT COUNT(*) AS c FROM pragma_table_info('documents') WHERE name = 'file_path'")
+        .get() as { c: number }
+      const filePathColumn = columns.c > 0 ? 'd.file_path' : 'NULL AS file_path'
+      this.filePathColumn = filePathColumn
 
-    // LIKE 降级：documents.title 或每文档最长 chunk 的 content（压缩 chunk 先
-    // 解压再匹配）；子查询取最长 chunk 作片段。content 取原始存储（TEXT 明文 /
-    // SC 魔数 gzip BLOB），JS 层 decompressChunk 解压——绕开 node:sqlite JS UDF
-    // 的 ~4ms/次边界开销；WHERE 的 sati_uncompress 仅匹配语义（LIKE 降级路径低频）。
-    this.stmtSearchLike = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
-             c.content AS content, c.char_count
-      FROM documents d
-      JOIN chunks c ON c.id = (
-        SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE ${this.docTypeIn}
-        AND (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
-      ORDER BY d.char_count DESC LIMIT ?
-    `)
-    // 正文不在此取（sati_uncompress 延迟到 JS 层对 top-N 回源——避免解压
-    // FETCH_MULTIPLIER×limit 行全文）。排序保持 bm25(docs_fts)：实测 JOIN 场景
-    // ORDER BY rank 触发 FTS5 rank 全量物化（354ms vs bm25 0.12ms，3000 倍倒退）
-    // ——rank 渐进优化仅适用无 JOIN 的 FTS 直查（H5 实测证伪，勿改回 rank）。
-    this.stmtSearchFts = null
-    if (this.hasFts) {
-      try {
-        this.stmtSearchFts = this.db.prepare(`
-          SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
-                 NULL AS content, c.chunk_index, c.char_count, bm25(docs_fts) AS fts_rank
-          FROM docs_fts
-          JOIN chunks c ON c.id = docs_fts.rowid
-          JOIN documents d ON d.id = c.document_id
-          WHERE docs_fts MATCH ? AND ${docTypeIn}
-          ORDER BY bm25(docs_fts) LIMIT ?
-        `)
-      } catch (error) {
-        this.degradeFts(errorMessage(error))
-        this.stmtSearchFts = null
+      // LIKE 降级：documents.title 或每文档最长 chunk 的 content（压缩 chunk 先
+      // 解压再匹配）；子查询取最长 chunk 作片段。content 取原始存储（TEXT 明文 /
+      // SC 魔数 gzip BLOB），JS 层 decompressChunk 解压——绕开 node:sqlite JS UDF
+      // 的 ~4ms/次边界开销；WHERE 的 sati_uncompress 仅匹配语义（LIKE 降级路径低频）。
+      this.stmtSearchLike = this.db.prepare(`
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+               c.content AS content, c.char_count
+        FROM documents d
+        JOIN chunks c ON c.id = (
+          SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
+        WHERE ${this.docTypeIn}
+          AND (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
+        ORDER BY d.char_count DESC LIMIT ?
+      `)
+      // 正文不在此取（sati_uncompress 延迟到 JS 层对 top-N 回源——避免解压
+      // FETCH_MULTIPLIER×limit 行全文）。排序保持 bm25(docs_fts)：实测 JOIN 场景
+      // ORDER BY rank 触发 FTS5 rank 全量物化（354ms vs bm25 0.12ms，3000 倍倒退）
+      // ——rank 渐进优化仅适用无 JOIN 的 FTS 直查（H5 实测证伪，勿改回 rank）。
+      this.stmtSearchFts = null
+      if (this.hasFts) {
+        try {
+          this.stmtSearchFts = this.db.prepare(`
+            SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+                   NULL AS content, c.chunk_index, c.char_count, bm25(docs_fts) AS fts_rank
+            FROM docs_fts
+            JOIN chunks c ON c.id = docs_fts.rowid
+            JOIN documents d ON d.id = c.document_id
+            WHERE docs_fts MATCH ? AND ${docTypeIn}
+            ORDER BY bm25(docs_fts) LIMIT ?
+          `)
+        } catch (error) {
+          this.degradeFts(errorMessage(error))
+          this.stmtSearchFts = null
+        }
       }
+      this.stmtFindByName = this.db.prepare(`
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+               c.content AS content, c.char_count
+        FROM documents d
+        JOIN chunks c ON c.id = (
+          SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
+        WHERE ${docTypeIn} AND d.title LIKE ? ESCAPE '\\'
+        LIMIT ?
+      `)
+      this.stmtGetById = this.db.prepare(`
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+               c.content AS content, c.char_count
+        FROM documents d
+        JOIN chunks c ON c.id = (
+          SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
+        WHERE ${this.docTypeIn} AND d.id = ?
+      `)
+      // 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源）。
+      this.stmtGetChunkAt = this.db.prepare(`
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+               c.content AS content, c.char_count
+        FROM documents d
+        JOIN chunks c ON c.document_id = d.id AND c.chunk_index = ?
+        WHERE d.id = ?
+      `)
+      this.stmtCount = this.db.prepare(`SELECT COUNT(*) AS c FROM documents WHERE doc_type IN (${docTypeList})`)
+    } catch (error) {
+      this.db.close()
+      throw error
     }
-    this.stmtFindByName = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
-             c.content AS content, c.char_count
-      FROM documents d
-      JOIN chunks c ON c.id = (
-        SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE ${docTypeIn} AND d.title LIKE ? ESCAPE '\\'
-      LIMIT ?
-    `)
-    this.stmtGetById = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
-             c.content AS content, c.char_count
-      FROM documents d
-      JOIN chunks c ON c.id = (
-        SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE ${this.docTypeIn} AND d.id = ?
-    `)
-    // 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源）。
-    this.stmtGetChunkAt = this.db.prepare(`
-      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
-             c.content AS content, c.char_count
-      FROM documents d
-      JOIN chunks c ON c.document_id = d.id AND c.chunk_index = ?
-      WHERE d.id = ?
-    `)
-    this.stmtCount = this.db.prepare(`SELECT COUNT(*) AS c FROM documents WHERE doc_type IN (${docTypeList})`)
   }
 
   protected readonly degradeLabel = '法规'

@@ -474,6 +474,18 @@ describe('CaseLawSearchEngine edge paths', () => {
     expect(d5).toHaveLength(1)
   })
 
+  it('closes the database when statement preparation fails', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'case-law-close-'))
+    const dbPath = join(dir, 'broken.db')
+    const db = new DatabaseSync(dbPath)
+    // Missing chunks table: the LIKE statement cannot be prepared.
+    db.exec('CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT, doc_type TEXT, title TEXT, char_count INTEGER, indexed_at TEXT)')
+    db.close()
+    expect(() => new CaseLawSearchEngine(dbPath)).toThrow()
+    // A leaked handle would make this recursive removal fail on Windows.
+    expect(() => { rmSync(dir, { recursive: true, force: true }) }).not.toThrow()
+  })
+
   it('maps a NULL source column to undefined via FTS back-fill', () => {
     const dir = mkdtempSync(join(tmpdir(), 'case-law-null-source-'))
     const dbPath = join(dir, 'test.db')

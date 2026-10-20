@@ -84,92 +84,97 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
   constructor(dbPath: string, options: CaseLawSearchEngineOptions = {}) {
     super(dbPath, options)
 
-    // documents.search_prefix 由 install 生成（每文档最长 chunk 的前 N 个码点）。
-    // 存在时短查询只扫 title/前缀列；旧库缺列时保留整表解压的 JOIN 路径。
-    const documentColumns = this.db
-      .prepare("SELECT name FROM pragma_table_info('documents')")
-      .all() as Array<{ name: string }>
-    const hasSearchPrefix = documentColumns.some(column => column.name === 'search_prefix')
-    this.prefixStatements = hasSearchPrefix
-      ? {
-        search: this.db.prepare(`
-          SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
-                 d.court, d.source, d.module, d.char_count
-          FROM documents d
-          WHERE (d.title LIKE ? ESCAPE '\\' OR d.search_prefix LIKE ? ESCAPE '\\')
-          LIMIT ?
-        `),
-        longestChunk: this.db.prepare(
-          'SELECT chunk_index, content FROM chunks WHERE document_id = ? ORDER BY char_count DESC LIMIT 1',
-        ),
+    try {
+      // documents.search_prefix 由 install 生成（每文档最长 chunk 的前 N 个码点）。
+      // 存在时短查询只扫 title/前缀列；旧库缺列时保留整表解压的 JOIN 路径。
+      const documentColumns = this.db
+        .prepare("SELECT name FROM pragma_table_info('documents')")
+        .all() as Array<{ name: string }>
+      const hasSearchPrefix = documentColumns.some(column => column.name === 'search_prefix')
+      this.prefixStatements = hasSearchPrefix
+        ? {
+          search: this.db.prepare(`
+            SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+                   d.court, d.source, d.module, d.char_count
+            FROM documents d
+            WHERE (d.title LIKE ? ESCAPE '\\' OR d.search_prefix LIKE ? ESCAPE '\\')
+            LIMIT ?
+          `),
+          longestChunk: this.db.prepare(
+            'SELECT chunk_index, content FROM chunks WHERE document_id = ? ORDER BY char_count DESC LIMIT 1',
+          ),
+        }
+        : null
+
+      // LIKE 降级：documents.title 或 每文档最长 chunk 的 content（压缩 chunk 先
+      // 解压再匹配）；子查询取最长 chunk 作片段。
+      this.stmtSearchLike = this.db.prepare(`
+        SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+               d.court, d.source, d.module, d.char_count, c.chunk_index,
+               sati_uncompress(c.content) AS content
+        FROM documents d
+        JOIN chunks c ON c.id = (
+          SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
+        WHERE (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
+        LIMIT ?
+      `)
+
+      // 按 documents.id 取全文分块（供"查看判例全文"场景）。
+      // 注：content 取原始存储（TEXT 明文 / SC 魔数 gzip BLOB），JS 层
+      // decompressChunk 解压——绕开 node:sqlite JS UDF 的 ~4ms/次边界开销
+      // （实测：UDF 单行 4.18ms vs 原始列 0.04ms）。
+      this.stmtGetById = this.db.prepare(`
+        SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+               d.court, d.source, d.module, d.char_count, c.chunk_index,
+               c.content AS content
+        FROM documents d
+        JOIN chunks c ON c.document_id = d.id
+        WHERE d.id = ?
+        ORDER BY c.chunk_index
+      `)
+
+      // 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源；保持
+      // 旧行为"片段 = 命中的 chunk"而非最长 chunk）。
+      this.stmtGetChunkAt = this.db.prepare(`
+        SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+               d.court, d.source, d.module, d.char_count, c.chunk_index,
+               c.content AS content
+        FROM documents d
+        JOIN chunks c ON c.document_id = d.id AND c.chunk_index = ?
+        WHERE d.id = ?
+      `)
+
+      // 无过滤 FTS 查询（searchFts 与 searchFtsKeywords 的 SQL 相同，仅 MATCH 参数
+      // 不同，共用一条语句）。docs_fts 表可能存在但运行时 SQLite 未注册 FTS5
+      // （如捆绑旧版 Node 的 bm25/MATCH），prepare 会抛错——捕获并降级 LIKE。
+      // 正文不在此取（sati_uncompress 延迟到 JS 层对 top-N 回源——避免解压
+      // FETCH_MULTIPLIER×limit 行全文）。排序保持 bm25(docs_fts)：实测 JOIN 场景
+      // ORDER BY rank 触发 FTS5 rank 全量物化（354ms vs bm25 0.12ms，3000 倍倒退）
+      // ——rank 渐进优化仅适用无 JOIN 的 FTS 直查（H5 实测证伪，勿改回 rank）。
+      this.stmtSearchFts = null
+      if (this.hasFts) {
+        try {
+          this.stmtSearchFts = this.db.prepare(`
+        SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
+               d.court, d.source, d.module, d.char_count,
+               c.chunk_index, NULL AS content, bm25(docs_fts) AS fts_rank
+        FROM docs_fts
+        JOIN chunks c ON c.id = docs_fts.rowid
+        JOIN documents d ON d.id = c.document_id
+        WHERE docs_fts MATCH ?
+        ORDER BY bm25(docs_fts) LIMIT ?
+      `)
+        } catch (error) {
+          this.degradeFts(errorMessage(error))
+          this.stmtSearchFts = null
+        }
       }
-      : null
 
-    // LIKE 降级：documents.title 或 每文档最长 chunk 的 content（压缩 chunk 先
-    // 解压再匹配）；子查询取最长 chunk 作片段。
-    this.stmtSearchLike = this.db.prepare(`
-      SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
-             d.court, d.source, d.module, d.char_count, c.chunk_index,
-             sati_uncompress(c.content) AS content
-      FROM documents d
-      JOIN chunks c ON c.id = (
-        SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-      WHERE (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
-      LIMIT ?
-    `)
-
-    // 按 documents.id 取全文分块（供"查看判例全文"场景）。
-    // 注：content 取原始存储（TEXT 明文 / SC 魔数 gzip BLOB），JS 层
-    // decompressChunk 解压——绕开 node:sqlite JS UDF 的 ~4ms/次边界开销
-    // （实测：UDF 单行 4.18ms vs 原始列 0.04ms）。
-    this.stmtGetById = this.db.prepare(`
-      SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
-             d.court, d.source, d.module, d.char_count, c.chunk_index,
-             c.content AS content
-      FROM documents d
-      JOIN chunks c ON c.document_id = d.id
-      WHERE d.id = ?
-      ORDER BY c.chunk_index
-    `)
-
-    // 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源；保持
-    // 旧行为"片段 = 命中的 chunk"而非最长 chunk）。
-    this.stmtGetChunkAt = this.db.prepare(`
-      SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
-             d.court, d.source, d.module, d.char_count, c.chunk_index,
-             c.content AS content
-      FROM documents d
-      JOIN chunks c ON c.document_id = d.id AND c.chunk_index = ?
-      WHERE d.id = ?
-    `)
-
-    // 无过滤 FTS 查询（searchFts 与 searchFtsKeywords 的 SQL 相同，仅 MATCH 参数
-    // 不同，共用一条语句）。docs_fts 表可能存在但运行时 SQLite 未注册 FTS5
-    // （如捆绑旧版 Node 的 bm25/MATCH），prepare 会抛错——捕获并降级 LIKE。
-    // 正文不在此取（sati_uncompress 延迟到 JS 层对 top-N 回源——避免解压
-    // FETCH_MULTIPLIER×limit 行全文）。排序保持 bm25(docs_fts)：实测 JOIN 场景
-    // ORDER BY rank 触发 FTS5 rank 全量物化（354ms vs bm25 0.12ms，3000 倍倒退）
-    // ——rank 渐进优化仅适用无 JOIN 的 FTS 直查（H5 实测证伪，勿改回 rank）。
-    this.stmtSearchFts = null
-    if (this.hasFts) {
-      try {
-        this.stmtSearchFts = this.db.prepare(`
-      SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
-             d.court, d.source, d.module, d.char_count,
-             c.chunk_index, NULL AS content, bm25(docs_fts) AS fts_rank
-      FROM docs_fts
-      JOIN chunks c ON c.id = docs_fts.rowid
-      JOIN documents d ON d.id = c.document_id
-      WHERE docs_fts MATCH ?
-      ORDER BY bm25(docs_fts) LIMIT ?
-    `)
-      } catch (error) {
-        this.degradeFts(errorMessage(error))
-        this.stmtSearchFts = null
-      }
+      this.stmtCount = this.db.prepare('SELECT COUNT(*) AS c FROM documents')
+    } catch (error) {
+      this.db.close()
+      throw error
     }
-
-    this.stmtCount = this.db.prepare('SELECT COUNT(*) AS c FROM documents')
   }
 
   protected readonly degradeLabel = 'case-law'
