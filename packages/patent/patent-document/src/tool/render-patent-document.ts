@@ -16,7 +16,7 @@ import { renderPatentDocument } from '../document/renderPatentDocument.ts'
 import type { DocumentRenderResult } from '../document/types.ts'
 
 /** 十三个随包分发的模板 id，与 manifest.json 的 templates 列表一致。 */
-const TEMPLATE_IDS = [
+export const TEMPLATE_IDS = [
   'patentability-opinion',
   'search-report',
   'oa-response',
@@ -103,7 +103,7 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
         type: 'string',
         required: true,
         enum: TEMPLATE_IDS,
-        description: 'Template id to render (one of the eleven shipped patent templates).',
+        description: 'Template id to render (one of the thirteen shipped patent templates).',
       },
       outputName: {
         type: 'string',

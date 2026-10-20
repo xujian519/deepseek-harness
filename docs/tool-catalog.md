@@ -6235,7 +6235,7 @@ Render a patent-attorney deliverable (patentability opinion, search report, OA r
   "properties": {
     "template": {
       "type": "string",
-      "description": "Template id to render (one of the eleven shipped patent templates).",
+      "description": "Template id to render (one of the thirteen shipped patent templates).",
       "enum": [
         "patentability-opinion",
         "search-report",
