@@ -23,9 +23,7 @@ function withStore(dbPath: string): KgStore {
   return store
 }
 
-function makeUnifiedDb(dir: string, withFts = true): string {
-  const dbPath = join(dir, 'knowledge.db')
-  const db = new DatabaseSync(dbPath)
+function createUnifiedSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE kg_nodes (
       id TEXT PRIMARY KEY, node_type TEXT, name TEXT, title TEXT, content TEXT,
@@ -33,22 +31,15 @@ function makeUnifiedDb(dir: string, withFts = true): string {
     );
     CREATE TABLE kg_edges (source_id TEXT, target_id TEXT, relation TEXT);
   `)
-  if (withFts) {
-    db.exec("CREATE VIRTUAL TABLE kg_nodes_fts USING fts5(name, title, tokenize='trigram', content='', contentless_delete=1)")
-  }
+}
+
+function insertUnifiedRows(db: DatabaseSync): void {
   const insNode = db.prepare('INSERT INTO kg_nodes (id, node_type, name, content) VALUES (?, ?, ?, ?)')
   insNode.run('n1', 'Concept', '创造性', '创造性是指与现有技术相比具有突出的实质性特点。')
   insNode.run('n2', 'Concept', '新颖性', '新颖性是指不属于现有技术。')
   insNode.run('n3', 'SupremeCourtJudgment', '判决', '判决书正文。')
   insNode.run('n5', 'Concept', '创造%标准', '特殊字符节点。')
   insNode.run('n6', 'Concept', '细则', '判断标准应当结合本领域技术人员的认知水平。')
-  if (withFts) {
-    const insFts = db.prepare('INSERT INTO kg_nodes_fts (rowid, name, title) VALUES (?, ?, NULL)')
-    insFts.run(1, '创造性')
-    insFts.run(2, '新颖性')
-    insFts.run(3, '判决')
-    insFts.run(4, '创造%标准')
-  }
   const insEdge = db.prepare('INSERT INTO kg_edges (source_id, target_id, relation) VALUES (?, ?, ?)')
   insEdge.run('n1', 'n2', 'RELATED_TO')
   insEdge.run('n1', 'n2', 'SIMILAR_TO')
@@ -58,6 +49,60 @@ function makeUnifiedDb(dir: string, withFts = true): string {
   insEdge.run('n1', 'n3', 'REFERENCES')
   insEdge.run('n1', 'n4', 'REFERENCES') // missing target in the cites loop
   insEdge.run('n2', 'n3', 'CITES')
+}
+
+function makeUnifiedDb(dir: string, withFts = true): string {
+  const dbPath = join(dir, 'knowledge.db')
+  const db = new DatabaseSync(dbPath)
+  createUnifiedSchema(db)
+  if (withFts) {
+    db.exec("CREATE VIRTUAL TABLE kg_nodes_fts USING fts5(name, title, tokenize='trigram', content='', contentless_delete=1)")
+  }
+  insertUnifiedRows(db)
+  if (withFts) {
+    const insFts = db.prepare('INSERT INTO kg_nodes_fts (rowid, name, title) VALUES (?, ?, NULL)')
+    insFts.run(1, '创造性')
+    insFts.run(2, '新颖性')
+    insFts.run(3, '判决')
+    insFts.run(4, '创造%标准')
+  }
+  db.close()
+  return dbPath
+}
+
+/**
+ * Unified fixture whose trigram FTS indexes name/title/content and stays row-aligned
+ * with kg_nodes. `stale` omits n6 from the FTS index; `unindexedContent` keeps the
+ * row count aligned while indexing NULL content; both exercise the LIKE fallback.
+ */
+function makeContentFtsDb(
+  dir: string,
+  options: { stale?: boolean; unindexedContent?: boolean; emptyContent?: boolean } = {},
+): string {
+  const dbPath = join(dir, 'knowledge.db')
+  const db = new DatabaseSync(dbPath)
+  createUnifiedSchema(db)
+  db.exec(
+    "CREATE VIRTUAL TABLE kg_nodes_fts USING fts5(name, title, content, tokenize='trigram', content='', contentless_delete=1)",
+  )
+  insertUnifiedRows(db)
+  // Share the four-character phrase with n6 so the ordered whole-phrase batch returns
+  // them in rowid order (n1 then n6).
+  db.prepare("UPDATE kg_nodes SET content = ? WHERE id = 'n1'")
+    .run('创造性判断标准是指与现有技术相比具有突出的实质性特点。')
+  if (options.emptyContent) db.exec('UPDATE kg_nodes SET content = NULL')
+  const rows = db.prepare('SELECT rowid, id, name, title, content FROM kg_nodes ORDER BY rowid').all() as Array<{
+    rowid: number
+    id: string
+    name: string | null
+    title: string | null
+    content: string | null
+  }>
+  const insFts = db.prepare('INSERT INTO kg_nodes_fts (rowid, name, title, content) VALUES (?, ?, ?, ?)')
+  for (const row of rows) {
+    if (options.stale && row.id === 'n6') continue
+    insFts.run(row.rowid, row.name, row.title, options.unindexedContent ? null : row.content)
+  }
   db.close()
   return dbPath
 }
@@ -165,6 +210,60 @@ describe('KgStore unified schema', () => {
     expect(store.searchByKeyword('创 新', 10, { mode: 'or' })).toEqual([])
   })
 
+  it('uses a content-complete trigram index for content-only phrases', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-content-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeContentFtsDb(dir))
+    // Both phrases live only in content, which this fixture indexes.
+    expect(store.searchByKeyword('实质性特点', 10).map(n => n.id)).toContain('n1')
+    expect(store.searchByKeyword('判断标准应当', 10).map(n => n.id)).toContain('n6')
+    // A miss returns no rows directly; the whole-table LIKE fallback is skipped.
+    expect(store.searchByKeyword('无此词汇', 10)).toEqual([])
+  })
+
+  it('keeps rowid order for the OR whole-phrase batch and fills with window terms', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-content-order-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeContentFtsDb(dir))
+    // The whole phrase hits n1 (rowid 1) and n6 (rowid 5); the 2-char window adds n5.
+    expect(store.searchByKeyword('判断标准', 10, { mode: 'or' }).map(n => n.id)).toEqual(['n1', 'n6', 'n5'])
+    // A limit filled by the whole-phrase batch skips window expansion.
+    expect(store.searchByKeyword('判断标准', 1, { mode: 'or' }).map(n => n.id)).toEqual(['n1'])
+    // Whole phrase misses; 2-char windows still recall both concepts.
+    const windowed = store.searchByKeyword('创造新颖', 10, { mode: 'or' }).map(n => n.id)
+    expect(windowed).toContain('n1')
+    expect(windowed).toContain('n2')
+    // Two-char queries stay on the LIKE path.
+    expect(store.searchByKeyword('创造', 10, { mode: 'or' }).map(n => n.id)).toContain('n1')
+    // No candidate hits: the whole-word LIKE fallback is not re-run.
+    expect(store.searchByKeyword('无此词汇', 10, { mode: 'or' })).toEqual([])
+  })
+
+  it('falls back to LIKE when the content index row count is stale', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-content-stale-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeContentFtsDb(dir, { stale: true }))
+    // n6 is missing from the FTS index: the count check disables the fast path,
+    // so the content-only phrase still comes back through LIKE.
+    expect(store.searchByKeyword('判断标准应当', 10).map(n => n.id)).toContain('n6')
+  })
+
+  it('falls back to LIKE when the declared content column was indexed empty', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-content-unindexed-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeContentFtsDb(dir, { unindexedContent: true }))
+    // Row counts match, but the column-filtered probe misses: LIKE still finds n6.
+    expect(store.searchByKeyword('判断标准应当', 10).map(n => n.id)).toContain('n6')
+  })
+
+  it('keeps the fast path when no node carries content to probe', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-content-empty-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeContentFtsDb(dir, { emptyContent: true }))
+    expect(store.searchByKeyword('创造性', 10).map(n => n.id)).toEqual(['n1'])
+    expect(store.searchByKeyword('判断标准应当', 10)).toEqual([])
+  })
+
   it('traverses neighbors, lists by type, and expands to depth', () => {
     const dir = mkdtempSync(join(tmpdir(), 'kg-graph-'))
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
@@ -227,5 +326,40 @@ describe('KgStore legacy schema', () => {
     const dbPath = join(dir, 'empty.db')
     new DatabaseSync(dbPath).close()
     expect(() => new KgStore(dbPath)).toThrow(/知识图谱表/)
+  })
+})
+
+describe('KgStore edge-table validation', () => {
+  it('names the missing unified edge table and dbPath, then releases the handle', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-missing-edge-'))
+    const dbPath = join(dir, 'knowledge.db')
+    const db = new DatabaseSync(dbPath)
+    db.exec(`
+      CREATE TABLE kg_nodes (
+        id TEXT PRIMARY KEY, node_type TEXT, name TEXT, title TEXT, content TEXT,
+        law_refs TEXT, source TEXT, full_ref TEXT, chapter TEXT, article_number TEXT
+      );
+    `)
+    db.close()
+    let message = ''
+    try {
+      new KgStore(dbPath)
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toContain('kg_edges')
+    expect(message).toContain(dbPath)
+    // A leaked handle would make this recursive removal fail on Windows.
+    expect(() => { rmSync(dir, { recursive: true, force: true }) }).not.toThrow()
+  })
+
+  it('names the missing legacy edge table', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-missing-legacy-edge-'))
+    const dbPath = join(dir, 'patent_kg.db')
+    const db = new DatabaseSync(dbPath)
+    db.exec('CREATE TABLE nodes (id TEXT PRIMARY KEY)')
+    db.close()
+    expect(() => new KgStore(dbPath)).toThrow(/边表（edges）/)
+    expect(() => { rmSync(dir, { recursive: true, force: true }) }).not.toThrow()
   })
 })

@@ -43,6 +43,8 @@ describe('installKnowledgeDb', () => {
 
     expect(result.output).toBe(output)
     expect(result.dropped).toEqual(['embeddings', 'ivf_index', 'index_meta'])
+    // Only the long chunk is compressed; the single-pass helper must not change the count.
+    expect(result.compressedChunks).toBe(1)
 
     const outDb = new DatabaseSync(output, { readOnly: true })
     try {
@@ -61,6 +63,157 @@ describe('installKnowledgeDb', () => {
       outDb.close()
     }
     expect(log.some(l => l.includes('VACUUM'))).toBe(true)
+  })
+})
+
+function withOutDb<T>(output: string, read: (db: DatabaseSync) => T): T {
+  const db = new DatabaseSync(output, { readOnly: true })
+  try {
+    return read(db)
+  } finally {
+    db.close()
+  }
+}
+
+function columnNames(db: DatabaseSync, table: string): string[] {
+  return (db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all() as Array<{ name: string }>)
+    .map(column => column.name)
+}
+
+describe('installKnowledgeDb search_prefix', () => {
+  it('builds search_prefix from each document longest chunk', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeFullSourceDb(dir, { match: true })
+    const output = join(dir, 'knowledge-lite.db')
+    const log: string[] = []
+    await installKnowledgeDb({ sourceDbPath: input, output, searchPrefix: true, skipVerify: true, log: line => log.push(line) })
+
+    const prefix = withOutDb(output, (db) => {
+      expect(columnNames(db, 'documents')).toContain('search_prefix')
+      return (db.prepare("SELECT search_prefix FROM documents WHERE id = 'case:d1'").get() as { search_prefix: string }).search_prefix
+    })
+    expect(Array.from(prefix)).toHaveLength(512)
+    expect(prefix.startsWith('创造性 三步法判断要求')).toBe(true)
+    expect(log.some(l => l.includes('search_prefix') && l.includes('2 个文档'))).toBe(true)
+  })
+
+  it('truncates by code points and selects the longest chunk', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-chars-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const dbPath = join(dir, 'knowledge.db')
+    const db = new DatabaseSync(dbPath)
+    db.exec('CREATE TABLE documents (id TEXT PRIMARY KEY, title TEXT)')
+    db.exec('CREATE TABLE chunks (id INTEGER PRIMARY KEY, document_id TEXT, chunk_index INTEGER, content, char_count INTEGER)')
+    db.prepare("INSERT INTO documents (id, title) VALUES ('d1', 'emoji')").run()
+    db.prepare("INSERT INTO documents (id, title) VALUES ('d2', 'two chunks')").run()
+    db.prepare("INSERT INTO chunks (document_id, chunk_index, content, char_count) VALUES ('d1', 0, ?, 300)").run('😀'.repeat(300))
+    db.prepare("INSERT INTO chunks (document_id, chunk_index, content, char_count) VALUES ('d2', 0, ?, 10)").run('短内容')
+    db.prepare("INSERT INTO chunks (document_id, chunk_index, content, char_count) VALUES ('d2', 1, ?, 100)").run('最长内容'.repeat(50))
+    db.close()
+    const output = join(dir, 'knowledge-lite.db')
+    await installKnowledgeDb({ sourceDbPath: dbPath, output, searchPrefix: true, searchPrefixChars: 64, skipVerify: true })
+
+    withOutDb(output, (outDb) => {
+      const rows = outDb.prepare('SELECT id, search_prefix FROM documents ORDER BY id').all() as Array<{ id: string; search_prefix: string }>
+      expect(rows[0]!.search_prefix).toBe('😀'.repeat(64))
+      expect(Array.from(rows[0]!.search_prefix)).toHaveLength(64)
+      expect(rows[1]!.search_prefix.startsWith('最长内容')).toBe(true)
+    })
+  })
+
+  it('skips the column when the source schema lacks chunk ownership or sizes', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-minimal-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeSourceDb(dir)
+    const output = join(dir, 'knowledge-lite.db')
+    const log: string[] = []
+    await installKnowledgeDb({ sourceDbPath: input, output, searchPrefix: true, skipVerify: true, log: line => log.push(line) })
+
+    withOutDb(output, (db) => {
+      expect(columnNames(db, 'documents')).not.toContain('search_prefix')
+    })
+    expect(log.some(l => l.includes('跳过：源库缺少'))).toBe(true)
+  })
+
+  it('omits search_prefix by default', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-off-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeFullSourceDb(dir, { match: true })
+    const output = join(dir, 'knowledge-lite.db')
+    const log: string[] = []
+    await installKnowledgeDb({ sourceDbPath: input, output, skipVerify: true, log: line => log.push(line) })
+
+    withOutDb(output, (db) => {
+      expect(columnNames(db, 'documents')).not.toContain('search_prefix')
+    })
+    expect(log.some(l => l.includes('search_prefix'))).toBe(false)
+  })
+
+  it('drops a search_prefix column inherited from a prefixed lite source', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-drop-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeFullSourceDb(dir, { match: true })
+    const first = join(dir, 'first.db')
+    const second = join(dir, 'second.db')
+    const log: string[] = []
+    await installKnowledgeDb({ sourceDbPath: input, output: first, searchPrefix: true, skipVerify: true })
+    await installKnowledgeDb({ sourceDbPath: first, output: second, skipVerify: true, log: line => log.push(line) })
+
+    withOutDb(second, (db) => {
+      expect(columnNames(db, 'documents')).not.toContain('search_prefix')
+    })
+    expect(log.some(l => l.includes('已删除继承的 documents.search_prefix'))).toBe(true)
+  })
+
+  it('skips chunk rows whose document id is not text', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-nontext-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const dbPath = join(dir, 'knowledge.db')
+    const db = new DatabaseSync(dbPath)
+    db.exec('CREATE TABLE documents (id TEXT PRIMARY KEY, title TEXT)')
+    db.exec('CREATE TABLE chunks (id INTEGER PRIMARY KEY, document_id INTEGER, content, char_count INTEGER)')
+    db.prepare("INSERT INTO documents (id, title) VALUES ('d1', 'x')").run()
+    db.prepare("INSERT INTO chunks (document_id, content, char_count) VALUES (42, '正文', 100)").run()
+    db.close()
+    const output = join(dir, 'knowledge-lite.db')
+    const log: string[] = []
+    await installKnowledgeDb({ sourceDbPath: dbPath, output, searchPrefix: true, skipVerify: true, log: line => log.push(line) })
+
+    withOutDb(output, (outDb) => {
+      const row = outDb.prepare('SELECT search_prefix FROM documents').get() as { search_prefix: string | null }
+      expect(row.search_prefix).toBeNull()
+    })
+    expect(log.some(l => l.includes('search_prefix 0 个文档'))).toBe(true)
+  })
+
+  it('rejects a search-prefix length outside the supported range', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-range-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeSourceDb(dir)
+    await expect(installKnowledgeDb({ sourceDbPath: input, output: join(dir, 'out.db'), searchPrefix: true, searchPrefixChars: 32, skipVerify: true }))
+      .rejects.toThrow(/searchPrefixChars/)
+    await expect(installKnowledgeDb({ sourceDbPath: input, output: join(dir, 'out.db'), searchPrefix: true, searchPrefixChars: 2049, skipVerify: true }))
+      .rejects.toThrow(/searchPrefixChars/)
+  })
+
+  it('rebuilds search_prefix from an already compressed lite database', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-prefix-reinstall-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeFullSourceDb(dir, { match: true })
+    const first = join(dir, 'first.db')
+    const second = join(dir, 'second.db')
+    await installKnowledgeDb({ sourceDbPath: input, output: first, searchPrefix: true, skipVerify: true })
+    // The first output stores long chunk bodies as gzip BLOBs; rebuilding the
+    // prefix must decompress them instead of truncating binary data.
+    await installKnowledgeDb({ sourceDbPath: first, output: second, searchPrefix: true, skipVerify: true })
+
+    withOutDb(second, (db) => {
+      const prefix = (db.prepare("SELECT search_prefix FROM documents WHERE id = 'case:d1'").get() as { search_prefix: string }).search_prefix
+      expect(prefix.startsWith('创造性 三步法判断要求')).toBe(true)
+      const content = (db.prepare("SELECT content FROM chunks WHERE document_id = 'case:d1'").get() as { content: Uint8Array }).content
+      expect(content).toBeInstanceOf(Uint8Array)
+    })
   })
 })
 

@@ -6,6 +6,8 @@ recording: live
 header:
   class: document-deliver
   pin: true
+workspace:
+  setup: document-deliver-mtimes
 input:
   task: |
     登记本次交付物：先调用 document_deliver 登记 out/draft.md（files 用 [{ path: "out/draft.md", format: "markdown" }]，

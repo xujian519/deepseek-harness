@@ -39,10 +39,10 @@ export abstract class KnowledgeFtsSearchBase<TOptions, THit> {
     // chunk 压缩解压函数（--compress-chunks 产物 BLOB；明文原样返回）。
     registerChunkUncompress(this.db)
     const row = this.db
-      .prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='docs_fts'")
-      .get() as { c: number }
+      .prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='docs_fts' LIMIT 1")
+      .get() as { present: number } | undefined
     // 双重条件才启用 FTS：docs_fts 表存在 + 运行时 SQLite 编译了 FTS5。
-    this.hasFts = row.c > 0 && sqliteHasFts5(this.db)
+    this.hasFts = row !== undefined && sqliteHasFts5(this.db)
   }
 
   protected abstract searchFts(keyword: string, options: TOptions, limit: number): THit[]
@@ -69,15 +69,15 @@ export abstract class KnowledgeFtsSearchBase<TOptions, THit> {
   protected runSearch(keyword: string, options: TOptions, limit: number): THit[] {
     const trimmed = keyword.trim()
     if (!trimmed) return []
-    return runFtsSearch(
-      trimmed,
-      this.hasFts,
-      this.ftsDegraded,
-      kw => this.searchFts(kw, options, limit),
-      keywords => this.searchFtsKeywords(keywords, options, limit),
-      kw => this.searchLike(kw, options, limit),
-      (reason) => { this.degradeFts(reason) },
-    )
+    return runFtsSearch({
+      keyword: trimmed,
+      hasFts: this.hasFts,
+      ftsDegraded: this.ftsDegraded,
+      searchFts: kw => this.searchFts(kw, options, limit),
+      searchFtsKeywords: keywords => this.searchFtsKeywords(keywords, options, limit),
+      searchLike: kw => this.searchLike(kw, options, limit),
+      degrade: (reason) => { this.degradeFts(reason) },
+    })
   }
 
   /** 关闭底层数据库连接。 */

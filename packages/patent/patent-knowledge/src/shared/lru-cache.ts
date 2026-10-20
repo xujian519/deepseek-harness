@@ -55,7 +55,8 @@ export class LruCache<K, V> {
   set(key: K, value: V): void {
     this.entries.delete(key)
     this.entries.set(key, value)
-    while (this.entries.size > this.maxEntries) {
+    // 一次写入最多超限 1 条：Map 的键唯一，删除同键后 size 只可能比上限多 1。
+    if (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next().value as K
       this.entries.delete(oldest)
     }

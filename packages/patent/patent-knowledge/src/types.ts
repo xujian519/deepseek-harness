@@ -42,6 +42,18 @@ export interface InstallKnowledgeDbOptions {
   noFts?: boolean
   /** Skip the post-trim component verification (default false). */
   skipVerify?: boolean
+  /**
+   * Build `documents.search_prefix` (the first `searchPrefixChars` code points
+   * of each document's longest chunk) so case-law short queries scan a compact
+   * plaintext column instead of decompressing every chunk (default false).
+   * Enabling it bounds case-law recall to those prefixes; the default keeps
+   * full-body matching. Skipped when the source lacks `documents.id` or
+   * `chunks(document_id, char_count)`; a column inherited from the source is
+   * dropped when this is false.
+   */
+  searchPrefix?: boolean | undefined
+  /** `search_prefix` length in code points (default 512, range 64–2048). */
+  searchPrefixChars?: number | undefined
   /** Progress/log sink. Defaults to console.log. */
   log?: ((line: string) => void) | undefined
 }

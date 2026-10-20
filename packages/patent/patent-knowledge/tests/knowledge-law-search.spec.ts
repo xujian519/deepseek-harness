@@ -412,5 +412,7 @@ describe('KnowledgeLawSearch 文档类型闭集', () => {
     const { dir } = createStore()
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
     expect(() => new KnowledgeLawSearch(join(dir, 'knowledge.db'), { docTypes: ['nope' as never] })).toThrow(/未知的文档类型/)
+    // Failed construction closes the connection before rethrowing.
+    expect(() => { rmSync(dir, { recursive: true, force: true }) }).not.toThrow()
   })
 })

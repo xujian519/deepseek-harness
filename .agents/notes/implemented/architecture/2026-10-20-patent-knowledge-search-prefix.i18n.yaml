@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-20-patent-knowledge-search-prefix.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-20-patent-knowledge-search-prefix.md
+/agent-note-add-an-optional-search-prefix-column-without-bumping-the-knowledge-schema-version:
+  en: e4b33db94a344c66
+  zh: ae910a42cd50fc5f
+/agent-note-add-an-optional-search-prefix-column-without-bumping-the-knowledge-schema-version/problem:
+  en: 169abc414a8af5e4
+  zh: 4e11ef7192de58ab
+/agent-note-add-an-optional-search-prefix-column-without-bumping-the-knowledge-schema-version/decision:
+  en: 60aa712c2947962c
+  zh: 541aa83e0b1642f1
+/agent-note-add-an-optional-search-prefix-column-without-bumping-the-knowledge-schema-version/alternatives-considered:
+  en: fc9ec9d4031607f7
+  zh: da92990946736802
+/agent-note-add-an-optional-search-prefix-column-without-bumping-the-knowledge-schema-version/consequences:
+  en: 5c8bf0efffcd7c97
+  zh: b674a2ea7e807d1a
+/agent-note-add-an-optional-search-prefix-column-without-bumping-the-knowledge-schema-version/testing:
+  en: 58d67c79cad2a46d
+  zh: 2c5607da13cdd56f
