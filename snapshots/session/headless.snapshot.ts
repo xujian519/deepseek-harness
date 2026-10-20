@@ -538,6 +538,18 @@ const workspaceSetups: Record<string, (cwd: string) => Promise<void>> = {
       writeFile(join(dir, 'task.txt'), 'delimiter path snapshot task\n'),
     ])
   },
+  async 'document-deliver-mtimes'(cwd) {
+    // glob lists by modification time, and the seed copy gives every file the
+    // copy time, leaving ties to the host filesystem's readdir order. Pin the
+    // oldest-first order the recorded `glob out/*` result shows.
+    const seeded: ReadonlyArray<readonly [string, Date]> = [
+      ['out/draft.md', new Date(2000, 0, 1, 0, 0, 0, 1)],
+      ['out/final.md', new Date(2000, 0, 1, 0, 0, 0, 2)],
+    ]
+    for (const [relative, mtime] of seeded) {
+      await utimes(join(cwd, relative), mtime, mtime)
+    }
+  },
   async 'fixed-search-mtimes'(cwd) {
     const tree = join(cwd, 'tree')
     const files = [
