@@ -41,9 +41,9 @@ function repository(test: TestContext) {
   const tree = git(['write-tree'])
   let commit = git(['commit-tree', tree, '-m', 'fixture'])
   // A decimal run is not a commit reference candidate, so the abbreviated prefixes
-  // the tests write must carry a hexadecimal letter; checking only the full name
-  // leaves a 7- or 12-character all-decimal prefix on some machines.
-  for (let index = 1; !/[a-f]/u.test(commit.slice(0, 12)); index += 1) {
+  // the tests write must carry a hexadecimal letter; the shortest abbreviated
+  // prefix is seven characters, so check that prefix rather than a longer one.
+  for (let index = 1; !/[a-f]/u.test(commit.slice(0, 7)); index += 1) {
     commit = git(['commit-tree', tree, '-m', `fixture ${String(index)}`])
   }
   git(['update-ref', 'HEAD', commit])
@@ -67,6 +67,9 @@ function collidingCommitBodies(tree: string, length: number): [string, string] {
   for (let index = 0; ; index += 1) {
     const body = `tree ${tree}\nauthor T <t@example.invalid> 0 +0000\ncommitter T <t@example.invalid> 0 +0000\n\ncollision ${String(index)}\n`
     const prefix = createHash(algorithm).update(`commit ${String(Buffer.byteLength(body))}\0${body}`).digest('hex').slice(0, length)
+    // Keep the shortest colliding prefix hex-bearing so the assertion exercises
+    // ambiguity rather than the decimal byte-size exclusion.
+    if (!/[a-f]/u.test(prefix)) continue
     const previous = seen.get(prefix)
     if (previous !== undefined) return [previous, body]
     seen.set(prefix, body)
