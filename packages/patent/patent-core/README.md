@@ -11,8 +11,13 @@ English | [中文](README.zh.md)
 
 Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with twenty-four builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers.
 
+## Package surface
+
+The package exports one entry point, `@deepseek-ai/dsh-patent-core`, resolving to `lib/index.js` with declarations in `lib/types/index.d.ts`; `./src/*` deep imports are not exported and fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`. The root barrel re-exports every declared type and a curated runtime set: the engines, registries, graph builders, parsers, validators, and stores documented below. Runtime helpers that only builtin atoms use stay internal; reach that behavior through `registerBuiltinAtoms()`, the graph builders, or the aggregate engine for the module. `tests/package-surface.spec.ts` checks that every export target ships in `files`.
+
 ## Table of Contents
 
+- [Package surface](#package-surface)
 - [Atoms engines](#atoms-engines)
 - [ModelPort](#modelport)
 - [Checker (dual-track deterministic rule engine)](#checker-dual-track-deterministic-rule-engine)
@@ -51,7 +56,7 @@ Stage params tune these handlers. Absent keys keep the per-atom defaults; malfor
 
 ## Checker (dual-track deterministic rule engine)
 
-`RuleEngine` evaluates domain-scoped `CheckRule`s over analysis text — novelty single-comparison, inventiveness three-step, infringement full-coverage, disclosure sufficiency, spec-checklist, and the 24 reasoning-pattern rules — with synonym expansion plus negation detection; `aggregate` maps failures to `pass`/`needs_revision`/`blocked`, and `defaultPatentRules()` registers all 71 rules.
+`RuleEngine` evaluates domain-scoped `CheckRule`s over analysis text — novelty single-comparison, inventiveness three-step, infringement full-coverage, disclosure sufficiency, spec-checklist, and the 24 reasoning-pattern rules — with synonym expansion plus negation detection, and `aggregate` maps failures to `pass`/`needs_revision`/`blocked`. The rule corpus ships with `@deepseek-ai/dsh-patent-rule` (which exposes it through `createCheckerRuleEvaluator()`); this package owns the engine, the rule types, and the `RuleEvaluator` port consumed by the patentability subgraphs' `rule_gate`. A graph with the gate enabled requires an injected evaluator and fails at build time without one, instead of silently omitting the gate. Each subgraph declares the final-report keys the gate evaluates (`novelty_report`, `inventiveness_conclusion`, `enablement_conclusion`); the gate no longer scans the whole state, so wording in the raw input cannot trip a rule. The gate fails closed: empty or unknown domains, an evaluator exception, a domain with zero rules, and any declared source that is missing, empty, non-textual, or carries a degradation mark all produce `blocked` instead of a silent pass. The structured `rule_gate` state entry records `status` (`pass`/`fail`/`blocked`), the evaluator `verdict`, failures, `evaluatedKeys`, and `degradedSources`.
 
 ## Problem (atomic technical-problem checks)
 

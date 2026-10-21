@@ -3,18 +3,20 @@
  *
  * - handlerNode：现有 StageHandler → 图节点（可注入固定 params）；
  * - llmNode：通用 LLM 节点工厂（JSON schema + 降级标记，复用 atoms llm 语义）；
- * - ruleGateNode：确定性规则门收口节点（复用 checker RuleEngine + aggregate）；
- * - collectStateText：汇总 state 文本供规则门评估。
+ * - ruleGateNode：确定性规则门收口节点（只评估声明的来源键，经注入的 RuleEvaluator 评估，fail-closed）；
+ * - requireRuleEvaluator：启用规则门时强制注入评估器（缺少评估器在构图期报错）；
+ * - collectStateText：通用 state 文本汇总（re-export）。
  */
 
 import type { GraphNode, GraphState, StateDelta } from '../types.ts'
-import { absorbHandlerDegradation, markDegraded, DEGRADATION_SUFFIX } from '../degradation.ts'
+import { absorbHandlerDegradation, markDegraded, isDegraded } from '../degradation.ts'
 import { runStageHandler } from '../adapter.ts'
 import type { StageHandler } from '../../atoms/index.ts'
 import { APPROVAL_GRANTED_KEY, isApprovalGateHandler, isGateApproved } from '../../atoms/index.ts'
 import { collectStateText } from '../../atoms/handler.ts'
-import { RuleEngine, aggregate, defaultPatentRules, type Verdict } from '../../checker/index.ts'
-import type { RuleCheckResult } from '../../checker/types.ts'
+import type { RuleEvaluator, RuleGateAssessment, RuleGateRequest } from '../../checker/index.ts'
+import { LevelMust } from '../../checker/types.ts'
+import type { RuleCheckResult, Verdict } from '../../checker/types.ts'
 
 export { collectStateText }
 
@@ -82,38 +84,218 @@ export function llmNode(input: LlmNodeOptions): GraphNode {
   }
 }
 
-/** 规则门收口节点：汇总 state 文本 → checker RuleEngine 按域评估 → verdict 写入 state。
- * @param domains - 规则门评估的领域列表。
- * @returns 规则门图节点。
+/** 规则门写入 state 的结果键。 */
+const RULE_GATE_STATE_KEY = 'rule_gate'
+
+/** 规则门启用开关与评估器注入（领域子图构建选项的公共部分）。 */
+export interface RuleGateOptions {
+  /** 规则门收口（缺省 true）。 */
+  ruleGate?: boolean
+  /** 规则评估器；启用规则门时必填，缺少评估器在构图期报错。 */
+  ruleEvaluator?: RuleEvaluator
+}
+
+/**
+ * 读取规则门评估器；启用规则门而未注入评估器属配置错误，构图期即失败。
+ * @param options - 子图构建选项中的规则门部分。
+ * @returns 注入的规则评估器。
+ * @throws 当规则门启用但 `ruleEvaluator` 缺失时抛出。
  */
-export function ruleGateNode(domains: readonly string[]): GraphNode {
-  // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
-  return async ({ state }) => {
-    const text = collectStateText(state, {
-      // 规则门自身的写入键与降级标记不属于业务文本。
-      skipKey: key =>
-        key.endsWith(DEGRADATION_SUFFIX) ||
-        key === 'rule_gate_verdict' ||
-        key === 'rule_gate_domains' ||
-        key === 'rule_gate_failures',
-    })
-    const engine = new RuleEngine()
-    engine.registerMany(defaultPatentRules())
-    const failures = engine.evaluate(text, { domain: domains })
-    const verdict = aggregate(failures)
-    return {
-      rule_gate_verdict: verdict,
-      rule_gate_domains: [...domains],
-      rule_gate_failures: failures.map(f => f.ruleId),
-      rule_gate_text_length: text.length,
-    }
+export function requireRuleEvaluator(options: RuleGateOptions): RuleEvaluator {
+  if (options.ruleEvaluator === undefined) {
+    throw new Error(
+      '规则门已启用但未注入 ruleEvaluator：规则语料由 @deepseek-ai/dsh-patent-rule 提供，'
+      + '请在构图时注入其 createCheckerRuleEvaluator() 或等价实现（或显式设置 ruleGate: false）。',
+    )
+  }
+  return options.ruleEvaluator
+}
+
+/** 构造规则门的失败结果（配置/评估器错误按 Must 级阻断）。 */
+function gateFailure(ruleId: string, message: string, fixSuggestion: string): RuleCheckResult {
+  return {
+    ruleId,
+    ruleName: '规则门配置错误',
+    passed: false,
+    level: LevelMust,
+    severity: 'critical',
+    message,
+    fixSuggestion,
   }
 }
 
-/** 规则门写入 state 的结果结构。 */
+function blocked(failure: RuleCheckResult): RuleGateAssessment {
+  return { verdict: 'blocked', failures: [failure], evaluatedRules: 0 }
+}
+
+/**
+ * 执行一次规则门评估，未知领域、空领域、评估器异常与空规则集一律 fail-closed。
+ * @param evaluator - 注入的规则评估器。
+ * @param request - 待评估文本与声明领域。
+ * @returns 评估结论；配置/评估器异常时返回 blocked。
+ */
+export function evaluateRuleGate(evaluator: RuleEvaluator, request: RuleGateRequest): RuleGateAssessment {
+  if (request.domains.length === 0) {
+    return blocked(
+      gateFailure('RULE-GATE-NO-DOMAINS', '规则门没有声明评估领域，拒绝放行', '为规则门声明至少一个评估领域'),
+    )
+  }
+  const supported = evaluator.domains
+  if (supported !== undefined) {
+    const unknown = request.domains.filter(domain => !supported.includes(domain))
+    if (unknown.length > 0) {
+      return blocked(
+        gateFailure(
+          'RULE-GATE-UNKNOWN-DOMAIN',
+          `规则评估器 ${evaluator.id} 不支持领域：${unknown.join('、')}`,
+          '检查规则门领域配置或注入支持该领域的评估器',
+        ),
+      )
+    }
+  }
+  let assessment: RuleGateAssessment
+  try {
+    assessment = evaluator.evaluate(request)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return blocked(
+      gateFailure(
+        'RULE-GATE-EVALUATOR-ERROR',
+        `规则评估器 ${evaluator.id} 执行失败：${message}`,
+        '检查规则资产与评估器实现；规则评估失败时不得放行',
+      ),
+    )
+  }
+  if (assessment.evaluatedRules === 0) {
+    return blocked(
+      gateFailure(
+        'RULE-GATE-EMPTY-RULESET',
+        `领域 ${request.domains.join('、')} 没有可评估的规则`,
+        '检查规则资产加载是否完整；空规则集不得作为通过',
+      ),
+    )
+  }
+  return assessment
+}
+
+/** 规则门结论：pass 放行；fail 规则判需修改；blocked 来源不可用或门无法评估。 */
+export type RuleGateStatus = 'pass' | 'fail' | 'blocked'
+
+/** 规则门节点选项。 */
+export type RuleGateNodeOptions = {
+  /** 规则门评估的领域列表（至少一个）。 */
+  domains: readonly string[]
+  /** 待评估的输出键：规则门只汇总这些键，不扫描整个 state。 */
+  sourceKeys: readonly string[]
+  /** 规则评估器（规则语料由其来源包提供）。 */
+  evaluator: RuleEvaluator
+}
+
+/** 规则门写入 state（`rule_gate` 键）的结构化结论。 */
 export type RuleGateState = {
+  /** 门结论。 */
+  status: RuleGateStatus
+  /** 评估器原始判级（`needs_revision` 归入 `fail`）。 */
   verdict: Verdict
+  /** 本次声明的评估领域。 */
+  domains: string[]
+  /** 失败规则（含消息与修复建议）。 */
   failures: RuleCheckResult[]
+  /** 评估器标识。 */
+  evaluator: string
+  /** 实际参与评估的规则条数。 */
+  evaluatedRules: number
+  /** 汇总进评估文本的来源键（按声明顺序）。 */
+  evaluatedKeys: string[]
+  /** 未能参与评估的来源键：缺失、非字符串/为空或存在降级标记。 */
+  degradedSources: string[]
+}
+
+/** 来源键不可用的原因。 */
+type UnavailableSource = { key: string; reason: 'missing' | 'empty' | 'not_text' | 'degraded' }
+
+const UNAVAILABLE_REASON_LABELS: Record<UnavailableSource['reason'], string> = {
+  missing: '缺失',
+  empty: '为空',
+  not_text: '非字符串',
+  degraded: '已降级',
+}
+
+/** 汇总声明的来源键；任一来源不可用即整体不可评估（fail-closed）。 */
+function collectRuleGateSources(
+  state: GraphState,
+  sourceKeys: readonly string[],
+): { text: string; evaluatedKeys: string[]; unavailable: UnavailableSource[] } {
+  const blocks: string[] = []
+  const evaluatedKeys: string[] = []
+  const unavailable: UnavailableSource[] = []
+  for (const key of sourceKeys) {
+    if (isDegraded(state, key)) {
+      unavailable.push({ key, reason: 'degraded' })
+      continue
+    }
+    const value = state[key]
+    if (value === undefined) {
+      unavailable.push({ key, reason: 'missing' })
+    } else if (typeof value !== 'string') {
+      unavailable.push({ key, reason: 'not_text' })
+    } else if (value.trim().length === 0) {
+      unavailable.push({ key, reason: 'empty' })
+    } else {
+      blocks.push(`## ${key}\n${value}`)
+      evaluatedKeys.push(key)
+    }
+  }
+  return { text: blocks.join('\n\n'), evaluatedKeys, unavailable }
+}
+
+/** 评估器判级 → 门结论（`needs_revision` 是规则失败，不是无法评估）。 */
+function ruleGateStatus(verdict: Verdict): RuleGateStatus {
+  return verdict === 'needs_revision' ? 'fail' : verdict
+}
+
+/**
+ * 规则门收口节点：只汇总声明的 `sourceKeys` → 注入的评估器按域评估 → 结构化结论写入 state。
+ *
+ * 任一来源键缺失、非字符串、为空或带降级标记时直接判 `blocked`，不调用评估器：
+ * 上游没产出可评估的最终报告时，"没有规则失败"不能当作通过。
+ * @param options - 评估领域、来源键与规则评估器。
+ * @returns 规则门图节点。
+ * @throws 当 `sourceKeys` 为空时抛出——规则门必须声明评估范围。
+ */
+export function ruleGateNode(options: RuleGateNodeOptions): GraphNode {
+  const { domains, sourceKeys, evaluator } = options
+  if (sourceKeys.length === 0) {
+    throw new Error('ruleGateNode: sourceKeys 不能为空——规则门必须声明待评估的输出键')
+  }
+  // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
+  return async ({ state }) => {
+    const sources = collectRuleGateSources(state, sourceKeys)
+    let assessment: RuleGateAssessment
+    if (sources.unavailable.length > 0) {
+      const description = sources.unavailable
+        .map(source => `${source.key}（${UNAVAILABLE_REASON_LABELS[source.reason]}）`)
+        .join('、')
+      assessment = blocked(gateFailure(
+        'RULE-GATE-SOURCES-UNAVAILABLE',
+        `规则门来源不可用：${description}`,
+        '确保声明的来源节点产出非空文本且未降级；来源不可用时不得放行规则门',
+      ))
+    } else {
+      assessment = evaluateRuleGate(evaluator, { text: sources.text, domains })
+    }
+    const result: RuleGateState = {
+      status: ruleGateStatus(assessment.verdict),
+      verdict: assessment.verdict,
+      domains: [...domains],
+      failures: assessment.failures.map(failure => ({ ...failure })),
+      evaluator: evaluator.id,
+      evaluatedRules: assessment.evaluatedRules,
+      evaluatedKeys: sources.evaluatedKeys,
+      degradedSources: sources.unavailable.map(source => source.key),
+    }
+    return { [RULE_GATE_STATE_KEY]: result }
+  }
 }
 
 /** 通用：从 state 读取输入文本（对齐 workflowCtx 映射的多键回退）。

@@ -1,12 +1,12 @@
 /**
- * src/patent/checker — 推理模式规则聚合层（24 条）。
+ * src/checker — checker 规则资产（patent-rule）：推理模式规则聚合层（24 条）。
  *
  * 移植自 Mady domains/workflows/patent/reasoning_patterns.go：18 个标准化
  * 推理模式 × CheckRules。规则按组拆分为 4 个文件（对齐 core-rules.ts
  * 的按域拆函数范式）：creativity(7) + novelty(6) + claims(5) + other(6)。
  */
 
-import type { CheckRule } from './types.ts'
+import type { CheckRule } from '@deepseek-ai/dsh-patent-core'
 import { claimsReasoningRules } from './reasoning-claims.ts'
 import { creativityReasoningRules } from './reasoning-creativity.ts'
 import { noveltyReasoningRules } from './reasoning-novelty.ts'

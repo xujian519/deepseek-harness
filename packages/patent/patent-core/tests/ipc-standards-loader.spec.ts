@@ -84,6 +84,22 @@ describe('ipc-standards-loader', () => {
     expect(text).toContain('[')
   })
 
+  it('keyPoints 与 tips 各占一行，不拼在同一行', () => {
+    const card = {
+      id: 'CARD-1',
+      article: 'patent-law-a22.3',
+      ipcSection: 'G',
+      ipcDetail: '06',
+      name: '创造性-审查标准',
+      keyPoints: ['要点一'],
+      tips: ['提示一'],
+      source: '',
+    }
+    expect(formatStandardsAsContext([card])).toBe(
+      '- [G06] 创造性-审查标准 (patent-law-a22.3)\n  - 要点一\n  - 提示一',
+    )
+  })
+
   it('注入上下文时跳过无实质内容的卡片', () => {
     const cards = queryIpcStandards('G')
     const shell = {

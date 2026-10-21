@@ -12,7 +12,8 @@
  * `customCheck` 全空，因此该规则对任何文本都不报出——见 #262。
  */
 import { describe, expect, it } from 'vitest'
-import { RuleEngine, defaultPatentRules } from '@deepseek-ai/dsh-patent-core'
+import { RuleEngine } from '@deepseek-ai/dsh-patent-core'
+import { defaultPatentRules } from '@deepseek-ai/dsh-patent-rule'
 
 const engine = new RuleEngine()
 engine.registerMany(defaultPatentRules())

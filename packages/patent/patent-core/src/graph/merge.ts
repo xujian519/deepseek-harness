@@ -1,8 +1,9 @@
 /**
  * src/patent/graph — Reducer 确定性合并（移植自 Mady graph/state_schema.go）。
  *
- * 同超步内所有节点并行执行后，结果按 **节点名字典序** 排序再逐 key 合并：
- * - 排序保证 LWW 确定性（并发写同一 key 时，字典序后者胜出，与执行完成顺序无关）；
+ * 同超步内所有节点并行执行后，结果按 **节点名 UTF-16 码位序** 排序再逐 key 合并
+ * （不用区域设置相关的 sort，同一份日志在不同 locale 下必须得到同一状态）：
+ * - 排序保证 LWW 确定性（并发写同一 key 时，码位序后者胜出，与执行完成顺序无关）；
  * - 未注册 schema 的 key 回落 last_write_wins；
  * - fail_on_conflict：同 key 重复写入立即抛 GraphMergeError。
  */
@@ -54,13 +55,13 @@ function mergeMap(existing: unknown, value: unknown): unknown {
 
 /**
  * 合并节点增量到共享 state（原地修改）。
- * results 按节点名字典序排序后逐 key 应用 Reducer。
+ * results 按节点名 UTF-16 码位序排序后逐 key 应用 Reducer。
  * @param state - 要原地更新的共享状态。
  * @param results - 本超步各节点的增量结果。
  * @param schema - key → Reducer 合并策略（缺省 last_write_wins）。
  */
 export function mergeWithSchema(state: GraphState, results: NodeResult[], schema: MergeSchema = {}): void {
-  const sorted = [...results].sort((a, b) => a.node.localeCompare(b.node))
+  const sorted = [...results].sort((a, b) => (a.node < b.node ? -1 : a.node > b.node ? 1 : 0))
   for (const { node, delta } of sorted) {
     for (const [key, value] of Object.entries(delta)) {
       const reducer: Reducer = schema[key] ?? 'last_write_wins'

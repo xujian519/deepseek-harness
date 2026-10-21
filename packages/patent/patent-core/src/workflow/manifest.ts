@@ -22,6 +22,9 @@ export function validateWorkflowManifest(
   if (!manifest.name.trim()) throw new WorkflowError('manifest.name 不能为空')
   if (!manifest.caseType.trim()) throw new WorkflowError('manifest.caseType 不能为空')
   validateGuidelineRevision(manifest, options?.guidelineRevision)
+  if (manifest.validation?.maxRetries !== undefined) {
+    assertNonNegativeInteger(manifest.validation.maxRetries, `manifest ${manifest.id} 的 validation.maxRetries`)
+  }
   if (!Array.isArray(manifest.stages) || manifest.stages.length === 0) {
     throw new WorkflowError('manifest.stages 必须至少包含一个阶段')
   }
@@ -72,10 +75,14 @@ export function validateWorkflowManifest(
       if (stage.retry.rewindTo === stage.id) {
         throw new WorkflowError(`阶段 ${stage.id} 的 retry.rewindTo 不能指向自身（无回退意义）`)
       }
-      const maxRetries = stage.retry.maxRetries ?? 1
-      if (maxRetries < 0) throw new WorkflowError(`阶段 ${stage.id} 的 retry.maxRetries 不能为负`)
+      assertNonNegativeInteger(stage.retry.maxRetries ?? 1, `阶段 ${stage.id} 的 retry.maxRetries`)
     }
   }
+}
+
+/** Reject NaN, fractions, and numeric strings arriving from external YAML/JSON. */
+function assertNonNegativeInteger(value: number, label: string): void {
+  if (!Number.isInteger(value) || value < 0) throw new WorkflowError(`${label} 必须为非负整数`)
 }
 
 /**

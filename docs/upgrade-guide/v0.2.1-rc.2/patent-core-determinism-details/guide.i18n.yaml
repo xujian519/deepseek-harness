@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-core-determinism-details/guide.md
+/:
+  en: 01b795676b552692
+  zh: c2bce87e1d74864b
+/patent-core-fixes-merge-ordering-discarded-facts-manifest-checks-and-ipc-context:
+  en: 606b19aeeaaae7cf
+  zh: 1856adf46dda02e7
+/patent-core-fixes-merge-ordering-discarded-facts-manifest-checks-and-ipc-context/change:
+  en: e2b6133d65a44dd5
+  zh: 4d261ea7a528c756
+/patent-core-fixes-merge-ordering-discarded-facts-manifest-checks-and-ipc-context/migration:
+  en: a44e122c394ef9a4
+  zh: be75a694b6e34f87

@@ -23,6 +23,9 @@ import {
   handlerNode,
   isDegraded,
   registerBuiltinAtoms,
+  type RuleEvaluator,
+  type RuleGateRequest,
+  type RuleGateState,
   type StageHandler,
   type StageProvider,
 } from '@deepseek-ai/dsh-patent-core'
@@ -42,6 +45,17 @@ function passthroughHandlers(): StageHandlerRegistry {
   return handlers
 }
 
+/** 规则门评估器替身：核心图测试不加载规则语料，门只验证接线与审计键。 */
+const stubRuleEvaluator: RuleEvaluator = {
+  id: 'test:stub-rules',
+  evaluate: () => ({ verdict: 'pass', failures: [], evaluatedRules: 1 }),
+}
+
+/** 读取规则门写入 state 的结构化结论。 */
+function ruleGateOf(state: Record<string, unknown>): RuleGateState {
+  return state.rule_gate as RuleGateState
+}
+
 // ---------------------------------------------------------------------------
 // 确定性节点：extractNumericRanges / detectTechnicalDomain
 // ---------------------------------------------------------------------------
@@ -57,6 +71,12 @@ it('detectTechnicalDomain: 化学/计算机/机械/通用检测', () => {
   expect(detectTechnicalDomain('一种数据处理方法及电子设备').domain).toBe('software')
   expect(detectTechnicalDomain('一种传动装置').domain).toBe('mechanical')
   expect(detectTechnicalDomain('一种日常用品').domain).toBe('generic')
+})
+
+it('领域子图：启用规则门但未注入评估器 → 构图期报错', () => {
+  expect(() => buildNoveltyGraph()).toThrow(/未注入 ruleEvaluator/)
+  expect(() => buildInventivenessGraph()).toThrow(/未注入 ruleEvaluator/)
+  expect(() => buildEnablementGraph()).toThrow(/未注入 ruleEvaluator/)
 })
 
 // ---------------------------------------------------------------------------
@@ -92,7 +112,7 @@ const noveltyProvider = (): StageProvider => ({
 })
 
 it('novelty: mock provider + 放行审批 → 跑完全图 + 规则门收口', async () => {
-  const graph = buildNoveltyGraph({ handlers: passthroughHandlers() }).compile('extract')
+  const graph = buildNoveltyGraph({ handlers: passthroughHandlers(), ruleEvaluator: stubRuleEvaluator }).compile('extract')
   const result = await graph.run(
     {
       text: '一种分拣装置，温度范围为 50-80°C，包含传送带与识别传感器',
@@ -103,10 +123,42 @@ it('novelty: mock provider + 放行审批 → 跑完全图 + 规则门收口', a
   expect(result.completed).toBe(true)
   expect((result.state.novelty_report as string).includes('新颖性分析报告')).toBe(true)
   expect(result.state.numeric_ranges).toEqual(['50-80'])
-  // 规则门收口：verdict 输出存在（patent_novelty 域含优先权/公开方式/推理模式规则，
-  // mock 报告未覆盖 → blocked 属预期；核心通过性由 ruleGate:false 用例验证）。
-  expect(['pass', 'blocked', 'needs_revision'].includes(result.state.rule_gate_verdict as string)).toBe(true)
-  expect(Array.isArray(result.state.rule_gate_failures)).toBe(true)
+  // 规则门收口：评估器替身判 pass，门只汇总声明的最终报告键。
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluator).toBe('test:stub-rules')
+  expect(gate.evaluatedKeys).toEqual(['novelty_report'])
+})
+
+it('novelty: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
+  const requests: RuleGateRequest[] = []
+  const evaluator: RuleEvaluator = {
+    id: 'test:novelty-gate',
+    domains: ['patent_novelty'],
+    evaluate: (request) => {
+      requests.push(request)
+      return { verdict: 'pass', failures: [], evaluatedRules: 3 }
+    },
+  }
+  const graph = buildNoveltyGraph({
+    handlers: passthroughHandlers(),
+    includeApproval: false,
+    ruleEvaluator: evaluator,
+  }).compile('extract')
+  const result = await graph.run(
+    { text: '一种分拣装置，包含传送带与识别传感器', prior_art: [{ title: 'D1', snippet: '公开传送带' }] },
+    { provider: noveltyProvider() },
+  )
+  expect(result.completed).toBe(true)
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluator).toBe('test:novelty-gate')
+  expect(gate.evaluatedRules).toBe(3)
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.domains).toEqual(['patent_novelty'])
+  // 只评估最终报告：原始输入（含"分拣装置"）不参与，避免输入措辞触发规则失败。
+  expect(requests[0]?.text).toContain('新颖性分析报告')
+  expect(requests[0]?.text).not.toContain('分拣装置')
 })
 
 it('novelty: 无数值表述时确定性核验段标记（无）', async () => {
@@ -119,7 +171,7 @@ it('novelty: 无数值表述时确定性核验段标记（无）', async () => {
     },
     search: base.search!,
   }
-  const graph = buildNoveltyGraph({ handlers: passthroughHandlers() }).compile('extract')
+  const graph = buildNoveltyGraph({ handlers: passthroughHandlers(), ruleEvaluator: stubRuleEvaluator }).compile('extract')
   await graph.run(
     {
       text: '一种分拣装置，包含传送带与识别传感器',
@@ -131,7 +183,7 @@ it('novelty: 无数值表述时确定性核验段标记（无）', async () => {
 })
 
 it('novelty: 无 provider → LLM 节点降级 + approval 中断', async () => {
-  const graph = buildNoveltyGraph({ handlers: globalStageHandlerRegistry }).compile('extract')
+  const graph = buildNoveltyGraph({ handlers: globalStageHandlerRegistry, ruleEvaluator: stubRuleEvaluator }).compile('extract')
   const result = await graph.run({ text: '一种分拣装置' })
   expect(result.completed).toBe(false)
   expect(result.interrupted?.node).toBe('approval')
@@ -152,6 +204,20 @@ it('novelty: includeApproval=false → 无审批门，conclude 直达 END（可�
   // 无审批：LLM 节点降级后仍直达 END，completed=true（自动执行语义）。
   const result = await graph.run({ text: '一种分拣装置' })
   expect(result.completed).toBe(true)
+})
+
+it('novelty: 无 provider → conclude 降级，规则门 blocked 而非静默通过', async () => {
+  const graph = buildNoveltyGraph({
+    includeApproval: false,
+    handlers: globalStageHandlerRegistry,
+    ruleEvaluator: stubRuleEvaluator,
+  }).compile('extract')
+  const result = await graph.run({ text: '一种分拣装置' })
+  expect(result.completed).toBe(true)
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('blocked')
+  expect(gate.degradedSources).toEqual(['novelty_report'])
+  expect(gate.evaluatedRules).toBe(0)
 })
 
 // ---------------------------------------------------------------------------
@@ -229,19 +295,48 @@ it('inventiveness: mock provider → 三步法全流程 + 结论提取（ruleGat
   expect(extracted.report?.includes('三步法')).toBe(true)
 })
 
-it('inventiveness: 规则门收口输出 verdict（推理路径规则严格，blocked/needs_revision 可接受）', async () => {
-  const graph = buildInventivenessGraph({ handlers: passthroughHandlers() }).compile('parse')
+it('inventiveness: 规则门收口输出 verdict（评估器替身）', async () => {
+  const graph = buildInventivenessGraph({ handlers: passthroughHandlers(), ruleEvaluator: stubRuleEvaluator }).compile('parse')
   const result = await graph.run(
     { text: '一种分拣装置，包括传送带与识别传感器' },
     { provider: inventivenessProvider() },
   )
   expect(result.completed).toBe(true)
-  expect(['pass', 'blocked', 'needs_revision'].includes(result.state.rule_gate_verdict as string)).toBe(true)
-  expect(Array.isArray(result.state.rule_gate_failures)).toBe(true)
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluatedKeys).toEqual(['inventiveness_conclusion'])
+})
+
+it('inventiveness: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
+  const requests: RuleGateRequest[] = []
+  const evaluator: RuleEvaluator = {
+    id: 'test:inventiveness-gate',
+    domains: ['patent_inventiveness'],
+    evaluate: (request) => {
+      requests.push(request)
+      return { verdict: 'pass', failures: [], evaluatedRules: 4 }
+    },
+  }
+  const graph = buildInventivenessGraph({
+    handlers: passthroughHandlers(),
+    includeApproval: false,
+    ruleEvaluator: evaluator,
+  }).compile('parse')
+  const result = await graph.run(
+    { text: '一种分拣装置，包括传送带与识别传感器' },
+    { provider: inventivenessProvider() },
+  )
+  expect(result.completed).toBe(true)
+  const gate = ruleGateOf(result.state)
+  expect(gate.evaluator).toBe('test:inventiveness-gate')
+  expect(gate.evaluatedRules).toBe(4)
+  expect(gate.evaluatedKeys).toEqual(['inventiveness_conclusion'])
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.domains).toEqual(['patent_inventiveness'])
 })
 
 it('inventiveness: 无 provider → 全 LLM 节点降级 + approval 中断', async () => {
-  const graph = buildInventivenessGraph({ handlers: globalStageHandlerRegistry }).compile('parse')
+  const graph = buildInventivenessGraph({ handlers: globalStageHandlerRegistry, ruleEvaluator: stubRuleEvaluator }).compile('parse')
   const result = await graph.run({ text: '一种分拣装置' })
   expect(result.completed).toBe(false)
   expect(result.interrupted?.node).toBe('approval')
@@ -288,7 +383,7 @@ const enablementProvider = (): StageProvider => ({
 })
 
 it('enablement: mock provider → A26.3 全流程 + 领域规则 + 规则门', async () => {
-  const graph = buildEnablementGraph({ handlers: passthroughHandlers() }).compile('load')
+  const graph = buildEnablementGraph({ handlers: passthroughHandlers(), ruleEvaluator: stubRuleEvaluator }).compile('load')
   const result = await graph.run(
     {
       text: '一种化合物及其制备方法。技术领域：化学。背景技术…发明内容…具体实施方式…附图说明…实施例1：制备 50-80°C。',
@@ -300,11 +395,41 @@ it('enablement: mock provider → A26.3 全流程 + 领域规则 + 规则门', a
   expect(Array.isArray(result.state.domain_requirements) && result.state.domain_requirements.length > 0).toBe(true)
   const extracted = extractEnablementResult(result.state)
   expect(extracted.sufficientlyDisclosed).toBe(false)
-  expect(result.state.rule_gate_verdict).toBe('pass')
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluatedKeys).toEqual(['enablement_conclusion'])
+})
+
+it('enablement: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
+  const requests: RuleGateRequest[] = []
+  const evaluator: RuleEvaluator = {
+    id: 'test:enablement-gate',
+    domains: ['patent_disclosure'],
+    evaluate: (request) => {
+      requests.push(request)
+      return { verdict: 'pass', failures: [], evaluatedRules: 6 }
+    },
+  }
+  const graph = buildEnablementGraph({
+    handlers: passthroughHandlers(),
+    includeApproval: false,
+    ruleEvaluator: evaluator,
+  }).compile('load')
+  const result = await graph.run(
+    { text: '一种化合物及其制备方法。技术领域：化学。背景技术…发明内容…具体实施方式…附图说明…实施例1。' },
+    { provider: enablementProvider() },
+  )
+  expect(result.completed).toBe(true)
+  const gate = ruleGateOf(result.state)
+  expect(gate.evaluator).toBe('test:enablement-gate')
+  expect(gate.evaluatedRules).toBe(6)
+  expect(gate.evaluatedKeys).toEqual(['enablement_conclusion'])
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.domains).toEqual(['patent_disclosure'])
 })
 
 it('enablement: load 节点确定性结构检查', async () => {
-  const graph = buildEnablementGraph({ handlers: globalStageHandlerRegistry }).compile('load')
+  const graph = buildEnablementGraph({ handlers: globalStageHandlerRegistry, ruleEvaluator: stubRuleEvaluator }).compile('load')
   const result = await graph.run({ text: '技术领域…具体实施方式…' }, { provider: enablementProvider() })
   // 无 approval 放行 → 会中断，但 load/completeness 等已执行。
   expect(result.completed).toBe(false)

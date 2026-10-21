@@ -192,12 +192,15 @@ export class FactBlackboard {
   }
 
   /**
-   * 按 id 查询事实（深拷贝）。
+   * 按 id 查询事实（深拷贝）。默认不返回已丢弃的事实：软丢弃后仍允许它支撑
+   * 三段论，等于让回溯删掉的事实继续生效。需要读取历史时显式传 `includeDiscarded`。
    * @param id - 事实标识。
-   * @returns 匹配的事实条目；不存在时为 undefined。
+   * @param options - `includeDiscarded` 为 true 时同时匹配已丢弃的事实。
+   * @returns 匹配的事实条目；不存在或已丢弃（未要求包含）时为 undefined。
    */
-  getFact(id: string): FactEntry | undefined {
-    const fact = this.facts.find(f => f.id === id)
+  getFact(id: string, options?: { includeDiscarded?: boolean }): FactEntry | undefined {
+    const includeDiscarded = options?.includeDiscarded === true
+    const fact = this.facts.find(f => f.id === id && (includeDiscarded || f.discardedAt === undefined))
     return fact !== undefined ? structuredClone(fact) : undefined
   }
 

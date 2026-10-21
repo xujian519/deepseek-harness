@@ -161,9 +161,8 @@ export function formatStandardsAsContext(cards: IpcStandardCard[]): string {
   if (substantive.length === 0) return ''
   return substantive
     .map((card) => {
-      const points = card.keyPoints.map(k => `  - ${k}`).join('\n')
-      const tips = card.tips.map(t => `  - ${t}`).join('\n')
-      return `- [${card.ipcSection}${card.ipcDetail ?? ''}] ${card.name} (${card.article})\n${points}${tips}`
+      const lines = [...card.keyPoints, ...card.tips].map(line => `  - ${line}`).join('\n')
+      return `- [${card.ipcSection}${card.ipcDetail ?? ''}] ${card.name} (${card.article})\n${lines}`
     })
     .join('\n')
 }

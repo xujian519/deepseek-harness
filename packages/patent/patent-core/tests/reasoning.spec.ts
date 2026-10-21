@@ -47,9 +47,21 @@ it('黑板：事实增删、软丢弃与 activeFacts 过滤', () => {
 
   bb.discardFact('F1')
   expect(bb.activeFacts().length).toBe(0)
-  // 软丢弃保留历史（allFacts 仍可见，用于回溯）
+  // 软丢弃保留历史（allFacts 仍可见，用于回溯），但默认查询不再返回
   expect(bb.allFacts().length).toBe(1)
-  expect(bb.getFact('F1')?.discardedAt !== undefined).toBeTruthy()
+  expect(bb.getFact('F1')).toBeUndefined()
+  expect(bb.getFact('F1', { includeDiscarded: true })?.discardedAt !== undefined).toBeTruthy()
+})
+
+it('黑板：已丢弃的事实不能支撑三段论', () => {
+  const bb = makeBlackboard()
+  const syllogism = new SyllogismBuilder('S-discarded')
+    .major('专利法第22条第3款', 'A22.3', '创造性')
+    .minor('权利要求1区别特征', 'F1', '压缩弹簧')
+    .conclusionText('具备创造性', 0.7)
+    .build(bb)
+  bb.discardFact('F1')
+  expect(() => ruleAssertion(bb, syllogism)).toThrow(/F1 不存在于黑板上/)
 })
 
 it('黑板：Lock 后修改抛错（防误用）', () => {

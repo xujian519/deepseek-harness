@@ -1,13 +1,13 @@
 /**
- * src/patent/checker — 推理模式规则：新颖性组（6 条）。
+ * src/checker — checker 规则资产（patent-rule）：推理模式规则：新颖性组（6 条）。
  *
  * 移植自 Mady domains/workflows/patent/reasoning_patterns.go；按组拆分自
  * reasoning-rules.ts（对齐 core-rules.ts 的按域拆函数范式）。
  */
 
-import type { CheckRule } from './types.ts'
-import { LevelMust, LevelShould } from './types.ts'
 import {
+  LevelMust,
+  LevelShould,
   TERM_FILING_DATE,
   TERM_INTERNET_DISCLOSURE,
   TERM_NOVELTY,
@@ -18,7 +18,8 @@ import {
   TERM_TECH_EFFECT,
   TERM_TECH_SOLUTION,
   DOMAIN_NOVELTY,
-} from './constants.ts'
+  type CheckRule,
+} from '@deepseek-ai/dsh-patent-core'
 
 /**
  * 新颖性推理模式规则（6 条）。

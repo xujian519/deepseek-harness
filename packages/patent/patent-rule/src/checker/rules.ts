@@ -1,11 +1,12 @@
 /**
- * src/patent/checker — 规则集聚合层。
+ * src/checker — checker 规则集聚合层（patent-rule 侧规则资产）。
  *
  * core-rules.ts（11 组场景规则，47 条）+ reasoning-rules.ts（24 条推理模式规则），
  * 此处提供 defaultPatentRules() 聚合与全部规则函数的统一 re-export。
+ * 规则评估引擎与领域端口在 `@deepseek-ai/dsh-patent-core`。
  */
 
-import type { CheckRule } from './types.ts'
+import type { CheckRule } from '@deepseek-ai/dsh-patent-core'
 import {
   designRules,
   disclosureRules,
