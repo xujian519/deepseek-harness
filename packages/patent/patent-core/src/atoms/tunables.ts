@@ -48,6 +48,12 @@ function readTunable(
 /** Default score below which a feature is reported as low confidence. */
 export const DEFAULT_GROUNDEDNESS_THRESHOLD = 0.6
 
+/** Default maximum size of one claim-chart source file, in UTF-8 bytes. */
+export const DEFAULT_CHART_SOURCE_MAX_BYTES = 1024 * 1024
+
+/** Hard ceiling for a configured claim-chart source size limit. */
+export const MAX_CHART_SOURCE_MAX_BYTES = 16 * 1024 * 1024
+
 /** Defaults a handler supplies for its tunable surface. */
 export type AtomTunableDefaults = {
   temperature: number
@@ -165,5 +171,52 @@ export function readGroundednessThreshold(state: PipelineState, fallback: number
     fallback,
     value => value >= 0 && value <= 1,
     '0-1 的数字',
+  )
+}
+
+/** Outcome of reading the claim-chart source roots. */
+export type ChartSourceRootsResult =
+  | {
+    ok: true
+    /** `undefined` keeps the handler default (the working directory); `[]` allows no root. */
+    roots: string[] | undefined
+  }
+  | { ok: false; reason: string }
+
+/**
+ * Read the allowed roots for claim-chart source files. An absent key keeps the
+ * working-directory default; an explicit list replaces it, and an empty list
+ * denies every source read instead of widening access.
+ * @param state - stage state, including merged params.
+ * @returns the configured roots or a degradation reason.
+ */
+export function readChartSourceRoots(state: PipelineState): ChartSourceRootsResult {
+  const raw = state['chart_source_roots']
+  if (raw === undefined) return { ok: true, roots: undefined }
+  if (!Array.isArray(raw)) {
+    return { ok: false, reason: 'params.chart_source_roots 必须是：非空字符串组成的数组' }
+  }
+  const roots: string[] = []
+  for (const entry of raw) {
+    if (typeof entry !== 'string' || entry.trim() === '') {
+      return { ok: false, reason: 'params.chart_source_roots 必须是：非空字符串组成的数组' }
+    }
+    roots.push(entry)
+  }
+  return { ok: true, roots }
+}
+
+/**
+ * Read the size limit for one claim-chart source file.
+ * @param state - stage state, including merged params.
+ * @returns a positive byte count up to {@link MAX_CHART_SOURCE_MAX_BYTES}, or a degradation reason.
+ */
+export function readChartSourceMaxBytes(state: PipelineState): TunableResult {
+  return readTunable(
+    state,
+    'chart_source_max_bytes',
+    DEFAULT_CHART_SOURCE_MAX_BYTES,
+    value => Number.isInteger(value) && value >= 1 && value <= MAX_CHART_SOURCE_MAX_BYTES,
+    `1-${MAX_CHART_SOURCE_MAX_BYTES} 的整数`,
   )
 }

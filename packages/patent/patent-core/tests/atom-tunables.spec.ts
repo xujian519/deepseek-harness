@@ -12,6 +12,10 @@ import {
   type StageProvider,
 } from '@deepseek-ai/dsh-patent-core'
 import {
+  DEFAULT_CHART_SOURCE_MAX_BYTES,
+  MAX_CHART_SOURCE_MAX_BYTES,
+  readChartSourceMaxBytes,
+  readChartSourceRoots,
   readGroundednessThreshold,
   readMaxRetries,
   readPromptCharLimit,
@@ -59,6 +63,41 @@ describe('atomic tunable readers', () => {
   it('groundedness_threshold requires a number in [0, 1]', () => {
     expect(readGroundednessThreshold({ groundedness_threshold: 1.5 }, 0.6).ok).toBe(false)
     expect(readGroundednessThreshold({ groundedness_threshold: -0.5 }, 0.6).ok).toBe(false)
+  })
+
+  it('chart_source_roots keeps the default, accepts explicit lists and empty lockdown', () => {
+    expect(readChartSourceRoots({})).toEqual({ ok: true, roots: undefined })
+    expect(readChartSourceRoots({ chart_source_roots: ['/cases', 'relative'] })).toEqual({
+      ok: true,
+      roots: ['/cases', 'relative'],
+    })
+    expect(readChartSourceRoots({ chart_source_roots: [] })).toEqual({ ok: true, roots: [] })
+  })
+
+  it('chart_source_roots rejects non-arrays and blank or non-string entries', () => {
+    expect(readChartSourceRoots({ chart_source_roots: 'cases' }).ok).toBe(false)
+    expect(readChartSourceRoots({ chart_source_roots: [1] }).ok).toBe(false)
+    expect(readChartSourceRoots({ chart_source_roots: [''] }).ok).toBe(false)
+    expect(readChartSourceRoots({ chart_source_roots: ['   '] }).ok).toBe(false)
+  })
+
+  it('chart_source_max_bytes requires a positive integer up to the ceiling', () => {
+    expect(readChartSourceMaxBytes({})).toEqual({
+      ok: true,
+      value: DEFAULT_CHART_SOURCE_MAX_BYTES,
+      configured: false,
+    })
+    expect(readChartSourceMaxBytes({ chart_source_max_bytes: 10 })).toEqual({
+      ok: true,
+      value: 10,
+      configured: true,
+    })
+    expect(readChartSourceMaxBytes({ chart_source_max_bytes: 1 }).ok).toBe(true)
+    expect(readChartSourceMaxBytes({ chart_source_max_bytes: MAX_CHART_SOURCE_MAX_BYTES }).ok).toBe(true)
+    expect(readChartSourceMaxBytes({ chart_source_max_bytes: 0 }).ok).toBe(false)
+    expect(readChartSourceMaxBytes({ chart_source_max_bytes: 1.5 }).ok).toBe(false)
+    expect(readChartSourceMaxBytes({ chart_source_max_bytes: MAX_CHART_SOURCE_MAX_BYTES + 1 }).ok).toBe(false)
+    expect(readChartSourceMaxBytes({ chart_source_max_bytes: '10' }).ok).toBe(false)
   })
 })
 
