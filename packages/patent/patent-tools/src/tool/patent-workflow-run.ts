@@ -103,8 +103,11 @@ export type PatentWorkflowRunInput = {
   maxResults?: number
   /**
    * Existing prior-art evidence entries as a JSON array. Entries may carry
-   * `publicationDate` (the prior-art cutoff input) and `a24Exception`
-   * (`A24.1`–`A24.4`, an A24 grace-period disclosure).
+   * `publicationDate` (the prior-art cutoff input), `a24Exception`
+   * (`A24.1`–`A24.4`, an A24 grace-period disclosure), and
+   * `a24DisclosureSource` (`applicant` | `derived-from-applicant` |
+   * `unauthorized-disclosure`); a missing or mismatched source leaves the
+   * grace-period claim unverified.
    */
   priorArt?: string
   /**
@@ -302,7 +305,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       priorityDate: { type: 'string', description: 'Earliest priority date. The earlier of it and filingDate becomes the prior-art cutoff.' },
       chartTargets: { type: 'string', description: 'claim-chart target objects JSON (default empty).' },
       maxResults: { type: 'number', description: 'Max prior-art search results (default 5).' },
-      priorArt: { type: 'string', description: 'Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage.' },
+      priorArt: { type: 'string', description: 'Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd), a24Exception (A24.1–A24.4), and a24DisclosureSource (applicant|derived-from-applicant|unauthorized-disclosure) when the entries reach its stage, and measures the grace period from the earliest priorityDate.' },
       conflictingApplications: { type: 'string', description: 'Conflicting-application candidates as a JSON array. Each entry carries filingDate and publicationDate (yyyy-MM-dd), optional priorityDate, and sameInvention (boolean, judged by the caller). The conflicting-application stage applies A22.2 second sentence: filed before the target date, published on or after it, same invention.' },
       evidence: { type: 'string', description: 'Evidence entries as a JSON array for the invalidation/reexamination evidence-check stage. Entries may carry title/name, type (现有技术/外文证据/域外证据/证人证言...), sourceUri, submittedAt, publicationDate, translated, notarized, legalized, witness, grounds/claimRefs, contentHash+snippet. Late entries without lateJustification are blocking findings.' },
       evidenceDeadline: { type: 'string', description: 'Evidence submission deadline (parseable date). evidence-check compares each entry submittedAt against it and reports late entries without a justification as blocking.' },
