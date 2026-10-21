@@ -2,7 +2,7 @@
  * 带 key 的 `patent-oas` 实测采集器:跑一次真实运行,写出 run 记录并按门槛判定。
  *
  * 每次调用起一个 `dsh --profile` 进程(与 `self-evolve-eval` 的 campaign 运行器同形),
- * 执行者一次、每个 rubric 维度一次评估者。没有 key 时如实跳过并以 0 退出:这个脚本是
+ * 每轮一个执行者、每轮每个 rubric 维度一个评估者。没有 key 时如实跳过并以 0 退出:这个脚本是
  * 证据生产者,不是门禁本身;门禁是 `verify-patent-oas-gold`。
  *
  * 采集到的分数测的是「调用方选定的 profile 下的模型 + 作业规范」,因此只有在同一个 profile
@@ -40,6 +40,7 @@ import {
 import {
   collectRunRecord,
   credentialEnvFiles,
+  formatRunPlan,
   hasCredentialSignal,
   parseRunnerOptions,
   planRun,
@@ -65,13 +66,7 @@ async function main(args: string[]): Promise<number> {
     ...(options.caseIds.length === 0 ? {} : { caseIds: options.caseIds }),
     runsPerCase: options.runs,
   })
-  const perCase = plan.cases
-    .map(entry => `${entry.caseId}:${entry.dimensions}${entry.rounds > 1 ? `×${entry.rounds}轮` : ''}`)
-    .join(' ')
-  const rounds = plan.cases.reduce((sum, entry) => sum + entry.rounds, 0)
-  console.log(
-    `run-patent-oas: 计划 ${plan.cases.length} case × ${plan.runsPerCase} 次运行,共 ${rounds} 轮 = ${plan.calls} 次 agent 调用(${perCase});profile=${options.profile}`,
-  )
+  console.log(formatRunPlan(plan, options.profile))
   if (options.dryRun) {
     console.log(`run-patent-oas: --dry-run 只打印计划,未做任何模型调用;产物会落在 ${options.workDir},记录写出到 ${options.outPath}`)
     return 0

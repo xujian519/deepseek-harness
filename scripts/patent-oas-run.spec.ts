@@ -39,6 +39,7 @@ import {
   credentialEnvFiles,
   evaluatorPrompt,
   executorPrompt,
+  formatRunPlan,
   hasCredentialSignal,
   parseRunEventUsage,
   parseRunnerOptions,
@@ -391,6 +392,17 @@ describe('编排', () => {
     expect(plan.cases.find(entry => entry.caseId === 'oa-answer')?.dimensions).toBe(6)
     expect(plan.cases.filter(entry => entry.caseId !== 'oa-answer').every(entry => entry.dimensions === 5)).toBe(true)
     expect(() => planRun({ space, gold, caseIds: ['oa-answer', 'oa-answer'] })).toThrow('被选中多次')
+  })
+
+  it('计划摘要列出逐 case 维度、总轮次与 profile', () => {
+    const single = formatRunPlan(planRun({ space, gold }), 'headless')
+    expect(single).toContain('计划 4 case × 1 次运行,共 4 轮 = 25 次 agent 调用')
+    expect(single).toContain('oa-answer:6')
+    expect(single).toContain('profile=headless')
+
+    const multi = formatRunPlan(planRun({ space, gold: multiroundGold() }), 'headless')
+    expect(multi).toContain('oa-answer:6×2轮')
+    expect(multi).toContain('共 5 轮 = 32 次 agent 调用')
   })
 
   it('每次运行的执行者拿到私有的 agent state 副本', async () => {

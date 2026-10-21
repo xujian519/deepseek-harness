@@ -16,6 +16,7 @@ import {
   PROBLEM_SPACE_FILE,
   caseScores,
   caseScoresByRun,
+  caseRoundScores,
   evaluateRun,
   findCycles,
   formatVerdict,
@@ -172,10 +173,15 @@ function cloneSpace(): ProblemSpace {
 
 /** 在临时目录里落一份 run 记录,返回路径。 */
 function writeRecord(record: RunRecord): string {
+  return writeRawRecord(record)
+}
+
+/** 在临时目录里落一份任意 JSON 值,返回路径。 */
+function writeRawRecord(value: unknown): string {
   const dir = mkdtempSync(join(tmpdir(), 'patent-oas-gate-'))
   scratchDirs.push(dir)
   const path = join(dir, 'run.json')
-  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`, 'utf8')
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
   return path
 }
 
@@ -269,6 +275,16 @@ describe('金标摘要', () => {
     const single = gold.filter(entry => entry.caseId !== 'oa-answer')
     const singleMulti = multiroundGold().filter(entry => entry.caseId !== 'oa-answer')
     expect(goldDigest(singleMulti)).toBe(goldDigest(single))
+  })
+
+  it('后续轮次的数组顺序不影响摘要', () => {
+    const rounds = [
+      { round: 2, statement: '第 2 轮审查意见' },
+      { round: 3, statement: '第 3 轮审查意见' },
+    ]
+    const ordered = gold.map(entry => entry.caseId === 'oa-answer' ? { ...entry, rounds } : entry)
+    const reversed = gold.map(entry => entry.caseId === 'oa-answer' ? { ...entry, rounds: [...rounds].reverse() } : entry)
+    expect(goldDigest(reversed)).toBe(goldDigest(ordered))
   })
 })
 
@@ -482,12 +498,83 @@ describe('多轮记录校验', () => {
     expect(validateRunRecord(missing, space, multi, 'run.json').join('\n')).toContain('缺少 statementDigest')
   })
 
+  it('审查意见摘要与金标不符即失败', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    const second = roundsOf(record)[1]
+    if (second === undefined) throw new Error('fixture: 缺少第 2 轮')
+    second.statementDigest = textDigest('另一份审查意见')
+    expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('与金标审查意见不一致')
+  })
+
+  it('金标 rounds 为空时按单轮判定', () => {
+    const single = gold.map(entry => entry.caseId === 'oa-answer' ? { ...entry, rounds: [] } : entry)
+    expect(validateRunRecord(recordFrom(single, () => 90), space, single, 'run.json')).toEqual([])
+    const withEmptyRounds = recordFrom(single, () => 90)
+    const target = withEmptyRounds.cases.find(entry => entry.caseId === 'oa-answer')
+    if (target === undefined) throw new Error('fixture: 缺少 oa-answer')
+    target.rounds = []
+    expect(validateRunRecord(withEmptyRounds, space, single, 'run.json').join('\n')).toContain('是单轮 case,记录不应带逐轮观测')
+  })
+
+  it('终局逐次分数与第 2 轮不一致即失败', () => {
+    const record = recordWithScores([90, 90])
+    const target = record.cases.find(entry => entry.caseId === 'oa-answer')
+    if (target === undefined) throw new Error('fixture: 缺少 oa-answer')
+    target.rounds = [1, 2].map(round => ({
+      round,
+      ...round === 2 ? { statementDigest: textDigest(SECOND_ROUND_STATEMENT) } : {},
+      dimensions: target.dimensions.map(dimension => ({
+        index: dimension.index,
+        score: round === 1 ? 60 : 90,
+        scores: round === 1 ? [60, 60] : [80, 100],
+      })),
+      deliverableDigests: [textDigest(`round-${round}-a`), textDigest(`round-${round}-b`)],
+    }))
+    expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('逐次分数与终局逐次分数不一致')
+  })
+
+  it('轮次观测含终局维度之外的 index 时拒绝计算总分', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    const second = roundsOf(record)[1]
+    if (second === undefined) throw new Error('fixture: 缺少第 2 轮')
+    second.dimensions.push({ index: 99, score: 90 })
+    expect(() => caseRoundScores(record)).toThrow('终局维度之外的 index 99')
+  })
+
   it('交付物摘要个数与 runsPerCase 不符即失败', () => {
     const record = withRounds(recordFrom(multi, () => 90), 60)
     const firstRound = roundsOf(record)[0]
     if (firstRound === undefined) throw new Error('fixture: 缺少第 1 轮')
     firstRound.deliverableDigests = []
     expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('有 0 个交付物摘要,应为 1')
+  })
+
+  it('逐轮观测结构非法即拒绝读入', async () => {
+    const base = { benchmarkId: 'patent-oas', recordedAt: '2026-10-21T00:00:00.000Z', runsPerCase: 1 }
+    const rawCase = (rounds: unknown): Record<string, unknown> => ({
+      ...base,
+      cases: [{ caseId: 'oa-answer', dimensions: [], rounds }],
+    })
+    await expect(loadRunRecord(writeRawRecord(rawCase({})))).rejects.toThrow('必须是数组')
+    await expect(loadRunRecord(writeRawRecord(rawCase([{ round: 2, dimensions: [], deliverableDigests: 'x' }]))))
+      .rejects.toThrow('deliverableDigests 必须是数组')
+    await expect(loadRunRecord(writeRawRecord(rawCase([{ round: 2, dimensions: {}, deliverableDigests: [] }]))))
+      .rejects.toThrow('dimensions 必须是数组')
+  })
+
+  it('轮次观测重复或未知维度即失败', () => {
+    const duplicated = withRounds(recordFrom(multi, () => 90), 60)
+    const duplicatedSecond = roundsOf(duplicated)[1]
+    if (duplicatedSecond === undefined) throw new Error('fixture: 缺少第 2 轮')
+    const duplicatedDimension = first(duplicatedSecond.dimensions)
+    duplicatedSecond.dimensions.push({ ...duplicatedDimension })
+    expect(validateRunRecord(duplicated, space, multi, 'run.json').join('\n')).toContain(`重复观测维度 ${duplicatedDimension.index}`)
+
+    const unknown = withRounds(recordFrom(multi, () => 90), 60)
+    const unknownSecond = roundsOf(unknown)[1]
+    if (unknownSecond === undefined) throw new Error('fixture: 缺少第 2 轮')
+    unknownSecond.dimensions.push({ index: 99, score: 90 })
+    expect(validateRunRecord(unknown, space, multi, 'run.json').join('\n')).toContain('观测了 rubric 中不存在的维度 99')
   })
 
   it('从 JSON 读回时保留逐轮观测', async () => {

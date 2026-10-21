@@ -158,7 +158,7 @@ export interface RunCase {
   caseId: string
   /** 该 case 的逐维度观测;多轮 case 取最后一轮(终局)。 */
   dimensions: RunDimension[]
-  /** 逐轮观测,按轮次排序;单轮记录或未留存逐轮观测时省略。 */
+  /** 逐轮观测,按轮次排序;多轮 case 必填,单轮 case 省略。 */
   rounds?: RunRound[]
 }
 
@@ -371,7 +371,10 @@ export function goldDigest(cases: readonly GoldCase[]): string {
   const canonical = [...cases]
     .sort((a, b) => a.caseId.localeCompare(b.caseId))
     .map(entry => `${entry.caseId}\n${sha256(entry.statement)}\n${sha256(entry.rubric)}\n`
-      + (entry.rounds ?? []).map(round => `${round.round}\n${sha256(round.statement)}\n`).join(''))
+      + [...(entry.rounds ?? [])]
+        .sort((a, b) => a.round - b.round)
+        .map(round => `${round.round}\n${sha256(round.statement)}\n`)
+        .join(''))
     .join('')
   return `sha256:${sha256(canonical)}`
 }
@@ -792,10 +795,10 @@ function validateRunRounds(
 ): string[] {
   const problems: string[] = []
   const expectedRounds = 1 + (goldCase.rounds?.length ?? 0)
-  if (goldCase.rounds !== undefined && runCase.rounds === undefined) {
+  if (expectedRounds > 1 && runCase.rounds === undefined) {
     return [`${label}: case "${runCase.caseId}" 是多轮 case,记录缺少逐轮观测`]
   }
-  if (goldCase.rounds === undefined && runCase.rounds !== undefined) {
+  if (expectedRounds === 1 && runCase.rounds !== undefined) {
     return [`${label}: case "${runCase.caseId}" 是单轮 case,记录不应带逐轮观测`]
   }
   if (runCase.rounds === undefined) return problems
@@ -811,9 +814,19 @@ function validateRunRounds(
     if (offset === 0 && round.statementDigest !== undefined) {
       problems.push(`${where}是首轮,不应带 statementDigest`)
     }
-    if (offset > 0 && round.statementDigest === undefined) problems.push(`${where}缺少 statementDigest`)
-    if (round.statementDigest !== undefined && !DIGEST_PATTERN.test(round.statementDigest)) {
-      problems.push(`${where}的 statementDigest 不是 sha256:<hex>`)
+    if (offset > 0) {
+      if (round.statementDigest === undefined) {
+        problems.push(`${where}缺少 statementDigest`)
+      } else if (!DIGEST_PATTERN.test(round.statementDigest)) {
+        problems.push(`${where}的 statementDigest 不是 sha256:<hex>`)
+      } else {
+        const goldRound = goldCase.rounds?.find(candidate => candidate.round === expected)
+        if (goldRound === undefined) {
+          problems.push(`${where}在金标中没有对应轮次`)
+        } else if (round.statementDigest !== textDigest(goldRound.statement)) {
+          problems.push(`${where}的 statementDigest 与金标审查意见不一致`)
+        }
+      }
     }
     if (round.deliverableDigests.length !== runsPerCase) {
       problems.push(`${where}有 ${round.deliverableDigests.length} 个交付物摘要,应为 ${runsPerCase}`)
@@ -852,8 +865,18 @@ function validateRunRounds(
         const terminalDimension = terminal.get(dimension.index)
         if (terminalDimension === undefined) {
           problems.push(`${where}的终局维度 ${dimension.index} 在 case 观测中缺失`)
-        } else if (Math.abs(terminalDimension.score - dimension.score) > 0.01) {
-          problems.push(`${where}维度 ${dimension.index} 分数 ${dimension.score} 与终局分数 ${terminalDimension.score} 不一致`)
+        } else {
+          if (Math.abs(terminalDimension.score - dimension.score) > 0.01) {
+            problems.push(`${where}维度 ${dimension.index} 分数 ${dimension.score} 与终局分数 ${terminalDimension.score} 不一致`)
+          }
+          const terminalScores = terminalDimension.scores
+          const roundScores = dimension.scores
+          if (terminalScores !== undefined && roundScores !== undefined
+            && (terminalScores.length !== roundScores.length
+              || roundScores.some((sample, sampleIndex) =>
+                Math.abs(sample - (terminalScores[sampleIndex] ?? Number.NaN)) > 0.01))) {
+            problems.push(`${where}维度 ${dimension.index} 的逐次分数与终局逐次分数不一致`)
+          }
         }
       }
     }

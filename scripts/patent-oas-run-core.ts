@@ -1,11 +1,15 @@
 /**
  * `patent-oas` 实测采集:把一次真实运行变成门禁能判定的 run 记录。
  *
- * 采集分两级,与金标的物理隔离一致:
- *   - 执行者(executor)拿到 agent state 目录与 case 的公开 `statement`,产出交付物;
- *   - 评估者(evaluator)每个 rubric 维度一次调用,只拿到该维度的正文与交付物。
- *     引擎的默认评估者一次给整个 case 打分;这里按维度分开调用,是为了让分数能落到
- *     问题空间节点上——代价是每个 case 的评估调用数等于维度数。
+ * 采集按轮次重复两级编排,与金标的物理隔离一致:
+ *   - 执行者(executor)拿到本轮私有的 agent state 副本与该轮公开任务(第 2 轮起为第 1 轮
+ *     任务追加脚本化审查意见),产出交付物;
+ *   - 评估者(evaluator)在每个轮次内按 rubric 维度各调用一次,只拿到该维度正文与当轮
+ *     交付物。引擎的默认评估者一次给整个 case 打分;这里按维度分开调用,是为了让分数能
+ *     落到问题空间节点上——代价是每轮每个 case 的评估调用数等于维度数。
+ *
+ * 后续轮次从上一轮工作目录复制 agent state,并把上一轮交付物留作
+ * `previous-deliverable.md` 参考;终局维度只取最后一轮,逐轮观测写入记录的 `rounds`。
  *
  * 与引擎默认接缝的两处必要差异,其余措辞与 `self-evolve-benchmark` 的默认提示词一致:
  *   1. 交付物由执行者写进工作目录的 `deliverable.md`,而不是由子 agent 作为文本返回:
@@ -209,6 +213,23 @@ export function planRun(options: RunPlanOptions): RunPlan {
     runsPerCase,
     calls: cases.reduce((sum, entry) => sum + runsPerCase * entry.rounds * (1 + entry.dimensions), 0),
   }
+}
+
+/**
+ * 渲染一次采集计划的一行摘要。
+ *
+ * `--dry-run` 与真实采集共用同一个渲染,计划与实际调用数不会各算一遍而分叉。
+ *
+ * @param plan 采集计划。
+ * @param profile 采集使用的 profile 名。
+ * @returns 单行摘要。
+ */
+export function formatRunPlan(plan: RunPlan, profile: string): string {
+  const perCase = plan.cases
+    .map(entry => `${entry.caseId}:${entry.dimensions}${entry.rounds > 1 ? `×${entry.rounds}轮` : ''}`)
+    .join(' ')
+  const rounds = plan.cases.reduce((sum, entry) => sum + entry.rounds, 0)
+  return `run-patent-oas: 计划 ${plan.cases.length} case × ${plan.runsPerCase} 次运行,共 ${rounds} 轮 = ${plan.calls} 次 agent 调用(${perCase});profile=${profile}`
 }
 
 /**
