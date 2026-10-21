@@ -390,6 +390,7 @@ export type { IpcClassification, IpcStandardCard } from './ipc/types.ts'
 // Graph engine (Pregel-style superstep) + the three patentability subgraphs.
 export type * from './graph/index.ts'
 export {
+  absorbHandlerDegradation,
   CompiledGraph,
   DEGRADATION_SUFFIX,
   DOMAIN_GRAPHS,
