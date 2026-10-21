@@ -626,6 +626,7 @@ function registrationItems(
   try {
     grant = resolveDeliveryDate(grantNotice.delivery)
   } catch (error) {
+    /* v8 ignore next -- resolveDeliveryDate throws only DeliveryInputError */
     if (!(error instanceof DeliveryInputError)) throw error
     const requiredInput = `grant-notice.delivery（${error.message}）`
     const reason = '授权通知已记录，但送达记录尚缺上述字段；补齐后即可计算，不以其他日期猜测送达日。'
@@ -1132,6 +1133,7 @@ function fromNotices(args: {
     try {
       resolved = resolveDeliveryDate(notice.delivery)
     } catch (error) {
+      /* v8 ignore next -- resolveDeliveryDate throws only DeliveryInputError */
       if (!(error instanceof DeliveryInputError)) throw error
       return pending({
         id,
