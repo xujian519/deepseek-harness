@@ -93,12 +93,21 @@ it('platformCategory：按平台分类（权威/新闻/内容/聚合/社交）',
   expect(platformCategory('web:https://weibo.com/u/1')).toBe('社交/自媒体/未知')
 })
 
-it('evaluatePublicIntent：未知主机与付费墙域 restricted', () => {
-  expect(evaluatePublicIntent(undefined)).toBe('public')
-  expect(evaluatePublicIntent('not a url')).toBe('public')
+it('evaluatePublicIntent：未知来源不推定为公开，付费墙域 restricted', () => {
+  expect(evaluatePublicIntent(undefined)).toBe('unknown')
+  expect(evaluatePublicIntent('')).toBe('unknown')
+  expect(evaluatePublicIntent('not a url')).toBe('unknown')
   expect(evaluatePublicIntent('web:https://www.wsj.com/article')).toBe('restricted')
   expect(evaluatePublicIntent('web:https://www.springer.com/article')).toBe('restricted')
   expect(evaluatePublicIntent('web:https://www.cnipa.gov.cn/x')).toBe('public')
+})
+
+it('互联网公开：来源无法解析时公开意图为 unknown 并标记复核', () => {
+  const engine = new EvidenceEngine()
+  const j = engine.judge(span({ sourceUri: 'web:not a url', snippet: '公告' }))
+  expect(j.typeSpecificJudgment?.publicIntent).toBe('unknown')
+  expect(j.flaggedIssues.some(issue => issue.severity === 'major' && issue.description.includes('公开意图未知')))
+    .toBe(true)
 })
 
 // ---------------------------------------------------------------------------
@@ -488,7 +497,7 @@ it('举证责任：别名 caseType / 未知类型 / 自定义 burden_holder', ()
   expect(overridden.burdenHolder).toBe('defendant')
 })
 
-it('证明标准：未知标准按置信度宽松放行', () => {
+it('证明标准：未知标准 fail-closed，不按置信度认定达标', () => {
   const engine = new EvidenceEngine()
   const strong = engine.judge(
     span({
@@ -497,8 +506,11 @@ it('证明标准：未知标准按置信度宽松放行', () => {
     }),
   )
   const result = engine.assessProofStandard([strong], 'some-other-standard')
-  expect(result.met).toBe(true)
+  expect(result.met).toBe(false)
+  expect(result.status).toBe('unknown-standard')
+  expect(result.gaps).toContain('无法识别的证明标准：some-other-standard')
   expect(result.reasoning).toMatch(/平均置信度/)
+  expect(result.reasoning).toMatch(/不能认定达标/)
 })
 
 it('batchJudge：批量判定', () => {

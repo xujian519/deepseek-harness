@@ -45,6 +45,7 @@ export type {
   TypeSpecificJudgment,
   BurdenDetermination,
   ProofStandardResult,
+  ProofStandardStatus,
   EvidenceRule,
   EvidenceRuleSet,
   EvidenceType,

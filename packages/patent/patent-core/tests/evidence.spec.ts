@@ -199,8 +199,9 @@ it('EvidenceExtension：Receipt 入账 → 提升证据 → 绑定 → 无证据
   expect(ext.getSpan(span.id)?.id).toBe(span.id)
 })
 
-it('contentHash 稳定且区分内容', () => {
+it('contentHash 为带前缀的 SHA-256，稳定且区分内容', () => {
+  expect(contentHash('abc')).toBe('sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
   expect(contentHash('abc')).toBe(contentHash('abc'))
   expect(contentHash('abc')).not.toBe(contentHash('abd'))
-  expect(contentHash('x')).toMatch(/^[0-9a-f]{1,8}$/)
+  expect(contentHash('x')).toMatch(/^sha256:[0-9a-f]{64}$/)
 })

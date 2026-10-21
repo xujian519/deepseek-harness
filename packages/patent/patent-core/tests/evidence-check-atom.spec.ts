@@ -34,6 +34,16 @@ const pending = (out: Record<string, unknown>): EvidenceCheckPending[] =>
 
 const codes = (out: Record<string, unknown>): string[] => violations(out).map(item => item.code)
 
+/** 旧版内建哈希，仅用于构造 legacy 证据。 */
+function legacyFnv1a(text: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16)
+}
+
 describe('evidence-check atom', () => {
   it('声明的输出以报告为主输出，分类为 gate', () => {
     expect(evidenceCheckAtom.name).toBe('evidence-check')
@@ -298,33 +308,72 @@ describe('evidence-check atom', () => {
     expect(codes(out)).toContain('EVID-RELEVANCE-UNLINKED')
   })
 
-  it('内建内容哈希与原文摘录一致 → 通过；不一致 → 阻断', async () => {
+  it('SHA-256 内容哈希与原文摘录一致 → 通过；篡改 → 阻断', async () => {
     const snippet = '证据原文摘录'
     const match = await handler.execute({
       state: stateWith([priorArt({ contentHash: contentHash(snippet), snippet })]),
     })
     expect(match.evidence_check_passed).toBe(true)
     expect(violations(match)).toEqual([])
+    expect(pending(match)).toEqual([])
 
     const mismatch = await handler.execute({
-      state: stateWith([priorArt({ contentHash: 'deadbeef', snippet })]),
+      state: stateWith([priorArt({ contentHash: contentHash(snippet), snippet: `${snippet}（篡改）` })]),
     })
     expect(mismatch.evidence_check_passed).toBe(false)
     expect(codes(mismatch)).toContain('EVID-FORM-INTEGRITY')
+    expect(violations(mismatch)[0]?.message).toMatch(/SHA-256/)
   })
 
-  it('外部哈希格式或缺少摘录 → 待核，不误判完整性', async () => {
-    const external = await handler.execute({
+  it('sha256: 前缀缺失或摘要不合法 → 待核，不自动按内建哈希校验', async () => {
+    const bare = await handler.execute({
       state: stateWith([priorArt({ contentHash: 'a'.repeat(64), snippet: '证据原文摘录' })]),
     })
-    expect(external.evidence_check_passed).toBe(true)
-    expect(pending(external).map(item => item.code)).toContain('EVID-FORM-INTEGRITY')
+    expect(bare.evidence_check_passed).toBe(true)
+    expect(pending(bare).map(item => item.code)).toContain('EVID-FORM-INTEGRITY')
+    expect(pending(bare)[0]?.message).toMatch(/sha256:/)
 
+    const malformed = await handler.execute({
+      state: stateWith([priorArt({ contentHash: 'sha256:abc', snippet: '证据原文摘录' })]),
+    })
+    expect(malformed.evidence_check_passed).toBe(true)
+    expect(pending(malformed)[0]?.message).toMatch(/64 位/)
+  })
+
+  it('缺少原文摘录 → 待核，不误判完整性', async () => {
     const noSnippet = await handler.execute({
       state: stateWith([priorArt({ contentHash: contentHash('证据原文摘录') })]),
     })
     expect(noSnippet.evidence_check_passed).toBe(true)
     expect(pending(noSnippet).map(item => item.code)).toContain('EVID-FORM-INTEGRITY')
+  })
+
+  it('旧版 FNV 哈希匹配 → 通过但标记 legacy-hash；不匹配 → 待核而非阻断', async () => {
+    const snippet = '证据原文摘录'
+    const legacy = await handler.execute({
+      state: stateWith([priorArt({ contentHash: legacyFnv1a(snippet), snippet })]),
+    })
+    expect(legacy.evidence_check_passed).toBe(true)
+    expect(violations(legacy)).toEqual([])
+    expect(pending(legacy).map(item => item.code)).toContain('EVID-FORM-INTEGRITY-LEGACY')
+    expect(pending(legacy)[0]?.message).toMatch(/legacy-hash/)
+    expect(pending(legacy)[0]?.message).toContain(contentHash(snippet))
+
+    const unmatched = await handler.execute({
+      state: stateWith([priorArt({ contentHash: 'deadbeef', snippet })]),
+    })
+    expect(unmatched.evidence_check_passed).toBe(true)
+    expect(codes(unmatched)).toEqual([])
+    expect(pending(unmatched).map(item => item.code)).toContain('EVID-FORM-INTEGRITY')
+    expect(pending(unmatched)[0]?.message).toMatch(/无法确认为内建 FNV/)
+  })
+
+  it('旧版短哈希缺少摘录 → 待核', async () => {
+    const out = await handler.execute({
+      state: stateWith([priorArt({ contentHash: 'deadbeef' })]),
+    })
+    expect(out.evidence_check_passed).toBe(true)
+    expect(pending(out)[0]?.message).toMatch(/缺少原文摘录/)
   })
 
   it('无法识别名称或来源的证据 → 阻断', async () => {

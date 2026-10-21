@@ -71,8 +71,8 @@ export type DateSourceType =
 /** 内容完整性状态（互联网证据）。 */
 export type ContentIntegrityStatus = 'verified' | 'partial' | 'unverified'
 
-/** 公开意图（互联网证据）。 */
-export type PublicIntent = 'public' | 'restricted'
+/** 公开意图（互联网证据）；来源无法解析时是 `unknown`，不得推定为公开。 */
+export type PublicIntent = 'public' | 'restricted' | 'unknown'
 
 /** 证据规则（YAML 资产 evidence-rules.yaml 的条目形态）。 */
 export type EvidenceRule = {
@@ -261,9 +261,14 @@ export type BurdenDetermination = {
   reasoning: string
 }
 
+/** 证明标准评估状态：`unknown-standard` 表示未识别的标准，评估不得认定达标。 */
+export type ProofStandardStatus = 'evaluated' | 'unknown-standard'
+
 /** 证明标准评估结果。 */
 export type ProofStandardResult = {
   met: boolean
+  /** `unknown-standard` 时 `met` 恒为 false，`gaps` 说明原因。 */
+  status: ProofStandardStatus
   standard: string
   confidence: number
   supportingCount: number

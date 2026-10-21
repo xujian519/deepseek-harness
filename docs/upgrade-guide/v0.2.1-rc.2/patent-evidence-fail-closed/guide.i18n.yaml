@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-evidence-fail-closed/guide.md
+/:
+  en: 80983f86d4da6e62
+  zh: f1b1b60336d4b04a
+/patent-evidence-judgments-fail-closed-and-hash-with-sha-256:
+  en: bfeb4711c47d9863
+  zh: 27556ccf65c472d8
+/patent-evidence-judgments-fail-closed-and-hash-with-sha-256/change:
+  en: 58b00ce471fcba53
+  zh: 804f3833053e6981
+/patent-evidence-judgments-fail-closed-and-hash-with-sha-256/migration:
+  en: 713cd6502411f833
+  zh: de065942a916eaa3

@@ -48,7 +48,7 @@ export type WorkflowEvidenceReceipt = Omit<Receipt, 'args' | 'startedAt'> & {
   title?: string
   /** Publication date as recorded by the source. */
   publicationDate?: string
-  /** Content hash over the record's identifying text, when it carries any. */
+  /** SHA-256 content hash (`sha256:<hex>`) over the record's identifying text, when it carries any. */
   contentHash?: string
 }
 
@@ -56,7 +56,7 @@ export type WorkflowEvidenceReceipt = Omit<Receipt, 'args' | 'startedAt'> & {
 export type WorkflowEvidenceLedger = {
   /** Receipts in stable source order (material, claims, prior art, evidence, conflicts). */
   receipts: WorkflowEvidenceReceipt[]
-  /** FNV-1a hash over the citation ids, sources, and per-record content hashes; independent of run metadata. */
+  /** SHA-256 hash (`sha256:` prefix) over the citation ids, sources, and per-record content hashes; independent of run metadata. */
   digest: string
   /**
    * `incomplete: true` when a source array existed but some entries were not

@@ -7,7 +7,7 @@
  */
 
 import { assertNever } from '@deepseek-ai/dsh-util-values'
-import type { CredibilityLevel } from './types.ts'
+import type { CredibilityLevel, PublicIntent } from './types.ts'
 import { cleanEvidenceURI } from './date.ts'
 
 /** 政府/法院/专利局官方域名后缀。 */
@@ -169,13 +169,14 @@ export function platformCategory(uri: string | undefined): string {
 }
 
 /**
- * 互联网公开意图：注册/付费墙平台标记为受限，其余推定对公众开放。
+ * 互联网公开意图：注册/付费墙平台标记为受限；URI 缺失或主机名无法解析时返回
+ * `unknown`（未推定为公开），由调用方按需人工核实。
  * @param uri - 证据来源 URI（可空）。
- * @returns 'public' 或 'restricted'。
+ * @returns 'public'、'restricted' 或 'unknown'。
  */
-export function evaluatePublicIntent(uri: string | undefined): 'public' | 'restricted' {
+export function evaluatePublicIntent(uri: string | undefined): PublicIntent {
   const hostname = parseHostname(uri)
-  if (hostname === undefined) return 'public'
+  if (hostname === undefined) return 'unknown'
   const restrictedDomains = ['wsj.com', 'ft.com', 'nikkei.com', 'springer.com', 'elsevier.com']
   if (restrictedDomains.some(d => hostname === d || hostname.endsWith(`.${d}`))) return 'restricted'
   return 'public'

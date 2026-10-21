@@ -540,7 +540,8 @@ describe('runWorkflow — 证据台账', () => {
     ])
     expect(ledger.receipts.every(receipt => receipt.toolCallId.startsWith('run-ledger:'))).toBe(true)
     expect(ledger.receipts[2]!.args['sourceUri']).toBe('https://example.test/D1')
-    expect(ledger.digest).toMatch(/^[0-9a-f]+$/)
+    expect(ledger.digest).toMatch(/^sha256:[0-9a-f]{64}$/)
+    expect(ledger.receipts.every(receipt => receipt.contentHash?.startsWith('sha256:'))).toBe(true)
   })
 
   it('中断的运行同样保留已经消费的证据台账', async () => {

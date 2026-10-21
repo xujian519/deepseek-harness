@@ -438,7 +438,42 @@ it('证明标准：无证据 → 不达标', () => {
   const engine = new EvidenceEngine()
   const result = engine.assessProofStandard([], STANDARD_PREPONDERANCE)
   expect(result.met).toBe(false)
+  expect(result.status).toBe('evaluated')
   expect(result.gaps.includes('无证据支持')).toBeTruthy()
+})
+
+it('证明标准：中文别名按对应标准评估', () => {
+  const engine = new EvidenceEngine()
+  const strong = engine.judge(
+    span({
+      sourceUri: 'web:https://www.cnipa.gov.cn',
+      contentHash: 'a',
+      claimRefs: ['C1'],
+      direction: 'supporting',
+      snippet: 'x',
+    }),
+  )
+  expect(engine.assessProofStandard([strong], '优势证据').met).toBe(true)
+  expect(engine.assessProofStandard([strong], '高度盖然性').status).toBe('evaluated')
+})
+
+it('证明标准：空标准与未知标准一样 fail-closed', () => {
+  const engine = new EvidenceEngine()
+  const strong = engine.judge(
+    span({
+      sourceUri: 'web:https://www.cnipa.gov.cn',
+      contentHash: 'a',
+      claimRefs: ['C1'],
+      direction: 'supporting',
+      snippet: 'x',
+    }),
+  )
+  for (const standard of ['', '   ']) {
+    const result = engine.assessProofStandard([strong], standard)
+    expect(result.met).toBe(false)
+    expect(result.status).toBe('unknown-standard')
+    expect(result.gaps).toContain('无法识别的证明标准：未提供标准')
+  }
 })
 
 // ---------------------------------------------------------------------------
