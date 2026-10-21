@@ -5,8 +5,9 @@
  * - runStageHandler / handlerNode（domains/shared）：现有原子 handler 直接作为
  *   图节点，保留降级/中断语义；
  * - manifestToGraph：现有 WorkflowManifest（线性阶段 + retry 信号回退）转为图，
- *   行为与 runWorkflow 尽力等价（重试/降级文本等已知差异见 README）——retry
- *   回退转条件边（受控循环），approval-gate 中断转 GraphInterruptError（引擎暂停）。
+ *   行为与 runWorkflow 尽力等价（重试/降级文本等已知差异见 ../../README.md 的
+ *   「Graph engine / Graph 引擎」一节）——retry 回退转条件边（受控循环），
+ *   approval-gate 中断转 GraphInterruptError（引擎暂停）。
  */
 
 import { validateWorkflowManifest } from '../workflow/manifest.ts'
@@ -96,7 +97,9 @@ export function manifestToGraph(manifest: WorkflowManifest, deps: ManifestToGrap
   const atoms = deps.atoms ?? globalAtomRegistry
   for (const stage of manifest.stages) {
     if (stage.atom !== undefined && atoms.lookup(stage.atom) === undefined) {
-      throw new GraphEngineError(`阶段 "${stage.id}" 声明了未知 atom "${stage.atom}"（请先 RegisterAtom）`)
+      throw new GraphEngineError(
+        `阶段 "${stage.id}" 声明了未知 atom "${stage.atom}"（请先 RegisterAtom；若为内置 manifest，请确认已加载提供该原子的插件）`,
+      )
     }
   }
 

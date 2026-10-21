@@ -292,7 +292,7 @@ Source: [`packages/patent/patent-teams/src/service.ts`](../../packages/patent/pa
 
 ### `ctx.patentWorkflow` — `PatentWorkflow`
 
-PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow), which runs workflow manifests, drives the plantask HITL state machine, and holds the case-docket issue schema whose blocking and terminal grades the state machine's transition guards enforce. `Config.maxRounds` bounds the replanning rounds one case may spend. Approval is an optional seam read via ctx.get('approval'); storage-backed file products are caller-provided stores (see the package README).
+PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow), which runs workflow manifests, drives the plantask HITL state machine, and holds the case-docket issue schema whose blocking and terminal grades the state machine's transition guards enforce. `Config.maxRounds` bounds the replanning rounds one case may spend. Approval is an optional seam read via ctx.get('approval'); storage-backed file products are caller-provided stores (see the package README). The constructor registers patent-core's built-in atoms only: the six atoms that `@deepseek-ai/dsh-patent-tools` registers (`eligibility`, `spec-check`, `slop-gate`, `draft-specification`, `response-check`, `legal-gaps`) are absent unless that plugin is mounted or the caller injects their contracts and handlers through the run options, and a manifest declaring one of them fails the unknown-atom check before any stage executes.
 
 ```ts cordis-catalog
 /**

@@ -380,4 +380,5 @@ it('manifestToGraph: 未知 atom fail-fast', () => {
     stages: [{ id: 's1', strategy: 'chain', description: '一', atom: 'no-such-atom' }],
   }
   expect(() => manifestToGraph(manifest)).toThrow(/未知 atom/)
+  expect(() => manifestToGraph(manifest)).toThrow(/请确认已加载提供该原子的插件/)
 })

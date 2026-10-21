@@ -132,7 +132,13 @@ export function appendWorkflowRunEvents(
  * state machine's transition guards enforce. `Config.maxRounds` bounds the
  * replanning rounds one case may spend. Approval is an optional seam read via
  * ctx.get('approval'); storage-backed file products are caller-provided stores
- * (see the package README).
+ * (see the package README). The constructor registers patent-core's built-in
+ * atoms only: the six atoms that `@deepseek-ai/dsh-patent-tools` registers
+ * (`eligibility`, `spec-check`, `slop-gate`, `draft-specification`,
+ * `response-check`, `legal-gaps`) are absent unless that plugin is mounted or
+ * the caller injects their contracts and handlers through the run options, and
+ * a manifest declaring one of them fails the unknown-atom check before any
+ * stage executes.
  */
 export class PatentWorkflow extends Service {
   static Config: z<Config> = Config

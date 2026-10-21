@@ -24,6 +24,27 @@ const stageOf = (manifestId: string, stageId: string): WorkflowStage | undefined
 const indexOf = (manifestId: string, stageId: string): number =>
   manifestOf(manifestId).stages.findIndex(s => s.id === stageId)
 
+describe('内置 manifest 的跨包原子归属', () => {
+  it('声明的原子与核心注册表的差集恰好是 patent-tools 提供的六个（本文件不导入 patent-tools，避免依赖倒置）', () => {
+    registerBuiltinAtoms()
+    const declared = new Set(
+      builtinPatentManifests.flatMap(manifest =>
+        manifest.stages.flatMap(stage => (stage.atom === undefined ? [] : [stage.atom])),
+      ),
+    )
+    const coreAtoms = new Set(globalAtomRegistry.list().map(atom => atom.name))
+    const providedByTools = [...declared].filter(name => !coreAtoms.has(name)).sort()
+    expect(providedByTools).toEqual([
+      'draft-specification',
+      'eligibility',
+      'legal-gaps',
+      'response-check',
+      'slop-gate',
+      'spec-check',
+    ])
+  })
+})
+
 describe('内置 manifest 的确定性原子接线', () => {
   it('声明 atom 的阶段不携带 guidance（原子阶段不经 executor，guidance 会成死数据）', () => {
     for (const manifest of builtinPatentManifests) {
