@@ -9,12 +9,12 @@ description: "用元典 MCP 或 ego lite 浏览器检索中国法律法规、司
 
 ## 元典 MCP（可选）
 
-工具清单出现 `mcp__yuandian__*` 时，按以下顺序使用；先读工具 schema 再调用：
+工具清单出现 `mcp__yuandian__*` 时，按以下顺序使用；先读工具 schema 再调用。插件把元典原始工具名 `yuandian_*` 注册为 `mcp__yuandian__yuandian_*`，以工具清单里的实际名称为准：
 
-- 法规：mcp__yuandian__search_laws_and_regulations、mcp__yuandian__search_legal_articles、mcp__yuandian__get_legal_article_detail、mcp__yuandian__get_law_or_regulation_detail。
-- 案例：mcp__yuandian__search_judicial_cases、mcp__yuandian__search_authoritative_cases、mcp__yuandian__get_case_detail。
-- 企业：mcp__yuandian__search_companies、mcp__yuandian__get_company_basic_profile，以及涉诉、股权、知识产权等 mcp__yuandian__list_company_* 工具。
-- 证券：mcp__yuandian__search_securities_*、mcp__yuandian__search_listed_company_announcements。
+- 法规：mcp__yuandian__yuandian_search_laws_and_regulations、mcp__yuandian__yuandian_search_legal_articles、mcp__yuandian__yuandian_get_legal_article_detail、mcp__yuandian__yuandian_get_law_or_regulation_detail。
+- 案例：mcp__yuandian__yuandian_search_judicial_cases、mcp__yuandian__yuandian_search_authoritative_cases、mcp__yuandian__yuandian_get_case_detail。
+- 企业：mcp__yuandian__yuandian_search_companies、mcp__yuandian__yuandian_get_company_basic_profile，以及涉诉、股权、知识产权等 mcp__yuandian__yuandian_list_company_* 工具。
+- 证券：mcp__yuandian__yuandian_search_securities_*、mcp__yuandian__yuandian_search_listed_company_announcements。
 
 把工具名、查询、返回条数、命中 ID 与调用时间写进证据记录的 `source`、`query`、`locator` 字段。元典命中只作线索，引用前回到官方原文；元典无结果不等于法源不存在。元典工具未出现时不要假设可用，直接走 ego lite。
 

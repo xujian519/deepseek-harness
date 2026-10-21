@@ -60,13 +60,13 @@ interview and without hand-editing YAML.
    what changes downstream, confirm, write it to the config.
 
    Examples:
-   - *Adding a new trademark watch class:* "`/portfolio` will include class
-     XX in watch reports and `/infringement-triage` will route class-XX
+   - *Adding a new trademark watch class:* "`/legal-ip-portfolio` will include class
+     XX in watch reports and `/legal-ip-infringement-triage` will route class-XX
      findings accordingly."
-   - *Enforcement posture aggressive → middle:* "`/cease-desist` will offer
+   - *Enforcement posture aggressive → middle:* "`/legal-ip-cease-desist` will offer
      cure-letter drafts as a first option for ambiguous cases instead of
      going straight to C&D."
-   - *New ship-blocker OSS license:* "`/oss-review` will fail reviews that
+   - *New ship-blocker OSS license:* "`/legal-ip-oss-review` will fail reviews that
      include this license rather than warning."
 
 5. **For shared-profile changes** (company name, industry, jurisdictions,
@@ -91,6 +91,6 @@ interview and without hand-editing YAML.
   counsel"), flag the tension.
 - **Flag guardrail degradation.** The `[需审查]` flag, source attribution
   tags, and `[verify]` tags on cited authorities are load-bearing — do not
-  remove. Clearance confidence is load-bearing on `/clearance` output — do
+  remove. Clearance confidence is load-bearing on `/legal-ip-clearance` output — do
   not suppress.
 - **One change at a time.** Don't re-ask the whole interview.

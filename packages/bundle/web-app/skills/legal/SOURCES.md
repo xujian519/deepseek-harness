@@ -7,6 +7,7 @@
 - License: Apache License 2.0 (`LICENSE`, `NOTICE`)
 - Imported skills: 124
 - Regeneration: `LEGAL_ZH_ROOT=/path/to/claude-for-legal-ZH pnpm tsx scripts/import-legal-content.ts`
+- Pin a checkout without git metadata: set `LEGAL_ZH_COMMIT=<sha>` for the same command.
 
 The generated tree is committed; regenerate after changing the source or the
 transforms in `scripts/import-legal-content.ts`.

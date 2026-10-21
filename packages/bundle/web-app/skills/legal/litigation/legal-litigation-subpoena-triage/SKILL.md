@@ -12,7 +12,7 @@ description: "处理送达公司的法院调查令、行政机关协查通知或
 5. 按以下工作流操作。
 6. 提取关键字段，分析范围/负担/保密，生成异议框架 + 合规方案 + 期限日历。
 7. 写入 `./.legal/litigation-legal/inbound/[slug]/triage.md`。将调查令复制或链接至 `./.legal/litigation-legal/inbound/[slug]/incoming.[ext]`。
-8. 转交：如保全通知未到位 → `/legal-hold --issue`；如重要性足够 → `/matter-intake`；如系既有案件中的当事人调查令 → `/matter-briefing [slug]`。
+8. 转交：如保全通知未到位 → `/legal-litigation-legal-hold --issue`；如重要性足够 → `/legal-litigation-matter-intake`；如系既有案件中的当事人调查令 → `/legal-litigation-matter-briefing [slug]`。
 
 ---
 
@@ -229,7 +229,7 @@ description: "处理送达公司的法院调查令、行政机关协查通知或
 
 ## 即时行动
 
-- [ ] 证据保全通知是否已发出——[是/否]——如否，运行 `/legal-hold [slug] --issue`，范围按调查令确定
+- [ ] 证据保全通知是否已发出——[是/否]——如否，运行 `/legal-litigation-legal-hold [slug] --issue`，范围按调查令确定
 - [ ] 外聘律师是否已委托——[是/谁是/待定]
 - [ ] 协商延期是否已安排——[日期]
 - [ ] 案件是否已在日志中创建——[是/否/待定——通常在法院调查令或重大协查通知时创建]

@@ -53,13 +53,13 @@ description: "登记新案件——统一问题涵盖标识信息、利益冲突
 各状态的行为：
 
 - `已通过` → 继续。
-- `待定` → 继续登记；在 `matter.md` 和日志行中显著标注冲突尚未解决；每次 `/matter-update` 和 `/portfolio-status` 中再次提示，直至解决。
+- `待定` → 继续登记；在 `matter.md` 和日志行中显著标注冲突尚未解决；每次 `/legal-litigation-matter-update` 和 `/legal-litigation-portfolio-status` 中再次提示，直至解决。
 - `已豁免` → 罕见；需有冲突豁免理由（起草豁免书超出本技能——记录其存在、签署人和存放位置）。
 - `未运行` → **停止。此处为门禁。** 冲突姿态解决前不创建 `matter.md`、`history.md` 或 `_log.yaml` 条目。三条可接受路径：
 
   **路径1 —— 现在运行冲突检索。** 暂停本登记。按 `./.legal/practice/litigation-legal.md` 的冲突审查完成。返回时带 `status: cleared` 或 `status: waived` 附理由。
 
-  **路径2 —— 标注待定，附负责人+截止日期。** 仅在 `./.legal/practice/litigation-legal.md` 的冲突审查声明允许平行登记时可用。记录：谁在运行冲突检索、预计何时返回、检查哪些主体。登记继续；案件行携带 `conflicts.status: pending`；`/portfolio-status` 每次运行均标注；`/matter-update` 重复提示直至解决。
+  **路径2 —— 标注待定，附负责人+截止日期。** 仅在 `./.legal/practice/litigation-legal.md` 的冲突审查声明允许平行登记时可用。记录：谁在运行冲突检索、预计何时返回、检查哪些主体。登记继续；案件行携带 `conflicts.status: pending`；`/legal-litigation-portfolio-status` 每次运行均标注；`/legal-litigation-matter-update` 重复提示直至解决。
 
   **路径3 —— 附书面理由绕过。** 仅在用户明确确认绕过时可用。在 `conflicts.override` 中记录：
 
@@ -72,7 +72,7 @@ description: "登记新案件——统一问题涵盖标识信息、利益冲突
       rationale: [为什么绕过冲突检索——永久记录；不会自动过期]
   ```
 
-  此字段在每次 `/portfolio-status`、每次 `/matter` 简报和每次 `/matter-update` 中可见，直至被移除。本技能不会自动移除——仅在用户明确编辑 `_log.yaml` 且在冲突实际清除后。
+  此字段在每次 `/legal-litigation-portfolio-status`、每次 `/matter` 简报和每次 `/legal-litigation-matter-update` 中可见，直至被移除。本技能不会自动移除——仅在用户明确编辑 `_log.yaml` 且在冲突实际清除后。
 
 ### 3. 来源
 

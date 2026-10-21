@@ -54,6 +54,8 @@ Five hand-written mode skills:
 - `legal-citation-check` — verify statutes, interpretations, and cases.
 - `legal-quality-gate` — P0/P1 delivery gate and disclaimer.
 
+The privacy and product reference baselines include comparative U.S./EU watch lists, labeled `法域提示` at the top of each file. Chinese substantive privacy rules live in `pipil-core-provisions.md`, and the regulatory watcher uses the Chinese regulator list in its skill body.
+
 ## Deliberate omissions
 
 `tool-plugin-market`, `present`, and `tool-plugin-manager` stay out: this is a personal composition, and installing or editing plugins is a deployment action taken through the `dsh plugin` CLI. Scheduled agents and cookbooks from the source corpus are not ported in this phase because they depend on Slack, mail, and commercial MCP integrations. Their manual skills remain available, and `tool-schedule` can create reminders; the watcher agents themselves have no running counterpart. The source's `law-student`, `legal-clinic`, and `legal-builder-hub` domains stay out as well: they cover legal education, supervised clinic administration with U.S. jurisdiction bands, and plugin installation rather than personal Chinese-law practice.
@@ -68,7 +70,7 @@ The shipped evidence is the keyless composition test and the preset gates: they 
 
 ## Source and license
 
-The imported corpus comes from [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0, Copyright 陈石律师 / CSlawyer1985, licensed under the Apache License 2.0. `skills/legal/LICENSE` and `skills/legal/NOTICE` carry the license and attribution; `skills/legal/SOURCES.md` records the source version and commit. The modifications are listed in the NOTICE: namespaced skill names, rewritten paths and commands, one matter pointer, and ego lite retrieval. The surrounding bundle remains MIT.
+The imported corpus comes from [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0, Copyright 陈石律师 / CSlawyer1985, licensed under the Apache License 2.0. `skills/legal/LICENSE` and `skills/legal/NOTICE` carry the license and attribution; `skills/legal/SOURCES.md` records the source version and commit. The modifications are listed in the NOTICE: namespaced skill names, rewritten paths and commands, product-name normalization, one matter pointer, ego lite retrieval, and the comparative-law labeling. The surrounding bundle remains MIT.
 
 ## Windows
 

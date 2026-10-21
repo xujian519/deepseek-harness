@@ -39,9 +39,9 @@ description: "引导式自定义你的诉讼实践画像——修改一项而不
 4. **执行修改。** 展示当前值、询问新值、说明下游变化、确认、写入配置。
 
    示例：
-   - *立场从混合改为仅被告：* "`/matter-intake` 将停止询问原告方问题。`/demand-draft` 仍可用于被告方的诉前律师函，但起始框架将不同。"
-   - *收紧高风险门槛：* "更多来函和调查令将通过 `/matter-briefing` 和 `/oc-status` 路由。"
-   - *为知识产权案件新增外聘律师：* "`/oc-status` 将在知识产权标记案件的每周扫查中包含此律所。"
+   - *立场从混合改为仅被告：* "`/legal-litigation-matter-intake` 将停止询问原告方问题。`/legal-litigation-demand-draft` 仍可用于被告方的诉前律师函，但起始框架将不同。"
+   - *收紧高风险门槛：* "更多来函和调查令将通过 `/legal-litigation-matter-briefing` 和 `/legal-litigation-oc-status` 路由。"
+   - *为知识产权案件新增外聘律师：* "`/legal-litigation-oc-status` 将在知识产权标记案件的每周扫查中包含此律所。"
 
 5. **对于共享画像的变更**（公司名称、行业、管辖地、执业场景）：写入
    `./.legal/company-profile.md` 并注明：

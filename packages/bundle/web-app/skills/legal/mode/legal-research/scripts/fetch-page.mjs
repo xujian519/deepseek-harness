@@ -20,7 +20,7 @@
 
 const fs = await import('node:fs/promises')
 const os = await import('node:os')
-const { join } = await import('node:path')
+const { dirname, isAbsolute, join } = await import('node:path')
 
 // Ego scripts receive no argv and inherit no environment, so the request comes
 // from a fixed file. `/tmp` is the Unix path the skill writes; `os.tmpdir()`
@@ -50,7 +50,7 @@ async function readRequest() {
   if (typeof request.url !== 'string' || !/^https?:\/\//u.test(request.url)) {
     throw new Error('request.url must be an absolute http(s) URL')
   }
-  if (typeof request.output !== 'string' || !request.output.startsWith('/')) {
+  if (typeof request.output !== 'string' || !isAbsolute(request.output)) {
     throw new Error('request.output must be an absolute path')
   }
   await fs.rm(path, { force: true })
@@ -120,7 +120,7 @@ try {
     fullTextPath,
     fetchedAt: new Date().toISOString(),
   }
-  await fs.mkdir(request.output.slice(0, request.output.lastIndexOf('/')) || '/tmp', { recursive: true })
+  await fs.mkdir(dirname(request.output), { recursive: true })
   await fs.writeFile(fullTextPath, extracted.text, 'utf8')
   await fs.writeFile(
     request.output,

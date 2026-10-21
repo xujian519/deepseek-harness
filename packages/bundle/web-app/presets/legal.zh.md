@@ -54,6 +54,8 @@
 - `legal-citation-check` — 核验法条、司法解释与案例。
 - `legal-quality-gate` — P0/P1 交付门禁与免责声明。
 
+隐私与产品的参考基线包含美国/欧盟比较法监测，文件顶部以“法域提示”标明。中国法隐私规则见 `pipil-core-provisions.md`，监管动态技能正文使用中国监管机构清单。
+
 ## 有意省略
 
 `tool-plugin-market`、`present`、`tool-plugin-manager` 不挂载：这是个人组合，安装或编辑插件通过 `dsh plugin` CLI 完成。源仓库的定时 agent 与 cookbook 本阶段不移植，因为它们依赖 Slack、邮件与商用 MCP。对应的人工技能仍然可用，`tool-schedule` 可以建立提醒；watcher agent 本身没有运行载体。源仓库的 `law-student`、`legal-clinic`、`legal-builder-hub` 三个领域也不导入：它们分别面向法学教育、带美国法域参数的诊所教学管理、插件安装与自更新，不属于个人中国法律实务。
@@ -68,7 +70,7 @@
 
 ## 来源与许可证
 
-导入内容来自 [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0，版权人为陈石律师 / CSlawyer1985，采用 Apache License 2.0。`skills/legal/LICENSE` 与 `skills/legal/NOTICE` 保存许可证与署名，`skills/legal/SOURCES.md` 记录源版本与提交号。修改内容列在 NOTICE 中：技能命名空间、路径与命令重写、单一案件指针、ego lite 检索。外围 bundle 仍为 MIT。
+导入内容来自 [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0，版权人为陈石律师 / CSlawyer1985，采用 Apache License 2.0。`skills/legal/LICENSE` 与 `skills/legal/NOTICE` 保存许可证与署名，`skills/legal/SOURCES.md` 记录源版本与提交号。修改内容列在 NOTICE 中：技能命名空间、路径与命令重写、产品名归一、单一案件指针、ego lite 检索，以及比较法标注。外围 bundle 仍为 MIT。
 
 ## Windows
 

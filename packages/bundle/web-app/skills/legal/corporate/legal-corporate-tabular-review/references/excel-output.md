@@ -2,7 +2,7 @@
 
 The Excel file is the deliverable most deal teams will actually open. Get it right.
 
-## If Claude in Excel / Office agent is available
+## If the host's Excel tool / Office agent is available
 
 Build the workbook directly in Excel via the Office agent. This is the preferred path because it preserves formatting, lets the reviewer work in their native tool, and supports the cell-comment pattern natively.
 

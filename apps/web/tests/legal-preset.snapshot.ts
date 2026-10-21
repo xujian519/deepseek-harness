@@ -61,14 +61,36 @@ function stripAdapterDefaults(log: string): string {
     }
     if (record.type !== 'request/header' || record.data?.header === undefined) return line
     const config = record.data.header.config
-    if (config !== undefined) {
-      delete config.maxTokens
-      delete config.reasoningEffort
+    const defaults = record.data.header.adapterDefaults
+    if (config !== undefined && typeof defaults === 'object' && defaults !== null) {
+      const marked = new Set(Object.keys(defaults))
+      record.data.header.config = Object.fromEntries(
+        Object.entries(config).filter(([key]) => !marked.has(key)),
+      )
     }
     delete record.data.header.adapterDefaults
     return JSON.stringify(record)
   }).join('\n')
 }
+
+it('drops only adapter-marked request fields', () => {
+  const line = JSON.stringify({
+    type: 'request/header',
+    data: {
+      header: {
+        config: { provider: 'p', model: 'm', maxTokens: 100, temperature: 0.2 },
+        adapterDefaults: { maxTokens: true },
+      },
+    },
+  })
+  const [record] = stripAdapterDefaults(line).split('\n')
+  if (record === undefined) throw new Error('stripAdapterDefaults returned no record')
+  const parsed = JSON.parse(record) as {
+    data: { header: { config: Record<string, unknown>; adapterDefaults?: unknown } }
+  }
+  expect(parsed.data.header.config).toEqual({ provider: 'p', model: 'm', temperature: 0.2 })
+  expect(parsed.data.header.adapterDefaults).toBeUndefined()
+})
 
 describe('legal preset snapshot', () => {
   let scaffold: WebScaffold

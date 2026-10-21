@@ -187,7 +187,7 @@ schema:
 **CSV**（`.csv`，始终）：
 一个文件存值，一个伴随文件存引文和位置（`_sources.csv`）。保持主文件干净、证据线索完整。
 
-**Excel**（`.xlsx`）或**在线表格**——取决于用户的工作环境。询问；不猜测。两者遵循相同的工作簿结构（见 `references/excel-output.md` 和 `references/gsheets-output.md`）。对 Excel：如可用则用 Claude in Excel（Office 代理），`openpyxl` 为备选。对 Sheets：如可用则用 Sheets 外部连接，通过 ADC 使用 Sheets API，CSV 导入为备选。在电子表格输出中：
+**Excel**（`.xlsx`）或**在线表格**——取决于用户的工作环境。询问；不猜测。两者遵循相同的工作簿结构（见 `references/excel-output.md` 和 `references/gsheets-output.md`）。对 Excel：如可用则用宿主 Excel 工具（Office 代理），`openpyxl` 为备选。对 Sheets：如可用则用 Sheets 外部连接，通过 ADC 使用 Sheets API，CSV 导入为备选。在电子表格输出中：
 - 每个数据列与包含引文和位置的隐藏来源列配对。可见列上的单元格评论（Excel）或备注（Sheets）在悬停时显示引文。
 - 按状态颜色编码：白色 = answered，黄色 = unclear 或 needs_review，灰色 = not_present。
 - 每个数据列一个 `Verified` 列，默认为空白。审查者标记。这是使表格可审计的核实/标记模式——交易团队可一眼看出人工已实际检查了什么。

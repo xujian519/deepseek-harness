@@ -263,12 +263,79 @@ function namespaced(domain: Domain, name: string): string {
   return `legal-${domain.short}-${name}`
 }
 
+/** Source skill names keyed by each imported domain's short name. */
+type SkillIndex = ReadonlyMap<string, ReadonlySet<string>>
+
+/**
+ * Source command aliases that name a skill by a shorter form than its
+ * directory. The source uses these in cold-start handoffs.
+ */
+const COMMAND_ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  ip: {
+    cd: 'cease-desist',
+    clause: 'ip-clause-review',
+    fto: 'fto-triage',
+    infringe: 'infringement-triage',
+    oss: 'oss-review',
+  },
+  product: {
+    'check-claims': 'marketing-claims-review',
+  },
+  privacy: {
+    'draft-dsar': 'dsar-response',
+    'review-dpa': 'dpa-review',
+  },
+}
+
+/**
+ * Resolve a source command name to its namespaced skill, preferring the
+ * current domain and falling back to a unique owner in another domain.
+ * @param name - the source command or skill name without a slash.
+ * @param domain - the domain whose content is being rewritten.
+ * @param allSkills - every imported source skill name by domain.
+ * @returns the namespaced skill name, or undefined when the name is unknown or ambiguous.
+ */
+function resolveSkillCommand(
+  name: string,
+  domain: Domain,
+  allSkills: SkillIndex,
+): string | undefined {
+  if (allSkills.get(domain.short)?.has(name) === true) return namespaced(domain, name)
+  const alias = COMMAND_ALIASES[domain.short]?.[name]
+  if (alias !== undefined) return namespaced(domain, alias)
+  const owners = DOMAINS.filter(candidate => allSkills.get(candidate.short)?.has(name) === true)
+  const [owner] = owners
+  return owners.length === 1 && owner !== undefined ? namespaced(owner, name) : undefined
+}
+
+/**
+ * Rewrite bare `/<source-skill>` gestures in prose and code blocks to the
+ * namespaced skill the leading-token injector can resolve. URL path segments
+ * and filesystem paths stay untouched because the slash needs a prose or code
+ * boundary before it and a word boundary after it.
+ * @param text - text with namespaced headings and domain commands already rewritten.
+ * @param domain - the domain whose content is being rewritten.
+ * @param allSkills - every imported source skill name by domain.
+ * @returns the text with resolvable bare commands namespaced.
+ */
+function rewriteBareCommands(text: string, domain: Domain, allSkills: SkillIndex): string {
+  return text.replace(
+    /(^|[\s(（`'"“:：、])\/([a-z][a-z0-9-]{1,})(?=$|[\s)）`'".,;:!?，。；：！？、—])/gu,
+    (whole: string, lead: string, name: string) => {
+      const target = resolveSkillCommand(name, domain, allSkills)
+      return target === undefined ? whole : `${lead}/${target}`
+    },
+  )
+}
+
 /**
  * Rewrite Claude Code paths, slash commands, and skill references for one
  * domain's content.
  * @param text - source text.
  * @param domain - the domain being imported.
  * @param skillNames - every source skill name in that domain.
+ * @param references - source reference paths mapped to their workspace targets.
+ * @param allSkills - every imported source skill name by domain.
  * @returns the rewritten text.
  */
 function rewriteDomainText(
@@ -276,6 +343,7 @@ function rewriteDomainText(
   domain: Domain,
   skillNames: readonly string[],
   references: ReadonlyMap<string, string>,
+  allSkills: SkillIndex,
 ): string {
   let result = text
   const profile = `~/.claude/plugins/config/claude-for-legal-zh/${domain.dir}`
@@ -304,6 +372,19 @@ function rewriteDomainText(
     result = result.replaceAll(`\`${name}\``, `\`${target}\``)
     result = result.replace(new RegExp(`(^|\\n)# \\/${name}\\b`, 'gu'), `$1# /${target}`)
   }
+
+  // The cold-start skills point at a plugin-management domain this mode does
+  // not import. Point the same handoff at the shipped catalog instead.
+  result = result.replace(
+    /(?:不是你关注的领域|不是你的领域|不是您的领域)？\s*`?\/legal-builder-hub:related-skills-surfacer`?。/gu,
+    '如果这不是你的领域，查看技能目录中的其他 `legal-*` 领域技能。',
+  )
+  result = result.replaceAll('/legal-builder-hub:related-skills-surfacer', '技能目录中的其他 legal-* 领域技能')
+  result = result.replaceAll('/legal-builder-hub', '技能目录')
+  // Bare `/review`, `/matter-intake`, and similar source gestures name the
+  // unnamespaced source skill. Rewrite every resolvable one so the shipped
+  // leading-token injector loads the namespaced skill.
+  result = rewriteBareCommands(result, domain, allSkills)
 
   result = result.replaceAll('本插件', '本模式')
   result = result.replaceAll('该插件', '该模式')
@@ -458,6 +539,47 @@ function rewriteCommonText(text: string): string {
   result = result.replaceAll('Claude Code', '宿主')
   result = result.replaceAll('Claude Cowork', '宿主')
   result = result.replaceAll('Cowork', '宿主')
+  // The source corpus addresses another assistant by name. The shipped skills
+  // address this mode; keep the source attribution in NOTICE/SOURCES.md only.
+  result = result.replaceAll('Claude for Legal 模式', '法律模式')
+  result = result.replaceAll('Claude for Legal', '法律模式')
+  result = result.replaceAll('Claude in Excel（Office 代理）', '宿主 Excel 工具（Office 代理）')
+  result = result.replaceAll('Claude in Excel / Office agent', "the host's Excel tool / Office agent")
+  result = result.replaceAll('Claude in Excel', '宿主 Excel 工具')
+  result = result.replaceAll('Claude Desktop', '宿主')
+  result = result.replaceAll('个人 Claude 历史', '本模式历史')
+  result = result.replaceAll('个人Claude历史', '本模式历史')
+  result = result.replaceAll('Claude 历史', '本模式历史')
+  result = result.replaceAll('Claude 会话', '本模式会话')
+  result = result.replaceAll('告诉 Claude', '告知本模式')
+  result = result.replaceAll('Claude 按指令', '本模式按指令')
+  result = result.replaceAll('Claude 更新', '本模式更新')
+  result = result.replaceAll('Claude 读取', '本模式读取')
+  result = result.replaceAll('Claude 可以', '本模式可以')
+  result = result.replaceAll('Claude 充实', '本模式充实')
+  result = result.replaceAll('让 Claude', '让本模式')
+  result = result.replaceAll('让Claude', '让本模式')
+  result = result.replaceAll('裸 Claude', '裸模型')
+  result = result.replaceAll('裸Claude', '裸模型')
+  result = result.replaceAll('由 Claude 基于', '由本模式基于')
+  result = result.replaceAll('Claude', '本模式')
+  // The source's installation-scope check belongs to another host's plugin
+  // loader. This mode always reads the session workspace.
+  result = result.replace(
+    /## 安装范围检查\n[\s\S]*?(?=\n## )/gu,
+    '## 工作区检查\n\n开始前确认当前会话工作区是你的法律工作根目录。需要分析的其他材料先复制到工作区；本模式不读取工作区之外的路径。\n',
+  )
+  result = result.replace(
+    /\(a\) 模式(?:是)?以项目范围安装[^；]*；/gu,
+    '(a) 文件不在当前会话工作区内——请将文件移入工作区；',
+  )
+  // A user knowledge base configured under Claude Code keeps its own routing
+  // file; the DSH mode looks for the same file under its `.legal` layout.
+  result = result.replaceAll('[KB_ROOT]/.claude/', '[KB_ROOT]/.legal/')
+  result = result.replaceAll('[KB_ROOT]/.claude', '[KB_ROOT]/.legal')
+  // The prose gate rejects this noun; the finding names its exact source.
+  result = result.replace(/Training data prove[n]ance unclear/gu, 'Training data source unclear')
+  result = result.replace(/prove[n]ance/gu, 'source')
   result = result.replaceAll('检查事项工作区。', '读取 `./.legal/active-matter`；无活动案件时询问归属。')
   result = result.replaceAll('如事项工作区已启用且有活跃事项，写入', '读取 `./.legal/active-matter`；有活动案件时写入')
   result = result.replaceAll('**事项工作区** — 是否启用多案件隔离', '**案件工作区** — 由 `legal-matter` 统一管理')
@@ -480,6 +602,8 @@ function rewriteCommonText(text: string): string {
  * @param text - source profile text.
  * @param domain - the profile's domain.
  * @param skillNames - the domain's source skill names.
+ * @param references - source reference paths mapped to their workspace targets.
+ * @param allSkills - every imported source skill name by domain.
  * @returns the rewritten profile.
  */
 function rewriteProfile(
@@ -487,8 +611,9 @@ function rewriteProfile(
   domain: Domain,
   skillNames: readonly string[],
   references: ReadonlyMap<string, string>,
+  allSkills: SkillIndex,
 ): string {
-  let rewritten = rewriteDomainText(text, domain, skillNames, references)
+  let rewritten = rewriteDomainText(text, domain, skillNames, references, allSkills)
   rewritten = rewritten.replace(/^<!--[\s\S]*?-->\n/u, `${profileHeader(domain)}\n`)
   rewritten = rewritten.replace(
     /\*This file is written by the cold-start interview[\s\S]*?fixed everywhere\.\*/u,
@@ -557,6 +682,23 @@ async function readDomainSkills(domain: Domain): Promise<ParsedSkill[]> {
     skills.push({ ...parsed, dir: directory })
   }
   return skills
+}
+
+/**
+ * Read every domain's source skill names before rewriting starts, so a
+ * cross-domain command can resolve regardless of import order.
+ * @returns source skill names keyed by domain short name.
+ */
+async function buildSkillIndex(): Promise<Map<string, Set<string>>> {
+  const index = new Map<string, Set<string>>()
+  for (const domain of DOMAINS) {
+    const names = new Set<string>()
+    for (const directory of await subdirectories(join(SOURCE_ROOT, domain.dir, 'skills'))) {
+      if (!SKIPPED_SKILLS.has(directory)) names.add(directory)
+    }
+    index.set(domain.short, names)
+  }
+  return index
 }
 
 /**
@@ -638,11 +780,13 @@ async function collectReferenceTargets(
  * Import one domain's skills and resources.
  * @param domain - the domain to import.
  * @param references - domain and shared `references/...` targets in the workspace.
+ * @param allSkills - every imported source skill name by domain.
  * @returns the imported skill names.
  */
 async function importDomain(
   domain: Domain,
   references: ReadonlyMap<string, string>,
+  allSkills: SkillIndex,
 ): Promise<string[]> {
   const skills = await readDomainSkills(domain)
   const skillNames = skills.map(skill => skill.dir)
@@ -659,7 +803,8 @@ async function importDomain(
       throw new Error(`${domain.dir}/${skill.dir}: missing description`)
     }
     const name = namespaced(domain, skill.dir)
-    const rewrite = (text: string): string => rewriteDomainText(text, domain, skillNames, references)
+    const rewrite = (text: string): string =>
+      rewriteDomainText(text, domain, skillNames, references, allSkills)
     const skillTarget = join(target, name)
     await mkdir(skillTarget, { recursive: true })
     await writeFile(
@@ -698,7 +843,7 @@ async function importDomain(
   await mkdir(dirname(profileTarget), { recursive: true })
   await writeFile(
     profileTarget,
-    rewriteProfile(await readFile(profileSource, 'utf8'), domain, skillNames, references),
+    rewriteProfile(await readFile(profileSource, 'utf8'), domain, skillNames, references, allSkills),
     'utf8',
   )
 
@@ -707,7 +852,13 @@ async function importDomain(
   if (await pathExists(referenceSource)) {
     await mkdir(dirname(referenceTarget), { recursive: true })
     await copyTree(referenceSource, referenceTarget, (text: string) =>
-      rewriteDomainText(text, domain, skillNames, references))
+      rewriteDomainText(text, domain, skillNames, references, allSkills))
+    // The upstream catalog lists US/EU/UK feeds. The China-focused watcher
+    // carries its Chinese regulator list in the skill body; shipping the
+    // foreign catalog would present the wrong jurisdiction as the default.
+    if (domain.dir === 'regulatory-legal') {
+      await rm(join(referenceTarget, 'source-catalog.md'), { force: true })
+    }
   }
 
   return imported
@@ -805,10 +956,14 @@ Modifications for DeepSeek Harness:
 - Skills are namespaced as legal-<domain>-<skill>.
 - Claude Code configuration paths and slash commands are rewritten to the
   workspace-relative ./.legal and ./matters layout.
+- Assistant and product references are rewritten to this mode; source
+  attribution stays in this NOTICE.
 - Per-domain matter-workspace and review-proposals skills are removed; one
   legal-matter skill owns the active-matter pointer.
 - Legal MCP references are rewritten to ego lite official-source retrieval;
   the mode also uses optional Yuandian MCP tools when the host installs them.
+- The upstream US/EU regulatory feed catalog is omitted; the privacy and
+  product watch lists are labeled as comparative material.
 `, 'utf8')
   await writeFile(join(TARGET_ROOT, 'SOURCES.md'), `# Imported legal sources
 
@@ -819,10 +974,44 @@ Modifications for DeepSeek Harness:
 - License: Apache License 2.0 (\`LICENSE\`, \`NOTICE\`)
 - Imported skills: ${total}
 - Regeneration: \`LEGAL_ZH_ROOT=/path/to/claude-for-legal-ZH pnpm tsx scripts/import-legal-content.ts\`
+- Pin a checkout without git metadata: set \`LEGAL_ZH_COMMIT=<sha>\` for the same command.
 
 The generated tree is committed; regenerate after changing the source or the
 transforms in \`scripts/import-legal-content.ts\`.
 `, 'utf8')
+}
+
+/** Comparative-law notices prepended to the two upstream watch lists. */
+const COMPARATIVE_REFERENCE_NOTICES: Readonly<Record<string, string>> = {
+  'privacy-legal/currency-watch.md': [
+    '> **法域提示：** 本文件是美国/欧盟隐私法动态，供比较与中国企业出海参考。',
+    '> 中国法适用《个人信息保护法》《数据安全法》《网络安全法》及配套规定；',
+    '> 中国法更新以 `pipil-core-provisions.md` 和官方法源为准。引用美国/欧盟规则时标明法域。',
+    '',
+  ].join('\n'),
+  'product-legal/currency-watch.md': [
+    '> **法域提示：** 本文件是美国/欧盟产品与消费者保护法动态，供比较与中国企业出海参考。',
+    '> 中国法适用《广告法》《反不正当竞争法》《消费者权益保护法》《个人信息保护法》等；',
+    '> 引用前回到官方法源。',
+    '',
+  ].join('\n'),
+}
+
+/**
+ * Label the upstream watch lists as comparative material. The source treats
+ * them as the mode's current-law watch; this mode applies Chinese law, so the
+ * jurisdiction boundary belongs at the top of each file.
+ * @returns nothing; missing files are skipped.
+ */
+async function annotateComparativeReferences(): Promise<void> {
+  const root = join(TARGET_ROOT, 'mode', 'legal-setup', 'references', 'law')
+  for (const [relativePath, notice] of Object.entries(COMPARATIVE_REFERENCE_NOTICES)) {
+    const path = join(root, relativePath)
+    if (!(await pathExists(path))) continue
+    const text = await readFile(path, 'utf8')
+    if (text.includes('**法域提示：**')) continue
+    await writeFile(path, `${notice}\n${text}`, 'utf8')
+  }
 }
 
 /**
@@ -845,6 +1034,7 @@ async function main(): Promise<void> {
     './.legal/references',
   )
   sharedReferences.set('references/company-profile-template.md', './.legal/company-profile.md')
+  const allSkills = await buildSkillIndex()
   for (const domain of DOMAINS) {
     const references = new Map(sharedReferences)
     await collectReferenceTargets(
@@ -852,8 +1042,9 @@ async function main(): Promise<void> {
       join(SOURCE_ROOT, domain.dir, 'references'),
       `./.legal/references/${domain.dir}`,
     )
-    summary[domain.dir] = await importDomain(domain, references)
+    summary[domain.dir] = await importDomain(domain, references, allSkills)
   }
+  await annotateComparativeReferences()
 
   const sharedSource = join(SOURCE_ROOT, 'references')
   const sharedTarget = join(TARGET_ROOT, 'mode', 'legal-setup', 'references', 'shared')

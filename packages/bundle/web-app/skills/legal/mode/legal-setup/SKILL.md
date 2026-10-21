@@ -96,6 +96,10 @@ Get-ChildItem "$skillDir/references/law" -Directory | ForEach-Object {
 if (-not (Test-Path ./.legal/company-profile.md)) {
   Copy-Item "$skillDir/references/company-profile-template.md" ./.legal/company-profile.md
 }
+New-Item -ItemType Directory -Force ./.legal/commercial-legal | Out-Null
+if (-not (Test-Path ./.legal/commercial-legal/renewal-register.yaml)) {
+  Set-Content ./.legal/commercial-legal/renewal-register.yaml "renewals: []"
+}
 ```
 
 ## 约束

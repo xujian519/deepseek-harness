@@ -66,7 +66,7 @@ uploads displayed publicly).
 
 **Common findings:**
 - Copyleft license in a new dependency
-- Training data provenance unclear
+- Training data source unclear
 - User-generated content without a notice-and-takedown process — research the
   applicable safe-harbor regime
 

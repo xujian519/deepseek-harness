@@ -48,8 +48,8 @@ description: "公司业务实务画像的引导式定制——修改一项配置
 4. **进行修改。** 展示当前值、询问新值、说明下游变更影响、确认、写入配置。
 
    示例：
-   - *重要性阈值从250万元→500万元：* "`/diligence-issue-extraction`
-     和 `/material-contract-schedule` 现在将以500万元为界。
+   - *重要性阈值从250万元→500万元：* "`/legal-corporate-diligence-issue-extraction`
+     和 `/legal-corporate-material-contract-schedule` 现在将以500万元为界。
      已有发现保留原样；如需对新阈值做追溯适用，请重新运行。"
    - *开启公众公司模块：* "下次你运行该领域的任何操作时，我会提示你设置
      报告日历和信息披露控制。"

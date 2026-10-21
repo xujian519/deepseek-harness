@@ -33,6 +33,13 @@ matters/<slug>/
 
 ```bash
 slug='<slug>'
+case "$slug" in
+  [a-z0-9]*) ;;
+  *) echo 'slug 只能以小写字母或数字开头，仅含小写字母、数字和连字符'; exit 1 ;;
+esac
+case "$slug" in
+  *[!a-z0-9-]*) echo 'slug 只能包含小写字母、数字和连字符'; exit 1 ;;
+esac
 [ -e "matters/$slug" ] && { echo "matters/$slug 已存在"; exit 1; }
 mkdir -p "matters/$slug"/{input,work,output,research,audit}
 cp '<本技能 Base directory>/references/matter-template.md' "matters/$slug/matter.md"
@@ -57,6 +64,13 @@ grep -H '^案件名称：' matters/*/matter.md 2>/dev/null
 
 ```bash
 slug='<slug>'
+case "$slug" in
+  [a-z0-9]*) ;;
+  *) echo 'slug 只能以小写字母或数字开头，仅含小写字母、数字和连字符'; exit 1 ;;
+esac
+case "$slug" in
+  *[!a-z0-9-]*) echo 'slug 只能包含小写字母、数字和连字符'; exit 1 ;;
+esac
 [ -f "matters/$slug/matter.md" ] || { echo "没有这个案件：$slug"; exit 1; }
 printf '%s\n' "$slug" > ./.legal/active-matter
 sed -n '1,40p' "matters/$slug/matter.md"
@@ -89,11 +103,15 @@ rm -f ./.legal/active-matter
 ```powershell
 $skillDir = '<把 Base directory 的绝对路径粘贴到这里>'
 $slug = '<slug>'
+if ($slug -notmatch '^[a-z0-9][a-z0-9-]*$') {
+  throw 'slug 只能以小写字母或数字开头，仅含小写字母、数字和连字符'
+}
 New-Item -ItemType Directory -Force "matters/$slug/input","matters/$slug/work","matters/$slug/output","matters/$slug/research","matters/$slug/audit" | Out-Null
 Copy-Item "$skillDir/references/matter-template.md" "matters/$slug/matter.md"
 Set-Content "matters/$slug/history.md" "# $slug`n`n按日期记录案件事件。"
 Set-Content "matters/$slug/notes.md" "# $slug"
 Set-Content ./.legal/active-matter $slug
+Add-Content "matters/$slug/audit/matter-log.md" "`n## $(Get-Date -Format 'yyyy-MM-dd HH:mm') 建立案件 $slug`n`n- 承办：待确认"
 Get-ChildItem "matters/$slug" | Select-Object Name
 ```
 
@@ -101,8 +119,29 @@ Get-ChildItem "matters/$slug" | Select-Object Name
 
 ```powershell
 Get-ChildItem matters -Recurse -Filter matter.md | Select-Object FullName
-Set-Content ./.legal/active-matter '<slug>'
-Get-Content ./.legal/active-matter
+$slug = '<slug>'
+if ($slug -notmatch '^[a-z0-9][a-z0-9-]*$') {
+  throw 'slug 只能以小写字母或数字开头，仅含小写字母、数字和连字符'
+}
+Set-Content ./.legal/active-matter $slug
+```
+
+查看当前：
+
+```powershell
+$slug = Get-Content ./.legal/active-matter
+if (-not $slug) { Write-Output '未选择案件'; exit 0 }
+Get-Content "matters/$slug/matter.md" -TotalCount 80
+Get-Content "matters/$slug/audit/matter-log.md" -Tail 10
+```
+
+关闭（先确认案件已交付或终止）：
+
+```powershell
+$slug = Get-Content ./.legal/active-matter
+if (-not $slug) { Write-Output '未选择案件'; exit 0 }
+Add-Content "matters/$slug/audit/matter-log.md" "`n## $(Get-Date -Format 'yyyy-MM-dd HH:mm') 关闭案件`n`n- 结论：待补充`n- 交付件：见 output/"
+Remove-Item ./.legal/active-matter -Force
 ```
 
 ## 使用约束

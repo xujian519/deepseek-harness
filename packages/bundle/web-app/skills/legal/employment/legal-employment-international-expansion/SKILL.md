@@ -1,6 +1,6 @@
 ---
 name: legal-employment-international-expansion
-description: "Reference: implementation-planning framework for international hiring — EOR vs. entity decision framing, cross-functional triggers for tax/finance/HR, structured outside-counsel briefing requests, and a persistent gap tracker. Loaded by /expansion-kickoff and /expansion-update; not invoked directly."
+description: "Reference: implementation-planning framework for international hiring — EOR vs. entity decision framing, cross-functional triggers for tax/finance/HR, structured outside-counsel briefing requests, and a persistent gap tracker. Loaded by /legal-employment-expansion-kickoff and /legal-employment-expansion-update; not invoked directly."
 user-invocable: false
 ---
 

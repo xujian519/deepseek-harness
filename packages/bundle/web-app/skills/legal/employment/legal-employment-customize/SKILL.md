@@ -39,8 +39,8 @@ description: "引导式自定义你的劳动法实践画像——修改一项内
 4. **执行变更。** 显示当前值，询问新值，解释下游变更，确认，写入配置。
 
    示例：
-   - *将四川加入管辖范围：* "`/wage-hour-qa` 和 `/termination-review` 将开始适用四川规则。`/handbook-updates` 将提示四川补充条款。"
-   - *经济补偿框架从法定标准改为 N+3：* "`/termination-review` 将在经济补偿计算中使用新基准。"
+   - *将四川加入管辖范围：* "`/legal-employment-wage-hour-qa` 和 `/legal-employment-termination-review` 将开始适用四川规则。`/legal-employment-handbook-updates` 将提示四川补充条款。"
+   - *经济补偿框架从法定标准改为 N+3：* "`/legal-employment-termination-review` 将在经济补偿计算中使用新基准。"
    - *风险姿态从中等改为保守：* "我将标记更多解除供上报，建议更强的保护性协议语言，并在竞业限制上更严格。"
 
 5. **对于共享画像变更**（公司名称、行业、管辖地、执业场景、阶段）：写入

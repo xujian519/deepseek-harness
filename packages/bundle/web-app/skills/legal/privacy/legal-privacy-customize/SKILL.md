@@ -37,7 +37,7 @@ cold-start interview and without hand-editing YAML.
      liability, international transfers, SCCs — as processor and as
      controller
    - **Privacy policy commitments** — the commitments your privacy notice
-     has made that `/policy-monitor` watches practice against
+     has made that `/legal-privacy-policy-monitor` watches practice against
    - **PIA house style** — section order, risk scoring, stakeholder framing,
      when DPIA triggers apply
    - **DSAR process** — verification, statutory timelines per regime,
@@ -56,10 +56,10 @@ cold-start interview and without hand-editing YAML.
    what changes downstream, confirm, write it to the config.
 
    Examples:
-   - *Sub-processor notice 30 days → 14 days:* "`/review-dpa` will now flag
+   - *Sub-processor notice 30 days → 14 days:* "`/legal-privacy-dpa-review` will now flag
      anything shorter than 14 days as a deviation. Existing DPAs stay as
      logged."
-   - *New DSAR exemption in the playbook:* "`/draft-dsar` will surface this
+   - *New DSAR exemption in the playbook:* "`/legal-privacy-dsar-response` will surface this
      exemption in the assessment step where the facts match."
    - *Risk posture middle → conservative:* "I'll flag more activities for
      PIA escalation, recommend stricter SCC clauses, and be more

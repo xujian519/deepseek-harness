@@ -1,6 +1,6 @@
 ---
 name: legal-employment-internal-investigation
-description: "Reference: shared framework for managing internal investigations from intake through final memo — privileged investigation log, document processing with needle-finding, source coverage tracking, Q&A against the log, memo drafting, and audience summaries. Loaded by /investigation-open, /investigation-add, /investigation-query, /investigation-memo, and /investigation-summary; not invoked directly."
+description: "Reference: shared framework for managing internal investigations from intake through final memo — privileged investigation log, document processing with needle-finding, source coverage tracking, Q&A against the log, memo drafting, and audience summaries. Loaded by /legal-employment-investigation-open, /legal-employment-investigation-add, /legal-employment-investigation-query, /legal-employment-investigation-memo, and /legal-employment-investigation-summary; not invoked directly."
 user-invocable: false
 ---
 

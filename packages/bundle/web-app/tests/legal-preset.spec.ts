@@ -11,8 +11,8 @@
  * without touching any test, so it fails here.
  */
 
-import { readFileSync, readdirSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import * as yaml from 'js-yaml'
@@ -47,6 +47,17 @@ function skillFiles(directory: string): string[] {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) found.push(...skillFiles(path))
     else if (entry.name === 'SKILL.md') found.push(path)
+  }
+  return found.sort()
+}
+
+/** Every file under a directory, recursively. */
+function allFiles(directory: string): string[] {
+  const found: string[] = []
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) found.push(...allFiles(path))
+    else if (entry.isFile()) found.push(path)
   }
   return found.sort()
 }
@@ -156,6 +167,7 @@ describe('legal skill catalog', () => {
       expect(typeof meta.name, file).toBe('string')
       expect(typeof meta.description, file).toBe('string')
       expect(meta.name, file).toMatch(/^legal-[a-z-]+$/u)
+      expect(meta.name, file).toBe(basename(dirname(file)))
       expect(names.has(String(meta.name)), `duplicate skill ${String(meta.name)}`).toBe(false)
       names.add(String(meta.name))
     }
@@ -186,6 +198,74 @@ describe('legal skill catalog', () => {
     const sources = readFileSync(join(LEGAL_SKILLS, 'SOURCES.md'), 'utf8')
     expect(sources).toContain('claude-for-legal-ZH')
     expect(sources).toContain('Apache License 2.0')
+  })
+
+  it('names Yuandian tools with the plugin prefix applied to the original name', () => {
+    const research = readFileSync(join(LEGAL_SKILLS, 'mode/legal-research/SKILL.md'), 'utf8')
+    const names = [...research.matchAll(/mcp__yuandian__([a-z][a-z0-9_*]+)/gu)].map(match => match[1] ?? '')
+    expect(names.length).toBeGreaterThan(0)
+    for (const name of names) expect(name, `Yuandian tool ${name}`).toMatch(/^yuandian_/u)
+  })
+
+  it('resolves every bare source command to a shipped skill', () => {
+    const names = new Set(files.map(file => String(frontmatter(file).name)))
+    const suffixes = new Set<string>()
+    for (const name of names) {
+      const match = /^legal-[a-z]+-(.+)$/u.exec(name)
+      if (match?.[1] !== undefined) suffixes.add(match[1])
+    }
+    const gesture = /(^|[\s(（`'"“:：、])\/([a-z][a-z0-9-]{1,})(?=$|[\s)）`'".,;:!?，。；：！？、—])/gu
+    for (const file of allFiles(LEGAL_SKILLS)) {
+      if (!/\.(?:md|ya?ml|mjs)$/u.test(file)) continue
+      for (const match of readFileSync(file, 'utf8').matchAll(gesture)) {
+        const token = match[2] ?? ''
+        if (names.has(token)) continue
+        expect(suffixes.has(token), `${relative(LEGAL_SKILLS, file)}: /${token} names no shipped skill`).toBe(false)
+      }
+    }
+  })
+
+  it('contains no Claude product references in shipped instructions', () => {
+    const attribution = new Set(['LICENSE', 'NOTICE', 'SOURCES.md'])
+    for (const file of allFiles(LEGAL_SKILLS)) {
+      if (attribution.has(relative(LEGAL_SKILLS, file))) continue
+      if (!/\.(?:md|ya?ml|mjs)$/u.test(file)) continue
+      expect(readFileSync(file, 'utf8'), file).not.toContain('Claude')
+    }
+  })
+
+  it('labels the upstream privacy and product watches as comparative material', () => {
+    for (const domain of ['privacy-legal', 'product-legal']) {
+      const file = join(LEGAL_SKILLS, 'mode/legal-setup/references/law', domain, 'currency-watch.md')
+      expect(readFileSync(file, 'utf8')).toContain('**法域提示：**')
+    }
+  })
+
+  it('drops the US/EU regulatory feed catalog from the China-focused watcher', () => {
+    expect(existsSync(join(
+      LEGAL_SKILLS,
+      'mode/legal-setup/references/law/regulatory-legal/source-catalog.md',
+    ))).toBe(false)
+  })
+
+  it('validates Windows and POSIX output paths in the fetch script', () => {
+    const script = readFileSync(
+      join(LEGAL_SKILLS, 'mode/legal-research/scripts/fetch-page.mjs'),
+      'utf8',
+    )
+    expect(script).toContain('isAbsolute(request.output)')
+    expect(script).toContain('dirname(request.output)')
+    expect(script).not.toContain("startsWith('/')")
+    expect(script).not.toContain("lastIndexOf('/')")
+  })
+
+  it('keeps the knowledge-base route inside the DSH layout', () => {
+    const template = readFileSync(
+      join(LEGAL_SKILLS, 'mode/legal-setup/references/company-profile-template.md'),
+      'utf8',
+    )
+    expect(template).toContain('[KB_ROOT]/.legal/rules/knowledge-routing.md')
+    expect(template).not.toContain('.claude')
   })
 
   it('routes every imported matter-context paragraph through the active-matter pointer', () => {

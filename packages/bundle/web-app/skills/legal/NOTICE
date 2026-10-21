@@ -10,7 +10,11 @@ Modifications for DeepSeek Harness:
 - Skills are namespaced as legal-<domain>-<skill>.
 - Claude Code configuration paths and slash commands are rewritten to the
   workspace-relative ./.legal and ./matters layout.
+- Assistant and product references are rewritten to this mode; source
+  attribution stays in this NOTICE.
 - Per-domain matter-workspace and review-proposals skills are removed; one
   legal-matter skill owns the active-matter pointer.
 - Legal MCP references are rewritten to ego lite official-source retrieval;
   the mode also uses optional Yuandian MCP tools when the host installs them.
+- The upstream US/EU regulatory feed catalog is omitted; the privacy and
+  product watch lists are labeled as comparative material.
