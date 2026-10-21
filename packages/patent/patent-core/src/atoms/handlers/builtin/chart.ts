@@ -9,7 +9,7 @@
  * `office_action`）确定性派生：映射对象即审查员引用的对比文件，不再依赖调用方手工构造。
  */
 
-import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { type Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
 import {
@@ -307,18 +307,25 @@ function deriveModeTargets(mode: ChartMode, state: PipelineState): ChartTarget[]
 }
 
 /**
- * 预读目标源文件一次（重做 attempt 间复用，避免循环内重复 I/O）。
+ * 预读目标源文件一次（重做 attempt 间复用）：同一路径只读一次，不同路径并行读取。
  * 读取失败不缓存，由 validateChart 对引用该源的每行报"源文件不可读"。
  */
-function readTargetSources(targets: readonly ChartTarget[]): Map<string, string> {
+async function readTargetSources(targets: readonly ChartTarget[]): Promise<Map<string, string>> {
   const cache = new Map<string, string>()
-  for (const target of targets) {
-    if (!target.sourcePath) continue
+  const paths = [...new Set(
+    targets.flatMap(target => (target.sourcePath === undefined ? [] : [target.sourcePath])),
+  )]
+  const contents = await Promise.all(paths.map(async (path) => {
     try {
-      cache.set(target.sourcePath, readFileSync(target.sourcePath, 'utf8'))
+      return await readFile(path, 'utf8')
     } catch {
       // 源文件不可读：留空缓存，错误归因下沉到行级校验
+      return undefined
     }
+  }))
+  for (const [index, path] of paths.entries()) {
+    const content = contents[index]
+    if (content !== undefined) cache.set(path, content)
   }
   return cache
 }
@@ -376,7 +383,7 @@ export class ClaimChartHandler implements StageHandler {
     // 显式传入的目标优先；OA 答复由解析产出派生，可专利性由过滤后的检索命中派生。
     const targets = targetsRes.targets.length > 0 ? targetsRes.targets : deriveModeTargets(mode, state)
 
-    const sourceCache = readTargetSources(targets)
+    const sourceCache = await readTargetSources(targets)
     const targetLines = renderTargetLines(targets)
     const basePrompt = [
       '你是专利权利要求分析专家。把权利要求拆分为编号要素，并逐要素映射到目标对象。',
