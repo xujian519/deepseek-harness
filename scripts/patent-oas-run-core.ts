@@ -24,13 +24,14 @@
 
 import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
-import { access, cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 import {
   mean,
   parseRubricDimensions,
   roundScore,
+  textDigest,
   validateProblemSpace,
   type GoldCase,
   type ProblemSpace,
@@ -38,10 +39,15 @@ import {
   type RunCase,
   type RunDimension,
   type RunRecord,
+  type RunRound,
+  type RunRoundDimension,
 } from './patent-oas-gate-core.ts'
 
 /** 执行者写出的交付物文件名,相对于该次调用的工作目录。 */
 export const DELIVERABLE_FILENAME = 'deliverable.md'
+
+/** 多轮 case 第 2 轮起,上一轮交付物在该次调用工作目录中的副本文件名。 */
+export const PREVIOUS_DELIVERABLE_FILENAME = 'previous-deliverable.md'
 
 /** 评估者写出的分数文件名,相对于该次调用的工作目录。 */
 export const SCORE_FILENAME = 'score.json'
@@ -126,11 +132,11 @@ export type RunAgents = (invocation: AgentInvocation) => Promise<RunCallUsage | 
 
 /** 一次采集的计划:要跑哪些 case、每个 case 几次、总共多少次调用。 */
 export interface RunPlan {
-  /** 计划运行的 case,按 case id 排序;每项带该 case 的 rubric 维度数。 */
-  cases: Array<{ caseId: string; dimensions: number }>
+  /** 计划运行的 case,按 case id 排序;每项带该 case 的轮次与 rubric 维度数。 */
+  cases: Array<{ caseId: string; dimensions: number; rounds: number }>
   /** 每个 case 的运行次数。 */
   runsPerCase: number
-  /** 计划中的 agent 进程调用总数。 */
+  /** 计划中的 agent 进程调用总数(含每轮执行者与逐维度评估者)。 */
   calls: number
 }
 
@@ -196,21 +202,46 @@ export function planRun(options: RunPlanOptions): RunPlan {
     const goldCase = options.gold.find(entry => entry.caseId === caseId)
     if (goldCase === undefined) throw new Error(`case "${caseId}" 不在金标中`)
     if (options.space.cases[caseId] === undefined) throw new Error(`case "${caseId}" 没有问题空间映射`)
-    return { caseId, dimensions: parseRubricDimensions(goldCase.rubric).length }
+    return { caseId, dimensions: parseRubricDimensions(goldCase.rubric).length, rounds: 1 + (goldCase.rounds?.length ?? 0) }
   })
   return {
     cases,
     runsPerCase,
-    calls: cases.reduce((sum, entry) => sum + runsPerCase * (1 + entry.dimensions), 0),
+    calls: cases.reduce((sum, entry) => sum + runsPerCase * entry.rounds * (1 + entry.dimensions), 0),
   }
 }
 
-/** 执行者提示词:引擎措辞 + 公开任务 + 交付物落点。 */
-export function executorPrompt(agentStatePath: string, statement: string): string {
+/**
+ * 构造某一轮的累积任务文本:第 1 轮为公开任务,后续轮次追加脚本化审查意见。
+ *
+ * @param goldCase 金标 case。
+ * @param round 轮次,1 起。
+ * @returns 执行者与评估者共用的任务文本。
+ */
+export function roundStatement(goldCase: GoldCase, round: number): string {
+  if (round === 1) return goldCase.statement
+  const extra = goldCase.rounds?.find(entry => entry.round === round)
+  if (extra === undefined) throw new Error(`case "${goldCase.caseId}" 没有第 ${round} 轮审查意见`)
+  return [goldCase.statement, '', '【再审查意见】', extra.statement].join('\n')
+}
+
+/**
+ * 执行者提示词:引擎措辞 + 公开任务 + 交付物落点。
+ *
+ * @param agentStatePath 作业规范目录。
+ * @param statement 该轮的累积任务文本。
+ * @param previousDeliverable 上一轮交付物在当前工作目录中的副本文件名;第 1 轮省略。
+ * @returns 提示词。
+ */
+export function executorPrompt(agentStatePath: string, statement: string, previousDeliverable?: string): string {
   return [
     '你是任务执行者。请依据目标 agent 状态目录中的作业规范,完成下列任务。',
     '任务(statement):',
     statement,
+    ...previousDeliverable === undefined ? [] : [
+      '上一轮答复:',
+      `当前工作目录中的 ${previousDeliverable};请先阅读它,再按本轮审查意见修订,不要另写一份与前文无关的答复。`,
+    ],
     '作业规范目录:',
     agentStatePath,
     `要求:先阅读目录中的指导文档(如 guidance.md),按其 checklist 完成交付物;这是执行任务而非计划,直接完成并只输出交付物正文,不要输出 JSON 包装、计划说明或解释性前缀;把交付物正文写入当前工作目录的 ${DELIVERABLE_FILENAME}。`,
@@ -421,6 +452,14 @@ interface DimensionAccumulator {
   scores: number[]
 }
 
+/** 一轮观测的累加器。 */
+interface RoundAccumulator {
+  round: number
+  statementDigest?: string
+  dimensions: Map<number, number[]>
+  deliverableDigests: string[]
+}
+
 /**
  * 跑一次完整采集并组装 run 记录。
  *
@@ -448,49 +487,102 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
       usageTotals.tokenCalls += 1
     }
   }
-  for (const { caseId } of plan.cases) {
+  for (const { caseId, rounds: roundCount } of plan.cases) {
     const goldCase = options.gold.find(entry => entry.caseId === caseId)
     if (goldCase === undefined) throw new Error(`case "${caseId}" 不在金标中`)
     const dimensions = parseRubricDimensions(goldCase.rubric)
-    const accumulators: DimensionAccumulator[] = dimensions.map(dimension => ({ dimension, scores: [] }))
+    const statements = Array.from({ length: roundCount }, (_, index) => roundStatement(goldCase, index + 1))
+    const terminalAccumulators: DimensionAccumulator[] = dimensions.map(dimension => ({ dimension, scores: [] }))
+    const roundAccumulators: RoundAccumulator[] = statements.map((_, index) => {
+      const round = index + 1
+      const extra = round === 1 ? undefined : goldCase.rounds?.find(entry => entry.round === round)
+      if (round > 1 && extra === undefined) throw new Error(`case "${caseId}" 没有第 ${round} 轮审查意见`)
+      return {
+        round,
+        ...extra === undefined ? {} : { statementDigest: textDigest(extra.statement) },
+        dimensions: new Map(dimensions.map(dimension => [dimension.index, []])),
+        deliverableDigests: [],
+      }
+    })
     for (let run = 1; run <= plan.runsPerCase; run += 1) {
       const base = join(options.workDir, caseId, `run-${run}`)
-      const agentStatePath = join(base, 'agent-state')
-      await mkdir(base, { recursive: true })
-      await cp(options.agentStateDir, agentStatePath, { recursive: true })
-      const executorLabel = `${caseId} run ${run} 执行者`
-      addUsage(await options.runAgents({
-        cwd: agentStatePath,
-        prompt: executorPrompt(agentStatePath, goldCase.statement),
-        label: executorLabel,
-      }))
-      const deliverable = await readArtifact(join(agentStatePath, DELIVERABLE_FILENAME), executorLabel)
-      if (deliverable.trim() === '') throw new Error(`${executorLabel}: ${DELIVERABLE_FILENAME} 为空`)
-      const bytes = Buffer.byteLength(deliverable, 'utf8')
-      if (bytes > MAX_DELIVERABLE_BYTES) {
-        throw new Error(`${executorLabel}: ${DELIVERABLE_FILENAME} 为 ${bytes} 字节,超过上限 ${MAX_DELIVERABLE_BYTES};该交付物会被复制进每个维度的评估提示词`)
-      }
-      for (const accumulator of accumulators) {
-        const scoreDir = join(base, `dim-${accumulator.dimension.index}`)
-        await mkdir(scoreDir, { recursive: true })
-        const evaluatorLabel = `${caseId} run ${run} 维度 ${accumulator.dimension.index} 评估者`
+      let previousAgentState: string | undefined
+      for (let round = 1; round <= roundCount; round += 1) {
+        const isFirst = round === 1
+        const isTerminal = round === roundCount
+        const roundBase = isFirst ? base : join(base, `round-${round}`)
+        const agentStatePath = join(roundBase, 'agent-state')
+        await mkdir(roundBase, { recursive: true })
+        if (isFirst) {
+          await cp(options.agentStateDir, agentStatePath, { recursive: true })
+        } else {
+          if (previousAgentState === undefined) throw new Error(`${caseId} run ${run}: 缺少上一轮工作目录`)
+          await cp(previousAgentState, agentStatePath, { recursive: true })
+          await cp(
+            join(previousAgentState, DELIVERABLE_FILENAME),
+            join(agentStatePath, PREVIOUS_DELIVERABLE_FILENAME),
+          )
+          // 上一轮产物只能作为参考;删掉它,执行者必须写出本轮的新交付物。
+          await rm(join(agentStatePath, DELIVERABLE_FILENAME), { force: true })
+          await rm(join(agentStatePath, AGENT_LOG_FILENAME), { force: true })
+        }
+        const roundText = statements[round - 1]
+        if (roundText === undefined) throw new Error(`${caseId}: 缺少第 ${round} 轮任务文本`)
+        const roundAccumulator = roundAccumulators[round - 1]
+        if (roundAccumulator === undefined) throw new Error(`${caseId}: 缺少第 ${round} 轮的累加器`)
+        const executorLabel = `${caseId} run ${run} 第 ${round} 轮执行者`
         addUsage(await options.runAgents({
-          cwd: scoreDir,
-          prompt: evaluatorPrompt(goldCase.statement, accumulator.dimension, deliverable),
-          label: evaluatorLabel,
+          cwd: agentStatePath,
+          prompt: executorPrompt(agentStatePath, roundText, isFirst ? undefined : PREVIOUS_DELIVERABLE_FILENAME),
+          label: executorLabel,
         }))
-        accumulator.scores.push(parseScore(await readArtifact(join(scoreDir, SCORE_FILENAME), evaluatorLabel), evaluatorLabel))
+        const deliverable = await readArtifact(join(agentStatePath, DELIVERABLE_FILENAME), executorLabel)
+        if (deliverable.trim() === '') throw new Error(`${executorLabel}: ${DELIVERABLE_FILENAME} 为空`)
+        const bytes = Buffer.byteLength(deliverable, 'utf8')
+        if (bytes > MAX_DELIVERABLE_BYTES) {
+          throw new Error(`${executorLabel}: ${DELIVERABLE_FILENAME} 为 ${bytes} 字节,超过上限 ${MAX_DELIVERABLE_BYTES};该交付物会被复制进每个维度的评估提示词`)
+        }
+        roundAccumulator.deliverableDigests.push(textDigest(deliverable))
+        for (const accumulator of terminalAccumulators) {
+          const scoreDir = isFirst
+            ? join(base, `dim-${accumulator.dimension.index}`)
+            : join(roundBase, `dim-${accumulator.dimension.index}`)
+          await mkdir(scoreDir, { recursive: true })
+          const evaluatorLabel = `${caseId} run ${run} 第 ${round} 轮维度 ${accumulator.dimension.index} 评估者`
+          addUsage(await options.runAgents({
+            cwd: scoreDir,
+            prompt: evaluatorPrompt(roundText, accumulator.dimension, deliverable),
+            label: evaluatorLabel,
+          }))
+          const score = parseScore(await readArtifact(join(scoreDir, SCORE_FILENAME), evaluatorLabel), evaluatorLabel)
+          const roundScores = roundAccumulator.dimensions.get(accumulator.dimension.index)
+          if (roundScores === undefined) throw new Error(`${caseId}: 第 ${round} 轮缺少维度 ${accumulator.dimension.index}`)
+          roundScores.push(score)
+          if (isTerminal) accumulator.scores.push(score)
+        }
+        previousAgentState = agentStatePath
       }
     }
+    const rounds: RunRound[] = roundAccumulators.map(accumulator => ({
+      round: accumulator.round,
+      ...accumulator.statementDigest === undefined ? {} : { statementDigest: accumulator.statementDigest },
+      dimensions: [...accumulator.dimensions].map(([index, scores]): RunRoundDimension => ({
+        index,
+        score: roundScore(mean(scores)),
+        ...scores.length > 1 ? { scores: [...scores] } : {},
+      })),
+      deliverableDigests: [...accumulator.deliverableDigests],
+    }))
     cases.push({
       caseId,
-      dimensions: accumulators.map<RunDimension>(accumulator => ({
+      dimensions: terminalAccumulators.map<RunDimension>(accumulator => ({
         index: accumulator.dimension.index,
         label: accumulator.dimension.label,
         points: accumulator.dimension.points,
         score: roundScore(mean(accumulator.scores)),
         ...accumulator.scores.length > 1 ? { scores: [...accumulator.scores] } : {},
       })),
+      ...roundCount > 1 ? { rounds } : {},
     })
   }
   const record: RunRecord = {

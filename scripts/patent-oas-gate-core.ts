@@ -92,14 +92,24 @@ export interface RubricDimension {
   body: string
 }
 
+/** 多轮 case 中某一轮新增的公开审查意见。 */
+export interface GoldRound {
+  /** 轮次,从 2 起(第 1 轮由 {@link GoldCase.statement} 承载)。 */
+  round: number
+  /** 该轮新增的公开任务文本(脚本化审查意见)。 */
+  statement: string
+}
+
 /** 一个金标 case 的公开与私密两面。 */
 export interface GoldCase {
   /** case id。 */
   caseId: string
-  /** 公开任务文本。 */
+  /** 第 1 轮公开任务文本。 */
   statement: string
-  /** 私密评分标准。 */
+  /** 私密评分标准(评分逐轮适用,门禁只判最后一轮)。 */
   rubric: string
+  /** 后续轮次的新增审查意见,按轮次排序;单轮 case 省略。 */
+  rounds?: GoldRound[]
 }
 
 /** run 记录里的一个维度观测。 */
@@ -120,12 +130,36 @@ export interface RunDimension {
   scores?: number[]
 }
 
+/** 多轮 case 中某一轮的维度观测。 */
+export interface RunRoundDimension {
+  /** 维度序号,与 {@link RunCase.dimensions} 一致。 */
+  index: number
+  /** 该轮跨运行的平均分(0–100)。 */
+  score: number
+  /** 该轮逐次运行的原始分数(0–100),按运行顺序;单次运行时省略。 */
+  scores?: number[]
+}
+
+/** 多轮 case 中某一轮的观测。 */
+export interface RunRound {
+  /** 轮次,1 起且连续。 */
+  round: number
+  /** 该轮新增的审查意见摘要;第 1 轮省略。 */
+  statementDigest?: string
+  /** 该轮每个维度的跨运行观测。 */
+  dimensions: RunRoundDimension[]
+  /** 该轮每次运行交付物的 sha256,按运行顺序;标识权项版本。 */
+  deliverableDigests: string[]
+}
+
 /** run 记录里的一个 case。 */
 export interface RunCase {
   /** case id。 */
   caseId: string
-  /** 该 case 的逐维度观测。 */
+  /** 该 case 的逐维度观测;多轮 case 取最后一轮(终局)。 */
   dimensions: RunDimension[]
+  /** 逐轮观测,按轮次排序;单轮记录或未留存逐轮观测时省略。 */
+  rounds?: RunRound[]
 }
 
 /** 一次实测的原始记录;基线与被检运行同构。 */
@@ -167,6 +201,14 @@ export interface ScoreSpread {
   stdev: number
 }
 
+/** 多轮 case 中一轮的总分。 */
+export interface RoundOutcome {
+  /** 轮次,1 起。 */
+  round: number
+  /** 该轮按维度满分加权的 case 总分(0–100)。 */
+  score: number
+}
+
 /** 一个观测单元的判定:问题空间节点,或一个 case。 */
 export interface UnitOutcome {
   /** 节点 id 或 case id。 */
@@ -186,8 +228,11 @@ export interface UnitOutcome {
 /** 一个节点的判定。 */
 export type NodeOutcome = UnitOutcome
 
-/** 一个 case 的判定。 */
-export type CaseOutcome = UnitOutcome
+/** 一个 case 的判定;多轮 case 额外带逐轮总分。 */
+export type CaseOutcome = UnitOutcome & {
+  /** 逐轮总分;单轮记录省略。 */
+  rounds?: RoundOutcome[]
+}
 
 /** 一次运行的完整判定。 */
 export interface GateVerdict {
@@ -274,6 +319,14 @@ function sha256(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex')
 }
 
+/** 计算文本的 `sha256:<hex>` 摘要,用于 run 记录里的版本标识。 */
+export function textDigest(text: string): string {
+  return `sha256:${sha256(text)}`
+}
+
+/** run 记录里版本摘要的合法形式。 */
+const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/
+
 /**
  * 解析 rubric 文本里的评分维度。
  *
@@ -308,7 +361,8 @@ export function parseRubricDimensions(rubric: string): RubricDimension[] {
 /**
  * 金标内容摘要:按 case id 排序,对每个 case 的 statement/rubric 逐文件取 sha256 后汇总。
  *
- * 摘要用于把「金标被改动过」变成一次显式的重录动作,而不是悄悄生效。
+ * 多轮 case 的后续审查意见按轮次追加,因此给单轮 case 增加轮次会改变摘要、要求显式
+ * 重录;没有额外轮次的 case 摘要保持原值。
  *
  * @param cases 金标 case 集。
  * @returns `sha256:<hex>` 形式的摘要。
@@ -316,15 +370,49 @@ export function parseRubricDimensions(rubric: string): RubricDimension[] {
 export function goldDigest(cases: readonly GoldCase[]): string {
   const canonical = [...cases]
     .sort((a, b) => a.caseId.localeCompare(b.caseId))
-    .map(entry => `${entry.caseId}\n${sha256(entry.statement)}\n${sha256(entry.rubric)}\n`)
+    .map(entry => `${entry.caseId}\n${sha256(entry.statement)}\n${sha256(entry.rubric)}\n`
+      + (entry.rounds ?? []).map(round => `${round.round}\n${sha256(round.statement)}\n`).join(''))
     .join('')
   return `sha256:${sha256(canonical)}`
 }
 
 /**
- * 从 example 目录读取金标 case(创作布局:`cases/<caseId>/statement|rubric`)。
+ * 读取一个多轮 case 的后续轮次。
  *
- * 每个 case 目录必须恰好是这两种文件:多出来的文件既可能是残留草稿,也可能是本该被
+ * 当前裁决固定为 2 轮,因此只接受 `rounds/02/statement`;轮次目录不连续或夹带其它
+ * 文件都会被拒绝,避免「以为跑了两轮、实际只跑了一轮」的静默降级。
+ *
+ * @param roundsDir case 下的 `rounds` 目录绝对路径。
+ * @param caseId case id,用于诊断。
+ * @returns 后续轮次。
+ */
+async function loadGoldRounds(roundsDir: string, caseId: string): Promise<GoldRound[]> {
+  const entries = await readdir(roundsDir, { withFileTypes: true })
+  const strayFiles = entries.filter(entry => !entry.isDirectory()).map(entry => entry.name).sort()
+  if (strayFiles.length > 0) {
+    throw new Error(`cases/${caseId}/rounds: 只能包含轮次目录,发现文件 [${strayFiles.join(', ')}]`)
+  }
+  const roundNames = entries.filter(entry => entry.isDirectory()).map(entry => entry.name).sort()
+  if (roundNames.length !== 1 || roundNames[0] !== '02') {
+    throw new Error(`cases/${caseId}/rounds: 多轮 case 当前固定为 2 轮,只允许 rounds/02,实际为 [${roundNames.join(', ')}]`)
+  }
+  const roundDir = join(roundsDir, '02')
+  const roundEntries = await readdir(roundDir, { withFileTypes: true })
+  const roundFiles = roundEntries.filter(entry => entry.isFile()).map(entry => entry.name).sort()
+  const roundDirs = roundEntries.filter(entry => entry.isDirectory()).map(entry => entry.name).sort()
+  if (roundFiles.join(',') !== 'statement' || roundDirs.length > 0) {
+    throw new Error(`cases/${caseId}/rounds/02: 目录必须恰好含 statement,实际为 [${[...roundFiles, ...roundDirs.map(name => `${name}/`)].join(', ')}]`)
+  }
+  const statement = await readFile(join(roundDir, 'statement'), 'utf8')
+  if (statement.trim() === '') throw new Error(`cases/${caseId}/rounds/02/statement: 不得为空`)
+  return [{ round: 2, statement }]
+}
+
+/**
+ * 从 example 目录读取金标 case(创作布局:`cases/<caseId>/statement|rubric`,多轮 case
+ * 额外有 `rounds/02/statement`)。
+ *
+ * 每个 case 目录必须恰好是这些文件:多出来的文件既可能是残留草稿,也可能是本该被
  * 物理隔离的答案,门禁不能默许。
  *
  * @param exampleDir `examples/patent-oas` 的绝对路径。
@@ -337,16 +425,20 @@ export async function loadGold(exampleDir: string): Promise<GoldCase[]> {
   if (caseIds.length === 0) throw new Error(`${casesDir}: 没有任何 case 目录`)
   const cases: GoldCase[] = []
   for (const caseId of caseIds) {
-    const files = (await readdir(join(casesDir, caseId), { withFileTypes: true }))
-      .map(entry => entry.name)
-      .sort()
-    if (files.join(',') !== 'rubric,statement') {
-      throw new Error(`cases/${caseId}: 目录必须恰好含 statement 与 rubric,实际为 [${files.join(', ')}]`)
+    const caseDir = join(casesDir, caseId)
+    const caseEntries = await readdir(caseDir, { withFileTypes: true })
+    const files = caseEntries.filter(entry => entry.isFile()).map(entry => entry.name).sort()
+    const dirs = caseEntries.filter(entry => entry.isDirectory()).map(entry => entry.name).sort()
+    if (files.join(',') !== 'rubric,statement' || dirs.some(name => name !== 'rounds')) {
+      const listing = [...files, ...dirs.map(name => `${name}/`)].sort().join(', ')
+      throw new Error(`cases/${caseId}: 目录必须含 statement、rubric,至多一个 rounds 子目录,实际为 [${listing}]`)
     }
+    const rounds = dirs.includes('rounds') ? await loadGoldRounds(join(caseDir, 'rounds'), caseId) : undefined
     cases.push({
       caseId,
-      statement: await readFile(join(casesDir, caseId, 'statement'), 'utf8'),
-      rubric: await readFile(join(casesDir, caseId, 'rubric'), 'utf8'),
+      statement: await readFile(join(caseDir, 'statement'), 'utf8'),
+      rubric: await readFile(join(caseDir, 'rubric'), 'utf8'),
+      ...rounds === undefined ? {} : { rounds },
     })
   }
   return cases
@@ -448,6 +540,49 @@ export async function loadGateConfig(path: string): Promise<GateConfig> {
 }
 
 /**
+ * 读取并校验多轮 case 的逐轮观测。
+ *
+ * 结构校验只保证字段可读;轮次数、摘要形式与终局一致性由
+ * {@link validateRunRecord} 结合金标判定。
+ *
+ * @param value 原始 `rounds` 字段。
+ * @param where 诊断位置。
+ * @returns 逐轮观测。
+ */
+function loadRunRounds(value: unknown, where: string): RunRound[] {
+  if (!Array.isArray(value)) throw new Error(`${where}: 必须是数组`)
+  return value.map((rawRound, roundIndex) => {
+    const roundWhere = `${where}[${roundIndex}]`
+    if (!isRecord(rawRound)) throw new Error(`${roundWhere}: 必须是对象`)
+    const rawDimensions = rawRound.dimensions
+    if (!Array.isArray(rawDimensions)) throw new Error(`${roundWhere}: dimensions 必须是数组`)
+    const dimensions: RunRoundDimension[] = rawDimensions.map((rawDimension, dimensionIndex) => {
+      const dimensionWhere = `${roundWhere}.dimensions[${dimensionIndex}]`
+      if (!isRecord(rawDimension)) throw new Error(`${dimensionWhere}: 必须是对象`)
+      const scores = optionalNumberArray(rawDimension, 'scores', dimensionWhere)
+      return {
+        index: requireNumber(rawDimension, 'index', dimensionWhere),
+        score: requireNumber(rawDimension, 'score', dimensionWhere),
+        ...scores === undefined ? {} : { scores },
+      }
+    })
+    const rawDigests = rawRound.deliverableDigests
+    if (!Array.isArray(rawDigests)) throw new Error(`${roundWhere}: deliverableDigests 必须是数组`)
+    const deliverableDigests = rawDigests.map((digest, digestIndex) => {
+      if (typeof digest !== 'string') throw new Error(`${roundWhere}.deliverableDigests[${digestIndex}]: 必须是字符串`)
+      return digest
+    })
+    const statementDigest = optionalString(rawRound, 'statementDigest', roundWhere)
+    return {
+      round: requireNumber(rawRound, 'round', roundWhere),
+      ...statementDigest === undefined ? {} : { statementDigest },
+      dimensions,
+      deliverableDigests,
+    }
+  })
+}
+
+/**
  * 读取并校验一次 run 记录(基线或实测)的结构。
  *
  * @param path JSON 文件路径。
@@ -476,7 +611,8 @@ export async function loadRunRecord(path: string): Promise<RunRecord> {
         ...scores === undefined ? {} : { scores },
       }
     })
-    return { caseId, dimensions }
+    const rounds = rawCase.rounds === undefined ? undefined : loadRunRounds(rawCase.rounds, `${where}.rounds`)
+    return { caseId, dimensions, ...rounds === undefined ? {} : { rounds } }
   })
   const record: RunRecord = {
     benchmarkId: requireString(parsed, 'benchmarkId', path),
@@ -635,6 +771,100 @@ export function findCycles(space: ProblemSpace): string[] {
 }
 
 /**
+ * 校验多轮 case 的逐轮观测与终局维度的关系。
+ *
+ * 多轮记录必须带逐轮观测,单轮记录不得带:两种口径的分数不能直接比较,静默混用会
+ * 让门禁把「多轮终局分」与「单轮分」当成同一基线。
+ *
+ * @param runCase run 记录里的 case。
+ * @param goldCase 对应金标。
+ * @param dimensions 金标 rubric 维度。
+ * @param runsPerCase 每个 case 的运行次数。
+ * @param label 诊断标签。
+ * @returns 一条问题一条消息。
+ */
+function validateRunRounds(
+  runCase: RunCase,
+  goldCase: GoldCase,
+  dimensions: readonly RubricDimension[],
+  runsPerCase: number,
+  label: string,
+): string[] {
+  const problems: string[] = []
+  const expectedRounds = 1 + (goldCase.rounds?.length ?? 0)
+  if (goldCase.rounds !== undefined && runCase.rounds === undefined) {
+    return [`${label}: case "${runCase.caseId}" 是多轮 case,记录缺少逐轮观测`]
+  }
+  if (goldCase.rounds === undefined && runCase.rounds !== undefined) {
+    return [`${label}: case "${runCase.caseId}" 是单轮 case,记录不应带逐轮观测`]
+  }
+  if (runCase.rounds === undefined) return problems
+  const rounds = runCase.rounds
+  if (rounds.length !== expectedRounds) {
+    problems.push(`${label}: case "${runCase.caseId}" 有 ${rounds.length} 轮观测,应为 ${expectedRounds} 轮`)
+  }
+  const terminal = new Map(runCase.dimensions.map(dimension => [dimension.index, dimension]))
+  for (const [offset, round] of rounds.entries()) {
+    const expected = offset + 1
+    const where = `${label}: case "${runCase.caseId}" 第 ${expected} 轮`
+    if (round.round !== expected) problems.push(`${where}记录的轮次为 ${round.round},应为 ${expected}`)
+    if (offset === 0 && round.statementDigest !== undefined) {
+      problems.push(`${where}是首轮,不应带 statementDigest`)
+    }
+    if (offset > 0 && round.statementDigest === undefined) problems.push(`${where}缺少 statementDigest`)
+    if (round.statementDigest !== undefined && !DIGEST_PATTERN.test(round.statementDigest)) {
+      problems.push(`${where}的 statementDigest 不是 sha256:<hex>`)
+    }
+    if (round.deliverableDigests.length !== runsPerCase) {
+      problems.push(`${where}有 ${round.deliverableDigests.length} 个交付物摘要,应为 ${runsPerCase}`)
+    }
+    for (const [index, digest] of round.deliverableDigests.entries()) {
+      if (!DIGEST_PATTERN.test(digest)) problems.push(`${where}第 ${index + 1} 次运行的交付物摘要不是 sha256:<hex>`)
+    }
+    const observed = new Set<number>()
+    for (const dimension of round.dimensions) {
+      if (observed.has(dimension.index)) problems.push(`${where}重复观测维度 ${dimension.index}`)
+      observed.add(dimension.index)
+      if (!dimensions.some(candidate => candidate.index === dimension.index)) {
+        problems.push(`${where}观测了 rubric 中不存在的维度 ${dimension.index}`)
+        continue
+      }
+      if (dimension.score < 0 || dimension.score > 100) {
+        problems.push(`${where}维度 ${dimension.index} 分数 ${dimension.score} 超出 0–100`)
+      }
+      if (dimension.scores === undefined) {
+        if (runsPerCase > 1) problems.push(`${where}维度 ${dimension.index} 缺少逐次分数`)
+      } else {
+        if (dimension.scores.length !== runsPerCase) {
+          problems.push(`${where}维度 ${dimension.index} 有 ${dimension.scores.length} 个逐次分数,应为 ${runsPerCase}`)
+        }
+        for (const [sampleIndex, sample] of dimension.scores.entries()) {
+          if (sample < 0 || sample > 100) {
+            problems.push(`${where}维度 ${dimension.index} 第 ${sampleIndex + 1} 次分数 ${sample} 超出 0–100`)
+          }
+        }
+        if (dimension.scores.length > 0
+          && Math.abs(roundScore(mean(dimension.scores)) - dimension.score) > 0.01) {
+          problems.push(`${where}维度 ${dimension.index} 的 score 与逐次分数均值不一致`)
+        }
+      }
+      if (offset === rounds.length - 1) {
+        const terminalDimension = terminal.get(dimension.index)
+        if (terminalDimension === undefined) {
+          problems.push(`${where}的终局维度 ${dimension.index} 在 case 观测中缺失`)
+        } else if (Math.abs(terminalDimension.score - dimension.score) > 0.01) {
+          problems.push(`${where}维度 ${dimension.index} 分数 ${dimension.score} 与终局分数 ${terminalDimension.score} 不一致`)
+        }
+      }
+    }
+    for (const dimension of dimensions) {
+      if (!observed.has(dimension.index)) problems.push(`${where}缺少维度 ${dimension.index} 的观测`)
+    }
+  }
+  return problems
+}
+
+/**
  * 校验一次 run 记录的维度观测是否与该金标一致。
  *
  * @param run run 记录。
@@ -720,6 +950,7 @@ export function validateRunRecord(
     for (const dimension of dimensions) {
       if (!observed.has(dimension.index)) problems.push(`${label}: case "${runCase.caseId}" 缺少维度 ${dimension.index} 的观测`)
     }
+    problems.push(...validateRunRounds(runCase, goldCase, dimensions, run.runsPerCase, label))
   }
   for (const goldCase of gold) {
     if (!seen.has(goldCase.caseId)) problems.push(`${label}: 缺少 case "${goldCase.caseId}" 的观测`)
@@ -869,6 +1100,37 @@ export function scoreSpread(values: readonly number[]): ScoreSpread | undefined 
 }
 
 /**
+ * 由逐轮观测算出每个 case 在每一轮的总分。
+ *
+ * 只对带逐轮观测的多轮记录返回;单轮记录返回空表,因此调用方不能把单轮分数当成
+ * 「只有一轮的收敛曲线」。总分按终局维度的满分加权,与 {@link caseScores} 同定义。
+ *
+ * @param run run 记录。
+ * @returns case id → 按轮次排列的总分;单轮记录返回空表。
+ */
+export function caseRoundScores(run: RunRecord): Map<string, RoundOutcome[]> {
+  const scores = new Map<string, RoundOutcome[]>()
+  for (const runCase of run.cases) {
+    if (runCase.rounds === undefined || runCase.rounds.length < 2) continue
+    const points = new Map(runCase.dimensions.map(dimension => [dimension.index, dimension.points]))
+    const total = [...points.values()].reduce((sum, value) => sum + value, 0)
+    scores.set(runCase.caseId, runCase.rounds.map(round => ({
+      round: round.round,
+      score: total === 0
+        ? 0
+        : round.dimensions.reduce((sum, dimension) => {
+          const weight = points.get(dimension.index)
+          if (weight === undefined) {
+            throw new Error(`case "${runCase.caseId}" 的轮次观测含终局维度之外的 index ${String(dimension.index)}`)
+          }
+          return sum + dimension.score * weight
+        }, 0) / total,
+    })))
+  }
+  return scores
+}
+
+/**
  * 遍历一次 run 中每个问题空间节点的观测。
  *
  * 未知 case 与未知维度直接跳过:问题空间校验已在加载时拒绝这类结构,这里的跳过只是
@@ -1000,14 +1262,17 @@ export function evaluateRun(
   const caseList = caseScores(run)
   const baselineCaseList = baseline === undefined ? undefined : caseScores(baseline)
   const caseScoresPerRun = caseScoresByRun(run)
+  const caseRounds = caseRoundScores(run)
   const cases: CaseOutcome[] = caseList.map((entry) => {
     const baselineScore = baselineCaseList?.find(candidate => candidate.caseId === entry.caseId)?.score
     const spread = scoreSpread(caseScoresPerRun.get(entry.caseId) ?? [])
+    const rounds = caseRounds.get(entry.caseId)
     return {
       id: entry.caseId,
       score: entry.score,
       ...baselineScore === undefined ? {} : { baselineScore, delta: entry.score - baselineScore },
       ...spread === undefined ? {} : { spread },
+      ...rounds === undefined ? {} : { rounds },
       verdict: judge(entry.score, baselineScore, config.thresholds.case),
     }
   })
@@ -1049,7 +1314,9 @@ export function formatVerdict(verdict: GateVerdict): string {
   const lines: string[] = []
   const baseline = verdict.aggregateBaselineScore === undefined ? '' : `基线 ${verdict.aggregateBaselineScore.toFixed(2)}, `
   lines.push(`聚合:${verdict.aggregateScore.toFixed(2)}(${baseline}判定 ${verdict.aggregateVerdict})`)
-  for (const entry of verdict.cases) lines.push(`[${entry.verdict}] case ${describeOutcome(entry)}${describeSpread(entry.spread)}`)
+  for (const entry of verdict.cases) {
+    lines.push(`[${entry.verdict}] case ${describeOutcome(entry)}${describeRounds(entry.rounds)}${describeSpread(entry.spread)}`)
+  }
   for (const node of verdict.nodes) lines.push(`[${node.verdict}] ${node.id} ${describeOutcome(node)}${describeSpread(node.spread)}`)
   return lines.join('\n')
 }
@@ -1063,4 +1330,9 @@ function describeOutcome(outcome: UnitOutcome): string {
 /** 渲染逐次运行的极差与标准差。 */
 function describeSpread(spread: ScoreSpread | undefined): string {
   return spread === undefined ? '' : `;逐次 ${spread.min.toFixed(1)}–${spread.max.toFixed(1)} σ${spread.stdev.toFixed(2)}`
+}
+
+/** 渲染逐轮总分;单轮记录没有逐轮观测。 */
+function describeRounds(rounds: RoundOutcome[] | undefined): string {
+  return rounds === undefined ? '' : `;逐轮 ${rounds.map(entry => `R${entry.round} ${entry.score.toFixed(1)}`).join(' → ')}`
 }

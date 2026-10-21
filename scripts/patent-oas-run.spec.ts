@@ -15,19 +15,24 @@ import {
   PATENT_OAS_EXAMPLE_DIR,
   PROBLEM_SPACE_FILE,
   caseScores,
+  caseRoundScores,
   evaluateRun,
+  formatVerdict,
   loadGateConfig,
   loadGold,
   loadProblemSpace,
   loadRunRecord,
   parseRubricDimensions,
+  textDigest,
   validateRunRecord,
   verdictPassed,
+  type GoldCase,
 } from './patent-oas-gate-core.ts'
 import {
   AGENT_LOG_FILENAME,
   DELIVERABLE_FILENAME,
   MAX_DELIVERABLE_BYTES,
+  PREVIOUS_DELIVERABLE_FILENAME,
   SCORE_FILENAME,
   agentArgv,
   collectRunRecord,
@@ -79,6 +84,8 @@ interface StubOptions {
   scoreFor?: (label: string, call: number) => number
   /** 交付物正文;缺省为一句可辨识的占位文本。 */
   deliverable?: string
+  /** 按调用决定交付物正文;给出时优先于 {@link deliverable}。 */
+  deliverableFor?: (label: string, call: number) => string
   /** 不写出交付物,用来验证「agent 没产出产物」的失败路径。 */
   omitDeliverable?: boolean
   /** 不写出分数文件。 */
@@ -104,7 +111,10 @@ function stubAgents(options: StubOptions = {}): { runAgents: RunAgents; calls: A
       return usage
     }
     if (options.omitDeliverable === true) return usage
-    writeFileSync(join(invocation.cwd, DELIVERABLE_FILENAME), options.deliverable ?? '交付物正文', 'utf8')
+    const deliverable = options.deliverableFor?.(invocation.label, calls.length)
+      ?? options.deliverable
+      ?? '交付物正文'
+    writeFileSync(join(invocation.cwd, DELIVERABLE_FILENAME), deliverable, 'utf8')
     return usage
   }
   return { runAgents, calls }
@@ -115,23 +125,27 @@ async function collect(options: {
   caseIds?: string[]
   runsPerCase?: number
   pricing?: RunPricing
+  /** 用这份金标替换仓库金标;缺省读真实 example。 */
+  gold?: readonly GoldCase[]
 } & StubOptions): Promise<{
   record: Awaited<ReturnType<typeof collectRunRecord>>
   calls: AgentInvocation[]
+  workDir: string
 }> {
   const { runAgents, calls } = stubAgents(options)
+  const workDir = scratch('work')
   const record = await collectRunRecord({
     space,
-    gold,
+    gold: options.gold ?? gold,
     agentStateDir: join(exampleDir, 'patent-state'),
-    workDir: scratch('work'),
+    workDir,
     runAgents,
     ...options.caseIds === undefined ? {} : { caseIds: options.caseIds },
     ...options.runsPerCase === undefined ? {} : { runsPerCase: options.runsPerCase },
     ...options.pricing === undefined ? {} : { pricing: options.pricing },
     recordedAt: '2026-09-26T00:00:00.000Z',
   })
-  return { record, calls }
+  return { record, calls, workDir }
 }
 
 describe('真实启动器参数', () => {
@@ -499,6 +513,83 @@ describe('编排', () => {
 
   it('未知 case 在花掉模型调用之前失败', async () => {
     await expect(collect({ caseIds: ['no-such-case'] })).rejects.toThrow('不在金标中')
+  })
+})
+
+/** 给 oa-answer 装上第 2 轮脚本化审查意见,其余 case 保持单轮。 */
+function multiroundGold(): GoldCase[] {
+  return gold.map<GoldCase>(entry => entry.caseId === 'oa-answer'
+    ? {
+      ...entry,
+      rounds: [{ round: 2, statement: '审查员认为修改后的权利要求 1 仍未克服创造性缺陷,请进一步陈述。' }],
+    }
+    : entry)
+}
+
+describe('多轮编排', () => {
+  it('计划把轮次计入调用总数', () => {
+    const plan = planRun({ space, gold: multiroundGold() })
+    expect(plan.cases.find(entry => entry.caseId === 'oa-answer')?.rounds).toBe(2)
+    expect(plan.calls).toBe(32)
+  })
+
+  it('两轮各自执行与评分,终局取第 2 轮并记录权项版本', async () => {
+    const { record, calls, workDir } = await collect({
+      gold: multiroundGold(),
+      scoreFor: label => label.includes('oa-answer') && label.includes('第 1 轮') ? 60 : 90,
+      deliverableFor: label => label.includes('oa-answer') && label.includes('第 1 轮') ? '第 1 轮答复' : '第 2 轮答复',
+    })
+    expect(calls.length).toBe(32)
+    const runCase = record.cases.find(entry => entry.caseId === 'oa-answer')
+    expect(runCase).toBeDefined()
+    if (runCase === undefined) return
+    expect(runCase.rounds?.map(round => round.round)).toEqual([1, 2])
+    expect(runCase.rounds?.[0]?.dimensions.every(dimension => dimension.score === 60)).toBe(true)
+    expect(runCase.rounds?.[1]?.dimensions.every(dimension => dimension.score === 90)).toBe(true)
+    expect(runCase.dimensions.every(dimension => dimension.score === 90)).toBe(true)
+    expect(runCase.rounds?.[0]?.statementDigest).toBeUndefined()
+    expect(runCase.rounds?.[1]?.statementDigest).toMatch(/^sha256:[0-9a-f]{64}$/)
+    expect(runCase.rounds?.[0]?.deliverableDigests).toEqual([textDigest('第 1 轮答复')])
+    expect(runCase.rounds?.[1]?.deliverableDigests).toEqual([textDigest('第 2 轮答复')])
+    expect(validateRunRecord(record, space, multiroundGold(), 'collected')).toEqual([])
+
+    const executors = calls.filter(call => call.label.includes('oa-answer') && call.label.includes('执行者'))
+    expect(executors.length).toBe(2)
+    expect(first(executors).prompt).not.toContain(PREVIOUS_DELIVERABLE_FILENAME)
+    expect(executors[1]?.prompt).toContain(PREVIOUS_DELIVERABLE_FILENAME)
+    expect(executors[1]?.prompt).toContain('【再审查意见】')
+    expect(readFileSync(
+      join(workDir, 'oa-answer', 'run-1', 'round-2', 'agent-state', PREVIOUS_DELIVERABLE_FILENAME),
+      'utf8',
+    )).toBe('第 1 轮答复')
+  })
+
+  it('多轮记录保留逐轮逐次分数', async () => {
+    const { record } = await collect({
+      gold: multiroundGold(),
+      runsPerCase: 2,
+      scoreFor: (label, call) => {
+        if (!label.includes('oa-answer')) return 90
+        return label.includes('第 1 轮') ? 50 + call % 2 * 10 : 80 + call % 2 * 10
+      },
+    })
+    const runCase = record.cases.find(entry => entry.caseId === 'oa-answer')
+    expect(runCase?.rounds?.every(round => round.dimensions.every(d => d.scores?.length === 2))).toBe(true)
+    expect(runCase?.dimensions.every(d => d.scores?.length === 2)).toBe(true)
+    expect(validateRunRecord(record, space, multiroundGold(), 'collected')).toEqual([])
+  })
+
+  it('门禁报告逐轮总分,只用终局分判定', async () => {
+    const { record } = await collect({
+      gold: multiroundGold(),
+      scoreFor: label => label.includes('oa-answer') && label.includes('第 1 轮') ? 60 : 90,
+    })
+    expect(caseRoundScores(record).get('oa-answer')?.map(entry => entry.score)).toEqual([60, 90])
+    const verdict = evaluateRun(space, config, record, undefined)
+    const outcome = verdict.cases.find(entry => entry.id === 'oa-answer')
+    expect(outcome?.score).toBe(90)
+    expect(outcome?.rounds?.map(entry => entry.score)).toEqual([60, 90])
+    expect(formatVerdict(verdict)).toContain('逐轮 R1 60.0 → R2 90.0')
   })
 })
 

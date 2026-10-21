@@ -6,9 +6,9 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   GATE_FILE,
@@ -24,12 +24,14 @@ import {
   loadGateConfig,
   loadGold,
   loadProblemSpace,
+  loadRunRecord,
   mean,
   nodeScores,
   nodeScoresByRun,
   parseRubricDimensions,
   roundScore,
   scoreSpread,
+  textDigest,
   validateGateConfig,
   validateProblemSpace,
   validateRunRecord,
@@ -114,6 +116,53 @@ function recordWithScores(scores: readonly number[]): RunRecord {
     for (const dimension of runCase.dimensions) dimension.scores = [...scores]
   }
   return record
+}
+
+/** 第 2 轮脚本化审查意见。 */
+const SECOND_ROUND_STATEMENT = '审查员认为修改后的权利要求 1 仍未克服创造性缺陷,请进一步陈述。'
+
+/** 模拟多轮金标:仅 oa-answer 带第 2 轮审查意见。 */
+function multiroundGold(): GoldCase[] {
+  return gold.map(entry => entry.caseId === 'oa-answer'
+    ? { ...entry, rounds: [{ round: 2, statement: SECOND_ROUND_STATEMENT }] }
+    : entry)
+}
+
+/** 为 oa-answer 补两轮观测;终局维度沿用记录里的分数(即第 2 轮)。 */
+function withRounds(record: RunRecord, firstRound: number): RunRecord {
+  const target = record.cases.find(entry => entry.caseId === 'oa-answer')
+  if (target === undefined) throw new Error('fixture: 缺少 oa-answer')
+  target.rounds = [1, 2].map(round => ({
+    round,
+    ...round === 1 ? {} : { statementDigest: textDigest(SECOND_ROUND_STATEMENT) },
+    dimensions: target.dimensions.map(dimension => ({
+      index: dimension.index,
+      score: round === 1 ? firstRound : dimension.score,
+    })),
+    deliverableDigests: [textDigest(`round-${round}`)],
+  }))
+  return record
+}
+
+/** 在临时目录造一个只含指定 case 的金标树,返回根目录。 */
+function writeGoldTree(caseId: string, files: Record<string, string>): string {
+  const dir = mkdtempSync(join(tmpdir(), 'patent-oas-gold-'))
+  scratchDirs.push(dir)
+  const caseDir = join(dir, 'cases', caseId)
+  mkdirSync(caseDir, { recursive: true })
+  for (const [relative, content] of Object.entries(files)) {
+    const path = join(caseDir, relative)
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, content, 'utf8')
+  }
+  return dir
+}
+
+/** 取 oa-answer 的两轮观测;没有即测试装置出错。 */
+function roundsOf(record: RunRecord): NonNullable<RunRecord['cases'][number]['rounds']> {
+  const target = record.cases.find(entry => entry.caseId === 'oa-answer')
+  if (target?.rounds === undefined) throw new Error('fixture: 缺少 oa-answer 的逐轮观测')
+  return target.rounds
 }
 
 /** 深拷贝问题空间,供负例改坏后再校验。 */
@@ -212,6 +261,72 @@ describe('金标摘要', () => {
     expect(goldDigest(changedRubric)).not.toBe(digest)
     expect(goldDigest([...gold].reverse())).toBe(digest)
   })
+
+  it('新增后续轮次会改变摘要,单轮 case 的摘要不受影响', () => {
+    const digest = goldDigest(gold)
+    const multi = goldDigest(multiroundGold())
+    expect(multi).not.toBe(digest)
+    const single = gold.filter(entry => entry.caseId !== 'oa-answer')
+    const singleMulti = multiroundGold().filter(entry => entry.caseId !== 'oa-answer')
+    expect(goldDigest(singleMulti)).toBe(goldDigest(single))
+  })
+})
+
+describe('多轮金标布局', () => {
+  it('读取 rounds/02/statement 作为第 2 轮审查意见', async () => {
+    const dir = writeGoldTree('multi', {
+      statement: '第 1 轮任务',
+      rubric: first(gold).rubric,
+      'rounds/02/statement': SECOND_ROUND_STATEMENT,
+    })
+    const cases = await loadGold(dir)
+    expect(cases).toHaveLength(1)
+    expect(first(cases).rounds).toEqual([{ round: 2, statement: SECOND_ROUND_STATEMENT }])
+  })
+
+  it('轮次目录不是 02 即拒绝', async () => {
+    const dir = writeGoldTree('multi', {
+      statement: '第 1 轮任务',
+      rubric: first(gold).rubric,
+      'rounds/03/statement': '第 3 轮审查意见',
+    })
+    await expect(loadGold(dir)).rejects.toThrow('只允许 rounds/02')
+  })
+
+  it('rounds 下夹带文件即拒绝', async () => {
+    const dir = writeGoldTree('multi', {
+      statement: '第 1 轮任务',
+      rubric: first(gold).rubric,
+      'rounds/README.md': '草稿',
+      'rounds/02/statement': SECOND_ROUND_STATEMENT,
+    })
+    await expect(loadGold(dir)).rejects.toThrow('只能包含轮次目录')
+  })
+
+  it('第 2 轮目录缺少 statement 或夹带其它内容即拒绝', async () => {
+    const missing = writeGoldTree('multi', {
+      statement: '第 1 轮任务',
+      rubric: first(gold).rubric,
+      'rounds/02/rubric': '多余',
+    })
+    await expect(loadGold(missing)).rejects.toThrow('目录必须恰好含 statement')
+    const stray = writeGoldTree('multi', {
+      statement: '第 1 轮任务',
+      rubric: first(gold).rubric,
+      'rounds/02/statement': SECOND_ROUND_STATEMENT,
+      'rounds/02/notes.md': '多余',
+    })
+    await expect(loadGold(stray)).rejects.toThrow('目录必须恰好含 statement')
+  })
+
+  it('第 2 轮审查意见为空即拒绝', async () => {
+    const dir = writeGoldTree('multi', {
+      statement: '第 1 轮任务',
+      rubric: first(gold).rubric,
+      'rounds/02/statement': '  \n',
+    })
+    await expect(loadGold(dir)).rejects.toThrow('不得为空')
+  })
 })
 
 describe('门槛策略', () => {
@@ -304,6 +419,91 @@ describe('run 记录校验', () => {
     const record = recordWithScores([70, 80])
     first(first(record.cases).dimensions).score = 90
     expect(validateRunRecord(record, space, gold, 'run.json').join('\n')).toContain('与逐次分数均值 75 不一致')
+  })
+})
+
+describe('多轮记录校验', () => {
+  const multi = multiroundGold()
+
+  it('两轮观测且终局与第 2 轮一致即通过', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    expect(validateRunRecord(record, space, multi, 'run.json')).toEqual([])
+  })
+
+  it('多轮 case 缺少逐轮观测即失败', () => {
+    const record = recordFrom(multi, () => 90)
+    expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('是多轮 case,记录缺少逐轮观测')
+  })
+
+  it('单轮 case 带逐轮观测即失败', () => {
+    const record = recordFrom(gold, () => 90)
+    const target = first(record.cases)
+    target.rounds = [{
+      round: 1,
+      dimensions: target.dimensions.map(dimension => ({ index: dimension.index, score: 90 })),
+      deliverableDigests: [textDigest('round-1')],
+    }]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n')).toContain('是单轮 case,记录不应带逐轮观测')
+  })
+
+  it('轮次数与金标不符即失败', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    roundsOf(record).splice(1)
+    expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('有 1 轮观测,应为 2 轮')
+  })
+
+  it('终局维度分数与第 2 轮不一致即失败', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    const second = roundsOf(record)[1]
+    if (second === undefined) throw new Error('fixture: 缺少第 2 轮')
+    first(second.dimensions).score = 70
+    expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('与终局分数 90 不一致')
+  })
+
+  it('审查意见摘要格式非法即失败', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    const second = roundsOf(record)[1]
+    if (second === undefined) throw new Error('fixture: 缺少第 2 轮')
+    second.statementDigest = 'not-a-digest'
+    expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('不是 sha256:<hex>')
+  })
+
+  it('首轮带摘要或第 2 轮缺摘要即失败', () => {
+    const withDigest = withRounds(recordFrom(multi, () => 90), 60)
+    const firstRound = roundsOf(withDigest)[0]
+    if (firstRound === undefined) throw new Error('fixture: 缺少第 1 轮')
+    firstRound.statementDigest = textDigest('x')
+    expect(validateRunRecord(withDigest, space, multi, 'run.json').join('\n')).toContain('是首轮,不应带 statementDigest')
+
+    const missing = withRounds(recordFrom(multi, () => 90), 60)
+    const second = roundsOf(missing)[1]
+    if (second === undefined) throw new Error('fixture: 缺少第 2 轮')
+    delete second.statementDigest
+    expect(validateRunRecord(missing, space, multi, 'run.json').join('\n')).toContain('缺少 statementDigest')
+  })
+
+  it('交付物摘要个数与 runsPerCase 不符即失败', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    const firstRound = roundsOf(record)[0]
+    if (firstRound === undefined) throw new Error('fixture: 缺少第 1 轮')
+    firstRound.deliverableDigests = []
+    expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('有 0 个交付物摘要,应为 1')
+  })
+
+  it('从 JSON 读回时保留逐轮观测', async () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    const loaded = await loadRunRecord(writeRecord(record))
+    expect(roundsOf(loaded)).toEqual(roundsOf(record))
+    expect(validateRunRecord(loaded, space, multi, 'run.json')).toEqual([])
+  })
+
+  it('报告渲染逐轮总分,门禁仍按终局判定', () => {
+    const record = withRounds(recordFrom(multi, () => 90), 60)
+    const verdict = evaluateRun(space, config, record, undefined)
+    const outcome = first(verdict.cases.filter(entry => entry.id === 'oa-answer'))
+    expect(outcome.rounds?.map(entry => entry.score)).toEqual([60, 90])
+    expect(outcome.score).toBeCloseTo(90, 10)
+    expect(formatVerdict(verdict)).toContain('逐轮 R1 60.0 → R2 90.0')
   })
 })
 

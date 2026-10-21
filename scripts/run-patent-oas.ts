@@ -65,9 +65,12 @@ async function main(args: string[]): Promise<number> {
     ...(options.caseIds.length === 0 ? {} : { caseIds: options.caseIds }),
     runsPerCase: options.runs,
   })
-  const perCase = plan.cases.map(entry => `${entry.caseId}:${entry.dimensions}`).join(' ')
+  const perCase = plan.cases
+    .map(entry => `${entry.caseId}:${entry.dimensions}${entry.rounds > 1 ? `×${entry.rounds}轮` : ''}`)
+    .join(' ')
+  const rounds = plan.cases.reduce((sum, entry) => sum + entry.rounds, 0)
   console.log(
-    `run-patent-oas: 计划 ${plan.cases.length} case × ${plan.runsPerCase} 次 = ${plan.calls} 次 agent 调用(${perCase});profile=${options.profile}`,
+    `run-patent-oas: 计划 ${plan.cases.length} case × ${plan.runsPerCase} 次运行,共 ${rounds} 轮 = ${plan.calls} 次 agent 调用(${perCase});profile=${options.profile}`,
   )
   if (options.dryRun) {
     console.log(`run-patent-oas: --dry-run 只打印计划,未做任何模型调用;产物会落在 ${options.workDir},记录写出到 ${options.outPath}`)
