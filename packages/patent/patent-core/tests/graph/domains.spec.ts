@@ -1,6 +1,11 @@
 import { expect, it } from 'vitest'
 import {
+  DEGRADATION_SUFFIX,
+  DEGRADED_ERROR_KEY,
+  DEGRADED_RETRYABLE_KEY,
   DOMAIN_GRAPHS,
+  GRAPH_END,
+  GraphBuilder,
   StageHandlerRegistry,
   buildCitationCheckGraph,
   buildEnablementGraph,
@@ -15,6 +20,7 @@ import {
   extractInventivenessResult,
   extractNumericRanges,
   globalStageHandlerRegistry,
+  handlerNode,
   isDegraded,
   registerBuiltinAtoms,
   type RuleEvaluator,
@@ -662,6 +668,36 @@ it('numeric_range: 确定性与语义轨两条结论都进结论节点的提示�
   expect(report).toContain('【数值范围确定性核验】')
   expect(report).toContain('破坏性数值重叠')
   expect(report).toContain('【数值范围专项判定】')
+})
+
+it('handlerNode: handler 返回 _error → 节点级降级标记对图结果可见', async () => {
+  const handler: StageHandler = {
+    name: 'degraded',
+    category: 'extract',
+    execute: async () => ({
+      partial: '部分结果',
+      [DEGRADED_ERROR_KEY]: '[degraded] 缺少输入',
+      [DEGRADED_RETRYABLE_KEY]: true,
+    }),
+  }
+  const node = handlerNode(handler)
+  const graph = new GraphBuilder()
+  graph.addNode('node', node).addEdge('node', GRAPH_END)
+  const result = await graph.compile('node').run({})
+  expect(result.completed).toBe(true)
+  expect(result.state.partial).toBe('部分结果')
+  expect(result.state[DEGRADED_ERROR_KEY]).toBeUndefined()
+  expect(result.state[DEGRADED_RETRYABLE_KEY]).toBeUndefined()
+  expect(result.state[`node${DEGRADATION_SUFFIX}`]).toEqual({
+    reason: 'node_failed',
+    message: '[degraded] 缺少输入（可重试）',
+    severity: 'critical',
+  })
+  expect(result.degraded).toHaveLength(1)
+
+  // 直接调用节点时引擎不注入 nodeName，标记回退到 handler.name。
+  const direct = await node({ state: {} })
+  expect(direct[`degraded${DEGRADATION_SUFFIX}`]).toMatchObject({ reason: 'node_failed' })
 })
 
 it('numeric_range: 无对比文件数值表述时结论为无法判定', async () => {

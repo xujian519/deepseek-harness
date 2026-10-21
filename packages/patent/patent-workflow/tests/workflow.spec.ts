@@ -45,6 +45,9 @@ describe('runWorkflow — fail-fast and cancellation', () => {
     await expect(
       runWorkflow(manifest('unknown-atom', [stage('a', { atom: 'no-such-atom' })]), { input: 'x' }, okExecutor),
     ).rejects.toThrow(/未知 atom/)
+    await expect(
+      runWorkflow(manifest('unknown-atom', [stage('a', { atom: 'no-such-atom' })]), { input: 'x' }, okExecutor),
+    ).rejects.toThrow(/请确认已加载提供该原子的插件/)
   })
 })
 

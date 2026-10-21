@@ -3,9 +3,13 @@ import {
   APPROVAL_GRANTED_KEY,
   APPROVAL_GRANTED_NODES_KEY,
   ApprovalGateHandler,
+  AtomRegistry,
+  DEGRADED_ERROR_KEY,
+  DEGRADED_RETRYABLE_KEY,
   GraphBuilder,
   InMemoryCheckpointStore,
   InterruptStageError,
+  StageHandlerRegistry,
   globalAtomRegistry,
   globalStageHandlerRegistry,
   grantApproval,
@@ -140,6 +144,40 @@ it('manifestToGraph: 简单线性 manifest 输出各阶段结果', async () => {
   for (const stage of manifest.stages) {
     expect(gr.state[stage.id]).toBe(await okExecutor(stage, ctx))
   }
+})
+
+it('manifestToGraph: handler 返回 _error → 节点级降级标记且不泄漏内部键', async () => {
+  const handlers = new StageHandlerRegistry()
+  const atoms = new AtomRegistry()
+  handlers.register({
+    name: 'degraded-atom',
+    category: 'extract',
+    execute: async () => ({
+      result: '部分结果',
+      [DEGRADED_ERROR_KEY]: '[degraded-atom] 缺少输入',
+      [DEGRADED_RETRYABLE_KEY]: true,
+    }),
+  })
+  atoms.register({
+    name: 'degraded-atom',
+    description: '降级语义',
+    category: 'extract',
+    inputSchema: [],
+    outputSchema: ['result'],
+  })
+  const manifest: WorkflowManifest = {
+    id: 'degraded_node',
+    name: '降级节点',
+    caseType: 'test',
+    stages: [{ id: 's1', strategy: 'chain', description: '降级', atom: 'degraded-atom' }],
+  }
+  const gr = await manifestToGraph(manifest, { handlers, atoms }).run({})
+  expect(gr.state.s1).toBe('部分结果')
+  expect(gr.state[DEGRADED_ERROR_KEY]).toBeUndefined()
+  expect(gr.state[DEGRADED_RETRYABLE_KEY]).toBeUndefined()
+  expect(gr.degraded).toEqual([
+    { reason: 'node_failed', message: '[degraded-atom] 缺少输入（可重试）', severity: 'critical' },
+  ])
 })
 
 it('manifestToGraph: executor 收到累积执行态（consumes 声明的上游产出可读）', async () => {
@@ -342,4 +380,5 @@ it('manifestToGraph: 未知 atom fail-fast', () => {
     stages: [{ id: 's1', strategy: 'chain', description: '一', atom: 'no-such-atom' }],
   }
   expect(() => manifestToGraph(manifest)).toThrow(/未知 atom/)
+  expect(() => manifestToGraph(manifest)).toThrow(/请确认已加载提供该原子的插件/)
 })

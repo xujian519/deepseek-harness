@@ -1,6 +1,9 @@
 import { expect, it } from 'vitest'
 import {
   DEGRADATION_SUFFIX,
+  DEGRADED_ERROR_KEY,
+  DEGRADED_RETRYABLE_KEY,
+  absorbHandlerDegradation,
   degradationSummary,
   getDegradationMark,
   isDegraded,
@@ -53,4 +56,41 @@ it('degradationSummary: 汇总全部标记（按 key 字典序）', () => {
 it('degradationSummary: 结构异常的标记 key 被忽略', () => {
   const state: GraphState = { [`bad${DEGRADATION_SUFFIX}`]: 'not-an-object' }
   expect(degradationSummary(state)).toEqual([])
+})
+
+it('absorbHandlerDegradation: 无 _error 的片段原样返回', () => {
+  const delta: StateDelta = { result: '成功' }
+  expect(absorbHandlerDegradation(delta, 'node')).toBe(delta)
+})
+
+it('absorbHandlerDegradation: 剥离内部诊断键并写节点级标记', () => {
+  const delta: StateDelta = {
+    result: '部分结果',
+    [DEGRADED_ERROR_KEY]: '[atom] 缺少输入',
+    [DEGRADED_RETRYABLE_KEY]: false,
+  }
+  const absorbed = absorbHandlerDegradation(delta, 'node')
+  expect(absorbed.result).toBe('部分结果')
+  expect(absorbed).not.toHaveProperty(DEGRADED_ERROR_KEY)
+  expect(absorbed).not.toHaveProperty(DEGRADED_RETRYABLE_KEY)
+  expect(absorbed[`node${DEGRADATION_SUFFIX}`]).toEqual({
+    reason: 'node_failed',
+    message: '[atom] 缺少输入',
+    severity: 'critical',
+  })
+})
+
+it('absorbHandlerDegradation: 非字符串 _error 以 JSON 文本记录', () => {
+  const absorbed = absorbHandlerDegradation({ [DEGRADED_ERROR_KEY]: { code: 'E1' } }, 'node')
+  expect(absorbed[`node${DEGRADATION_SUFFIX}`]).toMatchObject({ message: '{"code":"E1"}' })
+})
+
+it('absorbHandlerDegradation: 可重试失败在消息中标注', () => {
+  const absorbed = absorbHandlerDegradation(
+    { [DEGRADED_ERROR_KEY]: '[atom] 临时失败', [DEGRADED_RETRYABLE_KEY]: true },
+    'node',
+  )
+  expect(absorbed[`node${DEGRADATION_SUFFIX}`]).toMatchObject({
+    message: '[atom] 临时失败（可重试）',
+  })
 })

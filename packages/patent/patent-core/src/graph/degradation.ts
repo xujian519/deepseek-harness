@@ -6,6 +6,7 @@
  * 可读取"该数据来自降级"并继续执行 —— 失败即降级，绝不让全图崩溃。
  */
 
+import { DEGRADED_ERROR_KEY, DEGRADED_RETRYABLE_KEY } from '../atoms/handler.ts'
 import type { DegradationMark, DegradationReason, GraphState, StateDelta } from './types.ts'
 
 /** 降级标记并列 key 后缀。 */
@@ -31,6 +32,32 @@ export function markDegraded(
 ): void {
   delta[valueKey] = fallback
   delta[`${valueKey}${DEGRADATION_SUFFIX}`] = { reason, message, severity } satisfies DegradationMark
+}
+
+/**
+ * 吸收 handler 降级诊断：把 {@link DEGRADED_ERROR_KEY} 片段转换为节点级降级标记。
+ *
+ * 图引擎只在节点抛错时写 `<nodeKey>__degradation`；handler 以返回值报告预期失败时
+ * 不抛错，故图节点边界须自行转换，否则失败对 `degraded` 汇总不可见。转换只写标记
+ * 键、不写业务值键，避免覆盖上游同主键输出；片段中的部分结果原样保留。
+ * 无 `_error` 的片段原样返回（不复制）。
+ * @param delta - handler 返回的状态片段。
+ * @param nodeKey - 图节点名（标记键的前缀）。
+ * @returns 剥离内部诊断键后的状态片段。
+ */
+export function absorbHandlerDegradation(delta: StateDelta, nodeKey: string): StateDelta {
+  const error = delta[DEGRADED_ERROR_KEY]
+  if (error === undefined) return delta
+  const absorbed: StateDelta = { ...delta }
+  Reflect.deleteProperty(absorbed, DEGRADED_ERROR_KEY)
+  Reflect.deleteProperty(absorbed, DEGRADED_RETRYABLE_KEY)
+  const message = typeof error === 'string' ? error : JSON.stringify(error)
+  absorbed[`${nodeKey}${DEGRADATION_SUFFIX}`] = {
+    reason: 'node_failed',
+    message: delta[DEGRADED_RETRYABLE_KEY] === true ? `${message}（可重试）` : message,
+    severity: 'critical',
+  } satisfies DegradationMark
+  return absorbed
 }
 
 /** 查询某 key 是否被降级。

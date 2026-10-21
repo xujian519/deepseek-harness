@@ -148,7 +148,9 @@ type StageStep = {
 function assertKnownAtoms(manifest: WorkflowManifest, atoms: StageAtoms): void {
   for (const stage of manifest.stages) {
     if (stage.atom !== undefined && !atoms.lookup(stage.atom)) {
-      throw new WorkflowError(`阶段 ${stage.id} 声明了未知 atom "${stage.atom}"（请先 RegisterAtom）`)
+      throw new WorkflowError(
+        `阶段 ${stage.id} 声明了未知 atom "${stage.atom}"（请先 RegisterAtom；若为内置 manifest，请确认已加载提供该原子的插件）`,
+      )
     }
   }
 }

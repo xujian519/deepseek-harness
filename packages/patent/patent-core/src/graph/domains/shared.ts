@@ -9,7 +9,7 @@
  */
 
 import type { GraphNode, GraphState, StateDelta } from '../types.ts'
-import { markDegraded, isDegraded } from '../degradation.ts'
+import { absorbHandlerDegradation, markDegraded, isDegraded } from '../degradation.ts'
 import { runStageHandler } from '../adapter.ts'
 import type { StageHandler } from '../../atoms/index.ts'
 import { APPROVAL_GRANTED_KEY, isApprovalGateHandler, isGateApproved } from '../../atoms/index.ts'
@@ -25,6 +25,7 @@ export { collectStateText }
  * 审批门放行按**门粒度**判定：节点名取自引擎注入的 `nodeName`，命中该节点在共享 state 的
  * 放行记录时把 `APPROVAL_GRANTED_KEY` 注入执行态拷贝。拿不到节点名（直接构造上下文调用节点）
  * 时不放行——fail-closed，绝不退化为"任意放行"。
+ * handler 以 `_error` 返回的预期失败在节点边界转为 `<node>__degradation` 标记，图状态不含内部诊断键。
  * @param handler - 要包装为图节点的 StageHandler。
  * @param params - 注入 handler 的固定参数（可选）。
  * @returns 包装后的图节点。
@@ -37,7 +38,8 @@ export function handlerNode(handler: StageHandler, params?: Record<string, unkno
       params !== undefined || approvedGate
         ? { ...state, ...params, ...(approvedGate ? { [APPROVAL_GRANTED_KEY]: true } : {}) }
         : state
-    return runStageHandler(handler, execState, provider, signal)
+    const segment = await runStageHandler(handler, execState, provider, signal)
+    return absorbHandlerDegradation(segment, nodeName ?? handler.name)
   }
 }
 

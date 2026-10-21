@@ -1,13 +1,26 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ClaimChartHandler } from '@deepseek-ai/dsh-patent-core'
+import { claimChartAtom, ClaimChartHandler } from '@deepseek-ai/dsh-patent-core'
 import type { StageProvider } from '@deepseek-ai/dsh-patent-core'
 import type { ClaimChart } from '@deepseek-ai/dsh-patent-core'
 import { loadClaimChart } from '@deepseek-ai/dsh-patent-core'
 
 const CLAIM = '1. 一种过滤装置，包括壳体和滤芯，所述滤芯含有活性炭。'
+
+const readFilePaths = vi.hoisted(() => [] as string[])
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    readFile: (async (path: string, encoding: BufferEncoding) => {
+      readFilePaths.push(path)
+      return actual.readFile(path, encoding)
+    }) as typeof actual.readFile,
+  }
+})
 
 function goodChart(): unknown {
   return {
@@ -51,6 +64,10 @@ function malformedChart(): unknown {
 }
 
 const SOURCE_TEXT = '[0032]\n壳体与滤芯。\n[0033]\n活性炭滤芯。\n'
+
+it('atom 契约声明按模式派生目标所读的输入键', () => {
+  expect(claimChartAtom.inputSchema).toEqual(['claim', 'chart_targets', 'chart_mode', 'office_action', 'prior_art'])
+})
 
 it('合法 chart 产出 claim_chart_doc + gap_list', async () => {
   let calls = 0
@@ -349,6 +366,41 @@ it('sourcePath 文件不存在 → 错误消息含目标路径（重做超限降
     })
     expect(typeof state._error).toBe('string')
     expect((state._error as string).includes(sourcePath)).toBeTruthy() // 降级错误含目标路径
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('多个目标共享同一 sourcePath 时只读取一次源文件', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-dup-'))
+  const sourcePath = join(dir, 'd1.txt')
+  writeFileSync(sourcePath, SOURCE_TEXT, 'utf8')
+  readFilePaths.length = 0
+  try {
+    const provider: StageProvider = {
+      callLLM: async () => JSON.stringify({
+        elements: [{ id: '1a', claimNo: 1, text: '包括壳体', kind: 'limitation' }],
+        rows: [
+          { elementId: '1a', targetId: 'D1', quote: '壳体', pinCite: '[D1 段[0032]]', mapping: 'literal' },
+          { elementId: '1a', targetId: 'D2', quote: '滤芯', pinCite: '[D2 段[0032]]', mapping: 'literal' },
+        ],
+      }),
+    }
+    const state = await new ClaimChartHandler().execute({
+      state: {
+        claim: CLAIM,
+        chart_targets: JSON.stringify([
+          { id: 'D1', kind: 'prior-art', sourcePath },
+          { id: 'D2', kind: 'prior-art', sourcePath },
+        ]),
+        chart_mode: 'invalidity',
+      },
+      provider,
+    })
+    expect(state._error).toBeUndefined()
+    expect(readFilePaths.filter(path => path === sourcePath)).toHaveLength(1)
+    const chart = JSON.parse(String(state.claim_chart_doc)) as { rows: unknown[] }
+    expect(chart.rows).toHaveLength(2)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

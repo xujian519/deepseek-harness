@@ -12,6 +12,7 @@ export { cloneState, getStateString, getStateArray } from './state.ts'
 export {
   DEGRADATION_SUFFIX,
   markDegraded,
+  absorbHandlerDegradation,
   isDegraded,
   getDegradationMark,
   degradationSummary,

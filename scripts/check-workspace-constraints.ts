@@ -210,15 +210,17 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-experimental-inspector': ['lib/client.*.js', 'lib/worker.js', 'lib/devtools/**'],
   // Creator's composition guidance travels with the declaration package.
   '@deepseek-ai/dsh-agent-preset': ['skills'],
-  // The web bundle ships the patent and document preset layers beside the
-  // upstream ones: each guide file documents its patch sheet, and `skills` holds
-  // the roots those sheets resolve at runtime through this package's location.
-  // Startup and runtime share the advertised URL parser.
+  // The web bundle ships the patent, document, and legal preset layers beside
+  // the upstream ones: each guide file documents its patch sheet, and `skills`
+  // holds the roots those sheets resolve at runtime through this package's
+  // location. Startup and runtime share the advertised URL parser.
   '@deepseek-ai/dsh-web-app': [
     'presets/patent.md',
     'presets/patent.zh.md',
     'presets/document.md',
     'presets/document.zh.md',
+    'presets/legal.md',
+    'presets/legal.zh.md',
     'skills',
     'lib/public-url-*.js',
   ],
