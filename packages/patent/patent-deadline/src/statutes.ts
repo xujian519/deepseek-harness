@@ -21,7 +21,12 @@ import {
   formatCalendarDate,
   type CalendarDate,
 } from './calendar.ts'
-import { resolveDeliveryDate, type DeliveryRequest } from './delivery.ts'
+import {
+  resolveDeliveryDate,
+  DeliveryInputError,
+  type DeliveryDate,
+  type DeliveryRequest,
+} from './delivery.ts'
 import { periodEnd, type Period } from './period.ts'
 import { WorkCalendarCoverageError, type WorkCalendar } from './work-calendar.ts'
 
@@ -67,22 +72,33 @@ const REPEATABLE_NOTICE_KINDS: ReadonlySet<NoticeKind> = new Set<NoticeKind>([
   'reexamination-notice',
 ])
 
+/** Procedure stage that fixes a first office action's designated answer period. */
+export type OfficeActionStage = 'substantive' | 'preliminary'
+
 /** A notice together with how it was delivered. */
 export type NoticeInput = {
   kind: NoticeKind
   delivery: DeliveryRequest
   /** Months the notice itself designates, overriding the usual designated length. */
   designatedMonths?: number
+  /**
+   * Stage in which a first office action was issued: four months in substantive
+   * examination, two in preliminary examination. Defaults to substantive for an
+   * invention and preliminary for a utility model or design.
+   */
+  stage?: OfficeActionStage
 }
 
 /** The late-payment window attached to an annual fee. */
 export type LatePaymentWindow = {
-  /** Day the fee was due. */
+  /** The fee's reported due date: the window starts on the day the payment period ended. */
   from: string
   /** Last day of the six-month surcharge window. */
   to: string
   legalBasis: string
   note: string
+  /** Set when the loaded holiday arrangement does not cover the window end's year. */
+  calendarCaveat?: string
 }
 
 /** Everything the deadline set is computed from. */
@@ -103,9 +119,9 @@ export type DeadlineQuery = {
   isPctNationalPhase?: boolean
   /**
    * Date the applicant completed the formalities for entering the Chinese
-   * national phase (进入日). The PCT application fee runs from this date; when
-   * it is absent the report keeps that entry pending instead of counting from
-   * the international filing date.
+   * national phase (进入日). The PCT priority claim fee runs from this date;
+   * when it is absent that entry stays pending instead of counting from the
+   * international filing date.
    */
   nationalPhaseEntryDate?: CalendarDate
   /** Grant publication date (授权公告日), which fixes the granted patent year. */
@@ -223,7 +239,6 @@ type EntryBase = {
   query: DeadlineQuery
   options: EvaluateOptions
   triggerBasis?: string
-  latePaymentWindow?: LatePaymentWindow
 }
 
 /**
@@ -245,6 +260,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     ...patentTermItems(query, options),
     ...annualFeeItems(query, options),
     ...pctNationalEntryItems(query, options),
+    ...pctPriorityFeeItems(query, options),
     ...invalidationRequestItems(query, options),
     ...noticeDrivenItems(notices, query, options),
     ...termCompensationItems(query, options),
@@ -270,6 +286,44 @@ function assertQuery(query: DeadlineQuery): void {
     throw new DeadlineQueryError(
       '外观设计不能通过 PCT 进入中国国家阶段：请将 isPctNationalPhase 设为 false 或更正专利类型。',
     )
+  }
+  if (query.isPctNationalPhase !== true && query.nationalPhaseEntryDate !== undefined) {
+    throw new DeadlineQueryError(
+      'nationalPhaseEntryDate 只适用于 PCT 进入中国国家阶段案件：'
+      + '请将 isPctNationalPhase 设为 true，或删除该日期。',
+    )
+  }
+  if (query.nationalPhaseEntryDate !== undefined
+    && compareCalendarDates(query.nationalPhaseEntryDate, query.filingDate) < 0) {
+    throw new DeadlineQueryError(
+      '进入中国国家阶段之日在申请日之前：进入日不可能早于国际申请日，请核对两项日期。',
+    )
+  }
+  if (query.invalidationRequestDate !== undefined
+    && compareCalendarDates(query.invalidationRequestDate, query.filingDate) < 0) {
+    throw new DeadlineQueryError(
+      '提出无效宣告请求之日在申请日之前：请核对 invalidationRequestDate 与申请日。',
+    )
+  }
+  if (query.marketingApprovalDate !== undefined
+    && compareCalendarDates(query.marketingApprovalDate, query.filingDate) < 0) {
+    throw new DeadlineQueryError(
+      '新药上市许可日在申请日之前：请核对 marketingApprovalDate 与申请日。',
+    )
+  }
+  for (const notice of query.notices ?? []) {
+    if (notice.stage === undefined) continue
+    if (notice.kind !== 'office-action-first') {
+      throw new DeadlineQueryError(
+        `stage 只适用于第一次审查意见通知书（office-action-first），不能用于 ${notice.kind}。`,
+      )
+    }
+    if (notice.stage === 'substantive' && query.kind !== 'invention') {
+      throw new DeadlineQueryError(
+        '实质审查阶段的第一次审查意见答复只适用于发明专利：'
+        + '请将 stage 设为 preliminary，或更正专利类型。',
+      )
+    }
   }
   if (query.kind !== 'invention') {
     if (query.marketingApprovalDate !== undefined) {
@@ -310,15 +364,15 @@ function assertQuery(query: DeadlineQuery): void {
 
 /**
  * Reject priority inputs that contradict each other or run out of order: a
- * claim with no date, a date with no claim, or a priority date after the filing
- * date. Each would otherwise pick a start date silently.
+ * claim with no date, a date with no claim, or a priority date that is not
+ * before the filing date. Each would otherwise pick a start date silently.
  * @param query - the case inputs.
  */
 function assertPriorityInputs(query: DeadlineQuery): void {
   if (query.priorityDate !== undefined
-    && compareCalendarDates(query.priorityDate, query.filingDate) > 0) {
+    && compareCalendarDates(query.priorityDate, query.filingDate) >= 0) {
     throw new DeadlineQueryError(
-      '优先权日晚于申请日：优先权日必须在申请日之前，请核对两项日期。',
+      '优先权日必须在申请日之前（不能是同一天或更晚）：请核对两项日期。',
     )
   }
   if (query.claimsPriority && query.priorityDate === undefined) {
@@ -399,10 +453,11 @@ function priorityItems(query: DeadlineQuery, options: EvaluateOptions): Deadline
 
 /**
  * Build the application-fee entry: from the filing date for a domestic
- * application, or from the national-phase entry date for a PCT application.
+ * application, or bounded by the national-phase entry deadline for a PCT
+ * application, where the fee is paid while completing entry.
  * @param query - the case inputs.
  * @param options - calendar and reminder policy.
- * @returns the fee entry, or a pending entry when a PCT case has no entry date.
+ * @returns the fee entry.
  */
 function applicationFeeItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
   const filing = query.filingDate
@@ -411,25 +466,26 @@ function applicationFeeItems(query: DeadlineQuery, options: EvaluateOptions): De
   // ── 细则第112条 — application fee; a priority claim adds its fee to the same payment.
   const priorityFee = query.claimsPriority ? '及优先权要求费' : ''
 
-  // ── 细则第120条 — a PCT applicant pays on entering the national phase, so the
-  // period runs from the entry date rather than from the international filing date.
+  // ── 细则第121条第1款第(二)项 — a PCT applicant pays the application fee and
+  // publication printing fee while completing the national-phase entry
+  // formalities, whose deadline 细则第120条 fixes at 30 months from the priority
+  // date (32 with the grace fee). The two-month period from the entry date
+  // belongs to the priority claim fee (细则第127条), reported separately.
   if (query.isPctNationalPhase === true) {
-    const entry = query.nationalPhaseEntryDate
-    const label = `缴纳申请费、公布印刷费、必要的申请附加费${priorityFee}（自进入中国国家阶段之日起2个月内）`
-    const legalBasis = '专利法实施细则第120条'
-    return entry === undefined
-      ? [pending({
+    const base = query.priorityDate ?? filing
+    const baseLabel = query.priorityDate !== undefined ? '优先权日' : '国际申请日（未主张优先权）'
+    return [fromPeriod({
+      base: {
         id: 'application-fee',
-        label,
-        legalBasis,
-        requiredInput: 'nationalPhaseEntryDate（进入中国国家阶段之日）',
-        reason: 'PCT 国家阶段的申请费自进入日起算；未记录进入日时无法计算，不以国际申请日等其他日期替代。',
-      })]
-      : [fromPeriod({
-        base: { id: 'application-fee', label, legalBasis, query, options },
-        start: entry,
-        period: { unit: 'month', count: 2 },
-      })]
+        label: '在办理进入中国国家阶段手续时缴纳申请费、公布印刷费、必要的申请附加费'
+          + `（自${baseLabel}起30个月内办理进入手续；缴纳宽限费后可延至32个月）`,
+        legalBasis: '专利法实施细则第121条、第120条',
+        query,
+        options,
+      },
+      start: base,
+      period: { unit: 'month', count: 30 },
+    })]
   }
 
   items.push(fromPeriod({
@@ -548,33 +604,7 @@ function registrationItems(
   // 细则第114条 puts the granted year's annuity in the registration step; 印花税 is not
   // a fee the current schedule charges.
   const grantNotice = notices.get('grant-notice')?.[0]
-  if (grantNotice !== undefined) {
-    const grant = resolveDeliveryDate(grantNotice.delivery)
-    items.push(fromPeriod({
-      base: {
-        id: 'registration',
-        label: '办理登记手续并缴纳授权当年年费（自收到授权通知之日起2个月）',
-        legalBasis: '专利法实施细则第60条第1款、第114条',
-        query,
-        options,
-        triggerBasis: grant.basis,
-      },
-      start: grant.date,
-      period: { unit: 'month', count: 2 },
-    }))
-    items.push(fromPeriod({
-      base: {
-        id: 'divisional-application',
-        label: '提出分案申请（须在办理登记手续期限届满前）',
-        legalBasis: '专利法实施细则第48条、第60条第1款',
-        query,
-        options,
-        triggerBasis: grant.basis,
-      },
-      start: grant.date,
-      period: { unit: 'month', count: 2 },
-    }))
-  } else {
+  if (grantNotice === undefined) {
     items.push(pending({
       id: 'registration',
       label: '办理登记手续并缴纳授权当年年费',
@@ -589,7 +619,57 @@ function registrationItems(
       requiredInput: 'grant-notice（授权通知的送达记录）',
       reason: '分案申请须在办理登记手续期限届满前提出，该期限自收到授权通知之日起算。',
     }))
+    return items
   }
+
+  let grant: DeliveryDate
+  try {
+    grant = resolveDeliveryDate(grantNotice.delivery)
+  } catch (error) {
+    if (!(error instanceof DeliveryInputError)) throw error
+    const requiredInput = `grant-notice.delivery（${error.message}）`
+    const reason = '授权通知已记录，但送达记录尚缺上述字段；补齐后即可计算，不以其他日期猜测送达日。'
+    items.push(pending({
+      id: 'registration',
+      label: '办理登记手续并缴纳授权当年年费',
+      legalBasis: '专利法实施细则第60条第1款、第114条',
+      requiredInput,
+      reason,
+    }))
+    items.push(pending({
+      id: 'divisional-application',
+      label: '提出分案申请（须在办理登记手续期限届满前）',
+      legalBasis: '专利法实施细则第48条、第60条第1款',
+      requiredInput,
+      reason: `分案申请须在办理登记手续期限届满前提出；${reason}`,
+    }))
+    return items
+  }
+
+  items.push(fromPeriod({
+    base: {
+      id: 'registration',
+      label: '办理登记手续并缴纳授权当年年费（自收到授权通知之日起2个月）',
+      legalBasis: '专利法实施细则第60条第1款、第114条',
+      query,
+      options,
+      triggerBasis: grant.basis,
+    },
+    start: grant.date,
+    period: { unit: 'month', count: 2 },
+  }))
+  items.push(fromPeriod({
+    base: {
+      id: 'divisional-application',
+      label: '提出分案申请（须在办理登记手续期限届满前）',
+      legalBasis: '专利法实施细则第48条、第60条第1款',
+      query,
+      options,
+      triggerBasis: grant.basis,
+    },
+    start: grant.date,
+    period: { unit: 'month', count: 2 },
+  }))
 
   return items
 }
@@ -682,26 +762,13 @@ function annualFeeItems(query: DeadlineQuery, options: EvaluateOptions): Deadlin
   for (let year = firstYear; year <= lastYear; year++) {
     // 细则第115条: the fee for year N is due before year N-1 ends.
     const due = addCalendarMonths(filing, (year - 1) * 12)
-    const windowEnd = periodEnd(due, { unit: 'month', count: 6 })
-    items.push(fromDate({
-      base: {
-        id: `annual-fee-${String(year)}`,
-        label: `缴纳第${String(year)}年度年费（授予专利权当年以后的年费应在上一年度期满前缴纳）`,
-        legalBasis: '专利法实施细则第115条',
-        query,
-        options,
-        latePaymentWindow: {
-          from: formatCalendarDate(due),
-          to: formatCalendarDate(windowEnd),
-          legalBasis: '专利法实施细则第115条',
-          note:
-            '未缴或者未缴足的，可在应缴年费期满之日起6个月内补缴，同时缴纳滞纳金'
-            + '（每超过规定的缴费时间1个月，加收当年全额年费的5%）；期满未缴纳的，'
-            + '专利权自应当缴纳年费期满之日起终止。',
-        },
-      },
-      due,
-    }))
+    items.push(annualFeeDeadline({
+      id: `annual-fee-${String(year)}`,
+      label: `缴纳第${String(year)}年度年费（授予专利权当年以后的年费应在上一年度期满前缴纳）`,
+      legalBasis: '专利法实施细则第115条',
+      query,
+      options,
+    }, due))
   }
   return items
 }
@@ -751,6 +818,35 @@ function pctNationalEntryItems(query: DeadlineQuery, options: EvaluateOptions): 
 }
 
 /**
+ * Build the PCT priority-claim fee, the only PCT fee that runs from the entry
+ * date: a priority claim carried into the national phase is kept only when its
+ * fee is paid within two months of that date.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the fee entry, a pending entry when a PCT case has no entry date, or none without a priority claim.
+ */
+function pctPriorityFeeItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
+  if (query.isPctNationalPhase !== true || !query.claimsPriority) return []
+  const label = '缴纳优先权要求费（自进入中国国家阶段之日起2个月内）'
+  const legalBasis = '专利法实施细则第127条'
+  const entry = query.nationalPhaseEntryDate
+  return entry === undefined
+    ? [pending({
+      id: 'priority-claim-fee',
+      label,
+      legalBasis,
+      requiredInput: 'nationalPhaseEntryDate（进入中国国家阶段之日）',
+      reason: 'PCT 国家阶段的优先权要求费自进入日起算；未记录进入日时无法计算，'
+        + '不以国际申请日或优先权日替代。',
+    })]
+    : [fromPeriod({
+      base: { id: 'priority-claim-fee', label, legalBasis, query, options },
+      start: entry,
+      period: { unit: 'month', count: 2 },
+    })]
+}
+
+/**
  * Build the invalidation-procedure period that runs from the request date.
  *
  * The request date is not the filing date, so a case that has not recorded it
@@ -790,10 +886,12 @@ type NoticePeriodSpec = {
   absentReason: string
   /** Months from delivery when the notice itself designates none. */
   months: number
-  /** Overrides for a patent category whose default designated period differs. */
-  monthsByKind?: Partial<Record<PatentKind, number>>
-  /** Labels that name the category-specific procedure. */
-  labelByKind?: Partial<Record<PatentKind, string>>
+  /**
+   * Variants for a period whose designated length depends on the procedure
+   * stage. A notice without `stage` uses substantive examination for an
+   * invention and preliminary examination for a utility model or design.
+   */
+  stageVariants?: Partial<Record<OfficeActionStage, { label: string; months: number }>>
 }
 
 /**
@@ -813,15 +911,20 @@ const NOTICE_PERIOD_SPECS: readonly NoticePeriodSpec[] = [
   {
     id: 'oa-response-first',
     label: '答复第一次审查意见通知书（指定期限，实质审查程序中为4个月）',
-    labelByKind: {
-      'utility-model': '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
-      design: '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
-    },
     legalBasis: '专利审查指南第五部分第七章第2.1节',
     noticeKind: 'office-action-first',
     absentReason: '需要第一次审查意见通知书的送达记录，本查询未提供该通知。',
     months: 4,
-    monthsByKind: { 'utility-model': 2, design: 2 },
+    stageVariants: {
+      substantive: {
+        label: '答复第一次审查意见通知书（指定期限，实质审查程序中为4个月）',
+        months: 4,
+      },
+      preliminary: {
+        label: '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
+        months: 2,
+      },
+    },
   },
   {
     id: 'oa-response-subsequent',
@@ -861,10 +964,8 @@ function noticeDrivenItems(
   query: DeadlineQuery,
   options: EvaluateOptions,
 ): DeadlineItem[] {
-  return NOTICE_PERIOD_SPECS.flatMap(({ labelByKind, monthsByKind, ...spec }) => fromNotices({
+  return NOTICE_PERIOD_SPECS.flatMap(spec => fromNotices({
     ...spec,
-    label: labelByKind?.[query.kind] ?? spec.label,
-    months: monthsByKind?.[query.kind] ?? spec.months,
     notices,
     query,
     options,
@@ -931,13 +1032,13 @@ function termCompensationItems(query: DeadlineQuery, options: EvaluateOptions): 
  * @returns the patent year number (1-based).
  */
 function patentYearOf(filingDate: CalendarDate, date: CalendarDate): number {
-  let year = 1
-  // A patent year is at most 366 days; the loop bound also stops a malformed
-  // input pair from spinning.
-  while (year < 200 && compareCalendarDates(addCalendarMonths(filingDate, year * 12), date) <= 0) {
-    year++
-  }
-  return year
+  const months = (date.year - filingDate.year) * 12 + (date.month - filingDate.month)
+  const candidate = Math.max(1, Math.floor(months / 12) + 1)
+  // The candidate year starts on the filing date's anniversary; when that day
+  // falls after `date`, the date is still in the preceding patent year.
+  return compareCalendarDates(addCalendarMonths(filingDate, (candidate - 1) * 12), date) <= 0
+    ? candidate
+    : candidate - 1
 }
 
 /**
@@ -985,13 +1086,14 @@ function indexNotices(supplied: readonly NoticeInput[]): ReadonlyMap<NoticeKind,
 
 /**
  * Build a deadline that starts at a notice's delivery date, or a pending entry
- * naming that notice when the case has not recorded it.
+ * naming that notice when the case has not recorded it or its delivery record
+ * is incomplete.
  *
  * A repeatable kind yields one entry per recorded notice: its id is the base id
  * for the first record and carries the record's ordinal (`<id>-2`, `<id>-3`) for
  * the rest, so every period a case actually runs has its own row.
  * @param args - the entry definition.
- * @returns the computed deadlines, or the single pending entry.
+ * @returns the computed deadlines, or one pending entry per unusable record.
  */
 function fromNotices(args: {
   id: string
@@ -1000,6 +1102,7 @@ function fromNotices(args: {
   noticeKind: NoticeKind
   absentReason: string
   months: number
+  stageVariants?: Partial<Record<OfficeActionStage, { label: string; months: number }>>
   notices: ReadonlyMap<NoticeKind, readonly NoticeInput[]>
   query: DeadlineQuery
   options: EvaluateOptions
@@ -1016,53 +1119,94 @@ function fromNotices(args: {
   }
   return recorded.map((notice, index) => {
     const id = index === 0 ? args.id : `${args.id}-${String(index + 1)}`
-    const resolved = resolveDeliveryDate(notice.delivery)
+    const stage = notice.stage
+      ?? (args.stageVariants === undefined
+        ? undefined
+        : args.query.kind === 'invention' ? 'substantive' : 'preliminary')
+    const variant = stage === undefined ? undefined : args.stageVariants?.[stage]
+    const baseLabel = variant?.label ?? args.label
+    const label = recorded.length === 1
+      ? baseLabel
+      : `${baseLabel}（第 ${String(index + 1)} 份通知）`
+    let resolved: DeliveryDate
+    try {
+      resolved = resolveDeliveryDate(notice.delivery)
+    } catch (error) {
+      if (!(error instanceof DeliveryInputError)) throw error
+      return pending({
+        id,
+        label,
+        legalBasis: args.legalBasis,
+        requiredInput: `${args.noticeKind}.delivery（${error.message}）`,
+        reason: '该通知已记录，但送达记录尚缺上述字段；补齐后即可计算，不以其他日期猜测送达日。',
+      })
+    }
     const designated = notice.designatedMonths !== undefined
       ? `；通知书指定期限 ${String(notice.designatedMonths)} 个月`
       : ''
     return fromPeriod({
       base: {
         id,
-        label: recorded.length === 1
-          ? args.label
-          : `${args.label}（第 ${String(index + 1)} 份通知）`,
+        label,
         legalBasis: args.legalBasis,
         query: args.query,
         options: args.options,
         triggerBasis: `${resolved.basis}${designated}`,
       },
       start: resolved.date,
-      period: { unit: 'month', count: notice.designatedMonths ?? args.months },
+      period: { unit: 'month', count: notice.designatedMonths ?? variant?.months ?? args.months },
     })
   })
 }
 
+/** An end date after the query's rest-day rule has been applied. */
+type ResolvedEnd = {
+  date: CalendarDate
+  rolledForward: boolean
+  calendarCaveat?: string
+}
+
 /**
- * Report one computed entry: keep the period's own end date, apply the rest-day
- * rule when the query asks for it, and derive the status from the reported date.
- * @param base - the entry's identity, legal basis, trigger basis, and query inputs.
+ * Apply the query's rest-day rule to an end date. An uncovered year keeps the
+ * raw date and carries the caveat rather than assuming the day is a working day.
  * @param due - the period's own end date.
- * @returns the computed deadline.
+ * @param query - the case inputs, whose rest-day rule selects the criterion.
+ * @param options - the loaded work calendar.
+ * @returns the reported date and whether the rule moved it.
  */
-function finish(base: EntryBase, due: CalendarDate): ComputedDeadline {
-  const rule = base.query.restDayRule ?? 'apply'
-  let dueDate = due
-  let rolledForward = false
-  let calendarCaveat: string | undefined
-  if (rule === 'apply') {
-    try {
-      const rolled = base.options.calendar.rollForward(due)
-      dueDate = rolled.date
-      rolledForward = rolled.rolled
-    } catch (error) {
-      if (!(error instanceof WorkCalendarCoverageError)) throw error
-      // The arrangement for that year is not loaded, so the rest-day rule could
-      // not be applied. Report the raw end date and say which year is unverified
-      // rather than dropping the entry or assuming the day is a working day.
-      calendarCaveat = `${UNCOVERED_YEAR_CAVEAT_PREFIX}${String(error.year)}`
+function resolveEnd(due: CalendarDate, query: DeadlineQuery, options: EvaluateOptions): ResolvedEnd {
+  if ((query.restDayRule ?? 'apply') === 'omit') return { date: due, rolledForward: false }
+  try {
+    const rolled = options.calendar.rollForward(due)
+    return { date: rolled.date, rolledForward: rolled.rolled }
+  } catch (error) {
+    if (!(error instanceof WorkCalendarCoverageError)) throw error
+    // The arrangement for that year is not loaded, so the rest-day rule could
+    // not be applied. Report the raw end date and say which year is unverified
+    // rather than dropping the entry or assuming the day is a working day.
+    return {
+      date: due,
+      rolledForward: false,
+      calendarCaveat: `${UNCOVERED_YEAR_CAVEAT_PREFIX}${String(error.year)}`,
     }
   }
-  const daysRemaining = daysBetween(base.query.today, dueDate)
+}
+
+/**
+ * Report one computed entry from an already-resolved end date.
+ * @param base - the entry's identity, legal basis, and trigger basis.
+ * @param due - the period's own end date.
+ * @param resolved - the reported end date after the rest-day rule.
+ * @param latePaymentWindow - the surcharge window, when the entry carries one.
+ * @returns the computed deadline.
+ */
+function computedFrom(
+  base: EntryBase,
+  due: CalendarDate,
+  resolved: ResolvedEnd,
+  latePaymentWindow?: LatePaymentWindow,
+): ComputedDeadline {
+  const daysRemaining = daysBetween(base.query.today, resolved.date)
   const status: DeadlineStatus = daysRemaining < 0
     ? 'overdue'
     : daysRemaining <= base.options.reminderLeadDays ? 'urgent' : 'normal'
@@ -1071,14 +1215,53 @@ function finish(base: EntryBase, due: CalendarDate): ComputedDeadline {
     label: base.label,
     legalBasis: base.legalBasis,
     rawDueDate: formatCalendarDate(due),
-    dueDate: formatCalendarDate(dueDate),
+    dueDate: formatCalendarDate(resolved.date),
     daysRemaining,
     status,
-    rolledForward,
-    ...(calendarCaveat !== undefined ? { calendarCaveat } : {}),
+    rolledForward: resolved.rolledForward,
+    ...(resolved.calendarCaveat !== undefined ? { calendarCaveat: resolved.calendarCaveat } : {}),
     ...(base.triggerBasis !== undefined ? { triggerBasis: base.triggerBasis } : {}),
-    ...(base.latePaymentWindow !== undefined ? { latePaymentWindow: base.latePaymentWindow } : {}),
+    ...(latePaymentWindow !== undefined ? { latePaymentWindow } : {}),
   }
+}
+
+/**
+ * Report one entry: keep the period's own end date, apply the rest-day rule
+ * when the query asks for it, and derive the status from the reported date.
+ * @param base - the entry's identity, legal basis, and trigger basis.
+ * @param due - the period's own end date.
+ * @returns the computed deadline.
+ */
+function finish(base: EntryBase, due: CalendarDate): ComputedDeadline {
+  return computedFrom(base, due, resolveEnd(due, base.query, base.options))
+}
+
+/**
+ * Report one annual fee and its six-month surcharge window. Both the window's
+ * start and its end follow the same rest-day rule as the fee's own due date:
+ * the window runs from the day the payment period actually ended, and a window
+ * end on a rest day rolls to the next working day.
+ * @param base - the entry's identity and legal basis.
+ * @param due - the patent year's own end date.
+ * @returns the computed deadline with its late-payment window.
+ */
+function annualFeeDeadline(base: EntryBase, due: CalendarDate): ComputedDeadline {
+  const resolved = resolveEnd(due, base.query, base.options)
+  const windowEnd = resolveEnd(
+    periodEnd(resolved.date, { unit: 'month', count: 6 }),
+    base.query,
+    base.options,
+  )
+  return computedFrom(base, due, resolved, {
+    from: formatCalendarDate(resolved.date),
+    to: formatCalendarDate(windowEnd.date),
+    legalBasis: '专利法实施细则第115条',
+    note:
+      '未缴或者未缴足的，可在应缴年费期满之日起6个月内补缴，同时缴纳滞纳金'
+      + '（每超过规定的缴费时间1个月，加收当年全额年费的5%）；期满未缴纳的，'
+      + '专利权自应当缴纳年费期满之日起终止。',
+    ...(windowEnd.calendarCaveat !== undefined ? { calendarCaveat: windowEnd.calendarCaveat } : {}),
+  })
 }
 
 /**

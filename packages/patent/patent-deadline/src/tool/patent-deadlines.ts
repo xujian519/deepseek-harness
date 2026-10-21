@@ -21,6 +21,7 @@ import {
   type EvaluateOptions,
   type NoticeInput,
   type NoticeKind,
+  type OfficeActionStage,
   type PatentKind,
   type RestDayRule,
 } from '../statutes.ts'
@@ -53,6 +54,8 @@ export type PatentDeadlinesNoticeInput = {
   handedOverDate?: string
   publicationDate?: string
   designatedMonths?: number
+  /** Stage of a first office action; defaults to substantive for an invention, preliminary otherwise. */
+  stage?: OfficeActionStage
 }
 
 /** Input for the patent_deadlines tool. */
@@ -110,8 +113,9 @@ const DESCRIPTION = [
   '- Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.',
   '- Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to "omit" for the un-rolled criterion, which reports each period\'s own end date; both dates are always returned, with rawDueDate holding the un-rolled one.',
   '- Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.',
-  '- Counts a PCT application fee from nationalPhaseEntryDate (the national-phase entry date); without that date the entry stays pending rather than counting from the international filing date.',
-  '- Deadlines that start at a notice\'s delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice\'s delivery date is supplied; they are never approximated from the filing date.',
+  '- Counts a PCT application fee, publication printing fee, and any surcharge as part of the national-phase entry formalities within the 30-month entry period from the priority date (32 months with the grace fee). The separate two-month period from nationalPhaseEntryDate belongs to the priority claim fee and stays pending until that date is supplied.',
+  '- Counts a first office-action response from its delivery with the stage\'s designated period: four months in substantive examination and two months in preliminary examination. A notice records stage as "substantive" or "preliminary"; an invention defaults to substantive and a utility model or design to preliminary.',
+  '- Deadlines that start at a notice\'s delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice\'s delivery record is supplied or completed; they are never approximated from the filing date.',
   '',
   'Usage notes:',
   '  - Dates are YYYY-MM-DD. Supply the notices the case actually received, with how each was delivered.',
@@ -146,6 +150,7 @@ const COMPUTED_SCHEMA = {
         to: { type: 'string', required: true },
         legalBasis: { type: 'string', required: true },
         note: { type: 'string', required: true },
+        calendarCaveat: { type: 'string' },
       },
     },
   },
@@ -192,6 +197,11 @@ const NOTICE_SCHEMA = {
     handedOverDate: { ...DATE, description: 'Hand-over date for direct delivery' },
     publicationDate: { ...DATE, description: 'Announcement date for service by publication' },
     designatedMonths: { type: 'number', description: 'Months the notice itself designates' },
+    stage: {
+      type: 'string',
+      enum: ['substantive', 'preliminary'],
+      description: 'Stage of a first office action: substantive (4 months) or preliminary (2 months); defaults by patent category',
+    },
   },
 } as const
 
@@ -201,7 +211,10 @@ const NOTICE_SCHEMA = {
  * @returns a registry-ready tool definition.
  */
 export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): ToolDefinition {
-  const now = options.now ?? (() => localToday(options.timeZone ?? DEFAULT_TIME_ZONE))
+  const timeZone = options.timeZone ?? DEFAULT_TIME_ZONE
+  // An unusable zone fails when the tool is built, not on the first call.
+  new Intl.DateTimeFormat('en-CA', { timeZone })
+  const now = options.now ?? (() => localToday(timeZone))
   const evaluateOptions: EvaluateOptions = {
     calendar: options.calendar,
     reminderLeadDays: options.reminderLeadDays,
@@ -229,7 +242,7 @@ export function createPatentDeadlinesTool(options: PatentDeadlinesToolOptions): 
       isPctNationalPhase: { type: 'boolean', description: 'Whether the case is a PCT application entering the Chinese national phase' },
       nationalPhaseEntryDate: {
         ...DATE,
-        description: 'Date the PCT national-phase entry formalities were completed (进入日); the PCT application fee runs from it',
+        description: 'Date the PCT national-phase entry formalities were completed (进入日); the priority claim fee runs from it',
       },
       authorizationPublicationDate: { ...DATE, description: 'Grant publication date (授权公告日)' },
       marketingApprovalDate: { ...DATE, description: 'Date the drug obtained marketing approval in China (invention only)' },
@@ -390,6 +403,7 @@ function toNotice(notice: PatentDeadlinesNoticeInput): NoticeInput {
     kind: notice.kind,
     delivery,
     ...(notice.designatedMonths !== undefined ? { designatedMonths: notice.designatedMonths } : {}),
+    ...(notice.stage !== undefined ? { stage: notice.stage } : {}),
   }
 }
 

@@ -2897,8 +2897,7 @@ export type NuoRequestChannel = (typeof NUO_REQUEST_CHANNELS)[number]
 
 ## `@deepseek-ai/dsh-patent-deadline`
 
-- `inject`: `tools`
-- `source`: [`packages/patent/patent-deadline/src/index.ts:100`](../packages/patent/patent-deadline/src/index.ts)
+- `source`: [`packages/patent/patent-deadline/src/index.ts:98`](../packages/patent/patent-deadline/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-deadline plugin configuration. */

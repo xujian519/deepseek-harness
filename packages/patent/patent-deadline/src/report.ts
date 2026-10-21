@@ -35,6 +35,12 @@ const STATUS_LABEL = {
 const RECOVERY_EXCLUDED_IDS: ReadonlySet<string> = new Set(['patent-term', 'priority-window'])
 
 /**
+ * Periods whose lapse terminates the international application's effect in
+ * China; 专利法实施细则第122条 excludes them from restoration.
+ */
+const PCT_ENTRY_IDS: ReadonlySet<string> = new Set(['pct-national-entry', 'pct-national-entry-grace'])
+
+/**
  * Render a deadline report as Markdown: computed deadlines in chronological
  * order, then the deadlines that still need a notice, then the caveats that
  * qualify the dates above.
@@ -53,7 +59,7 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
 
   lines.push(
     report.restDayRule === 'apply'
-      ? '期限口径：已应用专利法实施细则第5条的届满日顺延（届满日为法定休假日或移用周休息日的，顺延至其后第一个工作日）；表中「期限届满」列为不顺延的原始届满日。'
+      ? '期限口径：已应用专利法实施细则第5条的届满日顺延（届满日为法定休假日或移用周休息日的，顺延至其后第一个工作日）；表中「原始届满日（未顺延）」列为不顺延的原始届满日。'
       : '期限口径：**不顺延**——每个期限只报其自身届满日，未应用专利法实施细则第5条的顺延规则。此口径适用于记录期限本身（如专利权期限届满日），答复、缴费类期限请改用顺延口径。',
     '',
   )
@@ -73,7 +79,7 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
     lines.push(
       `可计算期限 ${String(report.computed.length)} 项（已逾期 ${String(overdue)} 项，${String(urgent)} 项临近）。`,
       '',
-      '| 期限事项 | 届满日 | 期限届满 | 剩余 | 状态 | 法律依据 |',
+      '| 期限事项 | 届满日 | 原始届满日（未顺延） | 剩余 | 状态 | 法律依据 |',
       '| --- | --- | --- | --- | --- | --- |',
     )
     for (const entry of report.computed) {
@@ -134,14 +140,22 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
     lines.push('年费补缴窗口（逾期后 6 个月内仍可补缴并缴滞纳金，期满未缴专利权自应缴年费期满之日起终止）：', '')
     for (const entry of lateWindows) {
       const window = entry.latePaymentWindow
-      lines.push(`- ${entry.label}：${window.from} 起算，最迟 ${window.to}。`)
+      const caveat = window.calendarCaveat === undefined
+        ? ''
+        : `（窗口终点所在 ${window.calendarCaveat.slice(UNCOVERED_YEAR_CAVEAT_PREFIX.length)} 年`
+          + '节假日安排未覆盖，未应用顺延）'
+      lines.push(`- ${entry.label}：${window.from} 起算，最迟 ${window.to}${caveat}。`)
     }
     lines.push('')
   }
 
-  // 细则第6条第5款 excludes the patent term and the priority window from restoration.
+  // 细则第6条第5款 excludes the patent term and the priority window from restoration;
+  // 细则第122条 excludes a lapsed PCT national-phase entry.
   const overdueEntries = report.computed.filter(entry => entry.status === 'overdue')
-  const recoverable = overdueEntries.filter(entry => !RECOVERY_EXCLUDED_IDS.has(entry.id))
+  const excluded = overdueEntries.filter(entry => RECOVERY_EXCLUDED_IDS.has(entry.id))
+  const pctEntries = overdueEntries.filter(entry => PCT_ENTRY_IDS.has(entry.id))
+  const recoverable = overdueEntries.filter(entry =>
+    !RECOVERY_EXCLUDED_IDS.has(entry.id) && !PCT_ENTRY_IDS.has(entry.id))
   if (recoverable.length > 0) {
     lines.push(
       '已逾期项请先判断是否仍在救济期内：因不可抗拒的事由延误的，可自障碍消除之日起2个月内'
@@ -152,9 +166,16 @@ export function renderDeadlineReport(report: DeadlineReport, meta: DeadlineRepor
       + '（专利审查指南第五部分第七章第4.2节）；但无效宣告请求审查程序中指定的期限不得延长'
       + '（专利法实施细则第75条）。',
     )
-  } else if (overdueEntries.length > 0) {
+  } else if (excluded.length > 0) {
     lines.push(
       '已逾期项为专利权期限或优先权期限，二者不适用恢复权利（专利法实施细则第6条第5款）。',
+    )
+  }
+  if (pctEntries.length > 0) {
+    lines.push(
+      'PCT 国家阶段的进入期限（专利法实施细则第120条）届满未办理的，国际申请在中国的效力终止，'
+      + '不适用恢复（专利法实施细则第122条）；30个月期限可在缴纳宽限费后延至32个月'
+      + '（宽限期限已单列）。',
     )
   }
 

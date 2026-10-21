@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-deadlines-annual-fee-window-roll/guide.md
+/:
+  en: e324dbc4978fd171
+  zh: 73adc61d6c59cefb
+/annual-fee-surcharge-windows-follow-the-reported-due-date:
+  en: 0aeb0ccef081b599
+  zh: bba16fd844cf94f1
+/annual-fee-surcharge-windows-follow-the-reported-due-date/change:
+  en: acef4bca2ea29cea
+  zh: c2e1a2dd9afa8c9f
+/annual-fee-surcharge-windows-follow-the-reported-due-date/migration:
+  en: dd19a005d65c36aa
+  zh: 903be246307e59b5

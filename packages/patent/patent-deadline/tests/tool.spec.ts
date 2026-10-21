@@ -49,7 +49,7 @@ describe('patent_deadlines tool', () => {
 
     const text = result.content.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
     expect(text).toContain('patent_deadlines: 发明专利 · 申请日 2023-10-01 · 基准日 2026-09-20 · 未主张优先权')
-    expect(text).toContain('| 期限事项 | 届满日 | 期限届满 | 剩余 | 状态 | 法律依据 |')
+    expect(text).toContain('| 期限事项 | 届满日 | 原始届满日（未顺延） | 剩余 | 状态 | 法律依据 |')
     expect(text).toContain('已应用专利法实施细则第5条的届满日顺延')
     expect(text).toContain('无法计算的期限')
     expect(text).toContain('grant-notice（授权通知的送达记录）')
@@ -147,6 +147,47 @@ describe('patent_deadlines tool', () => {
     expect(entry?.calendarCaveat).toBeUndefined()
   })
 
+  it('overrides the first office-action stage the notice records', async () => {
+    const ctx = await host()
+    const utility = await execute(ctx, {
+      patentType: 'utility-model',
+      filingDate: '2025-02-10',
+      claimsPriority: false,
+      notices: [{ kind: 'office-action-first', dispatchDate: '2026-08-20', stage: 'substantive' }],
+    })
+    expect(utility.isError).toBe(true)
+    expect(JSON.stringify(utility.content)).toContain('实质审查阶段')
+
+    const invention = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+      notices: [{ kind: 'office-action-first', dispatchDate: '2026-08-20', stage: 'preliminary' }],
+    })
+    if (invention.isError) throw new Error('expected success')
+    const value = invention.value as PatentDeadlinesOutput
+    expect(value.computed.find(entry => entry.id === 'oa-response-first')).toMatchObject({
+      dueDate: '2026-10-20',
+      label: '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
+    })
+  })
+
+  it('keeps a notice with no delivery date pending instead of failing the query', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      patentType: 'invention',
+      filingDate: '2023-10-01',
+      claimsPriority: false,
+      notices: [{ kind: 'office-action-first' }],
+    })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const value = result.value as PatentDeadlinesOutput
+    expect(value.computed.some(entry => entry.id === 'oa-response-first')).toBe(false)
+    expect(value.pending.find(entry => entry.id === 'oa-response-first')?.requiredInput)
+      .toContain('office-action-first.delivery')
+  })
+
   it('rejects a non-positive designated period instead of throwing a raw period error', async () => {
     const ctx = await host()
     const result = await execute(ctx, {
@@ -171,20 +212,26 @@ describe('patent_deadlines tool', () => {
     expect(JSON.stringify(result.content)).toContain('新药')
   })
 
-  it('passes the PCT entry date through to the application-fee entry', async () => {
+  it('passes the PCT entry date through to the priority claim fee', async () => {
     const ctx = await host()
     const result = await execute(ctx, {
       patentType: 'invention',
       filingDate: '2024-01-01',
-      claimsPriority: false,
+      claimsPriority: true,
+      priorityDate: '2023-01-01',
       isPctNationalPhase: true,
       nationalPhaseEntryDate: '2025-07-01',
     })
     if (result.isError) throw new Error('expected success')
     const value = result.value as PatentDeadlinesOutput
+    // The entry fee follows the 30-month period, which starts at the priority date.
     expect(value.computed.find(entry => entry.id === 'application-fee')).toMatchObject({
+      dueDate: '2025-07-01',
+      legalBasis: '专利法实施细则第121条、第120条',
+    })
+    expect(value.computed.find(entry => entry.id === 'priority-claim-fee')).toMatchObject({
       dueDate: '2025-09-01',
-      legalBasis: '专利法实施细则第120条',
+      legalBasis: '专利法实施细则第127条',
     })
   })
 

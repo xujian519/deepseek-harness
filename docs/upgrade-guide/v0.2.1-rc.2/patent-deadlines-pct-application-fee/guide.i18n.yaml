@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-deadlines-pct-application-fee/guide.md
 /:
-  en: f8570f8717504d3b
-  zh: de6c88f1290b66e9
-/pct-application-fees-start-at-the-national-phase-entry-date:
-  en: 8549bf963ebffbc8
-  zh: cfa59a3e2ffceeae
-/pct-application-fees-start-at-the-national-phase-entry-date/change:
-  en: 8e0c527b6eb4c4b1
-  zh: 0b857ab6f4e36717
-/pct-application-fees-start-at-the-national-phase-entry-date/migration:
-  en: d2cda944a0466167
-  zh: 1efc0e177fd6bce0
+  en: 916a36eba56d553f
+  zh: c37b1a72f73611a9
+/pct-entry-fees-follow-their-own-periods:
+  en: 919954e11128c3b6
+  zh: d50be91c724ab714
+/pct-entry-fees-follow-their-own-periods/change:
+  en: 16fc4c388e8be333
+  zh: 20e8e5568e4f4f74
+/pct-entry-fees-follow-their-own-periods/migration:
+  en: 964fbe0d35999409
+  zh: a1c044f0345efe53
