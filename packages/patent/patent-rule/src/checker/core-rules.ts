@@ -308,7 +308,7 @@ export function specRules(): CheckRule[] {
     {
       id: 'SPEC-ABSTRACT',
       name: '摘要关键词',
-      description: '摘要应附关键词（专利法实施细则第23条）',
+      description: '摘要应附关键词',
       level: LevelQuality,
       severity: 'minor',
       message: '摘要缺少关键词',

@@ -8,7 +8,8 @@
  * 对齐 Mady domains/enablement（5 节点 + domain_rules.go 领域特殊规则）。
  */
 
-import { GraphBuilder, type GraphState } from '../index.ts'
+import { GraphBuilder } from '../engine.ts'
+import type { GraphState } from '../types.ts'
 import { getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
 import { dataBlock } from '../../prompt-hygiene.ts'

@@ -9,7 +9,8 @@
  * 输出（temperature 0.2），LLM 缺失/失败 → markDegraded（确定性骨架仍可跑）。
  */
 
-import { GraphBuilder, type GraphState } from '../index.ts'
+import { GraphBuilder } from '../engine.ts'
+import type { GraphState } from '../types.ts'
 import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
 import { dataBlock } from '../../prompt-hygiene.ts'

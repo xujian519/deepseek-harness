@@ -196,6 +196,15 @@ it('validateWorkflowManifest：各非法分支抛 WorkflowError', () => {
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: 'x', rewindTo: 'ghost' } }] }, /不存在的阶段/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: 'x', rewindTo: 's1' } }] }, /不能指向自身/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: 'x', maxRetries: -1 } }] }, /maxRetries/)
+  for (const invalid of [Number.NaN, 1.5, '2' as never]) {
+    throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: 'x', maxRetries: invalid } }] }, /retry.maxRetries 必须为非负整数/)
+  }
+  expect(() => {
+    validateWorkflowManifest({ ...base(), validation: { maxRetries: 0 } })
+  }).not.toThrow()
+  for (const invalid of [-1, Number.NaN, 1.5, '2' as never]) {
+    throws({ ...base(), validation: { maxRetries: invalid } }, /validation.maxRetries 必须为非负整数/)
+  }
   // consumes：只能引用已出现过的前序阶段，且不得为空数组或含重复项。
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', consumes: [] }] }, /consumes 不能为空数组/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', consumes: ['ghost'] }] }, /不存在或非前序/)

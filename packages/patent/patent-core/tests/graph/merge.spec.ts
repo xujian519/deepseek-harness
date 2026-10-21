@@ -18,6 +18,33 @@ it('mergeWithSchema LWW: 节点名字典序后者覆盖（确定性）', () => {
   expect(state.key).toBe('b')
 })
 
+it('mergeWithSchema LWW: 节点名按 UTF-16 码位序排序，与区域设置无关', () => {
+  const state: GraphState = {}
+  // en-US 的 localeCompare 认为 "a_node" < "B_node"；码位序相反（"B" = 66 < "a" = 97）。
+  mergeWithSchema(
+    state,
+    results([
+      ['a_node', { key: 'lower' }],
+      ['B_node', { key: 'upper' }],
+    ]),
+    {},
+  )
+  expect(state.key).toBe('lower')
+})
+
+it('mergeWithSchema LWW: 同名节点保持输入顺序（稳定排序）', () => {
+  const state: GraphState = {}
+  mergeWithSchema(
+    state,
+    results([
+      ['n1', { key: 1 }],
+      ['n1', { key: 2 }],
+    ]),
+    {},
+  )
+  expect(state.key).toBe(2)
+})
+
 it('mergeWithSchema LWW: 未注册 key 回落 last_write_wins', () => {
   const state: GraphState = { k: 1 }
   mergeWithSchema(state, results([['n1', { k: 2 }]]), { other: 'append' })

@@ -9,7 +9,8 @@
  * prior_art（可选，用户已提供的现有技术证据）。
  */
 
-import { GraphBuilder, type GraphNode } from '../index.ts'
+import { GraphBuilder } from '../engine.ts'
+import type { GraphNode } from '../types.ts'
 import { markDegraded } from '../degradation.ts'
 import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
