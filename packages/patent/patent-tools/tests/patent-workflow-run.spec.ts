@@ -14,6 +14,7 @@ import {
   registerBuiltinAtoms,
   StageHandlerRegistry,
   type PatentModelPort,
+  type RuleEvaluator,
   type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { JobId } from '@deepseek-ai/dsh-jobs'
@@ -47,6 +48,12 @@ globalAtomRegistry.register(eligibilityAtom)
 globalStageHandlerRegistry.register(new EligibilityHandler())
 globalAtomRegistry.register(legalGapsAtom)
 globalStageHandlerRegistry.register(new LegalGapsHandler())
+
+/** 图模式规则门评估器替身；规则语料的 conformance 由 patent-rule 自身测试覆盖。 */
+const stubRuleEvaluator: RuleEvaluator = {
+  id: 'test:stub-rules',
+  evaluate: () => ({ verdict: 'pass', failures: [], evaluatedRules: 1 }),
+}
 
 /**
  * Tool execution context for a call from this spec. `withAgent` adds the
@@ -203,7 +210,11 @@ describe('patent_workflow_run', () => {
   })
 
   it('returns ok=false for an unknown graph checkpoint', async () => {
-    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    const tool = createPatentWorkflowRunTool({
+      model: fakeModel(),
+      search: fakeSearch,
+      ruleEvaluator: stubRuleEvaluator,
+    })
     const value = (await tool.execute(
       { graph: 'novelty', input: 'x', resumeCheckpointId: 'nope' },
       exec,
@@ -1112,7 +1123,7 @@ describe('patent_workflow_run', () => {
     const failing: PatentModelPort = {
       stream: async function* () { throw new Error('model unavailable') },
     }
-    const tool = createPatentWorkflowRunTool({ model: failing, search: fakeSearch, cwd: temp })
+    const tool = createPatentWorkflowRunTool({ model: failing, search: fakeSearch, cwd: temp, ruleEvaluator: stubRuleEvaluator })
     const paused = (await tool.execute(
       { graph: 'novelty', input: '技术方案', caseId: 'case-graph' },
       exec,
@@ -1150,7 +1161,7 @@ describe('patent_workflow_run', () => {
   it('runs a full graph with persisted checkpoints and approval-gate resume', async () => {
     temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
     const cwd = temp
-    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, cwd })
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, cwd, ruleEvaluator: stubRuleEvaluator })
     const value = (await tool.execute(
       { graph: 'novelty', input: 'x', caseId: 'case-1' },
       exec,

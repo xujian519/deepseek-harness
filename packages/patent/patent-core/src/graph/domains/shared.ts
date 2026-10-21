@@ -3,7 +3,8 @@
  *
  * - handlerNode：现有 StageHandler → 图节点（可注入固定 params）；
  * - llmNode：通用 LLM 节点工厂（JSON schema + 降级标记，复用 atoms llm 语义）；
- * - ruleGateNode：确定性规则门收口节点（经可注入的 RuleEvaluator 评估，fail-closed）；
+ * - ruleGateNode：确定性规则门收口节点（经注入的 RuleEvaluator 评估，fail-closed）；
+ * - requireRuleEvaluator：启用规则门时强制注入评估器（缺少评估器在构图期报错）；
  * - collectStateText：汇总 state 文本供规则门评估。
  */
 
@@ -13,7 +14,6 @@ import { runStageHandler } from '../adapter.ts'
 import type { StageHandler } from '../../atoms/index.ts'
 import { APPROVAL_GRANTED_KEY, isApprovalGateHandler, isGateApproved } from '../../atoms/index.ts'
 import { collectStateText } from '../../atoms/handler.ts'
-import { createDefaultRuleEvaluator } from '../../checker/index.ts'
 import type { RuleEvaluator, RuleGateAssessment, RuleGateRequest } from '../../checker/index.ts'
 import { LevelMust } from '../../checker/types.ts'
 import type { RuleCheckResult, Verdict } from '../../checker/types.ts'
@@ -85,10 +85,28 @@ export function llmNode(input: LlmNodeOptions): GraphNode {
 /** 规则门写入 state 的键前缀；汇总待评估文本时整族跳过。 */
 const RULE_GATE_KEY_PREFIX = 'rule_gate_'
 
-/** 规则门节点选项。 */
-export interface RuleGateNodeOptions {
-  /** 规则评估器；缺省使用 checker 内置规则的过渡默认实现。 */
-  evaluator?: RuleEvaluator
+/** 规则门启用开关与评估器注入（领域子图构建选项的公共部分）。 */
+export interface RuleGateOptions {
+  /** 规则门收口（缺省 true）。 */
+  ruleGate?: boolean
+  /** 规则评估器；启用规则门时必填，缺少评估器在构图期报错。 */
+  ruleEvaluator?: RuleEvaluator
+}
+
+/**
+ * 读取规则门评估器；启用规则门而未注入评估器属配置错误，构图期即失败。
+ * @param options - 子图构建选项中的规则门部分。
+ * @returns 注入的规则评估器。
+ * @throws 当规则门启用但 `ruleEvaluator` 缺失时抛出。
+ */
+export function requireRuleEvaluator(options: RuleGateOptions): RuleEvaluator {
+  if (options.ruleEvaluator === undefined) {
+    throw new Error(
+      '规则门已启用但未注入 ruleEvaluator：规则语料由 @deepseek-ai/dsh-patent-rule 提供，'
+      + '请在构图时注入其 createCheckerRuleEvaluator() 或等价实现（或显式设置 ruleGate: false）。',
+    )
+  }
+  return options.ruleEvaluator
 }
 
 /** 构造规则门的失败结果（配置/评估器错误按 Must 级阻断）。 */
@@ -160,11 +178,10 @@ export function evaluateRuleGate(evaluator: RuleEvaluator, request: RuleGateRequ
 
 /** 规则门收口节点：汇总 state 文本 → 注入的评估器按域评估 → verdict 写入 state。
  * @param domains - 规则门评估的领域列表。
- * @param options - 评估器注入。
+ * @param evaluator - 规则评估器（规则语料由其来源包提供）。
  * @returns 规则门图节点。
  */
-export function ruleGateNode(domains: readonly string[], options: RuleGateNodeOptions = {}): GraphNode {
-  const evaluator = options.evaluator ?? createDefaultRuleEvaluator()
+export function ruleGateNode(domains: readonly string[], evaluator: RuleEvaluator): GraphNode {
   // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
   return async ({ state }) => {
     const text = collectStateText(state, {

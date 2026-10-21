@@ -13,18 +13,21 @@ import { GraphBuilder, type GraphState } from '../index.ts'
 import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
 import { dataBlock } from '../../prompt-hygiene.ts'
-import type { RuleEvaluator } from '../../checker/index.ts'
-import { formatPriorArtLines, handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
+import {
+  formatPriorArtLines,
+  handlerNode,
+  llmNode,
+  requireRuleEvaluator,
+  resolveInput,
+  ruleGateNode,
+  type RuleGateOptions,
+} from './shared.ts'
 
 /** 构建创造性分析子图的选项。 */
-export type BuildInventivenessGraphOptions = {
+export type BuildInventivenessGraphOptions = RuleGateOptions & {
   handlers?: StageHandlerRegistry
-  /** 规则门收口（缺省 true）。 */
-  ruleGate?: boolean
   /** 注入 approval-gate 审批门（缺省 true：HITL 暂停；自动执行/评测场景置 false 直达规则门）。 */
   includeApproval?: boolean
-  /** 规则门评估器；缺省使用 checker 内置规则的过渡默认实现。 */
-  ruleEvaluator?: RuleEvaluator
 }
 
 // ---------------------------------------------------------------------------
@@ -323,13 +326,7 @@ function addGraphTail(builder: GraphBuilder, handlers: StageHandlerRegistry, opt
 
   const withRuleGate = options.ruleGate !== false
   if (withRuleGate) {
-    builder.addNode(
-      'rule_gate',
-      ruleGateNode(
-        ['patent_inventiveness'],
-        options.ruleEvaluator !== undefined ? { evaluator: options.ruleEvaluator } : {},
-      ),
-    )
+    builder.addNode('rule_gate', ruleGateNode(['patent_inventiveness'], requireRuleEvaluator(options)))
   }
   if (approval !== undefined && options.includeApproval !== false) {
     builder.addNode('approval', handlerNode(approval, { review_context: '创造性三步法结论需人工复核' }))

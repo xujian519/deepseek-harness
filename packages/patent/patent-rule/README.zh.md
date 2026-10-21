@@ -64,6 +64,8 @@ kind: "package-reference"
 
 包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`isGateCheckType`、`PATENT_CASE_DOMAINS`、`patentCaseDomains`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`，制品门禁的 `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`，以及交付门禁的 `DeliveryAttemptLedger` / `deliveryEvidence` / `deliveryGateMissing` / `renderDeliveryGateDenial` / `resolveDeliveryGate` 与 `DeliveryEvidenceRequirement` / `DeliveryGateEntry` 类型，外加共用的 `jsonRecord` / `declaredArgsMatch`。
 
+本包同时拥有 checker 规则语料（`defaultPatentRules()` 及各域构造函数：71 条域过滤 `CheckRule`，覆盖新颖性、创造性、侵权、充分公开、权利要求、说明书、无效、复审、优先权、公开方式、保护客体与 24 条推理模式规则），并通过 `createCheckerRuleEvaluator()` 暴露——这是可专利性子图 `rule_gate` 消费的 `RuleEvaluator` 实现。该评估器声明语料覆盖的领域，并按请求领域统计参与评估的规则数，未知领域与空规则集仍 fail-closed。工作流工具在插件接线处取得该评估器；启用规则门却没有评估器的图运行会在构图期报错。
+
 <a id="rule-assets"></a>
 ## 规则资产
 

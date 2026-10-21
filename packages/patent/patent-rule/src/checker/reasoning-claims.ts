@@ -1,13 +1,12 @@
 /**
- * src/patent/checker — 推理模式规则：权利要求/说明书组（5 条）。
+ * src/checker — checker 规则资产（patent-rule）：推理模式规则：权利要求/说明书组（5 条）。
  *
  * 移植自 Mady domains/workflows/patent/reasoning_patterns.go；按组拆分自
  * reasoning-rules.ts（对齐 core-rules.ts 的按域拆函数范式）。
  */
 
-import type { CheckRule } from './types.ts'
-import { LevelShould } from './types.ts'
 import {
+  LevelShould,
   TERM_CAN_USE,
   TERM_ENABLEMENT,
   TERM_EXP_DATA,
@@ -19,7 +18,8 @@ import {
   DOMAIN_DISCLOSURE,
   DIM_CLARITY,
   DIM_SUPPORT,
-} from './constants.ts'
+  type CheckRule,
+} from '@deepseek-ai/dsh-patent-core'
 
 /**
  * 权利要求/说明书推理模式规则（5 条）。

@@ -1,16 +1,17 @@
 /**
- * src/patent/checker — 场景规则集（11 组，47 条）。
+ * src/checker — checker 规则资产（patent-rule）：场景规则集（11 组，47 条）。
  *
  * 移植自 Mady domains/workflows/patent/rule_{novelty,inventiveness,disclosure,
  * infringement,invalidation,reexamination,design,priority,public_access,
  * subject_matter}.go（覆盖专利法 A2/A22.2/A22.3/A26.3/A33 及无效/复审/外观/优先权）。
- * 推理模式规则见 reasoning-rules.ts（24 条）；defaultPatentRules() 合计 68 条。
+ * 推理模式规则见 reasoning-rules.ts（24 条）；defaultPatentRules() 合计 71 条。
  */
 
-import { technicalProblemCheck } from '../problem/index.ts'
-import type { CheckRule } from './types.ts'
-import { LevelMust, LevelQuality, LevelShould } from './types.ts'
 import {
+  LevelMust,
+  LevelQuality,
+  LevelShould,
+  technicalProblemCheck,
   TERM_CLOSEST_PRIOR_ART,
   TERM_CLOSEST_PRIOR_ART_FULL,
   TERM_COMBINATION_HINT,
@@ -46,7 +47,8 @@ import {
   DIM_CLARITY,
   DIM_ESSENTIAL,
   DIM_SUPPORT,
-} from './constants.ts'
+  type CheckRule,
+} from '@deepseek-ai/dsh-patent-core'
 
 /**
  * 新颖性规则（专利法 A22.2）。

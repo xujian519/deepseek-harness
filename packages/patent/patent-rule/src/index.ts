@@ -195,6 +195,7 @@ export {
   createOverseasNotarizationGuard,
   evi011GuardConditionFields,
 } from './guard/evidenceComplianceGuards.ts'
+export * from './checker/index.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'patent-rule'

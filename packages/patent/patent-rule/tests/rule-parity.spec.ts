@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultRuleEvaluator, defaultPatentRules } from '@deepseek-ai/dsh-patent-core'
-import { loadPatentFullRuleSet } from '@deepseek-ai/dsh-patent-rule'
+import {
+  createCheckerRuleEvaluator,
+  defaultPatentRules,
+  loadPatentFullRuleSet,
+} from '@deepseek-ai/dsh-patent-rule'
 
 /**
- * core checker 规则（71 条）与 patent-rule 宪法资产（123 条）的主题重叠矩阵。
+ * checker 规则（71 条，随本包发布）与宪法资产（123 条）的主题重叠矩阵。
  *
  * 没有任何一对是等价实现：资产规则以 structural_analysis（缺失即违规）为主，
- * core 规则以关键词/步骤/维度检查为主，故 `parity` 只有 `partial`（同主题、不同实现）
- * 与 `none`（资产无对应主题）。矩阵只用于迁移审计，不能据此用资产替换 core 规则。
+ * checker 规则以关键词/步骤/维度检查为主，故 `parity` 只有 `partial`（同主题、不同实现）
+ * 与 `none`（资产无对应主题）。矩阵只用于迁移审计，不能据此用资产替换 checker 规则。
  */
 type ParityEntry = {
   parity: 'partial' | 'none'
@@ -130,8 +133,8 @@ describe('core checker ↔ patent-rule asset parity', () => {
   })
 })
 
-describe('core checker 规则门评估基线（迁移金标）', () => {
-  const evaluator = createDefaultRuleEvaluator()
+describe('checker 规则门评估基线（迁移金标）', () => {
+  const evaluator = createCheckerRuleEvaluator()
   const cases = [
     {
       name: '新颖性违规',

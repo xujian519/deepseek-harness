@@ -1,48 +1,13 @@
 import { expect, it } from 'vitest'
 import {
-  DEFAULT_RULE_EVALUATOR_ID,
-  createDefaultRuleEvaluator,
   evaluateRuleGate,
+  requireRuleEvaluator,
   ruleGateNode,
   type RuleCheckResult,
   type RuleEvaluator,
   type RuleGateAssessment,
   type RuleGateRequest,
 } from '@deepseek-ai/dsh-patent-core'
-
-const NOVELTY_VIOLATION = '结合多份对比文件结合，可认定本申请不具备新颖性。'
-
-// ---------------------------------------------------------------------------
-// 默认 checker 评估器
-// ---------------------------------------------------------------------------
-
-it('createDefaultRuleEvaluator: 声明规则域并执行域过滤', () => {
-  const evaluator = createDefaultRuleEvaluator()
-  expect(evaluator.id).toBe(DEFAULT_RULE_EVALUATOR_ID)
-  expect(evaluator.domains).toContain('patent_novelty')
-  expect(evaluator.domains).toContain('patent_spec')
-  expect(evaluator.domains).not.toContain('')
-
-  const one = evaluator.evaluate({ text: NOVELTY_VIOLATION, domains: ['patent_novelty'] })
-  expect(one.verdict).toBe('blocked')
-  expect(one.failures.map(failure => failure.ruleId)).toContain('NOVELTY-SINGLE-COMPARISON')
-
-  const two = evaluator.evaluate({ text: NOVELTY_VIOLATION, domains: ['patent_novelty', 'patent_spec'] })
-  expect(two.evaluatedRules).toBeGreaterThan(one.evaluatedRules)
-})
-
-it('createDefaultRuleEvaluator: 合规文本 → pass 且零失败', () => {
-  const evaluator = createDefaultRuleEvaluator()
-  const assessment = evaluator.evaluate({
-    text:
-      '侵权分析：将被控方案与权利要求1的技术特征逐一比对（全面覆盖原则），特征A构成等同替换；' +
-      '同时审查审查过程修改，不存在禁止反悔情形，亦不适用捐献规则。',
-    domains: ['patent_infringement'],
-  })
-  expect(assessment.failures).toEqual([])
-  expect(assessment.verdict).toBe('pass')
-  expect(assessment.evaluatedRules).toBe(4)
-})
 
 // ---------------------------------------------------------------------------
 // 规则门 fail-closed 语义
@@ -141,7 +106,7 @@ it('ruleGateNode: 注入评估器接收汇总文本与领域，审计键写入 d
     },
   }
 
-  const delta = await ruleGateNode(['patent_novelty'], { evaluator })({
+  const delta = await ruleGateNode(['patent_novelty'], evaluator)({
     state: {
       novelty_report: '新颖性分析报告',
       rule_gate_verdict: 'pass',
@@ -164,4 +129,19 @@ it('ruleGateNode: 注入评估器接收汇总文本与领域，审计键写入 d
     rule_gate_rules_evaluated: 5,
     rule_gate_text_length: '## novelty_report\n新颖性分析报告'.length,
   })
+})
+
+// ---------------------------------------------------------------------------
+// requireRuleEvaluator：启用规则门却未注入评估器 → 构图期报错
+// ---------------------------------------------------------------------------
+
+it('requireRuleEvaluator: 返回注入的评估器', () => {
+  const evaluator = stubEvaluator()
+  expect(requireRuleEvaluator({ ruleEvaluator: evaluator })).toBe(evaluator)
+})
+
+it('requireRuleEvaluator: 缺少评估器 → 报错指向注入方式与关闭开关', () => {
+  expect(() => requireRuleEvaluator({})).toThrow(/未注入 ruleEvaluator/)
+  expect(() => requireRuleEvaluator({})).toThrow(/createCheckerRuleEvaluator/)
+  expect(() => requireRuleEvaluator({})).toThrow(/ruleGate: false/)
 })

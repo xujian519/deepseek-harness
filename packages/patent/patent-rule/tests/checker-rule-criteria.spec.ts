@@ -21,7 +21,8 @@
  * `pathElements`，作为下表一行（区别技术特征的可见性已由 `INVENTIVENESS-THREE-STEP` 把守）。
  */
 import { describe, expect, it } from 'vitest'
-import { RuleEngine, defaultPatentRules } from '@deepseek-ai/dsh-patent-core'
+import { RuleEngine } from '@deepseek-ai/dsh-patent-core'
+import { defaultPatentRules } from '@deepseek-ai/dsh-patent-rule'
 
 const engine = new RuleEngine()
 engine.registerMany(defaultPatentRules())

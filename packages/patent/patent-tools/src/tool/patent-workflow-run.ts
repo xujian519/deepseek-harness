@@ -11,7 +11,8 @@
  * artifact structural (declared tool-call arguments), and delivery
  * (`rule_check` + `law_verify` before render) — and `checkSection` renders
  * empty (the carrier stays for the ported text contract). The graph path keeps
- * its internal rule_gate node (dsh-patent-core's checker). See
+ * its internal rule_gate node; the rule evaluator is injected by the composition
+ * root (`@deepseek-ai/dsh-patent-rule`'s checker adapter). See
  * `.agents/notes/implemented/architecture/2026-09-28-patent-output-gating-runs-on-the-rule-gate.md`
  * and
  * `.agents/notes/implemented/architecture/2026-10-03-patent-delivery-gate-enforces-gate-runs.md`.
@@ -38,6 +39,7 @@ import {
   type DomainGraphName,
   type GraphCheckpoint,
   type GraphState,
+  type RuleEvaluator,
   type StageHandlerRegistry,
   type StageProvider,
   type WorkflowContext,
@@ -180,6 +182,12 @@ export interface PatentWorkflowRunDeps extends WorkflowProviderDeps {
   cwd?: string
   /** Stage-handler registry (default: the global registry). */
   handlers?: StageHandlerRegistry
+  /**
+   * Rule-gate evaluator for graph mode. The composition root injects the
+   * checker adapter from `@deepseek-ai/dsh-patent-rule`; without it a graph
+   * run fails loud at graph build instead of silently skipping the rule gate.
+   */
+  ruleEvaluator?: RuleEvaluator
   /**
    * Read the background job registry (`ctx.jobs`) at call time. Lazy because
    * this plugin may load before or after the registry; absent (or undefined
@@ -674,7 +682,10 @@ async function executeGraphRun(
 
   const workflowCtx = buildRunContext(input)
 
-  const graph = def.build({ handlers: deps.handlers ?? globalStageHandlerRegistry }).compile(def.entry)
+  const graph = def.build({
+    handlers: deps.handlers ?? globalStageHandlerRegistry,
+    ...(deps.ruleEvaluator !== undefined ? { ruleEvaluator: deps.ruleEvaluator } : {}),
+  }).compile(def.entry)
   let store: CheckpointStore | undefined
   let persistNote = '持久化: 未启用（未提供 caseId）'
   if (input.caseId !== undefined) {

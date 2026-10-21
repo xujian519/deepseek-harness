@@ -31,11 +31,12 @@ export {
   evaluateRuleGate,
   handlerNode,
   llmNode,
+  requireRuleEvaluator,
   ruleGateNode,
   collectStateText,
   resolveInput,
 } from './shared.ts'
-export type { LlmNodeOptions, RuleGateNodeOptions, RuleGateState } from './shared.ts'
+export type { LlmNodeOptions, RuleGateOptions, RuleGateState } from './shared.ts'
 export { buildNoveltyGraph, extractNumericRanges, type BuildNoveltyGraphOptions }
 export { buildInventivenessGraph, extractInventivenessResult, type BuildInventivenessGraphOptions }
 export { buildEnablementGraph, extractEnablementResult, detectTechnicalDomain, type BuildEnablementGraphOptions }

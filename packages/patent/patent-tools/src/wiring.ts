@@ -13,7 +13,7 @@ import type { Atom, PatentModelPort, StageHandler } from '@deepseek-ai/dsh-paten
 import type { ImageAttachmentRef, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-patent-knowledge'
 import { builtinPatentManifests, SHIPPED_GUIDELINE_REVISION } from '@deepseek-ai/dsh-patent-workflow'
-import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
+import { candidateRuleDirs, createCheckerRuleEvaluator } from '@deepseek-ai/dsh-patent-rule'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
 import { chemistryIndexStore, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
@@ -415,7 +415,13 @@ export function registerPatentTools(ctx: Context, config: Config): void {
   ctx.tools.register(createTrizContradictionAnalysisTool({ model }))
   // ctx.jobs backs `run_in_background`: read lazily, because the job registry
   // may load after this plugin; absent means the tool fails loud on that flag.
-  ctx.tools.register(createPatentWorkflowRunTool({ model, jobs: () => ctx.get('jobs') }))
+  // 图模式的规则门评估器在组合点注入：规则语料随 patent-rule 发布，
+  // patent-core 只保留端口与引擎。
+  ctx.tools.register(createPatentWorkflowRunTool({
+    model,
+    jobs: () => ctx.get('jobs'),
+    ruleEvaluator: createCheckerRuleEvaluator(),
+  }))
   ctx.tools.register(createFlexiblePlanTool({ model }))
   ctx.tools.register(createAnalyzePatentFigureTool({
     ...(imageModel === undefined ? {} : { imageModel }),

@@ -1,13 +1,15 @@
 /**
- * src/patent/checker — 推理模式规则：创造性组（7 条）。
+ * src/checker — checker 规则资产（patent-rule）：推理模式规则：创造性组（7 条）。
  *
  * 移植自 Mady domains/workflows/patent/reasoning_patterns.go；按组拆分自
  * reasoning-rules.ts（对齐 core-rules.ts 的按域拆函数范式）。
  */
 
-import type { CheckRule } from './types.ts'
-import { LevelMust, LevelQuality, LevelShould } from './types.ts'
 import {
+  LevelMust,
+  LevelQuality,
+  LevelShould,
+  matchKeyword,
   TERM_CLOSEST_PRIOR_ART,
   TERM_COMMON_KNOWLEDGE,
   TERM_DIFF_FEATURES,
@@ -19,8 +21,8 @@ import {
   TERM_TECH_HINT,
   TERM_USE_LIMIT,
   DOMAIN_INVENTIVENESS,
-} from './constants.ts'
-import { matchKeyword } from './engine.ts'
+  type CheckRule,
+} from '@deepseek-ai/dsh-patent-core'
 
 /** 公知常识性证据的表述（教科书/工具书为审查指南列举的常见形式）。 */
 const COMMON_KNOWLEDGE_EVIDENCE = ['证据', '依据', '证明', '教科书', '工具书', '文献', '调研']

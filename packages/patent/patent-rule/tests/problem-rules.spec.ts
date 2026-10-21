@@ -2,10 +2,9 @@ import { expect, it } from 'vitest'
 import {
   RuleEngine,
   aggregate,
-  defaultPatentRules,
-  inventivenessRules,
   type RuleCheckResult,
 } from '@deepseek-ai/dsh-patent-core'
+import { defaultPatentRules, inventivenessRules } from '@deepseek-ai/dsh-patent-rule'
 
 const engine = new RuleEngine()
 engine.registerMany(inventivenessRules())

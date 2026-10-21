@@ -23,12 +23,19 @@ import {
   runStageHandler,
   type GraphCheckpoint,
   type GraphState,
+  type RuleEvaluator,
   type StageHandler,
   type StageProvider,
   type WorkflowManifest,
 } from '@deepseek-ai/dsh-patent-core'
 
 registerBuiltinAtoms()
+
+/** 规则门评估器替身：覆盖图接线与审计键，不加载规则语料。 */
+const stubRuleEvaluator: RuleEvaluator = {
+  id: 'test:stub-rules',
+  evaluate: () => ({ verdict: 'pass', failures: [], evaluatedRules: 1 }),
+}
 
 // ---------------------------------------------------------------------------
 // 状态工具 / 合并
@@ -376,7 +383,7 @@ it('novelty：ruleGate 关闭时尾链直连 END', () => {
   const graph = buildNoveltyGraph({ ruleGate: false })
   expect(graph.compile('extract').describe().nodes).not.toContain('rule_gate')
   // includeApproval=false 且 ruleGate 开启 → else 分支直连 rule_gate
-  const graph2 = buildNoveltyGraph({ includeApproval: false })
+  const graph2 = buildNoveltyGraph({ includeApproval: false, ruleEvaluator: stubRuleEvaluator })
   expect(graph2.compile('extract').describe().nodes).toContain('rule_gate')
 })
 
@@ -414,7 +421,7 @@ it('inventiveness：空注册表直连 closest；ruleGate 关闭', () => {
   expect(graph.describe().nodes).not.toContain('rule_gate')
   expect(graph.describe().nodes).not.toContain('search')
   // includeApproval=false 且 ruleGate 开启 → else 分支直连 rule_gate
-  const graph2 = buildInventivenessGraph({ includeApproval: false })
+  const graph2 = buildInventivenessGraph({ includeApproval: false, ruleEvaluator: stubRuleEvaluator })
   expect(graph2.compile('parse').describe().nodes).toContain('rule_gate')
 })
 
@@ -436,7 +443,7 @@ it('enablement：includeApproval/ruleGate 关闭与 extractResult 兜底', async
   expect(desc2.nodes).toContain('approval')
   expect(desc2.nodes).not.toContain('rule_gate')
   // includeApproval=false + ruleGate 开启 → else 分支直连 rule_gate
-  const desc3 = buildEnablementGraph({ includeApproval: false }).compile('load').describe()
+  const desc3 = buildEnablementGraph({ includeApproval: false, ruleEvaluator: stubRuleEvaluator }).compile('load').describe()
   expect(desc3.nodes).toContain('rule_gate')
   expect(extractEnablementResult({})).toEqual({})
   expect(extractEnablementResult({ enablement_conclusion: 'not-json' })).toEqual({})
