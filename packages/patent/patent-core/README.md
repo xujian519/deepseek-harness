@@ -51,7 +51,7 @@ Stage params tune these handlers. Absent keys keep the per-atom defaults; malfor
 
 ## Checker (dual-track deterministic rule engine)
 
-`RuleEngine` evaluates domain-scoped `CheckRule`s over analysis text — novelty single-comparison, inventiveness three-step, infringement full-coverage, disclosure sufficiency, spec-checklist, and the 24 reasoning-pattern rules — with synonym expansion plus negation detection; `aggregate` maps failures to `pass`/`needs_revision`/`blocked`, and `defaultPatentRules()` registers all 71 rules.
+`RuleEngine` evaluates domain-scoped `CheckRule`s over analysis text — novelty single-comparison, inventiveness three-step, infringement full-coverage, disclosure sufficiency, spec-checklist, and the 24 reasoning-pattern rules — with synonym expansion plus negation detection; `aggregate` maps failures to `pass`/`needs_revision`/`blocked`, and `defaultPatentRules()` registers all 71 rules. `createDefaultRuleEvaluator()` exposes that corpus through the `RuleEvaluator` port consumed by the patentability subgraphs' `rule_gate`; injecting an evaluator replaces the rule source without changing the graphs. The gate fails closed: empty or unknown domains, an evaluator exception, and a domain with zero rules all produce `blocked` instead of a silent pass.
 
 ## Problem (atomic technical-problem checks)
 

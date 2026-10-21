@@ -3,7 +3,7 @@
  *
  * - handlerNode：现有 StageHandler → 图节点（可注入固定 params）；
  * - llmNode：通用 LLM 节点工厂（JSON schema + 降级标记，复用 atoms llm 语义）；
- * - ruleGateNode：确定性规则门收口节点（复用 checker RuleEngine + aggregate）；
+ * - ruleGateNode：确定性规则门收口节点（经可注入的 RuleEvaluator 评估，fail-closed）；
  * - collectStateText：汇总 state 文本供规则门评估。
  */
 
@@ -13,8 +13,10 @@ import { runStageHandler } from '../adapter.ts'
 import type { StageHandler } from '../../atoms/index.ts'
 import { APPROVAL_GRANTED_KEY, isApprovalGateHandler, isGateApproved } from '../../atoms/index.ts'
 import { collectStateText } from '../../atoms/handler.ts'
-import { RuleEngine, aggregate, defaultPatentRules, type Verdict } from '../../checker/index.ts'
-import type { RuleCheckResult } from '../../checker/types.ts'
+import { createDefaultRuleEvaluator } from '../../checker/index.ts'
+import type { RuleEvaluator, RuleGateAssessment, RuleGateRequest } from '../../checker/index.ts'
+import { LevelMust } from '../../checker/types.ts'
+import type { RuleCheckResult, Verdict } from '../../checker/types.ts'
 
 export { collectStateText }
 
@@ -80,29 +82,102 @@ export function llmNode(input: LlmNodeOptions): GraphNode {
   }
 }
 
-/** 规则门收口节点：汇总 state 文本 → checker RuleEngine 按域评估 → verdict 写入 state。
+/** 规则门写入 state 的键前缀；汇总待评估文本时整族跳过。 */
+const RULE_GATE_KEY_PREFIX = 'rule_gate_'
+
+/** 规则门节点选项。 */
+export interface RuleGateNodeOptions {
+  /** 规则评估器；缺省使用 checker 内置规则的过渡默认实现。 */
+  evaluator?: RuleEvaluator
+}
+
+/** 构造规则门的失败结果（配置/评估器错误按 Must 级阻断）。 */
+function gateFailure(ruleId: string, message: string, fixSuggestion: string): RuleCheckResult {
+  return {
+    ruleId,
+    ruleName: '规则门配置错误',
+    passed: false,
+    level: LevelMust,
+    severity: 'critical',
+    message,
+    fixSuggestion,
+  }
+}
+
+function blocked(failure: RuleCheckResult): RuleGateAssessment {
+  return { verdict: 'blocked', failures: [failure], evaluatedRules: 0 }
+}
+
+/**
+ * 执行一次规则门评估，未知领域、空领域、评估器异常与空规则集一律 fail-closed。
+ * @param evaluator - 注入的规则评估器。
+ * @param request - 待评估文本与声明领域。
+ * @returns 评估结论；配置/评估器异常时返回 blocked。
+ */
+export function evaluateRuleGate(evaluator: RuleEvaluator, request: RuleGateRequest): RuleGateAssessment {
+  if (request.domains.length === 0) {
+    return blocked(
+      gateFailure('RULE-GATE-NO-DOMAINS', '规则门没有声明评估领域，拒绝放行', '为规则门声明至少一个评估领域'),
+    )
+  }
+  const supported = evaluator.domains
+  if (supported !== undefined) {
+    const unknown = request.domains.filter(domain => !supported.includes(domain))
+    if (unknown.length > 0) {
+      return blocked(
+        gateFailure(
+          'RULE-GATE-UNKNOWN-DOMAIN',
+          `规则评估器 ${evaluator.id} 不支持领域：${unknown.join('、')}`,
+          '检查规则门领域配置或注入支持该领域的评估器',
+        ),
+      )
+    }
+  }
+  let assessment: RuleGateAssessment
+  try {
+    assessment = evaluator.evaluate(request)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return blocked(
+      gateFailure(
+        'RULE-GATE-EVALUATOR-ERROR',
+        `规则评估器 ${evaluator.id} 执行失败：${message}`,
+        '检查规则资产与评估器实现；规则评估失败时不得放行',
+      ),
+    )
+  }
+  if (assessment.evaluatedRules === 0) {
+    return blocked(
+      gateFailure(
+        'RULE-GATE-EMPTY-RULESET',
+        `领域 ${request.domains.join('、')} 没有可评估的规则`,
+        '检查规则资产加载是否完整；空规则集不得作为通过',
+      ),
+    )
+  }
+  return assessment
+}
+
+/** 规则门收口节点：汇总 state 文本 → 注入的评估器按域评估 → verdict 写入 state。
  * @param domains - 规则门评估的领域列表。
+ * @param options - 评估器注入。
  * @returns 规则门图节点。
  */
-export function ruleGateNode(domains: readonly string[]): GraphNode {
+export function ruleGateNode(domains: readonly string[], options: RuleGateNodeOptions = {}): GraphNode {
+  const evaluator = options.evaluator ?? createDefaultRuleEvaluator()
   // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
   return async ({ state }) => {
     const text = collectStateText(state, {
       // 规则门自身的写入键与降级标记不属于业务文本。
-      skipKey: key =>
-        key.endsWith(DEGRADATION_SUFFIX) ||
-        key === 'rule_gate_verdict' ||
-        key === 'rule_gate_domains' ||
-        key === 'rule_gate_failures',
+      skipKey: key => key.endsWith(DEGRADATION_SUFFIX) || key.startsWith(RULE_GATE_KEY_PREFIX),
     })
-    const engine = new RuleEngine()
-    engine.registerMany(defaultPatentRules())
-    const failures = engine.evaluate(text, { domain: domains })
-    const verdict = aggregate(failures)
+    const assessment = evaluateRuleGate(evaluator, { text, domains })
     return {
-      rule_gate_verdict: verdict,
+      rule_gate_verdict: assessment.verdict,
       rule_gate_domains: [...domains],
-      rule_gate_failures: failures.map(f => f.ruleId),
+      rule_gate_failures: assessment.failures.map(f => f.ruleId),
+      rule_gate_evaluator: evaluator.id,
+      rule_gate_rules_evaluated: assessment.evaluatedRules,
       rule_gate_text_length: text.length,
     }
   }

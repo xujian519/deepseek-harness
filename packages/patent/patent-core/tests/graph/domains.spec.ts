@@ -17,6 +17,8 @@ import {
   globalStageHandlerRegistry,
   isDegraded,
   registerBuiltinAtoms,
+  type RuleEvaluator,
+  type RuleGateRequest,
   type StageHandler,
   type StageProvider,
 } from '@deepseek-ai/dsh-patent-core'
@@ -101,6 +103,34 @@ it('novelty: mock provider + 放行审批 → 跑完全图 + 规则门收口', a
   // mock 报告未覆盖 → blocked 属预期；核心通过性由 ruleGate:false 用例验证）。
   expect(['pass', 'blocked', 'needs_revision'].includes(result.state.rule_gate_verdict as string)).toBe(true)
   expect(Array.isArray(result.state.rule_gate_failures)).toBe(true)
+})
+
+it('novelty: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
+  const requests: RuleGateRequest[] = []
+  const evaluator: RuleEvaluator = {
+    id: 'test:novelty-gate',
+    domains: ['patent_novelty'],
+    evaluate: (request) => {
+      requests.push(request)
+      return { verdict: 'pass', failures: [], evaluatedRules: 3 }
+    },
+  }
+  const graph = buildNoveltyGraph({
+    handlers: passthroughHandlers(),
+    includeApproval: false,
+    ruleEvaluator: evaluator,
+  }).compile('extract')
+  const result = await graph.run(
+    { text: '一种分拣装置，包含传送带与识别传感器', prior_art: [{ title: 'D1', snippet: '公开传送带' }] },
+    { provider: noveltyProvider() },
+  )
+  expect(result.completed).toBe(true)
+  expect(result.state.rule_gate_verdict).toBe('pass')
+  expect(result.state.rule_gate_evaluator).toBe('test:novelty-gate')
+  expect(result.state.rule_gate_rules_evaluated).toBe(3)
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.domains).toEqual(['patent_novelty'])
+  expect(requests[0]?.text).toContain('分拣装置')
 })
 
 it('novelty: 无数值表述时确定性核验段标记（无）', async () => {
@@ -234,6 +264,32 @@ it('inventiveness: 规则门收口输出 verdict（推理路径规则严格，bl
   expect(Array.isArray(result.state.rule_gate_failures)).toBe(true)
 })
 
+it('inventiveness: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
+  const requests: RuleGateRequest[] = []
+  const evaluator: RuleEvaluator = {
+    id: 'test:inventiveness-gate',
+    domains: ['patent_inventiveness'],
+    evaluate: (request) => {
+      requests.push(request)
+      return { verdict: 'pass', failures: [], evaluatedRules: 4 }
+    },
+  }
+  const graph = buildInventivenessGraph({
+    handlers: passthroughHandlers(),
+    includeApproval: false,
+    ruleEvaluator: evaluator,
+  }).compile('parse')
+  const result = await graph.run(
+    { text: '一种分拣装置，包括传送带与识别传感器' },
+    { provider: inventivenessProvider() },
+  )
+  expect(result.completed).toBe(true)
+  expect(result.state.rule_gate_evaluator).toBe('test:inventiveness-gate')
+  expect(result.state.rule_gate_rules_evaluated).toBe(4)
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.domains).toEqual(['patent_inventiveness'])
+})
+
 it('inventiveness: 无 provider → 全 LLM 节点降级 + approval 中断', async () => {
   const graph = buildInventivenessGraph({ handlers: globalStageHandlerRegistry }).compile('parse')
   const result = await graph.run({ text: '一种分拣装置' })
@@ -295,6 +351,32 @@ it('enablement: mock provider → A26.3 全流程 + 领域规则 + 规则门', a
   const extracted = extractEnablementResult(result.state)
   expect(extracted.sufficientlyDisclosed).toBe(false)
   expect(result.state.rule_gate_verdict).toBe('pass')
+})
+
+it('enablement: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
+  const requests: RuleGateRequest[] = []
+  const evaluator: RuleEvaluator = {
+    id: 'test:enablement-gate',
+    domains: ['patent_disclosure'],
+    evaluate: (request) => {
+      requests.push(request)
+      return { verdict: 'pass', failures: [], evaluatedRules: 6 }
+    },
+  }
+  const graph = buildEnablementGraph({
+    handlers: passthroughHandlers(),
+    includeApproval: false,
+    ruleEvaluator: evaluator,
+  }).compile('load')
+  const result = await graph.run(
+    { text: '一种化合物及其制备方法。技术领域：化学。背景技术…发明内容…具体实施方式…附图说明…实施例1。' },
+    { provider: enablementProvider() },
+  )
+  expect(result.completed).toBe(true)
+  expect(result.state.rule_gate_evaluator).toBe('test:enablement-gate')
+  expect(result.state.rule_gate_rules_evaluated).toBe(6)
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.domains).toEqual(['patent_disclosure'])
 })
 
 it('enablement: load 节点确定性结构检查', async () => {

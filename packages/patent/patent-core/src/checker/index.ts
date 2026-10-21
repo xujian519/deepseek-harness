@@ -32,6 +32,14 @@ export {
 } from './engine.ts'
 
 export {
+  createDefaultRuleEvaluator,
+  DEFAULT_RULE_EVALUATOR_ID,
+  type RuleEvaluator,
+  type RuleGateAssessment,
+  type RuleGateRequest,
+} from './evaluator.ts'
+
+export {
   TERM_CLOSEST_PRIOR_ART,
   TERM_CLOSEST_PRIOR_ART_FULL,
   TERM_COMBINATION_HINT,

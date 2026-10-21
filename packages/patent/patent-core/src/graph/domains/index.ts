@@ -28,13 +28,14 @@ import {
 } from './citation-check.ts'
 
 export {
+  evaluateRuleGate,
   handlerNode,
   llmNode,
   ruleGateNode,
   collectStateText,
   resolveInput,
 } from './shared.ts'
-export type { LlmNodeOptions, RuleGateState } from './shared.ts'
+export type { LlmNodeOptions, RuleGateNodeOptions, RuleGateState } from './shared.ts'
 export { buildNoveltyGraph, extractNumericRanges, type BuildNoveltyGraphOptions }
 export { buildInventivenessGraph, extractInventivenessResult, type BuildInventivenessGraphOptions }
 export { buildEnablementGraph, extractEnablementResult, detectTechnicalDomain, type BuildEnablementGraphOptions }

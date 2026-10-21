@@ -54,7 +54,7 @@ Stage params 可调整这些 handler。缺省键保留各原子默认值；畸�
 <a id="checker-dual-track-deterministic-rule-engine"></a>
 ## Checker（双轨确定性规则引擎）
 
-`RuleEngine` 对分析文本逐条评估域过滤的 `CheckRule`——新颖性单独对比、创造性三步法、侵权全面覆盖、充分公开、说明书 checklist 与 24 条推理模式规则——含同义词扩展与否定检测；`aggregate` 将失败映射为 `pass`/`needs_revision`/`blocked`，`defaultPatentRules()` 注册全部 71 条。
+`RuleEngine` 对分析文本逐条评估域过滤的 `CheckRule`——新颖性单独对比、创造性三步法、侵权全面覆盖、充分公开、说明书 checklist 与 24 条推理模式规则——含同义词扩展与否定检测；`aggregate` 将失败映射为 `pass`/`needs_revision`/`blocked`，`defaultPatentRules()` 注册全部 71 条。`createDefaultRuleEvaluator()` 将该规则集暴露为 `RuleEvaluator` 端口，供三性子图的 `rule_gate` 消费；注入评估器即可替换规则来源而不改动图。规则门 fail-closed：空领域、未知领域、评估器异常与域内零规则均判 `blocked`，不会静默放行。
 
 <a id="problem-atomic-technical-problem-checks"></a>
 ## Problem（原子化技术问题四检验）

@@ -21,6 +21,7 @@ import {
   readNumericVerdict,
   type NumericRangeInput,
 } from '../../novelty/index.ts'
+import type { RuleEvaluator } from '../../checker/index.ts'
 import { formatPriorArtLines, handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
 export { extractNumericRanges }
@@ -32,6 +33,8 @@ export type BuildNoveltyGraphOptions = {
   ruleGate?: boolean
   /** 注入 approval-gate 审批门（缺省 true：HITL 暂停；自动执行/评测场景置 false 直达规则门）。 */
   includeApproval?: boolean
+  /** 规则门评估器；缺省使用 checker 内置规则的过渡默认实现。 */
+  ruleEvaluator?: RuleEvaluator
 }
 
 const NOVELTY_SCOPE = '单独对比原则（新颖性，专利法 A22.2）'
@@ -231,7 +234,15 @@ export function buildNoveltyGraph(options: BuildNoveltyGraphOptions = {}): Graph
 
   // 尾链：conclude → (approval) → (rule_gate) → END；无中间节点时直连 END。
   const withRuleGate = options.ruleGate !== false
-  if (withRuleGate) builder.addNode('rule_gate', ruleGateNode(['patent_novelty']))
+  if (withRuleGate) {
+    builder.addNode(
+      'rule_gate',
+      ruleGateNode(
+        ['patent_novelty'],
+        options.ruleEvaluator !== undefined ? { evaluator: options.ruleEvaluator } : {},
+      ),
+    )
+  }
   if (approval !== undefined && options.includeApproval !== false) {
     builder.addNode('approval', handlerNode(approval, { review_context: '新颖性分析报告需人工复核' }))
     builder.addEdge('conclude', 'approval')
