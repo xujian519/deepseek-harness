@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ClaimChartHandler } from '@deepseek-ai/dsh-patent-core'
+import { claimChartAtom, ClaimChartHandler } from '@deepseek-ai/dsh-patent-core'
 import type { StageProvider } from '@deepseek-ai/dsh-patent-core'
 import type { ClaimChart } from '@deepseek-ai/dsh-patent-core'
 import { loadClaimChart } from '@deepseek-ai/dsh-patent-core'
@@ -51,6 +51,10 @@ function malformedChart(): unknown {
 }
 
 const SOURCE_TEXT = '[0032]\n壳体与滤芯。\n[0033]\n活性炭滤芯。\n'
+
+it('atom 契约声明按模式派生目标所读的输入键', () => {
+  expect(claimChartAtom.inputSchema).toEqual(['claim', 'chart_targets', 'chart_mode', 'office_action', 'prior_art'])
+})
 
 it('合法 chart 产出 claim_chart_doc + gap_list', async () => {
   let calls = 0

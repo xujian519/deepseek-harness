@@ -44,6 +44,31 @@ describe('legal-gaps 原子', () => {
     }
   })
 
+  it('inputSchema 派生自检查清单：收录每条检查的评估、失败、待核与范围键', () => {
+    const declared = new Set(legalGapsAtom.inputSchema)
+    expect(declared.size).toBe(legalGapsAtom.inputSchema.length)
+    for (const checks of Object.values(LEGAL_GAP_CHECKS)) {
+      for (const check of checks) {
+        const keys = [
+          ...check.assessKeys,
+          ...(check.failureKey === undefined ? [] : [check.failureKey]),
+          ...(check.pendingKey === undefined ? [] : [check.pendingKey]),
+          ...(check.scopeKey === undefined ? [] : [check.scopeKey]),
+        ]
+        for (const key of keys) {
+          expect(declared.has(key), `${check.id} 的 ${key}`).toBe(true)
+        }
+      }
+    }
+    // 声明 notApplicable 判据的检查必须给出范围键，否则派生会漏掉它读取的状态。
+    for (const checks of Object.values(LEGAL_GAP_CHECKS)) {
+      for (const check of checks) {
+        if (check.notApplicable !== undefined) expect(check.scopeKey).toBeDefined()
+      }
+    }
+    expect(legalGapsAtom.inputSchema).toContain('amendment_basis_scope')
+  })
+
   it('答复清单：两项检查均通过时判定通过，并给出法条依据', async () => {
     const out = await new LegalGapsHandler().execute({
       state: {

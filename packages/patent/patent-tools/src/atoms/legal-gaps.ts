@@ -73,6 +73,8 @@ export type LegalGapCheckpoint = {
   notAssessed?: (state: PipelineState) => boolean
   /** 返回 true 时该法条在本程序中不适用。 */
   notApplicable?: (state: PipelineState) => boolean
+  /** `notApplicable` 读取的判定键；声明后由 atom 输入键派生收录。 */
+  scopeKey?: string
 }
 
 /** 时间基准检查：新颖性、披露、创造性与可专利性共用。 */
@@ -218,6 +220,7 @@ export const LEGAL_GAP_CHECKS: Record<LegalGapProfile, readonly LegalGapCheckpoi
       assessKeys: ['amendment_basis_report'],
       failureKey: 'amendment_basis_passed',
       notApplicable: state => state['amendment_basis_scope'] === '未检测到修改后权利要求',
+      scopeKey: 'amendment_basis_scope',
     },
   ],
   invalidation: [
@@ -292,31 +295,29 @@ const STATUS_LABELS: Record<LegalGapStatus, string> = {
   'not-applicable': '不适用',
 }
 
+/** 原子输入键：`profile` 加各检查声明的评估、失败、待核与适用范围键，去重并保持声明顺序。 */
+function deriveInputKeys(): string[] {
+  const keys = ['profile']
+  for (const checks of Object.values(LEGAL_GAP_CHECKS)) {
+    for (const check of checks) {
+      keys.push(
+        ...check.assessKeys,
+        ...(check.failureKey === undefined ? [] : [check.failureKey]),
+        ...(check.pendingKey === undefined ? [] : [check.pendingKey]),
+        ...(check.scopeKey === undefined ? [] : [check.scopeKey]),
+      )
+    }
+  }
+  return [...new Set(keys)]
+}
+
 /** legal-gaps 原子：按案件类型汇总确定性检查的法条覆盖情况。 */
 export const legalGapsAtom: Atom = {
   name: 'legal-gaps',
   description:
     '法条缺口聚合：按案件类型把确定性检查产出映射回法条，汇总未通过、未评估与不适用项并给可复核依据',
   category: 'gate',
-  inputSchema: [
-    'profile',
-    'eligibility_report',
-    'reference_date',
-    'prior_art_filter_report',
-    'conflicting_application_report',
-    'novelty_conclusion',
-    'novelty',
-    'inventiveness',
-    'spec_check_report',
-    'specification_check_report',
-    'problem_check_report',
-    'response_check_report',
-    'amendment_basis_report',
-    'evidence_check_report',
-    'claim_chart_doc',
-    'coverage_report',
-    'prior_art_defense_report',
-  ],
+  inputSchema: deriveInputKeys(),
   outputSchema: [
     'legal_gaps_report',
     'legal_gaps_passed',

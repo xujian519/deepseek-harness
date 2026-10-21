@@ -43,7 +43,8 @@ export const claimChartAtom: Atom = {
   name: 'claim-chart',
   description: '权利要求要素级证据网格：要素编号 + 逐要素映射 + pin-cite + gap 检测',
   category: 'compare',
-  inputSchema: ['claim', 'chart_targets', 'chart_mode'],
+  // office_action / prior_art 是 chart_targets 缺省时按模式派生目标的来源。
+  inputSchema: ['claim', 'chart_targets', 'chart_mode', 'office_action', 'prior_art'],
   outputSchema: ['claim_chart_doc', 'gap_list', 'claim_chart_paths'],
   usesModel: true,
 }
