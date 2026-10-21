@@ -13,6 +13,8 @@ description: "失败的专利工作流阶段现在输出 `[WORKFLOW_DEGRADED] <�
 
 终态失败（缺输入、缺 provider 配置、非法 JSON、非法参数）只执行一次。临时失败（`_retryable: true`，当前为 LLM 调用错误与检索错误）重试至配置的 `maxRetries`；重试耗尽后输出仍携带最后一次原因。`stageResults[].retries` 记录重试次数。失败阶段不再输出空字符串，原先以空串判断失败的代码需要匹配新前缀。
 
+图模式沿用同一份诊断：`handlerNode` 与 `manifestToGraph` 把 handler 的 `_error` 转换为 `<node>__degradation` 标记（`reason: node_failed`、`severity: critical`，消息注明是否可重试），在合并增量前移除内部键，并通过 `graphDegraded` 暴露该标记。任何携带标记的图运行，工具都报告 `completed: false`。
+
 ## 迁移
 
 1. 把空输出判断换成前缀判断：
@@ -22,4 +24,5 @@ description: "失败的专利工作流阶段现在输出 `[WORKFLOW_DEGRADED] <�
    ```
 2. 不要从 `PipelineState` 读取或持久化 `_error` / `_retryable`；执行器会剥离它们。改用阶段输出与 `stageResults[].retries`。
 3. 复核重试预算。确定性失败不再消耗 `maxRetries`；临时失败仍按配置次数重试。
-4. 确认：在未配置 `provider.search` 时运行检索阶段，观察到只执行一次并输出 `[WORKFLOW_DEGRADED] [search] 未配置检索器（provider.search 缺失）`；运行一次失败的 LLM 调用，观察到 `retries` 等于配置上限。
+4. 图模式消费方：改读 `graphDegraded` 或 `<node>__degradation` 状态键，不再读取 `graphState._error`；此前在隐藏 handler 失败的情况下报告 `completed: true` 的运行，现在报告 `completed: false`。
+5. 确认：在未配置 `provider.search` 时运行检索阶段，观察到只执行一次并输出 `[WORKFLOW_DEGRADED] [search] 未配置检索器（provider.search 缺失）`；运行一次失败的 LLM 调用，观察到 `retries` 等于配置上限。

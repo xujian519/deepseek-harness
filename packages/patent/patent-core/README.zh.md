@@ -113,7 +113,7 @@ Stage params 可调整这些 handler。缺省键保留各原子默认值；畸�
 <a id="graph-engine"></a>
 ## Graph 引擎
 
-`GraphBuilder`/`CompiledGraph` 运行 Pregel 风格超步（BSP）引擎：节点读取深拷贝 state 快照并返回增量片段，按 `Reducer`（last-write-wins/append/union/merge-map/fail-on-conflict）确定性合并。`NodePolicy` 提供重试、超时与副作用处理；`GraphInterruptError` 暂停以等待审批门；`runGraphWithCheckpoints`/`grantApproval` 持久化每超步检查点并续跑。`buildNoveltyGraph`/`buildInventivenessGraph`/`buildEnablementGraph` 组装三性子图（新颖性/创造性/充分公开），含确定性节点、LLM 节点与 checker `rule_gate` 收口；新颖性子图的 `numeric_range` 节点在 LLM 轨旁并行运行数值范围确定性轨；`buildCitationCheckGraph` 为确定性纯函数图，校验结论文本中的每个引用（专利号或 D<id>/对比文件N 标识）均出现在 `prior_art` 状态中；`manifestToGraph` 将 `WorkflowManifest` 桥接为图。
+`GraphBuilder`/`CompiledGraph` 运行 Pregel 风格超步（BSP）引擎：节点读取深拷贝 state 快照并返回增量片段，按 `Reducer`（last-write-wins/append/union/merge-map/fail-on-conflict）确定性合并。`NodePolicy` 提供重试、超时与副作用处理；`GraphInterruptError` 暂停以等待审批门；handler 通过 `_error`/`_retryable` 报告的预期失败会在图节点边界转换为 `<node>__degradation` 标记，进入运行的 `degraded` 汇总并由工具层判定为未完成，内部诊断键不进入图状态；`runGraphWithCheckpoints`/`grantApproval` 持久化每超步检查点并续跑。`buildNoveltyGraph`/`buildInventivenessGraph`/`buildEnablementGraph` 组装三性子图（新颖性/创造性/充分公开），含确定性节点、LLM 节点与 checker `rule_gate` 收口；新颖性子图的 `numeric_range` 节点在 LLM 轨旁并行运行数值范围确定性轨；`buildCitationCheckGraph` 为确定性纯函数图，校验结论文本中的每个引用（专利号或 D<id>/对比文件N 标识）均出现在 `prior_art` 状态中；`manifestToGraph` 将 `WorkflowManifest` 桥接为图。
 
 <a id="rule-protocol--ipc"></a>
 ## 规则协议 + IPC
