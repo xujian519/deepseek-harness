@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-21-patent-oas-two-round-evaluation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-10-21-patent-oas-two-round-evaluation.md
+/agent-note-a-two-round-oa-evaluation-with-scripted-review-opinions:
+  en: ab30855d23891548
+  zh: db056ba880a3bf22
+/agent-note-a-two-round-oa-evaluation-with-scripted-review-opinions/problem:
+  en: c908efa5639a25da
+  zh: 15e077eff342c07f
+/agent-note-a-two-round-oa-evaluation-with-scripted-review-opinions/decision:
+  en: 6dc28d597e5be3d6
+  zh: 76994d3b70fd7868
+/agent-note-a-two-round-oa-evaluation-with-scripted-review-opinions/alternatives-considered:
+  en: 71c8a8e4d570637b
+  zh: 4e9b782479a96e49
+/agent-note-a-two-round-oa-evaluation-with-scripted-review-opinions/consequences:
+  en: 085b77febf1422fc
+  zh: 7c819ceb010a373e
