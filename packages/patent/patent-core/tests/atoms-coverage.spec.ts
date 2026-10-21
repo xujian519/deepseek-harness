@@ -11,6 +11,7 @@ import {
   LookupStageHandler,
   NoveltyHandler,
   SearchHandler,
+  StageCancelledError,
   StageHandlerRegistry,
   collectStateText,
   registerBuiltinAtoms,
@@ -138,6 +139,43 @@ it('search：检索抛 Error 与非 Error 均降级', async () => {
   expect(String(err._error)).toMatch(/检索失败: net/)
   const nonErr = await h.execute({ state: { query: 'x' }, provider: { search: async () => { throw 'boom' } } })
   expect(String(nonErr._error)).toMatch(/检索失败: boom/)
+})
+
+it('search：已取消的信号不发起检索', async () => {
+  const controller = new AbortController()
+  controller.abort()
+  let calls = 0
+  await expect(new SearchHandler().execute({
+    state: { query: 'x' },
+    provider: { search: async () => { calls += 1; return [] } },
+    signal: controller.signal,
+  })).rejects.toMatchObject({ name: 'StageCancelledError', stageId: 'search' })
+  expect(calls).toBe(0)
+})
+
+it('search：执行中取消与 AbortError 均传播为类型化取消，不降级', async () => {
+  const h = new SearchHandler()
+  const controller = new AbortController()
+  const pending = h.execute({
+    state: { query: 'x' },
+    provider: {
+      search: () => new Promise<never>((_resolve, reject) => {
+        controller.signal.addEventListener('abort', () => { reject(new Error('aborted')) }, { once: true })
+      }),
+    },
+    signal: controller.signal,
+  })
+  controller.abort()
+  await expect(pending).rejects.toMatchObject({ name: 'StageCancelledError', stageId: 'search' })
+
+  await expect(h.execute({
+    state: { query: 'x' },
+    provider: { search: async () => { throw new DOMException('aborted', 'AbortError') } },
+  })).rejects.toBeInstanceOf(StageCancelledError)
+  await expect(h.execute({
+    state: { query: 'x' },
+    provider: { search: async () => { throw new StageCancelledError('inner') } },
+  })).rejects.toMatchObject({ name: 'StageCancelledError', stageId: 'inner' })
 })
 
 // ---------------------------------------------------------------------------

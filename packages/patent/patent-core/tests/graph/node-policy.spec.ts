@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest'
-import { runNodeWithPolicy, type GraphNode, type StateDelta } from '@deepseek-ai/dsh-patent-core'
+import {
+  StageCancelledError,
+  runNodeWithPolicy,
+  type GraphNode,
+  type StateDelta,
+} from '@deepseek-ai/dsh-patent-core'
 
 const okNode =
   (value: unknown): GraphNode =>
@@ -102,4 +107,28 @@ it('runNodeWithPolicy: 调用方取消 signal 联动节点 abort 并报取消而
   const outcome = await run
   expect(outcome.ok).toBe(false)
   if (!outcome.ok) expect((outcome.error as Error).message).toContain('取消')
+})
+
+it('runNodeWithPolicy: 调用方取消时类型化取消穿透且不重试', async () => {
+  const controller = new AbortController()
+  let calls = 0
+  const cancelling: GraphNode = async () => {
+    calls += 1
+    controller.abort()
+    throw new StageCancelledError('cancel-node')
+  }
+  await expect(
+    runNodeWithPolicy(cancelling, { maxRetries: 3, retryDelayMs: 1 }, { state: {}, signal: controller.signal }),
+  ).rejects.toMatchObject({ name: 'StageCancelledError', stageId: 'cancel-node' })
+  expect(calls).toBe(1)
+})
+
+it('runNodeWithPolicy: 无调用方取消的类型化取消按节点失败处理', async () => {
+  const outcome = await runNodeWithPolicy(
+    async () => { throw new StageCancelledError('inner') },
+    undefined,
+    { state: {} },
+  )
+  expect(outcome.ok).toBe(false)
+  if (!outcome.ok) expect(outcome.error).toBeInstanceOf(StageCancelledError)
 })

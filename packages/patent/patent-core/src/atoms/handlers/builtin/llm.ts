@@ -6,12 +6,15 @@
  * 各 handler 仅需声明输入读取、prompt 构造与输出转换三要素。
  */
 
+import { isAbortError } from '@deepseek-ai/dsh-value'
 import type { PipelineState } from '../../handler.ts'
 import {
   DEGRADED_ERROR_KEY,
   DEGRADED_RETRYABLE_KEY,
+  StageCancelledError,
   getStateArray,
   getStateString,
+  isStageCancelledError,
 } from '../../handler.ts'
 import type { StageProvider } from '../../../types.ts'
 import { collectPortText } from '../../../model-port.ts'
@@ -117,6 +120,16 @@ export function requireLlm(provider: StageProvider | undefined, atom: string): P
 export type LlmCallResult = { ok: true; raw: string } | { ok: false; error: PipelineState; message: string }
 
 /**
+ * 读取取消状态。独立函数：`aborted` 是 readonly 属性，TypeScript 会把入口检查
+ * 之后的值收窄为“未中止”，而信号可以在 `await` 期间中止。
+ * @param signal - 调用方取消信号。
+ * @returns 信号是否已中止。
+ */
+export function isSignalAborted(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true
+}
+
+/**
  * LLM 调用（统一降级）：成功返回 { ok, raw }，失败返回降级片段与错误消息。
  * @param provider - 能力提供者。
  * @param atom - 原子名称（用于降级标记）。
@@ -132,6 +145,8 @@ export async function callLlm(
   opts: { schema?: unknown; temperature?: number } = {},
   signal?: AbortSignal,
 ): Promise<LlmCallResult> {
+  // 已取消的调用不再发起模型请求：取消是控制流，不是可重试的阶段失败。
+  if (isSignalAborted(signal)) throw new StageCancelledError(atom)
   const call = resolveLlmCall(provider, signal)
   /* v8 ignore next 2 -- requireLlm front-loads the identical resolveLlmCall check */
   if (!call) {
@@ -145,6 +160,9 @@ export async function callLlm(
     })
     return { ok: true, raw }
   } catch (err) {
+    // 取消以类型化错误穿透执行器与图引擎：不重试、不降级。
+    if (isStageCancelledError(err)) throw err
+    if (isSignalAborted(signal) || isAbortError(err)) throw new StageCancelledError(atom)
     // 配置类错误（fail-loud LLM stub 的 setup_required）向上传播，不得降级为阶段错误。
     if (err instanceof Error && (err as { code?: unknown }).code === 'setup_required') throw err
     const message = err instanceof Error ? err.message : String(err)

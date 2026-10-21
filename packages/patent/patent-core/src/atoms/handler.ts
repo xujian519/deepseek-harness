@@ -7,6 +7,7 @@
  * 错误模型：
  * - 预期失败：handler 返回 {@link degraded} 片段，执行器标记该阶段 degraded，不中断流程
  * - InterruptStageError：需要人工介入的中断（如审批门），上层捕获后暂停等待恢复
+ * - StageCancelledError：调用方取消信号触发，执行器与图引擎必须中止，不重试也不降级
  * - 其它异常：执行器按阶段失败重试/降级；图路径由节点策略转节点级标记
  */
 
@@ -84,7 +85,7 @@ export function collectStateText(state: PipelineState, options: CollectStateText
 export type StageExecuteInput = {
   state: PipelineState
   provider?: StageProvider
-  /** 调用方取消信号；透传给 LLM 端口调用（collectPortText/port.stream）。 */
+  /** 调用方取消信号；透传给 LLM 端口调用，检索在调用前后检查。中止时 handler 以 StageCancelledError 拒绝。 */
   signal?: AbortSignal
 }
 
@@ -120,6 +121,33 @@ export class InterruptStageError extends Error {
  */
 export function isInterruptStageError(err: unknown): err is InterruptStageError {
   return err instanceof InterruptStageError
+}
+
+/**
+ * 取消错误：调用方取消信号（AbortSignal）在阶段执行中生效。
+ * 执行器与图引擎捕获后必须中止执行，不得重试或转为降级结果。
+ */
+export class StageCancelledError extends Error {
+  /** 取消发生的阶段或原子 id。 */
+  readonly stageId: string
+
+  /**
+   * @param stageId - 取消发生的阶段或原子 id。
+   */
+  constructor(stageId: string) {
+    super(`阶段 ${stageId} 执行已取消`)
+    this.name = 'StageCancelledError'
+    this.stageId = stageId
+  }
+}
+
+/**
+ * 类型守卫：判断错误是否为调用方取消。
+ * @param err - 待判断的错误。
+ * @returns 是否属于 StageCancelledError。
+ */
+export function isStageCancelledError(err: unknown): err is StageCancelledError {
+  return err instanceof StageCancelledError
 }
 
 /** StageHandler 注册表：按 name 登记、查询执行器。 */

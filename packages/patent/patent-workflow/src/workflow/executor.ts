@@ -6,7 +6,8 @@
  * - 主输出键 = atom.outputSchema[0]，兜底 state[stage.id]；executor 阶段的输出同样写入
  *   state[stage.id]（图适配器亦然），使下游阶段能按 consumes 取到它；
  * - handler 的降级诊断键只作为阶段局部输入，不写入共享 state；终态失败输出
- *   [WORKFLOW_DEGRADED] 原因，LLM/检索临时失败按 maxRetries 重试；
+ *   [WORKFLOW_DEGRADED] 原因，LLM/检索临时失败按 maxRetries 重试；调用方取消
+ *   （StageCancelledError）直接向上抛出，不重试也不转降级；
  * - approvedGate 由 approvalGrants（stageId 白名单）判定，命中时把 APPROVAL_GRANTED_KEY
  *   注入 execState 执行态拷贝；与图路径同一契约——两条路径都只写执行态、都不写共享 state
  *   （写共享 state 会让一次放行泄漏到同 run 内后续所有门，见 patent-core 的 gate.ts）。
@@ -19,6 +20,7 @@ import {
   DEGRADED_RETRYABLE_KEY,
   isApprovalGateHandler,
   isInterruptStageError,
+  isStageCancelledError,
 } from '@deepseek-ai/dsh-patent-core'
 import type {
   AtomRegistry,
@@ -131,6 +133,8 @@ export async function runStageOnce(
       // 保留前一次可重试失败的真实原因；空输出本身不是更有价值的诊断。
       lastError ??= new Error('阶段执行未产生输出')
     } catch (err) {
+      // 调用方取消：立即中止，不重试也不产出降级结果。
+      if (isStageCancelledError(err)) throw err
       if (isInterruptStageError(err)) {
         return { output: '', retries, interrupted: { stageId: stage.id, message: err.message, data: err.data } }
       }

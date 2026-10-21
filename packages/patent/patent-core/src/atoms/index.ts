@@ -33,6 +33,8 @@ export {
   DEGRADED_RETRYABLE_KEY,
   InterruptStageError,
   isInterruptStageError,
+  StageCancelledError,
+  isStageCancelledError,
   getStateString,
   getStateArray,
   StageHandlerRegistry,
