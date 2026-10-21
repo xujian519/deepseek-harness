@@ -26,6 +26,7 @@ import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
 import { access, cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
 import {
   mean,
   parseRubricDimensions,
@@ -47,6 +48,52 @@ export const SCORE_FILENAME = 'score.json'
 
 /** 每次 agent 进程调用的诊断日志文件名。 */
 export const AGENT_LOG_FILENAME = 'agent.log'
+
+/** `--json` 事件流中单行解析缓冲的字符上限;超过的一行不是带 usage 的步末事件,丢弃以免无限累积。 */
+const MAX_USAGE_LINE_CHARS = 1024 * 1024
+
+/** 判断一个值是否是普通对象。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** 可选 token 计数:缺省按 0;给出但不是有限非负数时返回 undefined。 */
+function optionalCount(value: unknown): number | undefined {
+  if (value === undefined) return 0
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value
+  return undefined
+}
+
+/**
+ * 从 `dsh --json` 的一行事件里取该步的 usage。
+ *
+ * token 计数是互斥的:缓存命中的输入单独上报,因此这里把 `cacheReadTokens` 与
+ * `cacheWriteTokens` 折进输入,得到计费输入量。只认完整的 `step_end` 事件:json-stream
+ * 在任一次尝试未报告 usage 时会省略该步的 usage,因此这里的求和不会把部分值当成完整值。
+ * 非 JSON 行或其它事件返回 undefined。
+ *
+ * @param line 一行 NDJSON 文本。
+ * @returns 该步的计费输入/输出 token;不是带 usage 的 step_end 时为 undefined。
+ */
+export function parseRunEventUsage(line: string): { input: number; output: number } | undefined {
+  let event: unknown
+  try {
+    event = JSON.parse(line)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(event) || event.type !== 'status' || event.phase !== 'step_end') return undefined
+  const usage = event.usage
+  if (!isRecord(usage)) return undefined
+  const input = usage.inputTokens
+  const output = usage.outputTokens
+  const cacheRead = optionalCount(usage.cacheReadTokens)
+  const cacheWrite = optionalCount(usage.cacheWriteTokens)
+  if (typeof input !== 'number' || !Number.isFinite(input) || input < 0) return undefined
+  if (typeof output !== 'number' || !Number.isFinite(output) || output < 0) return undefined
+  if (cacheRead === undefined || cacheWrite === undefined) return undefined
+  return { input: input + cacheRead + cacheWrite, output }
+}
 
 /** 交付物字节上限:超过即失败,而不是把一份失控输出复制进每个维度的评估提示词。 */
 export const MAX_DELIVERABLE_BYTES = 256 * 1024
@@ -87,6 +134,14 @@ export interface RunPlan {
   calls: number
 }
 
+/** 按百万 token 单价换算一次采集的成本(USD)。 */
+export interface RunPricing {
+  /** 输入 token 单价(USD / 百万 token);统一适用于含缓存在内的计费输入。 */
+  inputPerMillion: number
+  /** 输出 token 单价(USD / 百万 token)。 */
+  outputPerMillion: number
+}
+
 /** {@link collectRunRecord} 与 {@link planRun} 的共同选项。 */
 export interface RunPlanOptions {
   /** 问题空间 DAG,提供维度到节点的映射与节点表。 */
@@ -113,6 +168,8 @@ export interface CollectRunOptions extends RunPlanOptions {
   provider?: string
   /** 评估运行的模型 id,写进记录;缺省省略。 */
   modelId?: string
+  /** token 单价;给出时把 usage 换算成记录里的 cost,缺省只记录 tokens。 */
+  pricing?: RunPricing
 }
 
 /**
@@ -216,6 +273,8 @@ export interface AgentCommandOptions {
   profile: string
   /** 追加的 `--patch` overlay 路径。 */
   patchPaths?: readonly string[]
+  /** 是否让 headless app 输出 NDJSON 运行事件(用于采集 usage)。 */
+  json?: boolean
   /** 交给 agent 的提示词。 */
   prompt: string
 }
@@ -238,6 +297,7 @@ export function agentArgv(options: AgentCommandOptions): string[] {
     '--profile',
     options.profile,
     ...(options.patchPaths ?? []).flatMap(path => ['--patch', path]),
+    ...(options.json === true ? ['--json'] : []),
     options.prompt,
   ]
 }
@@ -255,14 +315,16 @@ export interface AgentProcessOptions {
 }
 
 /**
- * 默认接缝实现:起一个真实 agent 进程,把 stdout/stderr 落到该次调用目录的日志里。
+ * 默认接缝实现:起一个真实 agent 进程,把 stdout/stderr 落到该次调用目录的日志里,
+ * 并从 headless 的 `--json` 事件流汇总该次调用的 token 使用。
  *
  * 日志在子进程 `close` 之后才结束:超时路径是先 `SIGKILL` 再抛错,此时管道里可能还有
  * 未刷出的输出,提前结束目标流会把它丢掉。
  *
  * @param options 调用参数。
+ * @returns 该次调用报告的 token 使用;没有报告时省略。
  */
-export async function spawnAgentProcess(options: AgentProcessOptions): Promise<void> {
+export async function spawnAgentProcess(options: AgentProcessOptions): Promise<RunCallUsage | void> {
   const { invocation } = options
   const logPath = join(invocation.cwd, AGENT_LOG_FILENAME)
   const log = createWriteStream(logPath, { flags: 'a' })
@@ -277,7 +339,42 @@ export async function spawnAgentProcess(options: AgentProcessOptions): Promise<v
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   )
-  child.stdout.pipe(log, { end: false })
+  const decoder = new StringDecoder('utf8')
+  const tokens = { input: 0, output: 0, seen: false }
+  let pending = ''
+  const consume = (text: string): void => {
+    pending += text
+    let newline = pending.indexOf('\n')
+    while (newline !== -1) {
+      const line = pending.slice(0, newline)
+      pending = pending.slice(newline + 1)
+      const sample = parseRunEventUsage(line)
+      if (sample !== undefined) {
+        tokens.input += sample.input
+        tokens.output += sample.output
+        tokens.seen = true
+      }
+      newline = pending.indexOf('\n')
+    }
+    // 最后一行(例如不含换行的终端事件)过大时一定不是 usage 行,丢弃以免缓冲无限增长。
+    if (pending.length > MAX_USAGE_LINE_CHARS) pending = ''
+  }
+  child.stdout.on('data', (chunk: Buffer) => {
+    log.write(chunk)
+    consume(decoder.write(chunk))
+  })
+  child.stdout.on('end', () => {
+    consume(decoder.end())
+    if (pending !== '') {
+      const sample = parseRunEventUsage(pending)
+      if (sample !== undefined) {
+        tokens.input += sample.input
+        tokens.output += sample.output
+        tokens.seen = true
+      }
+      pending = ''
+    }
+  })
   child.stderr.pipe(log, { end: false })
   const closed = new Promise<void>(resolveClose => child.once('close', () => {
     resolveClose()
@@ -302,6 +399,8 @@ export async function spawnAgentProcess(options: AgentProcessOptions): Promise<v
     await closed
     await new Promise<void>(resolveEnd => log.end(resolveEnd))
   }
+  if (!tokens.seen) return
+  return { tokens: { input: tokens.input, output: tokens.output } }
 }
 
 /** 读一个必须存在的产物文件。 */
@@ -334,18 +433,19 @@ interface DimensionAccumulator {
 export async function collectRunRecord(options: CollectRunOptions): Promise<RunRecord> {
   const plan = planRun(options)
   const cases: RunCase[] = []
-  // 用量汇总:接缝报告多少算多少;一次都没有报告时记录里不出现这两个字段。
-  const usageTotals = { cost: 0, costSeen: false, input: 0, output: 0, tokensSeen: false }
+  // 用量汇总:只有每次调用都报告同一项时才写出合计,部分报告不能被当成完整值。
+  const usageTotals = { calls: 0, cost: 0, costCalls: 0, input: 0, output: 0, tokenCalls: 0 }
   const addUsage = (reported: void | RunCallUsage): void => {
+    usageTotals.calls += 1
     if (reported === undefined) return
     if (reported.cost !== undefined) {
       usageTotals.cost += reported.cost
-      usageTotals.costSeen = true
+      usageTotals.costCalls += 1
     }
     if (reported.tokens !== undefined) {
       usageTotals.input += reported.tokens.input
       usageTotals.output += reported.tokens.output
-      usageTotals.tokensSeen = true
+      usageTotals.tokenCalls += 1
     }
   }
   for (const { caseId } of plan.cases) {
@@ -389,6 +489,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         label: accumulator.dimension.label,
         points: accumulator.dimension.points,
         score: roundScore(mean(accumulator.scores)),
+        ...accumulator.scores.length > 1 ? { scores: [...accumulator.scores] } : {},
       })),
     })
   }
@@ -400,8 +501,17 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
   }
   if (options.provider !== undefined) record.provider = options.provider
   if (options.modelId !== undefined) record.modelId = options.modelId
-  if (usageTotals.costSeen) record.cost = Math.round(usageTotals.cost * 1e6) / 1e6
-  if (usageTotals.tokensSeen) record.tokens = { input: usageTotals.input, output: usageTotals.output }
+  const tokensComplete = usageTotals.calls > 0 && usageTotals.tokenCalls === usageTotals.calls
+  if (tokensComplete) record.tokens = { input: usageTotals.input, output: usageTotals.output }
+  if (usageTotals.calls > 0 && usageTotals.costCalls === usageTotals.calls) {
+    record.cost = Math.round(usageTotals.cost * 1e6) / 1e6
+  } else if (tokensComplete && options.pricing !== undefined) {
+    // provider 没有直接报告成本时,用调用方给出的单价把完整的 token 合计换算成美元。
+    const { inputPerMillion, outputPerMillion } = options.pricing
+    record.cost = Math.round(
+      (usageTotals.input / 1_000_000 * inputPerMillion + usageTotals.output / 1_000_000 * outputPerMillion) * 1e6,
+    ) / 1e6
+  }
   return record
 }
 
@@ -429,6 +539,8 @@ export interface RunnerOptions {
   provider?: string
   /** 写进记录的模型 id;缺省省略。 */
   modelId?: string
+  /** token 单价;缺省只记录 tokens,不换算 cost。 */
+  pricing?: RunPricing
 }
 
 /** 解析选项所需的路径上下文。 */
@@ -496,6 +608,22 @@ export function parseRunnerOptions(args: readonly string[], context: RunnerPathC
   if (provider !== undefined) options.provider = provider
   const modelId = flagValue(args, '--model')
   if (modelId !== undefined) options.modelId = modelId
+  const inputPriceText = flagValue(args, '--input-usd-per-mtok')
+  const outputPriceText = flagValue(args, '--output-usd-per-mtok')
+  if ((inputPriceText === undefined) !== (outputPriceText === undefined)) {
+    throw new Error('--input-usd-per-mtok 与 --output-usd-per-mtok 必须同时给出')
+  }
+  if (inputPriceText !== undefined && outputPriceText !== undefined) {
+    const inputPerMillion = Number(inputPriceText)
+    const outputPerMillion = Number(outputPriceText)
+    if (!Number.isFinite(inputPerMillion) || inputPerMillion < 0) {
+      throw new Error(`--input-usd-per-mtok 必须是非负数,得到 ${inputPriceText}`)
+    }
+    if (!Number.isFinite(outputPerMillion) || outputPerMillion < 0) {
+      throw new Error(`--output-usd-per-mtok 必须是非负数,得到 ${outputPriceText}`)
+    }
+    options.pricing = { inputPerMillion, outputPerMillion }
+  }
   return options
 }
 

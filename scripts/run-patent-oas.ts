@@ -8,11 +8,16 @@
  * 采集到的分数测的是「调用方选定的 profile 下的模型 + 作业规范」,因此只有在同一个 profile
  * 下采集的记录之间才可比;记录里的 `provider`/`modelId` 就是为这条留的。
  *
+ * headless profile 用 `--json` 事件流承载每步 usage,因此记录能写出 `tokens`;`cost` 需要
+ * 调用方同时给出 `--input-usd-per-mtok`/`--output-usd-per-mtok`(provider 不直接报告成本)。
+ *
  * 用法:
  *   tsx scripts/run-patent-oas.ts [--profile headless] [--case <id>]... [--runs 1]
  *                                 [--patch <overlay>]... [--out <run.json>] [--work-dir <dir>]
  *                                 [--timeout-ms 600000] [--budget-ms 3600000]
- *                                 [--provider <p>] [--model <m>] [--dry-run]
+ *                                 [--provider <p>] [--model <m>]
+ *                                 [--input-usd-per-mtok <n> --output-usd-per-mtok <n>]
+ *                                 [--dry-run]
  *
  * 采集完成后把记录交给门禁提升为基线:
  *   tsx scripts/verify-patent-oas-gold.ts --accept <run.json>
@@ -87,13 +92,15 @@ async function main(args: string[]): Promise<number> {
   const runAgents: RunAgents = async (invocation) => {
     const remaining = deadline - Date.now()
     if (remaining <= 0) throw new Error(`${invocation.label}: 总预算 ${options.budgetMs}ms 已耗尽,停止后续调用`)
-    await spawnAgentProcess({
+    return await spawnAgentProcess({
       invocation,
       launcher: {
         binPath: dshBinPath,
         tsxImport,
         profile: options.profile,
         ...(options.patchPaths.length === 0 ? {} : { patchPaths: options.patchPaths }),
+        // 只有 headless app 认识 `--json`;其它 profile 不带这个参数,usage 就按未报告处理。
+        json: options.profile === 'headless',
       },
       timeoutMs: Math.min(options.timeoutMs, remaining),
       env: { DSH_TELEMETRY_DISABLED: '1' },
@@ -109,6 +116,7 @@ async function main(args: string[]): Promise<number> {
     runsPerCase: options.runs,
     ...(options.provider === undefined ? {} : { provider: options.provider }),
     ...(options.modelId === undefined ? {} : { modelId: options.modelId }),
+    ...(options.pricing === undefined ? {} : { pricing: options.pricing }),
   })
   await writeRunRecord(options.outPath, record)
   console.log(`run-patent-oas: 已写出 ${options.outPath}(产物与日志在 ${options.workDir})`)

@@ -24,8 +24,8 @@ The patent-oas benchmark compares an optimization against a baseline through LLM
 
 **Set the sample size after seeing the first batch.** Rejected: choosing N after peeking is how the reported sign flips; pre-registration means the number is fixed before the calls are spent.
 
-**Build the full statistics (variance, power curves) into the runner now.** Rejected for now: the minimal upgrade — runs greater than one plus usage fields — is what the current runner and gate can enforce; the heavier statistics remain an offline-evaluation concern framed by this protocol.
+**Build the full statistics (variance, power curves) into the runner now.** Rejected for now: the shipped upgrade is runs greater than one, per-run scores, and usage fields; the gate reports range and sample standard deviation from the retained scores, while power curves and interval estimates remain an offline-evaluation concern framed by this protocol.
 
 ## Consequences
 
-The runner's default `--runs` is 3 and run records can carry the usage the seam reports; the gate accepts and validates those fields. The oa-answer observation nodes and the retrieval-probe instruments remain with the B4 batch, as ruled on 2026-10-16 (issues 甲8 / 丙2); until they land, B4 comparisons are recorded as not-yet-run rather than run thin.
+The runner's default `--runs` is 3; records retain one score per run and can carry the usage the call seam reports — tokens from the headless `--json` stream, cost from the provider or converted at caller-supplied per-million prices. The gate accepts and validates those fields and prints per-case and per-node range and sample standard deviation without judging them. The oa-answer observation nodes and the retrieval-probe instruments remain with the B4 batch, as ruled on 2026-10-16 (issues 甲8 / 丙2); until they land, B4 comparisons are recorded as not-yet-run rather than run thin.

@@ -27,15 +27,15 @@ cases/<case-id>/
 
 `problem-space.yaml` 把这份金标覆盖的专利实务问题空间建成一张有向无环图:节点是交付物会被判定的切面,`dependsOn` 记录先决关系(检索先于区别特征认定,区别特征先于实际解决的技术问题,逐特征比对先于等同分析),每个 rubric 维度按自己的满分拆到它观测的节点上。`gate.yaml` 钉住金标内容摘要与分数门槛。
 
-`pnpm run verify-patent-oas-gold`(CI,无需 key)校验:金标与 DAG 互相钉住(维度全部有映射、映射权重等于 rubric 满分、节点都有观测面、先决边无环)、已记录的金标摘要相符、已记录的基线能满足自己的门槛。`--run <record.json>` 按门槛判定一次实测记录,并把失败归因到问题空间节点;`--accept <record.json>` 把校验通过的实测记录提升为基线;金标被有意修改后用 `--write` 重录摘要。
+`pnpm run verify-patent-oas-gold`(CI,无需 key)校验:金标与 DAG 互相钉住(维度全部有映射、映射权重等于 rubric 满分、节点都有观测面、先决边无环)、已记录的金标摘要相符、已记录的基线能满足自己的门槛。`--run <record.json>` 按门槛判定一次实测记录,并把失败归因到问题空间节点;记录带逐次观测时,输出同时给出逐 case 与逐节点的极差和样本标准差;`--accept <record.json>` 把校验通过的实测记录提升为基线;金标被有意修改后用 `--write` 重录摘要。
 
-run 记录是「测量」与「门槛」之间的契约:它只保存逐维度的原始观测分,case 分与节点分由 DAG 现算,因此不存在第二份会漂移的副本。字段为 `{ benchmarkId, recordedAt, provider?, modelId?, runsPerCase, cases: [{ caseId, dimensions: [{ index, label, points, score }] }] }`。基线落在 `packages/self-evolve/evaluation/patent-oas-baseline.json`;该文件不存在时门禁以非 0 退出并打印记录基线的命令——「没比对过」与「比对通过」不能共用一个退出码;本 fork 的必过 CI 车道会运行该门禁,退出码因此能拦住 PR。
+run 记录是「测量」与「门槛」之间的契约:它只保存逐维度的原始观测分,case 分与节点分由 DAG 现算,因此不存在第二份会漂移的副本。字段为 `{ benchmarkId, recordedAt, provider?, modelId?, runsPerCase, cost?, tokens?: { input, output }, cases: [{ caseId, dimensions: [{ index, label, points, score, scores? }] }] }`。`runsPerCase > 1` 时,`scores` 保留每次运行的原始分数,读者可据此复算方差与区间,而不必只信一个均值;`tokens` 与 `cost` 累计整次采集的每次调用(`tokens.input` 是计费输入,含缓存命中与缓存写入):每次调用都报告成本时取 provider 报告值,否则在 token 合计完整时按调用方给出的每百万 token 单价换算;只有部分调用报告用量时省略合计,不写部分值。单一输入单价统一适用于含缓存在内的计费输入;需要区分缓存价格时由接缝直接报告成本。基线落在 `packages/self-evolve/evaluation/patent-oas-baseline.json`;该文件不存在时门禁以非 0 退出并打印记录基线的命令——「没比对过」与「比对通过」不能共用一个退出码;本 fork 的必过 CI 车道会运行该门禁,退出码因此能拦住 PR。
 
-`pnpm run gate:patent-oas` 负责采集。`--dry-run` 只打印计划(case、运行次数、agent 调用总数),不做任何模型调用;真实运行需要 `DEEPSEEK_API_KEY`(或声明该键的 `.env`),没有则以 0 退出并跳过。它每次调用起一个 `dsh --profile` 进程——每个 case 一个执行者,在 agent state 的私有副本里工作并把交付物写进 `deliverable.md`;每个 rubric 维度一个评估者,把 `{"score": n}` 形状的 JSON 对象写进 `score.json`——随后写出 run 记录,把所有产物与 agent 日志留在 `.artifacts/patent-oas/<stamp>/`,并按门槛判定本次运行。`--case <id>` 与 `--runs <n>` 用来缩小范围与重复运行;`--timeout-ms` 限单次调用、`--budget-ms` 限整次采集;基线由门禁提升,而不是由采集器。
+`pnpm run gate:patent-oas` 负责采集。`--dry-run` 只打印计划(case、运行次数、agent 调用总数),不做任何模型调用;真实运行需要 `DEEPSEEK_API_KEY`(或声明该键的 `.env`),没有则以 0 退出并跳过。它每次调用起一个 `dsh --profile` 进程——每个 case 一个执行者,在 agent state 的私有副本里工作并把交付物写进 `deliverable.md`;每个 rubric 维度一个评估者,把 `{"score": n}` 形状的 JSON 对象写进 `score.json`——随后写出 run 记录,把所有产物与 agent 日志留在 `.artifacts/patent-oas/<stamp>/`,并按门槛判定本次运行。`headless` profile 的每次调用还带 `--json`,采集器因此能读取 `step_end` 事件里的 usage 并累计整次采集的 token。`--case <id>` 与 `--runs <n>` 用来缩小范围与重复运行;`--timeout-ms` 限单次调用、`--budget-ms` 限整次采集;`--input-usd-per-mtok` 与 `--output-usd-per-mtok` 在 provider 只报告 usage、不报告成本时提供 token 单价;基线由门禁提升,而不是由采集器。
 
 采集到的分数测的是「调用方传入的 profile(缺省 `headless`)下的模型 + 作业规范」,而不是 patent preset 的工具集与人设,因此记录之间只在同一 profile 下可比——`provider` 与 `modelId` 两个字段就是为这条留的。
 
-随仓提交的基线是一次 keyed 实测:2026-10-19、`headless` profile、每 case 三次运行,聚合 94.65,四个 case 分别为 95.65、98.60、90.42、93.93。这次实测按 B7 测量协议预注册的 `--runs=3` 执行,并新增 `oa-answer` 的「修改接地与幅度」观测节点——该节点三次运行 55/58/55,是当前测到的最弱一面,门槛因此单列 50 固定首测水平,不把首测值读成合格线。它不说明逐次运行的稳定性,记录里也没有 `provider`/`modelId`——采集器只在调用方传入 `--provider` 与 `--model` 时才写这两个字段。除模型调用之外的一切另有覆盖:采集接缝可注入,spec 用桩把整条链路跑通并写出那两种产物,覆盖提示词、产物契约、逐维度聚合、真实启动参数,以及记录能被门禁接受。
+随仓提交的基线是一次 keyed 实测:2026-10-19、`headless` profile、每 case 三次运行,聚合 94.65,四个 case 分别为 95.65、98.60、90.42、93.93。这次实测按 B7 测量协议预注册的 `--runs=3` 执行,并新增 `oa-answer` 的「修改接地与幅度」观测节点——该节点三次运行 55/58/55,是当前测到的最弱一面,门槛因此单列 50 固定首测水平,不把首测值读成合格线。它没有方差或区间,也没有 `scores`、`tokens`、`cost`、`provider`、`modelId`:它记录在采集器留存逐次观测与用量之前;后两个字段只在调用方传入 `--provider` 与 `--model` 时出现。带 key 重新采集会把它们全部写入。除模型调用之外的一切另有覆盖:采集接缝可注入,spec 用桩把整条链路跑通并写出那两种产物,覆盖提示词、产物契约、逐维度聚合、真实启动参数,以及记录能被门禁接受。
 
 ## 播种
 

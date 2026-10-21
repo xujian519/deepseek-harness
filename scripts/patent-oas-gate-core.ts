@@ -110,8 +110,14 @@ export interface RunDimension {
   label: string
   /** 维度满分,必须与金标 rubric 一致。 */
   points: number
-  /** 评估者给出的该维度分数(0–100)。 */
+  /** 评估者给出的该维度分数(0–100);多次运行时为 {@link scores} 的均值。 */
   score: number
+  /**
+   * 逐次运行的原始分数(0–100),按运行顺序;旧记录或未留存逐次观测时省略。
+   *
+   * 只留均值会让样本方差与区间无法复算,因此采集器在 `runsPerCase>1` 时写这里。
+   */
+  scores?: number[]
 }
 
 /** run 记录里的一个 case。 */
@@ -135,13 +141,14 @@ export interface RunRecord {
   /** 每个 case 的运行次数。 */
   runsPerCase: number
   /**
-   * 全部调用累计的 provider 报告成本(USD);未报告时省略。
+   * 全部调用累计的成本(USD);无法得到完整合计时省略。
    *
-   * 本记录是采集证据,故存合计值(直接对应预算);引擎计分板的 `cost` 是按运行取均值,
-   * 两者口径不同、不要求相等。
+   * provider 每次调用都报告时取报告值之和;否则由调用方给出的 token 单价从完整的
+   * token 合计换算。本记录是采集证据,故存合计值(直接对应预算);引擎计分板的 `cost`
+   * 是按运行取均值,两者口径不同、不要求相等。
    */
   cost?: number
-  /** 全部调用累计的 token 使用;未报告时省略。 */
+  /** 全部调用累计的计费输入与输出 token;未报告时省略。输入含缓存命中与缓存写入。 */
   tokens?: { input: number; output: number }
   /** 逐 case 的原始观测。 */
   cases: RunCase[]
@@ -149,6 +156,16 @@ export interface RunRecord {
 
 /** 单节点判定结果。 */
 export type NodeVerdict = 'pass' | 'below-floor' | 'regressed'
+
+/** 逐次运行分数的离散度。 */
+export interface ScoreSpread {
+  /** 最低一次运行的分数。 */
+  min: number
+  /** 最高一次运行的分数。 */
+  max: number
+  /** 样本标准差(除以 n−1)。 */
+  stdev: number
+}
 
 /** 一个观测单元的判定:问题空间节点,或一个 case。 */
 export interface UnitOutcome {
@@ -160,6 +177,8 @@ export interface UnitOutcome {
   baselineScore?: number
   /** 相对基线的变化(本次 − 基线);无基线时省略。 */
   delta?: number
+  /** 逐次运行的离散度;记录没有逐次观测时省略。 */
+  spread?: ScoreSpread
   /** 判定。 */
   verdict: NodeVerdict
 }
@@ -221,6 +240,19 @@ function optionalString(source: Record<string, unknown>, key: string, where: str
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'string') throw new Error(`${where}: 字段 "${key}" 必须是字符串`)
   return value
+}
+
+/** 读一个可选有限数数组字段。 */
+function optionalNumberArray(source: Record<string, unknown>, key: string, where: string): number[] | undefined {
+  const value = source[key]
+  if (value === undefined || value === null) return undefined
+  if (!Array.isArray(value)) throw new Error(`${where}: 字段 "${key}" 必须是数组`)
+  return value.map((item, index) => {
+    if (typeof item !== 'number' || !Number.isFinite(item)) {
+      throw new Error(`${where}: 字段 "${key}[${index}]" 必须是有限数`)
+    }
+    return item
+  })
 }
 
 /** 读一个必填对象字段。 */
@@ -435,11 +467,13 @@ export async function loadRunRecord(path: string): Promise<RunRecord> {
     const dimensions: RunDimension[] = rawDimensions.map((rawDimension, dimensionIndex) => {
       const dimensionWhere = `${where}.dimensions[${dimensionIndex}]`
       if (!isRecord(rawDimension)) throw new Error(`${dimensionWhere}: 必须是对象`)
+      const scores = optionalNumberArray(rawDimension, 'scores', dimensionWhere)
       return {
         index: requireNumber(rawDimension, 'index', dimensionWhere),
         label: requireString(rawDimension, 'label', dimensionWhere),
         points: requireNumber(rawDimension, 'points', dimensionWhere),
         score: requireNumber(rawDimension, 'score', dimensionWhere),
+        ...scores === undefined ? {} : { scores },
       }
     })
     return { caseId, dimensions }
@@ -659,6 +693,28 @@ export function validateRunRecord(
       if (runDimension.score < 0 || runDimension.score > 100) {
         problems.push(`${label}: case "${runCase.caseId}" 维度 ${runDimension.index} 分数 ${runDimension.score} 超出 0–100`)
       }
+      if (runDimension.scores !== undefined) {
+        if (runDimension.scores.length !== run.runsPerCase) {
+          problems.push(
+            `${label}: case "${runCase.caseId}" 维度 ${runDimension.index} 有 ${runDimension.scores.length} 个逐次分数,`
+            + `应为 ${run.runsPerCase}`,
+          )
+        }
+        for (const [sampleIndex, sample] of runDimension.scores.entries()) {
+          if (sample < 0 || sample > 100) {
+            problems.push(
+              `${label}: case "${runCase.caseId}" 维度 ${runDimension.index} 第 ${sampleIndex + 1} 次分数 ${sample} 超出 0–100`,
+            )
+          }
+        }
+        if (runDimension.scores.length > 0
+          && Math.abs(roundScore(mean(runDimension.scores)) - runDimension.score) > 0.01) {
+          problems.push(
+            `${label}: case "${runCase.caseId}" 维度 ${runDimension.index} 的 score ${runDimension.score} `
+            + `与逐次分数均值 ${roundScore(mean(runDimension.scores))} 不一致`,
+          )
+        }
+      }
     }
     const observed = new Set(runCase.dimensions.map(dimension => dimension.index))
     for (const dimension of dimensions) {
@@ -769,6 +825,78 @@ export function caseScores(run: RunRecord): Array<{ caseId: string; score: numbe
 }
 
 /**
+ * 由逐次观测算出每个 case 在每次运行上的分数。
+ *
+ * 只有该 case 的每个维度都带完整逐次观测时才计入:部分维度缺观测时算出的「逐次分数」
+ * 只覆盖一部分维度,不能被当成整 case 的方差。
+ *
+ * @param run run 记录。
+ * @returns case id → 按运行顺序排列的分数;旧记录或单次运行返回空表。
+ */
+export function caseScoresByRun(run: RunRecord): Map<string, number[]> {
+  const scores = new Map<string, number[]>()
+  if (run.runsPerCase < 2) return scores
+  for (const runCase of run.cases) {
+    const totals = Array.from({ length: run.runsPerCase }, () => 0)
+    let complete = true
+    for (const dimension of runCase.dimensions) {
+      if (dimension.scores === undefined || dimension.scores.length !== run.runsPerCase) {
+        complete = false
+        break
+      }
+      for (const [index, sample] of dimension.scores.entries()) {
+        totals[index] = (totals[index] ?? 0) + sample * dimension.points
+      }
+    }
+    if (!complete) continue
+    const points = runCase.dimensions.reduce((sum, dimension) => sum + dimension.points, 0)
+    scores.set(runCase.caseId, totals.map(total => points === 0 ? 0 : total / points))
+  }
+  return scores
+}
+
+/**
+ * 计算一组逐次运行分数的离散度。
+ *
+ * @param values 按运行顺序排列的分数。
+ * @returns 极差与样本标准差;少于两次运行时为 undefined。
+ */
+export function scoreSpread(values: readonly number[]): ScoreSpread | undefined {
+  if (values.length < 2) return undefined
+  const average = mean(values)
+  const variance = values.reduce((sum, value) => sum + (value - average) ** 2, 0) / (values.length - 1)
+  return { min: Math.min(...values), max: Math.max(...values), stdev: Math.sqrt(variance) }
+}
+
+/**
+ * 遍历一次 run 中每个问题空间节点的观测。
+ *
+ * 未知 case 与未知维度直接跳过:问题空间校验已在加载时拒绝这类结构,这里的跳过只是
+ * 防御性兜底。
+ *
+ * @param space 问题空间 DAG。
+ * @param run run 记录。
+ * @param visit 对每个(节点 id,维度权重,该维度观测)调用一次。
+ */
+function forEachNodeWeight(
+  space: ProblemSpace,
+  run: RunRecord,
+  visit: (nodeId: string, weight: number, runDimension: RunDimension) => void,
+): void {
+  for (const runCase of run.cases) {
+    const mapping = space.cases[runCase.caseId]
+    if (mapping === undefined) continue
+    for (const runDimension of runCase.dimensions) {
+      const entry = mapping.dimensions[runDimension.index]
+      if (entry === undefined) continue
+      for (const [nodeId, weight] of Object.entries(entry.nodes)) {
+        visit(nodeId, weight, runDimension)
+      }
+    }
+  }
+}
+
+/**
  * 由一次 run 的原始观测算出逐节点分数。
  *
  * 节点分按该节点在各维度上分到的权重加权平均;没有观测面的节点不会出现在结果里
@@ -781,22 +909,51 @@ export function caseScores(run: RunRecord): Array<{ caseId: string; score: numbe
 export function nodeScores(space: ProblemSpace, run: RunRecord): Map<string, number> {
   const weighted = new Map<string, number>()
   const weights = new Map<string, number>()
-  for (const runCase of run.cases) {
-    const mapping = space.cases[runCase.caseId]
-    if (mapping === undefined) continue
-    for (const runDimension of runCase.dimensions) {
-      const entry = mapping.dimensions[runDimension.index]
-      if (entry === undefined) continue
-      for (const [nodeId, weight] of Object.entries(entry.nodes)) {
-        weighted.set(nodeId, (weighted.get(nodeId) ?? 0) + runDimension.score * weight)
-        weights.set(nodeId, (weights.get(nodeId) ?? 0) + weight)
-      }
-    }
-  }
+  forEachNodeWeight(space, run, (nodeId, weight, runDimension) => {
+    weighted.set(nodeId, (weighted.get(nodeId) ?? 0) + runDimension.score * weight)
+    weights.set(nodeId, (weights.get(nodeId) ?? 0) + weight)
+  })
   const scores = new Map<string, number>()
   for (const [nodeId, total] of weighted) {
     const weight = weights.get(nodeId) ?? 0
     scores.set(nodeId, weight === 0 ? 0 : total / weight)
+  }
+  return scores
+}
+
+/**
+ * 由逐次观测算出每个问题空间节点在每次运行上的分数。
+ *
+ * 节点的贡献维度中只要有一个缺完整逐次观测,该节点就不计入:只拿部分维度算出的
+ * 离散度会系统性地小于真实波动。
+ *
+ * @param space 问题空间 DAG。
+ * @param run run 记录。
+ * @returns 节点 id → 按运行顺序排列的分数;旧记录或单次运行返回空表。
+ */
+export function nodeScoresByRun(space: ProblemSpace, run: RunRecord): Map<string, number[]> {
+  const scores = new Map<string, number[]>()
+  if (run.runsPerCase < 2) return scores
+  const weighted = new Map<string, number[]>()
+  const weights = new Map<string, number>()
+  const incomplete = new Set<string>()
+  forEachNodeWeight(space, run, (nodeId, weight, runDimension) => {
+    weights.set(nodeId, (weights.get(nodeId) ?? 0) + weight)
+    if (runDimension.scores === undefined || runDimension.scores.length !== run.runsPerCase) {
+      incomplete.add(nodeId)
+      return
+    }
+    const totals = weighted.get(nodeId) ?? Array.from({ length: run.runsPerCase }, () => 0)
+    for (const [index, sample] of runDimension.scores.entries()) {
+      totals[index] = (totals[index] ?? 0) + sample * weight
+    }
+    weighted.set(nodeId, totals)
+  })
+  for (const [nodeId, totals] of weighted) {
+    if (incomplete.has(nodeId)) continue
+    const weight = weights.get(nodeId) ?? 0
+    if (weight === 0) continue
+    scores.set(nodeId, totals.map(total => total / weight))
   }
   return scores
 }
@@ -821,13 +978,16 @@ export function evaluateRun(
 ): GateVerdict {
   const scores = nodeScores(space, run)
   const baselineScores = baseline === undefined ? undefined : nodeScores(space, baseline)
+  const nodeScoresPerRun = nodeScoresByRun(space, run)
   const nodes: NodeOutcome[] = [...scores]
     .map(([nodeId, score]) => {
       const baselineScore = baselineScores?.get(nodeId)
+      const spread = scoreSpread(nodeScoresPerRun.get(nodeId) ?? [])
       return {
         id: nodeId,
         score,
         ...baselineScore === undefined ? {} : { baselineScore, delta: score - baselineScore },
+        ...spread === undefined ? {} : { spread },
         verdict: judge(score, baselineScore, nodeThreshold(config, nodeId)),
       }
     })
@@ -839,12 +999,15 @@ export function evaluateRun(
     })
   const caseList = caseScores(run)
   const baselineCaseList = baseline === undefined ? undefined : caseScores(baseline)
+  const caseScoresPerRun = caseScoresByRun(run)
   const cases: CaseOutcome[] = caseList.map((entry) => {
     const baselineScore = baselineCaseList?.find(candidate => candidate.caseId === entry.caseId)?.score
+    const spread = scoreSpread(caseScoresPerRun.get(entry.caseId) ?? [])
     return {
       id: entry.caseId,
       score: entry.score,
       ...baselineScore === undefined ? {} : { baselineScore, delta: entry.score - baselineScore },
+      ...spread === undefined ? {} : { spread },
       verdict: judge(entry.score, baselineScore, config.thresholds.case),
     }
   })
@@ -886,8 +1049,8 @@ export function formatVerdict(verdict: GateVerdict): string {
   const lines: string[] = []
   const baseline = verdict.aggregateBaselineScore === undefined ? '' : `基线 ${verdict.aggregateBaselineScore.toFixed(2)}, `
   lines.push(`聚合:${verdict.aggregateScore.toFixed(2)}(${baseline}判定 ${verdict.aggregateVerdict})`)
-  for (const entry of verdict.cases) lines.push(`[${entry.verdict}] case ${describeOutcome(entry)}`)
-  for (const node of verdict.nodes) lines.push(`[${node.verdict}] ${node.id} ${describeOutcome(node)}`)
+  for (const entry of verdict.cases) lines.push(`[${entry.verdict}] case ${describeOutcome(entry)}${describeSpread(entry.spread)}`)
+  for (const node of verdict.nodes) lines.push(`[${node.verdict}] ${node.id} ${describeOutcome(node)}${describeSpread(node.spread)}`)
   return lines.join('\n')
 }
 
@@ -895,4 +1058,9 @@ export function formatVerdict(verdict: GateVerdict): string {
 function describeOutcome(outcome: UnitOutcome): string {
   const baseline = outcome.baselineScore === undefined ? '' : ` 基线 ${outcome.baselineScore.toFixed(1)} Δ${outcome.delta?.toFixed(1)}`
   return `= ${outcome.score.toFixed(1)}${baseline}`
+}
+
+/** 渲染逐次运行的极差与标准差。 */
+function describeSpread(spread: ScoreSpread | undefined): string {
+  return spread === undefined ? '' : `;逐次 ${spread.min.toFixed(1)}–${spread.max.toFixed(1)} σ${spread.stdev.toFixed(2)}`
 }
