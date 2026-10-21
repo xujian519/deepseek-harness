@@ -35,6 +35,7 @@ import {
   evaluatorPrompt,
   executorPrompt,
   hasCredentialSignal,
+  parseRunEventUsage,
   parseRunnerOptions,
   parseScore,
   planRun,
@@ -43,6 +44,7 @@ import {
   type AgentInvocation,
   type RunAgents,
   type RunCallUsage,
+  type RunPricing,
 } from './patent-oas-run-core.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -85,6 +87,8 @@ interface StubOptions {
   scoreBody?: string
   /** 接缝每次调用报告的用量;缺省不报告(记录里不出现 cost/tokens)。 */
   usage?: RunCallUsage
+  /** 按调用逐次决定报告什么;给出时优先于 {@link usage}。 */
+  usageFor?: (label: string, call: number) => RunCallUsage | undefined
 }
 
 /** 造一个桩接缝:按契约把产物写进调用目录,并记录每次调用。 */
@@ -92,21 +96,26 @@ function stubAgents(options: StubOptions = {}): { runAgents: RunAgents; calls: A
   const calls: AgentInvocation[] = []
   const runAgents: RunAgents = async (invocation) => {
     calls.push(invocation)
+    const usage = options.usageFor === undefined ? options.usage : options.usageFor(invocation.label, calls.length)
     if (invocation.prompt.includes(SCORE_FILENAME)) {
-      if (options.omitScore === true) return options.usage
+      if (options.omitScore === true) return usage
       const body = options.scoreBody ?? JSON.stringify({ score: options.scoreFor?.(invocation.label, calls.length) ?? 90 })
       writeFileSync(join(invocation.cwd, SCORE_FILENAME), body, 'utf8')
-      return options.usage
+      return usage
     }
-    if (options.omitDeliverable === true) return options.usage
+    if (options.omitDeliverable === true) return usage
     writeFileSync(join(invocation.cwd, DELIVERABLE_FILENAME), options.deliverable ?? '交付物正文', 'utf8')
-    return options.usage
+    return usage
   }
   return { runAgents, calls }
 }
 
 /** 用桩接缝采集一次。 */
-async function collect(options: { caseIds?: string[]; runsPerCase?: number } & StubOptions): Promise<{
+async function collect(options: {
+  caseIds?: string[]
+  runsPerCase?: number
+  pricing?: RunPricing
+} & StubOptions): Promise<{
   record: Awaited<ReturnType<typeof collectRunRecord>>
   calls: AgentInvocation[]
 }> {
@@ -119,6 +128,7 @@ async function collect(options: { caseIds?: string[]; runsPerCase?: number } & S
     runAgents,
     ...options.caseIds === undefined ? {} : { caseIds: options.caseIds },
     ...options.runsPerCase === undefined ? {} : { runsPerCase: options.runsPerCase },
+    ...options.pricing === undefined ? {} : { pricing: options.pricing },
     recordedAt: '2026-09-26T00:00:00.000Z',
   })
   return { record, calls }
@@ -147,6 +157,57 @@ describe('真实启动器参数', () => {
       '--import', 'tsx/esm', '/repo/apps/cli/src/bin.ts', '--profile', 'headless',
       '--patch', '/repo/a.yml', '--patch', '/repo/b.yml', '任务正文',
     ])
+  })
+
+  it('--json 紧贴提示词之前,只有开启时才出现', () => {
+    expect(agentArgv({
+      binPath: '/repo/apps/cli/src/bin.ts',
+      tsxImport: 'tsx/esm',
+      profile: 'headless',
+      json: true,
+      prompt: '任务正文',
+    })).toEqual([
+      '--import', 'tsx/esm', '/repo/apps/cli/src/bin.ts', '--profile', 'headless', '--json', '任务正文',
+    ])
+    expect(agentArgv({
+      binPath: '/repo/apps/cli/src/bin.ts',
+      tsxImport: 'tsx/esm',
+      profile: 'headless',
+      json: false,
+      prompt: '任务正文',
+    })).not.toContain('--json')
+  })
+})
+
+describe('运行事件用量解析', () => {
+  it('只从带 usage 的 step_end 事件取 token', () => {
+    const line = JSON.stringify({ type: 'status', phase: 'step_end', usage: { inputTokens: 120, outputTokens: 30 } })
+    expect(parseRunEventUsage(line)).toEqual({ input: 120, output: 30 })
+  })
+
+  it('缓存读取与写入折进计费输入', () => {
+    const line = JSON.stringify({
+      type: 'status',
+      phase: 'step_end',
+      usage: { inputTokens: 100, outputTokens: 30, cacheReadTokens: 20, cacheWriteTokens: 5 },
+    })
+    expect(parseRunEventUsage(line)).toEqual({ input: 125, output: 30 })
+  })
+
+  it('非 JSON、其它事件、缺字段与负值一律忽略', () => {
+    expect(parseRunEventUsage('agent log line')).toBeUndefined()
+    expect(parseRunEventUsage(JSON.stringify({ type: 'status', phase: 'step_start' }))).toBeUndefined()
+    expect(parseRunEventUsage(JSON.stringify({ type: 'final', text: 'done' }))).toBeUndefined()
+    expect(parseRunEventUsage(JSON.stringify({ type: 'status', phase: 'step_end' }))).toBeUndefined()
+    expect(parseRunEventUsage(JSON.stringify({
+      type: 'status', phase: 'step_end', usage: { inputTokens: '120', outputTokens: 30 },
+    }))).toBeUndefined()
+    expect(parseRunEventUsage(JSON.stringify({
+      type: 'status', phase: 'step_end', usage: { inputTokens: -1, outputTokens: 30 },
+    }))).toBeUndefined()
+    expect(parseRunEventUsage(JSON.stringify({
+      type: 'status', phase: 'step_end', usage: { inputTokens: 100, outputTokens: 30, cacheReadTokens: -1 },
+    }))).toBeUndefined()
   })
 })
 
@@ -227,6 +288,24 @@ describe('选项解析', () => {
     expect(options.dryRun).toBe(true)
     expect(options.provider).toBe('p')
     expect(options.modelId).toBe('m')
+  })
+
+  it('单价必须成对给出且非负', () => {
+    const context = { root: '/repo', cwd: '/repo', stamp: 'T' }
+    expect(parseRunnerOptions(
+      ['--input-usd-per-mtok', '2', '--output-usd-per-mtok', '8'],
+      context,
+    ).pricing).toEqual({ inputPerMillion: 2, outputPerMillion: 8 })
+    expect(() => parseRunnerOptions(['--input-usd-per-mtok', '2'], context)).toThrow('必须同时给出')
+    expect(() => parseRunnerOptions(['--output-usd-per-mtok', '8'], context)).toThrow('必须同时给出')
+    expect(() => parseRunnerOptions(
+      ['--input-usd-per-mtok', '-1', '--output-usd-per-mtok', '8'],
+      context,
+    )).toThrow('--input-usd-per-mtok 必须是非负数')
+    expect(() => parseRunnerOptions(
+      ['--input-usd-per-mtok', '2', '--output-usd-per-mtok', 'abc'],
+      context,
+    )).toThrow('--output-usd-per-mtok 必须是非负数')
   })
 
   it('重复给出的同一个 case 或 overlay 只算一次', () => {
@@ -317,7 +396,7 @@ describe('编排', () => {
     expect(calls.length).toBe(7)
   })
 
-  it('runsPerCase 取多次运行的均值', async () => {
+  it('runsPerCase 取多次运行的均值,并留下逐次观测', async () => {
     const { record } = await collect({
       caseIds: ['oa-answer'],
       runsPerCase: 2,
@@ -325,6 +404,12 @@ describe('编排', () => {
     })
     expect(record.runsPerCase).toBe(2)
     expect(first(record.cases).dimensions.every(entry => entry.score === 70)).toBe(true)
+    expect(first(record.cases).dimensions.every(entry => entry.scores?.join(',') === '80,60')).toBe(true)
+  })
+
+  it('单次运行不写逐次观测', async () => {
+    const { record } = await collect({ caseIds: ['oa-answer'] })
+    expect(first(record.cases).dimensions.every(entry => entry.scores === undefined)).toBe(true)
   })
 
   it('汇总接缝报告的 cost/tokens 到记录', async () => {
@@ -341,6 +426,55 @@ describe('编排', () => {
     const { record } = await collect({ caseIds: ['oa-answer'] })
     expect(record.cost).toBeUndefined()
     expect(record.tokens).toBeUndefined()
+  })
+
+  it('provider 不报告成本时按给定单价把 tokens 换算成 cost', async () => {
+    const { record, calls } = await collect({
+      caseIds: ['oa-answer'],
+      runsPerCase: 2,
+      usage: { tokens: { input: 100, output: 40 } },
+      pricing: { inputPerMillion: 2, outputPerMillion: 8 },
+    })
+    expect(record.tokens).toEqual({ input: 100 * calls.length, output: 40 * calls.length })
+    expect(record.cost).toBeCloseTo(calls.length * (100 / 1_000_000 * 2 + 40 / 1_000_000 * 8), 6)
+  })
+
+  it('provider 报告成本时优先使用报告值,不由单价重算', async () => {
+    const { record, calls } = await collect({
+      caseIds: ['oa-answer'],
+      usage: { cost: 0.5, tokens: { input: 1, output: 1 } },
+      pricing: { inputPerMillion: 1000, outputPerMillion: 1000 },
+    })
+    expect(record.cost).toBeCloseTo(0.5 * calls.length, 6)
+  })
+
+  it('没有任何 usage 时,即使给了单价也不写 cost', async () => {
+    const { record } = await collect({
+      caseIds: ['oa-answer'],
+      pricing: { inputPerMillion: 2, outputPerMillion: 8 },
+    })
+    expect(record.cost).toBeUndefined()
+  })
+
+  it('只有部分调用报告 tokens 时省略合计,不写部分值', async () => {
+    const { record } = await collect({
+      caseIds: ['oa-answer'],
+      usageFor: (_label, call) => call === 1 ? undefined : { tokens: { input: 1, output: 1 } },
+      pricing: { inputPerMillion: 2, outputPerMillion: 8 },
+    })
+    expect(record.tokens).toBeUndefined()
+    expect(record.cost).toBeUndefined()
+  })
+
+  it('部分调用报告成本时不用部分成本,改由完整 tokens 与单价换算', async () => {
+    const { record, calls } = await collect({
+      caseIds: ['oa-answer'],
+      usageFor: (_label, call) => call === 1
+        ? { cost: 100, tokens: { input: 10, output: 5 } }
+        : { tokens: { input: 10, output: 5 } },
+      pricing: { inputPerMillion: 1, outputPerMillion: 2 },
+    })
+    expect(record.cost).toBeCloseTo(calls.length * (10 / 1_000_000 * 1 + 5 / 1_000_000 * 2), 6)
   })
 
   it('agent 没写出交付物时点名失败', async () => {
@@ -369,6 +503,33 @@ describe('编排', () => {
 })
 
 describe('真实子进程接缝', () => {
+  it('从 --json 事件流汇总 token,并保留完整日志', async () => {
+    const dir = scratch('usage')
+    const emit = join(dir, 'emit.mjs')
+    writeFileSync(emit, [
+      'process.stdout.write(JSON.stringify({ type: "status", phase: "step_end", usage: { inputTokens: 10, outputTokens: 2 } }) + "\\n")',
+      'process.stdout.write(JSON.stringify({ type: "status", phase: "step_end", usage: { inputTokens: 5, outputTokens: 1, cacheReadTokens: 3 } }))',
+    ].join('\n'), 'utf8')
+    const usage = await spawnAgentProcess({
+      invocation: { cwd: dir, prompt: 'ignored', label: 'usage 调用' },
+      launcher: { binPath: emit, tsxImport: import.meta.resolve('tsx/esm'), profile: 'headless', json: true },
+      timeoutMs: 30_000,
+    })
+    expect(usage).toEqual({ tokens: { input: 18, output: 3 } })
+    expect(readFileSync(join(dir, AGENT_LOG_FILENAME), 'utf8')).toContain('"step_end"')
+  })
+
+  it('子进程没有报告 usage 时返回 undefined', async () => {
+    const dir = scratch('no-usage')
+    const silent = join(dir, 'silent.mjs')
+    writeFileSync(silent, 'process.stdout.write("plain log\\n")\n', 'utf8')
+    expect(await spawnAgentProcess({
+      invocation: { cwd: dir, prompt: 'ignored', label: 'silent 调用' },
+      launcher: { binPath: silent, tsxImport: import.meta.resolve('tsx/esm'), profile: 'headless' },
+      timeoutMs: 30_000,
+    })).toBeUndefined()
+  })
+
   it('超时即终止子进程并报出超时,日志仍然落盘', async () => {
     const dir = scratch('timeout')
     const hang = join(dir, 'hang.mjs')
@@ -424,5 +585,22 @@ describe('写出记录', () => {
     await writeRunRecord(path, record)
     expect(await loadRunRecord(path)).toEqual(record)
     expect(readFileSync(path, 'utf8').endsWith('\n')).toBe(true)
+  })
+
+  it('逐次观测随记录落盘并可被重新读取', async () => {
+    const { record } = await collect({ runsPerCase: 2 })
+    const path = join(scratch('out-scores'), 'run.json')
+    await writeRunRecord(path, record)
+    expect(await loadRunRecord(path)).toEqual(record)
+    expect(validateRunRecord(await loadRunRecord(path), space, gold, 'run.json')).toEqual([])
+  })
+
+  it('逐次观测不是数组时点名失败', async () => {
+    const { record } = await collect({ caseIds: ['oa-answer'], runsPerCase: 2 })
+    const raw = JSON.parse(JSON.stringify(record)) as { cases: Array<{ dimensions: Array<Record<string, unknown>> }> }
+    first(first(raw.cases).dimensions).scores = '80,60'
+    const path = join(scratch('out-bad-scores'), 'run.json')
+    writeFileSync(path, JSON.stringify(raw), 'utf8')
+    await expect(loadRunRecord(path)).rejects.toThrow('必须是数组')
   })
 })

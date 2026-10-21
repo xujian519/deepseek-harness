@@ -15,6 +15,7 @@ import {
   PATENT_OAS_EXAMPLE_DIR,
   PROBLEM_SPACE_FILE,
   caseScores,
+  caseScoresByRun,
   evaluateRun,
   findCycles,
   formatVerdict,
@@ -23,8 +24,12 @@ import {
   loadGateConfig,
   loadGold,
   loadProblemSpace,
+  mean,
   nodeScores,
+  nodeScoresByRun,
   parseRubricDimensions,
+  roundScore,
+  scoreSpread,
   validateGateConfig,
   validateProblemSpace,
   validateRunRecord,
@@ -99,6 +104,16 @@ function recordFrom(
       })),
     })),
   }
+}
+
+/** 造一份逐次观测与均值一致的多次运行记录。 */
+function recordWithScores(scores: readonly number[]): RunRecord {
+  const record = recordFrom(gold, () => roundScore(mean(scores)))
+  record.runsPerCase = scores.length
+  for (const runCase of record.cases) {
+    for (const dimension of runCase.dimensions) dimension.scores = [...scores]
+  }
+  return record
 }
 
 /** 深拷贝问题空间,供负例改坏后再校验。 */
@@ -266,6 +281,66 @@ describe('run 记录校验', () => {
   it('分数越界即失败', () => {
     const outOfRange = recordFrom(gold, (caseId, index) => caseId === 'oa-answer' && index === 1 ? 120 : 90)
     expect(validateRunRecord(outOfRange, space, gold, 'run.json').join('\n')).toContain('超出 0–100')
+  })
+
+  it('逐次分数与均值一致即通过,旧记录没有该字段也通过', () => {
+    expect(validateRunRecord(recordWithScores([70, 80]), space, gold, 'run.json')).toEqual([])
+    expect(validateRunRecord(recordFrom(gold, () => 90), space, gold, 'run.json')).toEqual([])
+  })
+
+  it('逐次分数个数与 runsPerCase 不符即失败', () => {
+    const record = recordWithScores([70, 80])
+    first(first(record.cases).dimensions).scores = [75]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n')).toContain('有 1 个逐次分数,应为 2')
+  })
+
+  it('逐次分数越界即失败', () => {
+    const record = recordWithScores([70, 80])
+    first(first(record.cases).dimensions).scores = [70, 120]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n')).toContain('第 2 次分数 120 超出 0–100')
+  })
+
+  it('score 与逐次均值不一致即失败', () => {
+    const record = recordWithScores([70, 80])
+    first(first(record.cases).dimensions).score = 90
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n')).toContain('与逐次分数均值 75 不一致')
+  })
+})
+
+describe('逐次观测的离散度', () => {
+  it('case 与节点按逐次观测给出极差与样本标准差', () => {
+    const verdict = evaluateRun(space, config, recordWithScores([70, 80]), undefined)
+    const caseOutcome = first(verdict.cases.filter(entry => entry.id === 'oa-answer'))
+    expect(caseOutcome.spread?.min).toBeCloseTo(70, 10)
+    expect(caseOutcome.spread?.max).toBeCloseTo(80, 10)
+    expect(caseOutcome.spread?.stdev).toBeCloseTo(10 / Math.SQRT2, 10)
+    const node = first(verdict.nodes.filter(entry => entry.id === 'distinguishing-features'))
+    expect(node.spread?.min).toBeCloseTo(70, 10)
+    expect(node.spread?.max).toBeCloseTo(80, 10)
+  })
+
+  it('旧记录与单次运行不产生离散度', () => {
+    const verdict = evaluateRun(space, config, recordFrom(gold, () => 90), undefined)
+    expect(verdict.cases.every(entry => entry.spread === undefined)).toBe(true)
+    expect(verdict.nodes.every(entry => entry.spread === undefined)).toBe(true)
+    const single = recordFrom(gold, () => 90)
+    expect(caseScoresByRun(single).size).toBe(0)
+    expect(nodeScoresByRun(space, single).size).toBe(0)
+    expect(scoreSpread([70])).toBeUndefined()
+  })
+
+  it('某个维度缺逐次观测时,该 case 与相关节点都不报离散度', () => {
+    const record = recordWithScores([70, 80])
+    const target = first(record.cases.filter(entry => entry.caseId === 'oa-answer'))
+    delete first(target.dimensions).scores
+    const verdict = evaluateRun(space, config, record, undefined)
+    expect(verdict.cases.find(entry => entry.id === 'oa-answer')?.spread).toBeUndefined()
+    expect(verdict.cases.find(entry => entry.id === 'claim-drafting')?.spread).toBeDefined()
+  })
+
+  it('报告渲染极差与样本标准差', () => {
+    const text = formatVerdict(evaluateRun(space, config, recordWithScores([70, 80]), undefined))
+    expect(text).toContain('逐次 70.0–80.0 σ7.07')
   })
 })
 
