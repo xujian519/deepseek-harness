@@ -24,6 +24,24 @@ import { isRecord } from './state-keys.ts'
 /** 摘要中单条命中的摘要片段上限：完整条目仍在 `prior_art` 中。 */
 const SEARCH_SNIPPET_LIMIT = 300
 
+/** 检索条数缺省值：`max_results` 缺失或非法时使用。 */
+const DEFAULT_MAX_RESULTS = 5
+
+/**
+ * 解析检索条数上限：接受数字或数字字符串并向下取整；非有限正数回退缺省值。
+ * @param value - `state.max_results` 的原始值（模型/工具 JSON 边界，需运行时收窄）。
+ * @returns 正整数条数上限。
+ */
+function resolveMaxResults(value: unknown): number {
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+      ? Number(value)
+      : Number.NaN
+  const floored = Math.floor(parsed)
+  return Number.isFinite(floored) && floored > 0 ? floored : DEFAULT_MAX_RESULTS
+}
+
 /**
  * 把一条检索结果渲染成摘要行。收口阶段只能读到主输出文本，命中详情必须进入
  * `search_summary`，否则它只看到“检索到 N 篇”而无法逐项对比。
@@ -120,7 +138,7 @@ export class SearchHandler implements StageHandler {
       return degraded('search', '查询条件为空')
     }
     try {
-      const maxResults = Number(getStateString(state, 'max_results')) || 5
+      const maxResults = resolveMaxResults(state['max_results'])
       const hits = await provider.search(query, { maxResults })
       const existing = Array.isArray(state['prior_art']) ? state['prior_art'] : []
       const docs = mergePriorArt(state['prior_art'], hits)
@@ -148,11 +166,48 @@ export class SearchHandler implements StageHandler {
 /** keywords 原子：生成专利检索关键词。 */
 export const keywordsAtom: Atom = {
   name: 'keywords',
-  description: '基于技术交底书分析摘要生成专利检索关键词（5-15 个，含上下位与同义词）',
+  description: '基于 PFIE 融合结果生成专利检索关键词（5-15 个，含上下位与同义词）',
   category: 'search',
-  inputSchema: ['extraction_result', 'source_text', 'text', 'input'],
+  inputSchema: ['pfe_triples', 'extraction_result', 'source_text', 'text', 'input'],
   outputSchema: ['keywords'],
   usesModel: true,
+}
+
+/**
+ * 渲染单个 PFIE 字段：数组项以「；」连接并丢弃空白项，字符串去首尾空白，
+ * 其他类型视为未提供。
+ * @param value - 四元组中的原始字段值。
+ * @returns 可写入提示词的文本；无可用内容时为空字符串。
+ */
+function formatPfeField(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map(String).filter(item => item.trim().length > 0).join('；')
+  }
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+/**
+ * 把 PFIE 四元组渲染为提示词文本：每条一行「问题 / 发明认知 / 特征 / 效果」，
+ * 省略空字段，条间空行；非对象条目与所有字段都为空的条目跳过。
+ * @param triples - `state.pfe_triples` 的原始值。
+ * @returns 可嵌入提示词的文本；没有可渲染条目时为空字符串。
+ */
+function formatPfeTriples(triples: unknown[]): string {
+  const entries: string[] = []
+  for (const triple of triples) {
+    if (!isRecord(triple)) continue
+    const fields: [string, string][] = [
+      ['问题', formatPfeField(triple.problem)],
+      ['发明认知', formatPfeField(triple.insight)],
+      ['特征', formatPfeField(triple.features)],
+      ['效果', formatPfeField(triple.effects)],
+    ]
+    const rendered = fields
+      .filter(([, value]) => value.length > 0)
+      .map(([label, value]) => `${label}：${value}`)
+    if (rendered.length > 0) entries.push(rendered.join(' / '))
+  }
+  return entries.join('\n\n')
 }
 
 const KEYWORDS_SCHEMA = {
@@ -180,13 +235,17 @@ export class KeywordsHandler implements StageHandler {
     const { temperature, promptLimit } = tuned.tunables
     const missing = requireLlm(provider, 'keywords')
     if (missing) return missing
+    // 优先 PFIE 融合结果：并行提取时各阶段主键 extraction_result 会被隔离删除，
+    // 只剩最后一轮原文；按融合结果取输入才能让提示词不随并行度变化。
+    const pfie = formatPfeTriples(getStateArray(state, 'pfe_triples'))
     const input =
+      pfie ||
       getStateString(state, 'extraction_result') ||
       getStateString(state, 'source_text') ||
       getStateString(state, 'text') ||
       getStateString(state, 'input')
     if (input.trim().length === 0) {
-      return degraded('keywords', '输入为空（state.extraction_result / source_text / text / input）')
+      return degraded('keywords', '输入为空（state.pfe_triples / extraction_result / source_text / text / input）')
     }
     const prompt = [
       '你是一个专利检索关键词生成助手。根据技术交底书分析摘要，生成检索关键词。',
@@ -197,7 +256,7 @@ export class KeywordsHandler implements StageHandler {
       '- 每个关键词应当简洁（2-8 个字）',
       '- 避免过于宽泛的常规词汇',
       '',
-      '【分析摘要】',
+      pfie.length > 0 ? '【PFIE 分析结果】' : '【分析结果】',
       dataBlock(input.slice(0, promptLimit)),
       '',
       '请严格输出 JSON：{ "keywords": ["关键词1", "关键词2", ...] }',
