@@ -10,8 +10,9 @@
  *   等于把"仅一般背景技术"当成已认定的事实；本模块只在文献号之后紧邻的位置出现
  *   `X类`/`（X）` 一类标注时返回相关性，未标注即省略该字段。
  * - 引用文献的权项不再恒空。上游 `CitedReference.ClaimsAffected` 无写入点，故全链路
- *   恒为空；本模块按文献号所在语句内的权项编号填充，该字段是**同句共现**而非审查员的
- *   权威对应，见 `CitedReference.claimsAffected`。
+ *   恒为空；本模块按文献号所在语句内的权项编号填充，并列枚举（`权利要求1、2和3`）
+ *   逐项计入，该字段是**同句共现**而非审查员的权威对应，见
+ *   `CitedReference.claimsAffected`。
  * - 审查员论点按码位截取。上游以字节下标切分中文正文，可切出半个字符。
  * - 权项区间带宽度与编号上限，异常区间不展开。
  * - 同一文献的多处相关性标注不一致时列入 `parseConflicts`（冲突源/候选值/采用依据），
@@ -118,12 +119,13 @@ const PATENT_NUMBER = /(?:CN|US|WO|EP|JP|KR)\d{6,}[A-Z]?/g
 
 /**
  * 本文书自身文献号的指代标记：紧接文献号之前的「本申请/本发明/本专利/本案」
- * （可带"的"与"公开号/申请号/公告号/专利号"）。
+ * （可带"的"、开括号与"公开号/申请号/公告号/专利号"）。
  *
- * 通知书的抬头与本申请自身号码相邻的写法正是这一种；而「本申请与 CN… 的区别」
- * 这类对照写法中，标记与文献号之间隔着别的字，故不落在此式内。
+ * 通知书的抬头与本申请自身号码相邻的写法正是这一种，含 `本申请（申请号CN…）`
+ * 这类括号写法；而「本申请与 CN… 的区别」这类对照写法中，标记与文献号之间隔着
+ * 别的字，故不落在此式内。
  */
-const SELF_REFERENCE_BEFORE = /(?:本申请|本发明|本专利|本案)\s*(?:的)?\s*(?:公开号|申请号|公告号|专利号)?\s*[）)\s]*$/
+const SELF_REFERENCE_BEFORE = /(?:本申请|本发明|本专利|本案)\s*(?:的)?\s*[（(]?\s*(?:公开号|申请号|公告号|专利号)?\s*[）)\s]*$/
 
 /** 文献号之后的自身指代写法：`CN117000000A（本申请）`。 */
 const SELF_REFERENCE_AFTER = /^\s*[（(]?\s*(?:本申请|本发明|本专利|本案)/
@@ -131,8 +133,16 @@ const SELF_REFERENCE_AFTER = /^\s*[（(]?\s*(?:本申请|本发明|本专利|本
 /** 上述两个窗口的宽度（UTF-16 码元）。 */
 const SELF_REFERENCE_WINDOW_CHARS = 12
 
-/** 权利要求编号写法。 */
-const CLAIM_NUMBER = /权利要求\s*(\d+)/g
+/**
+ * 权利要求编号写法：单个编号或并列枚举（`权利要求1、2和3`）。
+ *
+ * 枚举符不含区间符：`权利要求1至3` 由 `CLAIM_RANGE_QUALIFIED` 整段展开，若这里也按
+ * `至` 拆分，超宽区间会退化成两个端点编号。
+ */
+const CLAIM_NUMBER = /权利要求\s*(\d+(?:\s*(?:、|，|,|和|及|与|或|以及)\s*\d+)*)/g
+
+/** 并列枚举的分隔符。 */
+const CLAIM_NUMBER_SEPARATOR = /\s*(?:、|，|,|和|及|与|或|以及)\s*/
 
 /**
  * 权利要求区间写法：`权利要求1至3`（前缀限定）与 `第1-5项`（后缀限定）。
@@ -335,15 +345,18 @@ function citationRelevancy(text: string, end: number): CitationRelevancy | undef
 }
 
 /**
- * 提取正文提到的权项编号，展开 `权利要求1至3`、`第1-5项` 一类区间。
+ * 提取正文提到的权项编号，展开 `权利要求1至3`、`第1-5项` 一类区间，并列枚举
+ * （`权利要求1、2和3`）逐项计入。
  * @param text - 通知书正文或其中一段。
  * @returns 升序去重的权项编号；未提到权项时为空数组。
  */
 export function extractAffectedClaims(text: string): number[] {
   const claims = new Set<number>()
   for (const match of eachMatch(text, CLAIM_NUMBER)) {
-    const number = Number.parseInt(capture(match, 1), 10)
-    if (number > 0 && number <= MAX_CLAIM_NUMBER) claims.add(number)
+    for (const token of capture(match, 1).split(CLAIM_NUMBER_SEPARATOR)) {
+      const number = Number.parseInt(token, 10)
+      if (number > 0 && number <= MAX_CLAIM_NUMBER) claims.add(number)
+    }
   }
   for (const pattern of [CLAIM_RANGE_QUALIFIED, CLAIM_RANGE_SUFFIXED]) {
     for (const match of eachMatch(text, pattern)) {
