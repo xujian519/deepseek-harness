@@ -3,11 +3,12 @@ import {
   DEGRADED_ERROR_KEY,
   DEGRADED_RETRYABLE_KEY,
   AtomRegistry,
+  StageCancelledError,
   StageHandlerRegistry,
   type StageHandler,
   type WorkflowStage,
 } from '@deepseek-ai/dsh-patent-core'
-import { runStageOnce } from '@deepseek-ai/dsh-patent-workflow'
+import { runStageOnce, runWorkflow } from '@deepseek-ai/dsh-patent-workflow'
 
 /** 注册一个只输出 `result` 的 Atom + Handler。 */
 function makeRegistry(handler: StageHandler): { handlers: StageHandlerRegistry; atoms: AtomRegistry } {
@@ -162,5 +163,56 @@ describe('runStageOnce 降级语义', () => {
     expect(outcome.retries).toBe(0)
     expect(state.result).toBe('部分结果')
     expect(state[DEGRADED_ERROR_KEY]).toBeUndefined()
+  })
+})
+
+describe('调用方取消', () => {
+  it('runStageOnce：类型化取消立即抛出，不重试也不降级', async () => {
+    let calls = 0
+    const { handlers, atoms } = makeRegistry({
+      name: 'test-atom',
+      category: 'extract',
+      execute: async () => {
+        calls += 1
+        throw new StageCancelledError('test-atom')
+      },
+    })
+    const state: Record<string, unknown> = {}
+    await expect(runStageOnce(stage(), state, {
+      handlers,
+      atoms,
+      maxRetries: 2,
+      ctx: {},
+    })).rejects.toMatchObject({ name: 'StageCancelledError', stageId: 'test-atom' })
+
+    expect(calls).toBe(1)
+    expect(state.s1).toBeUndefined()
+  })
+
+  it('runWorkflow：阶段内取消拒绝整次运行', async () => {
+    const controller = new AbortController()
+    let calls = 0
+    const { handlers, atoms } = makeRegistry({
+      name: 'test-atom',
+      category: 'extract',
+      execute: async () => {
+        calls += 1
+        controller.abort()
+        throw new StageCancelledError('test-atom')
+      },
+    })
+    const manifest = {
+      id: 'cancel',
+      name: '取消测试',
+      caseType: 'test',
+      stages: [stage()],
+    }
+    await expect(runWorkflow(manifest, {}, undefined, {
+      handlers,
+      atoms,
+      signal: controller.signal,
+    })).rejects.toMatchObject({ name: 'StageCancelledError' })
+
+    expect(calls).toBe(1)
   })
 })

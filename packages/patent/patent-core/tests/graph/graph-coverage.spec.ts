@@ -7,6 +7,7 @@ import {
   GraphEngineError,
   InMemoryCheckpointStore,
   JsonFileCheckpointStore,
+  KeywordsHandler,
   StageHandlerRegistry,
   buildEnablementGraph,
   buildInventivenessGraph,
@@ -140,6 +141,25 @@ it('engine：运行期间取消上报为取消（signal 透传路径）', async 
     .compile('a')
   const controller = new AbortController()
   await expect(g.run({}, { signal: controller.signal })).rejects.toThrow(/已取消/)
+})
+
+it('engine：LLM 调用中取消穿透 handler 与节点策略，全图拒绝而不是节点降级', async () => {
+  const controller = new AbortController()
+  const handlers = new StageHandlerRegistry()
+  handlers.register(new KeywordsHandler())
+  const manifest: WorkflowManifest = {
+    id: 'cancel_llm', name: '取消穿透', caseType: 'test',
+    stages: [{ id: 'kw', strategy: 'chain', description: '关键词', atom: 'keywords' }],
+  }
+  const provider: StageProvider = {
+    callLLM: (_prompt, _opts, signal) => new Promise((_resolve, reject) => {
+      signal?.addEventListener('abort', () => { reject(new Error('aborted')) }, { once: true })
+      controller.abort()
+    }),
+  }
+  const g = manifestToGraph(manifest, { handlers, provider })
+  await expect(g.run({ input: '一种过滤装置' }, { signal: controller.signal }))
+    .rejects.toMatchObject({ name: 'StageCancelledError', stageId: 'keywords' })
 })
 
 it('engine：maxSteps 耗尽触发护栏（completed=false）', async () => {

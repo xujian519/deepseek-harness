@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-stage-cancellation/guide.md
+/:
+  en: 37d9d0aeb7b73992
+  zh: a109c5a89014417e
+/patent-stage-cancellation-is-typed:
+  en: 76baf08e79f65123
+  zh: 0e1eff0b33219141
+/patent-stage-cancellation-is-typed/change:
+  en: a826e9555833a19c
+  zh: a92875eae996cce6
+/patent-stage-cancellation-is-typed/migration:
+  en: 79356a2fdd9a8b68
+  zh: bc92b6fcef67cdc2
