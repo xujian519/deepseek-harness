@@ -105,6 +105,7 @@ describe('buildReexaminationPreparation', () => {
       ground: 'novelty',
       article: '专利法第22条第2款',
       label: '新颖性缺陷',
+      negated: false,
       matched: '不符合专利法第22条第2款',
     }
     const prep = buildReexaminationPreparation([finding, finding], { oralHearing: true })
@@ -112,6 +113,20 @@ describe('buildReexaminationPreparation', () => {
     const rehearsal = prep.sections.find(section => section.id === 'challenge-rehearsal')
     if (rehearsal?.id !== 'challenge-rehearsal') throw new Error('质疑预演段缺失')
     expect(rehearsal.challenges).toHaveLength(1)
+  })
+
+  it('被否定的理由不进入准备段', () => {
+    const prep = buildReexaminationPreparation(
+      reasons('请求人未主张权利要求1不具备新颖性，但主张权利要求1不具备创造性'),
+      { oralHearing: true },
+    )
+    expect(prep.grounds).toEqual(['inventiveness'])
+    const rehearsal = prep.sections.find(section => section.id === 'challenge-rehearsal')
+    if (rehearsal?.id !== 'challenge-rehearsal') throw new Error('质疑预演段缺失')
+    expect(rehearsal.challenges.map(challenge => challenge.ground)).toEqual(['inventiveness'])
+    const timeline = prep.sections.find(section => section.id === 'hearing-timeline')
+    if (timeline?.id !== 'hearing-timeline') throw new Error('口审时间线段缺失')
+    expect(timeline.phases[1]?.steps).toEqual(['创造性缺陷——论证创造性'])
   })
 
   it('口审时间线四阶段，理由陈述阶段按理由展开', () => {

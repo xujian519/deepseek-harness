@@ -13,8 +13,14 @@ import {
 // 偏离按本模块的口径核对：无命中时不造默认理由、实用新型不删除创造性理由、
 // 无效理由表补齐客体与其他条款、宽词收窄为成短语形式。
 
-/** 只比较理由、法条与标签；命中片段由专门的用例断言。 */
-function groundsOf(findings: readonly GroundFinding<string>[]): GroundFinding<string>[] {
+/**
+ * 只比较理由、法条与标签；命中片段与否定判定由专门的用例断言。
+ * 现有用例的文书都是正面主张，这里顺带断言未被标成否定。
+ */
+function groundsOf(
+  findings: readonly GroundFinding<string>[],
+): Pick<GroundFinding<string>, 'ground' | 'article' | 'label' | 'matched'>[] {
+  expect(findings.every(finding => !finding.negated)).toBe(true)
   return findings.map(({ ground, article, label }) => ({ ground, article, label, matched: '' }))
 }
 
@@ -240,6 +246,58 @@ describe('identifyDesignGrounds', () => {
   })
 })
 
+describe('否定表述', () => {
+  it('分句内的元否定把命中的理由标为否定', () => {
+    const novelty = identifyInvalidationGrounds('请求人未主张权利要求1不具备新颖性').find(
+      ground => ground.ground === 'novelty',
+    )
+    expect(novelty?.negated).toBe(true)
+  })
+
+  it('“并非”“没有证据表明”等否定句式同样生效', () => {
+    expect(
+      identifyInvalidationGrounds('说明书并非公开不充分').find(ground => ground.ground === 'disclosure')?.negated,
+    ).toBe(true)
+    expect(
+      identifyInvalidationGrounds('没有证据表明说明书公开不充分').find(ground => ground.ground === 'disclosure')
+        ?.negated,
+    ).toBe(true)
+  })
+
+  it('转折词之后的正面主张不受前面的否定影响', () => {
+    const findings = identifyInvalidationGrounds('请求人未主张新颖性，但主张权利要求1不具备创造性')
+    expect(findings.map(finding => [finding.ground, finding.negated])).toEqual([
+      ['novelty', true],
+      ['inventiveness', false],
+    ])
+  })
+
+  it('前文否认、后文又正面主张时取后一处命中', () => {
+    const novelty = identifyInvalidationGrounds('请求人未主张新颖性；随后又称权利要求1不具备新颖性').find(
+      finding => finding.ground === 'novelty',
+    )
+    expect(novelty?.negated).toBe(false)
+    expect(novelty?.matched).toContain('随后又称')
+  })
+
+  it('分句边界切断否定作用范围', () => {
+    // 逗号之后是新分句，前面的“未主张”不再否定后面的命中词。
+    const novelty = identifyInvalidationGrounds('请求人未主张该主张，权利要求1不具备新颖性').find(
+      finding => finding.ground === 'novelty',
+    )
+    expect(novelty?.negated).toBe(false)
+  })
+
+  it('缺陷表述中的“未/不”不当作元否定', () => {
+    expect(
+      identifyInvalidationGrounds('说明书未充分公开').find(ground => ground.ground === 'disclosure')?.negated,
+    ).toBe(false)
+    expect(
+      identifyInvalidationGrounds('权利要求1不具备新颖性').find(ground => ground.ground === 'novelty')?.negated,
+    ).toBe(false)
+  })
+})
+
 describe('detectPatentSubject', () => {
   it('正文写明类型时按正文', () => {
     expect(detectPatentSubject('本实用新型的说明书')).toBe('utility-model')
@@ -255,6 +313,15 @@ describe('detectPatentSubject', () => {
     const grounds = identifyReexaminationGrounds(text)
     expect(grounds.map(ground => ground.ground)).toEqual(['utility-model-subject-matter'])
     expect(detectPatentSubject(text, grounds)).toBe('utility-model')
+  })
+
+  it('客体缺陷理由被否定时不据此推断实用新型', () => {
+    const text = '请求人未主张权利要求不属于专利法第2条第3款规定的客体。'
+    const grounds = identifyReexaminationGrounds(text)
+    expect(grounds.map(ground => [ground.ground, ground.negated])).toEqual([
+      ['utility-model-subject-matter', true],
+    ])
+    expect(detectPatentSubject(text, grounds)).toBe('undetermined')
   })
 
   it('无任何信号时为 undetermined，不默认按发明处理', () => {

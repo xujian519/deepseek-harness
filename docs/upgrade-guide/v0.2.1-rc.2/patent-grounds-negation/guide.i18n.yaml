@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-grounds-negation/guide.md
+/:
+  en: 1fc611d78e7a55a1
+  zh: 91919ad51d0dae6d
+/patent-ground-findings-distinguish-denied-grounds:
+  en: 0d803ac464329e72
+  zh: 25a6495baf73454b
+/patent-ground-findings-distinguish-denied-grounds/change:
+  en: b9daedd76232a4c9
+  zh: 15ce35d116726ebc
+/patent-ground-findings-distinguish-denied-grounds/migration:
+  en: 94d3b1820a4a1a82
+  zh: 06ecd3d1a9227707

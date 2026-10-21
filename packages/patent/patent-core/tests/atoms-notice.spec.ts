@@ -73,6 +73,23 @@ describe('grounds 原子', () => {
     expect(out.patent_subject).toBeUndefined()
   })
 
+  it('否定表述在摘要中标注，不读作已主张理由', async () => {
+    const out = await run('grounds', {
+      input: '请求人未主张权利要求1不具备新颖性，但主张权利要求1不具备创造性。',
+      ground_program: 'invalidation',
+    })
+    const findings = JSON.parse(String(out.grounds)) as GroundFinding<string>[]
+    expect(findings.map(finding => [finding.ground, finding.negated])).toEqual([
+      ['novelty', true],
+      ['inventiveness', false],
+    ])
+    expect(String(out.grounds_summary)).toContain(
+      '新颖性无效（不具备新颖性）（专利法第22条第2款，文中为否定表述）',
+    )
+    expect(String(out.grounds_summary)).toContain('创造性无效（不具备创造性）（专利法第22条第3款）')
+    expect(String(out.grounds_summary)).not.toContain('创造性无效（不具备创造性）（专利法第22条第3款，文中为否定表述）')
+  })
+
   it('未命中理由时不造理由，摘要明示须人工判读', async () => {
     const out = await run('grounds', { input: '请求人请求宣告专利权无效。', ground_program: 'invalidation' })
     expect(JSON.parse(String(out.grounds))).toEqual([])
