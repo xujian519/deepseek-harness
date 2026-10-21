@@ -31,4 +31,4 @@ description: "检查进行中的假期，获取截止日期预警和需要做出
 /legal-employment-leave-tracker
 ```
 
-建议每周运行——设置周一上午提醒调用 `/legal-employment-leave-tracker`。自动排期需要单独的集成（日历提醒、定时任务等）；Claude Code 不自行排期。
+建议每周运行——设置周一上午提醒调用 `/legal-employment-leave-tracker`。自动排期需要单独的集成（日历提醒、定时任务等）；本模式不自行排期；需要时用 `tool-schedule` 建立提醒。

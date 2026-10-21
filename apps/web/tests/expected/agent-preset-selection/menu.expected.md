@@ -5,4 +5,4 @@
   - menuitem "Creator mode Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode."
   - menuitem "专利模式 面向专利工程师/代理人/律师：交底书理解、现有技术检索、新颖性与创造性分析、权利要求与说明书撰写、审查意见答复、侵权比对与无效宣告。输出前强制质量门禁与免责声明。"
   - menuitem "文档模式 面向产品/技术/运营/市场团队的文档交付 Agent：把需求拆解为规范成品——Markdown/Word 文档、HTML 单页工件、PDF（HTML 渲染导出）与 PPTX 演示。可挂载 OpenDesign 技能库（OPEN_DESIGN_DIR）增强模板与设计系统。交付前按 P0/P1 清单自检，登记交付物时做确定性复核。"
-  - menuitem "法律模式 面向个人法律实务：商事合同审查、诉讼仲裁案件工作区、劳动用工合规、中国法检索与引用核验。检索经 ego lite 浏览器打开官方法源，结论逐条落到证据文件；交付前按技能执行引用核验与质量门禁。"
+  - menuitem "法律模式 面向个人法律实务：覆盖 AI 治理、商事合同、公司并购、刑事辩护、劳动用工、知识产权、律师业务、中国法研究、诉讼仲裁、数据隐私、政府采购、产品合规与监管合规。检索经 ego lite 浏览器打开官方法源，结论逐条落到证据文件；交付前按技能执行引用核验与质量门禁。"

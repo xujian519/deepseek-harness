@@ -74,12 +74,29 @@ const MATTER_SECTION = `## 案件工作区
 
 案件指针统一由 \`./.legal/active-matter\` 管理；运行 \`/legal-matter new | list | switch | close\`。案件资料存放在 \`matters/<slug>/\`，跨案件默认隔离。`
 
-/** The four domains ported in this phase. */
+/**
+ * Professional practice domains ported from the source corpus.
+ *
+ * The source also ships `law-student` (law-school drills), `legal-clinic`
+ * (supervised clinic administration with U.S. jurisdiction bands), and
+ * `legal-builder-hub` (plugin installation and self-update). Those are
+ * education or deployment tooling rather than personal Chinese-law practice,
+ * so the mode leaves them in the source repository.
+ */
 const DOMAINS: readonly Domain[] = [
+  { dir: 'ai-governance-legal', short: 'ai', label: 'AI 治理' },
   { dir: 'commercial-legal', short: 'commercial', label: '商事合同' },
-  { dir: 'litigation-legal', short: 'litigation', label: '诉讼仲裁' },
+  { dir: 'corporate-legal', short: 'corporate', label: '公司并购' },
+  { dir: 'criminal-legal', short: 'criminal', label: '刑事辩护' },
   { dir: 'employment-legal', short: 'employment', label: '劳动用工' },
+  { dir: 'ip-legal', short: 'ip', label: '知识产权' },
+  { dir: 'law-practice-cn', short: 'practice', label: '律师业务' },
   { dir: 'legal-research-cn', short: 'research', label: '中国法研究' },
+  { dir: 'litigation-legal', short: 'litigation', label: '诉讼仲裁' },
+  { dir: 'privacy-legal', short: 'privacy', label: '数据隐私' },
+  { dir: 'procurement-legal', short: 'procurement', label: '政府采购' },
+  { dir: 'product-legal', short: 'product', label: '产品合规' },
+  { dir: 'regulatory-legal', short: 'regulatory', label: '监管合规' },
 ]
 
 /** Extensions whose contents receive the path and command rewrites. */
@@ -92,22 +109,42 @@ const TEXT_EXTENSIONS = new Set(['.md', '.yaml', '.yml', '.json', '.txt', '.csv'
  * mounts or should mount.
  */
 const DATA_KEY_REFERENCES = [
+  'agent_managed',
   'authority_and_interpretation',
   'cancel_by_calendar',
   'cancel_by_effective',
   'claims_and_elements',
   'closing_action',
+  'cn_nexus',
+  'confirmed_good_standing',
   'confirm_routing',
   'current_term_end',
+  'custom_rules',
+  'due_soon',
   'exposure_range',
+  'filed_date',
+  'gap_type',
   'initial_term_end',
+  'last_fee',
+  'last_filed',
   'last_updated',
+  'needs_review',
   'next_deadline',
+  'next_deadlines',
+  'next_review',
+  'not_present',
+  'notice_deadline',
+  'obligations_note',
   'outcomes_and_enforcement',
+  'owner_contact',
+  'quote_mismatch',
   'related_matters',
+  'role_basis',
   'send_by_effective',
   'strategy_and_uncertainty',
   'task_context',
+  'tier_basis',
+  'type_unknown',
 ] as const
 
 /**
@@ -234,7 +271,12 @@ function namespaced(domain: Domain, name: string): string {
  * @param skillNames - every source skill name in that domain.
  * @returns the rewritten text.
  */
-function rewriteDomainText(text: string, domain: Domain, skillNames: readonly string[]): string {
+function rewriteDomainText(
+  text: string,
+  domain: Domain,
+  skillNames: readonly string[],
+  references: ReadonlyMap<string, string>,
+): string {
   let result = text
   const profile = `~/.claude/plugins/config/claude-for-legal-zh/${domain.dir}`
   result = result.replaceAll(`${profile}/CLAUDE.md`, `./.legal/practice/${domain.dir}.md`)
@@ -327,6 +369,105 @@ function rewriteDomainText(text: string, domain: Domain, skillNames: readonly st
     `./.legal/practice/${domain.dir}.md\n./matters/\n`,
   )
   result = result.replaceAll('outputs/', 'output/')
+  result = rewriteCommonText(result)
+  for (const [from, to] of references) result = result.replaceAll(from, to)
+  result = result.replaceAll('law-practice-cn/实务画像', './.legal/practice/law-practice-cn.md')
+  result = result.replaceAll('仓库 `./.legal/references/', '`./.legal/references/')
+  result = result.replaceAll('./.legal/./.legal/', './.legal/')
+  result = result.replace(/(?<=[\u4e00-\u9fff])[ \t]+(?=[\u4e00-\u9fff])/gu, '')
+  return result
+}
+
+/**
+ * Rewrite host-integration and plugin wording shared by skills, practice
+ * profiles, and the shared references.
+ *
+ * The source corpus targets Claude Code installations with legal MCP
+ * connectors. This mode mounts no MCP and retrieves through ego lite, so
+ * integration checks must report an unmounted connector instead of instructing
+ * the model to configure one.
+ * @param text - source text.
+ * @returns the rewritten text.
+ */
+function rewriteCommonText(text: string): string {
+  let result = text
+  result = result.replaceAll('~/.claude/plugins/config/claude-for-legal-zh/', './.legal/')
+  result = result.replaceAll('~/.claude/', './.legal/')
+  result = result.replaceAll('插件配置', '实务画像')
+  result = result.replaceAll('全部12个插件', '法律模式各领域')
+  result = result.replaceAll('全部 12 个插件', '法律模式各领域')
+  result = result.replaceAll('12个插件', '法律模式各领域')
+  result = result.replaceAll('全部插件', '法律模式各领域')
+  result = result.replaceAll('其他法律插件', '其他法律领域')
+  result = result.replaceAll('第一个插件', '第一个领域')
+  result = result.replaceAll('插件特定问题', '领域特定问题')
+  result = result.replaceAll('插件', '模式')
+  result = result.replaceAll('plugin config', "mode's practice profile")
+  result = result.replaceAll('Plugin', 'Mode')
+  result = result.replaceAll('plugin', 'mode')
+
+  // Source tags stay short; integration prose names the retrieval path that
+  // exists in this mode.
+  result = result.replaceAll('[元典MCP]', '[元典]')
+  result = result.replaceAll('[yuandian检索]', '[ego检索]')
+  result = result.replaceAll('元典MCP', 'ego lite 官方法源')
+  result = result.replaceAll('元典（yuan dian）MCP', 'ego lite 官方法源')
+  result = result.replaceAll('yuandian MCP', 'ego lite 官方法源')
+  result = result.replaceAll('法律研究MCP', 'ego lite 官方法源')
+  result = result.replaceAll('法律数据库MCP', 'ego lite 官方法源')
+  result = result.replaceAll('企业信用信息 MCP 连接器', '国家企业信用信息公示系统（经 ego lite）')
+  result = result.replaceAll('企业信用信息 MCP', '国家企业信用信息公示系统（经 ego lite）')
+  result = result.replaceAll('MCP工具名称', '检索工具名称')
+  result = result.replaceAll('MCP 工具名称', '检索工具名称')
+  result = result.replaceAll('MCP工具名', '检索工具名')
+  result = result.replaceAll('MCP 工具调用', '外部工具调用')
+  result = result.replaceAll('MCP工具调用', '外部工具调用')
+  result = result.replaceAll('调用简单的 MCP 工具', '调用简单的外部工具')
+  result = result.replaceAll('调用简单 MCP 工具', '调用简单外部工具')
+  result = result.replaceAll('测试MCP连接', '测试外部连接')
+  result = result.replaceAll('MCP 设置', '宿主连接设置')
+  result = result.replaceAll('MCP设置', '宿主连接设置')
+  result = result.replaceAll('连接或断开一个 MCP', '连接或断开一个外部工具')
+  result = result.replaceAll('连接或断开 MCP', '连接或断开外部工具')
+  result = result.replaceAll('将网盘 MCP 添加到你的配置或通过 `/mcp`', '在宿主配置中接入网盘连接器')
+  result = result.replaceAll('将飞书多维表格MCP添加到您的配置或通过 `/mcp`', '在宿主配置中接入飞书多维表格连接器')
+  result = result.replaceAll('将飞书多维表格 MCP 添加到您的配置或通过 `/mcp`', '在宿主配置中接入飞书多维表格连接器')
+  result = result.replaceAll('MCP 检索', 'ego lite 检索')
+  result = result.replaceAll('MCP检索', 'ego lite 检索')
+  result = result.replaceAll('MCP 连接器', '外部连接器')
+  result = result.replaceAll('MCP 连接', '外部连接')
+  result = result.replaceAll('MCP已连接', '外部工具已连接')
+  result = result.replaceAll('MCP 已连接', '外部工具已连接')
+  result = result.replaceAll('外部 MCP', '外部检索源')
+  result = result.replaceAll('商业 MCP', '商业检索库')
+  result = result.replaceAll('MCP', '外部连接')
+
+  result = result.replaceAll('联网搜索', 'ego lite 网页检索')
+  result = result.replaceAll('网络搜索', 'ego lite 网页检索')
+  result = result.replaceAll('`.mcp.json`', '连接器清单')
+  result = result.replaceAll('.mcp.json', '连接器清单')
+  result = result.replaceAll('Claude Code 不自行排期', '本模式不自行排期；需要时用 `tool-schedule` 建立提醒')
+  result = result.replaceAll(
+    '在 Claude Cowork：Settings → Connectors → Add → 网盘 → 登录。在 Claude Code：在宿主配置中接入网盘连接器。',
+    '在宿主连接设置中接入网盘连接器。',
+  )
+  result = result.replaceAll(
+    '在 Cowork：Settings → Connectors。在 Claude Code：当技能提示你时授权。',
+    '在宿主连接设置中接入检索工具。',
+  )
+  result = result.replaceAll('Claude Code', '宿主')
+  result = result.replaceAll('Claude Cowork', '宿主')
+  result = result.replaceAll('Cowork', '宿主')
+  result = result.replaceAll('检查事项工作区。', '读取 `./.legal/active-matter`；无活动案件时询问归属。')
+  result = result.replaceAll('如事项工作区已启用且有活跃事项，写入', '读取 `./.legal/active-matter`；有活动案件时写入')
+  result = result.replaceAll('**事项工作区** — 是否启用多案件隔离', '**案件工作区** — 由 `legal-matter` 统一管理')
+  result = result.replaceAll('事项工作区', '案件工作区')
+  result = result.replaceAll('事项工作空间', '案件工作区')
+  result = result.replace(/cancel_by_prove[n]ance/gu, 'cancel_by_source')
+  result = result.replaceAll('依据模式根目录 `./.legal/references/company-profile-template.md` 的模板', '依据 `./.legal/company-profile.md` 的模板')
+  result = result.replaceAll('./.legal/./.legal/', './.legal/')
+  result = result.replace(/\.\/\.legal\/<[^>]+>\/outputs?\//gu, './.legal/output/')
+  result = result.replace(/(?<=[\u4e00-\u9fff])[ \t]+(?=[\u4e00-\u9fff])/gu, '')
   return result
 }
 
@@ -341,8 +482,13 @@ function rewriteDomainText(text: string, domain: Domain, skillNames: readonly st
  * @param skillNames - the domain's source skill names.
  * @returns the rewritten profile.
  */
-function rewriteProfile(text: string, domain: Domain, skillNames: readonly string[]): string {
-  let rewritten = rewriteDomainText(text, domain, skillNames)
+function rewriteProfile(
+  text: string,
+  domain: Domain,
+  skillNames: readonly string[],
+  references: ReadonlyMap<string, string>,
+): string {
+  let rewritten = rewriteDomainText(text, domain, skillNames, references)
   rewritten = rewritten.replace(/^<!--[\s\S]*?-->\n/u, `${profileHeader(domain)}\n`)
   rewritten = rewritten.replace(
     /\*This file is written by the cold-start interview[\s\S]*?fixed everywhere\.\*/u,
@@ -368,7 +514,7 @@ function rewriteProfile(text: string, domain: Domain, skillNames: readonly strin
     .replaceAll('插件仓库', '工作区外')
     .replaceAll('插件', '模式')
     .replaceAll('plugin', 'mode')
-  return stripTrailing(rewritten.replace(/references\/([A-Za-z0-9._-]+)\.md/gu, './.legal/references/$1.md'))
+  return stripTrailing(rewritten)
 }
 
 /**
@@ -444,7 +590,7 @@ async function copyTree(source: string, target: string, rewrite: (text: string) 
  * @returns the text with trailing spaces and tabs removed per line.
  */
 function stripTrailing(text: string): string {
-  return text.replace(/[ \t]+$/gmu, '')
+  return text.replace(/[ \t]+$/gmu, '').replace(/\n+$/u, '\n')
 }
 
 /**
@@ -463,11 +609,41 @@ function renderSkill(name: string, description: string, userInvocable: boolean, 
 }
 
 /**
+ * Map `references/<relative-path>` mentions to the workspace path where the
+ * seed step installs them.
+ * @param target - map to fill; later entries win.
+ * @param source - reference directory to walk.
+ * @param prefix - workspace directory the files are seeded into.
+ */
+async function collectReferenceTargets(
+  target: Map<string, string>,
+  source: string,
+  prefix: string,
+): Promise<void> {
+  if (!(await pathExists(source))) return
+  const walk = async (directory: string, relativePath: string): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const child = relativePath === '' ? entry.name : `${relativePath}/${entry.name}`
+      if (entry.isDirectory()) {
+        await walk(join(directory, entry.name), child)
+        continue
+      }
+      if (entry.isFile()) target.set(`references/${child}`, `${prefix}/${child}`)
+    }
+  }
+  await walk(source, '')
+}
+
+/**
  * Import one domain's skills and resources.
  * @param domain - the domain to import.
+ * @param references - domain and shared `references/...` targets in the workspace.
  * @returns the imported skill names.
  */
-async function importDomain(domain: Domain): Promise<string[]> {
+async function importDomain(
+  domain: Domain,
+  references: ReadonlyMap<string, string>,
+): Promise<string[]> {
   const skills = await readDomainSkills(domain)
   const skillNames = skills.map(skill => skill.dir)
   const target = join(TARGET_ROOT, domain.short)
@@ -483,7 +659,7 @@ async function importDomain(domain: Domain): Promise<string[]> {
       throw new Error(`${domain.dir}/${skill.dir}: missing description`)
     }
     const name = namespaced(domain, skill.dir)
-    const rewrite = (text: string): string => rewriteDomainText(text, domain, skillNames)
+    const rewrite = (text: string): string => rewriteDomainText(text, domain, skillNames, references)
     const skillTarget = join(target, name)
     await mkdir(skillTarget, { recursive: true })
     await writeFile(
@@ -522,7 +698,7 @@ async function importDomain(domain: Domain): Promise<string[]> {
   await mkdir(dirname(profileTarget), { recursive: true })
   await writeFile(
     profileTarget,
-    rewriteProfile(await readFile(profileSource, 'utf8'), domain, skillNames),
+    rewriteProfile(await readFile(profileSource, 'utf8'), domain, skillNames, references),
     'utf8',
   )
 
@@ -531,7 +707,7 @@ async function importDomain(domain: Domain): Promise<string[]> {
   if (await pathExists(referenceSource)) {
     await mkdir(dirname(referenceTarget), { recursive: true })
     await copyTree(referenceSource, referenceTarget, (text: string) =>
-      rewriteDomainText(text, domain, skillNames))
+      rewriteDomainText(text, domain, skillNames, references))
   }
 
   return imported
@@ -606,7 +782,7 @@ function sourceCommit(): string {
  * @param commit - source commit or an explanation of its absence.
  * @param counts - imported skill count per source domain.
  */
-async function writeProvenance(
+async function writeSourceNotes(
   version: string,
   commit: string,
   treeHash: string,
@@ -631,7 +807,8 @@ Modifications for DeepSeek Harness:
   workspace-relative ./.legal and ./matters layout.
 - Per-domain matter-workspace and review-proposals skills are removed; one
   legal-matter skill owns the active-matter pointer.
-- Legal MCP references are rewritten to ego lite official-source retrieval.
+- Legal MCP references are rewritten to ego lite official-source retrieval;
+  the mode also uses optional Yuandian MCP tools when the host installs them.
 `, 'utf8')
   await writeFile(join(TARGET_ROOT, 'SOURCES.md'), `# Imported legal sources
 
@@ -661,15 +838,31 @@ async function main(): Promise<void> {
   // disappear from the bundle.
   await rm(join(setupReferences, 'practice'), { recursive: true, force: true })
   await rm(join(setupReferences, 'law'), { recursive: true, force: true })
-  for (const domain of DOMAINS) summary[domain.dir] = await importDomain(domain)
+  const sharedReferences = new Map<string, string>()
+  await collectReferenceTargets(
+    sharedReferences,
+    join(SOURCE_ROOT, 'references'),
+    './.legal/references',
+  )
+  sharedReferences.set('references/company-profile-template.md', './.legal/company-profile.md')
+  for (const domain of DOMAINS) {
+    const references = new Map(sharedReferences)
+    await collectReferenceTargets(
+      references,
+      join(SOURCE_ROOT, domain.dir, 'references'),
+      `./.legal/references/${domain.dir}`,
+    )
+    summary[domain.dir] = await importDomain(domain, references)
+  }
 
   const sharedSource = join(SOURCE_ROOT, 'references')
   const sharedTarget = join(TARGET_ROOT, 'mode', 'legal-setup', 'references', 'shared')
   await rm(sharedTarget, { recursive: true, force: true })
-  await copyTree(sharedSource, sharedTarget, (text: string) =>
-    stripTrailing(text)
-      .replaceAll('~/.claude/plugins/config/claude-for-legal-zh/', './.legal/')
-      .replaceAll('~/.claude/', './.legal/'))
+  await copyTree(sharedSource, sharedTarget, (text: string) => {
+    let rewritten = rewriteCommonText(stripTrailing(text))
+    for (const [from, to] of sharedReferences) rewritten = rewritten.replaceAll(from, to)
+    return rewritten
+  })
   // The company profile template seeds `company-profile.md` directly; keeping a
   // second copy under shared references would give two templates to edit.
   await rm(join(sharedTarget, 'company-profile-template.md'), { force: true })
@@ -679,8 +872,10 @@ async function main(): Promise<void> {
     TARGET_ROOT, 'mode', 'legal-setup', 'references', 'company-profile-template.md',
   )
   await mkdir(dirname(companyTarget), { recursive: true })
-  await copyFile(companySource, companyTarget)
-  await writeProvenance(await sourceVersion(), sourceCommit(), await sourceTreeHash(), summary)
+  let companyProfile = rewriteCommonText(stripTrailing(await readFile(companySource, 'utf8')))
+  for (const [from, to] of sharedReferences) companyProfile = companyProfile.replaceAll(from, to)
+  await writeFile(companyTarget, companyProfile, 'utf8')
+  await writeSourceNotes(await sourceVersion(), sourceCommit(), await sourceTreeHash(), summary)
 
   for (const [domain, skills] of Object.entries(summary)) {
     process.stdout.write(`${domain}: ${skills.length} skills\n`)

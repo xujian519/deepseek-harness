@@ -262,7 +262,7 @@ identified in Steps 2-4. This file persists across sessions.
 Format:
 
 ```yaml
-[WORK-PRODUCT HEADER — per plugin config ## Outputs — differs by role; see `## Who's using this`]
+[WORK-PRODUCT HEADER — per mode's practice profile ## Outputs — differs by role; see `## Who's using this`]
 country: [Country name]
 country_slug: [lowercase-hyphenated]
 kickoff_date: [ISO date]
@@ -299,7 +299,7 @@ attributable to a single owner.
 > **Jurisdiction assumption.** This plan frames the expansion to the single country identified in intake. Local employment law, tax rules, employee-representation obligations, and data-protection requirements vary materially by country, region, industry, and headcount, and change frequently. Every substantive local-law answer comes from the outside-counsel briefing request, not from this skill. If the plan is adapted for another country later, re-run the briefing.
 
 ```markdown
-[WORK-PRODUCT HEADER — per plugin config ## Outputs — differs by role; see `## Who's using this`]
+[WORK-PRODUCT HEADER — per mode's practice profile ## Outputs — differs by role; see `## Who's using this`]
 
 ## International Expansion: [Country] — [Date]
 

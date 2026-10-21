@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0.
 Source: https://github.com/CSlawyer1985/claude-for-legal-ZH
 Source version: 1.1.0
 Source commit: unknown (source checkout has no git metadata)
-Source tree hash: 5d5a4827e81aac2634c8eaa71054ed07fc94b619edd61e3f16e95b27f6498f4a
+Source tree hash: 5177dcdd1cb7cc52a42b70b263bcb05c1e686f8dbad8db91ec2b62b29dc52a8d
 
 Modifications for DeepSeek Harness:
 - Skills are namespaced as legal-<domain>-<skill>.
@@ -12,4 +12,5 @@ Modifications for DeepSeek Harness:
   workspace-relative ./.legal and ./matters layout.
 - Per-domain matter-workspace and review-proposals skills are removed; one
   legal-matter skill owns the active-matter pointer.
-- Legal MCP references are rewritten to ego lite official-source retrieval.
+- Legal MCP references are rewritten to ego lite official-source retrieval;
+  the mode also uses optional Yuandian MCP tools when the host installs them.

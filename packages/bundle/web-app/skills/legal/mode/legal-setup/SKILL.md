@@ -14,12 +14,12 @@ description: "初始化个人法律模式的工作区布局：把实务画像模
 | `./.legal/company-profile.md` | 公司/个人执业层面的共享事实 | 首次冷启动访谈 |
 | `./.legal/practice/<domain>.md` | 各领域实务画像（审查指引、上报矩阵、输出偏好） | 对应领域的冷启动访谈 |
 | `./.legal/references/` | 共享参考（质量门禁、仪表盘、检索路由） | 本技能 |
-| `./.legal/references/<domain>/` | 领域法条基线（合同、民事程序、证据、执行、劳动） | 本技能 |
+| `./.legal/references/<domain>/` | 领域法条基线（随源领域提供的核心规则） | 本技能 |
 | `./matters/<slug>/` | 案件工作区（`input/`、`work/`、`output/`、`research/`、`audit/`） | `legal-matter` |
 | `./.legal/research/evidence.jsonl` | 无案件归属的检索证据 | `legal-research` |
 | `./.legal/active-matter` | 当前案件 slug | `legal-matter` |
 
-领域名固定为：`commercial-legal`、`litigation-legal`、`employment-legal`、`legal-research-cn`。
+领域名与 `references/practice/*.md` 的文件名一致，覆盖 13 个专业领域（如 `commercial-legal`、`ip-legal`、`law-practice-cn`）。
 
 ## 执行步骤
 
@@ -34,13 +34,20 @@ for f in "$SKILL_DIR"/references/shared/*.md; do
   [ -e "./.legal/references/$(basename "$f")" ] || cp "$f" ./.legal/references/
 done
 
-for domain in commercial-legal litigation-legal employment-legal legal-research-cn; do
+for f in "$SKILL_DIR"/references/practice/*.md; do
+  domain=$(basename "$f" .md)
   mkdir -p "./.legal/references/$domain" "./.legal/$domain"
-  for f in "$SKILL_DIR"/references/law/"$domain"/*; do
+  [ -e "./.legal/practice/$domain.md" ] || cp "$f" ./.legal/practice/
+done
+
+for domain_dir in "$SKILL_DIR"/references/law/*; do
+  [ -d "$domain_dir" ] || continue
+  domain=$(basename "$domain_dir")
+  mkdir -p "./.legal/references/$domain" "./.legal/$domain"
+  for f in "$domain_dir"/*; do
     [ -e "$f" ] || continue
     [ -e "./.legal/references/$domain/$(basename "$f")" ] || cp "$f" "./.legal/references/$domain/"
   done
-  [ -e "./.legal/practice/$domain.md" ] || cp "$SKILL_DIR"/references/practice/"$domain".md ./.legal/practice/
 done
 
 [ -e ./.legal/company-profile.md ] || cp "$SKILL_DIR"/references/company-profile-template.md ./.legal/company-profile.md
@@ -54,10 +61,12 @@ find ./.legal -maxdepth 2 -type f | sort
 
 ```
 /legal-commercial-cold-start-interview
+/legal-ip-cold-start-interview
+/legal-corporate-cold-start-interview
 /legal-litigation-cold-start-interview
-/legal-employment-cold-start-interview
-/legal-research-cold-start-interview
 ```
+
+其余领域用 `/legal-<领域>-cold-start-interview`，例如 `/legal-privacy-cold-start-interview`、`/legal-regulatory-cold-start-interview`。
 
 5. 用户若只想先试一个领域，先跑该领域的冷启动访谈；其余画像保持占位符不会影响已配置领域。
 

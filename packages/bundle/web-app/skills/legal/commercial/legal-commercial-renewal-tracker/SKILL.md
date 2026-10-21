@@ -9,7 +9,7 @@ description: "展示具有即将到来的取消截止日期的合同，在通知
 
 ## 指令
 
-1. **读取 `./.legal/commercial-legal/renewal-register.yaml`**（配置目录——插件更新后仍保留）。
+1. **读取 `./.legal/commercial-legal/renewal-register.yaml`**（配置目录——模式更新后仍保留）。
 
 2. **默认模式：** 模式2——未来90天内即将到来的事项，按紧急程度分组。
 
@@ -53,7 +53,7 @@ description: "展示具有即将到来的取消截止日期的合同，在通知
   cancel_by_effective: 2026-04-16
   send_by_effective: 2026-04-16
   cancel_by_roll_note: ""
-  cancel_by_provenance: "[模型计算 — 对照通知条款核实]"
+  cancel_by_source: "[模型计算 — 对照通知条款核实]"
   price_on_renewal: "当时价目表（无上限）"
   annual_value: 48000
   business_owner: "jane@company.com"
@@ -108,7 +108,7 @@ description: "展示具有即将到来的取消截止日期的合同，在通知
 
 ### 模式3：扫描合同管理系统/电子签章工具填充登记册
 
-如果MCP已连接且登记册为空或过期：查询合同管理系统，扫描电子签章工具。
+如果外部工具已连接且登记册为空或过期：查询合同管理系统，扫描电子签章工具。
 
 ### 模式4：错过的窗口（坏消息报告）
 

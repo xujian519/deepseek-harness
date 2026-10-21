@@ -1156,6 +1156,7 @@ export function normalizeWebSessionVolatiles(log: string, workspaceCwd?: string)
     if (line.trim() === '') return line
     let record = normalizeClientTimeZones(mapJsonStringValues(JSON.parse(line), (value) => {
       let normalized = value
+        .split(REPO_ROOT).join('{{sourceRoot}}')
         .replace(/Anonymous user: [0-9a-f-]{36}(?=\.$)/gi, 'Anonymous user: {{anonymousUserId}}')
         // The checkout path and listener port differ per machine and run.
         .replace(/Current DeepSeek Harness implementation checkout: "(?:[^"\\]|\\.)*"\./g, 'Current DeepSeek Harness implementation checkout: "{{sourceRoot}}".')

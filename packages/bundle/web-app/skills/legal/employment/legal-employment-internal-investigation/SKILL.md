@@ -112,7 +112,7 @@ Create the following files:
 `./.legal/employment-legal/investigation-[matter-slug]/log.yaml`:
 
 ```yaml
-# [WORK-PRODUCT HEADER — per plugin config ## Outputs — differs by role; see `## Who's using this`]
+# [WORK-PRODUCT HEADER — per mode's practice profile ## Outputs — differs by role; see `## Who's using this`]
 matter: "[matter name]"
 matter_slug: "[slug]"
 opened: "[ISO date]"
@@ -141,7 +141,7 @@ Generated from the investigation type. See sources checklist templates below.
 `./.legal/employment-legal/investigation-[matter-slug]/documents-reviewed.yaml`:
 
 ```yaml
-# [WORK-PRODUCT HEADER — per plugin config ## Outputs — differs by role; see `## Who's using this`]
+# [WORK-PRODUCT HEADER — per mode's practice profile ## Outputs — differs by role; see `## Who's using this`]
 matter: "[matter name]"
 total_reviewed: 0
 total_surfaced: 0
@@ -525,7 +525,7 @@ Draft the memo in the following structure, following standard internal
 investigation memorandum practice:
 
 ```markdown
-[WORK-PRODUCT HEADER — per plugin config ## Outputs — differs by role; see `## Who's using this`]
+[WORK-PRODUCT HEADER — per mode's practice profile ## Outputs — differs by role; see `## Who's using this`]
 
 ---
 
@@ -711,14 +711,14 @@ support?
 - Key findings
 - Business impact / exposure (high level — no specific legal analysis)
 - What the company is doing about it
-- Header: "[WORK-PRODUCT HEADER — per plugin config ## Outputs — differs by role; see `## Who's using this`]"
+- Header: "[WORK-PRODUCT HEADER — per mode's practice profile ## Outputs — differs by role; see `## Who's using this`]"
 
 **Outside counsel briefing** (handing off for litigation or deeper review):
 - Full context including legal exposure analysis
 - Open evidentiary threads
 - Credibility issues that remain contested
 - Documents that would be most significant in litigation
-- Header: "[WORK-PRODUCT HEADER — per plugin config ## Outputs — differs by role; see `## Who's using this`]"
+- Header: "[WORK-PRODUCT HEADER — per mode's practice profile ## Outputs — differs by role; see `## Who's using this`]"
 
 ---
 

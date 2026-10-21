@@ -36,7 +36,7 @@ it('mounts the legal preset with its packaged skill catalog', async () => {
         .map(skill => skill.name)
         .filter(name => name.startsWith('legal-'))
         .sort()
-      expect(names).toHaveLength(59)
+      expect(names).toHaveLength(129)
       for (const name of [
         'legal-setup',
         'legal-matter',
@@ -47,9 +47,18 @@ it('mounts the legal preset with its packaged skill catalog', async () => {
         expect(names).toContain(name)
       }
       for (const prefix of [
+        'legal-ai-',
         'legal-commercial-',
-        'legal-litigation-',
+        'legal-corporate-',
+        'legal-criminal-',
         'legal-employment-',
+        'legal-ip-',
+        'legal-litigation-',
+        'legal-practice-',
+        'legal-privacy-',
+        'legal-procurement-',
+        'legal-product-',
+        'legal-regulatory-',
         'legal-research-',
       ]) {
         expect(names.some(name => name.startsWith(prefix))).toBe(true)
