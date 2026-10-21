@@ -103,7 +103,7 @@ Stage params 可调整这些 handler。缺省键保留各原子默认值；畸�
 <a id="numeric-range-novelty-check"></a>
 ## 数值范围新颖性核验
 
-`analyzeNumericRanges` 从权利要求与对比文件文本提取数值，按区间相交做确定性判定（数值范围重叠或存在共同端点即破坏新颖性；数值点严格落在对比文件范围内且无共同端点则不破坏），给出 `overlapped`/`inside_without_endpoint`/`no_overlap`/`inconclusive`。区间允许单位写在连接符之前（`20℃至90℃`、`5mg-10mg`）并读作一个区间；连接符与单位词表与 `validate_specification` 共用（`src/novelty/numeric-vocabulary.ts`），两条路径因此不会对同一文本读出不同结果，而该校验额外要求尾随单位（它要用同单位单值比对端点）。只有后接已识别单位的发现算强发现并参与判定；汉字单位表是封闭的，否则"数值 + 两个汉字"的贪心匹配会把"任一""公开"当成单位、把权项编号抬成参数。`crossCheckNumericVerdict` 与 LLM 轨的结论对照并标记一致性；任一具体分歧都记为 `disagree` 并在摘要中要求复核（上游只标记其中一个方向）。新颖性子图的 `numeric_range` 节点把该轨与 LLM 轨并行运行，并把 `numeric_range_verdict`、`numeric_range_agreement`、`numeric_range_deterministic` 写入 state，使 LLM 不可用时确定性结论仍然保留。
+`analyzeNumericRanges` 从权利要求与对比文件文本提取数值，按区间相交做确定性判定（数值范围重叠或存在共同端点即破坏新颖性；数值点严格落在对比文件范围内且无共同端点则不破坏），给出 `overlapped`/`inside_without_endpoint`/`no_overlap`/`inconclusive`。数值可带正负号（含 Unicode 减号与全角减号），单边表述支持方向词（`不低于`）与后缀（`70℃以上`）两种写法。区间允许单位写在连接符之前（`20℃至90℃`、`5mg-10mg`）并读作一个区间；连接符与单位词表与 `validate_specification` 共用（`src/novelty/numeric-vocabulary.ts`），两条路径因此不会对同一文本读出不同结果，而该校验额外要求尾随单位（它要用同单位单值比对端点）。同量纲单位先换算到基单位再比较（`5-10mg` 等于 `0.005-0.01g`，`1-2h` 等于 `60-90min`）；温度只按摄氏刻度比较，不做温标偏置换算。表外单位仅在两侧写法完全相同时可比，否则记为一对不可比，只要存在不可比对结论就降为 `inconclusive`（已有破坏性重叠时除外）。只有后接已识别单位的发现算强发现并参与判定；汉字单位表是封闭的，否则"数值 + 两个汉字"的贪心匹配会把"任一""公开"当成单位、把权项编号抬成参数。换算后的端点相对误差在 1e-9 内视为共同端点，换算溢出为无穷大则不算。`crossCheckNumericVerdict` 与 LLM 轨的结论对照并标记一致性；任一具体分歧都记为 `disagree` 并在摘要中要求复核（上游只标记其中一个方向）。新颖性子图的 `numeric_range` 节点把该轨与 LLM 轨并行运行，并把 `numeric_range_verdict`、`numeric_range_agreement`、`numeric_range_deterministic` 写入 state，使 LLM 不可用时确定性结论仍然保留。
 
 <a id="notice-parsing"></a>
 ## 程序文书解析
@@ -157,7 +157,7 @@ Independent; the draft schema is submitted per call inside tool arguments and ne
 - **程序文书解析是词法判定** — 理由表沿用上游的宽词（清楚、支持），命中只表示文书写到了该条款，不表示该理由已被实质论证；相关性与逐篇权项取自文献号周围的文本，不是审查员的权威对应。
 - **答复准备只排计划、不作论证** — 计划说明哪些理由必须答复、哪些权项必须修改、通知书留下了哪些缺口；是否要求优先权、具体修改文本与理由成立与否由代理师决定。
 - **侵权的等同结论由调用方给出** — 手段/功能/效果的认定是输入，本模块只核对其与图表是否自洽；它既不判断是否构成等同，也不以未公开的赔偿上限替换调用方给出的比例。
-- **数值提取只识别封闭的单位表** — 拉丁/符号单位加一份列明的汉字单位表；用其他单位（或无单位）书写的数值只算弱发现、不能改变结论，因此该核验偏向返回 `inconclusive`。
+- **数值提取只识别封闭的单位表** — 拉丁/符号单位加一份列明的汉字单位表；用其他单位（或无单位）书写的数值只算弱发现、不能改变结论。表外单位仅在两侧写法完全相同时可比，同量纲换算也只覆盖表内单位（不做温标偏置换算），因此该核验偏向返回 `inconclusive`。
 - **LLM 对照依赖 `verdict` 字段** — 数值范围节点从 LLM JSON 读取 `verdict`；响应缺少该字段时对照结论保持 `n_a`，不做猜测。
 - **草案模型只校验结构、不渲染** — 槽位注册表、HTML 转换器与 docx 映射位于 `dsh-patent-document`/`dsh-patent-filing`；patent-core 只持有共享类型与校验器。
 - **不支持无附图申请** — `SpecDraft` 要求 `figureFiles` 必填，且附图说明部分须每幅附图一条列表项；无附图的申请不在当前草案契约范围内。

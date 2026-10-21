@@ -11,7 +11,12 @@
  * - 任一侧未提取到带单位的强数值表述 → 无法判定（inconclusive）。
  *
  * 判定是保守的：只有带单位/百分号的"强发现"参与，无单位的数字（"权利要求1-3"
- * 这类编号文本）仅记录不参与，避免系统性误报。单位不同不可比。
+ * 这类编号文本）仅记录不参与，避免系统性误报。同量纲的单位先换算到基单位再比较
+ * （5-10mg 与 0.005-0.01g 相等）；量纲不同或单位表外且写法不同则不可比，只要存在
+ * 不可比的对，结论就降为 inconclusive——除非另有确定的破坏性重叠。
+ *
+ * 数值可带正负号（`-5至-10℃`、Unicode 减号 `−`），单边表述支持方向词（不低于）
+ * 与后缀（`70℃以上`）两种写法。
  *
  * 与语义轨的对照：LLM 轨给出同名结论即记为一致，给出不同的具体结论记为不一致。
  * 上游只在"确定性判为重叠、LLM 判为不重叠"时记不一致；本模块对任一具体分歧都记
@@ -26,6 +31,7 @@ import {
   NUMERIC_RANGE_SEPARATOR_CLASS,
   NUMERIC_UNIT_ALTERNATION,
   normalizeNumericUnit,
+  resolveNumericUnit,
 } from './numeric-vocabulary.ts'
 
 /** 确定性核验结论。 */
@@ -62,14 +68,30 @@ export type NumericRangeOverlap = {
   note: string
 }
 
+/** 一对强发现不可比的原因。 */
+export type NumericRangeIncomparableReason = 'dimension-mismatch' | 'unknown-unit'
+
+/** 无法比较的一对数值表述。 */
+export type NumericRangeIncomparablePair = {
+  claim: NumericRangeFinding
+  prior: NumericRangeFinding
+  reason: NumericRangeIncomparableReason
+  /** 可直接展示给用户的说明。 */
+  detail: string
+}
+
 /** 确定性核验的完整结果。 */
 export type NumericRangeAnalysis = {
   claimRanges: NumericRangeFinding[]
   priorRanges: NumericRangeFinding[]
   overlaps: NumericRangeOverlap[]
+  /** 因量纲不同或单位表外而未能比较的强发现对。 */
+  incomparablePairs: NumericRangeIncomparablePair[]
   verdict: NumericRangeVerdict
   llmAgreement: NumericLlmAgreement
   summary: string
+  /** 不可比对的说明；无不可比对时为空串。 */
+  reason: string
 }
 
 /** 核验输入：一侧为权利要求文本，另一侧为对比文件文本，各自带标识。 */
@@ -87,14 +109,22 @@ const VERDICT_TEXT: Readonly<Record<NumericRangeVerdict, string>> = {
 }
 
 /**
- * 闭区间式数值范围：5-10、5～10、5~10、5至10、5到10、20–90。
+ * 带符号数值：可选正负号，负号兼容 ASCII `-`、全角 `－` 与 Unicode 减号 `−`。
+ *
+ * 符号必须并入数值 token，否则 `-5至-10℃` 会被读成 `5` 与 `10` 两个正数，重叠判定
+ * 整体反转。
+ */
+const SIGNED_NUMBER = '[+\\-−－]?\\d+(?:\\.\\d+)?'
+
+/**
+ * 闭区间式数值范围：5-10、5～10、5~10、5至10、5到10、20–90、-5至-10。
  *
  * 连接符前允许出现单位（20℃至90℃、5mg-10mg、10mm~20mm）：这是专利文本的常见写法。
  * 区间的单位取片段末尾的单位，末尾未写时退回连接符前的那个（`20℃至90`、`70%—75`）。
  * 词表来自 {@link ./numeric-vocabulary.ts}，与规格校验侧共用。
  */
 const RANGE_PATTERN = new RegExp(
-  `(\\d+(?:\\.\\d+)?)\\s*(?:(${NUMERIC_UNIT_ALTERNATION}))?\\s*(?:[${NUMERIC_RANGE_SEPARATOR_CLASS}])\\s*(\\d+(?:\\.\\d+)?)`,
+  `(${SIGNED_NUMBER})\\s*(?:(${NUMERIC_UNIT_ALTERNATION}))?\\s*(?:[${NUMERIC_RANGE_SEPARATOR_CLASS}])\\s*(${SIGNED_NUMBER})`,
   'g',
 )
 
@@ -102,11 +132,24 @@ const RANGE_PATTERN = new RegExp(
  * 单边数值表述（长方向词在前，否则"大于等于"会被"大于"截断）。
  * 允许方向词后跟"为/是/约"等连接字，匹配片段因此包含这些连接字。
  */
-const BOUNDED_PATTERN =
-  /(大于等于|小于等于|不少于|不大于|不低于|不高于|不超过|不多于|不小于|多于|少于|大于|小于|超过|低于|高于|至少|≥|≤|>|<)\s*[为是约]?\s*(\d+(?:\.\d+)?)/g
+const BOUNDED_PATTERN = new RegExp(
+  `(大于等于|小于等于|不少于|不大于|不低于|不高于|不超过|不多于|不小于|多于|少于|大于|小于|超过|低于|高于|至少|≥|≤|>|<)\\s*[为是约]?\\s*(${SIGNED_NUMBER})`,
+  'g',
+)
+
+/**
+ * 后缀式单边表述：`70℃以上`、`80%以下`、`-5℃及以上`。
+ *
+ * 后缀词的取舍必须长词优先（`及以上` 先于 `以上`），否则 `70℃及以上` 会留下一个
+ * 未消费的「及」并让单位提取落到错误位置。
+ */
+const SUFFIX_BOUND_PATTERN = new RegExp(
+  `(${SIGNED_NUMBER})\\s*(?:(${NUMERIC_UNIT_ALTERNATION}))?\\s*(?:及以上|及以下|或以上|或以下|以上|以下)`,
+  'g',
+)
 
 /** 弱发现兜底：仅当同段文本没有范围或单边表述时才提取的独立数值。 */
-const PLAIN_NUMBER_PATTERN = /\d+(?:\.\d+)?/g
+const PLAIN_NUMBER_PATTERN = new RegExp(SIGNED_NUMBER, 'g')
 
 /** 数值后的拉丁/符号单位（1-8 位：mm、MPa、mL、℃、%）。 */
 const LATIN_UNIT_PATTERN = /^\s*([A-Za-zμ%％℃°]{1,8})/
@@ -126,7 +169,7 @@ const HAN_UNITS = new Set([
   '度', '毫米', '厘米', '微米', '纳米', '米', '千米',
   '克', '千克', '毫克', '吨', '升', '毫升', '摩尔',
   '秒', '分钟', '小时', '天', '日', '周', '月', '年', '倍', '次', '转',
-  '帕', '伏', '安', '瓦', '焦', '欧', '赫兹', '分贝',
+  '帕', '千帕', '兆帕', '伏', '安', '瓦', '焦', '欧', '赫兹', '分贝',
 ])
 
 /** 破坏性重叠的说明。 */
@@ -142,16 +185,19 @@ const INSIDE_NOTE = '数值点落在对比文件范围内且无共同端点，�
 export function analyzeNumericRanges(input: NumericRangeInput): NumericRangeAnalysis {
   const claimRanges = input.claims.flatMap(claim => extractNumericFindings(claim.text, { claimId: claim.id }))
   const priorRanges = input.priorArt.flatMap(doc => extractNumericFindings(doc.text, { docId: doc.docId }))
-  const overlaps = findOverlaps(claimRanges, priorRanges)
-  const verdict = judgeVerdict(overlaps, claimRanges, priorRanges)
+  const scan = findOverlaps(claimRanges, priorRanges)
+  const verdict = judgeVerdict(scan, claimRanges, priorRanges)
   const analysis: NumericRangeAnalysis = {
     claimRanges,
     priorRanges,
-    overlaps,
+    overlaps: scan.overlaps,
+    incomparablePairs: scan.incomparable,
     verdict,
     llmAgreement: 'n_a',
     summary: '',
+    reason: '',
   }
+  analysis.reason = buildReason(analysis)
   analysis.summary = buildSummary(analysis)
   return analysis
 }
@@ -217,8 +263,8 @@ export function extractNumericFindings(
   }> = []
 
   for (const match of text.matchAll(RANGE_PATTERN)) {
-    const first = Number(capture(match, 1))
-    const second = Number(capture(match, 3))
+    const first = toNumber(capture(match, 1))
+    const second = toNumber(capture(match, 3))
     raw.push({
       index: match.index,
       expression: match[0],
@@ -229,24 +275,29 @@ export function extractNumericFindings(
       leadingUnit: match[2] ?? '',
     })
   }
-  for (const match of text.matchAll(BOUNDED_PATTERN)) {
-    const value = Number(capture(match, 2))
-    const isLowerBound = LOWER_BOUND_DIRECTIONS.has(capture(match, 1))
+  const pushBounded = (match: RegExpExecArray, value: number, isLowerBound: boolean, leadingUnit: string): void => {
     raw.push({
       index: match.index,
       expression: match[0],
       lower: isLowerBound ? value : Number.NEGATIVE_INFINITY,
       upper: isLowerBound ? Number.POSITIVE_INFINITY : value,
       isPoint: false,
-      leadingUnit: '',
+      leadingUnit,
     })
+  }
+  for (const match of text.matchAll(BOUNDED_PATTERN)) {
+    pushBounded(match, toNumber(capture(match, 2)), LOWER_BOUND_DIRECTIONS.has(capture(match, 1)), '')
+  }
+  for (const match of text.matchAll(SUFFIX_BOUND_PATTERN)) {
+    // 后缀以「以上」/「以下」结尾，「及以上」「或以下」取末尾两字即可判定方向。
+    pushBounded(match, toNumber(capture(match, 1)), match[0].endsWith('以上'), match[2] ?? '')
   }
   // 独立数值（数值点）与范围/单边表述并存时也要提取：上游只在整段文本没有任何
   // 范围表述时才兜底扫描，会把"50-80℃，湿度 70%"里的 70% 丢掉。已匹配片段先用
   // 等长空白遮蔽，避免同一数值被重复提取。
-  const remainder = maskMatches(text, [RANGE_PATTERN, BOUNDED_PATTERN])
+  const remainder = maskMatches(text, [RANGE_PATTERN, BOUNDED_PATTERN, SUFFIX_BOUND_PATTERN])
   for (const match of remainder.matchAll(PLAIN_NUMBER_PATTERN)) {
-    const value = Number(match[0])
+    const value = toNumber(match[0])
     raw.push({ index: match.index, expression: match[0], lower: value, upper: value, isPoint: true, leadingUnit: '' })
   }
 
@@ -289,6 +340,16 @@ export function extractNumericRanges(text: string): string[] {
 const LOWER_BOUND_DIRECTIONS = new Set([
   '大于等于', '不小于', '不少于', '不低于', '多于', '大于', '超过', '高于', '至少', '≥', '>',
 ])
+
+/**
+ * 把数值片段转为数字：Unicode 减号 `−` 与全角减号 `－` 先归一为 ASCII 负号，
+ * 否则 `Number()` 会返回 NaN 并让比较全部落空。
+ * @param text - 数值片段（可带符号）。
+ * @returns 解析出的数值。
+ */
+function toNumber(text: string): number {
+  return Number(text.replace(/[−－]/g, '-'))
+}
 
 /**
  * 读取正则捕获组文本。
@@ -348,18 +409,94 @@ function extractUnit(text: string, offset: number): string {
   return HAN_UNITS.has(single) ? single : ''
 }
 
-/** 计算重叠对：仅强发现参与，单位不同不可比。 */
+/** 重叠扫描结果：可比较对的重叠关系与不可比较对。 */
+type OverlapScan = {
+  overlaps: NumericRangeOverlap[]
+  incomparable: NumericRangeIncomparablePair[]
+}
+
+/** 单位换算系数：两侧数值分别乘以自己的系数后落在同一基单位上。 */
+type UnitConversion = {
+  claimFactor: number
+  priorFactor: number
+}
+
+/** 不可比原因的展示文本。 */
+const INCOMPARABLE_TEXT: Readonly<Record<NumericRangeIncomparableReason, string>> = {
+  'dimension-mismatch': '单位量纲不同，不可直接比较',
+  'unknown-unit': '单位不在可比词表中，仅同单位可比',
+}
+
+/**
+ * 求一对单位的换算系数。
+ *
+ * 单位写法完全相同即视为可比（表外单位也能同单位比较）；否则两侧都必须在换算表内、
+ * 属于同一量纲。温度只按摄氏刻度同基准比较，不在此处做温标偏置换算。
+ * @param claimUnit - 权利要求侧归一单位。
+ * @param priorUnit - 对比文件侧归一单位。
+ * @returns 两侧换算系数；不可比时返回原因。
+ */
+function unitConversion(claimUnit: string, priorUnit: string): UnitConversion | NumericRangeIncomparableReason {
+  const claimScale = resolveNumericUnit(claimUnit)
+  const priorScale = resolveNumericUnit(priorUnit)
+  if (claimUnit === priorUnit) {
+    return { claimFactor: claimScale?.factor ?? 1, priorFactor: priorScale?.factor ?? 1 }
+  }
+  if (claimScale === undefined || priorScale === undefined) return 'unknown-unit'
+  if (claimScale.dimension !== priorScale.dimension) return 'dimension-mismatch'
+  return { claimFactor: claimScale.factor, priorFactor: priorScale.factor }
+}
+
+/**
+ * 换算后的两个数值是否可视为同一点。
+ *
+ * 调用点都先经过严格不等式，因此此处只需处理"接近"：换算因子是十进制小数，
+ * 数学上相等的两端点（700mg 与 0.7g）可能差一个 ulp。任一换算值溢出为 ±Infinity
+ * 时返回 false，避免把溢出当成共同端点而误报破坏性重叠。
+ * @param left - 第一个换算值。
+ * @param right - 第二个换算值。
+ * @returns 相对误差在 1e-9 内且两侧有限时为 true。
+ */
+function approximatelyEqual(left: number, right: number): boolean {
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return false
+  const scale = Math.max(Math.abs(left), Math.abs(right))
+  return Math.abs(left - right) <= scale * 1e-9
+}
+
+/** 计算重叠对与不可比对：仅强发现参与。 */
 function findOverlaps(
   claims: readonly NumericRangeFinding[],
   priors: readonly NumericRangeFinding[],
-): NumericRangeOverlap[] {
+): OverlapScan {
   const overlaps: NumericRangeOverlap[] = []
+  const incomparable: NumericRangeIncomparablePair[] = []
   for (const claim of claims) {
     if (!claim.strong) continue
     for (const prior of priors) {
-      if (!prior.strong || claim.unit !== prior.unit) continue
-      if (claim.lower > prior.upper || prior.lower > claim.upper) continue
-      const inside = claim.isPoint && claim.lower > prior.lower && claim.upper < prior.upper
+      if (!prior.strong) continue
+      const conversion = unitConversion(claim.unit, prior.unit)
+      if (typeof conversion === 'string') {
+        incomparable.push({
+          claim,
+          prior,
+          reason: conversion,
+          detail: `${claim.expression}（${claim.unit}）× ${prior.expression}（${prior.unit}）：${INCOMPARABLE_TEXT[conversion]}`,
+        })
+        continue
+      }
+      const claimLower = claim.lower * conversion.claimFactor
+      const claimUpper = claim.upper * conversion.claimFactor
+      const priorLower = prior.lower * conversion.priorFactor
+      const priorUpper = prior.upper * conversion.priorFactor
+      const disjoint =
+        (claimLower > priorUpper && !approximatelyEqual(claimLower, priorUpper))
+        || (priorLower > claimUpper && !approximatelyEqual(priorLower, claimUpper))
+      if (disjoint) continue
+      const inside = claim.isPoint
+        && claimLower > priorLower
+        && claimUpper < priorUpper
+        && !approximatelyEqual(claimLower, priorLower)
+        && !approximatelyEqual(claimUpper, priorUpper)
       overlaps.push(
         inside
           ? { claim, prior, kind: 'inside_without_endpoint', note: INSIDE_NOTE }
@@ -367,26 +504,40 @@ function findOverlaps(
       )
     }
   }
-  return overlaps
+  return { overlaps, incomparable }
 }
 
+/**
+ * 汇总结论：破坏性重叠优先；存在不可比对时降为无法判定，除非已有确定的重叠结论。
+ * @param scan - 重叠扫描结果。
+ * @param claims - 权利要求侧发现。
+ * @param priors - 对比文件侧发现。
+ * @returns 核验结论。
+ */
 function judgeVerdict(
-  overlaps: readonly NumericRangeOverlap[],
+  scan: OverlapScan,
   claims: readonly NumericRangeFinding[],
   priors: readonly NumericRangeFinding[],
 ): NumericRangeVerdict {
   if (!claims.some(finding => finding.strong) || !priors.some(finding => finding.strong)) return 'inconclusive'
-  if (overlaps.some(overlap => overlap.kind === 'overlapped')) return 'overlapped'
-  return overlaps.length > 0 ? 'inside_without_endpoint' : 'no_overlap'
+  if (scan.overlaps.some(overlap => overlap.kind === 'overlapped')) return 'overlapped'
+  if (scan.incomparable.length > 0) return 'inconclusive'
+  return scan.overlaps.length > 0 ? 'inside_without_endpoint' : 'no_overlap'
+}
+
+/** 生成不可比对的可读说明；无不可比对时为空串。 */
+function buildReason(analysis: NumericRangeAnalysis): string {
+  if (analysis.incomparablePairs.length === 0) return ''
+  return `不可比 ${analysis.incomparablePairs.length} 对：${analysis.incomparablePairs.map(pair => pair.detail).join('；')}`
 }
 
 function countStrong(findings: readonly NumericRangeFinding[]): number {
   return findings.filter(finding => finding.strong).length
 }
 
-/** 生成可读摘要：两侧发现计数、结论，以及每个重叠对与对照分歧。 */
+/** 生成可读摘要：两侧发现计数、结论、不可比对说明，以及每个重叠对与对照分歧。 */
 function buildSummary(analysis: NumericRangeAnalysis): string {
-  const { claimRanges, priorRanges, overlaps, verdict, llmAgreement } = analysis
+  const { claimRanges, priorRanges, overlaps, verdict, llmAgreement, reason } = analysis
   const head = '确定性数值范围核验：'
     + `权利要求 ${claimRanges.length} 处数值表述（强 ${countStrong(claimRanges)}），`
     + `对比文件 ${priorRanges.length} 处（强 ${countStrong(priorRanges)}）；`
@@ -398,6 +549,7 @@ function buildSummary(analysis: NumericRangeAnalysis): string {
     return `；[${claimId} × ${priorDocId}] `
       + `${overlap.claim.expression} ↔ ${overlap.prior.expression}（${overlap.kind}）`
   })
+  const reasonNote = reason.length > 0 ? `；${reason}` : ''
   const disagreement = llmAgreement === 'disagree' ? '；与语义轨结论不一致，请重点复核' : ''
-  return `${head}${VERDICT_TEXT[verdict]}${pairs.join('')}${disagreement}`
+  return `${head}${VERDICT_TEXT[verdict]}${reasonNote}${pairs.join('')}${disagreement}`
 }

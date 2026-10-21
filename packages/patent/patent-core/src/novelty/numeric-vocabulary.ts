@@ -4,9 +4,13 @@
  * 同一句专利文本会同时进入两条生产路径：新颖性图节点（{@link ./numeric-range.ts}）
  * 与规格校验（`@deepseek-ai/dsh-patent-tools` 的 `validate-specification`）。
  * 两侧各写一份词表时，「温度 20℃ 至 90℃」会被一侧读成区间、另一侧读成两个数值点，
- * 同一句文本因此得到互相矛盾的结论。**词表**（连接符、可写单位、单位归一）在这里
- * 单点定义；**规则**差异留在各自实现里——规格校验要求尾随单位，因为它要用同单位的
- * 单值比对端点与中点，而新颖性判定只关心区间本身。
+ * 同一句文本因此得到互相矛盾的结论。**词表**（连接符、可写单位、单位归一、量纲与换算
+ * 比例）在这里单点定义；**规则**差异留在各自实现里——规格校验要求尾随单位，因为它要用
+ * 同单位的单值比对端点与中点，而新颖性判定只关心区间本身。
+ *
+ * 换算只覆盖同量纲的比例单位。温度按摄氏刻度同基准比较，不做 °C/°F 仿射换算：温标
+ * 换算需要明确的换算依据，猜错偏置会把「不重叠」翻成「重叠」。表外单位只在两侧写法
+ * 完全相同时可比——词表漏项只会让结论更保守，误认量纲会把结论推向错误方向。
  */
 
 /**
@@ -22,11 +26,85 @@ export const NUMERIC_RANGE_SEPARATOR_CLASS = '~～至到–—-'
 export const NUMERIC_UNIT_ALTERNATION =
   '°C|℃|°c|MPa|kPa|Pa|rpm|min|mol|mm|cm|kg|mg|ml|mL|％|°|m|g|L|h|s|%'
 
+/** 数值单位所属量纲。 */
+type NumericUnitDimension = 'length' | 'mass' | 'volume' | 'time' | 'temperature' | 'pressure' | 'ratio' | 'amount'
+
+/** 单位到量纲基单位的换算比例。 */
+type NumericUnitScale = {
+  dimension: NumericUnitDimension
+  /** 1 个该单位对应的基单位数。 */
+  factor: number
+}
+
 /**
- * 单位归一：摄氏度四种写法统一为 `°`，其余原样返回。
+ * 可换算单位表：键为归一后的单位写法（拉丁单位小写，摄氏度统一为 `°`）。
+ *
+ * 基单位：长度 m、质量 g、体积 L、时间 s、温度 °C 刻度、压力 Pa、比例 1、物质的量 mol。
+ * 月、年等日历单位不入表：其长度不固定，不能按比例换算。
+ */
+const NUMERIC_UNIT_SCALES: Readonly<Record<string, NumericUnitScale>> = {
+  m: { dimension: 'length', factor: 1 },
+  mm: { dimension: 'length', factor: 0.001 },
+  cm: { dimension: 'length', factor: 0.01 },
+  km: { dimension: 'length', factor: 1000 },
+  μm: { dimension: 'length', factor: 1e-6 },
+  um: { dimension: 'length', factor: 1e-6 },
+  nm: { dimension: 'length', factor: 1e-9 },
+  米: { dimension: 'length', factor: 1 },
+  毫米: { dimension: 'length', factor: 0.001 },
+  厘米: { dimension: 'length', factor: 0.01 },
+  千米: { dimension: 'length', factor: 1000 },
+  微米: { dimension: 'length', factor: 1e-6 },
+  纳米: { dimension: 'length', factor: 1e-9 },
+  g: { dimension: 'mass', factor: 1 },
+  mg: { dimension: 'mass', factor: 0.001 },
+  kg: { dimension: 'mass', factor: 1000 },
+  t: { dimension: 'mass', factor: 1e6 },
+  克: { dimension: 'mass', factor: 1 },
+  毫克: { dimension: 'mass', factor: 0.001 },
+  千克: { dimension: 'mass', factor: 1000 },
+  吨: { dimension: 'mass', factor: 1e6 },
+  l: { dimension: 'volume', factor: 1 },
+  ml: { dimension: 'volume', factor: 0.001 },
+  升: { dimension: 'volume', factor: 1 },
+  毫升: { dimension: 'volume', factor: 0.001 },
+  s: { dimension: 'time', factor: 1 },
+  min: { dimension: 'time', factor: 60 },
+  h: { dimension: 'time', factor: 3600 },
+  秒: { dimension: 'time', factor: 1 },
+  分钟: { dimension: 'time', factor: 60 },
+  小时: { dimension: 'time', factor: 3600 },
+  天: { dimension: 'time', factor: 86400 },
+  日: { dimension: 'time', factor: 86400 },
+  周: { dimension: 'time', factor: 604800 },
+  '°': { dimension: 'temperature', factor: 1 },
+  度: { dimension: 'temperature', factor: 1 },
+  pa: { dimension: 'pressure', factor: 1 },
+  kpa: { dimension: 'pressure', factor: 1000 },
+  mpa: { dimension: 'pressure', factor: 1e6 },
+  帕: { dimension: 'pressure', factor: 1 },
+  千帕: { dimension: 'pressure', factor: 1000 },
+  兆帕: { dimension: 'pressure', factor: 1e6 },
+  '%': { dimension: 'ratio', factor: 1 },
+  mol: { dimension: 'amount', factor: 1 },
+  摩尔: { dimension: 'amount', factor: 1 },
+}
+
+/**
+ * 单位归一：摄氏度四种写法统一为 `°`，全角百分号 `％` 统一为 `%`，其余原样返回。
  * @param unit - 待归一的单位文本（大小写均可）。
  * @returns 归一后的单位。
  */
 export function normalizeNumericUnit(unit: string): string {
-  return unit === '℃' || unit.toLowerCase() === '°c' ? '°' : unit
+  if (unit === '℃' || unit.toLowerCase() === '°c') return '°'
+  return unit === '％' ? '%' : unit
+}
+
+/**
+ * 查询归一后单位的量纲与换算比例。
+ * @param unit - 归一后的单位文本。
+ * @returns 单位换算信息；表外单位返回 undefined。
+ */
+export function resolveNumericUnit(unit: string): NumericUnitScale | undefined {
+  return NUMERIC_UNIT_SCALES[unit]
 }

@@ -21,6 +21,8 @@ export {
   type NumericLlmAgreement,
   type NumericRangeAnalysis,
   type NumericRangeFinding,
+  type NumericRangeIncomparablePair,
+  type NumericRangeIncomparableReason,
   type NumericRangeInput,
   type NumericRangeOverlap,
   type NumericRangeVerdict,

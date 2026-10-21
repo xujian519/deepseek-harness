@@ -49,7 +49,7 @@ describe('numeric-range atom', () => {
     expect(out.numeric_range_verdict).toBe('overlapped')
   })
 
-  it('区间不相交或单位不同 → no_overlap', async () => {
+  it('区间不相交 → no_overlap；量纲不同的单位不可比 → inconclusive', async () => {
     const disjoint = await handler.execute({
       state: { claim: '温度为 50-80℃。', prior_art: [{ text: 'D1 公开温度为 100-200℃。' }] },
     })
@@ -59,7 +59,15 @@ describe('numeric-range atom', () => {
     const differentUnit = await handler.execute({
       state: { claim: '长度为 50-80mm。', prior_art: [{ text: 'D1 公开温度为 50-80℃。' }] },
     })
-    expect(differentUnit.numeric_range_verdict).toBe('no_overlap')
+    expect(differentUnit.numeric_range_verdict).toBe('inconclusive')
+    expect(String(differentUnit.numeric_range_report)).toContain('单位量纲不同')
+  })
+
+  it('同量纲不同单位换算后仍判定重叠', async () => {
+    const out = await handler.execute({
+      state: { claim: '加入量为 5-10mg。', prior_art: [{ text: 'D1 公开加入量为 0.005-0.01g。' }] },
+    })
+    expect(out.numeric_range_verdict).toBe('overlapped')
   })
 
   it('未提供现有技术时给出 inconclusive，不标记降级', async () => {

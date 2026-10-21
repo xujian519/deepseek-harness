@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-numeric-range-unit-comparability/guide.md
+/:
+  en: 802ea26182c3efc4
+  zh: 8c841e8c78a906fa
+/numeric-range-check-converts-units-and-fails-closed-on-incomparable-units:
+  en: c7918ff15f0156da
+  zh: e5f6a79534b4099a
+/numeric-range-check-converts-units-and-fails-closed-on-incomparable-units/change:
+  en: 734f502d0d18955a
+  zh: 660afc67ff887918
+/numeric-range-check-converts-units-and-fails-closed-on-incomparable-units/migration:
+  en: c57c36004e672258
+  zh: 870e06055ce543ce
