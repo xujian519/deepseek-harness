@@ -79,7 +79,7 @@ describe('coverage：畸形 claim_chart_doc', () => {
       claim_chart_doc: JSON.stringify({
         mode: 'infringement',
         targets: [{ id: '产品A', kind: 'accused-product' }],
-        elements: [{ id: '1a' }],
+        elements: [{ id: '1a', claimNo: 1 }],
         rows: [null],
       }),
     })
@@ -156,7 +156,7 @@ describe('coverage：畸形 claim_chart_doc', () => {
       claim_chart_doc: JSON.stringify({
         mode: 'infringement',
         targets: [{ id: '产品A', kind: 'accused-product' }],
-        elements: [{ id: '1a' }],
+        elements: [{ id: '1a', claimNo: 1 }],
         rows: [{ elementId: '1a', targetId: '产品A', mapping: 'bogus' }],
       }),
     })

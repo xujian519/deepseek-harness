@@ -640,7 +640,7 @@ export const patentInfringementManifest: WorkflowManifest = {
     {
       id: 'coverage',
       strategy: 'chain',
-      description: '全面覆盖与等同一致性核验（确定性）：逐被控产品四态结论 + 等同未认定清单',
+      description: '全面覆盖与等同一致性核验（确定性）：逐被控产品逐权项判定、整体取覆盖最佳权项 + 等同未认定清单',
       atom: 'coverage',
     },
     {

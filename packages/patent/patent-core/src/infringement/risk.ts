@@ -119,7 +119,8 @@ const STRONG_DEFENSES = new Set<DefenseViability>(['high', 'medium'])
  * @param input - 评分输入。
  * @param weights - 维度权重；缺省用 `DEFAULT_INFRINGEMENT_WEIGHTS`。
  * @returns 评分结果。
- * @throws RangeError 权重含负数或非有限值、权重之和不为正、`remedyExposureRatio` 不在 0–1 内。
+ * @throws RangeError 权重含负数或非有限值、权重之和不为正、`remedyExposureRatio` 不在 0–1 内，
+ * 或覆盖结论为 `undetermined`（要素表为空，无可评分的覆盖事实）。
  */
 export function scoreInfringement(
   input: InfringementScoreInput,
@@ -127,6 +128,9 @@ export function scoreInfringement(
 ): InfringementScore {
   const weightSum = checkWeights(weights)
   checkRatio(input.remedyExposureRatio)
+  if (input.coverage.outcome === 'undetermined') {
+    throw new RangeError('全面覆盖结论为 undetermined（要素表为空），无法评分')
+  }
 
   const equivalentElements = verifiedEquivalentElements(input)
   const dimensions: Record<InfringementDimension, number> = {
@@ -163,12 +167,11 @@ export function riskLevel(composite: number, weightSum: number): InfringementRis
 
 /**
  * 覆盖度：字面覆盖的要素与经核验构成等同的要素各计 1，待解释要素与缺项不计。
- * @param coverage - 全面覆盖判定结果。
+ * @param coverage - 全面覆盖判定结果（整体结论已排除 `undetermined`）。
  * @param equivalentCount - 经核验构成等同的要素数。
- * @returns 覆盖度（0–1）；无要素时为 0。
+ * @returns 覆盖度（0–1）。
  */
 function coveredRatio(coverage: AllElementsCoverage, equivalentCount: number): number {
-  if (coverage.elementCount === 0) return 0
   return (coverage.literalElements.length + equivalentCount) / coverage.elementCount
 }
 

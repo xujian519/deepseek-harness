@@ -242,5 +242,5 @@ export type ChartRowMatch = Pick<ChartRow, 'elementId' | 'targetId' | 'mapping'>
 /** 目标的最小读取面：全面覆盖判定只读 id 与 kind。 */
 export type ChartTargetRef = Pick<ChartTarget, 'id' | 'kind'>
 
-/** 权利要求要素的最小读取面：全面覆盖判定只读 id。 */
-export type ClaimElementRef = Pick<ClaimElement, 'id'>
+/** 权利要求要素的最小读取面：全面覆盖判定按 id 与所属权项号逐权项判定。 */
+export type ClaimElementRef = Pick<ClaimElement, 'id' | 'claimNo'>
