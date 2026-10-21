@@ -8,7 +8,8 @@
  * 本原子做字符级对照，不替代语义判断：
  * - 从答复正文中提取“修改后权利要求”段，按权项编号拆分；
  * - 与同号原权利要求对比，找出修改后新增的连续片段；
- * - 新片段在原说明书/原权利要求书中找不到记载时，列为疑似超范围项。
+ * - 新片段在原说明书/原权利要求书中找不到记载时，列为疑似超范围项。单字片段
+ *   也参与判定：插入一个 `不` 足以反转技术特征的限定方向，不能因为片段短而忽略。
  *
  * 没有修改后权利要求段时视为未修改权利要求（A33 不适用），放行并写明原因；
  * 检测到修改但缺少原申请文件时降级，避免用审查意见通知书冒充修改依据。
@@ -44,9 +45,6 @@ export const DEFAULT_AMENDMENT_ORIGINAL_TEXT_KEYS: readonly string[] = [
   'claims',
 ]
 
-/** 修改后权利要求段的最小连续片段长度（字符）。 */
-const MIN_ADDED_SPAN_LENGTH = 2
-
 /** 连续匹配时单次尝试的最大长度；技术特征片段通常远短于此。 */
 const MAX_MATCH_LENGTH = 24
 
@@ -72,7 +70,7 @@ const CLAIM_MARKER = /^\s*(?:权利要求\s*)?(\d+)\s*[.、．：:)）]\s*/
 /** 权利要求中不承载技术特征的连接词；规范化时去除，避免制造假新增片段。 */
 const CLAIM_BOILERPLATE = /其特征在于|其特征是|所述/gu
 
-/** 新增片段两端可剥离的虚词；剥离后不足最小长度即忽略。 */
+/** 新增片段两端可剥离的虚词；剥离后为空即忽略。 */
 const FUNCTION_CHARS = new Set('的了和与及或在中上下内外前后所其该一种为是有无等地得之并且则而就都也把被将对于由从到以还'.split(''))
 
 /** 字符级差异的最大对照长度乘积；超过后退回线性前缀匹配，避免长文本占满内存。 */
@@ -84,6 +82,14 @@ type ClaimSegment = {
   number: string
   /** 权项正文。 */
   text: string
+}
+
+/** 修改后文本中新增的连续片段及其起始下标。 */
+type AddedSpan = {
+  /** 片段文本。 */
+  text: string
+  /** 片段首个字符在规范化修改文本中的下标。 */
+  start: number
 }
 
 /** 原申请文件读取结果。 */
@@ -290,10 +296,12 @@ function normalize(text: string): string {
  * 线性前缀匹配（更保守，可能多报）。
  * @param amended - 规范化后的修改文本。
  * @param source - 规范化后的对照文本。
- * @returns 新增连续片段，按出现顺序。
+ * @returns 新增连续片段及其起点，按出现顺序。
  */
-function addedSpans(amended: string, source: string): string[] {
-  if (amended.length === 0 || source.length === 0) return amended.length > 0 ? [amended] : []
+function addedSpans(amended: string, source: string): AddedSpan[] {
+  if (amended.length === 0 || source.length === 0) {
+    return amended.length > 0 ? [{ text: amended, start: 0 }] : []
+  }
   if ((amended.length + 1) * (source.length + 1) > MAX_DIFF_CELLS) {
     return prefixAddedSpans(amended, source)
   }
@@ -312,14 +320,15 @@ function addedSpans(amended: string, source: string): string[] {
     }
   }
 
-  const spans: string[] = []
+  const spans: AddedSpan[] = []
   let current = ''
+  let currentStart = 0
   let i = 0
   let j = 0
   while (j < amended.length) {
     if (i < source.length && source.charCodeAt(i) === amended.charCodeAt(j)) {
       if (current.length > 0) {
-        spans.push(current)
+        spans.push({ text: current, start: currentStart })
         current = ''
       }
       i += 1
@@ -330,10 +339,11 @@ function addedSpans(amended: string, source: string): string[] {
       i += 1
       continue
     }
+    if (current.length === 0) currentStart = j
     current += amended.charAt(j)
     j += 1
   }
-  if (current.length > 0) spans.push(current)
+  if (current.length > 0) spans.push({ text: current, start: currentStart })
   return spans
 }
 
@@ -341,11 +351,12 @@ function addedSpans(amended: string, source: string): string[] {
  * 线性前缀匹配：LCS 超限时的保守兜底。
  * @param amended - 规范化后的修改文本。
  * @param source - 规范化后的对照文本。
- * @returns 原文中不存在的连续片段。
+ * @returns 原文中不存在的连续片段及其起点。
  */
-function prefixAddedSpans(amended: string, source: string): string[] {
-  const spans: string[] = []
+function prefixAddedSpans(amended: string, source: string): AddedSpan[] {
+  const spans: AddedSpan[] = []
   let current = ''
+  let currentStart = 0
   let index = 0
   while (index < amended.length) {
     let matched = 0
@@ -358,16 +369,17 @@ function prefixAddedSpans(amended: string, source: string): string[] {
     }
     if (matched > 0) {
       if (current.length > 0) {
-        spans.push(current)
+        spans.push({ text: current, start: currentStart })
         current = ''
       }
       index += matched
       continue
     }
+    if (current.length === 0) currentStart = index
     current += amended.charAt(index)
     index += 1
   }
-  if (current.length > 0) spans.push(current)
+  if (current.length > 0) spans.push({ text: current, start: currentStart })
   return spans
 }
 
@@ -386,15 +398,22 @@ function trimFunctionEdges(span: string): string {
 
 /**
  * 判断新增片段是否构成待复核的修改依据缺口。
- * @param span - 相对原权项新增的片段。
+ *
+ * 多字片段按整段检索。单字片段（例如插入的 `不`）只在该字连同相邻上下文都见于
+ * 原申请文件时才算已记载：单个 `不` 几乎在任何说明书中都出现过，按单字命中会把
+ * 反转限定方向的修改静默放行。
+ * @param span - 相对原权项新增的片段及其起点。
+ * @param amended - 规范化后的修改文本。
  * @param basis - 规范化后的原申请文件全文。
- * @returns 缺口片段；已记载、过短或仅由虚词组成时返回 undefined。
+ * @returns 缺口片段；已记载或仅由虚词组成时返回 undefined。
  */
-function findBasisGap(span: string, basis: string): string | undefined {
-  const trimmed = trimFunctionEdges(span)
-  if (trimmed.length < MIN_ADDED_SPAN_LENGTH) return undefined
-  if (basis.includes(trimmed)) return undefined
-  return trimmed
+function findBasisGap(span: AddedSpan, amended: string, basis: string): string | undefined {
+  const trimmed = trimFunctionEdges(span.text)
+  if (trimmed.length === 0) return undefined
+  if (trimmed.length > 1) return basis.includes(trimmed) ? undefined : trimmed
+  const start = span.start + span.text.indexOf(trimmed)
+  const context = amended.slice(Math.max(0, start - 1), start + 2)
+  return basis.includes(context) ? undefined : trimmed
 }
 
 /** amendment-basis 执行器：修改后权项对原申请文件的确定性核对。 */
@@ -465,7 +484,7 @@ export class AmendmentBasisHandler implements StageHandler {
           ? addedSpans(amendedText, normalize(comparison))
           : addedSpans(amendedText, basis)
       for (const span of spans) {
-        const gap = findBasisGap(span, basis)
+        const gap = findBasisGap(span, amendedText, basis)
         if (gap === undefined) continue
         violations.push({
           claimNo: claim.number,

@@ -90,6 +90,42 @@ describe('amendment-basis atom', () => {
     expect(out.amendment_basis_report).toContain('未在原申请文件中记载')
   })
 
+  it('插入单字否定词 → 未通过（单字也改变限定方向）', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(ORIGINAL_CLAIMS.replace('设置有散热孔。', '不设置有散热孔。')),
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(false)
+    expect(violations(out)).toHaveLength(1)
+    expect(violations(out)[0]?.addedSpan).toBe('不')
+    expect(out.amendment_basis_report).toContain('未在原申请文件中记载')
+  })
+
+  it('单字新增连同相邻上下文有记载 → 通过', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(ORIGINAL_CLAIMS.replace('散热孔。', '散热孔组。')),
+        claims: ORIGINAL_CLAIMS,
+        description: '所述壳体上设置有散热孔组。',
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(violations(out)).toEqual([])
+  })
+
+  it('仅插入虚词的单字片段 → 忽略', async () => {
+    const out = await handler.execute({
+      state: {
+        draft: amendedDraft(ORIGINAL_CLAIMS.replace('壳体上设置', '壳体上和设置')),
+        claims: ORIGINAL_CLAIMS,
+      },
+    })
+    expect(out.amendment_basis_passed).toBe(true)
+    expect(violations(out)).toEqual([])
+  })
+
   it('新增从属权项且特征未记载 → 按新权项编号报告', async () => {
     const out = await handler.execute({
       state: {

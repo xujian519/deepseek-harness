@@ -59,4 +59,13 @@ export const AMENDMENT_BASIS_CASES: readonly AmendmentBasisCase[] = [
     expectedPassed: true,
     expectedSpans: [],
   },
+  {
+    engine: 'amendment-basis',
+    id: 'A33-004',
+    title: '插入单字“不”反转限定方向，超出 A33 范围',
+    draft: responseWithClaims(ORIGINAL_CLAIMS.replace('设置有散热孔。', '不设置有散热孔。')),
+    claims: ORIGINAL_CLAIMS,
+    expectedPassed: false,
+    expectedSpans: ['不'],
+  },
 ]
