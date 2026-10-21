@@ -7,6 +7,7 @@ import {
   type RuleEvaluator,
   type RuleGateAssessment,
   type RuleGateRequest,
+  type RuleGateState,
 } from '@deepseek-ai/dsh-patent-core'
 
 // ---------------------------------------------------------------------------
@@ -21,8 +22,8 @@ function stubEvaluator(overrides: Partial<RuleEvaluator> = {}): RuleEvaluator {
   }
 }
 
-function failureOf(verdict: RuleGateAssessment): RuleCheckResult {
-  const failure = verdict.failures[0]
+function failureOf(result: { failures: RuleCheckResult[] }): RuleCheckResult {
+  const failure = result.failures[0]
   if (failure === undefined) throw new Error('expected one gate failure')
   return failure
 }
@@ -83,52 +84,186 @@ it('evaluateRuleGate: 零规则参与 → fail-closed', () => {
 })
 
 // ---------------------------------------------------------------------------
-// ruleGateNode：文本汇总、评估器注入与审计键
+// ruleGateNode：来源键范围、降级阻断与结构化结论
 // ---------------------------------------------------------------------------
 
-it('ruleGateNode: 注入评估器接收汇总文本与领域，审计键写入 delta', async () => {
-  const requests: RuleGateRequest[] = []
-  const failure: RuleCheckResult = {
-    ruleId: 'TEST-RULE',
-    ruleName: '测试规则',
-    passed: false,
-    level: 2,
-    severity: 'minor',
-    message: '测试失败',
-    fixSuggestion: '测试建议',
+const TEST_FAILURE: RuleCheckResult = {
+  ruleId: 'TEST-RULE',
+  ruleName: '测试规则',
+  passed: false,
+  level: 2,
+  severity: 'minor',
+  message: '测试失败',
+  fixSuggestion: '测试建议',
+}
+
+/** 违禁词评估器：文本含 `绝对新颖` 即判失败，其余放行。 */
+function bannedWordEvaluator(requests?: RuleGateRequest[]): RuleEvaluator {
+  return {
+    id: 'test:banned-words',
+    domains: ['patent_novelty'],
+    evaluate: (request) => {
+      requests?.push(request)
+      return request.text.includes('绝对新颖')
+        ? { verdict: 'needs_revision', failures: [TEST_FAILURE], evaluatedRules: 1 }
+        : { verdict: 'pass', failures: [], evaluatedRules: 1 }
+    },
   }
+}
+
+it('ruleGateNode: 只汇总声明的来源键，结构化结论写入 rule_gate', async () => {
+  const requests: RuleGateRequest[] = []
   const evaluator: RuleEvaluator = {
     id: 'test:injected',
     domains: ['patent_novelty'],
     evaluate: (request) => {
       requests.push(request)
-      return { verdict: 'needs_revision', failures: [failure], evaluatedRules: 5 }
+      return { verdict: 'needs_revision', failures: [TEST_FAILURE], evaluatedRules: 5 }
     },
   }
 
-  const delta = await ruleGateNode(['patent_novelty'], evaluator)({
+  const delta = await ruleGateNode({
+    domains: ['patent_novelty'],
+    sourceKeys: ['novelty_report'],
+    evaluator,
+  })({
     state: {
       novelty_report: '新颖性分析报告',
-      rule_gate_verdict: 'pass',
-      rule_gate_domains: ['patent_novelty'],
-      rule_gate_failures: [],
-      rule_gate_evaluator: 'stale',
-      rule_gate_rules_evaluated: 1,
-      rule_gate_text_length: 8,
-      novelty_report__degradation: { reason: 'llm_unavailable', message: '降级', severity: 'warning' },
+      novelty_result: '绝对新颖',
+      text: '原始输入：绝对新颖',
       _meta: 'ignored',
+      rule_gate: { status: 'pass' },
     },
   })
 
   expect(requests).toEqual([{ text: '## novelty_report\n新颖性分析报告', domains: ['patent_novelty'] }])
   expect(delta).toEqual({
-    rule_gate_verdict: 'needs_revision',
-    rule_gate_domains: ['patent_novelty'],
-    rule_gate_failures: ['TEST-RULE'],
-    rule_gate_evaluator: 'test:injected',
-    rule_gate_rules_evaluated: 5,
-    rule_gate_text_length: '## novelty_report\n新颖性分析报告'.length,
+    rule_gate: {
+      status: 'fail',
+      verdict: 'needs_revision',
+      domains: ['patent_novelty'],
+      failures: [TEST_FAILURE],
+      evaluator: 'test:injected',
+      evaluatedRules: 5,
+      evaluatedKeys: ['novelty_report'],
+      degradedSources: [],
+    },
   })
+})
+
+it('ruleGateNode: 原始输入含违禁词、最终报告干净 → pass', async () => {
+  const requests: RuleGateRequest[] = []
+  const delta = await ruleGateNode({
+    domains: ['patent_novelty'],
+    sourceKeys: ['novelty_report'],
+    evaluator: bannedWordEvaluator(requests),
+  })({ state: { text: '绝对新颖', novelty_report: '权利要求具备新颖性' } })
+
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.text).not.toContain('绝对新颖')
+  expect(delta.rule_gate).toMatchObject({ status: 'pass', verdict: 'pass', evaluatedKeys: ['novelty_report'] })
+})
+
+it('ruleGateNode: 最终报告含违禁词 → fail', async () => {
+  const delta = await ruleGateNode({
+    domains: ['patent_novelty'],
+    sourceKeys: ['novelty_report'],
+    evaluator: bannedWordEvaluator(),
+  })({ state: { novelty_report: '本方案绝对新颖' } })
+
+  expect(delta.rule_gate).toMatchObject({
+    status: 'fail',
+    verdict: 'needs_revision',
+    failures: [TEST_FAILURE],
+  })
+})
+
+it('ruleGateNode: 最终报告为空 → blocked 且不调用评估器', async () => {
+  const requests: RuleGateRequest[] = []
+  const delta = await ruleGateNode({
+    domains: ['patent_novelty'],
+    sourceKeys: ['novelty_report'],
+    evaluator: bannedWordEvaluator(requests),
+  })({ state: { novelty_report: '   ' } })
+
+  expect(requests).toHaveLength(0)
+  expect(delta.rule_gate).toMatchObject({
+    status: 'blocked',
+    verdict: 'blocked',
+    evaluatedRules: 0,
+    evaluatedKeys: [],
+    degradedSources: ['novelty_report'],
+  })
+  expect(failureOf(delta.rule_gate as RuleGateState).ruleId).toBe('RULE-GATE-SOURCES-UNAVAILABLE')
+  expect(failureOf(delta.rule_gate as RuleGateState).message).toContain('novelty_report（为空）')
+})
+
+it('ruleGateNode: 最终报告缺失或非字符串 → blocked', async () => {
+  const gate = ruleGateNode({
+    domains: ['patent_novelty'],
+    sourceKeys: ['novelty_report', 'numeric_range_result'],
+    evaluator: bannedWordEvaluator(),
+  })
+  const missing = await gate({ state: { numeric_range_result: '50-80℃ 已公开' } })
+  expect(missing.rule_gate).toMatchObject({
+    status: 'blocked',
+    degradedSources: ['novelty_report'],
+  })
+  expect(failureOf(missing.rule_gate as RuleGateState).message).toContain('novelty_report（缺失）')
+
+  const notText = await gate({ state: { novelty_report: 42, numeric_range_result: '50-80℃ 已公开' } })
+  expect(notText.rule_gate).toMatchObject({ status: 'blocked', degradedSources: ['novelty_report'] })
+  expect(failureOf(notText.rule_gate as RuleGateState).message).toContain('novelty_report（非字符串）')
+})
+
+it('ruleGateNode: 来源阶段降级 → blocked（即使 fallback 非空）', async () => {
+  const requests: RuleGateRequest[] = []
+  const delta = await ruleGateNode({
+    domains: ['patent_novelty'],
+    sourceKeys: ['novelty_report'],
+    evaluator: bannedWordEvaluator(requests),
+  })({
+    state: {
+      novelty_report: '数值范围专项判定失败（LLM 错误）',
+      novelty_report__degradation: { reason: 'llm_unavailable', message: '降级', severity: 'warning' },
+    },
+  })
+
+  expect(requests).toHaveLength(0)
+  expect(delta.rule_gate).toMatchObject({
+    status: 'blocked',
+    evaluatedKeys: [],
+    degradedSources: ['novelty_report'],
+  })
+  expect(failureOf(delta.rule_gate as RuleGateState).message).toContain('novelty_report（已降级）')
+})
+
+it('ruleGateNode: 多来源键只评估声明键，未声明键不参与', async () => {
+  const requests: RuleGateRequest[] = []
+  const delta = await ruleGateNode({
+    domains: ['patent_novelty'],
+    sourceKeys: ['report_a', 'report_b'],
+    evaluator: bannedWordEvaluator(requests),
+  })({
+    state: {
+      report_a: '报告 A 干净',
+      report_b: '报告 B 干净',
+      report_c: '绝对新颖',
+    },
+  })
+
+  expect(requests[0]?.text).toBe('## report_a\n报告 A 干净\n\n## report_b\n报告 B 干净')
+  expect(requests[0]?.text).not.toContain('报告 C')
+  expect(delta.rule_gate).toMatchObject({
+    status: 'pass',
+    evaluatedKeys: ['report_a', 'report_b'],
+    degradedSources: [],
+  })
+})
+
+it('ruleGateNode: 未声明来源键 → 构图期报错', () => {
+  expect(() => ruleGateNode({ domains: ['patent_novelty'], sourceKeys: [], evaluator: bannedWordEvaluator() }))
+    .toThrow(/sourceKeys 不能为空/)
 })
 
 // ---------------------------------------------------------------------------

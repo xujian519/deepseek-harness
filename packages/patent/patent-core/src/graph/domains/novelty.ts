@@ -239,7 +239,11 @@ export function buildNoveltyGraph(options: BuildNoveltyGraphOptions = {}): Graph
   // 尾链：conclude → (approval) → (rule_gate) → END；无中间节点时直连 END。
   const withRuleGate = options.ruleGate !== false
   if (withRuleGate) {
-    builder.addNode('rule_gate', ruleGateNode(['patent_novelty'], requireRuleEvaluator(options)))
+    builder.addNode('rule_gate', ruleGateNode({
+      domains: ['patent_novelty'],
+      sourceKeys: ['novelty_report'],
+      evaluator: requireRuleEvaluator(options),
+    }))
   }
   if (approval !== undefined && options.includeApproval !== false) {
     builder.addNode('approval', handlerNode(approval, { review_context: '新颖性分析报告需人工复核' }))

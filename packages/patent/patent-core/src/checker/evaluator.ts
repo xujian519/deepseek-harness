@@ -38,7 +38,7 @@ export interface RuleGateAssessment {
  * 省略 `domains` 表示评估器自行处理任意领域（通用适配器/测试替身）。
  */
 export interface RuleEvaluator {
-  /** 评估器标识，写入 `rule_gate_evaluator` 供审计与回归定位。 */
+  /** 评估器标识，写入 `rule_gate.evaluator` 供审计与回归定位。 */
   readonly id: string
   /** 支持的规则领域；省略表示不限制。 */
   readonly domains?: readonly string[]

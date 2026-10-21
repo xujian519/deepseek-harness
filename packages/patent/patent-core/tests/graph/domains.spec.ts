@@ -19,6 +19,7 @@ import {
   registerBuiltinAtoms,
   type RuleEvaluator,
   type RuleGateRequest,
+  type RuleGateState,
   type StageHandler,
   type StageProvider,
 } from '@deepseek-ai/dsh-patent-core'
@@ -42,6 +43,11 @@ function passthroughHandlers(): StageHandlerRegistry {
 const stubRuleEvaluator: RuleEvaluator = {
   id: 'test:stub-rules',
   evaluate: () => ({ verdict: 'pass', failures: [], evaluatedRules: 1 }),
+}
+
+/** 读取规则门写入 state 的结构化结论。 */
+function ruleGateOf(state: Record<string, unknown>): RuleGateState {
+  return state.rule_gate as RuleGateState
 }
 
 // ---------------------------------------------------------------------------
@@ -111,10 +117,11 @@ it('novelty: mock provider + 放行审批 → 跑完全图 + 规则门收口', a
   expect(result.completed).toBe(true)
   expect((result.state.novelty_report as string).includes('新颖性分析报告')).toBe(true)
   expect(result.state.numeric_ranges).toEqual(['50-80'])
-  // 规则门收口：评估器替身判 pass，门只负责汇总文本、调用与审计键。
-  expect(result.state.rule_gate_verdict).toBe('pass')
-  expect(result.state.rule_gate_evaluator).toBe('test:stub-rules')
-  expect(Array.isArray(result.state.rule_gate_failures)).toBe(true)
+  // 规则门收口：评估器替身判 pass，门只汇总声明的最终报告键。
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluator).toBe('test:stub-rules')
+  expect(gate.evaluatedKeys).toEqual(['novelty_report'])
 })
 
 it('novelty: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
@@ -137,12 +144,15 @@ it('novelty: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
     { provider: noveltyProvider() },
   )
   expect(result.completed).toBe(true)
-  expect(result.state.rule_gate_verdict).toBe('pass')
-  expect(result.state.rule_gate_evaluator).toBe('test:novelty-gate')
-  expect(result.state.rule_gate_rules_evaluated).toBe(3)
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluator).toBe('test:novelty-gate')
+  expect(gate.evaluatedRules).toBe(3)
   expect(requests).toHaveLength(1)
   expect(requests[0]?.domains).toEqual(['patent_novelty'])
-  expect(requests[0]?.text).toContain('分拣装置')
+  // 只评估最终报告：原始输入（含"分拣装置"）不参与，避免输入措辞触发规则失败。
+  expect(requests[0]?.text).toContain('新颖性分析报告')
+  expect(requests[0]?.text).not.toContain('分拣装置')
 })
 
 it('novelty: 无数值表述时确定性核验段标记（无）', async () => {
@@ -188,6 +198,20 @@ it('novelty: includeApproval=false → 无审批门，conclude 直达 END（可�
   // 无审批：LLM 节点降级后仍直达 END，completed=true（自动执行语义）。
   const result = await graph.run({ text: '一种分拣装置' })
   expect(result.completed).toBe(true)
+})
+
+it('novelty: 无 provider → conclude 降级，规则门 blocked 而非静默通过', async () => {
+  const graph = buildNoveltyGraph({
+    includeApproval: false,
+    handlers: globalStageHandlerRegistry,
+    ruleEvaluator: stubRuleEvaluator,
+  }).compile('extract')
+  const result = await graph.run({ text: '一种分拣装置' })
+  expect(result.completed).toBe(true)
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('blocked')
+  expect(gate.degradedSources).toEqual(['novelty_report'])
+  expect(gate.evaluatedRules).toBe(0)
 })
 
 // ---------------------------------------------------------------------------
@@ -272,8 +296,9 @@ it('inventiveness: 规则门收口输出 verdict（评估器替身）', async ()
     { provider: inventivenessProvider() },
   )
   expect(result.completed).toBe(true)
-  expect(result.state.rule_gate_verdict).toBe('pass')
-  expect(Array.isArray(result.state.rule_gate_failures)).toBe(true)
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluatedKeys).toEqual(['inventiveness_conclusion'])
 })
 
 it('inventiveness: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
@@ -296,8 +321,10 @@ it('inventiveness: 注入 ruleEvaluator 后规则门使用注入实现', async (
     { provider: inventivenessProvider() },
   )
   expect(result.completed).toBe(true)
-  expect(result.state.rule_gate_evaluator).toBe('test:inventiveness-gate')
-  expect(result.state.rule_gate_rules_evaluated).toBe(4)
+  const gate = ruleGateOf(result.state)
+  expect(gate.evaluator).toBe('test:inventiveness-gate')
+  expect(gate.evaluatedRules).toBe(4)
+  expect(gate.evaluatedKeys).toEqual(['inventiveness_conclusion'])
   expect(requests).toHaveLength(1)
   expect(requests[0]?.domains).toEqual(['patent_inventiveness'])
 })
@@ -362,7 +389,9 @@ it('enablement: mock provider → A26.3 全流程 + 领域规则 + 规则门', a
   expect(Array.isArray(result.state.domain_requirements) && result.state.domain_requirements.length > 0).toBe(true)
   const extracted = extractEnablementResult(result.state)
   expect(extracted.sufficientlyDisclosed).toBe(false)
-  expect(result.state.rule_gate_verdict).toBe('pass')
+  const gate = ruleGateOf(result.state)
+  expect(gate.status).toBe('pass')
+  expect(gate.evaluatedKeys).toEqual(['enablement_conclusion'])
 })
 
 it('enablement: 注入 ruleEvaluator 后规则门使用注入实现', async () => {
@@ -385,8 +414,10 @@ it('enablement: 注入 ruleEvaluator 后规则门使用注入实现', async () =
     { provider: enablementProvider() },
   )
   expect(result.completed).toBe(true)
-  expect(result.state.rule_gate_evaluator).toBe('test:enablement-gate')
-  expect(result.state.rule_gate_rules_evaluated).toBe(6)
+  const gate = ruleGateOf(result.state)
+  expect(gate.evaluator).toBe('test:enablement-gate')
+  expect(gate.evaluatedRules).toBe(6)
+  expect(gate.evaluatedKeys).toEqual(['enablement_conclusion'])
   expect(requests).toHaveLength(1)
   expect(requests[0]?.domains).toEqual(['patent_disclosure'])
 })
