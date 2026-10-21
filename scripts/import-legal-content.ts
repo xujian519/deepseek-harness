@@ -156,14 +156,18 @@ const DATA_KEY_REFERENCES = [
  */
 const SKIPPED_SKILLS = new Set(['matter-workspace', 'review-proposals'])
 
-/** One parsed skill source. */
-interface ParsedSkill {
-  /** Source directory name; equals the original skill name. */
-  readonly dir: string
+/** Frontmatter and body of one skill file. */
+interface SkillDocument {
   /** Frontmatter fields, with block scalars folded into one string. */
   readonly fields: ReadonlyMap<string, string>
   /** The Markdown body after the closing frontmatter fence. */
   readonly body: string
+}
+
+/** One source skill: its directory name and parsed file. */
+interface ParsedSkill extends SkillDocument {
+  /** Source directory name; equals the original skill name. */
+  readonly dir: string
 }
 
 /**
@@ -224,7 +228,7 @@ function unquote(value: string): string {
  * @param file - path used in diagnostics.
  * @returns the parsed fields and body.
  */
-function parseSkill(source: string, file: string): ParsedSkill {
+function parseSkill(source: string, file: string): SkillDocument {
   if (!source.startsWith('---\n')) throw new Error(`${file}: missing frontmatter`)
   const end = source.indexOf('\n---\n', 4)
   if (end === -1) throw new Error(`${file}: unterminated frontmatter`)
@@ -250,7 +254,7 @@ function parseSkill(source: string, file: string): ParsedSkill {
     }
     fields.set(key, unquote(value))
   }
-  return { dir: '', fields, body: source.slice(end + 5) }
+  return { fields, body: source.slice(end + 5) }
 }
 
 /**
@@ -358,11 +362,6 @@ function rewriteDomainText(
   result = result.replace(/~\/\.claude\/plugins\/cache\/claude-for-legal-zh\/[^\s`)]*/gu, './.legal')
   result = result.replaceAll('~/.claude/', './.legal/')
 
-  result = result.replace(/\/([a-z0-9-]+):([a-z0-9-]+)/gu, (whole: string, commandDomain: string, skill: string) => {
-    const owner = DOMAINS.find(candidate => candidate.dir === commandDomain)
-    if (owner === undefined) return whole
-    return `/${namespaced(owner, skill)}`
-  })
   for (const candidate of DOMAINS) {
     result = result.replaceAll(`/${candidate.dir}:`, `/legal-${candidate.short}-`)
   }
@@ -702,6 +701,20 @@ async function buildSkillIndex(): Promise<Map<string, Set<string>>> {
 }
 
 /**
+ * Copy one file, rewriting it when its extension carries text.
+ * @param from - source file.
+ * @param to - target file.
+ * @param rewrite - text transform applied to recognised extensions.
+ */
+async function copyEntry(from: string, to: string, rewrite: (text: string) => string): Promise<void> {
+  if (!TEXT_EXTENSIONS.has(extname(from))) {
+    await copyFile(from, to)
+    return
+  }
+  await writeFile(to, stripTrailing(rewrite(await readFile(from, 'utf8'))), 'utf8')
+}
+
+/**
  * Copy a directory tree, rewriting text files.
  * @param source - source directory.
  * @param target - target directory.
@@ -716,12 +729,7 @@ async function copyTree(source: string, target: string, rewrite: (text: string) 
       await copyTree(from, to, rewrite)
       continue
     }
-    if (!entry.isFile()) continue
-    if (TEXT_EXTENSIONS.has(extname(entry.name))) {
-      await writeFile(to, stripTrailing(rewrite(await readFile(from, 'utf8'))), 'utf8')
-      continue
-    }
-    await copyFile(from, to)
+    if (entry.isFile()) await copyEntry(from, to, rewrite)
   }
 }
 
@@ -827,12 +835,7 @@ async function importDomain(
         await copyTree(from, to, rewrite)
         continue
       }
-      if (!entry.isFile()) continue
-      if (TEXT_EXTENSIONS.has(extname(entry.name))) {
-        await writeFile(to, stripTrailing(rewrite(await readFile(from, 'utf8'))), 'utf8')
-        continue
-      }
-      await copyFile(from, to)
+      if (entry.isFile()) await copyEntry(from, to, rewrite)
     }
     imported.push(name)
   }
@@ -931,7 +934,8 @@ function sourceCommit(): string {
  * imported corpus.
  * @param version - source README version.
  * @param commit - source commit or an explanation of its absence.
- * @param counts - imported skill count per source domain.
+ * @param treeHash - SHA-256 over the imported source files.
+ * @param counts - imported skill names per source domain.
  */
 async function writeSourceNotes(
   version: string,
@@ -1046,14 +1050,16 @@ async function main(): Promise<void> {
   }
   await annotateComparativeReferences()
 
-  const sharedSource = join(SOURCE_ROOT, 'references')
-  const sharedTarget = join(TARGET_ROOT, 'mode', 'legal-setup', 'references', 'shared')
-  await rm(sharedTarget, { recursive: true, force: true })
-  await copyTree(sharedSource, sharedTarget, (text: string) => {
+  const rewriteShared = (text: string): string => {
     let rewritten = rewriteCommonText(stripTrailing(text))
     for (const [from, to] of sharedReferences) rewritten = rewritten.replaceAll(from, to)
     return rewritten
-  })
+  }
+
+  const sharedSource = join(SOURCE_ROOT, 'references')
+  const sharedTarget = join(TARGET_ROOT, 'mode', 'legal-setup', 'references', 'shared')
+  await rm(sharedTarget, { recursive: true, force: true })
+  await copyTree(sharedSource, sharedTarget, rewriteShared)
   // The company profile template seeds `company-profile.md` directly; keeping a
   // second copy under shared references would give two templates to edit.
   await rm(join(sharedTarget, 'company-profile-template.md'), { force: true })
@@ -1063,9 +1069,7 @@ async function main(): Promise<void> {
     TARGET_ROOT, 'mode', 'legal-setup', 'references', 'company-profile-template.md',
   )
   await mkdir(dirname(companyTarget), { recursive: true })
-  let companyProfile = rewriteCommonText(stripTrailing(await readFile(companySource, 'utf8')))
-  for (const [from, to] of sharedReferences) companyProfile = companyProfile.replaceAll(from, to)
-  await writeFile(companyTarget, companyProfile, 'utf8')
+  await writeFile(companyTarget, rewriteShared(await readFile(companySource, 'utf8')), 'utf8')
   await writeSourceNotes(await sourceVersion(), sourceCommit(), await sourceTreeHash(), summary)
 
   for (const [domain, skills] of Object.entries(summary)) {

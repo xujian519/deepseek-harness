@@ -63,9 +63,8 @@ function stripAdapterDefaults(log: string): string {
     const config = record.data.header.config
     const defaults = record.data.header.adapterDefaults
     if (config !== undefined && typeof defaults === 'object' && defaults !== null) {
-      const marked = new Set(Object.keys(defaults))
       record.data.header.config = Object.fromEntries(
-        Object.entries(config).filter(([key]) => !marked.has(key)),
+        Object.entries(config).filter(([key]) => !Object.hasOwn(defaults, key)),
       )
     }
     delete record.data.header.adapterDefaults
@@ -99,7 +98,7 @@ describe('legal preset snapshot', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
       replayContextWindow: 1_000_000,
-      ...MODE === 'record' ? {} : { replayFixture: FIXTURE, compareReplaySession: true, paceMs: 10 },
+      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, compareReplaySession: true, paceMs: 10 }),
     })
     handle = await scaffold.ctx.agents.create({
       sessionId: SessionId('legal-preset-snapshot'),

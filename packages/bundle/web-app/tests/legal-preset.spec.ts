@@ -30,25 +30,23 @@ const BUNDLE_MANIFEST = join(REPO_ROOT, 'packages/bundle/web-app/package.json')
 interface PresetRow {
   id?: unknown
   name?: unknown
-  disabled?: unknown
   config?: unknown
+}
+
+/** The rows and settings of one agent-preset declaration. */
+interface PresetDeclaration extends PresetRow {
+  config?: {
+    id?: unknown
+    name?: unknown
+    order?: unknown
+    plugins?: unknown
+  }
 }
 
 /** One skill file's frontmatter. */
 interface SkillFrontmatter {
   name?: unknown
   description?: unknown
-}
-
-/** Every `SKILL.md` under a directory. */
-function skillFiles(directory: string): string[] {
-  const found: string[] = []
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name)
-    if (entry.isDirectory()) found.push(...skillFiles(path))
-    else if (entry.name === 'SKILL.md') found.push(path)
-  }
-  return found.sort()
 }
 
 /** Every file under a directory, recursively. */
@@ -60,6 +58,11 @@ function allFiles(directory: string): string[] {
     else if (entry.isFile()) found.push(path)
   }
   return found.sort()
+}
+
+/** Every `SKILL.md` under a directory. */
+function skillFiles(directory: string): string[] {
+  return allFiles(directory).filter(file => basename(file) === 'SKILL.md')
 }
 
 /** Parse one skill's frontmatter. */
@@ -84,38 +87,33 @@ function flattenRows(entries: readonly unknown[]): PresetRow[] {
   return rows
 }
 
-/** The `legal` declaration's rows. */
-function legalRows(): PresetRow[] {
+/** The `legal` preset declaration entry. */
+function legalDeclaration(): PresetDeclaration | undefined {
   const entries: unknown = yaml.load(readFileSync(LEGAL_PRESET, 'utf8'), { schema: entryListSchema })
   if (!Array.isArray(entries)) throw new TypeError('the legal preset patch must contain a Cordis entry list')
-  const inserted: unknown[] = []
-  for (const entry of entries) {
-    if (typeof entry !== 'object' || entry === null) continue
-    const insert = (entry as { insert?: unknown }).insert
-    if (Array.isArray(insert)) for (const row of insert) inserted.push(row as unknown)
-  }
-  const declaration = inserted.find((entry): entry is PresetRow => {
-    const row = entry as PresetRow & { config?: { id?: unknown } }
+  const inserted = entries.flatMap(entry => (
+    typeof entry === 'object' && entry !== null && Array.isArray((entry as { insert?: unknown }).insert)
+      ? (entry as { insert: unknown[] }).insert
+      : []
+  ))
+  return inserted.find((entry): entry is PresetDeclaration => {
+    const row = entry as PresetDeclaration
     return row.name === '@deepseek-ai/dsh-agent-preset' && row.config?.id === 'legal'
   })
-  const plugins = (declaration?.config as { plugins?: unknown } | undefined)?.plugins
+}
+
+/** The `legal` declaration's rows. */
+function legalRows(): PresetRow[] {
+  const plugins = legalDeclaration()?.config?.plugins
   if (!Array.isArray(plugins)) throw new TypeError('the legal preset must declare a plugin list')
   return flattenRows(plugins)
 }
 
 describe('legal preset composition', () => {
   it('declares the legal agent preset with the shipped order', () => {
-    const entries: unknown = yaml.load(readFileSync(LEGAL_PRESET, 'utf8'), { schema: entryListSchema })
-    if (!Array.isArray(entries)) throw new TypeError('the legal preset patch must contain a Cordis entry list')
-    const declaration = entries
-      .filter((entry): entry is { insert?: unknown[] } => typeof entry === 'object' && entry !== null)
-      .flatMap(entry => (Array.isArray(entry.insert) ? entry.insert : []))
-      .find((entry): entry is { name?: unknown; config?: { id?: unknown; name?: unknown; order?: unknown } } => {
-        const row = entry as { name?: unknown; config?: { id?: unknown } }
-        return row.name === '@deepseek-ai/dsh-agent-preset' && row.config?.id === 'legal'
-      })
-    expect(declaration?.config?.name).toBe('法律模式')
-    expect(declaration?.config?.order).toBe(7)
+    const config = legalDeclaration()?.config
+    expect(config?.name).toBe('法律模式')
+    expect(config?.order).toBe(7)
   })
 
   it('mounts the skills directory that ships beside the preset', () => {
@@ -129,7 +127,7 @@ describe('legal preset composition', () => {
     const rows = legalRows()
     const web = rows.find(row => row.id === 'tool-web')
     expect(web?.config).toEqual(expect.objectContaining({ search: false, fetch: true }))
-    expect(rows.some(row => String(row.name).includes('mcp'))).toBe(false)
+    expect(rows.some(row => typeof row.name === 'string' && row.name.includes('mcp'))).toBe(false)
   })
 })
 

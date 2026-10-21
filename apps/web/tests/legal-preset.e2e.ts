@@ -18,6 +18,7 @@ const COMPOSITION = fileURLToPath(new URL('./expected/legal-preset/composition.e
  * on a missing service fails here instead of in the first legal session.
  */
 it('mounts the legal preset with its packaged skill catalog', async () => {
+  const mode = webSnapshotMode()
   const scaffold = await launchWebScaffold()
   try {
     const ctx = scaffold.ctx
@@ -77,7 +78,6 @@ it('mounts the legal preset with its packaged skill catalog', async () => {
         'skills:',
         ...names.map(name => `- ${name}`),
       ].join('\n')
-      const mode = webSnapshotMode()
       if (mode === 'refresh') await mkdir(dirname(COMPOSITION), { recursive: true })
       await compareOrRefreshGolden(COMPOSITION, composition, mode)
     } finally {
