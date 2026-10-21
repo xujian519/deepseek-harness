@@ -15,7 +15,6 @@ async function install(config: Record<string, unknown> = {}) {
 describe('@deepseek-ai/dsh-patent-deadline plugin surface', () => {
   it('exports the function-plugin surface', () => {
     expect(Pkg.name).toBe('patent-deadline')
-    expect(Pkg.inject).toEqual(['tools'])
     expect(typeof Pkg.apply).toBe('function')
     expect(typeof Pkg.Config).toBe('function')
   })
@@ -59,6 +58,15 @@ describe('@deepseek-ai/dsh-patent-deadline plugin surface', () => {
     expect(ctx.get('patentDeadline')).toBeUndefined()
   })
 
+  it('mounts service-only without the tools service', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    const fiber = await ctx.plugin(Pkg, { provideService: true, exposeTool: false })
+    expect(ctx.get('patentDeadline')).toBeDefined()
+    await fiber.dispose()
+    expect(ctx.get('patentDeadline')).toBeUndefined()
+  })
+
   it('publishes the service and the tool when both roles are requested', async () => {
     const { ctx } = await install({ provideService: true })
     expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(true)
@@ -69,8 +77,22 @@ describe('@deepseek-ai/dsh-patent-deadline plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    Pkg.apply(ctx, {})
+    await Pkg.apply(ctx, {})
     expect(ctx.tools.schemas().some(schema => schema.name === 'patent_deadlines')).toBe(true)
+  })
+
+  it('rejects a mount that neither publishes the service nor registers the tool', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(Pkg, { provideService: false, exposeTool: false })).rejects.toThrow(/不能同时为 false/)
+  })
+
+  it('rejects a negative reminder horizon at load', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(Pkg, { reminderLeadDays: -1 })).rejects.toThrow()
   })
 
   it('fails loud at load when the configured time zone is unusable', async () => {

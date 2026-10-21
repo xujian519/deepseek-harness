@@ -53,7 +53,7 @@ describe('deadline report rendering', () => {
     )
     expect(lines[2]).toBe(
       '期限口径：已应用专利法实施细则第5条的届满日顺延（届满日为法定休假日或移用周休息日的，'
-      + '顺延至其后第一个工作日）；表中「期限届满」列为不顺延的原始届满日。',
+      + '顺延至其后第一个工作日）；表中「原始届满日（未顺延）」列为不顺延的原始届满日。',
     )
     const { priorityDate: _dropped, ...withoutPriorityDate } = grantedCase
     expect(render({ ...withoutPriorityDate, claimsPriority: false })).toContain(
@@ -64,7 +64,7 @@ describe('deadline report rendering', () => {
   it('renders every computed entry with its reported date, raw date, countdown, status, and legal basis', () => {
     const text = render(grantedCase)
     expect(text).toContain('可计算期限 10 项（已逾期 5 项，1 项临近）。')
-    expect(text).toContain('| 期限事项 | 届满日 | 期限届满 | 剩余 | 状态 | 法律依据 |')
+    expect(text).toContain('| 期限事项 | 届满日 | 原始届满日（未顺延） | 剩余 | 状态 | 法律依据 |')
     expect(text).toContain('| --- | --- | --- | --- | --- | --- |')
     // 2026-10-01 is 国庆, so the reported date rolls while the raw date stays visible.
     expect(row(text, '缴纳第4年度年费')).toBe(
@@ -114,8 +114,16 @@ describe('deadline report rendering', () => {
   it('lists the six-month annual-fee surcharge windows after the table', () => {
     const text = render(grantedCase)
     expect(text).toContain('年费补缴窗口（逾期后 6 个月内仍可补缴并缴滞纳金，期满未缴专利权自应缴年费期满之日起终止）：')
-    expect(text).toContain('- 缴纳第4年度年费（授予专利权当年以后的年费应在上一年度期满前缴纳）：2026-10-01 起算，最迟 2027-04-01。')
-    expect(text).toContain('- 缴纳第5年度年费（授予专利权当年以后的年费应在上一年度期满前缴纳）：2027-10-01 起算，最迟 2028-04-01。')
+    // The window starts at the fee's reported (rolled) due date; the window end
+    // rolls under the same criterion and names an uncovered year.
+    expect(text).toContain(
+      '- 缴纳第4年度年费（授予专利权当年以后的年费应在上一年度期满前缴纳）：2026-10-08 起算，'
+      + '最迟 2027-04-08（窗口终点所在 2027 年节假日安排未覆盖，未应用顺延）。',
+    )
+    expect(text).toContain(
+      '- 缴纳第5年度年费（授予专利权当年以后的年费应在上一年度期满前缴纳）：2027-10-01 起算，'
+      + '最迟 2028-04-01（窗口终点所在 2028 年节假日安排未覆盖，未应用顺延）。',
+    )
   })
 
   it('states the recovery and extension rules once an entry is overdue', () => {
@@ -182,7 +190,7 @@ describe('deadline report rendering', () => {
     expect(renderDeadlineReport(empty, META)).toBe([
       'patent_deadlines: 发明专利 · 申请日 2023-10-01 · 基准日 2026-09-20 · 主张优先权（优先权日 2022-09-15）',
       '',
-      '期限口径：已应用专利法实施细则第5条的届满日顺延（届满日为法定休假日或移用周休息日的，顺延至其后第一个工作日）；表中「期限届满」列为不顺延的原始届满日。',
+      '期限口径：已应用专利法实施细则第5条的届满日顺延（届满日为法定休假日或移用周休息日的，顺延至其后第一个工作日）；表中「原始届满日（未顺延）」列为不顺延的原始届满日。',
       '',
       '本次查询未产出可计算的期限。',
     ].join('\n'))

@@ -27,9 +27,9 @@ patent_deadlines 依据专利类型、申请日、是否主张优先权、已收
 
 有两项输入刻意不靠推断。**是否主张优先权**由代理人或处理该案的人显式给出：它决定实审请求期限自优先权日起算（实务所用的起算口径）还是自申请日起算，因此半填的案卷不得让它静默改变——只给优先权日而不声明主张、或声明主张而不给日期，调用一律失败。**顺延口径**在法定口径与不顺延口径之间选择；两种口径下都会同时返回两个日期。
 
-由通知起算的期限——授权通知起算的办理登记手续与分案申请、驳回决定起算的复审请求，以及送达文件起算的审查意见答复、复审通知书答复、无效宣告答复——以「待补」项返回，并点名尚缺的那份通知送达记录。本工具不以申请日起算的固定年数替代这些期限。年费按授权当年的专利年度编号，故同样等待授权公告日；年费止于专利权期限的最后一年，`paidThroughYear` 可略过已记录缴费的年度。
+由通知起算的期限——授权通知起算的办理登记手续与分案申请、驳回决定起算的复审请求，以及送达文件起算的审查意见答复、复审通知书答复、无效宣告答复——以「待补」项返回，并点名尚缺的那份通知送达记录。本工具不以申请日起算的固定年数替代这些期限。已记录通知但送达字段不全的（例如电子送达既无发文日也无进入日），同样以点名缺失字段的「待补」项返回，而不是让整次查询失败。年费按授权当年的专利年度编号，故同样等待授权公告日；年费止于专利权期限的最后一年，`paidThroughYear` 可略过已记录缴费的年度。每项年费都带有六个月补缴窗口：窗口自该项报告用（已顺延）届满日起算，六个月后届满，窗口终点按同一口径顺延；终点年份无已载入安排时携带 `calendarCaveat`。
 
-指定期限按程序区分：发明专利实质审查中的第一次审查意见答复为4个月，实用新型或外观设计初步审查中为2个月；复审通知书答复默认1个月。期限补偿与新药补偿仅适用于发明专利，优先权恢复与增加/改正仅适用于发明或实用新型，PCT 进入中国国家阶段不适用于外观设计；查询断言相反情形时直接失败，而不是静默丢弃该项。2021-06-01 前申请的外观设计适用修改前专利法第42条的10年期限，该日及以后申请的为15年。
+指定期限按程序区分：发明专利实质审查中的第一次审查意见答复默认为4个月，实用新型或外观设计初步审查中为2个月；通知可记录 `stage`（`substantive` 或 `preliminary`）覆盖该默认值——发明专利也可能在进入实质审查前收到初步审查意见，而实质审查阶段只适用于发明专利。复审通知书答复默认1个月。PCT 费用分为两段不同期限：申请费、公布印刷费及必要的附加费属进入手续费用，应在自优先权日起30个月的进入期限内缴纳（缴纳宽限费后可延至32个月）；优先权要求费自记录的进入中国国家阶段之日起2个月，未记录进入日时保持「待补」。期限补偿与新药补偿仅适用于发明专利，优先权恢复与增加/改正仅适用于发明或实用新型，PCT 进入中国国家阶段不适用于外观设计；查询断言相反情形时直接失败，而不是静默丢弃该项。2021-06-01 前申请的外观设计适用修改前专利法第42条的10年期限，该日及以后申请的为15年。
 
 <a id="period-and-delivery-arithmetic-library-api"></a>
 ## 期限与送达计算（库 API）
@@ -60,11 +60,13 @@ Schemastery 配置，全部字段可选。
 | 键 | 类型 | 默认 | 含义 |
 | --- | --- | --- | --- |
 | calendarDir | string | 随包资产 | 存放 `cn-holidays.yaml` 的目录，须镜像随包布局。文件缺失或非法将使插件加载失败。 |
-| reminderLeadDays | number | 30 | 届满日剩余天数不超过该值时标记为紧急。属事务所策略，非法定期限。 |
+| reminderLeadDays | number | 30 | 非负整数。届满日剩余天数不超过该值时标记为紧急。属事务所策略，非法定期限。 |
 | annuityHorizonYears | number | 2 | 自报告日起报告的未来年费年度数。属策略选择，并受专利权期限封顶。 |
 | timeZone | string | Asia/Shanghai | 读取“当前日期”所用的 IANA 时区。无效时区使插件加载失败。 |
 | provideService | boolean | false | 发布 `patentDeadline` 服务（见下）。默认关，使 agent preset 的挂载保持“只有工具”。 |
 | exposeTool | boolean | true | 注册 `patent_deadlines` 工具。根域的“只提供服务”挂载把它设为 false，从而不新增第二个面向模型的工具。 |
+
+两种挂载角色至少要启用一种：`provideService` 与 `exposeTool` 同时为 false 时插件加载失败。“只提供服务”的挂载不要求 tools 服务。
 
 <a id="patentdeadline-service"></a>
 ## `patentDeadline` 服务（根域挂载）
@@ -94,7 +96,7 @@ Schemastery 配置，全部字段可选。
 
 #### 模型所见
 
-一个名为 `patent_deadlines` 的已注册工具，必填 `patentType` 枚举（`invention`、`utility-model`、`design`）、`filingDate` 与 `claimsPriority`，可选 `priorityDate`、`isPctNationalPhase`、`authorizationPublicationDate`、`marketingApprovalDate`、`termCompensationYears`、`invalidationRequestDate`、`paidThroughYear`、`restDayRule` 与 `notices`（每项含文件种类、送达方式（默认电子送达）、对应的送达日期，以及可选的指定期限月数）。一个案子里可能收到多份的通知种类（`office-action-subsequent`、`reexamination-notice`）可重复传入，每份各产一行——第一份用原 id，其后为 `<id>-2`、`<id>-3`；其余种类一个案子只有一份，重复传入按工具错误返回，不再静默覆盖。无效程序增加理由或补充证据的期限（细则第71条）自 `invalidationRequestDate` 起算，案卷未记录该日期时以点名该输入的待补项返回。结果渲染为 Markdown 表格，列出可计算期限的报告用届满日与期限自身届满日、剩余天数、状态与法律依据，其后依次为各项通知期限的起算依据、点名缺失通知送达记录的待补项、未覆盖年份的日历警告，以及逾期后适用的恢复与延长规则。`claimsPriority` 与 `priorityDate` 相互矛盾时，以点名两个字段的工具错误返回。
+一个名为 `patent_deadlines` 的已注册工具，必填 `patentType` 枚举（`invention`、`utility-model`、`design`）、`filingDate` 与 `claimsPriority`，可选 `priorityDate`、`isPctNationalPhase`、`nationalPhaseEntryDate`、`authorizationPublicationDate`、`marketingApprovalDate`、`termCompensationYears`、`invalidationRequestDate`、`paidThroughYear`、`restDayRule` 与 `notices`（每项含文件种类、送达方式（默认电子送达）、对应的送达日期、可选的指定期限月数，第一次审查意见通知书还可选 `stage`）。一个案子里可能收到多份的通知种类（`office-action-subsequent`、`reexamination-notice`）可重复传入，每份各产一行——第一份用原 id，其后为 `<id>-2`、`<id>-3`；其余种类一个案子只有一份，重复传入按工具错误返回，不再静默覆盖。无效程序增加理由或补充证据的期限（细则第71条）自 `invalidationRequestDate` 起算，案卷未记录该日期时以点名该输入的待补项返回。结果渲染为 Markdown 表格，列出可计算期限的报告用届满日与期限自身届满日、剩余天数、状态与法律依据，其后依次为各项通知期限的起算依据、点名缺失通知送达记录的待补项、未覆盖年份的日历警告，以及逾期后适用的恢复与延长规则。`claimsPriority` 与 `priorityDate` 相互矛盾时，以点名两个字段的工具错误返回。
 
 #### Token 影响
 

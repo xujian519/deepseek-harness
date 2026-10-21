@@ -403,6 +403,89 @@ describe('statutory deadline set', () => {
     }, base)).toThrow(/授权公告日/)
   })
 
+  it('rejects a PCT entry date on a non-PCT case and dates that predate the filing', () => {
+    expect(() => evaluateDeadlines({
+      ...invention,
+      nationalPhaseEntryDate: date('2024-01-01'),
+    }, base)).toThrow(/PCT/)
+    expect(() => evaluateDeadlines({
+      ...invention,
+      isPctNationalPhase: true,
+      nationalPhaseEntryDate: date('2019-01-01'),
+    }, base)).toThrow(/进入中国国家阶段之日/)
+    expect(() => evaluateDeadlines({
+      ...invention,
+      invalidationRequestDate: date('2019-01-01'),
+    }, base)).toThrow(/无效宣告请求之日/)
+    expect(() => evaluateDeadlines({
+      ...invention,
+      marketingApprovalDate: date('2019-01-01'),
+    }, base)).toThrow(/新药上市许可日/)
+    expect(() => evaluateDeadlines({
+      ...invention,
+      claimsPriority: true,
+      priorityDate: date('2020-01-15'),
+    }, base)).toThrow(/同一天或更晚/)
+  })
+
+  it('honours an explicitly recorded first office-action stage', () => {
+    const delivery = { mode: 'electronic' as const, dispatchDate: date('2026-08-20') }
+    const utility: DeadlineQuery = {
+      kind: 'utility-model',
+      filingDate: date('2025-02-10'),
+      claimsPriority: false,
+      notices: [{ kind: 'office-action-first', delivery, stage: 'preliminary' }],
+      today: date('2026-09-20'),
+    }
+    expect(find(utility, 'oa-response-first')).toMatchObject({
+      dueDate: '2026-10-20',
+      label: '答复第一次审查意见通知书（指定期限，初步审查程序中为2个月）',
+    })
+    // An invention can also receive a preliminary-examination action before entering substantive examination.
+    expect(find({ ...utility, kind: 'invention' }, 'oa-response-first')).toMatchObject({ dueDate: '2026-10-20' })
+  })
+
+  it('rejects a stage that contradicts the notice kind or the patent category', () => {
+    const delivery = { dispatchDate: date('2026-08-20') }
+    expect(() => evaluateDeadlines({
+      kind: 'utility-model',
+      filingDate: date('2025-02-10'),
+      claimsPriority: false,
+      notices: [{ kind: 'office-action-first', delivery, stage: 'substantive' }],
+      today: date('2026-09-20'),
+    }, base)).toThrow(/实质审查阶段/)
+    expect(() => evaluateDeadlines({
+      ...invention,
+      notices: [{ kind: 'office-action-subsequent', delivery, stage: 'preliminary' }],
+    }, base)).toThrow(/office-action-first/)
+  })
+
+  it('keeps a recorded notice pending when its delivery record lacks the required date', () => {
+    const query: DeadlineQuery = {
+      ...invention,
+      notices: [{ kind: 'office-action-first', delivery: {} }],
+    }
+    const report = evaluateDeadlines(query, base)
+    expect(report.computed.some(entry => entry.id === 'oa-response-first')).toBe(false)
+    expect(report.pending.find(entry => entry.id === 'oa-response-first')).toMatchObject({
+      legalBasis: '专利审查指南第五部分第七章第2.1节',
+      requiredInput: 'office-action-first.delivery（电子送达需要发文日（dispatchDate）或电子系统进入日（enteredDate）。）',
+    })
+  })
+
+  it('keeps registration and divisional filing pending when the grant notice lacks a delivery date', () => {
+    const query: DeadlineQuery = {
+      ...invention,
+      notices: [{ kind: 'grant-notice', delivery: {} }],
+    }
+    const report = evaluateDeadlines(query, base)
+    expect(report.computed.some(entry => entry.id === 'registration')).toBe(false)
+    expect(report.pending.find(entry => entry.id === 'registration')?.requiredInput)
+      .toContain('grant-notice.delivery（')
+    expect(report.pending.find(entry => entry.id === 'divisional-application')?.requiredInput)
+      .toContain('grant-notice.delivery（')
+  })
+
   it('counts PCT national-phase dates from the international filing date without priority', () => {
     const query: DeadlineQuery = {
       kind: 'utility-model',
@@ -417,7 +500,7 @@ describe('statutory deadline set', () => {
     })
   })
 
-  it('starts the PCT application fee at the national-phase entry date', () => {
+  it('treats the PCT application fee as an entry formality counted from the 30-month period', () => {
     const query: DeadlineQuery = {
       kind: 'invention',
       filingDate: date('2024-01-01'),
@@ -426,27 +509,75 @@ describe('statutory deadline set', () => {
       nationalPhaseEntryDate: date('2025-07-01'),
       today: date('2025-07-10'),
     }
+    // The entry date does not start a separate fee period: 细则第121条 requires
+    // the fee when entering, and 细则第120条 bounds the entry at 30 months.
     expect(find(query, 'application-fee')).toMatchObject({
-      dueDate: '2025-09-01',
-      legalBasis: '专利法实施细则第120条',
-      label: '缴纳申请费、公布印刷费、必要的申请附加费（自进入中国国家阶段之日起2个月内）',
+      dueDate: '2026-07-01',
+      rawDueDate: '2026-07-01',
+      legalBasis: '专利法实施细则第121条、第120条',
+      label: '在办理进入中国国家阶段手续时缴纳申请费、公布印刷费、必要的申请附加费'
+        + '（自国际申请日（未主张优先权）起30个月内办理进入手续；缴纳宽限费后可延至32个月）',
     })
   })
 
-  it('keeps the PCT application fee pending until the entry date is recorded', () => {
+  it('counts the 30-month entry period from the priority date when priority is claimed', () => {
+    const query: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2024-01-01'),
+      claimsPriority: true,
+      priorityDate: date('2023-01-01'),
+      isPctNationalPhase: true,
+      today: date('2025-07-10'),
+    }
+    expect(find(query, 'application-fee')).toMatchObject({ dueDate: '2025-07-01' })
+  })
+
+  it('counts the PCT priority claim fee from the national-phase entry date', () => {
+    const query: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2024-01-01'),
+      claimsPriority: true,
+      priorityDate: date('2023-01-01'),
+      isPctNationalPhase: true,
+      nationalPhaseEntryDate: date('2025-07-01'),
+      today: date('2025-07-10'),
+    }
+    expect(find(query, 'priority-claim-fee')).toMatchObject({
+      dueDate: '2025-09-01',
+      legalBasis: '专利法实施细则第127条',
+      label: '缴纳优先权要求费（自进入中国国家阶段之日起2个月内）',
+    })
+    expect(pendingIds(query)).not.toContain('priority-claim-fee')
+  })
+
+  it('keeps the PCT priority claim fee pending until the entry date is recorded', () => {
+    const query: DeadlineQuery = {
+      kind: 'invention',
+      filingDate: date('2024-01-01'),
+      claimsPriority: true,
+      priorityDate: date('2023-01-01'),
+      isPctNationalPhase: true,
+      today: date('2025-07-10'),
+    }
+    const report = evaluateDeadlines(query, base)
+    expect(report.computed.some(entry => entry.id === 'priority-claim-fee')).toBe(false)
+    expect(report.pending.find(entry => entry.id === 'priority-claim-fee')).toMatchObject({
+      legalBasis: '专利法实施细则第127条',
+      requiredInput: 'nationalPhaseEntryDate（进入中国国家阶段之日）',
+    })
+  })
+
+  it('omits the PCT priority claim fee for an international application without priority', () => {
     const query: DeadlineQuery = {
       kind: 'invention',
       filingDate: date('2024-01-01'),
       claimsPriority: false,
       isPctNationalPhase: true,
+      nationalPhaseEntryDate: date('2025-07-01'),
       today: date('2025-07-10'),
     }
-    const report = evaluateDeadlines(query, base)
-    expect(report.computed.some(entry => entry.id === 'application-fee')).toBe(false)
-    expect(report.pending.find(entry => entry.id === 'application-fee')).toMatchObject({
-      legalBasis: '专利法实施细则第120条',
-      requiredInput: 'nationalPhaseEntryDate（进入中国国家阶段之日）',
-    })
+    expect(find(query, 'priority-claim-fee')).toBeUndefined()
+    expect(pendingIds(query)).not.toContain('priority-claim-fee')
   })
 
   it('computes the new-drug compensation request from the marketing approval date', () => {

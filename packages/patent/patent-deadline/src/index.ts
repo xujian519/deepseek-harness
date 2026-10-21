@@ -62,6 +62,7 @@ export {
   type LatePaymentWindow,
   type NoticeInput,
   type NoticeKind,
+  type OfficeActionStage,
   type PatentKind,
   type PendingDeadline,
   type RestDayRule,
@@ -93,9 +94,6 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Services the plugin requires before registration. */
-export const inject = ['tools']
-
 /** Model-facing patent-deadline plugin configuration. */
 export interface Config {
   /** Directory holding `cn-holidays.yaml`; defaults to the packaged calendar. */
@@ -122,7 +120,7 @@ const DEFAULT_REMINDER_LEAD_DAYS = 30
 /** Schemastery configuration: calendar override, warning horizon, and mount role. */
 export const Config: z<Config> = z.object({
   calendarDir: z.string(),
-  reminderLeadDays: z.number().default(DEFAULT_REMINDER_LEAD_DAYS),
+  reminderLeadDays: z.number().min(0).step(1).default(DEFAULT_REMINDER_LEAD_DAYS),
   annuityHorizonYears: z.number().min(1).step(1).default(DEFAULT_ANNUITY_HORIZON_YEARS),
   timeZone: z.string().default(DEFAULT_TIME_ZONE),
   provideService: z.boolean().default(false),
@@ -131,23 +129,36 @@ export const Config: z<Config> = z.object({
 
 /**
  * Register the patent_deadlines tool over the configured holiday arrangement,
- * and/or publish the evaluator as the `patentDeadline` service.
+ * and/or publish the evaluator as the `patentDeadline` service. A service-only
+ * mount does not require the tools service.
  * @param ctx - registrant context carrying the tool registry.
  * @param config - calendar override, reminder and annuity horizons, time zone, and mount role.
+ * @returns a promise settling after the tool fiber loaded, so awaiting the plugin means its tool is registered.
  */
-export function apply(ctx: Context, config: Config): void {
+export async function apply(ctx: Context, config: Config): Promise<void> {
   const timeZone = config.timeZone ?? DEFAULT_TIME_ZONE
   // An unusable zone fails at load rather than silently reading the host's date.
   new Intl.DateTimeFormat('en-CA', { timeZone })
+  const provideService = config.provideService ?? false
+  const exposeTool = config.exposeTool ?? true
+  if (!provideService && !exposeTool) {
+    throw new Error(
+      'patent-deadline: provideService 与 exposeTool 不能同时为 false；'
+      + '该配置既不发布 patentDeadline 服务，也不注册 patent_deadlines 工具。',
+    )
+  }
   const shared = {
     calendar: loadWorkCalendar(config.calendarDir),
     reminderLeadDays: config.reminderLeadDays ?? DEFAULT_REMINDER_LEAD_DAYS,
     annuityHorizonYears: config.annuityHorizonYears ?? DEFAULT_ANNUITY_HORIZON_YEARS,
   }
-  if (config.provideService ?? false) {
+  if (provideService) {
     ctx.provide('patentDeadline', createPatentDeadlineService(shared))
   }
-  if (config.exposeTool ?? true) {
-    ctx.tools.register(createPatentDeadlinesTool({ ...shared, timeZone }))
+  if (exposeTool) {
+    await ctx.inject(['tools'], (toolsCtx) => {
+      toolsCtx.effect(() =>
+        toolsCtx.tools.register(createPatentDeadlinesTool({ ...shared, timeZone })))
+    })
   }
 }
