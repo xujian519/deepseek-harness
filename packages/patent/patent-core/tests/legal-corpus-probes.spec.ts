@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeNumericRanges,
   deriveAllElementsCoverage,
-  deriveClaimRefs,
   extractCitations,
   type ChartRow,
   type ClaimElement,
@@ -46,25 +45,6 @@ describe('legal corpus probes', () => {
 
     it.fails('后缀式下界（70℃以上）应按区间处理', () => {
       expect(verdictOf('温度在 70℃以上', 'D1 公开温度为 100-200℃')).toBe('overlapped')
-    })
-  })
-
-  describe('A2 claim refs', () => {
-    it.fails('引用语超出现行扫描窗口时不得默认判为独立权利要求', () => {
-      const refs = deriveClaimRefs([
-        '1. 一种装置，其特征在于，包括壳体。',
-        '2. 一种用于高温高压环境下的换热装置，其包括壳体、设置于所述壳体内部的换热管以及用于连接所述换热管的集流管，其特征在于，根据权利要求1所述的换热装置，所述壳体为塑料。',
-      ].join('\n'))
-      expect(refs.find(ref => ref.claimNo === 2)?.claimType).not.toBe('independent')
-    })
-
-    it.fails('“前述权利要求中任一项”应解析为引用全部在前权项', () => {
-      const refs = deriveClaimRefs([
-        '1. 一种装置，其特征在于，包括壳体。',
-        '2. 根据权利要求1所述的装置，其特征在于，所述壳体为塑料。',
-        '3. 根据前述权利要求中任一项所述的装置，其特征在于，所述壳体可拆。',
-      ].join('\n'))
-      expect(refs.find(ref => ref.claimNo === 3)?.refersTo).toEqual([1, 2])
     })
   })
 

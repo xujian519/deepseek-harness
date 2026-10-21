@@ -7,10 +7,13 @@
  * 推出、并由调用方逐条核对，比让模型自己声明"这是从属权项、引用权 1"更可靠。
  *
  * 判定口径：
- * - 只在权项正文的开头一段（`PREAMBLE_SCAN_LIMIT` 字以内）找引用语，权项正文中途出现的
- *   "如权利要求 1 所述"（例如转述另一权项）不算本权项的引用关系。
- * - 引用语形式取"（根据｜如｜按照）权利要求 N……所述"，编号可写为多值或区间
- *   （`1或2`、`1、2`、`1-3`、`1至3`）；区间按升序展开为逐项，供覆盖判定取并集。
+ * - 带前缀的引用语（`根据权利要求 1 所述`、`如权利要求 2 所述`、`按照权利要求 1-3 所述`）
+ *   在权项正文任意位置生效：实践中引言可以很长，引用语也可能落在特征部分。
+ * - 不带前缀的 `权利要求 N 所述` 只在该权项的引言部分生效（特征部分之前，或第一句以内），
+ *   避免把正文中“装配权利要求 1 所述的装置”这类转述误判为本权项的引用关系。
+ * - 概括引用（`前述权利要求中任一项`、`上述权利要求之一`）展开为全部在前权项。
+ * - 引用语编号可写为多值或区间（`1或2`、`1、2`、`1-3`、`1至3`）；区间按升序展开为
+ *   逐项，供覆盖判定取并集。
  * - 无引用语即独立权利要求。权利要求书无行首编号（单条权项、无编号输入）时返回空数组，
  *   调用方按"引用关系未知"处理，不得据空数组断言全部权项均为独立权利要求。
  */
@@ -18,21 +21,40 @@
 import type { ClaimRef, ClaimRefIssue } from '../protocol/types.ts'
 import { splitClaimSegments } from './element-validator.ts'
 
-/** 引用语只在权项正文开头这一段内查找（字）。 */
-const PREAMBLE_SCAN_LIMIT = 40
-
 /** 区间引用展开的上限：跨度大于它的写法不当作权项区间展开。 */
 const RANGE_EXPANSION_LIMIT = 30
 
 /** 行首权项编号前缀（与 element-validator 的切分口径一致）。 */
 const CLAIM_NUMBER_PREFIX_RE = /^\s*\d+[.、．]\s*/
 
+/** 编号表达式：多个编号以并列或区间分隔符相连。 */
+const REFERENCE_NUMBERS = '[0-9]+(?:\\s*(?:或|和|至|到|、|,|，|～|~|-|－|—)\\s*[0-9]+)*'
+
 /**
- * 引用语：`根据权利要求 1 所述`、`如权利要求 1 或 2 所述的`、`按照权利要求 1-3 中任一项所述`。
- * 捕获组 1 为编号表达式（可含并列分隔符与区间）。
+ * 带前缀的引用语，在权项正文任意位置生效。捕获组 1 为编号表达式。
+ * `按` 不在此列：`按权利要求 1 所述进行装配` 是对方法的转述，不是引用关系。
  */
-const REFERENCE_RE =
-  /(?:根据|如|按照|依)?权利要求\s*([0-9]+(?:\s*(?:或|和|至|到|、|,|，|～|~|-|－|—)\s*[0-9]+)*)\s*(?:中任(?:意)?一项|之一)?\s*所述/
+const PREFIXED_REFERENCE_RE = new RegExp(
+  `(?:根据|如|按照|依)\\s*权利要求\\s*(${REFERENCE_NUMBERS})\\s*(?:中任(?:意)?一项|之一)?\\s*所述`,
+)
+
+/** 不带前缀的引用语，只在引言部分生效。捕获组 1 为编号表达式。 */
+const BARE_REFERENCE_RE = new RegExp(
+  `权利要求\\s*(${REFERENCE_NUMBERS})\\s*(?:中任(?:意)?一项|之一)?\\s*所述`,
+)
+
+/**
+ * 概括引用：`前述权利要求中任一项`、`上述权利要求之一`、`权利要求中任一项`。
+ * 不捕获编号：所指范围为调用方给出的全部在前权项。
+ */
+const CATCH_ALL_REFERENCE_RE =
+  /(?:根据|如|按照|依)?\s*(?:(?:前述|上述|在前|前面|以上)(?:的)?)?权利要求\s*(?:中\s*)?(?:任(?:意)?一项|之一)\s*所述/
+
+/** 特征部分起点；在此之前是引言部分。 */
+const CHARACTERIZING_MARKER_RE = /其特征在[于於]|其特征是/
+
+/** 无特征部分标记时引言的结束：第一条句末标点。 */
+const SENTENCE_END_RE = /[。；]/
 
 /** 编号表达式里的并列分隔符（区间符不在其中，区间要整段识别）。 */
 const DISJUNCTION_RE = /\s*[或和、,，]\s*/
@@ -71,12 +93,12 @@ export function parseReferenceNumbers(raw: string): number[] {
  */
 export function deriveClaimRefs(claimText: string): ClaimRef[] {
   const segments = [...splitClaimSegments(claimText)].sort((a, b) => a[0] - b[0])
+  const claimNos = segments.map(([claimNo]) => claimNo)
   const refs: ClaimRef[] = []
   for (const [claimNo, segment] of segments) {
-    const body = segment.replace(CLAIM_NUMBER_PREFIX_RE, '').slice(0, PREAMBLE_SCAN_LIMIT)
-    const reference = REFERENCE_RE.exec(body)
-    /* v8 ignore next -- REFERENCE_RE always captures the number expression. */
-    const refersTo = reference === null ? [] : parseReferenceNumbers(reference[1] ?? '')
+    const body = segment.replace(CLAIM_NUMBER_PREFIX_RE, '')
+    const earlierClaimNos = claimNos.filter(other => other < claimNo)
+    const refersTo = findReference(body, earlierClaimNos)?.refersTo ?? []
     refs.push({
       claimNo,
       claimType: refersTo.length > 0 ? 'dependent' : 'independent',
@@ -84,6 +106,51 @@ export function deriveClaimRefs(claimText: string): ClaimRef[] {
     })
   }
   return refs
+}
+
+/**
+ * 在一条权项正文中找引用语：取最早出现的可识别写法。
+ *
+ * 三种写法同时参与并按出现位置排序，避免"引言里的无前缀引用"遮住后面真正的带前缀引用
+ * （或反之）；位置相同即同一起点，取先加入者不影响结果。
+ * @param body - 已剥离行首编号的权项正文。
+ * @param earlierClaimNos - 编号更小的全部权项号，供概括引用展开。
+ * @returns 引用语位置与所引权项号；无引用语时为 undefined。
+ */
+function findReference(
+  body: string,
+  earlierClaimNos: readonly number[],
+): { index: number; refersTo: number[] } | undefined {
+  const candidates: Array<{ index: number; refersTo: number[] }> = []
+  const catchAll = CATCH_ALL_REFERENCE_RE.exec(body)
+  if (catchAll !== null) candidates.push({ index: catchAll.index, refersTo: [...earlierClaimNos] })
+  const prefixed = PREFIXED_REFERENCE_RE.exec(body)
+  if (prefixed !== null) candidates.push({ index: prefixed.index, refersTo: parseMatchedNumbers(prefixed) })
+  const bare = BARE_REFERENCE_RE.exec(preambleOf(body))
+  if (bare !== null) candidates.push({ index: bare.index, refersTo: parseMatchedNumbers(bare) })
+  candidates.sort((left, right) => left.index - right.index)
+  return candidates[0]
+}
+
+/**
+ * 提取权项的引言部分：特征部分标记之前，或（无标记时）第一句之内。
+ * @param body - 已剥离行首编号的权项正文。
+ * @returns 引言部分文本。
+ */
+function preambleOf(body: string): string {
+  const marker = CHARACTERIZING_MARKER_RE.exec(body)
+  const end = marker?.index ?? body.search(SENTENCE_END_RE)
+  return end >= 0 ? body.slice(0, end) : body
+}
+
+/**
+ * 读取引用语捕获的编号表达式。
+ * @param match - 引用语匹配结果。
+ * @returns 升序去重的权项号。
+ */
+function parseMatchedNumbers(match: RegExpExecArray): number[] {
+  /* v8 ignore next -- both reference patterns always capture the number expression. */
+  return parseReferenceNumbers(match[1] ?? '')
 }
 
 /** 引用关系缺陷（契约见协议层）。 */

@@ -59,4 +59,34 @@ export const CLAIM_REFS_CASES: readonly ClaimRefsCase[] = [
     expected: [],
     expectedIssues: [],
   },
+  {
+    engine: 'claim-refs',
+    id: 'REF-004',
+    title: '长引言且引用语落在特征部分时仍识别为从属权项',
+    text: [
+      '1. 一种装置，其特征在于，包括壳体。',
+      '2. 一种用于高温高压环境下的换热装置，其包括壳体、设置于所述壳体内部的换热管以及用于连接所述换热管的集流管，其特征在于，根据权利要求1所述的换热装置，所述壳体为塑料。',
+    ].join('\n'),
+    expected: [
+      { claimNo: 1, claimType: 'independent', refersTo: [] },
+      { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+    ],
+    expectedIssues: [],
+  },
+  {
+    engine: 'claim-refs',
+    id: 'REF-005',
+    title: '概括引用展开为全部在前权项',
+    text: [
+      '1. 一种装置，其特征在于，包括壳体。',
+      '2. 根据权利要求1所述的装置，其特征在于，所述壳体为塑料。',
+      '3. 根据前述权利要求中任一项所述的装置，其特征在于，所述壳体可拆。',
+    ].join('\n'),
+    expected: [
+      { claimNo: 1, claimType: 'independent', refersTo: [] },
+      { claimNo: 2, claimType: 'dependent', refersTo: [1] },
+      { claimNo: 3, claimType: 'dependent', refersTo: [1, 2] },
+    ],
+    expectedIssues: [],
+  },
 ]
