@@ -1,0 +1,15 @@
+claude-for-legal-ZH
+Copyright (c) 陈石律师 / CSlawyer1985
+Licensed under the Apache License, Version 2.0.
+Source: https://github.com/CSlawyer1985/claude-for-legal-ZH
+Source version: 1.1.0
+Source commit: unknown (source checkout has no git metadata)
+Source tree hash: 5d5a4827e81aac2634c8eaa71054ed07fc94b619edd61e3f16e95b27f6498f4a
+
+Modifications for DeepSeek Harness:
+- Skills are namespaced as legal-<domain>-<skill>.
+- Claude Code configuration paths and slash commands are rewritten to the
+  workspace-relative ./.legal and ./matters layout.
+- Per-domain matter-workspace and review-proposals skills are removed; one
+  legal-matter skill owns the active-matter pointer.
+- Legal MCP references are rewritten to ego lite official-source retrieval.

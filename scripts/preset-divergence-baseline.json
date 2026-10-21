@@ -3,6 +3,7 @@
     "agent-instructions": {
       "cordis.patch.yml": "bec4a41f82",
       "document.patch.yml": "6fcd59e7d0",
+      "legal.patch.yml": "ba19a5e65f",
       "patent.patch.yml": "6c49266e16",
       "ptc.patch.yml": "bec4a41f82",
       "standard.patch.yml": "bec4a41f82"
@@ -10,6 +11,7 @@
     "command-compact": {
       "cordis.patch.yml": "c72e6939a7",
       "document.patch.yml": "aff31e4dcd",
+      "legal.patch.yml": "aff31e4dcd",
       "minimal.patch.yml": "c72e6939a7",
       "patent.patch.yml": "aff31e4dcd",
       "ptc.patch.yml": "c72e6939a7",
@@ -18,6 +20,7 @@
     "command-goal": {
       "cordis.patch.yml": "83b93b724a",
       "document.patch.yml": "fa3e9c3a0c",
+      "legal.patch.yml": "fa3e9c3a0c",
       "patent.patch.yml": "45fcbe2056",
       "ptc.patch.yml": "83b93b724a",
       "standard.patch.yml": "83b93b724a"
@@ -25,6 +28,7 @@
     "compaction": {
       "cordis.patch.yml": "d19e50f6cb",
       "document.patch.yml": "d19e50f6cb",
+      "legal.patch.yml": "d19e50f6cb",
       "minimal.patch.yml": "6210f72039",
       "patent.patch.yml": "d19e50f6cb",
       "ptc.patch.yml": "d19e50f6cb",
@@ -33,14 +37,20 @@
     "compaction-basic": {
       "cordis.patch.yml": "34268d526f",
       "document.patch.yml": "1e2edb1d69",
+      "legal.patch.yml": "1e2edb1d69",
       "minimal.patch.yml": "34268d526f",
       "patent.patch.yml": "1e2edb1d69",
       "ptc.patch.yml": "34268d526f",
       "standard.patch.yml": "34268d526f"
     },
+    "doc-template": {
+      "document.patch.yml": "4e39d12aeb",
+      "legal.patch.yml": "aa49e10ed8"
+    },
     "persona": {
       "cordis.patch.yml": "128bdee840",
       "document.patch.yml": "07fef4f229",
+      "legal.patch.yml": "f93345e84a",
       "minimal.patch.yml": "cc5f870f42",
       "patent.patch.yml": "84aa65d54b",
       "ptc.patch.yml": "b5a7fe963b",
@@ -49,6 +59,7 @@
     "plan-mode": {
       "cordis.patch.yml": "d6d045acc3",
       "document.patch.yml": "3b9d82f73e",
+      "legal.patch.yml": "de7a7ea909",
       "patent.patch.yml": "01fc7c7376",
       "ptc.patch.yml": "d6d045acc3",
       "standard.patch.yml": "93d708626a"
@@ -56,6 +67,7 @@
     "skill-filesystem": {
       "cordis.patch.yml": "1ae627441e",
       "document.patch.yml": "99ea7ae70d",
+      "legal.patch.yml": "ac42d1bd86",
       "patent.patch.yml": "dfe4d3f371",
       "ptc.patch.yml": "6932bc5e48",
       "standard.patch.yml": "6932bc5e48"
@@ -63,6 +75,7 @@
     "time-context": {
       "cordis.patch.yml": "84b7ba8963",
       "document.patch.yml": "28e764c7af",
+      "legal.patch.yml": "25ca07826f",
       "patent.patch.yml": "2adfe106f9",
       "ptc.patch.yml": "84b7ba8963",
       "standard.patch.yml": "84b7ba8963"
@@ -70,6 +83,7 @@
     "tool-ask-user": {
       "cordis.patch.yml": "f4001ff26a",
       "document.patch.yml": "7165759431",
+      "legal.patch.yml": "7165759431",
       "patent.patch.yml": "7165759431",
       "ptc.patch.yml": "f4001ff26a",
       "standard.patch.yml": "f4001ff26a"
@@ -77,13 +91,19 @@
     "tool-bash": {
       "cordis.patch.yml": "57e2038c8d",
       "document.patch.yml": "377fb54b77",
+      "legal.patch.yml": "377fb54b77",
       "patent.patch.yml": "377fb54b77",
       "ptc.patch.yml": "57e2038c8d",
       "standard.patch.yml": "57e2038c8d"
     },
+    "tool-document-deliver": {
+      "document.patch.yml": "7fd8e0ac04",
+      "legal.patch.yml": "d2641ea609"
+    },
     "tool-fs": {
       "cordis.patch.yml": "eac4eb155e",
       "document.patch.yml": "630bf4b5e9",
+      "legal.patch.yml": "630bf4b5e9",
       "minimal.patch.yml": "7d9ea77daa",
       "patent.patch.yml": "630bf4b5e9",
       "ptc.patch.yml": "eac4eb155e",
@@ -92,6 +112,7 @@
     "tool-fs-search": {
       "cordis.patch.yml": "1bddd43402",
       "document.patch.yml": "9b1c3013e2",
+      "legal.patch.yml": "fbc625144f",
       "patent.patch.yml": "13c366c7a1",
       "ptc.patch.yml": "1bddd43402",
       "standard.patch.yml": "1bddd43402"
@@ -99,6 +120,7 @@
     "tool-goal": {
       "cordis.patch.yml": "06f8cb4910",
       "document.patch.yml": "3d5d04aaf1",
+      "legal.patch.yml": "fcc47695bf",
       "patent.patch.yml": "6120a152b6",
       "ptc.patch.yml": "06f8cb4910",
       "standard.patch.yml": "06f8cb4910"
@@ -106,6 +128,7 @@
     "tool-jobs": {
       "cordis.patch.yml": "c6b0f62bce",
       "document.patch.yml": "bc8d6f65c9",
+      "legal.patch.yml": "5c70705a4b",
       "patent.patch.yml": "7911e129f9",
       "ptc.patch.yml": "c6b0f62bce",
       "standard.patch.yml": "c6b0f62bce"
@@ -123,6 +146,7 @@
     "tool-pwsh": {
       "cordis.patch.yml": "472a1e4609",
       "document.patch.yml": "45c455d972",
+      "legal.patch.yml": "45c455d972",
       "patent.patch.yml": "45c455d972",
       "ptc.patch.yml": "472a1e4609",
       "standard.patch.yml": "472a1e4609"
@@ -130,6 +154,7 @@
     "tool-result-pruner": {
       "cordis.patch.yml": "85baf4c126",
       "document.patch.yml": "1bc2659fb5",
+      "legal.patch.yml": "01c4fe64e1",
       "patent.patch.yml": "235a1563be",
       "ptc.patch.yml": "85baf4c126",
       "standard.patch.yml": "85baf4c126"
@@ -137,6 +162,7 @@
     "tool-schedule": {
       "cordis.patch.yml": "6da634189a",
       "document.patch.yml": "fe81d76ef6",
+      "legal.patch.yml": "773081dd4d",
       "patent.patch.yml": "15286858fe",
       "ptc.patch.yml": "6da634189a",
       "standard.patch.yml": "6da634189a"
@@ -144,6 +170,7 @@
     "tool-skill": {
       "cordis.patch.yml": "d132cb2a6d",
       "document.patch.yml": "a2662fb981",
+      "legal.patch.yml": "216a2a0cf2",
       "patent.patch.yml": "9da42c1fdc",
       "ptc.patch.yml": "d132cb2a6d",
       "standard.patch.yml": "d132cb2a6d"
@@ -151,6 +178,7 @@
     "tool-subagent": {
       "cordis.patch.yml": "cf47f743a7",
       "document.patch.yml": "2a916d7eda",
+      "legal.patch.yml": "2a916d7eda",
       "patent.patch.yml": "2a916d7eda",
       "ptc.patch.yml": "cf47f743a7",
       "standard.patch.yml": "cf47f743a7"
@@ -158,6 +186,7 @@
     "tool-subagent-control": {
       "cordis.patch.yml": "3d9b0c534b",
       "document.patch.yml": "d5aefc8105",
+      "legal.patch.yml": "d5aefc8105",
       "patent.patch.yml": "d5aefc8105",
       "ptc.patch.yml": "3d9b0c534b",
       "standard.patch.yml": "3d9b0c534b"
@@ -165,6 +194,7 @@
     "tool-subagent-fork": {
       "cordis.patch.yml": "a0bca0cb97",
       "document.patch.yml": "98bf1182da",
+      "legal.patch.yml": "69e3fbf193",
       "patent.patch.yml": "69e3fbf193",
       "ptc.patch.yml": "a0bca0cb97",
       "standard.patch.yml": "a0bca0cb97"
@@ -172,6 +202,7 @@
     "tool-subagent-list-agents": {
       "cordis.patch.yml": "9d73757b44",
       "document.patch.yml": "a35e773c1d",
+      "legal.patch.yml": "a35e773c1d",
       "patent.patch.yml": "a35e773c1d",
       "ptc.patch.yml": "9d73757b44",
       "standard.patch.yml": "9d73757b44"
@@ -179,6 +210,7 @@
     "tool-todo": {
       "cordis.patch.yml": "b47093e288",
       "document.patch.yml": "a5fad262cb",
+      "legal.patch.yml": "bc44fd4358",
       "patent.patch.yml": "271ab73bdd",
       "ptc.patch.yml": "b47093e288",
       "standard.patch.yml": "b47093e288"
@@ -186,6 +218,7 @@
     "tool-web": {
       "cordis.patch.yml": "73f227d8e9",
       "document.patch.yml": "f5389a5a05",
+      "legal.patch.yml": "d8f57f896a",
       "patent.patch.yml": "6d1ff9647d",
       "ptc.patch.yml": "73f227d8e9",
       "standard.patch.yml": "72e583f2ce"
@@ -193,6 +226,7 @@
     "tool-workflow": {
       "cordis.patch.yml": "0898baaf9f",
       "document.patch.yml": "eb4ebd71c6",
+      "legal.patch.yml": "eb4ebd71c6",
       "patent.patch.yml": "d4c6822d04",
       "ptc.patch.yml": "1aa5baad08",
       "standard.patch.yml": "0898baaf9f"
@@ -200,6 +234,7 @@
     "workflow-ptc": {
       "cordis.patch.yml": "9419ae5da2",
       "document.patch.yml": "b49be22942",
+      "legal.patch.yml": "b49be22942",
       "patent.patch.yml": "b49be22942",
       "ptc.patch.yml": "7e5e4172cb",
       "standard.patch.yml": "9419ae5da2"
@@ -228,6 +263,27 @@
       "writing-patterns"
     ],
     "document.patch.yml": [
+      "methodology",
+      "openviking",
+      "patent",
+      "patent-data",
+      "patent-deadline",
+      "patent-document",
+      "patent-fees",
+      "patent-filing",
+      "patent-knowledge",
+      "patent-law",
+      "patent-rule",
+      "patent-teams",
+      "patent-tools",
+      "patent-workflow",
+      "preset-patent",
+      "self-evolve",
+      "self-evolve-benchmark",
+      "tool-literature",
+      "writing-patterns"
+    ],
+    "legal.patch.yml": [
       "methodology",
       "openviking",
       "patent",
