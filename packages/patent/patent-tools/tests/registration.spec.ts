@@ -152,7 +152,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     expect(ctx.tools.schemas().map(schema => schema.name)).toContain('patent_workflow_run')
   })
 
-  it('每个内置 manifest 声明的 atom 在完整组合下都有契约与 handler（跨包注册：slop-gate 属本包）', async () => {
+  it('每个内置 manifest 声明的 atom 在完整组合下都有契约与 handler（跨包注册：六个 patent-tools 原子属本包）', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
