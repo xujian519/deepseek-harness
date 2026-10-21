@@ -11,8 +11,13 @@ English | [中文](README.zh.md)
 
 Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the `StageProvider`/`StageHandler` atoms with twenty-four builtin handlers, the `PatentModelPort` adapter, the dual-track checker, the technical-problem checks, the TRIZ contradiction analysis, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers, the response plan and reexamination sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol and text utilities, the IPC classifier and standards lookup, the controlled draft model (SpecDraft/TemplateDraft) and validators, and persistence/path helpers.
 
+## Package surface
+
+The package exports one entry point, `@deepseek-ai/dsh-patent-core`, resolving to `lib/index.js` with declarations in `lib/types/index.d.ts`; `./src/*` deep imports are not exported and fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`. The root barrel re-exports every declared type and a curated runtime set: the engines, registries, graph builders, parsers, validators, and stores documented below. Runtime helpers that only builtin atoms use stay internal; reach that behavior through `registerBuiltinAtoms()`, the graph builders, or the aggregate engine for the module. `tests/package-surface.spec.ts` checks that every export target ships in `files`.
+
 ## Table of Contents
 
+- [Package surface](#package-surface)
 - [Atoms engines](#atoms-engines)
 - [ModelPort](#modelport)
 - [Checker (dual-track deterministic rule engine)](#checker-dual-track-deterministic-rule-engine)

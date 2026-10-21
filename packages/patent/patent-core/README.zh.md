@@ -11,8 +11,14 @@ kind: "package-reference"
 
 纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 24 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、专利交付工具的受控草案模型（SpecDraft/TemplateDraft）及校验器、以及持久化/路径助手。
 
+<a id="package-surface"></a>
+## 包入口与导出
+
+本包只导出根入口 `@deepseek-ai/dsh-patent-core`，解析到 `lib/index.js`，声明文件为 `lib/types/index.d.ts`；`./src/*` 深层导入不再导出，会以 `ERR_PACKAGE_PATH_NOT_EXPORTED` 失败。根 barrel 再导出各模块声明的全部类型，以及按消费方使用筛选后的运行时值：下文记述的引擎、注册表、图构造函数、解析器、校验器与存储。仅供内建 atom 使用的运行时助手保留在包内，相关行为经由 `registerBuiltinAtoms()`、图构造函数或对应模块的聚合引擎获得。`tests/package-surface.spec.ts` 校验每个导出目标都包含在 `files` 中。
+
 ## 目录
 
+- [包入口与导出](#package-surface)
 - [Atoms 引擎](#atoms-engines)
 - [ModelPort](#modelport)
 - [Checker（双轨确定性规则引擎）](#checker-dual-track-deterministic-rule-engine)
