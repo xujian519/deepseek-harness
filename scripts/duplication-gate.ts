@@ -17,7 +17,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** Repo root, derived from this module's location. */
@@ -75,15 +75,34 @@ export interface ClonePairDiff {
 }
 
 /**
+ * Normalize one jscpd-reported file name to a repo-relative POSIX path.
+ * @param name - file name as jscpd reported it, possibly with backslashes.
+ * @param root - repo root the pass ran in.
+ * @param scanRoots - repo-relative directories the pass scanned.
+ * @returns the repo-relative path, or the normalized name when no scan root contains it.
+ */
+export function normalizeDuplicatePath(name: string, root: string, scanRoots: readonly string[]): string {
+  const posix = name.replaceAll('\\', '/')
+  if (scanRoots.some(scanRoot => posix === scanRoot || posix.startsWith(`${scanRoot}/`))) return posix
+  if (isAbsolute(posix)) {
+    const fromRoot = relative(root, posix).replaceAll('\\', '/')
+    if (fromRoot !== '' && fromRoot !== '..' && !fromRoot.startsWith('../')) return fromRoot
+  }
+  // A bare name is relative to one scanned root; pick the root that contains it instead of assuming the first.
+  const owner = scanRoots.find(scanRoot => existsSync(join(root, scanRoot, posix)))
+  return owner === undefined ? posix : `${owner}/${posix}`
+}
+
+/**
  * Normalize one reported duplicate into an unordered, repo-relative pair key.
  * @param duplicate - one entry from the jscpd JSON report.
- * @param root - repo-relative root the pass ran over.
+ * @param root - repo root the pass ran in.
+ * @param scanRoots - repo-relative directories the pass scanned.
  * @returns `a|b` with the lexicographically smaller path first.
  */
-function pairKey(duplicate: JscpdDuplicate, root: string): string {
+function pairKey(duplicate: JscpdDuplicate, root: string, scanRoots: readonly string[]): string {
   const paths = [duplicate.firstFile.name, duplicate.secondFile.name]
-    .map(name => name.replaceAll('\\', '/'))
-    .map(name => name.startsWith('packages/') || name.startsWith('scripts/') ? name : `${root}/${name}`)
+    .map(name => normalizeDuplicatePath(name, root, scanRoots))
     .sort()
   /* v8 ignore next -- jscpd reports two files per duplicate, so both entries exist. */
   return `${paths[0] ?? ''}|${paths[1] ?? ''}`
@@ -155,7 +174,7 @@ export function detectClonePairs(
       throw new Error(`duplication-gate: ${roots.join(', ')} scanned no files; refusing to report an empty corpus`)
     }
     const pairs = new Set<string>()
-    for (const duplicate of report.duplicates) pairs.add(pairKey(duplicate, roots[0] ?? ''))
+    for (const duplicate of report.duplicates) pairs.add(pairKey(duplicate, root, roots))
     return [...pairs].sort()
   } finally {
     rmSync(reportDir, { recursive: true, force: true })
