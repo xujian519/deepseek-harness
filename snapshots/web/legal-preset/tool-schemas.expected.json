@@ -1,0 +1,1129 @@
+{
+  "initial": [
+    {
+      "name": "ask_user_question",
+      "description": "Ask the user a concise question when you need confirmation, a choice, or missing information before proceeding.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "questions": {
+            "type": "array",
+            "description": "Questions to ask the user before continuing.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Stable id for this question; echoed in the answer."
+                },
+                "question": {
+                  "type": "string",
+                  "description": "The specific question to ask the user."
+                },
+                "header": {
+                  "type": "string",
+                  "description": "Optional short heading for the question, such as \"Confirm\" or \"Choose Mode\"."
+                },
+                "options": {
+                  "type": "array",
+                  "description": "Optional choices to show the user. If you recommend one, put it first and append \"(Recommended)\" to that label.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "description": "Short user-facing option label."
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "One sentence explaining the tradeoff or impact."
+                      }
+                    },
+                    "required": [
+                      "label"
+                    ]
+                  }
+                },
+                "multi_select": {
+                  "type": "boolean",
+                  "description": "Whether the user may select more than one option. Defaults to false."
+                }
+              },
+              "required": [
+                "id",
+                "question"
+              ]
+            }
+          }
+        },
+        "required": [
+          "questions"
+        ]
+      }
+    },
+    {
+      "name": "bash",
+      "description": "Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell; pass `workdir` instead of using `cd`. Managed `$DSH_*` variables expose current harness environment facts. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Provide `description` before `command` in the arguments. Before any delete or move, verify that the resolved absolute target path is the intended one; never run it against a computed path you have not checked. An unset variable expands to an empty string, so guard variables in such paths with `${VAR:?}`. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]`, a policy denial: do not retry another way.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
+          },
+          "command": {
+            "type": "string",
+            "description": "The bash command to execute."
+          },
+          "timeoutMs": {
+            "type": "number",
+            "description": "Timeout in milliseconds. The executor applies its configured default and cap; on expiry the command moves to the background as a job instead of being killed."
+          },
+          "workdir": {
+            "type": "string",
+            "description": "Working directory for this command. Defaults to the session workspace; a relative path is resolved against it."
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Run in the background and return a job id immediately (collect with job_output, stop with job_kill). No timeout applies."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The narrowest wider sandbox mode for a one-shot retry of the exact command the sandbox just denied; the retry asks the user for approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact command needs the wider access. Use the language of the user’s current request."
+          }
+        },
+        "required": [
+          "description",
+          "command"
+        ]
+      }
+    },
+    {
+      "name": "create_goal",
+      "description": "Create a persisted goal that keeps this session working across automatic continuation rounds. Use it when the direct human request is a long-running objective, even if the user did not say \"goal\"; not for single-turn work.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "description": "The concrete completion objective inferred from the direct human request."
+          },
+          "max_goal_rounds": {
+            "type": "number",
+            "description": "Optional positive safe-integer limit on automatic continuation rounds."
+          }
+        },
+        "required": [
+          "objective"
+        ]
+      }
+    },
+    {
+      "name": "document_deliver",
+      "description": "登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。\n\n工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±20% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。\n\n两条与声明本身有关的判定：文件按扩展名决定用哪种读取器（声明格式与扩展名不一致会提示，并按扩展名核验）；读不出内容的文件必须在 unreadable_ack 里写一条原因（path + reason_text）才允许登记，超出本部署读取上限的文件除外。p0 用质量门技能里的稳定 id（P0-1 … P0-6）填写，工具会把缺失或无法识别的项列出来。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "description": "本次交付的全部成品文件与格式（至少一个）；path 为工作区相对路径（或绝对路径），如 out/report.html",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "工作区相对路径（或绝对路径）"
+                },
+                "format": {
+                  "type": "string",
+                  "description": "成品导出格式",
+                  "enum": [
+                    "markdown",
+                    "html",
+                    "pdf",
+                    "docx",
+                    "pptx",
+                    "other"
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "format"
+              ]
+            }
+          },
+          "gate": {
+            "type": "object",
+            "description": "质量门结果：P0 全过才允许登记",
+            "additionalProperties": false,
+            "properties": {
+              "p0": {
+                "type": "array",
+                "description": "已通过并核验的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；缺失项与无法识别的写法会在结果里列出",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "p1": {
+                "type": "array",
+                "description": "已满足的 P1 自检项（无则省略）",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "p0"
+            ]
+          },
+          "brief_ref": {
+            "type": "string",
+            "description": "本次交付依据的 brief 文件路径（如 brief.md），可省略"
+          },
+          "style": {
+            "type": "string",
+            "description": "核验所用的书写风格名（如 assistant-neutral、patent-standard）；省略时用本部署配置的默认风格"
+          },
+          "char_budget": {
+            "type": "integer",
+            "description": "全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅"
+          },
+          "unreadable_ack": {
+            "type": "array",
+            "description": "为每个\"无法核验\"（unreadable）的交付文件写一条原因；缺失时登记被拒，超出本部署读取上限的文件不需要",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "无法核验的文件路径，与 files 中的 path 一致"
+                },
+                "reason_text": {
+                  "type": "string",
+                  "description": "为什么该文件在无法核验的情况下仍要交付"
+                }
+              },
+              "required": [
+                "path",
+                "reason_text"
+              ]
+            }
+          }
+        },
+        "required": [
+          "files",
+          "gate"
+        ]
+      }
+    },
+    {
+      "name": "edit",
+      "description": "Edit an existing UTF-8 text file by replacing literal text.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to edit, resolved by the filesystem backend. Provide `file_path` before `old_string` and `new_string` in the arguments."
+          },
+          "old_string": {
+            "type": "string",
+            "description": "Literal text to replace."
+          },
+          "new_string": {
+            "type": "string",
+            "description": "Literal replacement text. Use an empty string to delete the match."
+          },
+          "replace_all": {
+            "type": "boolean",
+            "description": "Replace all matches. Defaults to false; when false, old_string must appear exactly once."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request."
+          }
+        },
+        "required": [
+          "file_path",
+          "old_string",
+          "new_string"
+        ]
+      }
+    },
+    {
+      "name": "exit_plan_mode",
+      "description": "Use only in plan mode. Present your plan for the user's review and, on approval, leave plan mode. The user may approve (carry out the plan from your next step) or keep planning — their feedback comes back in the tool result; revise and present again.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "description": "The complete plan, as markdown, starting with a # heading that names it."
+          }
+        },
+        "required": [
+          "plan"
+        ]
+      }
+    },
+    {
+      "name": "get_goal",
+      "description": "Read the current session goal, including the id and revision that update_goal requires.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "glob",
+      "description": "Find files, not directories, whose paths match a glob pattern, including hidden and ignored files. Returns up to 100 paths in modification-time order; a larger result keeps the first paths and reports where the complete list was saved.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Glob pattern to match file paths against (e.g. \"**/*.ts\", \"src/**/*.test.js\"). A pattern with no \"/\" matches the basename at any depth, so \"*\" and \"*.ts\" both search the whole tree; include a separator to anchor the depth."
+          },
+          "path": {
+            "type": "string",
+            "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it."
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      }
+    },
+    {
+      "name": "grep",
+      "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns up to 250 matches; a larger result reports where the complete match list was saved.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Regular expression to search for (ripgrep syntax)."
+          },
+          "path": {
+            "type": "string",
+            "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it."
+          },
+          "include": {
+            "type": "string",
+            "description": "One glob filter for which files to search (e.g. \"*.ts\", \"*.{js,jsx}\"). Not a list; negation is not supported."
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      }
+    },
+    {
+      "name": "interrupt_agent",
+      "description": "Ask a subagent to stop its current work. This call returns without waiting for it to stop. You can continue a local direct child's conversation later with send_message. External executions stop permanently and cannot receive follow-ups. Subagents it started will keep running.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "The id of an agent created under you: your direct child or a deeper descendant."
+          }
+        },
+        "required": [
+          "agent_id"
+        ]
+      }
+    },
+    {
+      "name": "job_kill",
+      "description": "Request cancellation of a running background job.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "Job id returned by the tool that started the background work."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional short reason, recorded in the log and forwarded to the job."
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      }
+    },
+    {
+      "name": "job_list",
+      "description": "List your background jobs (running and finished) with their ids, kinds, and statuses.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "job_output",
+      "description": "Read a background job: output since the previous read for stream jobs, or the result of a finished final-output job.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "Job id returned by the tool that started the background work."
+          },
+          "wait": {
+            "type": "boolean",
+            "description": "Block until the job finishes or the timeout expires; a timed-out wait leaves the job running. Defaults to false."
+          },
+          "timeout_ms": {
+            "type": "number",
+            "description": "Max wait in milliseconds with wait: true. Defaults to and is capped by configuration."
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      }
+    },
+    {
+      "name": "list_agents",
+      "description": "List subagents you started, with their ids, labels, and status. running means it is working; inactive means it is not currently working. You will be notified when a subagent finishes; there is no need to keep checking its status. Use send_message to continue the conversation.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "description": "children (default) lists direct children, which accept send_message in any status. descendants lists the whole tree below you with each entry's parent session id and depth; entries deeper than 1 accept only interrupt_agent.",
+            "enum": [
+              "children",
+              "descendants"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "list_doc_templates",
+      "description": "- Lists the document templates this deployment can render, with each template's variables, so a `render_doc_template` call can supply them.\n- Filters are optional and combine: category, domain, language, and a case-insensitive query over the name, title, description, and use-when text.\n- Every template also reports the formats it supports. A template that does not list `docx` cannot be rendered to DOCX.\n\nUsage notes:\n  - Read-only and offline; reads the packaged template assets and any configured override directories.\n  - Call this before `render_doc_template`: required variables and their types are only reported here.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "Exact category filter, e.g. claims"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Exact domain filter, e.g. patent"
+          },
+          "language": {
+            "type": "string",
+            "description": "Exact language filter, e.g. zh-CN"
+          },
+          "query": {
+            "type": "string",
+            "description": "Case-insensitive substring over name, title, description, and use-when"
+          }
+        }
+      }
+    },
+    {
+      "name": "read",
+      "description": "Read a UTF-8 text file and return line-numbered content.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to read, resolved by the filesystem backend."
+          },
+          "offset": {
+            "type": "number",
+            "description": "1-based first line to return. Defaults to 1."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of lines to return. Defaults to 2000."
+          }
+        },
+        "required": [
+          "file_path"
+        ]
+      }
+    },
+    {
+      "name": "read_image",
+      "description": "Read a PNG/JPEG/WebP/GIF file and return the image itself. Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the image file, resolved by the filesystem backend."
+          }
+        },
+        "required": [
+          "file_path"
+        ]
+      }
+    },
+    {
+      "name": "render_doc_template",
+      "description": "- Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.\n- Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.\n- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` carries the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: the delivered file is `content`, and a file written from `markdown` loses both.\n- `output_path` (workspace-relative or absolute) writes the rendered document through the session filesystem and reports `path` and `bytes`: text formats write UTF-8, `docx` writes the package bytes. Omit it to receive the render result without touching the filesystem.\n- Variables are substituted by name; a placeholder with no supplied value stays in the document and is reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.\n\nUsage notes:\n  - Offline; renders the packaged template assets, the configured override directories, and the packaged styles.\n  - A template that declares a writing style carries that style's disclaimer into the rendered document when the deployment enabled disclaimers.\n  - A write is governed by the deployment's file policy; a denied `output_path` fails the call with the filesystem error.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string",
+            "description": "Template name from list_doc_templates"
+          },
+          "variables": {
+            "type": "object",
+            "description": "Variable values keyed by variable name, without the {{}} wrapping; values are strings",
+            "additionalProperties": true
+          },
+          "format": {
+            "type": "string",
+            "description": "Output format: markdown, html, or docx (default markdown)",
+            "enum": [
+              "markdown",
+              "html",
+              "docx"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Document title override; defaults to the template title"
+          },
+          "author": {
+            "type": "string",
+            "description": "Author or attorney, written into the HTML metadata"
+          },
+          "date": {
+            "type": "string",
+            "description": "Document date, written into the HTML metadata"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Suggested file name stem without extension; defaults to the template name"
+          },
+          "output_path": {
+            "type": "string",
+            "description": "Write the rendered document here (workspace-relative or absolute) and report path and bytes; omit to return the content without writing"
+          }
+        },
+        "required": [
+          "template"
+        ]
+      }
+    },
+    {
+      "name": "schedule_create",
+      "description": "Create a reminder in the current session that delivers prompt when it becomes due. Supply exactly one timing parameter: after_seconds, at, every_seconds, daily, weekly, or cron. Local times that do not exist in the zone are skipped; repeated local times fire once, at the earlier instant. After downtime, a recurring reminder delivers only its latest missed occurrence. Delivery can repeat after a crash.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Reminder content to present when the target becomes due."
+          },
+          "title": {
+            "type": "string",
+            "description": "Concise task name in the user's language, at most 120 characters. Name only the core action and subject; keep essential target identifiers such as PR numbers and branch names. Do not include execution frequency (e.g. daily, hourly), scheduled dates/times, time zones, task status, or configuration and execution details (e.g. read-only mode, profile-tag filters), even when embedded in the requested or existing title. Do not append parenthetical notes. Put scheduling information in the timing parameters and execution instructions in prompt."
+          },
+          "after_seconds": {
+            "type": "number",
+            "description": "Delay in whole seconds."
+          },
+          "every_seconds": {
+            "type": "number",
+            "description": "Fixed-rate interval in whole seconds, at least 60, aligned to the creation time; changing it with schedule_update re-aligns it to the save time."
+          },
+          "daily": {
+            "type": "object",
+            "description": "Every day at a local time.",
+            "additionalProperties": false,
+            "properties": {
+              "time": {
+                "type": "string",
+                "description": "HH:mm:ss with optional 1-3 fractional digits, for example 23:00:00."
+              },
+              "time_zone": {
+                "type": "string",
+                "description": "UTC or IANA Area/Location, for example Asia/Shanghai."
+              }
+            },
+            "required": [
+              "time",
+              "time_zone"
+            ]
+          },
+          "weekly": {
+            "type": "object",
+            "description": "On the given weekdays at a local time.",
+            "additionalProperties": false,
+            "properties": {
+              "time": {
+                "type": "string",
+                "description": "HH:mm:ss with optional 1-3 fractional digits, for example 09:00:00."
+              },
+              "time_zone": {
+                "type": "string",
+                "description": "UTC or IANA Area/Location, for example Asia/Shanghai."
+              },
+              "weekdays": {
+                "type": "array",
+                "description": "ISO weekdays, Monday 1 through Sunday 7, without repetitions.",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "time",
+              "time_zone",
+              "weekdays"
+            ]
+          },
+          "cron": {
+            "type": "object",
+            "description": "Five-field Vixie cron expression in a time zone.",
+            "additionalProperties": false,
+            "properties": {
+              "expression": {
+                "type": "string",
+                "description": "minute hour day-of-month month day-of-week, for example \"*/15 9-17 * * 1-5\". When both day fields are restricted, a date matches if either one matches."
+              },
+              "time_zone": {
+                "type": "string",
+                "description": "UTC or IANA Area/Location, for example Asia/Shanghai."
+              }
+            },
+            "required": [
+              "expression",
+              "time_zone"
+            ]
+          },
+          "at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string"
+                  },
+                  "time_zone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "date",
+                  "time",
+                  "time_zone"
+                ]
+              }
+            ],
+            "description": "Absolute target: an RFC 3339 date-time with offset, or a local date, time, and IANA time_zone."
+          }
+        },
+        "required": [
+          "prompt",
+          "title"
+        ]
+      }
+    },
+    {
+      "name": "schedule_delete",
+      "description": "Delete a reminder in the current session, active or inactive. Deletion does not retract a reminder message that is already queued.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Exact schedule id."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "schedule_list",
+      "description": "List the active reminders in the current session.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "schedule_update",
+      "description": "Change a reminder in place, keeping its id. Supply a new title, prompt, or at most one timing parameter; omitted fields keep their stored values. To change a relative delay, create a new reminder.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Schedule id returned by schedule_list."
+          },
+          "title": {
+            "type": "string",
+            "description": "New task name; follow the schedule_create title rules."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "New reminder content."
+          },
+          "every_seconds": {
+            "type": "number",
+            "description": "Fixed-rate interval in whole seconds, at least 60, aligned to the creation time; changing it with schedule_update re-aligns it to the save time."
+          },
+          "daily": {
+            "type": "object",
+            "description": "Every day at a local time.",
+            "additionalProperties": false,
+            "properties": {
+              "time": {
+                "type": "string",
+                "description": "HH:mm:ss with optional 1-3 fractional digits, for example 23:00:00."
+              },
+              "time_zone": {
+                "type": "string",
+                "description": "UTC or IANA Area/Location, for example Asia/Shanghai."
+              }
+            },
+            "required": [
+              "time",
+              "time_zone"
+            ]
+          },
+          "weekly": {
+            "type": "object",
+            "description": "On the given weekdays at a local time.",
+            "additionalProperties": false,
+            "properties": {
+              "time": {
+                "type": "string",
+                "description": "HH:mm:ss with optional 1-3 fractional digits, for example 09:00:00."
+              },
+              "time_zone": {
+                "type": "string",
+                "description": "UTC or IANA Area/Location, for example Asia/Shanghai."
+              },
+              "weekdays": {
+                "type": "array",
+                "description": "ISO weekdays, Monday 1 through Sunday 7, without repetitions.",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "time",
+              "time_zone",
+              "weekdays"
+            ]
+          },
+          "cron": {
+            "type": "object",
+            "description": "Five-field Vixie cron expression in a time zone.",
+            "additionalProperties": false,
+            "properties": {
+              "expression": {
+                "type": "string",
+                "description": "minute hour day-of-month month day-of-week, for example \"*/15 9-17 * * 1-5\". When both day fields are restricted, a date matches if either one matches."
+              },
+              "time_zone": {
+                "type": "string",
+                "description": "UTC or IANA Area/Location, for example Asia/Shanghai."
+              }
+            },
+            "required": [
+              "expression",
+              "time_zone"
+            ]
+          },
+          "at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string"
+                  },
+                  "time_zone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "date",
+                  "time",
+                  "time_zone"
+                ]
+              }
+            ],
+            "description": "Absolute target: an RFC 3339 date-time with offset, or a local date, time, and IANA time_zone."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "send_message",
+      "description": "Send a message to an agent. A working agent receives it at its next step; an idle agent starts a new turn with it. Returns delivery confirmation, not the agent's answer.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "The agent id of your direct continuable child, or your direct parent when you are a resident continuable child."
+          },
+          "message": {
+            "type": "string",
+            "description": "The message to deliver to the agent."
+          }
+        },
+        "required": [
+          "agent_id",
+          "message"
+        ]
+      }
+    },
+    {
+      "name": "skill",
+      "description": "Load the full instructions for a skill. Call it before acting on a task that names or clearly matches a skill in the session skill catalog.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The exact skill name from the available skills list."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    {
+      "name": "subagent",
+      "description": "Delegate a self-contained task to a subagent (a separate agent that works in its own context) to offload focused, independent work — research, a scoped implementation, an analysis — so it does not consume this conversation's context. The subagent returns its result, not its intermediate steps. This tool starts an independently managed subagent and immediately returns its id. The runtime notifies you when it finishes. The child reports results with `send_message`; use `send_message` to steer it while running or continue its conversation after it finishes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string",
+            "description": "Initial child working directory. Relative paths use your current directory; omitted inherits it. Later directory changes in either agent are independent."
+          },
+          "description": {
+            "type": "string",
+            "description": "A short (3-5 word) description of the delegated task, for display."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The complete, self-contained task for the subagent. It does not share this conversation's context, so include everything it needs."
+          }
+        },
+        "required": [
+          "description",
+          "prompt"
+        ]
+      }
+    },
+    {
+      "name": "subagent_fork",
+      "description": "Delegate a task to a subagent that inherits this conversation: a child agent seeded with all completed turns so far (it does not see the current in-flight turn). Use this when the subtask builds on this conversation's context — a follow-up analysis, a review, a continuation — without consuming this conversation's context for the work itself. You receive its result, not its intermediate steps. This tool starts an independently managed subagent and immediately returns its id. The runtime notifies you when it finishes. The child reports results with `send_message`; use `send_message` to steer it while running or continue its conversation after it finishes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string",
+            "description": "Initial child working directory. Relative paths use your current directory; omitted inherits it. Later directory changes in either agent are independent."
+          },
+          "description": {
+            "type": "string",
+            "description": "A short (3-5 word) description of the delegated task, for display."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The task for the subagent. It already sees this conversation's completed turns, so build on them freely and state only what is new."
+          }
+        },
+        "required": [
+          "description",
+          "prompt"
+        ]
+      }
+    },
+    {
+      "name": "todo_write",
+      "description": "Record and update a task list to plan multi-step work and show progress; skip it for trivial single-step tasks. Add one todo per concrete step before you start. While work remains, keep the todos being worked on `in_progress`, several only when work runs in parallel. Mark a todo `completed` the moment it is done (do not batch completions), and allow no `in_progress` item only once all work is complete. Skip the list for trivial single-step tasks. Statuses: `pending` (not started), `in_progress` (being worked on now), `completed` (finished). Optionally attach short `tags` (1-3 lowercase category or component names, e.g. `docs`, `release`) to tasks that belong to a category; omit them when a tag adds nothing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "todos": {
+            "type": "array",
+            "description": "The COMPLETE task list, replacing any previous list.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "What the task is — a short imperative line."
+                },
+                "status": {
+                  "type": "string",
+                  "description": "pending (not started) | in_progress (now) | completed (done).",
+                  "enum": [
+                    "pending",
+                    "in_progress",
+                    "completed"
+                  ]
+                },
+                "tags": {
+                  "type": "array",
+                  "description": "Optional short category labels (1-3, lowercase), e.g. [\"docs\"].",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "content",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "todos"
+        ]
+      }
+    },
+    {
+      "name": "update_goal",
+      "description": "Update the current goal.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "goal_id": {
+            "type": "string",
+            "description": "Exact id returned by get_goal."
+          },
+          "revision": {
+            "type": "number",
+            "description": "Exact positive revision returned by get_goal."
+          },
+          "action": {
+            "type": "string",
+            "description": "edit, pause, and resume require a direct top-level human request. complete and blocked are also allowed during an automatic continuation of this goal; blocked is rejected before the configured minimum round count.",
+            "enum": [
+              "edit",
+              "pause",
+              "resume",
+              "complete",
+              "blocked"
+            ]
+          },
+          "objective": {
+            "type": "string",
+            "description": "Replacement objective; valid only with action edit."
+          },
+          "max_goal_rounds": {
+            "type": "number",
+            "description": "Replacement cap; valid only with action edit."
+          },
+          "blocked_reason": {
+            "type": "string",
+            "description": "Required only with action blocked: the concrete condition that persisted across rounds and blocks progress."
+          }
+        },
+        "required": [
+          "goal_id",
+          "revision",
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "web_fetch",
+      "description": "Fetch the content of a specific HTTP(S) URL and return it decoded to text.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The HTTP(S) URL to fetch."
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    },
+    {
+      "name": "workflow",
+      "description": "Run a JavaScript workflow script that orchestrates subagents at scale. Use this for work that fans out across many independent pieces — an audit over many files, a migration, multi-angle research, adversarial verification of findings — where you write the orchestration as a script instead of delegating turn by turn.\n\nScript-body hooks:\n- `agent(prompt, opts?): Promise<any>` — run one subagent to completion. Without `opts.schema` it resolves to the child's final text; with `opts.schema` (an object-rooted JSON Schema using ONLY type/properties/required/additionalProperties/items/enum/const/oneOf) it resolves to the validated object. Resolves `null` when the child fails (filter with `.filter(Boolean)`). Other opts: `label` (display), `phase` (progress group), and independent `provider`/`model` LLM target overrides.\n- `pipeline(items, ...stages): Promise<any[]>` — run each item through the stages independently with NO barrier between stages (prefer this for multi-stage work). Each stage receives `(prev, item, index)`. A stage throw drops that ITEM to `null` and skips its remaining stages.\n- `parallel(thunks): Promise<any[]>` — run zero-argument functions concurrently and await ALL of them (a barrier; use only when a stage genuinely needs every prior result together). A throwing thunk resolves to `null`.\n- `phase(title)` — start a progress phase; `log(message)` — narrate progress; `args` — the tool call's `args` input, verbatim.\n\nMisused hooks (bad arguments, unknown options, unsupported schemas, tripped caps) end the whole script instead of producing `null`. The script has no filesystem, network, timer, or Node.js APIs; the agents do the work.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "The plain JavaScript body, not TypeScript and without an `export const meta` statement; top-level await is allowed. End with `return <value>`; the JSON-serializable value is this tool's result."
+          },
+          "meta": {
+            "type": "object",
+            "description": "The workflow identity as plain JSON, not code.",
+            "additionalProperties": true,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Short kebab-case workflow name."
+              },
+              "description": {
+                "type": "string",
+                "description": "One-line description of what the workflow does."
+              },
+              "whenToUse": {
+                "type": "string",
+                "description": "Optional guidance on when this workflow applies."
+              },
+              "phases": {
+                "type": "array",
+                "description": "Optional phase declarations matched by phase() calls.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "description": "The phase title phase() calls match by exact string."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Optional one-line description of the phase."
+                    },
+                    "provider": {
+                      "type": "string",
+                      "description": "Optional provider override this phase is expected to use."
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "Optional model override this phase is expected to use."
+                    }
+                  },
+                  "required": [
+                    "title"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "description": "Optional JSON input exposed to the script as the `args` global (wrap a bare list as a field, e.g. {\"files\": [...]}).",
+            "additionalProperties": true
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Run as a background job: return a job id immediately instead of waiting; the return value arrives with the completion notice."
+          }
+        },
+        "required": [
+          "script",
+          "meta"
+        ]
+      }
+    },
+    {
+      "name": "working_directory",
+      "description": "Read the current working directory, or change it with cd. Relative paths use the current directory. Existing shells and running processes keep their own directories.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "cd": {
+            "type": "string",
+            "description": "Existing directory to enter. Omit to read the current directory."
+          }
+        }
+      }
+    },
+    {
+      "name": "write",
+      "description": "Create or fully replace a UTF-8 text file.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to write, resolved by the filesystem backend. Provide `file_path` before `content` in the arguments."
+          },
+          "content": {
+            "type": "string",
+            "description": "Full UTF-8 text content to write."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request."
+          }
+        },
+        "required": [
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  ],
+  "changes": []
+}
