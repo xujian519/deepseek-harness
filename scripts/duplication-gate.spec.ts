@@ -10,6 +10,7 @@ import {
   TIGHTENED_MIN_TOKENS,
   detectClonePairs,
   diffClonePairs,
+  normalizeDuplicatePath,
   readBaseline,
   runDuplicationGate,
 } from './duplication-gate.ts'
@@ -50,6 +51,8 @@ function writeFixture(): string {
   ].join('\n')
   writeFileSync(join(fixture, 'packages/patent/alpha.ts'), `export function alpha(config: unknown) {\n${shared}\n}\n`)
   writeFileSync(join(fixture, 'packages/patent/beta.ts'), `export function beta(config: unknown) {\n${shared}\n}\nexport const extra = 1\n`)
+  mkdirSync(join(fixture, 'scripts'), { recursive: true })
+  writeFileSync(join(fixture, 'scripts/gamma.ts'), 'export const gamma = 1\n')
   return fixture
 }
 
@@ -74,6 +77,17 @@ describe('duplication gate', () => {
     expect(repoWide).not.toContain('packages/patent/alpha.ts|packages/patent/beta.ts')
     // The gate rejects a reported pair that the baseline does not accept.
     expect(diffClonePairs([], tightened).added).toContain('packages/patent/alpha.ts|packages/patent/beta.ts')
+  })
+
+  it('裸文件名按实际所属 root 归一化，而不是一律挂到第一个 root', () => {
+    const root = writeFixture()
+    expect(normalizeDuplicatePath('gamma.ts', root, ['packages', 'scripts'])).toBe('scripts/gamma.ts')
+    expect(normalizeDuplicatePath('alpha.ts', root, ['packages/patent'])).toBe('packages/patent/alpha.ts')
+    expect(normalizeDuplicatePath('packages/patent/alpha.ts', root, ['packages', 'scripts']))
+      .toBe('packages/patent/alpha.ts')
+    expect(normalizeDuplicatePath(join(root, 'scripts/gamma.ts'), root, ['packages', 'scripts']))
+      .toBe('scripts/gamma.ts')
+    expect(normalizeDuplicatePath('missing.ts', root, ['packages', 'scripts'])).toBe('missing.ts')
   })
 
   it('拒绝空语料而不是把它当成零克隆', () => {
