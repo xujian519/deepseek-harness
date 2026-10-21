@@ -26,6 +26,7 @@ import {
 import type { EdgeRouter, GraphNode, GraphState, StateDelta } from './types.ts'
 import { GRAPH_END, GraphEngineError, GraphInterruptError } from './types.ts'
 import { GraphBuilder, type CompiledGraph } from './engine.ts'
+import { absorbHandlerDegradation } from './degradation.ts'
 import { getStateString } from './state.ts'
 
 // ---------------------------------------------------------------------------
@@ -158,7 +159,10 @@ function makeStageNode(
     const delta: StateDelta = {}
     let output = ''
     if (handler !== undefined) {
-      const segment = await runStageHandler(handler, execState, deps.provider ?? provider, signal)
+      const segment = absorbHandlerDegradation(
+        await runStageHandler(handler, execState, deps.provider ?? provider, signal),
+        stage.id,
+      )
       Object.assign(delta, segment)
       const raw = mainKey !== undefined ? segment[mainKey] : undefined
       if (typeof raw === 'string') output = raw

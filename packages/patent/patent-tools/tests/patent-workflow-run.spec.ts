@@ -78,6 +78,27 @@ function fakeModel(): PatentModelPort {
   }
 }
 
+/** Novelty graph model: answers each atom prompt with JSON its parser accepts. */
+function noveltyGraphModel(): PatentModelPort {
+  return {
+    stream: async function* (request) {
+      const prompt = request.messages.map(m => m.content).join('\n')
+      let text = '{}'
+      if (prompt.includes('完整新颖性分析报告')) {
+        text = '新颖性分析报告：权利要求相对于现有技术具备新颖性。'
+      } else if (prompt.includes('技术分析助手')) {
+        text = '{"features": ["f1"], "problems": ["p1"], "effects": ["e1"]}'
+      } else if (prompt.includes('检索关键词')) {
+        text = '{"keywords": ["f1"]}'
+      } else if (prompt.includes('新颖性分析专家')) {
+        text = '{"assessments": [{"feature": "f1", "prior_art": "", "disclosed": false, "reasoning": "未公开"}], "conclusion": "具备新颖性"}'
+      }
+      yield { type: 'delta', text }
+      yield { type: 'done' }
+    },
+  }
+}
+
 const fakeSearch = async () => []
 
 /**
@@ -1150,7 +1171,7 @@ describe('patent_workflow_run', () => {
   it('runs a full graph with persisted checkpoints and approval-gate resume', async () => {
     temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
     const cwd = temp
-    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, cwd })
+    const tool = createPatentWorkflowRunTool({ model: noveltyGraphModel(), search: fakeSearch, cwd })
     const value = (await tool.execute(
       { graph: 'novelty', input: 'x', caseId: 'case-1' },
       exec,
@@ -1176,6 +1197,40 @@ describe('patent_workflow_run', () => {
     expect(granted.ok).toBe(true)
     expect(granted.completed).toBe(true)
     expect(granted.interruptNote).toBeUndefined()
+  })
+
+  it('marks a graph run with a handler-returned _error incomplete and keeps internal keys out of state', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+    const base = noveltyGraphModel()
+    const failingKeywords: PatentModelPort = {
+      stream: async function* (request) {
+        const prompt = request.messages.map(m => m.content).join('\n')
+        if (prompt.includes('检索关键词')) {
+          yield { type: 'delta', text: '不是 JSON' }
+          yield { type: 'done' }
+          return
+        }
+        yield* base.stream(request)
+      },
+    }
+    const tool = createPatentWorkflowRunTool({ model: failingKeywords, search: fakeSearch, cwd: temp })
+
+    const paused = (await tool.execute(
+      { graph: 'novelty', input: 'x', caseId: 'case-degraded' },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(paused.interruptNote).toBeDefined()
+    expect(JSON.stringify(paused.graphDegraded)).toContain('node_failed')
+    expect(paused.graphState).not.toHaveProperty('_error')
+    expect(paused.graphState).not.toHaveProperty('_retryable')
+
+    const granted = (await tool.execute(
+      { graph: 'novelty', input: 'x', caseId: 'case-degraded', approveCheckpointId: paused.checkpointId },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(granted.interruptNote).toBeUndefined()
+    expect(granted.completed).toBe(false)
+    expect(JSON.stringify(granted.graphDegraded)).toContain('node_failed')
   })
 
   it('runs the manifest to completion with approved gates and persistence', async () => {
