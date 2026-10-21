@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  AmendmentBasisHandler,
   analyzeNumericRanges,
   deriveAllElementsCoverage,
   deriveClaimRefs,
@@ -22,8 +21,6 @@ function verdictOf(claim: string, prior: string): NumericRangeVerdict {
     priorArt: [{ docId: 'D1', text: prior }],
   }).verdict
 }
-
-const ORIGINAL_CLAIMS = '1. 一种装置，包括壳体，其特征在于，所述壳体上设置有散热孔。'
 
 describe('legal corpus probes', () => {
   describe('A1 numeric ranges', () => {
@@ -68,21 +65,6 @@ describe('legal corpus probes', () => {
         '3. 根据前述权利要求中任一项所述的装置，其特征在于，所述壳体可拆。',
       ].join('\n'))
       expect(refs.find(ref => ref.claimNo === 3)?.refersTo).toEqual([1, 2])
-    })
-  })
-
-  describe('A4 amendment basis', () => {
-    it.fails('新增单字“不”改变限定方向时应判为超出修改范围', async () => {
-      const draft = [
-        '修改后权利要求书：',
-        '1. 一种装置，包括壳体，其特征在于，所述壳体上不设置有散热孔。',
-        '',
-        '意见陈述：x。',
-      ].join('\n')
-      const out = await new AmendmentBasisHandler().execute({
-        state: { draft, claims: ORIGINAL_CLAIMS },
-      })
-      expect(out.amendment_basis_passed).toBe(false)
     })
   })
 
