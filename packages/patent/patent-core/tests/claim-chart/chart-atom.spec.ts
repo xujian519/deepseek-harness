@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClaimChartHandler } from '@deepseek-ai/dsh-patent-core'
@@ -190,6 +190,7 @@ it('pin-cite 段号错误（sourcePath 提供）→ 打回重做 → 第二次�
     const state = await handler.execute({
       state: {
         claim: CLAIM,
+        chart_source_roots: [dir],
         chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', title: '对比文件1', sourcePath }]),
         chart_mode: 'invalidity',
       },
@@ -221,6 +222,7 @@ it('quote 不在源文（sourcePath 提供）→ 打回重做 → 第二次好�
     const state = await handler.execute({
       state: {
         claim: CLAIM,
+        chart_source_roots: [dir],
         chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', title: '对比文件1', sourcePath }]),
         chart_mode: 'invalidity',
       },
@@ -252,6 +254,7 @@ it('parseTargets 归一化：source_path（snake_case）target 触发 pin-cite �
     const state = await handler.execute({
       state: {
         claim: CLAIM,
+        chart_source_roots: [dir],
         // 外部契约字段：source_path（非内核 sourcePath）——归一化后 pin-cite 校验必须生效
         chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', title: '对比文件1', source_path: sourcePath }]),
         chart_mode: 'invalidity',
@@ -355,6 +358,7 @@ it('sourcePath 文件不存在 → 错误消息含目标路径（重做超限降
     const state = await handler.execute({
       state: {
         claim: CLAIM,
+        chart_source_roots: [dir],
         chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', title: '对比文件1', sourcePath }]),
         chart_mode: 'invalidity',
       },
@@ -385,6 +389,7 @@ it('多个目标共享同一 sourcePath 时只读取一次源文件', async () =
     const state = await new ClaimChartHandler().execute({
       state: {
         claim: CLAIM,
+        chart_source_roots: [dir],
         chart_targets: JSON.stringify([
           { id: 'D1', kind: 'prior-art', sourcePath },
           { id: 'D2', kind: 'prior-art', sourcePath },
@@ -394,12 +399,146 @@ it('多个目标共享同一 sourcePath 时只读取一次源文件', async () =
       provider,
     })
     expect(state._error).toBeUndefined()
-    expect(readFilePaths.filter(path => path === sourcePath)).toHaveLength(1)
+    // 读取发生在 realpath 之后的真实路径上（校验与读取之间不重新经过符号链接）。
+    expect(readFilePaths.filter(path => path === realpathSync(sourcePath))).toHaveLength(1)
     const chart = JSON.parse(String(state.claim_chart_doc)) as { rows: unknown[] }
     expect(chart.rows).toHaveLength(2)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+it('sourcePath 不在 chart_source_roots → 行级报原因并降级，内容不进入提示词', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-src-denied-'))
+  const root = join(dir, 'allowed')
+  mkdirSync(root)
+  const outside = join(dir, 'outside.txt')
+  writeFileSync(outside, SOURCE_TEXT, 'utf8')
+  const prompts: string[] = []
+  try {
+    const state = await new ClaimChartHandler().execute({
+      state: {
+        claim: CLAIM,
+        chart_source_roots: [root],
+        chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', sourcePath: outside }]),
+        chart_mode: 'invalidity',
+      },
+      provider: {
+        callLLM: async (prompt) => {
+          prompts.push(prompt)
+          return JSON.stringify(goodChart())
+        },
+      },
+    })
+    expect(typeof state._error).toBe('string')
+    expect(state._error as string).toContain('不在允许目录')
+    expect(state._error as string).toContain(outside)
+    expect(prompts[0]).not.toContain(SOURCE_TEXT)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('空 chart_source_roots 拒绝所有源文件，不表示任意路径', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-src-empty-'))
+  const sourcePath = join(dir, 'd1.txt')
+  writeFileSync(sourcePath, SOURCE_TEXT, 'utf8')
+  try {
+    const state = await new ClaimChartHandler().execute({
+      state: {
+        claim: CLAIM,
+        chart_source_roots: [],
+        chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', sourcePath }]),
+        chart_mode: 'invalidity',
+      },
+      provider: { callLLM: async () => JSON.stringify(goodChart()) },
+    })
+    expect(typeof state._error).toBe('string')
+    expect(state._error as string).toContain('不在允许目录')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('未配置根时只读取 cwd 内的相对源路径', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-src-cwd-'))
+  writeFileSync(join(dir, 'd1.txt'), SOURCE_TEXT, 'utf8')
+  const prevCwd = process.cwd()
+  process.chdir(dir)
+  try {
+    const prompts: string[] = []
+    const state = await new ClaimChartHandler().execute({
+      state: {
+        claim: CLAIM,
+        chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', sourcePath: 'd1.txt' }]),
+        chart_mode: 'invalidity',
+      },
+      provider: {
+        callLLM: async (prompt) => {
+          prompts.push(prompt)
+          return JSON.stringify(goodChart())
+        },
+      },
+    })
+    expect(state._error).toBeUndefined()
+    expect(typeof state.claim_chart_doc).toBe('string')
+    expect(prompts[0]).not.toContain(SOURCE_TEXT)
+  } finally {
+    process.chdir(prevCwd)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('chart_source_max_bytes 生效：超过上限的源文件按行报错', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-src-size-'))
+  const sourcePath = join(dir, 'd1.txt')
+  writeFileSync(sourcePath, SOURCE_TEXT, 'utf8')
+  try {
+    const state = await new ClaimChartHandler().execute({
+      state: {
+        claim: CLAIM,
+        chart_source_roots: [dir],
+        chart_source_max_bytes: 5,
+        chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', sourcePath }]),
+        chart_mode: 'invalidity',
+      },
+      provider: { callLLM: async () => JSON.stringify(goodChart()) },
+    })
+    expect(typeof state._error).toBe('string')
+    expect(state._error as string).toContain('超过大小上限（5 字节）')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('非法源文件配置在模型调用前降级', async () => {
+  let calls = 0
+  const provider: StageProvider = {
+    callLLM: async () => {
+      calls += 1
+      return JSON.stringify(goodChart())
+    },
+  }
+  const handler = new ClaimChartHandler()
+  const badRoots = await handler.execute({
+    state: { claim: CLAIM, chart_source_roots: 'not-a-list' },
+    provider,
+  })
+  expect(badRoots._error as string).toContain('chart_source_roots')
+  const badBytes = await handler.execute({
+    state: { claim: CLAIM, chart_source_max_bytes: 0 },
+    provider,
+  })
+  expect(badBytes._error as string).toContain('chart_source_max_bytes')
+  const missingRoot = await handler.execute({
+    state: {
+      claim: CLAIM,
+      chart_source_roots: [join(tmpdir(), `dsh-missing-root-${process.pid}-${Date.now()}`)],
+    },
+    provider,
+  })
+  expect(missingRoot._error as string).toContain('无法解析')
+  expect(calls).toBe(0)
 })
 
 it('caseId 提供时落盘 json，verified 行在重跑时保留', async () => {

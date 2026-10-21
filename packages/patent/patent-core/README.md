@@ -44,6 +44,10 @@ Stage params tune these handlers. Absent keys keep the per-atom defaults; malfor
 | `prompt_char_limit` | positive integer | per atom | source excerpts embedded in prompts; short generated lines stay uncapped |
 | `max_retries` | integer, 0–10 | `2` | `claim-chart` validation redos |
 | `groundedness_threshold` | number, 0–1 | `0.6` | `groundedness` low-score filtering and its prompt bands |
+| `chart_source_roots` | array of non-empty strings | working directory | `claim-chart` source reads; an explicit list replaces the default, and `[]` denies every read |
+| `chart_source_max_bytes` | integer, 1–16 MiB | 1 MiB | `claim-chart` size limit per source file |
+
+`claim-chart` reads the source file each target names, but a model-authored path is not handed to the filesystem as-is. The path is resolved against the working directory and compared by real path with the allowed roots: a path outside every root, a directory or non-regular file, a non-text extension, or a file larger than `chart_source_max_bytes` is reported on each row that references it, and the source text never enters the prompt. A symlink is judged by its target — rejected when it points outside a root, read when it points inside — and an extensionless path is accepted. An unreadable root or a malformed tunable degrades the stage before any model call.
 
 ## ModelPort
 

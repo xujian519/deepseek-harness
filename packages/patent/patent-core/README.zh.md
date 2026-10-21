@@ -45,6 +45,10 @@ Stage params 可调整这些 handler。缺省键保留各原子默认值；畸�
 | `prompt_char_limit` | 正整数 | 按原子 | prompt 中引用的来源摘录；短小生成行不受限 |
 | `max_retries` | 整数，0–10 | `2` | `claim-chart` 的校验重做 |
 | `groundedness_threshold` | 数字，0–1 | `0.6` | `groundedness` 低分过滤与提示词分数分界 |
+| `chart_source_roots` | 非空字符串组成的数组 | 工作目录 | `claim-chart` 源文件读取；显式列表替换默认值，`[]` 拒绝所有读取 |
+| `chart_source_max_bytes` | 整数，1–16 MiB | 1 MiB | `claim-chart` 单个源文件大小上限 |
+
+`claim-chart` 只读取目标行点名的源文件，但模型给出的路径不会原样交给文件系统。路径按工作目录解析后以真实路径与允许根比对：落在所有根之外、不是普通文件、扩展名不在文本白名单内，或超过 `chart_source_max_bytes` 的源，会在引用它的每一行上报错，源文内容不进入提示词。符号链接按目标判定——指向根外即拒绝，指向根内仍可读取——无扩展名的路径按文本接受。允许根不可解析或参数畸形时，整个阶段在调用模型前降级。
 
 <a id="modelport"></a>
 ## ModelPort

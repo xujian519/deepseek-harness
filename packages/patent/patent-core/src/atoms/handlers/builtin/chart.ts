@@ -9,7 +9,6 @@
  * `office_action`）确定性派生：映射对象即审查员引用的对比文件，不再依赖调用方手工构造。
  */
 
-import { readFile } from 'node:fs/promises'
 import { type Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
 import {
@@ -36,7 +35,17 @@ import { loadClaimChart, saveClaimChart } from '../../../claim-chart/runtime/sto
 import { asJsonRecord, readJsonString } from '../../../llm-json.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
-import { readAtomTunables } from '../../tunables.ts'
+import {
+  readAtomTunables,
+  readChartSourceMaxBytes,
+  readChartSourceRoots,
+} from '../../tunables.ts'
+import {
+  readChartSource,
+  resolveChartSourcePolicy,
+  type ChartSourcePolicy,
+  type ChartSourceReadResult,
+} from './chart-source.ts'
 
 /** claim-chart 原子：权利要求要素级证据网格构建。 */
 export const claimChartAtom: Atom = {
@@ -241,16 +250,15 @@ function checkChartShape(elements: unknown[], rows: unknown[]): string[] {
 }
 
 /**
- * 三关校验：返回错误列表（空 = 全部通过）。sourceText 经 sourceCache 提供
- * （execute 内预读一次，重做 attempt 间复用），读取失败统一报"源文件不可读"。
+ * 三关校验：返回错误列表（空 = 全部通过）。sources 由 execute 预读一次并在重做
+ * attempt 间复用；声明了 sourcePath 的目标携带文本或失败原因，失败统一报"源文件不可读"。
  */
 function validateChart(
   elements: ClaimElement[],
   rows: ChartRow[],
-  targets: ChartTarget[],
+  sources: readonly SourcedTarget[],
   mode: ChartMode,
   claim: string,
-  sourceCache: Map<string, string>,
 ): string[] {
   const errors: string[] = []
   errors.push(...checkChartShape(elements, rows))
@@ -258,9 +266,9 @@ function validateChart(
   const elResult = validateElements(elements, claim)
   if (!elResult.ok) errors.push(...elResult.errors)
   const elementById = new Map(elements.map(el => [el.id, el]))
-  const targetById = new Map(targets.map(t => [t.id, t]))
+  const targetById = new Map(sources.map(entry => [entry.target.id, entry]))
   // 目标存在性仅在有目标对象时核验（"只拆要素"模式 targets 为空，无目标可对照，放行）。
-  const targetsProvided = targets.length > 0
+  const targetsProvided = sources.length > 0
   if (!targetsProvided && rows.length > 0) {
     // 元素模式：schema 强制 rows 数组但无目标可映射，LLM 产出的 targetId 无对应目标
     // （幻影引用）不得进入 chart 与 gap 推导，打回重做（prompt 已要求输出空数组）。
@@ -281,14 +289,15 @@ function validateChart(
     const pinFormat: PinCiteCheckResult =
       row.pinCite.trim().length > 0 ? validatePinCiteFormat(row.pinCite) : { ok: true }
     if (!pinFormat.ok) errors.push(`行 [${row.elementId}→${row.targetId}] ${pinFormat.reason}`)
-    errors.push(...validateRowMapping(row, targetById.get(row.targetId), mode))
     const target = targetById.get(row.targetId)
-    if (target?.sourcePath) {
-      const sourceText = sourceCache.get(target.sourcePath)
-      if (sourceText === undefined) {
-        errors.push(`行 [${row.elementId}→${row.targetId}] 源文件不可读: ${target.sourcePath}`)
+    errors.push(...validateRowMapping(row, target?.target, mode))
+    if (target?.source !== undefined) {
+      const { path, result } = target.source
+      if (!result.ok) {
+        errors.push(`行 [${row.elementId}→${row.targetId}] 源文件不可读: ${path}（${result.reason}）`)
         continue
       }
+      const sourceText = result.text
       const pin = validatePinCite(row.pinCite, sourceText)
       if (!pin.ok) errors.push(`行 [${row.elementId}→${row.targetId}] ${pin.reason}`)
       const quote = verifyQuoteInSource(row.quote, sourceText)
@@ -296,6 +305,17 @@ function validateChart(
     }
   }
   return errors
+}
+
+/** 目标及其源文读取结果；仅在目标声明 sourcePath 时携带 source。 */
+type SourcedTarget = {
+  target: ChartTarget
+  source?: {
+    /** 目标声明的路径，用于行级错误归因。 */
+    path: string
+    /** 预读成功返回文本，失败返回原因。 */
+    result: ChartSourceReadResult
+  }
 }
 
 /** 未显式提供目标时，按场景模式从上一阶段产出派生。 */
@@ -307,26 +327,22 @@ function deriveModeTargets(mode: ChartMode, state: PipelineState): ChartTarget[]
 
 /**
  * 预读目标源文件一次（重做 attempt 间复用）：同一路径只读一次，不同路径并行读取。
- * 读取失败不缓存，由 validateChart 对引用该源的每行报"源文件不可读"。
+ * 失败结果同样随目标返回，由 validateChart 对引用该源的每行报出具体原因。
  */
-async function readTargetSources(targets: readonly ChartTarget[]): Promise<Map<string, string>> {
-  const cache = new Map<string, string>()
-  const paths = [...new Set(
-    targets.flatMap(target => (target.sourcePath === undefined ? [] : [target.sourcePath])),
-  )]
-  const contents = await Promise.all(paths.map(async (path) => {
-    try {
-      return await readFile(path, 'utf8')
-    } catch {
-      // 源文件不可读：留空缓存，错误归因下沉到行级校验
-      return undefined
+async function readTargetSources(
+  targets: readonly ChartTarget[],
+  policy: ChartSourcePolicy,
+): Promise<SourcedTarget[]> {
+  const reads = new Map<string, Promise<ChartSourceReadResult>>()
+  return Promise.all(targets.map(async (target) => {
+    if (target.sourcePath === undefined) return { target }
+    let read = reads.get(target.sourcePath)
+    if (read === undefined) {
+      read = readChartSource(target.sourcePath, policy)
+      reads.set(target.sourcePath, read)
     }
+    return { target, source: { path: target.sourcePath, result: await read } }
   }))
-  for (const [index, path] of paths.entries()) {
-    const content = contents[index]
-    if (content !== undefined) cache.set(path, content)
-  }
-  return cache
 }
 
 /** 渲染提示词中的目标清单。 */
@@ -361,6 +377,16 @@ export class ClaimChartHandler implements StageHandler {
     })
     if (!tuned.ok) return degraded('claim-chart', tuned.reason)
     const { temperature, promptLimit, maxRetries } = tuned.tunables
+    const rootsResult = readChartSourceRoots(state)
+    if (!rootsResult.ok) return degraded('claim-chart', rootsResult.reason)
+    const sourceMaxBytes = readChartSourceMaxBytes(state)
+    if (!sourceMaxBytes.ok) return degraded('claim-chart', sourceMaxBytes.reason)
+    const policyResult = await resolveChartSourcePolicy(
+      rootsResult.roots,
+      sourceMaxBytes.value,
+      process.cwd(),
+    )
+    if (!policyResult.ok) return degraded('claim-chart', policyResult.reason)
     const missing = requireLlm(provider, 'claim-chart')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')
@@ -382,7 +408,7 @@ export class ClaimChartHandler implements StageHandler {
     // 显式传入的目标优先；OA 答复由解析产出派生，可专利性由过滤后的检索命中派生。
     const targets = targetsRes.targets.length > 0 ? targetsRes.targets : deriveModeTargets(mode, state)
 
-    const sourceCache = await readTargetSources(targets)
+    const sources = await readTargetSources(targets, policyResult.policy)
     const targetLines = renderTargetLines(targets)
     const basePrompt = [
       '你是专利权利要求分析专家。把权利要求拆分为编号要素，并逐要素映射到目标对象。',
@@ -429,7 +455,7 @@ export class ClaimChartHandler implements StageHandler {
       )
       const elements = parsed.elements as ClaimElement[]
       const rows = parsed.rows as ChartRow[]
-      const errors = validateChart(elements, rows, targets, mode, claim, sourceCache)
+      const errors = validateChart(elements, rows, sources, mode, claim)
       if (errors.length === 0) {
         const gaps = detectGaps(rows, elements, targets)
         // 落盘/核验按 mode 区分 chartId：同一 caseId 下不同场景（invalidity /

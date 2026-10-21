@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-chart-source-confinement/guide.md
+/:
+  en: 6560843d78243c25
+  zh: 7c312dcfebea937a
+/claim-chart-source-reads-are-confined:
+  en: a40cb6a4ae64972b
+  zh: 6dcf31be921a11ff
+/claim-chart-source-reads-are-confined/change:
+  en: fb70254c43ceec4c
+  zh: 3ff6af458494db90
+/claim-chart-source-reads-are-confined/migration:
+  en: 409ad2a78aa21e7b
+  zh: 0cd2f788f373a786
