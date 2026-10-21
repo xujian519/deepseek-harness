@@ -274,7 +274,11 @@ export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}):
 
   const withRuleGate = options.ruleGate !== false
   if (withRuleGate) {
-    builder.addNode('rule_gate', ruleGateNode(['patent_disclosure'], requireRuleEvaluator(options)))
+    builder.addNode('rule_gate', ruleGateNode({
+      domains: ['patent_disclosure'],
+      sourceKeys: ['enablement_conclusion'],
+      evaluator: requireRuleEvaluator(options),
+    }))
   }
   if (approval !== undefined && options.includeApproval !== false) {
     builder.addNode('approval', handlerNode(approval, { review_context: 'A26.3 充分公开审查结论需人工复核' }))

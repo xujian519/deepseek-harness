@@ -444,12 +444,12 @@ describe('patent_workflow_run', () => {
       stages: [],
       degradedSteps: [],
       persistNote: '持久化: 未启用（未提供 caseId）',
-      graphState: { rule_gate_verdict: 'pass', novelty_report: 'report text' },
+      graphState: { rule_gate: { status: 'pass' }, novelty_report: 'report text' },
       graphDegraded: [],
       checkpointNote: '检查点: patent_novelty-0',
     })
     expect(graph).toContain('图引擎执行 3 超步')
-    expect(graph).toContain('规则门 verdict: pass')
+    expect(graph).toContain('规则门 status: pass')
   })
 
   it('throws PatentToolError for setup and input failures', async () => {
@@ -1245,6 +1245,13 @@ describe('patent_workflow_run', () => {
   })
 
   it('renders graph edge cases and manifest prose', () => {
+    // 运行期图状态可含 undefined 值，JsonValue 无法表达该键，故在类型合法的对象上挂载。
+    const sparseState: Record<string, JsonValue> = {
+      rule_gate: { status: 'pass' },
+      payload: { a: 1 },
+      long: '长'.repeat(90),
+    }
+    Object.defineProperty(sparseState, 'note', { value: undefined, enumerable: true })
     const sparse = renderWorkflowRun({
       ok: true,
       mode: 'graph',
@@ -1254,7 +1261,7 @@ describe('patent_workflow_run', () => {
       summary: '',
       stages: [],
       degradedSteps: [],
-      graphState: { rule_gate_verdict: 'pass', note: undefined, payload: { a: 1 }, long: '长'.repeat(90) } as unknown as JsonValue,
+      graphState: sparseState,
       graphDegraded: [
         { severity: 'info', reason: 'no_model', message: '节点降级', stateKeys: ['x'] },
       ],
@@ -1267,6 +1274,23 @@ describe('patent_workflow_run', () => {
     expect(sparse).toContain('(空)')
     expect(sparse).toContain('payload')
     expect(sparse).toContain('长'.repeat(90).slice(0, 80))
+
+    for (const graphState of [{}, { rule_gate: null }, { rule_gate: { status: 42 } }]) {
+      const withoutGate = renderWorkflowRun({
+        ok: true,
+        mode: 'graph',
+        manifestId: 'patent_novelty',
+        graph: 'novelty',
+        completed: true,
+        summary: '',
+        stages: [],
+        degradedSteps: [],
+        graphState,
+        graphDegraded: [],
+        checkpointNote: '检查点: 无',
+      })
+      expect(withoutGate).toContain('规则门 status: （未启用）')
+    }
 
     const manifestWithInterrupt = renderWorkflowRun({
       ok: true,

@@ -60,7 +60,7 @@ Stage params 可调整这些 handler。缺省键保留各原子默认值；畸�
 <a id="checker-dual-track-deterministic-rule-engine"></a>
 ## Checker（双轨确定性规则引擎）
 
-`RuleEngine` 对分析文本逐条评估域过滤的 `CheckRule`——新颖性单独对比、创造性三步法、侵权全面覆盖、充分公开、说明书 checklist 与 24 条推理模式规则——含同义词扩展与否定检测；`aggregate` 将失败映射为 `pass`/`needs_revision`/`blocked`。规则语料随 `@deepseek-ai/dsh-patent-rule` 发布（由 `createCheckerRuleEvaluator()` 暴露）；本包只保留引擎、规则类型与 `RuleEvaluator` 端口，供三性子图的 `rule_gate` 消费。启用规则门的图必须注入评估器，缺少时在构图期报错，而不是静默省略规则门。规则门 fail-closed：空领域、未知领域、评估器异常与域内零规则均判 `blocked`，不会静默放行。
+`RuleEngine` 对分析文本逐条评估域过滤的 `CheckRule`——新颖性单独对比、创造性三步法、侵权全面覆盖、充分公开、说明书 checklist 与 24 条推理模式规则——含同义词扩展与否定检测；`aggregate` 将失败映射为 `pass`/`needs_revision`/`blocked`。规则语料随 `@deepseek-ai/dsh-patent-rule` 发布（由 `createCheckerRuleEvaluator()` 暴露）；本包只保留引擎、规则类型与 `RuleEvaluator` 端口，供三性子图的 `rule_gate` 消费。启用规则门的图必须注入评估器，缺少时在构图期报错，而不是静默省略规则门。每个子图声明规则门评估的最终报告键（`novelty_report`、`inventiveness_conclusion`、`enablement_conclusion`）；规则门不再扫描整个 state，原始输入的措辞不会触发规则失败。规则门 fail-closed：空领域、未知领域、评估器异常、域内零规则，以及任一声明来源缺失、为空、非字符串或带降级标记，均判 `blocked`，不会静默放行。结构化 `rule_gate` 状态记录 `status`（`pass`/`fail`/`blocked`）、评估器 `verdict`、失败规则、`evaluatedKeys` 与 `degradedSources`。
 
 <a id="problem-atomic-technical-problem-checks"></a>
 ## Problem（原子化技术问题四检验）

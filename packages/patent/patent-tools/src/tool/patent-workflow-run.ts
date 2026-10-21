@@ -214,13 +214,22 @@ const DESCRIPTION = [
   'The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.',
   'A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.',
 ].join(' ')
+/** Rule-gate status from the structured `rule_gate` state entry. */
+function ruleGateStatus(graphState: GraphState | undefined): string {
+  const gate = graphState?.rule_gate
+  if (typeof gate !== 'object' || gate === null) return '（未启用）'
+  const status = (gate as { status?: unknown }).status
+  return typeof status === 'string' ? status : '（未启用）'
+}
+
 /** Render the graph-mode result into model-facing prose. */
 function renderGraphRun(value: PatentWorkflowRunOutput): string {
   const graphState = value.graphState as unknown as GraphState | undefined
   const degradedMarks = (value.graphDegraded ?? []) as unknown as DegradationMark[]
   const completion = value.completed ? 'completed' : 'incomplete'
   const keyLines = Object.entries(graphState ?? {})
-    .filter(([key]) => !key.startsWith('_') && !key.endsWith('__degradation'))
+    // The structured rule-gate result has its own dedicated line.
+    .filter(([key]) => !key.startsWith('_') && !key.endsWith('__degradation') && key !== 'rule_gate')
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, v]) => {
       const text = typeof v === 'string' ? v : v === undefined ? '' : JSON.stringify(v)
@@ -228,14 +237,11 @@ function renderGraphRun(value: PatentWorkflowRunOutput): string {
       return `- ${key}: ${preview}`
     })
   const degraded = degradedMarks.map(d => `- ${d.severity} [${d.reason}] ${d.message}`)
-  const verdict = typeof graphState?.rule_gate_verdict === 'string'
-    ? graphState.rule_gate_verdict
-    : '（未启用）'
   return [
     `patent_workflow_run(graph=${value.graph}): 图引擎执行 ${value.steps ?? 0} 超步，完成状态: ${completion}`,
     ...keyLines,
     ...(degradedMarks.length > 0 ? ['', '⚠️ 降级标记:', ...degraded] : ['', '✅ 无降级']),
-    `规则门 verdict: ${verdict}`,
+    `规则门 status: ${ruleGateStatus(graphState)}`,
     value.checkpointNote ?? '检查点: 无',
     value.persistNote ?? '',
     ...(value.interruptNote !== undefined ? [value.interruptNote] : []),
