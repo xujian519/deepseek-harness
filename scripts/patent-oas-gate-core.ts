@@ -869,6 +869,34 @@ export function scoreSpread(values: readonly number[]): ScoreSpread | undefined 
 }
 
 /**
+ * 遍历一次 run 中每个问题空间节点的观测。
+ *
+ * 未知 case 与未知维度直接跳过:问题空间校验已在加载时拒绝这类结构,这里的跳过只是
+ * 防御性兜底。
+ *
+ * @param space 问题空间 DAG。
+ * @param run run 记录。
+ * @param visit 对每个(节点 id,维度权重,该维度观测)调用一次。
+ */
+function forEachNodeWeight(
+  space: ProblemSpace,
+  run: RunRecord,
+  visit: (nodeId: string, weight: number, runDimension: RunDimension) => void,
+): void {
+  for (const runCase of run.cases) {
+    const mapping = space.cases[runCase.caseId]
+    if (mapping === undefined) continue
+    for (const runDimension of runCase.dimensions) {
+      const entry = mapping.dimensions[runDimension.index]
+      if (entry === undefined) continue
+      for (const [nodeId, weight] of Object.entries(entry.nodes)) {
+        visit(nodeId, weight, runDimension)
+      }
+    }
+  }
+}
+
+/**
  * 由一次 run 的原始观测算出逐节点分数。
  *
  * 节点分按该节点在各维度上分到的权重加权平均;没有观测面的节点不会出现在结果里
@@ -881,18 +909,10 @@ export function scoreSpread(values: readonly number[]): ScoreSpread | undefined 
 export function nodeScores(space: ProblemSpace, run: RunRecord): Map<string, number> {
   const weighted = new Map<string, number>()
   const weights = new Map<string, number>()
-  for (const runCase of run.cases) {
-    const mapping = space.cases[runCase.caseId]
-    if (mapping === undefined) continue
-    for (const runDimension of runCase.dimensions) {
-      const entry = mapping.dimensions[runDimension.index]
-      if (entry === undefined) continue
-      for (const [nodeId, weight] of Object.entries(entry.nodes)) {
-        weighted.set(nodeId, (weighted.get(nodeId) ?? 0) + runDimension.score * weight)
-        weights.set(nodeId, (weights.get(nodeId) ?? 0) + weight)
-      }
-    }
-  }
+  forEachNodeWeight(space, run, (nodeId, weight, runDimension) => {
+    weighted.set(nodeId, (weighted.get(nodeId) ?? 0) + runDimension.score * weight)
+    weights.set(nodeId, (weights.get(nodeId) ?? 0) + weight)
+  })
   const scores = new Map<string, number>()
   for (const [nodeId, total] of weighted) {
     const weight = weights.get(nodeId) ?? 0
@@ -917,26 +937,18 @@ export function nodeScoresByRun(space: ProblemSpace, run: RunRecord): Map<string
   const weighted = new Map<string, number[]>()
   const weights = new Map<string, number>()
   const incomplete = new Set<string>()
-  for (const runCase of run.cases) {
-    const mapping = space.cases[runCase.caseId]
-    if (mapping === undefined) continue
-    for (const runDimension of runCase.dimensions) {
-      const entry = mapping.dimensions[runDimension.index]
-      if (entry === undefined) continue
-      for (const [nodeId, weight] of Object.entries(entry.nodes)) {
-        weights.set(nodeId, (weights.get(nodeId) ?? 0) + weight)
-        if (runDimension.scores === undefined || runDimension.scores.length !== run.runsPerCase) {
-          incomplete.add(nodeId)
-          continue
-        }
-        const totals = weighted.get(nodeId) ?? Array.from({ length: run.runsPerCase }, () => 0)
-        for (const [index, sample] of runDimension.scores.entries()) {
-          totals[index] = (totals[index] ?? 0) + sample * weight
-        }
-        weighted.set(nodeId, totals)
-      }
+  forEachNodeWeight(space, run, (nodeId, weight, runDimension) => {
+    weights.set(nodeId, (weights.get(nodeId) ?? 0) + weight)
+    if (runDimension.scores === undefined || runDimension.scores.length !== run.runsPerCase) {
+      incomplete.add(nodeId)
+      return
     }
-  }
+    const totals = weighted.get(nodeId) ?? Array.from({ length: run.runsPerCase }, () => 0)
+    for (const [index, sample] of runDimension.scores.entries()) {
+      totals[index] = (totals[index] ?? 0) + sample * weight
+    }
+    weighted.set(nodeId, totals)
+  })
   for (const [nodeId, totals] of weighted) {
     if (incomplete.has(nodeId)) continue
     const weight = weights.get(nodeId) ?? 0
