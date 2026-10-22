@@ -91,7 +91,7 @@ Stage params 可调整这些 handler。缺省键保留各原子默认值；畸�
 <a id="claim-chart-runtime"></a>
 ## Claim-chart 运行时
 
-`validateElements`/`validateRowMapping`/`detectGaps`/`validatePinCite` 校验要素网格，`saveClaimChart`/`loadClaimChart`/`renderChartMarkdown` 持久化并渲染（复用共享的 `JsonFileStore` 助手）。
+`validateElements`/`validateRowMapping`/`detectGaps`/`validatePinCite` 校验要素网格，`saveClaimChart`/`loadClaimChart`/`renderChartMarkdown` 持久化并渲染（复用共享的 `JsonFileStore` 助手）。`deriveClaimRefs` 从权利要求原文推出独立／从属类型与所引权项号：带前缀的引用语（`根据权利要求1`）在权项正文任意位置生效，不带前缀的 `权利要求1所述` 只在引言部分（特征部分之前或第一句以内）生效，概括引用（`前述权利要求中任一项`）展开为全部在前权项。
 
 <a id="claim-coverage-checks"></a>
 ## 权项覆盖自检
