@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/nuo-patent",
-  "version": "2.3.1",
-  "description": "Patent data engine (search/metadata/legal status/PDF parsing) - vendored prebuilt artifact from github:xujian519/nuo-patent#v2.3.1 (MIT)",
+  "version": "2.3.2",
+  "description": "Patent data engine (search/metadata/legal status/PDF parsing) - vendored prebuilt artifact from github:xujian519/nuo-patent#v2.3.2 (MIT)",
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

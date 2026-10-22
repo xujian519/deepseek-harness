@@ -10,10 +10,10 @@ import type { SerialQueue } from './serial-queue.ts'
 
 /**
  * The channel nuo requests travel over. `native` uses the plain fetch, `browser`
- * the ego-browser path, and `auto` nuo's own availability probe (which turns the
- * browser path on wherever `ego-browser` is installed on macOS).
+ * the ego-browser path, `fallback` the plain fetch with the ego-browser path as
+ * a connection-failure fallback, and `auto` nuo's own availability probe.
  */
-export const NUO_REQUEST_CHANNELS = ['auto', 'native', 'browser'] as const
+export const NUO_REQUEST_CHANNELS = ['auto', 'native', 'browser', 'fallback'] as const
 
 /** One nuo request channel: see {@link NUO_REQUEST_CHANNELS}. */
 export type NuoRequestChannel = (typeof NUO_REQUEST_CHANNELS)[number]

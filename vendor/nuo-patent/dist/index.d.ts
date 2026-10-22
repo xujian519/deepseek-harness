@@ -246,7 +246,12 @@ interface FetchOptions {
     fetchImpl?: typeof fetch;
 }
 /**
- * 获取 HTML 页面内容，支持代理隧道、超时、取消信号。
+ * 抓取 HTML / 原始响应体。
+ *
+ * 通道由 NUO_PATENT_EGO_BROWSER 决定（见 resolveEgoChannel）：
+ * - `native`：只走原生网络栈
+ * - `browser`：浏览器优先，失败回退原生
+ * - `fallback`：原生优先，连接层失败回退浏览器
  */
 declare function fetchHtml(targetUrl: string, options?: FetchOptions): Promise<string>;
 /**
@@ -355,9 +360,22 @@ declare const scraper_class: typeof GooglePatentsScraper;
  * `ego-browser nodejs` 以 stdin 传入 Node.js 脚本驱动真实浏览器。
  * 相比原生 fetch / 代理隧道，浏览器环境能稳定通过 Google Patents
  * 等站点的反爬校验（真实指纹、JS 渲染、Cookie 状态），在 macOS 上
- * 效果更佳，故优先使用；不可用时自动回退原生网络栈。
+ * 效果更佳，故可作为原生网络栈的兜底。
+ *
+ * 浏览器内取数必须用 `fetch` 读取原始响应体：直接读取
+ * `document.documentElement.outerHTML` 会被 JSON 查看器扩展等页面增强
+ * 改写，XHR 接口返回的 JSON 会被包成 HTML，导致解析零命中。
  */
 
+/** 抓取通道选择 */
+type EgoChannel = 'native' | 'browser' | 'fallback';
+/**
+ * 解析当前进程的抓取通道。
+ *
+ * `fallback` 让有直连能力的部署保持原生 fetch 的速度，只在连接层失败时
+ * 才启动浏览器；`browser` 保留浏览器优先的历史语义。
+ */
+declare function resolveEgoChannel(): EgoChannel;
 /**
  * 判断 ego-browser 是否可用。
  * - 默认仅 macOS (darwin) 平台启用；其他平台需环境变量强制。
@@ -373,8 +391,8 @@ interface EgoFetchOptions {
     logger?: Logger;
 }
 /**
- * 通过 ego-browser 打开页面并取回完整渲染后的 HTML。
- * 使用独立 task space（随机后缀）避免并发请求竞争，取回后立即关闭。
+ * 通过 ego-browser 请求页面并取回原始响应体。
+ * 每次抓取使用独立标签页，避免并发请求互相导航。
  */
 declare function fetchHtmlWithEgoBrowser(targetUrl: string, options?: EgoFetchOptions): Promise<string>;
 
@@ -759,8 +777,8 @@ declare class ParseError extends NuoPatentError {
  * - `LegalStatusChecker.checkBatch()` — 并发法律状态查询
  */
 
-declare const VERSION = "2.3.1";
+declare const VERSION = "2.3.2";
 declare const AUTHOR = "\u5C0F\u8BFA\u56E2\u961F \u00B7 Xiaonuo Team";
 declare const LICENSE = "MIT";
 
-export { AUTHOR, type AnnuityStatus, type BatchDownloadResult, CNIPAClient, CNIPAQueryError, type Citation, type DownloadOptions, type DownloadResult, GooglePatentsScraper, LICENSE, type LegalStatus, LegalStatusChecker, type LegalStatusOptions, type LegalStatusResult, type Logger, NoPatentsError, NuoPatentError, PDFDownloadError, PDFDownloader, ParseError, type ParseWarning, PatentClassError, type PatentData, type PatentDetail, type PatentNumberValidation, type PatentSearchHit, type PatentSearchOptions, type PatentSearchResult, type ProxyConfig, type ScrapeOptions, type ScrapeResult, type SearchResult, type TimelineEvent, TimeoutError, type TransactionRecord, VERSION, downloadPdf, extractCitations, extractClassifications, extractEvents, extractLegalStatus, fetchHtml, fetchHtmlWithEgoBrowser, getSystemProxy, isEgoBrowserAvailable, noopLogger, normalizePatentNumber, parseCitationElement, parsePatentHtml, parseSearchResultsHtml, parseSearchResultsJson, resetEgoBrowserCache, scrapePatent, scraper_class, searchPatents, systemProxy, validatePatentNumber };
+export { AUTHOR, type AnnuityStatus, type BatchDownloadResult, CNIPAClient, CNIPAQueryError, type Citation, type DownloadOptions, type DownloadResult, type EgoChannel, GooglePatentsScraper, LICENSE, type LegalStatus, LegalStatusChecker, type LegalStatusOptions, type LegalStatusResult, type Logger, NoPatentsError, NuoPatentError, PDFDownloadError, PDFDownloader, ParseError, type ParseWarning, PatentClassError, type PatentData, type PatentDetail, type PatentNumberValidation, type PatentSearchHit, type PatentSearchOptions, type PatentSearchResult, type ProxyConfig, type ScrapeOptions, type ScrapeResult, type SearchResult, type TimelineEvent, TimeoutError, type TransactionRecord, VERSION, downloadPdf, extractCitations, extractClassifications, extractEvents, extractLegalStatus, fetchHtml, fetchHtmlWithEgoBrowser, getSystemProxy, isEgoBrowserAvailable, noopLogger, normalizePatentNumber, parseCitationElement, parsePatentHtml, parseSearchResultsHtml, parseSearchResultsJson, resetEgoBrowserCache, resolveEgoChannel, scrapePatent, scraper_class, searchPatents, systemProxy, validatePatentNumber };

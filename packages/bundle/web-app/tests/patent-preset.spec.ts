@@ -293,9 +293,10 @@ describe('patent preset composition', () => {
     expect(provider?.parent).toBe(consumer?.parent)
     expect(provider?.parent).toBe('patent')
     expect(patentRealmKeys(rows)).toContain('patentData')
-    // The nuo browser path turns itself on wherever `ego-browser` is installed on
-    // macOS, and search returns zero hits behind a non-fatal warning there.
-    expect(provider?.config?.nuoRequestChannel).toBe('native')
+    // Keep the plain fetch first for directly connected hosts, and let the browser
+    // recover searches when the connection layer fails (for example behind a
+    // network policy that drops patents.google.com).
+    expect(provider?.config?.nuoRequestChannel).toBe('fallback')
     // The preset is the deployment that uses the channel: it ships the ego lite login
     // this row's CNIPR channel reuses. A deployment without one leaves it off and keeps
     // its own channel instead.

@@ -2856,10 +2856,11 @@ export interface Config {
   maxOutputBytes?: number
   /**
    * Channel the nuo engine's requests travel over (default `auto`). `native`
-   * forces the plain fetch and `browser` the ego-browser path; because nuo reads
-   * the choice from a process environment variable, setting either writes
-   * `NUO_PATENT_EGO_BROWSER` for the whole process — every consumer of the
-   * vendored engine in it, not just this service.
+   * forces the plain fetch, `browser` the ego-browser path, and `fallback` keeps
+   * the plain fetch first while retrying connection failures through the browser.
+   * Because nuo reads the choice from a process environment variable, setting an
+   * explicit value writes `NUO_PATENT_EGO_BROWSER` for the whole process — every
+   * consumer of the vendored engine in it, not just this service.
    */
   nuoRequestChannel?: NuoRequestChannel
   /**
@@ -3072,7 +3073,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:221`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:223`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3102,7 +3103,10 @@ export interface Config {
    * rendered or written. No entry ships: a template renderer's arguments hold
    * slot fragments, so absence checks on them report defects the rendered
    * document does not have — declare an entry only where the argument is the
-   * whole document text.
+   * whole document text. An entry's `strict` turns an id that no longer resolves
+   * (or a non-block rule, or an unexecutable entry) into a load-time
+   * {@link StructuralGateConfigError} instead of a warning that drops it; shipped
+   * presets set it so a renamed rule asset cannot silently disarm the gate.
    */
   structuralGate?: StructuralGateEntry[]
   /**
@@ -3128,13 +3132,20 @@ export type StructuralGateEntry = {
   tool: string
   /** 承载制品文本的入参名：字符串入参取其值，记录/数组入参取其全部字符串值。 */
   textArgs: string[]
-  /** 参与判定的规则 id（取自全量规则集）；规则集里不存在的 id 告警并忽略。 */
+  /** 参与判定的规则 id（取自全量规则集）；规则集里不存在的 id 告警并忽略（`strict` 时改为加载失败）。 */
   ruleIds: string[]
   /**
    * 精确匹配才生效的入参（如 `{ template: 'claims-spec' }`）：声明的每一项都与实际
    * 入参相等时该条才适用，用于同一个工具的不同制品形态各判各的规则。
    */
   whenArgs?: Record<string, string>
+  /**
+   * 严格声明：规则 id 未在规则集内解析、解析到的规则不是 block 级，或条目本身无法执行
+   * （未声明 `textArgs`、`ruleIds` 全空）时在加载期抛 {@link StructuralGateConfigError}，
+   * 而不是告警后丢弃该条。内置 preset 用它把「规则资产改名」变成启动失败；不声明时保持
+   * 告警并丢弃，外部部署的一处笔误因此不会让整个 profile 起不来。
+   */
+  strict?: boolean
 }
 
 /** 一条交付门禁声明：被门禁的工具，以及它被调用前必须已成功执行过的工具。 */

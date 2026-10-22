@@ -148,10 +148,11 @@ export interface Config {
   maxOutputBytes?: number
   /**
    * Channel the nuo engine's requests travel over (default `auto`). `native`
-   * forces the plain fetch and `browser` the ego-browser path; because nuo reads
-   * the choice from a process environment variable, setting either writes
-   * `NUO_PATENT_EGO_BROWSER` for the whole process — every consumer of the
-   * vendored engine in it, not just this service.
+   * forces the plain fetch, `browser` the ego-browser path, and `fallback` keeps
+   * the plain fetch first while retrying connection failures through the browser.
+   * Because nuo reads the choice from a process environment variable, setting an
+   * explicit value writes `NUO_PATENT_EGO_BROWSER` for the whole process — every
+   * consumer of the vendored engine in it, not just this service.
    */
   nuoRequestChannel?: NuoRequestChannel
   /**
