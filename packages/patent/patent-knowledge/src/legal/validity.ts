@@ -27,6 +27,11 @@ function isIsoDate(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
 }
 
+/** 合法日期原样返回；缺失、空串或非法日期按「未核验」处理。 */
+function isoDateOrUndefined(value: string | null | undefined): string | undefined {
+  return value !== null && value !== undefined && isIsoDate(value) ? value : undefined
+}
+
 /**
  * 今天的 UTC 日期（YYYY-MM-DD）；作为未显式给定时点的默认值。
  * @returns 当前 UTC 日期的 YYYY-MM-DD 文本。
@@ -65,12 +70,8 @@ export function resolveAsOf(value: string | undefined): string {
 export function resolveLawValidity(input: LawValidityInput, asOf: string): LawValidity {
   if (input.expired === 1) return 'expired'
   // 只有规范的 ISO 日期参与比较：拼错或越界的日期不能被字符串序当成「在效」。
-  const validFrom = input.validFrom !== null && input.validFrom !== undefined && isIsoDate(input.validFrom)
-    ? input.validFrom
-    : undefined
-  const validTo = input.validTo !== null && input.validTo !== undefined && isIsoDate(input.validTo)
-    ? input.validTo
-    : undefined
+  const validFrom = isoDateOrUndefined(input.validFrom)
+  const validTo = isoDateOrUndefined(input.validTo)
   if (validTo !== undefined && asOf > validTo) return 'expired'
   if (validFrom !== undefined && asOf < validFrom) return 'not-yet-effective'
   if (validFrom !== undefined || validTo !== undefined || input.expired === 0) return 'in-force'

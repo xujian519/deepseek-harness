@@ -72,15 +72,16 @@ function tableColumns(db: DatabaseSync, table: string): Set<string> {
  * @returns 新增的列名。
  */
 function ensureLawValidityColumns(db: DatabaseSync): string[] {
-  if (!tableColumns(db, 'documents').has('id')) return []
+  const documentColumns = tableColumns(db, 'documents')
+  if (!documentColumns.has('id')) return []
   const added: string[] = []
-  const columns: ReadonlyArray<readonly [string, string]> = [
+  const definitions: ReadonlyArray<readonly [string, string]> = [
     ['valid_from', 'TEXT'],
     ['valid_to', 'TEXT'],
     ['validity_source', 'TEXT'],
   ]
-  for (const [name, type] of columns) {
-    if (tableColumns(db, 'documents').has(name)) continue
+  for (const [name, type] of definitions) {
+    if (documentColumns.has(name)) continue
     db.exec(`ALTER TABLE documents ADD COLUMN ${name} ${type}`)
     added.push(name)
   }

@@ -63,13 +63,20 @@ function parseRevisionTargets(value: unknown): RevisionTarget[] {
     const checkId = typeof record['checkId'] === 'string' ? record['checkId'].trim() : ''
     const provision = typeof record['provision'] === 'string' ? record['provision'].trim() : ''
     const label = typeof record['label'] === 'string' ? record['label'].trim() : ''
-    if (checkId === '') continue
-    if (provision === '') continue
-    if (label === '') continue
+    if (checkId === '' || provision === '' || label === '') continue
     targets.push({ checkId, provision, label })
     if (targets.length >= MAX_REVISION_TARGETS) break
   }
   return targets
+}
+
+/** 读取字符串数组并去掉首尾空白与空项；非数组返回空数组。 */
+function stringFacts(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(item => item.length > 0)
 }
 
 /**
@@ -90,10 +97,7 @@ function parseRevisionCoverage(
   for (const target of targets) {
     const entry = record[target.checkId]
     if (!Array.isArray(entry)) continue
-    coverage[target.checkId] = entry
-      .filter((item): item is string => typeof item === 'string')
-      .map(item => item.trim())
-      .filter(item => item.length > 0)
+    coverage[target.checkId] = stringFacts(entry)
   }
   return coverage
 }
@@ -106,8 +110,7 @@ function mergeRevisionCoverage(
   const merged: Record<string, string[]> = {}
   if (typeof existing === 'object' && existing !== null && !Array.isArray(existing)) {
     for (const [key, value] of Object.entries(existing)) {
-      if (!Array.isArray(value)) continue
-      merged[key] = value.filter((item): item is string => typeof item === 'string')
+      if (Array.isArray(value)) merged[key] = stringFacts(value)
     }
   }
   for (const [key, value] of Object.entries(incoming)) {
@@ -141,6 +144,8 @@ function extractSchema(
   outputKey: ExtractOutputKey | undefined,
   requiresCoverage: boolean,
 ): Record<string, unknown> {
+  const required = outputKey === undefined ? ['features'] : [outputKey]
+  if (requiresCoverage) required.push('revision_coverage')
   return {
     type: 'object',
     properties: {
@@ -155,7 +160,7 @@ function extractSchema(
         }
         : {}),
     },
-    required: [...(outputKey === undefined ? ['features'] : [outputKey]), ...(requiresCoverage ? ['revision_coverage'] : [])],
+    required,
   }
 }
 

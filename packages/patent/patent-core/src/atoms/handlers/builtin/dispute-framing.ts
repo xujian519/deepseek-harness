@@ -112,14 +112,21 @@ function chineseNumber(value: string | undefined): number | undefined {
   if (value === '十') return 10
   const ten = value.indexOf('十')
   if (ten >= 0) {
-    /* v8 ignore next -- ten > 0 时 value[ten - 1] 必然存在 */
-    const tens = ten === 0 ? 1 : CHINESE_DIGIT.get(value[ten - 1] ?? '')
+    const tens = ten === 0 ? 1 : CHINESE_DIGIT.get(value.charAt(ten - 1))
     const onesText = value.slice(ten + 1)
     const ones = onesText === '' ? 0 : CHINESE_DIGIT.get(onesText)
     if (tens === undefined || ones === undefined) return undefined
     return tens * 10 + ones
   }
   return CHINESE_DIGIT.get(value)
+}
+
+/** 权项号去重、升序并限长；非正整数被丢弃。 */
+function toClaims(claims: Iterable<number>): number[] {
+  return [...new Set(claims)]
+    .filter(value => Number.isInteger(value) && value > 0)
+    .sort((a, b) => a - b)
+    .slice(0, MAX_CLAIMS)
 }
 
 /** 把条号/款号规范化成法条编号；未收录的条号返回 undefined。 */
@@ -176,22 +183,45 @@ export function scanClaimNumbers(text: string): number[] {
       claims.add(Number(part))
     }
   }
-  return [...claims].filter(n => n > 0).sort((a, b) => a - b).slice(0, MAX_CLAIMS)
+  return toClaims(claims)
 }
 
-/** 读取 JSON 对象状态键；缺失或不可读时返回 undefined。 */
-function readJsonRecord(state: PipelineState, key: string): Record<string, unknown> | undefined {
+/** 读取 JSON 状态键；缺失、空串或非法 JSON 时返回 undefined。 */
+function readJson(state: PipelineState, key: string): unknown {
   const raw = getStateString(state, key)
   if (raw.trim() === '') return undefined
   try {
-    const parsed: unknown = JSON.parse(raw)
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : undefined
+    return JSON.parse(raw)
   } catch {
     // 状态不是本原子写入的 JSON（例如降级文本）：回退到正文扫描，不在这里抛错。
     return undefined
   }
+}
+
+/** 读取 JSON 对象状态键；缺失、不可读或不是对象时返回 undefined。 */
+function readJsonRecord(state: PipelineState, key: string): Record<string, unknown> | undefined {
+  const parsed = readJson(state, key)
+  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown>
+    : undefined
+}
+
+/**
+ * 把法条编号整理为候选（去重、限长）。
+ * @param statutes - 已识别的法条编号。
+ * @param source - 来源。
+ * @returns 候选列表。
+ */
+function toCandidates(
+  statutes: Iterable<string>,
+  source: DisputeCandidate['source'],
+): DisputeCandidate[] {
+  return [...statutes].slice(0, MAX_CANDIDATES).map(statute => ({
+    statute,
+    /* v8 ignore next -- 候选只来自 STATUTE_LABELS 覆盖的理由表与正文条款 */
+    label: STATUTE_LABELS.get(statute) ?? statute,
+    source,
+  }))
 }
 
 /**
@@ -207,13 +237,8 @@ function toFraming(
   source: 'office-action' | 'grounds',
 ): DisputeFraming {
   return {
-    candidates: [...statutes].slice(0, MAX_CANDIDATES).map(statute => ({
-      statute,
-      /* v8 ignore next -- 候选只来自 STATUTE_LABELS 覆盖的理由表与正文条款 */
-      label: STATUTE_LABELS.get(statute) ?? statute,
-      source,
-    })),
-    claims: [...new Set(claims)].sort((a, b) => a - b).slice(0, MAX_CLAIMS),
+    candidates: toCandidates(statutes, source),
+    claims: toClaims(claims),
     source,
   }
 }
@@ -237,15 +262,7 @@ function fromOfficeAction(state: PipelineState): DisputeFraming | undefined {
 
 /** 从 grounds 的结构化理由收集候选（跳过否定表述）。 */
 function fromGrounds(state: PipelineState): DisputeFraming | undefined {
-  const raw = getStateString(state, 'grounds')
-  if (raw.trim() === '') return undefined
-  let findings: unknown
-  try {
-    findings = JSON.parse(raw)
-  } catch {
-    // grounds 也可能是降级文本；交给正文扫描。
-    return undefined
-  }
+  const findings = readJson(state, 'grounds')
   if (!Array.isArray(findings)) return undefined
   const statutes = new Set<string>()
   for (const finding of findings) {
@@ -281,12 +298,7 @@ export function frameDispute(state: PipelineState): DisputeFraming | undefined {
   if (text.trim() === '') return undefined
   const { statutes, claims } = scanDisputeText(`${text}\n${getStateString(state, 'claims')}`)
   return {
-    candidates: statutes.map(statute => ({
-      statute,
-      /* v8 ignore next -- 候选只来自 STATUTE_LABELS 覆盖的正文条款 */
-      label: STATUTE_LABELS.get(statute) ?? statute,
-      source: 'text',
-    })),
+    candidates: toCandidates(statutes, 'text'),
     claims,
     source: statutes.length > 0 ? 'text' : 'none',
   }
@@ -371,6 +383,11 @@ export const disputeFramingRefineAtom: Atom = {
   outputSchema: ['dispute_framing_refined', 'dispute_framing_refined_candidates', 'time_basis_status'],
 }
 
+/** 来源标签是否是已知的定位来源。 */
+function isFramingSource(value: unknown): value is DisputeCandidate['source'] {
+  return value === 'office-action' || value === 'grounds' || value === 'text'
+}
+
 /** 读取候选数组；非法元素被丢弃。 */
 function readCandidates(value: unknown): DisputeCandidate[] {
   if (!Array.isArray(value)) return []
@@ -385,7 +402,7 @@ function readCandidates(value: unknown): DisputeCandidate[] {
     candidates.push({
       statute,
       label,
-      source: source === 'office-action' || source === 'grounds' || source === 'text' ? source : 'text',
+      source: isFramingSource(source) ? source : 'text',
     })
     if (candidates.length >= MAX_CANDIDATES) break
   }
@@ -407,11 +424,9 @@ export function refineDispute(state: PipelineState): {
   const base: DisputeFraming = {
     candidates: readCandidates(state['dispute_framing_candidates']),
     claims: Array.isArray(rawClaims)
-      ? rawClaims
-        .filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0)
-        .sort((a, b) => a - b)
+      ? toClaims(rawClaims.filter((value): value is number => typeof value === 'number'))
       : [],
-    source: source === 'office-action' || source === 'grounds' || source === 'text' ? source : 'none',
+    source: isFramingSource(source) ? source : 'none',
   }
   // parse/grounds 已跑完：补读结构化驳回类型/程序理由，让 OA 与无效/复审 manifest 的
   // 结构化分支真正生效；粗定位阶段的正文候选保留为补充。
@@ -420,11 +435,14 @@ export function refineDispute(state: PipelineState): {
   const timeBasis: 'locked' | 'unverified' = referenceDate.length > 0 && !referenceDate.startsWith('[WORKFLOW_DEGRADED]')
     ? 'locked'
     : 'unverified'
-  const refined: RefinedDisputeCandidate[] = candidates.map(candidate => ({
-    ...candidate,
-    timeDependent: TIME_DEPENDENT.has(candidate.statute),
-    timeBasis: TIME_DEPENDENT.has(candidate.statute) ? timeBasis : 'locked',
-  }))
+  const refined: RefinedDisputeCandidate[] = candidates.map((candidate) => {
+    const timeDependent = TIME_DEPENDENT.has(candidate.statute)
+    return {
+      ...candidate,
+      timeDependent,
+      timeBasis: timeDependent ? timeBasis : 'locked',
+    }
+  })
   const lines = refined.length === 0
     ? ['争议定位修正：粗定位没有候选法条，保持空集。']
     : [

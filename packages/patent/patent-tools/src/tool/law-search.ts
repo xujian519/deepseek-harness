@@ -101,15 +101,6 @@ const VALIDITY_LABELS: Record<LawValidity, string> = {
 }
 
 /**
- * Render one result's validity line.
- * @param validity - validity at the search's as-of date.
- * @returns model-facing Chinese label.
- */
-function renderValidity(validity: LawValidity): string {
-  return `**时间效力**: ${VALIDITY_LABELS[validity]}`
-}
-
-/**
  * Render the canonical law-search value into model-facing prose.
  * @param value - the search result to render.
  * @param query - the query the call carried (the strategy record is JSON-typed in the output schema).
@@ -129,7 +120,7 @@ function renderLawSearch(value: LawSearchOutput, query: string): string {
     const lines = [`## ${r.name}`]
     lines.push(`**id**: ${r.id} · ${r.level}`)
     if (r.sourcePath !== undefined) lines.push(`**sourcePath**: ${r.sourcePath}`)
-    lines.push(renderValidity(r.validity))
+    lines.push(`**时间效力**: ${VALIDITY_LABELS[r.validity]}`)
     lines.push(`**字数**: ${String(r.charCount)}`)
     if (r.snippet !== undefined) lines.push(r.snippet)
     return lines.join('\n')

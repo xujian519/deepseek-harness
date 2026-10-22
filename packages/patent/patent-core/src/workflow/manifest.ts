@@ -30,14 +30,14 @@ export function validateWorkflowManifest(
   }
   const ids = new Set<string>()
   const indexById = new Map(manifest.stages.map((stage, index) => [stage.id, index]))
-  const gateIndices = manifest.stages
-    .map((stage, index) => stage.atom === 'approval-gate' ? index : -1)
-    .filter(index => index >= 0)
+  /** 已扫描到的审批门下标；随主循环累积，避免对稀疏数组再做一次投影。 */
+  const gateIndices: number[] = []
   let stageIndex = -1
   // 用迭代器而非 `.entries()`：稀疏阶段数组的防御测试通过迭代器暴露阶段，
   // 按索引读取会把空洞当成缺失阶段。
   for (const stage of manifest.stages) {
     stageIndex += 1
+    if (stage.atom === 'approval-gate') gateIndices.push(stageIndex)
     if (!stage.id.trim()) throw new WorkflowError('stage.id 不能为空')
     if (ids.has(stage.id)) throw new WorkflowError(`重复的阶段 id: ${stage.id}`)
     ids.add(stage.id)

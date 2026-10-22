@@ -288,11 +288,13 @@ async function runSingleStage(run: StageRun, index: number): Promise<StageStep> 
   // 一致性重试循环：文本信号或结构化缺口信号命中时回退到 rewindTo 阶段重新执行。
   // 结构化信号不依赖输出文本：门阶段可能以空输出加缺口信号表达「需要上游补事实」。
   const structuredRequested = stage.retry?.whenRevisionRequested === true && revisionSignals.length > 0
-  if (stage.retry !== undefined && (output.trim().length > 0 || structuredRequested)) {
-    const signal = stage.retry.whenOutputMatches !== undefined ? signalFor(stage, run.signalCache) : undefined
+  const textAvailable = output.trim().length > 0
+  if (stage.retry !== undefined && (textAvailable || structuredRequested)) {
+    const signal = textAvailable && stage.retry.whenOutputMatches !== undefined
+      ? signalFor(stage, run.signalCache)
+      : undefined
     const textMatched = signal !== undefined && signalMatches(output, signal)
-    const structuredMatched = stage.retry.whenRevisionRequested === true && revisionSignals.length > 0
-    if (textMatched || structuredMatched) {
+    if (textMatched || structuredRequested) {
       const rewindTo = stage.retry.rewindTo ?? stage.id
       const rewindIndex = run.stageIds.get(rewindTo)
       if (rewindIndex === undefined) return { nextIndex: null }

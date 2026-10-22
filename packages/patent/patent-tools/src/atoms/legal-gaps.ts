@@ -314,10 +314,10 @@ function deriveInputKeys(): string[] {
 }
 
 /** 单次反哺最多带上的缺口数；采集阶段按此收敛，避免把整张报告糊进提示词。 */
-export const MAX_REVISION_TARGETS = 8
+const MAX_REVISION_TARGETS = 8
 
 /** 反哺给采集阶段的目标：哪条检查、哪条法条、需要补什么。 */
-export type LegalGapRevisionTarget = {
+type LegalGapRevisionTarget = {
   /** 检查编号（与 `LegalGapItem.id` 一致）。 */
   checkId: string
   /** 法条或指南节号。 */
