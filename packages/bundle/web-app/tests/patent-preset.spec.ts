@@ -91,6 +91,7 @@ interface StructuralGateDeclaration {
   textArgs?: string[]
   ruleIds?: string[]
   whenArgs?: { template?: string }
+  strict?: boolean
 }
 
 /** The persona text a row declares, or `''` when the row carries none. */
@@ -435,6 +436,8 @@ describe('patent preset composition', () => {
     // The structural gate denies a render before it runs; PR-OA-007 must exist in
     // the shipped rule assets and stay block-level, or the declaration looks armed
     // and never fires. This is the first rule that enters through render arguments.
+    // `strict` is what turns that mismatch into a load failure: without it a
+    // renamed rule asset only warns and drops the entry.
     const rows = await patentRows()
     const row = rows.find(entry => entry.id === 'patent-rule')
     const gate = (row?.config as { structuralGate?: StructuralGateDeclaration[] } | undefined)?.structuralGate
@@ -444,6 +447,7 @@ describe('patent preset composition', () => {
     expect(artifact?.whenArgs).toEqual({ template: 'oa-response' })
     expect(artifact?.textArgs).toEqual(['draft'])
     expect(artifact?.ruleIds).toEqual(['PR-OA-007'])
+    expect(artifact?.strict).toBe(true)
     const ruleAssets = yaml.load(readFileSync(
       join(REPO_ROOT, 'packages/patent/patent-rule/assets/rules/patent/oa-response-form.yaml'),
       'utf8',
