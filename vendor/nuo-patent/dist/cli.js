@@ -45,6 +45,13 @@ var noopLogger = {
 // src/ego-browser.ts
 var import_node_child_process = require("child_process");
 var EGO_ENV_KEY = "NUO_PATENT_EGO_BROWSER";
+function resolveEgoChannel() {
+  const env = process.env[EGO_ENV_KEY];
+  if (env === "0") return "native";
+  if (env === "1") return "browser";
+  if (env === "fallback") return "fallback";
+  return isEgoBrowserAvailable() ? "browser" : "native";
+}
 var _egoAvailable = null;
 function isEgoBrowserAvailable() {
   if (_egoAvailable !== null) return _egoAvailable;
@@ -62,40 +69,56 @@ function isEgoBrowserAvailable() {
     return false;
   }
   try {
-    (0, import_node_child_process.execFile)("which", ["ego-browser"], { timeout: 3e3 });
+    (0, import_node_child_process.execFileSync)("which", ["ego-browser"], { timeout: 3e3, stdio: "ignore" });
     _egoAvailable = true;
   } catch {
     _egoAvailable = false;
   }
   return _egoAvailable;
 }
-function fetchHtmlWithEgoBrowser(targetUrl, options = {}) {
-  const { signal, timeout = 3e4, logger = noopLogger } = options;
-  const spaceName = `nuo-patent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const tabTimeoutSec = Math.max(10, Math.floor(timeout / 1e3));
-  const script = [
-    `const task = await useOrCreateTaskSpace(${JSON.stringify(spaceName)})`,
+var EGO_TASK_SPACE = "nuo-patent-fetch";
+function buildEgoFetchScript(targetUrl, timeoutMs) {
+  const navTimeout = Math.max(1e4, timeoutMs);
+  const origin = targetUrl.replace(/^(https?:\/\/[^/]+).*$/u, "$1");
+  return [
+    `const targetUrl = ${JSON.stringify(targetUrl)}`,
+    `const origin = ${JSON.stringify(origin)}`,
+    `const task = await taskSpace(${JSON.stringify(EGO_TASK_SPACE)})`,
+    `const page = await task.newPage()`,
     `try {`,
-    `  await openOrReuseTab(${JSON.stringify(targetUrl)}, { wait: true, timeout: ${tabTimeoutSec} })`,
-    `  const status = await js(String.raw\`performance.getEntriesByType('navigation')[0]?.responseStatus ?? 0\`)`,
-    `  if (!status || status >= 400) throw new Error('HTTP ' + status)`,
-    `  const html = await js(String.raw\`document.documentElement.outerHTML\`)`,
-    `  cliLog('NUO_START')`,
-    `  cliLog(Buffer.from(html, 'utf8').toString('base64'))`,
-    `  cliLog('NUO_END')`,
+    `  await page.goto(origin + "/", { waitUntil: "domcontentloaded", timeout: ${navTimeout} })`,
+    `  const payload = await page.evaluate(async (url) => {`,
+    `    const controller = new AbortController()`,
+    `    const timer = setTimeout(() => controller.abort(), ${timeoutMs})`,
+    `    try {`,
+    `      const response = await fetch(url, { credentials: "include", redirect: "follow", signal: controller.signal })`,
+    `      return { status: response.status, url: response.url, text: await response.text() }`,
+    `    } finally {`,
+    `      clearTimeout(timer)`,
+    `    }`,
+    `  }, targetUrl)`,
+    `  if (!payload || typeof payload.status !== "number") throw new Error("ego-browser \u672A\u8FD4\u56DE\u54CD\u5E94\u72B6\u6001")`,
+    `  if (payload.status >= 400) throw new Error("HTTP " + payload.status)`,
+    `  console.log("NUO_START")`,
+    `  console.log(Buffer.from(payload.text, "utf8").toString("base64"))`,
+    `  console.log("NUO_END")`,
     `} finally {`,
-    `  await completeTaskSpace(task.id, { keep: false })`,
+    `  await page.close()`,
     `}`
   ].join("\n");
+}
+function fetchHtmlWithEgoBrowser(targetUrl, options = {}) {
+  const { signal, timeout = 3e4, logger = noopLogger } = options;
+  const script = buildEgoFetchScript(targetUrl, timeout);
   return new Promise((resolve, reject) => {
-    logger.info(`[ego-browser] \u6253\u5F00 ${targetUrl}`);
+    logger.info(`[ego-browser] \u6293\u53D6 ${targetUrl}`);
     const child = (0, import_node_child_process.exec)(
       "ego-browser nodejs",
       {
-        timeout: timeout + 15e3,
-        // 子进程整体多给 15s（浏览器启动、页面加载）
+        timeout: timeout + 2e4,
+        // 子进程整体多给 20s（浏览器启动、页面加载）
         maxBuffer: 128 * 1024 * 1024,
-        // HTML base64 可能达数 MB，放宽 stdout 上限
+        // 原始响应体 base64 可能达数 MB
         signal
       },
       (err, stdout, stderr) => {
@@ -105,7 +128,7 @@ function fetchHtmlWithEgoBrowser(targetUrl, options = {}) {
           return;
         }
         try {
-          resolve(extractHtmlFromStdout(`${stdout}
+          resolve(extractBodyFromStdout(`${stdout}
 ${stderr}`));
         } catch (e) {
           reject(e instanceof Error ? e : new Error(String(e)));
@@ -127,11 +150,11 @@ ${stderr}`));
     }
   });
 }
-function extractHtmlFromStdout(stdout) {
+function extractBodyFromStdout(stdout) {
   const start = stdout.indexOf("NUO_START");
   const end = stdout.lastIndexOf("NUO_END");
   if (start === -1 || end === -1 || end <= start) {
-    throw new Error("ego-browser \u8F93\u51FA\u4E2D\u672A\u627E\u5230\u6709\u6548 HTML \u6807\u8BB0");
+    throw new Error("ego-browser \u8F93\u51FA\u4E2D\u672A\u627E\u5230\u6709\u6548\u54CD\u5E94\u6807\u8BB0");
   }
   const b64 = stdout.slice(start + "NUO_START".length, end).replace(/\s+/g, "");
   return Buffer.from(b64, "base64").toString("utf8");
@@ -222,15 +245,8 @@ function getSystemProxy() {
   }
   return _cachedProxy;
 }
-async function fetchHtml(targetUrl, options = {}) {
-  const { headers = {}, signal, timeout = 3e4, logger = noopLogger, fetchImpl } = options;
-  if (isEgoBrowserAvailable()) {
-    try {
-      return await fetchHtmlWithEgoBrowser(targetUrl, { signal, timeout, logger });
-    } catch (e) {
-      logger.warn(`[ego-browser] \u6293\u53D6\u5931\u8D25\uFF0C\u56DE\u9000\u539F\u751F fetch: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
+async function fetchHtmlNative(targetUrl, options = {}) {
+  const { headers = {}, signal, timeout = 3e4, fetchImpl } = options;
   if (signal?.aborted) {
     throw new Error("Request aborted");
   }
@@ -315,6 +331,53 @@ async function fetchHtml(targetUrl, options = {}) {
     });
     connectReq.end();
   });
+}
+function describeError(error) {
+  if (!(error instanceof Error)) return String(error);
+  const cause = error.cause;
+  const detail = typeof cause?.code === "string" ? cause.code : typeof cause?.message === "string" ? cause.message : void 0;
+  return detail && !error.message.includes(detail) ? `${error.message}\uFF08${detail}\uFF09` : error.message;
+}
+function describeFetchFailure(error) {
+  if (!(error instanceof Error)) return new Error(String(error));
+  const message = describeError(error);
+  if (message === error.message) return error;
+  return new Error(message, { cause: error });
+}
+async function fetchHtml(targetUrl, options = {}) {
+  const { signal, timeout = 3e4, logger = noopLogger } = options;
+  const channel = resolveEgoChannel();
+  if (channel === "browser") {
+    try {
+      return await fetchHtmlWithEgoBrowser(targetUrl, { signal, timeout, logger });
+    } catch (egoError) {
+      logger.warn(`[ego-browser] \u6293\u53D6\u5931\u8D25\uFF0C\u56DE\u9000\u539F\u751F fetch: ${describeError(egoError)}`);
+      try {
+        return await fetchHtmlNative(targetUrl, options);
+      } catch (nativeError) {
+        throw new Error(
+          `ego-browser \u6293\u53D6\u5931\u8D25\uFF08${describeError(egoError)}\uFF09\uFF1B\u539F\u751F fetch \u56DE\u9000\u5931\u8D25\uFF08${describeError(nativeError)}\uFF09`,
+          { cause: nativeError }
+        );
+      }
+    }
+  }
+  try {
+    return await fetchHtmlNative(targetUrl, options);
+  } catch (nativeError) {
+    if (channel !== "fallback" || signal?.aborted || !isEgoBrowserAvailable()) {
+      throw describeFetchFailure(nativeError);
+    }
+    logger.warn(`[native] \u6293\u53D6\u5931\u8D25\uFF0C\u56DE\u9000 ego-browser: ${describeError(nativeError)}`);
+    try {
+      return await fetchHtmlWithEgoBrowser(targetUrl, { signal, timeout, logger });
+    } catch (egoError) {
+      throw new Error(
+        `\u539F\u751F fetch \u5931\u8D25\uFF08${describeError(nativeError)}\uFF09\uFF1Bego-browser \u56DE\u9000\u5931\u8D25\uFF08${describeError(egoError)}\uFF09`,
+        { cause: nativeError }
+      );
+    }
+  }
 }
 function parseCitationElement($, element, logger = noopLogger) {
   const result = {

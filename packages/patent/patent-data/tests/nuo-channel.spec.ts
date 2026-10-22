@@ -40,6 +40,14 @@ describe('nuo request channel', () => {
     expect(process.env[NUO_EGO_BROWSER_ENV]).toBe('0')
   })
 
+  it('writes fallback and restores the previous value', () => {
+    clearChannelEnv()
+    const restore = applyNuoRequestChannel('fallback')
+    expect(process.env[NUO_EGO_BROWSER_ENV]).toBe('fallback')
+    restore?.()
+    expect(process.env[NUO_EGO_BROWSER_ENV]).toBeUndefined()
+  })
+
   it('does not overwrite a value that changed after this mount wrote it', () => {
     clearChannelEnv()
     const restore = applyNuoRequestChannel('native')
