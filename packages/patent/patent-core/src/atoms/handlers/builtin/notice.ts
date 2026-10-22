@@ -83,7 +83,7 @@ export type GroundProgram = (typeof GROUND_PROGRAMS)[number]
 /** grounds 原子：程序法定理由识别与专利权类型判定。 */
 export const groundsAtom: Atom = {
   name: 'grounds',
-  description: '程序法定理由识别：按 ground_program 选定无效/复审/外观设计理由表（纯函数，不调用模型）',
+  description: '程序法定理由识别：按 ground_program 选定理由表并标注否定表述（纯函数，不调用模型）',
   category: 'compare',
   inputSchema: ['input', 'ground_program'],
   outputSchema: ['grounds', 'grounds_summary', 'patent_subject'],
@@ -101,13 +101,19 @@ const NO_GROUND_SUMMARY = '未识别到具体法条依据（须人工判读文�
  * 渲染理由摘要：逐条给出中文标签、法条依据与命中的原文片段。
  *
  * 片段随摘要一起给出，是因为关键词表只能回答"文中提到了该条款"；把命中处摆在同一条里，
- * 判读"是否被实质论证"时不必再回原文定位。
+ * 判读"是否被实质论证"时不必再回原文定位。命中词处于否定表述作用范围时额外标注，避免
+ * 把"请求人未主张……"读成请求人主张了该理由。
  * @param findings - 识别到的理由。
  * @returns 逐条摘要文本；未识别到理由时返回明示文案。
  */
 function summarizeGrounds(findings: readonly GroundFinding<string>[]): string {
   if (findings.length === 0) return NO_GROUND_SUMMARY
-  return findings.map(finding => `${finding.label}（${finding.article}）：「${finding.matched}」`).join('、')
+  return findings
+    .map((finding) => {
+      const scope = finding.negated ? `${finding.article}，文中为否定表述` : finding.article
+      return `${finding.label}（${scope}）：「${finding.matched}」`
+    })
+    .join('、')
 }
 
 /** grounds 执行器：按程序类型识别法定理由（复审另判专利权类型）。 */

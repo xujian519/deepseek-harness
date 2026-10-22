@@ -5,6 +5,7 @@ import {
   analyzeNumericRanges,
   deriveAllElementsCoverage,
   deriveClaimRefs,
+  identifyInvalidationGrounds,
   parseOfficeAction,
   validateClaimRefs,
   type AmendmentBasisViolation,
@@ -73,6 +74,13 @@ async function assertCase(entry: LegalCorpusCase): Promise<void> {
       expect(coverage.outcome).toBe(entry.expected.outcome)
       expect(coverage.literalElements).toEqual(entry.expected.literal)
       expect(coverage.missingElements).toEqual(entry.expected.missing)
+      return
+    }
+    case 'grounds': {
+      const findings = identifyInvalidationGrounds(entry.text)
+      expect(findings.map(finding => ({ ground: finding.ground, negated: finding.negated }))).toEqual(
+        entry.expected,
+      )
       return
     }
     default:

@@ -454,6 +454,7 @@ export {
   REJECTION_SHORT_LABELS,
   extractCitations,
   formatOfficeActionSummary,
+  identifyInvalidationGrounds,
   parseOfficeAction,
 } from './notice/index.ts'
 

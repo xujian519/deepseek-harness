@@ -26,7 +26,9 @@
  *
  * 已知限制：收紧后的表仍可能同时命中语义相邻的两条（如 A5 与 A25 都属客体缺陷）；命中
  * 表示**文书提到了该条款**，不等于该理由在文中被实质论证；用于生成核查清单与实际作业前
- * 须按 `matched` 逐条人工核对。
+ * 须按 `matched` 逐条人工核对。否定识别只看命中词前的同一分句、且只认明确的元否定短语，
+ * 不处理后置否定（“……的理由不成立”）与双重否定；被否定的命中仍以 `negated: true` 输出，
+ * 由调用方决定是否排除。
  */
 
 /** 一类理由及其识别依据。 */
@@ -46,6 +48,11 @@ export type GroundFinding<Ground extends string> = {
   ground: Ground
   article: string
   label: string
+  /**
+   * 命中词是否处于否定表述的作用范围内（如“请求人未主张权利要求1不具备新颖性”）。
+   * 否定项仍然输出，供人工核对；下游据此排除未被援引的理由。
+   */
+  negated: boolean
   /** 首处命中的原文片段（命中词前后各截一段，空白折叠，截断处加省略号），供人工核对。 */
   matched: string
 }
@@ -230,18 +237,91 @@ const NUMBER_ONLY_PATTERN = /^(?:第)?\d+(?:\.\d+)?(?:条|款)?/
 /** 条号前出现另一部法律名的情形（`专利法实施细则第5条` 不是专利法第5条）。 */
 const OTHER_LAW_BEFORE = /(?:实施)?细则/
 
+/** 否定只在同一分句内生效；逗号也切断作用范围。 */
+const CLAUSE_BOUNDARIES = ['。', '！', '？', '；', ';', '\n', '，', ','] as const
+
+/** 转折词之后的内容不受其前面的否定影响。 */
+const CONTRAST_MARKERS = ['但是', '但', '然而', '可是', '不过', '而是', '反而', '却'] as const
+
+/**
+ * 明确否认或未提出某主张的表述。
+ *
+ * 只收元否定短语，不收单字“不/未”：后者常是缺陷表述本身的一部分
+ * （“不具备新颖性”“未充分公开”“无法实现”），收进来会把主张反向标成否定。
+ */
+const NEGATION_MARKERS = [
+  '未主张',
+  '不主张',
+  '没有主张',
+  '未提出',
+  '不提出',
+  '没有提出',
+  '未曾主张',
+  '未曾提出',
+  '未涉及',
+  '不涉及',
+  '不存在',
+  '并非',
+  '不是',
+  '不认为',
+  '否认',
+  '无证据表明',
+  '没有证据表明',
+  '无证据证明',
+  '没有证据证明',
+  '未能证明',
+  '无法证明',
+  '不足以证明',
+] as const
+
+/** 否定判定的前瞻字符上限；同一分句内通常足够覆盖主语与状语。 */
+const NEGATION_WINDOW = 60
+
 /** 关键词按字面匹配（元字符转义）且不区分大小写。 */
 function literalPattern(keyword: string, flags = 'i'): RegExp {
   return new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags)
 }
 
 /**
- * 取首处命中及其上下文片段。
+ * 判断命中词是否被同一分句内的否定表述否定。
+ *
+ * 取命中词之前的一段文字，截到最后一个分句边界之后、最后一个转折词之后，再查找
+ * 元否定短语。只处理前置否定；后置否定（“……的理由不成立”）与双重否定不在判定范围内。
+ * @param text - 程序文书正文。
+ * @param index - 命中词起点。
+ * @returns 命中词是否被否定。
+ */
+function isNegated(text: string, index: number): boolean {
+  let before = text.slice(Math.max(0, index - NEGATION_WINDOW), index)
+  let clauseStart = 0
+  for (const boundary of CLAUSE_BOUNDARIES) {
+    const at = before.lastIndexOf(boundary)
+    if (at >= 0 && at + boundary.length > clauseStart) clauseStart = at + boundary.length
+  }
+  before = before.slice(clauseStart)
+  let contrastEnd = 0
+  for (const marker of CONTRAST_MARKERS) {
+    const at = before.lastIndexOf(marker)
+    if (at >= 0 && at + marker.length > contrastEnd) contrastEnd = at + marker.length
+  }
+  before = before.slice(contrastEnd)
+  return NEGATION_MARKERS.some(marker => before.includes(marker))
+}
+
+/** 一处候选命中的位置、长度与否定判定。 */
+type GroundHit = { index: number; length: number; negated: boolean }
+
+/**
+ * 取首处正向命中及其上下文片段；同一理由的所有写法都被否定时，返回首处否定命中。
+ *
+ * 先返回第一个未被否定的命中，避免“前文否认、后文正面主张”时丢掉后文的理由；
+ * 全部命中都被否定时保留首处并标 `negated`，供人工核对。
  * @param text - 程序文书正文。
  * @param patterns - 该类理由的关键词，按声明顺序取首个命中者。
- * @returns 命中下标与命中词长度；无命中时为 null。
+ * @returns 命中下标、命中词长度与否定判定；无命中时为 null。
  */
-function firstMatch(text: string, patterns: readonly string[]): { index: number; length: number } | null {
+function firstMatch(text: string, patterns: readonly string[]): GroundHit | null {
+  let negatedHit: GroundHit | null = null
   for (const pattern of patterns) {
     /* v8 ignore next -- ground tables never declare empty keywords. */
     if (pattern.length === 0) continue
@@ -250,12 +330,14 @@ function firstMatch(text: string, patterns: readonly string[]): { index: number;
     while (found !== null) {
       const before = text.slice(Math.max(0, found.index - 20), found.index)
       if (!NUMBER_ONLY_PATTERN.test(pattern) || !OTHER_LAW_BEFORE.test(before)) {
-        return { index: found.index, length: found[0].length }
+        const hit = { index: found.index, length: found[0].length, negated: isNegated(text, found.index) }
+        if (!hit.negated) return hit
+        negatedHit ??= hit
       }
       found = matcher.exec(text)
     }
   }
-  return null
+  return negatedHit
 }
 
 /**
@@ -289,6 +371,7 @@ function scanGroundPatterns<Ground extends string>(
       ground: entry.ground,
       article: entry.article,
       label: entry.label,
+      negated: hit.negated,
       matched: matchContext(text, hit),
     })
   }
@@ -326,8 +409,8 @@ export function identifyDesignGrounds(text: string): GroundFinding<DesignInvalid
  * 判定专利权类型。
  *
  * 判定顺序：正文出现"实用新型"即为实用新型；否则出现"发明"即为发明；否则若已识别到
- * 实用新型客体缺陷理由，按实用新型处理；都不满足时为 `undetermined`。上游在后两种
- * 情形以外一律按发明处理，等于替文书认定了一个它没有说明的事实。
+ * 未被否定的实用新型客体缺陷理由，按实用新型处理；都不满足时为 `undetermined`。上游在
+ * 后两种情形以外一律按发明处理，等于替文书认定了一个它没有说明的事实。
  * @param text - 程序文书正文。
  * @param grounds - 已识别的复审理由，用于客体缺陷这一间接信号。
  * @returns 专利权类型。
@@ -339,7 +422,7 @@ export function detectPatentSubject(
   const loweredText = text.toLowerCase()
   if (loweredText.includes('实用新型')) return 'utility-model'
   if (loweredText.includes('发明')) return 'invention'
-  if (grounds.some(ground => ground.ground === 'utility-model-subject-matter')) {
+  if (grounds.some(ground => !ground.negated && ground.ground === 'utility-model-subject-matter')) {
     return 'utility-model'
   }
   return 'undetermined'

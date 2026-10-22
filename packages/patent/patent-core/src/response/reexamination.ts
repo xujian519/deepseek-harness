@@ -187,6 +187,9 @@ function hearingPhases(findings: readonly GroundFinding<ReexaminationGround>[]):
 
 /**
  * 由理由识别结果拼装复审准备段。
+ *
+ * 只采用未被否定的理由：文书写成"未主张某理由"时，该理由没有被援引，不应进入质疑预演
+ * 与时间线；被否定的命中项由调用方按 `negated` 自行呈现。
  * @param findings - `identifyReexaminationGrounds` 的理由识别结果。
  * @param options - 是否口审；缺省视为不口审。
  * @returns 准备段集合，段序为对比表、A33 论证、质疑预演、口审时间线。
@@ -227,7 +230,7 @@ export function buildReexaminationPreparation(
 }
 
 /**
- * 按理由表序去重。
+ * 排除被否定的理由后按理由表序去重。
  * @param findings - 理由识别结果（表序）。
  * @returns 去重后的理由识别结果。
  */
@@ -236,6 +239,7 @@ function dedupeGrounds(
 ): GroundFinding<ReexaminationGround>[] {
   const seen = new Set<ReexaminationGround>()
   return findings.filter((finding) => {
+    if (finding.negated) return false
     if (seen.has(finding.ground)) return false
     seen.add(finding.ground)
     return true
