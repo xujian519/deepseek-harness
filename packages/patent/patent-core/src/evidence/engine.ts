@@ -682,9 +682,16 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
         severity: 'critical',
       })
     }
+    judgment.typeSpecificJudgment = evaluateTypeSpecific(span, evType, external, reference)
+    if (judgment.typeSpecificJudgment.publicIntent === 'unknown') {
+      issues.push({
+        type: 'authenticity',
+        description: '来源 URI 无法解析主机名，公开意图未知（未推定为公开），需人工核实证据是否对公众公开',
+        severity: 'major',
+      })
+    }
     judgment.flaggedIssues = issues
 
-    judgment.typeSpecificJudgment = evaluateTypeSpecific(span, evType, external, reference)
     judgment.overallScore = this.computeOverallScore(judgment)
     // confidence 与评分关联（低分证据不应宣称"确信"）——固定 1.0 是误导。
     judgment.confidence = Number(judgment.overallScore.toFixed(3))
@@ -799,7 +806,7 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
    * 证明标准达成评估（查找表驱动）：
    *   preponderance/优势证据：支持 > 矛盾 且 置信度 ≥ 0.5
    *   clear_and_convincing/高度盖然性：置信度 ≥ 0.7 且 支持 > 2×矛盾
-   *   未知标准：置信度 ≥ 0.5（宽松放行）
+   *   未知标准：fail-closed —— `status: 'unknown-standard'` 且 `met: false`，不以置信度推定达标。
    * 支持/矛盾按证据的 `direction` 归类，不按评分：立场是当事人主张问题，评分是证明力
    * 问题，高分矛盾证据不是支持证据。neutral 证据不计入比较。置信度取全部证据评分的均值。
    * @param judgments - 待评价的证据判定结果。
@@ -809,6 +816,7 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
   assessProofStandard(judgments: EvidenceJudgment[], standard: string): ProofStandardResult {
     const result: ProofStandardResult = {
       met: false,
+      status: 'evaluated',
       standard,
       confidence: 0,
       supportingCount: 0,
@@ -852,13 +860,18 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
       高度盖然性: { minConfidence: 0.7, ratio: 'clear_convincing' },
     }
     const rule = STANDARDS[standard]
-    if (rule !== undefined) {
+    if (rule === undefined) {
+      result.status = 'unknown-standard'
+      result.gaps.push(
+        standard.trim() === ''
+          ? '无法识别的证明标准：未提供标准'
+          : `无法识别的证明标准：${standard}`,
+      )
+    } else {
       result.met =
         rule.ratio === 'preponderance'
           ? supporting > contradicting && result.confidence >= rule.minConfidence
           : result.confidence >= rule.minConfidence && supporting > contradicting * 2
-    } else {
-      result.met = result.confidence >= 0.5
     }
     if (contradicting > 0) {
       result.gaps.push(`存在 ${contradicting} 件反证，需逐件评价证明力后再认定`)
@@ -868,7 +881,8 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
       result.met = false
     }
     result.reasoning =
-      `支持证据 ${supporting} 件 / 反证 ${contradicting} 件 / 中性 ${neutral} 件，平均置信度 ${(result.confidence * 100).toFixed(0)}%`
+      `支持证据 ${supporting} 件 / 反证 ${contradicting} 件 / 中性 ${neutral} 件，平均置信度 ${(result.confidence * 100).toFixed(0)}%` +
+      (result.status === 'unknown-standard' ? '；证明标准无法识别，不能认定达标' : '')
     return result
   }
 

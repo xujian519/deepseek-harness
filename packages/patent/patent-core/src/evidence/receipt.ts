@@ -9,6 +9,7 @@
  * 此处 re-export 供领域层复用。
  */
 
+import { createHash } from 'node:crypto'
 import type { SatiEvidenceReceipt } from './protocol.ts'
 
 /** 工具调用收据（= SatiEvidenceReceipt）。 */
@@ -16,18 +17,16 @@ export type Receipt = SatiEvidenceReceipt
 
 export { receiptFromToolExecution } from './protocol.ts'
 
+/** 新内容哈希的算法前缀；账本与收据据此区分 SHA-256 与旧版弱哈希。 */
+export const CONTENT_HASH_PREFIX = 'sha256:'
+
 /**
- * 内容哈希（FNV-1a 32 位，十六进制）——用于证据原文完整性校验。
- * @param text - 待哈希的原文。
- * @returns 十六进制内容哈希。
+ * 内容哈希（SHA-256，`sha256:<小写十六进制>`）——用于证据原文完整性校验。
+ * @param text - 待哈希的原文（按 UTF-8 编码）。
+ * @returns 带算法前缀的 SHA-256 内容哈希。
  */
 export function contentHash(text: string): string {
-  let hash = 0x811c9dc5
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  return (hash >>> 0).toString(16)
+  return `${CONTENT_HASH_PREFIX}${createHash('sha256').update(text, 'utf8').digest('hex')}`
 }
 
 /**

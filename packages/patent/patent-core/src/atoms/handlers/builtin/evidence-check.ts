@@ -30,7 +30,7 @@ import {
   parseDateFlexible,
   priorArtReference,
 } from '../../../evidence/date.ts'
-import { contentHash } from '../../../evidence/receipt.ts'
+import { CONTENT_HASH_PREFIX, contentHash } from '../../../evidence/receipt.ts'
 import { degraded } from './llm.ts'
 import { isRecord, resolveTrimmedKey } from './state-keys.ts'
 
@@ -110,8 +110,11 @@ export const evidenceCheckAtom: Atom = {
 /** 合法的 A24 宽限期标注。 */
 const A24_EXCEPTIONS = new Set(['A24.1', 'A24.2', 'A24.3', 'A24.4'])
 
-/** 内建内容哈希（FNV-1a 32 位）的十六进制长度上限。 */
-const MAX_INTERNAL_HASH_LENGTH = 8
+/** SHA-256 十六进制摘要（64 位）。 */
+const SHA256_HEX = /^[0-9a-f]{64}$/iu
+
+/** 旧版内建哈希（FNV-1a 32 位）的十六进制形态，仅用于兼容校验。 */
+const LEGACY_FNV_HEX = /^[0-9a-f]{1,8}$/iu
 
 /** 证据名称的候选字段。 */
 const NAME_FIELDS = ['title', 'name', 'publicationNumber', 'patentNumber', 'id', 'evidenceId', 'label'] as const
@@ -520,7 +523,24 @@ function readRefs(record: Record<string, unknown>, fields: readonly string[]): s
 }
 
 /**
- * 内容完整性校验：只对符合内建 FNV-1a 格式且同时给出原文摘录的证据重算哈希。
+ * 旧版内建哈希（FNV-1a 32 位）；只为校验既有证据保留，新哈希一律用 SHA-256。
+ * @param text - 待哈希的原文。
+ * @returns 十六进制 FNV-1a 哈希。
+ */
+function legacyFnv1a(text: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16)
+}
+
+/**
+ * 内容完整性校验：
+ * - `sha256:<64 位十六进制>` 与原文摘录重算一致时通过，不一致阻断；
+ * - 旧版 1–8 位十六进制只在能与摘录重算一致时按 legacy 通过，并标记 `legacy-hash` 待核；
+ * - 其他格式与无法匹配的短十六进制不自动当作内建哈希，转待核由对应算法核验。
  * @param ctx - 证据读取上下文。
  * @returns 违规项、待核项或录入错误。
  */
@@ -531,27 +551,74 @@ function checkIntegrity(ctx: EntryContext): {
   const hash = firstText(ctx.record, ['contentHash', 'content_hash'])
   if (hash === undefined) return { violations: [], pending: [] }
   const snippet = firstText(ctx.record, ['snippet', 'excerpt', 'text'])
-  if (!/^[0-9a-f]+$/iu.test(hash) || hash.length > MAX_INTERNAL_HASH_LENGTH) {
+  const normalized = hash.trim()
+
+  if (normalized.toLowerCase().startsWith(CONTENT_HASH_PREFIX)) {
+    const hex = normalized.slice(CONTENT_HASH_PREFIX.length)
+    if (!SHA256_HEX.test(hex)) {
+      return {
+        violations: [],
+        pending: [pending(ctx, 'EVID-FORM-INTEGRITY', 'sha256: 哈希缺少 64 位十六进制摘要，无法核验完整性')],
+      }
+    }
+    if (snippet === undefined) {
+      return {
+        violations: [],
+        pending: [pending(ctx, 'EVID-FORM-INTEGRITY', '提供了内容哈希但缺少原文摘录，无法重算校验')],
+      }
+    }
+    if (contentHash(snippet).toLowerCase() !== `${CONTENT_HASH_PREFIX}${hex.toLowerCase()}`) {
+      return {
+        violations: [
+          violation(ctx, 'EVID-FORM-INTEGRITY', 'block', '原文摘录与 SHA-256 内容哈希不一致，证据完整性存疑'),
+        ],
+        pending: [],
+      }
+    }
+    return { violations: [], pending: [] }
+  }
+
+  if (LEGACY_FNV_HEX.test(normalized)) {
+    if (snippet === undefined) {
+      return {
+        violations: [],
+        pending: [pending(ctx, 'EVID-FORM-INTEGRITY', '提供了旧版短哈希但缺少原文摘录，无法重算校验')],
+      }
+    }
+    if (legacyFnv1a(snippet).toLowerCase() === normalized.toLowerCase()) {
+      return {
+        violations: [],
+        pending: [
+          pending(
+            ctx,
+            'EVID-FORM-INTEGRITY-LEGACY',
+            `legacy-hash：旧版 FNV 哈希校验通过，但该格式为弱哈希；请改用 ${contentHash(snippet)}`,
+          ),
+        ],
+      }
+    }
     return {
       violations: [],
-      pending: [pending(ctx, 'EVID-FORM-INTEGRITY', '内容哈希为外部算法格式，需用对应算法独立核验，本原子未校验')],
-    }
-  }
-  if (snippet === undefined) {
-    return {
-      violations: [],
-      pending: [pending(ctx, 'EVID-FORM-INTEGRITY', '提供了内容哈希但缺少原文摘录，无法重算校验')],
-    }
-  }
-  if (contentHash(snippet).toLowerCase() !== hash.toLowerCase()) {
-    return {
-      violations: [
-        violation(ctx, 'EVID-FORM-INTEGRITY', 'block', '原文摘录与内容哈希不一致，证据完整性存疑'),
+      pending: [
+        pending(
+          ctx,
+          'EVID-FORM-INTEGRITY',
+          '短十六进制无法确认为内建 FNV 哈希（与摘录不一致），不自动按内建哈希判定，需用对应算法独立核验',
+        ),
       ],
-      pending: [],
     }
   }
-  return { violations: [], pending: [] }
+
+  return {
+    violations: [],
+    pending: [
+      pending(
+        ctx,
+        'EVID-FORM-INTEGRITY',
+        '内容哈希不是 sha256:<64 位十六进制> 格式，需用对应算法独立核验，本原子未校验',
+      ),
+    ],
+  }
 }
 
 /**

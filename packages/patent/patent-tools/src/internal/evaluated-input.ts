@@ -12,8 +12,8 @@
  * Recording the identity of each text input makes that comparison mechanical: a
  * differing count or digest proves the two runs read different text, so the
  * divergence is visible without re-reading anything. Matches only clear the input —
- * `contentHash` is a 32-bit FNV-1a digest, short enough that two different texts can
- * collide, so equal entries are consistent with one input rather than proof of it.
+ * the `sha256:` digest identifies the text a run received, not that any file on disk
+ * or earlier revision was its source.
  * @module @deepseek-ai/dsh-patent-tools/internal/evaluated-input
  */
 
