@@ -20,7 +20,7 @@ import {
 function derivedController(ctx: ClientContext) {
   return new AgentPresetSettingsController(ctx)
 }
-import { AgentPresetSeatController, SEAT_PRESET_LOCKED } from '../src/client/seat-store.ts'
+import { AgentPresetSeatController, SEAT_PRESET_LOCKED, SEAT_SESSION_BUSY } from '../src/client/seat-store.ts'
 
 type SeatSession = Pick<SessionSummary, 'id' | 'blank' | 'projectionValues'>
 
@@ -203,6 +203,7 @@ describe('the new-session chip controller', () => {
     options: {
       writes?: Recorded[]
       failSelect?: string
+      failSelectCode?: RemoteErrorCode
       failList?: string
       failListCode?: RemoteErrorCode
       list?: () => Promise<ReturnType<typeof remoteRoster>>
@@ -224,14 +225,16 @@ describe('the new-session chip controller', () => {
           }),
           select: (agentId: SessionId, agentPreset: string) => {
             options.writes?.push({ ns: 'select', ops: agentPreset })
-            return Promise.resolve(options.failSelect === undefined
-              ? { ok: true as const, value: agentPreset }
-              : {
-                ok: false as const,
-                error: new RemoteError('agent-preset/locked', options.failSelect, {
-                  sessionId: agentId, agentPreset,
-                }),
-              })
+            if (options.failSelect === undefined) {
+              return Promise.resolve({ ok: true as const, value: agentPreset })
+            }
+            const code = options.failSelectCode ?? 'agent-preset/locked'
+            // Each refusal's details follow its declared shape: the locked one
+            // names the target, the busy one carries the Host's own English cause.
+            const error = code === 'session/agent-busy'
+              ? new RemoteError(code, options.failSelect, { reason: options.failSelect })
+              : new RemoteError(code, options.failSelect, { sessionId: agentId, agentPreset })
+            return Promise.resolve({ ok: false as const, error })
           },
         },
       },
@@ -422,7 +425,7 @@ describe('the new-session chip controller', () => {
     expect(writes).toEqual([])
   })
 
-  it('falls back to the default when the host refuses the switch', async () => {
+  it('reports the seat marker when the host refuses a started session', async () => {
     const controller = chip(
       ROSTER,
       {
@@ -430,16 +433,68 @@ describe('the new-session chip controller', () => {
         blank: true,
         projectionValues: { agentPreset: 'standard' },
       },
-      { failSelect: 'already started' },
+      { failSelect: 'This session has already started' },
     )
     await controller.load()
 
     await controller.select('minimal')
 
     // Showing `minimal` after a refusal would claim a composition the session
-    // never got.
+    // never got. The cause is the same seat lock the local check models, so the
+    // seat reports its marker and the surfaces translate it: the Host's English
+    // message never reaches the localized line.
     expect(controller.store.getSnapshot()).toMatchObject({
-      current: 'standard', error: { preset: { id: 'minimal' }, reason: 'already started' },
+      current: 'standard', error: { preset: { id: 'minimal' }, reason: SEAT_PRESET_LOCKED },
+    })
+  })
+
+  it('reports the busy marker when another flow owns the session', async () => {
+    const controller = chip(
+      ROSTER,
+      { id: 's1' as SessionId, blank: true, projectionValues: { agentPreset: 'standard' } },
+      { failSelect: 'session "s1" is owned by subagent routing', failSelectCode: 'session/agent-busy' },
+    )
+    await controller.load()
+
+    await controller.select('minimal')
+
+    expect(controller.store.getSnapshot()).toMatchObject({
+      current: 'standard', error: { preset: { id: 'minimal' }, reason: SEAT_SESSION_BUSY },
+    })
+  })
+
+  it('keeps an unmodeled host cause as the refusal text', async () => {
+    const controller = chip(
+      ROSTER,
+      { id: 's1' as SessionId, blank: true, projectionValues: { agentPreset: 'standard' } },
+      { failSelect: 'persona (@deepseek-ai/dsh-persona): never started', failSelectCode: 'agent-preset/invalid' },
+    )
+    await controller.load()
+
+    await controller.select('minimal')
+
+    // A composition failure names packages, so the Toast carries it verbatim.
+    expect(controller.store.getSnapshot()).toMatchObject({
+      current: 'standard',
+      error: { preset: { id: 'minimal' }, reason: 'persona (@deepseek-ai/dsh-persona): never started' },
+    })
+  })
+
+  it('keeps the chip on the default when a refusal follows an unrecorded preset', async () => {
+    // A Session created by an older host records no preset, so the snap-back
+    // has nothing to name; falling back to the deployment default is what keeps
+    // the chip on screen — an empty choice hides it and strands the user.
+    const controller = chip(
+      ROSTER,
+      { id: 's1' as SessionId, blank: true },
+      { failSelect: 'This session has already started' },
+    )
+    await controller.load()
+
+    await controller.select('minimal')
+
+    expect(controller.store.getSnapshot()).toMatchObject({
+      current: 'standard', error: { preset: { id: 'minimal' }, reason: SEAT_PRESET_LOCKED },
     })
   })
 

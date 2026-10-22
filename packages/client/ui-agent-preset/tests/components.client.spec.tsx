@@ -18,6 +18,7 @@ import { AgentPresetSeat } from '../src/client/AgentPresetSeat.tsx'
 import type { AgentPresetSeatProps } from '../src/client/AgentPresetSeat.tsx'
 import type { AgentPresetSettingsState } from '../src/client/settings-store.ts'
 import type { AgentPresetSeatState } from '../src/client/seat-store.ts'
+import { SEAT_PRESET_LOCKED, SEAT_SESSION_BUSY } from '../src/client/seat-store.ts'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -226,6 +227,36 @@ describe('the new-session chip', () => {
     renderSeat({ error: 'session has already started' })
 
     expect(screen.getByRole('button').getAttribute('title')).toBe('session has already started')
+  })
+
+  it('translates a refusal marker the seat reports on the trigger', () => {
+    // The Host answers its own refusal codes with an English message; a marker
+    // reaching the seat means the surface owns the wording.
+    renderSeat({ error: SEAT_PRESET_LOCKED })
+    expect(screen.getByRole('button').getAttribute('title')).toBe(en.seatLocked)
+    cleanup()
+
+    renderSeat({ error: SEAT_SESSION_BUSY })
+    expect(screen.getByRole('button').getAttribute('title')).toBe(en.seatAgentBusy)
+  })
+
+  it('announces a marked refusal in the local language', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const actions = renderSeat()
+      act(() => {
+        actions.store.set({
+          ...actions.store.getSnapshot(),
+          error: { preset: { id: 'mine' }, reason: SEAT_PRESET_LOCKED },
+        })
+      })
+
+      expect(screen.getByRole('alert').textContent).toBe(
+        translate('switchRefused', { name: 'mine', reason: en.seatLocked }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('renders nothing before the roster arrives or when there is none', () => {

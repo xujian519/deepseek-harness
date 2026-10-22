@@ -9,6 +9,7 @@ export type AgentPresetSettingsKey =
   | 'customGroup'
   | 'seatHint'
   | 'seatLocked'
+  | 'seatAgentBusy'
   | 'headerHint'
   | 'nav'
   | 'sectionIntro'
@@ -43,6 +44,7 @@ export const en: Record<AgentPresetSettingsKey, string> = {
 
   seatHint: 'Choose the agent preset for your new task',
   seatLocked: 'This session already started; its agent preset is fixed. Start a new session to switch.',
+  seatAgentBusy: 'Another flow owns this session right now; its agent preset cannot be switched yet.',
   headerHint: 'The agent preset chosen when this task started',
   nav: 'Agent presets',
 
@@ -89,6 +91,7 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
 
   seatHint: '选择新任务使用的 Agent 预设',
   seatLocked: '该会话已开始，Agent 预设已固定；请新建会话后再切换。',
+  seatAgentBusy: '该会话正被其他流程占用，暂时无法切换 Agent 预设。',
   headerHint: '本任务的 Agent 预设，在任务开始时确定',
   nav: 'Agent 预设',
 

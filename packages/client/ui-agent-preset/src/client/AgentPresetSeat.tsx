@@ -20,7 +20,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the hero seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { SEAT_PRESET_LOCKED, type AgentPresetSeatState } from './seat-store.ts'
+import { seatRefusalText, type AgentPresetSeatState } from './seat-store.ts'
 import { presetDisplayText } from './locales.ts'
 import { requiresCodingTools } from './settings-store.ts'
 import css from './AgentPresetSeat.module.css'
@@ -115,11 +115,10 @@ export function AgentPresetSeat({
   const chosenText = chosen === undefined ? undefined : presetDisplayText(chosen, t)
   const label = chosenText?.name ?? state.current
   const ready = state.options.length > 0 && state.current !== ''
-  // A pick the chip refused because the session already started carries a
-  // semantic marker; translate it here rather than showing the raw marker.
-  const errorText = state.error === SEAT_PRESET_LOCKED
-    ? t('seatLocked')
-    : typeof state.error === 'object' ? state.error?.reason : state.error
+  // A refusal the seat models with a semantic marker carries no user-facing
+  // text of its own; translate it here rather than show the raw marker.
+  const refusal = typeof state.error === 'object' ? state.error?.reason : state.error
+  const errorText = refusal === undefined ? null : seatRefusalText(refusal, t) ?? refusal
 
   // The introduce cue: the pick was staged from another screen (the settings
   // creator entry), so the chip announces it — the icon eases in and each
@@ -210,7 +209,10 @@ export function AgentPresetSeat({
       {toast !== null && (
         <Toast
           key={toast.seq}
-          text={t('switchRefused', { name: presetDisplayText(toast.error.preset, t).name, reason: toast.error.reason })}
+          text={t('switchRefused', {
+            name: presetDisplayText(toast.error.preset, t).name,
+            reason: seatRefusalText(toast.error.reason, t) ?? toast.error.reason,
+          })}
           icon={<IconWarningOutlineRegular />}
           holdMs={REFUSAL_HOLD_MS}
           // The composer card, which is the content column this chip sits
