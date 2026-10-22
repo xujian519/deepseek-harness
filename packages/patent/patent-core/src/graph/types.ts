@@ -81,7 +81,7 @@ export type RunOptions = {
   failFast?: boolean
   /** 每超步开始前钩子（检查点/审计预留；可 async）。 */
   onSuperStepStart?: (step: number, activeNodes: string[], state: GraphState) => void | Promise<void>
-  /** 调用方取消信号：超步边界检查，中止时中止执行。 */
+  /** 调用方取消信号：超步边界与节点内取消都会中止执行；节点内取消以 StageCancelledError 拒绝。 */
   signal?: AbortSignal
 }
 

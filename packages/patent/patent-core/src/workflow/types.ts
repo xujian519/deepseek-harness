@@ -122,7 +122,7 @@ export type WorkflowRunOptions = {
    * 也不捕获异常，回调抛错即中止运行。
    */
   onStage?: (stageId: string, index: number, total: number) => void
-  /** 调用方取消信号：阶段边界检查，中止时中止执行。 */
+  /** 调用方取消信号：阶段边界检查；阶段内取消以 StageCancelledError 拒绝整次运行。 */
   signal?: AbortSignal
   /**
    * 本次部署预期使用的《专利审查指南》版本。给出时，manifest 必须声明同一

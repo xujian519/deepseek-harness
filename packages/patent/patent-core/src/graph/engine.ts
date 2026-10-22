@@ -10,6 +10,7 @@
  *
  * 无拓扑排序、无环检测：允许条件边形成受控循环（一致性回退、ReAct 循环）。
  * 中断（GraphInterruptError，如审批门）：引擎捕获后暂停返回，completed=false。
+ * 取消（调用方 signal 中止 / StageCancelledError）：引擎直接向上抛出，不转节点降级。
  */
 
 import type {
@@ -28,6 +29,7 @@ import { cloneState } from './state.ts'
 import { DEGRADATION_SUFFIX, degradationSummary } from './degradation.ts'
 import { mergeWithSchema, type MergeSchema } from './merge.ts'
 import { runNodeWithPolicy } from './node-policy.ts'
+import { isStageCancelledError } from '../atoms/handler.ts'
 
 /** 编译快照（不可变）。 */
 export type CompiledGraphDef = {
@@ -221,6 +223,8 @@ async function runSuperSteps(
             ? ({ name, delta: outcome.delta })
             : ({ name, error: outcome.error })
         } catch (err) {
+          // 调用方取消：不转节点级降级，直接中止全图。
+          if (isStageCancelledError(err)) throw err
           // runNodeWithPolicy 不抛普通错误；中断错误穿透至此。
           return { name, error: err }
         }

@@ -10,6 +10,7 @@
 
 import type { GraphNode, GraphNodeContext, NodeOutcome, NodePolicy } from './types.ts'
 import { isGraphInterruptError } from './types.ts'
+import { isStageCancelledError } from '../atoms/handler.ts'
 
 /** 默认重试间隔基准（ms）。 */
 const DEFAULT_RETRY_DELAY_MS = 100
@@ -82,6 +83,9 @@ export async function runNodeWithPolicy(
     } catch (err) {
       // 中断错误（审批门等）：穿透不重试（由引擎转为 interrupted 暂停）。
       if (isGraphInterruptError(err)) throw err
+      // 调用方取消：穿透不重试；节点级超时（controller 中止、调用方信号未中止）
+      // 仍按节点失败处理，避免把超时上报为全图取消。
+      if (isStageCancelledError(err) && ctx.signal?.aborted === true) throw err
       lastError = err
       if (controller.signal.aborted) {
         // 超时/取消：中止重试（对齐 Mady 超时跨重试截断）。

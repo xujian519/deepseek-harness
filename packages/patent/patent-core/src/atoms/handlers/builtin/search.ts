@@ -2,18 +2,21 @@
  * 检索域原子：search（现有技术检索）+ keywords（检索关键词生成）。
  */
 
+import { isAbortError } from '@deepseek-ai/dsh-value'
 import { type Atom } from '../../atom.ts'
 import {
   type PipelineState,
   type StageExecuteInput,
   type StageHandler,
+  StageCancelledError,
   getStateArray,
   getStateString,
+  isStageCancelledError,
 } from '../../handler.ts'
 import { dataBlock } from '../../../prompt-hygiene.ts'
 import { parseJsonStringArray } from '../../../llm-json.ts'
 import type { StageSearchHit } from '../../../types.ts'
-import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
+import { callLlm, degraded, isSignalAborted, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
 import { readAtomTunables } from '../../tunables.ts'
 import { isRecord } from './state-keys.ts'
 
@@ -122,7 +125,9 @@ export class SearchHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = execInput
+    const { state, provider, signal } = execInput
+    // 已取消的检索不再发起请求：取消是控制流，不是可重试的检索失败。
+    if (isSignalAborted(signal)) throw new StageCancelledError('search')
     // 查询词：显式 query/search_query 优先；其次 keywords 键——KeywordsHandler
     // 产出的是字符串数组，需 join 为查询串（此前 getStateString 对数组返回空，
     // 导致 disclosure 管线的 search 阶段在原子执行下恒降级）。
@@ -150,6 +155,9 @@ export class SearchHandler implements StageHandler {
       const summary = [header, ...docs.flatMap((doc, index) => renderHit(doc, index))].join('\n')
       return { prior_art: docs, search_summary: summary }
     } catch (err) {
+      // 取消以类型化错误穿透执行器与图引擎：不重试、不降级。
+      if (isStageCancelledError(err)) throw err
+      if (isSignalAborted(signal) || isAbortError(err)) throw new StageCancelledError('search')
       return degraded(
         'search',
         `检索失败: ${err instanceof Error ? err.message : String(err)}`,
