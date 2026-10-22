@@ -533,17 +533,64 @@ function notificationEvent(notification: HarnessNotification): JsonObject | unde
     : undefined
 }
 
+/** State one root-session wait is blocked on, reported verbatim when its budget runs out. */
+interface AwaitedRootEvent {
+  readonly scenario: string
+  readonly sessionId: string
+  readonly state: string
+}
+
+/**
+ * Budget for one awaited root event. A settlement notice delivered to the wrong
+ * inbox boundary leaves the turn it would have opened unstarted, so the wait has
+ * to fail with the turn's name inside the case budget instead of letting vitest
+ * report a bare 120 s timeout. The slowest scenario measures about 6 s.
+ */
+const ROOT_EVENT_WAIT_MS = 30_000
+
+/**
+ * Await the next root-session event satisfying `match`.
+ * @param subscription - notification stream scoped to the session tree.
+ * @param awaited - scenario, session, and event description reported on timeout.
+ * @param match - predicate identifying the awaited event.
+ * @param observe - side effects applied to every notification seen on the way.
+ * @param timeoutMs - budget for the whole wait, not for one notification.
+ */
 async function waitForRootEvent(
   subscription: NotificationSubscription,
-  sessionId: string,
+  awaited: AwaitedRootEvent,
   match: (event: JsonObject) => boolean,
   observe: (notification: HarnessNotification) => void,
+  timeoutMs = ROOT_EVENT_WAIT_MS,
 ): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  const diagnostic = `${awaited.scenario}: session "${awaited.sessionId}" did not deliver ${awaited.state} within ${timeoutMs}ms`
   while (true) {
-    const notification = await subscription.next()
+    const notification = await awaitWithinDeadline(subscription.next(), diagnostic, deadline)
     observe(notification)
-    const event = notification.params.sessionId === sessionId ? notificationEvent(notification) : undefined
+    const event = notification.params.sessionId === awaited.sessionId ? notificationEvent(notification) : undefined
     if (event !== undefined && match(event)) return
+  }
+}
+
+/**
+ * Await one value, reporting the caller's diagnostic when the deadline passes first.
+ * @param pending - the value to await.
+ * @param diagnostic - failure reported when the deadline passes first.
+ * @param deadline - epoch milliseconds after which the wait fails.
+ * @returns the awaited value.
+ */
+async function awaitWithinDeadline<T>(pending: Promise<T>, diagnostic: string, deadline: number): Promise<T> {
+  // A value the deadline abandons must not surface as an unhandled rejection.
+  void pending.catch(() => undefined)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expiry = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(diagnostic)), Math.max(deadline - Date.now(), 0))
+  })
+  try {
+    return await Promise.race([pending, expiry])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
   }
 }
 
@@ -663,6 +710,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     const observedMethods = new Set<string>()
     const results: RunResult[] = []
     const sessionId = 'fixture-root-session'
+    const rootEvent = (state: string): AwaitedRootEvent => ({ scenario: scenario.name, sessionId, state })
     const liveSessions: (string | undefined)[] = [sessionId]
     await harness.start()
     let subscription = harness.client.subscribeSessionTree(sessionId)
@@ -687,7 +735,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
         if (action.content === undefined) {
           await waitForRootEvent(
             subscription,
-            sessionId,
+            rootEvent(`turn/end of turn ${action.turn}`),
             event => event.type === 'turn/end' && (event.data as JsonObject | undefined)?.turn === action.turn,
             observe,
           )
@@ -714,9 +762,10 @@ async function runScenario(scenario: CorpusScenario): Promise<{
         if (titleSubscription !== undefined) {
           const expected = expectedTitles[results.length - 1]?.data as JsonObject | undefined
           expect(expected, 'each turn has a recorded provider title').toBeDefined()
-          await waitForRootEvent(titleSubscription, sessionId, event => event.type === 'session/title'
-            && ((event.data as JsonObject).source as JsonObject).kind === 'provider'
-            && (event.data as JsonObject).title === expected?.title, observe)
+          await waitForRootEvent(titleSubscription, rootEvent(`provider session/title after turn ${results.length}`),
+            event => event.type === 'session/title'
+              && ((event.data as JsonObject).source as JsonObject).kind === 'provider'
+              && (event.data as JsonObject).title === expected?.title, observe)
         }
         if (completionSubscription !== undefined) {
           expect(result.finalResponse, 'run returns at the first parent idle').toBe('DONE')
@@ -755,13 +804,13 @@ async function runScenario(scenario: CorpusScenario): Promise<{
         }
         await waitForRootEvent(
           subscription,
-          sessionId,
+          rootEvent(`turn/end of turn ${action.turn}`),
           event => event.type === 'turn/end' && (event.data as JsonObject | undefined)?.turn === action.turn,
           observe,
         )
       }
       for (const type of postTurnEventTypes(primaryFixture)) {
-        await waitForRootEvent(subscription, sessionId, event => event.type === type, observe)
+        await waitForRootEvent(subscription, rootEvent(`${type} after the last turn`), event => event.type === type, observe)
       }
     } finally {
       subscription.close()
@@ -1237,4 +1286,64 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
       }
     })
   }
+})
+
+/** Notification stream that replays fixed notifications and then never settles. */
+class QueuedNotifications implements NotificationSubscription {
+  private readonly queued: HarnessNotification[]
+
+  constructor(...notifications: HarnessNotification[]) {
+    this.queued = [...notifications]
+  }
+
+  next(): Promise<HarnessNotification> {
+    const notification = this.queued.shift()
+    return notification === undefined
+      ? new Promise<HarnessNotification>(() => { /* the wait must reach its budget */ })
+      : Promise.resolve(notification)
+  }
+
+  tryNext(): HarnessNotification | undefined {
+    return undefined
+  }
+
+  close(): void {
+    /* the stream owns nothing to detach */
+  }
+
+  async *[Symbol.asyncIterator](): AsyncGenerator<HarnessNotification> {
+    for (;;) yield await this.next()
+  }
+}
+
+describe('root event wait', () => {
+  const awaited: AwaitedRootEvent = {
+    scenario: 'budget-scenario',
+    sessionId: 'budget-session',
+    state: 'turn/end of turn 2',
+  }
+  const notification = (type: string): HarnessNotification => ({
+    method: 'session.event',
+    params: { sessionId: 'budget-session', event: { type } },
+  })
+
+  it('names the awaited state when no matching notification arrives', async () => {
+    await expect(waitForRootEvent(
+      new QueuedNotifications(notification('step/start')),
+      awaited,
+      event => event.type === 'turn/end',
+      () => undefined,
+      20,
+    )).rejects.toThrow('budget-scenario: session "budget-session" did not deliver turn/end of turn 2 within 20ms')
+  })
+
+  it('returns when the awaited event arrives inside the budget', async () => {
+    await expect(waitForRootEvent(
+      new QueuedNotifications(notification('turn/end')),
+      awaited,
+      event => event.type === 'turn/end',
+      () => undefined,
+      20,
+    )).resolves.toBeUndefined()
+  })
 })
