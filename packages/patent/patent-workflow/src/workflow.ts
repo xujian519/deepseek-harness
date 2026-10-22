@@ -16,10 +16,13 @@ import {
   WorkflowError,
   buildWorkflowEvidenceLedger,
   clearStageOutputs,
+  digestText,
   globalAtomRegistry,
   globalStageHandlerRegistry,
   validateWorkflowManifest,
   type PipelineState,
+  type RetrySignal,
+  type RevisionRecord,
   type StageExecutor,
   type WorkflowContext,
   type WorkflowInterrupt,
@@ -35,6 +38,8 @@ import { runStageOnce, type RunStageOnceOptions } from './workflow/executor.ts'
 // ---- 门面再导出（保持消费面不变） ----
 export { WorkflowError, validateWorkflowManifest } from '@deepseek-ai/dsh-patent-core'
 export type {
+  RetrySignal,
+  RevisionRecord,
   StageExecutor,
   WorkflowContext,
   WorkflowInterrupt,
@@ -105,6 +110,9 @@ export async function runWorkflow(
     rewindCounts: new Map(),
     signalCache: new Map(),
     results: [],
+    revisions: [],
+    pendingRevisions: [],
+    revisionsTruncated: false,
   }
   const interrupted = await runStages(run)
   return await assembleRunResult(run, interrupted)
@@ -130,7 +138,16 @@ type StageRun = {
   rewindCounts: Map<string, number>
   signalCache: Map<string, RegExp>
   results: WorkflowStageResult[]
+  /** 回退留痕（有上限）；只存产出摘要，不复制全文。 */
+  revisions: RevisionRecord[]
+  /** 等待回退目标重新产出后补 `after` 的记录。 */
+  pendingRevisions: RevisionRecord[]
+  /** 留痕达到上限后置 true，后续回退仍执行但不记录。 */
+  revisionsTruncated: boolean
 }
+
+/** 单次运行最多保留的回退记录数；超过后只标记截断，不无限增长。 */
+const MAX_REVISIONS = 64
 
 /** 单阶段之后的走向：下一阶段序号（null 表示停止循环），或中断。 */
 type StageStep = {
@@ -171,6 +188,14 @@ function assertNotAborted(signal: AbortSignal | undefined): void {
  * @param outcome - 阶段的输出与重试次数。
  */
 function pushStageResult(run: StageRun, stage: WorkflowStage, outcome: { output: string; retries: number }): void {
+  // 回退后第一个落地的阶段就是回退目标：用它的产出补 before/after 里的 after。
+  if (run.pendingRevisions.length > 0) {
+    const digest = digestText(outcome.output)
+    for (const record of run.pendingRevisions) {
+      record.after = digest
+    }
+    run.pendingRevisions = []
+  }
   run.results.push({
     stageId: stage.id,
     strategy: stage.strategy,
@@ -255,39 +280,109 @@ async function runSingleStage(run: StageRun, index: number): Promise<StageStep> 
   run.options.onStage?.(stage.id, index, run.manifest.stages.length)
   const outcome = await runStageOnce(stage, run.state, run.stageOptions)
   if (outcome.interrupted) return { nextIndex: null, interrupted: outcome.interrupted }
-  const { output, retries } = outcome
+  const { output, retries, revisionSignals = [] } = outcome
 
-  // 一致性重试循环：输出触发信号时回退到 rewindTo 阶段重新执行。
+  // 一致性重试循环：文本信号或结构化缺口信号命中时回退到 rewindTo 阶段重新执行。
   if (output.trim().length > 0 && stage.retry !== undefined) {
-    const signal = signalFor(stage, run.signalCache)
-    if (signal !== undefined && signalMatches(output, signal)) {
+    const signal = stage.retry.whenOutputMatches !== undefined ? signalFor(stage, run.signalCache) : undefined
+    const textMatched = signal !== undefined && signalMatches(output, signal)
+    const structuredMatched = stage.retry.whenRevisionRequested === true && revisionSignals.length > 0
+    if (textMatched || structuredMatched) {
       const rewindTo = stage.retry.rewindTo ?? stage.id
       const rewindIndex = run.stageIds.get(rewindTo)
       if (rewindIndex === undefined) return { nextIndex: null }
       const rewindCount = (run.rewindCounts.get(stage.id) ?? 0) + 1
       const maxRewind = stage.retry.maxRetries ?? 1
-      if (rewindCount > maxRewind) {
-        // 超过最大回退次数：保留当前（不一致）输出并继续，标记 degraded。
-        run.results.push({
-          stageId: stage.id,
-          strategy: stage.strategy,
-          output: `[WORKFLOW_RETRY_EXHAUSTED] ${stage.id}: ${output}`,
-          degraded: true,
-          retries,
-          ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
-        })
+      const exhausted = rewindCount > maxRewind
+      const records = revisionRecords({
+        stage,
+        output,
+        rewindTo,
+        round: rewindCount,
+        outcome: exhausted ? 'exhausted' : 'applied',
+        signals: revisionSignals,
+        textPattern: textMatched ? stage.retry.whenOutputMatches : undefined,
+      })
+      for (const record of records) appendRevision(run, record)
+
+      if (exhausted) {
+        // 文本信号沿用旧语义：保留不一致输出并标记 degraded。结构化信号是确定性
+        // 缺口的「再试一次」，耗尽时保留阶段原产出，由缺口报告本身说明未覆盖项。
+        if (textMatched) {
+          run.results.push({
+            stageId: stage.id,
+            strategy: stage.strategy,
+            output: `[WORKFLOW_RETRY_EXHAUSTED] ${stage.id}: ${output}`,
+            degraded: true,
+            retries,
+            ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
+          })
+        } else {
+          pushStageResult(run, stage, { output, retries })
+        }
         return { nextIndex: index + 1 }
       }
       // 覆盖从 rewindTo 起的结果与 state 键（防陈旧输出被兜底复用），回退重执行。
       run.rewindCounts.set(stage.id, rewindCount)
       run.results.splice(rewindIndex)
       clearStageOutputs({ state: run.state, stages: run.manifest.stages.slice(rewindIndex), atoms: run.atoms })
+      run.pendingRevisions.push(...records.filter(record => record.outcome === 'applied'))
       return { nextIndex: rewindIndex }
     }
   }
 
   pushStageResult(run, stage, { output, retries })
   return { nextIndex: index + 1 }
+}
+
+/**
+ * 生成一次回退的留痕记录。
+ * @param options - 阶段、被替换产出、回退目标、轮次与触发源。
+ * @returns 每个结构化信号一条记录；纯正则触发时一条记录。
+ */
+function revisionRecords(options: {
+  stage: WorkflowStage
+  output: string
+  rewindTo: string
+  round: number
+  outcome: RevisionRecord['outcome']
+  signals: readonly RetrySignal[]
+  textPattern: string | undefined
+}): RevisionRecord[] {
+  const base = {
+    rewindTo: options.rewindTo,
+    requestedBy: options.stage.id,
+    round: options.round,
+    before: digestText(options.output),
+    outcome: options.outcome,
+    at: new Date().toISOString(),
+  }
+  if (options.signals.length > 0) {
+    return options.signals.map(signal => ({
+      ...base,
+      gapId: signal.gapId,
+      rationale: signal.rationale,
+      ...(signal.evidence !== undefined ? { evidence: signal.evidence } : {}),
+    }))
+  }
+  return [{
+    ...base,
+    gapId: options.stage.id,
+    rationale: `输出匹配回退信号 /${options.textPattern ?? ''}/`,
+  }]
+}
+
+/**
+ * 追加留痕，超过上限时只标记截断。
+ * @param run - 执行态。
+ * @param record - 待追加的记录。
+ */
+function appendRevision(run: StageRun, record: RevisionRecord): void {
+  if (run.revisions.length >= MAX_REVISIONS) {
+    run.revisionsTruncated = true
+    return
+  }
+  run.revisions.push(record)
 }
 
 /**
@@ -348,6 +443,8 @@ async function assembleRunResult(run: StageRun, interrupted: WorkflowInterrupt |
     summary,
     // 没有证据来源时不写空台账：缺席表示"未记录"，空台账会被读成"已确认没有证据"。
     ...(evidenceLedger.receipts.length > 0 ? { evidenceLedger } : {}),
+    ...(run.revisions.length > 0 ? { revisions: run.revisions } : {}),
+    ...(run.revisionsTruncated ? { revisionsTruncated: true } : {}),
     ...(interrupted ? { interrupted } : {}),
   }
   // 持久化失败不阻断执行结果，仅把告警带回结果供调用方展示。

@@ -52,8 +52,10 @@ globalStageHandlerRegistry.register(new LegalGapsHandler())
 const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 
 const NOVELTY_OUTPUTS = [
+  { stageId: 'dispute-framing', text: 'A22.2 / A22.3；权利要求 1' },
   { stageId: 'parse', text: 'parsed' },
   { stageId: 'time_baseline', text: '2024-06-01' },
+  { stageId: 'dispute-framing-refine', text: '时间依据已锁定' },
   { stageId: 'generate_keywords', text: 'keywords' },
   { stageId: 'search', text: 'searched' },
   { stageId: 'prior_art_filter', text: 'no excluded prior art' },
@@ -85,7 +87,7 @@ describe('patent_workflow', () => {
     expect(value.found).toBe(true)
     expect(value.valid).toBe(true)
     expect(value.completed).toBe(true)
-    expect(value.stages).toHaveLength(12)
+    expect(value.stages).toHaveLength(14)
     expect(value.degradedSteps).toEqual([])
     expect(value.persistNote).toContain('未启用')
   })

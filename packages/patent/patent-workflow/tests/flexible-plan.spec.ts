@@ -206,6 +206,31 @@ describe('confirmStage / rollbackStage', () => {
     expect(() => rollbackStage(done, 's1')).toThrow(FlexiblePlanError)
   })
 
+  it('rollbackStage records a bounded revision with the gap and rationale', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2')] })
+    const confirmed = confirmStage(confirmStage(plan, 's1'), 's2')
+    const rolled = rollbackStage(confirmed, 's2', {
+      gapId: 'claim-1-unevaluated',
+      rationale: '权利要求 1 的对应事实未提取',
+      evidence: 'state.legal_gaps',
+    })
+    expect(rolled.revisions).toHaveLength(1)
+    const record = rolled.revisions![0]!
+    expect(record).toMatchObject({
+      gapId: 'claim-1-unevaluated',
+      rewindTo: 's2',
+      requestedBy: 's2',
+      round: 1,
+      rationale: '权利要求 1 的对应事实未提取',
+      evidence: 'state.legal_gaps',
+      outcome: 'applied',
+    })
+    expect(record.before).toMatch(/^[0-9a-f]{16}$/)
+    // 再次回退同一阶段：round 递增，记录继续累积。
+    const again = rollbackStage(rolled, 's2', { gapId: 'claim-2-unevaluated' })
+    expect(again.revisions?.map(r => r.round)).toEqual([1, 2])
+  })
+
   it('rollback redo loop: redoing the target advances to the next redo stage', () => {
     const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2'), stage('s3')] })
     const confirmed = confirmStage(confirmStage(confirmStage(plan, 's1'), 's2'), 's3')
@@ -371,6 +396,13 @@ describe('toJSON / fromJSON', () => {
     expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), name: 42 }] }))).toThrow(FlexiblePlanError)
     expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), constraintIds: 'x' }] }))).toThrow(FlexiblePlanError)
     expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), articleJudgments: 'x' }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, revisions: 'x' }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, revisions: [null] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, revisions: [{ gapId: 'g' }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({
+      ...base,
+      revisions: [{ gapId: 'g', rewindTo: 's1', requestedBy: 's1', round: 0, before: 'x', rationale: 'r', outcome: 'applied', at: 'now' }],
+    }))).toThrow(FlexiblePlanError)
   })
 })
 

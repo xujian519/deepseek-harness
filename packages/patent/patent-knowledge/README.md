@@ -29,7 +29,7 @@ Full-text search over the `documents`/`chunks`/`docs_fts` tables (FTS5 BM25 firs
 
 ### legalSearch(query, options?)
 
-Full-text search over the `law_article` documents of `knowledge.db` via `KnowledgeLawSearch`. Returns `LawSearchResult[]`; options filter by `level`. Each hit carries `filename` — the document's `file_path` — as the citation's source.
+Full-text search over the `law_article` documents of `knowledge.db` via `KnowledgeLawSearch`. Returns `LawSearchResult[]`; options filter by `level` and by point-in-time validity (`asOf`, plus `includeUnverified`). Each hit carries `filename` — the document's `file_path` — as the citation's source, and `validity` (`in-force` / `expired` / `not-yet-effective` / `unverified`) computed from nullable `valid_from` / `valid_to` / `expired` columns. Expired and not-yet-effective rows are not returned. A row with no time columns is `unverified` and is returned by default, rather than being silently reported as in force; `includeUnverified: false` excludes it. `installKnowledgeDb` adds the three nullable columns to its output database without writing an in-force default.
 
 ### guidelineSearch(query, options?)
 

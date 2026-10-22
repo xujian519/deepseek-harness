@@ -22,10 +22,10 @@ import { readAtomTunables } from '../../tunables.ts'
 /** extract 原子：从文本结构化抽取特征/问题/效果。 */
 export const extractAtom: Atom = {
   name: 'extract',
-  description: '从文本中结构化抽取特征/问题/效果（JSON Schema 约束 LLM 输出）',
+  description: '从文本中结构化抽取特征/问题/效果（JSON Schema 约束 LLM 输出），可按法条缺口清单做定向补提',
   category: 'extract',
-  inputSchema: ['text', 'extraction_type', 'domain', 'output_key'],
-  outputSchema: ['extraction_result', 'features', 'problems', 'effects', 'insight'],
+  inputSchema: ['text', 'extraction_type', 'domain', 'output_key', 'revision_targets'],
+  outputSchema: ['extraction_result', 'features', 'problems', 'effects', 'insight', 'revision_coverage'],
   usesModel: true,
 }
 
@@ -37,6 +37,62 @@ type ExtractOutputKey = (typeof EXTRACT_OUTPUT_KEYS)[number]
 /** 判断 output_key 是否属于 extract 的分键输出。 */
 function isExtractOutputKey(value: string | undefined): value is ExtractOutputKey {
   return value !== undefined && EXTRACT_OUTPUT_KEYS.some(key => key === value)
+}
+
+/** 单次反哺最多消费的目标数（与 legal-gaps 的产出上限一致）。 */
+const MAX_REVISION_TARGETS = 8
+
+/** 规则缺口反哺目标：法条/检查编号与名称。 */
+type RevisionTarget = {
+  checkId: string
+  provision: string
+  label: string
+}
+
+/**
+ * 读取 legal-gaps 反哺清单；非数组、缺字段或超长条目被丢弃。
+ * @param value - `state.revision_targets` 的原始值。
+ * @returns 最多 {@link MAX_REVISION_TARGETS} 个合法目标。
+ */
+function parseRevisionTargets(value: unknown): RevisionTarget[] {
+  if (!Array.isArray(value)) return []
+  const targets: RevisionTarget[] = []
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) continue
+    const record = item as Record<string, unknown>
+    const checkId = typeof record['checkId'] === 'string' ? record['checkId'].trim() : ''
+    const provision = typeof record['provision'] === 'string' ? record['provision'].trim() : ''
+    const label = typeof record['label'] === 'string' ? record['label'].trim() : ''
+    if (checkId === '' || provision === '' || label === '') continue
+    targets.push({ checkId, provision, label })
+    if (targets.length >= MAX_REVISION_TARGETS) break
+  }
+  return targets
+}
+
+/**
+ * 校验反哺提取的覆盖结果：每个目标都必须给出字符串数组（可为空，表示原文没有对应事实）。
+ * @param value - LLM 返回的 `revision_coverage`。
+ * @param targets - 本轮反哺目标。
+ * @returns 校验后的覆盖映射；缺失或类型不符时返回错误原因。
+ */
+function parseRevisionCoverage(
+  value: unknown,
+  targets: readonly RevisionTarget[],
+): { ok: true; coverage: Record<string, string[]> } | { ok: false; reason: string } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { ok: false, reason: 'LLM 输出缺少 revision_coverage 对象（规则缺口反哺要求逐项覆盖）' }
+  }
+  const record = value as Record<string, unknown>
+  const coverage: Record<string, string[]> = {}
+  for (const target of targets) {
+    const entry = record[target.checkId]
+    if (!Array.isArray(entry) || entry.some(item => typeof item !== 'string')) {
+      return { ok: false, reason: `revision_coverage.${target.checkId} 必须是非空字符串数组或空数组` }
+    }
+    coverage[target.checkId] = entry.map(item => (item as string).trim()).filter(item => item.length > 0)
+  }
+  return { ok: true, coverage }
 }
 
 /** 四个分键共享的 JSON 属性声明；Schema 只把当前目标键设为 required。 */
@@ -53,15 +109,31 @@ const EXTRACT_PROPERTIES = {
 
 /**
  * 构造当前分键的 JSON Schema：只要求目标键，避免 problems/effects/insight
- * 提取被 features 的 required 约束逼成“必须同时返回特征”。
+ * 提取被 features 的 required 约束逼成“必须同时返回特征”。反哺轮次额外要求
+ * `revision_coverage`，把「补提了什么」变成可校验的产出。
  * @param outputKey - 分键输出；缺省或未知时按 features 全量模式。
+ * @param requiresCoverage - 本轮是否带规则缺口反哺目标。
  * @returns 供 LLM 端口使用的对象 Schema。
  */
-function extractSchema(outputKey: ExtractOutputKey | undefined): Record<string, unknown> {
+function extractSchema(
+  outputKey: ExtractOutputKey | undefined,
+  requiresCoverage: boolean,
+): Record<string, unknown> {
   return {
     type: 'object',
-    properties: EXTRACT_PROPERTIES,
-    required: [outputKey ?? 'features'],
+    properties: {
+      ...EXTRACT_PROPERTIES,
+      ...(requiresCoverage
+        ? {
+          revision_coverage: {
+            type: 'object',
+            additionalProperties: { type: 'array', items: { type: 'string' } },
+            description: '按 checkId 列出本轮补提到的事实；原文没有对应事实时写空数组',
+          },
+        }
+        : {}),
+    },
+    required: [...(outputKey === undefined ? ['features'] : [outputKey]), ...(requiresCoverage ? ['revision_coverage'] : [])],
   }
 }
 
@@ -104,29 +176,45 @@ export class ExtractHandler implements StageHandler {
     const outputKey = getStateString(state, 'output_key')
     const targetKey = isExtractOutputKey(outputKey) ? outputKey : undefined
     const isFeatureExtraction = targetKey === 'features' || extractionType.includes('特征')
+    // 规则缺口反哺：legal-gaps 的未评估项经回退保留在 state.revision_targets，
+    // 本轮抽取按清单定向补提，并要求逐项回报覆盖结果。
+    const revisionTargets = parseRevisionTargets(state['revision_targets'])
+    const requiresCoverage = revisionTargets.length > 0
     const prompt = [
       `你是 ${domain} 领域的技术分析助手。任务：${extractionType}。`,
       ...(isFeatureExtraction ? [FEATURE_MTU_GUIDANCE] : []),
       targetKey !== undefined
         ? `请从以下文本中提取结构化结果，严格输出 JSON：{ "${targetKey}": [...] }`
         : '请从以下文本中提取结构化结果，严格输出 JSON：',
+      ...(requiresCoverage
+        ? [
+          '本轮为规则缺口反哺：以下法条/检查在上一轮未被确定性检查覆盖。',
+          ...revisionTargets.map(target => `- [${target.checkId}] ${target.provision} — ${target.label}`),
+          '除目标键外，必须另给 "revision_coverage": { "<checkId>": ["支持该法条评估的事实", ...] }；原文没有对应事实的写空数组，不得编造。',
+        ]
+        : []),
       dataBlock(text.slice(0, promptLimit)),
     ].join('\n')
     const res = await callLlm(
       provider,
       'extract',
       prompt,
-      { schema: extractSchema(targetKey), temperature },
+      { schema: extractSchema(targetKey, requiresCoverage), temperature },
       signal,
     )
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,
       (parsed, raw) => {
+        const coverage = requiresCoverage
+          ? parseRevisionCoverage(parsed.revision_coverage, revisionTargets)
+          : undefined
+        if (coverage !== undefined && !coverage.ok) return degraded('extract', coverage.reason)
+        const coverageDelta = coverage === undefined ? {} : { revision_coverage: coverage.coverage }
         if (targetKey !== undefined) {
           const result = parseJsonStringArray(parsed[targetKey], targetKey)
           if (!result.ok) return degraded('extract', result.reason)
-          return { extraction_result: raw, [targetKey]: result.values }
+          return { extraction_result: raw, [targetKey]: result.values, ...coverageDelta }
         }
         const features = parseJsonStringArray(parsed.features, 'features')
         if (!features.ok) return degraded('extract', features.reason)
@@ -139,6 +227,7 @@ export class ExtractHandler implements StageHandler {
           features: features.values,
           problems: problems.values,
           effects: effects.values,
+          ...coverageDelta,
         }
       },
       raw => targetKey !== undefined

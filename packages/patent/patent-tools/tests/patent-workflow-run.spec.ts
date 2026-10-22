@@ -492,17 +492,19 @@ describe('patent_workflow_run', () => {
       exec,
     )) as PatentWorkflowRunOutput
     expect(value.ok).toBe(true)
-    // 逐项对比阶段声明了 consumes: ['parse','search']，故两者产出与权利要求材料都进提示词。
+    // 逐项对比阶段声明了 dispute-framing-refine/parse/search 等依赖，这些产出与权利要求材料都进提示词。
     const compare = prompts.find(p => p.includes('逐项对比技术特征与现有技术'))
     expect(compare).toBeDefined()
+    expect(compare).toContain('## 上游阶段产出: dispute-framing-refine')
     expect(compare).toContain('## 上游阶段产出: parse')
     expect(compare).toContain('## 上游阶段产出: search')
     expect(compare).toContain('产出1')
     expect(compare).toContain('## 权利要求书（本次调用的 claims 参数）')
     expect(compare).toContain('1. 一种装置，其特征在于，包括壳体。')
-    // 首个阶段没有上游产出，只有材料与权利要求。
+    // parse 不是首个阶段：粗定位产出作为唯一的首轮上游进入提示词。
     const parse = prompts.find(p => p.includes('解析技术交底书'))
-    expect(parse).not.toContain('上游阶段产出')
+    expect(parse).toContain('## 上游阶段产出: dispute-framing')
+    expect(parse).not.toContain('## 上游阶段产出: time_baseline')
   })
 
   it('novelty manifest: filingDate/priorityDate establish the prior-art cutoff', async () => {

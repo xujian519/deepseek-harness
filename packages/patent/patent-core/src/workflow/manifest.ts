@@ -61,13 +61,22 @@ export function validateWorkflowManifest(
       throw new WorkflowError(`阶段 ${stage.id} 声明了未知 atom: ${stage.atom}`)
     }
     if (stage.retry !== undefined) {
-      if (stage.retry.whenOutputMatches.trim() === '') {
-        throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 不能为空`)
+      const hasTextTrigger = stage.retry.whenOutputMatches !== undefined
+      const hasRevisionTrigger = stage.retry.whenRevisionRequested === true
+      if (!hasTextTrigger && !hasRevisionTrigger) {
+        throw new WorkflowError(
+          `阶段 ${stage.id} 的 retry 必须声明 whenOutputMatches 或 whenRevisionRequested: true`,
+        )
       }
-      try {
-        new RegExp(stage.retry.whenOutputMatches, 'i')
-      } catch {
-        throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 非法正则`)
+      if (stage.retry.whenOutputMatches !== undefined) {
+        if (stage.retry.whenOutputMatches.trim() === '') {
+          throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 不能为空`)
+        }
+        try {
+          new RegExp(stage.retry.whenOutputMatches, 'i')
+        } catch {
+          throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 非法正则`)
+        }
       }
       if (stage.retry.rewindTo !== undefined && !ids.has(stage.retry.rewindTo)) {
         throw new WorkflowError(`阶段 ${stage.id} 的 retry.rewindTo 指向不存在的阶段: ${stage.retry.rewindTo}`)

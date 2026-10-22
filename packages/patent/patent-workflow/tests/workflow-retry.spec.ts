@@ -210,6 +210,165 @@ describe('workflow retry validation', () => {
     expect(result.degradedSteps).toHaveLength(0)
   })
 
+  it('runWorkflow: structured revision signal rewinds and records before/after digests', async () => {
+    const manifest: WorkflowManifest = {
+      id: 'structured_retry',
+      name: '结构化回退测试',
+      caseType: 'disclosure_analysis',
+      stages: [
+        { id: 'extract', strategy: 'chain', description: '提取特征', atom: 'revision_extract' },
+        {
+          id: 'check',
+          strategy: 'chain',
+          description: '缺口检查',
+          atom: 'revision_check',
+          retry: { whenRevisionRequested: true, rewindTo: 'extract', maxRetries: 1 },
+        },
+      ],
+      validation: { requireAllSteps: true },
+    }
+    const atoms = new AtomRegistry()
+    atoms.register({ name: 'revision_extract', description: 'e', category: 'extract', inputSchema: [], outputSchema: ['probe_out'] })
+    atoms.register({ name: 'revision_check', description: 'c', category: 'gate', inputSchema: [], outputSchema: ['check_out'] })
+    const handlers = new StageHandlerRegistry()
+    let extractRounds = 0
+    let checkRounds = 0
+    handlers.register({
+      name: 'revision_extract',
+      category: 'extract',
+      execute: async () => {
+        extractRounds += 1
+        return { probe_out: `特征${extractRounds}` }
+      },
+    })
+    handlers.register({
+      name: 'revision_check',
+      category: 'gate',
+      execute: async () => {
+        checkRounds += 1
+        return checkRounds === 1
+          ? { check_out: '检查发现缺口', _revision_signals: [{ gapId: 'gap-1', rationale: '缺少对应事实' }] }
+          : { check_out: '检查通过' }
+      },
+    })
+
+    const result = await runWorkflow(manifest, { input: 'x' }, undefined, { atoms, handlers })
+    expect(extractRounds).toBe(2)
+    expect(checkRounds).toBe(2)
+    expect(result.completed).toBe(true)
+    expect(result.revisions).toHaveLength(1)
+    const revision = result.revisions![0]!
+    expect(revision).toMatchObject({
+      gapId: 'gap-1',
+      rewindTo: 'extract',
+      requestedBy: 'check',
+      round: 1,
+      rationale: '缺少对应事实',
+      outcome: 'applied',
+    })
+    expect(revision.before).toMatch(/^[0-9a-f]{16}$/)
+    expect(revision.after).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('runWorkflow: structured retry exhaustion keeps the stage output and records the stop', async () => {
+    const manifest: WorkflowManifest = {
+      id: 'structured_exhaust',
+      name: '结构化回退耗尽测试',
+      caseType: 'disclosure_analysis',
+      stages: [
+        { id: 'extract', strategy: 'chain', description: '提取特征', atom: 'revision_extract' },
+        {
+          id: 'check',
+          strategy: 'chain',
+          description: '缺口检查',
+          atom: 'revision_check',
+          retry: { whenRevisionRequested: true, rewindTo: 'extract', maxRetries: 1 },
+        },
+      ],
+      validation: { requireAllSteps: true },
+    }
+    const atoms = new AtomRegistry()
+    atoms.register({ name: 'revision_extract', description: 'e', category: 'extract', inputSchema: [], outputSchema: ['probe_out'] })
+    atoms.register({ name: 'revision_check', description: 'c', category: 'gate', inputSchema: [], outputSchema: ['check_out'] })
+    const handlers = new StageHandlerRegistry()
+    handlers.register({
+      name: 'revision_extract',
+      category: 'extract',
+      execute: async () => ({ probe_out: '特征' }),
+    })
+    handlers.register({
+      name: 'revision_check',
+      category: 'gate',
+      execute: async () => ({
+        check_out: '仍有缺口',
+        _revision_signals: [{ gapId: 'gap-2', rationale: '证据仍缺失', evidence: 'state.evidence' }],
+      }),
+    })
+
+    const result = await runWorkflow(manifest, { input: 'x' }, undefined, { atoms, handlers })
+    expect(result.completed).toBe(true)
+    expect(result.degradedSteps).toHaveLength(0)
+    expect(result.revisions?.map(record => record.outcome)).toEqual(['applied', 'exhausted'])
+    expect(result.revisions?.[1]).toMatchObject({ gapId: 'gap-2', evidence: 'state.evidence' })
+    expect(result.revisions?.[1]?.after).toBeUndefined()
+    expect(result.stages.find(stage => stage.stageId === 'check')?.degraded).toBe(false)
+  })
+
+  it('runWorkflow: structured retry without a signal advances without rewinding', async () => {
+    const manifest: WorkflowManifest = {
+      id: 'structured_quiet',
+      name: '结构化无信号测试',
+      caseType: 'disclosure_analysis',
+      stages: [
+        { id: 'extract', strategy: 'chain', description: '提取特征', atom: 'revision_extract' },
+        {
+          id: 'check',
+          strategy: 'chain',
+          description: '缺口检查',
+          atom: 'revision_check',
+          retry: { whenRevisionRequested: true, rewindTo: 'extract' },
+        },
+      ],
+    }
+    const atoms = new AtomRegistry()
+    atoms.register({ name: 'revision_extract', description: 'e', category: 'extract', inputSchema: [], outputSchema: ['probe_out'] })
+    atoms.register({ name: 'revision_check', description: 'c', category: 'gate', inputSchema: [], outputSchema: ['check_out'] })
+    const handlers = new StageHandlerRegistry()
+    let extractRounds = 0
+    handlers.register({
+      name: 'revision_extract',
+      category: 'extract',
+      execute: async () => {
+        extractRounds += 1
+        return { probe_out: '特征' }
+      },
+    })
+    handlers.register({
+      name: 'revision_check',
+      category: 'gate',
+      execute: async () => ({ check_out: '检查通过' }),
+    })
+
+    const result = await runWorkflow(manifest, { input: 'x' }, undefined, { atoms, handlers })
+    expect(extractRounds).toBe(1)
+    expect(result.revisions).toBeUndefined()
+    expect(result.completed).toBe(true)
+  })
+
+  it('parseRetrySignals: malformed entries are dropped and long text is bounded', async () => {
+    const { parseRetrySignals } = await import('@deepseek-ai/dsh-patent-core')
+    const signals = parseRetrySignals([
+      { gapId: 'g1', rationale: 'r'.repeat(500), evidence: 'e'.repeat(500) },
+      { gapId: '', rationale: 'empty id' },
+      { gapId: 'g2' },
+      'not-an-object',
+    ])
+    expect(signals).toHaveLength(1)
+    expect(signals[0]!.gapId).toBe('g1')
+    expect(signals[0]!.rationale).toHaveLength(240)
+    expect(signals[0]!.evidence).toHaveLength(200)
+  })
+
   it('validate: rewindTo pointing to a later stage is rejected', () => {
     expect(() => {
       validateWorkflowManifest({

@@ -15,6 +15,7 @@ import {
   HIGH_CONFIDENCE_THRESHOLD,
   SAFE_ID_PATTERN,
   classifyIpcTop,
+  digestText,
   getIpcDomain,
   manifestToGraph,
   type ArticleJudgment,
@@ -22,6 +23,7 @@ import {
   type FactBlackboard,
   type IpcClassification,
   type ManifestToGraphDeps,
+  type RevisionRecord,
   type WorkflowManifest,
   type WorkflowStage,
 } from '@deepseek-ai/dsh-patent-core'
@@ -65,9 +67,14 @@ export type FlexiblePlanState = {
   currentStageId?: string | undefined
   /** abandon 时记录原因（审计）。 */
   abandonReason?: string
+  /** 人工回退留痕（有上限）；只存产出摘要，不复制全文。 */
+  revisions?: RevisionRecord[]
   createdAt: string
   updatedAt: string
 }
+
+/** 灵活计划最多保留的回退记录数。 */
+const MAX_PLAN_REVISIONS = 64
 
 /** 灵活计划守卫错误：非法操作（fail-closed）时抛出。 */
 export class FlexiblePlanError extends Error {
@@ -266,20 +273,55 @@ export function confirmStage(state: FlexiblePlanState, stageId: string): Flexibl
   return { ...state, stages, currentStageId, updatedAt: now() }
 }
 
+/** 人工回退的留痕输入：缺口、原因与前后产出摘要。 */
+export type RollbackRevisionOptions = {
+  /** 触发回退的缺口编号；缺省取阶段 id。 */
+  gapId?: string
+  /** 为什么回退；缺省为「人工回退到 <stageId>」。 */
+  rationale?: string
+  /** 回退前产出的摘要；缺省用阶段 id 与状态生成。 */
+  before?: string
+  /** 回退后产出的摘要；此时通常尚未产生，可后续补录。 */
+  after?: string
+  /** 可选证据引用。 */
+  evidence?: string
+}
+
 /**
  * 回退重做：目标阶段及其后已确认阶段置 rolled_back（审计保留），目标之前已确认保留，
- * pending 保持；currentStageId 回到目标阶段。
+ * pending 保持；currentStageId 回到目标阶段。每次回退追加一条 RevisionRecord，
+ * 只存摘要并受上限约束。
  * @param state - 当前计划状态（须为 active）。
  * @param stageId - 回退目标阶段 id。
+ * @param options - 可选的缺口/原因/摘要留痕。
  * @returns 回退后的新计划状态（currentStageId 指向目标阶段）。
  */
-export function rollbackStage(state: FlexiblePlanState, stageId: string): FlexiblePlanState {
+export function rollbackStage(
+  state: FlexiblePlanState,
+  stageId: string,
+  options: RollbackRevisionOptions = {},
+): FlexiblePlanState {
   assertActive(state)
   const idx = findStageIndex(state, stageId)
   const stages = state.stages.map((s, i) =>
     i >= idx && s.status === 'confirmed' ? { ...s, status: 'rolled_back' as const } : s,
   )
-  return { ...state, stages, currentStageId: stageId, updatedAt: now() }
+  const target = state.stages[idx]
+  const round = (state.revisions ?? []).filter(record => record.rewindTo === stageId).length + 1
+  const record: RevisionRecord = {
+    gapId: options.gapId ?? stageId,
+    rewindTo: stageId,
+    requestedBy: stageId,
+    round,
+    before: options.before ?? digestText(`${stageId}:${target?.status ?? 'unknown'}`),
+    ...(options.after !== undefined ? { after: options.after } : {}),
+    rationale: options.rationale ?? `人工回退到 ${stageId}`,
+    ...(options.evidence !== undefined ? { evidence: options.evidence } : {}),
+    outcome: 'applied',
+    at: now(),
+  }
+  const revisions = [...(state.revisions ?? []), record].slice(-MAX_PLAN_REVISIONS)
+  return { ...state, stages, currentStageId: stageId, revisions, updatedAt: now() }
 }
 
 /**
@@ -423,6 +465,7 @@ type LoosePlanState = {
     articleJudgments: unknown
   } | null>
   currentStageId: string | undefined
+  revisions: unknown
 }
 
 /**
@@ -487,7 +530,32 @@ export function fromJSON(text: string): FlexiblePlanState {
   if (data.currentStageId !== undefined && !ids.has(data.currentStageId)) {
     throw new FlexiblePlanError(`fromJSON: currentStageId "${data.currentStageId}" 不属于任何阶段`)
   }
+  if (data.revisions !== undefined) assertRevisionLog(data.revisions)
   return data as FlexiblePlanState
+}
+
+/** 校验持久化的回退留痕：只接受带必填字符串字段的对象数组。 */
+function assertRevisionLog(value: unknown): void {
+  if (!Array.isArray(value)) {
+    throw new FlexiblePlanError('fromJSON: revisions 必须是数组')
+  }
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) {
+      throw new FlexiblePlanError('fromJSON: revisions 含非对象元素')
+    }
+    const record = item as Record<string, unknown>
+    for (const key of ['gapId', 'rewindTo', 'requestedBy', 'before', 'rationale', 'at'] as const) {
+      if (typeof record[key] !== 'string' || record[key].trim() === '') {
+        throw new FlexiblePlanError(`fromJSON: revision.${key} 缺失或不是非空字符串`)
+      }
+    }
+    if (record['outcome'] !== 'applied' && record['outcome'] !== 'exhausted') {
+      throw new FlexiblePlanError('fromJSON: revision.outcome 必须是 applied / exhausted')
+    }
+    if (typeof record['round'] !== 'number' || !Number.isInteger(record['round']) || record['round'] < 1) {
+      throw new FlexiblePlanError('fromJSON: revision.round 必须是正整数')
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

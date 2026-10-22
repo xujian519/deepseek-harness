@@ -30,7 +30,7 @@ knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全�
 
 ### legalSearch(query, options?)
 
-经 `KnowledgeLawSearch` 对 `knowledge.db` 的 `law_article` 文档做全文检索。返回 `LawSearchResult[]`；options 支持按 `level` 过滤。每条命中带 `filename`（即该文档的 `file_path`），作为引文来源。
+经 `KnowledgeLawSearch` 对 `knowledge.db` 的 `law_article` 文档做全文检索。返回 `LawSearchResult[]`；options 支持按 `level` 与时点效力（`asOf`，以及 `includeUnverified`）过滤。每条命中带 `filename`（即该文档的 `file_path`），作为引文来源；并带 `validity`（`in-force` / `expired` / `not-yet-effective` / `unverified`），由可空的 `valid_from` / `valid_to` / `expired` 列计算。已废止与尚未生效的记录不返回；三列全缺失的记录标为 `unverified` 并默认返回（不当成现行有效），`includeUnverified: false` 时排除。`installKnowledgeDb` 给输出库补这三列，但不写入「未废止」默认值。
 
 ### guidelineSearch(query, options?)
 

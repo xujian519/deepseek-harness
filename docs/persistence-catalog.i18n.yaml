@@ -9,8 +9,8 @@
   en: 1387c4505dde2faf
   zh: 48570fa1c13d6910
 /session-persistence-event-catalog/persistence-type-fingerprints:
-  en: 6af3a6f172355279
-  zh: 12466be28e7993c6
+  en: 52a98f015c801224
+  zh: b64ab6a22fbc2d96
 /session-persistence-event-catalog/event-envelope:
   en: 7223913c29a280dc
   zh: 0e8a6b02384727b4
@@ -435,8 +435,11 @@
   en: 9b5e8719c6d3d7ff
   zh: 9b5e8719c6d3d7ff
 /session-persistence-event-catalog/resolved-persistence-types/append:
-  en: 3617ceadbff7b84e
-  zh: 3617ceadbff7b84e
+  en: 58c46aea5515ffec
+  zh: 58c46aea5515ffec
+/session-persistence-event-catalog/resolved-persistence-types/applied:
+  en: 977493805e6fbfa9
+  zh: 977493805e6fbfa9
 /session-persistence-event-catalog/resolved-persistence-types/apply-failed:
   en: 71a0b2bce3bda608
   zh: 71a0b2bce3bda608
@@ -606,8 +609,11 @@
   en: 401871a8afef32c4
   zh: 401871a8afef32c4
 /session-persistence-event-catalog/resolved-persistence-types/executing:
-  en: 09c885c932add207
-  zh: 09c885c932add207
+  en: 6e53fd6494d88797
+  zh: 6e53fd6494d88797
+/session-persistence-event-catalog/resolved-persistence-types/exhausted:
+  en: 5b4c6f9ede53cf0d
+  zh: 5b4c6f9ede53cf0d
 /session-persistence-event-catalog/resolved-persistence-types/external:
   en: 2b8208db8e7bfa49
   zh: 2b8208db8e7bfa49
@@ -1494,11 +1500,11 @@
   en: bea70760e2bca85b
   zh: cea146f79e4cc7ce
 /session-persistence-event-catalog/resolved-persistence-types/patentteamsteamdeleteddata:
-  en: 670209f595591277
-  zh: 96351cf92f945c15
+  en: 84d957e4ffc432b0
+  zh: b0360c33e556e445
 /session-persistence-event-catalog/resolved-persistence-types/patentworkflowrunevent:
-  en: a26e85b97f7ba444
-  zh: abfe898076ee844d
+  en: 5663eadccc19c13d
+  zh: 2677899b37ce11c9
 /session-persistence-event-catalog/resolved-persistence-types/plantask:
   en: 1cd7d6b1c8894c47
   zh: 060cea33a0aca9d6
@@ -1545,8 +1551,14 @@
   en: b1ade5ed2c42b1ad
   zh: f1a6126bec25657b
 /session-persistence-event-catalog/resolved-persistence-types/requestheaderreason:
-  en: 0db3aa2b122a4454
-  zh: 15b6cfd8896935b8
+  en: b3a5df43cd9ffb78
+  zh: 1ef0601f7296c8f9
+/session-persistence-event-catalog/resolved-persistence-types/revisionrecord:
+  en: bad27b7845040b6e
+  zh: dba92d5e68768dbd
+/session-persistence-event-catalog/resolved-persistence-types/revisionrecord~2:
+  en: 38e0411ae63fb0ea
+  zh: 61937fe7338c0642
 /session-persistence-event-catalog/resolved-persistence-types/sandboxmode:
   en: c9fa5343ea99733b
   zh: d6de41351c57a73f
@@ -1704,11 +1716,11 @@
   en: 9efb34ef00eb4ca0
   zh: 28764e552ab8771e
 /session-persistence-event-catalog/resolved-persistence-types/workflowinterrupt:
-  en: 4b48fe6432c9900d
-  zh: f4975d2684a0a405
+  en: 0994ddf3d790b68e
+  zh: aedcd34eadc188dc
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult:
-  en: f6a1f9c8527af5dc
-  zh: 02ca5b8b765adc96
+  en: 930f99b7f88fec37
+  zh: 388cb76c60beef49
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult~2:
   en: 5c197b986751203c
   zh: 53c625f8e62dff16
@@ -1767,8 +1779,11 @@
   en: 7addfb4f66cd0134
   zh: 1f5a25350eb29fca
 /session-persistence-event-catalog/resolved-persistence-types/union-2-variants~4:
-  en: 018ea60b606ae583
-  zh: 62bb831b05c330c5
+  en: b38bf1de669330ff
+  zh: 6b3ab76ffb885c52
+/session-persistence-event-catalog/resolved-persistence-types/union-2-variants~5:
+  en: be795309426f9e0a
+  zh: dffa25c95775302e
 /session-persistence-event-catalog/resolved-persistence-types/union-3-variants:
   en: ab07ee7c506483d4
   zh: 299e31a106d93dfe
@@ -2529,11 +2544,11 @@
   en: c4ba18ccfd27d2e1
   zh: 20f26162f7b08c92
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-plantask:
-  en: db633ba0acf0708f
-  zh: 37708da3a43a8b37
+  en: b06a110d62b7cbfd
+  zh: 633c24b9b9ae8f64
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-workflow-run:
-  en: 419ed11277408378
-  zh: b173c476c7ca9583
+  en: f65cf268a971a36c
+  zh: 847df26df23a7235
 /session-persistence-event-catalog/resolved-persistence-types/type-permission-preset:
   en: 965e836b012404b3
   zh: 0ab923cc8a41e7f2

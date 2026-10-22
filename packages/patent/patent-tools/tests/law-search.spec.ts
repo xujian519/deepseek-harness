@@ -14,7 +14,7 @@ const signal = new AbortController().signal
 
 /** 一条命中（id/name/level + 可溯源 file_path + 正文）。 */
 function hit(id: string, name: string, filePath: string, content: string): LawSearchResult {
-  return { id, name, level: '法律', filename: filePath, content, score: -1, expired: 0, categoryId: 0 }
+  return { id, name, level: '法律', filename: filePath, content, score: -1, expired: 0, validity: 'in-force', categoryId: 0 }
 }
 
 const LAW_HIT = hit('law:专利法', '中华人民共和国专利法', '法律法规_md/中华人民共和国专利法.md', '第二十六条 说明书应当对发明作出清楚、完整的说明。')
@@ -118,7 +118,7 @@ describe('law_search', () => {
   })
 
   it('等级过滤与缺省库路径写入检索策略；命中缺文件名/正文时降级', async () => {
-    const bareHit: LawSearchResult = { id: 'law:x', name: '无出处条文', level: '行政法规', score: 0, expired: 0, categoryId: 0 }
+    const bareHit: LawSearchResult = { id: 'law:x', name: '无出处条文', level: '行政法规', score: 0, expired: 0, validity: 'in-force', categoryId: 0 }
     const rec = recorder({ law: [bareHit] })
     const ctx = await ctxWith(rec.deps)
     const result = await call(ctx, { query: '说明书', level: '行政法规' }, 'law-level')

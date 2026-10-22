@@ -1,14 +1,30 @@
 {
   "manifestId": "patent_infringement_v1",
   "caseType": "infringement_analysis",
-  "completed": true,
+  "completed": false,
   "stages": [
+    {
+      "stageId": "dispute-framing",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "dispute-framing"
+    },
     {
       "stageId": "parse",
       "strategy": "chain",
       "output": "权利要求1-5限定了智能门锁的锁体、指纹采集模块与控制单元的连接关系，被控产品为同型智能门锁，具备指纹采集与电控驱动结构。",
       "degraded": false,
       "retries": 0
+    },
+    {
+      "stageId": "dispute-framing-refine",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "dispute-framing-refine"
     },
     {
       "stageId": "claim-chart",
@@ -50,6 +66,9 @@
       "atom": "approval-gate"
     }
   ],
-  "degradedSteps": [],
-  "summary": "工作流 patent_infringement_v1（侵权比对分析）: 6/6 阶段完成"
+  "degradedSteps": [
+    "dispute-framing",
+    "dispute-framing-refine"
+  ],
+  "summary": "工作流 patent_infringement_v1（侵权比对分析）: 6/8 阶段完成，降级阶段: dispute-framing、dispute-framing-refine"
 }

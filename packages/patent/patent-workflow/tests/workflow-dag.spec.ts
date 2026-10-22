@@ -58,7 +58,8 @@ describe('workflow manifest DAG bridge', () => {
   it('workflowManifestToMermaid renders plain chain for acyclic novelty manifest', () => {
     const mermaid = workflowManifestToMermaid(patentNoveltyManifest)
     expect(mermaid).toContain('parse --> time_baseline')
-    expect(mermaid).toContain('time_baseline --> generate_keywords')
+    expect(mermaid).toContain('time_baseline --> dispute-framing-refine')
+    expect(mermaid).toContain('dispute-framing-refine --> generate_keywords')
     expect(mermaid).toContain('generate_keywords --> search')
     expect(mermaid).not.toContain('-.->')
   })

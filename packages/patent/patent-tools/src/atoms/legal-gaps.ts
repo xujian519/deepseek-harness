@@ -10,9 +10,11 @@
  */
 
 import {
+  REVISION_SIGNALS_KEY,
   degraded,
   type Atom,
   type PipelineState,
+  type RetrySignal,
   type StageExecuteInput,
   type StageHandler,
 } from '@deepseek-ai/dsh-patent-core'
@@ -311,7 +313,26 @@ function deriveInputKeys(): string[] {
   return [...new Set(keys)]
 }
 
-/** legal-gaps 原子：按案件类型汇总确定性检查的法条覆盖情况。 */
+/** 单次反哺最多带上的缺口数；采集阶段按此收敛，避免把整张报告糊进提示词。 */
+export const MAX_REVISION_TARGETS = 8
+
+/** 反哺给采集阶段的目标：哪条检查、哪条法条、需要补什么。 */
+export type LegalGapRevisionTarget = {
+  /** 检查编号（与 `LegalGapItem.id` 一致）。 */
+  checkId: string
+  /** 法条或指南节号。 */
+  provision: string
+  /** 检查项名称。 */
+  label: string
+}
+
+/**
+ * legal-gaps 原子：按案件类型汇总确定性检查的法条覆盖情况。
+ *
+ * 未评估项同时以三个阶段产物输出：`revision_targets` 供回退后的采集阶段读取，
+ * `_revision_signals` 供工作流的结构化回退触发。`revision_targets` 刻意不列入
+ * `outputSchema`：回退清理会删除已声明输出键，而这份清单必须跨回退保留到采集阶段。
+ */
 export const legalGapsAtom: Atom = {
   name: 'legal-gaps',
   description:
@@ -426,11 +447,25 @@ export class LegalGapsHandler implements StageHandler {
     }
     const items = LEGAL_GAP_CHECKS[profile].map(checkpoint => evaluateCheckpoint(input.state, checkpoint))
     const passed = !items.some(item => item.status === 'failed' && item.severity === 'block')
+    const unassessed = items.filter(item => item.status === 'not-assessed')
+    const targets: LegalGapRevisionTarget[] = unassessed.slice(0, MAX_REVISION_TARGETS).map(item => ({
+      checkId: item.id,
+      provision: item.provision,
+      label: item.label,
+    }))
+    const signals: RetrySignal[] = targets.map(target => ({
+      gapId: target.checkId,
+      rationale: `${target.provision} — ${target.label}：上一轮确定性检查未覆盖`,
+      evidence: `state.legal_gaps_unassessed[${target.checkId}]`,
+    }))
     return {
       legal_gaps_report: renderReport(profile, items),
       legal_gaps_passed: passed,
       legal_gaps_items: items,
-      legal_gaps_unassessed: items.filter(item => item.status === 'not-assessed').map(item => item.id),
+      legal_gaps_unassessed: unassessed.map(item => item.id),
+      // 未评估项为空时写空数组，覆盖上一轮的清单，避免采集阶段继续消费过期目标。
+      revision_targets: targets,
+      ...(signals.length > 0 ? { [REVISION_SIGNALS_KEY]: signals } : {}),
     }
   }
 }

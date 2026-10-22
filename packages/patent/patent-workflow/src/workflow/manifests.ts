@@ -19,6 +19,31 @@ const TIME_BASELINE_STAGE: WorkflowStage = {
   atom: 'time-baseline',
 }
 
+/**
+ * 争议粗定位阶段：放在 parse 之前，只收集候选法条与涉及权项，让后续解析带
+ * 争议过滤器。确定性原子，不调用模型。
+ */
+const DISPUTE_FRAMING_STAGE: WorkflowStage = {
+  id: 'dispute-framing',
+  strategy: 'chain',
+  description: '争议粗定位（确定性）：从程序文书/已解析通知书/程序理由收集候选法条与涉及权项，不判断实体结论',
+  atom: 'dispute-framing',
+}
+
+/**
+ * 争议定位修正阶段：时间基准或程序理由确定后标注时间依据。原子阶段直接读共享
+ * state（`reference_date` / `grounds`），不声明 `consumes`；阶段顺序保证依赖已产出。
+ * @returns 修正阶段定义。
+ */
+function disputeFramingRefineStage(): WorkflowStage {
+  return {
+    id: 'dispute-framing-refine',
+    strategy: 'chain',
+    description: '争议定位修正（确定性）：读取已确定的时间基准/程序理由，标注候选法条的时间依据，不改写已锁定的时间基准',
+    atom: 'dispute-framing-refine',
+  }
+}
+
 /** 可专利客体筛查阶段：披露与可专利性工作流共用。 */
 const ELIGIBILITY_STAGE: WorkflowStage = {
   id: 'eligibility',
@@ -76,8 +101,15 @@ export const patentNoveltyManifest: WorkflowManifest = {
   name: '专利新颖性分析',
   caseType: 'novelty_search',
   stages: [
-    { id: 'parse', strategy: 'chain', description: '解析技术交底书，提取技术特征' },
+    DISPUTE_FRAMING_STAGE,
+    {
+      id: 'parse',
+      strategy: 'chain',
+      description: '解析技术交底书，提取技术特征（按争议粗定位只提取相关事实）',
+      consumes: ['dispute-framing'],
+    },
     TIME_BASELINE_STAGE,
+    disputeFramingRefineStage(),
     SEARCH_KEYWORDS_STAGE,
     {
       id: 'search',
@@ -96,7 +128,7 @@ export const patentNoveltyManifest: WorkflowManifest = {
       id: 'compare',
       strategy: 'chain',
       description: '逐项对比技术特征与现有技术（单独对比原则）',
-      consumes: ['parse', 'time_baseline', 'search', 'prior_art_filter'],
+      consumes: ['dispute-framing-refine', 'parse', 'time_baseline', 'search', 'prior_art_filter'],
     },
     {
       id: 'numeric_range',
@@ -108,7 +140,7 @@ export const patentNoveltyManifest: WorkflowManifest = {
       id: 'conclude',
       strategy: 'chain',
       description: '生成新颖性分析结论（附置信度）',
-      consumes: ['time_baseline', 'search', 'prior_art_filter', 'compare', 'conflicting_application', 'numeric_range'],
+      consumes: ['dispute-framing-refine', 'time_baseline', 'search', 'prior_art_filter', 'compare', 'conflicting_application', 'numeric_range'],
     },
     CITATION_CHECK_STAGE,
     {
@@ -254,6 +286,8 @@ export const patentDisclosureManifest: WorkflowManifest = {
       description: '法条缺口汇总：客体、时间基准、宽限期、新颖性、权利要求支持与充分公开对应法条的覆盖状态',
       atom: 'legal-gaps',
       params: { profile: 'disclosure' },
+      // 未评估项反哺采集：回退到提取链重新抽取，最多一轮（legal_gaps 共执行两次）。
+      retry: { whenRevisionRequested: true, rewindTo: 'extract_problem', maxRetries: 1 },
     },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
@@ -268,12 +302,15 @@ export const patentInventivenessManifest: WorkflowManifest = {
   name: '专利创造性分析',
   caseType: 'inventiveness_analysis',
   stages: [
+    DISPUTE_FRAMING_STAGE,
     {
       id: 'parse',
       strategy: 'chain',
-      description: '解析权利要求/技术方案，构建所属领域技术人员画像，确定申请日/优先权日时间基准',
+      description: '解析权利要求/技术方案，构建所属领域技术人员画像，确定申请日/优先权日时间基准（按争议粗定位只提取相关事实）',
+      consumes: ['dispute-framing'],
     },
     TIME_BASELINE_STAGE,
+    disputeFramingRefineStage(),
     SEARCH_KEYWORDS_STAGE,
     {
       id: 'search',
@@ -286,7 +323,7 @@ export const patentInventivenessManifest: WorkflowManifest = {
       id: 'closest',
       strategy: 'chain',
       description: '三步法 Step1：确定最接近的现有技术（候选多时逐个试判）',
-      consumes: ['parse', 'time_baseline', 'search', 'prior_art_filter'],
+      consumes: ['dispute-framing-refine', 'parse', 'time_baseline', 'search', 'prior_art_filter'],
       guidance:
         '边界条件：现有技术证据缺失时，基于技术领域与权利要求主题推断合理的最接近现有技术作为对比基准，并明示其公开了哪些特征；不得仅凭方案复杂或参数特殊直接断定具备创造性——已知手段的简单变体且无预料不到效果时，倾向不具备创造性。',
     },
@@ -322,7 +359,7 @@ export const patentInventivenessManifest: WorkflowManifest = {
       id: 'conclude',
       strategy: 'chain',
       description: '生成创造性结论（高/中/低/无，附置信度）+ 反事后诸葛亮自检',
-      consumes: ['diff', 'problem_check', 'hint', 'secondary', 'prior_art_filter'],
+      consumes: ['dispute-framing-refine', 'diff', 'problem_check', 'hint', 'secondary', 'prior_art_filter'],
     },
     CITATION_CHECK_STAGE,
     {
@@ -352,8 +389,15 @@ export const patentPatentabilityManifest: WorkflowManifest = {
   name: '可专利性检索与权利要求布局',
   caseType: 'novelty_search',
   stages: [
-    { id: 'parse', strategy: 'chain', description: '解析技术方案与权利要求' },
+    DISPUTE_FRAMING_STAGE,
+    {
+      id: 'parse',
+      strategy: 'chain',
+      description: '解析技术方案与权利要求（按争议粗定位只提取相关事实）',
+      consumes: ['dispute-framing'],
+    },
     TIME_BASELINE_STAGE,
+    disputeFramingRefineStage(),
     ELIGIBILITY_STAGE,
     SEARCH_KEYWORDS_STAGE,
     {
@@ -374,7 +418,7 @@ export const patentPatentabilityManifest: WorkflowManifest = {
       id: 'draft',
       strategy: 'chain',
       description: '基于区别特征布局权利要求（规避 D1）（原子路径不支持，收口模式）',
-      consumes: ['parse', 'time_baseline', 'eligibility', 'prior_art_filter', 'claim-chart'],
+      consumes: ['dispute-framing-refine', 'parse', 'time_baseline', 'eligibility', 'prior_art_filter', 'claim-chart'],
     },
     DRAFT_SPECIFICATION_STAGE,
     {
@@ -411,12 +455,14 @@ export const patentOaResponseManifest: WorkflowManifest = {
   name: '审查意见答复',
   caseType: 'oa_response',
   stages: [
+    DISPUTE_FRAMING_STAGE,
     {
       id: 'parse',
       strategy: 'chain',
       description: '解析审查意见通知书（确定性）：驳回类型、引用文献、涉及权项、审查员论点',
       atom: 'oa-parse',
     },
+    disputeFramingRefineStage(),
     {
       id: 'claim-chart',
       strategy: 'chain',
@@ -434,7 +480,7 @@ export const patentOaResponseManifest: WorkflowManifest = {
       id: 'draft',
       strategy: 'chain',
       description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart 与答复计划）',
-      consumes: ['parse', 'claim-chart', 'response-plan'],
+      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan'],
       guidance: [
         '驳回类型对照表（先按解析结果定主策略，再逐类处理；多种类型并存时以最核心的驳回理由确定主策略）：',
         '- A-充分公开（专利法26.3）：说明书未清楚完整说明 → 举证实施例、实验数据与本领域可实现性',
@@ -516,7 +562,13 @@ function buildContestedManifest(options: ContestedManifestOptions): WorkflowMani
     name: options.name,
     caseType: options.caseType,
     stages: [
-      { id: 'parse', strategy: 'chain', description: `解析${options.label}程序文书与权利要求` },
+      DISPUTE_FRAMING_STAGE,
+      {
+        id: 'parse',
+        strategy: 'chain',
+        description: `解析${options.label}程序文书与权利要求（按争议粗定位只提取相关事实）`,
+        consumes: ['dispute-framing'],
+      },
       {
         id: 'grounds',
         strategy: 'chain',
@@ -524,6 +576,7 @@ function buildContestedManifest(options: ContestedManifestOptions): WorkflowMani
         atom: 'grounds',
         params: { ground_program: options.program },
       },
+      disputeFramingRefineStage(),
       {
         id: 'claim-chart',
         strategy: 'chain',
@@ -535,7 +588,7 @@ function buildContestedManifest(options: ContestedManifestOptions): WorkflowMani
         id: 'novelty',
         strategy: 'chain',
         description: '新颖性单独对比（单篇全覆盖）',
-        consumes: ['grounds', 'claim-chart'],
+        consumes: ['dispute-framing-refine', 'grounds', 'claim-chart'],
         guidance: [
           '单独对比原则：一项权利要求的新颖性只能由**一篇**现有技术单独否定，不得把两篇（或多篇）的内容拼合起来认定"已公开"。',
           '判定对象是该权利要求的全部技术特征；从属权利要求的全部技术特征 = 所引用权利要求的全部技术特征 + 本权项的附加技术特征。要素级映射用 claim_chart_build（mode=invalidity / reexamination）：它的 invalidity_conclusion 按引用链并入所引用权项的全部要素后给出逐权项"单篇全覆盖成立／未全覆盖"，直接采用该结论，不得与它相反。',
@@ -548,7 +601,7 @@ function buildContestedManifest(options: ContestedManifestOptions): WorkflowMani
         id: 'inventiveness',
         strategy: 'chain',
         description: '三步法创造性分析',
-        consumes: ['grounds', 'claim-chart'],
+        consumes: ['dispute-framing-refine', 'grounds', 'claim-chart'],
         guidance: [
           '三步法：第一步确定最接近的现有技术（以 invalidity_conclusion 的 primaryTargetId 为基准，不得中途换基准而不说明）；第二步以 distinguishing 列出的区别技术特征为输入，按该区别特征在要求保护的发明中的客观作用确定实际解决的技术问题——技术问题不得是区别特征本身，也不得包含指向该区别特征的手段；第三步判断现有技术整体上是否给出将该区别特征应用到最接近现有技术以解决其技术问题的启示（结合启示、公知常识、有限试验、逻辑推理）。',
           '区别特征只在主对比文件上提取；换用另一篇作最接近现有技术时须重跑 claim_chart_build 或说明，不得沿用上一基准的区别特征清单。',
@@ -629,7 +682,14 @@ export const patentInfringementManifest: WorkflowManifest = {
   name: '侵权比对分析',
   caseType: 'infringement_analysis',
   stages: [
-    { id: 'parse', strategy: 'chain', description: '解析权利要求与被控产品材料' },
+    DISPUTE_FRAMING_STAGE,
+    {
+      id: 'parse',
+      strategy: 'chain',
+      description: '解析权利要求与被控产品材料（按争议粗定位只提取相关事实）',
+      consumes: ['dispute-framing'],
+    },
+    disputeFramingRefineStage(),
     {
       id: 'claim-chart',
       strategy: 'chain',
@@ -647,7 +707,7 @@ export const patentInfringementManifest: WorkflowManifest = {
       id: 'report',
       strategy: 'chain',
       description: '生成侵权比对报告（全面覆盖 + 等同 + 现有技术抗辩）',
-      consumes: ['parse', 'claim-chart', 'coverage'],
+      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'coverage'],
       guidance: [
         '报告结构：权利要求解释与保护范围界定 → 逐项特征比对表 → 全面覆盖判断 → 等同分析（仅在有差异特征时）→ 结论。',
         '等同按手段-功能-效果三要素逐项检验，并核查三项限制：①禁止反悔——审查历史中放弃的内容不得以等同重新纳入；②捐献规则——说明书有记载但未写入权利要求的方案视为捐献；③现有技术抗辩成立时不构成侵权。',

@@ -21,6 +21,7 @@ import { escapeFtsPhrase, joinFtsOrTerms } from '../shared/fts.ts'
 import { decompressChunk } from '../shared/chunk-compression.ts'
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { LawCategory, LawRecord, LawSearchResult, LegalSearchSource } from './types.ts'
+import { isLawVisible, resolveAsOf, resolveLawValidity, todayIsoDate } from './validity.ts'
 
 /**
  * 引擎可索引的规范文档类型（闭集）：`law_article` 是法规原文，`guideline_rule` 是
@@ -45,6 +46,16 @@ export type KnowledgeLawSearchOptions = {
   level?: string
   /** 分类过滤：knowledge.db 无 category 概念，忽略。 */
   category?: string
+  /**
+   * 判定时点（YYYY-MM-DD），缺省为今天。已废止与尚未生效的记录不返回；
+   * 未核验记录是否返回由 `includeUnverified` 决定。
+   */
+  asOf?: string
+  /**
+   * 是否返回时间效力未核验的记录（时间列缺失），缺省 true。
+   * 设为 false 时只返回能证明在该时点有效的记录。
+   */
+  includeUnverified?: boolean
 }
 
 type DocChunkRow = {
@@ -54,6 +65,16 @@ type DocChunkRow = {
   source: string | null
   /** documents.file_path：语料内的相对路径，作为该文档的可溯源来源。 */
   file_path: string | null
+  /** 公布日（documents.publish_date；列缺失时为 NULL）。 */
+  publish_date: string | null
+  /** 施行日（documents.valid_from；列缺失时为 NULL = 未核验）。 */
+  valid_from: string | null
+  /** 失效日（documents.valid_to；列缺失时为 NULL = 未核验）。 */
+  valid_to: string | null
+  /** 废止标记（documents.expired；列缺失时为 NULL = 未核验）。 */
+  expired: number | null
+  /** 时间列来源标签（documents.validity_source；可选）。 */
+  validity_source: string | null
   /** 正文片段（LIKE/回源路径有值；FTS 主查询不取正文，经回源填充——延迟解压）。 */
   content: string | null
   chunk_index: number
@@ -81,6 +102,11 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
    * NULL，引擎照常检索，只是命中不带来源路径（来源由调用方按 id 判定）。
    */
   private readonly filePathColumn: string
+  /**
+   * 时间效力列的投影片段：列存在时取原列，缺失时投影 NULL。投影集中一处，
+   * 所有检索路径（FTS/LIKE/按名/按 id）都返回同一组时间字段。
+   */
+  private readonly validityColumns: string
 
   constructor(dbPath: string, options: KnowledgeLawSearchEngineOptions = {}) {
     super(dbPath, options)
@@ -100,13 +126,25 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         .get() as { c: number }
       const filePathColumn = columns.c > 0 ? 'd.file_path' : 'NULL AS file_path'
       this.filePathColumn = filePathColumn
+      const documentColumns = new Set(
+        (this.db.prepare("SELECT name FROM pragma_table_info('documents')").all() as Array<{ name: string }>)
+          .map(row => row.name),
+      )
+      const projection = (column: string): string => documentColumns.has(column) ? `d.${column}` : 'NULL'
+      this.validityColumns = [
+        `${projection('publish_date')} AS publish_date`,
+        `${projection('valid_from')} AS valid_from`,
+        `${projection('valid_to')} AS valid_to`,
+        `${projection('expired')} AS expired`,
+        `${projection('validity_source')} AS validity_source`,
+      ].join(', ')
 
       // LIKE 降级：documents.title 或每文档最长 chunk 的 content（压缩 chunk 先
       // 解压再匹配）；子查询取最长 chunk 作片段。content 取原始存储（TEXT 明文 /
       // SC 魔数 gzip BLOB），JS 层 decompressChunk 解压——绕开 node:sqlite JS UDF
       // 的 ~4ms/次边界开销；WHERE 的 sati_uncompress 仅匹配语义（LIKE 降级路径低频）。
       this.stmtSearchLike = this.db.prepare(`
-        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
                c.content AS content, c.char_count
         FROM documents d
         JOIN chunks c ON c.id = (
@@ -123,7 +161,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       if (this.hasFts) {
         try {
           this.stmtSearchFts = this.db.prepare(`
-            SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+            SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
                    NULL AS content, c.chunk_index, c.char_count, bm25(docs_fts) AS fts_rank
             FROM docs_fts
             JOIN chunks c ON c.id = docs_fts.rowid
@@ -137,7 +175,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         }
       }
       this.stmtFindByName = this.db.prepare(`
-        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
                c.content AS content, c.char_count
         FROM documents d
         JOIN chunks c ON c.id = (
@@ -146,7 +184,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         LIMIT ?
       `)
       this.stmtGetById = this.db.prepare(`
-        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
                c.content AS content, c.char_count
         FROM documents d
         JOIN chunks c ON c.id = (
@@ -155,7 +193,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       `)
       // 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源）。
       this.stmtGetChunkAt = this.db.prepare(`
-        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
                c.content AS content, c.char_count
         FROM documents d
         JOIN chunks c ON c.document_id = d.id AND c.chunk_index = ?
@@ -176,21 +214,29 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
   /** 法规全文搜索：FTS5 BM25 优先，短查询/无 FTS 时降级 LIKE；按文档去重。 */
   search(keyword: string, options: KnowledgeLawSearchOptions = {}): LawSearchResult[] {
     const limit = options.limit ?? 10
+    const asOf = resolveAsOf(options.asOf)
+    const includeUnverified = options.includeUnverified ?? true
     const rows = this.runSearch(keyword, options, limit)
-    return rows.map(row => this.toSearchResult(row))
+      .filter(row => isLawVisible(this.validityOf(row, asOf), includeUnverified))
+    return rows.map(row => this.toSearchResult(row, asOf))
   }
 
   /** 按法规名模糊查找（返回全部匹配文档）。 */
   findByName(name: string, limit = 10): LawRecord[] {
     const pattern = `%${name.replace(/[%_\\]/g, m => `\\${m}`)}%`
+    const asOf = todayIsoDate()
     const rows = this.stmtFindByName.all(pattern, limit) as DocChunkRow[]
-    return rows.map(row => this.toRecord(row))
+    return rows
+      .filter(row => isLawVisible(this.validityOf(row, asOf), true))
+      .map(row => this.toRecord(row, asOf))
   }
 
   /** 按 documents.id 精确查询（语义路回源）；域外的文档类型不返回，与 search 的范围一致。 */
   getById(id: string): LawRecord | undefined {
     const row = this.stmtGetById.get(id) as DocChunkRow | undefined
-    return row ? this.toRecord(row) : undefined
+    if (row === undefined) return undefined
+    const asOf = todayIsoDate()
+    return isLawVisible(this.validityOf(row, asOf), true) ? this.toRecord(row, asOf) : undefined
   }
 
   /** 批量按 documents.id 查询（一次 IN 查询）。 */
@@ -210,7 +256,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
     const placeholders = unique.map(() => '?').join(', ')
     const rows = this.db
       .prepare(`
-        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+        SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
                c.content AS content, c.char_count
         FROM documents d
         JOIN chunks c ON c.id = (
@@ -218,7 +264,12 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         WHERE ${this.docTypeIn} AND d.id IN (${placeholders})
       `)
       .all(...unique) as DocChunkRow[]
-    const byId = new Map(rows.map(row => [row.document_id, this.toRecord(row)]))
+    const asOf = todayIsoDate()
+    const byId = new Map(
+      rows
+        .filter(row => isLawVisible(this.validityOf(row, asOf), true))
+        .map(row => [row.document_id, this.toRecord(row, asOf)]),
+    )
     return unique.map(id => byId.get(id)).filter((r): r is LawRecord => r !== undefined)
   }
 
@@ -270,7 +321,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       return ftsSearch.all(match, limit) as DocChunkRow[]
     }
     const sql = `
-      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
              NULL AS content, c.chunk_index, c.char_count, bm25(docs_fts) AS fts_rank
       FROM docs_fts
       JOIN chunks c ON c.id = docs_fts.rowid
@@ -289,7 +340,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       return this.stmtSearchLike.all(pattern, pattern, limit) as DocChunkRow[]
     }
     let sql = `
-      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn},
+      SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
              sati_uncompress(c.content) AS content, c.char_count
       FROM documents d
       JOIN chunks c ON c.id = (
@@ -322,21 +373,35 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
     return deduped
   }
 
-  private toRecord(row: DocChunkRow): LawRecord {
+  /** 按给定时点计算一行的效力状态；缺失列保持未核验。 */
+  private validityOf(row: DocChunkRow, asOf: string): LawRecord['validity'] {
+    return resolveLawValidity(
+      { validFrom: row.valid_from, validTo: row.valid_to, expired: row.expired },
+      asOf,
+    )
+  }
+
+  private toRecord(row: DocChunkRow, asOf: string = todayIsoDate()): LawRecord {
     const content = decompressChunk(row.content)
     return {
       id: row.document_id,
       level: row.level ?? '其他',
       name: row.title,
       ...(row.file_path === null ? {} : { filename: row.file_path }),
-      expired: 0,
+      ...(row.publish_date === null ? {} : { publish: row.publish_date }),
+      // 列缺失时保留 undefined：0 是「未废止」的断言，不能用来表示「不知道」。
+      ...(row.expired === null ? {} : { expired: row.expired }),
+      validity: this.validityOf(row, asOf),
+      ...(row.valid_from === null ? {} : { validFrom: row.valid_from }),
+      ...(row.valid_to === null ? {} : { validTo: row.valid_to }),
+      ...(row.validity_source === null ? {} : { validitySource: row.validity_source }),
       categoryId: 0,
       content: content.length > 0 ? content : undefined,
       categoryName: '法律法规',
     }
   }
 
-  private toSearchResult(row: DocChunkRow): LawSearchResult {
-    return { ...this.toRecord(row), score: row.fts_rank ?? 0 }
+  private toSearchResult(row: DocChunkRow, asOf: string): LawSearchResult {
+    return { ...this.toRecord(row, asOf), score: row.fts_rank ?? 0 }
   }
 }

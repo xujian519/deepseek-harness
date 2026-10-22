@@ -401,6 +401,30 @@ describe('installKnowledgeDb verify + option branches', () => {
     expect(existsSync(output)).toBe(true)
   })
 
+  it('adds nullable law-validity columns without writing an in-force default', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-validity-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeSourceDb(dir)
+    const output = join(dir, 'knowledge-lite.db')
+    const log: string[] = []
+    await installKnowledgeDb({ sourceDbPath: input, output, skipVerify: true, log: line => log.push(line) })
+
+    withOutDb(output, (db) => {
+      const columns = columnNames(db, 'documents')
+      expect(columns).toContain('valid_from')
+      expect(columns).toContain('valid_to')
+      expect(columns).toContain('validity_source')
+      const row = db.prepare("SELECT valid_from, valid_to, validity_source FROM documents WHERE id = 'd1'").get() as {
+        valid_from: string | null
+        valid_to: string | null
+        validity_source: string | null
+      }
+      // 只建列不猜测效力：缺失保持 NULL，由查询层标为未核验。
+      expect(row).toEqual({ valid_from: null, valid_to: null, validity_source: null })
+    })
+    expect(log.some(line => line.includes('新增 documents 时间效力列'))).toBe(true)
+  })
+
   it('overwrites an existing output file', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-overwrite-'))
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })

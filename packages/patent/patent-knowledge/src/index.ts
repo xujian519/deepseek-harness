@@ -64,6 +64,8 @@ export { extractLawKeywords } from './legal/keywords.ts'
 export { toRecord, toSearchResult } from './legal/row-mapper.ts'
 export type { LawRow } from './legal/row-mapper.ts'
 export type { LawCategory, LawLevel, LawRecord, LawSearchResult, LegalSearchSource } from './legal/types.ts'
+export { isLawVisible, resolveAsOf, resolveLawValidity, todayIsoDate } from './legal/validity.ts'
+export type { LawValidity, LawValidityInput } from './legal/validity.ts'
 
 // Knowledge-graph surface.
 export { KgStore } from './shared/kg-store.ts'

@@ -123,6 +123,7 @@ export {
   ConflictingApplicationHandler,
   DEGRADED_ERROR_KEY,
   DEGRADED_RETRYABLE_KEY,
+  REVISION_SIGNALS_KEY,
   DraftClaimsHandler,
   EvidenceCheckHandler,
   ExtractHandler,
@@ -143,6 +144,8 @@ export {
   StageCancelledError,
   StageHandlerRegistry,
   TimeBaselineHandler,
+  DisputeFramingHandler,
+  DisputeFramingRefineHandler,
   amendmentBasisAtom,
   approvalGateAtom,
   checkPfeConsistency,
@@ -168,6 +171,12 @@ export {
   registerBuiltinAtoms,
   searchAtom,
   timeBaselineAtom,
+  disputeFramingAtom,
+  disputeFramingRefineAtom,
+  frameDispute,
+  refineDispute,
+  scanClaimNumbers,
+  scanDisputeText,
 } from './atoms/index.ts'
 
 // Claim-chart engine (element validation / mapping / gap / pin-cite / store).
@@ -481,11 +490,13 @@ export { getStateString, getStateArray } from './atoms/handler.ts'
 export { validateWorkflowManifest } from './workflow/manifest.ts'
 export { countWorkflowLlmStages, validateWorkflowBudget } from './workflow/budget.ts'
 export type { WorkflowStageBudget } from './workflow/budget.ts'
-export { compileSignal, signalMatches } from './workflow/signal.ts'
+export { compileSignal, digestText, parseRetrySignals, signalMatches } from './workflow/signal.ts'
 export { clearStageOutputs } from './workflow/stage-outputs.ts'
 export type { ClearStageOutputsOptions } from './workflow/stage-outputs.ts'
 export { WorkflowError } from './workflow/types.ts'
 export type {
+  RetrySignal,
+  RevisionRecord,
   StageExecutor,
   WorkflowContext,
   WorkflowInterrupt,

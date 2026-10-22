@@ -416,3 +416,95 @@ describe('KnowledgeLawSearch 文档类型闭集', () => {
     expect(() => { rmSync(dir, { recursive: true, force: true }) }).not.toThrow()
   })
 })
+
+describe('KnowledgeLawSearch 时间效力过滤', () => {
+  /** 带有效力列的夹具：现行 / 已废止 / 尚未生效 / 时间缺失四条。 */
+  function createValidityStore(): { search: KnowledgeLawSearch; dir: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'knowledge-law-validity-'))
+    const dbPath = join(dir, 'knowledge.db')
+    const db = new DatabaseSync(dbPath)
+    db.exec(`
+      CREATE TABLE documents (
+        id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, domain TEXT NOT NULL DEFAULT 'patent',
+        title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, publish_date TEXT,
+        valid_from TEXT, valid_to TEXT, expired INTEGER, validity_source TEXT,
+        char_count INTEGER DEFAULT 0, chunk_count INTEGER DEFAULT 0
+      );
+      CREATE TABLE chunks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL REFERENCES documents(id),
+        chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0
+      );
+      CREATE VIRTUAL TABLE docs_fts USING fts5(title, content, module, domain, tags, tokenize='trigram', content='', contentless_delete=1);
+    `)
+    const insDoc = db.prepare(`
+      INSERT INTO documents (id, source, doc_type, title, indexed_at, level, file_path, publish_date, valid_from, valid_to, expired, validity_source)
+      VALUES (?, 'raw', 'law_article', ?, '2026-01-01', '法律', ?, '2020-10-17', ?, ?, ?, 'test')
+    `)
+    const insChunk = db.prepare(
+      'INSERT INTO chunks (document_id, chunk_index, chunk_type, content, char_count) VALUES (?, 0, \'text\', ?, ?)',
+    )
+    const insFts = db.prepare(
+      'INSERT INTO docs_fts (rowid, title, content, module, domain, tags) VALUES (?, ?, ?, \'module\', \'patent\', NULL)',
+    )
+    const rows = [
+      ['law:in-force', '现行法', 'common 现行条文 甲', '2020-01-01', null, 0],
+      ['law:expired', '废止法', 'common 现行条文 乙', '2010-01-01', '2024-01-01', 1],
+      ['law:future', '未来法', 'common 现行条文 丙', '2099-01-01', null, 0],
+      ['law:unknown', '未知法', 'common 现行条文 丁', null, null, null],
+    ] as const
+    for (const [id, title, content, validFrom, validTo, expired] of rows) {
+      insDoc.run(id, title, `laws/${id}.md`, validFrom, validTo, expired)
+      const chunkId = insChunk.run(id, content, content.length).lastInsertRowid as number
+      insFts.run(chunkId, title, content)
+    }
+    db.close()
+    return { search: new KnowledgeLawSearch(dbPath), dir }
+  }
+
+  function withValidityStore(): KnowledgeLawSearch {
+    const { search, dir } = createValidityStore()
+    cleanups.push(() => {
+      search.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    return search
+  }
+
+  it('已废止与尚未生效的记录不返回；未核验默认返回并带状态', () => {
+    const s = withValidityStore()
+    const hits = s.search('现行条文', { asOf: '2026-01-01', limit: 10 })
+    expect(hits.map(hit => hit.id).sort()).toEqual(['law:in-force', 'law:unknown'])
+    expect(hits.find(hit => hit.id === 'law:in-force')?.validity).toBe('in-force')
+    expect(hits.find(hit => hit.id === 'law:unknown')?.validity).toBe('unverified')
+    expect(hits.find(hit => hit.id === 'law:unknown')?.expired).toBeUndefined()
+    expect(hits.find(hit => hit.id === 'law:unknown')?.validFrom).toBeUndefined()
+  })
+
+  it('includeUnverified=false 只返回可证明在效的记录', () => {
+    const s = withValidityStore()
+    const hits = s.search('现行条文', { asOf: '2026-01-01', includeUnverified: false, limit: 10 })
+    expect(hits.map(hit => hit.id)).toEqual(['law:in-force'])
+  })
+
+  it('时点早于施行日时按尚未生效排除', () => {
+    const s = withValidityStore()
+    const hits = s.search('现行条文', { asOf: '2019-01-01', includeUnverified: false, limit: 10 })
+    // 现行法 2020-01-01 才施行；其余已废止/未来/未核验均不可见。
+    expect(hits).toEqual([])
+  })
+
+  it('getById / findByName / getByIds 同样过滤已废止记录', () => {
+    const s = withValidityStore()
+    expect(s.getById('law:expired')).toBeUndefined()
+    expect(s.getById('law:in-force')?.validity).toBe('in-force')
+    expect(s.findByName('废止法')).toEqual([])
+    expect(s.getByIds(['law:in-force', 'law:expired']).map(r => r.id)).toEqual(['law:in-force'])
+  })
+
+  it('存量库没有效力列时：expired 不是硬编码 0，记录标为未核验', () => {
+    const s = withStore()
+    const hit = s.search('第二十六条')[0]
+    expect(hit?.validity).toBe('unverified')
+    expect(hit?.expired).toBeUndefined()
+  })
+})

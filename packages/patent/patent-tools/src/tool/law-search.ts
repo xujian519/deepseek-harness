@@ -16,7 +16,7 @@ import { existsSync } from 'node:fs'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import type { LawSearchResult } from '@deepseek-ai/dsh-patent-knowledge'
+import type { LawSearchResult, LawValidity } from '@deepseek-ai/dsh-patent-knowledge'
 import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
 import { knowledgeInstallGuidance, truncateSnippet } from './internal/knowledge.ts'
@@ -50,6 +50,8 @@ export type LawSearchOutput = {
     level: string
     /** Corpus-relative path (`documents.file_path`): the citation's source. */
     sourcePath?: string
+    /** Validity at the search's as-of date (today for this tool). */
+    validity: LawValidity
     charCount: number
     score: number
     snippet?: string
@@ -75,6 +77,7 @@ const DESCRIPTION = [
   '检索部署的外接 IP 知识库（knowledge.db 全文索引）里的规范原文：scope=law 取法律法规条文，scope=guideline 取《专利审查指南》全文。',
   '这是**规则**的检索通道：`law_verify` 只按随包索引判定引用形式与是否转录（指南的节级条目已随包转录，其下各节都没有转录的条目才判「未核验」），指南条文要在这里取原文并把 sourcePath（语料内路径）记为引文来源；判例全文另有 patent_case_search。',
   '命中为空不得下任何结论；引用格式：`<名称>` + `<条号/节号>` + `<sourcePath>`。',
+  '每条命中带 `时间效力`：已废止与尚未生效的条文不会返回；标为「未核验」表示库里缺少施行/失效时间，引用前须另行核对版本。',
 ].join(' ')
 
 /**
@@ -83,6 +86,22 @@ const DESCRIPTION = [
  * @param query - the query the call carried (the strategy record is JSON-typed in the output schema).
  * @returns the rendered Markdown.
  */
+const VALIDITY_LABELS: Record<LawValidity, string> = {
+  'in-force': '在效',
+  expired: '已废止',
+  'not-yet-effective': '尚未生效',
+  unverified: '未核验（缺少施行/失效时间）',
+}
+
+/**
+ * Render one result's validity line.
+ * @param validity - validity at the search's as-of date.
+ * @returns model-facing Chinese label.
+ */
+function renderValidity(validity: LawValidity): string {
+  return `**时间效力**: ${VALIDITY_LABELS[validity]}`
+}
+
 function renderLawSearch(value: LawSearchOutput, query: string): string {
   const label = value.scope === 'guideline' ? '审查指南全文' : '法规条文'
   const header = [`**law_search**（${label}）— ${String(value.results.length)} 条命中：`, `检索式：${query}`]
@@ -93,6 +112,7 @@ function renderLawSearch(value: LawSearchOutput, query: string): string {
     const lines = [`## ${r.name}`]
     lines.push(`**id**: ${r.id} · ${r.level}`)
     if (r.sourcePath !== undefined) lines.push(`**sourcePath**: ${r.sourcePath}`)
+    lines.push(renderValidity(r.validity))
     lines.push(`**字数**: ${String(r.charCount)}`)
     if (r.snippet !== undefined) lines.push(r.snippet)
     return lines.join('\n')
@@ -108,6 +128,11 @@ const RESULT_SCHEMA = {
     name: { type: 'string', required: true },
     level: { type: 'string', required: true },
     sourcePath: { type: 'string' },
+    validity: {
+      type: 'string',
+      required: true,
+      enum: ['in-force', 'expired', 'not-yet-effective', 'unverified'],
+    },
     charCount: { type: 'integer', required: true },
     score: { type: 'number', required: true },
     snippet: { type: 'string' },
@@ -171,6 +196,7 @@ export function createLawSearchTool(deps: LawSearchDeps): ToolDefinition {
         name: hit.name,
         level: hit.level,
         ...(hit.filename === undefined ? {} : { sourcePath: hit.filename }),
+        validity: hit.validity,
         charCount: hit.content?.length ?? 0,
         score: hit.score,
         ...(includeContent && hit.content !== undefined ? { snippet: truncateSnippet(hit.content) } : {}),

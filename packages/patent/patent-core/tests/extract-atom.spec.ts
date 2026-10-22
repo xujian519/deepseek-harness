@@ -118,3 +118,64 @@ describe('extract 分键输出', () => {
     expect(out._error).toBeUndefined()
   })
 })
+
+describe('extract 规则缺口反哺', () => {
+  const targets = [
+    { checkId: 'time-baseline', provision: '专利法第22条第5款', label: '现有技术时间基准' },
+    { checkId: 'grace-period', provision: '专利法第24条', label: '宽限期公开' },
+  ]
+
+  it('把反哺目标写进提示词，并要求逐项 revision_coverage', async () => {
+    const captured: { schema?: unknown; prompt?: string } = {}
+    const out = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_key: 'features', revision_targets: targets },
+      provider: providerFor(JSON.stringify({
+        features: ['特征A'],
+        revision_coverage: { 'time-baseline': ['申请日 2024-01-01'], 'grace-period': [] },
+      }), captured),
+    })
+
+    expect(out.features).toEqual(['特征A'])
+    expect(out.revision_coverage).toEqual({
+      'time-baseline': ['申请日 2024-01-01'],
+      'grace-period': [],
+    })
+    expect(captured.schema).toMatchObject({ required: ['features', 'revision_coverage'] })
+    expect(captured.prompt).toContain('[time-baseline] 专利法第22条第5款 — 现有技术时间基准')
+    expect(captured.prompt).toContain('规则缺口反哺')
+  })
+
+  it('缺少 revision_coverage 时降级并指出要求', async () => {
+    const out = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_key: 'features', revision_targets: targets },
+      provider: providerFor(JSON.stringify({ features: ['特征A'] })),
+    })
+
+    expect(String(out._error)).toContain('revision_coverage')
+    expect(out.features).toBeUndefined()
+  })
+
+  it('覆盖项含非字符串时降级并指出 checkId', async () => {
+    const out = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_key: 'features', revision_targets: targets },
+      provider: providerFor(JSON.stringify({
+        features: ['特征A'],
+        revision_coverage: { 'time-baseline': ['申请日'], 'grace-period': [1] },
+      })),
+    })
+
+    expect(String(out._error)).toContain('revision_coverage.grace-period')
+  })
+
+  it('非法目标被丢弃；全部非法时按普通抽取执行', async () => {
+    const captured: { schema?: unknown; prompt?: string } = {}
+    const out = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_key: 'features', revision_targets: [{ checkId: '' }, null, 'x'] },
+      provider: providerFor(JSON.stringify({ features: ['特征A'] }), captured),
+    })
+
+    expect(out.features).toEqual(['特征A'])
+    expect(out.revision_coverage).toBeUndefined()
+    expect(captured.schema).toMatchObject({ required: ['features'] })
+  })
+})
