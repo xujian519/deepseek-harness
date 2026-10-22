@@ -235,6 +235,15 @@ describe('confirmStage / rollbackStage', () => {
     expect(again.revisions?.[1]?.at).toBe('2026-10-22T00:00:00.000Z')
   })
 
+  it('rollbackStage derives the default before digest and records an explicit after', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2')] })
+    const confirmed = confirmStage(confirmStage(plan, 's1'), 's2')
+    const rolled = rollbackStage(confirmed, 's2', { after: 'new-output-digest' })
+    const record = rolled.revisions![0]!
+    expect(record.before).toMatch(/^[0-9a-f]{16}$/)
+    expect(record.after).toBe('new-output-digest')
+  })
+
   it('rollback redo loop: redoing the target advances to the next redo stage', () => {
     const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2'), stage('s3')] })
     const confirmed = confirmStage(confirmStage(confirmStage(plan, 's1'), 's2'), 's3')

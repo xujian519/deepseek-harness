@@ -274,6 +274,23 @@ it('manifestToGraph: retry 回退重跑 extract', async () => {
   expect(gr.state.done).toBe('[done] 完成')
 })
 
+it('manifestToGraph: 只声明结构化触发的 retry 阶段没有文本回退边', async () => {
+  // whenRevisionRequested 由 workflow 执行器消费；图路径只认识文本信号，
+  // 未声明 whenOutputMatches 时该阶段直连下一节点。
+  const manifest: WorkflowManifest = {
+    id: 'equiv_revision_only',
+    name: '结构化回退',
+    caseType: 'test',
+    stages: [
+      { id: 's1', strategy: 'chain', description: '一' },
+      { id: 's2', strategy: 'chain', description: '二', retry: { whenRevisionRequested: true, rewindTo: 's1' } },
+    ],
+  }
+  const gr = await manifestToGraph(manifest, { executor: okExecutor }).run({ input: '输入' })
+  expect(gr.completed).toBe(true)
+  expect(gr.state.s2).toBe('[s2] 完成。输入: 输入')
+})
+
 /** 第 1 次返回"存在不一致"（触发回退），之后"一致"；记录调用次数。 */
 function makeFlakyExecutor(): { fn: (stage: WorkflowStage) => Promise<string>; calls: () => number } {
   const state = { calls: 0 }

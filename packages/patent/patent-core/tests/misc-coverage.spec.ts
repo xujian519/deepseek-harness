@@ -192,6 +192,7 @@ it('validateWorkflowManifest：各非法分支抛 WorkflowError', () => {
     }, { atomNames: new Set(['other-atom']) })
   }).toThrow(/未知 atom/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: ' ' } }] }, /whenOutputMatches 不能为空/)
+  throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: {} }] }, /必须声明 whenOutputMatches 或 whenRevisionRequested/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: '[' } }] }, /非法正则/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: 'x', rewindTo: 'ghost' } }] }, /不存在的阶段/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', retry: { whenOutputMatches: 'x', rewindTo: 's1' } }] }, /不能指向自身/)

@@ -304,18 +304,17 @@ export function rollbackStage(
   options: RollbackRevisionOptions = {},
 ): FlexiblePlanState {
   assertActive(state)
-  const idx = findStageIndex(state, stageId)
+  const { index: idx, stage: target } = requireStage(state, stageId)
   const stages = state.stages.map((s, i) =>
     i >= idx && s.status === 'confirmed' ? { ...s, status: 'rolled_back' as const } : s,
   )
-  const target = state.stages[idx]
   const round = (state.revisions ?? []).filter(record => record.rewindTo === stageId).length + 1
   const record: RevisionRecord = {
     gapId: options.gapId ?? stageId,
     rewindTo: stageId,
     requestedBy: stageId,
     round,
-    before: options.before ?? digestText(`${stageId}:${target?.status ?? 'unknown'}`),
+    before: options.before ?? digestText(`${stageId}:${target.status}`),
     ...(options.after !== undefined ? { after: options.after } : {}),
     rationale: options.rationale ?? `人工回退到 ${stageId}`,
     ...(options.evidence !== undefined ? { evidence: options.evidence } : {}),
@@ -341,11 +340,7 @@ export function attachArticleJudgment(
   blackboard: FactBlackboard,
 ): FlexiblePlanState {
   assertActive(state)
-  const idx = findStageIndex(state, stageId)
-  const target = state.stages[idx]
-  if (target === undefined) {
-    throw new FlexiblePlanError(`阶段 "${stageId}" 不存在（计划 ${state.caseId}）`)
-  }
+  const { index: idx, stage: target } = requireStage(state, stageId)
   if (blackboard.caseId !== state.caseId || blackboard.caseType !== state.caseType) {
     throw new FlexiblePlanError(
       `attachArticleJudgment: 黑板属于 ${blackboard.caseId}/${blackboard.caseType}，` +
@@ -576,11 +571,20 @@ function assertActive(state: FlexiblePlanState): void {
 }
 
 function findStageIndex(state: FlexiblePlanState, stageId: string): number {
-  const idx = state.stages.findIndex(s => s.id === stageId)
-  if (idx === -1) {
+  return requireStage(state, stageId).index
+}
+
+/** 定位阶段并返回下标与阶段本体；阶段不存在时 fail-closed。 */
+function requireStage(
+  state: FlexiblePlanState,
+  stageId: string,
+): { index: number; stage: FlexibleStage } {
+  const index = state.stages.findIndex(s => s.id === stageId)
+  const stage = state.stages[index]
+  if (stage === undefined) {
     throw new FlexiblePlanError(`阶段 "${stageId}" 不存在（计划 ${state.caseId}）`)
   }
-  return idx
+  return { index, stage }
 }
 
 /** 从头找第一个未确认阶段（无待执行阶段时为 undefined）。 */

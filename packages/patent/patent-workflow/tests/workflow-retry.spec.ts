@@ -549,6 +549,7 @@ describe('workflow retry validation', () => {
     const signals = parseRetrySignals([
       { gapId: 'g1', rationale: 'r'.repeat(500), evidence: 'e'.repeat(500) },
       { gapId: '', rationale: 'empty id' },
+      { gapId: 42, rationale: 'non-string id' },
       { gapId: 'g2' },
       'not-an-object',
     ])

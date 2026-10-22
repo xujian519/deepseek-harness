@@ -425,6 +425,32 @@ describe('installKnowledgeDb verify + option branches', () => {
     expect(log.some(line => line.includes('新增 documents 时间效力列'))).toBe(true)
   })
 
+  it('skips law-validity columns when documents has no id column', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-noid-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = join(dir, 'knowledge.db')
+    const source = new DatabaseSync(input)
+    source.exec('CREATE TABLE documents (title TEXT)')
+    source.exec('CREATE TABLE chunks (id INTEGER PRIMARY KEY, content)')
+    source.prepare('INSERT INTO documents (title) VALUES (?)').run('无主键旧库')
+    source.close()
+    const output = join(dir, 'knowledge-lite.db')
+    const log: string[] = []
+    await installKnowledgeDb({
+      sourceDbPath: input,
+      output,
+      compressChunks: false,
+      skipVerify: true,
+      log: line => log.push(line),
+    })
+
+    withOutDb(output, (db) => {
+      const columns = columnNames(db, 'documents')
+      expect(columns).toEqual(['title'])
+    })
+    expect(log.some(line => line.includes('新增 documents 时间效力列'))).toBe(false)
+  })
+
   it('overwrites an existing output file', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-overwrite-'))
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })

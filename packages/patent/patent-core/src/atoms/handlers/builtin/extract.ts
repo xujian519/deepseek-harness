@@ -70,9 +70,8 @@ function parseRevisionTargets(value: unknown): RevisionTarget[] {
   return targets
 }
 
-/** 读取字符串数组并去掉首尾空白与空项；非数组返回空数组。 */
-function stringFacts(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
+/** 读取字符串数组并去掉首尾空白与空项。 */
+function stringFacts(value: readonly unknown[]): string[] {
   return value
     .filter((item): item is string => typeof item === 'string')
     .map(item => item.trim())
