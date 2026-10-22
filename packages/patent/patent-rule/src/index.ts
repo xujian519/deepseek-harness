@@ -145,6 +145,7 @@ export {
   resolveStructuralGate,
   structuralGateText,
   structuralGateViolations,
+  StructuralGateConfigError,
   type ResolvedStructuralGateEntry,
   type StructuralGateEntry,
   type StructuralGatePlan,
@@ -245,7 +246,10 @@ export interface Config {
    * rendered or written. No entry ships: a template renderer's arguments hold
    * slot fragments, so absence checks on them report defects the rendered
    * document does not have — declare an entry only where the argument is the
-   * whole document text.
+   * whole document text. An entry's `strict` turns an id that no longer resolves
+   * (or a non-block rule, or an unexecutable entry) into a load-time
+   * {@link StructuralGateConfigError} instead of a warning that drops it; shipped
+   * presets set it so a renamed rule asset cannot silently disarm the gate.
    */
   structuralGate?: StructuralGateEntry[]
   /**
@@ -274,6 +278,7 @@ export const Config: z<Config> = z.object({
     textArgs: z.array(z.string()).required(),
     ruleIds: z.array(z.string()).required(),
     whenArgs: z.dict(z.string()).default({}),
+    strict: z.boolean().default(false),
   })).default([]),
   deliveryGate: z.array(z.object({
     tool: z.string().required(),

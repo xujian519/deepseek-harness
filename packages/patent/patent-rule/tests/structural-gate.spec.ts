@@ -138,6 +138,75 @@ describe('resolveStructuralGate', () => {
   })
 })
 
+describe('resolveStructuralGate strict 声明', () => {
+  it('未知规则 id 在加载期失败，而不是丢弃该条', () => {
+    let thrown: unknown
+    try {
+      planOf(makeRulesFixture(), [
+        { tool: 'render_patent_document', textArgs: ['draft'], ruleIds: ['PR-OA-007'], strict: true },
+      ])
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBeInstanceOf(PatentRule.StructuralGateConfigError)
+    const error = thrown as PatentRule.StructuralGateConfigError
+    expect(error.code).toBe('STRUCTURAL_GATE_UNRESOLVED')
+    expect(error.name).toBe('StructuralGateConfigError')
+    expect(error.message).toContain('strict')
+    expect(error.message).toContain('制品结构门禁 render_patent_document（strict）: 规则集内不存在规则 PR-OA-007')
+  })
+
+  it('规则存在但不是 block 级也在加载期失败', () => {
+    expect(() => planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: ['sections'], ruleIds: ['TEST-SOFT'], strict: true },
+    ])).toThrow(/规则 TEST-SOFT 的 action 为 warn/)
+  })
+
+  it('条目本身无法执行（textArgs 为空 / ruleIds 全空）同样在加载期失败', () => {
+    expect(() => planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: [], ruleIds: ['TEST-LAYOUT'], strict: true },
+    ])).toThrow(/未声明承载制品文本的 textArgs/)
+    expect(() => planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: ['draft'], ruleIds: [], strict: true },
+    ])).toThrow(/没有可用规则/)
+  })
+
+  it('同一批里多条 strict 失败一次报全', () => {
+    let message = ''
+    try {
+      planOf(makeRulesFixture(), [
+        { tool: 'render_patent_document', textArgs: ['draft'], ruleIds: ['NO-SUCH-RULE'], strict: true },
+        { tool: 'render_patent_document', textArgs: ['sections'], ruleIds: ['TEST-SOFT'], strict: true },
+      ])
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toContain('规则集内不存在规则 NO-SUCH-RULE')
+    expect(message).toContain('规则 TEST-SOFT 的 action 为 warn')
+  })
+
+  it('strict 只约束声明了它的条目：同批非 strict 条目仍按告警口径放行', () => {
+    const plan = planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: ['draft'], ruleIds: ['NO-SUCH-RULE'] },
+      { tool: 'render_patent_document', textArgs: ['sections'], ruleIds: ['TEST-LAYOUT'], strict: true },
+    ])
+    expect(plan.entries).toHaveLength(1)
+    expect(plan.entries[0]?.rules.map(rule => rule.id)).toEqual(['TEST-LAYOUT'])
+    expect(plan.warnings).toEqual([
+      '制品结构门禁 render_patent_document: 规则集内不存在规则 NO-SUCH-RULE，该条已忽略',
+      '制品结构门禁 render_patent_document: 没有可用规则，该条不生效',
+    ])
+  })
+
+  it('显式 strict: false 与未声明等价，不抛错', () => {
+    const plan = planOf(makeRulesFixture(), [
+      { tool: 'render_patent_document', textArgs: ['draft'], ruleIds: ['NO-SUCH-RULE'], strict: false },
+    ])
+    expect(plan.entries).toEqual([])
+    expect(plan.warnings).toHaveLength(2)
+  })
+})
+
 describe('structuralGateViolations', () => {
   const entries: StructuralGateEntry[] = [
     { tool: 'render_patent_document', textArgs: ['sections'], ruleIds: ['TEST-LAYOUT'] },
@@ -318,6 +387,16 @@ describe('tools/pre-execute 制品结构门禁', () => {
     ctx.tools.register(documentTool())
     const result = await call(ctx, { template: 'claims-spec', sections: { claims: '一种装置，包括：A。' } })
     expect(result.isError).toBe(false)
+  })
+
+  it('strict 声明无法解析时插件加载失败，而不是带着未装上的门禁继续跑', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(PatentRule, {
+      rulesDir: makeRulesFixture(),
+      structuralGate: [{ tool: 'render_patent_document', textArgs: ['draft'], ruleIds: ['PR-OA-007'], strict: true }],
+    })).rejects.toThrow(PatentRule.StructuralGateConfigError)
   })
 
   it('未知规则 id、未知门禁检查族与「缺失即违规」族都告警但不阻塞挂载', async () => {

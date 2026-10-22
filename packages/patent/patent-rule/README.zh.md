@@ -37,7 +37,7 @@ kind: "package-reference"
 
 部署可声明 `structuralGate` 条目：每条给出一个交付工具、承载该工具制品文本的入参、用于判定的缺失即违规规则 id，以及可选的 `whenArgs`（入参精确匹配才生效）。插件在调用前经 `tools/pre-execute` 评估制品文本，命中 block 级规则即拒绝该次调用，使不合格制品不会被渲染或落盘；拒绝理由给出规则编号、规则说明与法律依据。
 
-声明按规则 id 而不是按域，因为一个域内的缺失规则未必适用于该制品形态：`patent_claims` 域的 CON-301 判据是评述词（清楚 / 简要 / 限定 / 必要技术特征），普通权利要求草案天然不含。声明的 id 不在已加载规则集内时加载期告警并剔除该条，拼错的 id 不会留下一条看着生效、实际不判的门禁。
+声明按规则 id 而不是按域，因为一个域内的缺失规则未必适用于该制品形态：`patent_claims` 域的 CON-301 判据是评述词（清楚 / 简要 / 限定 / 必要技术特征），普通权利要求草案天然不含。id 解析不到、解析到的规则不是 block 级、条目本身无法执行（`textArgs` 为空、没有可用规则）都在加载期报告：条目声明 `strict: true` 时升级为 `StructuralGateConfigError` 并让插件加载失败，不声明时仍是告警并剔除该条。随包预置声明 `strict`，规则资产改名不会让门禁悄悄失效；外部自建部署保留「告警 + 丢弃」的默认，一处笔误不会拖住整个 profile 启动。
 
 条目只对**入参本身承载制品全文**的工具成立。`render_patent_document` 的 `draft` 只是模板槽位片段，而随包模板已含固定措辞（权利要求句式、各部标题），故判据依赖模板固定措辞的规则会报出渲染成品并不存在的缺失。随包 `patent` 预置启用了一条按规则 id 的条目：`PR-OA-007` 判定 `draft` 中由作者撰写的 26.3 论证是否落到法定判准，这部分文本确实由 `draft` 承载。
 
@@ -62,7 +62,7 @@ kind: "package-reference"
 <a id="rule-engine-library-api"></a>
 ## 规则引擎（库 API）
 
-包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`isGateCheckType`、`PATENT_CASE_DOMAINS`、`patentCaseDomains`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`，制品门禁的 `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial`，以及交付门禁的 `DeliveryAttemptLedger` / `deliveryEvidence` / `deliveryGateMissing` / `renderDeliveryGateDenial` / `resolveDeliveryGate` 与 `DeliveryEvidenceRequirement` / `DeliveryGateEntry` 类型，外加共用的 `jsonRecord` / `declaredArgsMatch`。
+包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`isGateCheckType`、`PATENT_CASE_DOMAINS`、`patentCaseDomains`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`，制品门禁的 `resolveStructuralGate` / `structuralGateText` / `structuralGateViolations` / `renderStructuralGateDenial` / `StructuralGateConfigError`，以及交付门禁的 `DeliveryAttemptLedger` / `deliveryEvidence` / `deliveryGateMissing` / `renderDeliveryGateDenial` / `resolveDeliveryGate` 与 `DeliveryEvidenceRequirement` / `DeliveryGateEntry` 类型，外加共用的 `jsonRecord` / `declaredArgsMatch`。
 
 本包同时拥有 checker 规则语料（`defaultPatentRules()` 及各域构造函数：71 条域过滤 `CheckRule`，覆盖新颖性、创造性、侵权、充分公开、权利要求、说明书、无效、复审、优先权、公开方式、保护客体与 24 条推理模式规则），并通过 `createCheckerRuleEvaluator()` 暴露——这是可专利性子图 `rule_gate` 消费的 `RuleEvaluator` 实现。该评估器声明语料覆盖的领域，并按请求领域统计参与评估的规则数，未知领域与空规则集仍 fail-closed。工作流工具在插件接线处取得该评估器；启用规则门却没有评估器的图运行会在构图期报错。
 
@@ -103,7 +103,7 @@ Schemastery 配置。
 | `rulesDir` | string | 随包资产 | 规则资产根覆盖，布局镜像随包的 `assets/rules/`。 |
 | `gateToolNames` | string[] | 交付物工具 | 结果经输出门禁评估的工具名。 |
 | `gateCheckTypes` | string[] | `keyword_blocklist` | 结果门禁保留的检查族；点名缺失即违规族会告警拒绝。 |
-| `structuralGate` | object[] | `[]` | 制品门禁条目（`tool`、`textArgs`、`ruleIds`，可选 `whenArgs`）：制品文本命中 block 级规则即在调用前拒绝。 |
+| `structuralGate` | object[] | `[]` | 制品门禁条目（`tool`、`textArgs`、`ruleIds`，可选 `whenArgs` 与 `strict`）：制品文本命中 block 级规则即在调用前拒绝；`strict` 让无法生效的条目使加载失败，而不是被丢弃。 |
 | `deliveryGate` | object[] | `[]` | 交付门禁条目（`tool`、`requires`，可选 `whenArgs` 与 `evidence`）：前置工具未在本会话成功执行、结果声明了 `blocked: true`、或声明过的结果证据缺失/不符的调用由单调 guard 拒绝。 |
 | `approvalDisabled` | boolean | `false` | 对 review 级违规直接拦截，不经审批往返。 |
 
