@@ -4459,18 +4459,24 @@ describe('workspace verifier degradation and engine edges (P0-2/P0-4/P1.9b)', ()
     const session = sessionWithBoom()
     const agent = fakeAgent(session)
     let release = (): void => {}
-    agent.runMaintenance = async (task: (signal: AbortSignal) => Promise<unknown>) => {
+    // The run parks inside its maintenance reservation, so the idle boundary
+    // below is emitted while the loop provably owns the in-flight slot.
+    const parked: SelfEvolveAgentContext['runMaintenance'] = async <T>(task: (signal: AbortSignal) => Promise<T>) => {
       await new Promise<void>((resolve) => { release = resolve })
       return task(new AbortController().signal)
     }
     provideServices(ctx, session, agent)
-    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
-    const running = engine.evolveNow(agentFor(session), new AbortController().signal)
+    // Autonomous runs must be allowed, or the idle trigger would be suppressed
+    // by configuration instead of by the in-flight slot under test.
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ allowUnverifiedAutonomousRuns: true }))
+    const running = engine.evolveNow(agentFor(session, parked), new AbortController().signal)
     ctx.emit('agent/status', { agent, status: 'idle' } as never)
-    await new Promise(resolve => setTimeout(resolve, 10))
-    expect(triggerRuns(session)).toHaveLength(1)
+    expect(triggerRuns(session)).toEqual([])
     release()
     await running
+    // Only the explicit run logs a start; a second (idle) run would appear here
+    // regardless of which of the two appended first.
+    expect(triggerRuns(session)).toEqual(['user-command'])
   })
 
   it('runs no idle loop when the idle-maintenance trigger is disabled', async () => {
