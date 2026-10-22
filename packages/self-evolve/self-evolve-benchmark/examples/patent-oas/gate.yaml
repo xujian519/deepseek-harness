@@ -17,12 +17,17 @@
 #   - amendment-grounding 是 B4 新增的观测面,首测三次 55/58/55(均值 56),低于统一
 #     node 下限 70。单列 50 只用来固定当前水平做回退检测,不把首测值读成合格线;
 #     待修改指令与评分口径收敛后按实测调高。
+#   - technical-teaching 跨 novelty-creative 第 4 维(权重 20)与 oa-answer 第 3 维
+#     (权重 18)加权,前者在两个都可辩护的结论之间二值摆动:2026-10-19 采集均值 53.33、
+#     2026-10-22 采集三次 93/20/30,节点因此落在 74.2 与 69.9,统一下限 70 正卡在摆动
+#     区间内。单列 60 只用来固定当前水平做回退检测,不把该值读成合格线;命中 0/3 时节点
+#     约 58 仍会红,根因在 novelty-creative 的评分口径(#560)。
 # 基线记录后(`--accept`),门槛必须仍能被基线满足,否则门禁自己永远红——那是配置错误,
 # 由门禁直接报出。
 
 benchmarkId: patent-oas
 
-goldDigest: "sha256:fcdd7807b8ec2d43a42c24320ce93ae44c5b65d2aa137f48a604834f774d1c0a"
+goldDigest: "sha256:9b3208f307b1b92a0dd5d9bb2f9fe483b165b2e2e4ef794f90bc932770009a7e"
 
 # 基线由一次实测产生,再由门禁提升:
 #   pnpm run gate:patent-oas                        # 采集(需要 key),写出 run 记录
@@ -37,3 +42,4 @@ thresholds:
     distinguishing-features: { minScore: 75 }
     technical-problem: { minScore: 75 }
     amendment-grounding: { minScore: 50 }
+    technical-teaching: { minScore: 60 }

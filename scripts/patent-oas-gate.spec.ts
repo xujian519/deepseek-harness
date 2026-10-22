@@ -92,11 +92,12 @@ function first<T>(values: readonly T[]): T {
 function recordFrom(
   cases: readonly GoldCase[],
   score: (caseId: string, index: number) => number,
+  runsPerCase = 1,
 ): RunRecord {
-  return {
+  const record: RunRecord = {
     benchmarkId: 'patent-oas',
     recordedAt: '2026-09-26T00:00:00.000Z',
-    runsPerCase: 1,
+    runsPerCase,
     cases: cases.map(goldCase => ({
       caseId: goldCase.caseId,
       dimensions: parseRubricDimensions(goldCase.rubric).map(dimension => ({
@@ -107,12 +108,38 @@ function recordFrom(
       })),
     })),
   }
+  return withGoldRounds(cases, record)
+}
+
+/**
+ * 给多轮金标补逐轮观测:各轮同分,所有轮与 case 观测共用同一批维度对象,
+ * 因此后续补写的 `scores` 和对终局分数的改写会落到每一轮,不必多处同步。
+ */
+function withGoldRounds(cases: readonly GoldCase[], record: RunRecord): RunRecord {
+  for (const goldCase of cases) {
+    const extra = goldCase.rounds ?? []
+    if (extra.length === 0) continue
+    const target = record.cases.find(entry => entry.caseId === goldCase.caseId)
+    if (target === undefined) throw new Error(`fixture: 缺少 ${goldCase.caseId}`)
+    target.rounds = [1, ...extra.map(entry => entry.round)].map((round) => {
+      const scripted = extra.find(entry => entry.round === round)
+      return {
+        round,
+        ...scripted === undefined ? {} : { statementDigest: textDigest(scripted.statement) },
+        dimensions: target.dimensions,
+        deliverableDigests: Array.from(
+          { length: record.runsPerCase },
+          (_, run) => textDigest(`${goldCase.caseId} 第 ${round} 轮第 ${run + 1} 次交付物`),
+        ),
+      }
+    })
+  }
+  return record
 }
 
 /** 造一份逐次观测与均值一致的多次运行记录。 */
 function recordWithScores(scores: readonly number[]): RunRecord {
-  const record = recordFrom(gold, () => roundScore(mean(scores)))
-  record.runsPerCase = scores.length
+  const record = recordFrom(gold, () => roundScore(mean(scores)), scores.length)
   for (const runCase of record.cases) {
     for (const dimension of runCase.dimensions) dimension.scores = [...scores]
   }
@@ -127,6 +154,11 @@ function multiroundGold(): GoldCase[] {
   return gold.map(entry => entry.caseId === 'oa-answer'
     ? { ...entry, rounds: [{ round: 2, statement: SECOND_ROUND_STATEMENT }] }
     : entry)
+}
+
+/** 模拟单轮金标:去掉 oa-answer 的脚本化审查意见。 */
+function singleRoundGold(): GoldCase[] {
+  return gold.map(entry => entry.caseId === 'oa-answer' ? { ...entry, rounds: [] } : entry)
 }
 
 /** 为 oa-answer 补两轮观测;终局维度沿用记录里的分数(即第 2 轮)。 */
@@ -448,11 +480,15 @@ describe('多轮记录校验', () => {
 
   it('多轮 case 缺少逐轮观测即失败', () => {
     const record = recordFrom(multi, () => 90)
+    const target = record.cases.find(entry => entry.caseId === 'oa-answer')
+    if (target === undefined) throw new Error('fixture: 缺少 oa-answer')
+    delete target.rounds
     expect(validateRunRecord(record, space, multi, 'run.json').join('\n')).toContain('是多轮 case,记录缺少逐轮观测')
   })
 
   it('单轮 case 带逐轮观测即失败', () => {
-    const record = recordFrom(gold, () => 90)
+    const single = singleRoundGold()
+    const record = recordFrom(single, () => 90)
     const target = first(record.cases)
     target.rounds = [{
       round: 1,
@@ -507,7 +543,7 @@ describe('多轮记录校验', () => {
   })
 
   it('金标 rounds 为空时按单轮判定', () => {
-    const single = gold.map(entry => entry.caseId === 'oa-answer' ? { ...entry, rounds: [] } : entry)
+    const single = singleRoundGold()
     expect(validateRunRecord(recordFrom(single, () => 90), space, single, 'run.json')).toEqual([])
     const withEmptyRounds = recordFrom(single, () => 90)
     const target = withEmptyRounds.cases.find(entry => entry.caseId === 'oa-answer')

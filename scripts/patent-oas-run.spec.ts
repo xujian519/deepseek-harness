@@ -65,6 +65,11 @@ afterAll(() => {
   for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true })
 })
 
+/** 去掉 oa-answer 的脚本化审查意见,得到单轮金标。 */
+function singleRoundGold(): GoldCase[] {
+  return gold.map(entry => entry.caseId === 'oa-answer' ? { ...entry, rounds: [] } : entry)
+}
+
 /** 取列表首项;空列表即测试装置出错。 */
 function first<T>(values: readonly T[]): T {
   const value = values[0]
@@ -368,7 +373,7 @@ describe('凭据信号', () => {
 describe('编排', () => {
   it('每个 case 一次执行者、每维度一次评估者,记录与金标维度一一对应', async () => {
     const { record, calls } = await collect({})
-    expect(calls.length).toBe(4 + 21)
+    expect(calls.length).toBe(4 + 21 + 7)
     expect(record.cases.length).toBe(4)
     expect(record.benchmarkId).toBe('patent-oas')
     expect(record.runsPerCase).toBe(1)
@@ -388,26 +393,26 @@ describe('编排', () => {
   it('计划给出逐 case 维度数与调用总数,重复 case 被拒', () => {
     const plan = planRun({ space, gold })
     expect(plan.cases.length).toBe(4)
-    expect(plan.calls).toBe(25)
+    expect(plan.calls).toBe(32)
     expect(plan.cases.find(entry => entry.caseId === 'oa-answer')?.dimensions).toBe(6)
     expect(plan.cases.filter(entry => entry.caseId !== 'oa-answer').every(entry => entry.dimensions === 5)).toBe(true)
     expect(() => planRun({ space, gold, caseIds: ['oa-answer', 'oa-answer'] })).toThrow('被选中多次')
   })
 
   it('计划摘要列出逐 case 维度、总轮次与 profile', () => {
-    const single = formatRunPlan(planRun({ space, gold }), 'headless')
+    const single = formatRunPlan(planRun({ space, gold: singleRoundGold() }), 'headless')
     expect(single).toContain('计划 4 case × 1 次运行,共 4 轮 = 25 次 agent 调用')
     expect(single).toContain('oa-answer:6')
     expect(single).toContain('profile=headless')
 
-    const multi = formatRunPlan(planRun({ space, gold: multiroundGold() }), 'headless')
+    const multi = formatRunPlan(planRun({ space, gold }), 'headless')
     expect(multi).toContain('oa-answer:6×2轮')
     expect(multi).toContain('共 5 轮 = 32 次 agent 调用')
   })
 
   it('每次运行的执行者拿到私有的 agent state 副本', async () => {
     const { calls } = await collect({ caseIds: ['oa-answer'], runsPerCase: 2 })
-    const executors = calls.filter(call => call.prompt.includes(DELIVERABLE_FILENAME))
+    const executors = calls.filter(call => call.label.includes('执行者') && call.label.includes('第 1 轮'))
     expect(executors.length).toBe(2)
     expect(first(executors).cwd).not.toBe(executors[1]?.cwd)
     for (const call of executors) {
@@ -419,7 +424,7 @@ describe('编排', () => {
   it('--case 只跑选中的 case', async () => {
     const { record, calls } = await collect({ caseIds: ['oa-answer'] })
     expect(record.cases.map(entry => entry.caseId)).toEqual(['oa-answer'])
-    expect(calls.length).toBe(7)
+    expect(calls.length).toBe(14)
   })
 
   it('runsPerCase 取多次运行的均值,并留下逐次观测', async () => {
@@ -528,26 +533,15 @@ describe('编排', () => {
   })
 })
 
-/** 给 oa-answer 装上第 2 轮脚本化审查意见,其余 case 保持单轮。 */
-function multiroundGold(): GoldCase[] {
-  return gold.map<GoldCase>(entry => entry.caseId === 'oa-answer'
-    ? {
-      ...entry,
-      rounds: [{ round: 2, statement: '审查员认为修改后的权利要求 1 仍未克服创造性缺陷,请进一步陈述。' }],
-    }
-    : entry)
-}
-
 describe('多轮编排', () => {
   it('计划把轮次计入调用总数', () => {
-    const plan = planRun({ space, gold: multiroundGold() })
+    const plan = planRun({ space, gold })
     expect(plan.cases.find(entry => entry.caseId === 'oa-answer')?.rounds).toBe(2)
     expect(plan.calls).toBe(32)
   })
 
   it('两轮各自执行与评分,终局取第 2 轮并记录权项版本', async () => {
     const { record, calls, workDir } = await collect({
-      gold: multiroundGold(),
       scoreFor: label => label.includes('oa-answer') && label.includes('第 1 轮') ? 60 : 90,
       deliverableFor: label => label.includes('oa-answer') && label.includes('第 1 轮') ? '第 1 轮答复' : '第 2 轮答复',
     })
@@ -563,7 +557,7 @@ describe('多轮编排', () => {
     expect(runCase.rounds?.[1]?.statementDigest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(runCase.rounds?.[0]?.deliverableDigests).toEqual([textDigest('第 1 轮答复')])
     expect(runCase.rounds?.[1]?.deliverableDigests).toEqual([textDigest('第 2 轮答复')])
-    expect(validateRunRecord(record, space, multiroundGold(), 'collected')).toEqual([])
+    expect(validateRunRecord(record, space, gold, 'collected')).toEqual([])
 
     const executors = calls.filter(call => call.label.includes('oa-answer') && call.label.includes('执行者'))
     expect(executors.length).toBe(2)
@@ -578,7 +572,6 @@ describe('多轮编排', () => {
 
   it('多轮记录保留逐轮逐次分数', async () => {
     const { record } = await collect({
-      gold: multiroundGold(),
       runsPerCase: 2,
       scoreFor: (label, call) => {
         if (!label.includes('oa-answer')) return 90
@@ -588,12 +581,11 @@ describe('多轮编排', () => {
     const runCase = record.cases.find(entry => entry.caseId === 'oa-answer')
     expect(runCase?.rounds?.every(round => round.dimensions.every(d => d.scores?.length === 2))).toBe(true)
     expect(runCase?.dimensions.every(d => d.scores?.length === 2)).toBe(true)
-    expect(validateRunRecord(record, space, multiroundGold(), 'collected')).toEqual([])
+    expect(validateRunRecord(record, space, gold, 'collected')).toEqual([])
   })
 
   it('门禁报告逐轮总分,只用终局分判定', async () => {
     const { record } = await collect({
-      gold: multiroundGold(),
       scoreFor: label => label.includes('oa-answer') && label.includes('第 1 轮') ? 60 : 90,
     })
     expect(caseRoundScores(record).get('oa-answer')?.map(entry => entry.score)).toEqual([60, 90])
