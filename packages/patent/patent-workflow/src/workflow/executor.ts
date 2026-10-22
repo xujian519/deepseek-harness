@@ -18,13 +18,16 @@ import {
   APPROVAL_GRANTED_OUTPUT,
   DEGRADED_ERROR_KEY,
   DEGRADED_RETRYABLE_KEY,
+  REVISION_SIGNALS_KEY,
   isApprovalGateHandler,
   isInterruptStageError,
   isStageCancelledError,
+  parseRetrySignals,
 } from '@deepseek-ai/dsh-patent-core'
 import type {
   AtomRegistry,
   PipelineState,
+  RetrySignal,
   StageExecutor,
   StageHandlerRegistry,
   StageProvider,
@@ -63,11 +66,18 @@ export async function runStageOnce(
   stage: WorkflowStage,
   state: PipelineState,
   options: RunStageOnceOptions,
-): Promise<{ output: string; retries: number; interrupted?: WorkflowInterrupt }> {
+): Promise<{
+  output: string
+  retries: number
+  interrupted?: WorkflowInterrupt
+  /** 结构化回退请求（handler 的 `_revision_signals`），未触发时为空数组。 */
+  revisionSignals?: RetrySignal[]
+}> {
   const handler = stage.atom !== undefined ? options.handlers.lookup(stage.atom) : undefined
   let output = ''
   let retries = 0
   let lastError: unknown
+  let revisionSignals: RetrySignal[] = []
 
   for (let attempt = 0; attempt <= options.maxRetries; attempt += 1) {
     try {
@@ -92,9 +102,11 @@ export async function runStageOnce(
         // 终态失败直接产出可读原因，临时失败（LLM/检索）按 maxRetries 重试。
         const diagnostic = segment[DEGRADED_ERROR_KEY]
         const retryable = segment[DEGRADED_RETRYABLE_KEY] === true
+        revisionSignals = parseRetrySignals(segment[REVISION_SIGNALS_KEY])
         const delta: PipelineState = { ...segment }
         Reflect.deleteProperty(delta, DEGRADED_ERROR_KEY)
         Reflect.deleteProperty(delta, DEGRADED_RETRYABLE_KEY)
+        Reflect.deleteProperty(delta, REVISION_SIGNALS_KEY)
         // 主输出键 = atom.outputSchema[0]（对齐 Mady 约定，文本/JSON 均可）；兜底按 stage.id 引用。
         const mainKey = stage.atom !== undefined ? options.atoms.lookup(stage.atom)?.outputSchema[0] : undefined
         const raw = mainKey !== undefined ? delta[mainKey] : undefined
@@ -107,6 +119,7 @@ export async function runStageOnce(
           if (retryable && attempt < options.maxRetries) {
             lastError = new Error(message)
             retries = attempt + 1
+            revisionSignals = []
             continue
           }
           output = `[WORKFLOW_DEGRADED] ${message}`
@@ -123,6 +136,11 @@ export async function runStageOnce(
           output = APPROVAL_GRANTED_OUTPUT
         }
         state[stage.id] = output
+        // 结构化缺口信号本身就是阶段产出：它不依赖文本输出，不能被「空输出」的
+        // 内部重试吞掉（否则 handler 会原地再跑一次并丢掉信号）。
+        if (revisionSignals.length > 0) {
+          return { output, retries: attempt, revisionSignals }
+        }
       } else if (options.executor) {
         output = await options.executor(stage, options.ctx, state)
         // 阶段输出一律落到 state[stage.id]（与图适配器同一约定）：后续阶段的 executor
@@ -159,5 +177,6 @@ export async function runStageOnce(
     const detail = lastError instanceof Error ? lastError.message : typeof lastError === 'string' ? lastError : JSON.stringify(lastError)
     output = `[WORKFLOW_DEGRADED] ${stage.id}: ${detail}`
   }
+  // 有结构化信号的路径在上面提前返回；这里只剩无信号的终结结果。
   return { output, retries }
 }

@@ -1,11 +1,15 @@
 flowchart TD
-  parse["解析权利要求与被控产品材料"]
+  dispute-framing["争议粗定位（确定性）：从程序文书/已解析通知书/程序理由收集候选法条与涉及权项，不判断实体结论"]
+  parse["解析权利要求与被控产品材料（按争议粗定位只提取相关事实）"]
+  dispute-framing-refine["争议定位修正（确定性）：读取已确定的时间基准/程序理由，标注候选法条的时间依据，不改写已锁定的时间基准"]
   claim-chart["权利要求要素级映射到被控产品（mode=infringement，支持等同 doe 行）"]
   coverage["全面覆盖与等同一致性核验（确定性）：逐被控产品逐权项判定、整体取覆盖最佳权项 + 等同未认定清单"]
   report["生成侵权比对报告（全面覆盖 + 等同 + 现有技术抗辩）"]
   legal_gaps["法条缺口汇总：保护范围、全面覆盖与现有技术抗辩对应法条的通过/未通过/未评估状态"]
   approval["人工确认比对结论"]
-  parse --> claim-chart
+  dispute-framing --> parse
+  parse --> dispute-framing-refine
+  dispute-framing-refine --> claim-chart
   claim-chart --> coverage
   coverage --> report
   report --> legal_gaps

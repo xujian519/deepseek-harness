@@ -104,6 +104,10 @@ export type FlexiblePlanToolInput = {
   stageIds?: string[]
   /** Abandon reason, kept for audit (abandon). */
   reason?: string
+  /** Rollback reason, kept in the RevisionRecord (rollback). */
+  rationale?: string
+  /** Digest or short summary of the output being replaced (rollback). */
+  before?: string
   /** Max prior-art search results for run (default 5). */
   maxResults?: number
   /** When true, run confirms all successful (non-degraded) stages at the end. */
@@ -145,7 +149,7 @@ export interface FlexiblePlanToolDeps extends WorkflowProviderDeps {
 export const ATOM_PARAM_DESCRIPTION = [
   'Atom name to auto-execute this stage. Available atoms:',
   'approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability),',
-  'compare, coverage, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency,',
+  'compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency,',
   'grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search,',
   'amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key).',
   'legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement).',
@@ -231,7 +235,10 @@ const MUTATIONS: Partial<Record<Exclude<FlexiblePlanAction, 'create' | 'get' | '
   },
   rollback: {
     require: i => (i.stageId === undefined ? 'rollback 需要 stageId' : undefined),
-    apply: (s, i) => rollbackStage(s, i.stageId as string),
+    apply: (s, i) => rollbackStage(s, i.stageId as string, {
+      ...(i.rationale !== undefined ? { rationale: i.rationale } : {}),
+      ...(i.before !== undefined ? { before: i.before } : {}),
+    }),
   },
   add: {
     require: i => (i.stage === undefined ? 'add 需要 stage' : undefined),
@@ -356,6 +363,8 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
       stageId: { type: 'string', description: 'Target stage id (confirm / rollback / remove).' },
       stageIds: { type: 'array', items: { type: 'string' }, description: 'New stage order (reorder, must include all ids).' },
       reason: { type: 'string', description: 'Abandon reason, kept for audit (abandon).' },
+      rationale: { type: 'string', description: 'Rollback reason, kept in the revision record (rollback).' },
+      before: { type: 'string', description: 'Digest or short summary of the output being replaced (rollback).' },
       maxResults: { type: 'number', description: 'Max prior-art search results for run (default 5).' },
       autoConfirm: { type: 'boolean', description: 'When true, run confirms all successful (non-degraded) stages at the end.' },
     },

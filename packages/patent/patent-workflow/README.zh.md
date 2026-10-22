@@ -27,11 +27,11 @@ kind: "package-reference"
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
-经移植的执行器运行工作流 manifest，并在传入 agent 时把 `patent/workflow-run` 事件写入 `agent.session`。阶段声明 atom 或回退到 `executor`；阶段在 `consumes` 中列出上游阶段 id 时，这些阶段的产出会交给 executor（manifest 与图两条路径都把每个已执行阶段的产出存在该阶段 id 下），原子阶段则直接读共享 state；审批门 `InterruptStageError` 暂停运行并返回 `interrupted` 而非失败，宿主以 `options.approvalGrants` 重跑续接。取消是类型化的：阶段边界前已中止的信号以 `WorkflowError` 拒绝运行；阶段执行中到达 handler 的中止以 `StageCancelledError` 拒绝；两者都不重试、不写降级阶段输出。运行终态包含证据来源时，结果同时携带 `evidenceLedger`，并追加 `patent/evidence-ledger` 事件，按来源逐条给出收据；执行了 `legal-gaps` 阶段的运行还会追加 `patent/legal-gaps` 事件，携带该阶段的报告。
+经移植的执行器运行工作流 manifest，并在传入 agent 时把 `patent/workflow-run` 事件写入 `agent.session`。阶段声明 atom 或回退到 `executor`；阶段在 `consumes` 中列出上游阶段 id 时，这些阶段的产出会交给 executor（manifest 与图两条路径都把每个已执行阶段的产出存在该阶段 id 下），原子阶段则直接读共享 state；审批门 `InterruptStageError` 暂停运行并返回 `interrupted` 而非失败，宿主以 `options.approvalGrants` 重跑续接。取消是类型化的：阶段边界前已中止的信号以 `WorkflowError` 拒绝运行；阶段执行中到达 handler 的中止以 `StageCancelledError` 拒绝；两者都不重试、不写降级阶段输出。运行终态包含证据来源时，结果同时携带 `evidenceLedger`，并追加 `patent/evidence-ledger` 事件，按来源逐条给出收据；执行了 `legal-gaps` 阶段的运行还会追加 `patent/legal-gaps` 事件，携带该阶段的报告。回退可由阶段输出文本（`whenOutputMatches`）或阶段经 `_revision_signals` 返回的结构化 `RetrySignal` 触发；每次回退向运行结果的 `revisions` 追加一条 `RevisionRecord`（缺口编号、回退目标、前后产出摘要、原因、结果），上限 64 条，超出时以 `revisionsTruncated` 标记。
 
 `builtinPatentManifests` 是八个内置 manifest 的数据目录：patent_novelty_v1、patent_disclosure_v1、patent_inventiveness_v1、patent_patentability_v1、patent_oa_response_v1、patent_invalidation_v1、patent_reexamination_v1、patent_infringement_v1。无效宣告与复审两个 manifest 共用同一个阶段构建器，差异只在确定性阶段的接线：无效宣告用无效理由表与 `invalidity` 图表模式，复审用复审理由表（多一项专利法第 2 条第 3 款的实用新型客体缺陷理由，专利权类型单独输出）与 `reexamination` 图表模式，后者也让两种案件落盘的对照表互不覆盖。
 
-这些 manifest 共声明 28 个不同原子。`registerBuiltinAtoms()`（由 `PatentWorkflow` 构造函数与 dsh-patent-tools 调用）提供其中 22 个核心原子；依赖 patent-tools 的 slop 引擎、说明书校验器与规则资产的六个原子（`eligibility`、`spec-check`、`slop-gate`、`draft-specification`、`response-check`、`legal-gaps`）由 `@deepseek-ai/dsh-patent-tools` 在其插件 effect 中注册。仅挂载本包时，声明了这六个原子的 manifest 会在执行任何阶段之前被未知原子检查拒绝；请挂载 dsh-patent-tools，或经 `options.atoms` 与 `options.handlers` 注入对应契约与 handler。
+这些 manifest 共声明 30 个不同原子。`registerBuiltinAtoms()`（由 `PatentWorkflow` 构造函数与 dsh-patent-tools 调用）提供其中 24 个核心原子；依赖 patent-tools 的 slop 引擎、说明书校验器与规则资产的六个原子（`eligibility`、`spec-check`、`slop-gate`、`draft-specification`、`response-check`、`legal-gaps`）由 `@deepseek-ai/dsh-patent-tools` 在其插件 effect 中注册。仅挂载本包时，声明了这六个原子的 manifest 会在执行任何阶段之前被未知原子检查拒绝；请挂载 dsh-patent-tools，或经 `options.atoms` 与 `options.handlers` 注入对应契约与 handler。
 
 ### runPlantask(agent, caseId, planSteps, options?)
 

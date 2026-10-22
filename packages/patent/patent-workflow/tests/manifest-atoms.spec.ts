@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   LookupStageHandler,
   compileSignal,
+  countWorkflowLlmStages,
   globalAtomRegistry,
   registerBuiltinAtoms,
   signalMatches,
+  validateWorkflowBudget,
   type WorkflowManifest,
   type WorkflowStage,
 } from '@deepseek-ai/dsh-patent-core'
@@ -42,6 +44,96 @@ describe('内置 manifest 的跨包原子归属', () => {
       'slop-gate',
       'spec-check',
     ])
+  })
+})
+
+describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
+  const required = [
+    'patent_novelty_v1',
+    'patent_inventiveness_v1',
+    'patent_oa_response_v1',
+    'patent_invalidation_v1',
+    'patent_reexamination_v1',
+    'patent_infringement_v1',
+  ]
+
+  it('六个必须场景都前置粗定位并在时间/理由确定后修正', () => {
+    for (const manifestId of required) {
+      const manifest = manifestOf(manifestId)
+      const ids = manifest.stages.map(stage => stage.id)
+      expect(ids, manifestId).toContain('dispute-framing')
+      expect(ids, manifestId).toContain('dispute-framing-refine')
+      expect(ids.indexOf('dispute-framing'), manifestId).toBe(0)
+      expect(ids.indexOf('dispute-framing'), manifestId).toBeLessThan(ids.indexOf('parse'))
+      const refine = manifest.stages.find(stage => stage.id === 'dispute-framing-refine')!
+      expect(refine.atom, manifestId).toBe('dispute-framing-refine')
+      // 原子阶段直接读共享 state，不声明 consumes；顺序保证依赖已产出。
+      expect(refine.consumes, manifestId).toBeUndefined()
+      expect(ids.indexOf('dispute-framing-refine'), manifestId).toBeGreaterThan(ids.indexOf('parse'))
+    }
+  })
+
+  it('可专利性（可选）也接线；披露（排除）不接线且阶段数不变', () => {
+    const patentability = manifestOf('patent_patentability_v1').stages.map(stage => stage.id)
+    expect(patentability).toContain('dispute-framing')
+    expect(patentability).toContain('dispute-framing-refine')
+    expect(patentability.indexOf('dispute-framing-refine')).toBeGreaterThan(patentability.indexOf('time_baseline'))
+
+    const disclosure = manifestOf('patent_disclosure_v1').stages.map(stage => stage.id)
+    expect(disclosure).not.toContain('dispute-framing')
+    expect(disclosure).not.toContain('dispute-framing-refine')
+    expect(disclosure).toHaveLength(22)
+  })
+
+  it('修正阶段排在已锁定的时间基准或程序理由之后，且阶段数在默认预算内', () => {
+    const timeBaselineManifests = ['patent_novelty_v1', 'patent_inventiveness_v1', 'patent_patentability_v1']
+    for (const manifestId of timeBaselineManifests) {
+      expect(indexOf(manifestId, 'time_baseline'), manifestId)
+        .toBeLessThan(indexOf(manifestId, 'dispute-framing-refine'))
+    }
+    for (const manifestId of ['patent_invalidation_v1', 'patent_reexamination_v1']) {
+      expect(indexOf(manifestId, 'grounds'), manifestId)
+        .toBeLessThan(indexOf(manifestId, 'dispute-framing-refine'))
+    }
+    const expectedCounts: Record<string, number> = {
+      patent_novelty_v1: 14,
+      patent_disclosure_v1: 22,
+      patent_inventiveness_v1: 16,
+      patent_patentability_v1: 14,
+      patent_oa_response_v1: 10,
+      patent_invalidation_v1: 11,
+      patent_reexamination_v1: 11,
+      patent_infringement_v1: 8,
+    }
+    for (const manifest of builtinPatentManifests) {
+      expect(manifest.stages.length, manifest.id).toBe(expectedCounts[manifest.id])
+      expect(manifest.stages.length, manifest.id).toBeLessThanOrEqual(24)
+    }
+  })
+
+  it('默认预算（24/12）下全部内置 manifest 通过，模型阶段数不因确定性定位增加', () => {
+    registerBuiltinAtoms()
+    // patent-tools 的六个原子在预算统计里只需契约（usesModel 标记），此处注册同名 stub。
+    for (const name of ['draft-specification', 'eligibility', 'legal-gaps', 'response-check', 'slop-gate', 'spec-check']) {
+      globalAtomRegistry.register({ name, category: 'gate', description: 'test stub', inputSchema: [], outputSchema: [] })
+    }
+    const expectedLlmStages: Record<string, number> = {
+      patent_novelty_v1: 4,
+      patent_disclosure_v1: 10,
+      patent_inventiveness_v1: 7,
+      patent_patentability_v1: 4,
+      patent_oa_response_v1: 2,
+      patent_invalidation_v1: 4,
+      patent_reexamination_v1: 4,
+      patent_infringement_v1: 3,
+    }
+    for (const manifest of builtinPatentManifests) {
+      expect(countWorkflowLlmStages(manifest, globalAtomRegistry), manifest.id)
+        .toBe(expectedLlmStages[manifest.id])
+      expect(() => {
+        validateWorkflowBudget(manifest, { maxStages: 24, maxLlmStages: 12 }, globalAtomRegistry)
+      }, manifest.id).not.toThrow()
+    }
   })
 })
 
@@ -214,7 +306,7 @@ describe('内置 manifest 的确定性原子接线', () => {
       indexOf('patent_inventiveness_v1', 'closest'),
     )
     expect(stageOf('patent_inventiveness_v1', 'closest')?.consumes).toEqual([
-      'parse', 'time_baseline', 'search', 'prior_art_filter',
+      'dispute-framing-refine', 'parse', 'time_baseline', 'search', 'prior_art_filter',
     ])
     expect(stageOf('patent_inventiveness_v1', 'conclude')?.consumes).toContain('prior_art_filter')
     expect(indexOf('patent_inventiveness_v1', 'conclude')).toBeLessThan(
@@ -325,7 +417,9 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
   })
 
   it('OA 答复：draft 消费解析结果、claim-chart 与答复计划（描述里的"消费"由 consumes 兑现）', () => {
-    expect(stageOf('patent_oa_response_v1', 'draft')?.consumes).toEqual(['parse', 'claim-chart', 'response-plan'])
+    expect(stageOf('patent_oa_response_v1', 'draft')?.consumes).toEqual([
+      'dispute-framing-refine', 'parse', 'claim-chart', 'response-plan',
+    ])
   })
 
   it('OA 答复：response-check 接在 draft 之后、approval 之前，原子直接读解析结果', () => {
@@ -367,11 +461,12 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
 
   it('创造性：三步法后一阶段消费前一阶段的产出', () => {
     expect(stageOf('patent_inventiveness_v1', 'closest')?.consumes).toEqual([
-      'parse', 'time_baseline', 'search', 'prior_art_filter',
+      'dispute-framing-refine', 'parse', 'time_baseline', 'search', 'prior_art_filter',
     ])
     expect(stageOf('patent_inventiveness_v1', 'diff')?.consumes).toEqual(['closest'])
     expect(stageOf('patent_inventiveness_v1', 'hint')?.consumes).toEqual(['diff', 'problem_check'])
     expect(stageOf('patent_inventiveness_v1', 'conclude')?.consumes).toEqual([
+      'dispute-framing-refine',
       'diff',
       'problem_check',
       'hint',
@@ -413,7 +508,7 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
   it('新颖性/披露/创造性/可专利性：legal-gaps 接在各自确定性检查之后，按案件类型选清单', () => {
     const cases = [
       { manifestId: 'patent_novelty_v1', profile: 'novelty', after: 'conclude', before: 'approval' },
-      { manifestId: 'patent_disclosure_v1', profile: 'disclosure', after: 'slop_clean' },
+      { manifestId: 'patent_disclosure_v1', profile: 'disclosure', after: 'slop_clean', before: 'review_gate' },
       { manifestId: 'patent_inventiveness_v1', profile: 'inventiveness', after: 'conclude', before: 'approval' },
       { manifestId: 'patent_patentability_v1', profile: 'patentability', after: 'spec_check', before: 'approval' },
     ]
@@ -433,8 +528,8 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
 
   it('无效宣告与复审：收口阶段同时消费理由识别结果与要素网格', () => {
     for (const manifestId of ['patent_invalidation_v1', 'patent_reexamination_v1']) {
-      expect(stageOf(manifestId, 'novelty')?.consumes).toEqual(['grounds', 'claim-chart'])
-      expect(stageOf(manifestId, 'inventiveness')?.consumes).toEqual(['grounds', 'claim-chart'])
+      expect(stageOf(manifestId, 'novelty')?.consumes).toEqual(['dispute-framing-refine', 'grounds', 'claim-chart'])
+      expect(stageOf(manifestId, 'inventiveness')?.consumes).toEqual(['dispute-framing-refine', 'grounds', 'claim-chart'])
     }
   })
 
@@ -491,7 +586,9 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
   })
 
   it('侵权比对：report 消费要素网格与覆盖核验结论', () => {
-    expect(stageOf('patent_infringement_v1', 'report')?.consumes).toEqual(['parse', 'claim-chart', 'coverage'])
+    expect(stageOf('patent_infringement_v1', 'report')?.consumes).toEqual([
+      'dispute-framing-refine', 'parse', 'claim-chart', 'coverage',
+    ])
   })
 
   it('声明的收口阶段都是未声明 atom 的阶段（原子阶段由 handler 直接读 state）', () => {
@@ -514,7 +611,7 @@ describe('PFIE 一致性阶段：确定性原子与回退信号闭环', () => {
     const out = await handler.execute({
       state: { pfe_triples: [{ id: 'T1', problem: 'P1', features: [], effects: [] }] },
     })
-    const signal = compileSignal(consistency.retry!.whenOutputMatches)
+    const signal = compileSignal(consistency.retry!.whenOutputMatches!)
     expect(signalMatches(String(out.pfe_consistency_summary), signal)).toBe(true)
   })
 
@@ -524,7 +621,7 @@ describe('PFIE 一致性阶段：确定性原子与回退信号闭环', () => {
     const out = await handler.execute({
       state: { pfe_triples: [{ id: 'T1', problem: '如何在装配后定位', features: ['F1'], effects: ['E1'] }] },
     })
-    const signal = compileSignal(consistency.retry!.whenOutputMatches)
+    const signal = compileSignal(consistency.retry!.whenOutputMatches!)
     expect(signalMatches(String(out.pfe_consistency_summary), signal)).toBe(false)
   })
 

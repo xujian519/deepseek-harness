@@ -6,6 +6,7 @@
  */
 
 import type { LawRecord, LawSearchResult } from './types.ts'
+import { resolveLawValidity, todayIsoDate } from './validity.ts'
 
 /** 法规数据库行（law 与 category 联查结果）。 */
 export type LawRow = {
@@ -18,6 +19,8 @@ export type LawRow = {
   category_id: number
   subtitle: string | null
   valid_from: string | null
+  valid_to?: string | null
+  validity_source?: string | null
   content: string | null
   category_name: string | null
   /** FTS5 BM25 分数（负值，越大越相关；仅 FTS 路径有值）。 */
@@ -30,6 +33,10 @@ export type LawRow = {
  * @returns 映射后的法规记录。
  */
 export function toRecord(row: LawRow): LawRecord {
+  const validity = resolveLawValidity(
+    { validFrom: row.valid_from, validTo: row.valid_to, expired: row.expired },
+    todayIsoDate(),
+  )
   return {
     id: row.id,
     level: row.level,
@@ -37,9 +44,12 @@ export function toRecord(row: LawRow): LawRecord {
     filename: row.filename ?? undefined,
     publish: row.publish ?? undefined,
     expired: row.expired,
+    validity,
     categoryId: row.category_id,
     subtitle: row.subtitle ?? undefined,
     validFrom: row.valid_from ?? undefined,
+    validTo: row.valid_to ?? undefined,
+    validitySource: row.validity_source ?? undefined,
     content: row.content ?? undefined,
     categoryName: row.category_name ?? undefined,
   }

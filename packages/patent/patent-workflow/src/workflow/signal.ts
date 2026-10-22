@@ -19,9 +19,12 @@ export { compileSignal, signalMatches }
  */
 export function signalFor(stage: WorkflowStage, cache: Map<string, RegExp>): RegExp | undefined {
   if (stage.retry === undefined) return undefined
+  const pattern = stage.retry.whenOutputMatches
+  // 只声明结构化触发（whenRevisionRequested）的阶段没有文本正则。
+  if (pattern === undefined) return undefined
   const cached = cache.get(stage.id)
   if (cached !== undefined) return cached
-  const compiled = compileSignal(stage.retry.whenOutputMatches)
+  const compiled = compileSignal(pattern)
   cache.set(stage.id, compiled)
   return compiled
 }

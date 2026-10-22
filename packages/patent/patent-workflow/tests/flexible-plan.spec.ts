@@ -206,6 +206,44 @@ describe('confirmStage / rollbackStage', () => {
     expect(() => rollbackStage(done, 's1')).toThrow(FlexiblePlanError)
   })
 
+  it('rollbackStage records a bounded revision with the gap and rationale', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2')] })
+    const confirmed = confirmStage(confirmStage(plan, 's1'), 's2')
+    const rolled = rollbackStage(confirmed, 's2', {
+      gapId: 'claim-1-unevaluated',
+      rationale: '权利要求 1 的对应事实未提取',
+      evidence: 'state.legal_gaps',
+      before: 'old-output-digest',
+    })
+    expect(rolled.revisions).toHaveLength(1)
+    const record = rolled.revisions![0]!
+    expect(record).toMatchObject({
+      gapId: 'claim-1-unevaluated',
+      rewindTo: 's2',
+      requestedBy: 's2',
+      round: 1,
+      rationale: '权利要求 1 的对应事实未提取',
+      evidence: 'state.legal_gaps',
+      outcome: 'applied',
+    })
+    expect(record.before).toBe('old-output-digest')
+    // 未注入时钟时不写 at：持久化结果可重放且逐字一致。
+    expect(record.at).toBeUndefined()
+    // 再次回退同一阶段：round 递增，记录继续累积。
+    const again = rollbackStage(rolled, 's2', { gapId: 'claim-2-unevaluated', now: () => '2026-10-22T00:00:00.000Z' })
+    expect(again.revisions?.map(r => r.round)).toEqual([1, 2])
+    expect(again.revisions?.[1]?.at).toBe('2026-10-22T00:00:00.000Z')
+  })
+
+  it('rollbackStage derives the default before digest and records an explicit after', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2')] })
+    const confirmed = confirmStage(confirmStage(plan, 's1'), 's2')
+    const rolled = rollbackStage(confirmed, 's2', { after: 'new-output-digest' })
+    const record = rolled.revisions![0]!
+    expect(record.before).toMatch(/^[0-9a-f]{16}$/)
+    expect(record.after).toBe('new-output-digest')
+  })
+
   it('rollback redo loop: redoing the target advances to the next redo stage', () => {
     const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2'), stage('s3')] })
     const confirmed = confirmStage(confirmStage(confirmStage(plan, 's1'), 's2'), 's3')
@@ -371,6 +409,23 @@ describe('toJSON / fromJSON', () => {
     expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), name: 42 }] }))).toThrow(FlexiblePlanError)
     expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), constraintIds: 'x' }] }))).toThrow(FlexiblePlanError)
     expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), articleJudgments: 'x' }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, revisions: 'x' }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, revisions: [null] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, revisions: [{ gapId: 'g' }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({
+      ...base,
+      revisions: [{ gapId: 'g', rewindTo: 's1', requestedBy: 's1', round: 0, before: 'x', rationale: 'r', outcome: 'applied', at: 'now' }],
+    }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({
+      ...base,
+      revisions: [{ gapId: 'g', rewindTo: 's1', requestedBy: 's1', round: 1, before: 'x', rationale: 'r', outcome: 'unknown' }],
+    }))).toThrow(/outcome/)
+    // at 可选；给出时必须是字符串。
+    const withoutAt = { gapId: 'g', rewindTo: 's1', requestedBy: 's1', round: 1, before: 'x', rationale: 'r', outcome: 'applied' }
+    expect(fromJSON(JSON.stringify({ ...base, revisions: [withoutAt] })).revisions).toHaveLength(1)
+    const withOptionals = { ...withoutAt, after: 'y', evidence: 'state.x', at: '2026-10-22T00:00:00.000Z' }
+    expect(fromJSON(JSON.stringify({ ...base, revisions: [withOptionals] })).revisions?.[0]).toMatchObject(withOptionals)
+    expect(() => fromJSON(JSON.stringify({ ...base, revisions: [{ ...withoutAt, at: 42 }] }))).toThrow(FlexiblePlanError)
   })
 })
 

@@ -208,7 +208,9 @@ function makeRetryRouter(
 
   const rewindTo = retry.rewindTo ?? stage.id
   const maxRetries = retry.maxRetries ?? 1
-  const signal = new RegExp(retry.whenOutputMatches, 'gi')
+  // 结构化触发（whenRevisionRequested）由 workflow 执行器消费；图路径只认识文本信号，
+  // 未声明 whenOutputMatches 时该阶段没有条件回退边。
+  const signal = retry.whenOutputMatches === undefined ? undefined : new RegExp(retry.whenOutputMatches, 'gi')
   // 被回退阶段集合（rewindTo .. 当前阶段），回退时删除其 state 键防陈旧复用。
   const rewindIndex = stages.findIndex(s => s.id === rewindTo)
   const currentIndex = stages.findIndex(s => s.id === stage.id)
@@ -217,7 +219,7 @@ function makeRetryRouter(
 
   return (state) => {
     const text = getStateString(state, stage.id, '')
-    if (text.length === 0 || !signalMatches(text, signal)) {
+    if (text.length === 0 || signal === undefined || !signalMatches(text, signal)) {
       return [nextId]
     }
     const countKey = rewindCountKey(stage.id)

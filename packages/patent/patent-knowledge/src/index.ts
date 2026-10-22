@@ -64,6 +64,8 @@ export { extractLawKeywords } from './legal/keywords.ts'
 export { toRecord, toSearchResult } from './legal/row-mapper.ts'
 export type { LawRow } from './legal/row-mapper.ts'
 export type { LawCategory, LawLevel, LawRecord, LawSearchResult, LegalSearchSource } from './legal/types.ts'
+export { isLawVisible, resolveAsOf, resolveLawValidity, todayIsoDate } from './legal/validity.ts'
+export type { LawValidity, LawValidityInput } from './legal/validity.ts'
 
 // Knowledge-graph surface.
 export { KgStore } from './shared/kg-store.ts'
@@ -151,7 +153,7 @@ export class PatentKnowledge extends Service {
   /**
    * Legal full-text search over the law_article documents of knowledge.db.
    * @param query - the search text.
-   * @param options - result cap and level filter.
+   * @param options - result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).
    * @returns the de-duplicated hits in rank order.
    */
   legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[] {
@@ -163,7 +165,7 @@ export class PatentKnowledge extends Service {
    * (the 《专利审查指南》 chapters). Same engine and options as the law search,
    * scoped to that document type.
    * @param query - the search text.
-   * @param options - result cap and level filter.
+   * @param options - result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).
    * @returns the de-duplicated hits in rank order, each with its `filename` (file_path) for citation.
    */
   guidelineSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[] {

@@ -3,12 +3,13 @@
  *
  * - atom.ts：Atom 声明式契约 + 注册表（纯声明，不参与执行）
  * - handler.ts：StageHandler 运行时 + PipelineState + 错误模型 + 注册表
- * - handlers/builtin/：24 个内置原子，按职责分域：
+ * - handlers/builtin/：26 个内置原子，按职责分域：
  *   search/keywords/extract/merge/compare/novelty/reasoning/groundedness/
  *   draft-claims/approval-gate/claim-chart 为模型或检索阶段；
  *   oa-parse/grounds/response-plan/coverage/pfe-consistency/citation-check/
- *   time-baseline/prior-art-filter/conflicting-application/numeric-range/
- *   problem-check/amendment-basis/evidence-check 为不调用模型的确定性检查。
+ *   time-baseline/dispute-framing/dispute-framing-refine/prior-art-filter/
+ *   conflicting-application/numeric-range/problem-check/amendment-basis/
+ *   evidence-check 为不调用模型的确定性检查。
  *   @deepseek-ai/dsh-patent-tools 另以插件 effect 注册 6 个包内原子。
  *
  * 使用：调用 registerBuiltinAtoms() 将内置原子注册进全局注册表；
@@ -31,6 +32,7 @@ export {
   type StageHandler,
   DEGRADED_ERROR_KEY,
   DEGRADED_RETRYABLE_KEY,
+  REVISION_SIGNALS_KEY,
   InterruptStageError,
   isInterruptStageError,
   StageCancelledError,
@@ -98,6 +100,14 @@ export {
   DEFAULT_CITATION_PRIOR_ART_KEY,
   timeBaselineAtom,
   TimeBaselineHandler,
+  disputeFramingAtom,
+  DisputeFramingHandler,
+  disputeFramingRefineAtom,
+  DisputeFramingRefineHandler,
+  frameDispute,
+  refineDispute,
+  scanClaimNumbers,
+  scanDisputeText,
   priorArtFilterAtom,
   PriorArtFilterHandler,
   A24_EXCEPTION_LABELS,
@@ -140,7 +150,7 @@ import { globalAtomRegistry } from './atom.ts'
 import { globalStageHandlerRegistry } from './handler.ts'
 import * as builtin from './handlers/builtin/index.ts'
 
-/** 将 24 个内置原子（契约 + 运行时）注册进全局注册表。幂等：同名覆盖。 */
+/** 将 26 个内置原子（契约 + 运行时）注册进全局注册表。幂等：同名覆盖。 */
 export function registerBuiltinAtoms(): void {
   globalAtomRegistry.register(builtin.searchAtom)
   globalAtomRegistry.register(builtin.extractAtom)
@@ -160,6 +170,8 @@ export function registerBuiltinAtoms(): void {
   globalAtomRegistry.register(builtin.pfeConsistencyAtom)
   globalAtomRegistry.register(builtin.citationCheckAtom)
   globalAtomRegistry.register(builtin.timeBaselineAtom)
+  globalAtomRegistry.register(builtin.disputeFramingAtom)
+  globalAtomRegistry.register(builtin.disputeFramingRefineAtom)
   globalAtomRegistry.register(builtin.priorArtFilterAtom)
   globalAtomRegistry.register(builtin.conflictingApplicationAtom)
   globalAtomRegistry.register(builtin.numericRangeAtom)
@@ -185,6 +197,8 @@ export function registerBuiltinAtoms(): void {
   globalStageHandlerRegistry.register(new builtin.PfeConsistencyHandler())
   globalStageHandlerRegistry.register(new builtin.CitationCheckHandler())
   globalStageHandlerRegistry.register(new builtin.TimeBaselineHandler())
+  globalStageHandlerRegistry.register(new builtin.DisputeFramingHandler())
+  globalStageHandlerRegistry.register(new builtin.DisputeFramingRefineHandler())
   globalStageHandlerRegistry.register(new builtin.PriorArtFilterHandler())
   globalStageHandlerRegistry.register(new builtin.ConflictingApplicationHandler())
   globalStageHandlerRegistry.register(new builtin.NumericRangeHandler())

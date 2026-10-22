@@ -87,6 +87,19 @@ export {
 } from './citation.ts'
 export { timeBaselineAtom, TimeBaselineHandler } from './time-baseline.ts'
 export {
+  disputeFramingAtom,
+  DisputeFramingHandler,
+  disputeFramingRefineAtom,
+  DisputeFramingRefineHandler,
+  frameDispute,
+  refineDispute,
+  scanClaimNumbers,
+  scanDisputeText,
+  type DisputeCandidate,
+  type DisputeFraming,
+  type RefinedDisputeCandidate,
+} from './dispute-framing.ts'
+export {
   priorArtFilterAtom,
   PriorArtFilterHandler,
   A24_EXCEPTION_LABELS,

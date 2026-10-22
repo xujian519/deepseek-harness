@@ -10,9 +10,11 @@
  */
 
 import {
+  REVISION_SIGNALS_KEY,
   degraded,
   type Atom,
   type PipelineState,
+  type RetrySignal,
   type StageExecuteInput,
   type StageHandler,
 } from '@deepseek-ai/dsh-patent-core'
@@ -311,7 +313,26 @@ function deriveInputKeys(): string[] {
   return [...new Set(keys)]
 }
 
-/** legal-gaps 原子：按案件类型汇总确定性检查的法条覆盖情况。 */
+/** 单次反哺最多带上的缺口数；采集阶段按此收敛，避免把整张报告糊进提示词。 */
+const MAX_REVISION_TARGETS = 8
+
+/** 反哺给采集阶段的目标：哪条检查、哪条法条、需要补什么。 */
+type LegalGapRevisionTarget = {
+  /** 检查编号（与 `LegalGapItem.id` 一致）。 */
+  checkId: string
+  /** 法条或指南节号。 */
+  provision: string
+  /** 检查项名称。 */
+  label: string
+}
+
+/**
+ * legal-gaps 原子：按案件类型汇总确定性检查的法条覆盖情况。
+ *
+ * 未评估项同时以三个阶段产物输出：`revision_targets` 供回退后的采集阶段读取，
+ * `_revision_signals` 供工作流的结构化回退触发。`revision_targets` 刻意不列入
+ * `outputSchema`：回退清理会删除已声明输出键，而这份清单必须跨回退保留到采集阶段。
+ */
 export const legalGapsAtom: Atom = {
   name: 'legal-gaps',
   description:
@@ -342,17 +363,42 @@ function pendingCount(value: unknown): number {
 }
 
 /**
+ * 读取反哺轮次补提到的事实数（extract 的 `revision_coverage`）。只用于把「补提过
+ * 但仍未覆盖」如实写进证据，不改变检查状态。
+ * @param state - 共享执行态。
+ * @returns checkId → 补提事实数。
+ */
+function revisionCoverageCounts(state: PipelineState): Map<string, number> {
+  const counts = new Map<string, number>()
+  const raw = state['revision_coverage']
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return counts
+  for (const [key, value] of Object.entries(raw)) {
+    if (Array.isArray(value) && value.length > 0) counts.set(key, value.length)
+  }
+  return counts
+}
+
+/**
  * 评估一条法条检查。
  * @param state - 共享执行态。
  * @param checkpoint - 检查声明。
+ * @param coverage - 反哺轮次补提到的事实数。
  * @returns 汇总项（含状态与可复核依据）。
  */
-function evaluateCheckpoint(state: PipelineState, checkpoint: LegalGapCheckpoint): LegalGapItem {
+function evaluateCheckpoint(
+  state: PipelineState,
+  checkpoint: LegalGapCheckpoint,
+  coverage: ReadonlyMap<string, number>,
+): LegalGapItem {
   const base = {
     id: checkpoint.id,
     provision: checkpoint.provision,
     label: checkpoint.label,
     severity: checkpoint.severity,
+  }
+  const supplemented = (evidence: string): string => {
+    const count = coverage.get(checkpoint.id) ?? 0
+    return count > 0 ? `${evidence}；反哺轮次补提 ${count} 条事实后仍未覆盖` : evidence
   }
   if (checkpoint.notApplicable?.(state) === true) {
     return { ...base, status: 'not-applicable', evidence: '本程序未触发该法条' }
@@ -363,11 +409,19 @@ function evaluateCheckpoint(state: PipelineState, checkpoint: LegalGapCheckpoint
   if (checkpoint.pendingKey !== undefined) {
     const pending = pendingCount(state[checkpoint.pendingKey])
     if (pending > 0) {
-      return { ...base, status: 'not-assessed', evidence: `state.${checkpoint.pendingKey} 有 ${pending} 项待核` }
+      return {
+        ...base,
+        status: 'not-assessed',
+        evidence: supplemented(`state.${checkpoint.pendingKey} 有 ${pending} 项待核`),
+      }
     }
   }
   if (checkpoint.notAssessed?.(state) === true) {
-    return { ...base, status: 'not-assessed', evidence: `${checkpoint.assessKeys.join(' / ')} 报告本次未执行` }
+    return {
+      ...base,
+      status: 'not-assessed',
+      evidence: supplemented(`${checkpoint.assessKeys.join(' / ')} 报告本次未执行`),
+    }
   }
   const assessedKey = checkpoint.assessKeys.find(key => hasValue(state[key]))
   if (assessedKey !== undefined) {
@@ -376,7 +430,7 @@ function evaluateCheckpoint(state: PipelineState, checkpoint: LegalGapCheckpoint
   return {
     ...base,
     status: 'not-assessed',
-    evidence: `未找到 ${checkpoint.assessKeys.join(' / ')}（该法条未被任何确定性阶段覆盖）`,
+    evidence: supplemented(`未找到 ${checkpoint.assessKeys.join(' / ')}（该法条未被任何确定性阶段覆盖）`),
   }
 }
 
@@ -424,13 +478,28 @@ export class LegalGapsHandler implements StageHandler {
     if (profile === undefined) {
       return degraded('legal-gaps', `params.profile 必须是 ${LEGAL_GAP_PROFILES.join(' / ')} 之一`)
     }
-    const items = LEGAL_GAP_CHECKS[profile].map(checkpoint => evaluateCheckpoint(input.state, checkpoint))
+    const coverage = revisionCoverageCounts(input.state)
+    const items = LEGAL_GAP_CHECKS[profile].map(checkpoint => evaluateCheckpoint(input.state, checkpoint, coverage))
     const passed = !items.some(item => item.status === 'failed' && item.severity === 'block')
+    const unassessed = items.filter(item => item.status === 'not-assessed')
+    const targets: LegalGapRevisionTarget[] = unassessed.slice(0, MAX_REVISION_TARGETS).map(item => ({
+      checkId: item.id,
+      provision: item.provision,
+      label: item.label,
+    }))
+    const signals: RetrySignal[] = targets.map(target => ({
+      gapId: target.checkId,
+      rationale: `${target.provision} — ${target.label}：上一轮确定性检查未覆盖`,
+      evidence: `state.legal_gaps_unassessed[${target.checkId}]`,
+    }))
     return {
       legal_gaps_report: renderReport(profile, items),
       legal_gaps_passed: passed,
       legal_gaps_items: items,
-      legal_gaps_unassessed: items.filter(item => item.status === 'not-assessed').map(item => item.id),
+      legal_gaps_unassessed: unassessed.map(item => item.id),
+      // 未评估项为空时写空数组，覆盖上一轮的清单，避免采集阶段继续消费过期目标。
+      revision_targets: targets,
+      ...(signals.length > 0 ? { [REVISION_SIGNALS_KEY]: signals } : {}),
     }
   }
 }

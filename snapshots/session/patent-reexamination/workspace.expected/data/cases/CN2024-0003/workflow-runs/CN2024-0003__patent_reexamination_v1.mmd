@@ -1,6 +1,8 @@
 flowchart TD
-  parse["解析复审程序文书与权利要求"]
+  dispute-framing["争议粗定位（确定性）：从程序文书/已解析通知书/程序理由收集候选法条与涉及权项，不判断实体结论"]
+  parse["解析复审程序文书与权利要求（按争议粗定位只提取相关事实）"]
   grounds["识别驳回决定援引的理由（确定性，复审理由表含实用新型客体缺陷）"]
+  dispute-framing-refine["争议定位修正（确定性）：读取已确定的时间基准/程序理由，标注候选法条的时间依据，不改写已锁定的时间基准"]
   claim-chart["权利要求要素级映射到证据组合（mode=reexamination）"]
   novelty["新颖性单独对比（单篇全覆盖）"]
   inventiveness["三步法创造性分析"]
@@ -8,8 +10,10 @@ flowchart TD
   citation-check["引用真实性校验（确定性）：新颖性/创造性结论引用的 D 标号与专利号须在证据清单中接地"]
   legal_gaps["法条缺口汇总：证据审查、新颖性与创造性理由对应法条的通过/未通过/未评估状态"]
   approval["人工确认分析结论"]
+  dispute-framing --> parse
   parse --> grounds
-  grounds --> claim-chart
+  grounds --> dispute-framing-refine
+  dispute-framing-refine --> claim-chart
   claim-chart --> novelty
   novelty --> inventiveness
   inventiveness --> evidence-check

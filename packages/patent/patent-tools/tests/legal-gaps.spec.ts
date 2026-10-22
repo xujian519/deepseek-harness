@@ -154,6 +154,16 @@ describe('legal-gaps 原子', () => {
     expect(report).toContain('未被任何确定性阶段覆盖')
   })
 
+  it('反哺覆盖为空或非数组时不声称补提过事实', async () => {
+    const out = await new LegalGapsHandler().execute({
+      state: {
+        profile: 'novelty',
+        revision_coverage: { 'time-baseline': [], 'grace-period': 'not-an-array' },
+      },
+    })
+    expect(String(out['legal_gaps_report'])).not.toContain('反哺轮次补提')
+  })
+
   it('新颖性清单：时间基准缺失时 A22.5 记未评估', async () => {
     const items = await itemsOf({
       profile: 'novelty',
@@ -365,5 +375,46 @@ describe('legal-gaps 原子', () => {
       reference_date: null,
     })
     expect(items.find(item => item.id === 'time-baseline')?.status).toBe('not-assessed')
+  })
+
+  it('未评估项产出反哺清单与结构化回退信号，数量受上限约束', async () => {
+    const out = await new LegalGapsHandler().execute({ state: { profile: 'patentability' } })
+    expect(out['revision_targets']).toEqual([
+      { checkId: 'eligibility', provision: '专利法第2条第2款、第5条、第25条', label: '可专利客体' },
+      { checkId: 'time-baseline', provision: '专利法第22条第5款', label: '现有技术时间基准' },
+      { checkId: 'grace-period', provision: '专利法第24条', label: '宽限期公开' },
+      { checkId: 'claim-support', provision: '专利法第26条第4款、第31条第1款', label: '权利要求支持与单一性' },
+      { checkId: 'enablement', provision: '专利法第26条第3款', label: '充分公开' },
+    ])
+    const signals = out['_revision_signals'] as Array<{ gapId: string; rationale: string }>
+    expect(signals.map(signal => signal.gapId)).toEqual([
+      'eligibility',
+      'time-baseline',
+      'grace-period',
+      'claim-support',
+      'enablement',
+    ])
+    expect(signals[0]!.rationale).toContain('专利法第2条第2款')
+    // revision_targets 不列入 outputSchema：回退清理不能删除它，否则采集阶段读不到。
+    expect(legalGapsAtom.outputSchema).not.toContain('revision_targets')
+  })
+
+  it('没有未评估项时清空反哺清单且不产生信号', async () => {
+    const out = await new LegalGapsHandler().execute({
+      state: {
+        profile: 'patentability',
+        eligibility_report: '通过',
+        eligibility_passed: true,
+        eligibility_pending: [],
+        reference_date: '2024-01-01',
+        prior_art_filter_report: '已过滤',
+        spec_check_report: '通过',
+        spec_check_passed: true,
+        specification_check_report: '通过',
+        specification_check_passed: true,
+      },
+    })
+    expect(out['revision_targets']).toEqual([])
+    expect(out['_revision_signals']).toBeUndefined()
   })
 })

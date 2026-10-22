@@ -30,6 +30,13 @@ export const DEGRADED_ERROR_KEY = '_error'
 export const DEGRADED_RETRYABLE_KEY = '_retryable'
 
 /**
+ * 结构化回退信号键：handler 返回该键表示本阶段要求上游重做；值须为
+ * `RetrySignal[]`。执行器把它作为阶段局部结果读取（不写入共享 state），
+ * 由工作流按阶段的 `retry.whenRevisionRequested` 决定是否回退。
+ */
+export const REVISION_SIGNALS_KEY = '_revision_signals'
+
+/**
  * 类型安全读取：键不存在或非字符串时返回缺省值。
  * @param state - 状态容器。
  * @param key - 要读取的键。

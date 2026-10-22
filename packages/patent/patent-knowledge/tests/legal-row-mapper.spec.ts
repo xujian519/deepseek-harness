@@ -23,6 +23,7 @@ describe('legal row-mapper', () => {
     expect(r.id).toBe('专利法_20201017')
     expect(r.level).toBe('法律')
     expect(r.expired).toBe(0)
+    expect(r.validity).toBe('in-force')
     expect(r.categoryId).toBe(1)
     expect(r.categoryName).toBe('民法商法')
     expect(r.subtitle).toBeUndefined()

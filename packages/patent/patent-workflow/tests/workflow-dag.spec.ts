@@ -52,13 +52,14 @@ describe('workflow manifest DAG bridge', () => {
     expect(mermaid).toContain('preprocess --> eligibility')
     expect(mermaid).toContain('eligibility --> extract_problem')
     expect(mermaid).toContain('consistency -.-> extract_problem')
-    expect(mermaid).toContain('review_gate["人工复核披露分析报告（中断等待确认）"]')
+    expect(mermaid).toContain('review_gate["人工复核披露分析报告、权利要求与说明书草案（中断等待确认）"]')
   })
 
   it('workflowManifestToMermaid renders plain chain for acyclic novelty manifest', () => {
     const mermaid = workflowManifestToMermaid(patentNoveltyManifest)
     expect(mermaid).toContain('parse --> time_baseline')
-    expect(mermaid).toContain('time_baseline --> generate_keywords')
+    expect(mermaid).toContain('time_baseline --> dispute-framing-refine')
+    expect(mermaid).toContain('dispute-framing-refine --> generate_keywords')
     expect(mermaid).toContain('generate_keywords --> search')
     expect(mermaid).not.toContain('-.->')
   })

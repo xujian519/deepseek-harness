@@ -12981,7 +12981,7 @@
       "kind": "event",
       "event": "patent/workflow-run",
       "surface": false,
-      "digest": "e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6",
+      "digest": "6485bdea0016f26ca590feb811672762c3e4a466a1df162caadbce087eb62d36",
       "schema": {
         "root": 0,
         "nodes": [
@@ -12995,22 +12995,22 @@
               },
               {
                 "name": "ignorable",
-                "type": 29,
+                "type": 34,
                 "optional": true
               },
               {
                 "name": "seq",
-                "type": 24,
+                "type": 27,
                 "optional": false
               },
               {
                 "name": "time",
-                "type": 24,
+                "type": 27,
                 "optional": false
               },
               {
                 "name": "type",
-                "type": 30,
+                "type": 35,
                 "optional": false
               }
             ],
@@ -13055,13 +13055,23 @@
                 "optional": true
               },
               {
+                "name": "revisions",
+                "type": 22,
+                "optional": true
+              },
+              {
+                "name": "revisionsTruncated",
+                "type": 3,
+                "optional": true
+              },
+              {
                 "name": "runId",
                 "type": 2,
                 "optional": true
               },
               {
                 "name": "stages",
-                "type": 22,
+                "type": 28,
                 "optional": false
               },
               {
@@ -13283,6 +13293,85 @@
             "kind": "object",
             "properties": [
               {
+                "name": "after",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "at",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "before",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "evidence",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "gapId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "outcome",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "rationale",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "requestedBy",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "rewindTo",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "round",
+                "type": 27,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              25,
+              26
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "exhausted"
+          },
+          {
+            "kind": "literal",
+            "value": "applied"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "array",
+            "element": 29
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
                 "name": "atom",
                 "type": 2,
                 "optional": true
@@ -13299,7 +13388,7 @@
               },
               {
                 "name": "retries",
-                "type": 24,
+                "type": 27,
                 "optional": false
               },
               {
@@ -13309,23 +13398,23 @@
               },
               {
                 "name": "strategy",
-                "type": 25,
+                "type": 30,
                 "optional": false
               }
             ],
             "indices": []
           },
           {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
             "kind": "union",
             "types": [
-              26,
-              27,
-              28
+              31,
+              32,
+              33
             ]
+          },
+          {
+            "kind": "literal",
+            "value": "sub_agent"
           },
           {
             "kind": "literal",
@@ -13334,10 +13423,6 @@
           {
             "kind": "literal",
             "value": "react"
-          },
-          {
-            "kind": "literal",
-            "value": "sub_agent"
           },
           {
             "kind": "literal",
@@ -27776,6 +27861,15 @@
       ]
     },
     {
+      "digest": "340cdea8506cae9f629baf9d2b1ae5ca52f6254db5cbece88a5cfbe1680def6c",
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:112"
+      ]
+    },
+    {
       "digest": "3456c43721adf8f4947c10407515fb10272be9924b14805eac6d2f27f5a6439d",
       "names": [],
       "sources": []
@@ -28054,6 +28148,11 @@
     },
     {
       "digest": "44c8c77aa9aa100b0d74d2deee85474b29faa6eee0ac0f662f7abe9931ddd7f2",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "44d0c318167216011b6a41f5ffe5101ecc6c351bc80c11a9ed0ac62ea74d2c10",
       "names": [],
       "sources": []
     },
@@ -28426,6 +28525,15 @@
       ]
     },
     {
+      "digest": "56c52ae9fe025e02ee5836e0f1ec40e5953f970c14ba19990d21d61d1a81e88f",
+      "names": [
+        "packages/patent/patent-core/src/workflow/types.ts#RevisionRecord"
+      ],
+      "sources": [
+        "packages/patent/patent-core/src/workflow/types.ts:88"
+      ]
+    },
+    {
       "digest": "570e85022434613394418ad33e77e9f1f7a05699b33d0b62eae0677a638c3833",
       "names": [],
       "sources": []
@@ -28676,6 +28784,11 @@
     },
     {
       "digest": "6442f1864cc4373429ea7eac7ed30717d0b183fa6c4a65b3532e0a66478a8f66",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "6485bdea0016f26ca590feb811672762c3e4a466a1df162caadbce087eb62d36",
       "names": [],
       "sources": []
     },
@@ -29046,7 +29159,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:135"
+        "packages/patent/patent-core/src/workflow/types.ts:194"
       ]
     },
     {
@@ -29379,7 +29492,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:147"
+        "packages/patent/patent-core/src/workflow/types.ts:206"
       ]
     },
     {
@@ -29860,6 +29973,11 @@
       "sources": []
     },
     {
+      "digest": "a683c8eeaf41bda2cb461c716081565a5129d9722fdaf46988feffe08d31f3f6",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "a6b41f5bede8094d7bf635be5d69b1bd7a25e006ca9cf9415bceb9322f1a7feb",
       "names": [
         "packages/experimental/hook-protocol/src/types.ts#HookDialect"
@@ -29935,15 +30053,6 @@
       "digest": "a9059a81430b320792bbb7c2ee1f8f6c77ff71e40ee44c18aec72e157c522694",
       "names": [],
       "sources": []
-    },
-    {
-      "digest": "a91e01800760fdc0552280897c1a7738086d475534e54d08fc660376dc65de3c",
-      "names": [
-        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
-      ],
-      "sources": [
-        "packages/patent/patent-workflow/src/types.ts:112"
-      ]
     },
     {
       "digest": "a926dc71814edd01a4f041eb5fc766d153db3407ef4704e98f4c1b6527309ebb",
@@ -30429,6 +30538,11 @@
       "sources": []
     },
     {
+      "digest": "bece8c08dba324ece24e3093ad1efb887a13f3dec44e1ffa1475b497642161f3",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "bf16d2e98a7f13894ded2cffe5ce857bf473954a0e3c0ed9bc7739e2e1c7b78a",
       "names": [],
       "sources": []
@@ -30843,6 +30957,11 @@
       "sources": []
     },
     {
+      "digest": "dd422dc9388c75dcb96a0bb4c840b9567190d2d21a4257c9c353ed1316d5edac",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "dd5ee8762bd8a14b6c6bffedd1753e4e78505bb0f9ea1621018d03a54eef59d5",
       "names": [],
       "sources": []
@@ -31061,11 +31180,6 @@
     },
     {
       "digest": "e7e8f1318170b8284f16ab45a557afd4675c96071c0f2a456636481dab20b427",
-      "names": [],
-      "sources": []
-    },
-    {
-      "digest": "e80f05a4b109cfba6d6049764537d04c217d556ed0c888a23059a3e720db0de6",
       "names": [],
       "sources": []
     },

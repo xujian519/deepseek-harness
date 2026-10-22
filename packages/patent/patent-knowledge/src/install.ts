@@ -64,6 +64,31 @@ function tableColumns(db: DatabaseSync, table: string): Set<string> {
 }
 
 /**
+ * 给 documents 补时间效力列（可空三态：NULL = 未核验）。
+ *
+ * 只建列、不写默认值：`expired INTEGER NOT NULL DEFAULT 0` 会把「不知道」写成
+ * 「未废止」。回填依赖后续的法规沿革数据；在回填前查询层把缺失视为未核验。
+ * @param db - 已打开的输出库连接。
+ * @returns 新增的列名。
+ */
+function ensureLawValidityColumns(db: DatabaseSync): string[] {
+  const documentColumns = tableColumns(db, 'documents')
+  if (!documentColumns.has('id')) return []
+  const added: string[] = []
+  const definitions: ReadonlyArray<readonly [string, string]> = [
+    ['valid_from', 'TEXT'],
+    ['valid_to', 'TEXT'],
+    ['validity_source', 'TEXT'],
+  ]
+  for (const [name, type] of definitions) {
+    if (documentColumns.has(name)) continue
+    db.exec(`ALTER TABLE documents ADD COLUMN ${name} ${type}`)
+    added.push(name)
+  }
+  return added
+}
+
+/**
  * 生成 documents.search_prefix：每个文档最长 chunk 的前 `chars` 个码点。
  * 内容可能已被上一次 install 压缩，故无条件解压（对明文幂等）。
  * 源库缺少 documents.id 或 chunks.document_id/char_count 时跳过并返回 null。
@@ -230,6 +255,10 @@ export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}
           : `    完成：search_prefix ${prefixDocs.toLocaleString()} 个文档`)
       } else if (dropSearchPrefix(db)) {
         log('    已删除继承的 documents.search_prefix（未启用前缀路径）')
+      }
+      const addedValidity = ensureLawValidityColumns(db)
+      if (addedValidity.length > 0) {
+        log(`    新增 documents 时间效力列: ${addedValidity.join(', ')}（未回填 = 未核验）`)
       }
       if (compress) {
         log('    压缩 chunks.content（长 chunk 转 gzip BLOB）…')

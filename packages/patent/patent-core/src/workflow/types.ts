@@ -44,17 +44,71 @@ export type WorkflowStage = {
   consumes?: readonly string[]
   /**
    * 可选：一致性重试循环（对齐 Mady disclosure 管线的 check_consistency 条件回退边）。
-   * 本阶段输出匹配 whenOutputMatches（信号：需要重做）时，回退到 rewindTo 阶段
-   * 重新执行（含中间阶段），最多 maxRetries 次。
+   * 本阶段输出匹配 whenOutputMatches（信号：需要重做）或返回结构化 RetrySignal
+   * （whenRevisionRequested）时，回退到 rewindTo 阶段重新执行（含中间阶段），
+   * 最多 maxRetries 次。
    */
   retry?: {
     /** 触发回退的输出信号（正则源文本；如 "不一致|矛盾|缺少"）。 */
-    whenOutputMatches: string
+    whenOutputMatches?: string
+    /**
+     * 启用结构化触发：阶段返回 `_revision_signals`（RetrySignal[]）时回退。
+     * 与 whenOutputMatches 至少给出一个。
+     */
+    whenRevisionRequested?: boolean
     /** 回退目标阶段 id；缺省重试当前阶段。 */
     rewindTo?: string
     /** 最大回退次数（缺省 1）。 */
     maxRetries?: number
   }
+}
+
+/**
+ * 结构化回退请求：阶段用自己的产出声明「这处缺口需要上游重做」。
+ *
+ * 与正则信号的区别是触发源由确定性检查给出，而不是模型自述。类型保持通用：
+ * 不引用 claim-chart 的 GapKind，任何阶段都可以返回自己的缺口编号。
+ */
+export type RetrySignal = {
+  /** 稳定缺口编号（如 `claim-1-unevaluated` / `evidence-deadline`）。 */
+  gapId: string
+  /** 为什么需要重做；进入 RevisionRecord，供人工复核。 */
+  rationale: string
+  /** 可选证据引用（状态键、条文号或原文 span 标识）。 */
+  evidence?: string
+}
+
+/**
+ * 一次回退的留痕记录：哪个缺口触发了回退、重做了哪个阶段、前后产出摘要。
+ *
+ * `before` / `after` 是产出文本的短摘要（sha256 前 16 位），不保存全文，避免把
+ * 每次重做都复制进会话日志。`after` 在回退目标重新产出后补齐；运行中断或耗尽时
+ * 可以缺席。
+ */
+export type RevisionRecord = {
+  /** 触发回退的缺口编号；正则信号取阶段 id。 */
+  gapId: string
+  /** 被重做的阶段 id。 */
+  rewindTo: string
+  /** 发出信号的阶段 id。 */
+  requestedBy: string
+  /** 该阶段第几次回退（1 基）。 */
+  round: number
+  /** 触发回退时被替换产出的摘要。 */
+  before: string
+  /** 回退目标重新产出后的摘要；耗尽或中断时缺席。 */
+  after?: string
+  /** 回退原因（结构化信号原文；正则信号为匹配到的模式）。 */
+  rationale: string
+  /** 可选证据引用。 */
+  evidence?: string
+  /** 回退是否实际执行；耗尽表示达到上限后保留了原产出。 */
+  outcome: 'applied' | 'exhausted'
+  /**
+   * 记录时间（ISO 8601）；仅在调用方注入时钟时写入。缺省不写，使持久化结果与
+   * 录制会话保持确定性（审计轮次与阶段顺序由 `round` / `rewindTo` 给出）。
+   */
+  at?: string
 }
 
 /** 声明式工作流 manifest：id、名称、案例类型、阶段列表与可选校验配置。 */
@@ -125,6 +179,11 @@ export type WorkflowRunOptions = {
   /** 调用方取消信号：阶段边界检查；阶段内取消以 StageCancelledError 拒绝整次运行。 */
   signal?: AbortSignal
   /**
+   * 可注入时钟：给出时，每条 RevisionRecord 写入 `at`（ISO 8601）。缺省不写时间，
+   * 让同一输入在重放/录制会话中产生逐字相同的持久化结果。
+   */
+  now?: () => string
+  /**
    * 本次部署预期使用的《专利审查指南》版本。给出时，manifest 必须声明同一
    * `guidelineRevision`，否则校验失败；用于在加载/运行前拦截按旧版条文编写的清单。
    */
@@ -169,6 +228,14 @@ export type WorkflowRunResult = {
    * behind a citation without replaying the stages.
    */
   evidenceLedger?: WorkflowEvidenceLedger
+  /**
+   * Rewinds the run performed, one record per triggered gap. Absent when no
+   * retry signal fired. Digests keep the log bounded; the full stage outputs
+   * stay in `stages`.
+   */
+  revisions?: RevisionRecord[]
+  /** True when the revision log hit its record cap and later rewinds were not recorded. */
+  revisionsTruncated?: boolean
 }
 
 /**

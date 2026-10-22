@@ -29,7 +29,15 @@ export function validateWorkflowManifest(
     throw new WorkflowError('manifest.stages 必须至少包含一个阶段')
   }
   const ids = new Set<string>()
+  const indexById = new Map(manifest.stages.map((stage, index) => [stage.id, index]))
+  /** 已扫描到的审批门下标；随主循环累积，避免对稀疏数组再做一次投影。 */
+  const gateIndices: number[] = []
+  let stageIndex = -1
+  // 用迭代器而非 `.entries()`：稀疏阶段数组的防御测试通过迭代器暴露阶段，
+  // 按索引读取会把空洞当成缺失阶段。
   for (const stage of manifest.stages) {
+    stageIndex += 1
+    if (stage.atom === 'approval-gate') gateIndices.push(stageIndex)
     if (!stage.id.trim()) throw new WorkflowError('stage.id 不能为空')
     if (ids.has(stage.id)) throw new WorkflowError(`重复的阶段 id: ${stage.id}`)
     ids.add(stage.id)
@@ -61,19 +69,39 @@ export function validateWorkflowManifest(
       throw new WorkflowError(`阶段 ${stage.id} 声明了未知 atom: ${stage.atom}`)
     }
     if (stage.retry !== undefined) {
-      if (stage.retry.whenOutputMatches.trim() === '') {
-        throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 不能为空`)
+      const hasTextTrigger = stage.retry.whenOutputMatches !== undefined
+      const hasRevisionTrigger = stage.retry.whenRevisionRequested === true
+      if (!hasTextTrigger && !hasRevisionTrigger) {
+        throw new WorkflowError(
+          `阶段 ${stage.id} 的 retry 必须声明 whenOutputMatches 或 whenRevisionRequested: true`,
+        )
       }
-      try {
-        new RegExp(stage.retry.whenOutputMatches, 'i')
-      } catch {
-        throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 非法正则`)
+      if (stage.retry.whenOutputMatches !== undefined) {
+        if (stage.retry.whenOutputMatches.trim() === '') {
+          throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 不能为空`)
+        }
+        try {
+          new RegExp(stage.retry.whenOutputMatches, 'i')
+        } catch {
+          throw new WorkflowError(`阶段 ${stage.id} 的 retry.whenOutputMatches 非法正则`)
+        }
       }
       if (stage.retry.rewindTo !== undefined && !ids.has(stage.retry.rewindTo)) {
         throw new WorkflowError(`阶段 ${stage.id} 的 retry.rewindTo 指向不存在的阶段: ${stage.retry.rewindTo}`)
       }
       if (stage.retry.rewindTo === stage.id) {
         throw new WorkflowError(`阶段 ${stage.id} 的 retry.rewindTo 不能指向自身（无回退意义）`)
+      }
+      if (stage.retry.rewindTo !== undefined) {
+        const rewindIndex = indexById.get(stage.retry.rewindTo)
+        const crossedGate = gateIndices.find(index =>
+          rewindIndex !== undefined && index > rewindIndex && index < stageIndex)
+        if (crossedGate !== undefined) {
+          throw new WorkflowError(
+            `阶段 ${stage.id} 的 retry.rewindTo 跨过审批门 ${manifest.stages[crossedGate]?.id}：`
+            + '回退会重做已确认的产出，跨运行重跑无法保留新的确认状态；请把审批门放到回退范围之外',
+          )
+        }
       }
       assertNonNegativeInteger(stage.retry.maxRetries ?? 1, `阶段 ${stage.id} 的 retry.maxRetries`)
     }

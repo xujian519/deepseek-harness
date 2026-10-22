@@ -14,7 +14,7 @@ const signal = new AbortController().signal
 
 /** 一条命中（id/name/level + 可溯源 file_path + 正文）。 */
 function hit(id: string, name: string, filePath: string, content: string): LawSearchResult {
-  return { id, name, level: '法律', filename: filePath, content, score: -1, expired: 0, categoryId: 0 }
+  return { id, name, level: '法律', filename: filePath, content, score: -1, expired: 0, validity: 'in-force', categoryId: 0 }
 }
 
 const LAW_HIT = hit('law:专利法', '中华人民共和国专利法', '法律法规_md/中华人民共和国专利法.md', '第二十六条 说明书应当对发明作出清楚、完整的说明。')
@@ -23,19 +23,22 @@ const GUIDELINE_HIT = hit('raw:审查指南_md:第二部分第八章', '专利�
 /** 记录检索调用的替身。 */
 function recorder(overrides: { law?: LawSearchResult[]; guideline?: LawSearchResult[]; dbPath?: string; throwLaw?: boolean } = {}) {
   const calls: { scope: string; query: string; limit: number }[] = []
+  const asOfCalls: (string | undefined)[] = []
   const deps: LawSearchDeps = {
     searchLaw: (query, options) => {
       calls.push({ scope: 'law', query, limit: options?.limit ?? 0 })
+      asOfCalls.push(options?.asOf)
       if (overrides.throwLaw === true) throw new Error('database is locked')
       return overrides.law ?? [LAW_HIT]
     },
     searchGuideline: (query, options) => {
       calls.push({ scope: 'guideline', query, limit: options?.limit ?? 0 })
+      asOfCalls.push(options?.asOf)
       return overrides.guideline ?? [GUIDELINE_HIT]
     },
     ...(overrides.dbPath === undefined ? {} : { dbPath: overrides.dbPath }),
   }
-  return { calls, deps }
+  return { calls, asOfCalls, deps }
 }
 
 async function ctxWith(deps: LawSearchDeps): Promise<Context> {
@@ -78,6 +81,24 @@ describe('law_search', () => {
     expect((result.value as { scope: string }).scope).toBe('guideline')
   })
 
+  it('asOf 透传到检索端口并回显判定时点', async () => {
+    const rec = recorder()
+    const ctx = await ctxWith(rec.deps)
+    const result = await call(ctx, { query: '说明书', asOf: '2020-01-01' }, 'law-asof')
+    expect(rec.asOfCalls).toEqual(['2020-01-01'])
+    expect((result.value as { asOf: string }).asOf).toBe('2020-01-01')
+    expect(text(result)).toContain('时间效力判定时点：2020-01-01')
+  })
+
+  it('非法 asOf 按 invalid_tool_input 拒绝，不落到检索端口', async () => {
+    const rec = recorder()
+    const ctx = await ctxWith(rec.deps)
+    const result = await call(ctx, { query: '说明书', asOf: '2020/01/01' }, 'law-asof-bad')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('asOf')
+    expect(rec.calls).toEqual([])
+  })
+
   it('命中为空时明确说明不得据此下结论', async () => {
     const ctx = await ctxWith(recorder({ guideline: [] }).deps)
     const result = await call(ctx, { query: '不存在的规则', scope: 'guideline' })
@@ -118,7 +139,7 @@ describe('law_search', () => {
   })
 
   it('等级过滤与缺省库路径写入检索策略；命中缺文件名/正文时降级', async () => {
-    const bareHit: LawSearchResult = { id: 'law:x', name: '无出处条文', level: '行政法规', score: 0, expired: 0, categoryId: 0 }
+    const bareHit: LawSearchResult = { id: 'law:x', name: '无出处条文', level: '行政法规', score: 0, expired: 0, validity: 'in-force', categoryId: 0 }
     const rec = recorder({ law: [bareHit] })
     const ctx = await ctxWith(rec.deps)
     const result = await call(ctx, { query: '说明书', level: '行政法规' }, 'law-level')

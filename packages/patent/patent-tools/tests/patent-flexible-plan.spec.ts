@@ -91,8 +91,24 @@ describe('flexible_plan', () => {
     const confirmed = (await tool.execute({ action: 'confirm', caseId: 'c', stageId: 'extract' }, exec)) as FlexiblePlanOutput
     expect(confirmed.plan?.stages[0]?.status).toBe('confirmed')
 
-    const rolled = (await tool.execute({ action: 'rollback', caseId: 'c', stageId: 'extract' }, exec)) as FlexiblePlanOutput
+    const rolled = (await tool.execute({
+      action: 'rollback',
+      caseId: 'c',
+      stageId: 'extract',
+      rationale: '权利要求 1 的对应事实未提取',
+      before: 'digest-of-old-output',
+    }, exec)) as FlexiblePlanOutput
     expect(rolled.plan?.stages[0]?.status).toBe('rolled_back')
+    expect(rolled.plan?.revisions?.[0]).toMatchObject({
+      rationale: '权利要求 1 的对应事实未提取',
+      before: 'digest-of-old-output',
+    })
+
+    // 只给 stageId 时使用默认原因与摘要。
+    const defaulted = (await tool.execute({ action: 'rollback', caseId: 'c', stageId: 'extract' }, exec)) as FlexiblePlanOutput
+    expect(defaulted.plan?.revisions?.[1]).toMatchObject({
+      rationale: '人工回退到 extract',
+    })
   })
 
   it('adds, removes, reorders, and completes', async () => {

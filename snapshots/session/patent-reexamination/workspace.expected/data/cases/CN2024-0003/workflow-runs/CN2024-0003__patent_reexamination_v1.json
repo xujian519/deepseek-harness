@@ -1,8 +1,16 @@
 {
   "manifestId": "patent_reexamination_v1",
   "caseType": "reexamination_analysis",
-  "completed": true,
+  "completed": false,
   "stages": [
+    {
+      "stageId": "dispute-framing",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "dispute-framing"
+    },
     {
       "stageId": "parse",
       "strategy": "chain",
@@ -17,6 +25,14 @@
       "degraded": false,
       "retries": 0,
       "atom": "grounds"
+    },
+    {
+      "stageId": "dispute-framing-refine",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "dispute-framing-refine"
     },
     {
       "stageId": "claim-chart",
@@ -73,6 +89,9 @@
       "atom": "approval-gate"
     }
   ],
-  "degradedSteps": [],
-  "summary": "工作流 patent_reexamination_v1（复审答复）: 9/9 阶段完成"
+  "degradedSteps": [
+    "dispute-framing",
+    "dispute-framing-refine"
+  ],
+  "summary": "工作流 patent_reexamination_v1（复审答复）: 9/11 阶段完成，降级阶段: dispute-framing、dispute-framing-refine"
 }

@@ -1834,13 +1834,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]',
         description: 'Legal full-text search over the law_article documents of knowledge.db.',
-        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and level filter.' }],
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).' }],
         returns: 'the de-duplicated hits in rank order.',
       },
       {
         signature: 'guidelineSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]',
         description: 'Guideline full-text search over the guideline_rule documents of knowledge.db (the 《专利审查指南》 chapters). Same engine and options as the law search, scoped to that document type.',
-        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and level filter.' }],
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).' }],
         returns: 'the de-duplicated hits in rank order, each with its `filename` (file_path) for citation.',
       },
       {
@@ -6753,7 +6753,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'KnowledgeLawSearchOptions',
-    declaration: 'export type KnowledgeLawSearchOptions = {\n    limit?: number;\n    level?: string;\n    category?: string;\n};',
+    declaration: 'export type KnowledgeLawSearchOptions = {\n    limit?: number;\n    level?: string;\n    category?: string;\n    asOf?: string;\n    includeUnverified?: boolean;\n};',
   },
   {
     name: 'KnowledgePaths',
@@ -6777,11 +6777,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LawRecord',
-    declaration: 'export type LawRecord = {\n    id: string;\n    level: string;\n    name: string;\n    filename?: string | undefined;\n    publish?: string | undefined;\n    expired: number;\n    categoryId: number;\n    subtitle?: string | undefined;\n    validFrom?: string | undefined;\n    content?: string | undefined;\n    categoryName?: string | undefined;\n};',
+    declaration: 'export type LawRecord = {\n    id: string;\n    level: string;\n    name: string;\n    filename?: string | undefined;\n    publish?: string | undefined;\n    expired?: number | undefined;\n    validity: LawValidity;\n    validFrom?: string | undefined;\n    validTo?: string | undefined;\n    validitySource?: string | undefined;\n    categoryId: number;\n    subtitle?: string | undefined;\n    content?: string | undefined;\n    categoryName?: string | undefined;\n};',
   },
   {
     name: 'LawSearchResult',
     declaration: 'export type LawSearchResult = LawRecord & {\n    score: number;\n    snippet?: string;\n};',
+  },
+  {
+    name: 'LawValidity',
+    declaration: 'export type LawValidity = \'in-force\' | \'expired\' | \'not-yet-effective\' | \'unverified\';',
   },
   {
     name: 'LlmAdapter',
@@ -7866,6 +7870,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ResumeAgentOptions',
     declaration: 'export interface ResumeAgentOptions {\n    readonly resumeSessionId: SessionId;\n    readonly parentAgent?: Agent;\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
+  },
+  {
+    name: 'RevisionRecord',
+    declaration: 'export type RevisionRecord = {\n    gapId: string;\n    rewindTo: string;\n    requestedBy: string;\n    round: number;\n    before: string;\n    after?: string;\n    rationale: string;\n    evidence?: string;\n    outcome: \'applied\' | \'exhausted\';\n    at?: string;\n};',
   },
   {
     name: 'RpcId',
@@ -10121,11 +10129,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkflowRunOptions',
-    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    onStage?: (stageId: string, index: number, total: number) => void;\n    signal?: AbortSignal;\n    guidelineRevision?: string;\n};',
+    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    onStage?: (stageId: string, index: number, total: number) => void;\n    signal?: AbortSignal;\n    now?: () => string;\n    guidelineRevision?: string;\n};',
   },
   {
     name: 'WorkflowRunResult',
-    declaration: 'export type WorkflowRunResult = {\n    manifestId: string;\n    caseType: string;\n    completed: boolean;\n    stages: WorkflowStageResult[];\n    degradedSteps: string[];\n    summary: string;\n    interrupted?: WorkflowInterrupt;\n    persistWarning?: string;\n    evidenceLedger?: WorkflowEvidenceLedger;\n};',
+    declaration: 'export type WorkflowRunResult = {\n    manifestId: string;\n    caseType: string;\n    completed: boolean;\n    stages: WorkflowStageResult[];\n    degradedSteps: string[];\n    summary: string;\n    interrupted?: WorkflowInterrupt;\n    persistWarning?: string;\n    evidenceLedger?: WorkflowEvidenceLedger;\n    revisions?: RevisionRecord[];\n    revisionsTruncated?: boolean;\n};',
   },
   {
     name: 'WorkflowRunStore',
@@ -10133,7 +10141,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkflowStage',
-    declaration: 'export type WorkflowStage = {\n    id: string;\n    strategy: WorkflowStrategy;\n    description: string;\n    atom?: string;\n    params?: Record<string, unknown>;\n    guidance?: string;\n    consumes?: readonly string[];\n    retry?: {\n        whenOutputMatches: string;\n        rewindTo?: string;\n        maxRetries?: number;\n    };\n};',
+    declaration: 'export type WorkflowStage = {\n    id: string;\n    strategy: WorkflowStrategy;\n    description: string;\n    atom?: string;\n    params?: Record<string, unknown>;\n    guidance?: string;\n    consumes?: readonly string[];\n    retry?: {\n        whenOutputMatches?: string;\n        whenRevisionRequested?: boolean;\n        rewindTo?: string;\n        maxRetries?: number;\n    };\n};',
   },
   {
     name: 'WorkflowStageResult',

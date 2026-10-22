@@ -57,6 +57,8 @@ const REGISTERED_ATOMS = [
   'compare',
   'conflicting-application',
   'coverage',
+  'dispute-framing',
+  'dispute-framing-refine',
   'draft-claims',
   'draft-specification',
   'eligibility',
@@ -175,7 +177,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(tool, {})
-    // 完整组合后注册表含 patent-core 的 24 个内置 + 本包注册的 slop-gate、draft-specification、spec-check、response-check、eligibility 与 legal-gaps。
+    // 完整组合后注册表含 patent-core 的 26 个内置 + 本包注册的 slop-gate、draft-specification、spec-check、response-check、eligibility 与 legal-gaps。
     expect(globalAtomRegistry.list().map(atom => atom.name).sort()).toEqual(REGISTERED_ATOMS)
     for (const atom of globalAtomRegistry.list()) {
       expect(tool.ATOM_PARAM_DESCRIPTION).toContain(atom.name)

@@ -35,6 +35,14 @@ describe('workflow retry signal', () => {
     const plain: WorkflowStage = { id: 's1', strategy: 'chain', description: 'd' }
     expect(signalFor(plain, cache)).toBeUndefined()
 
+    const revisionOnly: WorkflowStage = {
+      id: 's1-revision',
+      strategy: 'chain',
+      description: 'd',
+      retry: { whenRevisionRequested: true },
+    }
+    expect(signalFor(revisionOnly, cache)).toBeUndefined()
+
     const withRetry: WorkflowStage = {
       id: 's2',
       strategy: 'chain',
