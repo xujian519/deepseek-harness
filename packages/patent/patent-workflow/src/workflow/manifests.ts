@@ -249,13 +249,6 @@ export const patentDisclosureManifest: WorkflowManifest = {
       consumes: ['merge', 'novelty', 'citation_check', 'eligibility'],
     },
     {
-      id: 'review_gate',
-      strategy: 'chain',
-      description: '人工复核披露分析报告（中断等待确认）',
-      atom: 'approval-gate',
-      params: { review_context: '披露分析报告需人工复核后方可继续' },
-    },
-    {
       id: 'draft_claims',
       strategy: 'chain',
       description: '基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）',
@@ -288,6 +281,15 @@ export const patentDisclosureManifest: WorkflowManifest = {
       params: { profile: 'disclosure' },
       // 未评估项反哺采集：回退到提取链重新抽取，最多一轮（legal_gaps 共执行两次）。
       retry: { whenRevisionRequested: true, rewindTo: 'extract_problem', maxRetries: 1 },
+    },
+    {
+      // 审批门放在反哺回路之后：legal_gaps 回退会重做报告、权利要求与说明书，
+      // 门若在上游，回退就会绕过人工复核。manifest 校验禁止回退跨过审批门。
+      id: 'review_gate',
+      strategy: 'chain',
+      description: '人工复核披露分析报告、权利要求与说明书草案（中断等待确认）',
+      atom: 'approval-gate',
+      params: { review_context: '披露分析报告、权利要求与说明书草案需人工复核后方可交付' },
     },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },

@@ -3592,6 +3592,14 @@ Flexible plan for patent cases (stage-level HITL). create: build a plan (optiona
       "type": "string",
       "description": "Abandon reason, kept for audit (abandon)."
     },
+    "rationale": {
+      "type": "string",
+      "description": "Rollback reason, kept in the revision record (rollback)."
+    },
+    "before": {
+      "type": "string",
+      "description": "Digest or short summary of the output being replaced (rollback)."
+    },
     "maxResults": {
       "type": "number",
       "description": "Max prior-art search results for run (default 5)."
@@ -5159,6 +5167,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "include_content": {
       "type": "boolean",
       "description": "是否附命中片段（默认 true，截断约 800 字）"
+    },
+    "asOf": {
+      "type": "string",
+      "description": "时间效力判定时点（YYYY-MM-DD），缺省为今天；用于按历史版本检索"
     }
   },
   "required": [

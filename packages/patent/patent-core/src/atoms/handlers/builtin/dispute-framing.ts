@@ -59,37 +59,35 @@ const STATUTE_LABELS: ReadonlyMap<string, string> = new Map([
   ['A62', '专利法第62条（现有技术抗辩）'],
 ])
 
-/** 程序理由（grounds）→ 法条编号。 */
-const GROUND_STATUTES: ReadonlyMap<string, string> = new Map([
+/** 通知书与程序理由共用的理由 → 法条编号。 */
+const COMMON_STATUTES: ReadonlyArray<readonly [string, string]> = [
   ['novelty', 'A22.2'],
   ['inventiveness', 'A22.3'],
   ['utility', 'A22.4'],
   ['disclosure', 'A26.3'],
   ['claim-clarity', 'A26.4'],
-  ['necessary-features', 'A26.4'],
   ['amendment', 'A33'],
-  ['divisional-amendment', 'A33'],
   ['subject-matter-art2', 'A2.2'],
   ['subject-matter-art5', 'A5'],
   ['subject-matter-art25', 'A25'],
+]
+
+/** 程序理由（grounds）→ 法条编号。 */
+const GROUND_STATUTES: ReadonlyMap<string, string> = new Map([
+  ...COMMON_STATUTES,
+  ['necessary-features', 'A26.4'],
+  ['divisional-amendment', 'A33'],
   ['double-patenting', 'A9'],
 ])
 
 /** 通知书驳回类型（oa-parse 的 rejectionTypes）→ 法条编号。 */
-const REJECTION_STATUTES: ReadonlyMap<string, string> = new Map([
-  ['novelty', 'A22.2'],
-  ['inventiveness', 'A22.3'],
-  ['utility', 'A22.4'],
-  ['disclosure', 'A26.3'],
-  ['claim-clarity', 'A26.4'],
-  ['amendment', 'A33'],
-  ['subject-matter-art2', 'A2.2'],
-  ['subject-matter-art5', 'A5'],
-  ['subject-matter-art25', 'A25'],
-])
+const REJECTION_STATUTES: ReadonlyMap<string, string> = new Map(COMMON_STATUTES)
 
-/** 依赖现有技术时间基准的法条。 */
-const TIME_DEPENDENT = new Set(['A22.2', 'A22.3', 'A22.4', 'A22.5', 'A24'])
+/**
+ * 依赖现有技术时间基准的法条。实用性（A22.4）判断的是能否工业应用，与申请日/
+ * 优先权日无关，故不在此列。
+ */
+const TIME_DEPENDENT = new Set(['A22.2', 'A22.3', 'A22.5', 'A24'])
 
 /** 单次定位最多保留的候选数。 */
 const MAX_CANDIDATES = 12
@@ -114,6 +112,7 @@ function chineseNumber(value: string | undefined): number | undefined {
   if (value === '十') return 10
   const ten = value.indexOf('十')
   if (ten >= 0) {
+    /* v8 ignore next -- ten > 0 时 value[ten - 1] 必然存在 */
     const tens = ten === 0 ? 1 : CHINESE_DIGIT.get(value[ten - 1] ?? '')
     const onesText = value.slice(ten + 1)
     const ones = onesText === '' ? 0 : CHINESE_DIGIT.get(onesText)
@@ -161,10 +160,9 @@ export function scanClaimNumbers(text: string): number[] {
   const claims = new Set<number>()
   const pattern = /权利要求\s*([0-9]+(?:\s*[-–~至]\s*[0-9]+)?(?:[\s、,，和及]*[0-9]+(?:\s*[-–~至]\s*[0-9]+)?)*)/gu
   for (const match of text.matchAll(pattern)) {
-    const captured = match[1]
-    if (captured === undefined) continue
+    /* v8 ignore next -- 正则第一捕获组是必选数字串，`?? ''` 只用于类型收窄 */
+    const captured = match[1] ?? ''
     for (const part of captured.split(/[\s、,，和及]+/u)) {
-      if (part === '') continue
       const range = /^(\d+)\s*[-–~至]\s*(\d+)$/u.exec(part)
       if (range !== null) {
         const start = Number(range[1])
@@ -174,7 +172,8 @@ export function scanClaimNumbers(text: string): number[] {
         }
         continue
       }
-      if (/^\d+$/u.test(part)) claims.add(Number(part))
+      // 非区间片段只可能是数字（分隔符已被 split 去掉）；空片段会得到 0 并在下方过滤。
+      claims.add(Number(part))
     }
   }
   return [...claims].filter(n => n > 0).sort((a, b) => a - b).slice(0, MAX_CLAIMS)
@@ -195,6 +194,30 @@ function readJsonRecord(state: PipelineState, key: string): Record<string, unkno
   }
 }
 
+/**
+ * 把结构化来源收集到的法条与权项整理为定位结果。
+ * @param statutes - 已识别的法条编号。
+ * @param claims - 涉及权项。
+ * @param source - 来源。
+ * @returns 去重、限长后的定位结果。
+ */
+function toFraming(
+  statutes: ReadonlySet<string>,
+  claims: readonly number[],
+  source: 'office-action' | 'grounds',
+): DisputeFraming {
+  return {
+    candidates: [...statutes].slice(0, MAX_CANDIDATES).map(statute => ({
+      statute,
+      /* v8 ignore next -- 候选只来自 STATUTE_LABELS 覆盖的理由表与正文条款 */
+      label: STATUTE_LABELS.get(statute) ?? statute,
+      source,
+    })),
+    claims: [...new Set(claims)].sort((a, b) => a - b).slice(0, MAX_CLAIMS),
+    source,
+  }
+}
+
 /** 从 office_action 的结构化驳回类型与涉及权项收集候选。 */
 function fromOfficeAction(state: PipelineState): DisputeFraming | undefined {
   const officeAction = readJsonRecord(state, 'office_action')
@@ -209,15 +232,7 @@ function fromOfficeAction(state: PipelineState): DisputeFraming | undefined {
   const affected = Array.isArray(officeAction['affectedClaims']) ? officeAction['affectedClaims'] : []
   const claims = affected.filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0)
   if (statutes.size === 0 && claims.length === 0) return undefined
-  return {
-    candidates: [...statutes].slice(0, MAX_CANDIDATES).map(statute => ({
-      statute,
-      label: STATUTE_LABELS.get(statute) ?? statute,
-      source: 'office-action',
-    })),
-    claims: [...new Set(claims)].sort((a, b) => a - b).slice(0, MAX_CLAIMS),
-    source: 'office-action',
-  }
+  return toFraming(statutes, claims, 'office-action')
 }
 
 /** 从 grounds 的结构化理由收集候选（跳过否定表述）。 */
@@ -247,15 +262,11 @@ function fromGrounds(state: PipelineState): DisputeFraming | undefined {
     for (const key of scanDisputeText(article).statutes) statutes.add(key)
   }
   if (statutes.size === 0) return undefined
-  return {
-    candidates: [...statutes].slice(0, MAX_CANDIDATES).map(statute => ({
-      statute,
-      label: STATUTE_LABELS.get(statute) ?? statute,
-      source: 'grounds',
-    })),
-    claims: scanClaimNumbers(getStateString(state, 'claims') || getStateString(state, 'input')),
-    source: 'grounds',
-  }
+  return toFraming(
+    statutes,
+    scanClaimNumbers(getStateString(state, 'claims') || getStateString(state, 'input')),
+    'grounds',
+  )
 }
 
 /**
@@ -272,11 +283,33 @@ export function frameDispute(state: PipelineState): DisputeFraming | undefined {
   return {
     candidates: statutes.map(statute => ({
       statute,
+      /* v8 ignore next -- 候选只来自 STATUTE_LABELS 覆盖的正文条款 */
       label: STATUTE_LABELS.get(statute) ?? statute,
       source: 'text',
     })),
     claims,
     source: statutes.length > 0 ? 'text' : 'none',
+  }
+}
+
+/**
+ * 合并粗定位候选与已解析文书的结构化候选：同一法条以结构化来源为准，权项取并集。
+ *
+ * 粗定位阶段排在 parse/grounds 之前，当时只能读正文；结构化分支要在解析完成后由
+ * 修正阶段补读，否则这两个分支在随包 OA/无效/复审 manifest 中永远不可达。
+ * @param base - 粗定位候选与权项。
+ * @param structured - 解析后的结构化候选与权项。
+ * @returns 合并结果；没有结构化候选时原样返回粗定位。
+ */
+function mergeFraming(base: DisputeFraming, structured: DisputeFraming | undefined): DisputeFraming {
+  if (structured === undefined) return base
+  const byStatute = new Map<string, DisputeCandidate>()
+  for (const candidate of base.candidates) byStatute.set(candidate.statute, candidate)
+  for (const candidate of structured.candidates) byStatute.set(candidate.statute, candidate)
+  return {
+    candidates: [...byStatute.values()].slice(0, MAX_CANDIDATES),
+    claims: [...new Set([...base.claims, ...structured.claims])].sort((a, b) => a - b).slice(0, MAX_CLAIMS),
+    source: structured.source,
   }
 }
 
@@ -369,7 +402,20 @@ export function refineDispute(state: PipelineState): {
   timeBasis: 'locked' | 'unverified'
   report: string
 } {
-  const candidates = readCandidates(state['dispute_framing_candidates'])
+  const source = getStateString(state, 'dispute_framing_source')
+  const rawClaims = state['dispute_framing_claims']
+  const base: DisputeFraming = {
+    candidates: readCandidates(state['dispute_framing_candidates']),
+    claims: Array.isArray(rawClaims)
+      ? rawClaims
+        .filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0)
+        .sort((a, b) => a - b)
+      : [],
+    source: source === 'office-action' || source === 'grounds' || source === 'text' ? source : 'none',
+  }
+  // parse/grounds 已跑完：补读结构化驳回类型/程序理由，让 OA 与无效/复审 manifest 的
+  // 结构化分支真正生效；粗定位阶段的正文候选保留为补充。
+  const candidates = mergeFraming(base, fromOfficeAction(state) ?? fromGrounds(state)).candidates
   const referenceDate = getStateString(state, 'reference_date').trim()
   const timeBasis: 'locked' | 'unverified' = referenceDate.length > 0 && !referenceDate.startsWith('[WORKFLOW_DEGRADED]')
     ? 'locked'

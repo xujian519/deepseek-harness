@@ -53,6 +53,14 @@ export type LawSearchResult = LawRecord & {
   snippet?: string
 }
 
+/** Point-in-time options shared by the by-name / by-id lookups. */
+export type LawLookupOptions = {
+  /** 判定时点（YYYY-MM-DD）；缺省为今天。非法日期抛错。 */
+  asOf?: string
+  /** 是否返回时间效力未核验的记录；缺省 true。 */
+  includeUnverified?: boolean
+}
+
 /** One legal category (category table). */
 export type LawCategory = {
   id: number
@@ -80,11 +88,11 @@ export type LegalSearchSource = {
     includeUnverified?: boolean
   }): LawSearchResult[]
   /** Fuzzy find by name. */
-  findByName(name: string, limit?: number): LawRecord[]
+  findByName(name: string, limit?: number, options?: LawLookupOptions): LawRecord[]
   /** Exact get by primary key. */
-  getById(id: string): LawRecord | undefined
+  getById(id: string, options?: LawLookupOptions): LawRecord | undefined
   /** Batch get by primary key. */
-  getByIds(ids: string[]): LawRecord[]
+  getByIds(ids: string[], options?: LawLookupOptions): LawRecord[]
   /** List categories. */
   getCategories(): LawCategory[]
   /** Total count (diagnostics). */

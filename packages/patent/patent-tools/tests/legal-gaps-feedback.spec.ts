@@ -100,6 +100,56 @@ describe('legal-gaps 反哺采集回路', () => {
     const gaps = result.stages.find(stage => stage.stageId === 'legal_gaps')
     expect(gaps?.degraded).toBe(false)
     expect(gaps?.output).toContain('法条缺口汇总')
+    // 覆盖结果有消费方：仍未覆盖的条目在证据里标明上一轮补提过多少条事实。
+    expect(gaps?.output).toContain('反哺轮次补提 1 条事实后仍未覆盖')
     expect(result.completed).toBe(true)
+  })
+
+  it('第二轮漏写 revision_coverage 时保留已抽取特征，不降级', async () => {
+    const manifest: WorkflowManifest = {
+      id: 'feedback_missing_coverage',
+      name: '反哺缺覆盖测试',
+      caseType: 'novelty_search',
+      stages: [
+        { id: 'extract', strategy: 'chain', description: '提取技术特征', atom: 'extract', params: { output_key: 'features' } },
+        {
+          id: 'legal_gaps',
+          strategy: 'chain',
+          description: '法条缺口汇总',
+          atom: 'legal-gaps',
+          params: { profile: 'novelty' },
+          retry: { whenRevisionRequested: true, rewindTo: 'extract', maxRetries: 1 },
+        },
+      ],
+    }
+    const atoms = new AtomRegistry()
+    atoms.register(extractAtom)
+    atoms.register(legalGapsAtom)
+    const handlers = new StageHandlerRegistry()
+    handlers.register(new ExtractHandler())
+    handlers.register(new LegalGapsHandler())
+    let calls = 0
+    const provider: StageProvider = {
+      callLLM: async (prompt) => {
+        calls += 1
+        // 第二轮故意只返回 features，不返回 revision_coverage。
+        return prompt.includes('规则缺口反哺')
+          ? JSON.stringify({ features: ['第二轮补提特征'] })
+          : JSON.stringify({ features: ['第一轮特征'] })
+      },
+    }
+
+    const result = await runWorkflow(manifest, { input: '一种装置', text: '一种装置' }, undefined, {
+      atoms,
+      handlers,
+      provider,
+    })
+
+    expect(calls).toBe(2)
+    expect(result.stages.find(stage => stage.stageId === 'extract')?.output).toContain('第二轮补提特征')
+    expect(result.stages.find(stage => stage.stageId === 'extract')?.degraded).toBe(false)
+    expect(result.completed).toBe(true)
+    // 第二轮缺口仍在：结构化信号耗尽只记录，不把阶段标记为降级。
+    expect(result.revisions?.some(record => record.outcome === 'exhausted')).toBe(true)
   })
 })

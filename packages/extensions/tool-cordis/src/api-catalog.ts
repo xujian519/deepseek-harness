@@ -1834,13 +1834,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]',
         description: 'Legal full-text search over the law_article documents of knowledge.db.',
-        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and level filter.' }],
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).' }],
         returns: 'the de-duplicated hits in rank order.',
       },
       {
         signature: 'guidelineSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]',
         description: 'Guideline full-text search over the guideline_rule documents of knowledge.db (the 《专利审查指南》 chapters). Same engine and options as the law search, scoped to that document type.',
-        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and level filter.' }],
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).' }],
         returns: 'the de-duplicated hits in rank order, each with its `filename` (file_path) for citation.',
       },
       {
@@ -7873,7 +7873,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'RevisionRecord',
-    declaration: 'export type RevisionRecord = {\n    gapId: string;\n    rewindTo: string;\n    requestedBy: string;\n    round: number;\n    before: string;\n    after?: string;\n    rationale: string;\n    evidence?: string;\n    outcome: \'applied\' | \'exhausted\';\n    at: string;\n};',
+    declaration: 'export type RevisionRecord = {\n    gapId: string;\n    rewindTo: string;\n    requestedBy: string;\n    round: number;\n    before: string;\n    after?: string;\n    rationale: string;\n    evidence?: string;\n    outcome: \'applied\' | \'exhausted\';\n    at?: string;\n};',
   },
   {
     name: 'RpcId',
@@ -10129,7 +10129,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkflowRunOptions',
-    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    onStage?: (stageId: string, index: number, total: number) => void;\n    signal?: AbortSignal;\n    guidelineRevision?: string;\n};',
+    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    onStage?: (stageId: string, index: number, total: number) => void;\n    signal?: AbortSignal;\n    now?: () => string;\n    guidelineRevision?: string;\n};',
   },
   {
     name: 'WorkflowRunResult',

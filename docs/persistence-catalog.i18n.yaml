@@ -9,8 +9,8 @@
   en: 1387c4505dde2faf
   zh: 48570fa1c13d6910
 /session-persistence-event-catalog/persistence-type-fingerprints:
-  en: 52a98f015c801224
-  zh: b64ab6a22fbc2d96
+  en: ebf7463e3bc8ddb0
+  zh: 02a2f56e16915aed
 /session-persistence-event-catalog/event-envelope:
   en: 7223913c29a280dc
   zh: 0e8a6b02384727b4
@@ -1500,11 +1500,11 @@
   en: bea70760e2bca85b
   zh: cea146f79e4cc7ce
 /session-persistence-event-catalog/resolved-persistence-types/patentteamsteamdeleteddata:
-  en: 84d957e4ffc432b0
-  zh: b0360c33e556e445
+  en: 207854ba5fd87098
+  zh: 2d2d0941a947bfe8
 /session-persistence-event-catalog/resolved-persistence-types/patentworkflowrunevent:
-  en: 5663eadccc19c13d
-  zh: 2677899b37ce11c9
+  en: efc5a0c10c1cf464
+  zh: 086c60c9289ffcad
 /session-persistence-event-catalog/resolved-persistence-types/plantask:
   en: 1cd7d6b1c8894c47
   zh: 060cea33a0aca9d6
@@ -1551,14 +1551,14 @@
   en: b1ade5ed2c42b1ad
   zh: f1a6126bec25657b
 /session-persistence-event-catalog/resolved-persistence-types/requestheaderreason:
-  en: b3a5df43cd9ffb78
-  zh: 1ef0601f7296c8f9
+  en: fcff8709a6994ca7
+  zh: 458332c74be1869b
 /session-persistence-event-catalog/resolved-persistence-types/revisionrecord:
-  en: bad27b7845040b6e
-  zh: dba92d5e68768dbd
+  en: c759e2125ddf9ec0
+  zh: 5bcb4b1f72086037
 /session-persistence-event-catalog/resolved-persistence-types/revisionrecord~2:
-  en: 38e0411ae63fb0ea
-  zh: 61937fe7338c0642
+  en: e67994460ec7522e
+  zh: ecd5996b09b425c2
 /session-persistence-event-catalog/resolved-persistence-types/sandboxmode:
   en: c9fa5343ea99733b
   zh: d6de41351c57a73f
@@ -1716,11 +1716,11 @@
   en: 9efb34ef00eb4ca0
   zh: 28764e552ab8771e
 /session-persistence-event-catalog/resolved-persistence-types/workflowinterrupt:
-  en: 0994ddf3d790b68e
-  zh: aedcd34eadc188dc
+  en: 06424e9d3d80015b
+  zh: fca5a5beca41185d
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult:
-  en: 930f99b7f88fec37
-  zh: 388cb76c60beef49
+  en: 58bdb867075c71a4
+  zh: 4a980c1cbada724c
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult~2:
   en: 5c197b986751203c
   zh: 53c625f8e62dff16
@@ -2544,11 +2544,11 @@
   en: c4ba18ccfd27d2e1
   zh: 20f26162f7b08c92
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-plantask:
-  en: b06a110d62b7cbfd
-  zh: 633c24b9b9ae8f64
+  en: 1e4df4d909dd94aa
+  zh: f72463d6ef5789f9
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-workflow-run:
-  en: f65cf268a971a36c
-  zh: 847df26df23a7235
+  en: be3d32a1f819df3c
+  zh: 89c4f3feb26d5d67
 /session-persistence-event-catalog/resolved-persistence-types/type-permission-preset:
   en: 965e836b012404b3
   zh: 0ab923cc8a41e7f2

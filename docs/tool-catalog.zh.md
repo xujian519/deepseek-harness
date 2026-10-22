@@ -3488,7 +3488,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
           },
           "params": {
             "type": "object",
@@ -3546,7 +3546,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
         },
         "params": {
           "type": "object",
@@ -3593,6 +3593,14 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     "reason": {
       "type": "string",
       "description": "Abandon reason, kept for audit (abandon)."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Rollback reason, kept in the revision record (rollback)."
+    },
+    "before": {
+      "type": "string",
+      "description": "Digest or short summary of the output being replaced (rollback)."
     },
     "maxResults": {
       "type": "number",
@@ -5161,6 +5169,10 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
     "include_content": {
       "type": "boolean",
       "description": "是否附命中片段（默认 true，截断约 800 字）"
+    },
+    "asOf": {
+      "type": "string",
+      "description": "时间效力判定时点（YYYY-MM-DD），缺省为今天；用于按历史版本检索"
     }
   },
   "required": [
@@ -5820,7 +5832,7 @@ Usage notes:
     },
     "priorArt": {
       "type": "string",
-      "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage."
+      "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd), a24Exception (A24.1–A24.4), and a24DisclosureSource (applicant|derived-from-applicant|unauthorized-disclosure) when the entries reach its stage, and measures the grace period from the earliest priorityDate."
     },
     "conflictingApplications": {
       "type": "string",

@@ -135,7 +135,7 @@ describe('KnowledgeLawSearch', () => {
     const dbPath = join(dir, 'knowledge.db')
     const db = new DatabaseSync(dbPath)
     db.exec(`
-      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, domain TEXT NOT NULL DEFAULT 'patent', title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, file_path TEXT, char_count INTEGER DEFAULT 0, chunk_count INTEGER DEFAULT 0);
+      CREATE TABLE documents (id TEXT PRIMARY KEY, source TEXT NOT NULL, doc_type TEXT NOT NULL, domain TEXT NOT NULL DEFAULT 'patent', title TEXT NOT NULL, indexed_at TEXT NOT NULL, level TEXT, char_count INTEGER DEFAULT 0, chunk_count INTEGER DEFAULT 0);
       CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL REFERENCES documents(id), chunk_index INTEGER NOT NULL, chunk_type TEXT NOT NULL, content TEXT NOT NULL, char_count INTEGER DEFAULT 0);
     `)
     db.close()
@@ -447,7 +447,7 @@ describe('KnowledgeLawSearch 时间效力过滤', () => {
       'INSERT INTO docs_fts (rowid, title, content, module, domain, tags) VALUES (?, ?, ?, \'module\', \'patent\', NULL)',
     )
     const rows = [
-      ['law:in-force', '现行法', 'common 现行条文 甲', '2020-01-01', null, 0],
+      ['law:in-force', '现行法', 'common 现行条文 甲', '2020-01-01', '2099-01-01', 0],
       ['law:expired', '废止法', 'common 现行条文 乙', '2010-01-01', '2024-01-01', 1],
       ['law:future', '未来法', 'common 现行条文 丙', '2099-01-01', null, 0],
       ['law:unknown', '未知法', 'common 现行条文 丁', null, null, null],
@@ -486,6 +486,31 @@ describe('KnowledgeLawSearch 时间效力过滤', () => {
     expect(hits.map(hit => hit.id)).toEqual(['law:in-force'])
   })
 
+  it('效力过滤发生在 LIMIT 之前：高排名的废止条文不会挤掉有效条文', () => {
+    const { search, dir } = createValidityStore()
+    cleanups.push(() => {
+      search.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    // 让废止条文在 BM25/LIKE 排序中都排在最前：重复检索词并增大字符数。
+    const db = new DatabaseSync(join(dir, 'knowledge.db'))
+    const content = '现行条文'.repeat(30)
+    db.prepare(`
+      INSERT INTO documents (id, source, doc_type, title, indexed_at, level, file_path, publish_date, valid_from, valid_to, expired, char_count)
+      VALUES ('law:expired-hot', 'raw', 'law_article', '热门废止法', '2026-01-01', '法律', 'laws/hot.md', '2010-01-01', '2010-01-01', '2024-01-01', 1, ?)
+    `).run(content.length)
+    const chunkId = db.prepare(
+      "INSERT INTO chunks (document_id, chunk_index, chunk_type, content, char_count) VALUES ('law:expired-hot', 0, 'text', ?, ?)",
+    ).run(content, content.length).lastInsertRowid as number
+    db.prepare(
+      "INSERT INTO docs_fts (rowid, title, content, module, domain, tags) VALUES (?, '热门废止法', ?, 'module', 'patent', NULL)",
+    ).run(chunkId, content)
+    db.close()
+
+    const hits = search.search('现行条文', { asOf: '2026-01-01', includeUnverified: false, limit: 1 })
+    expect(hits.map(hit => hit.id)).toEqual(['law:in-force'])
+  })
+
   it('时点早于施行日时按尚未生效排除', () => {
     const s = withValidityStore()
     const hits = s.search('现行条文', { asOf: '2019-01-01', includeUnverified: false, limit: 10 })
@@ -499,6 +524,51 @@ describe('KnowledgeLawSearch 时间效力过滤', () => {
     expect(s.getById('law:in-force')?.validity).toBe('in-force')
     expect(s.findByName('废止法')).toEqual([])
     expect(s.getByIds(['law:in-force', 'law:expired']).map(r => r.id)).toEqual(['law:in-force'])
+  })
+
+  it('按名/按 id 查询也接受时点参数', () => {
+    const s = withValidityStore()
+    // 2099 年才施行：2019 年不可见，2100 年可见。
+    expect(s.getById('law:future', { asOf: '2019-01-01' })).toBeUndefined()
+    expect(s.getById('law:future', { asOf: '2100-01-01' })?.validity).toBe('in-force')
+    expect(s.findByName('未来法', 10, { asOf: '2019-01-01' })).toEqual([])
+    expect(s.findByName('未来法', 10, { asOf: '2100-01-01' }).map(r => r.id)).toEqual(['law:future'])
+  })
+
+  it('非法日期在严格模式下仍按未核验排除（SQL 过滤后由 JS 兜底）', () => {
+    const { search, dir } = createValidityStore()
+    cleanups.push(() => {
+      search.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    const db = new DatabaseSync(join(dir, 'knowledge.db'))
+    db.prepare(`
+      INSERT INTO documents (id, source, doc_type, title, indexed_at, level, file_path, valid_from, expired, char_count)
+      VALUES ('law:bad-date', 'raw', 'law_article', '非法日期法', '2026-01-01', '法律', 'laws/bad.md', '2026-02-30', NULL, 10)
+    `).run()
+    db.prepare("INSERT INTO chunks (document_id, chunk_index, chunk_type, content, char_count) VALUES ('law:bad-date', 0, 'text', '非法日期条文', 10)").run()
+    db.close()
+
+    // SQLite 会把 2026-02-30 归一化为 3 月 2 日（date() 非空），JS 判为未核验。
+    expect(search.getById('law:bad-date', { asOf: '2026-01-01', includeUnverified: false })).toBeUndefined()
+    expect(search.getById('law:bad-date', { asOf: '2026-01-01' })?.validity).toBe('unverified')
+  })
+
+  it('空正文命中时 content 为 undefined', () => {
+    const { search, dir } = createStore()
+    cleanups.push(() => {
+      search.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    const db = new DatabaseSync(join(dir, 'knowledge.db'))
+    db.prepare("INSERT INTO documents (id, source, doc_type, title, indexed_at, level) VALUES ('law:empty', 'raw', 'law_article', '空正文法', '2026-01-01', '法律')").run()
+    const chunkId = db.prepare("INSERT INTO chunks (document_id, chunk_index, chunk_type, content, char_count) VALUES ('law:empty', 0, 'text', '', 0)").run().lastInsertRowid as number
+    db.prepare("INSERT INTO docs_fts (rowid, title, content, module, domain, tags) VALUES (?, '空正文法', '', 'module', 'patent', NULL)").run(chunkId)
+    db.close()
+
+    const hit = search.search('空正文法')[0]
+    expect(hit?.name).toBe('空正文法')
+    expect(hit?.content).toBeUndefined()
   })
 
   it('存量库没有效力列时：expired 不是硬编码 0，记录标为未核验', () => {

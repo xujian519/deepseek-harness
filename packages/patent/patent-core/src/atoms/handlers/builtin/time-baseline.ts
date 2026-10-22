@@ -21,7 +21,9 @@ export const timeBaselineAtom: Atom = {
   description: '现有技术时间基准：取申请日与优先权日较早者作为截止日（A22.5/A29），日期缺失或不可解析时降级',
   category: 'extract',
   inputSchema: ['filing_date', 'priority_date'],
-  outputSchema: ['time_baseline_report', 'reference_date', 'reference_basis', 'filing_date', 'priority_date'],
+  // 申请日/优先权日是调用方输入，不能声明为输出：回退清理会删除 outputSchema 键，
+  // 把输入一并删掉会让重跑的时间基准凭空降级。
+  outputSchema: ['time_baseline_report', 'reference_date', 'reference_basis'],
 }
 
 /** 单个日期的读取结果：value 为可解析日期，error 为拒绝原因。 */

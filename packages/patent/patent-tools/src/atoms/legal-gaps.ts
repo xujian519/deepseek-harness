@@ -363,17 +363,42 @@ function pendingCount(value: unknown): number {
 }
 
 /**
+ * 读取反哺轮次补提到的事实数（extract 的 `revision_coverage`）。只用于把「补提过
+ * 但仍未覆盖」如实写进证据，不改变检查状态。
+ * @param state - 共享执行态。
+ * @returns checkId → 补提事实数。
+ */
+function revisionCoverageCounts(state: PipelineState): Map<string, number> {
+  const counts = new Map<string, number>()
+  const raw = state['revision_coverage']
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return counts
+  for (const [key, value] of Object.entries(raw)) {
+    if (Array.isArray(value) && value.length > 0) counts.set(key, value.length)
+  }
+  return counts
+}
+
+/**
  * 评估一条法条检查。
  * @param state - 共享执行态。
  * @param checkpoint - 检查声明。
+ * @param coverage - 反哺轮次补提到的事实数。
  * @returns 汇总项（含状态与可复核依据）。
  */
-function evaluateCheckpoint(state: PipelineState, checkpoint: LegalGapCheckpoint): LegalGapItem {
+function evaluateCheckpoint(
+  state: PipelineState,
+  checkpoint: LegalGapCheckpoint,
+  coverage: ReadonlyMap<string, number>,
+): LegalGapItem {
   const base = {
     id: checkpoint.id,
     provision: checkpoint.provision,
     label: checkpoint.label,
     severity: checkpoint.severity,
+  }
+  const supplemented = (evidence: string): string => {
+    const count = coverage.get(checkpoint.id) ?? 0
+    return count > 0 ? `${evidence}；反哺轮次补提 ${count} 条事实后仍未覆盖` : evidence
   }
   if (checkpoint.notApplicable?.(state) === true) {
     return { ...base, status: 'not-applicable', evidence: '本程序未触发该法条' }
@@ -384,11 +409,19 @@ function evaluateCheckpoint(state: PipelineState, checkpoint: LegalGapCheckpoint
   if (checkpoint.pendingKey !== undefined) {
     const pending = pendingCount(state[checkpoint.pendingKey])
     if (pending > 0) {
-      return { ...base, status: 'not-assessed', evidence: `state.${checkpoint.pendingKey} 有 ${pending} 项待核` }
+      return {
+        ...base,
+        status: 'not-assessed',
+        evidence: supplemented(`state.${checkpoint.pendingKey} 有 ${pending} 项待核`),
+      }
     }
   }
   if (checkpoint.notAssessed?.(state) === true) {
-    return { ...base, status: 'not-assessed', evidence: `${checkpoint.assessKeys.join(' / ')} 报告本次未执行` }
+    return {
+      ...base,
+      status: 'not-assessed',
+      evidence: supplemented(`${checkpoint.assessKeys.join(' / ')} 报告本次未执行`),
+    }
   }
   const assessedKey = checkpoint.assessKeys.find(key => hasValue(state[key]))
   if (assessedKey !== undefined) {
@@ -397,7 +430,7 @@ function evaluateCheckpoint(state: PipelineState, checkpoint: LegalGapCheckpoint
   return {
     ...base,
     status: 'not-assessed',
-    evidence: `未找到 ${checkpoint.assessKeys.join(' / ')}（该法条未被任何确定性阶段覆盖）`,
+    evidence: supplemented(`未找到 ${checkpoint.assessKeys.join(' / ')}（该法条未被任何确定性阶段覆盖）`),
   }
 }
 
@@ -445,7 +478,8 @@ export class LegalGapsHandler implements StageHandler {
     if (profile === undefined) {
       return degraded('legal-gaps', `params.profile 必须是 ${LEGAL_GAP_PROFILES.join(' / ')} 之一`)
     }
-    const items = LEGAL_GAP_CHECKS[profile].map(checkpoint => evaluateCheckpoint(input.state, checkpoint))
+    const coverage = revisionCoverageCounts(input.state)
+    const items = LEGAL_GAP_CHECKS[profile].map(checkpoint => evaluateCheckpoint(input.state, checkpoint, coverage))
     const passed = !items.some(item => item.status === 'failed' && item.severity === 'block')
     const unassessed = items.filter(item => item.status === 'not-assessed')
     const targets: LegalGapRevisionTarget[] = unassessed.slice(0, MAX_REVISION_TARGETS).map(item => ({

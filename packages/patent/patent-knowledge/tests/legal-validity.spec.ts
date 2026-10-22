@@ -33,6 +33,16 @@ describe('法规时间效力判定', () => {
     expect(resolveLawValidity({ validFrom: null, validTo: null, expired: null }, '2026-01-01')).toBe('unverified')
   })
 
+  it('非法或越界日期按时间列缺失处理，不能当成在效', () => {
+    expect(resolveLawValidity({ validTo: 'not-a-date' }, '2026-01-01')).toBe('unverified')
+    expect(resolveLawValidity({ validFrom: '2026-02-30' }, '2026-01-01')).toBe('unverified')
+    expect(resolveLawValidity({ validFrom: '2026-1-1' }, '2026-01-01')).toBe('unverified')
+    // 显式未废止标记仍是可核验的断言。
+    expect(resolveLawValidity({ validTo: 'not-a-date', expired: 0 }, '2026-01-01')).toBe('in-force')
+    // 合法日期照常参与比较。
+    expect(resolveLawValidity({ validFrom: '2020-01-01', validTo: '2025-12-31' }, '2026-01-01')).toBe('expired')
+  })
+
   it('已废止/尚未生效不可见，未核验按开关决定', () => {
     expect(isLawVisible('in-force', false)).toBe(true)
     expect(isLawVisible('expired', true)).toBe(false)

@@ -11,6 +11,9 @@ const MAX_GAP_ID_LENGTH = 80
 const MAX_RATIONALE_LENGTH = 240
 const MAX_EVIDENCE_LENGTH = 200
 
+/** 单次返回值最多接受的信号数：一次回退写一条记录，信号无限会让日志与回退次数失控。 */
+const MAX_RETRY_SIGNALS = 32
+
 /**
  * 解析 handler 返回的结构化回退信号。
  *
@@ -34,6 +37,7 @@ export function parseRetrySignals(value: unknown): RetrySignal[] {
       rationale: rationale.slice(0, MAX_RATIONALE_LENGTH),
       ...(evidence.length > 0 ? { evidence: evidence.slice(0, MAX_EVIDENCE_LENGTH) } : {}),
     })
+    if (signals.length >= MAX_RETRY_SIGNALS) break
   }
   return signals
 }

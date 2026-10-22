@@ -12981,7 +12981,7 @@
       "kind": "event",
       "event": "patent/workflow-run",
       "surface": false,
-      "digest": "b989347b8e3e6c98d683f45b309f2177b3d869acf02fee91f2f1764fa4d1a04b",
+      "digest": "6485bdea0016f26ca590feb811672762c3e4a466a1df162caadbce087eb62d36",
       "schema": {
         "root": 0,
         "nodes": [
@@ -13300,7 +13300,7 @@
               {
                 "name": "at",
                 "type": 2,
-                "optional": false
+                "optional": true
               },
               {
                 "name": "before",
@@ -27852,21 +27852,21 @@
       "sources": []
     },
     {
-      "digest": "33426d6532115a9fc9012b59fa8b2835c391ebeff255cfa317487cce15f5426f",
-      "names": [
-        "packages/patent/patent-core/src/workflow/types.ts#RevisionRecord"
-      ],
-      "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:88"
-      ]
-    },
-    {
       "digest": "335e242de1fcc17b6ca920fc420d71bec2d76e53e37955c00948b65ab77f05c5",
       "names": [
         "packages/core/session/src/types.ts#SurfaceOp"
       ],
       "sources": [
         "packages/core/session/src/types.ts:463"
+      ]
+    },
+    {
+      "digest": "340cdea8506cae9f629baf9d2b1ae5ca52f6254db5cbece88a5cfbe1680def6c",
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:112"
       ]
     },
     {
@@ -28525,6 +28525,15 @@
       ]
     },
     {
+      "digest": "56c52ae9fe025e02ee5836e0f1ec40e5953f970c14ba19990d21d61d1a81e88f",
+      "names": [
+        "packages/patent/patent-core/src/workflow/types.ts#RevisionRecord"
+      ],
+      "sources": [
+        "packages/patent/patent-core/src/workflow/types.ts:88"
+      ]
+    },
+    {
       "digest": "570e85022434613394418ad33e77e9f1f7a05699b33d0b62eae0677a638c3833",
       "names": [],
       "sources": []
@@ -28775,6 +28784,11 @@
     },
     {
       "digest": "6442f1864cc4373429ea7eac7ed30717d0b183fa6c4a65b3532e0a66478a8f66",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "6485bdea0016f26ca590feb811672762c3e4a466a1df162caadbce087eb62d36",
       "names": [],
       "sources": []
     },
@@ -29145,7 +29159,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:186"
+        "packages/patent/patent-core/src/workflow/types.ts:194"
       ]
     },
     {
@@ -29478,7 +29492,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:198"
+        "packages/patent/patent-core/src/workflow/types.ts:206"
       ]
     },
     {
@@ -29955,6 +29969,11 @@
     },
     {
       "digest": "a6567ccb2e530606b775371eb4fa31468d72084339968e8b0440a516a23b39dc",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "a683c8eeaf41bda2cb461c716081565a5129d9722fdaf46988feffe08d31f3f6",
       "names": [],
       "sources": []
     },
@@ -30457,11 +30476,6 @@
       "sources": []
     },
     {
-      "digest": "b989347b8e3e6c98d683f45b309f2177b3d869acf02fee91f2f1764fa4d1a04b",
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "b993441f8ce7d27b80e619e113e232ae8e62d3d5a8340f6bfe12d8c4c018e62f",
       "names": [],
       "sources": []
@@ -30938,15 +30952,6 @@
       ]
     },
     {
-      "digest": "dc20b8d65711154b2249142dbf76c43616c1be96059d45f3f601f09e423d619a",
-      "names": [
-        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
-      ],
-      "sources": [
-        "packages/patent/patent-workflow/src/types.ts:112"
-      ]
-    },
-    {
       "digest": "dd2780e7e07684332f7a9ab047237798d260e7eaffb1321cb38eca695d184c3d",
       "names": [],
       "sources": []
@@ -31029,11 +31034,6 @@
     },
     {
       "digest": "e0a787e6ec76c7c94fecbc501b489164ab0293db05bc947914077ad01e674f05",
-      "names": [],
-      "sources": []
-    },
-    {
-      "digest": "e1afd4869c515946fa612c0e0a37f63e8c79ccf3af2d1a77a13efc57401d71b2",
       "names": [],
       "sources": []
     },

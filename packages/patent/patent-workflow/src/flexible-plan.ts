@@ -285,6 +285,8 @@ export type RollbackRevisionOptions = {
   after?: string
   /** 可选证据引用。 */
   evidence?: string
+  /** 可注入时钟；给出时写入 RevisionRecord.at。缺省不写，保持持久化结果确定。 */
+  now?: () => string
 }
 
 /**
@@ -318,7 +320,7 @@ export function rollbackStage(
     rationale: options.rationale ?? `人工回退到 ${stageId}`,
     ...(options.evidence !== undefined ? { evidence: options.evidence } : {}),
     outcome: 'applied',
-    at: now(),
+    ...(options.now !== undefined ? { at: options.now() } : {}),
   }
   const revisions = [...(state.revisions ?? []), record].slice(-MAX_PLAN_REVISIONS)
   return { ...state, stages, currentStageId: stageId, revisions, updatedAt: now() }
@@ -544,9 +546,14 @@ function assertRevisionLog(value: unknown): void {
       throw new FlexiblePlanError('fromJSON: revisions 含非对象元素')
     }
     const record = item as Record<string, unknown>
-    for (const key of ['gapId', 'rewindTo', 'requestedBy', 'before', 'rationale', 'at'] as const) {
+    for (const key of ['gapId', 'rewindTo', 'requestedBy', 'before', 'rationale'] as const) {
       if (typeof record[key] !== 'string' || record[key].trim() === '') {
         throw new FlexiblePlanError(`fromJSON: revision.${key} 缺失或不是非空字符串`)
+      }
+    }
+    for (const key of ['after', 'evidence', 'at'] as const) {
+      if (record[key] !== undefined && (typeof record[key] !== 'string' || record[key].trim() === '')) {
+        throw new FlexiblePlanError(`fromJSON: revision.${key} 必须是非空字符串`)
       }
     }
     if (record['outcome'] !== 'applied' && record['outcome'] !== 'exhausted') {

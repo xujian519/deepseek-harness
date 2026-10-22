@@ -23,19 +23,22 @@ const GUIDELINE_HIT = hit('raw:审查指南_md:第二部分第八章', '专利�
 /** 记录检索调用的替身。 */
 function recorder(overrides: { law?: LawSearchResult[]; guideline?: LawSearchResult[]; dbPath?: string; throwLaw?: boolean } = {}) {
   const calls: { scope: string; query: string; limit: number }[] = []
+  const asOfCalls: (string | undefined)[] = []
   const deps: LawSearchDeps = {
     searchLaw: (query, options) => {
       calls.push({ scope: 'law', query, limit: options?.limit ?? 0 })
+      asOfCalls.push(options?.asOf)
       if (overrides.throwLaw === true) throw new Error('database is locked')
       return overrides.law ?? [LAW_HIT]
     },
     searchGuideline: (query, options) => {
       calls.push({ scope: 'guideline', query, limit: options?.limit ?? 0 })
+      asOfCalls.push(options?.asOf)
       return overrides.guideline ?? [GUIDELINE_HIT]
     },
     ...(overrides.dbPath === undefined ? {} : { dbPath: overrides.dbPath }),
   }
-  return { calls, deps }
+  return { calls, asOfCalls, deps }
 }
 
 async function ctxWith(deps: LawSearchDeps): Promise<Context> {
@@ -76,6 +79,24 @@ describe('law_search', () => {
     expect(body).toContain('审查指南全文')
     expect(body).toContain('sourcePath**: 审查指南_md/第二部分第八章-实质审查程序.md')
     expect((result.value as { scope: string }).scope).toBe('guideline')
+  })
+
+  it('asOf 透传到检索端口并回显判定时点', async () => {
+    const rec = recorder()
+    const ctx = await ctxWith(rec.deps)
+    const result = await call(ctx, { query: '说明书', asOf: '2020-01-01' }, 'law-asof')
+    expect(rec.asOfCalls).toEqual(['2020-01-01'])
+    expect((result.value as { asOf: string }).asOf).toBe('2020-01-01')
+    expect(text(result)).toContain('时间效力判定时点：2020-01-01')
+  })
+
+  it('非法 asOf 按 invalid_tool_input 拒绝，不落到检索端口', async () => {
+    const rec = recorder()
+    const ctx = await ctxWith(rec.deps)
+    const result = await call(ctx, { query: '说明书', asOf: '2020/01/01' }, 'law-asof-bad')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('asOf')
+    expect(rec.calls).toEqual([])
   })
 
   it('命中为空时明确说明不得据此下结论', async () => {

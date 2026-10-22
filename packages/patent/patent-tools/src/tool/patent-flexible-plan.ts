@@ -104,6 +104,10 @@ export type FlexiblePlanToolInput = {
   stageIds?: string[]
   /** Abandon reason, kept for audit (abandon). */
   reason?: string
+  /** Rollback reason, kept in the RevisionRecord (rollback). */
+  rationale?: string
+  /** Digest or short summary of the output being replaced (rollback). */
+  before?: string
   /** Max prior-art search results for run (default 5). */
   maxResults?: number
   /** When true, run confirms all successful (non-degraded) stages at the end. */
@@ -231,7 +235,10 @@ const MUTATIONS: Partial<Record<Exclude<FlexiblePlanAction, 'create' | 'get' | '
   },
   rollback: {
     require: i => (i.stageId === undefined ? 'rollback 需要 stageId' : undefined),
-    apply: (s, i) => rollbackStage(s, i.stageId as string),
+    apply: (s, i) => rollbackStage(s, i.stageId as string, {
+      ...(i.rationale !== undefined ? { rationale: i.rationale } : {}),
+      ...(i.before !== undefined ? { before: i.before } : {}),
+    }),
   },
   add: {
     require: i => (i.stage === undefined ? 'add 需要 stage' : undefined),
@@ -356,6 +363,8 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
       stageId: { type: 'string', description: 'Target stage id (confirm / rollback / remove).' },
       stageIds: { type: 'array', items: { type: 'string' }, description: 'New stage order (reorder, must include all ids).' },
       reason: { type: 'string', description: 'Abandon reason, kept for audit (abandon).' },
+      rationale: { type: 'string', description: 'Rollback reason, kept in the revision record (rollback).' },
+      before: { type: 'string', description: 'Digest or short summary of the output being replaced (rollback).' },
       maxResults: { type: 'number', description: 'Max prior-art search results for run (default 5).' },
       autoConfirm: { type: 'boolean', description: 'When true, run confirms all successful (non-degraded) stages at the end.' },
     },

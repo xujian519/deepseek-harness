@@ -154,6 +154,16 @@ describe('legal-gaps 原子', () => {
     expect(report).toContain('未被任何确定性阶段覆盖')
   })
 
+  it('反哺覆盖为空或非数组时不声称补提过事实', async () => {
+    const out = await new LegalGapsHandler().execute({
+      state: {
+        profile: 'novelty',
+        revision_coverage: { 'time-baseline': [], 'grace-period': 'not-an-array' },
+      },
+    })
+    expect(String(out['legal_gaps_report'])).not.toContain('反哺轮次补提')
+  })
+
   it('新颖性清单：时间基准缺失时 A22.5 记未评估', async () => {
     const items = await itemsOf({
       profile: 'novelty',

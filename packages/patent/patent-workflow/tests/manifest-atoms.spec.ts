@@ -508,7 +508,7 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
   it('新颖性/披露/创造性/可专利性：legal-gaps 接在各自确定性检查之后，按案件类型选清单', () => {
     const cases = [
       { manifestId: 'patent_novelty_v1', profile: 'novelty', after: 'conclude', before: 'approval' },
-      { manifestId: 'patent_disclosure_v1', profile: 'disclosure', after: 'slop_clean' },
+      { manifestId: 'patent_disclosure_v1', profile: 'disclosure', after: 'slop_clean', before: 'review_gate' },
       { manifestId: 'patent_inventiveness_v1', profile: 'inventiveness', after: 'conclude', before: 'approval' },
       { manifestId: 'patent_patentability_v1', profile: 'patentability', after: 'spec_check', before: 'approval' },
     ]

@@ -28,19 +28,19 @@ baseline: false
 changes:
   - root: "event:patent/workflow-run"
     previous: "2026-10-17-patent-workflow-evidence-ledger"
-    after: "b989347b8e3e6c98d683f45b309f2177b3d869acf02fee91f2f1764fa4d1a04b"
+    after: "6485bdea0016f26ca590feb811672762c3e4a466a1df162caadbce087eb62d36"
     decision: same-version
 ```
 
 <a id="compatibility"></a>
 ## Compatibility
 
-Existing records remain valid: both fields are optional and absent on older runs, which readers treat as no revision log. Writers only add them when a retry signal rewound a stage or the record cap was hit. The fields are log-only summaries (gap id, rewind target, digest of before/after output, rationale, outcome); they do not replace the stage results or replay input.
+Existing records remain valid: both fields are optional and absent on older runs, which readers treat as no revision log. Writers only add them when a retry signal rewound a stage or the record cap was hit. Each record is a log-only summary: gap id, rewind target, the digest of the rewound stage's replaced output as `before`, the digest of its replacement as `after`, rationale, outcome, and an optional `at` that is present only when the caller injected a clock. The records do not replace the stage results or replay input.
 
 <a id="verification"></a>
 ## Verification
 
-pnpm exec vitest run packages/patent/patent-workflow/tests/workflow-retry.spec.ts packages/patent/patent-workflow/tests/flexible-plan.spec.ts: 59 tests passed. pnpm run test:snapshot -t patent: 11 scenarios passed.
+pnpm exec vitest run packages/patent/patent-workflow/tests/workflow-retry.spec.ts packages/patent/patent-workflow/tests/flexible-plan.spec.ts: 65 tests passed. pnpm exec vitest run --config vitest.snapshot.config.ts -t patent: 11 scenarios passed.
 
 <a id="dev-note"></a>
 ## Dev Note

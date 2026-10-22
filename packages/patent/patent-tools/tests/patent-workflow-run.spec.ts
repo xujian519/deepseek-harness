@@ -275,7 +275,7 @@ describe('patent_workflow_run', () => {
     expect(outcome.result).toContain('patent_workflow_run(patent_disclosure_v1)')
     expect(outcome.result).toContain('review_gate')
 
-    // 审批门已放行时同一 manifest 跑到头：结算 detail 为完成而不是中断。
+    // 审批门在 legal-gaps 反哺回路之后：放行后即使发生回退也不会跨过该门，运行跑到头。
     const done = fakeJobRegistry()
     const completeTool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch, jobs: () => done.jobs })
     await completeTool.execute(
@@ -1261,7 +1261,7 @@ describe('patent_workflow_run', () => {
       exec,
     )) as PatentWorkflowRunOutput
     expect(value.ok).toBe(true)
-    // 审批门被放行：不中断，继续执行到收口（伪模型使部分原子阶段降级，但无 interrupt）。
+    // 审批门被放行且在回退范围之外：不中断，继续执行到收口。
     expect(value.interruptNote).toBeUndefined()
     expect(value.persistNote).toContain('持久化:')
     expect((value.degradedSteps ?? []).length).toBeGreaterThan(0)

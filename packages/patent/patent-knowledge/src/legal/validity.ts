@@ -64,8 +64,13 @@ export function resolveAsOf(value: string | undefined): string {
  */
 export function resolveLawValidity(input: LawValidityInput, asOf: string): LawValidity {
   if (input.expired === 1) return 'expired'
-  const validFrom = input.validFrom ?? undefined
-  const validTo = input.validTo ?? undefined
+  // 只有规范的 ISO 日期参与比较：拼错或越界的日期不能被字符串序当成「在效」。
+  const validFrom = input.validFrom !== null && input.validFrom !== undefined && isIsoDate(input.validFrom)
+    ? input.validFrom
+    : undefined
+  const validTo = input.validTo !== null && input.validTo !== undefined && isIsoDate(input.validTo)
+    ? input.validTo
+    : undefined
   if (validTo !== undefined && asOf > validTo) return 'expired'
   if (validFrom !== undefined && asOf < validFrom) return 'not-yet-effective'
   if (validFrom !== undefined || validTo !== undefined || input.expired === 0) return 'in-force'

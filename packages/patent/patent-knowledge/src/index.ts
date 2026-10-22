@@ -153,7 +153,7 @@ export class PatentKnowledge extends Service {
   /**
    * Legal full-text search over the law_article documents of knowledge.db.
    * @param query - the search text.
-   * @param options - result cap and level filter.
+   * @param options - result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).
    * @returns the de-duplicated hits in rank order.
    */
   legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[] {
@@ -165,7 +165,7 @@ export class PatentKnowledge extends Service {
    * (the 《专利审查指南》 chapters). Same engine and options as the law search,
    * scoped to that document type.
    * @param query - the search text.
-   * @param options - result cap and level filter.
+   * @param options - result cap, level filter, and point-in-time validity (`asOf`, `includeUnverified`).
    * @returns the de-duplicated hits in rank order, each with its `filename` (file_path) for citation.
    */
   guidelineSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[] {

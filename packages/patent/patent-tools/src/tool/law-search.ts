@@ -13,10 +13,11 @@
  */
 
 import { existsSync } from 'node:fs'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import type { LawSearchResult, LawValidity } from '@deepseek-ai/dsh-patent-knowledge'
+import { resolveAsOf, type LawSearchResult, type LawValidity } from '@deepseek-ai/dsh-patent-knowledge'
 import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
 import { knowledgeInstallGuidance, truncateSnippet } from './internal/knowledge.ts'
@@ -37,11 +38,15 @@ export type LawSearchInput = {
   limit?: number
   /** Attach the matched fragment (default true, truncated to ~800 chars). */
   include_content?: boolean
+  /** Point-in-time validity date (YYYY-MM-DD); defaults to today. */
+  asOf?: string
 }
 
 /** Output of the law_search tool. */
 export type LawSearchOutput = {
   scope: LawSearchScope
+  /** 时间效力判定时点（YYYY-MM-DD）。 */
+  asOf: string
   total: number
   results: Array<{
     id: string
@@ -61,12 +66,20 @@ export type LawSearchOutput = {
   searchStrategy: JsonValue
 }
 
+/** Options accepted by an injected normative-corpus search. */
+export type LawSearchPortOptions = {
+  limit?: number
+  level?: string
+  asOf?: string
+  includeUnverified?: boolean
+}
+
 /** Injected normative-corpus search (tests override; production wires ctx.patentKnowledge). */
 export type LawSearchDeps = {
   /** Statute-text search (production: ctx.patentKnowledge.legalSearch). */
-  searchLaw?: (query: string, options?: { limit?: number; level?: string }) => LawSearchResult[]
+  searchLaw?: (query: string, options?: LawSearchPortOptions) => LawSearchResult[]
   /** Guideline-text search (production: ctx.patentKnowledge.guidelineSearch). */
-  searchGuideline?: (query: string, options?: { limit?: number; level?: string }) => LawSearchResult[]
+  searchGuideline?: (query: string, options?: LawSearchPortOptions) => LawSearchResult[]
   /** Resolved knowledge.db path, used for the setup-required check and surfaced as the output's `dbPath` field. */
   dbPath?: string
 }
@@ -80,12 +93,6 @@ const DESCRIPTION = [
   '每条命中带 `时间效力`：已废止与尚未生效的条文不会返回；标为「未核验」表示库里缺少施行/失效时间，引用前须另行核对版本。',
 ].join(' ')
 
-/**
- * Render the canonical law-search value into model-facing prose.
- * @param value - the search result to render.
- * @param query - the query the call carried (the strategy record is JSON-typed in the output schema).
- * @returns the rendered Markdown.
- */
 const VALIDITY_LABELS: Record<LawValidity, string> = {
   'in-force': '在效',
   expired: '已废止',
@@ -102,9 +109,19 @@ function renderValidity(validity: LawValidity): string {
   return `**时间效力**: ${VALIDITY_LABELS[validity]}`
 }
 
+/**
+ * Render the canonical law-search value into model-facing prose.
+ * @param value - the search result to render.
+ * @param query - the query the call carried (the strategy record is JSON-typed in the output schema).
+ * @returns the rendered Markdown.
+ */
 function renderLawSearch(value: LawSearchOutput, query: string): string {
   const label = value.scope === 'guideline' ? '审查指南全文' : '法规条文'
-  const header = [`**law_search**（${label}）— ${String(value.results.length)} 条命中：`, `检索式：${query}`]
+  const header = [
+    `**law_search**（${label}）— ${String(value.results.length)} 条命中：`,
+    `检索式：${query}`,
+    `时间效力判定时点：${value.asOf}`,
+  ]
   if (value.results.length === 0) {
     return [...header, '', `0 条${label}命中；换个检索词或改 scope 再查，命中为空不得据此下结论。`].join('\n')
   }
@@ -154,6 +171,7 @@ export function createLawSearchTool(deps: LawSearchDeps): ToolDefinition {
       level: { type: 'string', description: '法律层级过滤（法律/行政法规/司法解释/部门规章…），对法规条文生效' },
       limit: { type: 'number', description: '返回条数上限（默认 5，最大 10）' },
       include_content: { type: 'boolean', description: '是否附命中片段（默认 true，截断约 800 字）' },
+      asOf: { type: 'string', description: '时间效力判定时点（YYYY-MM-DD），缺省为今天；用于按历史版本检索' },
     },
     output: {
       schema: {
@@ -161,6 +179,7 @@ export function createLawSearchTool(deps: LawSearchDeps): ToolDefinition {
         additionalProperties: false,
         properties: {
           scope: { type: 'string', required: true, enum: ['law', 'guideline'] },
+          asOf: { type: 'string', required: true },
           total: { type: 'integer', required: true },
           results: { type: 'array', required: true, items: RESULT_SCHEMA },
           dbPath: { type: 'string' },
@@ -181,14 +200,27 @@ export function createLawSearchTool(deps: LawSearchDeps): ToolDefinition {
       }
       const limit = resolveResultLimit(args.limit)
       const includeContent = args.include_content ?? true
+      let asOf: string
+      try {
+        asOf = resolveAsOf(args.asOf)
+      } catch (err) {
+        throw new PatentToolError('invalid_tool_input', errorMessage(err), {
+          tool: 'law_search',
+          scope,
+        })
+      }
       let hits: LawSearchResult[]
       try {
-        hits = search(args.query, { limit, ...(args.level === undefined ? {} : { level: args.level }) })
+        hits = search(args.query, {
+          limit,
+          asOf,
+          ...(args.level === undefined ? {} : { level: args.level }),
+        })
       } catch (err) {
         throw new PatentToolError('setup_required', INSTALL_GUIDANCE, {
           tool: 'law_search',
           scope,
-          cause: err instanceof Error ? err.message : String(err),
+          cause: errorMessage(err),
         })
       }
       const results = hits.map(hit => ({
@@ -207,6 +239,7 @@ export function createLawSearchTool(deps: LawSearchDeps): ToolDefinition {
       }
       return {
         scope,
+        asOf,
         total: results.length,
         results,
         searchStrategy: { ...searchStrategy },

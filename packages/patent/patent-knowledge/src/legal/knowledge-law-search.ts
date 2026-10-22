@@ -107,6 +107,15 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
    * 所有检索路径（FTS/LIKE/按名/按 id）都返回同一组时间字段。
    */
   private readonly validityColumns: string
+  /**
+   * 时间效力过滤的 WHERE 片段（在 LIMIT 之前生效）：已废止、尚未生效的记录先被
+   * 排除，避免它们占满 limit 把有效记录挤掉。无法核验的日期（格式非法或日历越界）
+   * 按「未核验」处理，由 JS 侧 `isLawVisible` 做最终判定。
+   */
+  private readonly validityWhere: string
+  /** 时间列是否存在，决定 `validityWhere` 的 asOf 参数顺序。 */
+  private readonly hasValidFromColumn: boolean
+  private readonly hasValidToColumn: boolean
 
   constructor(dbPath: string, options: KnowledgeLawSearchEngineOptions = {}) {
     super(dbPath, options)
@@ -139,6 +148,31 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         `${projection('validity_source')} AS validity_source`,
       ].join(', ')
 
+      // 时间效力过滤：日期列只在日期是规范 ISO 日期时参与比较；非法/越界日期留给
+      // JS 判定为「未核验」。`? = 1` 表示 includeUnverified，严格模式只放行能证明
+      // 在该时点有效的记录。
+      const validityClauses: string[] = []
+      if (documentColumns.has('expired')) validityClauses.push('(d.expired IS NULL OR d.expired <> 1)')
+      if (documentColumns.has('valid_to')) {
+        validityClauses.push(
+          "(d.valid_to IS NULL OR trim(d.valid_to) = '' OR date(d.valid_to) IS NULL OR date(d.valid_to) <> d.valid_to OR date(d.valid_to) >= date(?))",
+        )
+      }
+      if (documentColumns.has('valid_from')) {
+        validityClauses.push(
+          "(d.valid_from IS NULL OR trim(d.valid_from) = '' OR date(d.valid_from) IS NULL OR date(d.valid_from) <> d.valid_from OR date(d.valid_from) <= date(?))",
+        )
+      }
+      const evidence = [
+        ...(documentColumns.has('expired') ? ['d.expired = 0'] : []),
+        ...(documentColumns.has('valid_from') ? ['date(d.valid_from) IS NOT NULL'] : []),
+        ...(documentColumns.has('valid_to') ? ['date(d.valid_to) IS NOT NULL'] : []),
+      ]
+      validityClauses.push(`(? = 1 OR (${evidence.length > 0 ? evidence.join(' OR ') : '0'}))`)
+      this.validityWhere = ` AND ${validityClauses.join(' AND ')}`
+      this.hasValidFromColumn = documentColumns.has('valid_from')
+      this.hasValidToColumn = documentColumns.has('valid_to')
+
       // LIKE 降级：documents.title 或每文档最长 chunk 的 content（压缩 chunk 先
       // 解压再匹配）；子查询取最长 chunk 作片段。content 取原始存储（TEXT 明文 /
       // SC 魔数 gzip BLOB），JS 层 decompressChunk 解压——绕开 node:sqlite JS UDF
@@ -150,7 +184,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         JOIN chunks c ON c.id = (
           SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
         WHERE ${this.docTypeIn}
-          AND (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
+          AND (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')${this.validityWhere}
         ORDER BY d.char_count DESC LIMIT ?
       `)
       // 正文不在此取（sati_uncompress 延迟到 JS 层对 top-N 回源——避免解压
@@ -166,7 +200,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
             FROM docs_fts
             JOIN chunks c ON c.id = docs_fts.rowid
             JOIN documents d ON d.id = c.document_id
-            WHERE docs_fts MATCH ? AND ${docTypeIn}
+            WHERE docs_fts MATCH ? AND ${docTypeIn}${this.validityWhere}
             ORDER BY bm25(docs_fts) LIMIT ?
           `)
         } catch (error) {
@@ -180,7 +214,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         FROM documents d
         JOIN chunks c ON c.id = (
           SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-        WHERE ${docTypeIn} AND d.title LIKE ? ESCAPE '\\'
+        WHERE ${docTypeIn} AND d.title LIKE ? ESCAPE '\\'${this.validityWhere}
         LIMIT ?
       `)
       this.stmtGetById = this.db.prepare(`
@@ -189,7 +223,7 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         FROM documents d
         JOIN chunks c ON c.id = (
           SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-        WHERE ${this.docTypeIn} AND d.id = ?
+        WHERE ${this.docTypeIn} AND d.id = ?${this.validityWhere}
       `)
       // 按 (document_id, chunk_index) 取命中 chunk（FTS 延迟解压回源）。
       this.stmtGetChunkAt = this.db.prepare(`
@@ -211,48 +245,78 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
     this.stats?.setLegalFtsDegraded(true)
   }
 
+  /**
+   * `validityWhere` 的参数：按 SQL 中日期列的出现顺序绑 asOf，最后是 includeUnverified。
+   * @param asOf - 判定时点。
+   * @param includeUnverified - 是否放行时间列缺失/不可判定的记录。
+   * @returns 与占位符顺序一致的参数。
+   */
+  private validityParams(asOf: string, includeUnverified: boolean): Array<string | number> {
+    const params: Array<string | number> = []
+    if (this.hasValidToColumn) params.push(asOf)
+    if (this.hasValidFromColumn) params.push(asOf)
+    params.push(includeUnverified ? 1 : 0)
+    return params
+  }
+
   /** 法规全文搜索：FTS5 BM25 优先，短查询/无 FTS 时降级 LIKE；按文档去重。 */
   search(keyword: string, options: KnowledgeLawSearchOptions = {}): LawSearchResult[] {
     const limit = options.limit ?? 10
     const asOf = resolveAsOf(options.asOf)
     const includeUnverified = options.includeUnverified ?? true
+    // SQL 已按时间效力过滤（在 LIMIT 之前），JS 再按规范化日期兜底：SQL 日期函数
+    // 会把部分非法日期归一化，最终可见性以 resolveLawValidity 为准。
     const rows = this.runSearch(keyword, options, limit)
       .filter(row => isLawVisible(this.validityOf(row, asOf), includeUnverified))
     return rows.map(row => this.toSearchResult(row, asOf))
   }
 
   /** 按法规名模糊查找（返回全部匹配文档）。 */
-  findByName(name: string, limit = 10): LawRecord[] {
+  findByName(name: string, limit = 10, options: { asOf?: string; includeUnverified?: boolean } = {}): LawRecord[] {
     const pattern = `%${name.replace(/[%_\\]/g, m => `\\${m}`)}%`
-    const asOf = todayIsoDate()
-    const rows = this.stmtFindByName.all(pattern, limit) as DocChunkRow[]
+    const asOf = resolveAsOf(options.asOf)
+    const includeUnverified = options.includeUnverified ?? true
+    const rows = this.stmtFindByName.all(
+      pattern,
+      ...this.validityParams(asOf, includeUnverified),
+      limit,
+    ) as DocChunkRow[]
     return rows
-      .filter(row => isLawVisible(this.validityOf(row, asOf), true))
+      .filter(row => isLawVisible(this.validityOf(row, asOf), includeUnverified))
       .map(row => this.toRecord(row, asOf))
   }
 
   /** 按 documents.id 精确查询（语义路回源）；域外的文档类型不返回，与 search 的范围一致。 */
-  getById(id: string): LawRecord | undefined {
-    const row = this.stmtGetById.get(id) as DocChunkRow | undefined
+  getById(id: string, options: { asOf?: string; includeUnverified?: boolean } = {}): LawRecord | undefined {
+    const asOf = resolveAsOf(options.asOf)
+    const includeUnverified = options.includeUnverified ?? true
+    const row = this.stmtGetById.get(
+      id,
+      ...this.validityParams(asOf, includeUnverified),
+    ) as DocChunkRow | undefined
     if (row === undefined) return undefined
-    const asOf = todayIsoDate()
-    return isLawVisible(this.validityOf(row, asOf), true) ? this.toRecord(row, asOf) : undefined
+    return isLawVisible(this.validityOf(row, asOf), includeUnverified) ? this.toRecord(row, asOf) : undefined
   }
 
   /** 批量按 documents.id 查询（一次 IN 查询）。 */
-  getByIds(ids: string[]): LawRecord[] {
+  getByIds(
+    ids: string[],
+    options: { asOf?: string; includeUnverified?: boolean } = {},
+  ): LawRecord[] {
     const unique = Array.from(new Set(ids.filter(id => id.length > 0)))
     if (unique.length === 0) return []
     if (unique.length === 1) {
       const single = unique[0]
       /* v8 ignore start -- ids.filter(id => id.length > 0) can never yield an undefined element */
       if (single !== undefined) {
-        const record = this.getById(single)
+        const record = this.getById(single, options)
         return record ? [record] : []
       }
       return []
       /* v8 ignore stop */
     }
+    const asOf = resolveAsOf(options.asOf)
+    const includeUnverified = options.includeUnverified ?? true
     const placeholders = unique.map(() => '?').join(', ')
     const rows = this.db
       .prepare(`
@@ -261,13 +325,12 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         FROM documents d
         JOIN chunks c ON c.id = (
           SELECT id FROM chunks WHERE document_id = d.id ORDER BY char_count DESC LIMIT 1)
-        WHERE ${this.docTypeIn} AND d.id IN (${placeholders})
+        WHERE ${this.docTypeIn} AND d.id IN (${placeholders})${this.validityWhere}
       `)
-      .all(...unique) as DocChunkRow[]
-    const asOf = todayIsoDate()
+      .all(...unique, ...this.validityParams(asOf, includeUnverified)) as DocChunkRow[]
     const byId = new Map(
       rows
-        .filter(row => isLawVisible(this.validityOf(row, asOf), true))
+        .filter(row => isLawVisible(this.validityOf(row, asOf), includeUnverified))
         .map(row => [row.document_id, this.toRecord(row, asOf)]),
     )
     return unique.map(id => byId.get(id)).filter((r): r is LawRecord => r !== undefined)
@@ -312,13 +375,16 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
 
   /** FTS 查询 + 可选 level 过滤（动态 SQL；无过滤走预编译热路径）。 */
   private withLevelFilter(match: string, options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
+    const asOf = resolveAsOf(options.asOf)
+    const includeUnverified = options.includeUnverified ?? true
+    const validityParams = this.validityParams(asOf, includeUnverified)
     if (!options.level) {
       const ftsSearch = this.stmtSearchFts
       if (ftsSearch === null) {
         // 不可达：FTS 入口（search）已确认 hasFts && !ftsDegraded，prepare 失败会置 ftsDegraded。
         return []
       }
-      return ftsSearch.all(match, limit) as DocChunkRow[]
+      return ftsSearch.all(match, ...validityParams, limit) as DocChunkRow[]
     }
     const sql = `
       SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
@@ -326,18 +392,23 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       FROM docs_fts
       JOIN chunks c ON c.id = docs_fts.rowid
       JOIN documents d ON d.id = c.document_id
-      WHERE docs_fts MATCH ? AND ${this.docTypeIn} AND d.level = ?
+      WHERE docs_fts MATCH ? AND ${this.docTypeIn} AND d.level = ?${this.validityWhere}
       ORDER BY bm25(docs_fts) LIMIT ?
     `
-    return this.db.prepare(sql).all(match, options.level, limit) as DocChunkRow[]
+    return this.db
+      .prepare(sql)
+      .all(match, options.level, ...validityParams, limit) as DocChunkRow[]
   }
 
   protected searchLike(keyword: string, options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
     // LIKE 回退计数（设计内降级路径：短词/未命中/FTS 降级；不 warn 避免噪音）。
     this.stats?.recordLikeFallback()
     const pattern = `%${keyword.replace(/[%_\\]/g, m => `\\${m}`)}%`
+    const asOf = resolveAsOf(options.asOf)
+    const includeUnverified = options.includeUnverified ?? true
+    const validityParams = this.validityParams(asOf, includeUnverified)
     if (!options.level) {
-      return this.stmtSearchLike.all(pattern, pattern, limit) as DocChunkRow[]
+      return this.stmtSearchLike.all(pattern, pattern, ...validityParams, limit) as DocChunkRow[]
     }
     let sql = `
       SELECT d.id AS document_id, d.title, d.level, d.source, ${this.filePathColumn}, ${this.validityColumns},
@@ -355,7 +426,8 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
       sql += ' AND d.level = ?'
       params.push(options.level)
     }
-    sql += ' ORDER BY d.char_count DESC LIMIT ?'
+    sql += `${this.validityWhere} ORDER BY d.char_count DESC LIMIT ?`
+    params.push(...validityParams)
     params.push(limit)
     return this.db.prepare(sql).all(...params) as DocChunkRow[]
   }

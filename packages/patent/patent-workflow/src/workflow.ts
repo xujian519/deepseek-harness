@@ -113,6 +113,7 @@ export async function runWorkflow(
     revisions: [],
     pendingRevisions: [],
     revisionsTruncated: false,
+    now: options.now,
   }
   const interrupted = await runStages(run)
   return await assembleRunResult(run, interrupted)
@@ -144,6 +145,8 @@ type StageRun = {
   pendingRevisions: RevisionRecord[]
   /** 留痕达到上限后置 true，后续回退仍执行但不记录。 */
   revisionsTruncated: boolean
+  /** 可注入时钟；缺省时 RevisionRecord 不写 `at`。 */
+  now: (() => string) | undefined
 }
 
 /** 单次运行最多保留的回退记录数；超过后只标记截断，不无限增长。 */
@@ -283,7 +286,9 @@ async function runSingleStage(run: StageRun, index: number): Promise<StageStep> 
   const { output, retries, revisionSignals = [] } = outcome
 
   // 一致性重试循环：文本信号或结构化缺口信号命中时回退到 rewindTo 阶段重新执行。
-  if (output.trim().length > 0 && stage.retry !== undefined) {
+  // 结构化信号不依赖输出文本：门阶段可能以空输出加缺口信号表达「需要上游补事实」。
+  const structuredRequested = stage.retry?.whenRevisionRequested === true && revisionSignals.length > 0
+  if (stage.retry !== undefined && (output.trim().length > 0 || structuredRequested)) {
     const signal = stage.retry.whenOutputMatches !== undefined ? signalFor(stage, run.signalCache) : undefined
     const textMatched = signal !== undefined && signalMatches(output, signal)
     const structuredMatched = stage.retry.whenRevisionRequested === true && revisionSignals.length > 0
@@ -296,12 +301,18 @@ async function runSingleStage(run: StageRun, index: number): Promise<StageStep> 
       const exhausted = rewindCount > maxRewind
       const records = revisionRecords({
         stage,
-        output,
+        // before/after 必须描述同一个阶段：before 取被替换的回退目标产出，而不是
+        // 发出信号的阶段产出，否则两个摘要不可比较。
+        before: digestText(
+          /* v8 ignore next -- 回退目标必然已执行；空串分支只防稀疏结果 */
+          run.results[rewindIndex]?.output ?? (rewindTo === stage.id ? output : ''),
+        ),
         rewindTo,
         round: rewindCount,
         outcome: exhausted ? 'exhausted' : 'applied',
         signals: revisionSignals,
         textPattern: textMatched ? stage.retry.whenOutputMatches : undefined,
+        now: run.now,
       })
       for (const record of records) appendRevision(run, record)
 
@@ -337,25 +348,27 @@ async function runSingleStage(run: StageRun, index: number): Promise<StageStep> 
 
 /**
  * 生成一次回退的留痕记录。
- * @param options - 阶段、被替换产出、回退目标、轮次与触发源。
+ * @param options - 阶段、回退目标被替换产出的摘要、轮次、触发源与可选时钟。
  * @returns 每个结构化信号一条记录；纯正则触发时一条记录。
  */
 function revisionRecords(options: {
   stage: WorkflowStage
-  output: string
+  /** 回退目标被替换产出的摘要（与 `after` 同一阶段）。 */
+  before: string
   rewindTo: string
   round: number
   outcome: RevisionRecord['outcome']
   signals: readonly RetrySignal[]
   textPattern: string | undefined
+  now: (() => string) | undefined
 }): RevisionRecord[] {
   const base = {
     rewindTo: options.rewindTo,
     requestedBy: options.stage.id,
     round: options.round,
-    before: digestText(options.output),
+    before: options.before,
     outcome: options.outcome,
-    at: new Date().toISOString(),
+    ...(options.now !== undefined ? { at: options.now() } : {}),
   }
   if (options.signals.length > 0) {
     return options.signals.map(signal => ({
@@ -368,6 +381,7 @@ function revisionRecords(options: {
   return [{
     ...base,
     gapId: options.stage.id,
+    /* v8 ignore next -- 文本触发时 textPattern 必然已定义 */
     rationale: `输出匹配回退信号 /${options.textPattern ?? ''}/`,
   }]
 }

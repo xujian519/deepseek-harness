@@ -104,8 +104,11 @@ export type RevisionRecord = {
   evidence?: string
   /** 回退是否实际执行；耗尽表示达到上限后保留了原产出。 */
   outcome: 'applied' | 'exhausted'
-  /** 记录时间（ISO 8601）。 */
-  at: string
+  /**
+   * 记录时间（ISO 8601）；仅在调用方注入时钟时写入。缺省不写，使持久化结果与
+   * 录制会话保持确定性（审计轮次与阶段顺序由 `round` / `rewindTo` 给出）。
+   */
+  at?: string
 }
 
 /** 声明式工作流 manifest：id、名称、案例类型、阶段列表与可选校验配置。 */
@@ -175,6 +178,11 @@ export type WorkflowRunOptions = {
   onStage?: (stageId: string, index: number, total: number) => void
   /** 调用方取消信号：阶段边界检查；阶段内取消以 StageCancelledError 拒绝整次运行。 */
   signal?: AbortSignal
+  /**
+   * 可注入时钟：给出时，每条 RevisionRecord 写入 `at`（ISO 8601）。缺省不写时间，
+   * 让同一输入在重放/录制会话中产生逐字相同的持久化结果。
+   */
+  now?: () => string
   /**
    * 本次部署预期使用的《专利审查指南》版本。给出时，manifest 必须声明同一
    * `guidelineRevision`，否则校验失败；用于在加载/运行前拦截按旧版条文编写的清单。

@@ -63,7 +63,9 @@ function parseRevisionTargets(value: unknown): RevisionTarget[] {
     const checkId = typeof record['checkId'] === 'string' ? record['checkId'].trim() : ''
     const provision = typeof record['provision'] === 'string' ? record['provision'].trim() : ''
     const label = typeof record['label'] === 'string' ? record['label'].trim() : ''
-    if (checkId === '' || provision === '' || label === '') continue
+    if (checkId === '') continue
+    if (provision === '') continue
+    if (label === '') continue
     targets.push({ checkId, provision, label })
     if (targets.length >= MAX_REVISION_TARGETS) break
   }
@@ -71,28 +73,48 @@ function parseRevisionTargets(value: unknown): RevisionTarget[] {
 }
 
 /**
- * 校验反哺提取的覆盖结果：每个目标都必须给出字符串数组（可为空，表示原文没有对应事实）。
+ * 读取反哺提取的覆盖结果：只接受字符串数组，缺失或类型不符的条目按「没有补提到事实」
+ * 处理。覆盖结果是审计信息，不是提取成功的前提——第二轮模型漏写 `revision_coverage`
+ * 时仍应保留已抽取的特征，不能把整轮产出判成降级。
  * @param value - LLM 返回的 `revision_coverage`。
  * @param targets - 本轮反哺目标。
- * @returns 校验后的覆盖映射；缺失或类型不符时返回错误原因。
+ * @returns 已提供的覆盖映射（按 checkId）。
  */
 function parseRevisionCoverage(
   value: unknown,
   targets: readonly RevisionTarget[],
-): { ok: true; coverage: Record<string, string[]> } | { ok: false; reason: string } {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return { ok: false, reason: 'LLM 输出缺少 revision_coverage 对象（规则缺口反哺要求逐项覆盖）' }
-  }
+): Record<string, string[]> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
   const record = value as Record<string, unknown>
   const coverage: Record<string, string[]> = {}
   for (const target of targets) {
     const entry = record[target.checkId]
-    if (!Array.isArray(entry) || entry.some(item => typeof item !== 'string')) {
-      return { ok: false, reason: `revision_coverage.${target.checkId} 必须是非空字符串数组或空数组` }
-    }
-    coverage[target.checkId] = entry.map(item => (item as string).trim()).filter(item => item.length > 0)
+    if (!Array.isArray(entry)) continue
+    coverage[target.checkId] = entry
+      .filter((item): item is string => typeof item === 'string')
+      .map(item => item.trim())
+      .filter(item => item.length > 0)
   }
-  return { ok: true, coverage }
+  return coverage
+}
+
+/** 合并多路提取的覆盖事实：同一检查项的事实取并集，避免后一路覆盖前一路。 */
+function mergeRevisionCoverage(
+  existing: unknown,
+  incoming: Record<string, string[]>,
+): Record<string, string[]> {
+  const merged: Record<string, string[]> = {}
+  if (typeof existing === 'object' && existing !== null && !Array.isArray(existing)) {
+    for (const [key, value] of Object.entries(existing)) {
+      if (!Array.isArray(value)) continue
+      merged[key] = value.filter((item): item is string => typeof item === 'string')
+    }
+  }
+  for (const [key, value] of Object.entries(incoming)) {
+    const prior = merged[key] ?? []
+    merged[key] = [...new Set([...prior, ...value])]
+  }
+  return merged
 }
 
 /** 四个分键共享的 JSON 属性声明；Schema 只把当前目标键设为 required。 */
@@ -209,8 +231,9 @@ export class ExtractHandler implements StageHandler {
         const coverage = requiresCoverage
           ? parseRevisionCoverage(parsed.revision_coverage, revisionTargets)
           : undefined
-        if (coverage !== undefined && !coverage.ok) return degraded('extract', coverage.reason)
-        const coverageDelta = coverage === undefined ? {} : { revision_coverage: coverage.coverage }
+        const coverageDelta = coverage === undefined
+          ? {}
+          : { revision_coverage: mergeRevisionCoverage(state['revision_coverage'], coverage) }
         if (targetKey !== undefined) {
           const result = parseJsonStringArray(parsed[targetKey], targetKey)
           if (!result.ok) return degraded('extract', result.reason)

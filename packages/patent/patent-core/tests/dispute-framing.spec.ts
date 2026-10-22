@@ -46,6 +46,57 @@ describe('争议粗定位', () => {
     expect(framing?.candidates.map(candidate => candidate.statute)).toEqual(['A22.3'])
   })
 
+  it('中文条号与权项的边界写法不产生伪候选', () => {
+    expect(scanDisputeText('专利法第十条').statutes).toEqual([])
+    expect(scanDisputeText('专利法第二十条').statutes).toEqual([])
+    expect(scanDisputeText('专利法第九十九条').statutes).toEqual([])
+    expect(scanDisputeText('A22').statutes).toEqual(['A22'])
+    expect(scanDisputeText('专利法第22条第9款').statutes).toEqual([])
+    expect(scanDisputeText('专利法第十十条').statutes).toEqual([])
+    expect(scanDisputeText('A99.1').statutes).toEqual([])
+    expect(scanClaimNumbers('权利要求1-0')).toEqual([])
+    expect(scanClaimNumbers('权利要求1-60')).toEqual([])
+    expect(scanClaimNumbers('权利要求0')).toEqual([])
+    expect(scanClaimNumbers('权利要求1、2')).toEqual([1, 2])
+  })
+
+  it('正文没有法条时来源为 none，text/source_text 也可作为材料', () => {
+    expect(frameDispute({ input: '没有法条的材料' })).toMatchObject({ source: 'none', candidates: [], claims: [] })
+    expect(frameDispute({ text: 'A22.2' })?.candidates.map(candidate => candidate.statute)).toEqual(['A22.2'])
+    expect(frameDispute({ source_text: 'A22.2' })?.candidates.map(candidate => candidate.statute)).toEqual(['A22.2'])
+  })
+
+  it('结构化来源里的非法元素被跳过，空结构回退正文', () => {
+    expect(frameDispute({ office_action: '', input: 'A22.2' })?.source).toBe('text')
+    expect(frameDispute({ office_action: '[]', input: 'A22.2' })?.source).toBe('text')
+    expect(frameDispute({ office_action: '{', input: 'A22.2' })?.source).toBe('text')
+    expect(frameDispute({ office_action: 'null', input: 'A22.2' })?.source).toBe('text')
+    const office = frameDispute({
+      office_action: JSON.stringify({ rejectionTypes: [1, 'unknown', 'novelty'], affectedClaims: ['1', 2, 0] }),
+    })
+    expect(office?.candidates.map(candidate => candidate.statute)).toEqual(['A22.2'])
+    expect(office?.claims).toEqual([2])
+    expect(frameDispute({ office_action: '{}', input: '' })).toBeUndefined()
+  })
+
+  it('grounds 里的非对象、否定与未知理由按规则跳过', () => {
+    expect(frameDispute({ grounds: '{', input: 'A22.2' })?.source).toBe('text')
+    expect(frameDispute({ grounds: '{}', input: '' })).toBeUndefined()
+    const framed = frameDispute({
+      grounds: JSON.stringify([
+        null,
+        'x',
+        { ground: 'inventiveness', article: '专利法第22条第3款', negated: true },
+        { ground: 'unknown', article: '专利法第22条第2款' },
+        { article: 'A22.3' },
+        { ground: 'unknown' },
+      ]),
+      input: '',
+    })
+    expect(framed?.candidates.map(candidate => candidate.statute)).toEqual(['A22.2', 'A22.3'])
+    expect(frameDispute({ grounds: JSON.stringify([{ ground: 'unknown', article: '' }]), input: '' })).toBeUndefined()
+  })
+
   it('无结构化产出时扫描正文；无任何材料时返回 undefined', () => {
     expect(frameDispute({ input: '权利要求 1 不具备新颖性，A22.2。' })?.source).toBe('text')
     expect(frameDispute({})).toBeUndefined()
@@ -66,6 +117,13 @@ describe('争议粗定位', () => {
     ])
     expect(out['dispute_framing_claims']).toEqual([1, 2])
     expect(out['dispute_framing_source']).toBe('text')
+  })
+
+  it('handler 对无法条/无权项的正文仍给出可读报告', async () => {
+    const empty = await new DisputeFramingHandler().execute({ state: { input: '没有法条的材料' } })
+    expect(empty['dispute_framing_report']).toContain('未从当前材料识别到法条或权项')
+    const noClaims = await new DisputeFramingHandler().execute({ state: { input: 'A22.2' } })
+    expect(noClaims['dispute_framing_report']).toContain('涉及权利要求 未识别')
   })
 })
 
@@ -118,5 +176,74 @@ describe('争议定位修正', () => {
     const refined = refineDispute({})
     expect(refined.candidates).toEqual([])
     expect(refined.report).toContain('保持空集')
+  })
+
+  it('丢弃非法候选并把未知来源归一为 text/none', () => {
+    const refined = refineDispute({
+      dispute_framing_candidates: [
+        null,
+        'x',
+        { statute: 1, label: 2, source: 'text' },
+        { statute: 'A22.3', label: '', source: 'text' },
+        { statute: 'A22.3', label: '专利法第22条第3款（创造性）', source: 'bogus' },
+      ],
+      dispute_framing_claims: 'not-an-array',
+      dispute_framing_source: 'bogus',
+    })
+    expect(refined.candidates).toEqual([
+      expect.objectContaining({ statute: 'A22.3', source: 'text' }),
+    ])
+    const withClaims = refineDispute({
+      dispute_framing_candidates: [{ statute: 'A22.3', label: '专利法第22条第3款（创造性）', source: 'text' }],
+      dispute_framing_claims: [2, 1],
+    })
+    expect(withClaims.candidates).toHaveLength(1)
+  })
+
+  it('候选超过上限时截断', () => {
+    const many = Array.from({ length: 13 }, (_, index) => ({
+      statute: `A${index + 1}`,
+      label: `法条 ${index + 1}`,
+      source: 'text' as const,
+    }))
+    expect(refineDispute({ dispute_framing_candidates: many }).candidates).toHaveLength(12)
+  })
+
+  it('实用性（A22.4）不依赖现有技术时间基准', () => {
+    const refined = refineDispute({
+      dispute_framing_candidates: [
+        { statute: 'A22.4', label: '专利法第22条第4款（实用性）', source: 'text' },
+      ],
+    })
+    expect(refined.candidates[0]).toMatchObject({ statute: 'A22.4', timeDependent: false, timeBasis: 'locked' })
+    expect(refined.timeBasis).toBe('unverified')
+  })
+
+  it('修正阶段补读 office_action 的结构化候选，覆盖正文粗定位并合并权项', () => {
+    const refined = refineDispute({
+      dispute_framing_candidates: candidates,
+      dispute_framing_claims: [1],
+      dispute_framing_source: 'text',
+      office_action: JSON.stringify({ rejectionTypes: ['novelty', 'utility'], affectedClaims: [2, 3] }),
+    })
+    const statutes = refined.candidates.map(candidate => candidate.statute).sort()
+    expect(statutes).toEqual(['A22.2', 'A22.3', 'A22.4', 'A59'])
+    // 结构化来源覆盖同一条法条（本条通知未涉及 A22.3，故它保留正文来源）。
+    expect(refined.candidates.find(candidate => candidate.statute === 'A22.2')?.source).toBe('office-action')
+    expect(refined.candidates.find(candidate => candidate.statute === 'A22.4')?.source).toBe('office-action')
+    expect(refined.candidates.find(candidate => candidate.statute === 'A22.3')?.source).toBe('text')
+  })
+
+  it('修正阶段补读 grounds 的结构化候选', () => {
+    const refined = refineDispute({
+      dispute_framing_candidates: candidates,
+      grounds: JSON.stringify([
+        { ground: 'inventiveness', article: '专利法第22条第3款', negated: false },
+        { ground: 'novelty', article: '专利法第22条第2款', negated: true },
+      ]),
+      input: '权利要求 3 不具备创造性',
+    })
+    expect(refined.candidates.map(candidate => candidate.statute).sort()).toEqual(['A22.3', 'A59'])
+    expect(refined.candidates.find(candidate => candidate.statute === 'A22.3')?.source).toBe('grounds')
   })
 })

@@ -136,6 +136,11 @@ export async function runStageOnce(
           output = APPROVAL_GRANTED_OUTPUT
         }
         state[stage.id] = output
+        // 结构化缺口信号本身就是阶段产出：它不依赖文本输出，不能被「空输出」的
+        // 内部重试吞掉（否则 handler 会原地再跑一次并丢掉信号）。
+        if (revisionSignals.length > 0) {
+          return { output, retries: attempt, revisionSignals }
+        }
       } else if (options.executor) {
         output = await options.executor(stage, options.ctx, state)
         // 阶段输出一律落到 state[stage.id]（与图适配器同一约定）：后续阶段的 executor
@@ -172,5 +177,6 @@ export async function runStageOnce(
     const detail = lastError instanceof Error ? lastError.message : typeof lastError === 'string' ? lastError : JSON.stringify(lastError)
     output = `[WORKFLOW_DEGRADED] ${stage.id}: ${detail}`
   }
-  return { output, retries, ...(revisionSignals.length > 0 ? { revisionSignals } : {}) }
+  // 有结构化信号的路径在上面提前返回；这里只剩无信号的终结结果。
+  return { output, retries }
 }
