@@ -7,6 +7,7 @@
  */
 
 import type {
+  CitationAnalysisCheck,
   ConstitutionalRule,
   KeywordBlocklistCheck,
   PatternAnalysisCheck,
@@ -234,17 +235,14 @@ function checkStructuralAnalysis(
 }
 
 /**
- * 提取法条引用（R1 存在性检查用）。
+ * 提取法条引用（存在性检查用）。
  *
  * 同时接受不带书名号的 `专利法第22条` 与中文文书通行的 `《专利法》第二十二条`；
  * N 支持阿拉伯数字与中文数字。书名号只作为可选外层，不进入法名分组。
  */
 const CITATION_RE = /(?:《\s*)?(专利法实施细则|专利法)\s*》?\s*第\s*([0-9零一二三四五六七八九十百]+)\s*条/g
 
-function checkCitationAnalysis(
-  check: { type: 'citation_analysis'; statutes: Record<string, { max: number; topics?: Record<number, string[]> }> },
-  text: string,
-): string[] {
+function checkCitationAnalysis(check: CitationAnalysisCheck, text: string): string[] {
   const evidence: string[] = []
   // 模块级 g 正则的 lastIndex 会在多次评估间保留；每次从 0 开始，避免前一次扫描
   // 的游标让后续文本漏掉开头的引用。

@@ -614,26 +614,22 @@ rules:
     expect(badDef.issues.some(i => i.message.includes('需要 max 数字'))).toBe(true)
   })
 
-  it('citation_analysis parses numeric topic keys and validates topics shape', () => {
-    const ok = parseRuleSetFromYaml(
-      'rules:\n  - id: CT1\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics:\n            "2": [新颖性, 创造性]\n            "not-a-number": [其他]\n',
+  it('citation_analysis rejects a topics declaration instead of ignoring it', () => {
+    const declared = parseRuleSetFromYaml(
+      'rules:\n  - id: CT1\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics:\n            "2": [新颖性, 创造性]\n',
     )
-    expect(ok.issues.some(i => i.message.includes('topics'))).toBe(true)
-    const rule = ok.ruleSet.rules[0]
-    if (rule?.check.type === 'citation_analysis') {
-      expect(rule.check.statutes['专利法']?.max).toBe(78)
-      expect(rule.check.statutes['专利法']?.topics?.[2]).toEqual(['新颖性', '创造性'])
-      // 非数字条号被跳过，仅保留可解析的键
-      expect(Object.keys(rule.check.statutes['专利法']?.topics ?? {})).toEqual(['2'])
-    }
-    const bad = parseRuleSetFromYaml(
-      'rules:\n  - id: CT2\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics:\n            "2": 不是数组\n',
+    expect(declared.ruleSet.rules).toEqual([])
+    expect(declared.issues.some(i =>
+      i.ruleId === 'CT1' &&
+      i.message.includes('法条 "专利法" 的 topics 不受支持') &&
+      i.message.includes('删除该字段'),
+    )).toBe(true)
+    // 形状不合法同样整条拒绝：不存在的字段没有「合法形状」可守。
+    const scalar = parseRuleSetFromYaml(
+      'rules:\n  - id: CT2\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics: just-a-string\n',
     )
-    expect(bad.issues.some(i => i.message.includes('topics 需为 条号→词数组'))).toBe(true)
-    const nonObject = parseRuleSetFromYaml(
-      'rules:\n  - id: CT3\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics: just-a-string\n',
-    )
-    expect(nonObject.issues.some(i => i.message.includes('topics 需为 条号→词数组'))).toBe(true)
+    expect(scalar.ruleSet.rules).toEqual([])
+    expect(scalar.issues.some(i => i.message.includes('topics 不受支持'))).toBe(true)
   })
 
   it('synonym_match rejects malformed requirement entries', () => {
