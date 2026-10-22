@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeNumericRanges,
   deriveAllElementsCoverage,
-  extractCitations,
   type ChartRow,
   type ClaimElement,
   type NumericRangeVerdict,
@@ -45,18 +44,6 @@ describe('legal corpus probes', () => {
 
     it.fails('后缀式下界（70℃以上）应按区间处理', () => {
       expect(verdictOf('温度在 70℃以上', 'D1 公开温度为 100-200℃')).toBe('overlapped')
-    })
-  })
-
-  describe('A3 office action parsing', () => {
-    it.fails('全角括号的本申请号应被识别为自身指代', () => {
-      const citations = extractCitations('本申请（申请号CN117000000A）与对比文件CN112345678A的区别在于加热结构。')
-      expect(citations.map(citation => citation.documentNumber)).toEqual(['CN112345678A'])
-    })
-
-    it.fails('并列枚举的权项号应全部计入同句引用', () => {
-      const citations = extractCitations('对比文件CN101234567A公开了权利要求1、2和3的技术方案。')
-      expect(citations[0]?.claimsAffected).toEqual([1, 2, 3])
     })
   })
 

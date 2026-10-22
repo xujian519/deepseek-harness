@@ -91,16 +91,30 @@ describe('extractCitations', () => {
   it('本文书自身号码的指代不入引用文献，紧邻对照的引用仍保留', () => {
     expect(extractCitations('本申请公开号CN117000000A，对比文件CN112345678A公开了权利要求1的特征。'))
       .toEqual([{ documentNumber: 'CN112345678A', claimsAffected: [1] }])
+    expect(extractCitations('本申请（申请号CN117000000A）与对比文件CN112345678A的区别在于加热结构。'))
+      .toEqual([{ documentNumber: 'CN112345678A', claimsAffected: [] }])
     expect(extractCitations('CN117000000A（本申请）与CN112345678A的区别在于加热结构。'))
       .toEqual([{ documentNumber: 'CN112345678A', claimsAffected: [] }])
     expect(extractCitations('本申请与CN112345678A的区别在于加热结构。'))
       .toEqual([{ documentNumber: 'CN112345678A', claimsAffected: [] }])
+  })
+
+  it('同句的并列枚举权项全部计入引用文献', () => {
+    expect(extractCitations('对比文件CN101234567A公开了权利要求1、2和3的技术方案。'))
+      .toEqual([{ documentNumber: 'CN101234567A', claimsAffected: [1, 2, 3] }])
   })
 })
 
 describe('extractAffectedClaims', () => {
   it.each(CLAIM_CASES)('$name', ({ text, want }) => {
     expect(extractAffectedClaims(text)).toEqual(want)
+  })
+
+  it('并列枚举逐项计入', () => {
+    expect(extractAffectedClaims('权利要求1、2和3的技术方案')).toEqual([1, 2, 3])
+    expect(extractAffectedClaims('权利要求1，2或4的技术方案')).toEqual([1, 2, 4])
+    expect(extractAffectedClaims('权利要求1、2以及3的技术方案')).toEqual([1, 2, 3])
+    expect(extractAffectedClaims('权利要求1与对比文件2的区别')).toEqual([1])
   })
 
   it('区间过宽时按笔误忽略，只留单号', () => {

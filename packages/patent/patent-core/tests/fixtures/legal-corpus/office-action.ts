@@ -79,4 +79,30 @@ export const OFFICE_ACTION_CASES: readonly OfficeActionCase[] = [
       conflictCount: 0,
     },
   },
+  {
+    engine: 'office-action',
+    id: 'OA-005',
+    title: '全角括号内的本申请号是自身指代，不是对比文件',
+    text: '本申请（申请号CN117000000A）与对比文件CN112345678A的区别在于加热结构。',
+    expected: {
+      types: [],
+      claims: [],
+      documentNumbers: ['CN112345678A'],
+      citations: [{ documentNumber: 'CN112345678A', claimsAffected: [] }],
+      conflictCount: 0,
+    },
+  },
+  {
+    engine: 'office-action',
+    id: 'OA-006',
+    title: '并列枚举的权项号全部计入同句引用',
+    text: '对比文件CN101234567A公开了权利要求1、2和3的技术方案。',
+    expected: {
+      types: [],
+      claims: [1, 2, 3],
+      documentNumbers: ['CN101234567A'],
+      citations: [{ documentNumber: 'CN101234567A', claimsAffected: [1, 2, 3] }],
+      conflictCount: 0,
+    },
+  },
 ]

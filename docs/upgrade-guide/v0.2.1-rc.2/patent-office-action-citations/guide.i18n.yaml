@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-office-action-citations/guide.md
+/:
+  en: 49b5bbfb27cfed41
+  zh: 6aaf783b0d53c526
+/office-action-citations-cover-bracketed-self-numbers-and-enumerations:
+  en: 500cc2a3f3526204
+  zh: 693556a95374c2b3
+/office-action-citations-cover-bracketed-self-numbers-and-enumerations/change:
+  en: e46db57ef3796eda
+  zh: 61775cea343e4db3
+/office-action-citations-cover-bracketed-self-numbers-and-enumerations/migration:
+  en: 8e242045efc09038
+  zh: 1db7db01c35375c7
