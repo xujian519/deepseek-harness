@@ -756,7 +756,7 @@ describe('claim_chart_build 侵权确定性结论', () => {
     isEquivalent: true,
   }
 
-  it('存在缺项时报四态"未覆盖"并列出缺项要素', async () => {
+  it('存在缺项时报"未覆盖"并列出缺项要素', async () => {
     const ctx = await ctxWith(createClaimChartBuildTool({
       model: jsonModel(JSON.stringify({
         elements: [
@@ -780,7 +780,7 @@ describe('claim_chart_build 侵权确定性结论', () => {
     expect(text(result)).toContain('  - 缺项要素: 1b')
   })
 
-  it('给出覆盖四态与等同矛盾，未给评分事实时不臆测风险等级', async () => {
+  it('给出覆盖结论与等同矛盾，未给评分事实时不臆测风险等级', async () => {
     const ctx = await ctxWith(createClaimChartBuildTool({ model: jsonModel(chartJson) }))
     const result = await execute(ctx, 'claim_chart_build', {
       mode: 'infringement',
@@ -796,6 +796,34 @@ describe('claim_chart_build 侵权确定性结论', () => {
     expect(out).toContain('- 等同认定矛盾: 1 条')
     expect(out).toContain('1b→产品A [doe-without-triplet]')
     expect(out).toContain('风险等级: 未计算')
+  })
+
+  it('多权项时整体结论取覆盖最佳的权项，并列出逐权项结论', async () => {
+    const multiClaimText = '1. 一种装置，其特征在于，包括壳体。\n2. 根据权利要求 1 所述的装置，其特征在于，所述壳体上设置有散热孔。'
+    const ctx = await ctxWith(createClaimChartBuildTool({
+      model: jsonModel(JSON.stringify({
+        elements: [
+          { id: '1a', claimNo: 1, kind: 'preamble', text: '一种装置' },
+          { id: '1b', claimNo: 1, kind: 'limitation', text: '包括壳体' },
+          { id: '2a', claimNo: 2, kind: 'limitation', text: '所述壳体上设置有散热孔' },
+        ],
+        rows: [
+          { elementId: '1a', targetId: '产品A', quote: '一种装置', pinCite: '[产品A 段[0001]]', mapping: 'literal' },
+          { elementId: '1b', targetId: '产品A', quote: '包括壳体', pinCite: '[产品A 段[0001]]', mapping: 'literal' },
+          { elementId: '2a', targetId: '产品A', quote: '', pinCite: '[产品A 段[0002]]', mapping: 'not-found' },
+        ],
+      })),
+    }))
+    const result = await execute(ctx, 'claim_chart_build', {
+      mode: 'infringement',
+      claim_text: multiClaimText,
+      targets: [{ id: '产品A', kind: 'accused-product' }],
+    }, 'cc-19')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    expect(out).toContain('被控产品 产品A: 全部要素字面覆盖（要素 2 个')
+    expect(out).toContain('逐权项结论: 权利要求 1 literal；权利要求 2 not-covered（整体取覆盖最佳权项）')
   })
 
   it('给出等同认定记录与抗辩事实时核验一致性并给出风险等级', async () => {
@@ -873,7 +901,7 @@ describe('claim_chart_build 侵权确定性结论', () => {
     expect(text(invalidity)).toContain('单篇全覆盖与区别特征')
     expect(text(invalidity)).toContain('权利要求 1: 未全覆盖')
     expect(text(invalidity)).toContain('区别特征')
-    // 侵权结论段（全面覆盖四态与风险等级）不因无效模式出现。
+    // 侵权结论段（全面覆盖与风险等级）不因无效模式出现。
     expect(text(invalidity)).not.toContain('风险等级')
 
     for (const mode of ['patentability', 'oa-response'] as const) {

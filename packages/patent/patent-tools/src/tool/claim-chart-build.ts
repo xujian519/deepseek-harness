@@ -88,14 +88,15 @@ export type ClaimChartBuildDeps = {
   model?: PatentModelPort
 }
 
-const DESCRIPTION = '构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。mode=invalidity/reexamination 时另给出确定性结论段：逐权项对比文件的单篇全覆盖判定（从属权项已按引用链并入所引用权项的全部要素）、相对主对比文件的区别特征、从属权项"仅附加特征被覆盖"的法条路径问题与引用关系缺陷。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。'
+const DESCRIPTION = '构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖判定（逐权项判定，整体取覆盖最佳权项）、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。mode=invalidity/reexamination 时另给出确定性结论段：逐权项对比文件的单篇全覆盖判定（从属权项已按引用链并入所引用权项的全部要素）、相对主对比文件的区别特征、从属权项"仅附加特征被覆盖"的法条路径问题与引用关系缺陷。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。'
 
-/** 四态覆盖结论的中文说明（描述数据，不是法律结论）。 */
+/** 覆盖结论的中文说明（描述数据，不是法律结论）。 */
 const OUTCOME_LABELS: Record<AllElementsOutcome, string> = {
   literal: '全部要素字面覆盖',
   'construction-dependent': '全部要素字面覆盖，但依赖权利要求解释',
   'equivalence-required': '全部要素已覆盖，其中部分需按等同认定',
   'not-covered': '存在未覆盖要素（缺项）',
+  undetermined: '要素表为空，无法判定',
 }
 
 /** 等同认定矛盾的中文说明（类型码保留英文，便于与图表/记录对照）。 */
@@ -125,6 +126,10 @@ function renderConclusion(conclusion: InfringementConclusion): string[] {
       `缺项 ${entry.missingElements.length}`,
     ]
     lines.push(`- 被控产品 ${entry.targetId}: ${OUTCOME_LABELS[entry.outcome]}（要素 ${entry.elementCount} 个，${parts.join('，')}）`)
+    if (entry.claims.length > 1) {
+      const perClaim = entry.claims.map(claim => `权利要求 ${claim.claimNo} ${claim.outcome}`).join('；')
+      lines.push(`  - 逐权项结论: ${perClaim}（整体取覆盖最佳权项）`)
+    }
     if (entry.missingElements.length > 0) lines.push(`  - 缺项要素: ${entry.missingElements.join(', ')}`)
     if (entry.equivalenceCandidates.length > 0) {
       lines.push(`  - 需等同认定的要素: ${entry.equivalenceCandidates.join(', ')}`)

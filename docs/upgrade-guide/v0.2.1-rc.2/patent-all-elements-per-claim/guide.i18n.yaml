@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-all-elements-per-claim/guide.md
+/:
+  en: c89f069ce9408911
+  zh: 684667fad1ba47b2
+/all-elements-coverage-is-now-judged-per-claim:
+  en: 5fe7ad19df1f2057
+  zh: fbcffeb1ce1bb52e
+/all-elements-coverage-is-now-judged-per-claim/change:
+  en: be8b4259d3334e09
+  zh: 4617ca7326f13c64
+/all-elements-coverage-is-now-judged-per-claim/migration:
+  en: bd39304eccc7debf
+  zh: 51ca6c6b8b0935bf

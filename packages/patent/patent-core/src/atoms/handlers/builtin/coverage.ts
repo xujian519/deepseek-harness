@@ -2,8 +2,9 @@
  * 侵权域原子：coverage（全面覆盖与等同一致性核验）。
  *
  * 读同一 run 内 claim-chart 阶段写入的图表文档（`claim_chart_doc`），逐被控产品目标给出
- * 全面覆盖四态结论，并列出等同认定与图表映射之间的矛盾。核验对象只是图表本身，结论全部
- * 由行级映射算出，原子不接受调用方直接给出的"是否落入保护范围"结论。
+ * 全面覆盖结论（逐权项判定，整体取覆盖最佳的权项），并列出等同认定与图表映射之间的矛盾。
+ * 核验对象只是图表本身，结论全部由行级映射算出，原子不接受调用方直接给出的"是否落入
+ * 保护范围"结论。
  *
  * 等同认定记录（`EquivalenceTriplet`）不在图表内，故按 `doe` 落格的行一律报
  * `doe-without-triplet`（等同认定须另出独立记录才能复核）；`scoreInfringement` 需要的
@@ -18,7 +19,7 @@ import {
   type ChartTargetRef,
   type ClaimElementRef,
 } from '../../../claim-chart/protocol/types.ts'
-import { asJsonRecord, readJsonString, tryParseJson } from '../../../llm-json.ts'
+import { asJsonRecord, readJsonNumber, readJsonString, tryParseJson } from '../../../llm-json.ts'
 import {
   deriveInfringementConclusion,
   type InfringementConclusionChart,
@@ -28,7 +29,7 @@ import { degraded } from './llm.ts'
 /** coverage 原子：侵权的全面覆盖与等同一致性核验。 */
 export const coverageAtom: Atom = {
   name: 'coverage',
-  description: '侵权全面覆盖与等同一致性核验：逐被控产品四态结论 + 等同未认定清单（纯函数，不调用模型）',
+  description: '侵权全面覆盖与等同一致性核验：逐被控产品逐权项判定、整体取覆盖最佳权项 + 等同未认定清单（纯函数，不调用模型）',
   category: 'compare',
   inputSchema: ['claim_chart_doc'],
   outputSchema: ['coverage_report', 'coverage_conflicts'],
@@ -45,7 +46,7 @@ type CoverageChartResult =
  * `claim_chart_doc` 是上一阶段写出的 JSON；本原子只做形状校验，不重新计算映射。逐项
  * 检查数组元素的下标，畸形文档给出可定位的降级原因而不是 `TypeError`。
  * @param parsed - 已确认是 JSON 对象的图表文档。
- * @returns 目标、行映射与要素编号，或失败原因。
+ * @returns 目标、行映射与要素编号/权项号，或失败原因。
  */
 function readCoverageChart(parsed: Record<string, unknown>): CoverageChartResult {
   const targetsRaw = parsed.targets
@@ -74,7 +75,11 @@ function readCoverageChart(parsed: Record<string, unknown>): CoverageChartResult
     if (record === undefined) return { ok: false, reason: `claim_chart_doc.elements[${index}] 不是对象` }
     const id = readJsonString(record.id)
     if (id === undefined) return { ok: false, reason: `claim_chart_doc.elements[${index}] 缺少 id` }
-    elements.push({ id })
+    const claimNo = readJsonNumber(record.claimNo)
+    if (claimNo === undefined || !Number.isSafeInteger(claimNo) || claimNo <= 0) {
+      return { ok: false, reason: `claim_chart_doc.elements[${index}] 的 claimNo 非法: ${JSON.stringify(record.claimNo)}` }
+    }
+    elements.push({ id, claimNo })
   }
 
   const rowsRaw = parsed.rows

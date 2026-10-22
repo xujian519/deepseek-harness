@@ -156,8 +156,10 @@ describe('scoreInfringement', () => {
     expect(notCovered.dimensions.elementsCovered).toBe(0.5)
   })
 
-  it('无要素时覆盖度为 0', () => {
-    expect(scoreInfringement(baseInput([], [])).dimensions.elementsCovered).toBe(0)
+  it('要素表为空（覆盖结论 undetermined）时拒绝评分', () => {
+    const input = baseInput([], [])
+    expect(input.coverage.outcome).toBe('undetermined')
+    expect(() => scoreInfringement(input)).toThrow(RangeError)
   })
 
   it('禁止反悔与捐献规则适用时对应维度归零', () => {

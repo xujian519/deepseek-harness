@@ -110,10 +110,64 @@ describe('deriveAllElementsCoverage', () => {
     expect(coverage.missingElements).toEqual(['1b'])
   })
 
-  it('要素列表为空时判 not-covered', () => {
+  it('要素列表为空时判 undetermined，不给实质结论', () => {
     const coverage = deriveAllElementsCoverage([], '产品A', [])
-    expect(coverage.outcome).toBe('not-covered')
+    expect(coverage.outcome).toBe('undetermined')
     expect(coverage.elementCount).toBe(0)
+    expect(coverage.claimNo).toBeUndefined()
+    expect(coverage.claims).toEqual([])
+  })
+
+  it('任一权项被全部覆盖时整体结论取该权项', () => {
+    const coverage = deriveAllElementsCoverage(
+      [row('1a', 'not-found'), row('2a', 'doe'), row('2b', 'literal')],
+      '产品A',
+      [element('1a', 1), element('2a', 2), element('2b', 2)],
+    )
+    expect(coverage.outcome).toBe('equivalence-required')
+    expect(coverage.claimNo).toBe(2)
+    expect(coverage.elementCount).toBe(2)
+    expect(coverage.missingElements).toEqual([])
+    expect(coverage.equivalenceCandidates).toEqual(['2a'])
+    expect(coverage.claims.map(claim => [claim.claimNo, claim.outcome])).toEqual([
+      [1, 'not-covered'],
+      [2, 'equivalence-required'],
+    ])
+  })
+
+  it('低号权项覆盖更充分时整体结论取低号权项', () => {
+    const coverage = deriveAllElementsCoverage(
+      [row('1a', 'literal'), row('1b', 'literal')],
+      '产品A',
+      [element('1a', 1), element('1b', 1), element('2a', 2)],
+    )
+    expect(coverage.outcome).toBe('literal')
+    expect(coverage.claimNo).toBe(1)
+    expect(coverage.literalElements).toEqual(['1a', '1b'])
+    expect(coverage.claims[1]?.missingElements).toEqual(['2a'])
+  })
+
+  it('整体结论按覆盖充分度排序：待解释优先于需等同', () => {
+    const coverage = deriveAllElementsCoverage(
+      [row('1a', 'doe'), row('2a', 'literal-construction-dependent')],
+      '产品A',
+      [element('1a', 1), element('2a', 2)],
+    )
+    expect(coverage.outcome).toBe('construction-dependent')
+    expect(coverage.claimNo).toBe(2)
+    expect(coverage.claims.map(claim => claim.outcome)).toEqual(['equivalence-required', 'construction-dependent'])
+  })
+
+  it('多个权项结论相同时取权项号最小者，逐权项结论按权项号升序', () => {
+    const coverage = deriveAllElementsCoverage(
+      [row('1a', 'literal'), row('2a', 'literal')],
+      '产品A',
+      [element('2a', 2), element('1a', 1)],
+    )
+    expect(coverage.outcome).toBe('literal')
+    expect(coverage.claimNo).toBe(1)
+    expect(coverage.literalElements).toEqual(['1a'])
+    expect(coverage.claims.map(claim => claim.claimNo)).toEqual([1, 2])
   })
 
   it('每个要素只在首个命中的分类中出现一次', () => {

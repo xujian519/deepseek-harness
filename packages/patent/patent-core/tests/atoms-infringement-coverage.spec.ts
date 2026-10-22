@@ -65,12 +65,22 @@ describe('coverage 原子', () => {
     const [coverage] = reportOf(out)
     expect(coverage).toEqual({
       targetId: '产品A',
-      elementCount: 2,
       outcome: 'literal',
+      claimNo: 1,
+      elementCount: 2,
       literalElements: ['1a', '1b'],
       constructionDependentElements: [],
       equivalenceCandidates: [],
       missingElements: [],
+      claims: [{
+        claimNo: 1,
+        elementCount: 2,
+        outcome: 'literal',
+        literalElements: ['1a', '1b'],
+        constructionDependentElements: [],
+        equivalenceCandidates: [],
+        missingElements: [],
+      }],
     })
     expect(conflictsOf(out)).toEqual([])
   })
@@ -127,6 +137,51 @@ describe('coverage 原子', () => {
   it('图表文档不是合法 JSON 时降级', async () => {
     const out = await run({ claim_chart_doc: 'not-json' })
     expect(String(out._error)).toContain('不是合法 JSON')
+  })
+
+  it('逐权项判定，整体结论取覆盖最佳的权项', async () => {
+    const elements: ClaimElement[] = [
+      { id: '1a', claimNo: 1, text: '一种换热装置', kind: 'preamble' },
+      { id: '2a', claimNo: 2, text: '所述换热管为蛇形管', kind: 'limitation' },
+    ]
+    const out = await run({
+      claim_chart_doc: JSON.stringify({
+        chartId: 'chart-infringement',
+        mode: 'infringement',
+        caseId: '',
+        elements,
+        claimNos: [1, 2],
+        targets: [{ id: '产品A', kind: 'accused-product' }],
+        rows: [row('1a', 'not-found'), row('2a', 'literal')],
+        gaps: [],
+        draftNotice: DRAFT_NOTICE,
+      }),
+    })
+    const [coverage] = reportOf(out)
+    expect(coverage?.outcome).toBe('literal')
+    expect(coverage?.claimNo).toBe(2)
+    expect(coverage?.missingElements).toEqual([])
+    expect(coverage?.claims.map(claim => [claim.claimNo, claim.outcome])).toEqual([
+      [1, 'not-covered'],
+      [2, 'literal'],
+    ])
+  })
+
+  it.each([
+    ['缺少 claimNo', { id: '1a' }],
+    ['claimNo 不是整数', { id: '1a', claimNo: 1.5 }],
+    ['claimNo 不为正', { id: '1a', claimNo: 0 }],
+  ])('要素%s时降级并指明下标', async (_label, element) => {
+    const out = await run({
+      claim_chart_doc: JSON.stringify({
+        mode: 'infringement',
+        elements: [element],
+        targets: [{ id: '产品A', kind: 'accused-product' }],
+        rows: [],
+      }),
+    })
+    expect(String(out._error)).toContain('[coverage]')
+    expect(String(out._error)).toContain('elements[0] 的 claimNo 非法')
   })
 
   it('非侵权模式与非被控产品目标都不做覆盖核验', async () => {
