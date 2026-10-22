@@ -103,6 +103,47 @@ describe('extractNumericFindings: 连接符前的单位（词表与 validate_spe
   })
 })
 
+describe('extractNumericFindings: 带符号数值与后缀单边表述', () => {
+  it('负值区间保留符号并归一上下界', () => {
+    const findings = extractNumericFindings('温度为-5至-10℃，厚度-1.5到-2.5mm')
+    expect(findings.map(f => ({ expression: f.expression, lower: f.lower, upper: f.upper, unit: f.unit }))).toEqual([
+      { expression: '-5至-10', lower: -10, upper: -5, unit: '°' },
+      { expression: '-1.5到-2.5', lower: -2.5, upper: -1.5, unit: 'mm' },
+    ])
+  })
+
+  it('Unicode 减号与全角减号按负号处理', () => {
+    const findings = extractNumericFindings('温度为−5℃、－10℃')
+    expect(findings.map(f => [f.expression, f.lower])).toEqual([['−5', -5], ['－10', -10]])
+  })
+
+  it('后缀式下界与上界', () => {
+    const findings = extractNumericFindings('温度为 70℃以上，湿度 80%以下，压力不大于 2MPa')
+    expect(findings.map(f => ({ expression: f.expression, lower: f.lower, upper: f.upper, unit: f.unit }))).toEqual([
+      { expression: '70℃以上', lower: 70, upper: Infinity, unit: '°' },
+      { expression: '80%以下', lower: -Infinity, upper: 80, unit: '%' },
+      { expression: '不大于 2', lower: -Infinity, upper: 2, unit: 'mpa' },
+    ])
+  })
+
+  it('方向词后的负数不被读成正数', () => {
+    const findings = extractNumericFindings('温度不低于-5℃')
+    expect(findings[0]).toMatchObject({ expression: '不低于-5', lower: -5, upper: Infinity, unit: '°' })
+  })
+
+  it('后缀未写单位 → 弱发现，不参与判定', () => {
+    const findings = extractNumericFindings('温度为 70 以上')
+    expect(findings).toEqual([
+      expect.objectContaining({ expression: '70 以上', lower: 70, upper: Infinity, unit: '', strong: false }),
+    ])
+  })
+
+  it('汉字单位后紧跟普通词时只取首字单位', () => {
+    const findings = extractNumericFindings('长度为 50 米的装置')
+    expect(findings[0]).toMatchObject({ expression: '50', unit: '米', strong: true })
+  })
+})
+
 describe('extractNumericRanges: 面向模型的片段清单', () => {
   it('只保留范围与单边表述，去重且按位置排序', () => {
     expect(extractNumericRanges('温度范围为 50-80°C，厚度至少 5mm，速度大于 10m/s，压力 ≤ 2MPa，重量 1.5-2.5kg'))
@@ -143,10 +184,14 @@ describe('analyzeNumericRanges: 区间重叠判定', () => {
     expect(analysis.summary).toContain('未发现数值范围重叠')
   })
 
-  it('单位不同不可比 → no_overlap 且不记录重叠对', () => {
+  it('量纲不同的单位不可比 → inconclusive 且记录不可比对', () => {
     const analysis = analyze('长度为 50-80mm', 'D1 公开温度为 50-80℃')
-    expect(analysis.verdict).toBe('no_overlap')
+    expect(analysis.verdict).toBe('inconclusive')
     expect(analysis.overlaps).toEqual([])
+    expect(analysis.incomparablePairs).toHaveLength(1)
+    expect(analysis.incomparablePairs[0]?.reason).toBe('dimension-mismatch')
+    expect(analysis.reason).toContain('单位量纲不同')
+    expect(analysis.summary).toContain('不可比 1 对')
   })
 
   it('单边表述按 ±Infinity 参与区间相交', () => {
@@ -172,6 +217,93 @@ describe('analyzeNumericRanges: 区间重叠判定', () => {
 
   it('inconclusive 的摘要说明无法判定', () => {
     expect(analyze('温度为 50-80', '').summary).toContain('未提取到足够的带单位数值表述，无法判定')
+  })
+})
+
+describe('analyzeNumericRanges: 带符号数值与单位换算', () => {
+  it('负值区间重叠 → overlapped', () => {
+    expect(analyze('温度为-5至-10℃', 'D1 公开温度为-8至-6℃').verdict).toBe('overlapped')
+  })
+
+  it('负值数值点落入对比文件范围 → inside_without_endpoint', () => {
+    expect(analyze('温度为-5℃', 'D1 公开温度为-10至-1℃').verdict).toBe('inside_without_endpoint')
+  })
+
+  it('跨零区间重叠 → overlapped', () => {
+    expect(analyze('温度为-5至5℃', 'D1 公开温度为-3至3℃').verdict).toBe('overlapped')
+  })
+
+  it('同量纲不同单位换算后比较', () => {
+    const analysis = analyze('加入量为 5-10mg', 'D1 公开加入量为 0.005-0.01g')
+    expect(analysis.verdict).toBe('overlapped')
+    expect(analysis.incomparablePairs).toEqual([])
+    expect(analysis.overlaps).toHaveLength(1)
+  })
+
+  it('中文单位与拉丁单位同量纲可比', () => {
+    expect(analyze('厚度 5-10毫米', 'D1 公开厚度 0.5-1cm').verdict).toBe('overlapped')
+  })
+
+  it('时间单位换算后比较', () => {
+    expect(analyze('加热 1-2h', 'D1 公开加热 60-90min').verdict).toBe('overlapped')
+  })
+
+  it('摄氏度与「度」按同一温标比较', () => {
+    expect(analyze('温度为 20℃', 'D1 公开温度为 20度').verdict).toBe('overlapped')
+  })
+
+  it('表外单位写法相同仍可比', () => {
+    expect(analyze('粘度为 5-10cps', 'D1 公开粘度为 8-12cps').verdict).toBe('overlapped')
+  })
+
+  it('表外单位写法不同 → inconclusive', () => {
+    const analysis = analyze('粘度为 5-10cps', 'D1 公开粘度为 5-10cp')
+    expect(analysis.verdict).toBe('inconclusive')
+    expect(analysis.incomparablePairs[0]?.reason).toBe('unknown-unit')
+    expect(analysis.summary).toContain('单位不在可比词表中')
+  })
+
+  it('存在破坏性重叠时不可比对不改变结论', () => {
+    const analysis = analyze(
+      '温度为 50-80℃，加入量 5-10mg',
+      'D1 公开温度为 60-90℃，加热时间 5-10s',
+    )
+    expect(analysis.verdict).toBe('overlapped')
+    expect(analysis.incomparablePairs).toHaveLength(3)
+    expect(analysis.reason).toContain('5-10')
+  })
+
+  it('无重叠但存在不可比对 → inconclusive', () => {
+    expect(analyze(
+      '温度为 50-80℃，加入量 5-10mg',
+      'D1 公开温度为 100-200℃，加热时间 5-10s',
+    ).verdict).toBe('inconclusive')
+  })
+
+  it('后缀下界与对比文件区间相交 → overlapped', () => {
+    expect(analyze('温度在 70℃以上', 'D1 公开温度为 100-200℃').verdict).toBe('overlapped')
+  })
+
+  it('后缀上界与对比文件区间不相交 → no_overlap', () => {
+    expect(analyze('温度在 80℃以下', 'D1 公开温度为 100-200℃').verdict).toBe('no_overlap')
+  })
+
+  it('全角百分号与半角百分号同单位', () => {
+    expect(analyze('湿度为 70％', 'D1 公开湿度为 50-90%').verdict).toBe('inside_without_endpoint')
+  })
+
+  it('换算后的共同端点受浮点误差容差保护', () => {
+    // 700 × 0.001 落在 0.7 的相邻 ulp 上，严格比较会把它误判为落在区间内部。
+    const analysis = analyze('加入量为 700mg', 'D1 公开加入量为 0.7-1g')
+    expect(analysis.verdict).toBe('overlapped')
+    expect(analysis.overlaps[0]?.kind).toBe('overlapped')
+  })
+
+  it('换算溢出为 Infinity 时不误报重叠', () => {
+    const huge = `1${'0'.repeat(308)}`
+    const analysis = analyze(`温度为 ${huge}km`, 'D1 公开温度为 100-200km')
+    expect(analysis.verdict).toBe('no_overlap')
+    expect(analysis.overlaps).toEqual([])
   })
 })
 
