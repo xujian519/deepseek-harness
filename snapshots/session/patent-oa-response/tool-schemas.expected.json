@@ -2992,7 +2992,7 @@
           },
           "priorArt": {
             "type": "string",
-            "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd) and a24Exception (A24.1–A24.4) when the entries reach its stage."
+            "description": "Existing prior-art evidence entries as a JSON array. citation-check grounds citations against these; prior-art-filter reads publicationDate (yyyy-MM-dd), a24Exception (A24.1–A24.4), and a24DisclosureSource (applicant|derived-from-applicant|unauthorized-disclosure) when the entries reach its stage, and measures the grace period from the earliest priorityDate."
           },
           "conflictingApplications": {
             "type": "string",

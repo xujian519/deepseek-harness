@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/patent-grace-period-priority/guide.md
+/:
+  en: 0d3c340774d1cbda
+  zh: 74d5590abdbf45ba
+/a24-grace-period-uses-the-priority-date-and-disclosure-source:
+  en: 4813f324c9c166f1
+  zh: 1d6f897ab6473d06
+/a24-grace-period-uses-the-priority-date-and-disclosure-source/change:
+  en: 6700e8225a5c7f77
+  zh: cd2151876cef4f5c
+/a24-grace-period-uses-the-priority-date-and-disclosure-source/migration:
+  en: e7ded521a8e3af28
+  zh: 8bc98eaf27fbd3ba
