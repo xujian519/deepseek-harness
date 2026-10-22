@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.2/citation-analysis-topics-removed/guide.md
+/:
+  en: 810c773114baa5ed
+  zh: 751684de81fa007d
+/citation-analysis-rules-reject-the-removed-topics-field:
+  en: 43145e43b7f0a2fe
+  zh: a46bb01c0316a733
+/citation-analysis-rules-reject-the-removed-topics-field/change:
+  en: 2e1077a084392917
+  zh: 6865012b34287228
+/citation-analysis-rules-reject-the-removed-topics-field/migration:
+  en: 6e7a3b137d0ed0a5
+  zh: 35c701436a67930a

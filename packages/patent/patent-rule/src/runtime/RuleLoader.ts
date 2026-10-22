@@ -94,12 +94,6 @@ export function hasUsableKeywordEntry(list: readonly string[]): boolean {
   return list.some(entry => entry.split('|').some(word => word.trim().length > 0))
 }
 
-function isRecordOfStrings(value: unknown): value is Record<string, string[]> {
-  const record = asRecord(value)
-  if (record === null) return false
-  return Object.values(record).every(v => asStringArray(v) !== null)
-}
-
 /**
  * 校验正则列表（语法 + 灾难性回溯启发式），非法时收集问题并返回 false。
  * 供 pattern_analysis / structural_analysis / premise 共用，保证 ReDoS 防护一致。
@@ -344,32 +338,23 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
         issues.push({ ruleId, message: `rule ${ruleId}: citation_analysis 需要非空 statutes` })
         return null
       }
-      const parsed: Record<string, { max: number; topics?: Record<number, string[]> }> = {}
+      const parsed: Record<string, { max: number }> = {}
       for (const [name, value] of Object.entries(statutes)) {
         const def = asRecord(value)
         if (def === null || typeof def.max !== 'number') {
           issues.push({ ruleId, message: `rule ${ruleId}: 法条 "${name}" 需要 max 数字` })
           return null
         }
-        const topics = def.topics
-        if (topics !== undefined) {
+        // topics（主题相关性）没有执行实现。忽略该字段会让作者以为它在判定，
+        // 故整条规则不加载。
+        if (def.topics !== undefined) {
           issues.push({
             ruleId,
-            message: `rule ${ruleId}: citation_analysis.topics（R2 主题相关性）尚未实现，该字段不影响判定`,
+            message: `rule ${ruleId}: 法条 "${name}" 的 topics 不受支持（没有主题相关性判定），删除该字段后该规则才会加载`,
           })
-          if (!isRecordOfStrings(topics)) {
-            issues.push({ ruleId, message: `rule ${ruleId}: 法条 "${name}" topics 需为 条号→词数组` })
-            return null
-          }
-          const topicMap: Record<number, string[]> = {}
-          for (const [article, words] of Object.entries(topics)) {
-            const n = Number(article)
-            if (Number.isFinite(n)) topicMap[n] = words
-          }
-          parsed[name] = { max: def.max, topics: topicMap }
-        } else {
-          parsed[name] = { max: def.max }
+          return null
         }
+        parsed[name] = { max: def.max }
       }
       return { type, statutes: parsed }
     }

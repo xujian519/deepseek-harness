@@ -93,13 +93,13 @@ export type StructuralAnalysisCheck = {
 }
 
 /**
- * citation_analysis — 法条引用核验。
- * R1 存在性：引用条号不得超过 statute.max。
+ * citation_analysis — 法条引用范围核验：引用条号不得超过 statute.max。
+ * 没有主题相关性判定；声明 `topics` 的规则会在加载期被拒绝。
  */
 export type CitationAnalysisCheck = {
   type: 'citation_analysis'
-  /** 法条名 → 上限与可选主题词表（R2 主题相关性由消费方扩展）。 */
-  statutes: Record<string, { max: number; topics?: Record<number, string[]> }>
+  /** 法条名 → 该法有效的最大条号。 */
+  statutes: Record<string, { max: number }>
 }
 
 /**
