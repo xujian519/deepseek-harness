@@ -7,6 +7,7 @@ import {
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AgentPresetSectionState } from './section-store.ts'
+import { seatRefusalText } from './seat-store.ts'
 import { isBuiltInPreset, presetDisplayText } from './locales.ts'
 import { requiresCodingTools } from './settings-store.ts'
 import { PresetGuideDialog, presetGuide, trapPresetReaderTab, type PresetGuidePage } from './PresetGuideDialog.tsx'
@@ -101,7 +102,11 @@ export function AgentPresetSection({
   return <section className={css.section}>
     <h2 className={css.title}>{t('nav')}</h2>
     <p className={css.intro}>{t('sectionIntro')}</p>
-    {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
+    {/* A refused blank-session switch arrives as a seat marker; every other
+        error is already report text and shows verbatim. */}
+    {state.error === null ? null : (
+      <p className={css.error} role="alert">{seatRefusalText(state.error, t) ?? state.error}</p>
+    )}
     {([true, false] as const).map((builtIn) => {
       const rows = state.rows.filter(row => isBuiltInPreset(row) === builtIn
         && (developerTools || !requiresCodingTools(row)))

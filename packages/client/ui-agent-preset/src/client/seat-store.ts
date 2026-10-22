@@ -13,8 +13,9 @@
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-// Type-only: pulls the ctx.remote merge into this program.
-import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// Type-only: pulls the ctx.remote merge into this program, and the refusal
+// codes the seat reports as markers.
+import type { RemoteErrorCode } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
@@ -44,6 +45,39 @@ export interface AgentPresetSeatState {
  * the locale line instead of the raw marker.
  */
 export const SEAT_PRESET_LOCKED = 'session-already-started'
+
+/**
+ * Semantic marker for a pick the Host refused because another flow owns the
+ * Session's Agent. Surfaces translate it like {@link SEAT_PRESET_LOCKED}.
+ */
+export const SEAT_SESSION_BUSY = 'session-agent-busy'
+
+/**
+ * The Host refusals whose answer carries no `reason` field, or carries one in
+ * Host vocabulary rather than user vocabulary: the seat reports them as these
+ * markers and the surfaces translate them, so the Host's English message never
+ * lands inside localized copy.
+ */
+const SEAT_REFUSALS: Partial<Record<RemoteErrorCode, string>> = {
+  'agent-preset/locked': SEAT_PRESET_LOCKED,
+  'session/agent-busy': SEAT_SESSION_BUSY,
+}
+
+/**
+ * The refusal line for a seat error, or null when the text is not a marker this
+ * vocabulary owns.
+ * @param error - a seat error string or a refusal's reason.
+ * @param t - the `settings.agentPreset` binder.
+ * @returns the localized line, or null to show `error` verbatim.
+ */
+export function seatRefusalText(
+  error: string,
+  t: (key: 'seatLocked' | 'seatAgentBusy') => string,
+): string | null {
+  if (error === SEAT_PRESET_LOCKED) return t('seatLocked')
+  if (error === SEAT_SESSION_BUSY) return t('seatAgentBusy')
+  return null
+}
 
 const INITIAL: AgentPresetSeatState = {
   options: [], current: '', error: null, busy: false, introduce: false,
@@ -237,10 +271,14 @@ export class AgentPresetSeatController {
     const completion = Promise.withResolvers<undefined>()
     this.pendingSelection = completion.promise
     this.clearStage()
+    // The stage is already consumed, so a refusal settles the label back onto
+    // the composition the Session actually runs (or the deployment default):
+    // an empty choice hides the chip and leaves no way to pick again.
+    const revertTo = presetOf(session) ?? this.fallback
     const refuse = (reason: string) => {
       this.set({
         error: { reason, preset: this.store.getSnapshot().options.find(option => option.id === staged) ?? { id: staged } },
-        current: this.staged.id ?? presetOf(session) ?? '',
+        current: this.staged.id ?? revertTo,
       })
       return reason
     }
@@ -249,6 +287,12 @@ export class AgentPresetSeatController {
       const result = await this.ctx.remote.agentPresets.select(session.id, staged)
       if (!result.ok) {
         const { error } = result
+        // The Host owns the started-or-not decision and answers on its own turn
+        // boundary, which can already be ahead of this browser's cached list
+        // row. A refusal the seat already models as a marker reports that marker
+        // rather than the Host's English text, so the Toast stays localized.
+        const marker = SEAT_REFUSALS[error.code]
+        if (marker !== undefined) return refuse(marker)
         // Prefer the bare cause; the Toast already names the rejected preset.
         const refusal = 'reason' in error.details && typeof error.details.reason === 'string'
           ? error.details.reason
