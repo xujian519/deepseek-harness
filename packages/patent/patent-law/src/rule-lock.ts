@@ -59,7 +59,7 @@ export type RuleLockOutput = {
 export const ruleLockAtom: Atom = {
   name: 'rule-lock',
   description: '法条规则锁定：逐条判定四态有效性（active/revised/repealed/unverified），输出结构化锁定报告（纯函数，不调用模型）',
-  category: 'gate' as AtomCategory,
+  category: 'gate',
   inputSchema: ['rule_lock_provisions', 'rule_lock_as_of'],
   outputSchema: ['rule_lock_report', 'rule_lock_locked', 'rule_lock_unverified'],
 }
@@ -91,9 +91,9 @@ function inferLevel(result: ValidityResult): RuleLockLevel {
  * @returns 生效日期字符串或 null。
  */
 function extractEffectiveDate(result: ValidityResult): string | null {
-  if (result.entry !== undefined && result.entry !== null) {
+  if (result.entry !== undefined) {
     const verifiedOn = 'verifiedOn' in result.entry ? result.entry.verifiedOn : null
-    if (verifiedOn !== null && verifiedOn !== undefined) return verifiedOn
+    if (verifiedOn !== null) return verifiedOn
   }
   if (result.revisionHistory !== undefined && result.revisionHistory.length > 0) {
     return result.revisionHistory[result.revisionHistory.length - 1]?.effectiveDate ?? null
@@ -211,7 +211,7 @@ function validityLabel(state: ValidityState): string {
 function readJsonProvisions(raw: string): unknown[] | null {
   if (raw.trim() === '') return []
   try {
-    const parsed = JSON.parse(raw)
+    const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed : null
   } catch {
     return null
@@ -238,6 +238,7 @@ export class RuleLockHandler implements StageHandler {
    * @param input - 阶段执行输入（state 携带法条列表与可选时间点）。
    * @returns 报告、结构化锁定结果与未判定列表。
    */
+  // oxlint-disable-next-line typescript/require-await -- StageHandler contract requires async execute
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const state = input.state
     const rawValue = state[DEFAULT_RULE_LOCK_PROVISIONS_KEY]

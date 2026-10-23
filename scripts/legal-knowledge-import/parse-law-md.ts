@@ -304,7 +304,7 @@ function parseBody(body: string): { chapters: Chapter[]; articles: Article[] } {
 export function parseFilename(filePath: string): { stem: string; date: string } {
   const name = basename(filePath, extname(filePath))
   const dateMatch = /\((\d{4}-\d{2}-\d{2})\)$/.exec(name)
-  if (dateMatch && dateMatch.index !== undefined) {
+  if (dateMatch) {
     return { stem: name.slice(0, dateMatch.index), date: dateMatch[1] ?? '' }
   }
   return { stem: name, date: '' }

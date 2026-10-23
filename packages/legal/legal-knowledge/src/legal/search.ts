@@ -16,6 +16,7 @@
 
 import { type DatabaseSync } from 'node:sqlite'
 import { searchInMemory, filterRecords } from '../shared/memory-store.ts'
+import { columnText } from '../shared/row-text.ts'
 import { isVisible, resolveAsOf, resolveValidity } from '../shared/validity.ts'
 import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
 import { runFtsSearch } from '../shared/fts-search.ts'
@@ -288,23 +289,23 @@ export class LegalRegulationSearchEngine {
 
   private rowToHit(row: Record<string, unknown>, via: LegalRegulationHit['via']): LegalRegulationHit {
     const base: LegalRegulationHit = {
-      regulationId: String(row.regulation_id ?? row.regulationId ?? ''),
-      regulationName: String(row.regulation_name ?? row.regulationName ?? ''),
+      regulationId: columnText(row.regulation_id ?? row.regulationId),
+      regulationName: columnText(row.regulation_name ?? row.regulationName),
       level: (row.level ?? '其他') as LegalRegulationHit['level'],
-      effectiveDate: String(row.effective_date ?? row.effectiveDate ?? ''),
+      effectiveDate: columnText(row.effective_date ?? row.effectiveDate),
       validity: 'unverified' as const, // Will be resolved by filterByValidity.
       articleNumber: typeof row.article_number === 'number' ? row.article_number : Number(row.articleNumber ?? 0),
-      articleText: String(row.article_text ?? row.articleText ?? ''),
+      articleText: columnText(row.article_text ?? row.articleText),
       relevanceScore: typeof row.fts_rank === 'number' ? row.fts_rank : 0,
       via,
     }
     const publishDateVal = row.publish_date ?? row.publishDate
-    if (publishDateVal != null) base.publishDate = String(publishDateVal)
+    if (publishDateVal != null) base.publishDate = columnText(publishDateVal)
     const expiryDateVal = row.expiry_date ?? row.expiryDate
-    if (expiryDateVal != null) base.expiryDate = String(expiryDateVal)
+    if (expiryDateVal != null) base.expiryDate = columnText(expiryDateVal)
     if (typeof row.expired === 'number') base.expired = row.expired
     const sourcePathVal = row.source_path ?? row.sourcePath
-    if (sourcePathVal != null) base.sourcePath = String(sourcePathVal)
+    if (sourcePathVal != null) base.sourcePath = columnText(sourcePathVal)
     return base
   }
 
@@ -349,21 +350,21 @@ export class LegalRegulationSearchEngine {
 
   private rowToRecord(row: Record<string, unknown>): LegalRegulationRecord {
     const base: LegalRegulationRecord = {
-      regulationId: String(row.regulation_id ?? row.regulationId ?? ''),
-      regulationName: String(row.regulation_name ?? row.regulationName ?? ''),
+      regulationId: columnText(row.regulation_id ?? row.regulationId),
+      regulationName: columnText(row.regulation_name ?? row.regulationName),
       level: (row.level ?? '其他') as LegalRegulationRecord['level'],
-      effectiveDate: String(row.effective_date ?? row.effectiveDate ?? ''),
+      effectiveDate: columnText(row.effective_date ?? row.effectiveDate),
       validity: 'unverified' as const,
       articleNumber: typeof row.article_number === 'number' ? row.article_number : Number(row.articleNumber ?? 0),
-      articleText: String(row.article_text ?? row.articleText ?? ''),
+      articleText: columnText(row.article_text ?? row.articleText),
     }
     const publishDateVal = row.publish_date ?? row.publishDate
-    if (publishDateVal != null) base.publishDate = String(publishDateVal)
+    if (publishDateVal != null) base.publishDate = columnText(publishDateVal)
     const expiryDateVal = row.expiry_date ?? row.expiryDate
-    if (expiryDateVal != null) base.expiryDate = String(expiryDateVal)
+    if (expiryDateVal != null) base.expiryDate = columnText(expiryDateVal)
     if (typeof row.expired === 'number') base.expired = row.expired
     const sourcePathVal = row.source_path ?? row.sourcePath
-    if (sourcePathVal != null) base.sourcePath = String(sourcePathVal)
+    if (sourcePathVal != null) base.sourcePath = columnText(sourcePathVal)
     return base
   }
 

@@ -16,6 +16,7 @@
 
 import { type DatabaseSync } from 'node:sqlite'
 import { searchInMemory, filterRecords } from '../shared/memory-store.ts'
+import { columnText } from '../shared/row-text.ts'
 import { isVisible, resolveAsOf, resolveValidity } from '../shared/validity.ts'
 import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
 import { runFtsSearch } from '../shared/fts-search.ts'
@@ -324,25 +325,25 @@ export class JudicialInterpretationSearch {
 
   private rowToHit(row: Record<string, unknown>, via: JudicialInterpretationHit['via']): JudicialInterpretationHit {
     const base: JudicialInterpretationHit = {
-      interpretationId: String(row.interpretation_id ?? row.interpretationId ?? ''),
-      interpretationName: String(row.interpretation_name ?? row.interpretationName ?? ''),
+      interpretationId: columnText(row.interpretation_id ?? row.interpretationId),
+      interpretationName: columnText(row.interpretation_name ?? row.interpretationName),
       interpretationType: (row.interpretation_type ?? row.interpretationType ?? 'judicial-interpretation') as JudicialInterpretationHit['interpretationType'],
-      issuingBody: String(row.issuing_body ?? row.issuingBody ?? ''),
-      documentNumber: String(row.document_number ?? row.documentNumber ?? ''),
-      effectiveDate: String(row.effective_date ?? row.effectiveDate ?? ''),
+      issuingBody: columnText(row.issuing_body ?? row.issuingBody),
+      documentNumber: columnText(row.document_number ?? row.documentNumber),
+      effectiveDate: columnText(row.effective_date ?? row.effectiveDate),
       validity: 'unverified' as const,
       articleNumber: typeof row.article_number === 'number' ? row.article_number : Number(row.articleNumber ?? 0),
-      articleText: String(row.article_text ?? row.articleText ?? ''),
+      articleText: columnText(row.article_text ?? row.articleText),
       relevanceScore: typeof row.fts_rank === 'number' ? row.fts_rank : 0,
       via,
     }
     const publishDateVal = row.publish_date ?? row.publishDate
-    if (publishDateVal != null) base.publishDate = String(publishDateVal)
+    if (publishDateVal != null) base.publishDate = columnText(publishDateVal)
     const expiryDateVal = row.expiry_date ?? row.expiryDate
-    if (expiryDateVal != null) base.expiryDate = String(expiryDateVal)
+    if (expiryDateVal != null) base.expiryDate = columnText(expiryDateVal)
     if (typeof row.expired === 'number') base.expired = row.expired
     const sourcePathVal = row.source_path ?? row.sourcePath
-    if (sourcePathVal != null) base.sourcePath = String(sourcePathVal)
+    if (sourcePathVal != null) base.sourcePath = columnText(sourcePathVal)
     return base
   }
 
@@ -367,23 +368,23 @@ export class JudicialInterpretationSearch {
 
   private rowToRecord(row: Record<string, unknown>): JudicialInterpretationRecord {
     const base: JudicialInterpretationRecord = {
-      interpretationId: String(row.interpretation_id ?? row.interpretationId ?? ''),
-      interpretationName: String(row.interpretation_name ?? row.interpretationName ?? ''),
+      interpretationId: columnText(row.interpretation_id ?? row.interpretationId),
+      interpretationName: columnText(row.interpretation_name ?? row.interpretationName),
       interpretationType: (row.interpretation_type ?? row.interpretationType ?? 'judicial-interpretation') as JudicialInterpretationRecord['interpretationType'],
-      issuingBody: String(row.issuing_body ?? row.issuingBody ?? ''),
-      documentNumber: String(row.document_number ?? row.documentNumber ?? ''),
-      effectiveDate: String(row.effective_date ?? row.effectiveDate ?? ''),
+      issuingBody: columnText(row.issuing_body ?? row.issuingBody),
+      documentNumber: columnText(row.document_number ?? row.documentNumber),
+      effectiveDate: columnText(row.effective_date ?? row.effectiveDate),
       validity: 'unverified' as const,
       articleNumber: typeof row.article_number === 'number' ? row.article_number : Number(row.articleNumber ?? 0),
-      articleText: String(row.article_text ?? row.articleText ?? ''),
+      articleText: columnText(row.article_text ?? row.articleText),
     }
     const publishDateVal = row.publish_date ?? row.publishDate
-    if (publishDateVal != null) base.publishDate = String(publishDateVal)
+    if (publishDateVal != null) base.publishDate = columnText(publishDateVal)
     const expiryDateVal = row.expiry_date ?? row.expiryDate
-    if (expiryDateVal != null) base.expiryDate = String(expiryDateVal)
+    if (expiryDateVal != null) base.expiryDate = columnText(expiryDateVal)
     if (typeof row.expired === 'number') base.expired = row.expired
     const sourcePathVal = row.source_path ?? row.sourcePath
-    if (sourcePathVal != null) base.sourcePath = String(sourcePathVal)
+    if (sourcePathVal != null) base.sourcePath = columnText(sourcePathVal)
     return base
   }
 
@@ -423,15 +424,15 @@ export class JudicialInterpretationSearch {
 
   private rowToGuidingCaseHit(row: Record<string, unknown>, via: GuidingCaseHit['via']): GuidingCaseHit {
     return {
-      caseId: String(row.case_id ?? row.caseId ?? ''),
-      guidingCaseNumber: String(row.guiding_case_number ?? row.guidingCaseNumber ?? ''),
-      caseName: String(row.case_name ?? row.caseName ?? ''),
-      court: String(row.court ?? ''),
-      decisionDate: String(row.decision_date ?? row.decisionDate ?? ''),
-      caseType: String(row.case_type ?? row.caseType ?? ''),
-      keyPoints: String(row.key_points ?? row.keyPoints ?? ''),
+      caseId: columnText(row.case_id ?? row.caseId),
+      guidingCaseNumber: columnText(row.guiding_case_number ?? row.guidingCaseNumber),
+      caseName: columnText(row.case_name ?? row.caseName),
+      court: columnText(row.court),
+      decisionDate: columnText(row.decision_date ?? row.decisionDate),
+      caseType: columnText(row.case_type ?? row.caseType),
+      keyPoints: columnText(row.key_points ?? row.keyPoints),
       relatedLaws: this.parseRelatedLaws(row.related_laws ?? row.relatedLaws),
-      fullText: String(row.full_text ?? row.fullText ?? ''),
+      fullText: columnText(row.full_text ?? row.fullText),
       relevanceScore: 0,
       via,
     }
@@ -439,15 +440,15 @@ export class JudicialInterpretationSearch {
 
   private rowToGuidingCaseRecord(row: Record<string, unknown>): GuidingCaseRecord {
     return {
-      caseId: String(row.case_id ?? row.caseId ?? ''),
-      guidingCaseNumber: String(row.guiding_case_number ?? row.guidingCaseNumber ?? ''),
-      caseName: String(row.case_name ?? row.caseName ?? ''),
-      court: String(row.court ?? ''),
-      decisionDate: String(row.decision_date ?? row.decisionDate ?? ''),
-      caseType: String(row.case_type ?? row.caseType ?? ''),
-      keyPoints: String(row.key_points ?? row.keyPoints ?? ''),
+      caseId: columnText(row.case_id ?? row.caseId),
+      guidingCaseNumber: columnText(row.guiding_case_number ?? row.guidingCaseNumber),
+      caseName: columnText(row.case_name ?? row.caseName),
+      court: columnText(row.court),
+      decisionDate: columnText(row.decision_date ?? row.decisionDate),
+      caseType: columnText(row.case_type ?? row.caseType),
+      keyPoints: columnText(row.key_points ?? row.keyPoints),
       relatedLaws: this.parseRelatedLaws(row.related_laws ?? row.relatedLaws),
-      fullText: String(row.full_text ?? row.fullText ?? ''),
+      fullText: columnText(row.full_text ?? row.fullText),
     }
   }
 
@@ -455,7 +456,7 @@ export class JudicialInterpretationSearch {
     if (Array.isArray(value)) return value.map(String)
     if (typeof value === 'string') {
       try {
-        const parsed = JSON.parse(value)
+        const parsed: unknown = JSON.parse(value)
         if (Array.isArray(parsed)) return parsed.map(String)
       } catch {
         return value.split(',').map(s => s.trim()).filter(Boolean)

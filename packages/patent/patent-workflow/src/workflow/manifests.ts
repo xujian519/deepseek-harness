@@ -516,7 +516,7 @@ export const patentOaResponseManifest: WorkflowManifest = {
       id: 'response_check',
       strategy: 'chain',
       description: '答复合规检查（PR-OA-007/008/009：26.3 判准落位、驳回理由覆盖、未提条款引用）',
-      consumes: ['adversary-review'],
+      atom: 'response-check',
     },
     {
       id: 'amendment_basis',

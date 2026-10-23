@@ -78,6 +78,7 @@ function dropFtsTables(db: DatabaseSync): string[] {
  * @param options - input/output paths, trimming toggles, and a log sink.
  * @returns the install summary (paths and sizes).
  */
+// oxlint-disable-next-line typescript/require-await -- public install API keeps an async signature; node:sqlite work is synchronous
 export async function installLegalKnowledgeDb(options: InstallLegalKnowledgeOptions = {}): Promise<InstallResult> {
   const log = options.log ?? console.log
   const knowledgeDir = options.knowledgeDir ?? DEFAULT_LEGAL_KNOWLEDGE_DIR

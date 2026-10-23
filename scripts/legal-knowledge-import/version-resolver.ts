@@ -35,8 +35,8 @@ export function deduplicateVersions(laws: ParsedLaw[]): ParsedLaw[] {
   for (const [, group] of groups) {
     // Sort by adoptDate descending; empty dates sort last.
     group.sort((a, b) => {
-      const da = a.adoptDate ?? ''
-      const db = b.adoptDate ?? ''
+      const da = a.adoptDate
+      const db = b.adoptDate
       if (da === db) return 0
       return da > db ? -1 : 1
     })

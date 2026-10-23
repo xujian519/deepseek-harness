@@ -44,10 +44,10 @@ export function parseAdversaryOutput(raw: string): AdversaryModelOutput | null {
 
   const disputes = toValidDisputes(rawDisputes)
   const overallAssessment = typeof parsed['overall_assessment'] === 'string'
-    ? (parsed['overall_assessment'] as string)
+    ? parsed['overall_assessment']
     : ''
   const divergenceReason = typeof parsed['divergence_reason'] === 'string'
-    ? (parsed['divergence_reason'] as string)
+    ? parsed['divergence_reason']
     : ''
 
   return { disputes, overallAssessment, divergenceReason }

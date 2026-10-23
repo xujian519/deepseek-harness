@@ -40,6 +40,7 @@ describe('内置 manifest 的跨包原子归属', () => {
       'draft-specification',
       'eligibility',
       'legal-gaps',
+      'response-check',
       'slop-gate',
       'spec-check',
     ])
@@ -112,8 +113,8 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
 
   it('默认预算（24/12）下全部内置 manifest 通过，模型阶段数不因确定性定位增加', () => {
     registerBuiltinAtoms()
-    // patent-tools 的五个原子在预算统计里只需契约（usesModel 标记），此处注册同名 stub。
-    for (const name of ['draft-specification', 'eligibility', 'legal-gaps', 'slop-gate', 'spec-check']) {
+    // patent-tools 的六个原子在预算统计里只需契约（usesModel 标记），此处注册同名 stub。
+    for (const name of ['draft-specification', 'eligibility', 'legal-gaps', 'response-check', 'slop-gate', 'spec-check']) {
       globalAtomRegistry.register({ name, category: 'gate', description: 'test stub', inputSchema: [], outputSchema: [] })
     }
     const expectedLlmStages: Record<string, number> = {
@@ -445,10 +446,10 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
     )
   })
 
-  it('OA 答复：response-check 接在 adversary-review 之后、approval 之前，消费换位审查产出', () => {
+  it('OA 答复：response-check 接在 adversary-review 之后、approval 之前，确定性原子不消费换位审查产出', () => {
     const check = stageOf('patent_oa_response_v1', 'response_check')
-    expect(check?.atom).toBeUndefined()
-    expect(check?.consumes).toEqual(['adversary-review'])
+    expect(check?.atom).toBe('response-check')
+    expect(check?.consumes).toBeUndefined()
     expect(indexOf('patent_oa_response_v1', 'adversary-review')).toBeLessThan(
       indexOf('patent_oa_response_v1', 'response_check'),
     )

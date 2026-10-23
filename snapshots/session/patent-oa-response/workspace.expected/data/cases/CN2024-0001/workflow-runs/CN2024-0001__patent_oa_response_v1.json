@@ -44,11 +44,27 @@
       "atom": "response-plan"
     },
     {
+      "stageId": "adversary-model",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "adversary-model"
+    },
+    {
       "stageId": "draft",
       "strategy": "chain",
       "output": "答复策略为以对比文件2技术目的不同、缺乏结合动机为主线论证创造性，并将权利要求3中的含糊限定改为明确的结构特征以克服不清楚缺陷。",
       "degraded": false,
       "retries": 0
+    },
+    {
+      "stageId": "adversary-review",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "adversary-review"
     },
     {
       "stageId": "response_check",
@@ -85,7 +101,9 @@
   ],
   "degradedSteps": [
     "dispute-framing",
-    "dispute-framing-refine"
+    "dispute-framing-refine",
+    "adversary-model",
+    "adversary-review"
   ],
-  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 8/10 阶段完成，降级阶段: dispute-framing、dispute-framing-refine"
+  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 8/12 阶段完成，降级阶段: dispute-framing、dispute-framing-refine、adversary-model、adversary-review"
 }

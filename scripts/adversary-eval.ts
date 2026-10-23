@@ -502,7 +502,7 @@ const entry = process.argv[1]
 if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
   main(process.argv.slice(2)).then(
     (code) => { process.exitCode = code },
-    (error) => {
+    (error: unknown) => {
       console.error(error)
       process.exitCode = 1
     },

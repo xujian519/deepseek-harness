@@ -106,7 +106,7 @@ function readOfficeAction(state: PipelineState): AdversaryReviewOfficeAction | u
   if (parsed === undefined || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     return undefined
   }
-  return parsed as AdversaryReviewOfficeAction
+  return parsed
 }
 
 /**
@@ -153,11 +153,12 @@ export class AdversaryReviewHandler implements StageHandler {
    * @param input - 阶段执行输入（final_draft、reference_documents、claims、office_action）。
    * @returns 换位审查报告、争议点列表与整体置信度。
    */
+  // oxlint-disable-next-line typescript/require-await -- StageHandler contract requires async execute
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const state = input.state
 
     // 运行时隔离检查：fail-closed，检测到禁止键时立即返回降级标记
-    const stateKeys = Object.keys(state ?? {})
+    const stateKeys = Object.keys(state)
     const isolationResult = checkAdversaryReviewIsolation(stateKeys)
     if (!isolationResult.clean) {
       return {

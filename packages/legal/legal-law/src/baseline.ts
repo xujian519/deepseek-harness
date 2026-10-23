@@ -99,7 +99,6 @@ export function parseLegalLawBaseline(source: string, origin: string): LegalLawB
   const fail: AssetFail = message => new LegalLawBaselineError(message, origin)
   const root = parseYamlMapping(source, '法条索引', fail)
   const law = readString(root, 'law', fail)
-  if (!isLegalLawName(law)) throw fail(`未知的法律名称：${law}`)
   const document = readString(root, 'document', fail)
   const revision = readOptionalString(root, 'revision', fail)
   const maxArticle = readOptionalCount(root, 'maxArticle', fail)
@@ -128,11 +127,6 @@ export function parseLegalLawBaseline(source: string, origin: string): LegalLawB
  */
 export function findLegalArticle(baseline: LegalLawBaseline, article: number): LegalArticleEntry | undefined {
   return baseline.articles.find(entry => entry.article === article)
-}
-
-/** True when a string is a non-empty law name. */
-function isLegalLawName(value: string): value is LegalLawName {
-  return value.trim().length > 0
 }
 
 /** Read the topics of one indexed entry. */

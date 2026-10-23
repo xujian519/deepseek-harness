@@ -492,6 +492,7 @@ function deduplicateLaws(laws: ParsedLaw[]): Map<string, ParsedLaw> {
  * @param outputDir - directory to write `.yaml` index files into.
  * @returns a summary of the batch run.
  */
+// oxlint-disable-next-line typescript/require-await -- batch entry keeps an async signature for callers; the generator is synchronous
 export async function batchGenerate(
   inputDir: string,
   outputDir: string,
@@ -579,7 +580,7 @@ const isDirectRun = process.argv[1] && (
   process.argv[1].endsWith('generate-law-yaml')
 )
 if (isDirectRun) {
-  main().catch((error) => {
+  main().catch((error: unknown) => {
     console.error(error)
     process.exit(1)
   })

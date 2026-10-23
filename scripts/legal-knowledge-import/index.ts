@@ -65,9 +65,10 @@ Options:
   return defaults
 }
 
+// oxlint-disable-next-line typescript/require-await -- the CLI entry returns a Promise so the top-level catch reports failures
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2))
-  const log = opts.verbose ? (msg: string) => console.log(msg) : () => {}
+  const log = opts.verbose ? (msg: string) => { console.log(msg) } : () => {}
 
   console.log('=== 法律法规数据导入工具 ===')
   console.log(`数据源: ${opts.inputDir}`)
@@ -108,7 +109,7 @@ async function main(): Promise<void> {
   console.log(`数据库: ${opts.outputPath}`)
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   console.error('导入失败:', err)
   process.exit(1)
 })

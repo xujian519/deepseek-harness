@@ -250,7 +250,7 @@ function countDecisions(findings: LegalLawVerifyFinding[]): Record<LegalCitation
 function findingLabel(finding: LegalLawVerifyFinding): string {
   return formatLegalLawReference({
     kind: 'law-article',
-    law: finding.law as LegalLawName,
+    law: finding.law,
     article: finding.article,
     ...(finding.paragraph === undefined ? {} : { paragraph: finding.paragraph }),
     ...(finding.item === undefined ? {} : { item: finding.item }),

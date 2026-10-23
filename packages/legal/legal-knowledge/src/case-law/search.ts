@@ -16,6 +16,7 @@
 
 import { type DatabaseSync } from 'node:sqlite'
 import { searchInMemory, filterRecords } from '../shared/memory-store.ts'
+import { columnText } from '../shared/row-text.ts'
 import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
 import { runFtsSearch } from '../shared/fts-search.ts'
 import type { CaseLawHit, CaseLawRecord, CaseLawSearchOptions } from '../types.ts'
@@ -247,19 +248,19 @@ export class CaseLawSearchEngine {
 
   private rowToHit(row: Record<string, unknown>, via: CaseLawHit['via']): CaseLawHit {
     const base: CaseLawHit = {
-      caseId: String(row.case_id ?? row.caseId ?? ''),
+      caseId: columnText(row.case_id ?? row.caseId),
       docType: (row.doc_type ?? row.docType ?? 'judgment') as CaseLawHit['docType'],
-      caseName: String(row.case_name ?? row.caseName ?? ''),
-      court: String(row.court ?? ''),
-      decisionDate: String(row.decision_date ?? row.decisionDate ?? ''),
-      caseNumber: String(row.case_number ?? row.caseNumber ?? ''),
-      caseType: String(row.case_type ?? row.caseType ?? ''),
-      fullText: String(row.full_text ?? row.fullText ?? ''),
+      caseName: columnText(row.case_name ?? row.caseName),
+      court: columnText(row.court),
+      decisionDate: columnText(row.decision_date ?? row.decisionDate),
+      caseNumber: columnText(row.case_number ?? row.caseNumber),
+      caseType: columnText(row.case_type ?? row.caseType),
+      fullText: columnText(row.full_text ?? row.fullText),
       relevanceScore: typeof row.fts_rank === 'number' ? row.fts_rank : 0,
       via,
     }
     const summaryVal = row.summary
-    if (summaryVal != null) base.summary = String(summaryVal)
+    if (summaryVal != null) base.summary = columnText(summaryVal)
     return base
   }
 
@@ -271,17 +272,17 @@ export class CaseLawSearchEngine {
       ).get(caseId) as Record<string, unknown> | undefined
       if (!row) return undefined
       const base: CaseLawRecord = {
-        caseId: String(row.case_id ?? ''),
+        caseId: columnText(row.case_id),
         docType: (row.doc_type ?? 'judgment') as CaseLawRecord['docType'],
-        caseName: String(row.case_name ?? ''),
-        court: String(row.court ?? ''),
-        decisionDate: String(row.decision_date ?? ''),
-        caseNumber: String(row.case_number ?? ''),
-        caseType: String(row.case_type ?? ''),
-        fullText: String(row.full_text ?? ''),
+        caseName: columnText(row.case_name),
+        court: columnText(row.court),
+        decisionDate: columnText(row.decision_date),
+        caseNumber: columnText(row.case_number),
+        caseType: columnText(row.case_type),
+        fullText: columnText(row.full_text),
       }
       const summaryVal = row.summary
-      if (summaryVal != null) base.summary = String(summaryVal)
+      if (summaryVal != null) base.summary = columnText(summaryVal)
       return base
     } catch {
       return undefined

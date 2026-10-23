@@ -86,7 +86,7 @@ function readOfficeAction(state: PipelineState): AdversaryOfficeAction | undefin
   if (parsed === undefined || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     return undefined
   }
-  return parsed as AdversaryOfficeAction
+  return parsed
 }
 
 /**
@@ -130,7 +130,7 @@ export class AdversaryModelHandler implements StageHandler {
     const { state, provider, signal } = input
 
     // 运行时隔离检查：fail-closed，检测到禁止键时立即返回 unverified 标记
-    const stateKeys = Object.keys(state ?? {})
+    const stateKeys = Object.keys(state)
     const isolationResult = checkInputIsolation(stateKeys)
     if (!isolationResult.clean) {
       return {
