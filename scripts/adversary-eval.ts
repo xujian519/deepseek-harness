@@ -124,7 +124,12 @@ function pairExists(pairs: StatuteClaimPair[], pair: StatuteClaimPair): boolean 
  * @returns Baseline pairs.
  */
 function baselinePairs(officeAction: string): StatuteClaimPair[] {
-  const parsed: unknown = JSON.parse(officeAction)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(officeAction)
+  } catch {
+    return []
+  }
   if (parsed === null || typeof parsed !== 'object') return []
   const record = parsed as { rejectionTypes?: unknown; affectedClaims?: unknown }
   const types = Array.isArray(record.rejectionTypes) ? record.rejectionTypes : []
