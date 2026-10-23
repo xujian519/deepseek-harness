@@ -9,7 +9,7 @@
 
 英文源文件由系统**生成**，并通过 `pnpm run verify-tool-catalog`（`doc-sync`（文档同步门禁）的一部分）验证新鲜度；本中文文件作为经评审对侧通过双语配对维护。与 Cordis 目录（纯源码 AST 处理）不同，英文生成器会在真实上下文中**启动**每个工具插件并读取 `ctx.tools.schemas()`，因为工具 schema 无法通过静态分析完全确定，例如运行时展开的枚举、拼接的描述、由配置决定的名称以及使用原始 JSON Schema 的 MCP 工具。完整性守卫会 glob 匹配 `packages/*/tool-*`；如果生成器的启动 manifest（元数据清单）遗漏任何包，检查就会失败，因此新工具不会在无人察觉的情况下缺少文档。
 
-范围：`packages/*/tool-*` 下已发布的产品工具，每个工具均使用其**默认**配置启动；但如果某个 Config 字段是**必填项**且没有默认值，生成器就必须作出选择，对应包的说明会记录本页展示的是哪个分支。注册的工具**名称**可以是加载时配置，例如 `tool-subagent` 的 `toolName`，因此部署可能以不同名称或额外名称提供某个包；如果存在随产品发布的别名，对应包的说明会予以记录。`examples/` 中的演示工具（例如 `echo`）不在范围内，这与 Cordis 目录仅涵盖包的范围一致。
+范围：`packages/*/tool-*` 下已发布的产品工具，加上直接注册工具的领域包（`patent-*`、`writing-patterns`、`methodology`、`document-deliver` 与 `legal-*`），每个工具均使用其**默认**配置启动；但如果某个 Config 字段是**必填项**且没有默认值，生成器就必须作出选择，对应包的说明会记录本页展示的是哪个分支。完整性守卫会 glob 匹配 `packages/*/tool-*`；不带该前缀而注册工具的领域包由启动 manifest 手工登记。注册的工具**名称**可以是加载时配置，例如 `tool-subagent` 的 `toolName`，因此部署可能以不同名称或额外名称提供某个包；如果存在随产品发布的别名，对应包的说明会予以记录。`examples/` 中的演示工具（例如 `echo`）不在范围内，这与 Cordis 目录仅涵盖包的范围一致。
 
 <a id="tool-package-map"></a>
 
@@ -60,6 +60,8 @@
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计。 |
 | `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`、`tool/result` | - | law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行，没有任何条目承载的命题报「未判定」而不是「不符」。指南引用按整节判定：命题由所引节的子节承载即成立，只登记到部分或章一级的条目由其下各节判定。 |
+| `@deepseek-ai/dsh-legal-law` | `legal_law_verify` | `ctx.tools` | `tool/call`、`tool/result` | - | legal_law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法律索引判定：《民法典》《民事诉讼法》《劳动合同法》《公司法》及其他 `assets/legal-law/` 下的法律，按条（及款）。每条判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行，没有任何条目承载的命题报「未判定」而不是「不符」。目录级启动使用随包索引目录，因为 `Config.baselineDir` 没有默认值。 |
+| `@deepseek-ai/dsh-legal-evidence` | `evaluate_legal_evidence` | `ctx.tools` | `tool/call`、`tool/result` | - | evaluate_legal_evidence 按《民事诉讼法》第 66 条八类法定证据，为单条证据记录的三性（关联性、合法性、真实性）评分。评分是确定性的，不发起模型请求；权重来自随包 YAML 规则资产，记录缺少规则询问的字段时按未回答处理，而不是推断。 |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task`, `patent_teams_wait` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-working-directory` | `working_directory` | `ctx.tools`、`ctx.workingDirectory` | `tool/call`、`working-directory/change`、`user context for directory changes`、`tool/result` | - | 读取或更改调用方 Session 的目录。既有的 shell 与进程保留各自目录；来源元数据与权限根保持不变。 |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | `create_worktree` | `ctx.tools`、`ctx.worktrees`、`a calling Agent` | `tool/call`、`Git branch and checkout`、`working-directory/change`、`tool/result` | - | 仅在显式实验性组合中启用。从固定的本地提交创建新分支与检出（受既有写权限约束），随后更改 Session 目录。离开时保留分支与检出。 |
@@ -3488,7 +3490,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of final_draft, reference_documents, claims, office_action)."
           },
           "params": {
             "type": "object",
@@ -3546,7 +3548,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of final_draft, reference_documents, claims, office_action)."
         },
         "params": {
           "type": "object",
@@ -6780,6 +6782,191 @@ patent_fees 按本包随包的费用索引为一件中国专利案件计价：�
 来源：[`packages/patent/patent-law/src/index.ts`](../packages/patent/patent-law/src/index.ts)
 
 law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行，没有任何条目承载的命题报「未判定」而不是「不符」。指南引用按整节判定：命题由所引节的子节承载即成立，只登记到部分或章一级的条目由其下各节判定。
+
+<a id="deepseek-aidsh-legal-law"></a>
+
+## `@deepseek-ai/dsh-legal-law`
+
+### `legal_law_verify`
+
+- 按本次部署随包的法律索引核验法律引用：《民法典》《民事诉讼法》《劳动合同法》《公司法》按条（及款）。
+- 每条引用的判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）。判定绝不把没核验的报成已核验：已索引但条文未转录的条目报「未核验」。
+- 传入要核验引用的文本（引用从中抽取），或直接传入确切的引用。不是恰好一条引用的输入是工具错误。
+- 文本中形如法条引用、但解析器无法识别的片段会在 `unrecognized` 中返回，且未参与核验。
+- 当某条引用用于支撑某个具体命题时传入 proposition。
+- 本工具核验的是引用形式与索引收录，不是法条原文的内容正确性。
+
+使用说明：
+  - 只读且离线；不发起网络请求。
+  - 结果中没有 finding 表示没有识别到引用，不表示文本正确。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text whose citations are extracted and checked"
+    },
+    "references": {
+      "type": "array",
+      "description": "References to check as written, e.g. 民法典第143条 / 劳动合同法第10条第2款",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposition": {
+      "type": "string",
+      "description": "What the citations are offered in support of"
+    }
+  }
+}
+```
+
+来源：[`packages/legal/legal-law/src/index.ts`](../packages/legal/legal-law/src/index.ts)
+
+legal_law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法律索引判定：《民法典》《民事诉讼法》《劳动合同法》《公司法》及其他 `assets/legal-law/` 下的法律，按条（及款）。每条判定为 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行，没有任何条目承载的命题报「未判定」而不是「不符」。目录级启动使用随包索引目录，因为 `Config.baselineDir` 没有默认值。
+
+<a id="deepseek-aidsh-legal-evidence"></a>
+
+## `@deepseek-ai/dsh-legal-evidence`
+
+### `evaluate_legal_evidence`
+
+- 评估法律证据的三性（关联性、合法性、真实性），按《民事诉讼法》第 66 条八类法定证据分别判定。
+- 输入证据 id、证据类型与相关属性，输出三性评分（0-1）、各维度判定详情与规则检查发现。
+- 证据类型包括：当事人陈述(party_statement)、书证(documentary)、物证(physical)、视听资料(audio_visual)、电子数据(electronic)、证人证言(witness_testimony)、鉴定意见(expert_opinion)、勘验笔录(inspection_record)。
+- 确定性评分，无模型调用；权重可经 YAML 资产配置。
+
+使用说明：
+  - 书证应提供原件并核验签章；电子数据应记录哈希并核验完整性；证人证言应披露利害关系并有佐证。
+  - 评分低于 0.5 的证据需补强或另行举证。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "evidenceId": {
+      "type": "string",
+      "description": "证据 id（唯一标识）"
+    },
+    "evidenceType": {
+      "type": "string",
+      "description": "证据类型",
+      "enum": [
+        "party_statement",
+        "documentary",
+        "physical",
+        "audio_visual",
+        "electronic",
+        "witness_testimony",
+        "expert_opinion",
+        "inspection_record"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "description": "证据来源描述"
+    },
+    "content": {
+      "type": "string",
+      "description": "证据内容摘要"
+    },
+    "factToProve": {
+      "type": "string",
+      "description": "待证事实"
+    },
+    "hasOriginal": {
+      "type": "boolean",
+      "description": "是否提供原件/原物"
+    },
+    "originalAbsenceReason": {
+      "type": "string",
+      "description": "未提供原件的原因"
+    },
+    "signatureVerified": {
+      "type": "boolean",
+      "description": "签章是否核验"
+    },
+    "formationTimeClear": {
+      "type": "boolean",
+      "description": "形成时间是否明确"
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "内容哈希"
+    },
+    "hashVerified": {
+      "type": "boolean",
+      "description": "哈希是否已独立核验"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "时间戳"
+    },
+    "storageIntegrityVerified": {
+      "type": "boolean",
+      "description": "存储完整性是否核验"
+    },
+    "witnessHasConflict": {
+      "type": "boolean",
+      "description": "证人是否有利害关系"
+    },
+    "conflictDisclosed": {
+      "type": "boolean",
+      "description": "利害关系是否已披露"
+    },
+    "corroborated": {
+      "type": "boolean",
+      "description": "是否有其他证据佐证"
+    },
+    "expertQualified": {
+      "type": "boolean",
+      "description": "鉴定资质是否核验"
+    },
+    "expertProcedureLegal": {
+      "type": "boolean",
+      "description": "鉴定程序是否合法"
+    },
+    "expertConclusionClear": {
+      "type": "boolean",
+      "description": "鉴定结论是否明确"
+    },
+    "inspectionHasWitness": {
+      "type": "boolean",
+      "description": "勘验是否有见证人在场"
+    },
+    "inspectionRecordComplete": {
+      "type": "boolean",
+      "description": "勘验记录是否完整"
+    },
+    "collectionLegal": {
+      "type": "boolean",
+      "description": "证据收集是否合法"
+    },
+    "formLegal": {
+      "type": "boolean",
+      "description": "证据形式是否合法"
+    },
+    "burdenHolder": {
+      "type": "string",
+      "description": "举证责任方",
+      "enum": [
+        "plaintiff",
+        "defendant"
+      ]
+    },
+    "standard": {
+      "type": "string",
+      "description": "证明标准"
+    }
+  }
+}
+```
+
+来源：[`packages/legal/legal-evidence/src/index.ts`](../packages/legal/legal-evidence/src/index.ts)
+
+evaluate_legal_evidence 按《民事诉讼法》第 66 条八类法定证据，为单条证据记录的三性（关联性、合法性、真实性）评分。评分是确定性的，不发起模型请求；权重来自随包 YAML 规则资产，记录缺少规则询问的字段时按未回答处理，而不是推断。
 
 <a id="deepseek-aidsh-writing-patterns"></a>
 

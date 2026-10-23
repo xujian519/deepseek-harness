@@ -22,6 +22,7 @@ import {
   type StageHandler,
   getStateString,
 } from '../../handler.ts'
+import { readStateJson, readStateObject } from './state-json.ts'
 import {
   type AdversaryDispute,
   type AdversaryOfficeAction,
@@ -61,32 +62,12 @@ export const adversaryModelAtom: Atom = {
 }
 
 /**
- * 读取 JSON 状态键；缺失、空串或非法 JSON 时返回 undefined。
- * @param state - 状态容器。
- * @param key - 要读取的键。
- * @returns 解析后的 JSON 值。
- */
-function readJson(state: PipelineState, key: string): unknown {
-  const raw = getStateString(state, key)
-  if (raw.trim() === '') return undefined
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return undefined
-  }
-}
-
-/**
  * 读取通知书结构化字段。
  * @param state - 状态容器。
  * @returns 通知书对象或 undefined。
  */
 function readOfficeAction(state: PipelineState): AdversaryOfficeAction | undefined {
-  const parsed = readJson(state, 'office_action')
-  if (parsed === undefined || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return undefined
-  }
-  return parsed
+  return readStateObject(state, 'office_action')
 }
 
 /**
@@ -95,7 +76,7 @@ function readOfficeAction(state: PipelineState): AdversaryOfficeAction | undefin
  * @returns 答复计划条目数组或 undefined。
  */
 function readResponsePlan(state: PipelineState): AdversaryPlanEntry[] | undefined {
-  const parsed = readJson(state, 'response_plan')
+  const parsed = readStateJson(state, 'response_plan')
   if (!Array.isArray(parsed)) return undefined
   return parsed.filter(
     (item): item is AdversaryPlanEntry =>

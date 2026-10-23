@@ -16,6 +16,7 @@ import type {
   LegalEvidenceFinding,
   LegalEvidenceInput,
   LegalEvidenceRule,
+  LegalEvidenceRuleSet,
   LegalEvidenceScore,
   LegalEvidenceType,
 } from './types.ts'
@@ -23,8 +24,8 @@ import { getEvaluator } from './evaluators/index.ts'
 
 /** 法律域证据判断引擎。 */
 export class LegalEvidenceEngine implements LegalEvidenceEngineInterface {
-  private weights = { ...DEFAULT_LEGAL_WEIGHTS }
-  private rules: LegalEvidenceRule[] = []
+  /** 已加载的规则资产；资产缺失或不可解析时保持 null，评分回退默认权重。 */
+  private ruleSet: LegalEvidenceRuleSet | null = null
   private readonly warnings: string[] = []
 
   constructor(yamlText?: string, source = '<inline>') {
@@ -33,11 +34,9 @@ export class LegalEvidenceEngine implements LegalEvidenceEngineInterface {
 
   /** 加载 YAML 规则资产。 */
   loadRules(yamlText: string, source = '<inline>'): void {
-    const { ruleSet, warnings } = parseLegalRuleSet(yamlText, source)
-    this.warnings.push(...warnings)
-    if (ruleSet === null) return
-    this.weights = { ...ruleSet.weights }
-    this.rules = ruleSet.rules
+    const parsed = parseLegalRuleSet(yamlText, source)
+    this.warnings.push(...parsed.warnings)
+    this.ruleSet = parsed.ruleSet
   }
 
   /** 规则加载期间累积的警告。 */
@@ -47,12 +46,17 @@ export class LegalEvidenceEngine implements LegalEvidenceEngineInterface {
 
   /** 获取全部规则。 */
   getRules(): LegalEvidenceRule[] {
-    return [...this.rules]
+    return [...(this.ruleSet?.rules ?? [])]
   }
 
   /** 按证据类型获取规则。 */
   getRulesByType(evidenceType: LegalEvidenceType): LegalEvidenceRule[] {
-    return this.rules.filter(r => r.evidenceType === evidenceType || r.evidenceType === 'general')
+    return (this.ruleSet?.rules ?? []).filter(r => r.evidenceType === evidenceType || r.evidenceType === 'general')
+  }
+
+  /** 三性权重；未加载资产时使用默认权重。 */
+  private get weights(): typeof DEFAULT_LEGAL_WEIGHTS {
+    return this.ruleSet?.weights ?? DEFAULT_LEGAL_WEIGHTS
   }
 
   /**

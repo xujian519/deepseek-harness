@@ -15,11 +15,10 @@
  */
 
 import { type DatabaseSync } from 'node:sqlite'
-import { searchInMemory, filterRecords } from '../shared/memory-store.ts'
-import { columnText } from '../shared/row-text.ts'
-import { isVisible, resolveAsOf, resolveValidity } from '../shared/validity.ts'
-import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
-import { runFtsSearch } from '../shared/fts-search.ts'
+import { searchInMemory, filterRecords, toVisibleMemoryHits } from '../shared/memory-store.ts'
+import { columnText, articleRowColumns, assignDatedColumns } from '../shared/row-text.ts'
+import { filterByValidity, isVisible, resolveAsOf, resolveValidity } from '../shared/validity.ts'
+import { SqliteBackedEngine, type SqliteSearchShape } from '../shared/sqlite-search.ts'
 import type {
   GuidingCaseHit,
   GuidingCaseRecord,
@@ -38,6 +37,93 @@ function extractGuidingCaseText(record: GuidingCaseRecord): string {
   return [record.caseName, record.guidingCaseNumber, record.keyPoints, record.fullText].join(' ')
 }
 
+/** Parse the related-laws column, which may be JSON, an array, or comma text. */
+function parseRelatedLaws(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch {
+      return value.split(',').map(s => s.trim()).filter(Boolean)
+    }
+  }
+  return []
+}
+
+/** Map one SQLite row to a judicial interpretation record. */
+function rowToRecord(row: Record<string, unknown>): JudicialInterpretationRecord {
+  const base: JudicialInterpretationRecord = {
+    interpretationId: columnText(row.interpretation_id ?? row.interpretationId),
+    interpretationName: columnText(row.interpretation_name ?? row.interpretationName),
+    interpretationType: (row.interpretation_type ?? row.interpretationType ?? 'judicial-interpretation') as JudicialInterpretationRecord['interpretationType'],
+    issuingBody: columnText(row.issuing_body ?? row.issuingBody),
+    documentNumber: columnText(row.document_number ?? row.documentNumber),
+    validity: 'unverified' as const,
+    ...articleRowColumns(row),
+  }
+  return assignDatedColumns(base, row)
+}
+
+/** Map one SQLite row to a judicial interpretation hit. */
+function rowToHit(row: Record<string, unknown>, via: JudicialInterpretationHit['via']): JudicialInterpretationHit {
+  return {
+    ...rowToRecord(row),
+    relevanceScore: typeof row.fts_rank === 'number' ? row.fts_rank : 0,
+    via,
+  }
+}
+
+/** Map one SQLite row to a guiding case record. */
+function rowToGuidingCaseRecord(row: Record<string, unknown>): GuidingCaseRecord {
+  return {
+    caseId: columnText(row.case_id ?? row.caseId),
+    guidingCaseNumber: columnText(row.guiding_case_number ?? row.guidingCaseNumber),
+    caseName: columnText(row.case_name ?? row.caseName),
+    court: columnText(row.court),
+    decisionDate: columnText(row.decision_date ?? row.decisionDate),
+    caseType: columnText(row.case_type ?? row.caseType),
+    keyPoints: columnText(row.key_points ?? row.keyPoints),
+    relatedLaws: parseRelatedLaws(row.related_laws ?? row.relatedLaws),
+    fullText: columnText(row.full_text ?? row.fullText),
+  }
+}
+
+/** Map one SQLite row to a guiding case hit. */
+function rowToGuidingCaseHit(row: Record<string, unknown>, via: GuidingCaseHit['via']): GuidingCaseHit {
+  return {
+    ...rowToGuidingCaseRecord(row),
+    relevanceScore: 0,
+    via,
+  }
+}
+
+/** Build the judicial interpretation filter clause. */
+function filterClause(
+  options: JudicialInterpretationSearchOptions,
+  alias: string,
+): { sql: string; params: Array<string | number> } {
+  if (!options.interpretationType) return { sql: '', params: [] }
+  return { sql: ` AND ${alias}.interpretation_type = ?`, params: [options.interpretationType] }
+}
+
+/** The judicial interpretation table's SQL shape. */
+const INTERPRETATION_TABLE: SqliteSearchShape<JudicialInterpretationSearchOptions, JudicialInterpretationHit> = {
+  table: 'judicial_interpretations',
+  alias: 'ji',
+  ftsTable: 'judicial_interpretations_fts',
+  likeColumns: ['interpretation_name', 'article_text', 'document_number'],
+  label: '司法解释',
+  toHit: rowToHit,
+  filterClause,
+  // Over-fetch to account for validity filtering.
+  fetchFactor: 2,
+  postFilter: (hits, options) => filterByValidity(hits, options),
+}
+
+/** The guiding case table, matched by LIKE only. */
+const GUIDING_CASE_COLUMNS: readonly string[] = ['case_name', 'key_points', 'full_text']
+
 /**
  * Judicial interpretation search engine (SQLite FTS5 + in-memory dual backend).
  *
@@ -46,14 +132,9 @@ function extractGuidingCaseText(record: GuidingCaseRecord): string {
  * validity checking. SQLite mode uses FTS5 BM25 ranking with LIKE fallback;
  * in-memory mode uses term frequency scoring.
  */
-export class JudicialInterpretationSearch {
+export class JudicialInterpretationSearch extends SqliteBackedEngine<JudicialInterpretationSearchOptions, JudicialInterpretationHit> {
   private readonly interpretations: JudicialInterpretationRecord[]
   private readonly guidingCases: GuidingCaseRecord[]
-  private readonly db: DatabaseSync | null
-  private readonly hasFts: boolean
-  /** FTS5 查询曾抛异常（模块缺失等）后置 true，后续查询直接走 LIKE。 */
-  private ftsDegraded = false
-  private readonly logger?: { warn: (message: string) => void }
 
   constructor(options: {
     db?: DatabaseSync
@@ -62,28 +143,9 @@ export class JudicialInterpretationSearch {
     guidingCases?: GuidingCaseRecord[]
     logger?: { warn: (message: string) => void }
   } = {}) {
+    super(options, INTERPRETATION_TABLE)
     this.interpretations = options.interpretations ?? []
     this.guidingCases = options.guidingCases ?? []
-    if (options.logger) {
-      this.logger = options.logger
-    }
-    if (options.db) {
-      this.db = options.db
-    } else if (options.dbPath) {
-      const { DatabaseSync: DB } = process.getBuiltinModule('node:sqlite')
-      this.db = new DB(options.dbPath, { readOnly: true })
-    } else {
-      this.db = null
-    }
-    // Detect FTS5 availability: table must exist AND runtime must support FTS5.
-    if (this.db) {
-      const row = this.db
-        .prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='judicial_interpretations_fts' LIMIT 1")
-        .get() as { present: number } | undefined
-      this.hasFts = row !== undefined && sqliteHasFts5(this.db)
-    } else {
-      this.hasFts = false
-    }
   }
 
   /**
@@ -92,15 +154,8 @@ export class JudicialInterpretationSearch {
    * @param options - result cap, type filter, and validity options.
    * @returns matching hits sorted by relevance (descending).
    */
-  search(query: string, options: JudicialInterpretationSearchOptions = {}): JudicialInterpretationHit[] {
-    const limit = options.limit ?? 10
-    const trimmed = query.trim()
-    if (!trimmed) return []
-
-    if (this.db) {
-      return this.searchWithSqlite(trimmed, options, limit)
-    }
-    return this.searchInMemory(trimmed, options, limit)
+  override search(query: string, options: JudicialInterpretationSearchOptions = {}): JudicialInterpretationHit[] {
+    return super.search(query, options)
   }
 
   /**
@@ -113,7 +168,7 @@ export class JudicialInterpretationSearch {
     const trimmed = query.trim()
     if (!trimmed) return []
 
-    if (this.db) {
+    if (this.sqlite.connected) {
       return this.searchGuidingCasesFromSqlite(trimmed, limit)
     }
     return this.searchGuidingCasesInMemory(trimmed, limit)
@@ -131,8 +186,12 @@ export class JudicialInterpretationSearch {
   ): JudicialInterpretationRecord | undefined {
     const asOf = resolveAsOf(options.asOf)
     const includeUnverified = options.includeUnverified ?? true
-    if (this.db) {
-      return this.getByIdFromSqlite(interpretationId, asOf, includeUnverified)
+    if (this.sqlite.connected) {
+      const row = this.sqlite.findRow('interpretation_id', interpretationId)
+      if (row === undefined) return undefined
+      const record = rowToRecord(row)
+      const validity = resolveValidity(record, asOf)
+      return isVisible(validity, includeUnverified) ? { ...record, validity } : undefined
     }
     const record = this.interpretations.find(r => r.interpretationId === interpretationId)
     if (record === undefined) return undefined
@@ -149,35 +208,22 @@ export class JudicialInterpretationSearch {
    * @returns the record, or undefined when not found.
    */
   getGuidingCaseById(caseId: string): GuidingCaseRecord | undefined {
-    if (this.db) {
-      return this.getGuidingCaseByIdFromSqlite(caseId)
+    if (this.sqlite.connected) {
+      const row = this.sqlite.findRow('case_id', caseId, 'guiding_cases')
+      return row === undefined ? undefined : rowToGuidingCaseRecord(row)
     }
     return this.guidingCases.find(r => r.caseId === caseId)
   }
 
   /** Total number of judicial interpretation records. */
   countInterpretations(): number {
-    if (this.db) {
-      try {
-        const row = this.db.prepare('SELECT COUNT(*) AS c FROM judicial_interpretations').get() as { c: number }
-        return row.c
-      } catch {
-        return 0
-      }
-    }
+    if (this.sqlite.connected) return this.sqlite.count()
     return this.interpretations.length
   }
 
   /** Total number of guiding case records. */
   countGuidingCases(): number {
-    if (this.db) {
-      try {
-        const row = this.db.prepare('SELECT COUNT(*) AS c FROM guiding_cases').get() as { c: number }
-        return row.c
-      } catch {
-        return 0
-      }
-    }
+    if (this.sqlite.connected) return this.sqlite.count('guiding_cases')
     return this.guidingCases.length
   }
 
@@ -200,300 +246,27 @@ export class JudicialInterpretationSearch {
   }
 
   /** Close the underlying database connection (no-op for memory mode). */
-  close(): void {
-    if (this.db) {
-      this.db.close()
-    }
-  }
-
-  /** FTS5 是否实际可用（表存在 + 运行时支持 + 未被降级）。 */
-  get ftsAvailable(): boolean {
-    return this.hasFts && !this.ftsDegraded
-  }
-
-  // --- Private: SQLite search path (interpretations) ---
-
-  private searchWithSqlite(keyword: string, options: JudicialInterpretationSearchOptions, limit: number): JudicialInterpretationHit[] {
-    return runFtsSearch<JudicialInterpretationHit>({
-      keyword,
-      hasFts: this.hasFts,
-      ftsDegraded: this.ftsDegraded,
-      searchFts: kw => this.searchFts(kw, options, limit),
-      searchFtsKeywords: keywords => this.searchFtsKeywords(keywords, options, limit),
-      searchLike: kw => this.searchLike(kw, options, limit),
-      degrade: (reason) => { this.degradeFts(reason) },
-    })
-  }
-
-  private degradeFts(reason: string): void {
-    this.ftsDegraded = true
-    this.logger?.warn(`[legal-knowledge] 司法解释 FTS5 不可用，已降级 LIKE: ${reason}`)
-  }
-
-  private searchFts(keyword: string, options: JudicialInterpretationSearchOptions, limit: number): JudicialInterpretationHit[] {
-    const phrase = escapeFtsPhrase(keyword)
-    return this.searchFtsWithQuery(phrase, options, limit)
-  }
-
-  private searchFtsKeywords(keywords: string[], options: JudicialInterpretationSearchOptions, limit: number): JudicialInterpretationHit[] {
-    const query = joinFtsOrTerms(keywords)
-    return this.searchFtsWithQuery(query, options, limit)
-  }
-
-  private searchFtsWithQuery(matchQuery: string, options: JudicialInterpretationSearchOptions, limit: number): JudicialInterpretationHit[] {
-    if (!this.db) return []
-    const { sql, params } = this.buildFtsQuery(options, limit)
-    try {
-      const rows = this.db.prepare(sql).all(...params, matchQuery) as Array<Record<string, unknown>>
-      return this.filterByValidity(rows.map(row => this.rowToHit(row, 'fts')), options)
-    } catch {
-      return this.searchLike(matchQuery.replace(/"/g, ''), options, limit)
-    }
-  }
-
-  private buildFtsQuery(options: JudicialInterpretationSearchOptions, limit: number): { sql: string; params: Array<string | number> } {
-    let sql = `
-      SELECT ji.*, bm25(judicial_interpretations_fts) AS fts_rank
-      FROM judicial_interpretations_fts
-      JOIN judicial_interpretations ji ON ji.id = judicial_interpretations_fts.rowid
-      WHERE judicial_interpretations_fts MATCH ?
-    `
-    const params: Array<string | number> = []
-    const { filterSql, filterParams } = this.buildFilterClause(options, 'ji')
-    sql += filterSql
-    params.push(...filterParams)
-    sql += ' ORDER BY bm25(judicial_interpretations_fts) LIMIT ?'
-    params.push(limit * 2)
-    return { sql, params }
-  }
-
-  private searchLike(keyword: string, options: JudicialInterpretationSearchOptions, limit: number): JudicialInterpretationHit[] {
-    if (!this.db) return []
-    const pattern = `%${keyword.replace(/[%_\\]/g, m => `\\${m}`)}%`
-    const { filterSql, filterParams } = this.buildFilterClause(options, 'ji')
-    const sql = `
-      SELECT ji.*
-      FROM judicial_interpretations ji
-      WHERE (ji.interpretation_name LIKE ? ESCAPE '\\'
-             OR ji.article_text LIKE ? ESCAPE '\\'
-             OR ji.document_number LIKE ? ESCAPE '\\')
-      ${filterSql}
-      LIMIT ?
-    `
-    const params: Array<string | number> = [pattern, pattern, pattern, ...filterParams, limit * 2]
-    try {
-      const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>
-      return this.filterByValidity(rows.map(row => this.rowToHit(row, 'like')), options)
-    } catch {
-      return []
-    }
-  }
-
-  private buildFilterClause(
-    options: JudicialInterpretationSearchOptions,
-    alias: string,
-  ): { filterSql: string; filterParams: Array<string | number> } {
-    let filterSql = ''
-    const filterParams: Array<string | number> = []
-    if (options.interpretationType) {
-      filterSql += ` AND ${alias}.interpretation_type = ?`
-      filterParams.push(options.interpretationType)
-    }
-    return { filterSql, filterParams }
-  }
-
-  /** Apply point-in-time validity filtering to SQLite-sourced hits. */
-  private filterByValidity(
-    hits: JudicialInterpretationHit[],
-    options: JudicialInterpretationSearchOptions,
-  ): JudicialInterpretationHit[] {
-    const asOf = resolveAsOf(options.asOf)
-    const includeUnverified = options.includeUnverified ?? true
-    const limit = options.limit ?? 10
-    const results: JudicialInterpretationHit[] = []
-    for (const hit of hits) {
-      if (results.length >= limit) break
-      const validity = resolveValidity(
-        { effectiveDate: hit.effectiveDate, expiryDate: hit.expiryDate, expired: hit.expired },
-        asOf,
-      )
-      if (!isVisible(validity, includeUnverified)) continue
-      results.push({ ...hit, validity })
-    }
-    return results
-  }
-
-  private rowToHit(row: Record<string, unknown>, via: JudicialInterpretationHit['via']): JudicialInterpretationHit {
-    const base: JudicialInterpretationHit = {
-      interpretationId: columnText(row.interpretation_id ?? row.interpretationId),
-      interpretationName: columnText(row.interpretation_name ?? row.interpretationName),
-      interpretationType: (row.interpretation_type ?? row.interpretationType ?? 'judicial-interpretation') as JudicialInterpretationHit['interpretationType'],
-      issuingBody: columnText(row.issuing_body ?? row.issuingBody),
-      documentNumber: columnText(row.document_number ?? row.documentNumber),
-      effectiveDate: columnText(row.effective_date ?? row.effectiveDate),
-      validity: 'unverified' as const,
-      articleNumber: typeof row.article_number === 'number' ? row.article_number : Number(row.articleNumber ?? 0),
-      articleText: columnText(row.article_text ?? row.articleText),
-      relevanceScore: typeof row.fts_rank === 'number' ? row.fts_rank : 0,
-      via,
-    }
-    const publishDateVal = row.publish_date ?? row.publishDate
-    if (publishDateVal != null) base.publishDate = columnText(publishDateVal)
-    const expiryDateVal = row.expiry_date ?? row.expiryDate
-    if (expiryDateVal != null) base.expiryDate = columnText(expiryDateVal)
-    if (typeof row.expired === 'number') base.expired = row.expired
-    const sourcePathVal = row.source_path ?? row.sourcePath
-    if (sourcePathVal != null) base.sourcePath = columnText(sourcePathVal)
-    return base
-  }
-
-  private getByIdFromSqlite(
-    interpretationId: string,
-    asOf: string,
-    includeUnverified: boolean,
-  ): JudicialInterpretationRecord | undefined {
-    if (!this.db) return undefined
-    try {
-      const row = this.db.prepare(
-        'SELECT * FROM judicial_interpretations WHERE interpretation_id = ? LIMIT 1',
-      ).get(interpretationId) as Record<string, unknown> | undefined
-      if (!row) return undefined
-      const record = this.rowToRecord(row)
-      const validity = resolveValidity(record, asOf)
-      return isVisible(validity, includeUnverified) ? { ...record, validity } : undefined
-    } catch {
-      return undefined
-    }
-  }
-
-  private rowToRecord(row: Record<string, unknown>): JudicialInterpretationRecord {
-    const base: JudicialInterpretationRecord = {
-      interpretationId: columnText(row.interpretation_id ?? row.interpretationId),
-      interpretationName: columnText(row.interpretation_name ?? row.interpretationName),
-      interpretationType: (row.interpretation_type ?? row.interpretationType ?? 'judicial-interpretation') as JudicialInterpretationRecord['interpretationType'],
-      issuingBody: columnText(row.issuing_body ?? row.issuingBody),
-      documentNumber: columnText(row.document_number ?? row.documentNumber),
-      effectiveDate: columnText(row.effective_date ?? row.effectiveDate),
-      validity: 'unverified' as const,
-      articleNumber: typeof row.article_number === 'number' ? row.article_number : Number(row.articleNumber ?? 0),
-      articleText: columnText(row.article_text ?? row.articleText),
-    }
-    const publishDateVal = row.publish_date ?? row.publishDate
-    if (publishDateVal != null) base.publishDate = columnText(publishDateVal)
-    const expiryDateVal = row.expiry_date ?? row.expiryDate
-    if (expiryDateVal != null) base.expiryDate = columnText(expiryDateVal)
-    if (typeof row.expired === 'number') base.expired = row.expired
-    const sourcePathVal = row.source_path ?? row.sourcePath
-    if (sourcePathVal != null) base.sourcePath = columnText(sourcePathVal)
-    return base
+  override close(): void {
+    super.close()
   }
 
   // --- Private: SQLite search path (guiding cases) ---
 
   private searchGuidingCasesFromSqlite(keyword: string, limit: number): GuidingCaseHit[] {
-    if (!this.db) return []
-    const pattern = `%${keyword.replace(/[%_\\]/g, m => `\\${m}`)}%`
-    const sql = `
-      SELECT gc.*
-      FROM guiding_cases gc
-      WHERE gc.case_name LIKE ? ESCAPE '\\'
-             OR gc.key_points LIKE ? ESCAPE '\\'
-             OR gc.full_text LIKE ? ESCAPE '\\'
-      LIMIT ?
-    `
-    try {
-      const rows = this.db.prepare(sql).all(pattern, pattern, pattern, limit) as Array<Record<string, unknown>>
-      return rows.map(row => this.rowToGuidingCaseHit(row, 'like'))
-    } catch {
-      return []
-    }
-  }
-
-  private getGuidingCaseByIdFromSqlite(caseId: string): GuidingCaseRecord | undefined {
-    if (!this.db) return undefined
-    try {
-      const row = this.db.prepare(
-        'SELECT * FROM guiding_cases WHERE case_id = ? LIMIT 1',
-      ).get(caseId) as Record<string, unknown> | undefined
-      if (!row) return undefined
-      return this.rowToGuidingCaseRecord(row)
-    } catch {
-      return undefined
-    }
-  }
-
-  private rowToGuidingCaseHit(row: Record<string, unknown>, via: GuidingCaseHit['via']): GuidingCaseHit {
-    return {
-      caseId: columnText(row.case_id ?? row.caseId),
-      guidingCaseNumber: columnText(row.guiding_case_number ?? row.guidingCaseNumber),
-      caseName: columnText(row.case_name ?? row.caseName),
-      court: columnText(row.court),
-      decisionDate: columnText(row.decision_date ?? row.decisionDate),
-      caseType: columnText(row.case_type ?? row.caseType),
-      keyPoints: columnText(row.key_points ?? row.keyPoints),
-      relatedLaws: this.parseRelatedLaws(row.related_laws ?? row.relatedLaws),
-      fullText: columnText(row.full_text ?? row.fullText),
-      relevanceScore: 0,
-      via,
-    }
-  }
-
-  private rowToGuidingCaseRecord(row: Record<string, unknown>): GuidingCaseRecord {
-    return {
-      caseId: columnText(row.case_id ?? row.caseId),
-      guidingCaseNumber: columnText(row.guiding_case_number ?? row.guidingCaseNumber),
-      caseName: columnText(row.case_name ?? row.caseName),
-      court: columnText(row.court),
-      decisionDate: columnText(row.decision_date ?? row.decisionDate),
-      caseType: columnText(row.case_type ?? row.caseType),
-      keyPoints: columnText(row.key_points ?? row.keyPoints),
-      relatedLaws: this.parseRelatedLaws(row.related_laws ?? row.relatedLaws),
-      fullText: columnText(row.full_text ?? row.fullText),
-    }
-  }
-
-  private parseRelatedLaws(value: unknown): string[] {
-    if (Array.isArray(value)) return value.map(String)
-    if (typeof value === 'string') {
-      try {
-        const parsed: unknown = JSON.parse(value)
-        if (Array.isArray(parsed)) return parsed.map(String)
-      } catch {
-        return value.split(',').map(s => s.trim()).filter(Boolean)
-      }
-    }
-    return []
+    const rows = this.sqlite.findRowsLikeAny(GUIDING_CASE_COLUMNS, keyword, limit, 'guiding_cases')
+    return rows.map(row => rowToGuidingCaseHit(row, 'like'))
   }
 
   // --- Private: In-memory search path ---
 
-  private searchInMemory(
+  protected override searchInMemory(
     query: string,
     options: JudicialInterpretationSearchOptions,
     limit: number,
   ): JudicialInterpretationHit[] {
-    const asOf = resolveAsOf(options.asOf)
-    const includeUnverified = options.includeUnverified ?? true
-
     const filtered = filterRecords(this.interpretations, r => r.interpretationType, options.interpretationType)
     const hits = searchInMemory(filtered, query, extractInterpretationText, limit * 2)
-
-    const results: JudicialInterpretationHit[] = []
-    for (const hit of hits) {
-      if (results.length >= limit) break
-      const validity = resolveValidity(
-        { effectiveDate: hit.record.effectiveDate, expiryDate: hit.record.expiryDate, expired: hit.record.expired },
-        asOf,
-      )
-      if (!isVisible(validity, includeUnverified)) continue
-      results.push({
-        ...hit.record,
-        validity,
-        relevanceScore: hit.score,
-        via: 'memory',
-      })
-    }
-    return results
+    return toVisibleMemoryHits(hits, options, limit)
   }
 
   private searchGuidingCasesInMemory(query: string, limit: number): GuidingCaseHit[] {

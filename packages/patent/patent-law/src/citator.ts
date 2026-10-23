@@ -13,6 +13,7 @@
  */
 
 import { findArticle, findSection } from './baseline.ts'
+import { coversSection } from './section-path.ts'
 import { parseLawReference } from './reference.ts'
 import { queryArticleLineage } from './lineage.ts'
 import type {
@@ -286,17 +287,6 @@ function findStaleCoverage(baseline: LawBaseline, path: string): StaleSection | 
 function hasVersionOverride(baseline: LawBaseline, path: string): boolean {
   return baseline.versions.some(version =>
     version.sections.some(s => coversSection(path, s.path) || coversSection(s.path, path)))
-}
-
-/**
- * Whether one section path names the cited section or a section under it.
- * Mirrors the same predicate in verify.ts.
- */
-function coversSection(cited: string, path: string): boolean {
-  if (path === cited) return true
-  if (!path.startsWith(cited)) return false
-  const rest = path.slice(cited.length)
-  return /\d$/u.test(cited) ? rest.startsWith('.') : /^[第0-9]/u.test(rest)
 }
 
 /** Build the revision history spread record; empty when no versions exist. */

@@ -13,11 +13,10 @@ import { readFileSync } from 'node:fs'
 import {
   IndexAssetError,
   parseYamlMapping,
-  readMapping,
+  readArticleEntries,
   readOptionalCount,
   readOptionalDate,
   readOptionalString,
-  readRecordedSource,
   readString,
   type AssetFail,
 } from '@deepseek-ai/dsh-patent-index-asset'
@@ -104,7 +103,7 @@ export function parseLegalLawBaseline(source: string, origin: string): LegalLawB
   const maxArticle = readOptionalCount(root, 'maxArticle', fail)
   const maxVerifiedOn = readOptionalDate(root, 'maxVerifiedOn', fail)
   const maxSource = readOptionalString(root, 'maxSource', fail)
-  const articles = readArticles(root['articles'], fail)
+  const articles = readArticleEntries(root['articles'], fail)
 
   if (articles.length === 0) throw fail(`${law} 的索引必须声明至少一个 article`)
 
@@ -127,82 +126,4 @@ export function parseLegalLawBaseline(source: string, origin: string): LegalLawB
  */
 export function findLegalArticle(baseline: LegalLawBaseline, article: number): LegalArticleEntry | undefined {
   return baseline.articles.find(entry => entry.article === article)
-}
-
-/** Read the topics of one indexed entry. */
-function readTopics(value: unknown, fail: AssetFail, where: string): string[] {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw fail(`${where} 的 topics 必须是非空数组`)
-  }
-  return value.map((topic) => {
-    if (typeof topic !== 'string' || topic.trim() === '') {
-      throw fail(`${where} 的 topics 只能包含非空字符串`)
-    }
-    return topic
-  })
-}
-
-/**
- * Enforce that an entry's transcription record is all-or-nothing.
- *
- * A text without a source or a date would be reported as verified while the
- * copy has no recorded source, and a source without a text claims a copy
- * that does not exist. Both are load errors, so a hand-edited index cannot
- * create the fail-open state the verifier is designed to avoid.
- * @param text - the entry's transcribed text, or null.
- * @param source - the recorded source and verification date.
- * @param fail - the caller's error factory.
- * @param where - the entry's label, used in the error message.
- */
-function checkRecordedSource(
-  text: string | null,
-  source: { sourceDoc: string | null; verifiedOn: string | null },
-  fail: AssetFail,
-  where: string,
-): void {
-  if (text !== null && (source.sourceDoc === null || source.verifiedOn === null)) {
-    throw fail(`${where} 的 text 已转录，但 sourceDoc 与 verifiedOn 必须同时记录`)
-  }
-  if (text === null && (source.sourceDoc !== null || source.verifiedOn !== null)) {
-    throw fail(`${where} 尚未转录 text，不能单独记录 sourceDoc 或 verifiedOn`)
-  }
-}
-
-/** Read the article list, rejecting duplicate numbers. */
-function readArticles(value: unknown, fail: AssetFail): LegalArticleEntry[] {
-  if (value === undefined || value === null) return []
-  if (!Array.isArray(value)) throw fail('字段 articles 必须是数组')
-  const seen = new Set<number>()
-  return value.map((item) => {
-    const entry = readMapping(item, 'articles 的每一项', fail)
-    const article = readOptionalCount(entry, 'article', fail)
-    if (article === null) throw fail('article 必须是正整数')
-    if (seen.has(article)) throw fail(`article 重复：${article}`)
-    seen.add(article)
-    const text = readOptionalString(entry, 'text', fail)
-    const source = readRecordedSource(entry, fail)
-    checkRecordedSource(text, source, fail, `第${article}条`)
-    return {
-      article,
-      ...readParagraphs(entry['paragraphs'], fail, article),
-      topics: readTopics(entry['topics'], fail, `第${article}条`),
-      text,
-      ...source,
-    }
-  })
-}
-
-/** Read the optional paragraph list of one article. */
-function readParagraphs(value: unknown, fail: AssetFail, article: number): { paragraphs?: number[] } {
-  if (value === undefined || value === null) return {}
-  if (!Array.isArray(value) || value.length === 0) {
-    throw fail(`第${article}条的 paragraphs 必须是 null 或非空数组`)
-  }
-  const paragraphs = value.map((item) => {
-    if (typeof item !== 'number' || !Number.isInteger(item) || item < 1) {
-      throw fail(`第${article}条的 paragraphs 只能是正整数`)
-    }
-    return item
-  })
-  return { paragraphs }
 }

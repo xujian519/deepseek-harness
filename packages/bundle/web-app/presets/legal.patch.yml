@@ -86,7 +86,7 @@
                 - 交付摘要列出：交付件路径、核验状态、未决缺口、下一步建议。
 
                 ## 技能
-                领域技能以 `legal-<领域>-<技能>` 命名，例如 `legal-commercial-nda-review`、`legal-litigation-claim-chart`、`legal-employment-termination-review`、`legal-ip-clearance`、`legal-corporate-diligence-issue-extraction`、`legal-privacy-dpa-review`、`legal-research-authority-check`。模式技能为 `legal-setup`、`legal-matter`、`legal-research`、`legal-citation-check`、`legal-quality-gate`。先用 `skill` 工具加载对应技能，再按其流程执行；不要凭技能名猜步骤。
+                领域技能以 `legal-<领域>-<技能>` 命名，例如 `legal-commercial-nda-review`、`legal-litigation-claim-chart`。模式技能为 `legal-setup`、`legal-matter`、`legal-research`、`legal-citation-check`、`legal-quality-gate`。先用 `skill` 工具加载对应技能，再按其流程执行；不要凭技能名猜步骤。
 
                 ## 工具
                 - 文件与命令：`tool-fs`、`tool-fs-search`、`tool-bash`；长任务用后台作业。
@@ -302,7 +302,7 @@
                   # 法律模式交付工具：doc-template 渲染与 document-deliver 登记。
                   # 不纳入专利域的 draft_claims 等，法律模式有自己的交付链路。
                   gateToolNames:
-                    - tool-document-deliver
+                    - document_deliver
                     - render_doc_template
                     - legal_law_verify
                   # 在专利全量规则之上叠加法律域合规规则（domains/legal/compliance.yaml）。
@@ -310,16 +310,12 @@
                   # 再经 loadRuleSetDir 加载该目录下所有 .yaml 规则文件（跳过 pack.yaml）。
                   additionalRuleDomains:
                     - legal
-                  # 交付前置门禁：tool-document-deliver 在本会话内必须先跑过 rule_check
-                  # 与 legal_law_verify 并留下成功记录；未满足即拒绝该次调用，使缺闸门
+                  # 交付前置门禁：document_deliver 在本会话内必须先跑过
+                  # legal_law_verify 并留下成功记录；未满足即拒绝该次调用，使缺闸门
                   # 证据的交付件不落盘。格式与 patent preset 的 deliveryGate 对齐。
                   deliveryGate:
-                    - tool: tool-document-deliver
-                      requires: [rule_check, legal_law_verify]
-                      evidence:
-                        rule_check:
-                          - field: evaluated
-                            minItems: 1
+                    - tool: document_deliver
+                      requires: [legal_law_verify]
 
           # ── legal law index ──────────────────────────────────────────────────────
 

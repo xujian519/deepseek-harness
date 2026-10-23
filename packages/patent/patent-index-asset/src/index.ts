@@ -13,6 +13,12 @@
 
 export { IndexAssetError, type AssetFail } from './errors.ts'
 export {
+  checkRecordedSource,
+  readArticleEntries,
+  readEntryTopics,
+  type IndexedArticle,
+} from './entries.ts'
+export {
   parseYamlMapping,
   readCount,
   readEnum,

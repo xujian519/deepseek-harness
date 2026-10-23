@@ -39,6 +39,7 @@ const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
   'packages/test-support/self-evolve-eval': 'The P1-10 evaluation scaffold owns no service and no model-visible surface; the self-evolve runner and its tool consumers own every model-facing effect.',
   'packages/util/values': 'The package only validates, snapshots, compares, freezes, or rejects caller-owned values; consumers own every model-facing use.',
   'packages/util/code-language': 'The package only maps a filename suffix to a syntax-highlighting language id; the read consumer owns the persisted hint.',
+  'packages/legal/legal-knowledge': 'The package is a model-agnostic search service; consumers own tool schemas and result rendering.',
 }
 
 /**

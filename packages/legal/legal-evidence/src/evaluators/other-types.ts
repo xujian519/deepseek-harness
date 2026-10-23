@@ -4,20 +4,12 @@
  * 这四类证据的判定逻辑相对简单，统一使用通用评估函数。
  */
 
-import type { LegalEvidenceDimensionJudgment, LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
-import { evaluateGenericLegality, evaluateGenericRelevance, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
+import type { LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
+import { createEvaluator, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
 
 /** 当事人陈述判定器。 */
-export const partyStatementEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericLegality(input)
-  },
-
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const partyStatementEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -56,19 +48,11 @@ export const partyStatementEvaluator: LegalEvidenceEvaluator = {
     }
     return findings
   },
-}
+})
 
 /** 物证判定器。 */
-export const physicalEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericLegality(input)
-  },
-
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const physicalEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -111,19 +95,11 @@ export const physicalEvaluator: LegalEvidenceEvaluator = {
     }
     return findings
   },
-}
+})
 
 /** 视听资料判定器。 */
-export const audioVisualEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericLegality(input)
-  },
-
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const audioVisualEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -167,19 +143,11 @@ export const audioVisualEvaluator: LegalEvidenceEvaluator = {
     }
     return findings
   },
-}
+})
 
 /** 勘验笔录判定器。 */
-export const inspectionRecordEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericLegality(input)
-  },
-
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const inspectionRecordEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -228,4 +196,4 @@ export const inspectionRecordEvaluator: LegalEvidenceEvaluator = {
     }
     return findings
   },
-}
+})

@@ -10,42 +10,18 @@
  * @module @deepseek-ai/dsh-legal-knowledge/install
  */
 
-import { copyFileSync, existsSync, mkdirSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { copyFileSync, existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import {
+  commitTempSibling,
+  countTableRows,
+  formatGigabytes,
+  prepareTempSibling,
+  resolveRealPath,
+} from '@deepseek-ai/dsh-patent-core'
 import { DEFAULT_LEGAL_KNOWLEDGE_DIR, DEFAULT_LEGAL_SOURCE_DB_PATH } from './config.ts'
 import type { InstallLegalKnowledgeOptions, InstallResult } from './types.ts'
-
-/**
- * Resolve the true absolute path of a file that may not yet exist. Walks up
- * to the first existing ancestor, applies realpath, then re-appends the
- * missing segments.
- * @param path - the file path to normalise.
- * @returns the normalised absolute path.
- */
-function realPathOf(path: string): string {
-  const abs = resolve(path)
-  let dir = dirname(abs)
-  let suffix = basename(abs)
-  while (!existsSync(dir)) {
-    suffix = join(basename(dir), suffix)
-    dir = dirname(dir)
-  }
-  return join(realpathSync(dir), suffix)
-}
-
-function countRows(db: DatabaseSync, table: string): number {
-  try {
-    const row = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get() as { c: number }
-    return row.c
-  } catch {
-    return -1
-  }
-}
-
-function gb(bytes: number): string {
-  return `${(bytes / 1073741824).toFixed(2)} GB`
-}
 
 /**
  * Drop FTS5 virtual tables and their shadow indexes from the output database.
@@ -95,16 +71,14 @@ export async function installLegalKnowledgeDb(options: InstallLegalKnowledgeOpti
   }
 
   // Same-file guard: prevent accidentally overwriting the source.
-  if (realPathOf(input) === realPathOf(output)) {
+  if (resolveRealPath(input) === resolveRealPath(output)) {
     throw new Error('--output 与 --input 指向同一文件（含路径别名），会破坏源库，请指定不同输出路径。')
   }
 
   const sourceBytes = statSync(input).size
 
   // 1. Copy source to a temporary file, then atomically replace the output.
-  mkdirSync(dirname(resolve(output)), { recursive: true })
-  const tmpOutput = resolve(output) + `.tmp-${process.pid}`
-  if (existsSync(tmpOutput)) rmSync(tmpOutput)
+  const tmpOutput = prepareTempSibling(output)
 
   log('[1/3] 复制源数据库…')
   copyFileSync(input, tmpOutput)
@@ -133,17 +107,13 @@ export async function installLegalKnowledgeDb(options: InstallLegalKnowledgeOpti
     }
   }
 
-  if (existsSync(output)) {
-    log(`输出已存在，覆盖: ${output}`)
-    rmSync(output)
-  }
-  renameSync(tmpOutput, output)
+  commitTempSibling(tmpOutput, output, log)
 
   const outputBytes = statSync(output).size
   log('')
   log('=== 结果 ===')
-  log(`源库:     ${gb(sourceBytes)}`)
-  log(`安装后:   ${gb(outputBytes)}（-${sourceBytes > 0 ? Math.round((1 - outputBytes / sourceBytes) * 100) : 0}%）`)
+  log(`源库:     ${formatGigabytes(sourceBytes)}`)
+  log(`安装后:   ${formatGigabytes(outputBytes)}（-${sourceBytes > 0 ? Math.round((1 - outputBytes / sourceBytes) * 100) : 0}%）`)
 
   // Report row counts for key tables.
   {
@@ -151,7 +121,7 @@ export async function installLegalKnowledgeDb(options: InstallLegalKnowledgeOpti
     try {
       log('保留表行数:')
       for (const t of ['case_law', 'legal_regulations', 'judicial_interpretations', 'guiding_cases']) {
-        const n = countRows(db, t)
+        const n = countTableRows(db, t)
         log(`  ${t.padEnd(28)} ${n >= 0 ? n.toLocaleString() : '（缺失）'}`)
       }
     } finally {

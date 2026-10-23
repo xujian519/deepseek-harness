@@ -90,6 +90,8 @@ import * as PatentDeadline from '@deepseek-ai/dsh-patent-deadline'
 import * as PatentFees from '@deepseek-ai/dsh-patent-fees'
 import * as PatentFiling from '@deepseek-ai/dsh-patent-filing'
 import * as PatentLaw from '@deepseek-ai/dsh-patent-law'
+import * as LegalLaw from '@deepseek-ai/dsh-legal-law'
+import * as LegalEvidence from '@deepseek-ai/dsh-legal-evidence'
 import * as DocTemplate from '@deepseek-ai/dsh-doc-template'
 import * as WritingPatterns from '@deepseek-ai/dsh-writing-patterns'
 import * as PatentTeams from '@deepseek-ai/dsh-patent-teams'
@@ -818,6 +820,44 @@ const TOOL_PACKAGES: ToolPackage[] = [
       'law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed entry whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. A guideline citation is decided against the whole section, so a proposal a subsection carries supports it, and a row that names only a part or a chapter is decided by the sections under it.',
   },
   {
+    pkg: '@deepseek-ai/dsh-legal-law',
+    dir: 'legal-law',
+    source: 'packages/legal/legal-law/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin loads the packaged legal-law index at load and registers
+      // legal_law_verify from it plus the per-decision policy. The Config type
+      // requires `baselineDir`, so this page shows the packaged index branch;
+      // the remaining fields state the shipped defaults explicitly.
+      await ctx.plugin(LegalLaw, {
+        baselineDir: LegalLaw.legalLawBaselineDir(),
+        onMismatch: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.mismatch,
+        onUnmatched: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.unmatched,
+        onOutOfRange: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.outOfRange,
+        onNotIndexed: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.notIndexed,
+        onUnverified: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.unverified,
+        propositionSupport: LegalLaw.LEGAL_PROPOSITION_SUPPORT_DEFAULT,
+      })
+    },
+    note:
+      'legal_law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package (《民法典》《民事诉讼法》《劳动合同法》《公司法》 and the other laws under assets/legal-law/) by article and paragraph. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. The catalog boot uses the packaged index directory because Config.baselineDir has no default.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-legal-evidence',
+    dir: 'legal-evidence',
+    source: 'packages/legal/legal-evidence/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin loads the packaged evidence rules at load and registers
+      // evaluate_legal_evidence; no other service is needed.
+      await ctx.plugin(LegalEvidence, {})
+    },
+    note:
+      'evaluate_legal_evidence scores the triple attributes (关联性、合法性、真实性) of one evidence record for the eight statutory evidence types under 《民事诉讼法》第 66 条. The scoring is deterministic and makes no model request; the weights come from the shipped YAML rules asset, and a record that omits a field the rules ask about reads as unanswered rather than inferred.',
+  },
+  {
     pkg: '@deepseek-ai/dsh-writing-patterns',
     dir: 'writing-patterns',
     source: 'packages/patent/writing-patterns/src/index.ts',
@@ -1082,7 +1122,7 @@ export function render(catalog: ToolCatalog): string {
     '',
     'This file is GENERATED and verified fresh by `pnpm run verify-tool-catalog` (part of `doc-sync`) — do not edit it by hand. Unlike the cordis catalog (a pure source-AST pass), this generator BOOTS each tool plugin on a real context and reads `ctx.tools.schemas()`, because a tool schema is not statically knowable (runtime-spread enums, concatenated descriptions, config-driven names, raw-JSON-Schema MCP tools). A completeness guard globs `packages/*/tool-*` and fails if any package is missing from the generator\'s boot manifest, so a new tool cannot be silently undocumented.',
     '',
-    'Scope: shipped product tools under `packages/*/tool-*`, each booted with its DEFAULT config, except where a Config field is REQUIRED with no default — there the generator must choose, and the per-package note records which branch this page shows. The registered tool NAME can be a load-time config (e.g. `tool-subagent`\'s `toolName`), so a deployment may expose a package under a different or additional name — a per-package note records those shipped aliases where they exist. The `examples/` demo tools (e.g. `echo`) are excluded, matching the cordis catalog\'s packages-only scope.',
+    'Scope: shipped product tools under `packages/*/tool-*`, plus the domain packages that register tools directly (`patent-*`, `writing-patterns`, `methodology`, `document-deliver`, and `legal-*`), each booted with its DEFAULT config, except where a Config field is REQUIRED with no default — there the generator must choose, and the per-package note records which branch this page shows. The completeness guard globs `packages/*/tool-*`; a domain package that registers tools without that prefix is listed in the boot manifest by hand. The registered tool NAME can be a load-time config (e.g. `tool-subagent`\'s `toolName`), so a deployment may expose a package under a different or additional name — a per-package note records those shipped aliases where they exist. The `examples/` demo tools (e.g. `echo`) are excluded, matching the cordis catalog\'s packages-only scope.',
     '',
     '## Tool Package Map',
     '',

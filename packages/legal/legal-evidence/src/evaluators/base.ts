@@ -19,6 +19,30 @@ export interface LegalEvidenceEvaluator {
   checkFindings(input: LegalEvidenceInput): LegalEvidenceFinding[]
 }
 
+/** 单个维度的评估函数。 */
+export type LegalEvidenceAssessor = (input: LegalEvidenceInput) => LegalEvidenceDimensionJudgment
+
+/**
+ * 组装一个证据判定器。
+ *
+ * 关联性对所有法定证据类型采用同一套评分；合法性缺省也走通用评分，
+ * 只有类型特有的合法性要点才单独提供。
+ * @param parts - 真实性评估、可选合法性评估与类型特有检查。
+ * @returns 完整的三性判定器。
+ */
+export function createEvaluator(parts: {
+  assessAuthenticity: LegalEvidenceAssessor
+  assessLegality?: LegalEvidenceAssessor
+  checkFindings: (input: LegalEvidenceInput) => LegalEvidenceFinding[]
+}): LegalEvidenceEvaluator {
+  return {
+    evaluateRelevance: evaluateGenericRelevance,
+    evaluateLegality: parts.assessLegality ?? evaluateGenericLegality,
+    evaluateAuthenticity: parts.assessAuthenticity,
+    checkFindings: parts.checkFindings,
+  }
+}
+
 /** 三性评分基线：证据记录本身的完备度起点。 */
 export const TRIPLE_ATTRIBUTE_BASE = 0.5
 

@@ -7,7 +7,7 @@ Every model-facing tool a shipped plugin contributes to `ctx.tools`: the `name`,
 
 This file is GENERATED and verified fresh by `pnpm run verify-tool-catalog` (part of `doc-sync`) — do not edit it by hand. Unlike the cordis catalog (a pure source-AST pass), this generator BOOTS each tool plugin on a real context and reads `ctx.tools.schemas()`, because a tool schema is not statically knowable (runtime-spread enums, concatenated descriptions, config-driven names, raw-JSON-Schema MCP tools). A completeness guard globs `packages/*/tool-*` and fails if any package is missing from the generator's boot manifest, so a new tool cannot be silently undocumented.
 
-Scope: shipped product tools under `packages/*/tool-*`, each booted with its DEFAULT config, except where a Config field is REQUIRED with no default — there the generator must choose, and the per-package note records which branch this page shows. The registered tool NAME can be a load-time config (e.g. `tool-subagent`'s `toolName`), so a deployment may expose a package under a different or additional name — a per-package note records those shipped aliases where they exist. The `examples/` demo tools (e.g. `echo`) are excluded, matching the cordis catalog's packages-only scope.
+Scope: shipped product tools under `packages/*/tool-*`, plus the domain packages that register tools directly (`patent-*`, `writing-patterns`, `methodology`, `document-deliver`, and `legal-*`), each booted with its DEFAULT config, except where a Config field is REQUIRED with no default — there the generator must choose, and the per-package note records which branch this page shows. The completeness guard globs `packages/*/tool-*`; a domain package that registers tools without that prefix is listed in the boot manifest by hand. The registered tool NAME can be a load-time config (e.g. `tool-subagent`'s `toolName`), so a deployment may expose a package under a different or additional name — a per-package note records those shipped aliases where they exist. The `examples/` demo tools (e.g. `echo`) are excluded, matching the cordis catalog's packages-only scope.
 
 ## Tool Package Map
 
@@ -54,6 +54,8 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure. |
 | `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`, `tool/result` | - | law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed entry whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. A guideline citation is decided against the whole section, so a proposal a subsection carries supports it, and a row that names only a part or a chapter is decided by the sections under it. |
+| `@deepseek-ai/dsh-legal-law` | `legal_law_verify` | `ctx.tools` | `tool/call`, `tool/result` | - | legal_law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package (《民法典》《民事诉讼法》《劳动合同法》《公司法》 and the other laws under assets/legal-law/) by article and paragraph. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. The catalog boot uses the packaged index directory because Config.baselineDir has no default. |
+| `@deepseek-ai/dsh-legal-evidence` | `evaluate_legal_evidence` | `ctx.tools` | `tool/call`, `tool/result` | - | evaluate_legal_evidence scores the triple attributes (关联性、合法性、真实性) of one evidence record for the eight statutory evidence types under 《民事诉讼法》第 66 条. The scoring is deterministic and makes no model request; the weights come from the shipped YAML rules asset, and a record that omits a field the rules ask about reads as unanswered rather than inferred. |
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section. |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task`, `patent_teams_wait` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
@@ -3486,7 +3488,7 @@ Flexible plan for patent cases (stage-level HITL). create: build a plan (optiona
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of final_draft, reference_documents, claims, office_action)."
           },
           "params": {
             "type": "object",
@@ -3544,7 +3546,7 @@ Flexible plan for patent cases (stage-level HITL). create: build a plan (optiona
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement)."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of final_draft, reference_documents, claims, office_action)."
         },
         "params": {
           "type": "object",
@@ -6776,6 +6778,191 @@ Usage notes:
 Source: [`packages/patent/patent-law/src/index.ts`](../packages/patent/patent-law/src/index.ts)
 
 law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed entry whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. A guideline citation is decided against the whole section, so a proposal a subsection carries supports it, and a row that names only a part or a chapter is decided by the sections under it.
+
+<a id="deepseek-aidsh-legal-law"></a>
+
+## `@deepseek-ai/dsh-legal-law`
+
+### `legal_law_verify`
+
+- Checks legal-law citations against the law index shipped with this deployment: 《民法典》《民事诉讼法》《劳动合同法》《公司法》 by article (and paragraph).
+- Each citation is decided as 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验.
+- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error.
+- A citation-like fragment in the text that the parser cannot resolve is returned in `unrecognized` and was not checked.
+- Pass proposition when a citation is offered in support of a specific claim.
+- This checks citation form and index membership, not legal correctness of the actual text.
+
+Usage notes:
+  - Read-only, offline, and makes no network request.
+  - A result with no findings means no citation was recognized, not that the text is correct.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text whose citations are extracted and checked"
+    },
+    "references": {
+      "type": "array",
+      "description": "References to check as written, e.g. 民法典第143条 / 劳动合同法第10条第2款",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposition": {
+      "type": "string",
+      "description": "What the citations are offered in support of"
+    }
+  }
+}
+```
+
+Source: [`packages/legal/legal-law/src/index.ts`](../packages/legal/legal-law/src/index.ts)
+
+legal_law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package (《民法典》《民事诉讼法》《劳动合同法》《公司法》 and the other laws under assets/legal-law/) by article and paragraph. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. The catalog boot uses the packaged index directory because Config.baselineDir has no default.
+
+<a id="deepseek-aidsh-legal-evidence"></a>
+
+## `@deepseek-ai/dsh-legal-evidence`
+
+### `evaluate_legal_evidence`
+
+- 评估法律证据的三性（关联性、合法性、真实性），按《民事诉讼法》第 66 条八类法定证据分别判定。
+- 输入证据 id、证据类型与相关属性，输出三性评分（0-1）、各维度判定详情与规则检查发现。
+- 证据类型包括：当事人陈述(party_statement)、书证(documentary)、物证(physical)、视听资料(audio_visual)、电子数据(electronic)、证人证言(witness_testimony)、鉴定意见(expert_opinion)、勘验笔录(inspection_record)。
+- 确定性评分，无模型调用；权重可经 YAML 资产配置。
+
+Usage notes:
+  - 书证应提供原件并核验签章；电子数据应记录哈希并核验完整性；证人证言应披露利害关系并有佐证。
+  - 评分低于 0.5 的证据需补强或另行举证。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "evidenceId": {
+      "type": "string",
+      "description": "证据 id（唯一标识）"
+    },
+    "evidenceType": {
+      "type": "string",
+      "description": "证据类型",
+      "enum": [
+        "party_statement",
+        "documentary",
+        "physical",
+        "audio_visual",
+        "electronic",
+        "witness_testimony",
+        "expert_opinion",
+        "inspection_record"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "description": "证据来源描述"
+    },
+    "content": {
+      "type": "string",
+      "description": "证据内容摘要"
+    },
+    "factToProve": {
+      "type": "string",
+      "description": "待证事实"
+    },
+    "hasOriginal": {
+      "type": "boolean",
+      "description": "是否提供原件/原物"
+    },
+    "originalAbsenceReason": {
+      "type": "string",
+      "description": "未提供原件的原因"
+    },
+    "signatureVerified": {
+      "type": "boolean",
+      "description": "签章是否核验"
+    },
+    "formationTimeClear": {
+      "type": "boolean",
+      "description": "形成时间是否明确"
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "内容哈希"
+    },
+    "hashVerified": {
+      "type": "boolean",
+      "description": "哈希是否已独立核验"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "时间戳"
+    },
+    "storageIntegrityVerified": {
+      "type": "boolean",
+      "description": "存储完整性是否核验"
+    },
+    "witnessHasConflict": {
+      "type": "boolean",
+      "description": "证人是否有利害关系"
+    },
+    "conflictDisclosed": {
+      "type": "boolean",
+      "description": "利害关系是否已披露"
+    },
+    "corroborated": {
+      "type": "boolean",
+      "description": "是否有其他证据佐证"
+    },
+    "expertQualified": {
+      "type": "boolean",
+      "description": "鉴定资质是否核验"
+    },
+    "expertProcedureLegal": {
+      "type": "boolean",
+      "description": "鉴定程序是否合法"
+    },
+    "expertConclusionClear": {
+      "type": "boolean",
+      "description": "鉴定结论是否明确"
+    },
+    "inspectionHasWitness": {
+      "type": "boolean",
+      "description": "勘验是否有见证人在场"
+    },
+    "inspectionRecordComplete": {
+      "type": "boolean",
+      "description": "勘验记录是否完整"
+    },
+    "collectionLegal": {
+      "type": "boolean",
+      "description": "证据收集是否合法"
+    },
+    "formLegal": {
+      "type": "boolean",
+      "description": "证据形式是否合法"
+    },
+    "burdenHolder": {
+      "type": "string",
+      "description": "举证责任方",
+      "enum": [
+        "plaintiff",
+        "defendant"
+      ]
+    },
+    "standard": {
+      "type": "string",
+      "description": "证明标准"
+    }
+  }
+}
+```
+
+Source: [`packages/legal/legal-evidence/src/index.ts`](../packages/legal/legal-evidence/src/index.ts)
+
+evaluate_legal_evidence scores the triple attributes (关联性、合法性、真实性) of one evidence record for the eight statutory evidence types under 《民事诉讼法》第 66 条. The scoring is deterministic and makes no model request; the weights come from the shipped YAML rules asset, and a record that omits a field the rules ask about reads as unanswered rather than inferred.
 
 <a id="deepseek-aidsh-writing-patterns"></a>
 

@@ -7,16 +7,12 @@
  * - 真实性：鉴定方法科学、鉴定结论明确、鉴定材料真实完整
  */
 
-import type { LegalEvidenceDimensionJudgment, LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
-import { evaluateGenericRelevance, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
+import type { LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
+import { createEvaluator, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
 
 /** 鉴定意见判定器实现。 */
-export const expertOpinionEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const expertOpinionEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessLegality(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -47,7 +43,7 @@ export const expertOpinionEvaluator: LegalEvidenceEvaluator = {
     }
   },
 
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -123,4 +119,4 @@ export const expertOpinionEvaluator: LegalEvidenceEvaluator = {
 
     return findings
   },
-}
+})

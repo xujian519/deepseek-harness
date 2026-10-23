@@ -7,16 +7,12 @@
  * - 真实性：利害关系披露、证言一致性、佐证情况
  */
 
-import type { LegalEvidenceDimensionJudgment, LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
-import { evaluateGenericRelevance, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
+import type { LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
+import { createEvaluator, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
 
 /** 证人证言判定器实现。 */
-export const witnessTestimonyEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const witnessTestimonyEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessLegality(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -47,7 +43,7 @@ export const witnessTestimonyEvaluator: LegalEvidenceEvaluator = {
     }
   },
 
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -128,4 +124,4 @@ export const witnessTestimonyEvaluator: LegalEvidenceEvaluator = {
 
     return findings
   },
-}
+})

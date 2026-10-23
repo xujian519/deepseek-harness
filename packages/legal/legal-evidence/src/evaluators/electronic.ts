@@ -7,16 +7,12 @@
  * - 真实性：哈希校验、时间戳、存储完整性、生成/收集/传输过程可靠性
  */
 
-import type { LegalEvidenceDimensionJudgment, LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
-import { evaluateGenericRelevance, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
+import type { LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
+import { createEvaluator, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
 
 /** 电子数据判定器实现。 */
-export const electronicEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const electronicEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessLegality(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -47,7 +43,7 @@ export const electronicEvaluator: LegalEvidenceEvaluator = {
     }
   },
 
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -143,4 +139,4 @@ export const electronicEvaluator: LegalEvidenceEvaluator = {
 
     return findings
   },
-}
+})

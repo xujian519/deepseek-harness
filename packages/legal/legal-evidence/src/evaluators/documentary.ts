@@ -7,20 +7,12 @@
  * - 真实性：原件核对、签章真实性、形成时间明确性
  */
 
-import type { LegalEvidenceDimensionJudgment, LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
-import { evaluateGenericLegality, evaluateGenericRelevance, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
+import type { LegalEvidenceFinding, LegalEvidenceInput } from '../types.ts'
+import { createEvaluator, hasText, levelFor, TRIPLE_ATTRIBUTE_BASE, type LegalEvidenceEvaluator } from './base.ts'
 
 /** 书证判定器实现。 */
-export const documentaryEvaluator: LegalEvidenceEvaluator = {
-  evaluateRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericRelevance(input)
-  },
-
-  evaluateLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
-    return evaluateGenericLegality(input)
-  },
-
-  evaluateAuthenticity(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
+export const documentaryEvaluator: LegalEvidenceEvaluator = createEvaluator({
+  assessAuthenticity(input) {
     let score = TRIPLE_ATTRIBUTE_BASE
     const reasons: string[] = []
 
@@ -109,4 +101,4 @@ export const documentaryEvaluator: LegalEvidenceEvaluator = {
 
     return findings
   },
-}
+})

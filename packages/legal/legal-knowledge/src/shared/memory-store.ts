@@ -10,6 +10,9 @@
  * @module @deepseek-ai/dsh-legal-knowledge/shared/memory-store
  */
 
+import type { LegalRegulationValidity } from '../types.ts'
+import { filterByValidity, type ValidityDated } from './validity.ts'
+
 /** One in-memory search hit. */
 export type MemoryHit<T> = {
   /** The matched record. */
@@ -81,4 +84,23 @@ export function filterRecords<T>(
     const fieldVal = extractField(record)
     return fieldVal !== undefined && fieldVal.toLowerCase().includes(lower)
   })
+}
+
+/**
+ * 把内存命中按时间效力过滤并转换成引擎命中。
+ *
+ * 内存后端与 SQLite 后端共享相同的可见性规则：失效与未生效记录不返回，
+ * 未核验记录由调用方决定是否返回。
+ * @param hits - 内存检索命中（按得分降序）。
+ * @param options - as-of 日期、未核验可见性与结果上限。
+ * @param limit - 结果上限。
+ * @returns 带效力状态与得分的可见命中。
+ */
+export function toVisibleMemoryHits<T extends ValidityDated>(
+  hits: readonly MemoryHit<T>[],
+  options: { asOf?: string | undefined; includeUnverified?: boolean | undefined; limit?: number | undefined },
+  limit: number,
+): Array<T & { validity: LegalRegulationValidity; relevanceScore: number; via: 'memory' }> {
+  const dated = hits.map(hit => ({ ...hit.record, relevanceScore: hit.score, via: 'memory' as const }))
+  return filterByValidity(dated, { ...options, limit })
 }

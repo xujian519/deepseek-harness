@@ -534,6 +534,81 @@ export {
 // star-export collision does not silently drop them from this package's surface.
 export { getStateString, getStateArray } from './atoms/handler.ts'
 
+// Knowledge-search primitives shared by the SQLite knowledge databases.
+export { escapeFtsPhrase, FTS_MIN_RUNES, joinFtsOrTerms, sqliteHasFts5 } from './knowledge/fts.ts'
+export { createFtsLadder, runFtsSearch } from './knowledge/fts-search.ts'
+export type { FtsSearchLadder, FtsSearchOps } from './knowledge/fts-search.ts'
+export { extractLawKeywords } from './knowledge/keywords.ts'
+export { isLawVisible, resolveAsOf, resolveLawValidity, todayIsoDate } from './knowledge/validity.ts'
+export type { LawValidity, LawValidityInput } from './knowledge/validity.ts'
+export {
+  commitTempSibling,
+  countTableRows,
+  formatGigabytes,
+  prepareTempSibling,
+  resolveRealPath,
+} from './knowledge/install-fs.ts'
+export {
+  articleReferenceIdentity,
+  compactCitation,
+  formatArticleCitation,
+  formatCitationNumber,
+  formatCnNumber,
+  narrowed,
+  normalizeCitationText,
+  stripBookMarks,
+  trimPunctuation,
+} from './knowledge/citation-text.ts'
+export { ARTICLE_CONTINUATION_PATTERN, readArticleContinuations } from './knowledge/continuation.ts'
+export type { ArticleCandidate, ArticleReferenceLike } from './knowledge/continuation.ts'
+export {
+  collectReferences,
+  readStatuteArticleCandidate,
+  scanUnrecognizedReferences,
+} from './knowledge/citation-extract.ts'
+export type { StatuteArticleGroups } from './knowledge/citation-extract.ts'
+export {
+  createOverlapIndex,
+  PROPOSITION_SUPPORT_DEFAULT,
+  textOverlap,
+  topicOverlap,
+} from './knowledge/text-overlap.ts'
+export type { ComparableEntry, OverlapIndex } from './knowledge/text-overlap.ts'
+export {
+  articleComparableEntries,
+  decideArticleCitation,
+  findCompetingLabels,
+  formatPercent,
+  supportMismatchReason,
+  transcribedText,
+  truncateProposition,
+} from './knowledge/article-decision.ts'
+export type {
+  ArticleBaseline,
+  ArticleDecision,
+  ArticleProposition,
+  ArticleVerdict,
+  DecisionArticle,
+} from './knowledge/article-decision.ts'
+export {
+  CITATION_FINDING_DECISION_PROPERTIES,
+  CITATION_REPORT_PROPERTIES,
+  citationFindingSchema,
+  citationInputProblem,
+  citationReportLines,
+  citationVerifyExecute,
+  citationVerifyOutputSchema,
+  citationVerifyParameters,
+  citationVerifyRender,
+  citationVerifyReport,
+  citationVerifyToolOptions,
+} from './knowledge/citation-tool.ts'
+export type {
+  CitationInputProblem,
+  CitationReportRow,
+  CitationVerifyArgs,
+} from './knowledge/citation-tool.ts'
+
 // Workflow manifest contract, pre-positioned so the graph adapter (manifestToGraph)
 // has no dependency on the P3.1 workflow executor. The runWorkflow executor and
 // builtin manifests land in dsh-patent-workflow and re-import these from here.

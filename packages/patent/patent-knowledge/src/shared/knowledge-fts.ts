@@ -12,6 +12,7 @@ import { KNOWLEDGE_DB } from './schema-versions.ts'
 import { sqliteHasFts5 } from './fts.ts'
 import { registerChunkUncompress } from './chunk-compression.ts'
 import { runFtsSearch } from './fts-search.ts'
+import { createFtsLadder } from '@deepseek-ai/dsh-patent-core'
 import type { KnowledgeRuntimeStats } from './knowledge-stats.ts'
 
 /** 引擎构造选项（全部可选；不传时行为与旧签名完全一致）。 */
@@ -69,15 +70,19 @@ export abstract class KnowledgeFtsSearchBase<TOptions, THit> {
   protected runSearch(keyword: string, options: TOptions, limit: number): THit[] {
     const trimmed = keyword.trim()
     if (!trimmed) return []
-    return runFtsSearch({
-      keyword: trimmed,
-      hasFts: this.hasFts,
-      ftsDegraded: this.ftsDegraded,
-      searchFts: kw => this.searchFts(kw, options, limit),
-      searchFtsKeywords: keywords => this.searchFtsKeywords(keywords, options, limit),
-      searchLike: kw => this.searchLike(kw, options, limit),
-      degrade: (reason) => { this.degradeFts(reason) },
-    })
+    return runFtsSearch(createFtsLadder(
+      { keyword: trimmed, hasFts: this.hasFts, ftsDegraded: this.ftsDegraded },
+      options,
+      limit,
+      {
+        searchFts: (kw, opts, cap) => this.searchFts(kw, opts, cap),
+        searchFtsKeywords: (kws, opts, cap) => this.searchFtsKeywords(kws, opts, cap),
+        searchLike: (kw, opts, cap) => this.searchLike(kw, opts, cap),
+        degrade: (reason) => {
+          this.degradeFts(reason)
+        },
+      },
+    ))
   }
 
   /** 关闭底层数据库连接。 */

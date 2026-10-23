@@ -5,6 +5,8 @@
  * @module @deepseek-ai/dsh-patent-law/types
  */
 
+import type { DecisionArticle } from '@deepseek-ai/dsh-patent-core'
+
 /** Law documents the index covers. */
 export type LawName = '专利法' | '专利法实施细则' | '专利审查指南'
 
@@ -51,24 +53,7 @@ export type LawReference = LawArticleReference | GuidelineReference
  * recorded, the entry is indexed but unverified. Who performed the check is a
  * property of the shipped asset, and the asset states it.
  */
-export type ArticleEntry = {
-  /** Article number. */
-  article: number
-  /** Paragraph numbers the entry knows to exist; omitted when not yet verified. */
-  paragraphs?: number[]
-  /**
-   * Topic keywords a proposition can name. They are one of the two signals a
-   * proposition is matched by — the other is `text` — and they are an index aid,
-   * not statutory text.
-   */
-  topics: string[]
-  /** Article text, or null while it has not been transcribed. */
-  text: string | null
-  /** Official source the text was taken from, or null while unverified. */
-  sourceDoc: string | null
-  /** Date the entry's text was checked against `sourceDoc`, or null while it has not been transcribed. */
-  verifiedOn: string | null
-}
+export type ArticleEntry = DecisionArticle
 
 /** One indexed guideline section, with the same source and verification fields as an article. */
 export type SectionEntry = {

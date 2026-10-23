@@ -12287,6 +12287,9 @@ importers:
 
   packages/legal/legal-knowledge:
     dependencies:
+      '@deepseek-ai/dsh-patent-core':
+        specifier: workspace:*
+        version: link:../../patent/patent-core
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery

@@ -358,12 +358,14 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 <!-- tech-debt-counters:start -->
 | 计数 | 值 |
 | --- | --- |
-| `structure.long-functions` | 186 |
+| `structure.long-functions` | 187 |
 | `structure.large-files` | 77 |
 | `lint.v8-ignore` | 1265 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
+
+- **2026-10-23 legal 七步法合并**:`structure.long-functions` 由 186 升至 **187**;按当前 shipped sources 重新实测后更新,其余计数不变。
 
 - **2026-10-22 patent M1 评审收口**:`lint.v8-ignore` 由 1261 升至 **1267**;`dispute-framing` 的正则必选捕获组、中文数字前位与理由表候选标签补四处带理由的豁免,`workflow` 的回退目标必然已执行与文本触发模式补两处;其余新增分支由用例覆盖。
 - **2026-10-22 patent M1 代码精简**:`lint.v8-ignore` 由 1267 降至 **1265**;`dispute-framing` 的候选构造与归一化收敛到 `toCandidates` / `toClaims`,原先为两处重复标签兜底保留的豁免合并为一处,中文数字前位改用 `charAt` 后不再需要「下标必然存在」的豁免;行为由原有测试覆盖。

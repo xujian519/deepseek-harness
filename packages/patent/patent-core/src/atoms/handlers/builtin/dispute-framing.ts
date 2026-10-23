@@ -9,6 +9,7 @@
 
 import type { Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
+import { readStateJson, readStateObject } from './state-json.ts'
 import { degraded } from './llm.ts'
 
 /** 争议定位结果中的一条法条候选。 */
@@ -186,24 +187,9 @@ export function scanClaimNumbers(text: string): number[] {
   return toClaims(claims)
 }
 
-/** 读取 JSON 状态键；缺失、空串或非法 JSON 时返回 undefined。 */
-function readJson(state: PipelineState, key: string): unknown {
-  const raw = getStateString(state, key)
-  if (raw.trim() === '') return undefined
-  try {
-    return JSON.parse(raw)
-  } catch {
-    // 状态不是本原子写入的 JSON（例如降级文本）：回退到正文扫描，不在这里抛错。
-    return undefined
-  }
-}
-
 /** 读取 JSON 对象状态键；缺失、不可读或不是对象时返回 undefined。 */
 function readJsonRecord(state: PipelineState, key: string): Record<string, unknown> | undefined {
-  const parsed = readJson(state, key)
-  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-    ? parsed as Record<string, unknown>
-    : undefined
+  return readStateObject(state, key)
 }
 
 /**
@@ -262,7 +248,7 @@ function fromOfficeAction(state: PipelineState): DisputeFraming | undefined {
 
 /** 从 grounds 的结构化理由收集候选（跳过否定表述）。 */
 function fromGrounds(state: PipelineState): DisputeFraming | undefined {
-  const findings = readJson(state, 'grounds')
+  const findings = readStateJson(state, 'grounds')
   if (!Array.isArray(findings)) return undefined
   const statutes = new Set<string>()
   for (const finding of findings) {

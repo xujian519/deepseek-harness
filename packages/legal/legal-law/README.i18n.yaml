@@ -1,0 +1,49 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/legal/legal-law/README.md
+/:
+  en: a917fec52718b2f1
+  zh: 7b308248b219a52a
+/deepseek-ai-dsh-legal-law:
+  en: d7d2d464b4d804f9
+  zh: a0b2421d7c0edbd6
+/deepseek-ai-dsh-legal-law/summary:
+  en: 5b0caa067c52a449
+  zh: 6e50e733248059eb
+/deepseek-ai-dsh-legal-law/table-of-contents:
+  en: 794ae11000b96eac
+  zh: 9d1db07272d1749c
+/deepseek-ai-dsh-legal-law/why-it-exists:
+  en: 8c09c48047cc2809
+  zh: cacf834fd5e2103e
+/deepseek-ai-dsh-legal-law/shipped-index:
+  en: db6edcf4973dcf68
+  zh: ff638a70fb0123bc
+/deepseek-ai-dsh-legal-law/citation-decision:
+  en: 48e540d179f1f34e
+  zh: b9fe42da390c7e1e
+/deepseek-ai-dsh-legal-law/tool:
+  en: f44b18e55d574dcc
+  zh: 500aff740a122bb9
+/deepseek-ai-dsh-legal-law/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-legal-law/model-experience/legal-law-verify-tool:
+  en: 8ca47861964fa12b
+  zh: e56c29d928e1a2c6
+/deepseek-ai-dsh-legal-law/model-experience/legal-law-verify-tool/what-the-model-sees:
+  en: c205a75529db8395
+  zh: ce9c4656accb00ab
+/deepseek-ai-dsh-legal-law/model-experience/legal-law-verify-tool/token-effect:
+  en: be0189da50e1c907
+  zh: c77dfb80937863ad
+/deepseek-ai-dsh-legal-law/model-experience/legal-law-verify-tool/kv-cache-effect:
+  en: 037822c61c0c57f5
+  zh: 4bbb1cf117fe2977
+/deepseek-ai-dsh-legal-law/known-limitations-and-deferred-work:
+  en: ffa03dcb13b7b343
+  zh: 0d1c253b8cc4ce0d
+/deepseek-ai-dsh-legal-law/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

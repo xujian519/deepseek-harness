@@ -1,13 +1,16 @@
 /**
- * Legal regulation validity determination (pure functions, no DB dependency).
+ * Legal regulation validity determination.
  *
- * Determines whether a legal regulation, judicial interpretation, or similar
- * normative document is in force at a given point in time, based on its
- * effective date, expiry date, and expired flag.
+ * The validity rules live in `@deepseek-ai/dsh-patent-core` because the patent
+ * knowledge database applies the same three-column rule. This module keeps the
+ * legal-domain column names and the visible-result filter the engines use.
  * @module @deepseek-ai/dsh-legal-knowledge/shared/validity
  */
 
+import { isLawVisible, resolveAsOf, resolveLawValidity } from '@deepseek-ai/dsh-patent-core'
 import type { LegalRegulationValidity } from '../types.ts'
+
+export { isLawVisible as isVisible, resolveAsOf, todayIsoDate } from '@deepseek-ai/dsh-patent-core'
 
 /** Validity determination input columns. */
 export type ValidityInput = {
@@ -17,37 +20,6 @@ export type ValidityInput = {
   expiryDate?: string | null | undefined
   /** Expired flag: 0=in force, 1=expired; undefined means unverified. */
   expired?: number | null | undefined
-}
-
-/** Whether a date string is a valid YYYY-MM-DD date. */
-function isIsoDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const date = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-}
-
-/** Valid ISO date passthrough; missing/invalid dates become undefined. */
-function isoDateOrUndefined(value: string | null | undefined): string | undefined {
-  return value !== null && value !== undefined && isIsoDate(value) ? value : undefined
-}
-
-/** Today's UTC date as YYYY-MM-DD. */
-export function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-/**
- * Resolve the as-of date; throws on invalid input.
- * @param value - caller-supplied date (YYYY-MM-DD); undefined defaults to today.
- * @returns the resolved date string.
- */
-export function resolveAsOf(value: string | undefined): string {
-  if (value === undefined) return todayIsoDate()
-  const trimmed = value.trim()
-  if (!isIsoDate(trimmed)) {
-    throw new Error(`asOf must be a valid YYYY-MM-DD date (received ${JSON.stringify(value)})`)
-  }
-  return trimmed
 }
 
 /**
@@ -63,25 +35,51 @@ export function resolveAsOf(value: string | undefined): string {
  * @returns the validity status.
  */
 export function resolveValidity(input: ValidityInput, asOf: string): LegalRegulationValidity {
-  if (input.expired === 1) return 'expired'
-  const effective = isoDateOrUndefined(input.effectiveDate)
-  const expiry = isoDateOrUndefined(input.expiryDate)
-  if (expiry !== undefined && asOf > expiry) return 'expired'
-  if (effective !== undefined && asOf < effective) return 'not-yet-effective'
-  if (effective !== undefined || expiry !== undefined || input.expired === 0) return 'in-force'
-  return 'unverified'
+  return resolveLawValidity(
+    { validFrom: input.effectiveDate, validTo: input.expiryDate, expired: input.expired },
+    asOf,
+  )
+}
+
+/** 检索选项中的时间效力字段。 */
+export type ValidityFilterOptions = {
+  /** Point-in-time validity (YYYY-MM-DD); defaults to today. */
+  asOf?: string | undefined
+  /** Whether to return records whose validity is unverified; defaults true. */
+  includeUnverified?: boolean | undefined
+  /** Result cap; defaults to 10. */
+  limit?: number | undefined
+}
+
+/** 带时间效力列的检索命中。 */
+export type ValidityDated = {
+  effectiveDate: string
+  expiryDate?: string | undefined
+  expired?: number | undefined
 }
 
 /**
- * Whether a record with the given validity should be visible in search results.
- * Expired and not-yet-effective records are hidden; unverified records are
- * visible only when includeUnverified is true.
- * @param validity - the validity status.
- * @param includeUnverified - whether to include unverified records.
- * @returns whether the record is visible.
+ * Resolve each hit's validity at the requested date and drop the invisible ones.
+ * Hits keep their input order, capped at the option limit.
+ * @param hits - the raw hits, in relevance order.
+ * @param options - as-of date, unverified visibility, and result cap.
+ * @param defaultLimit - cap used when the options omit one.
+ * @returns the visible hits with their resolved validity.
  */
-export function isVisible(validity: LegalRegulationValidity, includeUnverified: boolean): boolean {
-  if (validity === 'expired' || validity === 'not-yet-effective') return false
-  if (validity === 'unverified') return includeUnverified
-  return true
+export function filterByValidity<T extends ValidityDated>(
+  hits: readonly T[],
+  options: ValidityFilterOptions,
+  defaultLimit = 10,
+): Array<T & { validity: LegalRegulationValidity }> {
+  const asOf = resolveAsOf(options.asOf)
+  const includeUnverified = options.includeUnverified ?? true
+  const limit = options.limit ?? defaultLimit
+  const results: Array<T & { validity: LegalRegulationValidity }> = []
+  for (const hit of hits) {
+    if (results.length >= limit) break
+    const validity = resolveValidity(hit, asOf)
+    if (!isLawVisible(validity, includeUnverified)) continue
+    results.push({ ...hit, validity })
+  }
+  return results
 }
