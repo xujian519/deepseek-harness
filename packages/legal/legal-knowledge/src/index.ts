@@ -13,6 +13,7 @@
  * @module @deepseek-ai/dsh-legal-knowledge
  */
 
+import { existsSync } from 'node:fs'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { resolveLegalKnowledgePaths } from './config.ts'
@@ -113,7 +114,9 @@ export class LegalKnowledge extends Service {
 
     // When FTS5 is enabled and the query database exists, pass the path to engines.
     // Engines will probe FTS5 availability at construction and degrade gracefully.
-    const dbPath = this.useFts5 ? this.paths.queryDbPath : undefined
+    // An absent default path is the pre-install state: engines stay in-memory
+    // instead of failing a read-only open of a file that was never installed.
+    const dbPath = this.useFts5 && existsSync(this.paths.queryDbPath) ? this.paths.queryDbPath : undefined
 
     const engineOptions = dbPath !== undefined ? { dbPath } : {}
     this.caseLawEngine = new CaseLawSearchEngine(engineOptions)
