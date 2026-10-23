@@ -825,23 +825,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
     source: 'packages/legal/legal-law/src/index.ts',
     requires: ['ctx.tools'],
     writes: ['tool/call', 'tool/result'],
-    async mount(ctx) {
-      // The plugin loads the packaged legal-law index at load and registers
-      // legal_law_verify from it plus the per-decision policy. The Config type
-      // requires `baselineDir`, so this page shows the packaged index branch;
-      // the remaining fields state the shipped defaults explicitly.
-      await ctx.plugin(LegalLaw, {
-        baselineDir: LegalLaw.legalLawBaselineDir(),
-        onMismatch: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.mismatch,
-        onUnmatched: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.unmatched,
-        onOutOfRange: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.outOfRange,
-        onNotIndexed: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.notIndexed,
-        onUnverified: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY.unverified,
-        propositionSupport: LegalLaw.LEGAL_PROPOSITION_SUPPORT_DEFAULT,
-      })
+    mount(ctx) {
+      // Harvesting the schema does not need the shipped index, and loading its
+      // 7,900+ YAML files dominates every catalog boot. Register the tool over
+      // an empty baseline map with the shipped policy defaults; the package's
+      // own load path is exercised by its integration suite.
+      ctx.tools.register(LegalLaw.createLegalLawVerifyTool({
+        baselines: new Map<LegalLaw.LegalLawName, LegalLaw.LegalLawBaseline>(),
+        policies: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY,
+        supportThreshold: LegalLaw.LEGAL_PROPOSITION_SUPPORT_DEFAULT,
+      }))
+      return Promise.resolve()
     },
     note:
-      'legal_law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package (《民法典》《民事诉讼法》《劳动合同法》《公司法》 and the other laws under assets/legal-law/) by article and paragraph. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. The catalog boot uses the packaged index directory because Config.baselineDir has no default.',
+      'legal_law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package (《民法典》《民事诉讼法》《劳动合同法》《公司法》 and the other laws under assets/legal-law/) by article and paragraph. Each finding is 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted, and a proposition no entry carries is reported as 未判定 rather than as a contradiction. The catalog harvest registers the tool over an empty baseline map because the schema does not depend on the index.',
   },
   {
     pkg: '@deepseek-ai/dsh-legal-evidence',

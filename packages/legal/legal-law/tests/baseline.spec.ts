@@ -172,6 +172,7 @@ describe('loadLegalLawBaselines', () => {
     expect(() => loadLegalLawBaselines(dir)).toThrow(LegalLawBaselineError)
   })
 
+  // Loading 7,900+ YAML files takes minutes under coverage instrumentation.
   it('loads the packaged index without errors', () => {
     // Loading 7900+ YAML files takes time
     const baselines = loadLegalLawBaselines()
@@ -180,7 +181,7 @@ describe('loadLegalLawBaselines', () => {
     expect(baselines.has('民事诉讼法')).toBe(true)
     expect(baselines.has('劳动合同法')).toBe(true)
     expect(baselines.has('公司法')).toBe(true)
-  }, 30000)
+  }, 180_000)
 })
 
 describe('findLegalArticle', () => {

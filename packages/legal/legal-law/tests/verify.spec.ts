@@ -191,6 +191,7 @@ describe('legalTextOverlap', () => {
 })
 
 describe('loadLegalLawBaselines (integration)', () => {
+  // Loading 7,900+ YAML files takes minutes under coverage instrumentation.
   it('loads the shipped index and finds articles', () => {
     // Loading 7900+ YAML files takes time
     const shipped = loadLegalLawBaselines()
@@ -202,5 +203,5 @@ describe('loadLegalLawBaselines (integration)', () => {
     // Auto-generated entries have text: null until verified
     // The key check is that the article is indexed
     expect(article143!.article).toBe(143)
-  }, 30000)
+  }, 180_000)
 })
