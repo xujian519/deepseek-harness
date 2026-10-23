@@ -31,6 +31,7 @@ interface PresetRow {
   id?: unknown
   name?: unknown
   config?: unknown
+  isolate?: unknown
 }
 
 /** The rows and settings of one agent-preset declaration. */
@@ -128,6 +129,25 @@ describe('legal preset composition', () => {
     const web = rows.find(row => row.id === 'tool-web')
     expect(web?.config).toEqual(expect.objectContaining({ search: false, fetch: true }))
     expect(rows.some(row => typeof row.name === 'string' && row.name.includes('mcp'))).toBe(false)
+  })
+})
+
+describe('legal knowledge tool mount', () => {
+  it('keeps the query tool inside the service isolate realm', () => {
+    const plugins = legalDeclaration()?.config?.plugins
+    if (!Array.isArray(plugins)) throw new TypeError('the legal preset must declare a plugin list')
+    const group = plugins.find((row): row is PresetRow => {
+      const candidate = row as PresetRow
+      return candidate.id === 'legal-knowledge-index'
+    })
+    expect(group?.isolate).toEqual({ legalKnowledge: true })
+    const rows = group?.config
+    if (!Array.isArray(rows)) throw new TypeError('the legal knowledge group must declare rows')
+    expect(rows.map(row => (row as PresetRow).id)).toEqual(['legal-knowledge', 'legal-knowledge-tool'])
+    expect(rows.map(row => (row as PresetRow).name)).toEqual([
+      '@deepseek-ai/dsh-legal-knowledge',
+      '@deepseek-ai/dsh-legal-knowledge/tool',
+    ])
   })
 })
 

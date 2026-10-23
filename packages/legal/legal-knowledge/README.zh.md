@@ -9,12 +9,13 @@ kind: "package-reference"
 
 ## 概述
 
-DeepSeek Harness 的法律知识库查询接缝：案例检索、法规检索、司法解释检索与指导案例查询，基于 SQLite FTS5，并以内存检索作为降级。
+DeepSeek Harness 的法律知识库查询接缝：案例检索、法规检索、司法解释检索与指导案例查询，基于 SQLite FTS5 并以内存检索作为降级，另提供可选的 `legal_knowledge_search` 工具插件。
 
 ## 目录
 
 - [为什么有这个包](#why-it-exists)
 - [查询接口](#query-surface)
+- [面向模型的工具](#model-facing-tool)
 - [后端](#backends)
 - [安装与配置](#install-and-configuration)
 - [已知限制与暂缓事项](#known-limitations-and-deferred-work)
@@ -22,12 +23,17 @@ DeepSeek Harness 的法律知识库查询接缝：案例检索、法规检索、
 <a id="why-it-exists"></a>
 ## 为什么有这个包
 
-法律研究需要检索裁判文书、法规与司法解释，而每个消费方都不应各自实现全文排序、效力过滤，以及"部署没有数据库"时的降级路径。本包提供一个 Cordis 服务 `ctx.legalKnowledge`，覆盖四类记录，使工具与技能共用一份查询契约和一组结果字段。服务本身不拥有任何面向模型的表面：工具 schema 与结果渲染由消费方负责。
+法律研究需要检索裁判文书、法规与司法解释，而每个消费方都不应各自实现全文排序、效力过滤，以及"部署没有数据库"时的降级路径。本包提供一个 Cordis 服务 `ctx.legalKnowledge`，覆盖四类记录，使工具与技能共用一份查询契约和一组结果字段。服务本身不拥有任何面向模型的表面：工具 schema 与结果渲染由消费方负责。可选的 `./tool` 子路径导出是本包唯一随附的消费方；它作为独立插件存在，只使用服务的部署不会挂载任何工具。
 
 <a id="query-surface"></a>
 ## 查询接口
 
 `caseLawSearch` 按上限与 `docType`、`court`、`caseType` 过滤查询案例；`legalSearch` 按层级与效力选项查询法规；`judicialInterpretationSearch` 按类型与效力选项查询司法解释；`guidingCaseSearch` 按关键词查询指导案例。`addCaseLawRecords`、`addLegalRegulationRecords`、`addJudicialInterpretationRecords` 与 `addGuidingCaseRecords` 填充内存存储，仅在引擎未使用数据库时生效。命中结果携带记录字段、相关度评分与产生该结果的通道；效力选项按调用方给出的截止日期过滤法规的施行与失效日期。
+
+<a id="model-facing-tool"></a>
+## 面向模型的工具
+
+`@deepseek-ai/dsh-legal-knowledge/tool` 是一个函数插件，注入 `tools` 与 `legalKnowledge` 并注册 `legal_knowledge_search`。`scope` 选择一类记录：`regulation`（默认）、`case_law`、`judicial_interpretation` 或 `guiding_case`。工具把 `limit`、`asOf`、`level`、`docType`、`court`、`caseType` 与 `interpretationType` 转交给对应的服务方法，结果上限钳制在 1–20 条，并返回命中记录与摘要。摘要会说明：空结果表示本部署的知识库未命中，不代表该法源不存在。挂载时必须与服务处于同一个 `isolate` realm；法律 preset 的 `legal-knowledge-index` 分组已按此配置。
 
 <a id="backends"></a>
 ## 后端
@@ -46,7 +52,7 @@ DeepSeek Harness 的法律知识库查询接缝：案例检索、法规检索、
 - **内存降级是关键词匹配，不是排序检索。** 它只服务调用方在运行时加入的内容；相关度评分与过滤都作用在这些记录上，因此加入列表为空时，无论部署数据库里有什么，检索都为空。
 - **FTS5 是否可用取决于 Node 运行时。** SQLite 经 `node:sqlite` 提供；没有 FTS5 的运行时降级到 `LIKE` 包含匹配，能找到子串但不按 BM25 排序。
 - **效力过滤基于日期。** 未记录施行或失效日期的法规按可见处理；服务不查询外部修订表，因此在日期被记录之前，已被替代的文本仍可能保持可见。
-- **没有面向模型的表面。** 服务不注册工具、提示词区段或结果文本；所有 schema 与渲染结果都由消费方负责。
+- **服务本身不注册工具。** `legal_knowledge_search` 位于独立的 `./tool` 插件；服务仍不注册提示词区段或结果文本，所有 schema 与渲染结果都由消费方负责。
 
 ### 开发备注
 

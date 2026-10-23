@@ -16,6 +16,9 @@
     },
     {
       "path": "../../patent/patent-core"
+    },
+    {
+      "path": "../../core/tools"
     }
   ]
 }

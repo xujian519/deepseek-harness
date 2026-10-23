@@ -15,7 +15,7 @@ kind: "package-group"
 
 | 包 | 职责 | ctx 键 |
 |---|---|---|
-| [`legal-knowledge/`](legal-knowledge/README.zh.md) | 法律知识库查询：案例、法规、司法解释与指导案例，基于 SQLite FTS5，并以内存检索降级。 | `legalKnowledge` |
+| [`legal-knowledge/`](legal-knowledge/README.zh.md) | 法律知识库查询：案例、法规、司法解释与指导案例，基于 SQLite FTS5 并以内存检索降级，另提供可选的 `legal_knowledge_search` 工具插件。 | `legalKnowledge` |
 | [`legal-law/`](legal-law/README.zh.md) | 法条索引与引用核验：引用解析、逐条判定、`legal_law_verify` 工具。 | （注册到 `ctx.tools`） |
 | [`legal-evidence/`](legal-evidence/README.zh.md) | 法律证据三性判定：按规则对关联性、合法性与真实性评分，提供 `evaluate_legal_evidence` 工具。 | （注册到 `ctx.tools`） |
 

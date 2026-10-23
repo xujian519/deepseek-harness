@@ -339,7 +339,8 @@
 
           # dsh-legal-knowledge：法律知识库查询。提供案例检索、法规检索、司法解释
           # 检索与指导案例查询；有查询库时走 SQLite FTS5，缺少数据库时回退内存存储。
-          # 本组只提供服务 seam，工具消费者在后续里程碑接入。
+          # 服务本身不注册工具；同组的 /tool 子路径插件消费该服务并注册
+          # legal_knowledge_search，因此两者必须留在同一个 isolate realm。
           - id: legal-knowledge-index
             name: cordis:group
             group: true
@@ -348,6 +349,8 @@
             config:
               - id: legal-knowledge
                 name: '@deepseek-ai/dsh-legal-knowledge'
+              - id: legal-knowledge-tool
+                name: '@deepseek-ai/dsh-legal-knowledge/tool'
 
           # ── legal evidence ────────────────────────────────────────────────────────
 

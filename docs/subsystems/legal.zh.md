@@ -2,7 +2,7 @@
 
 [English](legal.md) | 中文
 
-法律子系统沿用专利域使用的 harness 接缝来承载法律域能力：`@deepseek-ai/dsh-legal-knowledge` 提供 `ctx.legalKnowledge` 查询服务，覆盖案例、法规、司法解释与指导案例（SQLite FTS5，并以内存检索降级）；`@deepseek-ai/dsh-legal-law` 与 `@deepseek-ai/dsh-legal-evidence` 注册面向模型的 `legal_law_verify` 与 `evaluate_legal_evidence` 工具。这些包位于 [packages/legal](../../packages/legal/README.zh.md)；[legal preset](../../packages/bundle/web-app/presets/legal.patch.yml) 把它们与法律文书交付工具一起挂载。
+法律子系统沿用专利域使用的 harness 接缝来承载法律域能力：`@deepseek-ai/dsh-legal-knowledge` 提供 `ctx.legalKnowledge` 查询服务，覆盖案例、法规、司法解释与指导案例（SQLite FTS5，并以内存检索降级）；`@deepseek-ai/dsh-legal-law`、`@deepseek-ai/dsh-legal-evidence` 与可选的 `@deepseek-ai/dsh-legal-knowledge/tool` 插件分别注册面向模型的 `legal_law_verify`、`evaluate_legal_evidence` 与 `legal_knowledge_search` 工具。这些包位于 [packages/legal](../../packages/legal/README.zh.md)；[legal preset](../../packages/bundle/web-app/presets/legal.patch.yml) 把它们与法律文书交付工具一起挂载。
 
 法条索引与证据规则都作为包资产随包分发，因此尚未转录条文的部署会报 `未核验`，而不是放行该引用；缺失的证据字段按未回答处理，而不是推断。两个工具都不调用模型：引用判定与证据评分都是确定性的，并且可以从收到的记录重建。
 

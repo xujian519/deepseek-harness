@@ -3,5 +3,5 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/legal.md
 /legal:
-  en: d27113c152f32637
-  zh: 094bff05a66a3d01
+  en: 1ff52fe3926e9f44
+  zh: 0a4723760db02647
