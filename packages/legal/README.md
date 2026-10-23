@@ -15,7 +15,7 @@ The legal group carries the legal-domain packages over the harness seams the pat
 
 | Package | Role | ctx key |
 |---|---|---|
-| [`legal-knowledge/`](legal-knowledge/README.md) | Legal knowledge-base queries: case law, regulations, judicial interpretations, and guiding cases over SQLite FTS5 with an in-memory fallback. | `legalKnowledge` |
+| [`legal-knowledge/`](legal-knowledge/README.md) | Legal knowledge-base queries: case law, regulations, judicial interpretations, and guiding cases over SQLite FTS5 with an in-memory fallback, plus the optional `legal_knowledge_search` tool plugin. | `legalKnowledge` |
 | [`legal-law/`](legal-law/README.md) | Legal-law index and citation checking: reference parsing, per-article decisions, the `legal_law_verify` tool. | (registers on `ctx.tools`) |
 | [`legal-evidence/`](legal-evidence/README.md) | Legal evidence triple-attribute assessment: rule-driven scoring of relevance, legality, and authenticity, the `evaluate_legal_evidence` tool. | (registers on `ctx.tools`) |
 

@@ -9,8 +9,8 @@
   en: 1387c4505dde2faf
   zh: 48570fa1c13d6910
 /session-persistence-event-catalog/persistence-type-fingerprints:
-  en: ebf7463e3bc8ddb0
-  zh: 02a2f56e16915aed
+  en: 0e20be2a3e1ee7c4
+  zh: b0e0554d2ead4461
 /session-persistence-event-catalog/event-envelope:
   en: 7223913c29a280dc
   zh: 0e8a6b02384727b4
@@ -1500,11 +1500,11 @@
   en: bea70760e2bca85b
   zh: cea146f79e4cc7ce
 /session-persistence-event-catalog/resolved-persistence-types/patentteamsteamdeleteddata:
-  en: 207854ba5fd87098
-  zh: 2d2d0941a947bfe8
+  en: fe5554cd7cdc3a51
+  zh: afa201f6ddb3f90c
 /session-persistence-event-catalog/resolved-persistence-types/patentworkflowrunevent:
-  en: efc5a0c10c1cf464
-  zh: 086c60c9289ffcad
+  en: c266228ab915005c
+  zh: 1b485daa6bae6492
 /session-persistence-event-catalog/resolved-persistence-types/plantask:
   en: 1cd7d6b1c8894c47
   zh: 060cea33a0aca9d6
@@ -1716,14 +1716,14 @@
   en: 9efb34ef00eb4ca0
   zh: 28764e552ab8771e
 /session-persistence-event-catalog/resolved-persistence-types/workflowinterrupt:
-  en: 06424e9d3d80015b
-  zh: fca5a5beca41185d
+  en: 44f1eecc75cb02e0
+  zh: 3d11e54e34cc8c14
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult:
-  en: 58bdb867075c71a4
-  zh: 4a980c1cbada724c
+  en: 6949949f649a681a
+  zh: 16d4590d3dfdf7f3
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult~2:
-  en: 5c197b986751203c
-  zh: 53c625f8e62dff16
+  en: 9a0bbdc586b3ba3b
+  zh: 2af20ed5e3d4da7f
 /session-persistence-event-catalog/resolved-persistence-types/workflowstopreason:
   en: b760b62ffd95505e
   zh: f65ea2450e7bec71
@@ -2544,11 +2544,11 @@
   en: c4ba18ccfd27d2e1
   zh: 20f26162f7b08c92
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-plantask:
-  en: 1e4df4d909dd94aa
-  zh: f72463d6ef5789f9
+  en: 6b707f481dbf80b4
+  zh: c4c4435b83ec2109
 /session-persistence-event-catalog/resolved-persistence-types/type-patent-workflow-run:
-  en: be3d32a1f819df3c
-  zh: 89c4f3feb26d5d67
+  en: 6d5d22a3ae520252
+  zh: c9cc977cb01bde30
 /session-persistence-event-catalog/resolved-persistence-types/type-permission-preset:
   en: 965e836b012404b3
   zh: 0ab923cc8a41e7f2

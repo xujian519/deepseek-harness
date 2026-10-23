@@ -535,6 +535,76 @@
       }
     },
     {
+      "name": "legal_knowledge_search",
+      "description": "- 检索本部署的法律知识库，覆盖法规条文、裁判文书、司法解释与指导性案例四类记录。\n- 法规与司法解释结果带 `validity`（in-force/expired/not-yet-effective/unverified），可用 `asOf` 按指定日期判断有效性。\n- 检索结果是部署数据：空结果表示本部署的知识库未命中，不证明该规范或案例不存在；引用前仍需回到官方法源核验原文。\n- `via` 说明命中通道（fts 全文、like 降级匹配、memory 内存记录）；`relevanceScore` 越小越相关。\n\nUsage notes:\n  - 先用法条检索确定现行有效条文，再用案例检索补充适用方式；不要颠倒。\n  - 逐条引用时同时给出条目 id（regulationId/caseId/interpretationId）与条文或案号。\n  - 单次最多返回 20 条；需要更多时缩小查询范围，而不是重复同一查询。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "检索关键词或短语"
+          },
+          "scope": {
+            "type": "string",
+            "description": "检索的记录类别（默认 regulation）",
+            "enum": [
+              "case_law",
+              "regulation",
+              "judicial_interpretation",
+              "guiding_case"
+            ]
+          },
+          "limit": {
+            "type": "number",
+            "description": "返回条数上限（1-20，默认 5）"
+          },
+          "asOf": {
+            "type": "string",
+            "description": "有效性判断日期 YYYY-MM-DD（仅法规与司法解释）"
+          },
+          "level": {
+            "type": "string",
+            "description": "法规层级过滤（仅 regulation）",
+            "enum": [
+              "法律",
+              "行政法规",
+              "司法解释",
+              "地方性法规",
+              "部门规章",
+              "其他"
+            ]
+          },
+          "docType": {
+            "type": "string",
+            "description": "文书类型过滤（仅 case_law）",
+            "enum": [
+              "judgment",
+              "guiding"
+            ]
+          },
+          "court": {
+            "type": "string",
+            "description": "法院名称片段（仅 case_law）"
+          },
+          "caseType": {
+            "type": "string",
+            "description": "案件类型片段（仅 case_law）"
+          },
+          "interpretationType": {
+            "type": "string",
+            "description": "司法解释类型过滤（仅 judicial_interpretation）",
+            "enum": [
+              "judicial-interpretation",
+              "guiding-case"
+            ]
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
       "name": "legal_law_verify",
       "description": "- Checks legal-law citations against the statutes the deployed index ships: any law name it declares (national laws, administrative regulations, local regulations, and judicial interpretations), by article and paragraph.\n- Each citation is decided as 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验.\n- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error.\n- A citation-like fragment in the text that the parser cannot resolve is returned in `unrecognized` and was not checked.\n- Pass proposition when a citation is offered in support of a specific claim.\n- This checks citation form and index membership, not legal correctness of the actual text.\n\nUsage notes:\n  - Read-only, offline, and makes no network request.\n  - A result with no findings means no citation was recognized, not that the text is correct.",
       "parameters": {

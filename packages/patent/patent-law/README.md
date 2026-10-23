@@ -51,6 +51,8 @@ The five policies are per-decision Config fields (`onMismatch`, `onUnmatched`, `
 
 `assets/law/` holds one file per document (`cn-patent-law.yaml`, `cn-implementing-regulations.yaml`, `cn-examination-guidelines.yaml`). An entry records the article or section path, the topic keywords used to test a proposition, and where the text came from: `text`, `sourceDoc`, `verifiedOn`. An article ceiling carries its own `maxVerifiedOn`, because a ceiling nobody has verified must not produce an `out-of-range` verdict.
 
+`assets/lineage/cn-patent-law-lineage.yaml` records the five revisions of 《专利法》 (1984 original through the 2020 amendment) and each indexed article's revision history and current status. The plugin loads it alongside the index and hands it to `rule-lock`, so article validity and effective dates come from the lineage record; articles the snapshot does not cover fall back to the index.
+
 The two statutes and the guideline sections are transcribed: each entry carries the text of the article or section it indexes, the document and revision that text was copied from, and the date of the copy. A guideline citation is decided against the cited section and its subsections; only a row whose indexed sections carry no text reports 未核验. A later revision's changed guideline sections are recorded under `versions` as overrides of the base `sections`; verification applies every override up to the latest transcribed revision unless the caller names a `revision`.
 
 ```yaml
@@ -77,6 +79,9 @@ The shipped statutes index 37 of 《专利法》's 82 articles and 45 of 《专�
 - `parseCnNumber(text)` / `formatCnNumber(value)` — Chinese numerals (`一百一十二` ↔ `112`). The parser accepts `〇` and `千` and returns null for a malformed numeral instead of reading a different number.
 - `loadLawBaselines(dir?)` / `parseLawBaseline(source, origin)` / `findArticle` / `findSection` — the index, validated fail-loud.
 - `verifyCitation(reference, baselines, options)` / `verifyCitations(text, baselines, options)` — decisions.
+- `queryValidity(query, baselines, lineage?)` / `decideValidity(reference, baselines, query, lineage?)` — the four-state validity decision; a lineage record overrides the baseline's transcription-based state.
+- `loadLawLineageFile(path)` / `parseLawLineage(source, origin)` / `queryArticleLineage` / `queryArticleAtDate` / `queryDiffBetween` / `queryStatusSnapshot` — the shipped lineage snapshot and its point-in-time queries.
+- `ruleLockAtom` / `RuleLockHandler` / `lockProvisions` — the `rule-lock` gate. With lineage loaded, `effectiveDate` is the latest revision's effective date; without it, the entry's `verifiedOn` transcription date is the fallback.
 - `createOverlapIndex(entries)` / `textOverlap(index, proposition, text)` / `topicOverlap(topics, proposition)` / `PROPOSITION_SUPPORT_DEFAULT` — the two proposition signals.
 - `resolveCitationPolicy(finding, policies)` / `renderCitationFindings` / `renderCitationRows` — policy and rendering.
 
@@ -90,6 +95,7 @@ Schemastery configuration; `baselineDir` is optional, every policy field default
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | baselineDir | string | packaged assets | Directory holding the law-index YAML files. A missing, empty, malformed, or incomplete directory (one of the three documents absent) fails the plugin load. |
+| lineageDir | string | packaged assets | Directory holding `cn-patent-law-lineage.yaml`. The snapshot loads at plugin load; a missing or malformed file fails the plugin load rather than degrading rule-lock to baseline-only validity. |
 | cnlawEnabled | boolean | `true` | Whether this deployment runs the local cnlaw legal base. `false` declares no base, so the section names the fallback channels instead of an endpoint. |
 | cnlawSearchUrl | string | `http://127.0.0.1:8100` | Semantic-search endpoint of the cnlaw base, declared to the model. |
 | cnlawGraphUrl | string | `http://127.0.0.1:8001` | Graph/case endpoint of the cnlaw base, declared to the model. |

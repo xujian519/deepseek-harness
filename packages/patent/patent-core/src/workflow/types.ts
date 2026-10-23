@@ -200,6 +200,11 @@ export type WorkflowStageResult = {
   retries: number
   /** 该阶段声明的原子名（如有） */
   atom?: string
+  /**
+   * 该阶段声明读取的状态键（原子的 `inputSchema`），仅当原子设置
+   * `logInputScope` 时记录。用于让隔离型阶段的输入范围随运行结果进入会话日志。
+   */
+  inputScope?: string[]
 }
 
 /** 工作流中断信息（如审批门）：阶段 id、消息与附加数据。 */

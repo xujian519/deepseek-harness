@@ -12981,7 +12981,7 @@
       "kind": "event",
       "event": "patent/workflow-run",
       "surface": false,
-      "digest": "6485bdea0016f26ca590feb811672762c3e4a466a1df162caadbce087eb62d36",
+      "digest": "95ce6e0724b8c18c699693753732e17e4434f9fb94f1ad64c5e5ad365d7c4d82",
       "schema": {
         "root": 0,
         "nodes": [
@@ -13380,6 +13380,11 @@
                 "name": "degraded",
                 "type": 3,
                 "optional": false
+              },
+              {
+                "name": "inputScope",
+                "type": 4,
+                "optional": true
               },
               {
                 "name": "output",
@@ -26926,6 +26931,15 @@
       "sources": []
     },
     {
+      "digest": "0157ad8cef23f164025c566115c3da042ab0855af15d187a17ae795d7e924e5f",
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:112"
+      ]
+    },
+    {
       "digest": "01895603a724536b7865a243c9b50c127d022e8e7d24b5d2603cea1bf2ffb9f7",
       "names": [
         "packages/patent/patent-workflow/src/types.ts#PatentLegalGapsEvent"
@@ -27861,15 +27875,6 @@
       ]
     },
     {
-      "digest": "340cdea8506cae9f629baf9d2b1ae5ca52f6254db5cbece88a5cfbe1680def6c",
-      "names": [
-        "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
-      ],
-      "sources": [
-        "packages/patent/patent-workflow/src/types.ts:112"
-      ]
-    },
-    {
       "digest": "3456c43721adf8f4947c10407515fb10272be9924b14805eac6d2f27f5a6439d",
       "names": [],
       "sources": []
@@ -28788,11 +28793,6 @@
       "sources": []
     },
     {
-      "digest": "6485bdea0016f26ca590feb811672762c3e4a466a1df162caadbce087eb62d36",
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "6487b10ba7542f3c447b1e41a1c6a590b7bfafe0b9b66b49f34028da85bb970f",
       "names": [
         "packages/subagent/subagent/src/descriptor.ts#ContinuableSubagentDescriptorData"
@@ -29139,6 +29139,15 @@
       "sources": []
     },
     {
+      "digest": "76245606df2f48cb94a6f3b745d0c764659e515c0be1535994b1b214f06eda59",
+      "names": [
+        "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
+      ],
+      "sources": [
+        "packages/patent/patent-core/src/workflow/types.ts:194"
+      ]
+    },
+    {
       "digest": "7624ca28c61ca0eaa4f015140f3cea6e0c16cce2f2960fab5f531203d253903e",
       "names": [],
       "sources": []
@@ -29152,15 +29161,6 @@
       "digest": "76632533f67879dcb346fcae640540dbc89b2472b0bce88c59f7e48fc5c0e668",
       "names": [],
       "sources": []
-    },
-    {
-      "digest": "76f13244df957cb786e2f48f1aae4300842c535cde25ff7e3f4603627bbcd956",
-      "names": [
-        "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
-      ],
-      "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:194"
-      ]
     },
     {
       "digest": "78a9be340090b735a39980e7222ce730c972fbcf1de7c9e0aef2125884b7caee",
@@ -29492,7 +29492,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:206"
+        "packages/patent/patent-core/src/workflow/types.ts:211"
       ]
     },
     {
@@ -29697,6 +29697,11 @@
     },
     {
       "digest": "95c0e88fcf0bafb2087f912ad9e2369de6ae6530cc0c4c2772c96205b57f7f60",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "95ce6e0724b8c18c699693753732e17e4434f9fb94f1ad64c5e5ad365d7c4d82",
       "names": [],
       "sources": []
     },
@@ -30409,6 +30414,11 @@
       ]
     },
     {
+      "digest": "b6cf6cfb4621f8a1bf9a1408d0e5976bebfb350d21a24fa0e1975387a146f89f",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "b6ef9c6210be8350cd465f485cf520031fffa6bf3809c61a1e713e834c5982d0",
       "names": [],
       "sources": [
@@ -30985,11 +30995,6 @@
     },
     {
       "digest": "de30b1fa12c75f81df6aa4096e1595296d2d04e2be14a7c29849cf8028b79048",
-      "names": [],
-      "sources": []
-    },
-    {
-      "digest": "de32a08b428a738ef7f1c9a07f96d163ca3f63edcf325f0ce09917c8b55f391c",
       "names": [],
       "sources": []
     },

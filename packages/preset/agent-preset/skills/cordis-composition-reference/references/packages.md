@@ -310,6 +310,14 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-jobs-local` | yes | Process-local implementation of the DeepSeek Harness background job registry seam |
 | `@deepseek-ai/dsh-tool-jobs` | yes | Model-facing background job control tools (job_output, job_list, job_kill) over the ctx.jobs registry |
 
+## legal
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-legal-evidence` | yes | Legal evidence triple-attribute assessment for the DeepSeek Harness: deterministic scoring of relevance, legality, and authenticity for the eight statutory evidence types under PRC Civil Procedure Law Art. 66, with the evaluate_legal_evidence tool |
+| `@deepseek-ai/dsh-legal-knowledge` | yes | Legal knowledge-base query seam for the DeepSeek Harness: case-law search, legal regulation search, judicial interpretation search, and guiding case lookup over SQLite FTS5 (with in-memory fallback) |
+| `@deepseek-ai/dsh-legal-law` | yes | Shipped Chinese legal-law index for the DeepSeek Harness: law-article reference parsing, a per-law index recording each entry's source and verification date, citation verification that never silently passes an unverified article, and the legal_law_verify tool |
+
 ## llm
 
 | Package | Config | Description |

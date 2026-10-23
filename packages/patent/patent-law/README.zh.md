@@ -51,6 +51,8 @@ law_verify 读取一段文本中的法条引用（或直接传入的引用），
 
 `assets/law/` 每部文书一个文件（`cn-patent-law.yaml`、`cn-implementing-regulations.yaml`、`cn-examination-guidelines.yaml`）。每个条目记录条号或节路径、用于核对命题的主题词，以及转录来源：`text`、`sourceDoc`、`verifiedOn`。条数上限自带 `maxVerifiedOn`，因为一个没人核验过的上限不得产出「超出有效范围」的判定。
 
+`assets/lineage/cn-patent-law-lineage.yaml` 记录《专利法》的五个修订版本（1984 年原始文本至 2020 年第四次修正），以及每条已索引法条的修订历史与当前状态。插件加载索引时一并读入该快照并交给 `rule-lock`，法条有效性与生效日期以沿革记录为准；快照未覆盖的法条回退到索引判定。
+
 两部法律（法规）与指南节均已转录：每个条目带着它所索引条文或节正文的文本、该文本抄录的文书与版本、以及抄录日期。指南引用按所引节及其子节判定；只有其下已索引的各节都没有正文的条目才报「未核验」。后续修订版修改的指南节记在 `versions` 中，作为基础 `sections` 的覆盖；核验未指定 `revision` 时使用最新覆盖。
 
 ```yaml
@@ -77,6 +79,9 @@ law_verify 读取一段文本中的法条引用（或直接传入的引用），
 - `parseCnNumber(text)` / `formatCnNumber(value)` —— 中文数字与阿拉伯数字互换（`一百一十二` ↔ `112`）。解析器接受 `〇` 与 `千`；畸形数字返回 null，而不是读成另一个数。
 - `loadLawBaselines(dir?)` / `parseLawBaseline(source, origin)` / `findArticle` / `findSection` —— 索引加载与校验，缺失即 fail-loud。
 - `verifyCitation(reference, baselines, options)` / `verifyCitations(text, baselines, options)` —— 判定。
+- `queryValidity(query, baselines, lineage?)` / `decideValidity(reference, baselines, query, lineage?)` —— 四态有效性判定；给出沿革记录时以其为准，覆盖索引按转录状态得出的结论。
+- `loadLawLineageFile(path)` / `parseLawLineage(source, origin)` / `queryArticleLineage` / `queryArticleAtDate` / `queryDiffBetween` / `queryStatusSnapshot` —— 随包沿革快照及其时点查询。
+- `ruleLockAtom` / `RuleLockHandler` / `lockProvisions` —— `rule-lock` 规则锁定门。接入沿革数据后，`effectiveDate` 取最近一次修订的生效日期；未接入时回退到条目的 `verifiedOn` 转录日期。
 - `createOverlapIndex(entries)` / `textOverlap(index, proposition, text)` / `topicOverlap(topics, proposition)` / `PROPOSITION_SUPPORT_DEFAULT` —— 命题比对的两路信号。
 - `resolveCitationPolicy(finding, policies)` / `renderCitationFindings` / `renderCitationRows` —— 处置与渲染。
 
@@ -90,6 +95,7 @@ Schemastery 配置；`baselineDir` 可选，其余处置字段均有默认值。
 | 键 | 类型 | 默认 | 含义 |
 | --- | --- | --- | --- |
 | baselineDir | string | 随包资产 | 存放法条索引 YAML 的目录。缺失、为空、格式错误，或缺少三部文档之一，都会导致插件加载失败。 |
+| lineageDir | string | 随包资产 | 存放 `cn-patent-law-lineage.yaml` 的目录。沿革快照在插件加载时读入；文件缺失或格式错误会使插件加载失败，不会静默退化为仅按索引判定。 |
 | cnlawEnabled | boolean | `true` | 本部署是否运行本机 cnlaw 法律底座。`false` 声明没有底座，声明段改为给出回退通道而不是端点。 |
 | cnlawSearchUrl | string | `http://127.0.0.1:8100` | cnlaw 语义检索端点，声明给模型。 |
 | cnlawGraphUrl | string | `http://127.0.0.1:8001` | cnlaw 图谱/案件端点，声明给模型。 |

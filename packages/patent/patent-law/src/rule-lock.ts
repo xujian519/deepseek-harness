@@ -28,7 +28,7 @@ import {
   getStateString,
 } from '@deepseek-ai/dsh-patent-core'
 import { queryValidity } from './citator.ts'
-import type { LawBaseline, LawName, ValidityResult, ValidityState } from './types.ts'
+import type { LawBaseline, LawLineageSnapshot, LawName, ValidityResult, ValidityState } from './types.ts'
 
 /** 法条粒度级别。 */
 export type RuleLockLevel = 'article' | 'section' | 'clause'
@@ -85,18 +85,18 @@ function inferLevel(result: ValidityResult): RuleLockLevel {
 /**
  * 从 ValidityResult 提取生效日期。
  *
- * 优先取索引条目的 `verifiedOn`；其次取修订历史的最新生效日期；
+ * 有沿革记录时取最近一次修订的生效日期——这是条文本身的生效时间；
+ * 否则回退到索引条目的 `verifiedOn`（转录核验日期，不是法律生效日期）；
  * 均不可用时返回 null。
  * @param result - citator 返回的有效性结果。
  * @returns 生效日期字符串或 null。
  */
 function extractEffectiveDate(result: ValidityResult): string | null {
-  if (result.entry !== undefined && result.entry.verifiedOn !== null) return result.entry.verifiedOn
-  if (result.revisionHistory !== undefined) {
-    // buildRevisionHistory omits empty histories, so the last element exists.
+  if (result.revisionHistory !== undefined && result.revisionHistory.length > 0) {
     const last = result.revisionHistory[result.revisionHistory.length - 1] as { effectiveDate: string }
     return last.effectiveDate
   }
+  if (result.entry !== undefined && result.entry.verifiedOn !== null) return result.entry.verifiedOn
   return null
 }
 
@@ -105,15 +105,17 @@ function extractEffectiveDate(result: ValidityResult): string | null {
  * @param provision - 法条引用原文。
  * @param baselines - 法条索引。
  * @param asOf - 可选判定时间点。
+ * @param lineage - 可选法条沿革快照。
  * @returns 锁定结果条目。
  */
 function lockOneProvision(
   provision: string,
   baselines: Map<LawName, LawBaseline>,
   asOf: string | undefined,
+  lineage: LawLineageSnapshot | undefined,
 ): RuleLockEntry {
   const query = asOf !== undefined ? { provision, asOf } : { provision }
-  const result = queryValidity(query, baselines)
+  const result = queryValidity(query, baselines, lineage)
   return {
     provision,
     level: inferLevel(result),
@@ -128,17 +130,19 @@ function lockOneProvision(
  * @param provisions - 法条引用原文列表。
  * @param baselines - 法条索引。
  * @param asOf - 可选判定时间点。
+ * @param lineage - 可选法条沿革快照；给出时四态判定以沿革记录为准。
  * @returns 结构化锁定输出。
  */
 export function lockProvisions(
   provisions: string[],
   baselines: Map<LawName, LawBaseline>,
   asOf?: string,
+  lineage?: LawLineageSnapshot,
 ): RuleLockOutput {
   const locked: RuleLockEntry[] = []
   const unverified: string[] = []
   for (const provision of provisions) {
-    const entry = lockOneProvision(provision, baselines, asOf)
+    const entry = lockOneProvision(provision, baselines, asOf, lineage)
     if (entry.validityStatus === 'unverified') {
       unverified.push(provision)
     }
@@ -224,12 +228,16 @@ export class RuleLockHandler implements StageHandler {
 
   /** 法条索引，由构造器注入。 */
   private readonly baselines: Map<LawName, LawBaseline>
+  /** 法条沿革快照；缺席时只按索引判定。 */
+  private readonly lineage: LawLineageSnapshot | undefined
 
   /**
    * @param baselines - 法条索引，由构造器注入。
+   * @param lineage - 可选法条沿革快照；给出时四态判定以沿革记录为准。
    */
-  constructor(baselines: Map<LawName, LawBaseline>) {
+  constructor(baselines: Map<LawName, LawBaseline>, lineage?: LawLineageSnapshot) {
     this.baselines = baselines
+    this.lineage = lineage
   }
 
   /**
@@ -281,7 +289,7 @@ export class RuleLockHandler implements StageHandler {
     const asOfRaw = getStateString(state, DEFAULT_RULE_LOCK_AS_OF_KEY)
     const asOf = asOfRaw.trim().length > 0 ? asOfRaw.trim() : undefined
 
-    const output = lockProvisions(provisions, this.baselines, asOf)
+    const output = lockProvisions(provisions, this.baselines, asOf, this.lineage)
     return {
       rule_lock_report: renderRuleLockReport(output),
       rule_lock_locked: output.locked,

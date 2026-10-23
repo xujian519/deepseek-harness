@@ -30,6 +30,12 @@ export type Atom = {
    * 确定性原子省略该字段。
    */
   usesModel?: boolean
+  /**
+   * 是否把 `inputSchema` 作为该阶段的输入范围记入运行结果（进而进入
+   * `patent/workflow-run` 会话事件）。需要证明「只读了哪些状态键」的隔离型原子
+   * （如 `adversary-review`）置 true；缺省不记录，避免把每个阶段的输入表都写进日志。
+   */
+  logInputScope?: boolean
 }
 
 /** Atom 注册表：按 name 登记、查询原子，并支持按分类列出。 */

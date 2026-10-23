@@ -34,6 +34,16 @@ describe('争议粗定位', () => {
     expect(framing?.claims).toEqual([1, 2])
   })
 
+  it('oa-parse 的驳回类型（clarity/support/scope）映射到对应法条', () => {
+    const framing = frameDispute({
+      office_action: JSON.stringify({
+        rejectionTypes: ['clarity', 'support', 'scope', 'disclosure', 'formal'],
+        affectedClaims: [1, 2],
+      }),
+    })
+    expect(framing?.candidates.map(candidate => candidate.statute).sort()).toEqual(['A26.3', 'A26.4', 'A33'])
+  })
+
   it('grounds 中的否定表述不计入候选', () => {
     const framing = frameDispute({
       grounds: JSON.stringify([

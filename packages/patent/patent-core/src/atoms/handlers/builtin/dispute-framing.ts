@@ -11,6 +11,7 @@ import type { Atom } from '../../atom.ts'
 import { type PipelineState, type StageExecuteInput, type StageHandler, getStateString } from '../../handler.ts'
 import { readStateJson, readStateObject } from './state-json.ts'
 import { degraded } from './llm.ts'
+import { GROUND_TO_STATUTE } from '../../../statute-grounds.ts'
 
 /** 争议定位结果中的一条法条候选。 */
 export type DisputeCandidate = {
@@ -60,29 +61,11 @@ const STATUTE_LABELS: ReadonlyMap<string, string> = new Map([
   ['A62', '专利法第62条（现有技术抗辩）'],
 ])
 
-/** 通知书与程序理由共用的理由 → 法条编号。 */
-const COMMON_STATUTES: ReadonlyArray<readonly [string, string]> = [
-  ['novelty', 'A22.2'],
-  ['inventiveness', 'A22.3'],
-  ['utility', 'A22.4'],
-  ['disclosure', 'A26.3'],
-  ['claim-clarity', 'A26.4'],
-  ['amendment', 'A33'],
-  ['subject-matter-art2', 'A2.2'],
-  ['subject-matter-art5', 'A5'],
-  ['subject-matter-art25', 'A25'],
-]
-
-/** 程序理由（grounds）→ 法条编号。 */
-const GROUND_STATUTES: ReadonlyMap<string, string> = new Map([
-  ...COMMON_STATUTES,
-  ['necessary-features', 'A26.4'],
-  ['divisional-amendment', 'A33'],
-  ['double-patenting', 'A9'],
-])
-
-/** 通知书驳回类型（oa-parse 的 rejectionTypes）→ 法条编号。 */
-const REJECTION_STATUTES: ReadonlyMap<string, string> = new Map(COMMON_STATUTES)
+/**
+ * 通知书驳回类型与程序理由共用一套规范化；`formal`/`other` 没有对应法条，
+ * 由映射缺席表达，收集候选时自然跳过。
+ */
+const GROUND_STATUTES = GROUND_TO_STATUTE
 
 /**
  * 依赖现有技术时间基准的法条。实用性（A22.4）判断的是能否工业应用，与申请日/
@@ -237,7 +220,7 @@ function fromOfficeAction(state: PipelineState): DisputeFraming | undefined {
   const types = Array.isArray(officeAction['rejectionTypes']) ? officeAction['rejectionTypes'] : []
   for (const type of types) {
     if (typeof type !== 'string') continue
-    const statute = REJECTION_STATUTES.get(type)
+    const statute = GROUND_STATUTES.get(type)
     if (statute !== undefined) statutes.add(statute)
   }
   const affected = Array.isArray(officeAction['affectedClaims']) ? officeAction['affectedClaims'] : []

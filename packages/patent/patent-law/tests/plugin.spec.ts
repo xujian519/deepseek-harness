@@ -22,6 +22,7 @@ function resolveConfig(overrides: Partial<Pkg.Config> = {}): Pkg.Config {
     onUnverified: overrides.onUnverified ?? SHIPPED.unverified,
     propositionSupport: overrides.propositionSupport ?? Pkg.PROPOSITION_SUPPORT_DEFAULT,
     ...(overrides.baselineDir === undefined ? {} : { baselineDir: overrides.baselineDir }),
+    ...(overrides.lineageDir === undefined ? {} : { lineageDir: overrides.lineageDir }),
   }
 }
 
@@ -65,6 +66,8 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
       'cn-implementing-regulations.yaml',
       'cn-examination-guidelines.yaml',
     ])
+    expect(typeof Pkg.lawLineageFile).toBe('function')
+    expect(Pkg.LAW_LINEAGE_FILE_NAME).toBe('cn-patent-law-lineage.yaml')
   })
 
   it('registers law_verify and unregisters it on dispose (HMR-safety)', async () => {
@@ -81,6 +84,30 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
     await fiber.dispose()
     expect(globalAtomRegistry.lookup('rule-lock')).toBeUndefined()
     expect(globalStageHandlerRegistry.lookup('rule-lock')).toBeUndefined()
+  })
+
+  it('loads the packaged lineage snapshot into the rule-lock handler', async () => {
+    const { fiber } = await install()
+    const handler = globalStageHandlerRegistry.lookup('rule-lock')
+    expect(handler).toBeDefined()
+    const out = await handler!.execute({ state: { rule_lock_provisions: ['专利法第22条'] } })
+    expect(out['rule_lock_locked']).toEqual([
+      {
+        provision: '专利法第22条',
+        level: 'article',
+        effectiveDate: '2021-06-01',
+        stale: false,
+        validityStatus: 'active',
+      },
+    ])
+    await fiber.dispose()
+  })
+
+  it('fails loud when the configured lineage directory has no snapshot', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(Pkg, resolveConfig({ lineageDir: '/nonexistent/lineage-dir' }))).rejects.toThrow(/ENOENT|no such file/)
   })
 
   it('defaults every policy field to the shipped citation policy', () => {

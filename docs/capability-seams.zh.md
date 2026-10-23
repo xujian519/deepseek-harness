@@ -320,6 +320,8 @@ flowchart LR
   svc_patentWorkflow["ctx.patentWorkflow<br/>Patent execution pipeline"]
   pkg_patent_teams["patent-teams"]
   svc_patentTeams["ctx.patentTeams<br/>Patent team coordination domain"]
+  pkg_legal_knowledge["legal-knowledge"]
+  svc_legalKnowledge["ctx.legalKnowledge<br/>Legal knowledge-base query seam"]
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
   pkg_agent_loop --> svc_agentLoop
@@ -396,6 +398,7 @@ flowchart LR
   pkg_inspector --> svc_inspector
   pkg_jobs --> svc_jobs
   pkg_jobs_local --> svc_jobs
+  pkg_legal_knowledge --> svc_legalKnowledge
   pkg_llm --> svc_llm
   pkg_llm_deepseek --> svc_llm
   pkg_llm_pi_ai --> svc_llm
@@ -535,6 +538,7 @@ flowchart LR
   svc_jobs --> pkg_tool_jobs
   svc_jobs --> pkg_tool_pwsh
   svc_jobs --> pkg_tool_terminal
+  svc_legalKnowledge --> pkg_legal_knowledge
   svc_llm --> pkg_agent_loop
   svc_llm --> pkg_compaction_basic
   svc_lsp --> pkg_tool_lsp
@@ -761,5 +765,6 @@ flowchart LR
 | `ctx.patentKnowledge` | `seam` | [`patent-knowledge`](../packages/patent/patent-knowledge) | - | - | - | 判例法全文检索、法条、wiki 卡片与知识图谱查询的 Service Definition；sqlite 提供方与安装命令随 P1.3 落地。 |
 | `ctx.patentWorkflow` | `seam` | [`patent-workflow`](../packages/patent/patent-workflow) | - | - | - | workflow/flexible-plan/plantask 状态机及其 HITL 审批接线的 Service Definition；实现随 P3.1 落地。 |
 | `ctx.patentTeams` | `core` | [`patent-teams`](../packages/patent/patent-teams) | - | - | - | 拥有持久化的团队名册、共享任务 DAG、成员信箱与调度锁；同目录下的 patent_teams_* 工具是面向模型的控制方。 |
+| `ctx.legalKnowledge` | `seam` | [`legal-knowledge`](../packages/legal/legal-knowledge) | [`legal-knowledge`](../packages/legal/legal-knowledge) | [`legal-knowledge`](../packages/legal/legal-knowledge) | - | Service Definition 与 SQLite/内存实现同包；可选的 ./tool 插件是面向模型的 legal_knowledge_search 消费方，必须挂载在同一个 isolate realm。 |
 
 维护模式：混合模式。服务从 Cordis 声明中发现；接口、实现和消费方角色在 `scripts/gen-doc-graphs.ts` 中分类，并设有完整性守卫。

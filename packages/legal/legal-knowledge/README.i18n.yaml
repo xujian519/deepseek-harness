@@ -9,17 +9,20 @@
   en: a97a7f152f189658
   zh: 192ba5451ebd2b4a
 /deepseek-ai-dsh-legal-knowledge/summary:
-  en: 849dbd4b4b3e0a7e
-  zh: 95ae6a0feaee6180
+  en: 1250f23c62fe5212
+  zh: ffacb5c601177239
 /deepseek-ai-dsh-legal-knowledge/table-of-contents:
-  en: 967414deaa1da45e
-  zh: db1d09df8b73fb02
+  en: 8ca2ce541f7ccd57
+  zh: 1006390ad6dec3dc
 /deepseek-ai-dsh-legal-knowledge/why-it-exists:
-  en: fd2785f27079a345
-  zh: f9ba8280b8ef74c4
+  en: 44d2e4e92fd9584e
+  zh: e8afa84a0fbedb54
 /deepseek-ai-dsh-legal-knowledge/query-surface:
-  en: 065ecb67feefc5ef
-  zh: 5d7ee5fba6a60f64
+  en: f543014a1b956aa1
+  zh: c0a2c20cf262832e
+/deepseek-ai-dsh-legal-knowledge/model-facing-tool:
+  en: 365229a0cfd9380f
+  zh: e82c0e0935c3f447
 /deepseek-ai-dsh-legal-knowledge/backends:
   en: 5c297c4ece3fd597
   zh: ece16c2a480cdfa9
@@ -27,8 +30,8 @@
   en: a3d05de7b4d36338
   zh: 199bb9ca5c1f67d1
 /deepseek-ai-dsh-legal-knowledge/known-limitations-and-deferred-work:
-  en: 956bbb54cbe496f8
-  zh: 734dbea52a257d6d
+  en: d39374109caf46d6
+  zh: ebd03da6242e169a
 /deepseek-ai-dsh-legal-knowledge/known-limitations-and-deferred-work/dev-note:
   en: 0a1253c6f7b5e8b9
   zh: 9f56528562c7c914

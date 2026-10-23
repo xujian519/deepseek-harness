@@ -60,6 +60,15 @@ describe('独立争议定位', () => {
     expect(disputes[0]?.tag).toBe('heuristic')
   })
 
+  it('识别 oa-parse 输出的 clarity/support/scope 驳回类型', () => {
+    const officeAction: AdversaryOfficeAction = {
+      rejectionTypes: ['clarity', 'support', 'scope', 'formal'],
+      affectedClaims: [1],
+    }
+    const disputes = locateDisputesIndependent(officeAction, '')
+    expect(disputes.map(d => d.statute).sort()).toEqual(['A26.4', 'A33'])
+  })
+
   it('无通知书时从正文扫描', () => {
     const disputes = locateDisputesIndependent(undefined, '权利要求1-3不具备创造性，不符合专利法第22条第3款')
     expect(disputes.length).toBeGreaterThan(0)
