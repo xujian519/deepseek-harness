@@ -297,6 +297,47 @@ describe('handler execute', () => {
     expect(result.adversary_confidence).toBeGreaterThan(0)
   })
 
+  it('accepts the examiner-argument array that oa-parse writes', async () => {
+    const handler = new AdversaryModelHandler()
+    const state = {
+      office_action: JSON.stringify({
+        rejectionTypes: ['inventiveness'],
+        affectedClaims: [1],
+        examinerArguments: ['第一段审查意见。', '第二段审查意见。'],
+      }),
+      claims: '权利要求1',
+      response_plan: JSON.stringify([{ ground: 'inventiveness', strategy: 'amend', claims: [1] }]),
+    }
+    let prompt = ''
+    const provider: StageProvider = {
+      callLLM: async (request: string) => {
+        prompt = request
+        return '{"disputes":[],"overall_assessment":"整体评估"}'
+      },
+    }
+    const result = await handler.execute({ state, provider })
+    expect(result.adversary_report).toBeDefined()
+    expect(prompt).toContain('第一段审查意见。')
+    expect(prompt).toContain('第二段审查意见。')
+  })
+
+  it('模型输出含禁止术语时丢弃并回退到确定性结果', async () => {
+    const handler = new AdversaryModelHandler()
+    const state = {
+      office_action: JSON.stringify({ rejectionTypes: ['inventiveness'], affectedClaims: [1] }),
+      claims: '权利要求1',
+      response_plan: JSON.stringify([{ ground: 'inventiveness', strategy: 'amend', claims: [1] }]),
+    }
+    const modelOutput = JSON.stringify({
+      disputes: [{ statute: 'A22.3', claims: [1], point: '参考 claim_chart 的映射', confidence: 0.9 }],
+      overall_assessment: '整体评估',
+    })
+    const provider: StageProvider = { callLLM: async () => modelOutput }
+    const result = await handler.execute({ state, provider })
+    expect(result.adversary_report).toContain('禁止术语')
+    expect(result.adversary_report).not.toContain('claim_chart 的映射')
+  })
+
   it('模型输出解析失败时降级到确定性结果', async () => {
     const handler = new AdversaryModelHandler()
     const state = {
@@ -369,16 +410,19 @@ describe('信息隔离检查', () => {
       expect(result.leakedKeys).toContain('draft')
     })
 
-    it('execute() 入口检测到禁止键时 fail-closed', async () => {
+    it('共享 state 含上游中间产物时仍正常评估', async () => {
       const handler = new AdversaryModelHandler()
       const state = {
-        office_action: '{}',
-        dispute_framing_report: '泄漏内容',
+        office_action: JSON.stringify({ rejectionTypes: ['inventiveness'], affectedClaims: [1] }),
+        claims: '权利要求1',
+        response_plan: JSON.stringify([{ ground: 'inventiveness', strategy: 'amend', claims: [1] }]),
+        dispute_framing_report: '己方推理',
+        claim_chart: '己方映射',
+        draft: '己方草稿',
       }
       const result = await handler.execute({ state })
-      expect(result.adversary_report).toContain('信息隔离检查失败')
-      expect(result.adversary_report).toContain('dispute_framing_report')
-      expect(result.adversary_confidence).toBe(0)
+      expect(result.adversary_report).not.toContain('信息隔离检查失败')
+      expect(result.adversary_confidence).toBeGreaterThan(0)
     })
   })
 

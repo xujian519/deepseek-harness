@@ -2,7 +2,14 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { findLegalArticle, LegalLawBaselineError, loadLegalLawBaselines, parseLegalLawBaseline } from '../src/baseline.ts'
+import {
+  findLegalArticle,
+  LegalLawBaselineError,
+  legalLawNames,
+  loadLegalLawBaselines,
+  loadLegalLawBaselinesAsync,
+  parseLegalLawBaseline,
+} from '../src/baseline.ts'
 
 const tempDirs: string[] = []
 
@@ -170,6 +177,32 @@ describe('loadLegalLawBaselines', () => {
   it('fails on an empty directory', () => {
     const dir = fixtureDir({})
     expect(() => loadLegalLawBaselines(dir)).toThrow(LegalLawBaselineError)
+  })
+
+  it('loads the same index asynchronously', async () => {
+    const dir = fixtureDir({
+      'civil-code.yaml': CIVIL_CODE,
+      'civil-procedure-law.yaml': CIVIL_CODE.replace('law: 民法典', 'law: 民事诉讼法').replace('document: 中华人民共和国民法典', 'document: 中华人民共和国民事诉讼法'),
+    })
+    const baselines = await loadLegalLawBaselinesAsync(dir)
+    expect(baselines.size).toBe(2)
+    expect(baselines.has('民事诉讼法')).toBe(true)
+  })
+
+  it('rejects duplicate law names while loading asynchronously', async () => {
+    const dir = fixtureDir({ 'a.yaml': CIVIL_CODE, 'b.yaml': CIVIL_CODE })
+    await expect(loadLegalLawBaselinesAsync(dir)).rejects.toThrow(LegalLawBaselineError)
+  })
+
+  it('reports the names added by a load', async () => {
+    const dir = fixtureDir({
+      'accounting.yaml': CIVIL_CODE
+        .replace('law: 民法典', 'law: 会计法')
+        .replace('document: 中华人民共和国民法典', 'document: 中华人民共和国会计法'),
+    })
+    await loadLegalLawBaselinesAsync(dir)
+    expect(legalLawNames()).toContain('会计法')
+    expect(Object.isFrozen(legalLawNames())).toBe(true)
   })
 
   // Loading 7,900+ YAML files takes minutes under coverage instrumentation.

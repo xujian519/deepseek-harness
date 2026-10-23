@@ -434,7 +434,8 @@ export function lawYamlFilename(shortName: string, subtitle?: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Recursively collect all `.md` files under a directory, skipping `_index.md`.
+ * Recursively collect all `.md` files under a directory, skipping `_index.md`
+ * and corpus README files, which are not statutes.
  */
 function collectMdFiles(dir: string): string[] {
   const results: string[] = []
@@ -444,7 +445,7 @@ function collectMdFiles(dir: string): string[] {
     const stat = statSync(full)
     if (stat.isDirectory()) {
       results.push(...collectMdFiles(full))
-    } else if (entry.endsWith('.md') && entry !== '_index.md') {
+    } else if (entry.endsWith('.md') && entry !== '_index.md' && !entry.toLowerCase().startsWith('readme')) {
       results.push(full)
     }
   }

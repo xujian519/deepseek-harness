@@ -32,12 +32,12 @@ import {
   assessEvidenceIndependent,
   buildAdversaryPrompt,
   buildAdversaryReport,
-  checkInputIsolation,
   degradedSummary,
   detectDivergence,
   locateDisputesIndependent,
   parseAdversaryOutput,
   renderAdversaryReport,
+  scanOutputForLeaks,
 } from '../../../adversary/index.ts'
 import { callLlm, degraded, requireLlm } from './llm.ts'
 import { readAtomTunables } from '../../tunables.ts'
@@ -110,16 +110,8 @@ export class AdversaryModelHandler implements StageHandler {
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const { state, provider, signal } = input
 
-    // 运行时隔离检查：fail-closed，检测到禁止键时立即返回 unverified 标记
-    const stateKeys = Object.keys(state)
-    const isolationResult = checkInputIsolation(stateKeys)
-    if (!isolationResult.clean) {
-      return {
-        adversary_report: `信息隔离检查失败：检测到禁止键 ${isolationResult.leakedKeys.join(', ')}`,
-        adversary_disputes: JSON.stringify({ disputes: [], unverified: [], leakedKeys: isolationResult.leakedKeys }),
-        adversary_confidence: 0,
-      }
-    }
+    // 共享 state 必然包含上游产出（dispute_framing_*、claim_chart、draft）。
+    // 隔离由本执行器只读取下面四个键保证；不能按整个 state 的键判失败。
 
     // 读取 tunables
     const tuned = readAtomTunables(state, { temperature: 0.2, promptLimit: 8000 })
@@ -154,15 +146,7 @@ export class AdversaryModelHandler implements StageHandler {
     const missing = requireLlm(provider, 'adversary-model')
     if (missing !== null) {
       // 模型不可用：fail-closed，使用确定性结果 + 降级摘要
-      const markedDisputes = detectDivergence(heuristicDisputes, responsePlan)
-      const summary = degradedSummary(markedDisputes)
-      const report = buildAdversaryReport(markedDisputes, summary)
-      const reportText = renderAdversaryReport(report)
-      return {
-        adversary_report: reportText,
-        adversary_disputes: report.disputes,
-        adversary_confidence: report.overallConfidence,
-      }
+      return deterministicResult(heuristicDisputes, responsePlan)
     }
 
     // 构建提示词并调用模型
@@ -174,15 +158,20 @@ export class AdversaryModelHandler implements StageHandler {
     const parsed = parseAdversaryOutput(res.raw)
     if (parsed === null) {
       // 解析失败：使用确定性结果 + 降级摘要
-      const markedDisputes = detectDivergence(heuristicDisputes, responsePlan)
-      const summary = degradedSummary(markedDisputes)
-      const report = buildAdversaryReport(markedDisputes, summary)
-      const reportText = renderAdversaryReport(report)
-      return {
-        adversary_report: reportText,
-        adversary_disputes: report.disputes,
-        adversary_confidence: report.overallConfidence,
-      }
+      return deterministicResult(heuristicDisputes, responsePlan)
+    }
+
+    // 输出层隔离：模型返回的文本不能再把己方中间推理带回报告。
+    const leak = scanOutputForLeaks([
+      parsed.overallAssessment,
+      ...parsed.disputes.map(dispute => `${dispute.point}\n${dispute.divergenceReason ?? ''}`),
+    ].join('\n'))
+    if (!leak.clean) {
+      return deterministicResult(
+        heuristicDisputes,
+        responsePlan,
+        `模型输出包含禁止术语（${leak.leakedKeys.join('、')}），已丢弃并回退到确定性结果。`,
+      )
     }
 
     // 合并模型输出与确定性结果：按 statute 去重，模型结果优先
@@ -203,6 +192,29 @@ export class AdversaryModelHandler implements StageHandler {
       adversary_disputes: report.disputes,
       adversary_confidence: report.overallConfidence,
     }
+  }
+}
+
+/**
+ * 用确定性结果生成报告，并可选追加一条降级说明。
+ * @param heuristicDisputes - 确定性规则识别的争议点。
+ * @param responsePlan - 答复计划条目。
+ * @param note - 追加到摘要末尾的说明。
+ * @returns 阶段输出。
+ */
+function deterministicResult(
+  heuristicDisputes: AdversaryDispute[],
+  responsePlan: AdversaryPlanEntry[] | undefined,
+  note?: string,
+): PipelineState {
+  const markedDisputes = detectDivergence(heuristicDisputes, responsePlan)
+  const base = degradedSummary(markedDisputes)
+  const summary = note === undefined ? base : `${base}\n\n${note}`
+  const report = buildAdversaryReport(markedDisputes, summary)
+  return {
+    adversary_report: renderAdversaryReport(report),
+    adversary_disputes: report.disputes,
+    adversary_confidence: report.overallConfidence,
   }
 }
 

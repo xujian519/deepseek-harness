@@ -7,7 +7,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, describe, expect, it } from 'vitest'
-import { apply } from '../src/index.ts'
+import { apply, LegalEvidenceRuleAssetError } from '../src/index.ts'
 import { createEvaluator, evaluateGenericLegality, evaluateGenericRelevance, hasText, levelFor } from '../src/evaluators/base.ts'
 import { getEvaluator } from '../src/evaluators/index.ts'
 import { documentaryEvaluator } from '../src/evaluators/documentary.ts'
@@ -620,16 +620,9 @@ describe('plugin entry', () => {
     expect(result.isError).toBe(false)
   })
 
-  it('falls back to an empty engine when the explicit directory has no rules file', async () => {
+  it('fails loud when the explicit directory has no rules file', async () => {
     const dir = tempDir()
-    const ctx = await hostWith({ rulesDir: dir })
-    const result = await ctx.tools.execute({
-      signal: new AbortController().signal,
-      callId: ToolCallId('legal-evidence-missing-rules'),
-      name: 'evaluate_legal_evidence',
-      arguments: { evidenceId: 'plugin-2', evidenceType: 'party_statement', corroborated: true },
-    })
-    expect(result.isError).toBe(false)
+    await expect(hostWith({ rulesDir: dir })).rejects.toThrow(LegalEvidenceRuleAssetError)
   })
 
   it('renders a report with no rule findings', async () => {

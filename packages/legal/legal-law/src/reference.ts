@@ -48,11 +48,22 @@ const STATUTE_NAMES: Record<string, LegalLawName> = {
 }
 
 /**
+ * Document titles → short law name for laws discovered at load time. A formal
+ * citation writes 《中华人民共和国会计法》 while the index keys the entry by
+ * `会计法`; this map lets the parser accept both forms.
+ */
+let statuteAliases: ReadonlyMap<string, LegalLawName> = new Map()
+
+/**
  * Build the statute-matching regex from the current set of known law names.
  * @param lawNames - short law names to include in the alternation.
+ * @param aliases - document titles that resolve to a short law name.
  * @returns a global RegExp that captures the law name, article, paragraph, and item.
  */
-function buildStatutePattern(lawNames: readonly string[]): RegExp {
+function buildStatutePattern(
+  lawNames: readonly string[],
+  aliases: ReadonlyMap<string, LegalLawName> = new Map(),
+): RegExp {
   // Collect all name forms (short + full) for the alternation, longest first
   // so the greedy match prefers the longer form.
   const nameForms = new Set<string>()
@@ -61,6 +72,9 @@ function buildStatutePattern(lawNames: readonly string[]): RegExp {
   }
   for (const name of lawNames) {
     nameForms.add(name)
+  }
+  for (const alias of aliases.keys()) {
+    nameForms.add(alias)
   }
   // Sort longest-first so the regex prefers longer matches.
   const sorted = [...nameForms].sort((a, b) => b.length - a.length)
@@ -91,9 +105,14 @@ let STATUTE_PATTERN: RegExp = buildStatutePattern(INITIAL_LAW_NAMES)
  * Rebuild the statute-matching regex after new baselines have been loaded.
  * Called by {@link loadLegalLawBaselines} to keep the pattern in sync.
  * @param lawNames - all known short law names.
+ * @param aliases - document titles that resolve to a short law name.
  */
-export function rebuildStatutePattern(lawNames: readonly string[]): void {
-  STATUTE_PATTERN = buildStatutePattern(lawNames)
+export function rebuildStatutePattern(
+  lawNames: readonly string[],
+  aliases: ReadonlyMap<string, LegalLawName> = new Map(),
+): void {
+  statuteAliases = new Map(aliases)
+  STATUTE_PATTERN = buildStatutePattern(lawNames, statuteAliases)
 }
 
 /** The groups {@link STATUTE_PATTERN} always captures, typed for direct use. */
@@ -131,8 +150,10 @@ export function extractLegalLawReferences(text: string): LegalLawReference[] {
 
   for (const match of normalized.matchAll(STATUTE_PATTERN)) {
     const groups = match.groups as StatuteGroups
-    // The pattern's alternation is built from STATUTE_NAMES, so every match names one of its keys.
-    const lawName = STATUTE_NAMES[groups.law] as LegalLawName
+    // The four hand-indexed laws map a full name to a short name; loaded
+    // document titles map through the alias table. A baseline's own `law`
+    // field is already the short name, so it maps to itself.
+    const lawName = STATUTE_NAMES[groups.law] ?? statuteAliases.get(groups.law) ?? groups.law
     const candidate = readStatuteArticleCandidate(match, groups, lawName)
     if (candidate !== null) candidates.push(candidate)
   }

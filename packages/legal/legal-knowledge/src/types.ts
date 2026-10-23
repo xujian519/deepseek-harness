@@ -18,11 +18,6 @@ export interface LegalKnowledgeConfig {
    */
   sourceDbPath?: string
   /**
-   * Upper bound on cached in-memory records, least-recently-used eviction.
-   * Defaults to 1024.
-   */
-  cacheMaxEntries?: number
-  /**
    * Whether to use SQLite FTS5 full-text search when a database is available.
    * When false, engines use the in-memory keyword matching backend even if a
    * database path is configured. Defaults to true.
@@ -34,7 +29,7 @@ export interface LegalKnowledgeConfig {
 export interface LegalKnowledgePaths {
   /** Data directory (the configured knowledgeDir). */
   dataDir: string
-  /** Database the query engines open (fail-loud when absent). */
+  /** Database the query engines open when present; before install the engines use the in-memory backend. */
   queryDbPath: string
   /** Source database path used by the install command. */
   sourceDbPath: string

@@ -84,8 +84,12 @@ function formatOfficeAction(officeAction: AdversaryOfficeAction | undefined): st
   if (officeAction.affectedClaims !== undefined && officeAction.affectedClaims.length > 0) {
     parts.push(`涉及权利要求：${officeAction.affectedClaims.join('、')}`)
   }
-  if (officeAction.examinerArguments !== undefined && officeAction.examinerArguments.trim().length > 0) {
-    parts.push(`审查员论点原文：${officeAction.examinerArguments}`)
+  const rawArguments = officeAction.examinerArguments
+  const examinerArguments = rawArguments === undefined
+    ? undefined
+    : typeof rawArguments === 'string' ? rawArguments : rawArguments.join('\n')
+  if (examinerArguments !== undefined && examinerArguments.trim().length > 0) {
+    parts.push(`审查员论点原文：${examinerArguments}`)
   }
   return parts.length > 0 ? parts.join('\n') : '(审查意见结构化字段为空)'
 }

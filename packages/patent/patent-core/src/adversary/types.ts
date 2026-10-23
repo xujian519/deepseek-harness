@@ -61,8 +61,8 @@ export type AdversaryReport = {
 export type AdversaryOfficeAction = {
   rejectionTypes?: string[]
   affectedClaims?: number[]
-  /** 审查员论点原文（可选；用于独立证据评估）。 */
-  examinerArguments?: string
+  /** 审查员论点原文（可选；用于独立证据评估）。oa-parse 产出数组，调用方可给单段文本。 */
+  examinerArguments?: string | readonly string[]
 }
 
 /**

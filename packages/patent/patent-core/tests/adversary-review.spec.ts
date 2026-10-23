@@ -2,9 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   AdversaryReviewHandler,
   adversaryReviewAtom,
-  ADVERSARY_REVIEW_FORBIDDEN_KEYS,
-  checkAdversaryReviewIsolation,
-  extractAdversaryReviewEvent,
   reviewFinalDraft,
   detectMissedRejections,
   detectEvidenceGaps,
@@ -30,7 +27,7 @@ describe('adversary-review atom', () => {
     expect(adversaryReviewAtom.category).toBe('gate')
     expect(adversaryReviewAtom.usesModel).toBe(false)
     expect(adversaryReviewAtom.inputSchema).toEqual([
-      'final_draft',
+      'draft',
       'reference_documents',
       'claims',
       'office_action',
@@ -40,19 +37,14 @@ describe('adversary-review atom', () => {
       'adversary_review_disputes',
       'adversary_review_confidence',
       'adversary_review_full_report',
-      '_adversary_review_event',
     ])
   })
 
-  it('inputSchema 不包含禁止键', () => {
-    for (const key of ADVERSARY_REVIEW_FORBIDDEN_KEYS) {
-      expect(adversaryReviewAtom.inputSchema).not.toContain(key)
-    }
-    // 特别检查：不能包含己方中间推理键
+  it('inputSchema 不包含己方中间推理键', () => {
     expect(adversaryReviewAtom.inputSchema).not.toContain('dispute_framing_report')
     expect(adversaryReviewAtom.inputSchema).not.toContain('claim_chart')
     expect(adversaryReviewAtom.inputSchema).not.toContain('response_plan')
-    expect(adversaryReviewAtom.inputSchema).not.toContain('draft')
+    expect(adversaryReviewAtom.inputSchema).not.toContain('response_plan_summary')
   })
 
   it('handler 名称与 atom 一致', () => {
@@ -71,40 +63,6 @@ describe('adversary-review atom', () => {
     const registered = globalStageHandlerRegistry.lookup('adversary-review')
     expect(registered).toBeDefined()
     expect(registered?.name).toBe('adversary-review')
-  })
-})
-
-describe('ADVERSARY_REVIEW_FORBIDDEN_KEYS', () => {
-  it('包含所有己方中间推理键', () => {
-    expect(ADVERSARY_REVIEW_FORBIDDEN_KEYS).toContain('dispute_framing_report')
-    expect(ADVERSARY_REVIEW_FORBIDDEN_KEYS).toContain('claim_chart')
-    expect(ADVERSARY_REVIEW_FORBIDDEN_KEYS).toContain('draft')
-    expect(ADVERSARY_REVIEW_FORBIDDEN_KEYS).toContain('response_plan')
-    expect(ADVERSARY_REVIEW_FORBIDDEN_KEYS).toContain('response_plan_summary')
-  })
-})
-
-describe('checkAdversaryReviewIsolation', () => {
-  it('无禁止键时返回 clean=true', () => {
-    const stateKeys = ['final_draft', 'reference_documents', 'claims', 'office_action']
-    const result = checkAdversaryReviewIsolation(stateKeys)
-    expect(result.clean).toBe(true)
-    expect(result.leakedKeys).toEqual([])
-  })
-
-  it('检测到单个禁止键时 fail-closed', () => {
-    const stateKeys = ['final_draft', 'response_plan', 'claims']
-    const result = checkAdversaryReviewIsolation(stateKeys)
-    expect(result.clean).toBe(false)
-    expect(result.leakedKeys).toEqual(['response_plan'])
-  })
-
-  it('检测到多个禁止键', () => {
-    const stateKeys = ['claim_chart', 'draft', 'final_draft']
-    const result = checkAdversaryReviewIsolation(stateKeys)
-    expect(result.clean).toBe(false)
-    expect(result.leakedKeys).toContain('claim_chart')
-    expect(result.leakedKeys).toContain('draft')
   })
 })
 
@@ -247,10 +205,10 @@ describe('reviewFinalDraft', () => {
 })
 
 describe('handler execute', () => {
-  it('完整流程：读取输入、生成报告', async () => {
+  it('完整流程：读取 draft 输入、生成报告', async () => {
     const handler = new AdversaryReviewHandler()
     const state = {
-      final_draft: '本申请具有创造性，符合专利法第22条第3款',
+      draft: '本申请具有创造性，符合专利法第22条第3款',
       reference_documents: 'CN1234567A 公开了一种方法',
       claims: '权利要求1-2',
       office_action: JSON.stringify({
@@ -263,7 +221,12 @@ describe('handler execute', () => {
     expect(typeof result.adversary_review_report).toBe('string')
     expect(result.adversary_review_disputes).toBeDefined()
     expect(typeof result.adversary_review_confidence).toBe('number')
-    expect(result._adversary_review_event).toBeDefined()
+  })
+
+  it('兼容旧 final_draft 键', async () => {
+    const handler = new AdversaryReviewHandler()
+    const result = await handler.execute({ state: { final_draft: '本申请具有创造性' } })
+    expect(result.adversary_review_report).toBeDefined()
   })
 
   it('无输入时仍生成报告', async () => {
@@ -273,55 +236,18 @@ describe('handler execute', () => {
     expect(result.adversary_review_confidence).toBeGreaterThanOrEqual(0)
   })
 
-  it('运行时隔离检查集成：检测到禁止键时 fail-closed', async () => {
+  it('共享 state 含上游中间产物时仍正常审查', async () => {
     const handler = new AdversaryReviewHandler()
     const state = {
-      final_draft: 'test',
-      response_plan: '泄漏内容',
-    }
-    const result = await handler.execute({ state })
-    expect(result.adversary_review_report).toContain('信息隔离检查失败')
-    expect(result.adversary_review_report).toContain('response_plan')
-    expect(result.adversary_review_confidence).toBe(0)
-    expect(result._adversary_review_event).toBeDefined()
-    const event = result._adversary_review_event as { isolationCheck: { clean: boolean; leakedKeys: string[] } }
-    expect(event.isolationCheck.clean).toBe(false)
-    expect(event.isolationCheck.leakedKeys).toContain('response_plan')
-  })
-})
-
-describe('session 事件写入', () => {
-  it('extractAdversaryReviewEvent 提取事件数据', async () => {
-    const handler = new AdversaryReviewHandler()
-    const state = {
-      final_draft: 'test',
+      draft: '本申请具有创造性，符合专利法第22条第3款',
       claims: '权利要求1',
+      dispute_framing_report: '己方推理',
+      claim_chart: '己方映射',
+      response_plan: '己方计划',
     }
     const result = await handler.execute({ state })
-    const event = extractAdversaryReviewEvent(result)
-    expect(event).toBeDefined()
-    expect(event?.inputKeys).toBeDefined()
-    expect(event?.outputKeys).toBeDefined()
-    expect(event?.isolationCheck).toBeDefined()
-    expect(event?.isolationCheck.clean).toBe(true)
-  })
-
-  it('隔离检查失败时事件包含泄漏键', async () => {
-    const handler = new AdversaryReviewHandler()
-    const state = {
-      final_draft: 'test',
-      claim_chart: '泄漏',
-    }
-    const result = await handler.execute({ state })
-    const event = extractAdversaryReviewEvent(result)
-    expect(event).toBeDefined()
-    expect(event?.isolationCheck.clean).toBe(false)
-    expect(event?.isolationCheck.leakedKeys).toContain('claim_chart')
-  })
-
-  it('无事件数据时返回 undefined', () => {
-    const event = extractAdversaryReviewEvent({})
-    expect(event).toBeUndefined()
+    expect(result.adversary_review_report).not.toContain('信息隔离检查失败')
+    expect(result.adversary_review_confidence).toBeGreaterThanOrEqual(0)
   })
 })
 

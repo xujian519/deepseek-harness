@@ -28,7 +28,7 @@ DeepSeek Harness 的随包中国法条索引：法条引用解析、逐法记录
 <a id="shipped-index"></a>
 ## 随包索引
 
-每部法律是 `assets/legal-law` 下的一个 YAML 文件。文件声明 `law`、`document`、`revision`、`maxArticle`、`maxVerifiedOn`、`maxSource` 与 `articles` 列表；每个条目携带 `article`、可选的 `paragraphs`、`topics`、`text`、`sourceDoc` 与 `verifiedOn`。转录记录是全有或全无：有 `text` 就必须同时有 `sourceDoc` 与 `verifiedOn`，只有来源没有正文同样是加载错误，因此手改索引无法制造核验器要避免的"静默放行"状态。插件加载时检查目录可读且非空，否则让部署失败；`loadLegalLawBaselines` 在第一次核验时解析全部文件，格式错误的文件让该次调用失败；`parseLegalLawBaseline` 解析单个文件；`findLegalArticle` 查一个条号。
+每部法律是 `assets/legal-law` 下的一个 YAML 文件。文件声明 `law`、`document`、`revision`、`maxArticle`、`maxVerifiedOn`、`maxSource` 与 `articles` 列表；每个条目携带 `article`、可选的 `paragraphs`、`topics`、`text`、`sourceDoc` 与 `verifiedOn`。转录记录是全有或全无：有 `text` 就必须同时有 `sourceDoc` 与 `verifiedOn`，只有来源没有正文同样是加载错误，因此手改索引无法制造核验器要避免的"静默放行"状态。插件加载时检查目录可读且非空，否则让部署失败；插件在第一次核验时通过 `loadLegalLawBaselinesAsync` 解析全部文件，逐文件让出事件循环，使 Web 进程能继续服务其他会话，格式错误的文件让该次调用失败。`loadLegalLawBaselines` 是同步版本；`parseLegalLawBaseline` 解析单个文件；`findLegalArticle` 查一个条号。资产声明的任何法律名都会成为引用形式，资产的文件标题同时作为正式全名别名；`legalLawNames` 返回当前集合。
 
 <a id="citation-decision"></a>
 ## 引用判定

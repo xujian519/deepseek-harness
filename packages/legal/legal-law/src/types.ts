@@ -8,9 +8,10 @@
 /**
  * Law documents the index covers.
  *
- * Dynamically expanded: any statute name string is accepted. The constant
- * {@link LEGAL_LAW_NAMES} in `baseline.ts` lists the names the shipped asset
- * files declare, but new laws can be added without a type change.
+ * Dynamically expanded: any statute name string is accepted.
+ * {@link legalLawNames} in `baseline.ts` lists the names the parser currently
+ * recognizes, including every name a loaded asset declares; new laws can be
+ * added without a type change.
  */
 export type LegalLawName = string
 

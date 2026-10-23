@@ -49,11 +49,12 @@ export function createEvaluateLegalEvidenceTool(engine: LegalEvidenceEngine): To
     name: 'evaluate_legal_evidence',
     description: DESCRIPTION,
     parameters: {
-      evidenceId: { type: 'string', description: '证据 id（唯一标识）' },
+      evidenceId: { type: 'string', description: '证据 id（唯一标识）', required: true },
       evidenceType: {
         type: 'string',
         description: '证据类型',
         enum: [...LEGAL_EVIDENCE_TYPES],
+        required: true,
       },
       source: { type: 'string', description: '证据来源描述' },
       content: { type: 'string', description: '证据内容摘要' },
@@ -203,15 +204,11 @@ function runEvaluate(
   args: Record<string, unknown>,
   engine: LegalEvidenceEngine,
 ): EvaluateLegalEvidenceOutput {
-  const evidenceId = args.evidenceId as string | undefined
-  const evidenceType = args.evidenceType as LegalEvidenceType | undefined
-
-  if (evidenceId === undefined || evidenceId.trim() === '') {
+  // `evidenceType` is required and enum-constrained by the parameter schema;
+  // `evidenceId` still needs a check because an empty string passes `string`.
+  const evidenceId = args.evidenceId as string
+  if (evidenceId.trim() === '') {
     throw new EvaluateLegalEvidenceToolError('no_evidence_id', '必须提供证据 id')
-  }
-  /* v8 ignore next 3 -- the parameter enum rejects an unknown type before execute runs. */
-  if (evidenceType === undefined || !LEGAL_EVIDENCE_TYPES.includes(evidenceType)) {
-    throw new EvaluateLegalEvidenceToolError('invalid_evidence_type', `无效的证据类型：${String(evidenceType)}`)
   }
 
   const input = buildInput(args)

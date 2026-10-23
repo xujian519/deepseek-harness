@@ -81,23 +81,31 @@ export class SqliteFtsTable<TOptions, THit> {
     if (options.logger) {
       this.logger = options.logger
     }
-    if (options.db) {
-      this.db = options.db
-    } else if (options.dbPath) {
-      const { DatabaseSync: DB } = process.getBuiltinModule('node:sqlite')
-      this.db = new DB(options.dbPath, { readOnly: true })
-    } else {
-      this.db = null
+    let db: DatabaseSync | null = null
+    let openedHere = false
+    try {
+      if (options.db) {
+        db = options.db
+      } else if (options.dbPath) {
+        const { DatabaseSync: DB } = process.getBuiltinModule('node:sqlite')
+        db = new DB(options.dbPath, { readOnly: true })
+        openedHere = true
+      }
+      // 双重条件才启用 FTS：FTS 表存在 + 运行时 SQLite 编译了 FTS5。
+      if (db) {
+        const row = db
+          .prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=? LIMIT 1")
+          .get(shape.ftsTable) as { present: number } | undefined
+        this.hasFts = row !== undefined && sqliteHasFts5(db)
+      } else {
+        this.hasFts = false
+      }
+    } catch (error) {
+      // The connection this constructor opened must not outlive the failed construction.
+      if (openedHere) db?.close()
+      throw error
     }
-    // 双重条件才启用 FTS：FTS 表存在 + 运行时 SQLite 编译了 FTS5。
-    if (this.db) {
-      const row = this.db
-        .prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=? LIMIT 1")
-        .get(shape.ftsTable) as { present: number } | undefined
-      this.hasFts = row !== undefined && sqliteHasFts5(this.db)
-    } else {
-      this.hasFts = false
-    }
+    this.db = db
   }
 
   /** SQLite 后端是否已连接。 */
@@ -140,7 +148,8 @@ export class SqliteFtsTable<TOptions, THit> {
       return this.db
         .prepare(`SELECT * FROM ${table} WHERE ${column} = ? LIMIT 1`)
         .get(value)
-    } catch {
+    } catch (error) {
+      this.warnQueryFailure('findRow', error)
       return undefined
     }
   }
@@ -158,7 +167,8 @@ export class SqliteFtsTable<TOptions, THit> {
       return this.db
         .prepare(`SELECT * FROM ${this.shape.table} WHERE ${column} LIKE ? ESCAPE '\\' LIMIT ?`)
         .all(likePattern(value), limit)
-    } catch {
+    } catch (error) {
+      this.warnQueryFailure('findRowsLike', error)
       return []
     }
   }
@@ -184,7 +194,8 @@ export class SqliteFtsTable<TOptions, THit> {
       return this.db
         .prepare(`SELECT * FROM ${table} WHERE ${where} LIMIT ?`)
         .all(...columns.map(() => pattern), limit)
-    } catch {
+    } catch (error) {
+      this.warnQueryFailure('findRowsLikeAny', error)
       return []
     }
   }
@@ -195,7 +206,8 @@ export class SqliteFtsTable<TOptions, THit> {
     try {
       const row = this.db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }
       return row.c
-    } catch {
+    } catch (error) {
+      this.warnQueryFailure('count', error)
       return 0
     }
   }
@@ -210,6 +222,11 @@ export class SqliteFtsTable<TOptions, THit> {
     this.logger?.warn(`[legal-knowledge] ${this.shape.label} FTS5 不可用，已降级 LIKE: ${reason}`)
   }
 
+  /** Report a failed query instead of letting it look like an empty result. */
+  private warnQueryFailure(operation: string, error: unknown): void {
+    this.logger?.warn(`[legal-knowledge] ${this.shape.label} ${operation} 查询失败: ${errorMessage(error)}`)
+  }
+
   private searchFts(keyword: string, options: TOptions, limit: number): THit[] {
     return this.searchFtsWithQuery(escapeFtsPhrase(keyword), options, limit)
   }
@@ -220,16 +237,12 @@ export class SqliteFtsTable<TOptions, THit> {
 
   private searchFtsWithQuery(matchQuery: string, options: TOptions, limit: number): THit[] {
     const { sql, params } = this.buildFtsQuery(options, limit)
-    try {
-      /* v8 ignore next -- the ladder reaches this method only after search() saw a connection */
-      if (this.db === null) return []
-      const rows = this.db.prepare(sql).all(matchQuery, ...params) as Array<Record<string, unknown>>
-      return this.mapHits(rows.map(row => this.shape.toHit(row, 'fts')), options)
-    } catch (error) {
-      // FTS 查询失败（如 MATCH 语法错误）时粘性降级 LIKE，而不是让检索整体失败。
-      this.degradeFts(errorMessage(error))
-      return this.searchLike(matchQuery.replace(/"/g, ''), options, limit)
-    }
+    /* v8 ignore next -- the ladder reaches this method only after search() saw a connection */
+    if (this.db === null) return []
+    // A failed MATCH propagates to runFtsSearch, which degrades sticky and
+    // retries LIKE with the original query instead of an FTS expression.
+    const rows = this.db.prepare(sql).all(matchQuery, ...params) as Array<Record<string, unknown>>
+    return this.mapHits(rows.map(row => this.shape.toHit(row, 'fts')), options)
   }
 
   private buildFtsQuery(options: TOptions, limit: number): { sql: string; params: Array<string | number> } {
@@ -271,7 +284,8 @@ export class SqliteFtsTable<TOptions, THit> {
       if (this.db === null) return []
       const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>
       return this.mapHits(rows.map(row => this.shape.toHit(row, 'like')), options)
-    } catch {
+    } catch (error) {
+      this.warnQueryFailure('searchLike', error)
       return []
     }
   }

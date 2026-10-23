@@ -146,7 +146,9 @@ function deriveShortName(fullName: string): string {
   let short = fullName.replace(/^中华人民共和国/, '')
   // Strip trailing parenthesised date if present
   short = short.replace(/（[^）]*）$/, '').trim()
-  return short
+  // The source corpus marks some titles with '+' and wraps long names with
+  // runs of spaces; neither belongs to the statute name used by citations.
+  return short.replace(/[+\s]+/g, '')
 }
 
 /**

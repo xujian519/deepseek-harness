@@ -10,6 +10,7 @@
  */
 
 import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import {
   IndexAssetError,
   parseYamlMapping,
@@ -41,20 +42,26 @@ export class LegalLawBaselineError extends IndexAssetError {
 }
 
 /**
- * Known law names from the shipped asset files. Populated at load time by
- * {@link loadLegalLawBaselines}; the initial list covers the four laws that
- * were hand-indexed before the batch import script was written.
- *
- * Uses a `Set` internally to avoid mutable array pushes; the getter returns
- * a frozen snapshot.
+ * Law names the reference parser currently recognizes. The initial four are
+ * hand-indexed; {@link loadLegalLawBaselines} adds every name a loaded asset
+ * declares, so the set grows with the shipped index.
  */
 const _knownNames = new Set<LegalLawName>(['民法典', '民事诉讼法', '劳动合同法', '公司法'])
 
-/** Snapshot of all known law names (initial four + any discovered at load time). */
-export const LEGAL_LAW_NAMES: readonly LegalLawName[] = Object.freeze([..._knownNames])
+/** Document titles → short law names, so a formal title resolves without a dedicated map entry. */
+const _knownAliases = new Map<string, LegalLawName>()
 
-/** @internal Re-export for mutation by loadLegalLawBaselines. */
-export const _LEGAL_LAW_NAMES_SET: Set<LegalLawName> = _knownNames
+/**
+ * Snapshot of the law names the parser recognizes right now.
+ *
+ * A snapshot keeps callers from mutating the parser's name set through the
+ * returned array; call it again after loading another index to see the names
+ * that load added.
+ * @returns the current names, frozen in insertion order.
+ */
+export function legalLawNames(): readonly LegalLawName[] {
+  return Object.freeze([..._knownNames])
+}
 
 /**
  * List the index files a load would parse.
@@ -96,17 +103,60 @@ export function loadLegalLawBaselines(baselineDir?: string): Map<LegalLawName, L
 
   const baselines = new Map<LegalLawName, LegalLawBaseline>()
   for (const file of files) {
-    const baseline = parseLegalLawBaseline(readFileSync(file, 'utf8'), file)
-    if (baselines.has(baseline.law)) {
-      throw new LegalLawBaselineError(`同一部法律被索引了两次：${baseline.law}`, file)
-    }
-    baselines.set(baseline.law, baseline)
-    // Track known law names for discoverability
-    _knownNames.add(baseline.law)
+    registerBaseline(baselines, parseLegalLawBaseline(readFileSync(file, 'utf8'), file), file)
   }
-  // Rebuild the statute-matching regex now that new names may have been added.
-  rebuildStatutePattern([..._knownNames])
+  finalizeStatutePattern()
   return baselines
+}
+
+/**
+ * Load the index without holding the event loop for the whole 72 MB parse.
+ *
+ * The reads are asynchronous and the loop yields every batch, so a Web process
+ * can serve other sessions while the first verification loads the corpus. The
+ * synchronous {@link loadLegalLawBaselines} remains for callers that already
+ * run outside the event loop.
+ * @param baselineDir - directory override; defaults to the packaged assets.
+ * @returns the baselines by law name.
+ * @throws LegalLawBaselineError when the directory is unreadable, empty, or holds a malformed file.
+ */
+export async function loadLegalLawBaselinesAsync(
+  baselineDir?: string,
+): Promise<Map<LegalLawName, LegalLawBaseline>> {
+  const files = legalLawIndexFiles(baselineDir)
+
+  const baselines = new Map<LegalLawName, LegalLawBaseline>()
+  for (const file of files) {
+    const baseline = parseLegalLawBaseline(await readFile(file, 'utf8'), file)
+    registerBaseline(baselines, baseline, file)
+    // Parsing one file is synchronous; yield so other sessions run between files.
+    await new Promise<void>(resolve => setImmediate(resolve))
+  }
+  finalizeStatutePattern()
+  return baselines
+}
+
+/** Add one parsed baseline, rejecting duplicate law names and tracking its alias. */
+function registerBaseline(
+  baselines: Map<LegalLawName, LegalLawBaseline>,
+  baseline: LegalLawBaseline,
+  file: string,
+): void {
+  if (baselines.has(baseline.law)) {
+    throw new LegalLawBaselineError(`同一部法律被索引了两次：${baseline.law}`, file)
+  }
+  baselines.set(baseline.law, baseline)
+  // Track known law names for discoverability
+  _knownNames.add(baseline.law)
+  // A formal citation uses the document title (中华人民共和国会计法); the
+  // index keys the entry by the short name (会计法).
+  const title = baseline.document.replace(/（[^）]*）$/u, '').trim()
+  if (title !== '' && title !== baseline.law) _knownAliases.set(title, baseline.law)
+}
+
+/** Rebuild the statute-matching regex after a load added names or aliases. */
+function finalizeStatutePattern(): void {
+  rebuildStatutePattern([..._knownNames], _knownAliases)
 }
 
 /**

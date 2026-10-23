@@ -1,5 +1,5 @@
 /** SQLite and memory branches of the legal-knowledge engines, row mapping, and shared helpers. */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -609,6 +609,37 @@ describe('SqliteFtsTable branches', () => {
     table.close()
   })
 
+  it('rethrows when the database cannot be opened', () => {
+    const path = join(tempDir(), 'not-a-database.db')
+    writeFileSync(path, 'not a database')
+    expect(() => new SqliteFtsTable<Options, Hit>({ dbPath: path }, baseShape())).toThrow(/not a database/)
+  })
+
+  it('leaves a caller-owned connection open when the FTS probe fails', () => {
+    const path = join(tempDir(), 'caller-owned.db')
+    writeFileSync(path, 'not a database')
+    const db = new DatabaseSync(path, { readOnly: true })
+    try {
+      expect(() => new SqliteFtsTable<Options, Hit>({ db }, baseShape())).toThrow(/not a database/)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('closes a connection it opened when the FTS probe fails', () => {
+    const path = join(tempDir(), 'corrupt.db')
+    const db = new DatabaseSync(path)
+    try {
+      db.exec("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT); INSERT INTO items VALUES (1, 'alpha')")
+    } finally {
+      db.close()
+    }
+    const bytes = readFileSync(path)
+    for (let index = 100; index < Math.min(bytes.length, 200); index += 1) bytes[index] = 0xff
+    writeFileSync(path, bytes)
+    expect(() => new SqliteFtsTable<Options, Hit>({ dbPath: path }, baseShape())).toThrow(/malformed|not a database/)
+  })
+
   it('serves FTS and LIKE queries with every lookup helper', () => {
     const db = ftsDb()
     const table = new SqliteFtsTable<Options, Hit>({ db }, baseShape())
@@ -654,6 +685,21 @@ describe('SqliteFtsTable branches', () => {
       expect(table.ftsAvailable).toBe(false)
       expect(warnings[0]).toContain('FTS5 不可用，已降级 LIKE')
       expect(table.search('alpha', {}, 10)[0]?.via).toBe('like')
+    } finally {
+      table.close()
+    }
+  })
+
+  it('falls back to the original multi-word query when the FTS query fails', () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec(`
+      CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, text TEXT);
+      INSERT INTO items VALUES (1, 'alpha beta', 'first');
+      CREATE TABLE items_fts (id INTEGER PRIMARY KEY, name TEXT, text TEXT);
+    `)
+    const table = new SqliteFtsTable<Options, Hit>({ db }, baseShape())
+    try {
+      expect(table.search('alpha beta', {}, 10)[0]).toMatchObject({ id: '1', via: 'like' })
     } finally {
       table.close()
     }

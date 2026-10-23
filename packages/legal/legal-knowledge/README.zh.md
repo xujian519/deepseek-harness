@@ -37,7 +37,7 @@ DeepSeek Harness 的法律知识库查询接缝：案例检索、法规检索、
 <a id="install-and-configuration"></a>
 ## 安装与配置
 
-`resolveLegalKnowledgePaths` 解析 `knowledgeDir`（默认 `~/.dsh/legal-knowledge`）与 `sourceDbPath`（默认 `~/.dsh/legal-knowledge/legal.db`），依次优先 `legal.db`、`legal-lite.db`，最后回退到源数据库。`installLegalKnowledgeDb` 从源库构建查询库。服务由 `knowledgeDir`、`sourceDbPath`、`cacheMaxEntries`（默认 1024）与 `useFts5` 配置；默认数据库缺失属于安装前状态，服务以内存模式启动，而不是对从未安装的文件做只读打开并失败。
+`resolveLegalKnowledgePaths` 解析 `knowledgeDir`（默认 `~/.dsh/legal-knowledge`）与 `sourceDbPath`（默认 `~/.dsh/legal-knowledge/legal.db`），依次优先 `legal.db`、`legal-lite.db`，最后回退到源数据库。`installLegalKnowledgeDb` 从源库构建查询库。服务由 `knowledgeDir`、`sourceDbPath` 与 `useFts5` 配置；默认数据库缺失属于安装前状态，服务以内存模式启动，而不是对从未安装的文件做只读打开并失败。
 
 <a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与暂缓事项

@@ -144,6 +144,23 @@ describe('lazy baseline loading', () => {
     expect(value.findings[0]).toMatchObject({ article: 143, paragraph: 2, item: 1 })
   })
 
+  it('retries a failed loader on the next call', async () => {
+    let loads = 0
+    const ctx = await host()
+    ctx.tools.register(createLegalLawVerifyTool({
+      baselines: () => {
+        loads += 1
+        return loads === 1 ? Promise.reject(new Error('first load failed')) : Promise.resolve(MINIMAL_INDEX)
+      },
+      policies: POLICIES,
+    }))
+    const failed = await execute(ctx, { references: ['民法典第143条'] })
+    expect(failed.isError).toBe(true)
+    const retried = await execute(ctx, { references: ['民法典第143条'] })
+    expect(retried.isError).toBe(false)
+    expect(loads).toBe(2)
+  })
+
   it('reads a map-backed index on every call', async () => {
     const ctx = await host()
     ctx.tools.register(createLegalLawVerifyTool({ baselines: MINIMAL_INDEX, policies: POLICIES }))

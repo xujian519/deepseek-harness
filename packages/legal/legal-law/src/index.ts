@@ -11,7 +11,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { assertLegalLawIndexReadable, loadLegalLawBaselines } from './baseline.ts'
+import { assertLegalLawIndexReadable, loadLegalLawBaselinesAsync } from './baseline.ts'
 import { createLegalLawVerifyTool } from './tool/law-verify.ts'
 import { DEFAULT_LEGAL_CITATION_POLICY } from './verify.ts'
 import { LEGAL_PROPOSITION_SUPPORT_DEFAULT } from './support.ts'
@@ -22,9 +22,10 @@ import type { LegalCitationPolicy, LegalCitationPolicySet } from './types.ts'
 export {
   assertLegalLawIndexReadable,
   findLegalArticle,
-  LEGAL_LAW_NAMES,
   LegalLawBaselineError,
+  legalLawNames,
   loadLegalLawBaselines,
+  loadLegalLawBaselinesAsync,
   parseLegalLawBaseline,
 } from './baseline.ts'
 export { legalLawBaselineDir, listLegalLawFiles } from './asset-location.ts'
@@ -131,7 +132,7 @@ export function apply(ctx: Context, config: Config): void {
     unverified: config.onUnverified,
   }
   ctx.tools.register(createLegalLawVerifyTool({
-    baselines: () => loadLegalLawBaselines(config.baselineDir),
+    baselines: () => loadLegalLawBaselinesAsync(config.baselineDir),
     policies,
     supportThreshold: config.propositionSupport,
   }))

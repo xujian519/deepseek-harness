@@ -1,12 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   extractLegalLawReferences,
   formatCnNumber,
   formatLegalLawReference,
   parseCnNumber,
   parseLegalLawReference,
+  rebuildStatutePattern,
   scanUnrecognizedLegalCitations,
 } from '../src/reference.ts'
+
+/** The names the shipped pattern starts with; tests that extend it restore this set. */
+const BUILTIN_LAW_NAMES = ['民法典', '民事诉讼法', '劳动合同法', '公司法'] as const
+
+afterEach(() => {
+  rebuildStatutePattern(BUILTIN_LAW_NAMES)
+})
 
 describe('parseCnNumber', () => {
   it('parses Arabic digits', () => {
@@ -89,6 +97,20 @@ describe('parseLegalLawReference', () => {
     expect(parseLegalLawReference('民事诉讼法第66条')!.law).toBe('民事诉讼法')
     expect(parseLegalLawReference('劳动合同法第10条')!.law).toBe('劳动合同法')
     expect(parseLegalLawReference('公司法第20条')!.law).toBe('公司法')
+  })
+
+  it('resolves a law name added by an index load', () => {
+    rebuildStatutePattern(
+      [...BUILTIN_LAW_NAMES, '会计法'],
+      new Map([['中华人民共和国会计法', '会计法']]),
+    )
+    expect(parseLegalLawReference('会计法第9条')).toEqual({
+      kind: 'law-article',
+      law: '会计法',
+      article: 9,
+      raw: '会计法第9条',
+    })
+    expect(parseLegalLawReference('中华人民共和国会计法第9条')!.law).toBe('会计法')
   })
 })
 

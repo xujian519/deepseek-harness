@@ -10,6 +10,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { LegalEvidenceEngine } from './engine.ts'
+import { parseLegalRuleSet } from './rule-set.ts'
 import { createEvaluateLegalEvidenceTool } from './tool/evaluate-evidence.ts'
 
 // Public library API: the engine, the evaluators, the types, and the tool factory.
@@ -59,6 +60,17 @@ export interface Config {
   rulesDir?: string
 }
 
+/** Thrown when the configured legal-evidence rules asset is missing or unparseable. */
+export class LegalEvidenceRuleAssetError extends Error {
+  /**
+   * @param message - what is wrong with the asset.
+   */
+  constructor(message: string) {
+    super(message)
+    this.name = 'LegalEvidenceRuleAssetError'
+  }
+}
+
 /**
  * Register the evaluate_legal_evidence tool over the configured legal-evidence engine.
  * @param ctx - registrant context carrying the tool registry.
@@ -66,20 +78,31 @@ export interface Config {
  */
 export function apply(ctx: Context, config: Config = {}): void {
   const engine = loadEngine(config.rulesDir)
+  for (const warning of engine.getWarnings()) ctx.logger.warn(`[legal-evidence] ${warning}`)
   ctx.tools.register(createEvaluateLegalEvidenceTool(engine))
 }
 
-/** Load the legal evidence engine with optional YAML rules asset. */
+/**
+ * Load the legal evidence engine from an explicit or packaged rules asset.
+ *
+ * A missing file or an unparseable document fails the plugin load: a tuned
+ * deployment must not silently score with default weights. Individual rule
+ * entries that fail validation stay warnings and are logged by the caller.
+ * @param rulesDir - rules directory override; defaults to the packaged asset.
+ * @returns the engine carrying the parsed rule set.
+ * @throws LegalEvidenceRuleAssetError when the file is missing or unparseable.
+ */
 function loadEngine(rulesDir?: string): LegalEvidenceEngine {
-  const candidates = rulesDir !== undefined ? [rulesDir] : [defaultRulesDir()]
-  for (const dir of candidates) {
-    const path = join(dir, 'legal-evidence-rules.yaml')
-    if (!existsSync(path)) continue
-    // File exists — parse errors must surface; only a missing file is a soft fallback.
-    const engine = new LegalEvidenceEngine(readFileSync(path, 'utf8'), path)
-    return engine
+  const path = join(rulesDir ?? defaultRulesDir(), 'legal-evidence-rules.yaml')
+  if (!existsSync(path)) {
+    throw new LegalEvidenceRuleAssetError(`法律证据规则资产不存在：${path}`)
   }
-  return new LegalEvidenceEngine()
+  const text = readFileSync(path, 'utf8')
+  const parsed = parseLegalRuleSet(text, path)
+  if (parsed.ruleSet === null) {
+    throw new LegalEvidenceRuleAssetError(`法律证据规则资产无法解析：${path}（${parsed.warnings.join('；')}）`)
+  }
+  return new LegalEvidenceEngine(text, path)
 }
 
 /** Default rules directory (packaged asset). */

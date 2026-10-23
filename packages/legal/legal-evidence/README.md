@@ -33,7 +33,7 @@ The eight statutory types are `party_statement`, `documentary`, `physical`, `aud
 <a id="scoring-and-rules"></a>
 ## Scoring and rules
 
-`LegalEvidenceEngine` combines the three dimension judgments into a weighted overall score; `DEFAULT_LEGAL_WEIGHTS` is `0.35` relevance, `0.30` legality, and `0.35` authenticity, and the shipped `assets/legal-evidence-rules.yaml` declares the same weights. `parseLegalRuleSet` reads a rule set's weights and rules; a rule names its evidence type, check, severity, statutory basis, and required conditions. A missing rules file falls back to the defaults; a file that exists but fails to parse is an error rather than a silent fallback. Each assessment carries per-dimension scores and reasoning, rule checks, and the findings the rules raised.
+`LegalEvidenceEngine` combines the three dimension judgments into a weighted overall score; `DEFAULT_LEGAL_WEIGHTS` is `0.35` relevance, `0.30` legality, and `0.35` authenticity, and the shipped `assets/legal-evidence-rules.yaml` declares the same weights. `parseLegalRuleSet` reads the weights and declarative rule metadata; a rule names its evidence type, check, severity, statutory basis, and required conditions. The weights drive scoring. The executable checks live in the per-type evaluators, so the YAML documents the checks and supplies the weights rather than driving findings. Loading the plugin fails when the rules file is missing or unparseable; individual rule entries that fail validation are warnings and are logged. Each assessment carries per-dimension scores and reasoning plus the findings its evaluator produced.
 
 <a id="tool"></a>
 ## Tool

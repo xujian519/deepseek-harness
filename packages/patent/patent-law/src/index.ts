@@ -190,9 +190,17 @@ export function apply(ctx: Context, config: Config): void {
     unverified: config.onUnverified,
   }
   ctx.tools.register(createLawVerifyTool({ baselines, policies, supportThreshold: config.propositionSupport }))
-  // Register the rule-lock atom and handler into the global registries.
-  globalAtomRegistry.register(ruleLockAtom)
-  globalStageHandlerRegistry.register(new RuleLockHandler(baselines))
+  // Register the rule-lock atom and handler as one owned effect: plugin
+  // disposal must withdraw both from the shared registries.
+  ctx.effect(() => {
+    const disposers = [
+      globalAtomRegistry.register(ruleLockAtom),
+      globalStageHandlerRegistry.register(new RuleLockHandler(baselines)),
+    ]
+    return () => {
+      for (const dispose of disposers.reverse()) dispose()
+    }
+  }, 'patent-law: rule-lock atom')
   // Optional injection: without a prompt registry there is no model to declare
   // the base to, and the tool stands on its own.
   ctx.inject(['systemPrompt'], (scope) => {

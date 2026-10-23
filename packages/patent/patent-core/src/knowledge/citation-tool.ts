@@ -132,7 +132,7 @@ export function citationVerifyRender<TFinding>(
  * @returns the execute callback.
  */
 export function citationVerifyExecute<TArgs, TOutput>(
-  run: (args: TArgs) => TOutput,
+  run: (args: TArgs) => TOutput | Promise<TOutput>,
 ): (args: TArgs) => Promise<TOutput> {
   return args => Promise.resolve(run(args))
 }
@@ -178,8 +178,8 @@ export function citationVerifyToolOptions<
   findingSchema: TFindingSchema
   /** Renders the domain's full report from the tool output. */
   report: (findings: TFinding[], blocked: boolean, unrecognized: string[]) => string
-  /** Runs the domain's verification and returns its output value. */
-  run: (args: TArgs) => TValue
+  /** Runs the domain's verification and returns its output value, synchronously or as a promise. */
+  run: (args: TArgs) => TValue | Promise<TValue>
 }) {
   return {
     name: input.name,

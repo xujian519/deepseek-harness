@@ -88,16 +88,17 @@ export type LegalLawVerifyOutput = {
 export type LegalLawVerifyToolOptions = {
   /**
    * The loaded index, or a loader that parses it on the first verification.
-   * The loader runs at most once; a throw leaves the next call free to retry.
+   * The loader runs at most once; a rejection leaves the next call free to retry.
    */
-  baselines: Map<LegalLawName, LegalLawBaseline> | (() => Map<LegalLawName, LegalLawBaseline>)
+  baselines: Map<LegalLawName, LegalLawBaseline>
+    | (() => Map<LegalLawName, LegalLawBaseline> | Promise<Map<LegalLawName, LegalLawBaseline>>)
   policies: LegalCitationPolicySet
   /** Overlap a proposition must reach before an entry's text supports it. */
   supportThreshold?: number
 }
 
 const DESCRIPTION = [
-  '- Checks legal-law citations against the law index shipped with this deployment: 《民法典》《民事诉讼法》《劳动合同法》《公司法》 by article (and paragraph).',
+  '- Checks legal-law citations against the statutes the deployed index ships: any law name it declares (national laws, administrative regulations, local regulations, and judicial interpretations), by article and paragraph.',
   '- Each citation is decided as 已核验 / 与所引命题不符 / 未与条文对应（未判定）/ 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验.',
   '- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error.',
   '- A citation-like fragment in the text that the parser cannot resolve is returned in `unrecognized` and was not checked.',
@@ -116,16 +117,32 @@ const DESCRIPTION = [
  */
 export function createLegalLawVerifyTool(options: LegalLawVerifyToolOptions): ToolDefinition {
   const { baselines: baselineSource, policies, supportThreshold } = options
-  const load = typeof baselineSource === 'function' ? baselineSource : (): Map<LegalLawName, LegalLawBaseline> => baselineSource
+  const load = typeof baselineSource === 'function'
+    ? baselineSource
+    : (): Map<LegalLawName, LegalLawBaseline> => baselineSource
   let baselines: Map<LegalLawName, LegalLawBaseline> | undefined
-  const resolveBaselines = (): Map<LegalLawName, LegalLawBaseline> => baselines ??= load()
+  let pending: Promise<Map<LegalLawName, LegalLawBaseline>> | undefined
+  const resolveBaselines = (): Promise<Map<LegalLawName, LegalLawBaseline>> => {
+    if (baselines !== undefined) return Promise.resolve(baselines)
+    pending ??= Promise.resolve(load()).then(
+      (loaded) => {
+        baselines = loaded
+        return loaded
+      },
+      (error: unknown) => {
+        pending = undefined
+        throw error
+      },
+    )
+    return pending
+  }
   return defineTool(citationVerifyToolOptions({
     name: 'legal_law_verify',
     description: DESCRIPTION,
     referenceExample: '民法典第143条 / 劳动合同法第10条第2款',
     findingSchema: FINDING_SCHEMA,
     report: renderToolReport,
-    run: args => runVerify(args, resolveBaselines(), policies, supportThreshold),
+    run: async args => runVerify(args, await resolveBaselines(), policies, supportThreshold),
   }))
 }
 

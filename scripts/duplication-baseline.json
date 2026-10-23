@@ -11,7 +11,7 @@
     "packages/patent/patent-core/src/adversary/dispute.ts|packages/patent/patent-core/src/adversary/dispute.ts",
     "packages/patent/patent-core/src/adversary/report.ts|packages/patent/patent-core/src/adversary/report.ts",
     "packages/patent/patent-core/src/adversary/types.ts|packages/patent/patent-core/src/atoms/handlers/builtin/dispute-framing.ts",
-    "packages/patent/patent-core/src/atoms/handlers/builtin/adversary-model.ts|packages/patent/patent-core/src/atoms/handlers/builtin/adversary-model.ts",
+    "packages/patent/patent-core/src/atoms/handlers/builtin/adversary-model.ts|packages/patent/patent-core/src/atoms/handlers/builtin/chart.ts",
     "packages/patent/patent-core/src/atoms/handlers/builtin/chart.ts|packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts",
     "packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts|packages/patent/patent-core/src/atoms/handlers/builtin/draft.ts",
     "packages/patent/patent-core/src/atoms/handlers/builtin/compare.ts|packages/patent/patent-core/src/atoms/handlers/builtin/extract.ts",

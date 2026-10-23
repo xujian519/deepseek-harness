@@ -59,7 +59,7 @@ export type AdversaryReviewInput = {
 export type AdversaryReviewOfficeAction = {
   rejectionTypes?: string[]
   affectedClaims?: number[]
-  examinerArguments?: string
+  examinerArguments?: string | readonly string[]
 }
 
 /**

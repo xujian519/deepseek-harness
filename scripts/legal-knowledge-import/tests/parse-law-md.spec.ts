@@ -106,6 +106,20 @@ describe('parseLawMarkdown — standard format', () => {
     expect(parsed.shortName).toBe('行政处罚法')
   })
 
+  it('normalizes corpus markers and wrapped spaces out of the short name', () => {
+    const marked = parseLawMarkdown(
+      '# 中华人民共和国台州市提高技术工人待遇扩大中等收入群体+若干规定\n\n<!-- INFO END -->\n\n## 第一章 总则\n\n第一条 为了促进技术工人增收。\n',
+      '台州市提高技术工人待遇扩大中等收入群体-若干规定.md',
+    )
+    expect(marked.shortName).toBe('台州市提高技术工人待遇扩大中等收入群体若干规定')
+
+    const wrapped = parseLawMarkdown(
+      '# 中华人民共和国长春市农作物秸秆禁烧和综合          利用管理条例\n\n<!-- INFO END -->\n\n## 第一章 总则\n\n第一条 为了规范秸秆利用。\n',
+      '长春市农作物秸秆禁烧和综合-利用管理条例.md',
+    )
+    expect(wrapped.shortName).toBe('长春市农作物秸秆禁烧和综合利用管理条例')
+  })
+
   it('extracts the adoption date', () => {
     expect(parsed.adoptDate).toBe('1996-03-17')
   })

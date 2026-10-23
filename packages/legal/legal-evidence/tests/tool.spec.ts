@@ -120,6 +120,21 @@ describe('evaluate_legal_evidence tool', () => {
     expect(result.isError).toBe(true)
   })
 
+  it('marks the identifying pair required in the parameter schema', async () => {
+    const ctx = await host()
+    const schema = ctx.tools.schemas().find(entry => entry.name === 'evaluate_legal_evidence')
+    expect(schema?.parameters.required).toEqual(['evidenceId', 'evidenceType'])
+  })
+
+  it('rejects a blank evidence id', async () => {
+    const ctx = await host()
+    const result = await execute(ctx, {
+      evidenceId: '   ',
+      evidenceType: 'documentary',
+    })
+    expect(result.isError).toBe(true)
+  })
+
   it('throws on invalid evidence type', async () => {
     const ctx = await host()
     const result = await execute(ctx, {

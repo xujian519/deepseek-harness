@@ -151,9 +151,6 @@ export {
   AdversaryModelHandler,
   adversaryReviewAtom,
   AdversaryReviewHandler,
-  ADVERSARY_REVIEW_FORBIDDEN_KEYS,
-  checkAdversaryReviewIsolation,
-  extractAdversaryReviewEvent,
 } from './handlers/builtin/index.ts'
 
 import { globalAtomRegistry } from './atom.ts'

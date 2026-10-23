@@ -94,7 +94,6 @@ export class LegalKnowledge extends Service {
   static Config: z<LegalKnowledgeConfig> = z.object({
     knowledgeDir: z.string().default(resolveLegalKnowledgePaths().dataDir),
     sourceDbPath: z.string().default(resolveLegalKnowledgePaths().sourceDbPath),
-    cacheMaxEntries: z.number().min(1).default(1024),
     useFts5: z.boolean().default(true),
   })
 
@@ -104,6 +103,8 @@ export class LegalKnowledge extends Service {
   private readonly caseLawEngine: CaseLawSearchEngine
   private readonly legalEngine: LegalRegulationSearchEngine
   private readonly judicialEngine: JudicialInterpretationSearch
+  /** Every engine constructed so far, so a failed construction still closes what opened. */
+  private readonly engines: Array<{ close: () => void }> = []
   /** Whether the engines are using the SQLite FTS5 backend. */
   private readonly useFts5: boolean
 
@@ -119,10 +120,19 @@ export class LegalKnowledge extends Service {
     const dbPath = this.useFts5 && existsSync(this.paths.queryDbPath) ? this.paths.queryDbPath : undefined
 
     const engineOptions = dbPath !== undefined ? { dbPath } : {}
-    this.caseLawEngine = new CaseLawSearchEngine(engineOptions)
-    this.legalEngine = new LegalRegulationSearchEngine(engineOptions)
-    this.judicialEngine = new JudicialInterpretationSearch(engineOptions)
+    // Register the cleanup first: a constructor that throws halfway through
+    // still leaves its already-opened connections in `engines`, and the fiber
+    // disposal runs this effect.
     this.ctx.effect(() => () => { this.close() }, 'legal-knowledge: engines')
+    this.caseLawEngine = this.openEngine(new CaseLawSearchEngine(engineOptions))
+    this.legalEngine = this.openEngine(new LegalRegulationSearchEngine(engineOptions))
+    this.judicialEngine = this.openEngine(new JudicialInterpretationSearch(engineOptions))
+  }
+
+  /** Track one engine for disposal and return it unchanged. */
+  private openEngine<T extends { close: () => void }>(engine: T): T {
+    this.engines.push(engine)
+    return engine
   }
 
   /**
@@ -204,11 +214,9 @@ export class LegalKnowledge extends Service {
     this.judicialEngine.addGuidingCases(records)
   }
 
-  /** Close all engines and release SQLite connections. */
+  /** Close every engine constructed so far and release its SQLite connection. */
   private close(): void {
-    this.caseLawEngine.close()
-    this.legalEngine.close()
-    this.judicialEngine.close()
+    for (const engine of this.engines) engine.close()
   }
 }
 

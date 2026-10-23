@@ -3,6 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { globalAtomRegistry, globalStageHandlerRegistry } from '@deepseek-ai/dsh-patent-core'
 import * as Pkg from '../src/index.ts'
 
 /** The shipped citation policy, which the schema also defaults every field to. */
@@ -71,6 +72,15 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
     expect(ctx.tools.schemas().some(schema => schema.name === 'law_verify')).toBe(true)
     await fiber.dispose()
     expect(ctx.tools.schemas().some(schema => schema.name === 'law_verify')).toBe(false)
+  })
+
+  it('registers rule-lock and withdraws it on dispose', async () => {
+    const { fiber } = await install()
+    expect(globalAtomRegistry.lookup('rule-lock')).toBeDefined()
+    expect(globalStageHandlerRegistry.lookup('rule-lock')).toBeDefined()
+    await fiber.dispose()
+    expect(globalAtomRegistry.lookup('rule-lock')).toBeUndefined()
+    expect(globalStageHandlerRegistry.lookup('rule-lock')).toBeUndefined()
   })
 
   it('defaults every policy field to the shipped citation policy', () => {

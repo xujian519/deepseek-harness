@@ -319,9 +319,9 @@
 
           # ── legal law index ──────────────────────────────────────────────────────
 
-          # dsh-legal-law：法条索引加载与引用核验。加载随包 YAML 法条索引（《民法典》
-          # 《民事诉讼法》《劳动合同法》《公司法》），提供 legal_law_verify 工具，
-          # 对文本中的法条引用做逐条核验（存在性、转录状态、命题匹配）。
+          # dsh-legal-law：法条索引加载与引用核验。加载随包 YAML 法条索引
+          # （国家法律、行政法规、地方性法规与司法解释），提供 legal_law_verify
+          # 工具，对文本中的法条引用做逐条核验（存在性、转录状态、命题匹配）。
           # gateToolNames 使 document-deliver 的输出先过 legal_law_verify。
           - id: legal-law-index
             name: cordis:group
@@ -338,7 +338,8 @@
           # ── legal knowledge ────────────────────────────────────────────────────
 
           # dsh-legal-knowledge：法律知识库查询。提供案例检索、法规检索、司法解释
-          # 检索与指导案例查询。Phase 2 使用内存存储，后续接入 SQLite FTS5。
+          # 检索与指导案例查询；有查询库时走 SQLite FTS5，缺少数据库时回退内存存储。
+          # 本组只提供服务 seam，工具消费者在后续里程碑接入。
           - id: legal-knowledge-index
             name: cordis:group
             group: true

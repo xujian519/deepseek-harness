@@ -65,7 +65,12 @@ export type LegalEvidenceFinding = {
   severity: 'critical' | 'warning' | 'info'
 }
 
-/** 证据规则（YAML 资产 legal-evidence-rules.yaml 的条目形态）。 */
+/**
+ * 证据规则（YAML 资产 legal-evidence-rules.yaml 的条目形态）。
+ *
+ * 规则是声明性元数据：`check` 与 `conditions` 记录判定器执行的检查，
+ * 引擎不解释它们；可执行逻辑位于各类型判定器。
+ */
 export type LegalEvidenceRule = {
   /** 规则 id（如 LEGAL-EVI-001）。 */
   id: string
@@ -73,7 +78,7 @@ export type LegalEvidenceRule = {
   description: string
   /** 适用的证据类型。 */
   evidenceType: LegalEvidenceType | 'general'
-  /** 检查方法名。 */
+  /** 判定器中对应检查的名称。 */
   check: string
   /** 严重程度。 */
   severity: 'critical' | 'warning' | 'info'
