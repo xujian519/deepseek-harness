@@ -166,7 +166,7 @@ export function createLegalKnowledgeSearchTool(knowledge: LegalKnowledgeQuery): 
         text: (value as LegalKnowledgeSearchOutput).summary,
       }],
     },
-    execute: async (input): Promise<LegalKnowledgeSearchOutput> => {
+    execute: (input): Promise<LegalKnowledgeSearchOutput> => {
       const query = input.query.trim()
       if (query.length === 0) {
         throw new LegalKnowledgeSearchToolError('empty-query', 'query 不能为空')
@@ -186,13 +186,13 @@ export function createLegalKnowledgeSearchTool(knowledge: LegalKnowledgeQuery): 
         ...(input.interpretationType !== undefined ? { interpretationType: input.interpretationType } : {}),
       })
 
-      return {
+      return Promise.resolve({
         scope,
         query,
         count: hits.length,
         hits,
         summary: renderSummary(scope, query, hits.length),
-      }
+      })
     },
   })
 }

@@ -164,11 +164,11 @@ describe('legal_knowledge_search tool', () => {
     const ctx = await host()
     const empty = await execute(ctx, { query: '   ' })
     expect(empty.isError).toBe(true)
-    expect(String(empty.error?.message ?? '')).toContain('query 不能为空')
+    expect(empty.error?.message ?? '').toContain('query 不能为空')
 
     const unknown = await execute(ctx, { query: '合同', scope: 'statute' })
     expect(unknown.isError).toBe(true)
-    expect(String(unknown.error?.message ?? '')).toContain('must be one of')
+    expect(unknown.error?.message ?? '').toContain('must be one of')
   })
 
 
