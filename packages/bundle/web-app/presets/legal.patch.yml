@@ -358,7 +358,7 @@
           # 法定证据（当事人陈述、书证、物证、视听资料、电子数据、证人证言、
           # 鉴定意见、勘验笔录）做关联性、合法性、真实性评分。提供 evaluate_legal_evidence
           # 工具，确定性评分（无模型调用），权重可经 YAML 资产配置。
-          - id: legal-evidence
+          - id: legal-evidence-index
             name: cordis:group
             group: true
             isolate:

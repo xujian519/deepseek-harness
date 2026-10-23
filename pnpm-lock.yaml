@@ -406,6 +406,15 @@ importers:
       '@deepseek-ai/dsh-launch-environment':
         specifier: workspace:*
         version: link:../../packages/util/launch-environment
+      '@deepseek-ai/dsh-legal-evidence':
+        specifier: workspace:*
+        version: link:../../packages/legal/legal-evidence
+      '@deepseek-ai/dsh-legal-knowledge':
+        specifier: workspace:*
+        version: link:../../packages/legal/legal-knowledge
+      '@deepseek-ai/dsh-legal-law':
+        specifier: workspace:*
+        version: link:../../packages/legal/legal-law
       '@deepseek-ai/dsh-mcp-client':
         specifier: workspace:*
         version: link:../../packages/mcp/mcp-client

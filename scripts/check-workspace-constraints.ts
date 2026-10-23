@@ -285,6 +285,12 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // The document style assets (4 style YAML files) ship as package-root assets
   // resolved via import.meta.url.
   '@deepseek-ai/dsh-doc-style': ['assets'],
+  // The legal-law per-statute index YAML files ship as package-root assets
+  // resolved via import.meta.url.
+  '@deepseek-ai/dsh-legal-law': ['assets'],
+  // The evidence rule-set YAML (legal-evidence-rules.yaml) ships as a
+  // package-root asset resolved via import.meta.url.
+  '@deepseek-ai/dsh-legal-evidence': ['assets'],
   '@deepseek-ai/dsh-subprocess': ['lib/control.js'],
   // SSH launches a private helper and shares wire definitions and TLS setup
   // between that helper and the connection owner.
