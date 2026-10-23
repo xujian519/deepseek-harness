@@ -28,6 +28,7 @@ import { parseOaRetroJsonl, type OaRetroCase, type OaRetroDispute } from './pate
  * via the published package entry point (source-plane vs artifact-plane separation).
  */
 import {
+  GROUND_TO_STATUTE,
   OaParseHandler,
   ResponsePlanHandler,
   AdversaryModelHandler,
@@ -48,9 +49,12 @@ type StatuteClaimPair = {
 type CaseEvalResult = {
   id: string
   groundTruthPairs: StatuteClaimPair[]
+  /** Pairs the existing response-plan baseline covers. */
+  baselinePairs: StatuteClaimPair[]
   adversaryPairs: StatuteClaimPair[]
   hitPairs: StatuteClaimPair[]
   missedPairs: StatuteClaimPair[]
+  baselineHitPairs: StatuteClaimPair[]
   groundTruthDisputes: OaRetroDispute[]
   adversaryDisputes: AdversaryDispute[]
 }
@@ -69,6 +73,10 @@ type EvalMetrics = {
   totalGroundTruthPairs: number
   totalHitPairs: number
   hitRate: number
+  /** Pairs the existing response-plan baseline covers. */
+  baselineHitPairs: number
+  /** Baseline hit rate over the same ground truth. */
+  baselineHitRate: number
   wilsonLower: number
   wilsonUpper: number
   waldLower: number
@@ -104,6 +112,36 @@ function expandToPairs(disputes: readonly { statute: string; claims: number[] }[
  */
 function pairExists(pairs: StatuteClaimPair[], pair: StatuteClaimPair): boolean {
   return pairs.some(p => p.statute === pair.statute && p.claim === pair.claim)
+}
+
+/**
+ * Expand the response-plan baseline to (statute, claim) pairs.
+ *
+ * The deterministic plan covers one section per rejection type over every
+ * affected claim, so its pair set is the cross product of the mapped statutes
+ * and `affectedClaims`. This is the baseline the adversary must improve on.
+ * @param officeAction - Parsed office action JSON string.
+ * @returns Baseline pairs.
+ */
+function baselinePairs(officeAction: string): StatuteClaimPair[] {
+  const parsed: unknown = JSON.parse(officeAction)
+  if (parsed === null || typeof parsed !== 'object') return []
+  const record = parsed as { rejectionTypes?: unknown; affectedClaims?: unknown }
+  const types = Array.isArray(record.rejectionTypes) ? record.rejectionTypes : []
+  const claims = Array.isArray(record.affectedClaims)
+    ? record.affectedClaims.filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0)
+    : []
+  const statutes = new Set<string>()
+  for (const ground of types) {
+    if (typeof ground !== 'string') continue
+    const statute = GROUND_TO_STATUTE.get(ground)
+    if (statute !== undefined) statutes.add(statute)
+  }
+  const pairs: StatuteClaimPair[] = []
+  for (const statute of statutes) {
+    for (const claim of claims) pairs.push({ statute, claim })
+  }
+  return pairs
 }
 
 /**
@@ -213,10 +251,12 @@ async function evaluateCase(caseData: OaRetroCase): Promise<CaseEvalResult> {
   // Expand to pairs
   const groundTruthPairs = expandToPairs(caseData.secondOa.disputes)
   const adversaryPairs = expandToPairs(adversaryDisputes)
+  const baseline = baselinePairs(officeAction)
 
   // Calculate hits
   const hitPairs: StatuteClaimPair[] = []
   const missedPairs: StatuteClaimPair[] = []
+  const baselineHitPairs: StatuteClaimPair[] = []
 
   for (const gtPair of groundTruthPairs) {
     if (pairExists(adversaryPairs, gtPair)) {
@@ -224,14 +264,17 @@ async function evaluateCase(caseData: OaRetroCase): Promise<CaseEvalResult> {
     } else {
       missedPairs.push(gtPair)
     }
+    if (pairExists(baseline, gtPair)) baselineHitPairs.push(gtPair)
   }
 
   return {
     id: caseData.id,
     groundTruthPairs,
+    baselinePairs: baseline,
     adversaryPairs,
     hitPairs,
     missedPairs,
+    baselineHitPairs,
     groundTruthDisputes: caseData.secondOa.disputes,
     adversaryDisputes,
   }
@@ -245,12 +288,14 @@ async function evaluateCase(caseData: OaRetroCase): Promise<CaseEvalResult> {
 function aggregateMetrics(results: CaseEvalResult[]): EvalMetrics {
   let totalGroundTruthPairs = 0
   let totalHitPairs = 0
+  let totalBaselineHitPairs = 0
   const byStatuteMap = new Map<string, { groundTruthCount: number; hitCount: number }>()
   const misses: { recordId: string; statute: string; claim: number }[] = []
 
   for (const result of results) {
     totalGroundTruthPairs += result.groundTruthPairs.length
     totalHitPairs += result.hitPairs.length
+    totalBaselineHitPairs += result.baselineHitPairs.length
 
     // Group by statute
     for (const pair of result.groundTruthPairs) {
@@ -269,6 +314,7 @@ function aggregateMetrics(results: CaseEvalResult[]): EvalMetrics {
   }
 
   const hitRate = totalGroundTruthPairs > 0 ? totalHitPairs / totalGroundTruthPairs : 0
+  const baselineHitRate = totalGroundTruthPairs > 0 ? totalBaselineHitPairs / totalGroundTruthPairs : 0
   const [wilsonLower, wilsonUpper] = wilsonScoreInterval(totalHitPairs, totalGroundTruthPairs)
   const [waldLower, waldUpper] = waldInterval(totalHitPairs, totalGroundTruthPairs)
 
@@ -288,6 +334,8 @@ function aggregateMetrics(results: CaseEvalResult[]): EvalMetrics {
     totalGroundTruthPairs,
     totalHitPairs,
     hitRate,
+    baselineHitPairs: totalBaselineHitPairs,
+    baselineHitRate,
     wilsonLower,
     wilsonUpper,
     waldLower,
@@ -313,6 +361,8 @@ function renderReport(metrics: EvalMetrics): string {
   lines.push(`- **Ground truth (statute, claim) 对数**: ${metrics.totalGroundTruthPairs}`)
   lines.push(`- **命中对数**: ${metrics.totalHitPairs}`)
   lines.push(`- **命中率**: ${(metrics.hitRate * 100).toFixed(1)}%`)
+  lines.push(`- **基线（response-plan）命中率**: ${(metrics.baselineHitRate * 100).toFixed(1)}%（${metrics.baselineHitPairs}/${metrics.totalGroundTruthPairs}）`)
+  lines.push(`- **相对基线增量**: ${((metrics.hitRate - metrics.baselineHitRate) * 100).toFixed(1)} 个百分点`)
   lines.push('')
   lines.push('### 置信区间（95% 置信水平）')
   lines.push('')
