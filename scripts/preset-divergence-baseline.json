@@ -47,10 +47,14 @@
       "document.patch.yml": "4e39d12aeb",
       "legal.patch.yml": "aa49e10ed8"
     },
+    "patent-rule": {
+      "legal.patch.yml": "09db5bfd4b",
+      "patent.patch.yml": "d3a46f2141"
+    },
     "persona": {
       "cordis.patch.yml": "128bdee840",
       "document.patch.yml": "07fef4f229",
-      "legal.patch.yml": "e5f5d2245e",
+      "legal.patch.yml": "1822a99c5c",
       "minimal.patch.yml": "cc5f870f42",
       "patent.patch.yml": "84aa65d54b",
       "ptc.patch.yml": "b5a7fe963b",
@@ -226,7 +230,7 @@
     "tool-workflow": {
       "cordis.patch.yml": "0898baaf9f",
       "document.patch.yml": "eb4ebd71c6",
-      "legal.patch.yml": "eb4ebd71c6",
+      "legal.patch.yml": "c3eb3c77c5",
       "patent.patch.yml": "d4c6822d04",
       "ptc.patch.yml": "1aa5baad08",
       "standard.patch.yml": "0898baaf9f"
@@ -294,7 +298,6 @@
       "patent-filing",
       "patent-knowledge",
       "patent-law",
-      "patent-rule",
       "patent-teams",
       "patent-tools",
       "patent-workflow",

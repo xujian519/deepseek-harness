@@ -15,6 +15,7 @@ import scheduleRemote from '@deepseek-ai/dsh-schedule/remote'
 import llmRemote from '@deepseek-ai/dsh-llm/remote'
 import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import pluginManagerRemote from '@deepseek-ai/dsh-plugin-manager/remote'
+import pluginMarketRemote from '@deepseek-ai/dsh-plugin-market/remote'
 import pluginRegistryProbeRemote from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
@@ -29,6 +30,7 @@ import workspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
 import terminalRemote from '@deepseek-ai/dsh-api-terminal-controller/remote'
 import workspaceFilesRemote from '@deepseek-ai/dsh-api-workspace-files/remote'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
+import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 
 export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 export type {
@@ -183,6 +185,22 @@ declare module '@deepseek-ai/cordis' {
 export const inject = ['remote']
 
 /**
+ * Generated Host Remote contributions this Client assembly selects. Every
+ * shipped browser package that injects a `remote.<namespace>` must find that
+ * namespace here; the `pluginMarket` Discover tab and the `pluginCatalog`
+ * catalog tab read two different Host seams.
+ */
+export const REMOTE_CONTRIBUTIONS: readonly TypertRemoteContribution[] = [
+  productAnalyticsRemote,
+  agentPresetsRemote, commandsRemote, settingsControllerRemote, accountRemote, goalsRemote, llmRemote, dynamicRemote, scheduleRemote,
+  pluginInventoryRemote, pluginManagerRemote, pluginMarketRemote, pluginCatalogRemote, pluginRegistryProbeRemote,
+  messageFeedbackRemote,
+  sessionFeedbackRemote, fileUploadsRemote, sessionReferencesRemote,
+  permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,
+  officeToPdfRemote, userQuestionsRemote,
+]
+
+/**
  * Mount the Host capabilities explicitly selected for this Client assembly.
  * @param ctx - Client Cordis root carrying the typed API service.
  * @returns disposer after every selected Remote namespace is ready.
@@ -190,14 +208,7 @@ export const inject = ['remote']
 export async function apply(ctx: Context): Promise<() => Promise<void>> {
   const disposers: Array<() => Promise<void>> = []
   try {
-    for (const contribution of [
-      productAnalyticsRemote,
-      agentPresetsRemote, commandsRemote, settingsControllerRemote, accountRemote, goalsRemote, llmRemote, dynamicRemote, scheduleRemote,
-      pluginInventoryRemote, pluginManagerRemote, pluginCatalogRemote, pluginRegistryProbeRemote, messageFeedbackRemote,
-      sessionFeedbackRemote, fileUploadsRemote, sessionReferencesRemote,
-      permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,
-      officeToPdfRemote, userQuestionsRemote,
-    ]) {
+    for (const contribution of REMOTE_CONTRIBUTIONS) {
       disposers.push(await ctx.remote.$mount(contribution))
     }
   } catch (error) {

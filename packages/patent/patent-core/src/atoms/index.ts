@@ -3,14 +3,17 @@
  *
  * - atom.ts：Atom 声明式契约 + 注册表（纯声明，不参与执行）
  * - handler.ts：StageHandler 运行时 + PipelineState + 错误模型 + 注册表
- * - handlers/builtin/：26 个内置原子，按职责分域：
+ * - handlers/builtin/：28 个内置原子，按职责分域：
  *   search/keywords/extract/merge/compare/novelty/reasoning/groundedness/
  *   draft-claims/approval-gate/claim-chart 为模型或检索阶段；
  *   oa-parse/grounds/response-plan/coverage/pfe-consistency/citation-check/
  *   time-baseline/dispute-framing/dispute-framing-refine/prior-art-filter/
  *   conflicting-application/numeric-range/problem-check/amendment-basis/
  *   evidence-check 为不调用模型的确定性检查。
+ *   adversary-model 为第一个 usesModel: true 的内置原子（对立审查员模型）。
+ *   adversary-review 为换位重跑原子（评估最终意见陈述书）。
  *   @deepseek-ai/dsh-patent-tools 另以插件 effect 注册 6 个包内原子。
+ *   @deepseek-ai/dsh-patent-law 以插件 effect 注册 rule-lock 原子。
  *
  * 使用：调用 registerBuiltinAtoms() 将内置原子注册进全局注册表；
  * workflow 执行时也可注入局部注册表（隔离测试 / 覆盖同名原子）。
@@ -144,13 +147,17 @@ export {
   type EvidenceCheckSeverity,
   type EvidenceCheckViolation,
   type EvidenceCheckPending,
+  adversaryModelAtom,
+  AdversaryModelHandler,
+  adversaryReviewAtom,
+  AdversaryReviewHandler,
 } from './handlers/builtin/index.ts'
 
 import { globalAtomRegistry } from './atom.ts'
 import { globalStageHandlerRegistry } from './handler.ts'
 import * as builtin from './handlers/builtin/index.ts'
 
-/** 将 26 个内置原子（契约 + 运行时）注册进全局注册表。幂等：同名覆盖。 */
+/** 将 28 个内置原子（契约 + 运行时）注册进全局注册表。幂等：同名覆盖。 */
 export function registerBuiltinAtoms(): void {
   globalAtomRegistry.register(builtin.searchAtom)
   globalAtomRegistry.register(builtin.extractAtom)
@@ -178,6 +185,8 @@ export function registerBuiltinAtoms(): void {
   globalAtomRegistry.register(builtin.problemCheckAtom)
   globalAtomRegistry.register(builtin.amendmentBasisAtom)
   globalAtomRegistry.register(builtin.evidenceCheckAtom)
+  globalAtomRegistry.register(builtin.adversaryModelAtom)
+  globalAtomRegistry.register(builtin.adversaryReviewAtom)
 
   globalStageHandlerRegistry.register(new builtin.SearchHandler())
   globalStageHandlerRegistry.register(new builtin.ExtractHandler())
@@ -205,4 +214,6 @@ export function registerBuiltinAtoms(): void {
   globalStageHandlerRegistry.register(new builtin.ProblemCheckHandler())
   globalStageHandlerRegistry.register(new builtin.AmendmentBasisHandler())
   globalStageHandlerRegistry.register(new builtin.EvidenceCheckHandler())
+  globalStageHandlerRegistry.register(new builtin.AdversaryModelHandler())
+  globalStageHandlerRegistry.register(new builtin.AdversaryReviewHandler())
 }

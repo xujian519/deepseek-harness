@@ -5,6 +5,8 @@
  * @module @deepseek-ai/dsh-patent-law/types
  */
 
+import type { DecisionArticle } from '@deepseek-ai/dsh-patent-core'
+
 /** Law documents the index covers. */
 export type LawName = '专利法' | '专利法实施细则' | '专利审查指南'
 
@@ -51,24 +53,7 @@ export type LawReference = LawArticleReference | GuidelineReference
  * recorded, the entry is indexed but unverified. Who performed the check is a
  * property of the shipped asset, and the asset states it.
  */
-export type ArticleEntry = {
-  /** Article number. */
-  article: number
-  /** Paragraph numbers the entry knows to exist; omitted when not yet verified. */
-  paragraphs?: number[]
-  /**
-   * Topic keywords a proposition can name. They are one of the two signals a
-   * proposition is matched by — the other is `text` — and they are an index aid,
-   * not statutory text.
-   */
-  topics: string[]
-  /** Article text, or null while it has not been transcribed. */
-  text: string | null
-  /** Official source the text was taken from, or null while unverified. */
-  sourceDoc: string | null
-  /** Date the entry's text was checked against `sourceDoc`, or null while it has not been transcribed. */
-  verifiedOn: string | null
-}
+export type ArticleEntry = DecisionArticle
 
 /** One indexed guideline section, with the same source and verification fields as an article. */
 export type SectionEntry = {
@@ -195,4 +180,94 @@ export type CitationPolicySet = {
   notIndexed: CitationPolicy
   /** Policy for `unverified`. */
   unverified: CitationPolicy
+}
+
+/**
+ * Four-state validity of a legal provision: whether the cited text is still in
+ * force, has been superseded by a later revision, has been repealed, or cannot
+ * be decided from the shipped index.
+ */
+export type ValidityState = 'active' | 'revised' | 'repealed' | 'unverified'
+
+/**
+ * Input for a validity query against the citator. The `provision` is the
+ * human-readable citation text; `asOf` and `revision` narrow the decision
+ * when the caller knows the relevant time or guideline version.
+ */
+export type ValidityQuery = {
+  /** Citation text, e.g. `专利法第22条第2款` or `审查指南第二部分第四章3.2.1.1`. */
+  provision: string
+  /** Decision date (YYYY-MM-DD); reserved for future time-aware repeal checks. */
+  asOf?: string
+  /** Guideline revision to decide against, e.g. `2026 年修订版（2026-01-01 施行）`. */
+  revision?: string
+}
+
+/**
+ * The result of a validity query: the parsed reference, the four-state verdict,
+ * the reason, and the indexed entry when one was found.
+ */
+export type ValidityResult = {
+  /** The parsed reference. */
+  reference: LawReference
+  /** The four-state validity verdict. */
+  state: ValidityState
+  /** Why the verdict was reached, in the model's language. */
+  reason: string
+  /** The indexed entry the verdict used, when one was found. */
+  entry?: ArticleEntry | SectionEntry
+  /** Revision history entries when the provision has been through versions. */
+  revisionHistory?: Array<{ revision: string; effectiveDate: string }>
+}
+
+/** One revision record of an article. */
+export type ArticleRevision = {
+  /** Revision identifier, e.g. `2008-amendment`. */
+  revision: string
+  /** Effective date (YYYY-MM-DD). */
+  effectiveDate: string
+  /** Article text in this revision. Null means carried from the previous revision. */
+  text: string | null
+  /** Whether this revision substantively changed the article. */
+  changed: boolean
+  /** Revision source description (e.g. legislative body). */
+  source?: string
+}
+
+/** Cross-revision lineage record for a single article. */
+export type ArticleLineage = {
+  /** Article number (using the latest revision's numbering). */
+  articleId: number
+  /** Article title summary. */
+  title: string | null
+  /** Current four-state validity. */
+  currentStatus: ValidityState
+  /** Revision history in chronological order. */
+  revisionHistory: ArticleRevision[]
+}
+
+/** One revision descriptor in the revision catalogue. */
+export type RevisionDescriptor = {
+  /** Revision identifier. */
+  id: string
+  /** Human-readable revision label. */
+  label: string
+  /** Effective date (YYYY-MM-DD). */
+  effectiveDate: string
+  /** Revision source (legislative body or session). */
+  source: string
+}
+
+/** Complete lineage snapshot for one statute. */
+export type LawLineageSnapshot = {
+  /** Statute name. */
+  law: StatuteName
+  /** Full document title. */
+  document: string
+  /** Schema version of the lineage format. */
+  lineageVersion: string
+  /** Revision catalogue. */
+  revisions: RevisionDescriptor[]
+  /** Per-article lineage records. */
+  articles: ArticleLineage[]
 }

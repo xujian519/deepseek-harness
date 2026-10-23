@@ -13,6 +13,8 @@ const frontendIndex = join(repoRoot, 'apps/web/dist/index.html')
 const openerHook = new URL('./fixtures/web-browser-open/register.mjs', import.meta.url).href
 const openingMessage = 'dsh web: opening the default browser; pass --no-open to disable'
 const tempRoots: string[] = []
+/** Wait for a built `dsh web` boot and handoff; a shared runner can take well over 30s. */
+const PROCESS_TIMEOUT_MS = 90_000
 const builtArtifactsExist = existsSync(builtBin) && existsSync(frontendIndex)
 
 if (process.env.DSH_EXAMPLE_MODE === 'lib' && !builtArtifactsExist) {
@@ -59,7 +61,7 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
         SSH_TTY: '',
       },
       input: '',
-      timeout: 30_000,
+      timeout: PROCESS_TIMEOUT_MS,
       killSignal: 'SIGKILL',
       reject: false,
     })
@@ -119,7 +121,7 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
         SSH_TTY: '',
       },
       input: '',
-      timeout: 30_000,
+      timeout: PROCESS_TIMEOUT_MS,
       killSignal: 'SIGKILL',
       reject: false,
     })
@@ -167,7 +169,7 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
         VSCODE_IPC_HOOK_CLI: '/tmp/vscode-ipc',
       },
       input: '',
-      timeout: 30_000,
+      timeout: PROCESS_TIMEOUT_MS,
       killSignal: 'SIGKILL',
       reject: false,
     })
@@ -212,7 +214,7 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
         SSH_TTY: '',
       },
       input: '',
-      timeout: 30_000,
+      timeout: PROCESS_TIMEOUT_MS,
       killSignal: 'SIGKILL',
       reject: false,
     })

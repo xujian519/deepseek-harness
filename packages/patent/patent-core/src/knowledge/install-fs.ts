@@ -1,0 +1,86 @@
+/**
+ * 知识库安装的共用文件操作。
+ *
+ * 两个知识库安装命令（patent-knowledge:install / legal-knowledge:install）都把
+ * 源库裁剪进运行时目录：先写同目录临时文件，成功后原子替换输出。这里收拢
+ * 同文件守卫需要的真实路径解析、临时文件准备、提交与结果统计。
+ * @module @deepseek-ai/dsh-patent-core/knowledge/install-fs
+ */
+
+import { existsSync, mkdirSync, realpathSync, renameSync, rmSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
+import type { DatabaseSync } from 'node:sqlite'
+
+/**
+ * 解析文件路径的真实形态，允许文件本身尚不存在。
+ *
+ * 对不存在的输出文件无法直接 realpath，因此对第一个存在的祖先目录做
+ * realpath，再拼回缺失的路径段；这样 `./`、`../` 与 symlink 别名会归一到
+ * 同一个值，同文件守卫才能可靠比较。
+ * @param path - 待归一化的路径。
+ * @returns 归一化后的绝对路径。
+ */
+export function resolveRealPath(path: string): string {
+  const abs = resolve(path)
+  let dir = dirname(abs)
+  let suffix = basename(abs)
+  // 每轮上移一层，必然终止于存在的根目录。
+  while (!existsSync(dir)) {
+    suffix = join(basename(dir), suffix)
+    dir = dirname(dir)
+  }
+  return join(realpathSync(dir), suffix)
+}
+
+/**
+ * 读取表的行数。
+ * @param db - 已打开的数据库连接。
+ * @param table - 表名。
+ * @returns 行数；表缺失或查询失败时为 -1。
+ */
+export function countTableRows(db: DatabaseSync, table: string): number {
+  try {
+    const row = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get() as { c: number }
+    return row.c
+  } catch {
+    return -1
+  }
+}
+
+/**
+ * 把字节数渲染为 GB 文本。
+ * @param bytes - 字节数。
+ * @returns 两位小数的 GB 文本。
+ */
+export function formatGigabytes(bytes: number): string {
+  return `${(bytes / 1073741824).toFixed(2)} GB`
+}
+
+/**
+ * 准备输出路径与同目录临时文件。
+ *
+ * 临时文件放在输出目录内，保证随后的 rename 不跨文件系统；上一次中断留下的
+ * 同名临时文件会先被清除。
+ * @param output - 输出文件路径。
+ * @returns 临时文件路径。
+ */
+export function prepareTempSibling(output: string): string {
+  mkdirSync(dirname(resolve(output)), { recursive: true })
+  const temp = `${resolve(output)}.tmp-${process.pid}`
+  if (existsSync(temp)) rmSync(temp)
+  return temp
+}
+
+/**
+ * 用临时文件原子替换输出。
+ * @param temp - 已写好的临时文件。
+ * @param output - 输出文件路径。
+ * @param log - 日志出口；覆盖已有输出时记录一行。
+ */
+export function commitTempSibling(temp: string, output: string, log: (line: string) => void): void {
+  if (existsSync(output)) {
+    log(`输出已存在，覆盖: ${output}`)
+    rmSync(output)
+  }
+  renameSync(temp, output)
+}

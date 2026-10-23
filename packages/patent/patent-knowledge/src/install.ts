@@ -13,8 +13,9 @@
  */
 
 import { DatabaseSync } from 'node:sqlite'
-import { existsSync, mkdirSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { commitTempSibling, countTableRows, formatGigabytes, prepareTempSibling, resolveRealPath } from '@deepseek-ai/dsh-patent-core'
 import { compressIfSmaller, decompressChunk } from './shared/chunk-compression.ts'
 import { KgStore } from './shared/kg-store.ts'
 import { KnowledgeLawSearch } from './legal/knowledge-law-search.ts'
@@ -141,16 +142,11 @@ function dropSearchPrefix(db: DatabaseSync): boolean {
 }
 
 function countRows(db: DatabaseSync, table: string): number {
-  try {
-    const row = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get() as { c: number }
-    return row.c
-  } catch {
-    return -1
-  }
+  return countTableRows(db, table)
 }
 
 function gb(bytes: number): string {
-  return `${(bytes / 1073741824).toFixed(2)} GB`
+  return formatGigabytes(bytes)
 }
 
 /**
@@ -160,26 +156,6 @@ function gb(bytes: number): string {
  * @param options - input/output paths, trimming toggles, and a log sink.
  * @returns the run summary (paths, sizes, dropped tables, compressed count).
  */
-/**
- * 路径的真实形态：父目录 realpath 后拼接 basename。输出文件可能尚不存在，
- * 无法对其本身 realpath，故对父目录解析——同文件别名（./、symlink）归一为同一值。
- * 父目录也可能不存在（首次安装）：从下往上找第一个存在的祖先做 realpath，
- * 再拼接其余段，使同文件守卫在输出目录缺失时仍可比较（目录不存在则输出必不与输入同文件）。
- * @param path - 待归一化的文件路径。
- * @returns 归一化后的绝对路径。
- */
-function realPathOf(path: string): string {
-  const abs = resolve(path)
-  let dir = dirname(abs)
-  let suffix = basename(abs)
-  // 每轮 dir 上移一层，必然终止于存在的根目录。
-  while (!existsSync(dir)) {
-    suffix = join(basename(dir), suffix)
-    dir = dirname(dir)
-  }
-  return join(realpathSync(dir), suffix)
-}
-
 /**
  * patent-knowledge:install 的入口。
  * @param options - source/输出路径与裁剪开关。
@@ -214,8 +190,8 @@ export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}
   }
   // 同文件守卫用真实路径比较：文本相等会漏掉 /x/./k.db、symlink 别名等写法，
   // 一旦误判为不同路径，先删后建会把源库不可逆删除。
-  if (realPathOf(input) === realPathOf(output)) {
-    throw new Error('--output 与 --input 指向同一文件（含路径别名），会破坏源库，请指定不同输出路径。')
+  if (resolveRealPath(input) === resolveRealPath(output)) {
+    throw new Error('--output 与 --input 指向同一文件（含路径别名），会破坏源库 ，请指定不同输出路径。')
   }
 
   const sourceBytes = statSync(input).size
@@ -223,9 +199,7 @@ export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}
   // 1. VACUUM INTO 生成紧凑副本：先写临时文件，成功后原子替换输出——
   // VACUUM INTO 要求目标不存在，直接 rmSync(output) 会在 VACUUM 失败时
   // 丢掉上一份可用产物。
-  mkdirSync(dirname(resolve(output)), { recursive: true })
-  const tmpOutput = resolve(output) + `.tmp-${process.pid}`
-  if (existsSync(tmpOutput)) rmSync(tmpOutput)
+  const tmpOutput = prepareTempSibling(output)
   log('[1/3] VACUUM INTO 生成紧凑副本…')
   {
     const db = new DatabaseSync(input, { readOnly: true })
@@ -235,11 +209,7 @@ export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}
       db.close()
     }
   }
-  if (existsSync(output)) {
-    log(`输出已存在，覆盖: ${output}`)
-    rmSync(output)
-  }
-  renameSync(tmpOutput, output)
+  commitTempSibling(tmpOutput, output, log)
 
   // 2. Build the short-query prefix, compress chunks, drop tables, then vacuum again.
   let compressedChunks = 0

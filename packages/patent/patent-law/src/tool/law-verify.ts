@@ -9,6 +9,14 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import {
+  CITATION_FINDING_DECISION_PROPERTIES,
+  citationFindingSchema,
+  citationInputProblem,
+  citationReportLines,
+  citationVerifyReport,
+  citationVerifyToolOptions,
+} from '@deepseek-ai/dsh-patent-core'
 import { formatLawReference, parseLawReference, scanUnrecognizedCitations } from '../reference.ts'
 import { renderCitationRows, resolveCitationPolicy, verifyCitation, verifyCitations } from '../verify.ts'
 import type { VerifyOptions } from '../verify.ts'
@@ -110,71 +118,25 @@ const DESCRIPTION = [
  */
 export function createLawVerifyTool(options: LawVerifyToolOptions): ToolDefinition {
   const { baselines, policies, supportThreshold } = options
-  return defineTool({
+  return defineTool(citationVerifyToolOptions({
     name: 'law_verify',
     description: DESCRIPTION,
-    parameters: {
-      text: { type: 'string', description: 'Text whose citations are extracted and checked' },
-      references: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'References to check as written, e.g. 专利法第22条第3款 / 审查指南第二部分第四章3.2.1.1',
-      },
-      proposition: { type: 'string', description: 'What the citations are offered in support of' },
-    },
-    output: {
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          findings: { type: 'array', required: true, items: FINDING_SCHEMA },
-          blocked: { type: 'boolean', required: true },
-          counts: {
-            type: 'object',
-            required: true,
-            additionalProperties: false,
-            properties: {
-              'valid': { type: 'number', required: true },
-              'mismatch': { type: 'number', required: true },
-              'unmatched': { type: 'number', required: true },
-              'out-of-range': { type: 'number', required: true },
-              'not-indexed': { type: 'number', required: true },
-              'unverified': { type: 'number', required: true },
-            },
-          },
-          unrecognized: { type: 'array', required: true, items: { type: 'string' } },
-        },
-      },
-      render: (_args, value) => [{
-        type: 'text',
-        text: renderToolReport(value.findings, value.blocked, value.unrecognized),
-      }],
-    },
-    execute(args) {
-      return Promise.resolve(runVerify(args, baselines, policies, supportThreshold))
-    },
-  })
+    referenceExample: '专利法第22条第3款 / 审查指南第二部分第四章3.2.1.1',
+    findingSchema: FINDING_SCHEMA,
+    report: renderToolReport,
+    run: args => runVerify(args, baselines, policies, supportThreshold),
+  }))
 }
 
-const FINDING_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    raw: { type: 'string', required: true },
-    law: { type: 'string' },
-    article: { type: 'number' },
-    paragraph: { type: 'number' },
-    item: { type: 'number' },
-    sectionPath: { type: 'string' },
-    decision: {
-      type: 'string',
-      required: true,
-      enum: ['valid', 'mismatch', 'unmatched', 'out-of-range', 'not-indexed', 'unverified'],
-    },
-    policy: { type: 'string', required: true, enum: ['block', 'warn', 'allow'] },
-    reason: { type: 'string', required: true },
-  },
-} as const
+const FINDING_SCHEMA = citationFindingSchema({
+  raw: { type: 'string', required: true },
+  law: { type: 'string' },
+  article: { type: 'number' },
+  paragraph: { type: 'number' },
+  item: { type: 'number' },
+  sectionPath: { type: 'string' },
+  ...CITATION_FINDING_DECISION_PROPERTIES,
+})
 
 /** Run the verification and project it into the tool's output value. */
 function runVerify(
@@ -183,23 +145,17 @@ function runVerify(
   policies: CitationPolicySet,
   supportThreshold: number | undefined,
 ): LawVerifyOutput {
-  const references = args.references ?? []
-  if (args.text === undefined && references.length === 0) {
-    throw new LawVerifyToolError('no_input', '至少要给出 text 或 references 之一')
-  }
-  if (args.text !== undefined && args.text.trim().length === 0 && references.length === 0) {
-    throw new LawVerifyToolError('no_input', 'text 不能为空白：请给出要检查的文本，或用 references 列出引用')
-  }
+  const problem = citationInputProblem(args)
+  if (problem !== null) throw new LawVerifyToolError(problem.code, problem.message)
   const findings = collectFindings(args, baselines, supportThreshold)
-  const projected = findings.map(finding => toFinding(finding, policies))
-  return {
-    findings: projected,
-    blocked: projected.some(finding => finding.policy === 'block'),
-    counts: countDecisions(projected),
-    unrecognized: args.text === undefined
+  return citationVerifyReport({
+    findings,
+    project: finding => toFinding(finding, policies),
+    count: countDecisions,
+    unrecognized: () => args.text === undefined
       ? []
       : scanUnrecognizedCitations(args.text, findings.map(finding => finding.reference)),
-  }
+  })
 }
 
 /** Collect the findings for the requested text and references. */
@@ -280,15 +236,7 @@ function findingLabel(finding: LawVerifyFinding): string {
 
 /** Render the tool report: the decision table plus what a block or a gap means. */
 function renderToolReport(findings: LawVerifyFinding[], blocked: boolean, unrecognized: string[]): string {
-  const lines = [renderCitationRows(findings.map(finding => ({
-    label: findingLabel(finding),
-    decision: finding.decision,
-    policy: finding.policy,
-    reason: finding.reason,
-  })))]
-  if (unrecognized.length > 0) {
-    lines.push('', `文本中仍有 ${unrecognized.length} 处形如法条引用的片段未被识别，未参与判定：${unrecognized.join('、')}。请改写为完整引用或另行核验。`)
-  }
+  const lines = citationReportLines(findings, unrecognized, findingLabel, renderCitationRows)
   if (blocked) {
     lines.push('', '**存在被拦截的引用**：先补证或改写该断言，再交付。')
   }

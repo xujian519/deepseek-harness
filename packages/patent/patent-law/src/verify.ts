@@ -9,7 +9,16 @@
  * @module @deepseek-ai/dsh-patent-law/verify
  */
 
+import {
+  decideArticleCitation,
+  findCompetingLabels,
+  formatPercent,
+  supportMismatchReason,
+  transcribedText,
+  truncateProposition,
+} from '@deepseek-ai/dsh-patent-core'
 import { findArticle, findSection } from './baseline.ts'
+import { coversSection } from './section-path.ts'
 import { extractLawReferences, formatLawReference } from './reference.ts'
 import {
   createOverlapIndex,
@@ -202,51 +211,6 @@ function finding(
   }
 }
 
-/**
- * Decide a citation whose entry is transcribed, against the proposition the
- * citation is offered in support of.
- *
- * The entry itself must carry the proposition first, by its topic keywords or by
- * its own transcribed wording. Only when it does not, and another entry of the
- * same law does, is the citation reported as a mismatch — so a proposition
- * reworded around a synonym this index cannot see is reported as undecided
- * rather than as a contradiction.
- * @param reference - the parsed reference.
- * @param entry - the indexed entry the reference resolved to.
- * @param text - the entry's transcribed text, which the caller has established is present.
- * @param baseline - the law's baseline, whose other entries are the competing homes.
- * @param options - the proposition and the support threshold.
- * @param validReason - the reason a supported citation reports.
- * @returns the finding.
- */
-function decideTranscribed(
-  reference: Extract<LawReference, { kind: 'law-article' }>,
-  entry: ArticleEntry,
-  text: string,
-  baseline: LawBaseline,
-  options: VerifyOptions,
-  validReason: string,
-): CitationFinding {
-  const proposition = options.proposition?.trim()
-  if (proposition === undefined || proposition === '') return finding(reference, 'valid', validReason, entry)
-  const threshold = options.supportThreshold ?? PROPOSITION_SUPPORT_DEFAULT
-  const index = overlapIndex(baseline)
-  const overlap = textOverlap(index, proposition, text)
-  if (topicOverlap(entry.topics, proposition) || overlap >= threshold) {
-    return finding(reference, 'valid', validReason, entry)
-  }
-  const elsewhere = supportingLabels(baseline, index, proposition, threshold, `第 ${entry.article} 条`)
-  if (elsewhere.length > 0) {
-    return finding(reference, 'mismatch', mismatchReason(baseline, proposition, elsewhere), entry)
-  }
-  return finding(
-    reference,
-    'unmatched',
-    `所引条目的文本与命题「${truncate(proposition)}」的字面重合 ${percent(overlap)}，低于支撑阈值 ${percent(threshold)}，且本索引中没有条目支撑该命题——请核对条号或改写命题`,
-    entry,
-  )
-}
-
 /** Merged guideline views, keyed by baseline and the requested revision (empty for the default). */
 const guidelineViews = new WeakMap<LawBaseline, Map<string, LawBaseline | null>>()
 
@@ -315,7 +279,7 @@ function buildGuidelineView(baseline: LawBaseline, revision: string | undefined)
   }
 }
 
-/** The overlap indices of the loaded baselines, so a baseline's texts are indexed once. */
+/** The overlap indices of the guideline baselines, so a baseline's texts are indexed once. */
 const overlapIndices = new WeakMap<LawBaseline, OverlapIndex>()
 
 /**
@@ -337,71 +301,11 @@ function overlapIndex(baseline: LawBaseline): OverlapIndex {
  * @returns the law's articles or its guideline sections.
  */
 function comparableEntries(baseline: LawBaseline): ComparableEntry[] {
-  if (baseline.sections.length > 0) {
-    return baseline.sections.map(section => ({
-      label: section.path,
-      topics: section.topics,
-      text: transcribedText(section),
-    }))
-  }
-  return baseline.articles.map(article => ({
-    label: `第 ${article.article} 条`,
-    topics: article.topics,
-    text: transcribedText(article),
+  return baseline.sections.map(section => ({
+    label: section.path,
+    topics: section.topics,
+    text: transcribedText(section),
   }))
-}
-
-/**
- * The text a proposition may be matched against. An entry whose source or
- * verification date is missing is not transcribed for matching, even when it
- * carries text, so a hand-built baseline cannot make it support a proposition.
- * @param entry - the article or section entry.
- * @returns its text when the transcription record is complete, otherwise null.
- */
-function transcribedText(entry: {
-  text: string | null
-  sourceDoc: string | null
-  verifiedOn: string | null
-}): string | null {
-  return entry.text !== null && entry.sourceDoc !== null && entry.verifiedOn !== null ? entry.text : null
-}
-
-/**
- * Find the entries of the cited entry's law that carry the proposition instead.
- *
- * A subsection of a cited section is not a competing home: the citation covers it.
- * @param baseline - the law's baseline.
- * @param index - the baseline's overlap index.
- * @param proposition - the claim the citation is offered in support of.
- * @param threshold - overlap at which transcribed text counts as support.
- * @param cited - the cited entry's label, which is excluded.
- * @returns the labels of the entries that carry the proposition, at most three.
- */
-function supportingLabels(
-  baseline: LawBaseline,
-  index: OverlapIndex,
-  proposition: string,
-  threshold: number,
-  cited: string,
-): string[] {
-  const nested = baseline.sections.length > 0
-  return comparableEntries(baseline)
-    .filter(entry => entry.label !== cited)
-    .filter(entry => !(nested && coversSection(cited, entry.label)))
-    .filter(entry => topicOverlap(entry.topics, proposition)
-      || (entry.text !== null && textOverlap(index, proposition, entry.text) >= threshold))
-    .map(entry => entry.label)
-    .slice(0, 3)
-}
-
-/** The reason a citation reports when another entry of the law carries the proposition. */
-function mismatchReason(baseline: LawBaseline, proposition: string, elsewhere: readonly string[]): string {
-  return `所引条目未被该命题支撑：《${baseline.law}》${elsewhere.join('、')}更贴近命题「${truncate(proposition)}」`
-}
-
-/** Render a 0–1 score as a whole percentage for a reason line. */
-function percent(value: number): string {
-  return `${String(Math.round(value * 100))}%`
 }
 
 /** Verify one statute-article reference. */
@@ -410,48 +314,13 @@ function verifyArticle(
   baseline: LawBaseline,
   options: VerifyOptions,
 ): CitationFinding {
-  const entry = findArticle(baseline, reference.article)
-  if (entry === undefined) return articleGap(reference, baseline)
-  if (entry.verifiedOn === null || entry.text === null || entry.sourceDoc === null) {
-    return finding(
-      reference,
-      'unverified',
-      `《${baseline.law}》第 ${reference.article} 条已索引，但条文尚未转录核验（条目主题：${entry.topics.join('、')}）`,
-      entry,
-    )
-  }
-  const narrowing = checkNarrowing(reference, entry)
-  if (narrowing !== null) return finding(reference, 'mismatch', narrowing, entry)
-  return decideTranscribed(
+  const verdict = decideArticleCitation(
     reference,
-    entry,
-    entry.text,
     baseline,
+    findArticle(baseline, reference.article),
     options,
-    `与《${baseline.law}》第 ${reference.article} 条一致（来源：${entry.sourceDoc}）`,
   )
-}
-
-/**
- * Decide an article the index does not hold. Only a *verified* article ceiling
- * proves a number does not exist; beyond an unverified ceiling the answer is that
- * nothing here can say.
- */
-function articleGap(
-  reference: Extract<LawReference, { kind: 'law-article' }>,
-  baseline: LawBaseline,
-): CitationFinding {
-  if (baseline.maxArticle !== null && baseline.maxVerifiedOn !== null && reference.article > baseline.maxArticle) {
-    return finding(reference, 'out-of-range', `《${baseline.law}》共 ${baseline.maxArticle} 条，第 ${reference.article} 条不存在`)
-  }
-  if (baseline.maxArticle !== null && reference.article > baseline.maxArticle) {
-    return finding(
-      reference,
-      'unverified',
-      `第 ${reference.article} 条超出索引声明的上限 ${baseline.maxArticle} 条，但该上限本身尚未核验`,
-    )
-  }
-  return finding(reference, 'not-indexed', `《${baseline.law}》第 ${reference.article} 条不在索引中`)
+  return finding(reference, verdict.decision, verdict.reason, verdict.entry)
 }
 
 /** Verify one guideline-section reference. */
@@ -512,22 +381,6 @@ function sectionTexts(baseline: LawBaseline, path: string): Array<ComparableEntr
   return comparableEntries(baseline)
     .filter((entry): entry is ComparableEntry & { text: string } =>
       entry.text !== null && coversSection(path, entry.label))
-}
-
-/**
- * Whether one section path names the cited section or a section under it.
- * @param cited - the cited normalized section path.
- * @param path - the path to test.
- * @returns true when the path is the cited one or below it.
- */
-function coversSection(cited: string, path: string): boolean {
-  if (path === cited) return true
-  if (!path.startsWith(cited)) return false
-  const rest = path.slice(cited.length)
-  // A level inside a section number follows a dot, so 2.10 is not under 2.1. A
-  // part or a chapter states the next part, chapter or section number directly,
-  // as 第二部分第二章 and 第一部分第一章4.2 do.
-  return /\d$/u.test(cited) ? rest.startsWith('.') : /^[第0-9]/u.test(rest)
 }
 
 /**
@@ -598,17 +451,24 @@ function decideSection(
       entry,
     )
   }
-  const elsewhere = supportingLabels(baseline, index, proposition, threshold, reference.path)
+  const elsewhere = findCompetingLabels(
+    comparableEntries(baseline),
+    index,
+    proposition,
+    threshold,
+    reference.path,
+    label => coversSection(reference.path, label),
+  )
   if (elsewhere.length > 0) {
-    return finding(reference, 'mismatch', mismatchReason(baseline, proposition, elsewhere), entry)
+    return finding(reference, 'mismatch', supportMismatchReason(baseline.law, proposition, elsewhere), entry)
   }
   const best = Math.max(0, ...scored.map(candidate => candidate.score))
   return finding(
     reference,
     'unmatched',
     hasOwn
-      ? `本节及其子节的文本与命题「${truncate(proposition)}」的字面重合 ${percent(best)}，低于支撑阈值 ${percent(threshold)}，且本索引中没有条目支撑该命题——请核对节号或改写命题`
-      : `《专利审查指南》${reference.path} 的节正文未转录，其下已转录的各节与命题「${truncate(proposition)}」都不相符——请核对节号或改写命题`,
+      ? `本节及其子节的文本与命题「${truncateProposition(proposition)}」的字面重合 ${formatPercent(best)}，低于支撑阈值 ${formatPercent(threshold)}，且本索引中没有条目支撑该命题——请核对节号或改写命题`
+      : `《专利审查指南》${reference.path} 的节正文未转录，其下已转录的各节与命题「${truncateProposition(proposition)}」都不相符——请核对节号或改写命题`,
     entry,
   )
 }
@@ -624,19 +484,4 @@ function sectionReason(path: string, entry: SectionEntry, carrier: string | null
     return `与《专利审查指南》${path} 一致（命题由本节下的 ${carrier} 承载）`
   }
   return `与《专利审查指南》${path} 一致（来源：${entry.sourceDoc as string}）`
-}
-
-/** Report a cited paragraph the entry knows to be absent, or null when it is consistent. */
-function checkNarrowing(
-  reference: Extract<LawReference, { kind: 'law-article' }>,
-  entry: ArticleEntry,
-): string | null {
-  if (reference.paragraph === undefined || entry.paragraphs === undefined) return null
-  if (entry.paragraphs.includes(reference.paragraph)) return null
-  return `第 ${entry.article} 条索引载明共 ${entry.paragraphs.length} 款，不含第 ${reference.paragraph} 款`
-}
-
-/** Truncate a proposition for a report line. */
-function truncate(value: string): string {
-  return value.length <= 40 ? value : `${value.slice(0, 40)}…`
 }

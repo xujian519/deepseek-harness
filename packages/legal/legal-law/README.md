@@ -1,0 +1,71 @@
+---
+description: "Shipped Chinese legal-law index for the DeepSeek Harness: law-article reference parsing, a per-law index recording each entry's source and verification date, citation verification that never silently passes an unverified article, and the legal_law_verify tool."
+kind: "package-reference"
+---
+
+# @deepseek-ai/dsh-legal-law
+
+English | [中文](README.zh.md)
+
+## Summary
+
+Shipped Chinese legal-law index for the DeepSeek Harness: law-article reference parsing, a per-law index recording each entry's source and verification date, citation verification that never silently passes an unverified article, and the legal_law_verify tool.
+
+## Table of Contents
+
+- [Why it exists](#why-it-exists)
+- [Shipped index](#shipped-index)
+- [Citation decision](#citation-decision)
+- [Tool](#tool)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+
+<a id="why-it-exists"></a>
+## Why it exists
+
+A legal conclusion that cites 《民法典》第 143 条 is only as good as the text behind that number. The index ships with the deployment so the citation can be checked offline: the reference is parsed, the article is looked up, and the decision distinguishes an article that exists from one that does not, and a transcribed article from one nobody has verified. The reference parser, the entry reader, and the proposition test share their mechanics with `@deepseek-ai/dsh-patent-law` through `@deepseek-ai/dsh-patent-core` and `@deepseek-ai/dsh-patent-index-asset`; this package owns the legal-domain grammar, assets, and messages.
+
+<a id="shipped-index"></a>
+## Shipped index
+
+Each law is one YAML file under `assets/legal-law`. A file declares `law`, `document`, `revision`, `maxArticle`, `maxVerifiedOn`, `maxSource`, and an `articles` list; each entry carries `article`, optional `paragraphs`, `topics`, `text`, `sourceDoc`, and `verifiedOn`. The transcription record is all-or-nothing: a `text` requires a `sourceDoc` and a `verifiedOn`, and a source without text is a load error, so a hand-edited index cannot create the fail-open state the verifier avoids. Plugin load checks that the directory is readable and non-empty and fails the deployment otherwise; the plugin parses the corpus on the first verification through `loadLegalLawBaselinesAsync`, which yields the event loop between files so a Web process can serve other sessions, and a malformed file fails that call. `loadLegalLawBaselines` is the synchronous variant; `parseLegalLawBaseline` parses one file; `findLegalArticle` looks up one article. Any law name an asset declares becomes a citation form, together with the asset's document title as the formal-name alias; `legalLawNames` reports the current set.
+
+<a id="citation-decision"></a>
+## Citation decision
+
+`parseLegalLawReference` parses one reference standing alone, `extractLegalLawReferences` extracts every reference in a text (including continuations such as `第 143 条、第 144 条` and `第 2 款、第 3 款`), `formatLegalLawReference` renders the formal form, and `scanUnrecognizedLegalCitations` lists citation-like fragments the parser could not resolve. `verifyLegalCitation` decides one reference as `valid`, `mismatch`, `unmatched`, `out-of-range`, `not-indexed`, or `unverified`; a proposition is matched by topic keywords and by weighted character-pair overlap against the enrolled texts, and a proposition carried by another article is reported as a mismatch naming that article. `resolveLegalCitationPolicy` maps a decision through the deployment's policy set, and `renderLegalCitationRows` renders the decision table the tool returns.
+
+<a id="tool"></a>
+## Tool
+
+`legal_law_verify` accepts optional `text` (whose citations are extracted), optional `references` (exact references), and optional `proposition` (what the citations support); at least one of `text` or `references` is required, and a blank `text` without references is an input error. The result carries the findings, a `blocked` flag, per-decision counts, and the `unrecognized` fragments that were not checked.
+
+<a id="model-experience"></a>
+## Model Experience
+
+### legal_law_verify tool
+
+#### What the model sees
+
+One registered tool named `legal_law_verify` with the `text`, `references`, and `proposition` parameters above; input that names neither text nor references is an error rather than an empty check. Each finding carries the raw reference, law, article, paragraph or item, decision, policy, and reason; the result also carries `blocked`, decision counts, and `unrecognized`. The tool description states the six decisions, that an unverified article is never reported as checked, and that a reference which is not exactly one reference is an input error.
+
+#### Token effect
+
+Fixed definition cost on every request while the tool is enabled; each result is one short table plus notes, resent only until compaction.
+
+#### KV Cache effect
+
+Append-only; newly visible result prose follows the reusable request prefix and does not invalidate existing KV-cache entries.
+
+## Known Limitations and Deferred Work
+
+- **The shipped index transcribes no article text and records no verified ceiling.** Every generated law file carries `text: null` and `maxVerifiedOn: null`, so an indexed article today returns `unverified` and a number beyond the declared ceiling also returns `unverified`: the index decides existence, not wording. Transcription is deferred work, and until an entry records its source and date the tool cannot report a citation as checked.
+- **Coverage is a generated corpus, not a reviewed outline.** `assets/legal-law` holds thousands of per-law files whose topics were derived automatically; a law or article the generator missed reports `not-indexed` even though the provision exists. An `unverified` or `not-indexed` result therefore says what this index holds, not what Chinese law contains.
+- **Proposition matching is lexical.** Topic keywords and weighted character pairs compare characters only; a proposition reworded around synonyms is reported as `unmatched` and must be read by a person, and boilerplate shared across many articles lowers but does not remove a false match.
+- **An item number is reported, not checked.** Entries record paragraphs, not items; a citation to `第 X 项` is decided at its article and paragraph level and the item is echoed in the result.
+- **An unresolved fragment is a warning, not a block.** `unrecognized` lists fragments that were not checked and does not set `blocked` by itself.
+- **Baseline correctness is content-owned.** No runtime observation can prove that an article's text is the current official text; only a recorded source and date can, and the gate checks references and index membership, not legal correctness.
+
+### Dev Note
+
+None.

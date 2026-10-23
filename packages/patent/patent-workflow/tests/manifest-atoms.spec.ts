@@ -27,7 +27,7 @@ const indexOf = (manifestId: string, stageId: string): number =>
   manifestOf(manifestId).stages.findIndex(s => s.id === stageId)
 
 describe('内置 manifest 的跨包原子归属', () => {
-  it('声明的原子与核心注册表的差集恰好是 patent-tools 提供的六个（本文件不导入 patent-tools，避免依赖倒置）', () => {
+  it('声明的原子与核心注册表的差集恰好是 patent-tools 提供的五个（本文件不导入 patent-tools，避免依赖倒置）', () => {
     registerBuiltinAtoms()
     const declared = new Set(
       builtinPatentManifests.flatMap(manifest =>
@@ -100,7 +100,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
       patent_disclosure_v1: 22,
       patent_inventiveness_v1: 16,
       patent_patentability_v1: 14,
-      patent_oa_response_v1: 10,
+      patent_oa_response_v1: 12,
       patent_invalidation_v1: 11,
       patent_reexamination_v1: 11,
       patent_infringement_v1: 8,
@@ -122,7 +122,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
       patent_disclosure_v1: 10,
       patent_inventiveness_v1: 7,
       patent_patentability_v1: 4,
-      patent_oa_response_v1: 2,
+      patent_oa_response_v1: 3,
       patent_invalidation_v1: 4,
       patent_reexamination_v1: 4,
       patent_infringement_v1: 3,
@@ -416,17 +416,41 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
     )
   })
 
-  it('OA 答复：draft 消费解析结果、claim-chart 与答复计划（描述里的"消费"由 consumes 兑现）', () => {
+  it('OA 答复：adversary-model 接在 response-plan 之后、draft 之前，原子消费答复计划', () => {
+    const adversary = stageOf('patent_oa_response_v1', 'adversary-model')
+    expect(adversary?.atom).toBe('adversary-model')
+    expect(adversary?.guidance).toBeUndefined()
+    expect(indexOf('patent_oa_response_v1', 'response-plan')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'adversary-model'),
+    )
+    expect(indexOf('patent_oa_response_v1', 'adversary-model')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'draft'),
+    )
+  })
+
+  it('OA 答复：draft 消费解析结果、claim-chart、答复计划与对立检验报告（描述里的"消费"由 consumes 兑现）', () => {
     expect(stageOf('patent_oa_response_v1', 'draft')?.consumes).toEqual([
-      'dispute-framing-refine', 'parse', 'claim-chart', 'response-plan',
+      'dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model',
     ])
   })
 
-  it('OA 答复：response-check 接在 draft 之后、approval 之前，原子直接读解析结果', () => {
+  it('OA 答复：adversary-review 接在 draft 之后、response-check 之前，确定性原子不调用模型', () => {
+    const review = stageOf('patent_oa_response_v1', 'adversary-review')
+    expect(review?.atom).toBe('adversary-review')
+    expect(review?.guidance).toBeUndefined()
+    expect(indexOf('patent_oa_response_v1', 'draft')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'adversary-review'),
+    )
+    expect(indexOf('patent_oa_response_v1', 'adversary-review')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'response_check'),
+    )
+  })
+
+  it('OA 答复：response-check 接在 adversary-review 之后、approval 之前，确定性原子不消费换位审查产出', () => {
     const check = stageOf('patent_oa_response_v1', 'response_check')
     expect(check?.atom).toBe('response-check')
     expect(check?.consumes).toBeUndefined()
-    expect(indexOf('patent_oa_response_v1', 'draft')).toBeLessThan(
+    expect(indexOf('patent_oa_response_v1', 'adversary-review')).toBeLessThan(
       indexOf('patent_oa_response_v1', 'response_check'),
     )
     expect(indexOf('patent_oa_response_v1', 'response_check')).toBeLessThan(

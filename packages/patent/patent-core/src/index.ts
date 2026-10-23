@@ -146,8 +146,16 @@ export {
   TimeBaselineHandler,
   DisputeFramingHandler,
   DisputeFramingRefineHandler,
+  AdversaryModelHandler,
+  AdversaryReviewHandler,
+  OaParseHandler,
+  ResponsePlanHandler,
   amendmentBasisAtom,
   approvalGateAtom,
+  adversaryModelAtom,
+  adversaryReviewAtom,
+  oaParseAtom,
+  responsePlanAtom,
   checkPfeConsistency,
   citationCheckAtom,
   claimChartAtom,
@@ -211,6 +219,43 @@ export {
   checkClaimUnity,
   checkEmbodimentCoverage,
 } from './claim-coverage/index.ts'
+
+// Adversary model: independent evaluation of response plans from an opposing examiner's perspective.
+export type * from './adversary/index.ts'
+export {
+  FORBIDDEN_KEYS,
+  FORBIDDEN_OUTPUT_TERMS,
+  GROUND_TO_STATUTE,
+  STATUTE_TO_GROUND,
+  assessEvidenceIndependent,
+  buildAdversaryPrompt,
+  buildAdversaryReport,
+  checkInputIsolation,
+  computeOverallConfidence,
+  degradedSummary,
+  detectDivergence,
+  locateDisputesIndependent,
+  parseAdversaryOutput,
+  renderAdversaryReport,
+  scanOutputForLeaks,
+} from './adversary/index.ts'
+
+// Adversary review: evaluation of final opinion statements from an opposing examiner's perspective.
+export type {
+  AdversaryReviewReport,
+  AdversaryReviewInput,
+  AdversaryReviewOfficeAction,
+} from './adversary/review.ts'
+export {
+  reviewFinalDraft,
+  detectMissedRejections,
+  detectEvidenceGaps,
+  detectClaimsCoverage,
+  identifyReviewDisputes,
+  assessArgumentStrength,
+  computeReviewConfidence,
+  buildReviewSummary,
+} from './adversary/review.ts'
 
 // Patent analysis product contract + deterministic aggregator (Athena-inspired report).
 export type * from './analysis-report/index.ts'
@@ -286,6 +331,8 @@ export {
   TERM_TECH_HINT,
   TERM_TECH_SOLUTION,
   TERM_USE_LIMIT,
+  SEVERITY_WEIGHTS,
+  STATUTE_WEIGHTS,
   aggregate,
   formatRuleResults,
   matchKeyword,
@@ -483,6 +530,81 @@ export {
 // state readers getStateString / getStateArray; pin the atoms copies so the
 // star-export collision does not silently drop them from this package's surface.
 export { getStateString, getStateArray } from './atoms/handler.ts'
+
+// Knowledge-search primitives shared by the SQLite knowledge databases.
+export { escapeFtsPhrase, FTS_MIN_RUNES, joinFtsOrTerms, sqliteHasFts5 } from './knowledge/fts.ts'
+export { createFtsLadder, runFtsSearch } from './knowledge/fts-search.ts'
+export type { FtsSearchLadder, FtsSearchOps } from './knowledge/fts-search.ts'
+export { extractLawKeywords } from './knowledge/keywords.ts'
+export { isLawVisible, resolveAsOf, resolveLawValidity, todayIsoDate } from './knowledge/validity.ts'
+export type { LawValidity, LawValidityInput } from './knowledge/validity.ts'
+export {
+  commitTempSibling,
+  countTableRows,
+  formatGigabytes,
+  prepareTempSibling,
+  resolveRealPath,
+} from './knowledge/install-fs.ts'
+export {
+  articleReferenceIdentity,
+  compactCitation,
+  formatArticleCitation,
+  formatCitationNumber,
+  formatCnNumber,
+  narrowed,
+  normalizeCitationText,
+  stripBookMarks,
+  trimPunctuation,
+} from './knowledge/citation-text.ts'
+export { ARTICLE_CONTINUATION_PATTERN, readArticleContinuations } from './knowledge/continuation.ts'
+export type { ArticleCandidate, ArticleReferenceLike } from './knowledge/continuation.ts'
+export {
+  collectReferences,
+  readStatuteArticleCandidate,
+  scanUnrecognizedReferences,
+} from './knowledge/citation-extract.ts'
+export type { StatuteArticleGroups } from './knowledge/citation-extract.ts'
+export {
+  createOverlapIndex,
+  PROPOSITION_SUPPORT_DEFAULT,
+  textOverlap,
+  topicOverlap,
+} from './knowledge/text-overlap.ts'
+export type { ComparableEntry, OverlapIndex } from './knowledge/text-overlap.ts'
+export {
+  articleComparableEntries,
+  decideArticleCitation,
+  findCompetingLabels,
+  formatPercent,
+  supportMismatchReason,
+  transcribedText,
+  truncateProposition,
+} from './knowledge/article-decision.ts'
+export type {
+  ArticleBaseline,
+  ArticleDecision,
+  ArticleProposition,
+  ArticleVerdict,
+  DecisionArticle,
+} from './knowledge/article-decision.ts'
+export {
+  CITATION_FINDING_DECISION_PROPERTIES,
+  CITATION_REPORT_PROPERTIES,
+  citationFindingSchema,
+  citationInputProblem,
+  citationReportLines,
+  citationVerifyExecute,
+  citationVerifyOutputSchema,
+  citationVerifyParameters,
+  citationVerifyRender,
+  citationVerifyReport,
+  citationVerifyToolOptions,
+} from './knowledge/citation-tool.ts'
+export type {
+  CitationInputProblem,
+  CitationReportRow,
+  CitationVerifyArgs,
+} from './knowledge/citation-tool.ts'
 
 // Workflow manifest contract, pre-positioned so the graph adapter (manifestToGraph)
 // has no dependency on the P3.1 workflow executor. The runWorkflow executor and

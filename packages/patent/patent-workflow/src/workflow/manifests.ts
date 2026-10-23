@@ -479,10 +479,16 @@ export const patentOaResponseManifest: WorkflowManifest = {
       atom: 'response-plan',
     },
     {
+      id: 'adversary-model',
+      strategy: 'chain',
+      description: '对立审查员模型：独立评估答复计划的薄弱环节（确定性骨架，完整版调用模型）',
+      atom: 'adversary-model',
+    },
+    {
       id: 'draft',
       strategy: 'chain',
-      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart 与答复计划）',
-      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan'],
+      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart、答复计划与对立检验报告）',
+      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model'],
       guidance: [
         '驳回类型对照表（先按解析结果定主策略，再逐类处理；多种类型并存时以最核心的驳回理由确定主策略）：',
         '- A-充分公开（专利法26.3）：说明书未清楚完整说明 → 举证实施例、实验数据与本领域可实现性',
@@ -499,6 +505,12 @@ export const patentOaResponseManifest: WorkflowManifest = {
         '撰写规范：论证按「事实 → 规则 → 论证」三层组织、按争点分节（新颖性／创造性／其他争点），不以通知书审查意见项号铺陈；事实只陈述、逐项编号（F1…／P1…）并注明出处（权项号／说明书节次／对比文件段落），评价一律归入论证；修改时在答复书中列出修改后权利要求全文且不得超出原记载范围（A33）；禁止编造实验数据，禁止无逻辑链的空泛断言。',
         '输出顺序：总体立场 → 本次修改（修改对照表＋修改后独立权利要求全文）→ 本案事实 → 适用规则 → 意见陈述 → 其他缺陷的处理 → 证据与引用 → 结论与请求（与 oa-response 模板八节一致）。',
       ].join('\n'),
+    },
+    {
+      id: 'adversary-review',
+      strategy: 'chain',
+      description: '换位重跑：从对立审查员视角评估最终意见陈述书的论证强度（确定性，不调用模型）',
+      atom: 'adversary-review',
     },
     {
       id: 'response_check',

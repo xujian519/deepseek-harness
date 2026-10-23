@@ -1580,6 +1580,62 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'legalKnowledge',
+    summary: 'LegalKnowledge service: the legal knowledge-base query seam (ctx.legalKnowledge).',
+    description: 'LegalKnowledge service: the legal knowledge-base query seam (ctx.legalKnowledge).\n\nLazily initializes search engines for case-law, legal regulations, and judicial interpretations. When useFts5 is true (default) and a database is available at the resolved query path, engines use SQLite FTS5 full-text search with BM25 ranking and LIKE fallback; otherwise they use in-memory keyword matching populated via addRecords().',
+    methods: [
+      {
+        signature: 'readonly paths: LegalKnowledgePaths',
+        description: 'Resolved on-disk paths (query db, install source).',
+        parameters: [],
+      },
+      {
+        signature: 'caseLawSearch(query: string, options?: CaseLawSearchOptions): CaseLawHit[]',
+        description: 'Case-law full-text search (SQLite FTS5 with LIKE fallback, or in-memory).',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap, docType/court/caseType filters.' }],
+        returns: 'matching hits sorted by relevance.',
+      },
+      {
+        signature: 'legalSearch(query: string, options?: LegalSearchOptions): LegalRegulationHit[]',
+        description: 'Legal regulation full-text search (SQLite FTS5 with LIKE fallback, or in-memory).',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap, level filter, and validity options.' }],
+        returns: 'matching hits sorted by relevance.',
+      },
+      {
+        signature: 'judicialInterpretationSearch( query: string, options?: JudicialInterpretationSearchOptions, ): JudicialInterpretationHit[]',
+        description: 'Judicial interpretation full-text search (SQLite FTS5 with LIKE fallback, or in-memory).',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap, type filter, and validity options.' }],
+        returns: 'matching hits sorted by relevance.',
+      },
+      {
+        signature: 'guidingCaseSearch(query: string, limit?: number): GuidingCaseHit[]',
+        description: 'Guiding case search (SQLite LIKE or in-memory keyword matching).',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'limit', description: 'result cap.' }],
+        returns: 'matching guiding case hits sorted by relevance.',
+      },
+      {
+        signature: 'addCaseLawRecords(records: CaseLawRecord[]): void',
+        description: 'Add case-law records to the in-memory store. Only effective when the engine is not using a SQLite database.',
+        parameters: [{ name: 'records', description: 'records to add.' }],
+      },
+      {
+        signature: 'addLegalRegulationRecords(records: LegalRegulationRecord[]): void',
+        description: 'Add legal regulation records to the in-memory store. Only effective when the engine is not using a SQLite database.',
+        parameters: [{ name: 'records', description: 'records to add.' }],
+      },
+      {
+        signature: 'addJudicialInterpretationRecords(records: JudicialInterpretationRecord[]): void',
+        description: 'Add judicial interpretation records to the in-memory store. Only effective when the engine is not using a SQLite database.',
+        parameters: [{ name: 'records', description: 'records to add.' }],
+      },
+      {
+        signature: 'addGuidingCaseRecords(records: GuidingCaseRecord[]): void',
+        description: 'Add guiding case records to the in-memory store. Only effective when the engine is not using a SQLite database.',
+        parameters: [{ name: 'records', description: 'records to add.' }],
+      },
+    ],
+  },
+  {
     key: 'llm',
     summary: 'The abstract `llm` service: an adapter registry plus a streaming model-call API, interceptable via the `llm/stream` waterfall.',
     description: 'The abstract `llm` service: an adapter registry plus a streaming model-call API, interceptable via the `llm/stream` waterfall.',
@@ -5624,22 +5680,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type CaseId = Branded<\'CaseId\'>;',
   },
   {
-    name: 'CaseLawDocType',
-    declaration: 'export type CaseLawDocType = \'case\' | \'judgment\';',
-  },
-  {
-    name: 'CaseLawHit',
-    declaration: 'export type CaseLawHit = CaseLawRecord & {\n    chunkIndex: number;\n    snippet: string;\n    ftsRank?: number | null;\n    via: \'fts\' | \'like\';\n};',
-  },
-  {
-    name: 'CaseLawRecord',
-    declaration: 'export type CaseLawRecord = {\n    documentId: string;\n    docType: string;\n    title: string;\n    decisionNumber?: string | undefined;\n    caseNumber?: string | undefined;\n    court?: string | undefined;\n    source?: string | undefined;\n    module?: string | undefined;\n    charCount: number;\n};',
-  },
-  {
-    name: 'CaseLawSearchOptions',
-    declaration: 'export type CaseLawSearchOptions = {\n    limit?: number;\n    docType?: CaseLawDocType;\n    court?: string;\n    excludeSource?: string;\n};',
-  },
-  {
     name: 'CaseRunRecord',
     declaration: 'export interface CaseRunRecord {\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n    note?: string;\n}',
   },
@@ -6480,6 +6520,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface GrantRecord {\n    readonly kind: \'grant\';\n    readonly payload: unknown;\n}',
   },
   {
+    name: 'GuidingCaseHit',
+    declaration: 'export type GuidingCaseHit = GuidingCaseRecord & {\n    relevanceScore: number;\n    via: \'fts\' | \'like\' | \'memory\';\n};',
+  },
+  {
+    name: 'GuidingCaseRecord',
+    declaration: 'export type GuidingCaseRecord = {\n    caseId: string;\n    guidingCaseNumber: string;\n    caseName: string;\n    court: string;\n    decisionDate: string;\n    caseType: string;\n    keyPoints: string;\n    relatedLaws: string[];\n    fullText: string;\n};',
+  },
+  {
     name: 'HookBudget',
     declaration: 'export interface HookBudget {\n    readonly ms: number;\n    readonly remainingMs: number;\n}',
   },
@@ -6748,6 +6796,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type JsonValue = null | boolean | number | string | JsonValue[] | {\n    [key: string]: JsonValue;\n};',
   },
   {
+    name: 'JudicialInterpretationHit',
+    declaration: 'export type JudicialInterpretationHit = JudicialInterpretationRecord & {\n    relevanceScore: number;\n    via: \'fts\' | \'like\' | \'memory\';\n};',
+  },
+  {
+    name: 'JudicialInterpretationRecord',
+    declaration: 'export type JudicialInterpretationRecord = {\n    interpretationId: string;\n    interpretationName: string;\n    interpretationType: \'judicial-interpretation\' | \'guiding-case\';\n    issuingBody: string;\n    documentNumber: string;\n    publishDate?: string;\n    effectiveDate: string;\n    expiryDate?: string;\n    expired?: number;\n    validity: LegalRegulationValidity;\n    articleNumber: number;\n    articleText: string;\n    sourcePath?: string;\n};',
+  },
+  {
+    name: 'JudicialInterpretationSearchOptions',
+    declaration: 'export type JudicialInterpretationSearchOptions = {\n    limit?: number;\n    interpretationType?: \'judicial-interpretation\' | \'guiding-case\';\n    asOf?: string;\n    includeUnverified?: boolean;\n};',
+  },
+  {
     name: 'KgNode',
     declaration: 'export type KgNode = {\n    id: string;\n    nodeType: string;\n    name?: string | undefined;\n    title?: string | undefined;\n    content?: string | undefined;\n    lawRefsCount?: number | undefined;\n    source?: string | undefined;\n    fullRef?: string | undefined;\n    chapter?: string | undefined;\n    articleNumber?: string | undefined;\n    version?: string | undefined;\n};',
   },
@@ -6786,6 +6846,30 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LawValidity',
     declaration: 'export type LawValidity = \'in-force\' | \'expired\' | \'not-yet-effective\' | \'unverified\';',
+  },
+  {
+    name: 'LegalKnowledgePaths',
+    declaration: 'export interface LegalKnowledgePaths {\n    dataDir: string;\n    queryDbPath: string;\n    sourceDbPath: string;\n}',
+  },
+  {
+    name: 'LegalLevel',
+    declaration: 'export type LegalLevel = \'法律\' | \'行政法规\' | \'司法解释\' | \'地方性法规\' | \'部门规章\' | \'其他\';',
+  },
+  {
+    name: 'LegalRegulationHit',
+    declaration: 'export type LegalRegulationHit = LegalRegulationRecord & {\n    relevanceScore: number;\n    via: \'fts\' | \'like\' | \'memory\';\n};',
+  },
+  {
+    name: 'LegalRegulationRecord',
+    declaration: 'export type LegalRegulationRecord = {\n    regulationId: string;\n    regulationName: string;\n    level: LegalLevel;\n    publishDate?: string;\n    effectiveDate: string;\n    expiryDate?: string;\n    expired?: number;\n    validity: LegalRegulationValidity;\n    articleNumber: number;\n    articleText: string;\n    sourcePath?: string;\n};',
+  },
+  {
+    name: 'LegalRegulationValidity',
+    declaration: 'export type LegalRegulationValidity = \'in-force\' | \'expired\' | \'not-yet-effective\' | \'unverified\';',
+  },
+  {
+    name: 'LegalSearchOptions',
+    declaration: 'export type LegalSearchOptions = {\n    limit?: number;\n    level?: LegalLevel;\n    asOf?: string;\n    includeUnverified?: boolean;\n};',
   },
   {
     name: 'LlmAdapter',

@@ -10,13 +10,22 @@
  * @module @deepseek-ai/dsh-patent-law/reference
  */
 
-import { parseCnNumber } from '@deepseek-ai/dsh-patent-core'
+import {
+  collectReferences,
+  formatArticleCitation,
+  formatCnNumber,
+  narrowed,
+  normalizeCitationText,
+  parseCnNumber,
+  readArticleContinuations,
+  readStatuteArticleCandidate,
+  scanUnrecognizedReferences,
+  stripBookMarks,
+  trimPunctuation,
+} from '@deepseek-ai/dsh-patent-core'
 import type { LawReference, StatuteName } from './types.ts'
 
-export { parseCnNumber }
-
-/** Chinese numeral digits, indexed by value; used for rendering. */
-const CN_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+export { formatCnNumber, parseCnNumber }
 
 /** Number written in Chinese numerals or Arabic digits. */
 const NUMBER = '[〇零一二三四五六七八九十百0-9]{1,6}'
@@ -50,21 +59,6 @@ const GUIDELINE_PATTERN = new RegExp(
 )
 
 /**
- * One reference that follows another in the same sentence and inherits its
- * context: `专利法第22条、第23条`, `第22条第2款、第3款`, or a chained
- * `、第26条第4款`. The leading coordinator is required, so a citation in the
- * next sentence is not folded into the previous one.
- */
-const CONTINUATION_PATTERN = new RegExp(
-  '\\s*[、，,和及与或]\\s*第\\s*'
-  + `(?:[（(]\\s*(?<n1p>${NUMBER})\\s*[）)]|(?<n1>${NUMBER}))`
-  + '\\s*(?<u1>条|款|项)'
-  + `(?:\\s*第\\s*(?:[（(]\\s*(?<n2p>${NUMBER})\\s*[）)]|(?<n2>${NUMBER}))\\s*(?<u2>款|项))?`
-  + `(?:\\s*第\\s*(?:[（(]\\s*(?<n3p>${NUMBER})\\s*[）)]|(?<n3>${NUMBER}))\\s*项)?`,
-  'y',
-)
-
-/**
  * Compact examination form, e.g. `A22.3`. A letter, a digit, or a CJK character
  * immediately after the number means it is another token (`A4纸`), not a
  * citation.
@@ -88,18 +82,6 @@ type StatuteGroups = {
   itemParen?: string
 }
 
-/** The groups {@link CONTINUATION_PATTERN} captures, typed for direct use. */
-type ContinuationGroups = {
-  n1: string
-  n1p?: string
-  u1: string
-  n2?: string
-  n2p?: string
-  u2?: string
-  n3?: string
-  n3p?: string
-}
-
 /** The groups {@link GUIDELINE_PATTERN} always captures, typed for direct use. */
 type GuidelineGroups = { part: string; chapter?: string; tail?: string }
 
@@ -108,41 +90,6 @@ type CompactGroups = { article: string; paragraph?: string }
 
 /** One parsed candidate with its span in the scanned text. */
 type Candidate = { start: number; end: number; reference: LawReference }
-
-/**
- * Normalize the forms a copied citation may carry before matching: full-width
- * digits, Latin letters, and full-width brackets become ASCII; Chinese
- * punctuation such as `、` and `。` is unchanged.
- * @param text - the text to normalize.
- * @returns the normalized text.
- */
-function normalizeCitationText(text: string): string {
-  return text.normalize('NFKC')
-}
-
-/**
- * Render a number in Chinese numerals, the form a formal Chinese document uses.
- * @param value - an integer from 0 through 999.
- * @returns the Chinese numeral text.
- * @throws RangeError when the value is not an integer in that range.
- */
-export function formatCnNumber(value: number): string {
-  if (!Number.isInteger(value) || value < 0 || value > 999) {
-    throw new RangeError(`formatCnNumber expects an integer in 0..999, received ${value}`)
-  }
-  if (value === 0) return '〇'
-  if (value < 10) return cnDigit(value)
-  const hundreds = Math.floor(value / 100)
-  const tens = Math.floor((value % 100) / 10)
-  const ones = value % 10
-  const parts: string[] = []
-  if (hundreds > 0) parts.push(`${cnDigit(hundreds)}百`)
-  if (tens > 0) parts.push(tens === 1 && hundreds === 0 ? '十' : `${cnDigit(tens)}十`)
-  // 一百零五 keeps the zero placeholder; 一百一十 must not gain one.
-  else if (hundreds > 0 && ones > 0) parts.push('零')
-  if (ones > 0) parts.push(cnDigit(ones))
-  return parts.join('')
-}
 
 /**
  * Parse one reference standing alone in `text`.
@@ -180,124 +127,15 @@ function addCandidate(candidates: Candidate[], match: RegExpExecArray, reference
 /**
  * Resolve the references that follow `base` in the same sentence and inherit
  * its law, article, paragraph, or item.
- *
- * Only the gap before the next base match is scanned, and the first token must
- * begin with a coordinator, so `专利法第22条。第23条` stays two separate
- * sentences. The returned raw is the token alone (`第23条`), since the inherited
- * law is not written there.
  * @param text - the normalized text.
  * @param base - the base match whose context is inherited.
  * @param limit - the end of the gap to scan.
  * @returns the continuation candidates.
  */
 function readContinuations(text: string, base: Candidate, limit: number): Candidate[] {
-  const reference = base.reference
-  if (reference.kind !== 'law-article') return []
-  // Scan only the gap before the next base match, so a continuation can never
-  // absorb a citation that the base patterns already own.
-  const gap = text.slice(base.end, limit)
-  const out: Candidate[] = []
-  let cursor = 0
-  // Each continuation inherits from the previous one, not from the base: in
-  // 专利法第22条、第23条第2款、第3款 the last 款 belongs to 第23条.
-  let article = reference.article
-  let paragraph = reference.paragraph
-  let item = reference.item
-  while (cursor < gap.length) {
-    CONTINUATION_PATTERN.lastIndex = cursor
-    const match = CONTINUATION_PATTERN.exec(gap)
-    if (match === null) break
-    const groups = match.groups as ContinuationGroups
-    const units: Array<{ unit: string; value: number }> = []
-    const first = readContinuationUnit(groups.n1p ?? groups.n1, groups.u1, groups.n1p !== undefined)
-    if (first === null) break
-    units.push(first)
-    if (groups.u2 !== undefined) {
-      const second = readContinuationUnit(
-        (groups.n2p ?? groups.n2) as string,
-        groups.u2,
-        groups.n2p !== undefined,
-      )
-      if (second === null) break
-      units.push(second)
-    }
-    if (groups.n3 !== undefined || groups.n3p !== undefined) {
-      const third = readContinuationUnit(
-        (groups.n3p ?? groups.n3) as string,
-        '项',
-        groups.n3p !== undefined,
-      )
-      if (third === null) break
-      units.push(third)
-    }
-    // 条 → 款 → 项 is the only narrowing order; a 款 after an item, or a
-    // repeated unit, is not a reference this parser can attribute.
-    if (!narrowingUnits(units)) break
-    for (const { unit, value } of units) {
-      if (unit === '条') {
-        article = value
-        paragraph = undefined
-        item = undefined
-      } else if (unit === '款') {
-        paragraph = value
-        item = undefined
-      } else {
-        item = value
-      }
-    }
-    // The match always starts with the coordinator and then 第, so the raw
-    // reference begins at that 第 and excludes the coordinator.
-    const startInGap = match.index + match[0].indexOf('第')
-    const endInGap = match.index + match[0].length
-    out.push({
-      start: base.end + startInGap,
-      end: base.end + endInGap,
-      reference: {
-        kind: 'law-article',
-        law: reference.law,
-        article,
-        ...(paragraph === undefined ? {} : { paragraph }),
-        ...(item === undefined ? {} : { item }),
-        raw: gap.slice(startInGap, endInGap),
-      },
-    })
-    cursor = endInGap
-  }
-  return out
-}
-
-/** One unit of a continuation reference: its kind and parsed number. */
-type ContinuationUnit = { unit: string; value: number }
-
-/**
- * Parse one unit of a continuation reference.
- * @param value - the number text.
- * @param unit - 条, 款, or 项.
- * @param parenthesized - whether the number was written as 第（二）项.
- * @returns the unit, or null when the number or the wrapping is invalid.
- */
-function readContinuationUnit(value: string, unit: string, parenthesized: boolean): ContinuationUnit | null {
-  // A parenthesized number is an item (第（二）项), never a 条 or 款.
-  if (parenthesized && unit !== '项') return null
-  const parsed = parseCnNumber(value)
-  if (parsed === null || parsed < 1) return null
-  return { unit, value: parsed }
-}
-
-/**
- * Whether the units narrow in the only order a citation uses: 条, then 款,
- * then 项, each at most once.
- * @param units - the units of one continuation.
- * @returns true when the order is 条 → 款 → 项 without repeats.
- */
-function narrowingUnits(units: readonly ContinuationUnit[]): boolean {
-  let previous = -1
-  for (const { unit } of units) {
-    const rank = unit === '条' ? 0 : unit === '款' ? 1 : 2
-    if (rank <= previous) return false
-    previous = rank
-  }
-  return true
+  if (base.reference.kind !== 'law-article') return []
+  const articleBase = { start: base.start, end: base.end, reference: base.reference }
+  return readArticleContinuations(text, articleBase, limit)
 }
 
 /**
@@ -314,16 +152,9 @@ export function extractLawReferences(text: string): LawReference[] {
 
   for (const match of normalized.matchAll(STATUTE_PATTERN)) {
     const groups = match.groups as StatuteGroups
-    const article = parseCnNumber(groups.article)
     // A number the pattern allows but the numeral parser rejects, e.g. 第十十条.
-    if (article === null || article < 1) continue
-    addCandidate(candidates, match, {
-      kind: 'law-article',
-      law: STATUTE_NAMES[groups.law] as StatuteName,
-      article,
-      ...narrowed(groups.paragraph, groups.itemParen ?? groups.item),
-      raw: stripBookMarks(match[0]),
-    })
+    const candidate = readStatuteArticleCandidate(match, groups, STATUTE_NAMES[groups.law] as StatuteName)
+    if (candidate !== null) candidates.push(candidate)
   }
 
   for (const match of normalized.matchAll(GUIDELINE_PATTERN)) {
@@ -351,25 +182,12 @@ export function extractLawReferences(text: string): LawReference[] {
   }
 
   candidates.sort((a, b) => a.start - b.start)
-  const withContinuations = [...candidates]
-  for (let index = 0; index < candidates.length; index += 1) {
-    const candidate = candidates[index] as Candidate
-    const limit = candidates[index + 1]?.start ?? normalized.length
-    withContinuations.push(...readContinuations(normalized, candidate, limit))
-  }
-  withContinuations.sort((a, b) => a.start - b.start)
-
-  const seen = new Set<string>()
-  const references: LawReference[] = []
-  for (const candidate of withContinuations) {
-    // Continuation tokens share their written form (`第4款` under two articles),
-    // so dedupe by the reference they resolve to, not by the text as written.
-    const identity = referenceIdentity(candidate.reference)
-    if (seen.has(identity)) continue
-    seen.add(identity)
-    references.push(candidate.reference)
-  }
-  return references
+  return collectReferences(
+    candidates,
+    normalized.length,
+    (candidate, limit) => readContinuations(normalized, candidate, limit),
+    referenceIdentity,
+  )
 }
 
 /**
@@ -405,24 +223,7 @@ const UNRECOGNIZED_PATTERN = new RegExp(
  * @returns the unresolved fragments, deduplicated and capped at ten.
  */
 export function scanUnrecognizedCitations(text: string, recognized: readonly LawReference[]): string[] {
-  const raws = recognized.map(reference => compactCitation(normalizeCitationText(reference.raw)))
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const match of normalizeCitationText(text).matchAll(UNRECOGNIZED_PATTERN)) {
-    const token = match[0]
-    const key = compactCitation(token)
-    if (raws.some(raw => raw.includes(key))) continue
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(token)
-    if (out.length === 10) break
-  }
-  return out
-}
-
-/** Drop the layout spaces a citation may carry, for containment checks. */
-function compactCitation(value: string): string {
-  return value.replace(/\s+/g, '')
+  return scanUnrecognizedReferences(text, recognized, UNRECOGNIZED_PATTERN)
 }
 
 /**
@@ -433,39 +234,7 @@ function compactCitation(value: string): string {
  */
 export function formatLawReference(reference: LawReference): string {
   if (reference.kind === 'guideline-section') return `《专利审查指南》${reference.path}`
-  const paragraph = reference.paragraph === undefined ? '' : `第${formatCitationNumber(reference.paragraph)}款`
-  const item = reference.item === undefined ? '' : `第${formatCitationNumber(reference.item)}项`
-  return `《${reference.law}》第${formatCitationNumber(reference.article)}条${paragraph}${item}`
-}
-
-/**
- * Render a citation number in Chinese numerals when it is in the documented
- * range, and keep the digits otherwise. An out-of-range article is reported,
- * not thrown on, so a citation beyond the ceiling still gets a row.
- * @param value - the number to render.
- * @returns the Chinese numeral or the decimal digits.
- */
-function formatCitationNumber(value: number): string {
-  return value >= 0 && value <= 999 ? formatCnNumber(value) : String(value)
-}
-
-/** Chinese numeral for one digit, used by {@link formatCnNumber}. */
-function cnDigit(value: number): string {
-  // formatCnNumber validates 0..999 and only passes a digit here.
-  return CN_DIGITS[value] as string
-}
-
-/** Paragraph and item fields a reference carries, omitted when the text names none. */
-function narrowed(paragraph: string | undefined, item: string | undefined): {
-  paragraph?: number
-  item?: number
-} {
-  const paragraphValue = paragraph === undefined ? null : parseCnNumber(paragraph)
-  const itemValue = item === undefined ? null : parseCnNumber(item)
-  return {
-    ...(paragraphValue !== null ? { paragraph: paragraphValue } : {}),
-    ...(itemValue !== null ? { item: itemValue } : {}),
-  }
+  return formatArticleCitation(reference)
 }
 
 /** Normalize a guideline match into a section path, or null when the part is unreadable. */
@@ -476,18 +245,4 @@ function guidelinePath(part: string, chapter: string | undefined, tail: string |
   if (chapter !== undefined && (chapterValue === null || chapterValue < 1)) return null
   const chapterText = chapterValue === null ? '' : `第${formatCnNumber(chapterValue)}章`
   return `第${formatCnNumber(partValue)}部分${chapterText}${tail ?? ''}`
-}
-
-/** Drop the closing book-title mark a citation may carry, e.g. `专利法》第二十二条`. */
-function stripBookMarks(text: string): string {
-  return text.replaceAll('》', '')
-}
-
-/** Drop the punctuation or quotation marks a citation may be wrapped in. */
-function trimPunctuation(text: string): string {
-  return text
-    .trim()
-    .replace(/^[（(《【[“‘「『]+/, '')
-    .replace(/[）)》】\];；,，.。、:：”’」』]+$/, '')
-    .trim()
 }

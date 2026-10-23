@@ -66,6 +66,7 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [web-client.md](web-client.md) | the browser architecture: boot, Remote communication, paired Client models, UI adapters, Conversation assembly, Slots, and reconnect semantics |
 | [desktop.md](desktop.md) | desktop OS-integration seam: native dialogs, notifications, menus, shortcuts, tray, and the Electron main bridge |
 | [patent.md](patent.md) | the patent-domain port: the `ctx.patentData`/`ctx.patentKnowledge`/`ctx.patentWorkflow` service seams, the ModelPort contract, the model-facing tool set, rule gates, and document rendering |
+| [legal.md](legal.md) | the legal-domain port: the `ctx.legalKnowledge` query seam, the citation gate, and the evidence scorer |
 | [client-modules.md](client-modules.md) | the web plugin table: `dsh.client` declarations, `WebBootGraph` wire composition, the bundle route and index tap |
 | [slots.md](slots.md) | typed Web UI composition: declaration ownership, cardinality and scope, framework and feature injection, props derivation, and the shipped hierarchy |
 | [client-resources.md](client-resources.md) | the client resource model: `dsh-resource://<type>/…` addresses, protocol providers and `ResourceProtocolMap`, the `useResource` global hook and its states, pins and release |
