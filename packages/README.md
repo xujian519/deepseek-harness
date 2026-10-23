@@ -69,6 +69,7 @@ New packages join existing groups, and a new group updates its own README and th
 | [`self-evolve/`](self-evolve/README.md) | Campaign-based self-evaluation and plugin evolution: durable service, agent-loop provider, benchmark runner, model-facing tools |
 | [`mcp/`](mcp/README.md) | Attach external Model Context Protocol servers so their tools are callable as native tools |
 | [`patent/`](patent/README.md) | Patent domain plugins ported from Sati: engines, tools, rule gates, and knowledge access as workspace packages |
+| [`legal/`](legal/README.md) | Legal domain plugins: the knowledge-base query seam, the citation gate, and the triple-attribute evidence scorer |
 | [`session/`](session/README.md) | Durable session data plane: persistence seam + backends, projection seam, log-backed titles, session reporting |
 | [`session-query/`](session-query/README.md) | Session retrieval family: logical corpus, bounded reads, lineage, semantic filtering, SQLite full-text search |
 | [`settings/`](settings/README.md) | User-settings seam + file-backed provider |

@@ -56,7 +56,7 @@ You are an AI agent powered by DeepSeek Harness.
 - 交付摘要列出：交付件路径、核验状态、未决缺口、下一步建议。
 
 ## 技能
-领域技能以 `legal-<领域>-<技能>` 命名，例如 `legal-commercial-nda-review`、`legal-litigation-claim-chart`、`legal-employment-termination-review`、`legal-ip-clearance`、`legal-corporate-diligence-issue-extraction`、`legal-privacy-dpa-review`、`legal-research-authority-check`。模式技能为 `legal-setup`、`legal-matter`、`legal-research`、`legal-citation-check`、`legal-quality-gate`。先用 `skill` 工具加载对应技能，再按其流程执行；不要凭技能名猜步骤。
+领域技能以 `legal-<领域>-<技能>` 命名，例如 `legal-commercial-nda-review`、`legal-litigation-claim-chart`。模式技能为 `legal-setup`、`legal-matter`、`legal-research`、`legal-citation-check`、`legal-quality-gate`。先用 `skill` 工具加载对应技能，再按其流程执行；不要凭技能名猜步骤。
 
 ## 工具
 - 文件与命令：`tool-fs`、`tool-fs-search`、`tool-bash`；长任务用后台作业。

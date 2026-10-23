@@ -150,6 +150,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   patentKnowledge: 'patent.md',
   patentTeams: 'patent.md',
   patentWorkflow: 'patent.md',
+  legalKnowledge: 'legal.md',
   selfEvolve: 'self-evolve.md',
   selfEvolveBenchmark: 'self-evolve.md',
   workspaceRegistry: 'workspace.md',
@@ -854,6 +855,15 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   TypertPackageRecord: 'typert.md',
   TypertSchemaFilter: 'typert.md',
   TypertSchemaRecord: 'typert.md',
+  LegalRegulationHit: 'legal.md',
+  LegalSearchOptions: 'legal.md',
+  JudicialInterpretationHit: 'legal.md',
+  JudicialInterpretationSearchOptions: 'legal.md',
+  GuidingCaseHit: 'legal.md',
+  CaseLawRecord: 'legal.md',
+  LegalRegulationRecord: 'legal.md',
+  JudicialInterpretationRecord: 'legal.md',
+  GuidingCaseRecord: 'legal.md',
 }
 
 /** TypeScript lib and pinned framework types with no repository-owned data page. */

@@ -69,6 +69,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`self-evolve/`](self-evolve/README.zh.md) | 基于战役的自我评估与插件演化：持久服务、agent 循环提供方、基准运行器、模型可见工具 |
 | [`mcp/`](mcp/README.zh.md) | 挂接外部 Model Context Protocol 服务器，使其工具可作为原生工具调用 |
 | [`patent/`](patent/README.zh.md) | 从 Sati 移植的专利领域插件：引擎、工具、规则门与知识访问，均为工作区包 |
+| [`legal/`](legal/README.zh.md) | 法律领域插件：知识库查询接缝、引用门禁与证据三性评分器 |
 | [`session/`](session/README.zh.md) | 持久会话数据平面：持久化 seam + 后端、投影 seam、基于日志的标题、会话上报 |
 | [`session-query/`](session-query/README.zh.md) | 会话检索系列：逻辑语料库、有界读取、血缘、语义过滤、SQLite 全文搜索 |
 | [`settings/`](settings/README.zh.md) | 用户设置 seam + 基于文件的提供方 |

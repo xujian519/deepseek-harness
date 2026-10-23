@@ -4,6 +4,7 @@ tools:
 - create_goal
 - document_deliver
 - edit
+- evaluate_legal_evidence
 - exit_plan_mode
 - get_goal
 - glob
@@ -12,6 +13,7 @@ tools:
 - job_kill
 - job_list
 - job_output
+- legal_law_verify
 - list_agents
 - list_doc_templates
 - read
