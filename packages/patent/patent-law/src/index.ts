@@ -11,6 +11,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { loadLawBaselines } from './baseline.ts'
+import { lawLineageFile } from './asset-location.ts'
+import { loadLawLineageFile } from './lineage.ts'
 import {
   CNLAW_DECLARATION_SECTION,
   CNLAW_DECLARATION_SECTION_ORDER,
@@ -35,7 +37,13 @@ export {
   loadLawBaselines,
   parseLawBaseline,
 } from './baseline.ts'
-export { lawBaselineDir, LAW_FILE_NAMES, listLawFiles } from './asset-location.ts'
+export {
+  lawBaselineDir,
+  lawLineageFile,
+  LAW_FILE_NAMES,
+  LAW_LINEAGE_FILE_NAME,
+  listLawFiles,
+} from './asset-location.ts'
 export {
   CNLAW_DECLARATION_SECTION,
   CNLAW_DECLARATION_SECTION_ORDER,
@@ -136,6 +144,8 @@ export const inject = ['tools']
 export interface Config {
   /** Directory holding the law-index YAML files; defaults to the packaged index. */
   baselineDir?: string
+  /** Directory holding the statute-lineage snapshot; defaults to the packaged snapshot. */
+  lineageDir?: string
   /** Whether this deployment runs the local cnlaw legal base. Defaults to `true`. */
   cnlawEnabled: boolean
   /** Semantic-search endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8100`. */
@@ -162,6 +172,7 @@ export interface Config {
 /** Schemastery configuration: index override, the declared cnlaw base, and the per-decision citation policy. */
 export const Config: z<Config> = z.object({
   baselineDir: z.string(),
+  lineageDir: z.string(),
   cnlawEnabled: z.boolean().default(true),
   cnlawSearchUrl: z.string().default(DEFAULT_CNLAW_SEARCH_URL),
   cnlawGraphUrl: z.string().default(DEFAULT_CNLAW_GRAPH_URL),
@@ -181,6 +192,10 @@ export const Config: z<Config> = z.object({
  */
 export function apply(ctx: Context, config: Config): void {
   const baselines = loadLawBaselines(config.baselineDir)
+  // The lineage snapshot is a shipped asset like the index: a missing or
+  // malformed file must fail the deployment rather than silently degrade
+  // rule-lock to baseline-only validity.
+  const lineage = loadLawLineageFile(lawLineageFile(config.lineageDir))
   // The schema defaults every policy field, so each one is resolved by the time it arrives.
   const policies: CitationPolicySet = {
     mismatch: config.onMismatch,
@@ -195,7 +210,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.effect(() => {
     const disposers = [
       globalAtomRegistry.register(ruleLockAtom),
-      globalStageHandlerRegistry.register(new RuleLockHandler(baselines)),
+      globalStageHandlerRegistry.register(new RuleLockHandler(baselines, lineage)),
     ]
     return () => {
       for (const dispose of disposers.reverse()) dispose()

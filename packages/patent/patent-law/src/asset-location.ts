@@ -13,6 +13,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ASSETS_LAW_URL = new URL('../assets/law/', import.meta.url)
+const ASSETS_LINEAGE_URL = new URL('../assets/lineage/', import.meta.url)
 
 /** Packaged law-index file names, one per law document. */
 export const LAW_FILE_NAMES = [
@@ -20,6 +21,9 @@ export const LAW_FILE_NAMES = [
   'cn-implementing-regulations.yaml',
   'cn-examination-guidelines.yaml',
 ] as const
+
+/** Packaged statute-lineage snapshot file name. */
+export const LAW_LINEAGE_FILE_NAME = 'cn-patent-law-lineage.yaml'
 
 /**
  * Directory holding the law-index assets: the explicit override when given
@@ -44,4 +48,18 @@ export function listLawFiles(dir: string): string[] {
     .filter(entry => entry.endsWith('.yaml'))
     .sort()
     .map(entry => resolve(dir, entry))
+}
+
+/**
+ * Path of the statute-lineage snapshot: the explicit override when given
+ * (resolved against the process working directory), otherwise the packaged
+ * asset.
+ * @param lineageDir - optional directory override holding the snapshot file.
+ * @returns the absolute snapshot path.
+ */
+export function lawLineageFile(lineageDir?: string): string {
+  const dir = lineageDir !== undefined && lineageDir.trim() !== ''
+    ? resolve(lineageDir)
+    : fileURLToPath(ASSETS_LINEAGE_URL)
+  return resolve(dir, LAW_LINEAGE_FILE_NAME)
 }

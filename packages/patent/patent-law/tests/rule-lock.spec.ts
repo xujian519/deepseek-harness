@@ -9,6 +9,10 @@ import {
   type RuleLockEntry,
 } from '../src/rule-lock.ts'
 import { testBaselines } from './fixtures.ts'
+import { lawLineageFile } from '../src/asset-location.ts'
+import { loadLawBaselines } from '../src/baseline.ts'
+import { loadLawLineageFile } from '../src/lineage.ts'
+import type { LawLineageSnapshot } from '../src/types.ts'
 
 const handler = new RuleLockHandler(testBaselines())
 
@@ -246,5 +250,33 @@ describe('RuleLockHandler.execute', () => {
       },
     })
     expect(out.rule_lock_report).toContain('未提供')
+  })
+})
+
+describe('沿革快照接入', () => {
+  it('量产资产：生效日期取最近一次修订，而不是转录核验日期', () => {
+    const result = lockProvisions(
+      ['专利法第22条'],
+      loadLawBaselines(),
+      undefined,
+      loadLawLineageFile(lawLineageFile()),
+    )
+    expect(result.locked[0]).toMatchObject({
+      validityStatus: 'active',
+      stale: false,
+      effectiveDate: '2021-06-01',
+    })
+  })
+
+  it('沿革记录为 repealed 时锁定结果标记 stale', () => {
+    const lineage: LawLineageSnapshot = {
+      law: '专利法',
+      document: '中华人民共和国专利法',
+      lineageVersion: '1.0.0',
+      revisions: [],
+      articles: [{ articleId: 22, title: null, currentStatus: 'repealed', revisionHistory: [] }],
+    }
+    const result = lockProvisions(['专利法第22条'], testBaselines(), undefined, lineage)
+    expect(result.locked[0]).toMatchObject({ validityStatus: 'repealed', stale: true })
   })
 })
