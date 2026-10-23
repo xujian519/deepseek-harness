@@ -13,6 +13,7 @@ tools:
 - job_kill
 - job_list
 - job_output
+- legal_knowledge_search
 - legal_law_verify
 - list_agents
 - list_doc_templates

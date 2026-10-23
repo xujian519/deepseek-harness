@@ -203,6 +203,23 @@ function inputScopeFor(run: StageRun, stage: WorkflowStage): string[] | undefine
   return [...atom.inputSchema]
 }
 
+function stageResult(
+  run: StageRun,
+  stage: WorkflowStage,
+  outcome: { output: string; degraded: boolean; retries: number },
+): WorkflowStageResult {
+  const inputScope = inputScopeFor(run, stage)
+  return {
+    stageId: stage.id,
+    strategy: stage.strategy,
+    output: outcome.output,
+    degraded: outcome.degraded,
+    retries: outcome.retries,
+    ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
+    ...(inputScope !== undefined ? { inputScope } : {}),
+  }
+}
+
 function pushStageResult(run: StageRun, stage: WorkflowStage, outcome: { output: string; retries: number }): void {
   // 回退后第一个落地的阶段就是回退目标：用它的产出补 before/after 里的 after。
   if (run.pendingRevisions.length > 0) {
@@ -212,16 +229,11 @@ function pushStageResult(run: StageRun, stage: WorkflowStage, outcome: { output:
     }
     run.pendingRevisions = []
   }
-  const inputScope = inputScopeFor(run, stage)
-  run.results.push({
-    stageId: stage.id,
-    strategy: stage.strategy,
+  run.results.push(stageResult(run, stage, {
     output: outcome.output,
     degraded: outcome.output.trim().length === 0 || outcome.output.startsWith('[WORKFLOW_DEGRADED]'),
     retries: outcome.retries,
-    ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
-    ...(inputScope !== undefined ? { inputScope } : {}),
-  })
+  }))
 }
 
 /**
@@ -337,16 +349,11 @@ async function runSingleStage(run: StageRun, index: number): Promise<StageStep> 
         // 文本信号沿用旧语义：保留不一致输出并标记 degraded。结构化信号是确定性
         // 缺口的「再试一次」，耗尽时保留阶段原产出，由缺口报告本身说明未覆盖项。
         if (textMatched) {
-          const inputScope = inputScopeFor(run, stage)
-          run.results.push({
-            stageId: stage.id,
-            strategy: stage.strategy,
+          run.results.push(stageResult(run, stage, {
             output: `[WORKFLOW_RETRY_EXHAUSTED] ${stage.id}: ${output}`,
             degraded: true,
             retries,
-            ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
-            ...(inputScope !== undefined ? { inputScope } : {}),
-          })
+          }))
         } else {
           pushStageResult(run, stage, { output, retries })
         }
