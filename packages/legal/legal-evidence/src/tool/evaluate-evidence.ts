@@ -53,7 +53,7 @@ export function createEvaluateLegalEvidenceTool(engine: LegalEvidenceEngine): To
       evidenceType: {
         type: 'string',
         description: '证据类型',
-        enum: LEGAL_EVIDENCE_TYPES as unknown as string[],
+        enum: [...LEGAL_EVIDENCE_TYPES],
       },
       source: { type: 'string', description: '证据来源描述' },
       content: { type: 'string', description: '证据内容摘要' },

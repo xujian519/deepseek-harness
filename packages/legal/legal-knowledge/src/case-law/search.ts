@@ -69,9 +69,7 @@ export class CaseLawSearchEngine {
     if (options.db) {
       this.db = options.db
     } else if (options.dbPath) {
-      // Dynamic import to avoid hard dependency when only using memory mode.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { DatabaseSync: DB } = require('node:sqlite') as typeof import('node:sqlite')
+      const { DatabaseSync: DB } = process.getBuiltinModule('node:sqlite')
       this.db = new DB(options.dbPath, { readOnly: true })
     } else {
       this.db = null
