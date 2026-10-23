@@ -45,8 +45,8 @@ export type Article = {
   number: number
   /** Full article text, including all paragraphs (款). */
   text: string
-  /** Chapter number this article belongs to, when determinable. */
-  chapter?: number
+  /** Chapter number this article belongs to; absent or undefined when not determinable. */
+  chapter?: number | undefined
 }
 
 /** The complete parse result for one legal Markdown file. */
@@ -66,7 +66,7 @@ export type ParsedLaw = {
   /** All articles in document order. */
   articles: Article[]
   /** Optional subtitle (民法典按编拆分的文件名). */
-  subtitle?: string
+  subtitle?: string | undefined
   /** Source file path. */
   sourceFile: string
 }
@@ -128,7 +128,10 @@ const DATE_CN_RE = /(\d{4})年(\d{1,2})月(\d{1,2})日/
 function normaliseDate(raw: string): string {
   const m = DATE_CN_RE.exec(raw)
   if (!m) return ''
-  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+  const year = m[1] ?? ''
+  const month = m[2] ?? ''
+  const day = m[3] ?? ''
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
 }
 
 /**
@@ -167,7 +170,7 @@ function splitMetaAndBody(content: string): { meta: string; body: string } {
  * Extract the law title from the first `# ` heading line.
  * For 民法典 split files there are two `# ` lines; the second becomes `subtitle`.
  */
-function extractTitle(meta: string): { name: string; subtitle?: string } {
+function extractTitle(meta: string): { name: string; subtitle?: string | undefined } {
   const lines = meta.split('\n')
   const h1Lines: string[] = []
   for (const line of lines) {
@@ -242,10 +245,10 @@ function parseBody(body: string): { chapters: Chapter[]; articles: Article[] } {
     // Chapter heading
     const chapterMatch = CHAPTER_RE.exec(line)
     if (chapterMatch) {
-      const num = cnToArabic(chapterMatch[1])
+      const num = cnToArabic(chapterMatch[1] ?? '')
       if (num > 0) {
         currentChapter = num
-        chapters.push({ number: num, title: chapterMatch[2].trim(), articles: [] })
+        chapters.push({ number: num, title: (chapterMatch[2] ?? '').trim(), articles: [] })
       }
       continue
     }
@@ -259,7 +262,7 @@ function parseBody(body: string): { chapters: Chapter[]; articles: Article[] } {
     // Article start
     const articleMatch = ARTICLE_RE.exec(line)
     if (articleMatch) {
-      const num = cnToArabic(articleMatch[1])
+      const num = cnToArabic(articleMatch[1] ?? '')
       // Skip unrecognized Chinese numerals (num === 0)
       if (num === 0) continue
 
