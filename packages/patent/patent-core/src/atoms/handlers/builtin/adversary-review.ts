@@ -32,6 +32,7 @@ export const adversaryReviewAtom: Atom = {
   description: '换位重跑：从对立审查员视角评估最终意见陈述书',
   category: 'gate',
   usesModel: false,
+  logInputScope: true,
   inputSchema: [
     'draft',
     'reference_documents',

@@ -64,7 +64,13 @@
       "output": "",
       "degraded": true,
       "retries": 3,
-      "atom": "adversary-review"
+      "atom": "adversary-review",
+      "inputScope": [
+        "draft",
+        "reference_documents",
+        "claims",
+        "office_action"
+      ]
     },
     {
       "stageId": "response_check",

@@ -32,6 +32,7 @@ describe('adversary-review atom', () => {
       'claims',
       'office_action',
     ])
+    expect(adversaryReviewAtom.logInputScope).toBe(true)
     expect(adversaryReviewAtom.outputSchema).toEqual([
       'adversary_review_report',
       'adversary_review_disputes',
@@ -236,18 +237,24 @@ describe('handler execute', () => {
     expect(result.adversary_review_confidence).toBeGreaterThanOrEqual(0)
   })
 
-  it('共享 state 含上游中间产物时仍正常审查', async () => {
+  it('共享 state 含上游中间产物时，审查结果与干净 state 完全相同', async () => {
     const handler = new AdversaryReviewHandler()
-    const state = {
+    const clean = {
       draft: '本申请具有创造性，符合专利法第22条第3款',
       claims: '权利要求1',
+      reference_documents: 'D1 公开了阀体',
+      office_action: JSON.stringify({ rejectionTypes: ['inventiveness'], affectedClaims: [1] }),
+    }
+    const polluted = {
+      ...clean,
       dispute_framing_report: '己方推理',
       claim_chart: '己方映射',
       response_plan: '己方计划',
+      final_draft: '旧稿不应被读取',
     }
-    const result = await handler.execute({ state })
-    expect(result.adversary_review_report).not.toContain('信息隔离检查失败')
-    expect(result.adversary_review_confidence).toBeGreaterThanOrEqual(0)
+    const cleanResult = await handler.execute({ state: clean })
+    const pollutedResult = await handler.execute({ state: polluted })
+    expect(pollutedResult).toEqual(cleanResult)
   })
 })
 

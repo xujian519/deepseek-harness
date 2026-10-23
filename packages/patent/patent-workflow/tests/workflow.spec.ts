@@ -563,3 +563,51 @@ describe('runWorkflow — 证据台账', () => {
     expect(result.evidenceLedger!.receipts.map(receipt => receipt.citationId)).toEqual(['MATERIAL', 'D1'])
   })
 })
+
+describe('runWorkflow — 阶段输入范围留痕', () => {
+  function scopeRegistry(logInputScope: boolean): { atoms: AtomRegistry; handlers: StageHandlerRegistry } {
+    const atoms = new AtomRegistry()
+    atoms.register({
+      name: 'guarded',
+      description: '隔离型阶段',
+      category: 'gate',
+      inputSchema: ['draft', 'reference_documents', 'claims', 'office_action'],
+      outputSchema: ['out'],
+      ...(logInputScope ? { logInputScope: true } : {}),
+    })
+    const handlers = new StageHandlerRegistry()
+    handlers.register({
+      name: 'guarded',
+      category: 'gate',
+      execute: async () => ({ out: 'ok' }),
+    })
+    return { atoms, handlers }
+  }
+
+  it('原子声明 logInputScope 时把声明的输入键写入阶段结果', async () => {
+    const { atoms, handlers } = scopeRegistry(true)
+    const result = await runWorkflow(
+      manifest('scope', [stage('review', { atom: 'guarded' })]),
+      {},
+      undefined,
+      { atoms, handlers },
+    )
+    expect(result.stages[0]?.inputScope).toEqual([
+      'draft',
+      'reference_documents',
+      'claims',
+      'office_action',
+    ])
+  })
+
+  it('原子未声明时不写输入范围', async () => {
+    const { atoms, handlers } = scopeRegistry(false)
+    const result = await runWorkflow(
+      manifest('scope', [stage('review', { atom: 'guarded' })]),
+      {},
+      undefined,
+      { atoms, handlers },
+    )
+    expect(result.stages[0]?.inputScope).toBeUndefined()
+  })
+})
