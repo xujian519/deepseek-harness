@@ -2088,6 +2088,88 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-jobs-local -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-legal-evidence -->
+<a id="deepseek-aidsh-legal-evidence"></a>
+
+## `@deepseek-ai/dsh-legal-evidence`
+
+- `inject`: `tools`
+- `source`: [`packages/legal/legal-evidence/src/index.ts:58`](../packages/legal/legal-evidence/src/index.ts)
+
+```ts config-catalog
+/** Model-facing legal-evidence plugin configuration. */
+export interface Config {
+  /** Directory holding the legal-evidence rules YAML file; defaults to the packaged asset. */
+  rulesDir?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-legal-evidence -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-legal-knowledge -->
+<a id="deepseek-aidsh-legal-knowledge"></a>
+
+## `@deepseek-ai/dsh-legal-knowledge`
+
+- `source`: [`packages/legal/legal-knowledge/src/types.ts:9`](../packages/legal/legal-knowledge/src/types.ts)
+
+```ts config-catalog
+/** Deployment-varying legal knowledge configuration. */
+export interface LegalKnowledgeConfig {
+  /**
+   * Data directory for the legal knowledge store. Defaults to
+   * ~/.dsh/legal-knowledge.
+   */
+  knowledgeDir?: string
+  /**
+   * Path to the source knowledge database for the install command (and the
+   * read-only direct-use fallback). Defaults to ~/.dsh/legal-knowledge/legal.db.
+   */
+  sourceDbPath?: string
+  /**
+   * Whether to use SQLite FTS5 full-text search when a database is available.
+   * When false, engines use the in-memory keyword matching backend even if a
+   * database path is configured. Defaults to true.
+   */
+  useFts5?: boolean
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-legal-knowledge -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-legal-law -->
+<a id="deepseek-aidsh-legal-law"></a>
+
+## `@deepseek-ai/dsh-legal-law`
+
+- `inject`: `tools`
+- `source`: [`packages/legal/legal-law/src/index.ts:85`](../packages/legal/legal-law/src/index.ts)
+
+```ts config-catalog
+/** Model-facing legal-law plugin configuration. */
+export interface Config {
+  /** Directory holding the legal-law index YAML files; defaults to the packaged index. */
+  baselineDir?: string
+  /** Treatment of a citation whose proposition a verified article does not support, while another entry does. */
+  onMismatch: LegalCitationPolicy
+  /** Treatment of a citation whose proposition no entry of the law supports, so nothing here decides it. */
+  onUnmatched: LegalCitationPolicy
+  /** Treatment of a citation beyond a verified article ceiling. */
+  onOutOfRange: LegalCitationPolicy
+  /** Treatment of a citation the index does not hold. */
+  onNotIndexed: LegalCitationPolicy
+  /** Treatment of an indexed entry whose text has not been transcribed. */
+  onUnverified: LegalCitationPolicy
+  /**
+   * Share of a proposition's weighted character pairs an entry's text must carry
+   * before it supports the proposition; greater than 0 and at most 1.
+   */
+  propositionSupport: number
+}
+
+/** How a decision is turned into a tool result. */
+export type LegalCitationPolicy = 'block' | 'warn' | 'allow'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-legal-law -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-deepseek-account -->
 <a id="deepseek-aidsh-llm-deepseek-account"></a>
 
@@ -3034,13 +3116,15 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-law`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-law/src/index.ts:103`](../packages/patent/patent-law/src/index.ts)
+- `source`: [`packages/patent/patent-law/src/index.ts:144`](../packages/patent/patent-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-law plugin configuration. */
 export interface Config {
   /** Directory holding the law-index YAML files; defaults to the packaged index. */
   baselineDir?: string
+  /** Directory holding the statute-lineage snapshot; defaults to the packaged snapshot. */
+  lineageDir?: string
   /** Whether this deployment runs the local cnlaw legal base. Defaults to `true`. */
   cnlawEnabled: boolean
   /** Semantic-search endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8100`. */
@@ -3075,7 +3159,7 @@ export type CitationPolicy = 'block' | 'warn' | 'allow'
 ## `@deepseek-ai/dsh-patent-rule`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-rule/src/index.ts:223`](../packages/patent/patent-rule/src/index.ts)
+- `source`: [`packages/patent/patent-rule/src/index.ts:225`](../packages/patent/patent-rule/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */
@@ -3085,6 +3169,20 @@ export interface Config {
    * (patent/, base/, domains/). Omitted uses the packaged assets.
    */
   rulesDir?: string
+  /**
+   * Explicit path to a rule-pack manifest (YAML with `base`, `domains`, `overrides`).
+   * When set, `loadRulePack` replaces the default `loadPatentFullRuleSet` so
+   * non-patent domain rules (e.g. legal) can be loaded alongside the base.
+   * Omitted uses the shipped patent-full rule set.
+   */
+  manifestPath?: string
+  /**
+   * Additional domain names to load on top of the default patent-full rule set.
+   * Each name resolves to `assets/rules/domains/<name>/` (or `<rulesDir>/domains/<name>/`).
+   * Useful for presets (e.g. legal) that need the patent base plus extra domain rules
+   * without the noise of a full manifest-based load.
+   */
+  additionalRuleDomains?: string[]
   /** Tool names whose results run through the output gate. Defaults to the delivery tools. */
   gateToolNames?: string[]
   /**

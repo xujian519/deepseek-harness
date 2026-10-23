@@ -69,6 +69,7 @@ export type LegalKnowledgeSearchOutput = {
 
 /** Thrown when the tool input cannot be used as a query. */
 export class LegalKnowledgeSearchToolError extends Error {
+  /** Stable failure identifier. */
   readonly code: string
 
   /**

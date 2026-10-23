@@ -5525,7 +5525,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Atom',
-    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n    usesModel?: boolean;\n};',
+    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n    usesModel?: boolean;\n    logInputScope?: boolean;\n};',
   },
   {
     name: 'AtomCategory',
@@ -10229,7 +10229,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkflowStageResult',
-    declaration: 'export type WorkflowStageResult = {\n    stageId: string;\n    strategy: WorkflowStrategy;\n    output: string;\n    degraded: boolean;\n    retries: number;\n    atom?: string;\n};',
+    declaration: 'export type WorkflowStageResult = {\n    stageId: string;\n    strategy: WorkflowStrategy;\n    output: string;\n    degraded: boolean;\n    retries: number;\n    atom?: string;\n    inputScope?: string[];\n};',
   },
   {
     name: 'WorkflowStartRequest',

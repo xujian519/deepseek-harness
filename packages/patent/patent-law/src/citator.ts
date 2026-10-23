@@ -36,6 +36,7 @@ import type {
  * text is not a recognised citation form, which is reported as unverified.
  * @param query - the provision text and optional temporal/revision narrowing.
  * @param baselines - the loaded law index, keyed by law name.
+ * @param lineage - optional lineage snapshot whose article status overrides the baseline.
  * @returns the validity result.
  */
 export function queryValidity(

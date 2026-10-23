@@ -983,6 +983,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'core',
     note: 'Owns the durable team roster, shared task DAG, member mailbox, and scheduling lock; the co-located patent_teams_* tools are the model-facing controllers.',
   },
+  {
+    key: 'legalKnowledge',
+    pkg: 'legal-knowledge',
+    title: 'Legal knowledge-base query seam',
+    mode: 'seam',
+    implementations: ['legal-knowledge'],
+    consumers: ['legal-knowledge'],
+    note: 'Service Definition and SQLite/in-memory implementation share one package; the optional ./tool plugin is the model-facing legal_knowledge_search consumer and must mount in the same isolate realm.',
+  },
 ]
 
 function generatedHeader(title: string): string[] {

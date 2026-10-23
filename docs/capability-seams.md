@@ -318,6 +318,8 @@ flowchart LR
   svc_patentWorkflow["ctx.patentWorkflow<br/>Patent execution pipeline"]
   pkg_patent_teams["patent-teams"]
   svc_patentTeams["ctx.patentTeams<br/>Patent team coordination domain"]
+  pkg_legal_knowledge["legal-knowledge"]
+  svc_legalKnowledge["ctx.legalKnowledge<br/>Legal knowledge-base query seam"]
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
   pkg_agent_loop --> svc_agentLoop
@@ -394,6 +396,7 @@ flowchart LR
   pkg_inspector --> svc_inspector
   pkg_jobs --> svc_jobs
   pkg_jobs_local --> svc_jobs
+  pkg_legal_knowledge --> svc_legalKnowledge
   pkg_llm --> svc_llm
   pkg_llm_deepseek --> svc_llm
   pkg_llm_pi_ai --> svc_llm
@@ -533,6 +536,7 @@ flowchart LR
   svc_jobs --> pkg_tool_jobs
   svc_jobs --> pkg_tool_pwsh
   svc_jobs --> pkg_tool_terminal
+  svc_legalKnowledge --> pkg_legal_knowledge
   svc_llm --> pkg_agent_loop
   svc_llm --> pkg_compaction_basic
   svc_lsp --> pkg_tool_lsp
@@ -759,5 +763,6 @@ flowchart LR
 | `ctx.patentKnowledge` | `seam` | [`patent-knowledge`](../packages/patent/patent-knowledge) | - | - | - | Service Definition for case-law FTS, legal, wiki-card, and knowledge-graph lookups; the sqlite provider and install command land with P1.3. |
 | `ctx.patentWorkflow` | `seam` | [`patent-workflow`](../packages/patent/patent-workflow) | - | - | - | Service Definition for the workflow/flexible-plan/plantask state machines with HITL approval wiring; the implementation lands with P3.1. |
 | `ctx.patentTeams` | `core` | [`patent-teams`](../packages/patent/patent-teams) | - | - | - | Owns the durable team roster, shared task DAG, member mailbox, and scheduling lock; the co-located patent_teams_* tools are the model-facing controllers. |
+| `ctx.legalKnowledge` | `seam` | [`legal-knowledge`](../packages/legal/legal-knowledge) | [`legal-knowledge`](../packages/legal/legal-knowledge) | [`legal-knowledge`](../packages/legal/legal-knowledge) | - | Service Definition and SQLite/in-memory implementation share one package; the optional ./tool plugin is the model-facing legal_knowledge_search consumer and must mount in the same isolate realm. |
 
 Maintenance mode: hybrid: services are discovered from Cordis declarations; interface/implementation/consumer roles are classified in `scripts/gen-doc-graphs.ts` with a completeness guard.
