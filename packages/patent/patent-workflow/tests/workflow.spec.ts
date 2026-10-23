@@ -600,6 +600,36 @@ describe('runWorkflow — 阶段输入范围留痕', () => {
     ])
   })
 
+
+  it('记录重试耗尽阶段的输入范围', async () => {
+    const atoms = new AtomRegistry()
+    atoms.register({
+      name: 'guarded',
+      description: '隔离型阶段',
+      category: 'gate',
+      inputSchema: ['draft'],
+      outputSchema: ['out'],
+      logInputScope: true,
+    })
+    const handlers = new StageHandlerRegistry()
+    handlers.register({
+      name: 'guarded',
+      category: 'gate',
+      execute: async () => ({ out: '不一致' }),
+    })
+    const result = await runWorkflow(
+      manifest('scope-retry', [stage('review', {
+        atom: 'guarded',
+        retry: { whenOutputMatches: '不一致', maxRetries: 1 },
+      })]),
+      {},
+      undefined,
+      { atoms, handlers },
+    )
+    expect(result.stages[0]?.output).toContain('WORKFLOW_RETRY_EXHAUSTED')
+    expect(result.stages[0]?.inputScope).toEqual(['draft'])
+  })
+
   it('原子未声明时不写输入范围', async () => {
     const { atoms, handlers } = scopeRegistry(false)
     const result = await runWorkflow(
