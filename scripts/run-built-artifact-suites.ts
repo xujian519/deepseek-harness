@@ -25,8 +25,15 @@ import { discoverBuiltArtifactSuites, summarizeBuiltArtifactSuiteRuns, type Vite
 /** Repo root, derived from this module's location. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** The lane's runner budget, matching the fork's slow 2-core unit lane. */
-const TEST_TIMEOUT_MS = 30_000
+/** Budget for the built unit specs, which run in-process and must stay quick. */
+const SPEC_TEST_TIMEOUT_MS = 30_000
+
+/**
+ * Budget for suites that launch a built CLI or Web process. Boot includes
+ * loading the packaged bundles and opening listeners, and a shared runner can
+ * spend well over 30s on that work while the process itself is healthy.
+ */
+const PROCESS_TEST_TIMEOUT_MS = 150_000
 
 /** Suite families, named by the vitest project that collects them. */
 export const SUITE_FAMILIES = ['spec', 'e2e', 'expected'] as const
@@ -63,6 +70,7 @@ function vitestExecutable(): string {
 function runFamily(family: SuiteFamily, suites: readonly string[]): number {
   const reportDir = mkdtempSync(join(tmpdir(), `dsh-built-${family}-`))
   const reportPath = join(reportDir, 'report.json')
+  const timeoutMs = family === 'spec' ? SPEC_TEST_TIMEOUT_MS : PROCESS_TEST_TIMEOUT_MS
   try {
     const result = spawnSync(vitestExecutable(), [
       'run',
@@ -70,8 +78,8 @@ function runFamily(family: SuiteFamily, suites: readonly string[]): number {
       '--reporter=default',
       '--reporter=json',
       `--outputFile.json=${reportPath}`,
-      `--testTimeout=${String(TEST_TIMEOUT_MS)}`,
-      `--hookTimeout=${String(TEST_TIMEOUT_MS)}`,
+      `--testTimeout=${String(timeoutMs)}`,
+      `--hookTimeout=${String(timeoutMs)}`,
       ...suites,
     ], { cwd: ROOT, stdio: 'inherit' })
     if (result.error !== undefined) throw result.error
