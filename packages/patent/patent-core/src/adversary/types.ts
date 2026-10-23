@@ -78,25 +78,4 @@ export type AdversaryPlanEntry = {
   sections?: string[]
 }
 
-/** 法条编号 → 常见驳回类型映射（与 dispute-framing 共用同一套规范化）。 */
-export const STATUTE_TO_GROUND: ReadonlyMap<string, string> = new Map([
-  ['A22.2', 'novelty'],
-  ['A22.3', 'inventiveness'],
-  ['A22.4', 'utility'],
-  ['A26.3', 'disclosure'],
-  ['A26.4', 'claim-clarity'],
-  ['A33', 'amendment'],
-])
-
-/** 常见驳回类型 → 法条编号映射。 */
-export const GROUND_TO_STATUTE: ReadonlyMap<string, string> = new Map([
-  ['novelty', 'A22.2'],
-  ['inventiveness', 'A22.3'],
-  ['utility', 'A22.4'],
-  ['disclosure', 'A26.3'],
-  ['claim-clarity', 'A26.4'],
-  ['amendment', 'A33'],
-  ['subject-matter-art2', 'A2.2'],
-  ['subject-matter-art5', 'A5'],
-  ['subject-matter-art25', 'A25'],
-])
+export { GROUND_TO_STATUTE, STATUTE_TO_GROUND } from '../statute-grounds.ts'
