@@ -57,12 +57,12 @@ export const LEGAL_LAW_NAMES: readonly LegalLawName[] = Object.freeze([..._known
 export const _LEGAL_LAW_NAMES_SET: Set<LegalLawName> = _knownNames
 
 /**
- * Load every legal-law index file in a directory, keyed by law name.
+ * List the index files a load would parse.
  * @param baselineDir - directory override; defaults to the packaged assets.
- * @returns the baselines by law name.
- * @throws LegalLawBaselineError when the directory is unreadable, empty, or holds a malformed file.
+ * @returns the resolved directory and its `.yaml` files.
+ * @throws LegalLawBaselineError when the directory is unreadable or empty.
  */
-export function loadLegalLawBaselines(baselineDir?: string): Map<LegalLawName, LegalLawBaseline> {
+function legalLawIndexFiles(baselineDir?: string): string[] {
   const dir = legalLawBaselineDir(baselineDir)
   let files: string[]
   try {
@@ -71,6 +71,28 @@ export function loadLegalLawBaselines(baselineDir?: string): Map<LegalLawName, L
     throw new LegalLawBaselineError(`法条索引目录不可读：${dir}（${(error as Error).message}）`, dir)
   }
   if (files.length === 0) throw new LegalLawBaselineError(`法条索引目录下没有 .yaml 文件：${dir}`, dir)
+  return files
+}
+
+/**
+ * Check that the index directory exists and holds at least one file, without
+ * parsing any of them. Plugin registration uses this so a missing asset fails
+ * the deployment while the 72 MB index is parsed only when the tool runs.
+ * @param baselineDir - directory override; defaults to the packaged assets.
+ * @throws LegalLawBaselineError when the directory is unreadable or empty.
+ */
+export function assertLegalLawIndexReadable(baselineDir?: string): void {
+  legalLawIndexFiles(baselineDir)
+}
+
+/**
+ * Load every legal-law index file in a directory, keyed by law name.
+ * @param baselineDir - directory override; defaults to the packaged assets.
+ * @returns the baselines by law name.
+ * @throws LegalLawBaselineError when the directory is unreadable, empty, or holds a malformed file.
+ */
+export function loadLegalLawBaselines(baselineDir?: string): Map<LegalLawName, LegalLawBaseline> {
+  const files = legalLawIndexFiles(baselineDir)
 
   const baselines = new Map<LegalLawName, LegalLawBaseline>()
   for (const file of files) {

@@ -127,7 +127,7 @@ export const STATUTE_WEIGHTS: Record<string, number> = {
 }
 
 /** 严重度权重（上限 3）。 */
-export const SEVERITY_WEIGHTS: Record<string, number> = {
+export const SEVERITY_WEIGHTS: Record<Severity, number> = {
   'critical': 3,
   'major': 2,
   'minor': 1,

@@ -93,6 +93,10 @@ describe('parseLegalLawReference', () => {
 })
 
 describe('extractLegalLawReferences', () => {
+  it('drops an article number the numeral parser rejects', () => {
+    expect(extractLegalLawReferences('民法典第十十条')).toEqual([])
+  })
+
   it('extracts multiple references from text', () => {
     const text = '根据民法典第143条和第577条，以及劳动合同法第10条的规定'
     const refs = extractLegalLawReferences(text)

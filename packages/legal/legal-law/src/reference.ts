@@ -131,8 +131,8 @@ export function extractLegalLawReferences(text: string): LegalLawReference[] {
 
   for (const match of normalized.matchAll(STATUTE_PATTERN)) {
     const groups = match.groups as StatuteGroups
-    const lawName = STATUTE_NAMES[groups.law]
-    if (lawName === undefined) continue
+    // The pattern's alternation is built from STATUTE_NAMES, so every match names one of its keys.
+    const lawName = STATUTE_NAMES[groups.law] as LegalLawName
     const candidate = readStatuteArticleCandidate(match, groups, lawName)
     if (candidate !== null) candidates.push(candidate)
   }

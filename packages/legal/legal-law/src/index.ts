@@ -2,15 +2,16 @@
  * Function plugin registering `legal_law_verify`: citation checking against the
  * legal-law index shipped with this package.
  *
- * The index covers all laws in the `assets/legal-law/` directory and is loaded
- * at plugin load, so a missing or malformed asset fails the deployment instead
- * of silently turning the gate into a no-op.
+ * The index covers all laws in the `assets/legal-law/` directory. Plugin load
+ * checks that the directory is readable and non-empty; the YAML files are
+ * parsed on the first verification and cached, so a deployment that never runs
+ * the tool does not pay for the 7,900-file index.
  * @module @deepseek-ai/dsh-legal-law
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { loadLegalLawBaselines } from './baseline.ts'
+import { assertLegalLawIndexReadable, loadLegalLawBaselines } from './baseline.ts'
 import { createLegalLawVerifyTool } from './tool/law-verify.ts'
 import { DEFAULT_LEGAL_CITATION_POLICY } from './verify.ts'
 import { LEGAL_PROPOSITION_SUPPORT_DEFAULT } from './support.ts'
@@ -19,6 +20,7 @@ import type { LegalCitationPolicy, LegalCitationPolicySet } from './types.ts'
 // Public library API: the reference parser, the index loader, the verifier, and
 // the tool factory.
 export {
+  assertLegalLawIndexReadable,
   findLegalArticle,
   LEGAL_LAW_NAMES,
   LegalLawBaselineError,
@@ -116,7 +118,11 @@ export const Config: z<Config> = z.object({
  * @param config - index override and the per-decision citation policy.
  */
 export function apply(ctx: Context, config: Config): void {
-  const baselines = loadLegalLawBaselines(config.baselineDir)
+  // The shipped index is 7,900+ YAML files (72 MB). Validate the directory at
+  // registration, but parse it on the first verification: every Web boot mounts
+  // the shipped presets eagerly, and paying that parse per boot pushed web
+  // readiness past the profile's startup deadline.
+  assertLegalLawIndexReadable(config.baselineDir)
   const policies: LegalCitationPolicySet = {
     mismatch: config.onMismatch,
     unmatched: config.onUnmatched,
@@ -124,5 +130,9 @@ export function apply(ctx: Context, config: Config): void {
     notIndexed: config.onNotIndexed,
     unverified: config.onUnverified,
   }
-  ctx.tools.register(createLegalLawVerifyTool({ baselines, policies, supportThreshold: config.propositionSupport }))
+  ctx.tools.register(createLegalLawVerifyTool({
+    baselines: () => loadLegalLawBaselines(config.baselineDir),
+    policies,
+    supportThreshold: config.propositionSupport,
+  }))
 }

@@ -10,7 +10,6 @@
  */
 
 import {
-  articleComparableEntries,
   decideArticleCitation,
   findCompetingLabels,
   formatPercent,
@@ -302,14 +301,11 @@ function overlapIndex(baseline: LawBaseline): OverlapIndex {
  * @returns the law's articles or its guideline sections.
  */
 function comparableEntries(baseline: LawBaseline): ComparableEntry[] {
-  if (baseline.sections.length > 0) {
-    return baseline.sections.map(section => ({
-      label: section.path,
-      topics: section.topics,
-      text: transcribedText(section),
-    }))
-  }
-  return articleComparableEntries(baseline.articles)
+  return baseline.sections.map(section => ({
+    label: section.path,
+    topics: section.topics,
+    text: transcribedText(section),
+  }))
 }
 
 /** Verify one statute-article reference. */

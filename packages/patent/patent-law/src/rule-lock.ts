@@ -91,12 +91,11 @@ function inferLevel(result: ValidityResult): RuleLockLevel {
  * @returns 生效日期字符串或 null。
  */
 function extractEffectiveDate(result: ValidityResult): string | null {
-  if (result.entry !== undefined) {
-    const verifiedOn = 'verifiedOn' in result.entry ? result.entry.verifiedOn : null
-    if (verifiedOn !== null) return verifiedOn
-  }
-  if (result.revisionHistory !== undefined && result.revisionHistory.length > 0) {
-    return result.revisionHistory[result.revisionHistory.length - 1]?.effectiveDate ?? null
+  if (result.entry !== undefined && result.entry.verifiedOn !== null) return result.entry.verifiedOn
+  if (result.revisionHistory !== undefined) {
+    // buildRevisionHistory omits empty histories, so the last element exists.
+    const last = result.revisionHistory[result.revisionHistory.length - 1] as { effectiveDate: string }
+    return last.effectiveDate
   }
   return null
 }

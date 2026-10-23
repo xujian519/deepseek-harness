@@ -84,9 +84,13 @@ export type LegalLawVerifyOutput = {
   unrecognized: string[]
 }
 
-/** Injected collaborators: the loaded index and the deployment's policy. */
+/** Injected collaborators: the index and the deployment's policy. */
 export type LegalLawVerifyToolOptions = {
-  baselines: Map<LegalLawName, LegalLawBaseline>
+  /**
+   * The loaded index, or a loader that parses it on the first verification.
+   * The loader runs at most once; a throw leaves the next call free to retry.
+   */
+  baselines: Map<LegalLawName, LegalLawBaseline> | (() => Map<LegalLawName, LegalLawBaseline>)
   policies: LegalCitationPolicySet
   /** Overlap a proposition must reach before an entry's text supports it. */
   supportThreshold?: number
@@ -111,14 +115,17 @@ const DESCRIPTION = [
  * @returns the tool definition.
  */
 export function createLegalLawVerifyTool(options: LegalLawVerifyToolOptions): ToolDefinition {
-  const { baselines, policies, supportThreshold } = options
+  const { baselines: baselineSource, policies, supportThreshold } = options
+  const load = typeof baselineSource === 'function' ? baselineSource : (): Map<LegalLawName, LegalLawBaseline> => baselineSource
+  let baselines: Map<LegalLawName, LegalLawBaseline> | undefined
+  const resolveBaselines = (): Map<LegalLawName, LegalLawBaseline> => baselines ??= load()
   return defineTool(citationVerifyToolOptions({
     name: 'legal_law_verify',
     description: DESCRIPTION,
     referenceExample: '民法典第143条 / 劳动合同法第10条第2款',
     findingSchema: FINDING_SCHEMA,
     report: renderToolReport,
-    run: args => runVerify(args, baselines, policies, supportThreshold),
+    run: args => runVerify(args, resolveBaselines(), policies, supportThreshold),
   }))
 }
 

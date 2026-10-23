@@ -37,9 +37,8 @@ function extractGuidingCaseText(record: GuidingCaseRecord): string {
   return [record.caseName, record.guidingCaseNumber, record.keyPoints, record.fullText].join(' ')
 }
 
-/** Parse the related-laws column, which may be JSON, an array, or comma text. */
+/** Parse the related-laws column, which may be a JSON array, comma text, or an unrecognized value. */
 function parseRelatedLaws(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String)
   if (typeof value === 'string') {
     try {
       const parsed: unknown = JSON.parse(value)

@@ -23,9 +23,8 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-/** 安全取字符串数组。 */
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
+/** 取数组中的字符串项。 */
+function asStringArray(value: readonly unknown[]): string[] {
   return value.filter((v): v is string => typeof v === 'string')
 }
 
@@ -45,7 +44,7 @@ export function parseLegalRuleSet(yamlText: string, source: string): { ruleSet: 
   const warnings: string[] = []
   const doc = parseDocument(yamlText)
   if (doc.errors.length > 0) {
-    warnings.push(`法律证据规则 YAML 解析失败 ${source}: ${doc.errors[0]?.message ?? 'unknown'}`)
+    warnings.push(`法律证据规则 YAML 解析失败 ${source}: ${doc.errors.map(error => error.message).join('; ')}`)
     return { ruleSet: null, warnings }
   }
   const root = asRecord(doc.toJS())

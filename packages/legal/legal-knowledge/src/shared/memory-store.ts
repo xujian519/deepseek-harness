@@ -102,5 +102,5 @@ export function toVisibleMemoryHits<T extends ValidityDated>(
   limit: number,
 ): Array<T & { validity: LegalRegulationValidity; relevanceScore: number; via: 'memory' }> {
   const dated = hits.map(hit => ({ ...hit.record, relevanceScore: hit.score, via: 'memory' as const }))
-  return filterByValidity(dated, { ...options, limit })
+  return filterByValidity(dated, { ...options, limit: options.limit ?? limit })
 }

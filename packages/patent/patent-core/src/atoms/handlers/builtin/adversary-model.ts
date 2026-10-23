@@ -229,9 +229,6 @@ function mergeDisputes(
     const existing = merged.get(d.statute)
     if (existing === undefined || d.confidence >= existing.confidence) {
       merged.set(d.statute, d)
-    } else if (d.confidence === existing.confidence) {
-      // 置信度相同：合并 claims 取并集
-      existing.claims = [...new Set([...existing.claims, ...d.claims])]
     }
   }
 

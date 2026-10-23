@@ -447,7 +447,7 @@ export class RuleEngine {
       if (result.passed) continue
       const statute = statuteMap?.[result.ruleId] ?? extractStatuteFromRuleId(result.ruleId)
       const statuteWeight = STATUTE_WEIGHTS[statute] ?? 5 // 默认权重
-      const severityWeight = SEVERITY_WEIGHTS[result.severity] ?? 1
+      const severityWeight = SEVERITY_WEIGHTS[result.severity]
       const riskScore = statuteWeight * evidenceMultiplier * severityWeight
       items.push({
         id: result.ruleId,

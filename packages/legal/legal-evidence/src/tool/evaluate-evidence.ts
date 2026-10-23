@@ -209,6 +209,7 @@ function runEvaluate(
   if (evidenceId === undefined || evidenceId.trim() === '') {
     throw new EvaluateLegalEvidenceToolError('no_evidence_id', '必须提供证据 id')
   }
+  /* v8 ignore next 3 -- the parameter enum rejects an unknown type before execute runs. */
   if (evidenceType === undefined || !LEGAL_EVIDENCE_TYPES.includes(evidenceType)) {
     throw new EvaluateLegalEvidenceToolError('invalid_evidence_type', `无效的证据类型：${String(evidenceType)}`)
   }

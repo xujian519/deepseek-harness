@@ -10,6 +10,7 @@
 
 import { type DatabaseSync } from 'node:sqlite'
 import { createFtsLadder, type FtsSearchOps } from '@deepseek-ai/dsh-patent-core'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from './fts.ts'
 import { runFtsSearch } from './fts-search.ts'
 
@@ -218,13 +219,15 @@ export class SqliteFtsTable<TOptions, THit> {
   }
 
   private searchFtsWithQuery(matchQuery: string, options: TOptions, limit: number): THit[] {
-    if (!this.db) return []
     const { sql, params } = this.buildFtsQuery(options, limit)
     try {
+      /* v8 ignore next -- the ladder reaches this method only after search() saw a connection */
+      if (this.db === null) return []
       const rows = this.db.prepare(sql).all(matchQuery, ...params) as Array<Record<string, unknown>>
       return this.mapHits(rows.map(row => this.shape.toHit(row, 'fts')), options)
-    } catch {
-      // FTS 查询失败（如 MATCH 语法错误）时降级 LIKE，而不是让检索整体失败。
+    } catch (error) {
+      // FTS 查询失败（如 MATCH 语法错误）时粘性降级 LIKE，而不是让检索整体失败。
+      this.degradeFts(errorMessage(error))
       return this.searchLike(matchQuery.replace(/"/g, ''), options, limit)
     }
   }
@@ -247,7 +250,6 @@ export class SqliteFtsTable<TOptions, THit> {
   }
 
   private searchLike(keyword: string, options: TOptions, limit: number): THit[] {
-    if (!this.db) return []
     const { alias, table } = this.shape
     const pattern = likePattern(keyword)
     const { sql: filterSql, params: filterParams } = this.shape.filterClause(options, alias)
@@ -265,6 +267,8 @@ export class SqliteFtsTable<TOptions, THit> {
       limit * (this.shape.fetchFactor ?? 1),
     ]
     try {
+      /* v8 ignore next -- search() and the FTS catch reach this method only with a connection */
+      if (this.db === null) return []
       const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>
       return this.mapHits(rows.map(row => this.shape.toHit(row, 'like')), options)
     } catch {

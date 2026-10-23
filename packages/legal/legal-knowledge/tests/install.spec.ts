@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { installLegalKnowledgeDb } from '@deepseek-ai/dsh-legal-knowledge'
@@ -148,6 +148,38 @@ describe('installLegalKnowledgeDb', () => {
       db.close()
     }
     expect(logs.some(l => l.includes('已删除'))).toBe(true)
+  })
+
+  it('reports that there is no FTS5 table to drop', async () => {
+    const sourcePath = join(tempDir, 'source', 'legal.db')
+    createSourceDb(sourcePath)
+    const logs: string[] = []
+
+    await installLegalKnowledgeDb({
+      sourceDbPath: sourcePath,
+      knowledgeDir: join(tempDir, 'runtime'),
+      noFts: true,
+      log: (line) => { logs.push(line) },
+    })
+
+    expect(logs).toContain('    无 FTS5 表可删除')
+  })
+
+  it('reports an empty source and missing tables', async () => {
+    const sourcePath = join(tempDir, 'empty.db')
+    writeFileSync(sourcePath, '')
+    const logs: string[] = []
+
+    const result = await installLegalKnowledgeDb({
+      sourceDbPath: sourcePath,
+      output: join(tempDir, 'runtime', 'legal.db'),
+      noFts: true,
+      log: (line) => { logs.push(line) },
+    })
+
+    expect(result.inputBytes).toBe(0)
+    expect(logs.some(line => line.includes('（缺失）'))).toBe(true)
+    expect(logs.some(line => line.includes('-0%'))).toBe(true)
   })
 
   it('preserves FTS5 tables when noFts is false', async () => {

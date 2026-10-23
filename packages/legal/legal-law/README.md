@@ -28,7 +28,7 @@ A legal conclusion that cites 《民法典》第 143 条 is only as good as the 
 <a id="shipped-index"></a>
 ## Shipped index
 
-Each law is one YAML file under `assets/legal-law`. A file declares `law`, `document`, `revision`, `maxArticle`, `maxVerifiedOn`, `maxSource`, and an `articles` list; each entry carries `article`, optional `paragraphs`, `topics`, `text`, `sourceDoc`, and `verifiedOn`. The transcription record is all-or-nothing: a `text` requires a `sourceDoc` and a `verifiedOn`, and a source without text is a load error, so a hand-edited index cannot create the fail-open state the verifier avoids. `loadLegalLawBaselines` reads every file in the directory and fails the plugin load when the directory is unreadable, empty, or holds a malformed file; `parseLegalLawBaseline` parses one file; `findLegalArticle` looks up one article.
+Each law is one YAML file under `assets/legal-law`. A file declares `law`, `document`, `revision`, `maxArticle`, `maxVerifiedOn`, `maxSource`, and an `articles` list; each entry carries `article`, optional `paragraphs`, `topics`, `text`, `sourceDoc`, and `verifiedOn`. The transcription record is all-or-nothing: a `text` requires a `sourceDoc` and a `verifiedOn`, and a source without text is a load error, so a hand-edited index cannot create the fail-open state the verifier avoids. Plugin load checks that the directory is readable and non-empty and fails the deployment otherwise; `loadLegalLawBaselines` parses every file on the first verification, and a malformed file fails that call; `parseLegalLawBaseline` parses one file; `findLegalArticle` looks up one article.
 
 <a id="citation-decision"></a>
 ## Citation decision

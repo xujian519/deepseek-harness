@@ -86,7 +86,8 @@ export const electronicEvaluator: LegalEvidenceEvaluator = createEvaluator({
       dimension: 'authenticity',
       score,
       level: levelFor(score),
-      reasoning: reasons.length > 0 ? `电子数据真实性评估：${reasons.join('；')}` : '电子数据真实性评估：基础评分',
+      // Hash and timestamp each contribute a reason, so this list is never empty.
+      reasoning: `电子数据真实性评估：${reasons.join('；')}`,
     }
   },
 

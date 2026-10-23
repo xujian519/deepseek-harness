@@ -43,7 +43,8 @@ function rowToHit(row: Record<string, unknown>, via: LegalRegulationHit['via']):
 /** Map one SQLite row to a regulation record. */
 function rowToRecord(row: Record<string, unknown>): LegalRegulationRecord {
   const base: LegalRegulationRecord = {
-    regulationId: columnText(row.regulation_id ?? row.regulationId),
+    // findRow matches this column, so a row handed to this mapper always carries it.
+    regulationId: columnText(row.regulation_id),
     regulationName: columnText(row.regulation_name ?? row.regulationName),
     level: (row.level ?? '其他') as LegalRegulationRecord['level'],
     validity: 'unverified' as const,
