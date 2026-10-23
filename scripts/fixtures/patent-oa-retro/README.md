@@ -1,5 +1,7 @@
 # OA retro evaluation subset
 
+English | [中文](README.zh.md)
+
 `subset.jsonl` is a five-case, anonymized slice of the OA retrospective
 evaluation set used by `scripts/adversary-eval.ts`. It exists so a checkout can
 regress the dataset parser, the anonymization scan, and the (statute, claim)
