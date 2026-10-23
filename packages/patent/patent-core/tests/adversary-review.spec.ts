@@ -237,6 +237,19 @@ describe('handler execute', () => {
     expect(result.adversary_review_confidence).toBeGreaterThanOrEqual(0)
   })
 
+  it('无通知书时，证据缺口争议点使用空权项列表', async () => {
+    const handler = new AdversaryReviewHandler()
+    const result = await handler.execute({
+      state: {
+        draft: '本申请具有创造性',
+        claims: '权利要求1：一种结构',
+        reference_documents: 'D1 公开了阀体与直管加热结构',
+      },
+    })
+    const disputes = result.adversary_review_disputes as Array<{ statute: string; claims: number[] }>
+    expect(disputes.some(dispute => dispute.statute === 'A22.3' && dispute.claims.length === 0)).toBe(true)
+  })
+
   it('共享 state 含上游中间产物时，审查结果与干净 state 完全相同', async () => {
     const handler = new AdversaryReviewHandler()
     const clean = {
