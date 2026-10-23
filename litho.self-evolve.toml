@@ -1,0 +1,126 @@
+# Litho (deepwiki-rs) 配置 — DeepSeek Harness 自进化域（packages/self-evolve）
+#
+# 与根目录 litho.toml 分开：跑子目录时 [knowledge.local_docs] 的路径相对 project_path，
+# 根配置里的 docs/*.md 在这里找不到，因此改用自进化包组自己的设计文档作为外部知识。
+#
+# 运行：
+#   source ~/.zshrc
+#   deepwiki-rs -c litho.self-evolve.toml -p packages/self-evolve -o litho.docs/self-evolve \
+#     --name "DSH Self-Evolve Domain" --llm-api-key "$DEEPSEEK_API_KEY"
+#
+# CLI 的 -p/-o 优先，会覆盖本文件的 project_path/output_path。
+
+project_name = "DSH Self-Evolve Domain"
+project_path = "packages/self-evolve"
+output_path = "./litho.docs/self-evolve"
+internal_path = ".litho"
+target_language = "zh"
+
+analyze_dependencies = true
+identify_components = true
+max_depth = 10
+max_file_size = 524288
+include_tests = false
+include_hidden = false
+git_tracked_only = true
+
+excluded_dirs = [
+    ".litho",
+    "litho.docs",
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "lib",
+    "target",
+    "tmp",
+    "coverage",
+    "bin",
+    "obj",
+    ".svelte-kit",
+    "__pycache__",
+    "__tests__",
+    "__mocks__",
+    "__fixtures__",
+]
+
+excluded_files = [
+    "litho.toml",
+    "*.litho",
+    "*.log",
+    "*.tmp",
+    "*.cache",
+    "*.md",
+    "*.txt",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "Cargo.lock",
+    ".gitignore",
+    "*.tpl",
+    ".env",
+]
+
+excluded_extensions = [
+    "jpg", "jpeg", "png", "gif", "bmp", "ico",
+    "mp3", "mp4", "avi", "pdf", "zip", "tar", "exe", "dll", "so", "archive",
+]
+
+included_extensions = []
+
+[llm]
+provider = "deepseek"
+api_base_url = "https://api.deepseek.com"
+model_efficient = "deepseek-chat"
+model_powerful = "deepseek-reasoner"
+max_tokens = 8192
+temperature = 0.1
+retry_attempts = 5
+retry_delay_ms = 5000
+timeout_seconds = 600
+max_parallels = 3
+tool_concurrency = 4
+disable_preset_tools = false
+# 自进化域只有 4 个包、16 个源文件，默认轮数够用；留一点余量给架构调研 agent。
+max_turns = 300
+
+[boundary_analysis]
+code_insights_limit = 25
+include_source_code = false
+only_directories_when_files_more_than = 100
+
+[cache]
+enabled = true
+cache_dir = ".litho/cache"
+expire_hours = 8760
+
+# 知识源：包组总览 README + 设计文档（spec/tasks/检查清单）+ 各子包 README。
+# 这些是人工维护的权威描述，能显著减少模型对「自进化闭环」概念的误读。
+[knowledge.local_docs]
+enabled = true
+cache_dir = ".litho/cache/knowledge/local_docs"
+watch_for_changes = true
+
+[[knowledge.local_docs.categories]]
+name = "domain-overview"
+description = "自进化包组总览：能力接缝、四个包的职责分工"
+paths = ["README.md"]
+
+[[knowledge.local_docs.categories]]
+name = "design-docs"
+description = "设计说明、任务分解与上线检查清单"
+paths = ["spec.md", "tasks.md", "check_list.md", "launch-checklist.md"]
+target_agents = [
+    "SystemContextResearcher",
+    "ArchitectureResearcher",
+    "DomainModulesDetector",
+    "WorkflowResearcher",
+    "OverviewEditor",
+    "ArchitectureEditor",
+    "WorkflowEditor",
+]
+
+[[knowledge.local_docs.categories]]
+name = "package-contracts"
+description = "各子包的 README 契约说明"
+paths = ["*/README.md"]

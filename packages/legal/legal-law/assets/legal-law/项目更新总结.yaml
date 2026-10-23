@@ -1,0 +1,22 @@
+# 项目更新总结法条索引 — 自动生成。（处理Word文档）
+#
+# 源文件：README_UPDATE.md
+law: 项目更新总结·处理Word文档
+document: 项目更新总结 · 处理Word文档
+revision: 2020-05-28 通过
+maxArticle: 2
+maxVerifiedOn: null
+maxSource: null
+articles:
+  - article: 1
+    topics:
+      - 项目更新总结
+    text: null
+    sourceDoc: null
+    verifiedOn: null
+  - article: 2
+    topics:
+      - 项目更新总结
+    text: null
+    sourceDoc: null
+    verifiedOn: null

@@ -60,6 +60,8 @@ import {
 } from './runtime/patent-compliance.ts'
 import { formatViolation, RuleOutputGate } from './runtime/output-gate.ts'
 import { loadSynonymsAsset } from './runtime/synonym-engine.ts'
+import { loadRulePack, resolvePackDir } from './runtime/rule-pack.ts'
+import { loadRuleSetDir, mergeRuleSets } from './runtime/RuleLoader.ts'
 import {
   caseKeyOfArguments,
   deliveryEvidence,
@@ -226,6 +228,20 @@ export interface Config {
    * (patent/, base/, domains/). Omitted uses the packaged assets.
    */
   rulesDir?: string
+  /**
+   * Explicit path to a rule-pack manifest (YAML with `base`, `domains`, `overrides`).
+   * When set, `loadRulePack` replaces the default `loadPatentFullRuleSet` so
+   * non-patent domain rules (e.g. legal) can be loaded alongside the base.
+   * Omitted uses the shipped patent-full rule set.
+   */
+  manifestPath?: string
+  /**
+   * Additional domain names to load on top of the default patent-full rule set.
+   * Each name resolves to `assets/rules/domains/<name>/` (or `<rulesDir>/domains/<name>/`).
+   * Useful for presets (e.g. legal) that need the patent base plus extra domain rules
+   * without the noise of a full manifest-based load.
+   */
+  additionalRuleDomains?: string[]
   /** Tool names whose results run through the output gate. Defaults to the delivery tools. */
   gateToolNames?: string[]
   /**
@@ -271,6 +287,8 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   rulesDir: z.string(),
+  manifestPath: z.string(),
+  additionalRuleDomains: z.array(z.string()).default([]),
   gateToolNames: z.array(z.string()).default([...DEFAULT_GATE_TOOL_NAMES]),
   gateCheckTypes: z.array(z.string()).default([...DEFAULT_GATE_CHECK_TYPES]),
   structuralGate: z.array(z.object({
@@ -395,7 +413,36 @@ export function apply(ctx: Context, config: Config): void {
   const gateToolNames = new Set(config.gateToolNames ?? DEFAULT_GATE_TOOL_NAMES)
   const approvalDisabled = config.approvalDisabled === true
 
-  const { ruleSet, warnings } = loadPatentFullRuleSet(config.rulesDir)
+  // Rule loading strategy:
+  // 1. manifestPath → full loadRulePack (layered base+domains+overrides)
+  // 2. additionalRuleDomains → patent-full + extra domain dirs
+  // 3. default → patent-full only
+  let ruleSet: import('@deepseek-ai/dsh-patent-core').RuleSet
+  let warnings: string[]
+  if (config.manifestPath) {
+    const result = loadRulePack({
+      manifestPath: config.manifestPath,
+      ...(config.rulesDir !== undefined ? { rulesDir: config.rulesDir } : {}),
+    })
+    ruleSet = result.ruleSet
+    warnings = result.warnings
+  } else {
+    const base = loadPatentFullRuleSet(config.rulesDir)
+    ruleSet = base.ruleSet
+    warnings = base.warnings
+    for (const domain of config.additionalRuleDomains ?? []) {
+      const domainDir = resolvePackDir(domain, config.rulesDir)
+      if (domainDir === null) {
+        warnings.push(`附加规则域 "${domain}" 未找到，跳过`)
+        continue
+      }
+      const { ruleSets: domainSets, warnings: domainWarnings } = loadRuleSetDir(domainDir)
+      warnings.push(...domainWarnings.map(w => w.message))
+      if (domainSets.length > 0) {
+        ruleSet = mergeRuleSets([ruleSet, ...domainSets])
+      }
+    }
+  }
   const gateCheckTypes = resolveGateCheckTypes(config.gateCheckTypes ?? DEFAULT_GATE_CHECK_TYPES, warnings)
   const structuralGate: StructuralGatePlan = resolveStructuralGate(ruleSet, config.structuralGate ?? [])
   warnings.push(...structuralGate.warnings)

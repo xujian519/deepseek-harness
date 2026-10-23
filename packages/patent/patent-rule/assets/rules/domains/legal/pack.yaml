@@ -1,0 +1,5 @@
+# 法律领域规则包清单
+id: sati-rules-domain-legal
+version: 0.1.0
+domain: legal
+description: 法律模式通用合规规则（免责声明、时效检查、管辖权提示、绝对化表述回避）

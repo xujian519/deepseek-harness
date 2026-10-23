@@ -479,10 +479,16 @@ export const patentOaResponseManifest: WorkflowManifest = {
       atom: 'response-plan',
     },
     {
+      id: 'adversary-model',
+      strategy: 'chain',
+      description: '对立审查员模型：独立评估答复计划的薄弱环节（确定性骨架，完整版调用模型）',
+      atom: 'adversary-model',
+    },
+    {
       id: 'draft',
       strategy: 'chain',
-      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart 与答复计划）',
-      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan'],
+      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart、答复计划与对立检验报告）',
+      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model'],
       guidance: [
         '驳回类型对照表（先按解析结果定主策略，再逐类处理；多种类型并存时以最核心的驳回理由确定主策略）：',
         '- A-充分公开（专利法26.3）：说明书未清楚完整说明 → 举证实施例、实验数据与本领域可实现性',
@@ -501,10 +507,16 @@ export const patentOaResponseManifest: WorkflowManifest = {
       ].join('\n'),
     },
     {
+      id: 'adversary-review',
+      strategy: 'chain',
+      description: '换位重跑：从对立审查员视角评估最终意见陈述书的论证强度（确定性，不调用模型）',
+      atom: 'adversary-review',
+    },
+    {
       id: 'response_check',
       strategy: 'chain',
       description: '答复合规检查（PR-OA-007/008/009：26.3 判准落位、驳回理由覆盖、未提条款引用）',
-      atom: 'response-check',
+      consumes: ['adversary-review'],
     },
     {
       id: 'amendment_basis',

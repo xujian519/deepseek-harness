@@ -21,7 +21,9 @@ import {
 import { PROPOSITION_SUPPORT_DEFAULT } from './support.ts'
 import { createLawVerifyTool } from './tool/law-verify.ts'
 import { DEFAULT_CITATION_POLICY } from './verify.ts'
+import { ruleLockAtom, RuleLockHandler } from './rule-lock.ts'
 import type { CitationPolicy, CitationPolicySet } from './types.ts'
+import { globalAtomRegistry, globalStageHandlerRegistry } from '@deepseek-ai/dsh-patent-core'
 
 // Public library API: the reference parser, the index loader, the verifier, and
 // the tool factory.
@@ -69,6 +71,30 @@ export {
   type VerifyOptions,
 } from './verify.ts'
 export {
+  decideValidity,
+  queryValidity,
+} from './citator.ts'
+export {
+  LawLineageError,
+  loadLawLineageFile,
+  parseLawLineage,
+  queryArticleAtDate,
+  queryArticleLineage,
+  queryDiffBetween,
+  queryStatusSnapshot,
+} from './lineage.ts'
+export {
+  ruleLockAtom,
+  RuleLockHandler,
+  lockProvisions,
+  renderRuleLockReport,
+  DEFAULT_RULE_LOCK_PROVISIONS_KEY,
+  DEFAULT_RULE_LOCK_AS_OF_KEY,
+  type RuleLockEntry,
+  type RuleLockLevel,
+  type RuleLockOutput,
+} from './rule-lock.ts'
+export {
   createLawVerifyTool,
   LawVerifyToolError,
   type LawVerifyFinding,
@@ -78,6 +104,8 @@ export {
 } from './tool/law-verify.ts'
 export type {
   ArticleEntry,
+  ArticleLineage,
+  ArticleRevision,
   CitationDecision,
   CitationFinding,
   CitationPolicy,
@@ -86,11 +114,16 @@ export type {
   GuidelineVersion,
   LawArticleReference,
   LawBaseline,
+  LawLineageSnapshot,
   LawName,
   LawReference,
+  RevisionDescriptor,
   SectionEntry,
   StaleSection,
   StatuteName,
+  ValidityQuery,
+  ValidityResult,
+  ValidityState,
 } from './types.ts'
 
 /** Cordis plugin name. */
@@ -157,6 +190,9 @@ export function apply(ctx: Context, config: Config): void {
     unverified: config.onUnverified,
   }
   ctx.tools.register(createLawVerifyTool({ baselines, policies, supportThreshold: config.propositionSupport }))
+  // Register the rule-lock atom and handler into the global registries.
+  globalAtomRegistry.register(ruleLockAtom)
+  globalStageHandlerRegistry.register(new RuleLockHandler(baselines))
   // Optional injection: without a prompt registry there is no model to declare
   // the base to, and the tool stands on its own.
   ctx.inject(['systemPrompt'], (scope) => {

@@ -1,0 +1,130 @@
+# 法律领域规则包 — 通用合规规则
+# 覆盖法律模式的核心合规检查：免责声明、时效提示、管辖权说明、绝对化表述回避。
+# 规则 id 前缀 LEGAL-，与专利域（PAT-）和基础包（BASE-）命名空间隔离。
+
+version: "1.0"
+
+rules:
+  # ---------------------------------------------------------------------------
+  # 法律意见免责声明：交付件未附免责声明时 warn 提示
+  # 对齐 legal persona 铁律第 10 条与输出纪律
+  # ---------------------------------------------------------------------------
+  legal_disclaimer_missing:
+    id: LEGAL-DISC-001
+    name: 法律意见免责声明
+    domain: legal
+    phase: 输出
+    severity: major
+    action: warn
+    legalBasis: 执业规范：AI 辅助法律分析不构成正式法律意见，应附免责声明
+    check:
+      type: keyword_blocklist
+      # 否定语境（"本文件不构成法律意见"）不误报
+      negationContext: true
+      quoteImmune: true
+      keywords:
+        - "构成正式法律意见"
+        - "具有法律效力"
+        - "可直接作为法律意见"
+        - "具备法律效力"
+        - "可替代律师意见"
+        - "正式法律意见"
+
+  # ---------------------------------------------------------------------------
+  # 诉讼时效提示：涉及时效判断时须说明时效期间与起算点
+  # 对齐 legal persona 铁律第 4 条（管辖与时点）
+  # ---------------------------------------------------------------------------
+  legal_limitation_period:
+    id: LEGAL-LIMIT-001
+    name: 诉讼时效检查
+    domain: legal
+    phase: 分析
+    severity: major
+    action: warn
+    legalBasis: 《民法典》第 188 条：向人民法院请求保护民事权利的诉讼时效期间为三年
+    check:
+      type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
+      keywords:
+        - "诉讼时效已过"
+        - "超过诉讼时效"
+        - "时效届满"
+        - "诉讼时效届满"
+        - "已过时效"
+        - "时效已过"
+
+  # ---------------------------------------------------------------------------
+  # 管辖权说明：涉及诉讼/仲裁时须说明管辖法院或仲裁机构
+  # 对齐 legal persona 铁律第 4 条
+  # ---------------------------------------------------------------------------
+  legal_jurisdiction:
+    id: LEGAL-JURIS-001
+    name: 管辖权检查
+    domain: legal
+    phase: 分析
+    severity: minor
+    action: warn
+    legalBasis: 《民事诉讼法》关于管辖的规定：被告住所地、合同履行地、侵权行为地等
+    check:
+      type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
+      keywords:
+        - "应由某法院管辖"
+        - "管辖法院为"
+        - "有管辖权"
+        - "无管辖权"
+        - "专属管辖"
+
+  # ---------------------------------------------------------------------------
+  # 回避绝对化法律结论：不得使用"一定胜诉""必然败诉"等绝对化表述
+  # 对齐 legal persona 输出纪律
+  # ---------------------------------------------------------------------------
+  legal_absolute_conclusion:
+    id: LEGAL-ABS-001
+    name: 回避绝对化法律结论
+    domain: legal
+    phase: 输出
+    severity: major
+    action: warn
+    legalBasis: 法律分析不得给出确定性结果承诺，应使用限定性表述
+    check:
+      type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
+      keywords:
+        - "一定胜诉"
+        - "必然胜诉"
+        - "肯定胜诉"
+        - "一定败诉"
+        - "必然败诉"
+        - "肯定会赢"
+        - "百分之百胜诉"
+        - "稳赢"
+        - "必赢"
+        - "绝对能赢"
+
+  # ---------------------------------------------------------------------------
+  # 法条引用须注明出处：引用法条时须写明法律名称与条号
+  # 对齐 legal persona 铁律第 3 条（引用必核）
+  # ---------------------------------------------------------------------------
+  # 实验性：关键词匹配无法区分“模糊引用+后文具体条号”与“纯模糊引用”，
+  # 误报率较高；仅 log 不阻断，待引入 citation_analysis 后替换。
+  legal_citation_format:
+    id: LEGAL-CITE-001
+    name: 法条引用格式
+    domain: legal
+    phase: 输出
+    severity: minor
+    action: log
+    legalBasis: 引用规范：法条引用应注明法律名称、条号及款项
+    check:
+      type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
+      # 仅保留纯模糊引用短语；移除“按照法律规定”“根据有关法规”等
+      # 在合法具体引用中也会出现的宽泛模式，降低误报。
+      keywords:
+        - "根据相关法律规定"
+        - "依据有关规定"

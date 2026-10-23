@@ -146,8 +146,16 @@ export {
   TimeBaselineHandler,
   DisputeFramingHandler,
   DisputeFramingRefineHandler,
+  AdversaryModelHandler,
+  AdversaryReviewHandler,
+  OaParseHandler,
+  ResponsePlanHandler,
   amendmentBasisAtom,
   approvalGateAtom,
+  adversaryModelAtom,
+  adversaryReviewAtom,
+  oaParseAtom,
+  responsePlanAtom,
   checkPfeConsistency,
   citationCheckAtom,
   claimChartAtom,
@@ -177,6 +185,9 @@ export {
   refineDispute,
   scanClaimNumbers,
   scanDisputeText,
+  ADVERSARY_REVIEW_FORBIDDEN_KEYS,
+  checkAdversaryReviewIsolation,
+  extractAdversaryReviewEvent,
 } from './atoms/index.ts'
 
 // Claim-chart engine (element validation / mapping / gap / pin-cite / store).
@@ -211,6 +222,43 @@ export {
   checkClaimUnity,
   checkEmbodimentCoverage,
 } from './claim-coverage/index.ts'
+
+// Adversary model: independent evaluation of response plans from an opposing examiner's perspective.
+export type * from './adversary/index.ts'
+export {
+  FORBIDDEN_KEYS,
+  FORBIDDEN_OUTPUT_TERMS,
+  GROUND_TO_STATUTE,
+  STATUTE_TO_GROUND,
+  assessEvidenceIndependent,
+  buildAdversaryPrompt,
+  buildAdversaryReport,
+  checkInputIsolation,
+  computeOverallConfidence,
+  degradedSummary,
+  detectDivergence,
+  locateDisputesIndependent,
+  parseAdversaryOutput,
+  renderAdversaryReport,
+  scanOutputForLeaks,
+} from './adversary/index.ts'
+
+// Adversary review: evaluation of final opinion statements from an opposing examiner's perspective.
+export type {
+  AdversaryReviewReport,
+  AdversaryReviewInput,
+  AdversaryReviewOfficeAction,
+} from './adversary/review.ts'
+export {
+  reviewFinalDraft,
+  detectMissedRejections,
+  detectEvidenceGaps,
+  detectClaimsCoverage,
+  identifyReviewDisputes,
+  assessArgumentStrength,
+  computeReviewConfidence,
+  buildReviewSummary,
+} from './adversary/review.ts'
 
 // Patent analysis product contract + deterministic aggregator (Athena-inspired report).
 export type * from './analysis-report/index.ts'
@@ -286,6 +334,8 @@ export {
   TERM_TECH_HINT,
   TERM_TECH_SOLUTION,
   TERM_USE_LIMIT,
+  SEVERITY_WEIGHTS,
+  STATUTE_WEIGHTS,
   aggregate,
   formatRuleResults,
   matchKeyword,

@@ -1,0 +1,22 @@
+# 某条法律的标题法条索引 — 自动生成。
+#
+# 源文件：法律法规模版.md
+law: 某条法律的标题
+document: 某条法律的标题
+revision: null
+maxArticle: 2
+maxVerifiedOn: null
+maxSource: null
+articles:
+  - article: 1
+    topics:
+      - 某条法律的标题
+    text: null
+    sourceDoc: null
+    verifiedOn: null
+  - article: 2
+    topics:
+      - 某条法律的标题
+    text: null
+    sourceDoc: null
+    verifiedOn: null

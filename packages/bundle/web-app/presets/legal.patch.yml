@@ -62,6 +62,7 @@
 
                 ## 检索（元典与 ego lite）
                 - 先看工具清单：有 `mcp__yuandian__*` 时优先用元典检索法规、案例、企业与证券数据；没有时走 ego lite，不要假设可用。元典结果只作线索，引用前回到官方法源原文。
+                - **法条检索优先，案例检索补充。** 任何检索先锁定适用的法律法规条文并确认现行有效版本，再以案例佐证法条适用方式或补充裁判观点。法条是结论的必要依据，案例是说服性辅助——不可颠倒。
                 - ego lite 用法：用 `tool-bash` 运行 `ego-browser nodejs`，按 `legal-research` 技能的快照与抓取流程操作。
                 - 法源优先级：国家法律法规数据库、中国政府网、最高人民法院、最高人民检察院、地方人大/政府/法院官网、仲裁机构官网；北大法宝、威科、元典只作线索与交叉定位，引用前回到官方原文。
                 - web_fetch 只作静态兜底：ego 不可用、页面无需登录且是公开静态文本时使用。web_search 已关闭；不要用搜索摘要代替原文。
@@ -274,6 +275,97 @@
 
               - id: tool-workflow
                 name: '@deepseek-ai/dsh-tool-workflow'
+
+          # ── legal rule engine ──────────────────────────────────────────────────────
+
+          # dsh-patent-rule：规则引擎与输出门禁。在专利域已验证的 CheckRule 体系
+          # 挂载到法律模式，为交付件提供规则检查（rule_check）与输出合规守卫。
+          # 服务（patentRuleGate）需要独立的 isolate realm。
+          #
+          # 规则加载策略：不使用 manifestPath（那会走 loadRulePack 分层清单路径，
+          # 需要单独的 pack.yaml 入口），而是用 additionalRuleDomains 在专利全量
+          # 规则之上叠加法律域规则。引擎启动时：
+          #   1. loadPatentFullRuleSet() 加载专利基础规则集
+          #   2. resolvePackDir('legal') 定位 assets/rules/domains/legal/
+          #   3. loadRuleSetDir() 加载该目录下 compliance.yaml 中的 5 条 LEGAL-* 规则
+          #   4. mergeRuleSets() 合并到规则引擎
+          # gateToolNames 指定哪些工具的输出触发门禁检查。
+          - id: legal-rule
+            name: cordis:group
+            group: true
+            isolate:
+              patentRuleGate: true
+            config:
+              - id: patent-rule
+                name: '@deepseek-ai/dsh-patent-rule'
+                config:
+                  # 法律模式交付工具：doc-template 渲染与 document-deliver 登记。
+                  # 不纳入专利域的 draft_claims 等，法律模式有自己的交付链路。
+                  gateToolNames:
+                    - tool-document-deliver
+                    - render_doc_template
+                    - legal_law_verify
+                  # 在专利全量规则之上叠加法律域合规规则（domains/legal/compliance.yaml）。
+                  # 引擎经 resolvePackDir('legal') 定位到 assets/rules/domains/legal/，
+                  # 再经 loadRuleSetDir 加载该目录下所有 .yaml 规则文件（跳过 pack.yaml）。
+                  additionalRuleDomains:
+                    - legal
+                  # 交付前置门禁：tool-document-deliver 在本会话内必须先跑过 rule_check
+                  # 与 legal_law_verify 并留下成功记录；未满足即拒绝该次调用，使缺闸门
+                  # 证据的交付件不落盘。格式与 patent preset 的 deliveryGate 对齐。
+                  deliveryGate:
+                    - tool: tool-document-deliver
+                      requires: [rule_check, legal_law_verify]
+                      evidence:
+                        rule_check:
+                          - field: evaluated
+                            minItems: 1
+
+          # ── legal law index ──────────────────────────────────────────────────────
+
+          # dsh-legal-law：法条索引加载与引用核验。加载随包 YAML 法条索引（《民法典》
+          # 《民事诉讼法》《劳动合同法》《公司法》），提供 legal_law_verify 工具，
+          # 对文本中的法条引用做逐条核验（存在性、转录状态、命题匹配）。
+          # gateToolNames 使 document-deliver 的输出先过 legal_law_verify。
+          - id: legal-law-index
+            name: cordis:group
+            group: true
+            isolate:
+              legalLawIndex: true
+            config:
+              - id: legal-law
+                name: '@deepseek-ai/dsh-legal-law'
+                config:
+                  onMismatch: block
+                  onUnmatched: warn
+
+          # ── legal knowledge ────────────────────────────────────────────────────
+
+          # dsh-legal-knowledge：法律知识库查询。提供案例检索、法规检索、司法解释
+          # 检索与指导案例查询。Phase 2 使用内存存储，后续接入 SQLite FTS5。
+          - id: legal-knowledge-index
+            name: cordis:group
+            group: true
+            isolate:
+              legalKnowledge: true
+            config:
+              - id: legal-knowledge
+                name: '@deepseek-ai/dsh-legal-knowledge'
+
+          # ── legal evidence ────────────────────────────────────────────────────────
+
+          # dsh-legal-evidence：法律域证据三性判定。按《民事诉讼法》第 66 条八类
+          # 法定证据（当事人陈述、书证、物证、视听资料、电子数据、证人证言、
+          # 鉴定意见、勘验笔录）做关联性、合法性、真实性评分。提供 evaluate_legal_evidence
+          # 工具，确定性评分（无模型调用），权重可经 YAML 资产配置。
+          - id: legal-evidence
+            name: cordis:group
+            group: true
+            isolate:
+              legalEvidence: true
+            config:
+              - id: legal-evidence
+                name: '@deepseek-ai/dsh-legal-evidence'
 
           # ── remaining model-facing rows ─────────────────────────────────────────────
 

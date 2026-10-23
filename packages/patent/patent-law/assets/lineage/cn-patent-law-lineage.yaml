@@ -1,0 +1,1185 @@
+# 《专利法》法条沿革快照 — 随包资产。
+#
+# 记录每条法条跨修订版本的沿革数据。覆盖 1984 年原始文本、1992 年第一次修正、
+# 2000 年第二次修正、2008 年第三次修正与 2020 年第四次修正五个版本。
+# 1984 与 1992 年版本的条文文本尚未逐条核验，标记为 unverified。
+#
+# 条号体系：按 2020 年修正编号。2000→2020 的条号映射见末尾的映射注释段。
+#
+# 数据来源：2000 年修正版全文来自北大法宝；2020 年修正版为官方全文。
+# 1984 年原始文本与 1992 年第一次修正版文本待后续转录核验。
+
+law: 专利法
+document: 中华人民共和国专利法
+lineageVersion: "1.0.0"
+
+revisions:
+  - id: "1984-original"
+    label: "1984 年原始文本"
+    effectiveDate: "1985-04-01"
+    source: "第六届全国人民代表大会常务委员会第四次会议通过"
+  - id: "1992-amendment"
+    label: "1992 年第一次修正"
+    effectiveDate: "1993-01-01"
+    source: "第七届全国人民代表大会常务委员会第二十七次会议"
+  - id: "2000-amendment"
+    label: "2000 年第二次修正"
+    effectiveDate: "2001-07-01"
+    source: "第九届全国人民代表大会常务委员会第十七次会议"
+  - id: "2008-amendment"
+    label: "2008 年第三次修正"
+    effectiveDate: "2009-10-01"
+    source: "第十一届全国人民代表大会常务委员会第六次会议"
+  - id: "2020-amendment"
+    label: "2020 年第四次修正"
+    effectiveDate: "2021-06-01"
+    source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+
+articles:
+  - articleId: 2
+    title: "发明创造定义"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "本法所称的发明创造是指发明、实用新型和外观设计。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 5
+    title: "违反法律不授予专利权"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "对违反国家法律、社会公德或者妨害公共利益的发明创造，不授予专利权。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 6
+    title: "职务发明创造"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          执行本单位的任务或者主要是利用本单位的物质技术条件所完成的发明创造为职务发明创造。职务发明创造申请专利的权利属于该单位；申请被批准后，该单位为专利权人。
+          非职务发明创造，申请专利的权利属于发明人或者设计人；申请被批准后，该发明人或者设计人为专利权人。
+          利用本单位的物质技术条件所完成的发明创造，单位与发明人或者设计人订有合同，对申请专利的权利和专利权的归属作出约定的，从其约定。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 9
+    title: "先申请原则"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "两个以上的申请人分别就同样的发明创造申请专利的，专利权授予最先申请的人。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 10
+    title: "专利申请权转让"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          专利申请权和专利权可以转让。
+          中国单位或者个人向外国人转让专利申请权或者专利权的，必须经国务院有关主管部门批准。
+          转让专利申请权或者专利权的，当事人应当订立书面合同，并向国务院专利行政部门登记，由国务院专利行政部门予以公告。专利申请权或者专利权的转让自登记之日起生效。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 11
+    title: "专利权效力"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          发明和实用新型专利权被授予后，除本法另有规定的以外，任何单位或者个人未经专利权人许可，都不得实施其专利，即不得为生产经营目的制造、使用、许诺销售、销售、进口其专利产品，或者使用其专利方法以及使用、许诺销售、销售、进口依照该专利方法直接获得的产品。
+          外观设计专利权被授予后，任何单位或者个人未经专利权人许可，都不得实施其专利，即不得为生产经营目的制造、销售、进口其外观设计专利产品。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 13
+    title: "临时保护"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "发明专利申请公布后，申请人可以要求实施其发明的单位或者个人支付适当的费用。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 22
+    title: "新颖性创造性实用性"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          授予专利权的发明和实用新型，应当具备新颖性、创造性和实用性。
+          新颖性，是指在申请日以前没有同样的发明或者实用新型在国内外出版物上公开发表过、在国内公开使用过或者以其他方式为公众所知，也没有同样的发明或者实用新型由他人向国务院专利行政部门提出过申请并且记载在申请日以后公布的专利申请文件中。
+          创造性，是指同申请日以前已有的技术相比，该发明有突出的实质性特点和显著的进步，该实用新型有实质性特点和进步。
+          实用性，是指该发明或者实用新型能够制造或者使用，并且能够产生积极效果。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 23
+    title: "外观设计授权条件"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "授予专利权的外观设计，应当同申请日以前在国内外出版物上公开发表过或者国内公开使用过的外观设计不相同和不相近似，并不得与他人在先取得的合法权利相冲突。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 24
+    title: "宽限期"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          申请专利的发明创造在申请日以前六个月内，有下列情形之一的，不丧失新颖性：
+          （一）在中国政府主办或者承认的国际展览会上首次展出的；
+          （二）在规定的学术会议或者技术会议上首次发表的；
+          （三）他人未经申请人同意而泄露其内容的。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 25
+    title: "不授予专利权"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          对下列各项，不授予专利权：
+          （一）科学发现；
+          （二）智力活动的规则和方法；
+          （三）疾病的诊断和治疗方法；
+          （四）动物和植物品种；
+          （五）用原子核变换方法获得的物质。
+          对前款第（四）项所列产品的生产方法，可以依照本法规定授予专利权。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 26
+    title: "充分公开"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          申请发明或者实用新型专利的，应当提交请求书、说明书及其摘要和权利要求书等文件。
+          请求书应当写明发明或者实用新型的名称，发明人或者设计人的姓名，申请人姓名或者名称、地址，以及其他事项。
+          说明书应当对发明或者实用新型作出清楚、完整的说明，以所属技术领域的技术人员能够实现为准；必要的时候，应当有附图。摘要应当简要说明发明或者实用新型的技术要点。
+          权利要求书应当以说明书为依据，说明要求专利保护的范围。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 27
+    title: "外观设计申请文件"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "申请外观设计专利的，应当提交请求书以及该外观设计的图片或者照片等文件，并且应当写明使用该外观设计的产品及其所属的类别。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 29
+    title: "优先权"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          申请人自发明或者实用新型在外国第一次提出专利申请之日起十二个月内，或者自外观设计在外国第一次提出专利申请之日起六个月内，又在中国就相同主题提出专利申请的，依照该外国同中国签订的协议或者共同参加的国际条约，或者依照相互承认优先权的原则，可以享有优先权。
+          申请人自发明或者实用新型在中国第一次提出专利申请之日起十二个月内，又向国务院专利行政部门就相同主题提出专利申请的，可以享有优先权。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 30
+    title: "优先权书面声明"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "申请人要求优先权的，应当在申请的时候提出书面声明，并且在三个月内提交第一次提出的专利申请文件的副本；未提出书面声明或者逾期未提交专利申请文件副本的，视为未要求优先权。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 31
+    title: "单一性"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          一件发明或者实用新型专利申请应当限于一项发明或者实用新型。属于一个总的发明构思的两项以上的发明或者实用新型，可以作为一件申请提出。
+          一件外观设计专利申请应当限于一种产品所使用的一项外观设计。用于同一类别并且成套出售或者使用的产品的两项以上的外观设计，可以作为一件申请提出。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 32
+    title: "撤回"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "申请人可以在被授予专利权之前随时撤回其专利申请。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 33
+    title: "修改范围"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "申请人可以对其专利申请文件进行修改，但是，对发明和实用新型专利申请文件的修改不得超出原说明书和权利要求书记载的范围，对外观设计专利申请文件的修改不得超出原图片或者照片表示的范围。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 34
+    title: "公布"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "国务院专利行政部门收到发明专利申请后，经初步审查认为符合本法要求的，自申请日起满十八个月，即行公布。国务院专利行政部门可以根据申请人的请求早日公布其申请。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 35
+    title: "实质审查请求"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          发明专利申请自申请日起三年内，国务院专利行政部门可以根据申请人随时提出的请求，对其申请进行实质审查；申请人无正当理由逾期不请求实质审查的，该申请即被视为撤回。
+          国务院专利行政部门认为必要的时候，可以自行对发明专利申请进行实质审查。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 36
+    title: "参考资料"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          发明专利的申请人请求实质审查的时候，应当提交在申请日前与其发明有关的参考资料。
+          发明专利已经在外国提出过申请的，国务院专利行政部门可以要求申请人在指定期限内提交该国为审查其申请进行检索的资料或者审查结果的资料；无正当理由逾期不提交的，该申请即被视为撤回。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 37
+    title: "陈述意见"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "国务院专利行政部门对发明专利申请进行实质审查后，认为不符合本法规定的，应当通知申请人，要求其在指定的期限内陈述意见，或者对其申请进行修改；无正当理由逾期不答复的，该申请即被视为撤回。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 38
+    title: "驳回"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "发明专利申请经申请人陈述意见或者进行修改后，国务院专利行政部门仍然认为不符合本法规定的，应当予以驳回。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 39
+    title: "发明专利权授予"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "发明专利申请经实质审查没有发现驳回理由的，由国务院专利行政部门作出授予发明专利权的决定，发给发明专利证书，同时予以登记和公告。发明专利权自公告之日起生效。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 40
+    title: "实用新型外观设计专利权授予"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "实用新型和外观设计专利申请经初步审查没有发现驳回理由的，由国务院专利行政部门作出授予实用新型专利权或者外观设计专利权的决定，发给相应的专利证书，同时予以登记和公告。实用新型专利权和外观设计专利权自公告之日起生效。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 41
+    title: "复审与起诉"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          国务院专利行政部门设立专利复审委员会。专利申请人对国务院专利行政部门驳回申请的决定不服的，可以自收到通知之日起三个月内，向专利复审委员会请求复审。专利复审委员会复审后，作出决定，并通知专利申请人。
+          专利申请人对专利复审委员会的复审决定不服的，可以自收到通知之日起三个月内向人民法院起诉。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 42
+    title: "保护期限"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "发明专利权的期限为二十年，实用新型专利权和外观设计专利权的期限为十年，均自申请日起计算。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 43
+    title: "年费"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "专利权人应当自被授予专利权的当年开始缴纳年费。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 44
+    title: "专利权终止"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          有下列情形之一的，专利权在期限届满前终止：
+          （一）没有按照规定缴纳年费的；
+          （二）专利权人以书面声明放弃其专利权的。
+          专利权在期限届满前终止的，由国务院专利行政部门登记和公告。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 45
+    title: "无效宣告请求"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: "自国务院专利行政部门公告授予专利权之日起，任何单位或者个人认为该专利权的授予不符合本法有关规定的，可以请求专利复审委员会宣告该专利权无效。"
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 46
+    title: "无效宣告审查决定"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          专利复审委员会对宣告专利权无效的请求应当及时审查和作出决定，并通知请求人和专利权人。宣告专利权无效的决定，由国务院专利行政部门登记和公告。
+          对专利复审委员会宣告专利权无效或者维持专利权的决定不服的，可以自收到通知之日起三个月内向人民法院起诉。人民法院应当通知无效宣告请求程序的对方当事人作为第三人参加诉讼。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 47
+    title: "无效宣告效力"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          宣告无效的专利权视为自始即不存在。
+          宣告专利权无效的决定，对在宣告专利权无效前人民法院作出并已执行的专利侵权的判决、裁定，已经履行或者强制执行的专利侵权纠纷处理决定，以及已经履行的专利实施许可合同和专利权转让合同，不具有追溯力。但是因专利权人的恶意给他人造成的损失，应当给予赔偿。
+          如果依照前款规定，专利权人或者专利权转让人不向被许可实施专利人或者专利权受让人返还专利使用费或者专利权转让费，明显违反公平原则，专利权人或者专利权转让人应当向被许可实施专利人或者专利权受让人返还全部或者部分专利使用费或者专利权转让费。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 62
+    title: "强制许可使用费"
+    currentStatus: unverified
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: null
+        changed: false
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 67
+    title: "现有技术抗辩"
+    currentStatus: unverified
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: null
+        changed: false
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 71
+    title: "损害赔偿"
+    currentStatus: unverified
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: null
+        changed: false
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 75
+    title: "不视为侵权"
+    currentStatus: active
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: |
+          有下列情形之一的，不视为侵犯专利权：
+          （一）专利权人制造、进口或者经专利权人许可而制造、进口的专利产品或者依照专利方法直接获得的产品售出后，使用、许诺销售或者销售该产品的；
+          （二）在专利申请日前已经制造相同产品、使用相同方法或者已经作好制造、使用的必要准备，并且仅在原有范围内继续制造、使用的；
+          （三）临时通过中国领陆、领水、领空的外国运输工具，依照其所属国同中国签订的协议或者共同参加的国际条约，或者依照互惠原则，为运输工具自身需要而在其装置和设备中使用有关专利的；
+          （四）专为科学研究和实验而使用有关专利的。
+          为生产经营目的使用或者销售不知道是未经专利权人许可而制造并售出的专利产品或者依照专利方法直接获得的产品，能证明其产品合法来源的，不承担赔偿责任。
+        changed: true
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+  - articleId: 77
+    title: "合法来源抗辩"
+    currentStatus: unverified
+    revisionHistory:
+      - revision: "1984-original"
+        effectiveDate: "1985-04-01"
+        text: null
+        changed: false
+        source: "第六届全国人民代表大会常务委员会第四次会议通过"
+      - revision: "1992-amendment"
+        effectiveDate: "1993-01-01"
+        text: null
+        changed: false
+        source: "第七届全国人民代表大会常务委员会第二十七次会议"
+      - revision: "2000-amendment"
+        effectiveDate: "2001-07-01"
+        text: null
+        changed: false
+        source: "第九届全国人民代表大会常务委员会第十七次会议"
+      - revision: "2008-amendment"
+        effectiveDate: "2009-10-01"
+        text: null
+        changed: false
+        source: "第十一届全国人民代表大会常务委员会第六次会议"
+      - revision: "2020-amendment"
+        effectiveDate: "2021-06-01"
+        text: null
+        changed: false
+        source: "第十三届全国人民代表大会常务委员会第二十二次会议"
+
+# ─── 条号映射表 ─────────────────────────────────────────────────────────────
+#
+# 2000→2020 条号映射（2000 年版 69 条 → 2020 年版 79+ 条）：
+#   第 1-47 条：编号不变（1→1, 2→2, ..., 47→47）
+#   第 48-62 条：编号不变（强制许可与保护章节前段）
+#   2000:63→2020:75（不视为侵权，主体部分）
+#   2000:63 末款→2020:77（合法来源抗辩，2008 年单列）
+#   2000:64→2020:76  2000:65→2020:77  2000:66→2020:78
+#   2000:67→2020:79  2000:68→2020:80  2000:69→2020:81
+#   已删除：2000:7,8（非职务发明压制禁止）, 2000:12（许可合同）
+#          2000:14,15（公益推广、专利号标记）, 2000:17（署名权）
+#          2000:18-21（涉外委托、代理机构、审查要求）, 2000:28（申请日）
+#
+# 2020 年版新增条文（2000 年版不存在）：
+#   2020:63-66（现有技术抗辩等）, 2020:68-74（部分新增条款）
+#
+# 已确认的跨版本映射：
+#   2000:56→2008:59→2020:64（保护范围）
+#   2000:57→2008:60→2020:65（纠纷解决）
+#   2000:62→2020:62（诉讼时效，编号未变）
+#   2000:63→2008:69→2020:75（不视为侵权）
