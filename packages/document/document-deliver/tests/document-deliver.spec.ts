@@ -500,6 +500,20 @@ describe('document_deliver deterministic checks', () => {
     expect(unreadable.value.gate.checks[0]?.reason).toBeDefined()
   })
 
+  it('pairs an ack with its file across spellings', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'broken.docx')
+    await writeFile(path, 'not a zip package')
+    const result = await register(ctx, {
+      files: [{ path, format: 'docx' }],
+      gate: { p0: P0_IDS },
+      unreadable_ack: [{ path: `${temp}/./broken.docx`, reason_text: '历史归档件' }],
+    })
+    // The declaration and the ack resolve to the same target.
+    expect(result.value.gate.checks[0]?.ack).toBe('历史归档件')
+  })
+
   it('refuses an unreadable DOCX that declares no reason, naming the structure and the fix', async () => {
     const ctx = await mounted()
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
@@ -627,6 +641,7 @@ describe('document_deliver deterministic checks', () => {
         checks: [
           {
             path: 'a.md',
+            resolvedPath: '/ws/a.md',
             format: 'markdown',
             status: 'checked',
             findings: [

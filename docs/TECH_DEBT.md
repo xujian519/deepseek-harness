@@ -360,11 +360,12 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | --- | --- |
 | `structure.long-functions` | 187 |
 | `structure.large-files` | 77 |
-| `lint.v8-ignore` | 1267 |
+| `lint.v8-ignore` | 1268 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
 
+- **2026-10-24 文档交付物身份**:`lint.v8-ignore` 由 1267 升至 **1268**;`document_deliver` 的 ack 归一化先把全部声明与 ack 路径写入 canonical map,回调的 `?? path` 因而不可达,补一处带理由的豁免;其余新增分支由用例覆盖。
 - **2026-10-24 legal 审查修复**:`lint.v8-ignore` 由 1268 降至 **1267**;legal-evidence 的 `evidenceType` 由参数 schema 的 `required` 与 `enum` 保证,删除不可达的类型守卫及其豁免;其余计数不变。
 - **2026-10-23 legal 七步法合并**:`structure.long-functions` 由 186 升至 **187**;按当前 shipped sources 重新实测后更新,其余计数不变。
 - **2026-10-23 legal/patent 覆盖率收口**:`lint.v8-ignore` 由 1265 升至 **1268**;legal-evidence 的工具参数枚举在 `execute` 前已拒绝未知类型、legal-knowledge 的 SQLite 私有查询只由已连接实例进入,三处类型不变量守卫补带理由的豁免;其余新增分支由用例覆盖。

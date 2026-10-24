@@ -685,10 +685,10 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
         canonical.set(file.path, target.displayPath)
       }
       for (const ack of spec.unreadableAck ?? []) {
-        if (canonical.has(ack.path)) continue
         const target = await resolveTarget(ctx, exec, ack.path)
         canonical.set(ack.path, target.displayPath)
       }
+      /* v8 ignore next -- every report and ack path is inserted above */
       const readable = resolveUnreadableReports(spec, checks, path => canonical.get(path) ?? path)
       warnings.push(...readable.warnings)
       return toResult(spec, readable.reports, style, warnings)

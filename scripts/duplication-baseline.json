@@ -6,7 +6,6 @@
     "packages/document/doc-style/src/parse.ts|packages/document/doc-template/src/frontmatter.ts",
     "packages/document/doc-template/src/store.ts|packages/document/doc-template/src/tool/render-doc-template.ts",
     "packages/document/doc-template/src/tool/list-doc-templates.ts|packages/document/doc-template/src/types.ts",
-    "packages/document/document-deliver/src/tool.ts|packages/document/document-deliver/src/tool.ts",
     "packages/patent/methodology/src/tool/triz.ts|packages/patent/methodology/src/tool/triz.ts",
     "packages/patent/patent-core/src/adversary/dispute.ts|packages/patent/patent-core/src/adversary/dispute.ts",
     "packages/patent/patent-core/src/adversary/report.ts|packages/patent/patent-core/src/adversary/report.ts",
