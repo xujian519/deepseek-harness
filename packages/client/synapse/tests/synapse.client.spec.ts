@@ -230,6 +230,15 @@ function mountTabRow(box: TabRowBox): HTMLElement {
   return row
 }
 
+/** Mount the Session surface (`data-conversation-session`) the blank-Session fallback uses. */
+function mountSessionContent(box: TabRowBox): HTMLElement {
+  const content = document.createElement('div')
+  content.setAttribute('data-conversation-session', 's-1')
+  content.getBoundingClientRect = () => tabRowRect(box)
+  document.body.append(content)
+  return content
+}
+
 /** Give the switch a laid-out box, which jsdom reports as zero for every element. */
 function stubSwitchBox(width: number, height: number): void {
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(width)
@@ -565,16 +574,51 @@ describe('synapse switch placement', () => {
 
   it('parks below the header on a blank Session without a tab row', () => {
     stubSwitchBox(150, 36)
-    const content = document.createElement('div')
-    content.setAttribute('data-conversation-session', 's-1')
-    content.getBoundingClientRect = () => tabRowRect({ top: 40, right: 792, width: 512, height: 960 })
-    document.body.append(content)
+    mountSessionContent({ top: 40, right: 792, width: 512, height: 960 })
 
     boot()
 
     expect(switchBox().style.left).toBe('642px')
     expect(switchBox().style.top).toBe('80px')
     expect(switchBox().style.right).toBe('auto')
+  })
+
+  it('re-observes a replaced Session surface and releases one that unmounts', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      stubSwitchBox(150, 36)
+      FakeResizeObserver.instances.length = 0
+      vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+      const first = mountSessionContent({ top: 40, right: 792, width: 512, height: 960 })
+      boot()
+      const observer = FakeResizeObserver.instances[0]!
+      expect(observer.observed.has(first)).toBe(true)
+
+      // The Session view replaces its surface node; the next placement stops
+      // watching the detached node and follows the replacement.
+      const second = mountSessionContent({ top: 40, right: 900, width: 600, height: 960 })
+      first.remove()
+      window.dispatchEvent(new Event('resize'))
+      flushFrames()
+      expect(observer.observed.has(first)).toBe(false)
+      expect(observer.observed.has(second)).toBe(true)
+      expect(switchBox().style.left).toBe('750px')
+
+      // Without any Session surface the transient retry expires, the switch
+      // returns to the stylesheet corner, and the detached node is released.
+      second.remove()
+      window.dispatchEvent(new Event('resize'))
+      flushFrames()
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        flushFrames()
+        vi.advanceTimersByTime(50)
+      }
+      flushFrames()
+      expect(observer.observed.has(second)).toBe(false)
+      expect(switchBox().style.left).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps its placement while the row is replaced between frames', () => {
