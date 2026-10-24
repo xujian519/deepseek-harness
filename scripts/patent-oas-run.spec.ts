@@ -9,7 +9,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
   GATE_FILE,
   PATENT_OAS_EXAMPLE_DIR,
@@ -52,6 +52,7 @@ import {
   type RunCallUsage,
   type RunPricing,
 } from './patent-oas-run-core.ts'
+import { main as runCapture } from './run-patent-oas.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const exampleDir = resolve(root, PATENT_OAS_EXAMPLE_DIR)
@@ -415,6 +416,21 @@ describe('编排', () => {
     const multi = formatRunPlan(planRun({ space, gold }), 'headless')
     expect(multi).toContain('oa-answer:6×2轮')
     expect(multi).toContain('共 5 轮 = 32 次 agent 调用')
+  })
+
+  it('--dry-run 打印计划、总预算与单次调用上限', async () => {
+    const lines: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+      lines.push(String(line))
+    })
+    try {
+      expect(await runCapture(['--dry-run', '--runs', '2', '--timeout-ms', '1000', '--budget-ms', '2000'])).toBe(0)
+    } finally {
+      log.mockRestore()
+    }
+    const output = lines.join('\n')
+    expect(output).toContain('计划 4 case × 2 次运行')
+    expect(output).toContain('总预算 2000ms,单次调用上限 1000ms')
   })
 
   it('每次运行的执行者拿到私有的 agent state 副本', async () => {

@@ -55,7 +55,13 @@ const exampleDir = resolve(root, PATENT_OAS_EXAMPLE_DIR)
 const dshBinPath = resolve(root, 'apps/cli/src/bin.ts')
 const tsxImport = 'tsx/esm'
 
-async function main(args: string[]): Promise<number> {
+/**
+ * 解析命令行并执行一次采集;`--dry-run` 只打印计划。
+ *
+ * @param args 命令行参数(不含 `node` 与脚本路径)。
+ * @returns 进程退出码:成功或跳过为 0,未过门槛或设置不可比为 1。
+ */
+export async function main(args: string[]): Promise<number> {
   const stamp = new Date().toISOString().replaceAll(':', '-')
   const options = parseRunnerOptions(args, { root, cwd: process.cwd(), stamp })
   const gold = await loadGold(exampleDir)
@@ -69,7 +75,10 @@ async function main(args: string[]): Promise<number> {
   })
   console.log(formatRunPlan(plan, options.profile))
   if (options.dryRun) {
-    console.log(`run-patent-oas: --dry-run 只打印计划,未做任何模型调用;产物会落在 ${options.workDir},记录写出到 ${options.outPath}`)
+    console.log(
+      `run-patent-oas: 总预算 ${options.budgetMs}ms,单次调用上限 ${options.timeoutMs}ms;--dry-run 只打印计划,`
+      + `未做任何模型调用;产物会落在 ${options.workDir},记录写出到 ${options.outPath}`,
+    )
     return 0
   }
   if (isOutsideRoot(root, config.baselinePath)) {
