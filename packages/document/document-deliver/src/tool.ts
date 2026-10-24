@@ -1,16 +1,17 @@
 /**
  * The `document_deliver` tool: the document agent's structured deliverable
- * registration. The model calls it after the quality gate passes; the call's
- * arguments are session-logged, so the GUI derives the deliverable list
- * (paths, formats, gate state) without a new session event type. The tool
- * itself validates, checks, and confirms — it writes no file and touches no
- * persistence outside the normal tool/result log.
+ * registration. The model calls it after its own quality-gate checks pass; the
+ * call's arguments are session-logged, so the GUI derives the deliverable list
+ * (paths, formats, claimed gate state) without a new session event type. The
+ * tool itself validates, checks, and confirms — it writes no file and touches
+ * no persistence outside the normal tool/result log.
  *
  * The model declares which quality checks it ran; the tool reads the delivered
  * bytes and reports its own deterministic findings beside that declaration
- * (see `./checks.ts`). A finding the checker rates `block` throws instead of
- * registering, so a deliverable that still carries an unfilled variable never
- * reaches the registration path on the model's word alone.
+ * (see `./checks.ts`), without verifying the declaration itself. A finding the
+ * checker rates `block` throws instead of registering, so a deliverable that
+ * still carries an unfilled variable never reaches the registration path on the
+ * model's word alone.
  *
  * Registration holds the declaration too, because a declaration is what a
  * consumer reads back. A path whose extension contradicts the declared format
@@ -70,11 +71,15 @@ export interface DeliverFileInput {
   format: DeliverableFormat
 }
 
-/** The quality-gate outcome for one registration. */
+/** The model's quality-gate self-report for one registration. */
 export interface DeliverGateInput {
-  /** Verified P0 checklist ids (see {@link P0_CHECKLIST}); P0 non-passing may not be delivered. */
+  /**
+   * P0 checklist ids the model reports as passed (see {@link P0_CHECKLIST}). The
+   * tool records this list beside its own deterministic findings and reports the
+   * ids it left out or cannot recognize; it does not verify the claim itself.
+   */
   p0: string[]
-  /** Met P1 checklist items; empty when none were met or none apply. */
+  /** Met P1 checklist items as the model reports them; empty when none were met or none apply. */
   p1?: string[]
 }
 
@@ -460,9 +465,9 @@ function checksMeta(checks: readonly DeliverableCheckReport[]) {
  */
 function deliverDescription(lengthTolerance: number): string {
   const percent = Math.round(lengthTolerance * 100 * 100) / 100
-  return `登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。
+  return `登记一份文档交付物：声明成品文件、导出格式与质量门自述（P0/P1 自检项）。在你自己核完 P0 全过之后、向用户交付之前调用一次；文件必须在工作区中存在。
 
-工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±${String(percent)}% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
+工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±${String(percent)}% 容差核验）。P0/P1 是你的自述，工具不核验它，只把自述项数与这些核验结论并列写入会话日志，交付物面板同时展示两列。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
 
 两条与声明本身有关的判定：文件按扩展名决定用哪种读取器（声明格式与扩展名不一致会提示，并按扩展名核验）；读不出内容的文件必须在 unreadable_ack 里写一条原因（path + reason_text）才允许登记，超出本部署读取上限的文件除外。p0 用质量门技能里的稳定 id（P0-1 … P0-6）填写，工具会把缺失或无法识别的项列出来。`
 }
@@ -486,18 +491,18 @@ const PARAMETERS = {
     type: 'object',
     required: true,
     additionalProperties: false,
-    description: '质量门结果：P0 全过才允许登记',
+    description: '质量门自述：P0 由你声明，工具只把机器可判定的核验结论并列记录，不核验这份自述；缺失或无法识别的 id 会在结果里列出',
     properties: {
       p0: {
         type: 'array',
         required: true,
         items: { type: 'string' },
-        description: '已通过并核验的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；缺失项与无法识别的写法会在结果里列出',
+        description: '你自述已通过的 P0 自检项，填质量门技能 P0 清单的稳定 id（P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言）；工具不核验这份自述，只把缺失项与无法识别的写法在结果里列出',
       },
       p1: {
         type: 'array',
         items: { type: 'string' },
-        description: '已满足的 P1 自检项（无则省略）',
+        description: '你自述已满足的 P1 自检项（无则省略）；工具同样不核验这份自述',
       },
     },
   },

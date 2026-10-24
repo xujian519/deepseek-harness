@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-24-document-deliver-p0-stays-a-declaration.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-24-document-deliver-p0-stays-a-declaration.md
+/agent-note-the-document-p0-gate-stays-a-declaration-not-an-execution-point:
+  en: 6a01bef37db6529f
+  zh: 1150d6603b3be10b
+/agent-note-the-document-p0-gate-stays-a-declaration-not-an-execution-point/problem:
+  en: 98ec69b76af00dab
+  zh: a9cf39b9b5a1f076
+/agent-note-the-document-p0-gate-stays-a-declaration-not-an-execution-point/decision:
+  en: 9d776f1f228e97de
+  zh: 1e3e11b533723afd
+/agent-note-the-document-p0-gate-stays-a-declaration-not-an-execution-point/alternatives-considered:
+  en: 3346cd6ec12e9cea
+  zh: 261c498ab07efd2b
+/agent-note-the-document-p0-gate-stays-a-declaration-not-an-execution-point/consequences:
+  en: 3bac7f9904ce0b8e
+  zh: 5de0d6c805d5a338
