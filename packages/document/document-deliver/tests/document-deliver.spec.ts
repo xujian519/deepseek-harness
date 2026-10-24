@@ -5,7 +5,7 @@
  * card.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -22,7 +22,7 @@ import * as plugin from '../src/index.ts'
 import {
   briefReferenceWarnings,
   createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES, missingDeliverableFiles, P0_CHECKLIST,
-  p0ChecklistWarnings, parseDocumentDeliverArgs, resolveCheckFormat, resolveUnreadableReports,
+  p0ChecklistWarnings, parseDocumentDeliverArgs, resolveAckIdentities, resolveCheckFormat, resolveUnreadableReports,
   type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult, type DocumentDeliverSpec,
   type DeliverableCheckReport,
 } from '../src/tool.ts'
@@ -314,7 +314,13 @@ describe('document_deliver tool', () => {
         p0: P0_IDS,
         p1: [],
         style: 'assistant-neutral',
-        checks: [{ path: 'deck.html', format: 'html', status: 'checked', findings: [] }],
+        checks: [{
+          path: 'deck.html',
+          identity: await realpath(join(temp, 'deck.html')),
+          format: 'html',
+          status: 'checked',
+          findings: [],
+        }],
       },
     })
   })
@@ -447,7 +453,7 @@ describe('document_deliver deterministic checks', () => {
     await writeFile(path, '%PDF-1.4')
     const result = await register(ctx, { files: [{ path, format: 'pdf' }], gate: { p0: ['命名规范'] } })
     expect(result.value.gate.checks).toEqual([
-      { path, format: 'pdf', status: 'unchecked', reason: 'pdf 格式没有文本读取器', findings: [] },
+      { path, identity: await realpath(path), format: 'pdf', status: 'unchecked', reason: 'pdf 格式没有文本读取器', findings: [] },
     ])
     expect(result.content).toContain(`${path} 未核验（pdf 格式没有文本读取器）`)
   })
@@ -458,7 +464,9 @@ describe('document_deliver deterministic checks', () => {
     const path = join(temp, 'report.docx')
     await writeFile(path, renderDocx('# 报告\n\n正文内容。\n'))
     const clean = await register(ctx, { files: [{ path, format: 'docx' }], gate: { p0: ['命名规范'] } })
-    expect(clean.value.gate.checks[0]).toEqual({ path, format: 'docx', status: 'checked', findings: [] })
+    expect(clean.value.gate.checks[0]).toEqual({
+      path, identity: await realpath(path), format: 'docx', status: 'checked', findings: [],
+    })
 
     await writeFile(path, renderDocx('# 报告\n\n客户：{{client_name}}\n'))
     const refused = await run(ctx, { files: [{ path, format: 'docx' }], gate: { p0: ['命名规范'] } })
@@ -922,5 +930,191 @@ describe('unreadable acknowledgement', () => {
         { path: 'a.md', reason_text: '二' },
       ],
     })).toThrow(/duplicate unreadable_ack path/)
+  })
+})
+
+describe('deliverable identity', () => {
+  it('gives two spellings of one file the same identity while keeping each declared path', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const absolute = join(temp, 'report.md')
+    await writeFile(absolute, '# 报告\n\n正文。\n')
+    const tool = createDocumentDeliverTool(ctx, deps())
+    const exec = { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext
+    const relative = await tool.execute(
+      { files: [{ path: 'report.md', format: 'markdown' }], gate: { p0: P0_IDS } }, exec,
+    ) as DocumentDeliverResult
+    const spelled = await tool.execute(
+      { files: [{ path: absolute, format: 'markdown' }], gate: { p0: P0_IDS } }, exec,
+    ) as DocumentDeliverResult
+    const canonical = await realpath(absolute)
+    expect(relative.gate.checks[0]?.identity).toBe(canonical)
+    expect(spelled.gate.checks[0]?.identity).toBe(canonical)
+    // The declared spelling stays verbatim, so display never shows the host path.
+    expect(relative.gate.checks[0]?.path).toBe('report.md')
+    expect(spelled.gate.checks[0]?.path).toBe(absolute)
+  })
+
+  it('reports identity for a file it did not read, so an unchecked format is still one deliverable', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'deck.pptx')
+    await writeFile(path, 'not really a deck')
+    const result = await register(ctx, { files: [{ path, format: 'pptx' }], gate: { p0: P0_IDS } })
+    expect(result.value.gate.checks[0]?.status).toBe('unchecked')
+    expect(result.value.gate.checks[0]?.identity).toBe(await realpath(path))
+  })
+
+  it('records identity beside the declared path in the presentation metadata', () => {
+    const tool = bareTool()
+    const value: DocumentDeliverResult = {
+      registered: [{ path: 'a.md', format: 'markdown' }, { path: 'b.md', format: 'markdown' }],
+      gate: {
+        p0: ['命名规范'],
+        p1: [],
+        style: 'assistant-neutral',
+        checks: [
+          { path: 'a.md', identity: '/work/a.md', format: 'markdown', status: 'checked', findings: [] },
+          { path: 'b.md', format: 'markdown', status: 'checked', findings: [] },
+        ],
+      },
+    }
+    expect(tool.output.presentationMeta?.({}, value as never)).toEqual({
+      checks: [
+        { path: 'a.md', identity: '/work/a.md', format: 'markdown', status: 'checked', findings: [] },
+        { path: 'b.md', format: 'markdown', status: 'checked', findings: [] },
+      ],
+    })
+  })
+
+  it('keeps a result recorded before identity existed parseable', () => {
+    const tool = bareTool()
+    // A replayed pre-identity result: the field is simply absent, and the
+    // declared path stays the only key a consumer has.
+    const value: DocumentDeliverResult = {
+      registered: [{ path: 'a.md', format: 'markdown' }],
+      gate: {
+        p0: ['命名规范'],
+        p1: [],
+        style: 'assistant-neutral',
+        checks: [{ path: 'a.md', format: 'markdown', status: 'checked', findings: [] }],
+      },
+    }
+    const meta = tool.output.presentationMeta?.({}, value as never) as { checks: Array<Record<string, unknown>> }
+    expect(meta.checks[0]).not.toHaveProperty('identity')
+    expect(meta.checks[0]?.path).toBe('a.md')
+  })
+
+  it('accepts an output value carrying identity through the declared schema', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    await writeFile(path, '# 报告\n\n正文。\n')
+    // Executing through `ctx.tools` validates the result against OUTPUT_SCHEMA,
+    // so a field the schema omitted would fail here rather than at replay.
+    const result = await run(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: P0_IDS } })
+    expect(result.isError).toBe(false)
+  })
+})
+
+describe('unreadable acknowledgement across spellings', () => {
+  it('attaches an ack written in another spelling of the same file', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const absolute = join(temp, 'broken.docx')
+    await writeFile(absolute, 'not a zip package')
+    const tool = createDocumentDeliverTool(ctx, deps())
+    const result = await tool.execute({
+      // Declared relatively, explained absolutely: one file, two spellings.
+      files: [{ path: 'broken.docx', format: 'docx' }],
+      gate: { p0: P0_IDS },
+      unreadable_ack: [{ path: absolute, reason_text: '历史归档件，读取器打不开' }],
+    }, { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext) as DocumentDeliverResult
+    expect(result.gate.checks[0]?.status).toBe('unreadable')
+    expect(result.gate.checks[0]?.ack).toBe('历史归档件，读取器打不开')
+    expect(result.warnings).toBeUndefined()
+  })
+
+  it('does not report the same file spelled two ways as an unregistered path', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const absolute = join(temp, 'report.md')
+    await writeFile(absolute, '# 报告\n\n正文。\n')
+    const tool = createDocumentDeliverTool(ctx, deps())
+    const result = await tool.execute({
+      files: [{ path: 'report.md', format: 'markdown' }],
+      gate: { p0: P0_IDS },
+      unreadable_ack: [{ path: absolute, reason_text: '多余的原因' }],
+    }, { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext) as DocumentDeliverResult
+    // The ack names a registered file, so it is not an unregistered path; the
+    // file was readable, so the "needs no reason" line still reports it.
+    expect(result.gate.checks[0]?.status).toBe('checked')
+    expect(result.warnings).toEqual([`unreadable_ack 的 ${absolute} 不是无法核验状态，不需要说明原因`])
+  })
+
+  it('still reports an ack that resolves to no registered file', () => {
+    const checks: DeliverableCheckReport[] = [
+      { path: 'report.md', identity: '/work/report.md', format: 'markdown', status: 'checked', findings: [] },
+    ]
+    const resolved = resolveUnreadableReports({
+      files: [{ path: 'report.md', format: 'markdown' }],
+      gate: { p0: P0_IDS, p1: [] },
+      unreadableAck: [{ path: '/work/ghost.docx', reasonText: '未登记的路径' }],
+    }, checks, new Map([['/work/ghost.docx', '/work/ghost.docx']]))
+    expect(resolved.warnings).toEqual(['unreadable_ack 指向未登记的路径：/work/ghost.docx'])
+  })
+
+  it('matches on spelling alone when the caller resolved no identity', () => {
+    const checks: DeliverableCheckReport[] = [
+      { path: 'broken.docx', identity: '/work/broken.docx', format: 'docx', status: 'unreadable', reason: 'not-a-zip', findings: [] },
+    ]
+    // No ackIdentity map: a spelling match still attaches, and a differently
+    // spelled ack for the same file cannot be recognized without one.
+    const matched = resolveUnreadableReports({
+      files: [{ path: 'broken.docx', format: 'docx' }],
+      gate: { p0: P0_IDS, p1: [] },
+      unreadableAck: [{ path: 'broken.docx', reasonText: '历史归档件' }],
+    }, checks)
+    expect(matched.reports[0]?.ack).toBe('历史归档件')
+    expect(() => resolveUnreadableReports({
+      files: [{ path: 'broken.docx', format: 'docx' }],
+      gate: { p0: P0_IDS, p1: [] },
+      unreadableAck: [{ path: '/work/broken.docx', reasonText: '历史归档件' }],
+    }, checks)).toThrow(/无法核验，且没有 unreadable_ack 说明原因/)
+  })
+
+  it('resolves ack identities and leaves an unresolvable ack to spelling matching', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const absolute = join(temp, 'report.md')
+    await writeFile(absolute, '# 报告\n\n正文。\n')
+    const underFile = join(absolute, 'child.md')
+    const spec: DocumentDeliverSpec = {
+      files: [{ path: 'report.md', format: 'markdown' }],
+      gate: { p0: P0_IDS, p1: [] },
+      unreadableAck: [
+        { path: absolute, reasonText: '一' },
+        // A path through a regular file can never resolve: the ack keeps its
+        // spelling, and the caller still learns it names no registered file.
+        { path: underFile, reasonText: '二' },
+      ],
+    }
+    const runInWorkspace = { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext
+    const identities = await resolveAckIdentities(ctx, runInWorkspace, spec)
+    expect(identities.get(absolute)).toBe(await realpath(absolute))
+    expect(identities.has(underFile)).toBe(false)
+  })
+
+  it('propagates cancellation instead of reading it as an unresolvable ack path', async () => {
+    const ctx = await mounted()
+    const aborted = new AbortController()
+    aborted.abort()
+    const spec: DocumentDeliverSpec = {
+      files: [{ path: 'report.md', format: 'markdown' }],
+      gate: { p0: P0_IDS, p1: [] },
+      unreadableAck: [{ path: 'report.md', reasonText: '一' }],
+    }
+    await expect(resolveAckIdentities(ctx, { signal: aborted.signal } as unknown as ToolRunContext, spec))
+      .rejects.toThrow(/abort/i)
   })
 })

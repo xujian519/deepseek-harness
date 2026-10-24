@@ -12,6 +12,7 @@
  */
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import { isRecord } from '@deepseek-ai/dsh-value'
+import { isAbsoluteWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type {
   ConversationNodeDefinition, ConversationTimelineSnapshot, ConversationViewBuilder,
   ConversationViewDefinition, ConversationViewNode,
@@ -43,12 +44,25 @@ export interface DocumentCheckReport {
   readonly reason?: string
   /** The findings the harness computed, empty for a clean file. */
   readonly findings: readonly DocumentCheckFinding[]
+  /**
+   * Host-resolved canonical path of the file this report checked; absent on
+   * results recorded before it existed. It joins the report to the delivered
+   * file no matter which spelling the registration declared.
+   */
+  readonly identity?: string
 }
 
 /** One produced file with its first-producing turn event seq and optional registration metadata. */
 export interface DocumentDeliverable {
   readonly seq: number
+  /** The path as the tool declared it: display copy, keeping the caller's spelling. */
   readonly path: string
+  /**
+   * Host-resolved canonical path, when the log recorded one. This — not `path`
+   * — is the file's identity: two spellings of one file are one deliverable,
+   * and a check verdict follows the file rather than the spelling.
+   */
+  readonly identity?: string
   /** Export format announced by a `document_deliver` registration. */
   readonly format?: string
   /** Quality-gate state announced by a `document_deliver` registration. */
@@ -59,6 +73,12 @@ export interface DocumentDeliverable {
    * result carried no readable check metadata.
    */
   readonly checks?: DocumentCheckReport
+  /**
+   * The recorded verdict was withdrawn because the file changed after it was
+   * checked, so the current bytes are unverified. Derived from the fold (not
+   * from a workspace stat), so a reloaded session reports it too.
+   */
+  readonly checksWithdrawn?: true
   /** Brief reference path announced by a `document_deliver` registration. */
   readonly briefRef?: string
 }
@@ -190,6 +210,7 @@ export function parseCheckReports(meta: unknown): ReadonlyMap<string, DocumentCh
     if (typeof entry.path !== 'string' || !Array.isArray(entry.findings)) return undefined
     if (!DOCUMENT_CHECK_STATUSES.some(status => status === entry.status)) return undefined
     if (entry.reason !== undefined && typeof entry.reason !== 'string') return undefined
+    if (entry.identity !== undefined && pathValue(entry.identity) === null) return undefined
     const findings: DocumentCheckFinding[] = []
     for (const raw of entry.findings) {
       const finding = normalizeCheckFinding(raw)
@@ -201,6 +222,7 @@ export function parseCheckReports(meta: unknown): ReadonlyMap<string, DocumentCh
       status,
       ...typeof entry.reason === 'string' ? { reason: entry.reason } : {},
       findings,
+      ...typeof entry.identity === 'string' ? { identity: entry.identity } : {},
     })
   }
   return reports
@@ -277,7 +299,37 @@ function pathValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
+/**
+ * The canonical target a settled mutation recorded, retaining a legacy
+ * argument path that is already absolute.
+ *
+ * A relative declared path is not an identity: only a resolved path joins the
+ * mutation to a registration that spelled the same file differently, so an
+ * unresolved one degrades to "no canonical identity" rather than to a second
+ * key.
+ * @param argumentPath - the declared path from the mutation's logged arguments.
+ * @param meta - the `meta` field of the mutation's `tool/result` event.
+ * @returns the absolute identity, or undefined when neither source has one.
+ */
+function mutationIdentity(argumentPath: string, meta: unknown): string | undefined {
+  if (isRecord(meta) && typeof meta.path === 'string' && isAbsoluteWorkspacePath(meta.path)) return meta.path
+  return isAbsoluteWorkspacePath(argumentPath) ? argumentPath : undefined
+}
+
 /* jscpd:ignore-end */
+
+/**
+ * The entry one settled mutation contributes: its declared path for display and,
+ * when the result resolved one, the canonical identity the fold keys on.
+ * @param seq - the settling `tool/result` event seq.
+ * @param path - the mutation's declared path.
+ * @param meta - the `meta` field of the mutation's `tool/result` event.
+ * @returns the produced-file entry for this mutation.
+ */
+function mutationEntry(seq: number, path: string, meta: unknown): DocumentDeliverable {
+  const identity = mutationIdentity(path, meta)
+  return { seq, path, ...identity === undefined ? {} : { identity } }
+}
 
 function registeredEntries(
   seq: number, registration: DeliverRegistration, checks: ReadonlyMap<string, DocumentCheckReport> | undefined,
@@ -287,6 +339,7 @@ function registeredEntries(
     return {
       seq,
       path: file.path,
+      ...report?.identity === undefined ? {} : { identity: report.identity },
       format: file.format,
       gate: registration.gate,
       ...report === undefined ? {} : { checks: report },
@@ -335,7 +388,7 @@ export const documentDeliverablesDefinition: ConversationNodeDefinition<Document
       ? registeredEntries(match.event.seq, call.registration, parseCheckReports(match.event.data.meta))
       : call === undefined || call.producedPath === null
         ? []
-        : [{ seq: match.event.seq, path: call.producedPath }]
+        : [mutationEntry(match.event.seq, call.producedPath, match.event.data.meta)]
     return additions.length === 0
       ? context.state
       : { ...context.state, produced: [...context.state.produced, ...additions] }
@@ -361,27 +414,57 @@ const EMPTY: DocumentDeliverablesSnapshot = { produced: [] }
  * supported file-mutation call records only its target path) rewrote those
  * bytes, and a registration whose result carried no readable check metadata
  * renewed the declaration without renewing the verification: both leave the
- * file unverified rather than inheriting an older verdict. The announced
- * format, gate, and brief reference stay when the later entry omits them,
- * because the registration is still what the deliverable was declared with.
+ * file unverified rather than inheriting an older verdict, and both record
+ * {@link DocumentDeliverable.checksWithdrawn} so the withdrawal itself is
+ * visible and replays. The announced format, gate, and brief reference stay
+ * when the later entry omits them, because the registration is still what the
+ * deliverable was declared with.
  */
 function augmented(previous: DocumentDeliverable, next: DocumentDeliverable): DocumentDeliverable {
-  // The check report is deliberately excluded here; only `next.checks` (below)
-  // can put one back, so an entry without one withdraws the earlier verdict.
   const base: DocumentDeliverable = {
     seq: previous.seq,
+    // The first-seen spelling stays the display copy; identity carries the join.
     path: previous.path,
+    ...previous.identity === undefined ? {} : { identity: previous.identity },
     ...previous.format === undefined ? {} : { format: previous.format },
     ...previous.gate === undefined ? {} : { gate: previous.gate },
     ...previous.briefRef === undefined ? {} : { briefRef: previous.briefRef },
   }
+  // Only `next.checks` can reinstate a verdict, so an entry without one
+  // withdraws whatever the earlier entry recorded — including an earlier
+  // withdrawal, which stays withdrawn.
+  const withdrawn = next.checks === undefined
+    && (previous.checks !== undefined || previous.checksWithdrawn === true)
   return {
     ...base,
+    ...next.identity !== undefined ? { identity: next.identity } : {},
     ...next.format !== undefined ? { format: next.format } : {},
     ...next.gate !== undefined ? { gate: next.gate } : {},
     ...next.checks !== undefined ? { checks: next.checks } : {},
+    ...withdrawn ? { checksWithdrawn: true as const } : {},
     ...next.briefRef !== undefined ? { briefRef: next.briefRef } : {},
   }
+}
+
+/** The key one produced-file entry is deduplicated by: its identity, else its spelling. */
+function identityOf(entry: DocumentDeliverable): string {
+  return entry.identity ?? entry.path
+}
+
+/**
+ * Claim every key one folded row answers to, so a later entry reaches it by
+ * either. An entry joins a row by its identity or by the spelling it declares,
+ * so both must point at the same row — otherwise the next entry spelled the
+ * other way starts a duplicate.
+ * @param seen - the fold's key-to-row-index map, updated in place.
+ * @param row - the row the keys now belong to.
+ * @param index - that row's index in the produced list.
+ */
+function claimKeys(
+  seen: Map<string, number>, row: DocumentDeliverable, index: number,
+): void {
+  seen.set(row.path, index)
+  if (row.identity !== undefined) seen.set(row.identity, index)
 }
 
 function producedFromTimeline(timeline: ConversationTimelineSnapshot): DocumentDeliverablesSnapshot {
@@ -391,15 +474,23 @@ function producedFromTimeline(timeline: ConversationTimelineSnapshot): DocumentD
     const data = turn.data.get('documentDeliverables')
     if (data === undefined) continue
     for (const entry of data.produced) {
-      const index = seen.get(entry.path)
+      // Identity first: the same file written as `out/report.html` and
+      // registered under its absolute path is one deliverable. The declared
+      // spelling still answers, so a legacy entry joins the same row.
+      const index = seen.get(identityOf(entry)) ?? seen.get(entry.path)
       if (index === undefined) {
-        seen.set(entry.path, produced.length)
+        claimKeys(seen, entry, produced.length)
         produced.push(entry)
-      } else {
-        const previous = produced[index]
-        // The map entry and the array index move together; the guard only
-        // narrows the index access for the compiler.
-        if (previous !== undefined) produced[index] = augmented(previous, entry)
+        continue
+      }
+      const previous = produced[index]
+      // The map entry and the array index move together; the guard only
+      // narrows the index access for the compiler.
+      if (previous !== undefined) {
+        const merged = augmented(previous, entry)
+        produced[index] = merged
+        // A merge can introduce the key the earlier entry did not have.
+        claimKeys(seen, merged, index)
       }
     }
   }

@@ -39,13 +39,16 @@ const useResource = (() => ({
 interface ProducedFile {
   seq: number
   path: string
+  identity?: string
   format?: string
   gate?: { p0: string[]; p1: string[] }
   checks?: {
     status: string
     reason?: string
     findings: Array<{ check: string; level: string; detail: string; line?: number }>
+    identity?: string
   }
+  checksWithdrawn?: true
   briefRef?: string
 }
 
@@ -297,6 +300,34 @@ describe('StudioView', () => {
     }], { statVersions })} />)
     expect(await screen.findByText(t('studio.file.changed'))).toBeTruthy()
     expect(screen.queryByText(t('studio.file.checkedPassed'))).toBeNull()
+  })
+
+  it('shows the changed badge for a verdict the fold already withdrew, without any stat', () => {
+    // What a reloaded session sees: the withdrawal is replayed from the log, so
+    // the badge never depends on this console having observed the rewrite.
+    const statVersions = vi.fn(() => Promise.resolve({}))
+    render(
+      <StudioView {...studioProps([{
+        seq: 1, path: 'out/report.html', format: 'html', gate: { p0: ['命名规范'], p1: [] },
+        checksWithdrawn: true,
+      }], { statVersions })} />,
+    )
+    expect(screen.getByText(t('studio.file.changed'))).toBeTruthy()
+    expect(screen.queryByText(t('studio.file.checkedPassed'))).toBeNull()
+  })
+
+  it('labels one file once when it carries both a withdrawn verdict and a moved token', () => {
+    const statVersions = vi.fn()
+      .mockResolvedValueOnce({ 'out/report.html': 'v1' })
+      .mockResolvedValueOnce({ 'out/report.html': 'v2' })
+    const withdrawn = [{
+      seq: 1, path: 'out/report.html', format: 'html', gate: { p0: ['命名规范'], p1: [] },
+      checksWithdrawn: true as const,
+    }]
+    const { rerender } = render(<StudioView {...studioProps(withdrawn, { statVersions })} />)
+    expect(screen.getAllByText(t('studio.file.changed'))).toHaveLength(1)
+    rerender(<StudioView {...studioProps(withdrawn, { statVersions })} />)
+    expect(screen.getAllByText(t('studio.file.changed'))).toHaveLength(1)
   })
 
   it('runs the open and reveal actions and reports a failed one instead of swallowing it', async () => {

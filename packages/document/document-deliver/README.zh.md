@@ -23,6 +23,8 @@ kind: "package-reference"
 
 - **`document_deliver`** —— 声明 `files`（`{ path, format }`，format 取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（必填的 `p0`，模型在其中自述质量门技能的稳定 id 已通过；可选 `p1` 列表）、可选的 `unreadable_ack` 原因（每个读不出的文件一条 `{ path, reason_text }`）、可选 `brief_ref`、可选 `style` 风格名、可选 `char_budget` 字数预算。按调用方会话工作区解析每个路径；文件不存在（幽灵文件不算交付物）即报错；随后读取每个交付文件跑确定性核验，回执自述的 P0/P1 项数、所用风格与每个文件一份核验报告。自述只被记录、不被核验：`p0` 里漏填或写法无法识别的 id 以登记提示返回，是否拒绝登记只由确定性核验结论决定。
 
+  每份核验报告用两个名字指向同一个文件：`path` 是调用方写的原始拼写（保留原样，读者认的是它），`identity` 是宿主解析后的规范绝对路径——同一文件的不同拼写共享这一个值。消费方以 `identity` 作为交付物身份键、以 `path` 作为显示文本，因此「写入 `out/report.html` + 登记 `/work/out/report.html`」是一个交付物，而不是两个。该字段出现之前记录的结果没有 `identity`，消费方退回按声明路径匹配（交付工作室即如此）。`unreadable_ack` 条目同样按这一规范身份匹配文件，因此用一种拼写写下的原因也能解释以另一种拼写声明的文件。
+
 <a id="deterministic-checks"></a>
 ## 确定性核验
 

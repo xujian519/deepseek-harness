@@ -359,10 +359,14 @@ describe('document_deliver registrations', () => {
       { seq: 3, path: 'out/report.md', format: 'markdown', gate: { p0: ['命名规范'], p1: [] }, checks: { status: 'checked', findings: [] } },
       { seq: 5, path: 'out/report.md' },
     ])
-    // 折叠后同一路径只留一条：旧核验结论被抹掉，格式与质量门声明保留。
+    // 折叠后同一路径只留一条：旧核验结论被抹掉，格式与质量门声明保留；
+    // 抹掉这件事本身记在 checksWithdrawn 上，重放时仍然显示"未重新核验"。
     const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
     expect(fold.produced).toEqual([
-      { seq: 3, path: 'out/report.md', format: 'markdown', gate: { p0: ['命名规范'], p1: [] } },
+      {
+        seq: 3, path: 'out/report.md', format: 'markdown',
+        gate: { p0: ['命名规范'], p1: [] }, checksWithdrawn: true,
+      },
     ])
   })
 
@@ -388,7 +392,7 @@ describe('document_deliver registrations', () => {
     expect(fold.produced).toEqual([
       {
         seq: 3, path: 'out/report.md', format: 'markdown',
-        gate: { p0: ['命名规范', '自包含'], p1: [] },
+        gate: { p0: ['命名规范', '自包含'], p1: [] }, checksWithdrawn: true,
       },
     ])
   })
@@ -416,8 +420,7 @@ describe('document_deliver registrations', () => {
     ])
   })
 
-  it('rejects a check report that is not an object, and one whose line is not a whole number', () => {
-    expect(parseCheckReports({ checks: ['nope'] })).toBeUndefined()
+  it('rejects a check report that is not an object, and one whose line is not a whole number', () => {    expect(parseCheckReports({ checks: ['nope'] })).toBeUndefined()
     expect(parseCheckReports({ checks: [{ path: 'a.html', status: 'checked', findings: [{ check: 'x', level: 'warn', detail: 'd', line: 1.5 }] }] })).toBeUndefined()
     expect(parseCheckReports({
       checks: [{ path: 'a.html', status: 'checked', findings: [], reason: 7 }],
@@ -426,5 +429,247 @@ describe('document_deliver registrations', () => {
     expect([...(parseCheckReports({
       checks: [{ path: 'a.html', format: 'html', status: 'checked', findings: [] }],
     }) ?? new Map()).keys()]).toEqual(['a.html'])
+  })
+})
+
+describe('canonical deliverable identity', () => {
+  const ABS = '/ws/out/report.html'
+
+  /** A `write` call whose result records the Host's canonical absolute path. */
+  function write(seq: number, callId: string, declared: string, turn = 1): SessionLiveEventEntry {
+    return call(seq, callId, 'write', { file_path: declared, content: 'x' }, turn)
+  }
+
+  function resolvedResult(seq: number, callId: string, identity?: string, turn = 1): SessionLiveEventEntry {
+    return result(seq, callId, false, turn, identity === undefined ? undefined : { path: identity })
+  }
+
+  function deliverRegistration(
+    seq: number, callId: string, files: Array<{ path: string; format: string }>, turn = 1,
+  ): SessionLiveEventEntry {
+    return rawCall(seq, callId, 'document_deliver', JSON.stringify({
+      files, gate: { p0: ['命名规范'] },
+    }), turn)
+  }
+
+  it('joins a relative write and an absolute registration of the same file into one row', () => {
+    // The measured reproduction from issue #504: one file, two spellings.
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', 'out/report.html'),
+      resolvedResult(3, 'w1', ABS),
+      deliverRegistration(4, 'reg', [{ path: ABS, format: 'html' }]),
+      result(5, 'reg', false, 1, {
+        checks: [{ path: ABS, identity: ABS, format: 'html', status: 'checked', findings: [] }],
+      }),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toHaveLength(1)
+    expect(fold.produced).toEqual([{
+      seq: 3,
+      // The first-seen spelling stays the display copy.
+      path: 'out/report.html',
+      identity: ABS,
+      format: 'html',
+      gate: { p0: ['命名规范'], p1: [] },
+      checks: { status: 'checked', findings: [], identity: ABS },
+    }])
+  })
+
+  it('joins an absolute write and a relative registration of the same file into one row', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', ABS),
+      resolvedResult(3, 'w1', ABS),
+      deliverRegistration(4, 'reg', [{ path: 'out/report.html', format: 'html' }]),
+      result(5, 'reg', false, 1, {
+        checks: [{ path: 'out/report.html', identity: ABS, format: 'html', status: 'checked', findings: [] }],
+      }),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toHaveLength(1)
+    expect(fold.produced[0]?.identity).toBe(ABS)
+    expect(fold.produced[0]?.checks?.status).toBe('checked')
+  })
+
+  it('attaches a check report to a registration whose declared spelling differs from the report key', () => {
+    // `parseCheckReports` keys by the declared path; `identity` carries the join,
+    // so a registration that declared one spelling still gets its verdict.
+    const reports = parseCheckReports({
+      checks: [{ path: 'out/report.html', identity: ABS, format: 'html', status: 'checked', findings: [] }],
+    })
+    expect(reports?.get('out/report.html')?.identity).toBe(ABS)
+    expect(reports?.get('out/report.html')?.status).toBe('checked')
+  })
+
+  it('withdraws the verdict and records the withdrawal when the rewrite carries the other spelling', () => {
+    // The stale-verdict requirement: the rewrite arrives as a relative path
+    // after an absolute registration. Same identity, so the earlier verdict is
+    // withdrawn and the withdrawal replays as "file changed, not re-checked".
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliverRegistration(2, 'reg', [{ path: ABS, format: 'html' }]),
+      result(3, 'reg', false, 1, {
+        checks: [{ path: ABS, identity: ABS, format: 'html', status: 'checked', findings: [] }],
+      }),
+      write(4, 'w1', 'out/report.html'),
+      resolvedResult(5, 'w1', ABS),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([{
+      seq: 3,
+      path: ABS,
+      identity: ABS,
+      format: 'html',
+      gate: { p0: ['命名规范'], p1: [] },
+      checksWithdrawn: true,
+    }])
+    expect(fold.produced[0]?.checks).toBeUndefined()
+  })
+
+  it('keeps two genuinely different files apart', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', 'out/report.html'),
+      resolvedResult(3, 'w1', '/ws/out/report.html'),
+      write(4, 'w2', 'out/summary.html'),
+      resolvedResult(5, 'w2', '/ws/out/summary.html'),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced.map(entry => entry.identity)).toEqual(['/ws/out/report.html', '/ws/out/summary.html'])
+  })
+
+  it('joins an unresolved registration to an already-identified write of the same spelling', () => {
+    // Degrade path while the Host half is not yet in the log: the mutation
+    // records a canonical target but the registration result carries no
+    // identity. The fold must still join them by declared spelling rather than
+    // splitting one file into two rows.
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', ABS),
+      resolvedResult(3, 'w1', ABS),
+      deliverRegistration(4, 'reg', [{ path: ABS, format: 'html' }]),
+      result(5, 'reg'),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([{
+      seq: 3,
+      path: ABS,
+      identity: ABS,
+      format: 'html',
+      gate: { p0: ['命名规范'], p1: [] },
+    }])
+  })
+
+  it('joins a relative write to a relative registration while the Host records no identity', () => {
+    // The pre-#504 log this fix must not regress: the mutation resolved a
+    // canonical target, the registration result recorded none, and both
+    // declared the same relative spelling. Before identity existed these joined
+    // by spelling, and they must still join.
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', 'out/report.html'),
+      resolvedResult(3, 'w1', ABS),
+      deliverRegistration(4, 'reg', [{ path: 'out/report.html', format: 'html' }]),
+      result(5, 'reg'),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([{
+      seq: 3,
+      path: 'out/report.html',
+      identity: ABS,
+      format: 'html',
+      gate: { p0: ['命名规范'], p1: [] },
+    }])
+  })
+
+  it('keeps a legacy registration that recorded no identity as one row', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliverRegistration(2, 'reg', [{ path: 'out/report.html', format: 'html' }]),
+      result(3, 'reg'),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([{
+      seq: 3, path: 'out/report.html', format: 'html', gate: { p0: ['命名规范'], p1: [] },
+    }])
+  })
+
+  it('joins a third spelling of the same file after a merge introduced the identity', () => {
+    // The registration (turn 1) contributes the identity the earlier relative
+    // write lacked. A later mutation spelled the third way must still reach the
+    // same row instead of starting a duplicate.
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', 'out/report.html'),
+      result(3, 'w1'),
+      at(4, 'turn/start', { turn: 2 }),
+      deliverRegistration(5, 'reg', [{ path: 'out/report.html', format: 'html' }], 2),
+      result(6, 'reg', false, 2, {
+        checks: [{ path: 'out/report.html', identity: ABS, format: 'html', status: 'checked', findings: [] }],
+      }),
+      at(7, 'turn/start', { turn: 3 }),
+      write(8, 'w2', './out/report.html', 3),
+      resolvedResult(9, 'w2', ABS, 3),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toHaveLength(1)
+    expect(fold.produced[0]?.identity).toBe(ABS)
+    // The third entry rewrote the file, so the turn-2 verdict is withdrawn.
+    expect(fold.produced[0]?.checksWithdrawn).toBe(true)
+  })
+
+  it('degrades to the declared spelling for a mutation result with no resolvable identity', () => {
+    // A legacy result (no meta) and a relative meta.path both leave the entry
+    // keyed by its own spelling, exactly as before the identity existed.
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', 'out/report.html'),
+      result(3, 'w1'),
+      write(4, 'w2', 'out/summary.html'),
+      result(5, 'w2', false, 1, { path: 'out/summary.html' }),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([
+      { seq: 3, path: 'out/report.html' },
+      { seq: 5, path: 'out/summary.html' },
+    ])
+  })
+
+  it('keeps a legacy argument path that is already absolute', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      write(2, 'w1', ABS),
+      result(3, 'w1'),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([{ seq: 3, path: ABS, identity: ABS }])
+  })
+
+  it('rejects a check payload whose identity is present but not a non-blank string', () => {
+    // A half-read record yields no badge at all rather than a badge keyed on a
+    // path the Host did not actually resolve.
+    for (const identity of ['', '   ', 7, null, {}]) {
+      expect(parseCheckReports({
+        checks: [{ path: ABS, identity, format: 'html', status: 'checked', findings: [] }],
+      })).toBeUndefined()
+    }
+  })
+
+  it('accepts a check payload with no identity at all (results recorded before it existed)', () => {
+    const reports = parseCheckReports({
+      checks: [{ path: ABS, format: 'html', status: 'checked', findings: [] }],
+    })
+    expect(reports?.get(ABS)).toEqual({ status: 'checked', findings: [] })
   })
 })
