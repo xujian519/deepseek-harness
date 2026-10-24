@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for 2026-10-24-seven-step-legal-generalization.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-10-24-seven-step-legal-generalization.md
+/agent-note-seven-step-legal-generalization-boundary:
+  en: e993d23f0fa1dc6b
+  zh: ad59374e59024782
+/agent-note-seven-step-legal-generalization-boundary/problem:
+  en: 93ff9af4d82c5a0d
+  zh: 004cd00674067652
+/agent-note-seven-step-legal-generalization-boundary/proposal:
+  en: 183b07de1e9e4b81
+  zh: fde4110a71d78d91
+/agent-note-seven-step-legal-generalization-boundary/mapping-matrix:
+  en: 6ec8e77afbdb0bca
+  zh: 9f83ed5ea0c1a751
+/agent-note-seven-step-legal-generalization-boundary/desk-walkthroughs:
+  en: edd840f03efde6da
+  zh: d73165ac7490bdff
+/agent-note-seven-step-legal-generalization-boundary/desk-walkthroughs/walkthrough-1-litigation-issue-analysis:
+  en: c3db7f123aacecdb
+  zh: ea9dd0cd2a6369c1
+/agent-note-seven-step-legal-generalization-boundary/desk-walkthroughs/walkthrough-2-contract-risk-review:
+  en: 44eb3ab0ec815b67
+  zh: 95d71bf779d29002
+/agent-note-seven-step-legal-generalization-boundary/desk-walkthroughs/walkthrough-3-statutory-research-memo:
+  en: c74b442b957d0b4c
+  zh: c0c56725f9d1cca6
+/agent-note-seven-step-legal-generalization-boundary/required-legal-domain-schema-and-atoms:
+  en: 15b39fb14722c88b
+  zh: 4373399e70ddca26
+/agent-note-seven-step-legal-generalization-boundary/alternatives-considered:
+  en: 55b79bc74a463621
+  zh: 27dc78af4fa09fc9
+/agent-note-seven-step-legal-generalization-boundary/acceptance-criteria:
+  en: 22b09daf88c2bdbe
+  zh: 7ae7913f3310df8f
+/agent-note-seven-step-legal-generalization-boundary/risks:
+  en: c670a1d71f4932fe
+  zh: 7c7ad47a2bc6cfd0
+/agent-note-seven-step-legal-generalization-boundary/related:
+  en: 4f6660efa81a3f05
+  zh: 8164f6c57dccbbe3
