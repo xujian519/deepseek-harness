@@ -500,23 +500,6 @@ describe('document_deliver deterministic checks', () => {
     expect(unreadable.value.gate.checks[0]?.reason).toBeDefined()
   })
 
-  it('pairs an ack with its file when the two spellings differ', async () => {
-    const ctx = await mounted()
-    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
-    await writeFile(join(temp, 'broken.docx'), 'not a zip package')
-    const tool = createDocumentDeliverTool(ctx, deps())
-    const result = await tool.execute(
-      {
-        files: [{ path: 'broken.docx', format: 'docx' }],
-        gate: { p0: P0_IDS },
-        unreadable_ack: [{ path: join(temp, 'broken.docx'), reason_text: '历史归档件，本部署的 DOCX 读取器打不开' }],
-      },
-      { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext,
-    ) as DocumentDeliverResult
-    // The relative declaration and the absolute ack name one file.
-    expect(result.gate.checks[0]?.ack).toBe('历史归档件，本部署的 DOCX 读取器打不开')
-  })
-
   it('refuses an unreadable DOCX that declares no reason, naming the structure and the fix', async () => {
     const ctx = await mounted()
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
@@ -904,6 +887,24 @@ describe('unreadable acknowledgement', () => {
       'unreadable_ack 的 report.md 不是无法核验状态，不需要说明原因',
       'unreadable_ack 指向未登记的路径：ghost.docx',
     ])
+  })
+
+  it('pairs an ack with its file through the canonical target', () => {
+    const checks: DeliverableCheckReport[] = [
+      { path: 'broken.docx', format: 'docx', status: 'unreadable', reason: 'not-a-zip', findings: [] },
+    ]
+    const canonical = new Map([
+      ['broken.docx', '/ws/broken.docx'],
+      ['/ws/broken.docx', '/ws/broken.docx'],
+    ])
+    const resolved = resolveUnreadableReports({
+      files: [{ path: 'broken.docx', format: 'docx' }],
+      gate: { p0: P0_IDS, p1: [] },
+      unreadableAck: [{ path: '/ws/broken.docx', reasonText: '历史归档件，本部署的 DOCX 读取器打不开' }],
+    }, checks, path => canonical.get(path) ?? path)
+    // The relative declaration and the absolute ack name one file.
+    expect(resolved.reports[0]?.ack).toBe('历史归档件，本部署的 DOCX 读取器打不开')
+    expect(resolved.warnings).toEqual([])
   })
 
   it('names every undeclared unreadable reason with its repair advice', () => {
