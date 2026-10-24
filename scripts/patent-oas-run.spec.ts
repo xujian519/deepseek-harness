@@ -378,6 +378,8 @@ describe('编排', () => {
     expect(record.benchmarkId).toBe('patent-oas')
     expect(record.runsPerCase).toBe(1)
     expect(validateRunRecord(record, space, gold, 'collected')).toEqual([])
+    expect(record.cases.find(entry => entry.caseId === 'oa-answer')?.retrieval).toBe('oracle')
+    expect(record.cases.find(entry => entry.caseId === 'claim-drafting')?.retrieval).toBe('none')
     for (const runCase of record.cases) {
       const goldCase = gold.find(entry => entry.caseId === runCase.caseId)
       expect(goldCase).toBeDefined()
@@ -395,6 +397,8 @@ describe('编排', () => {
     expect(plan.cases.length).toBe(4)
     expect(plan.calls).toBe(32)
     expect(plan.cases.find(entry => entry.caseId === 'oa-answer')?.dimensions).toBe(6)
+    expect(plan.cases.find(entry => entry.caseId === 'oa-answer')?.retrieval).toBe('oracle')
+    expect(plan.cases.find(entry => entry.caseId === 'claim-drafting')?.retrieval).toBe('none')
     expect(plan.cases.filter(entry => entry.caseId !== 'oa-answer').every(entry => entry.dimensions === 5)).toBe(true)
     expect(() => planRun({ space, gold, caseIds: ['oa-answer', 'oa-answer'] })).toThrow('被选中多次')
   })
@@ -403,6 +407,9 @@ describe('编排', () => {
     const single = formatRunPlan(planRun({ space, gold: singleRoundGold() }), 'headless')
     expect(single).toContain('计划 4 case × 1 次运行,共 4 轮 = 25 次 agent 调用')
     expect(single).toContain('oa-answer:6')
+    expect(single).toContain('claim-drafting:5')
+    expect(single).toContain('oa-answer:6/oracle')
+    expect(single).not.toContain('claim-drafting:5/')
     expect(single).toContain('profile=headless')
 
     const multi = formatRunPlan(planRun({ space, gold }), 'headless')

@@ -28,6 +28,7 @@ import {
   GATE_FILE,
   PATENT_OAS_EXAMPLE_DIR,
   PROBLEM_SPACE_FILE,
+  comparisonSettingProblems,
   evaluateRun,
   formatVerdict,
   isOutsideRoot,
@@ -118,6 +119,15 @@ async function main(args: string[]): Promise<number> {
   })
   await writeRunRecord(options.outPath, record)
   console.log(`run-patent-oas: 已写出 ${options.outPath}(产物与日志在 ${options.workDir})`)
+
+  const comparisonProblems = baseline === undefined
+    ? []
+    : comparisonSettingProblems(record, baseline, options.outPath)
+  if (comparisonProblems.length > 0) {
+    for (const problem of comparisonProblems) console.error(`run-patent-oas: ${problem}`)
+    console.error('run-patent-oas: 本次记录与基线不是同一检索设置,跳过门槛判定;记录已保留,可在同设置下重录基线后比较。')
+    return 1
+  }
 
   const verdict = evaluateRun(space, config, record, baseline)
   console.log(formatVerdict(verdict))

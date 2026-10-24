@@ -26,6 +26,9 @@ benchmarkId: patent-oas
 cases:
   oa-answer:
     label: 审查意见答复(OA 答复)
+    # 对比文件 D1 与公知常识的认定直接写在 statement 里:检索环境为 oracle,
+    # 分数只测答复与论证质量;simulation 需要另建受控语料。
+    retrieval: oracle
     dimensions:
       1: { nodes: { distinguishing-features: 28 } }
       2: { nodes: { technical-problem: 18 } }
@@ -35,6 +38,7 @@ cases:
       6: { nodes: { amendment-grounding: 10 } }
   claim-drafting:
     label: 权利要求撰写
+    retrieval: none
     dimensions:
       1: { nodes: { claim-essential-features: 30 } }
       2: { nodes: { claim-protection-scope: 20 } }
@@ -43,6 +47,7 @@ cases:
       5: { nodes: { claim-form-and-support: 15 } }
   infringement-comparison:
     label: 侵权比对
+    retrieval: none
     dimensions:
       1: { nodes: { infringement-all-elements: 35 } }
       2: { nodes: { infringement-equivalents: 25 } }
@@ -51,6 +56,8 @@ cases:
       5: { nodes: { infringement-legal-basis: 10 } }
   novelty-creative:
     label: 新颖性与创造性
+    # D1、D2 的公开内容直接写在 statement 里,与 oa-answer 同为 oracle 设置。
+    retrieval: oracle
     dimensions:
       1: { nodes: { novelty-separate-comparison: 25 } }
       2: { nodes: { distinguishing-features: 20 } }
