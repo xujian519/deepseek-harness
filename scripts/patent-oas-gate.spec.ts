@@ -17,6 +17,7 @@ import {
   caseScores,
   caseScoresByRun,
   caseRoundScores,
+  comparisonSettingProblems,
   evaluateRun,
   findCycles,
   formatVerdict,
@@ -45,6 +46,7 @@ import {
   type ProblemSpaceNode,
   type RunRecord,
 } from './patent-oas-gate-core.ts'
+import { acceptBaseline } from './verify-patent-oas-gold.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const exampleDir = resolve(root, PATENT_OAS_EXAMPLE_DIR)
@@ -100,6 +102,7 @@ function recordFrom(
     runsPerCase,
     cases: cases.map(goldCase => ({
       caseId: goldCase.caseId,
+      retrieval: mappingOf(space, goldCase.caseId).retrieval,
       dimensions: parseRubricDimensions(goldCase.rubric).map(dimension => ({
         index: dimension.index,
         label: dimension.label,
@@ -288,6 +291,14 @@ describe('金标与问题空间 DAG', () => {
       : goldCase)
     expect(validateProblemSpace(space, shrunken).join('\n')).toContain('映射权重合计 28,rubric 满分为 20')
   })
+
+  it('检索环境只能在 none/oracle/simulation 中取值', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'patent-oas-space-'))
+    scratchDirs.push(dir)
+    const path = join(dir, 'problem-space.yaml')
+    writeFileSync(path, readFileSync(problemSpacePath, 'utf8').replace('retrieval: oracle', 'retrieval: unknown'), 'utf8')
+    await expect(loadProblemSpace(path)).rejects.toThrow('必须是 none、oracle 或 simulation')
+  })
 })
 
 describe('金标摘要', () => {
@@ -467,6 +478,44 @@ describe('run 记录校验', () => {
     const record = recordWithScores([70, 80])
     first(first(record.cases).dimensions).score = 90
     expect(validateRunRecord(record, space, gold, 'run.json').join('\n')).toContain('与逐次分数均值 75 不一致')
+  })
+
+  it('记录的检索环境与问题空间声明不符即失败', () => {
+    const record = recordFrom(gold, () => 90)
+    const target = record.cases.find(entry => entry.caseId === 'oa-answer')
+    expect(target).toBeDefined()
+    if (target !== undefined) target.retrieval = 'simulation'
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n'))
+      .toContain('记录检索环境 simulation,问题空间声明 oracle')
+  })
+
+  it('旧记录没有检索环境时仍通过结构校验', () => {
+    const record = recordFrom(gold, () => 90)
+    for (const runCase of record.cases) delete runCase.retrieval
+    expect(validateRunRecord(record, space, gold, 'run.json')).toEqual([])
+  })
+})
+
+describe('检索设置的可比性', () => {
+  it('同设置可比较,跨设置被拒绝', () => {
+    const baseline = recordFrom(gold, () => 90)
+    expect(comparisonSettingProblems(baseline, baseline, 'run.json')).toEqual([])
+    const oracle = structuredClone(baseline)
+    const target = oracle.cases.find(entry => entry.caseId === 'oa-answer')
+    expect(target).toBeDefined()
+    if (target !== undefined) target.retrieval = 'simulation'
+    expect(comparisonSettingProblems(oracle, baseline, 'run.json').join('\n'))
+      .toContain('case "oa-answer" 的检索环境为 simulation,基线为 oracle')
+  })
+
+  it('未记录检索环境的记录不与已声明基线比较', () => {
+    const baseline = recordFrom(gold, () => 90)
+    const legacy = structuredClone(baseline)
+    for (const runCase of legacy.cases) delete runCase.retrieval
+    expect(comparisonSettingProblems(legacy, baseline, 'run.json').join('\n'))
+      .toContain('检索环境为 未记录,基线为 oracle')
+    const legacyBaseline = structuredClone(legacy)
+    expect(comparisonSettingProblems(legacy, legacyBaseline, 'run.json')).toEqual([])
   })
 })
 
@@ -784,5 +833,25 @@ describe('门禁进程', () => {
 
   it('记录的内容摘要与金标一致,门禁读到的正是仓库里的金标', () => {
     expect(goldDigest(gold)).toBe(readFileSync(gatePath, 'utf8').match(/^goldDigest: "(.+)"$/mu)?.[1])
+  })
+
+  it('带检索环境的记录可被提升为基线', async () => {
+    const record = recordFrom(gold, () => 90)
+    const path = writeRecord(record)
+    const dir = mkdtempSync(join(tmpdir(), 'patent-oas-baseline-'))
+    scratchDirs.push(dir)
+    const target = join(dir, 'baseline.json')
+    await acceptBaseline({ run: record, label: path, path }, gold, space, config, target)
+    const accepted = await loadRunRecord(target)
+    expect(accepted.cases.find(entry => entry.caseId === 'oa-answer')?.retrieval).toBe('oracle')
+    expect(accepted.cases.find(entry => entry.caseId === 'claim-drafting')?.retrieval).toBe('none')
+  })
+
+  it('未记录检索环境的旧记录不能被提升为基线', () => {
+    const record = recordFrom(gold, () => 90)
+    for (const runCase of record.cases) delete runCase.retrieval
+    const result = runGate('--accept', writeRecord(record))
+    expect(result.status, String(result.stderr)).toBe(1)
+    expect(String(result.stderr)).toContain('未记录检索环境,不能落为基线')
   })
 })

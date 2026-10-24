@@ -31,6 +31,14 @@ export interface ProblemSpaceNode {
   dependsOn: string[]
 }
 
+/**
+ * 一个 case 的检索环境。
+ *
+ * `oracle` 把对比文件直接注入 statement,隔离检索能力;`simulation` 要求执行者在受控
+ * 语料上自行检索;`none` 表示该 case 不依赖现有技术检索(撰写、侵权比对)。
+ */
+export type RetrievalSetting = 'none' | 'oracle' | 'simulation'
+
 /** 一个 rubric 维度到节点的分数拆解;权重之和必须等于该维度满分。 */
 export interface DimensionMapping {
   /** 节点 id → 该维度分配给它的分值。 */
@@ -41,6 +49,8 @@ export interface DimensionMapping {
 export interface CaseMapping {
   /** 中文短名。 */
   label: string
+  /** 该 case 的检索环境;跨设置分数不可比。 */
+  retrieval: RetrievalSetting
   /** rubric 维度序号(1 起) → 拆解。 */
   dimensions: Record<number, DimensionMapping>
 }
@@ -156,6 +166,8 @@ export interface RunRound {
 export interface RunCase {
   /** case id。 */
   caseId: string
+  /** 该 case 实测时的检索环境;旧记录省略。 */
+  retrieval?: RetrievalSetting
   /** 该 case 的逐维度观测;多轮 case 取最后一轮(终局)。 */
   dimensions: RunDimension[]
   /** 逐轮观测,按轮次排序;多轮 case 必填,单轮 case 省略。 */
@@ -285,6 +297,33 @@ function optionalString(source: Record<string, unknown>, key: string, where: str
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'string') throw new Error(`${where}: 字段 "${key}" 必须是字符串`)
   return value
+}
+
+/**
+ * 读一个必填检索环境字段。
+ *
+ * @param source 源对象。
+ * @param key 字段名。
+ * @param where 诊断位置。
+ * @returns 检索环境。
+ */
+function requireRetrieval(source: Record<string, unknown>, key: string, where: string): RetrievalSetting {
+  const value = source[key]
+  if (value === 'none' || value === 'oracle' || value === 'simulation') return value
+  throw new Error(`${where}: 字段 "${key}" 必须是 none、oracle 或 simulation,得到 ${JSON.stringify(value)}`)
+}
+
+/**
+ * 读一个可选检索环境字段;旧记录没有该字段时返回 undefined。
+ *
+ * @param source 源对象。
+ * @param key 字段名。
+ * @param where 诊断位置。
+ * @returns 检索环境,或 undefined。
+ */
+function optionalRetrieval(source: Record<string, unknown>, key: string, where: string): RetrievalSetting | undefined {
+  if (source[key] === undefined || source[key] === null) return undefined
+  return requireRetrieval(source, key, where)
 }
 
 /** 读一个可选有限数数组字段。 */
@@ -463,6 +502,7 @@ export async function loadProblemSpace(path: string): Promise<ProblemSpace> {
     const where = `${path}: cases.${caseId}`
     if (!isRecord(rawCase)) throw new Error(`${where}: 必须是对象`)
     const label = requireString(rawCase, 'label', where)
+    const retrieval = requireRetrieval(rawCase, 'retrieval', where)
     const rawDimensions = requireRecord(rawCase, 'dimensions', where)
     const dimensions: Record<number, DimensionMapping> = {}
     for (const [index, rawDimension] of Object.entries(rawDimensions)) {
@@ -480,7 +520,7 @@ export async function loadProblemSpace(path: string): Promise<ProblemSpace> {
       }
       dimensions[numeric] = { nodes }
     }
-    cases[caseId] = { label, dimensions }
+    cases[caseId] = { label, retrieval, dimensions }
   }
   const nodes: Record<string, ProblemSpaceNode> = {}
   for (const [nodeId, rawNode] of Object.entries(rawNodes)) {
@@ -615,7 +655,13 @@ export async function loadRunRecord(path: string): Promise<RunRecord> {
       }
     })
     const rounds = rawCase.rounds === undefined ? undefined : loadRunRounds(rawCase.rounds, `${where}.rounds`)
-    return { caseId, dimensions, ...rounds === undefined ? {} : { rounds } }
+    const retrieval = optionalRetrieval(rawCase, 'retrieval', where)
+    return {
+      caseId,
+      ...retrieval === undefined ? {} : { retrieval },
+      dimensions,
+      ...rounds === undefined ? {} : { rounds },
+    }
   })
   const record: RunRecord = {
     benchmarkId: requireString(parsed, 'benchmarkId', path),
@@ -922,9 +968,16 @@ export function validateRunRecord(
       problems.push(`${label}: case "${runCase.caseId}" 不在金标中`)
       continue
     }
-    if (space.cases[runCase.caseId] === undefined) {
+    const mapping = space.cases[runCase.caseId]
+    if (mapping === undefined) {
       problems.push(`${label}: case "${runCase.caseId}" 没有问题空间映射`)
       continue
+    }
+    const declaredRetrieval = mapping.retrieval
+    if (runCase.retrieval !== undefined && runCase.retrieval !== declaredRetrieval) {
+      problems.push(
+        `${label}: case "${runCase.caseId}" 记录检索环境 ${runCase.retrieval},问题空间声明 ${declaredRetrieval}`,
+      )
     }
     const dimensions = parseRubricDimensions(goldCase.rubric)
     for (const runDimension of runCase.dimensions) {
@@ -977,6 +1030,35 @@ export function validateRunRecord(
   }
   for (const goldCase of gold) {
     if (!seen.has(goldCase.caseId)) problems.push(`${label}: 缺少 case "${goldCase.caseId}" 的观测`)
+  }
+  return problems
+}
+
+/**
+ * 校验被检记录与基线是否为同一条检索设置。
+ *
+ * 检索模拟与 oracle 给定对比文件测的是不同能力:前者的分数含检索质量,后者只测答复
+ * 质量。用一条设置的基线阈值判另一条设置的运行,读数差异无法归因,因此这里必须拒绝。
+ * 记录没有检索环境(旧格式)时只在基线也没有该字段时放行——「未声明」不能被当成
+ * 「与基线相同」。
+ *
+ * @param run 被检记录。
+ * @param baseline 基线记录。
+ * @param label 被检记录的诊断标签。
+ * @returns 一条不兼容的 case 一条消息;为空表示可以比较。
+ */
+export function comparisonSettingProblems(run: RunRecord, baseline: RunRecord, label: string): string[] {
+  const problems: string[] = []
+  const baselineSettings = new Map(baseline.cases.map(entry => [entry.caseId, entry.retrieval] as const))
+  const describe = (setting: RetrievalSetting | undefined): string => setting ?? '未记录'
+  for (const runCase of run.cases) {
+    if (!baselineSettings.has(runCase.caseId)) continue
+    const baselineSetting = baselineSettings.get(runCase.caseId)
+    if (runCase.retrieval === baselineSetting) continue
+    problems.push(
+      `${label}: case "${runCase.caseId}" 的检索环境为 ${describe(runCase.retrieval)},`
+      + `基线为 ${describe(baselineSetting)};两条记录的分数不可比,请在同一设置下重录基线或运行`,
+    )
   }
   return problems
 }

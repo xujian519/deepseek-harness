@@ -39,6 +39,7 @@ import {
   validateProblemSpace,
   type GoldCase,
   type ProblemSpace,
+  type RetrievalSetting,
   type RubricDimension,
   type RunCase,
   type RunDimension,
@@ -137,7 +138,7 @@ export type RunAgents = (invocation: AgentInvocation) => Promise<RunCallUsage | 
 /** 一次采集的计划:要跑哪些 case、每个 case 几次、总共多少次调用。 */
 export interface RunPlan {
   /** 计划运行的 case,按 case id 排序;每项带该 case 的轮次与 rubric 维度数。 */
-  cases: Array<{ caseId: string; dimensions: number; rounds: number }>
+  cases: Array<{ caseId: string; retrieval: RetrievalSetting; dimensions: number; rounds: number }>
   /** 每个 case 的运行次数。 */
   runsPerCase: number
   /** 计划中的 agent 进程调用总数(含每轮执行者与逐维度评估者)。 */
@@ -205,8 +206,14 @@ export function planRun(options: RunPlanOptions): RunPlan {
   const cases = selected.map((caseId) => {
     const goldCase = options.gold.find(entry => entry.caseId === caseId)
     if (goldCase === undefined) throw new Error(`case "${caseId}" 不在金标中`)
-    if (options.space.cases[caseId] === undefined) throw new Error(`case "${caseId}" 没有问题空间映射`)
-    return { caseId, dimensions: parseRubricDimensions(goldCase.rubric).length, rounds: 1 + (goldCase.rounds?.length ?? 0) }
+    const mapping = options.space.cases[caseId]
+    if (mapping === undefined) throw new Error(`case "${caseId}" 没有问题空间映射`)
+    return {
+      caseId,
+      retrieval: mapping.retrieval,
+      dimensions: parseRubricDimensions(goldCase.rubric).length,
+      rounds: 1 + (goldCase.rounds?.length ?? 0),
+    }
   })
   return {
     cases,
@@ -226,7 +233,10 @@ export function planRun(options: RunPlanOptions): RunPlan {
  */
 export function formatRunPlan(plan: RunPlan, profile: string): string {
   const perCase = plan.cases
-    .map(entry => `${entry.caseId}:${entry.dimensions}${entry.rounds > 1 ? `×${entry.rounds}轮` : ''}`)
+    .map((entry) => {
+      const retrieval = entry.retrieval === 'none' ? '' : `/${entry.retrieval}`
+      return `${entry.caseId}:${entry.dimensions}${entry.rounds > 1 ? `×${entry.rounds}轮` : ''}${retrieval}`
+    })
     .join(' ')
   const rounds = plan.cases.reduce((sum, entry) => sum + entry.rounds, 0)
   return `run-patent-oas: 计划 ${plan.cases.length} case × ${plan.runsPerCase} 次运行,共 ${rounds} 轮 = ${plan.calls} 次 agent 调用(${perCase});profile=${profile}`
@@ -508,7 +518,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
       usageTotals.tokenCalls += 1
     }
   }
-  for (const { caseId, rounds: roundCount } of plan.cases) {
+  for (const { caseId, retrieval, rounds: roundCount } of plan.cases) {
     const goldCase = options.gold.find(entry => entry.caseId === caseId)
     if (goldCase === undefined) throw new Error(`case "${caseId}" 不在金标中`)
     const dimensions = parseRubricDimensions(goldCase.rubric)
@@ -596,6 +606,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
     }))
     cases.push({
       caseId,
+      retrieval,
       dimensions: terminalAccumulators.map<RunDimension>(accumulator => ({
         index: accumulator.dimension.index,
         label: accumulator.dimension.label,

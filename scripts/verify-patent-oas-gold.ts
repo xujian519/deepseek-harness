@@ -23,6 +23,7 @@ import {
   GATE_FILE,
   PATENT_OAS_EXAMPLE_DIR,
   PROBLEM_SPACE_FILE,
+  comparisonSettingProblems,
   evaluateRun,
   formatVerdict,
   goldDigest,
@@ -88,7 +89,7 @@ async function readRecordFlag(args: string[], flag: string): Promise<{ run: RunR
 }
 
 /**
- * 把一次实测记录提升为基线:先校验维度与门槛,分数不达下限就拒绝落盘。
+ * 把一次实测记录提升为基线:先校验维度、检索设置与门槛,分数不达下限就拒绝落盘。
  *
  * 拒绝而不是照抄,是因为低于门槛的基线会让门禁此后永远红——那种门禁比没有门禁更糟。
  *
@@ -97,8 +98,9 @@ async function readRecordFlag(args: string[], flag: string): Promise<{ run: RunR
  * @param space 问题空间 DAG。
  * @param config 门禁策略。
  * @param baselineTarget 基线目标绝对路径。
+ * @returns 写入完成时解决;记录未通过校验时抛错。
  */
-async function acceptBaseline(
+export async function acceptBaseline(
   record: { run: RunRecord; label: string; path: string },
   gold: readonly GoldCase[],
   space: Awaited<ReturnType<typeof loadProblemSpace>>,
@@ -109,6 +111,9 @@ async function acceptBaseline(
     ...validateProblemSpace(space, gold),
     ...validateGateConfig(config, space, gold, undefined, record.label),
     ...validateRunRecord(record.run, space, gold, record.label),
+    ...record.run.cases
+      .filter(runCase => runCase.retrieval === undefined)
+      .map(runCase => `${record.label}: case "${runCase.caseId}" 未记录检索环境,不能落为基线`),
   ]
   const verdict = evaluateRun(space, config, record.run, undefined)
   for (const outcome of verdict.nodes) {
@@ -126,7 +131,7 @@ async function acceptBaseline(
   }
   await mkdir(dirname(baselineTarget), { recursive: true })
   await copyFile(record.path, baselineTarget)
-  console.log(`verify-patent-oas-gold: 已把 ${record.label} 落为基线(${config.baselinePath},聚合 ${verdict.aggregateScore.toFixed(2)})`)
+  console.log(`verify-patent-oas-gold: 已把 ${record.label} 落为基线(${baselineTarget},聚合 ${verdict.aggregateScore.toFixed(2)})`)
 }
 
 /**
@@ -158,6 +163,9 @@ export async function main(args: string[]): Promise<number> {
     ...validateProblemSpace(space, gold),
     ...validateGateConfig(config, space, gold, baseline, config.baselinePath),
     ...flaggedRun === undefined ? [] : validateRunRecord(flaggedRun.run, space, gold, flaggedRun.label),
+    ...flaggedRun === undefined || baseline === undefined
+      ? []
+      : comparisonSettingProblems(flaggedRun.run, baseline, flaggedRun.label),
   ]
   if (problems.length > 0) {
     for (const problem of problems) console.error(`verify-patent-oas-gold: ${problem}`)
