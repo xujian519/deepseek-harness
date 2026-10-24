@@ -40,7 +40,9 @@ function mountRootedShell({ appRoot = true }: { appRoot?: boolean } = {}) {
       collapsed={collapsed} width={300}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
       useShortcuts={selector => selector([])}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
+      usePanelInfo={usePanelInfo} selectPanel={() => {}} setPinned={() => {}} trackEntryClick={() => {}}
+      usePanels={selector => selector([])} useEntryPins={selector => selector([])}
+      useEntryActions={selector => selector(false)}
       useResource={useResource} useWorkspaces={neverHook}
       useRemoteAccess={neverHook} useSessionAccess={neverHook} useWorkspaceAccess={neverHook}
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}

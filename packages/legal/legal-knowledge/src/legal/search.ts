@@ -170,7 +170,10 @@ export class LegalRegulationSearchEngine extends SqliteBackedEngine<LegalSearchO
     return isVisible(validity, includeUnverified) ? { ...record, validity } : undefined
   }
 
-  /** Total number of regulation records. */
+  /**
+   * Total number of regulation records.
+   * @returns the total number of regulation records.
+   */
   count(): number {
     if (this.sqlite.connected) return this.sqlite.count()
     return this.records.length

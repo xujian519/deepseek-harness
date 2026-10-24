@@ -39,7 +39,10 @@ export class LegalEvidenceEngine implements LegalEvidenceEngineInterface {
     this.ruleSet = parsed.ruleSet
   }
 
-  /** 规则加载期间累积的警告。 */
+  /**
+   * 规则加载期间累积的警告。
+   * @returns 警告列表的副本。
+   */
   getWarnings(): string[] {
     return [...this.warnings]
   }

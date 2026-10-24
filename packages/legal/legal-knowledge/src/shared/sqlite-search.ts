@@ -200,7 +200,11 @@ export class SqliteFtsTable<TOptions, THit> {
     }
   }
 
-  /** 表内记录数；查询失败时为 0。 */
+  /**
+   * 表内记录数；查询失败时为 0。
+   * @param table - 表名。
+   * @returns 记录数。
+   */
   count(table: string = this.shape.table): number {
     if (!this.db) return 0
     try {

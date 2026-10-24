@@ -142,16 +142,28 @@ export function apply(ctx: ClientContext): void {
     mapButton.classList.toggle('active', showingMap)
     mapButton.setAttribute('aria-pressed', String(showingMap))
   }
-  // The conversation tab row publishes data-conversation-tabs (ui-conversation
-  // ConversationSession). Its box spans the conversation column, so parking the
-  // switch against the row's right edge keeps it off the header's title row and
-  // follows an open right sidebar instead of covering it. A surface without the
-  // anchor keeps the stylesheet's fallback corner. The row is re-created with the
-  // Session view, so each placement re-observes whichever node carries it: an
-  // opening sidebar respans the column without a window resize.
+  // ui-conversation marks the full tab row as data-conversation-tab-row and the
+  // tablist inside it as data-conversation-tabs. The row's box spans the
+  // conversation column, so parking the switch against its right edge keeps it
+  // clear of the tabs and the More launcher, off the header's title row, and
+  // clear of an open right sidebar. A surface without the anchor keeps the
+  // stylesheet's fallback corner. The row is re-created with the Session view,
+  // so each placement re-observes whichever node carries it: an opening sidebar
+  // respans the column without a window resize.
   let observedRow: Element | null = null
+  let observedContent: Element | null = null
+  let placed = false
+  let anchorRetry = 0
+  let retryTimer = 0
   const placeSwitch = (): void => {
-    const row = document.querySelector('[data-conversation-tabs]')
+    const contentElement = document.querySelector('[data-conversation-session]')
+    if (contentElement !== observedContent) {
+      if (observedContent !== null) placementObserver?.unobserve(observedContent)
+      if (contentElement !== null) placementObserver?.observe(contentElement)
+      observedContent = contentElement
+    }
+    const row = document.querySelector('[data-conversation-tab-row]')
+      ?? document.querySelector('[data-conversation-tabs]')
     if (row !== observedRow) {
       if (observedRow !== null) placementObserver?.unobserve(observedRow)
       if (row !== null) placementObserver?.observe(row)
@@ -159,11 +171,36 @@ export function apply(ctx: ClientContext): void {
     }
     const rect = row === null ? null : row.getBoundingClientRect()
     if (rect === null || rect.width === 0 || rect.height === 0) {
+      // A blank Session renders no tab row. Its content still spans the
+      // conversation column, so the switch parks just below the header's
+      // controls instead of the window corner, which covers the right
+      // sidebar's header controls.
+      const content = contentElement?.getBoundingClientRect()
+      if (content !== undefined && content.width > 0 && content.height > 0) {
+        anchorRetry = 0
+        placed = true
+        switchEl.style.right = 'auto'
+        switchEl.style.left = `${Math.round(content.right - switchEl.offsetWidth)}px`
+        switchEl.style.top = `${Math.round(content.top + 40)}px`
+        return
+      }
+      // A Session view can unmount the row between two frames. Keep the last
+      // placement briefly and look again before giving up on the inline box.
+      if (row === null && placed && anchorRetry < 20) {
+        anchorRetry += 1
+        window.clearTimeout(retryTimer)
+        retryTimer = window.setTimeout(schedulePlaceSwitch, 50)
+        return
+      }
       switchEl.style.removeProperty('left')
       switchEl.style.removeProperty('top')
       switchEl.style.removeProperty('right')
+      placed = false
       return
     }
+    anchorRetry = 0
+    window.clearTimeout(retryTimer)
+    placed = true
     switchEl.style.right = 'auto'
     switchEl.style.left = `${Math.round(rect.right - switchEl.offsetWidth)}px`
     // Bottom-aligned with the row: the pill is taller than the 25px row, so
@@ -394,6 +431,7 @@ export function apply(ctx: ClientContext): void {
     unsubscribeSessions()
     unsubscribeWorkspaces()
     window.clearTimeout(syncTimer)
+    window.clearTimeout(retryTimer)
     if (placementFrame !== 0) window.cancelAnimationFrame(placementFrame)
     placementObserver?.disconnect()
     for (const unsubscribe of liveUnsubscribers.values()) unsubscribe()

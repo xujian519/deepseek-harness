@@ -24,7 +24,11 @@ export {
   physicalEvaluator,
 } from './other-types.ts'
 
-/** 按证据类型获取对应的判定器。 */
+/**
+ * 按证据类型获取对应的判定器。
+ * @param evidenceType - 证据类型。
+ * @returns 对应的判定器。
+ */
 export function getEvaluator(evidenceType: LegalEvidenceType): LegalEvidenceEvaluator {
   switch (evidenceType) {
     case 'party_statement':

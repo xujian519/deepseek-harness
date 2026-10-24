@@ -44,7 +44,15 @@ export function citationInputProblem(args: CitationVerifyArgs): CitationInputPro
  * @param referenceExample - example references for the domain, shown in the schema.
  * @returns the parameter schema.
  */
-export function citationVerifyParameters(referenceExample: string) {
+export function citationVerifyParameters(referenceExample: string): {
+  readonly text: { readonly type: 'string'; readonly description: 'Text whose citations are extracted and checked' }
+  readonly references: {
+    readonly type: 'array'
+    readonly items: { readonly type: 'string' }
+    readonly description: `References to check as written, e.g. ${string}`
+  }
+  readonly proposition: { readonly type: 'string'; readonly description: 'What the citations are offered in support of' }
+} {
   return {
     text: { type: 'string', description: 'Text whose citations are extracted and checked' },
     references: {
@@ -91,7 +99,11 @@ export const CITATION_REPORT_PROPERTIES = {
  * @param properties - the domain's finding fields.
  * @returns the finding schema with the shared object rules applied.
  */
-export function citationFindingSchema<const TProperties>(properties: TProperties) {
+export function citationFindingSchema<const TProperties>(properties: TProperties): {
+  readonly type: 'object'
+  readonly additionalProperties: false
+  readonly properties: TProperties
+} {
   return {
     type: 'object',
     additionalProperties: false,
@@ -104,7 +116,16 @@ export function citationFindingSchema<const TProperties>(properties: TProperties
  * @param findingSchema - the domain's finding schema.
  * @returns the output schema.
  */
-export function citationVerifyOutputSchema<const TSchema>(findingSchema: TSchema) {
+export function citationVerifyOutputSchema<const TSchema>(findingSchema: TSchema): {
+  readonly type: 'object'
+  readonly additionalProperties: false
+  readonly properties: {
+    readonly findings: { readonly type: 'array'; readonly required: true; readonly items: TSchema }
+    readonly blocked: (typeof CITATION_REPORT_PROPERTIES)['blocked']
+    readonly counts: (typeof CITATION_REPORT_PROPERTIES)['counts']
+    readonly unrecognized: (typeof CITATION_REPORT_PROPERTIES)['unrecognized']
+  }
+} {
   return {
     type: 'object',
     additionalProperties: false,
@@ -180,7 +201,16 @@ export function citationVerifyToolOptions<
   report: (findings: TFinding[], blocked: boolean, unrecognized: string[]) => string
   /** Runs the domain's verification and returns its output value, synchronously or as a promise. */
   run: (args: TArgs) => TValue | Promise<TValue>
-}) {
+}): {
+  name: string
+  description: string
+  parameters: ReturnType<typeof citationVerifyParameters>
+  output: {
+    schema: ReturnType<typeof citationVerifyOutputSchema<TFindingSchema>>
+    render: (args: unknown, value: { findings: TFinding[]; blocked: boolean; unrecognized: string[] }) => { type: 'text'; text: string }[]
+  }
+  execute: (args: TArgs) => Promise<TValue>
+} {
   return {
     name: input.name,
     description: input.description,

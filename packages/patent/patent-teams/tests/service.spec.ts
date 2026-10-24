@@ -1322,7 +1322,10 @@ describe('authorization and edge branches', () => {
       .rejects.toThrow('cancelled')
   })
 
-  it('surfaces a mid-wait abort through reassignment quiescence', async () => {
+  it.each([
+    { label: 'a non-Error reason', reason: 'user cancelled', expected: 'task reassignment was cancelled' },
+    { label: 'an Error reason', reason: new Error('user cancelled'), expected: 'user cancelled' },
+  ])('surfaces $label from a mid-wait abort through reassignment quiescence', async ({ reason, expected }) => {
     const h = await makeService()
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
@@ -1344,11 +1347,12 @@ describe('authorization and edge branches', () => {
       task_id: 't1', assignee: 'captain', reason: 'take over',
     }, controller.signal).catch((error: unknown) => error)
     await enteredWait.promise
-    controller.abort('user cancelled')
+    controller.abort(reason)
     resolve(undefined)
     const result = await reassigning
-    // A non-Error abort reason is wrapped into the cancellation fallback error.
-    expect(String(result)).toContain('task reassignment was cancelled')
+    // A non-Error reason is wrapped into the cancellation fallback error; an
+    // Error reason crosses back unchanged.
+    expect(String(result)).toContain(expected)
   })
 
   it('wraps a non-Error reason when the signal is already aborted before quiescence', async () => {
