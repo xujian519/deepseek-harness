@@ -25,6 +25,7 @@
  * @module @deepseek-ai/dsh-document-deliver/tool
  */
 
+import { isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { FsError } from '@deepseek-ai/dsh-fs'
 import { findStyleByName, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
@@ -103,7 +104,14 @@ export interface DocumentDeliverInput {
  * checks ran over incompletely projected text.
  */
 export interface DeliverableCheckReport {
+  /** The path as the call declared it; kept for display and model-facing text. */
   path: string
+  /**
+   * Absolute target the Host resolved for this file, when the backend reports
+   * one. Consumers use it as the file identity so two spellings of one path
+   * (relative and absolute) do not become two deliverables.
+   */
+  resolvedPath?: string
   format: DeliverableFormat
   status: 'checked' | 'unchecked' | 'unreadable'
   /** Why the checks did not run, or ran over incomplete text; absent when they ran over the whole file. */
@@ -296,7 +304,15 @@ async function checkDeliverable(
 ): Promise<DeliverableCheckReport> {
   const resolved = resolveCheckFormat(file.path, file.format)
   const format = resolved.format
-  const base = { path: file.path, format }
+  const target = await resolveTarget(ctx, exec, file.path)
+  const base = {
+    path: file.path,
+    format,
+    // Only a relative declaration needs the resolved identity; an absolute one
+    // already is the identity, and omitting the duplicate keeps old records
+    // and absolute-path results unchanged.
+    ...isAbsolute(target.displayPath) && target.displayPath !== file.path ? { resolvedPath: target.displayPath } : {},
+  }
   /**
    * The `reason` field of a report, omitted when there is nothing to say.
    *
@@ -319,7 +335,6 @@ async function checkDeliverable(
   if (!TEXT_FORMATS.includes(format) && format !== 'docx') {
     return { ...base, status: 'unchecked', ...reasonField(`${format} 格式没有文本读取器`), findings: [] }
   }
-  const target = await resolveTarget(ctx, exec, file.path)
   try {
     if (format === 'docx') {
       const bytes = await ctx.fs.readBytes(target, exec.signal, limits.maxCheckBytes)
@@ -442,6 +457,7 @@ function checksMeta(checks: readonly DeliverableCheckReport[]) {
   return {
     checks: checks.map(report => ({
       path: report.path,
+      ...report.resolvedPath === undefined ? {} : { resolvedPath: report.resolvedPath },
       format: report.format,
       status: report.status,
       ...report.reason === undefined ? {} : { reason: report.reason },
@@ -565,6 +581,7 @@ const OUTPUT_SCHEMA = {
             additionalProperties: false,
             properties: {
               path: { type: 'string', required: true },
+              resolvedPath: { type: 'string' },
               format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS] },
               status: { type: 'string', required: true, enum: ['checked', 'unchecked', 'unreadable'] },
               reason: { type: 'string' },
@@ -660,7 +677,19 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
           ...blocking,
         ].join('\n'))
       }
-      const readable = resolveUnreadableReports(spec, checks)
+      // Match an ack to its file by resolved identity, so a declaration that
+      // spells one path relatively and the ack absolutely still pairs up.
+      const canonical = new Map<string, string>()
+      for (const file of spec.files) {
+        const target = await resolveTarget(ctx, exec, file.path)
+        canonical.set(file.path, target.displayPath)
+      }
+      for (const ack of spec.unreadableAck ?? []) {
+        if (canonical.has(ack.path)) continue
+        const target = await resolveTarget(ctx, exec, ack.path)
+        canonical.set(ack.path, target.displayPath)
+      }
+      const readable = resolveUnreadableReports(spec, checks, path => canonical.get(path) ?? path)
       warnings.push(...readable.warnings)
       return toResult(spec, readable.reports, style, warnings)
     },

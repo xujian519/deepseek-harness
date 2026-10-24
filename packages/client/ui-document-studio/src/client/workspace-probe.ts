@@ -76,9 +76,15 @@ export interface WorkspaceProbe {
   readonly unregisteredDeliverables: (known: readonly string[]) => Promise<readonly string[]>
 }
 
-/** Compare two spellings of one produced path. */
-function samePath(left: string, right: string): boolean {
-  const normalize = (value: string): string => value.replace(/^\.\//, '')
+/**
+ * Compare two spellings of one produced path.
+ * @param left - a produced path as the session log recorded it.
+ * @param right - a workspace-relative candidate path.
+ * @param resolve - maps either side to the Host-facing target.
+ * @returns whether both name the same target.
+ */
+function samePath(left: string, right: string, resolve: (path: string) => string): boolean {
+  const normalize = (value: string): string => resolve(value).replace(/^\.\//, '')
   return normalize(left) === normalize(right)
 }
 
@@ -148,7 +154,7 @@ export function createWorkspaceProbe(
           continue
         }
         if (entry.type !== 'file' || !isDeliverableName(entry.name)) continue
-        if (known.some(produced => samePath(produced, path))) continue
+        if (known.some(produced => samePath(produced, path, resolve))) continue
         // Every listed path is visited once, so no candidate can repeat.
         candidates.push(path)
         if (candidates.length >= MAX_CANDIDATES) return candidates

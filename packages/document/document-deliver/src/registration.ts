@@ -208,13 +208,16 @@ function unreadableAdvice(report: DeliverableCheckReport): string {
  * document; an oversized file registers with the cap named in its reason.
  * @param spec - the validated registration, carrying any declared reasons.
  * @param reports - one check report per declared file, in declaration order.
+ * @param canonicalize - maps a declared spelling to the identity used to match
+ * an ack with its file; defaults to the spelling itself.
  * @returns the reports with their declared reasons attached, plus warnings for reasons that matched nothing.
  * @throws Error naming every file that needs a reason and what to do about it.
  */
 export function resolveUnreadableReports(
   spec: DocumentDeliverSpec, reports: readonly DeliverableCheckReport[],
+  canonicalize: (path: string) => string = path => path,
 ): { reports: DeliverableCheckReport[]; warnings: string[] } {
-  const ackByPath = new Map((spec.unreadableAck ?? []).map(entry => [entry.path, entry.reasonText]))
+  const ackByPath = new Map((spec.unreadableAck ?? []).map(entry => [canonicalize(entry.path), entry] as const))
   const resolved: DeliverableCheckReport[] = []
   const needed: DeliverableCheckReport[] = []
   for (const report of reports) {
@@ -222,7 +225,7 @@ export function resolveUnreadableReports(
       resolved.push(report)
       continue
     }
-    const ack = ackByPath.get(report.path)
+    const ack = ackByPath.get(canonicalize(report.path))?.reasonText
     if (ack !== undefined) {
       resolved.push({ ...report, ack })
       continue
@@ -241,15 +244,17 @@ export function resolveUnreadableReports(
       '给每个文件补一条 unreadable_ack（path + reason_text）说明为什么仍要交付；修复文件后重新登记也可以。',
     ].join('\n'))
   }
-  const unreadablePaths = new Set(reports.filter(report => report.status === 'unreadable').map(report => report.path))
-  const declaredPaths = new Set(reports.map(report => report.path))
+  const unreadablePaths = new Set(
+    reports.filter(report => report.status === 'unreadable').map(report => canonicalize(report.path)),
+  )
+  const declaredPaths = new Set(reports.map(report => canonicalize(report.path)))
   const warnings: string[] = []
-  for (const path of ackByPath.keys()) {
-    if (!declaredPaths.has(path)) {
-      warnings.push(`unreadable_ack 指向未登记的路径：${path}`)
+  for (const [key, ack] of ackByPath) {
+    if (!declaredPaths.has(key)) {
+      warnings.push(`unreadable_ack 指向未登记的路径：${ack.path}`)
       continue
     }
-    if (!unreadablePaths.has(path)) warnings.push(`unreadable_ack 的 ${path} 不是无法核验状态，不需要说明原因`)
+    if (!unreadablePaths.has(key)) warnings.push(`unreadable_ack 的 ${ack.path} 不是无法核验状态，不需要说明原因`)
   }
   return { reports: resolved, warnings }
 }

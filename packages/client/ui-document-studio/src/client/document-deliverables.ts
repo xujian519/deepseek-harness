@@ -11,6 +11,7 @@
  * first-seen ordered list.
  */
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
+import { isAbsoluteWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import { isRecord } from '@deepseek-ai/dsh-value'
 import type {
   ConversationNodeDefinition, ConversationTimelineSnapshot, ConversationViewBuilder,
@@ -37,6 +38,8 @@ export interface DocumentCheckFinding {
 
 /** One delivered file's deterministic check outcome, as the registration recorded it. */
 export interface DocumentCheckReport {
+  /** Absolute target the Host recorded for this file; absent for legacy results. */
+  readonly resolvedPath?: string
   /** `checked` ran over the whole file, `unchecked` has no reader, `unreadable` could not be read. */
   readonly status: (typeof DOCUMENT_CHECK_STATUSES)[number]
   /** Why the checks did not run, or ran over incomplete text; absent when they ran over the whole file. */
@@ -48,7 +51,15 @@ export interface DocumentCheckReport {
 /** One produced file with its first-producing turn event seq and optional registration metadata. */
 export interface DocumentDeliverable {
   readonly seq: number
+  /** The spelling the producing call or registration used; kept for display. */
   readonly path: string
+  /**
+   * Absolute target recorded by the producing call's result or the
+   * registration, when one exists. Two spellings of one file share this key,
+   * so the session fold keeps a single entry; legacy events omit it and fall
+   * back to {@link path}.
+   */
+  readonly identity?: string
   /** Export format announced by a `document_deliver` registration. */
   readonly format?: string
   /** Quality-gate state announced by a `document_deliver` registration. */
@@ -199,6 +210,7 @@ export function parseCheckReports(meta: unknown): ReadonlyMap<string, DocumentCh
     const status = entry.status as DocumentCheckReport['status']
     reports.set(entry.path, {
       status,
+      ...typeof entry.resolvedPath === 'string' ? { resolvedPath: entry.resolvedPath } : {},
       ...typeof entry.reason === 'string' ? { reason: entry.reason } : {},
       findings,
     })
@@ -277,6 +289,24 @@ function pathValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
+/**
+ * Absolute target a settled mutation's result recorded, when the backend
+ * supplies one. Legacy results carry none, so those entries keep the declared
+ * spelling as their identity.
+ * @param meta - the `tool/result` event's metadata.
+ * @returns the absolute path, or undefined.
+ */
+function mutationIdentity(meta: unknown): string | undefined {
+  if (!isRecord(meta)) return undefined
+  return typeof meta.path === 'string' && isAbsoluteWorkspacePath(meta.path) ? meta.path : undefined
+}
+
+/** One settled mutation entry, keyed by the absolute target when recorded. */
+function mutationEntry(seq: number, path: string, meta: unknown): DocumentDeliverable {
+  const identity = mutationIdentity(meta)
+  return { seq, path, ...identity === undefined ? {} : { identity } }
+}
+
 /* jscpd:ignore-end */
 
 function registeredEntries(
@@ -284,9 +314,14 @@ function registeredEntries(
 ): DocumentDeliverable[] {
   return registration.files.map((file) => {
     const report = checks?.get(file.path)
+    // The Host records a resolved identity only for relative declarations; an
+    // absolute declaration is already the identity.
+    const identity = report?.resolvedPath
+      ?? (isAbsoluteWorkspacePath(file.path) ? file.path : undefined)
     return {
       seq,
       path: file.path,
+      ...identity === undefined ? {} : { identity },
       format: file.format,
       gate: registration.gate,
       ...report === undefined ? {} : { checks: report },
@@ -335,7 +370,7 @@ export const documentDeliverablesDefinition: ConversationNodeDefinition<Document
       ? registeredEntries(match.event.seq, call.registration, parseCheckReports(match.event.data.meta))
       : call === undefined || call.producedPath === null
         ? []
-        : [{ seq: match.event.seq, path: call.producedPath }]
+        : [mutationEntry(match.event.seq, call.producedPath, match.event.data.meta)]
     return additions.length === 0
       ? context.state
       : { ...context.state, produced: [...context.state.produced, ...additions] }
@@ -368,9 +403,11 @@ const EMPTY: DocumentDeliverablesSnapshot = { produced: [] }
 function augmented(previous: DocumentDeliverable, next: DocumentDeliverable): DocumentDeliverable {
   // The check report is deliberately excluded here; only `next.checks` (below)
   // can put one back, so an entry without one withdraws the earlier verdict.
+  const identity = previous.identity ?? next.identity
   const base: DocumentDeliverable = {
     seq: previous.seq,
     path: previous.path,
+    ...identity === undefined ? {} : { identity },
     ...previous.format === undefined ? {} : { format: previous.format },
     ...previous.gate === undefined ? {} : { gate: previous.gate },
     ...previous.briefRef === undefined ? {} : { briefRef: previous.briefRef },
@@ -391,9 +428,13 @@ function producedFromTimeline(timeline: ConversationTimelineSnapshot): DocumentD
     const data = turn.data.get('documentDeliverables')
     if (data === undefined) continue
     for (const entry of data.produced) {
-      const index = seen.get(entry.path)
+      // One file can be written as `out/report.html` and registered as its
+      // absolute path; both entries carry the same absolute identity, so the
+      // fold must key on that rather than on the spelling.
+      const key = entry.identity ?? entry.path
+      const index = seen.get(key)
       if (index === undefined) {
-        seen.set(entry.path, produced.length)
+        seen.set(key, produced.length)
         produced.push(entry)
       } else {
         const previous = produced[index]

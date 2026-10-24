@@ -151,6 +151,11 @@ export function parseDocumentSections(html: string): readonly DocumentSection[] 
   return sections
 }
 
+/** Whether one produced entry answers a display or canonical path key. */
+function matchesFile(file: DocumentDeliverable, key: string): boolean {
+  return file.path === key || file.identity === key
+}
+
 /** Produced-file chip labels: a duplicated basename gains its parent directory. */
 function chipLabels(produced: readonly DocumentDeliverable[]): ReadonlyMap<string, string> {
   const counts = new Map<string, number>()
@@ -350,7 +355,7 @@ export function StudioView({
   // Keep the selection on a produced file: drop stale selections, adopt the
   // first produced file when the list first gains entries.
   useEffect(() => {
-    if (selectedPath !== null && produced.some(file => file.path === selectedPath)) return
+    if (selectedPath !== null && produced.some(file => matchesFile(file, selectedPath))) return
     setSelectedPath(produced[0]?.path ?? null)
   }, [produced, selectedPath])
 
@@ -361,7 +366,8 @@ export function StudioView({
     // Wait for the list rather than acknowledging a request this console cannot
     // resolve yet; the request survives until it can.
     if (produced.length === 0) return
-    if (produced.some(file => file.path === viewRequest.focus)) setSelectedPath(viewRequest.focus)
+    const focused = produced.find(file => matchesFile(file, viewRequest.focus))
+    if (focused !== undefined) setSelectedPath(focused.path)
     completeViewRequest()
   }, [viewRequest, produced, completeViewRequest])
 

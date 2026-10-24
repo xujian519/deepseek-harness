@@ -314,7 +314,13 @@ describe('document_deliver tool', () => {
         p0: P0_IDS,
         p1: [],
         style: 'assistant-neutral',
-        checks: [{ path: 'deck.html', format: 'html', status: 'checked', findings: [] }],
+        checks: [{
+          path: 'deck.html',
+          resolvedPath: join(temp, 'deck.html'),
+          format: 'html',
+          status: 'checked',
+          findings: [],
+        }],
       },
     })
   })
@@ -492,6 +498,23 @@ describe('document_deliver deterministic checks', () => {
     })
     expect(unreadable.value.gate.checks[0]?.status).toBe('unreadable')
     expect(unreadable.value.gate.checks[0]?.reason).toBeDefined()
+  })
+
+  it('pairs an ack with its file when the two spellings differ', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    await writeFile(join(temp, 'broken.docx'), 'not a zip package')
+    const tool = createDocumentDeliverTool(ctx, deps())
+    const result = await tool.execute(
+      {
+        files: [{ path: 'broken.docx', format: 'docx' }],
+        gate: { p0: P0_IDS },
+        unreadable_ack: [{ path: join(temp, 'broken.docx'), reason_text: '历史归档件，本部署的 DOCX 读取器打不开' }],
+      },
+      { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext,
+    ) as DocumentDeliverResult
+    // The relative declaration and the absolute ack name one file.
+    expect(result.gate.checks[0]?.ack).toBe('历史归档件，本部署的 DOCX 读取器打不开')
   })
 
   it('refuses an unreadable DOCX that declares no reason, naming the structure and the fix', async () => {

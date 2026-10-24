@@ -304,6 +304,55 @@ describe('document_deliver registrations', () => {
     ])
   })
 
+  it('folds relative and absolute spellings of one file, withdrawing the verdict on rewrite', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'write', 'write', { file_path: 'out/report.html', content: 'v1' }),
+      result(3, 'write', false, 1, { path: '/ws/out/report.html' }),
+      deliver(4, 'reg', JSON.stringify({
+        files: [{ path: '/ws/out/report.html', format: 'html' }],
+        gate: { p0: ['命名规范'] },
+      })),
+      result(5, 'reg', false, 1, {
+        checks: [{
+          path: '/ws/out/report.html',
+          format: 'html',
+          status: 'checked',
+          findings: [],
+        }],
+      }),
+      at(6, 'turn/start', { turn: 2 }),
+      call(7, 'rewrite', 'write', { file_path: 'out/report.html', content: 'v2' }, 2),
+      result(8, 'rewrite', false, 2, { path: '/ws/out/report.html' }),
+    ])
+
+    expect(turnDataOf(value)?.produced).toEqual([
+      { seq: 3, path: 'out/report.html', identity: '/ws/out/report.html' },
+      {
+        seq: 5,
+        path: '/ws/out/report.html',
+        identity: '/ws/out/report.html',
+        format: 'html',
+        gate: { p0: ['命名规范'], p1: [] },
+        checks: { status: 'checked', findings: [] },
+      },
+    ])
+    expect(turnDataOf(value, 2)?.produced).toEqual([
+      { seq: 8, path: 'out/report.html', identity: '/ws/out/report.html' },
+    ])
+    // 两种拼写共享绝对路径身份：只留首见的一条，改写撤销旧核验并保留声明。
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([
+      {
+        seq: 3,
+        path: 'out/report.html',
+        identity: '/ws/out/report.html',
+        format: 'html',
+        gate: { p0: ['命名规范'], p1: [] },
+      },
+    ])
+  })
+
   it('attaches the machine checks each registration result recorded', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),

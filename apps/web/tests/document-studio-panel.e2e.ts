@@ -1,13 +1,15 @@
 // Web e2e scenario: the fixed Deliverables conversation view over the real web
-// composition. No model call is involved — the seeded session log carries one
-// `document_deliver` registration call, and the assertion chain is the whole
-// delivery path: log replay → session history → Conversation Node fold → the
-// `documentDeliverables` view snapshot behind the Deliverables tab → the
+// composition. No model call is involved — the seeded session log writes one
+// file relatively, registers that file by its absolute path, registers a
+// second file, and rewrites the first, so the assertion chain exercises the
+// whole delivery path: log replay → session history → Conversation Node fold →
+// the `documentDeliverables` view snapshot behind the Deliverables tab → the
 // preview read of a produced file through the session's `workspaceFiles`
-// Remote. The tab is activated by its slot id, so this guards the
-// slot-id-equals-target contract: a mismatched id leaves the target
-// unactivated and the view stuck on its empty state, which is exactly the
-// regression this scenario rejects.
+// Remote. The fold must key on the recorded absolute target rather than the
+// spelling, and the rewrite must withdraw the earlier check verdict. The tab
+// is activated by its slot id, so this guards the slot-id-equals-target
+// contract: a mismatched id leaves the target unactivated and the view stuck
+// on its empty state, which is exactly the regression this scenario rejects.
 import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'

@@ -101,6 +101,15 @@ describe('unregisteredDeliverables', () => {
     ])
   })
 
+  it('excludes a known path spelled absolutely against relative candidates', async () => {
+    const { probe: workspace } = probe(files, path => path.startsWith('/') ? path : `/ws/${path}`)
+    expect(await workspace.unregisteredDeliverables(['/ws/brief.md', '/ws/out/report.docx'])).toEqual([
+      'index.html',
+      'out/deck.pptx',
+      'out/sub/appendix.pdf',
+    ])
+  })
+
   it('skips hidden directories and stops at the candidate cap', async () => {
     const root: WorkspaceDirectoryEntry[] = [{ name: '.hidden', type: 'directory' }]
     for (let index = 0; index < 45; index += 1) {

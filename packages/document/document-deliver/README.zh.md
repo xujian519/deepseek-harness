@@ -21,7 +21,7 @@ kind: "package-reference"
 <a id="what-it-mounts"></a>
 ## 挂载内容
 
-- **`document_deliver`** —— 声明 `files`（`{ path, format }`，format 取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（必填的 `p0`，模型在其中自述质量门技能的稳定 id 已通过；可选 `p1` 列表）、可选的 `unreadable_ack` 原因（每个读不出的文件一条 `{ path, reason_text }`）、可选 `brief_ref`、可选 `style` 风格名、可选 `char_budget` 字数预算。按调用方会话工作区解析每个路径；文件不存在（幽灵文件不算交付物）即报错；随后读取每个交付文件跑确定性核验，回执自述的 P0/P1 项数、所用风格与每个文件一份核验报告。自述只被记录、不被核验：`p0` 里漏填或写法无法识别的 id 以登记提示返回，是否拒绝登记只由确定性核验结论决定。
+- **`document_deliver`** —— 声明 `files`（`{ path, format }`，format 取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（必填的 `p0`，模型在其中自述质量门技能的稳定 id 已通过；可选 `p1` 列表）、可选的 `unreadable_ack` 原因（每个读不出的文件一条 `{ path, reason_text }`）、可选 `brief_ref`、可选 `style` 风格名、可选 `char_budget` 字数预算。按调用方会话工作区解析每个路径；文件不存在（幽灵文件不算交付物）即报错；随后读取每个交付文件跑确定性核验，回执自述的 P0/P1 项数、所用风格与每个文件一份核验报告；相对路径声明的文件，报告还带 `resolvedPath`（解析后的绝对目标），消费方可按身份而不是拼写识别文件。自述只被记录、不被核验：`p0` 里漏填或写法无法识别的 id 以登记提示返回，是否拒绝登记只由确定性核验结论决定。
 
 <a id="deterministic-checks"></a>
 ## 确定性核验
