@@ -30,7 +30,6 @@ import { DEFAULT_LENGTH_TOLERANCE, DEFAULT_MAX_FINDINGS_PER_CHECK } from '../src
 
 const signal = new AbortController().signal
 const exec = { signal } as unknown as ToolRunContext
-
 /** Every P0 id the shipped checklist declares: the declaration of a call that has nothing to report. */
 const P0_IDS = P0_CHECKLIST.map(entry => entry.id)
 
@@ -70,6 +69,27 @@ afterEach(async () => {
   }
 })
 
+/**
+ * Mount the plugin over a filesystem whose relative-path base is `cwd`.
+ *
+ * These tests spell one file relatively and absolutely to prove both resolve to
+ * one identity. `ToolRunContext.agent` is what the tool reads a session cwd
+ * from, and a test needs no agent to exercise resolution: the backend's own
+ * configured base answers relative paths, so the shared {@link exec} stands in
+ * for a full execution and nothing here asserts a type it does not have.
+ * @param cwd - directory relative paths resolve against.
+ * @param config - plugin configuration.
+ * @returns the mounted context.
+ */
+async function mountedAt(cwd: string, config: plugin.Config = {}): Promise<Context> {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(LocalFileSystem, { cwd })
+  await ctx.plugin(plugin, config)
+  return ctx
+}
+
 async function mounted(config: plugin.Config = {}): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
@@ -88,8 +108,7 @@ async function run(ctx: Context, args: unknown): Promise<{ isError: boolean; con
   })
   const block = result.content[0]
   if (block === undefined || block.type !== 'text') throw new Error('expected a text content block')
-  return { isError: result.isError, content: block.text }
-}
+  return { isError: result.isError, content: block.text }}
 
 /** Register one declaration through the tool itself and render its result. */
 async function register(
@@ -935,12 +954,11 @@ describe('unreadable acknowledgement', () => {
 
 describe('deliverable identity', () => {
   it('gives two spellings of one file the same identity while keeping each declared path', async () => {
-    const ctx = await mounted()
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const ctx = await mountedAt(temp)
     const absolute = join(temp, 'report.md')
     await writeFile(absolute, '# 报告\n\n正文。\n')
     const tool = createDocumentDeliverTool(ctx, deps())
-    const exec = { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext
     const relative = await tool.execute(
       { files: [{ path: 'report.md', format: 'markdown' }], gate: { p0: P0_IDS } }, exec,
     ) as DocumentDeliverResult
@@ -1019,8 +1037,8 @@ describe('deliverable identity', () => {
 
 describe('unreadable acknowledgement across spellings', () => {
   it('attaches an ack written in another spelling of the same file', async () => {
-    const ctx = await mounted()
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const ctx = await mountedAt(temp)
     const absolute = join(temp, 'broken.docx')
     await writeFile(absolute, 'not a zip package')
     const tool = createDocumentDeliverTool(ctx, deps())
@@ -1029,15 +1047,15 @@ describe('unreadable acknowledgement across spellings', () => {
       files: [{ path: 'broken.docx', format: 'docx' }],
       gate: { p0: P0_IDS },
       unreadable_ack: [{ path: absolute, reason_text: '历史归档件，读取器打不开' }],
-    }, { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext) as DocumentDeliverResult
+    }, exec) as DocumentDeliverResult
     expect(result.gate.checks[0]?.status).toBe('unreadable')
     expect(result.gate.checks[0]?.ack).toBe('历史归档件，读取器打不开')
     expect(result.warnings).toBeUndefined()
   })
 
   it('does not report the same file spelled two ways as an unregistered path', async () => {
-    const ctx = await mounted()
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const ctx = await mountedAt(temp)
     const absolute = join(temp, 'report.md')
     await writeFile(absolute, '# 报告\n\n正文。\n')
     const tool = createDocumentDeliverTool(ctx, deps())
@@ -1045,7 +1063,7 @@ describe('unreadable acknowledgement across spellings', () => {
       files: [{ path: 'report.md', format: 'markdown' }],
       gate: { p0: P0_IDS },
       unreadable_ack: [{ path: absolute, reason_text: '多余的原因' }],
-    }, { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext) as DocumentDeliverResult
+    }, exec) as DocumentDeliverResult
     // The ack names a registered file, so it is not an unregistered path; the
     // file was readable, so the "needs no reason" line still reports it.
     expect(result.gate.checks[0]?.status).toBe('checked')
@@ -1084,8 +1102,8 @@ describe('unreadable acknowledgement across spellings', () => {
   })
 
   it('resolves ack identities and leaves an unresolvable ack to spelling matching', async () => {
-    const ctx = await mounted()
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const ctx = await mountedAt(temp)
     const absolute = join(temp, 'report.md')
     await writeFile(absolute, '# 报告\n\n正文。\n')
     const underFile = join(absolute, 'child.md')
@@ -1099,8 +1117,7 @@ describe('unreadable acknowledgement across spellings', () => {
         { path: underFile, reasonText: '二' },
       ],
     }
-    const runInWorkspace = { signal, agent: { session: { header: { cwd: temp } } } } as unknown as ToolRunContext
-    const identities = await resolveAckIdentities(ctx, runInWorkspace, spec)
+    const identities = await resolveAckIdentities(ctx, exec, spec)
     expect(identities.get(absolute)).toBe(await realpath(absolute))
     expect(identities.has(underFile)).toBe(false)
   })
@@ -1114,7 +1131,7 @@ describe('unreadable acknowledgement across spellings', () => {
       gate: { p0: P0_IDS, p1: [] },
       unreadableAck: [{ path: 'report.md', reasonText: '一' }],
     }
-    await expect(resolveAckIdentities(ctx, { signal: aborted.signal } as unknown as ToolRunContext, spec))
+    await expect(resolveAckIdentities(ctx, { ...exec, signal: aborted.signal }, spec))
       .rejects.toThrow(/abort/i)
   })
 })
