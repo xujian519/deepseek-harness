@@ -4,7 +4,9 @@
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
+    - tab "Board"
     - tab "Deliverables"
+  - button "More conversation views"
 - text: Show the local preview URL. {{clock}}
 - button "Copy"
 - status: Completed

@@ -63,7 +63,12 @@ export function formatCitationNumber(value: number): string {
   return value >= 0 && value <= 999 ? formatCnNumber(value) : String(value)
 }
 
-/** Paragraph and item fields a reference carries, omitted when the text names none. */
+/**
+ * Paragraph and item fields a reference carries, omitted when the text names none.
+ * @param paragraph - the paragraph text, when the reference names one.
+ * @param item - the item text, when the reference names one.
+ * @returns the parsed fields; an absent field is omitted.
+ */
 export function narrowed(paragraph: string | undefined, item: string | undefined): {
   paragraph?: number
   item?: number

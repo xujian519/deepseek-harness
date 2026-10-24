@@ -13,6 +13,7 @@ import { LEGAL_EVIDENCE_TYPES } from '../types.ts'
 
 /** Thrown when the tool input cannot be processed. */
 export class EvaluateLegalEvidenceToolError extends Error {
+  /** 稳定的错误码。 */
   readonly code: string
 
   constructor(code: string, message: string) {

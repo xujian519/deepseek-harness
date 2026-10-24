@@ -534,6 +534,8 @@ describe('synapse live replies', () => {
 describe('synapse switch placement', () => {
   afterEach(() => {
     document.querySelectorAll('[data-conversation-tabs]').forEach((node) => { node.remove() })
+    document.querySelectorAll('[data-conversation-tab-row]').forEach((node) => { node.remove() })
+    document.querySelectorAll('[data-conversation-session]').forEach((node) => { node.remove() })
   })
 
   it('parks the switch at the right end of the conversation tab row', () => {
@@ -543,6 +545,58 @@ describe('synapse switch placement', () => {
     expect(switchBox().style.left).toBe('1030px')
     expect(switchBox().style.top).toBe('40px')
     expect(switchBox().style.right).toBe('auto')
+  })
+
+  it('anchors to the full tab row rather than the tablist inside it', () => {
+    stubSwitchBox(150, 36)
+    const row = document.createElement('div')
+    row.setAttribute('data-conversation-tab-row', '')
+    row.getBoundingClientRect = () => tabRowRect({ top: 50, right: 1180, width: 1180, height: 26 })
+    const tabs = document.createElement('div')
+    tabs.setAttribute('data-conversation-tabs', '')
+    tabs.getBoundingClientRect = () => tabRowRect({ top: 50, right: 600, width: 600, height: 26 })
+    row.append(tabs)
+    document.body.append(row)
+
+    boot()
+
+    expect(switchBox().style.left).toBe('1030px')
+  })
+
+  it('parks below the header on a blank Session without a tab row', () => {
+    stubSwitchBox(150, 36)
+    const content = document.createElement('div')
+    content.setAttribute('data-conversation-session', 's-1')
+    content.getBoundingClientRect = () => tabRowRect({ top: 40, right: 792, width: 512, height: 960 })
+    document.body.append(content)
+
+    boot()
+
+    expect(switchBox().style.left).toBe('642px')
+    expect(switchBox().style.top).toBe('80px')
+    expect(switchBox().style.right).toBe('auto')
+  })
+
+  it('keeps its placement while the row is replaced between frames', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      stubSwitchBox(150, 36)
+      const row = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+      boot()
+      expect(switchBox().style.left).toBe('1030px')
+
+      row.remove()
+      window.dispatchEvent(new Event('resize'))
+      flushFrames()
+      expect(switchBox().style.left).toBe('1030px')
+
+      mountTabRow({ top: 50, right: 900, width: 900, height: 26 })
+      vi.advanceTimersByTime(50)
+      flushFrames()
+      expect(switchBox().style.left).toBe('750px')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps the stylesheet corner while the surface publishes no tab row', () => {
@@ -613,6 +667,7 @@ describe('synapse switch placement', () => {
   })
 
   it('watches the tab row so a column respan moves the switch without a window resize', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     stubSwitchBox(150, 36)
     FakeResizeObserver.instances.length = 0
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
@@ -635,14 +690,20 @@ describe('synapse switch placement', () => {
     flushFrames()
     expect(switchBox().style.left).toBe('750px')
 
-    // Losing the row (no Session view) falls back and stops watching it.
+    // Losing the row (no Session view) retries the transient replacement,
+    // then falls back and stops watching it.
     second.remove()
     observer.fire()
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      flushFrames()
+      vi.advanceTimersByTime(50)
+    }
     flushFrames()
     expect(observer.observed.size).toBe(0)
     expect(switchBox().style.left).toBe('')
 
     runtime.dispose()
+    vi.useRealTimers()
     expect(observer.disconnected).toBe(true)
   })
 

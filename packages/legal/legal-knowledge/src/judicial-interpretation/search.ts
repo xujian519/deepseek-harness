@@ -214,13 +214,19 @@ export class JudicialInterpretationSearch extends SqliteBackedEngine<JudicialInt
     return this.guidingCases.find(r => r.caseId === caseId)
   }
 
-  /** Total number of judicial interpretation records. */
+  /**
+   * Total number of judicial interpretation records.
+   * @returns the total number of judicial interpretation records.
+   */
   countInterpretations(): number {
     if (this.sqlite.connected) return this.sqlite.count()
     return this.interpretations.length
   }
 
-  /** Total number of guiding case records. */
+  /**
+   * Total number of guiding case records.
+   * @returns the total number of guiding case records.
+   */
   countGuidingCases(): number {
     if (this.sqlite.connected) return this.sqlite.count('guiding_cases')
     return this.guidingCases.length

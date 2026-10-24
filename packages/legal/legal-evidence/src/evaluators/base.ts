@@ -46,12 +46,20 @@ export function createEvaluator(parts: {
 /** 三性评分基线：证据记录本身的完备度起点。 */
 export const TRIPLE_ATTRIBUTE_BASE = 0.5
 
-/** 字段是否填写了非空白内容。 */
+/**
+ * 字段是否填写了非空白内容。
+ * @param value - 待检查的字段值。
+ * @returns 是否包含非空白内容。
+ */
 export function hasText(value: string | undefined | null): boolean {
   return value !== undefined && value !== null && value.trim() !== ''
 }
 
-/** 评分等级映射。 */
+/**
+ * 评分等级映射。
+ * @param score - 0–1 的评分。
+ * @returns 评分等级。
+ */
 export function levelFor(score: number): string {
   if (score >= 0.85) return 'high'
   if (score >= 0.65) return 'medium_high'
@@ -59,7 +67,11 @@ export function levelFor(score: number): string {
   return 'low'
 }
 
-/** 通用关联性评估：基于待证事实的明确性与证据内容的相关度。 */
+/**
+ * 通用关联性评估：基于待证事实的明确性与证据内容的相关度。
+ * @param input - 证据输入。
+ * @returns 关联性判定。
+ */
 export function evaluateGenericRelevance(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
   let score = TRIPLE_ATTRIBUTE_BASE
   const reasons: string[] = []
@@ -84,7 +96,11 @@ export function evaluateGenericRelevance(input: LegalEvidenceInput): LegalEviden
   }
 }
 
-/** 通用合法性评估：基于收集合法性与形式合法性。 */
+/**
+ * 通用合法性评估：基于收集合法性与形式合法性。
+ * @param input - 证据输入。
+ * @returns 合法性判定。
+ */
 export function evaluateGenericLegality(input: LegalEvidenceInput): LegalEvidenceDimensionJudgment {
   let score = TRIPLE_ATTRIBUTE_BASE
   const reasons: string[] = []

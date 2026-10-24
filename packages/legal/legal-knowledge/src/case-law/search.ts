@@ -160,7 +160,10 @@ export class CaseLawSearchEngine extends SqliteBackedEngine<CaseLawSearchOptions
     return this.records.find(r => r.caseId === caseId)
   }
 
-  /** Total number of case-law records. */
+  /**
+   * Total number of case-law records.
+   * @returns the total number of case-law records.
+   */
   count(): number {
     if (this.sqlite.connected) return this.sqlite.count()
     return this.records.length

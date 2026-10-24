@@ -5,7 +5,10 @@
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
+    - tab "Board"
     - tab "Deliverables"
+    - tab "Teams"
+  - button "More conversation views"
 - text: Research notes what changed? Referenced session · Research notes {{clock}}
 - button "Copy"
 - status: Completed

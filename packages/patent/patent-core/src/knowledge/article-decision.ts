@@ -84,17 +84,31 @@ export function transcribedText(entry: {
   return entry.text !== null && entry.sourceDoc !== null && entry.verifiedOn !== null ? entry.text : null
 }
 
-/** Render a 0–1 score as a whole percentage for a reason line. */
+/**
+ * Render a 0–1 score as a whole percentage for a reason line.
+ * @param value - the 0–1 score.
+ * @returns the rounded percentage.
+ */
 export function formatPercent(value: number): string {
   return `${String(Math.round(value * 100))}%`
 }
 
-/** Truncate a proposition for a report line. */
+/**
+ * Truncate a proposition for a report line.
+ * @param value - the proposition text.
+ * @returns the text, truncated at 40 characters.
+ */
 export function truncateProposition(value: string): string {
   return value.length <= 40 ? value : `${value.slice(0, 40)}…`
 }
 
-/** The reason a citation reports when another entry of the law carries the proposition. */
+/**
+ * The reason a citation reports when another entry of the law carries the proposition.
+ * @param law - the cited law name.
+ * @param proposition - the proposition the citation supports.
+ * @param elsewhere - the law entries that carry the proposition instead.
+ * @returns the mismatch reason line.
+ */
 export function supportMismatchReason(law: string, proposition: string, elsewhere: readonly string[]): string {
   return `所引条目未被该命题支撑：《${law}》${elsewhere.join('、')}更贴近命题「${truncateProposition(proposition)}」`
 }
