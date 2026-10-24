@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-**一个模型可见的登记工具 `document_deliver`（`@deepseek-ai/dsh-document-deliver`，由文档 preset 挂载），让声明本身成为数据源。** 质量门通过后，模型调用 `document_deliver`，参数为 `files`（`path` + `format`，取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（`p0` 已核验项、可选 `p1`）与可选 `brief_ref`。工具按调用方会话工作区解析每个路径，文件缺失即报错——幽灵文件不是交付物——否则回执 P0/P1 项数确认登记。工具调用与其他工具一样写入会话日志，"model-visible ⟺ logged" 由构造保证：不新增会话事件类型、不改 `SessionEventMap`、不加 host 写 RPC；会话日志仍是唯一写路径。`document-quality-gate` 技能的最后一步在 P0 通过后调用该工具。
+**一个模型可见的登记工具 `document_deliver`（`@deepseek-ai/dsh-document-deliver`，由文档 preset 挂载），让声明本身成为数据源。** 质量门通过后，模型调用 `document_deliver`，参数为 `files`（`path` + `format`，取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（`p0` 为模型自述已通过的清单项、可选 `p1`）与可选 `brief_ref`。该自述与工具自己的确定性核验结论并列记录，而非被核验（[P0 质量门为何保持声明](../architecture/2026-10-24-document-deliver-p0-stays-a-declaration.zh.md)）。工具按调用方会话工作区解析每个路径，文件缺失即报错——幽灵文件不是交付物——否则回执 P0/P1 项数确认登记。工具调用与其他工具一样写入会话日志，"model-visible ⟺ logged" 由构造保证：不新增会话事件类型、不改 `SessionEventMap`、不加 host 写 RPC；会话日志仍是唯一写路径。`document-quality-gate` 技能的最后一步在 P0 通过后调用该工具。
 
 **工作室从日志折叠该调用。** `documentDeliverables` 节点定义解析 `document_deliver` 的 `tool/call` 参数（日志事件中的无损 JSON），在成功的 `tool/result` 时产出携带 `format`、`gate`、`briefRef` 的条目。会话级折叠保持首次出现顺序，但当后续登记覆盖同一路径时原地升级变更派生的条目——因此先由 `write` 看到的文件，登记后会显示其声明的格式与质量门状态。无登记的条目显示可见的"未登记质量门"降级徽标，而不是默认报告门通过；工具存在之前记录的会话降级为变更派生列表。
 

@@ -811,12 +811,14 @@ describe('P0 checklist ids', () => {
       files: [{ path, format: 'markdown' }],
       gate: { p0: ['命名'] },
     })
-    // A transcript recorded before the ids existed still registers; the item is
-    // reported as unknown and the free-text form is not nagged about every id.
+    // A transcript recorded before the ids existed still registers, and the
+    // unknown item names the id to use. It satisfies no checklist entry, so the
+    // result also names every check the delivery has yet to state.
     expect(result.isError).toBe(false)
+    expect(result.content).toContain('登记提示（2）：')
     expect(result.content).toContain('未知的 P0 项 "命名"')
     expect(result.content).toContain('P0-1 命名')
-    expect(result.content).not.toContain('缺少 P0 项')
+    expect(result.content).toContain('缺少 P0 项：P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言')
   })
 
   it('still refuses an empty P0 list', async () => {
@@ -840,11 +842,24 @@ describe('P0 checklist ids', () => {
   })
 
   it('reports unknown and missing ids as pure functions', () => {
+    const checklist = 'P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言'
     expect(p0ChecklistWarnings(P0_IDS)).toEqual([])
     expect(p0ChecklistWarnings(['P0-6'])).toEqual([
       '缺少 P0 项：P0-1 命名、P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源',
     ])
-    expect(p0ChecklistWarnings(['写法一'])[0]).toContain('未知的 P0 项 "写法一"')
+    // An unknown id satisfies no checklist item, so a call naming only one gets
+    // both lines: the wording that missed, and every check still unstated.
+    expect(p0ChecklistWarnings(['写法一'])).toEqual([
+      `未知的 P0 项 "写法一"：本技能 P0 清单用稳定 id（${checklist}）`,
+      `缺少 P0 项：${checklist}`,
+    ])
+    expect(p0ChecklistWarnings(['写法一', 'P0-1'])).toEqual([
+      `未知的 P0 项 "写法一"：本技能 P0 清单用稳定 id（${checklist}）`,
+      '缺少 P0 项：P0-2 自包含、P0-3 无占位残留、P0-4 断链、P0-5 来源、P0-6 语言',
+    ])
+    // `parseDocumentDeliverArgs` refuses an empty p0 list, so only a direct call
+    // reaches this input, and it names the whole checklist as missing.
+    expect(p0ChecklistWarnings([])).toEqual([`缺少 P0 项：${checklist}`])
   })
 })
 

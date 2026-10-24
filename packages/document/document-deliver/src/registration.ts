@@ -108,7 +108,10 @@ export interface UnreadableAckInput {
  * transcript recorded before the ids existed still replays, and a model that
  * guessed a wording learns the id without losing the registration. Every id
  * the call left out is named, because "one of six" and "six of six" are the
- * same count in a transcript and different claims about the delivery.
+ * same count in a transcript and different claims about the delivery. An
+ * unknown id satisfies no checklist item, so a call that names only unknown
+ * items also gets that line: the unknown-id line reports the wording that
+ * missed, and the missing line reports the checks left unstated.
  * @param p0 - the P0 items the call reported.
  * @returns one warning line per unknown id and one naming the ids the call left out.
  */
@@ -121,8 +124,7 @@ export function p0ChecklistWarnings(p0: readonly string[]): string[] {
     warnings.push(`未知的 P0 项 ${JSON.stringify(item)}：本技能 P0 清单用稳定 id（${P0_CHECKLIST.map(entry => `${entry.id} ${entry.label}`).join('、')}）`)
   }
   const missing = P0_CHECKLIST.filter(entry => !reported.has(entry.id))
-  const present = P0_CHECKLIST.filter(entry => reported.has(entry.id))
-  if (missing.length > 0 && present.length > 0) {
+  if (missing.length > 0) {
     warnings.push(`缺少 P0 项：${missing.map(entry => `${entry.id} ${entry.label}`).join('、')}`)
   }
   return warnings

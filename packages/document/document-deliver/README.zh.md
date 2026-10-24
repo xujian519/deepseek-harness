@@ -1,5 +1,5 @@
 ---
-description: "函数插件，供[文档智能体 preset](../../bundle/web-app/presets/document.patch.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与质量门结果，并自行读取这些文件、把确定性核验结论与模型自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。"
+description: "函数插件，供[文档智能体 preset](../../bundle/web-app/presets/document.patch.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与模型自己的质量门自述，并自行读取这些文件、把确定性核验结论与该自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，供[文档智能体 preset](../../bundle/web-app/presets/document.patch.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与质量门结果，并自行读取这些文件、把确定性核验结论与模型自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。
+函数插件，供[文档智能体 preset](../../bundle/web-app/presets/document.patch.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与模型自己的质量门自述，并自行读取这些文件、把确定性核验结论与该自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。
 
 ## 目录
 
@@ -21,7 +21,7 @@ kind: "package-reference"
 <a id="what-it-mounts"></a>
 ## 挂载内容
 
-- **`document_deliver`** —— 声明 `files`（`{ path, format }`，format 取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（必填的 `p0` 质量门技能稳定 id 列表、可选 `p1` 列表）、可选的 `unreadable_ack` 原因（每个读不出的文件一条 `{ path, reason_text }`）、可选 `brief_ref`、可选 `style` 风格名、可选 `char_budget` 字数预算。按调用方会话工作区解析每个路径；文件不存在（幽灵文件不算交付物）即报错；随后读取每个交付文件跑确定性核验，回执 P0/P1 项数、所用风格与每个文件一份核验报告。
+- **`document_deliver`** —— 声明 `files`（`{ path, format }`，format 取值 `markdown | html | pdf | docx | pptx | other`）、`gate`（必填的 `p0`，模型在其中自述质量门技能的稳定 id 已通过；可选 `p1` 列表）、可选的 `unreadable_ack` 原因（每个读不出的文件一条 `{ path, reason_text }`）、可选 `brief_ref`、可选 `style` 风格名、可选 `char_budget` 字数预算。按调用方会话工作区解析每个路径；文件不存在（幽灵文件不算交付物）即报错；随后读取每个交付文件跑确定性核验，回执自述的 P0/P1 项数、所用风格与每个文件一份核验报告。自述只被记录、不被核验：`p0` 里漏填或写法无法识别的 id 以登记提示返回，是否拒绝登记只由确定性核验结论决定。
 
 <a id="deterministic-checks"></a>
 ## 确定性核验

@@ -3,20 +3,20 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/document/document-deliver/README.md
 /:
-  en: 743ff95c794244bf
-  zh: aa5a3ed173202533
+  en: 2ef2cd45be781e0d
+  zh: 77795b1be8173093
 /deepseek-ai-dsh-document-deliver:
   en: 1f9a2a0c4d35a6f7
   zh: 84bfd059d2158e5f
 /deepseek-ai-dsh-document-deliver/summary:
-  en: d60d5b57847175ea
-  zh: 814bad7674db72db
+  en: 4f8a2cc19dfbbf6a
+  zh: 3ed3db9c6f91de78
 /deepseek-ai-dsh-document-deliver/table-of-contents:
   en: 3b0962655a5f0cc2
   zh: 06a01fc054551de3
 /deepseek-ai-dsh-document-deliver/what-it-mounts:
-  en: 119787c7ee91bc8f
-  zh: 70251eba3c2e0fb9
+  en: a8cdc0949f607c00
+  zh: dae24de3771c4ed4
 /deepseek-ai-dsh-document-deliver/deterministic-checks:
   en: cc9ecaeaf53af964
   zh: da6dc13263b42e37
@@ -36,7 +36,7 @@
   en: d9fa4c7c3434ab95
   zh: 2259fe717539d443
 /deepseek-ai-dsh-document-deliver/known-limitations-and-deferred-work:
-  en: 0a17e5ba00cd5256
+  en: 74ad0de59e631c1d
   zh: 1fb7112ed2e8e49f
 /deepseek-ai-dsh-document-deliver/known-limitations-and-deferred-work/dev-note:
   en: 563ad1f4cdcc5e41
