@@ -1,7 +1,13 @@
 {
   "benchmarkId": "patent-oas",
-  "recordedAt": "2026-10-22T15:16:17.128Z",
+  "recordedAt": "2026-10-24T01:40:53.211Z",
   "runsPerCase": 3,
+  "provider": "deepseek-official",
+  "modelId": "deepseek-flash",
+  "tokens": {
+    "input": 26128857,
+    "output": 517527
+  },
   "cases": [
     {
       "caseId": "claim-drafting",
@@ -10,10 +16,10 @@
           "index": 1,
           "label": "独立权利要求的必要技术特征",
           "points": 30,
-          "score": 93.67,
+          "score": 100,
           "scores": [
-            86,
-            95,
+            100,
+            100,
             100
           ]
         },
@@ -21,21 +27,21 @@
           "index": 2,
           "label": "保护范围适中",
           "points": 20,
-          "score": 95,
+          "score": 93.33,
           "scores": [
             92,
             93,
-            100
+            95
           ]
         },
         {
           "index": 3,
           "label": "从属权利要求布局",
           "points": 20,
-          "score": 98.33,
+          "score": 100,
           "scores": [
             100,
-            95,
+            100,
             100
           ]
         },
@@ -43,22 +49,22 @@
           "index": 4,
           "label": "引用关系与层次",
           "points": 15,
-          "score": 96.67,
+          "score": 99,
           "scores": [
             100,
-            90,
-            100
+            100,
+            97
           ]
         },
         {
           "index": 5,
           "label": "形式与说明书支持",
           "points": 15,
-          "score": 86.67,
+          "score": 80,
           "scores": [
-            85,
             75,
-            100
+            80,
+            85
           ]
         }
       ]
@@ -81,11 +87,11 @@
           "index": 2,
           "label": "等同原则运用",
           "points": 25,
-          "score": 97,
+          "score": 92,
           "scores": [
-            100,
-            96,
-            95
+            90,
+            93,
+            93
           ]
         },
         {
@@ -114,11 +120,11 @@
           "index": 5,
           "label": "法律依据",
           "points": 10,
-          "score": 93.33,
+          "score": 91.67,
           "scores": [
             100,
-            80,
-            100
+            100,
+            75
           ]
         }
       ]
@@ -152,32 +158,32 @@
           "index": 3,
           "label": "实际解决的技术问题",
           "points": 15,
-          "score": 95,
+          "score": 97,
           "scores": [
-            100,
-            100,
-            85
+            95,
+            96,
+            100
           ]
         },
         {
           "index": 4,
           "label": "结合启示分析",
           "points": 20,
-          "score": 47.67,
+          "score": 92.67,
           "scores": [
-            93,
-            20,
-            30
+            90,
+            90,
+            98
           ]
         },
         {
           "index": 5,
           "label": "结论与法条依据",
           "points": 20,
-          "score": 86.67,
+          "score": 100,
           "scores": [
             100,
-            60,
+            100,
             100
           ]
         }
@@ -190,54 +196,54 @@
           "index": 1,
           "label": "区别特征认定",
           "points": 28,
-          "score": 97.67,
+          "score": 93,
           "scores": [
-            100,
             93,
-            100
+            100,
+            86
           ]
         },
         {
           "index": 2,
           "label": "实际解决的技术问题",
           "points": 18,
-          "score": 97,
+          "score": 86.67,
           "scores": [
+            88,
             100,
-            96,
-            95
+            72
           ]
         },
         {
           "index": 3,
           "label": "技术启示分析",
           "points": 18,
-          "score": 94.67,
+          "score": 91.67,
           "scores": [
-            90,
-            94,
-            100
+            88,
+            95,
+            92
           ]
         },
         {
           "index": 4,
           "label": "结论与法律依据",
           "points": 13,
-          "score": 98.67,
+          "score": 100,
           "scores": [
             100,
             100,
-            96
+            100
           ]
         },
         {
           "index": 5,
           "label": "检索策略与答复格式",
           "points": 13,
-          "score": 92.33,
+          "score": 96.67,
           "scores": [
-            82,
             100,
+            95,
             95
           ]
         },
@@ -245,11 +251,11 @@
           "index": 6,
           "label": "修改接地与幅度",
           "points": 10,
-          "score": 70.67,
+          "score": 83.33,
           "scores": [
-            62,
-            65,
-            85
+            80,
+            82,
+            88
           ]
         }
       ],
@@ -259,137 +265,131 @@
           "dimensions": [
             {
               "index": 1,
-              "score": 96,
+              "score": 95.67,
               "scores": [
-                100,
+                93,
                 94,
-                94
+                100
               ]
             },
             {
               "index": 2,
-              "score": 94.67,
+              "score": 89.67,
               "scores": [
-                90,
-                100,
-                94
+                97,
+                92,
+                80
               ]
             },
             {
               "index": 3,
-              "score": 96,
+              "score": 91,
               "scores": [
-                100,
-                93,
-                95
+                95,
+                84,
+                94
               ]
             },
             {
               "index": 4,
-              "score": 97.67,
+              "score": 95.33,
               "scores": [
-                100,
-                93,
+                94,
+                92,
                 100
               ]
             },
             {
               "index": 5,
-              "score": 95,
+              "score": 97,
               "scores": [
-                93,
-                97,
+                96,
+                100,
                 95
               ]
             },
             {
               "index": 6,
-              "score": 68.33,
+              "score": 83.67,
               "scores": [
-                65,
-                66,
-                74
+                78,
+                85,
+                88
               ]
             }
           ],
           "deliverableDigests": [
-            "sha256:7d32179ef9ab3517dd7ce6e8c9326ed3de637171bc4a61e17b462052018208e5",
-            "sha256:37b9a94c01e895e80ddb83ddefc47675bd2b999511786c8f40313fef90f24c9e",
-            "sha256:92c87f6a9ba7fa05015c313aaf53ee61f7f4fddd825c5914e844123221b992c3"
+            "sha256:deec47f355c152a76b82ef0a396aacbf4d3558c953c47561e2ade148ae8be8e7",
+            "sha256:48f5f5257c6a3eb45c2dffbd2712a584fdfa846dde79969208df5f0faf1d4fd6",
+            "sha256:631c7a72478ff8ce1500ce95f0bd97a31ab51dd88270365e5992011b5029b901"
           ]
         },
         {
           "round": 2,
-          "statementDigest": "sha256:1e8e136e841e3e1caf214a384b229bfb66fd43c795fe6edd1ad7a84fa0dbbb01",
+          "statementDigest": "sha256:d96f36b90cf9c70d2efc6c2aa218417c4849bfdd54cef8ba2688b5794bc16221",
           "dimensions": [
             {
               "index": 1,
-              "score": 97.67,
+              "score": 93,
               "scores": [
-                100,
                 93,
-                100
+                100,
+                86
               ]
             },
             {
               "index": 2,
-              "score": 97,
+              "score": 86.67,
               "scores": [
+                88,
                 100,
-                96,
-                95
+                72
               ]
             },
             {
               "index": 3,
-              "score": 94.67,
+              "score": 91.67,
               "scores": [
-                90,
-                94,
-                100
+                88,
+                95,
+                92
               ]
             },
             {
               "index": 4,
-              "score": 98.67,
+              "score": 100,
               "scores": [
                 100,
                 100,
-                96
+                100
               ]
             },
             {
               "index": 5,
-              "score": 92.33,
+              "score": 96.67,
               "scores": [
-                82,
                 100,
+                95,
                 95
               ]
             },
             {
               "index": 6,
-              "score": 70.67,
+              "score": 83.33,
               "scores": [
-                62,
-                65,
-                85
+                80,
+                82,
+                88
               ]
             }
           ],
           "deliverableDigests": [
-            "sha256:79b7b1eb526b153724a3baedba1f9cf77ea2aab66a8d210685b92f6bc5506fd8",
-            "sha256:e8a80fd353810f83c02e2aeeaf3f65e5b3ef2c5e9573c70c23f8eca90795cdf7",
-            "sha256:250a7bee5cd7c582273cf7f2dacc72b0964be88022c54aaa6d2b0e05e3ee4dd3"
+            "sha256:ec9b251233b7cb983f8fa451e0dd36bef30135d329f0b56b76db7188ed8f63d0",
+            "sha256:90092380ed262479e0ddc09289256c77b0a287f9054c144775a7879dfce17c01",
+            "sha256:83e927abeaab3f77996dd2a75e6e986451fab65638f028aa1a7540b28026014c"
           ]
         }
       ]
     }
-  ],
-  "provider": "deepseek-official",
-  "modelId": "deepseek-flash",
-  "tokens": {
-    "input": 21403534,
-    "output": 556298
-  }
+  ]
 }

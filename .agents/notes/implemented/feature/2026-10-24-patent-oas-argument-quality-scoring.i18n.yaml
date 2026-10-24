@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-24-patent-oas-argument-quality-scoring.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-24-patent-oas-argument-quality-scoring.md
+/agent-note-argument-quality-scoring-and-a-coherent-second-oa-turn-in-patent-oas:
+  en: a05c730a3ee813f0
+  zh: 56912a9a479ba45c
+/agent-note-argument-quality-scoring-and-a-coherent-second-oa-turn-in-patent-oas/problem:
+  en: c0b755da2ee162d6
+  zh: 4e7aa87df94aa39c
+/agent-note-argument-quality-scoring-and-a-coherent-second-oa-turn-in-patent-oas/decision:
+  en: 1b1795e321880a01
+  zh: 5c942b33e8f630a4
+/agent-note-argument-quality-scoring-and-a-coherent-second-oa-turn-in-patent-oas/alternatives-considered:
+  en: 30bca6cf86791ed5
+  zh: 064eb51eff895d14
+/agent-note-argument-quality-scoring-and-a-coherent-second-oa-turn-in-patent-oas/consequences:
+  en: b446dea1152678ab
+  zh: ce503caa137a17d8
