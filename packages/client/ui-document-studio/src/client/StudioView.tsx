@@ -16,6 +16,7 @@ import { DOCUMENT_DELIVERABLES_TARGET } from './document-deliverables.ts'
 import { DOCUMENT_PRESET_ID } from './auto-switch.ts'
 import type { CompleteReadText, ReadFileText } from './file-reads.ts'
 import { WorkspaceReadError } from './file-reads.ts'
+import type { KnownPath } from './workspace-probe.ts'
 import { parentDir } from './paths.ts'
 import css from './StudioView.module.css'
 
@@ -44,7 +45,7 @@ export interface StudioViewInjected {
   /** Read the current freshness token of each produced path. */
   statVersions: (paths: readonly string[]) => Promise<Readonly<Record<string, string>>>
   /** List deliverable-shaped workspace files that no registration recorded. */
-  probeUnregistered: (known: readonly string[]) => Promise<readonly string[]>
+  probeUnregistered: (known: readonly KnownPath[]) => Promise<readonly string[]>
   /** Append text to the session's composer draft without sending it. */
   insertDraft: (text: string) => boolean
 }
@@ -237,6 +238,11 @@ function CheckBadge({ checks, t }: { checks: DocumentDeliverable['checks']; t: S
  * One produced file's badges: the announced export format, the announced
  * quality-gate state (the model's own claim, so it never wears the success
  * color), and the machine-derived check outcome.
+ *
+ * A file whose recorded verdict was withdrawn — because the fold saw a later
+ * rewrite, or because a freshness token moved under this console — shows the
+ * changed badge instead of the verdict. Both are the same fact: the bytes now
+ * on disk are unverified.
  */
 function DeliverableBadges({ file, stale, documentSession, t }: {
   file: DocumentDeliverable
@@ -258,7 +264,7 @@ function DeliverableBadges({ file, stale, documentSession, t }: {
         : documentSession && (
           <span className={`${css.badge} ${css.gateMissing}`}>{t('studio.file.gateMissing')}</span>
         )}
-      {stale
+      {stale || file.checksWithdrawn === true
         ? <span className={`${css.badge} ${css.checkStale}`}>{t('studio.file.changed')}</span>
         : <CheckBadge checks={file.checks} t={t} />}
     </>
@@ -433,7 +439,9 @@ export function StudioView({
     if (produced.length > 0) return
     let cancelled = false
     setScan({ state: 'scanning', paths: [] })
-    probeUnregistered(produced.map(file => file.path)).then(
+    // The empty state probes with an empty known list: it only renders here
+    // when the session listed nothing, so there is no produced file to exempt.
+    probeUnregistered([]).then(
       (paths) => { if (!cancelled) setScan({ state: 'done', paths }) },
       (reason: unknown) => {
         if (!cancelled) {

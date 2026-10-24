@@ -94,7 +94,37 @@ describe('unregisteredDeliverables', () => {
 
   it('excludes paths the session already lists, with or without a ./ prefix', async () => {
     const { probe: workspace } = probe(files)
-    expect(await workspace.unregisteredDeliverables(['./brief.md', 'out/report.docx'])).toEqual([
+    expect(await workspace.unregisteredDeliverables([{ path: './brief.md' }, { path: 'out/report.docx' }])).toEqual([
+      'index.html',
+      'out/deck.pptx',
+      'out/sub/appendix.pdf',
+    ])
+  })
+
+  it('excludes a file listed under a different spelling of its canonical identity', async () => {
+    // The real wiring resolves relative paths against the Session workspace and
+    // passes absolute ones through, exactly like resolveWorkspacePath.
+    const { probe: workspace } = probe(files, path => (path.startsWith('/') ? path : `/ws/${path}`))
+    // The log declared the relative spelling, but the mutation tool resolved
+    // the file to its absolute path: the same file, so not a candidate.
+    expect(await workspace.unregisteredDeliverables([
+      { path: 'out/report.docx', identity: '/ws/out/report.docx' },
+    ])).toEqual([
+      'brief.md',
+      'index.html',
+      'out/deck.pptx',
+      'out/sub/appendix.pdf',
+    ])
+  })
+
+  it('matches on the identity alone when the declared spelling names no listed file', async () => {
+    const { probe: workspace } = probe(files, path => (path.startsWith('/') ? path : `/ws/${path}`))
+    // The declaration used the other file's spelling, but the identity is the
+    // one the mutation resolved: the bytes, not the declaration, decide.
+    expect(await workspace.unregisteredDeliverables([
+      { path: './elsewhere/report.docx', identity: '/ws/out/report.docx' },
+    ])).toEqual([
+      'brief.md',
       'index.html',
       'out/deck.pptx',
       'out/sub/appendix.pdf',
@@ -105,8 +135,7 @@ describe('unregisteredDeliverables', () => {
     const root: WorkspaceDirectoryEntry[] = [{ name: '.hidden', type: 'directory' }]
     for (let index = 0; index < 45; index += 1) {
       const name = `file-${String(index)}.md`
-      root.push({ name, type: 'file' })
-    }
+      root.push({ name, type: 'file' })    }
     const many: Files = { '': root, '.hidden': [{ name: 'secret.md', type: 'file' }] }
     const { probe: workspace } = probe(many)
     const found = await workspace.unregisteredDeliverables([])

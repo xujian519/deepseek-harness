@@ -199,6 +199,61 @@ function unreadableAdvice(report: DeliverableCheckReport): string {
 }
 
 /**
+ * Whether one declared reason designates the same file as one check report.
+ *
+ * The declared spellings match exactly, which is how an ack written the way
+ * `files[].path` was written attaches. Failing that, two canonical identities
+ * match: a workspace-relative `report.md` and an absolute `/work/report.md` are
+ * one file, and an ack naming either spelling belongs to it. An ack whose path
+ * the registration could not resolve has no identity, so it matches on its
+ * spelling alone.
+ * @param ack - one declared reason and the canonical path it resolved to, when it did.
+ * @param report - one check report, carrying the canonical path of the file it checked.
+ * @returns true when the two designate the same deliverable.
+ */
+function sameDeliverable(
+  ack: { path: string; identity?: string }, report: DeliverableCheckReport,
+): boolean {
+  return ack.path === report.path
+    || (ack.identity !== undefined && ack.identity === report.identity)
+}
+
+/**
+ * Resolve the canonical identity of every declared `unreadable_ack` path.
+ *
+ * An ack may spell the file differently from `files[].path` — absolute against
+ * workspace-relative, a symlink against its target — while meaning the same
+ * file. {@link resolveUnreadableReports} compares declarations only, so the
+ * caller resolves the ack paths the same way the checks resolved the deliverable
+ * paths and passes the results in.
+ *
+ * An ack path this workspace cannot resolve gets no entry: it then matches on
+ * its spelling alone, and one naming no registered file is still reported as
+ * unregistered rather than refused, which is what an unreadable_ack naming a
+ * ghost path has always done. Cancellation propagates instead of being read as
+ * an unresolvable path.
+ * @param ctx - plugin context carrying `ctx.fs`.
+ * @param exec - the current tool execution (signal, agent).
+ * @param spec - the validated registration, carrying any declared reasons.
+ * @returns the canonical identity per declared ack path, for the paths that resolved.
+ */
+export async function resolveAckIdentities(
+  ctx: Context, exec: ToolRunContext, spec: DocumentDeliverSpec,
+): Promise<ReadonlyMap<string, string>> {
+  const identities = new Map<string, string>()
+  for (const ack of spec.unreadableAck ?? []) {
+    try {
+      identities.set(ack.path, ctx.fs.processPath(await resolveTarget(ctx, exec, ack.path)))
+    } catch {
+      exec.signal.throwIfAborted()
+      // An ack path under a non-directory cannot resolve to any file, so no
+      // report can be about it; the registration reports it as unregistered.
+    }
+  }
+  return identities
+}
+
+/**
  * Require a declared reason for every file the checker could not read.
  *
  * "Not checked" must not read as "checked": an unreadable file is refused
@@ -206,15 +261,29 @@ function unreadableAdvice(report: DeliverableCheckReport): string {
  * check outcome so a reader of the log sees the trade the caller made. The one
  * exception is the deployment's own read cap, which says nothing about the
  * document; an oversized file registers with the cap named in its reason.
+ *
+ * A reason attaches to the file it designates, not to the spelling it used: with
+ * `ackIdentities` (see {@link resolveAckIdentities}) an ack written as an
+ * absolute path explains a file the call declared relatively, and the "names no
+ * registered path" warning stays quiet for the same file spelled two ways. Two
+ * declarations that resolve to one file are one deliverable, so a single ack
+ * explains both reports. Without that map this function compares spellings, as
+ * a caller with no filesystem access must.
  * @param spec - the validated registration, carrying any declared reasons.
  * @param reports - one check report per declared file, in declaration order.
+ * @param ackIdentities - canonical identity per declared ack path, from {@link resolveAckIdentities}; absent when the caller resolved none.
  * @returns the reports with their declared reasons attached, plus warnings for reasons that matched nothing.
  * @throws Error naming every file that needs a reason and what to do about it.
  */
 export function resolveUnreadableReports(
   spec: DocumentDeliverSpec, reports: readonly DeliverableCheckReport[],
+  ackIdentities?: ReadonlyMap<string, string>,
 ): { reports: DeliverableCheckReport[]; warnings: string[] } {
-  const ackByPath = new Map((spec.unreadableAck ?? []).map(entry => [entry.path, entry.reasonText]))
+  const acks: Array<{ path: string; reasonText: string; identity?: string }> = []
+  for (const ack of spec.unreadableAck ?? []) {
+    const identity = ackIdentities?.get(ack.path)
+    acks.push({ ...ack, ...identity === undefined ? {} : { identity } })
+  }
   const resolved: DeliverableCheckReport[] = []
   const needed: DeliverableCheckReport[] = []
   for (const report of reports) {
@@ -222,9 +291,9 @@ export function resolveUnreadableReports(
       resolved.push(report)
       continue
     }
-    const ack = ackByPath.get(report.path)
+    const ack = acks.find(entry => sameDeliverable(entry, report))
     if (ack !== undefined) {
-      resolved.push({ ...report, ack })
+      resolved.push({ ...report, ack: ack.reasonText })
       continue
     }
     if (stoppedAtDeploymentBudget(report)) {
@@ -241,15 +310,16 @@ export function resolveUnreadableReports(
       '给每个文件补一条 unreadable_ack（path + reason_text）说明为什么仍要交付；修复文件后重新登记也可以。',
     ].join('\n'))
   }
-  const unreadablePaths = new Set(reports.filter(report => report.status === 'unreadable').map(report => report.path))
-  const declaredPaths = new Set(reports.map(report => report.path))
   const warnings: string[] = []
-  for (const path of ackByPath.keys()) {
-    if (!declaredPaths.has(path)) {
-      warnings.push(`unreadable_ack 指向未登记的路径：${path}`)
+  for (const ack of acks) {
+    const designated = reports.filter(report => sameDeliverable(ack, report))
+    if (designated.length === 0) {
+      warnings.push(`unreadable_ack 指向未登记的路径：${ack.path}`)
       continue
     }
-    if (!unreadablePaths.has(path)) warnings.push(`unreadable_ack 的 ${path} 不是无法核验状态，不需要说明原因`)
+    if (!designated.some(report => report.status === 'unreadable')) {
+      warnings.push(`unreadable_ack 的 ${ack.path} 不是无法核验状态，不需要说明原因`)
+    }
   }
   return { reports: resolved, warnings }
 }

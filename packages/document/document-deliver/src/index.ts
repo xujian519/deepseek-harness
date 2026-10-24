@@ -35,6 +35,7 @@ export {
   P0_CHECKLIST,
   p0ChecklistWarnings,
   parseDocumentDeliverArgs,
+  resolveAckIdentities,
   resolveCheckFormat,
   resolveUnreadableReports,
   type DeliverableCheckReport,

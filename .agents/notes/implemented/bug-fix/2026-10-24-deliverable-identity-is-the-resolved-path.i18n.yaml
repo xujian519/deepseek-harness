@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-24-deliverable-identity-is-the-resolved-path.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-24-deliverable-identity-is-the-resolved-path.md
+/agent-note-a-deliverable-s-identity-is-its-resolved-path-not-its-spelling:
+  en: a9967c7d1f4b6659
+  zh: 8f2f857592d213e8
+/agent-note-a-deliverable-s-identity-is-its-resolved-path-not-its-spelling/problem:
+  en: f49a25772f6e0f49
+  zh: f169406be5073e9c
+/agent-note-a-deliverable-s-identity-is-its-resolved-path-not-its-spelling/decision:
+  en: 1aaaba56400ed33f
+  zh: b43db2e11a347e1b
+/agent-note-a-deliverable-s-identity-is-its-resolved-path-not-its-spelling/alternatives-considered:
+  en: 2674a3f806dc10f7
+  zh: a4499fd5eaf9bb49
+/agent-note-a-deliverable-s-identity-is-its-resolved-path-not-its-spelling/consequences:
+  en: 9bd3f80a9127eb4c
+  zh: 1edc0c251ecf7aac
+/agent-note-a-deliverable-s-identity-is-its-resolved-path-not-its-spelling/testing:
+  en: 41b27ac290402acb
+  zh: 04aecb39fd7cc144

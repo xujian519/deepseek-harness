@@ -38,6 +38,7 @@ import {
   briefReferenceWarnings,
   p0ChecklistWarnings,
   READ_CAP_REASON_PREFIX,
+  resolveAckIdentities,
   resolveCheckFormat,
   resolveTarget,
   resolveUnreadableReports,
@@ -48,6 +49,7 @@ export {
   briefReferenceWarnings,
   p0ChecklistWarnings,
   P0_CHECKLIST,
+  resolveAckIdentities,
   resolveCheckFormat,
   resolveUnreadableReports,
 } from './registration.ts'
@@ -103,7 +105,18 @@ export interface DocumentDeliverInput {
  * checks ran over incompletely projected text.
  */
 export interface DeliverableCheckReport {
+  /** The path as the call declared it; the spelling stays verbatim because display is human. */
   path: string
+  /**
+   * Host-resolved canonical path of the file this report checked; absent on
+   * results recorded before it existed.
+   *
+   * Two spellings of one file — workspace-relative and absolute, a symlink and
+   * its target — share this value, so a consumer keys a deliverable on it while
+   * `path` keeps what the call wrote. It is the same canonical absolute path a
+   * file mutation records in its result metadata.
+   */
+  identity?: string
   format: DeliverableFormat
   status: 'checked' | 'unchecked' | 'unreadable'
   /** Why the checks did not run, or ran over incomplete text; absent when they ran over the whole file. */
@@ -282,6 +295,10 @@ export async function missingDeliverableFiles(
  * contradiction goes into the same `reason` the studio renders beside the
  * badge. A reason that already explains a failed read keeps both halves, in
  * that order.
+ *
+ * The report carries the file's canonical `identity` whatever the check
+ * outcome: a consumer keys a deliverable on that value, so a format with no
+ * reader needs it just as much as a checked one.
  * @param ctx - plugin context carrying `ctx.fs`.
  * @param exec - the current tool execution (signal, agent).
  * @param file - the declared path and format.
@@ -296,7 +313,8 @@ async function checkDeliverable(
 ): Promise<DeliverableCheckReport> {
   const resolved = resolveCheckFormat(file.path, file.format)
   const format = resolved.format
-  const base = { path: file.path, format }
+  const target = await resolveTarget(ctx, exec, file.path)
+  const base = { path: file.path, identity: ctx.fs.processPath(target), format }
   /**
    * The `reason` field of a report, omitted when there is nothing to say.
    *
@@ -319,7 +337,6 @@ async function checkDeliverable(
   if (!TEXT_FORMATS.includes(format) && format !== 'docx') {
     return { ...base, status: 'unchecked', ...reasonField(`${format} 格式没有文本读取器`), findings: [] }
   }
-  const target = await resolveTarget(ctx, exec, file.path)
   try {
     if (format === 'docx') {
       const bytes = await ctx.fs.readBytes(target, exec.signal, limits.maxCheckBytes)
@@ -434,7 +451,8 @@ function renderResult(result: DocumentDeliverResult): string {
  * The projection is written out field by field rather than passing the reports
  * through: this object is what the log keeps and what the delivery studio
  * narrows back on replay, so its fields are a wire commitment, not an alias for
- * whatever the in-process report happens to carry.
+ * whatever the in-process report happens to carry. `identity` is the canonical
+ * key a consumer joins entries on; `path` stays the declared spelling.
  * @param checks - the check reports of one registration.
  * @returns the metadata value for `tool/result`.
  */
@@ -442,6 +460,7 @@ function checksMeta(checks: readonly DeliverableCheckReport[]) {
   return {
     checks: checks.map(report => ({
       path: report.path,
+      ...report.identity === undefined ? {} : { identity: report.identity },
       format: report.format,
       status: report.status,
       ...report.reason === undefined ? {} : { reason: report.reason },
@@ -565,6 +584,7 @@ const OUTPUT_SCHEMA = {
             additionalProperties: false,
             properties: {
               path: { type: 'string', required: true },
+              identity: { type: 'string' },
               format: { type: 'string', required: true, enum: [...DELIVERABLE_FORMATS] },
               status: { type: 'string', required: true, enum: ['checked', 'unchecked', 'unreadable'] },
               reason: { type: 'string' },
@@ -660,7 +680,7 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
           ...blocking,
         ].join('\n'))
       }
-      const readable = resolveUnreadableReports(spec, checks)
+      const readable = resolveUnreadableReports(spec, checks, await resolveAckIdentities(ctx, exec, spec))
       warnings.push(...readable.warnings)
       return toResult(spec, readable.reports, style, warnings)
     },

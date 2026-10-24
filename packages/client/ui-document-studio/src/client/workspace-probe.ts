@@ -60,6 +60,17 @@ export interface WorkspaceProbeRemote {
   ): Promise<RemoteResult<WorkspaceDirectoryListing>>
 }
 
+/**
+ * One produced file as the probes need it: its declared spelling and, when the
+ * log recorded one, its canonical identity.
+ */
+export interface KnownPath {
+  /** The path as the tool declared it. */
+  readonly path: string
+  /** Host-resolved canonical path, when the log recorded one. */
+  readonly identity?: string
+}
+
 /** The workspace facts the studio reads, with paths resolved against the Session workspace. */
 export interface WorkspaceProbe {
   /**
@@ -70,16 +81,33 @@ export interface WorkspaceProbe {
   readonly statVersions: (paths: readonly string[]) => Promise<Readonly<Record<string, string>>>
   /**
    * List deliverable-shaped files that no registration recorded.
-   * @param known - produced-file paths the session log already lists.
+   * @param known - produced files the session log already lists.
    * @returns workspace-relative candidate paths, in listing order.
    */
-  readonly unregisteredDeliverables: (known: readonly string[]) => Promise<readonly string[]>
+  readonly unregisteredDeliverables: (known: readonly KnownPath[]) => Promise<readonly string[]>
 }
 
-/** Compare two spellings of one produced path. */
-function samePath(left: string, right: string): boolean {
-  const normalize = (value: string): string => value.replace(/^\.\//, '')
-  return normalize(left) === normalize(right)
+/**
+ * Compare one produced file with one listed path.
+ *
+ * Both sides go through the same `resolve`, because they arrive in different
+ * spaces: the listing is workspace-relative and a canonical identity is
+ * absolute. A leading `./` is spelling, not location, so it is stripped before
+ * resolving — that keeps every legacy record comparable with or without one.
+ * Either key may match: the identity names the bytes however the log spelled
+ * them, and the declared path still answers for a record whose identity this
+ * console cannot resolve. Matching on both never reports a registered file as
+ * unregistered when the declared path alone already matched.
+ * @param known - one produced file the log already lists.
+ * @param listed - one workspace-relative path from the listing.
+ * @param resolve - maps a produced-file path to the path the Host receives.
+ * @returns whether the two name the same file.
+ */
+function samePath(known: KnownPath, listed: string, resolve: (path: string) => string): boolean {
+  const joined = (value: string): string => resolve(value.replace(/^\.\//, ''))
+  const target = joined(listed)
+  if (joined(known.path) === target) return true
+  return known.identity !== undefined && joined(known.identity) === target
 }
 
 /** Whether a listing entry name carries a deliverable extension. */
@@ -120,7 +148,7 @@ export function createWorkspaceProbe(
     return versions
   }
 
-  const unregisteredDeliverables = async (known: readonly string[]): Promise<readonly string[]> => {
+  const unregisteredDeliverables = async (known: readonly KnownPath[]): Promise<readonly string[]> => {
     const signal = new AbortController().signal
     // Breadth-first from the workspace root, listing at most MAX_DIRECTORIES
     // directories: the root is always listed first, so its files never depend
@@ -148,7 +176,7 @@ export function createWorkspaceProbe(
           continue
         }
         if (entry.type !== 'file' || !isDeliverableName(entry.name)) continue
-        if (known.some(produced => samePath(produced, path))) continue
+        if (known.some(produced => samePath(produced, path, resolve))) continue
         // Every listed path is visited once, so no candidate can repeat.
         candidates.push(path)
         if (candidates.length >= MAX_CANDIDATES) return candidates
