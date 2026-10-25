@@ -18,11 +18,9 @@ vi.mock('./patent-oas-gate-core.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./patent-oas-gate-core.ts')>()
   return {
     ...actual,
-    loadRunRecord: async (path: string) => {
-      if (state.hideBaseline && path === baselinePath) {
-        throw Object.assign(new Error(`ENOENT: no such file or directory, open '${path}'`), { code: 'ENOENT' })
-      }
-      return await actual.loadRunRecord(path)
+    loadBaselineRecord: async (path: string) => {
+      if (state.hideBaseline && path === baselinePath) return undefined
+      return await actual.loadBaselineRecord(path)
     },
   }
 })

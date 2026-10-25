@@ -11,6 +11,15 @@
  * 后续轮次从上一轮工作目录复制 agent state,并把上一轮交付物留作
  * `previous-deliverable.md` 参考;终局维度只取最后一轮,逐轮观测写入记录的 `rounds`。
  *
+ * 被测面(`execution`)有两条:`prompt` 就是上面的提示词调用;`workflow` 让执行者经
+ * `patent_workflow_run` 跑 `patent_oa_response_v1` manifest 的 12 个阶段,把撰写阶段的答复另存为
+ * 本轮交付物,再经 `matter_log_append` 落一条审计记录。工作流设置多记两样东西:记录里的
+ * `workflowId`,以及 `rounds[].claimVersions` —— 每轮交付物在 `_matter-log.md` 取代链上的深度,
+ * 由 {@link parseMatterEntries} 从日志复算,不是执行者自报。阶段定义、审批门阶段与日志文法都取自
+ * patent 包(`builtinPatentManifests`、`MATTER_LOG_FILE`、`parseMatterEntries`),评测器不重实现工作流。
+ * headless 组合不挂 agent preset(preset 是 agent 平面,只有 `dsh-agent-preset-registry` 能挂),
+ * 所以工作流设置经 overlay 直接挂 patent 工具行,测的是工作流与审计链,不含 preset 的人设层。
+ *
  * 与引擎默认接缝的两处必要差异,其余措辞与 `self-evolve-benchmark` 的默认提示词一致:
  *   1. 交付物由执行者写进工作目录的 `deliverable.md`,而不是由子 agent 作为文本返回:
  *      一次性 `dsh --profile` 运行不把助手正文打到 stdout,文件是唯一的可靠观测面。
@@ -28,15 +37,20 @@
 
 import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
-import { access, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
+import { CASE_OUTPUTS_REL, CASE_ROOT_REL, caseOutputsDir, caseWorkflowRunsDir, type WorkflowManifest } from '@deepseek-ai/dsh-patent-core'
+import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
+import { MATTER_LOG_FILE, parseMatterEntries } from '@deepseek-ai/dsh-patent-tools'
 import {
+  PATENT_OAS_EXAMPLE_DIR,
   mean,
   parseRubricDimensions,
   roundScore,
   textDigest,
   validateProblemSpace,
+  type ExecutionSetting,
   type GoldCase,
   type ProblemSpace,
   type RetrievalSetting,
@@ -50,6 +64,12 @@ import {
 
 /** 执行者写出的交付物文件名,相对于该次调用的工作目录。 */
 export const DELIVERABLE_FILENAME = 'deliverable.md'
+
+/** 工作流设置下,交付答复书经 patent 工具面与审计日志所需的 overlay(相对仓库根)。 */
+export const WORKFLOW_PATCH_FILE = `${PATENT_OAS_EXAMPLE_DIR}/patent-workflow.patch.yml`
+
+/** 人工确认阶段在 manifest 里由该原子标记;评测采集无人值守,按阶段 id 显式放行。 */
+const APPROVAL_ATOM = 'approval-gate'
 
 /** 多轮 case 第 2 轮起,上一轮交付物在该次调用工作目录中的副本文件名。 */
 export const PREVIOUS_DELIVERABLE_FILENAME = 'previous-deliverable.md'
@@ -135,14 +155,44 @@ export interface RunCallUsage {
 
 export type RunAgents = (invocation: AgentInvocation) => Promise<RunCallUsage | void>
 
+/** 一个 case 在工作流设置下的采集计划;阶段清单取自 patent workflow manifest,不在这里另立。 */
+export interface WorkflowPlan {
+  /** 被测的 manifest id。 */
+  manifestId: string
+  /** 按执行顺序排列的阶段 id。 */
+  stages: string[]
+  /** 写出答复正文的阶段 id —— manifest 里唯一不绑定原子的阶段。 */
+  deliverableStage: string
+  /** 需要显式放行的人工确认阶段 id(manifest 里由 `approval-gate` 原子标记的阶段)。 */
+  approvalStages: string[]
+}
+
+/** 计划运行的一个 case。 */
+export interface RunPlanCase {
+  /** case id。 */
+  caseId: string
+  /** 该 case 的检索环境。 */
+  retrieval: RetrievalSetting
+  /** 该 case 的 rubric 维度数(每轮逐维度一次评估调用)。 */
+  dimensions: number
+  /** 该 case 的轮次。 */
+  rounds: number
+  /** 工作流设置下该 case 的阶段清单;提示词设置省略。 */
+  workflow?: WorkflowPlan
+}
+
 /** 一次采集的计划:要跑哪些 case、每个 case 几次、总共多少次调用。 */
 export interface RunPlan {
-  /** 计划运行的 case,按 case id 排序;每项带该 case 的轮次与 rubric 维度数。 */
-  cases: Array<{ caseId: string; retrieval: RetrievalSetting; dimensions: number; rounds: number }>
+  /** 计划运行的 case,按 case id 排序。 */
+  cases: RunPlanCase[]
+  /** 本次采集的被测面。 */
+  execution: ExecutionSetting
   /** 每个 case 的运行次数。 */
   runsPerCase: number
   /** 计划中的 agent 进程调用总数(含每轮执行者与逐维度评估者)。 */
   calls: number
+  /** 工作流设置计划跑过的阶段次数(阶段数 × 轮次 × 运行数 × case 数);提示词设置为 0。 */
+  stageRuns: number
 }
 
 /** 按百万 token 单价换算一次采集的成本(USD)。 */
@@ -163,6 +213,8 @@ export interface RunPlanOptions {
   caseIds?: readonly string[]
   /** 每个 case 的运行次数;缺省 1。 */
   runsPerCase?: number
+  /** 被测面;缺省 `prompt`(提示词调用)。 */
+  execution?: ExecutionSetting
 }
 
 /** {@link collectRunRecord} 的选项。 */
@@ -181,20 +233,25 @@ export interface CollectRunOptions extends RunPlanOptions {
   modelId?: string
   /** token 单价;给出时把 usage 换算成记录里的 cost,缺省只记录 tokens。 */
   pricing?: RunPricing
+  /** 被测面;缺省 `prompt`(提示词调用),`workflow` 经 patent 工具面跑 manifest。 */
+  execution?: ExecutionSetting
 }
 
 /**
- * 计划一次采集:解析选中 case 的维度数并算出调用总数。
+ * 计划一次采集:解析选中 case 的维度数、工作流阶段清单,并算出调用总数。
  *
  * 计划的唯一来源是这里,`--dry-run` 与真正采集都读它,因此「打印的计划」与「实际跑的
  * 调用」不会各算一遍而分叉。
  *
  * @param options 计划选项。
  * @returns 计划。
+ * @throws 选中的 case 在工作流设置下没有声明 manifest、声明的 manifest 不在内置清单里、
+ *   或一个 manifest 里不绑定原子的阶段不唯一时抛出。
  */
 export function planRun(options: RunPlanOptions): RunPlan {
   const problems = validateProblemSpace(options.space, options.gold)
   if (problems.length > 0) throw new Error(`采集前校验失败:\n${problems.join('\n')}`)
+  const execution = options.execution ?? 'prompt'
   const runsPerCase = options.runsPerCase ?? 1
   if (!Number.isInteger(runsPerCase) || runsPerCase < 1) throw new Error(`runsPerCase 必须是正整数,得到 ${runsPerCase}`)
   const selected = [...(options.caseIds ?? options.gold.map(entry => entry.caseId))].sort()
@@ -203,23 +260,81 @@ export function planRun(options: RunPlanOptions): RunPlan {
     if (seen.has(caseId)) throw new Error(`case "${caseId}" 被选中多次`)
     seen.add(caseId)
   }
-  const cases = selected.map((caseId) => {
+  const cases = selected.map((caseId): RunPlanCase => {
     const goldCase = options.gold.find(entry => entry.caseId === caseId)
     if (goldCase === undefined) throw new Error(`case "${caseId}" 不在金标中`)
     const mapping = options.space.cases[caseId]
     if (mapping === undefined) throw new Error(`case "${caseId}" 没有问题空间映射`)
-    return {
+    const base: RunPlanCase = {
       caseId,
       retrieval: mapping.retrieval,
       dimensions: parseRubricDimensions(goldCase.rubric).length,
       rounds: 1 + (goldCase.rounds?.length ?? 0),
     }
+    if (execution === 'prompt') return base
+    if (mapping.workflow === undefined) {
+      throw new Error(`case "${caseId}" 没有声明工作流 manifest,不能在 workflow 设置下采集`)
+    }
+    return { ...base, workflow: workflowPlanOf(mapping.workflow, caseId) }
   })
+  const manifestIds = [...new Set(cases.map(entry => entry.workflow?.manifestId).filter(isString))].sort()
+  if (manifestIds.length > 1) {
+    throw new Error(`workflow 设置一次只测一个 manifest,选中 case 声明了 ${manifestIds.join('、')};请用 --case 收窄`)
+  }
   return {
     cases,
+    execution,
     runsPerCase,
     calls: cases.reduce((sum, entry) => sum + runsPerCase * entry.rounds * (1 + entry.dimensions), 0),
+    stageRuns: execution === 'workflow'
+      ? cases.reduce((sum, entry) => sum + runsPerCase * entry.rounds * (entry.workflow?.stages.length ?? 0), 0)
+      : 0,
   }
+}
+
+/** 字符串守卫,供 `Array.prototype.filter` 收窄 `string | undefined`。 */
+function isString(value: string | undefined): value is string {
+  return value !== undefined
+}
+
+/**
+ * 读内置 patent workflow manifest 并算出工作流采集清单。
+ *
+ * @param manifestId 问题空间为 case 声明的 manifest id。
+ * @param caseId 诊断用的 case id。
+ * @returns 该 manifest 的阶段清单。
+ */
+function workflowPlanOf(manifestId: string, caseId: string): WorkflowPlan {
+  const manifest = builtinPatentManifests.find(candidate => candidate.id === manifestId)
+  if (manifest === undefined) {
+    throw new Error(`case "${caseId}" 声明的 manifest "${manifestId}" 不在内置 patent workflow 清单中`)
+  }
+  return {
+    manifestId,
+    stages: manifest.stages.map(stage => stage.id),
+    deliverableStage: deliverableStageOf(manifest),
+    approvalStages: manifest.stages.filter(stage => stage.atom === APPROVAL_ATOM).map(stage => stage.id),
+  }
+}
+
+/**
+ * 取 manifest 里由模型撰写答复的阶段:绑定原子的阶段是确定性执行,不绑定原子的只有一个,
+ * 它的输出就是交付物。数量不是 1 时无法定位交付物,直接失败而不是猜一个。
+ *
+ * @param manifest 被测的 manifest。
+ * @returns 该阶段 id。
+ * @throws 不绑定原子的阶段不唯一时抛出。
+ */
+function deliverableStageOf(manifest: WorkflowManifest): string {
+  const modelStages = manifest.stages.filter(stage => stage.atom === undefined)
+  const only = modelStages[0]
+  if (modelStages.length !== 1 || only === undefined) {
+    throw new Error(
+      `manifest "${manifest.id}" 有 ${modelStages.length} 个不绑定原子的阶段,`
+      + '无法确定答复撰写阶段;请在工作流引擎里为该 manifest 明确交付阶段',
+    )
+  }
+  return only.id
 }
 
 /**
@@ -239,7 +354,104 @@ export function formatRunPlan(plan: RunPlan, profile: string): string {
     })
     .join(' ')
   const rounds = plan.cases.reduce((sum, entry) => sum + entry.rounds, 0)
-  return `run-patent-oas: 计划 ${plan.cases.length} case × ${plan.runsPerCase} 次运行,共 ${rounds} 轮 = ${plan.calls} 次 agent 调用(${perCase});profile=${profile}`
+  const workflow = plan.cases[0]?.workflow
+  const surface = workflow === undefined
+    ? '被测面=prompt'
+    : `被测面=workflow/${workflow.manifestId}(每轮 ${workflow.stages.length} 阶段,合计 ${plan.stageRuns} 次阶段执行)`
+  return `run-patent-oas: 计划 ${plan.cases.length} case × ${plan.runsPerCase} 次运行,共 ${rounds} 轮 = ${plan.calls} 次 agent 调用(${perCase});profile=${profile},${surface}`
+}
+
+/** `patent_workflow_run` 落进案件目录的运行记录里,采集需要读的字段。 */
+interface WorkflowRunFile {
+  /** 引擎判定该次运行是否完成(`requireAllSteps` 下含无降级阶段)。 */
+  completed: boolean
+  /** 降级阶段 id 清单。 */
+  degradedSteps: string[]
+  /** 停在人工确认阶段时的中断信息;未中断为 undefined。 */
+  interrupted?: { stageId: string }
+}
+
+/**
+ * 读出工作流设置某一轮的交付物,并从审计日志复算该轮权项版本。
+ *
+ * 三道检查按失败可能性排序:运行记录缺失说明执行者没有用给定的 caseId/manifestId 调
+ * `patent_workflow_run`;`completed` 为假说明工作流停在审批门或有阶段降级,该轮的答复不是
+ * 完整工作流的产物;日志里没有本轮产物则取代链无从复算。三者都报错而不是记 0 分,因为
+ * 「没走工作流」与「走了但答得差」是两种不同的失败。
+ *
+ * @param options 该次调用的工作目录、产物定位与工作流清单、诊断标签。
+ * @returns 交付物正文与该轮权项版本(取代链深度)。
+ */
+async function readWorkflowRound(options: {
+  cwd: string
+  round: WorkflowRound
+  plan: WorkflowPlan
+  label: string
+}): Promise<{ deliverable: string; claimVersion: number }> {
+  const { cwd, round, plan, label } = options
+  const runsDir = join(cwd, caseWorkflowRunsDir(round.caseId))
+  const suffix = `__${plan.manifestId}.json`
+  let runNames: string[]
+  try {
+    runNames = await readdir(runsDir)
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') runNames = []
+    else throw error
+  }
+  const runFiles = runNames.filter(name => name.endsWith(suffix)).sort()
+  const runFile = runFiles[0]
+  if (runFile === undefined) {
+    throw new Error(`${label}: ${runsDir} 下没有 "${plan.manifestId}" 的工作流运行记录,执行者没有按给定的 caseId 调用 patent_workflow_run`)
+  }
+  if (runFiles.length > 1) {
+    throw new Error(`${label}: ${runsDir} 下有 ${runFiles.length} 份 "${plan.manifestId}" 运行记录,无法确定本轮读哪一份:${runFiles.join('、')}`)
+  }
+  const run = JSON.parse(await readFile(join(runsDir, runFile), 'utf8')) as WorkflowRunFile
+  if (!run.completed) {
+    const stopped = run.interrupted === undefined ? '' : `,停在 "${run.interrupted.stageId}" 等待人工确认`
+    throw new Error(`${label}: 工作流未完成(降级阶段:${run.degradedSteps.join('、') || '无'}${stopped}),交付物不是完整 manifest 的产物`)
+  }
+  const deliverable = await readArtifact(join(cwd, round.deliverablePath), label)
+  const logPath = join(cwd, round.caseDir, MATTER_LOG_FILE)
+  const logText = await readArtifact(logPath, label)
+  const claimVersion = claimVersionOf(logText, round.artifactPath)
+  if (claimVersion === undefined) {
+    throw new Error(`${label}: ${logPath} 的取代链里没有本轮产物 "${round.artifactPath}",执行者没有按约定留档`)
+  }
+  return { deliverable, claimVersion }
+}
+
+/**
+ * 从 `_matter-log.md` 的取代链复算某个产物的权项版本。
+ *
+ * 版本是该产物所在的「产物 → 被取代产物」链上的产物条数:初版为 1,每取代一次加 1。
+ * 取代链按 `matter_log_append` 的判定不分叉,但一条记录可以登记多个被取代产物(答复书与
+ * 权项对照表一起走),因此取各条前驱链中最深的一条。
+ *
+ * @param logText 日志全文。
+ * @param artifactPath 相对 `case_dir` 登记的产物路径。
+ * @returns 链深(1 起);日志里没有登记该产物的条目时 undefined。
+ */
+export function claimVersionOf(logText: string, artifactPath: string): number | undefined {
+  const predecessors = new Map<string, string[]>()
+  for (const entry of parseMatterEntries(logText)) {
+    for (const path of entry.artifacts) {
+      if (!predecessors.has(path)) predecessors.set(path, entry.supersedes)
+    }
+  }
+  if (!predecessors.has(artifactPath)) return undefined
+  const depth = (path: string, visiting: Set<string>): number => {
+    const parents = predecessors.get(path)
+    if (parents === undefined || visiting.has(path)) return 1
+    const nextVisiting = new Set(visiting)
+    nextVisiting.add(path)
+    let deepest = 0
+    for (const parent of parents) {
+      deepest = Math.max(deepest, depth(parent, nextVisiting))
+    }
+    return deepest === 0 ? 1 : deepest + 1
+  }
+  return depth(artifactPath, new Set())
 }
 
 /**
@@ -276,6 +488,80 @@ export function executorPrompt(agentStatePath: string, statement: string, previo
     '作业规范目录:',
     agentStatePath,
     `要求:先阅读目录中的指导文档(如 guidance.md),按其 checklist 完成交付物;这是执行任务而非计划,直接完成并只输出交付物正文,不要输出 JSON 包装、计划说明或解释性前缀;把交付物正文写入当前工作目录的 ${DELIVERABLE_FILENAME}。`,
+  ].join('\n')
+}
+
+/** 工作流设置一次运行、一轮采集的产物定位。 */
+export interface WorkflowRound {
+  /** 该次运行在 `data/cases/` 下使用的 case id(不含客户案卷信息)。 */
+  caseId: string
+  /** 案件目录相对该次调用工作目录的路径,交给 `matter_log_append` 的 `case_dir`。 */
+  caseDir: string
+  /** 本轮交付物相对该次调用工作目录的路径。 */
+  deliverablePath: string
+  /** 本轮交付物在审计日志里登记的路径(相对 `case_dir`)。 */
+  artifactPath: string
+}
+
+/**
+ * 算出某次运行某一轮的产物定位:case id 由采集器固定,交付物按轮另存新文件。
+ *
+ * 路径由这里推导而不是执行者自报,`_matter-log.md` 的取代链才能被复算成权项版本;
+ * 每轮另存新文件也是 `matter_log_append` 对 `修订` 动作的要求(禁止原地覆盖上一轮)。
+ *
+ * @param caseId 金标 case id。
+ * @param run 运行序号,1 起。
+ * @param round 轮次,1 起。
+ * @returns 该次运行该轮的产物定位。
+ */
+export function workflowRound(caseId: string, run: number, round: number): WorkflowRound {
+  const slug = `patent-oas-${caseId}-run${run}`
+  const artifact = `oa-response-r${round}.md`
+  return {
+    caseId: slug,
+    caseDir: `${CASE_ROOT_REL}/${slug}`,
+    deliverablePath: `${caseOutputsDir(slug)}/${artifact}`,
+    artifactPath: `${CASE_OUTPUTS_REL}/${artifact}`,
+  }
+}
+
+/**
+ * 工作流设置的执行者提示词:一次 `patent_workflow_run` 跑完整 manifest,答复另存为本轮交付物,
+ * 再经 `matter_log_append` 留档。
+ *
+ * 阶段清单与审批门阶段都来自 manifest,提示词只点名 `patent_workflow_run` 一次:阶段推进、
+ * 上游产出注入与 `requireAllSteps` 判定由工作流引擎负责,评测器不重实现。无人值守采集要显式
+ * 放行审批门,否则 `requireAllSteps` 把停在人工确认的运行判为未完成。
+ *
+ * @param options 该轮的任务文本、工作流清单、产物定位与上一轮交付物。
+ * @returns 提示词。
+ */
+export function workflowExecutorPrompt(options: {
+  agentStatePath: string
+  statement: string
+  plan: WorkflowPlan
+  round: WorkflowRound
+  roundNumber: number
+  previousArtifact?: string
+}): string {
+  const { plan, round } = options
+  const approval = plan.approvalStages.map(stage => `"${stage}"`).join(', ')
+  const steps = [
+    `1. 调用 patent_workflow_run 跑完整工作流:manifestId 传 "${plan.manifestId}",caseId 传 "${round.caseId}"${plan.approvalStages.length > 0 ? `,approveStageIds 传 [${approval}]` : ''},input 逐字原样传下面这段任务文本(不要改写、不要省略、不要只传片段):`,
+    '',
+    options.statement,
+    '',
+    `2. 把工作流 "${plan.deliverableStage}" 阶段产出的答复意见书正文原样写入当前工作目录的 ${round.deliverablePath};这是转存,不要改写、不要另写一份与前文无关的答复。`,
+    `3. 调用 matter_log_append 留档本轮:case_dir 传 "${round.caseDir}",action 传 "${options.roundNumber === 1 ? '建案' : '修订'}",artifacts 传 ["${round.artifactPath}"],changes 用一句话写清本轮改了什么、为什么、是否影响保护点${options.previousArtifact === undefined ? '' : `,supersedes 传 ["${options.previousArtifact}"]`}。第 3 步不能跳过,也不能用 shell 直接改日志。`,
+  ]
+  return [
+    '你是任务执行者。请依据目标 agent 状态目录中的作业规范,完成下列审查意见答复任务。',
+    '任务(statement):',
+    options.statement,
+    '作业规范目录:',
+    options.agentStatePath,
+    '要求:按下面三步依次执行;这是执行任务而非计划,不要输出 JSON 包装、计划说明或解释性前缀,交付物以文件为准。',
+    ...steps,
   ].join('\n')
 }
 
@@ -489,6 +775,7 @@ interface RoundAccumulator {
   statementDigest?: string
   dimensions: Map<number, number[]>
   deliverableDigests: string[]
+  claimVersions: number[]
 }
 
 /**
@@ -518,7 +805,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
       usageTotals.tokenCalls += 1
     }
   }
-  for (const { caseId, retrieval, rounds: roundCount } of plan.cases) {
+  for (const { caseId, retrieval, rounds: roundCount, workflow } of plan.cases) {
     const goldCase = options.gold.find(entry => entry.caseId === caseId)
     if (goldCase === undefined) throw new Error(`case "${caseId}" 不在金标中`)
     const dimensions = parseRubricDimensions(goldCase.rubric)
@@ -533,6 +820,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         ...extra === undefined ? {} : { statementDigest: textDigest(extra.statement) },
         dimensions: new Map(dimensions.map(dimension => [dimension.index, []])),
         deliverableDigests: [],
+        claimVersions: [],
       }
     })
     for (let run = 1; run <= plan.runsPerCase; run += 1) {
@@ -549,12 +837,14 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         } else {
           if (previousAgentState === undefined) throw new Error(`${caseId} run ${run}: 缺少上一轮工作目录`)
           await cp(previousAgentState, agentStatePath, { recursive: true })
-          await cp(
-            join(previousAgentState, DELIVERABLE_FILENAME),
-            join(agentStatePath, PREVIOUS_DELIVERABLE_FILENAME),
-          )
-          // 上一轮产物只能作为参考;删掉它,执行者必须写出本轮的新交付物。
-          await rm(join(agentStatePath, DELIVERABLE_FILENAME), { force: true })
+          if (workflow === undefined) {
+            await cp(
+              join(previousAgentState, DELIVERABLE_FILENAME),
+              join(agentStatePath, PREVIOUS_DELIVERABLE_FILENAME),
+            )
+            // 上一轮产物只能作为参考;删掉它,执行者必须写出本轮的新交付物。
+            await rm(join(agentStatePath, DELIVERABLE_FILENAME), { force: true })
+          }
           await rm(join(agentStatePath, AGENT_LOG_FILENAME), { force: true })
         }
         const roundText = statements[round - 1]
@@ -562,16 +852,33 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         const roundAccumulator = roundAccumulators[round - 1]
         if (roundAccumulator === undefined) throw new Error(`${caseId}: 缺少第 ${round} 轮的累加器`)
         const executorLabel = `${caseId} run ${run} 第 ${round} 轮执行者`
+        const roundFiles = workflowRound(caseId, run, round)
         addUsage(await options.runAgents({
           cwd: agentStatePath,
-          prompt: executorPrompt(agentStatePath, roundText, isFirst ? undefined : PREVIOUS_DELIVERABLE_FILENAME),
+          prompt: workflow === undefined
+            ? executorPrompt(agentStatePath, roundText, isFirst ? undefined : PREVIOUS_DELIVERABLE_FILENAME)
+            : workflowExecutorPrompt({
+              agentStatePath,
+              statement: roundText,
+              plan: workflow,
+              round: roundFiles,
+              roundNumber: round,
+              ...(isFirst ? {} : { previousArtifact: workflowRound(caseId, run, round - 1).artifactPath }),
+            }),
           label: executorLabel,
         }))
-        const deliverable = await readArtifact(join(agentStatePath, DELIVERABLE_FILENAME), executorLabel)
-        if (deliverable.trim() === '') throw new Error(`${executorLabel}: ${DELIVERABLE_FILENAME} 为空`)
+        let deliverable: string
+        if (workflow === undefined) {
+          deliverable = await readArtifact(join(agentStatePath, DELIVERABLE_FILENAME), executorLabel)
+        } else {
+          const observed = await readWorkflowRound({ cwd: agentStatePath, round: roundFiles, plan: workflow, label: executorLabel })
+          deliverable = observed.deliverable
+          roundAccumulator.claimVersions.push(observed.claimVersion)
+        }
+        if (deliverable.trim() === '') throw new Error(`${executorLabel}: 交付物为空`)
         const bytes = Buffer.byteLength(deliverable, 'utf8')
         if (bytes > MAX_DELIVERABLE_BYTES) {
-          throw new Error(`${executorLabel}: ${DELIVERABLE_FILENAME} 为 ${bytes} 字节,超过上限 ${MAX_DELIVERABLE_BYTES};该交付物会被复制进每个维度的评估提示词`)
+          throw new Error(`${executorLabel}: 交付物为 ${bytes} 字节,超过上限 ${MAX_DELIVERABLE_BYTES};该交付物会被复制进每个维度的评估提示词`)
         }
         roundAccumulator.deliverableDigests.push(textDigest(deliverable))
         for (const accumulator of terminalAccumulators) {
@@ -603,6 +910,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         ...scores.length > 1 ? { scores: [...scores] } : {},
       })),
       deliverableDigests: [...accumulator.deliverableDigests],
+      ...accumulator.claimVersions.length > 0 ? { claimVersions: [...accumulator.claimVersions] } : {},
     }))
     cases.push({
       caseId,
@@ -617,9 +925,12 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
       ...roundCount > 1 ? { rounds } : {},
     })
   }
+  const workflowId = plan.cases.find(entry => entry.workflow !== undefined)?.workflow?.manifestId
   const record: RunRecord = {
     benchmarkId: options.space.benchmarkId,
     recordedAt: options.recordedAt ?? new Date().toISOString(),
+    execution: plan.execution,
+    ...(workflowId === undefined ? {} : { workflowId }),
     runsPerCase: plan.runsPerCase,
     cases,
   }
@@ -643,6 +954,8 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
 export interface RunnerOptions {
   /** 目标 profile 名。 */
   profile: string
+  /** 本次采集的被测面。 */
+  execution: ExecutionSetting
   /** 只跑这些 case;空数组表示金标全集。重复给出只算一次。 */
   caseIds: string[]
   /** 每个 case 的运行次数。 */
@@ -704,6 +1017,9 @@ function flagValues(args: readonly string[], flag: string): string[] {
  * 缺省的输出与工作目录落在 `.artifacts/patent-oas/<stamp>/`(该目录不进版本库),
  * 因为 run 记录是证据、日志与交付物是定位失败用的中间产物。
  *
+ * `--execution workflow` 把缺省 `--runs` 降为 1:一次运行要跑完整 manifest 的 12 个阶段,
+ * 3 次运行的调用量比提示词设置高一个量级以上。
+ *
  * @param args 命令行参数(不含 node 与脚本路径)。
  * @param context 路径上下文。
  * @returns 归一化后的选项。
@@ -713,11 +1029,17 @@ export function parseRunnerOptions(args: readonly string[], context: RunnerPathC
   const timeoutText = flagValue(args, '--timeout-ms')
   const budgetText = flagValue(args, '--budget-ms')
   const base = join(context.root, '.artifacts', 'patent-oas', context.stamp)
+  const executionText = flagValue(args, '--execution')
+  if (executionText !== undefined && executionText !== 'prompt' && executionText !== 'workflow') {
+    throw new Error(`--execution 必须是 prompt 或 workflow,得到 ${executionText}`)
+  }
+  const execution: ExecutionSetting = executionText ?? 'prompt'
   const options: RunnerOptions = {
     profile: flagValue(args, '--profile') ?? 'headless',
+    execution,
     caseIds: flagValues(args, '--case'),
-    // 缺省 3:前后对比必须有多轮样本(B7 测量协议),单轮只作冒烟。
-    runs: runsText === undefined ? 3 : Number(runsText),
+    // 提示词设置按 B7 测量协议取 3 次运行做前后对比;工作流设置每次运行要跑完整 manifest 的阶段,缺省 1 次。
+    runs: runsText === undefined ? (execution === 'workflow' ? 1 : 3) : Number(runsText),
     patchPaths: flagValues(args, '--patch').map(path => resolve(context.cwd, path)),
     outPath: resolve(context.cwd, flagValue(args, '--out') ?? join(base, 'run.json')),
     workDir: resolve(context.cwd, flagValue(args, '--work-dir') ?? join(base, 'work')),

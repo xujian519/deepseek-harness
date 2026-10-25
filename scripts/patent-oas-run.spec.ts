@@ -6,10 +6,12 @@
  * 未被验证的是「真实模型会按契约写出产物」——那需要 key,由 README 如实登记。
  */
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
+import { MATTER_LOG_FILE, renderMatterEntry } from '@deepseek-ai/dsh-patent-tools'
 import {
   GATE_FILE,
   PATENT_OAS_EXAMPLE_DIR,
@@ -34,7 +36,9 @@ import {
   MAX_DELIVERABLE_BYTES,
   PREVIOUS_DELIVERABLE_FILENAME,
   SCORE_FILENAME,
+  WORKFLOW_PATCH_FILE,
   agentArgv,
+  claimVersionOf,
   collectRunRecord,
   credentialEnvFiles,
   evaluatorPrompt,
@@ -47,6 +51,8 @@ import {
   planRun,
   spawnAgentProcess,
   writeRunRecord,
+  workflowExecutorPrompt,
+  workflowRound,
   type AgentInvocation,
   type RunAgents,
   type RunCallUsage,
@@ -105,18 +111,28 @@ interface StubOptions {
   usageFor?: (label: string, call: number) => RunCallUsage | undefined
 }
 
+/** 登记这次调用,并按选项决定它报告的用量。 */
+function reportedUsage(options: StubOptions, calls: AgentInvocation[], invocation: AgentInvocation): RunCallUsage | undefined {
+  calls.push(invocation)
+  return options.usageFor === undefined ? options.usage : options.usageFor(invocation.label, calls.length)
+}
+
+/** 评估者调用:按选项把分数写进分数文件;不是评估者调用时返回 false。 */
+function writeScoreFile(options: StubOptions, invocation: AgentInvocation, call: number): boolean {
+  if (!invocation.prompt.includes(SCORE_FILENAME)) return false
+  if (options.omitScore !== true) {
+    const score = options.scoreBody ?? JSON.stringify({ score: options.scoreFor?.(invocation.label, call) ?? 90 })
+    writeFileSync(join(invocation.cwd, SCORE_FILENAME), score, 'utf8')
+  }
+  return true
+}
+
 /** 造一个桩接缝:按契约把产物写进调用目录,并记录每次调用。 */
 function stubAgents(options: StubOptions = {}): { runAgents: RunAgents; calls: AgentInvocation[] } {
   const calls: AgentInvocation[] = []
   const runAgents: RunAgents = async (invocation) => {
-    calls.push(invocation)
-    const usage = options.usageFor === undefined ? options.usage : options.usageFor(invocation.label, calls.length)
-    if (invocation.prompt.includes(SCORE_FILENAME)) {
-      if (options.omitScore === true) return usage
-      const body = options.scoreBody ?? JSON.stringify({ score: options.scoreFor?.(invocation.label, calls.length) ?? 90 })
-      writeFileSync(join(invocation.cwd, SCORE_FILENAME), body, 'utf8')
-      return usage
-    }
+    const usage = reportedUsage(options, calls, invocation)
+    if (writeScoreFile(options, invocation, calls.length)) return usage
     if (options.omitDeliverable === true) return usage
     const deliverable = options.deliverableFor?.(invocation.label, calls.length)
       ?? options.deliverable
@@ -344,11 +360,21 @@ describe('选项解析', () => {
     expect(options.dryRun).toBe(false)
   })
 
+  it('被测面缺省为 prompt;workflow 把缺省运行次数降为 1', () => {
+    expect(parseRunnerOptions([], { root: '/repo', cwd: '/repo', stamp: 'T' }).execution).toBe('prompt')
+    const workflow = parseRunnerOptions(['--execution', 'workflow'], { root: '/repo', cwd: '/repo', stamp: 'T' })
+    expect(workflow.execution).toBe('workflow')
+    expect(workflow.runs).toBe(1)
+    expect(parseRunnerOptions(['--execution', 'workflow', '--runs', '3'], { root: '/repo', cwd: '/repo', stamp: 'T' }).runs).toBe(3)
+    expect(parseRunnerOptions(['--execution', 'prompt'], { root: '/repo', cwd: '/repo', stamp: 'T' }).runs).toBe(3)
+  })
+
   it('非法取值失败,而不是退回缺省', () => {
     expect(() => parseRunnerOptions(['--runs', '0'], { root: '/repo', cwd: '/repo', stamp: 'T' })).toThrow('--runs 必须是正整数')
     expect(() => parseRunnerOptions(['--timeout-ms', 'abc'], { root: '/repo', cwd: '/repo', stamp: 'T' })).toThrow('--timeout-ms 必须是正数')
     expect(() => parseRunnerOptions(['--budget-ms', '0'], { root: '/repo', cwd: '/repo', stamp: 'T' })).toThrow('--budget-ms 必须是正数')
     expect(() => parseRunnerOptions(['--profile'], { root: '/repo', cwd: '/repo', stamp: 'T' })).toThrow('需要一个值')
+    expect(() => parseRunnerOptions(['--execution', 'preset'], { root: '/repo', cwd: '/repo', stamp: 'T' })).toThrow('--execution 必须是 prompt 或 workflow')
   })
 })
 
@@ -617,6 +643,234 @@ describe('多轮编排', () => {
     expect(outcome?.score).toBe(90)
     expect(outcome?.rounds?.map(entry => entry.score)).toEqual([60, 90])
     expect(formatVerdict(verdict)).toContain('逐轮 R1 60.0 → R2 90.0')
+  })
+})
+
+describe('工作流设置编排', () => {
+  const oaAnswerGold = gold.filter(entry => entry.caseId === 'oa-answer')
+
+  /** 从提示词里取出采集器钉住的一个取值;取不到即提示词契约变了。 */
+  function pinned(prompt: string, pattern: RegExp, name: string): string {
+    const value = pattern.exec(prompt)?.[1]
+    if (value === undefined) throw new Error(`fixture: 工作流提示词里没有 ${name}`)
+    return value
+  }
+
+  interface WorkflowStubOptions extends StubOptions {
+    /** 不写工作流运行记录,模拟执行者没有调 `patent_workflow_run`。 */
+    omitRunRecord?: boolean
+    /** 不写审计日志,模拟执行者跳过留档。 */
+    omitMatterLog?: boolean
+    /** 留档登记的产物路径与本轮交付物无关,模拟取代链认不出本轮。 */
+    logOtherArtifact?: boolean
+    /** 本轮留档不写取代关系,链深停在同一版权项。 */
+    withoutSupersede?: boolean
+    /** 运行记录的完成判定。 */
+    completed?: boolean
+    /** 运行记录里的降级阶段。 */
+    degradedSteps?: string[]
+    /** 运行记录里的中断阶段(审批门)。 */
+    interruptedStage?: string
+  }
+
+  /** 按提示词钉住的路径写出工作流产物:运行记录、答复正文、一条审计留档。 */
+  function stubWorkflow(options: WorkflowStubOptions = {}): { runAgents: RunAgents; calls: AgentInvocation[] } {
+    const calls: AgentInvocation[] = []
+    const runAgents: RunAgents = async (invocation) => {
+      const usage = reportedUsage(options, calls, invocation)
+      if (writeScoreFile(options, invocation, calls.length)) return usage
+      const prompt = invocation.prompt
+      const manifestId = pinned(prompt, /manifestId 传 "([^"]+)"/u, 'manifestId')
+      const caseId = pinned(prompt, /caseId 传 "([^"]+)"/u, 'caseId')
+      const caseDir = pinned(prompt, /case_dir 传 "([^"]+)"/u, 'case_dir')
+      const deliverablePath = pinned(prompt, /工作目录的 (\S+?\.md)/u, '交付物路径')
+      const artifact = pinned(prompt, /artifacts 传 \["([^"]+)"\]/u, 'artifacts')
+      const superseded = options.withoutSupersede === true
+        ? undefined
+        : /supersedes 传 \["([^"]+)"\]/u.exec(prompt)?.[1]
+      if (options.omitRunRecord !== true) {
+        mkdirSync(join(invocation.cwd, caseDir, 'workflow-runs'), { recursive: true })
+        writeFileSync(join(invocation.cwd, caseDir, 'workflow-runs', `${caseId}__${manifestId}.json`), JSON.stringify({
+          manifestId,
+          caseType: 'oa_response',
+          completed: options.completed ?? true,
+          stages: [{ stageId: 'draft', strategy: 'chain', output: '答复正文', degraded: false }],
+          degradedSteps: options.degradedSteps ?? [],
+          summary: `工作流 ${manifestId}: 12/12 阶段完成`,
+          ...options.interruptedStage === undefined ? {} : { interrupted: { stageId: options.interruptedStage, message: '等待人工确认' } },
+        }), 'utf8')
+      }
+      mkdirSync(join(invocation.cwd, dirname(deliverablePath)), { recursive: true })
+      writeFileSync(join(invocation.cwd, deliverablePath), options.deliverable ?? '工作流答复正文', 'utf8')
+      if (options.omitMatterLog === true) return usage
+      const logPath = join(invocation.cwd, caseDir, MATTER_LOG_FILE)
+      // 第 2 轮的目录是第 1 轮的副本,日志已在;这里按 `matter_log_append` 的文法只追加,不改写既有行。
+      const existing = existsSync(logPath) ? readFileSync(logPath, 'utf8') : ''
+      const line = renderMatterEntry({
+        action: superseded === undefined ? '建案' : '修订',
+        artifacts: [options.logOtherArtifact === true ? 'outputs/别的文件.md' : artifact],
+        changes: '按本轮审查意见答复并留档',
+        ...superseded === undefined ? {} : { supersedes: [superseded] },
+      }, new Date('2026-10-25T00:00:00.000Z'))
+      mkdirSync(dirname(logPath), { recursive: true })
+      writeFileSync(logPath, `${existing}${line}\n`, 'utf8')
+      return usage
+    }
+    return { runAgents, calls }
+  }
+
+  /** 用工作流桩接缝采集一次 oa-answer。 */
+  async function collectWorkflow(options: WorkflowStubOptions & { runsPerCase?: number } = {}): Promise<{
+    record: Awaited<ReturnType<typeof collectRunRecord>>
+    calls: AgentInvocation[]
+    workDir: string
+  }> {
+    const { runAgents, calls } = stubWorkflow(options)
+    const workDir = scratch('workflow-work')
+    const record = await collectRunRecord({
+      space,
+      gold,
+      agentStateDir: join(exampleDir, 'patent-state'),
+      workDir,
+      runAgents,
+      execution: 'workflow',
+      caseIds: ['oa-answer'],
+      ...options.runsPerCase === undefined ? {} : { runsPerCase: options.runsPerCase },
+      recordedAt: '2026-10-25T00:00:00.000Z',
+    })
+    return { record, calls, workDir }
+  }
+
+  it('计划给出 manifest 阶段清单、撰写阶段与审批门', () => {
+    const plan = planRun({ space, gold, execution: 'workflow', caseIds: ['oa-answer'], runsPerCase: 1 })
+    const workflow = first(plan.cases).workflow
+    const manifest = first(builtinPatentManifests.filter(entry => entry.id === 'patent_oa_response_v1'))
+    expect(workflow?.stages).toEqual(manifest.stages.map(stage => stage.id))
+    expect(workflow?.deliverableStage).toBe('draft')
+    expect(workflow?.approvalStages).toEqual(['approval'])
+    expect(plan.execution).toBe('workflow')
+    expect(plan.calls).toBe(14)
+    expect(plan.stageRuns).toBe(24)
+    expect(formatRunPlan(plan, 'headless')).toContain('每轮 12 阶段,合计 24 次阶段执行')
+  })
+
+  it('没有声明 manifest 的 case 在工作流设置下被拒', () => {
+    expect(() => planRun({ space, gold, execution: 'workflow', caseIds: ['claim-drafting'] }))
+      .toThrow('case "claim-drafting" 没有声明工作流 manifest')
+  })
+
+  it('执行者提示词钉住 manifest、case id、审批门放行与留档参数', () => {
+    const round = workflowRound('oa-answer', 1, 2)
+    const prompt = workflowExecutorPrompt({
+      agentStatePath: '/tmp/agent-state',
+      statement: '审查意见正文',
+      plan: { manifestId: 'patent_oa_response_v1', stages: ['draft'], deliverableStage: 'draft', approvalStages: ['approval'] },
+      round,
+      roundNumber: 2,
+      previousArtifact: 'outputs/oa-response-r1.md',
+    })
+    expect(prompt).toContain('patent_workflow_run')
+    expect(prompt).toContain('approveStageIds 传 ["approval"]')
+    expect(prompt).toContain(`caseId 传 "${round.caseId}"`)
+    expect(prompt).toContain(round.deliverablePath)
+    expect(prompt).toContain('matter_log_append')
+    expect(prompt).toContain('action 传 "修订"')
+    expect(prompt).toContain('supersedes 传 ["outputs/oa-response-r1.md"]')
+    expect(prompt).toContain('审查意见正文')
+    expect(workflowExecutorPrompt({
+      agentStatePath: '/tmp/agent-state',
+      statement: '正文',
+      plan: { manifestId: 'patent_oa_response_v1', stages: [], deliverableStage: 'draft', approvalStages: [] },
+      round: workflowRound('oa-answer', 1, 1),
+      roundNumber: 1,
+    })).toContain('action 传 "建案"')
+  })
+
+  it('逐轮权项版本从审计日志复算,记录被门禁接受', async () => {
+    const { record, calls } = await collectWorkflow()
+    expect(record.execution).toBe('workflow')
+    expect(record.workflowId).toBe('patent_oa_response_v1')
+    const runCase = first(record.cases)
+    expect(runCase.rounds?.map(round => round.claimVersions)).toEqual([[1], [2]])
+    expect(runCase.rounds?.map(round => round.deliverableDigests.length)).toEqual([1, 1])
+    expect(validateRunRecord(record, space, oaAnswerGold, 'collected')).toEqual([])
+    expect(calls.filter(call => call.prompt.includes('patent_workflow_run')).length).toBe(2)
+  })
+
+  it('一次运行两条:权项版本按运行顺序各记一条', async () => {
+    const { record } = await collectWorkflow({ runsPerCase: 2 })
+    const rounds = first(record.cases).rounds
+    expect(rounds?.map(round => round.claimVersions)).toEqual([[1, 1], [2, 2]])
+    expect(validateRunRecord(record, space, oaAnswerGold, 'collected')).toEqual([])
+  })
+
+  it('取代链没前进时,门禁把两轮读成同一版权项', async () => {
+    const { record } = await collectWorkflow({ withoutSupersede: true })
+    const rounds = first(record.cases).rounds
+    expect(rounds?.map(round => round.claimVersions)).toEqual([[1], [1]])
+    expect(validateRunRecord(record, space, oaAnswerGold, 'collected').join('\n')).toContain('修订链未前进')
+  })
+
+  it('没有工作流运行记录时点名失败,而不是把交付物当产物', async () => {
+    await expect(collectWorkflow({ omitRunRecord: true }))
+      .rejects.toThrow('下没有 "patent_oa_response_v1" 的工作流运行记录')
+  })
+
+  it('工作流降级或停在审批门时失败并报出阶段', async () => {
+    await expect(collectWorkflow({ completed: false, degradedSteps: ['legal_gaps'] }))
+      .rejects.toThrow('降级阶段:legal_gaps')
+    await expect(collectWorkflow({ completed: false, interruptedStage: 'approval' }))
+      .rejects.toThrow('停在 "approval" 等待人工确认')
+  })
+
+  it('没有留档时失败,链深无从复算', async () => {
+    await expect(collectWorkflow({ omitMatterLog: true }))
+      .rejects.toThrow('未产出')
+    await expect(collectWorkflow({ logOtherArtifact: true }))
+      .rejects.toThrow('取代链里没有本轮产物')
+  })
+
+  it('交付物从案件目录读,评估提示词拿到的是工作流正文', async () => {
+    const { record, calls, workDir } = await collectWorkflow({ deliverable: 'D1 与公知常识的结合没有启示' })
+    const evaluators = calls.filter(call => call.prompt.includes(SCORE_FILENAME))
+    expect(first(evaluators).prompt).toContain('D1 与公知常识的结合没有启示')
+    expect(first(record.cases).rounds?.[0]?.deliverableDigests).toEqual([textDigest('D1 与公知常识的结合没有启示')])
+    expect(readFileSync(join(workDir, 'oa-answer', 'run-1', 'agent-state', 'data/cases',
+      'patent-oas-oa-answer-run1', 'outputs', 'oa-response-r1.md'), 'utf8'))
+      .toBe('D1 与公知常识的结合没有启示')
+  })
+
+  it('权项版本是取代链深度,与日志里的登记顺序一致', () => {
+    const log = [
+      renderMatterEntry({ action: '建案', artifacts: ['outputs/oa-response-r1.md'], changes: '初版答复' }, new Date('2026-10-25T00:00:00.000Z')),
+      renderMatterEntry({
+        action: '修订',
+        artifacts: ['outputs/oa-response-r2.md'],
+        changes: '按第二次审查意见修订',
+        supersedes: ['outputs/oa-response-r1.md'],
+      }, new Date('2026-10-25T00:01:00.000Z')),
+    ].join('\n')
+    expect(claimVersionOf(log, 'outputs/oa-response-r1.md')).toBe(1)
+    expect(claimVersionOf(log, 'outputs/oa-response-r2.md')).toBe(2)
+    expect(claimVersionOf(log, 'outputs/oa-response-r3.md')).toBeUndefined()
+    // 一次修订同时留档答复书与权项对照表时,链深按最深的一条前驱计。
+    expect(claimVersionOf(`${log}\n${renderMatterEntry({
+      action: '修订',
+      artifacts: ['outputs/oa-response-r3.md'],
+      changes: '再次修订',
+      supersedes: ['outputs/oa-response-r2.md', 'claims/claims-r2.md'],
+    }, new Date('2026-10-25T00:02:00.000Z'))}`, 'outputs/oa-response-r3.md')).toBe(3)
+  })
+
+  it('工作流设置带上的 overlay 挂载 patent 工具行', () => {
+    expect(readFileSync(resolve(root, WORKFLOW_PATCH_FILE), 'utf8'))
+      .toContain("name: '@deepseek-ai/dsh-patent-tools'")
+  })
+
+  it('提示词设置不读工作流产物,记录写 execution=prompt', async () => {
+    const { record } = await collect({ caseIds: ['oa-answer'] })
+    expect(record.execution).toBe('prompt')
+    expect(record.workflowId).toBeUndefined()
   })
 })
 

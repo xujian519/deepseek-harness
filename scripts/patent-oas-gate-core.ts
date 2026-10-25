@@ -39,6 +39,15 @@ export interface ProblemSpaceNode {
  */
 export type RetrievalSetting = 'none' | 'oracle' | 'simulation'
 
+/**
+ * 一次采集的被测面。
+ *
+ * `prompt` 直接把任务交给 profile 的提示词调用,测「模型 + 作业规范」;`workflow` 经 patent
+ * 工具面跑 `patent_oa_response_v1` manifest,测工作流阶段与 `_matter-log.md` 的修订链。
+ * 同一份金标在两个被测面上的读数含义不同,因此不共享门槛与基线。
+ */
+export type ExecutionSetting = 'prompt' | 'workflow'
+
 /** 一个 rubric 维度到节点的分数拆解;权重之和必须等于该维度满分。 */
 export interface DimensionMapping {
   /** 节点 id → 该维度分配给它的分值。 */
@@ -51,6 +60,8 @@ export interface CaseMapping {
   label: string
   /** 该 case 的检索环境;跨设置分数不可比。 */
   retrieval: RetrievalSetting
+  /** 该 case 可在工作流设置下采集时,所用的 patent workflow manifest id;不支持时省略。 */
+  workflow?: string
   /** rubric 维度序号(1 起) → 拆解。 */
   dimensions: Record<number, DimensionMapping>
 }
@@ -73,14 +84,34 @@ export interface GateThreshold {
   maxDrop?: number
 }
 
+/** 门禁策略里声明的一条基线:它属于哪个被测面,记录落在哪个文件。 */
+export interface BaselineDeclaration {
+  /** 该基线所属的被测面。 */
+  execution: ExecutionSetting
+  /** `execution` 为 workflow 时,该基线采集所用的 manifest id;prompt 基线省略。 */
+  workflowId?: string
+  /** 基线 run 记录路径(相对仓库根)。 */
+  path: string
+}
+
+/** 一条基线声明按路径读出的结果;文件尚未落盘时 `record` 为 undefined。 */
+export interface DeclaredBaseline {
+  /** 配置里的声明。 */
+  declaration: BaselineDeclaration
+  /** 诊断标签(配置里的路径)。 */
+  label: string
+  /** 已落盘的基线记录;尚未采集时省略。 */
+  record?: RunRecord
+}
+
 /** 门禁策略。 */
 export interface GateConfig {
   /** 策略所属的 benchmark id。 */
   benchmarkId: string
   /** 金标内容摘要;未记录时为 null,门禁据此判定「金标未钉住」。 */
   goldDigest: string | null
-  /** 基线 run 记录路径(相对仓库根)。 */
-  baselinePath: string
+  /** 各被测面的基线声明,按配置顺序;同一被测面不得重复声明。 */
+  baselines: BaselineDeclaration[]
   /** 门槛:默认值、聚合门槛、逐节点覆盖。 */
   thresholds: {
     node: Required<GateThreshold>
@@ -158,8 +189,14 @@ export interface RunRound {
   statementDigest?: string
   /** 该轮每个维度的跨运行观测。 */
   dimensions: RunRoundDimension[]
-  /** 该轮每次运行交付物的 sha256,按运行顺序;标识权项版本。 */
+  /** 该轮每次运行交付物正文的 sha256,按运行顺序。 */
   deliverableDigests: string[]
+  /**
+   * 该轮每次运行的权项版本,按运行顺序;取 `_matter-log.md` 修订链上该轮交付物的链深。
+   *
+   * 只在工作流设置下记录:提示词设置不写 `_matter-log.md`,没有可复算的修订链。
+   */
+  claimVersions?: number[]
 }
 
 /** run 记录里的一个 case。 */
@@ -180,6 +217,15 @@ export interface RunRecord {
   benchmarkId: string
   /** 记录时间(ISO 8601)。 */
   recordedAt: string
+  /**
+   * 该记录的被测面;采集器还没有这一字段时省略。
+   *
+   * 省略只出现在工作流设置落地之前写下的记录里,那些记录一律经提示词调用采集,
+   * 因此 {@link executionOf} 把省略读成 `prompt`。
+   */
+  execution?: ExecutionSetting
+  /** `execution` 为 workflow 时采集所用的 manifest id;提示词记录省略。 */
+  workflowId?: string
   /** 评估运行使用的 provider;未报告时省略。 */
   provider?: string
   /** 评估运行使用的模型 id;未报告时省略。 */
@@ -324,6 +370,43 @@ function requireRetrieval(source: Record<string, unknown>, key: string, where: s
 function optionalRetrieval(source: Record<string, unknown>, key: string, where: string): RetrievalSetting | undefined {
   if (source[key] === undefined || source[key] === null) return undefined
   return requireRetrieval(source, key, where)
+}
+
+/**
+ * 读一个必填被测面字段。
+ *
+ * @param source 源对象。
+ * @param key 字段名。
+ * @param where 诊断位置。
+ * @returns 被测面。
+ */
+function requireExecution(source: Record<string, unknown>, key: string, where: string): ExecutionSetting {
+  const value = source[key]
+  if (value === 'prompt' || value === 'workflow') return value
+  throw new Error(`${where}: 字段 "${key}" 必须是 prompt 或 workflow,得到 ${JSON.stringify(value)}`)
+}
+
+/**
+ * 读一个可选被测面字段;采集器还没有该字段的旧记录返回 undefined。
+ *
+ * @param source 源对象。
+ * @param key 字段名。
+ * @param where 诊断位置。
+ * @returns 被测面,或 undefined。
+ */
+function optionalExecution(source: Record<string, unknown>, key: string, where: string): ExecutionSetting | undefined {
+  if (source[key] === undefined || source[key] === null) return undefined
+  return requireExecution(source, key, where)
+}
+
+/**
+ * 取一条记录实际测的是哪个被测面。
+ *
+ * @param record run 记录。
+ * @returns 记录声明的被测面;没有该字段的旧记录按 `prompt` 处理。
+ */
+export function executionOf(record: Pick<RunRecord, 'execution'>): ExecutionSetting {
+  return record.execution ?? 'prompt'
 }
 
 /** 读一个可选有限数数组字段。 */
@@ -503,6 +586,8 @@ export async function loadProblemSpace(path: string): Promise<ProblemSpace> {
     if (!isRecord(rawCase)) throw new Error(`${where}: 必须是对象`)
     const label = requireString(rawCase, 'label', where)
     const retrieval = requireRetrieval(rawCase, 'retrieval', where)
+    const workflow = optionalString(rawCase, 'workflow', where)
+    if (workflow === '') throw new Error(`${where}: 字段 "workflow" 不能是空串`)
     const rawDimensions = requireRecord(rawCase, 'dimensions', where)
     const dimensions: Record<number, DimensionMapping> = {}
     for (const [index, rawDimension] of Object.entries(rawDimensions)) {
@@ -520,7 +605,7 @@ export async function loadProblemSpace(path: string): Promise<ProblemSpace> {
       }
       dimensions[numeric] = { nodes }
     }
-    cases[caseId] = { label, retrieval, dimensions }
+    cases[caseId] = { label, retrieval, ...workflow === undefined ? {} : { workflow }, dimensions }
   }
   const nodes: Record<string, ProblemSpaceNode> = {}
   for (const [nodeId, rawNode] of Object.entries(rawNodes)) {
@@ -552,7 +637,33 @@ export async function loadProblemSpace(path: string): Promise<ProblemSpace> {
 export async function loadGateConfig(path: string): Promise<GateConfig> {
   const root = await loadYamlObject(path)
   const benchmarkId = requireString(root, 'benchmarkId', path)
-  const baselinePath = requireString(root, 'baselinePath', path)
+  const rawBaselines = root.baselines
+  if (!Array.isArray(rawBaselines) || rawBaselines.length === 0) {
+    throw new Error(`${path}: baselines 必须是非空数组,每个被测面一条 { execution, path, workflowId? }`)
+  }
+  const baselines: BaselineDeclaration[] = rawBaselines.map((rawEntry: unknown, index: number) => {
+    const where = `${path}: baselines[${index}]`
+    if (!isRecord(rawEntry)) throw new Error(`${where}: 必须是对象`)
+    const execution = requireExecution(rawEntry, 'execution', where)
+    const entryPath = requireString(rawEntry, 'path', where)
+    const declaresWorkflow = rawEntry.workflowId !== undefined && rawEntry.workflowId !== null
+    if (execution === 'prompt' && declaresWorkflow) {
+      throw new Error(`${where}: execution 为 prompt 时不得声明 workflowId`)
+    }
+    if (execution === 'workflow' && !declaresWorkflow) {
+      throw new Error(`${where}: execution 为 workflow 时必须声明 workflowId`)
+    }
+    return {
+      execution,
+      path: entryPath,
+      ...declaresWorkflow ? { workflowId: requireString(rawEntry, 'workflowId', where) } : {},
+    }
+  })
+  const settingKey = (entry: BaselineDeclaration): string => `${entry.execution}:${entry.workflowId ?? ''}`
+  const duplicated = baselines.find((entry, index) => baselines.findIndex(other => settingKey(other) === settingKey(entry)) !== index)
+  if (duplicated !== undefined) {
+    throw new Error(`${path}: baselines 重复声明被测面 ${settingKey(duplicated)};一个被测面只有一条基线`)
+  }
   const digest = optionalString(root, 'goldDigest', path) ?? null
   const rawThresholds = requireRecord(root, 'thresholds', path)
   const readThreshold = (value: unknown, where: string): Required<GateThreshold> => {
@@ -572,7 +683,7 @@ export async function loadGateConfig(path: string): Promise<GateConfig> {
   return {
     benchmarkId,
     goldDigest: digest,
-    baselinePath,
+    baselines,
     thresholds: {
       node: readThreshold(rawThresholds.node, `${path}: thresholds.node`),
       case: readThreshold(rawThresholds.case, `${path}: thresholds.case`),
@@ -616,11 +727,13 @@ function loadRunRounds(value: unknown, where: string): RunRound[] {
       return digest
     })
     const statementDigest = optionalString(rawRound, 'statementDigest', roundWhere)
+    const claimVersions = optionalNumberArray(rawRound, 'claimVersions', roundWhere)
     return {
       round: requireNumber(rawRound, 'round', roundWhere),
       ...statementDigest === undefined ? {} : { statementDigest },
       dimensions,
       deliverableDigests,
+      ...claimVersions === undefined ? {} : { claimVersions },
     }
   })
 }
@@ -671,6 +784,11 @@ export async function loadRunRecord(path: string): Promise<RunRecord> {
   }
   const provider = optionalString(parsed, 'provider', path)
   if (provider !== undefined) record.provider = provider
+  const execution = optionalExecution(parsed, 'execution', path)
+  if (execution !== undefined) record.execution = execution
+  if (parsed.workflowId !== undefined && parsed.workflowId !== null) {
+    record.workflowId = requireString(parsed, 'workflowId', path)
+  }
   const modelId = optionalString(parsed, 'modelId', path)
   if (modelId !== undefined) record.modelId = modelId
   if (parsed.cost !== undefined) record.cost = requireNumber(parsed, 'cost', path)
@@ -683,6 +801,21 @@ export async function loadRunRecord(path: string): Promise<RunRecord> {
     }
   }
   return record
+}
+
+/**
+ * 读取一条已声明的基线记录;文件尚未落盘表示该被测面还没有基线。
+ *
+ * @param path 基线文件绝对路径。
+ * @returns 基线记录,或 undefined。
+ */
+export async function loadBaselineRecord(path: string): Promise<RunRecord | undefined> {
+  try {
+    return await loadRunRecord(path)
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  }
 }
 
 /**
@@ -701,7 +834,7 @@ export function roundScore(value: number): number {
 /**
  * 判断一个仓库相对路径是否会写出仓库根之外。
  *
- * `gate.yaml` 的 `baselinePath` 是配置,绝对路径或足够多的 `../` 都能把基线写到仓库外;
+ * `gate.yaml` 的 `baselines[].path` 是配置,绝对路径或足够多的 `../` 都能把基线写到仓库外;
  * 采集出来的证据应当落在版本库内,因此写盘前先做这一步检查。
  *
  * @param root 仓库根绝对路径。
@@ -828,7 +961,7 @@ export function findCycles(space: ProblemSpace): string[] {
  * @param runCase run 记录里的 case。
  * @param goldCase 对应金标。
  * @param dimensions 金标 rubric 维度。
- * @param runsPerCase 每个 case 的运行次数。
+ * @param run 该 case 所属的 run 记录,提供被测面与每个 case 的运行次数。
  * @param label 诊断标签。
  * @returns 一条问题一条消息。
  */
@@ -836,7 +969,7 @@ function validateRunRounds(
   runCase: RunCase,
   goldCase: GoldCase,
   dimensions: readonly RubricDimension[],
-  runsPerCase: number,
+  run: RunRecord,
   label: string,
 ): string[] {
   const problems: string[] = []
@@ -874,12 +1007,13 @@ function validateRunRounds(
         }
       }
     }
-    if (round.deliverableDigests.length !== runsPerCase) {
-      problems.push(`${where}有 ${round.deliverableDigests.length} 个交付物摘要,应为 ${runsPerCase}`)
+    if (round.deliverableDigests.length !== run.runsPerCase) {
+      problems.push(`${where}有 ${round.deliverableDigests.length} 个交付物摘要,应为 ${run.runsPerCase}`)
     }
     for (const [index, digest] of round.deliverableDigests.entries()) {
       if (!DIGEST_PATTERN.test(digest)) problems.push(`${where}第 ${index + 1} 次运行的交付物摘要不是 sha256:<hex>`)
     }
+    problems.push(...validateClaimVersions(round, where, run))
     const observed = new Set<number>()
     for (const dimension of round.dimensions) {
       if (observed.has(dimension.index)) problems.push(`${where}重复观测维度 ${dimension.index}`)
@@ -892,10 +1026,10 @@ function validateRunRounds(
         problems.push(`${where}维度 ${dimension.index} 分数 ${dimension.score} 超出 0–100`)
       }
       if (dimension.scores === undefined) {
-        if (runsPerCase > 1) problems.push(`${where}维度 ${dimension.index} 缺少逐次分数`)
+        if (run.runsPerCase > 1) problems.push(`${where}维度 ${dimension.index} 缺少逐次分数`)
       } else {
-        if (dimension.scores.length !== runsPerCase) {
-          problems.push(`${where}维度 ${dimension.index} 有 ${dimension.scores.length} 个逐次分数,应为 ${runsPerCase}`)
+        if (dimension.scores.length !== run.runsPerCase) {
+          problems.push(`${where}维度 ${dimension.index} 有 ${dimension.scores.length} 个逐次分数,应为 ${run.runsPerCase}`)
         }
         for (const [sampleIndex, sample] of dimension.scores.entries()) {
           if (sample < 0 || sample > 100) {
@@ -930,11 +1064,71 @@ function validateRunRounds(
       if (!observed.has(dimension.index)) problems.push(`${where}缺少维度 ${dimension.index} 的观测`)
     }
   }
+  problems.push(...validateClaimChain(rounds, run, `${label}: case "${runCase.caseId}"`))
   return problems
 }
 
 /**
- * 校验一次 run 记录的维度观测是否与该金标一致。
+ * 校验一轮记录的权项版本。
+ *
+ * 权项版本由该轮交付物在 `_matter-log.md` 修订链上的深度得出,只有工作流设置写审计日志,
+ * 因此只有工作流记录能带、也必须带这一观测。
+ *
+ * @param round 该轮观测。
+ * @param where 诊断位置。
+ * @param run 所属 run 记录。
+ * @returns 一条问题一条消息。
+ */
+function validateClaimVersions(round: RunRound, where: string, run: RunRecord): string[] {
+  const problems: string[] = []
+  if (round.claimVersions === undefined) {
+    if (executionOf(run) === 'workflow') problems.push(`${where}缺少 claimVersions;工作流设置必须逐轮记录权项版本`)
+    return problems
+  }
+  if (executionOf(run) !== 'workflow') {
+    problems.push(`${where}带 claimVersions,但被测面是 ${executionOf(run)};权项版本只由工作流设置的审计日志复算`)
+  }
+  if (round.claimVersions.length !== run.runsPerCase) {
+    problems.push(`${where}有 ${round.claimVersions.length} 个权项版本,应为 ${run.runsPerCase}`)
+  }
+  for (const [index, version] of round.claimVersions.entries()) {
+    if (!Number.isInteger(version) || version < 1) {
+      problems.push(`${where}第 ${index + 1} 次运行的权项版本 ${version} 必须是 1 起的整数`)
+    }
+  }
+  return problems
+}
+
+/**
+ * 校验同一 case 的权项版本逐轮严格前进。
+ *
+ * 第 2 轮的答复必须取代第 1 轮的权项,否则 `matter_log_append` 的 `取代` 字段没有把修订链
+ * 推进一格,记下的两轮其实是同一版权项。
+ *
+ * @param rounds 该 case 的逐轮观测。
+ * @param run 所属 run 记录。
+ * @param where 诊断位置。
+ * @returns 一条问题一条消息。
+ */
+function validateClaimChain(rounds: readonly RunRound[], run: RunRecord, where: string): string[] {
+  if (executionOf(run) !== 'workflow') return []
+  const problems: string[] = []
+  for (let index = 0; index < run.runsPerCase; index += 1) {
+    let previous: number | undefined
+    for (const round of rounds) {
+      const version = round.claimVersions?.[index]
+      if (version === undefined) continue
+      if (previous !== undefined && version <= previous) {
+        problems.push(`${where}第 ${round.round} 轮第 ${index + 1} 次运行的权项版本 ${version} 没有超过上一轮的 ${previous};修订链未前进`)
+      }
+      previous = version
+    }
+  }
+  return problems
+}
+
+/**
+ * 校验一次 run 记录的维度观测、被测面与权项版本是否与该金标和问题空间一致。
  *
  * @param run run 记录。
  * @param space 问题空间 DAG。
@@ -959,6 +1153,12 @@ export function validateRunRecord(
       || !Number.isFinite(run.tokens.output) || run.tokens.output < 0)) {
     problems.push(`${label}: tokens.input 与 tokens.output 必须是非负数`)
   }
+  if (executionOf(run) === 'workflow' && run.workflowId === undefined) {
+    problems.push(`${label}: workflow 设置必须记录 workflowId,否则无法确定测的是哪个 manifest`)
+  }
+  if (executionOf(run) === 'prompt' && run.workflowId !== undefined) {
+    problems.push(`${label}: prompt 设置记录了 workflowId "${run.workflowId}";manifest 只随工作流设置记录`)
+  }
   const seen = new Set<string>()
   for (const runCase of run.cases) {
     if (seen.has(runCase.caseId)) problems.push(`${label}: case "${runCase.caseId}" 重复出现`)
@@ -977,6 +1177,12 @@ export function validateRunRecord(
     if (runCase.retrieval !== undefined && runCase.retrieval !== declaredRetrieval) {
       problems.push(
         `${label}: case "${runCase.caseId}" 记录检索环境 ${runCase.retrieval},问题空间声明 ${declaredRetrieval}`,
+      )
+    }
+    if (run.workflowId !== undefined && run.workflowId !== mapping.workflow) {
+      problems.push(
+        `${label}: case "${runCase.caseId}" 按 manifest "${run.workflowId}" 采集,`
+        + `问题空间为它声明的工作流是 ${mapping.workflow ?? '无'}`,
       )
     }
     const dimensions = parseRubricDimensions(goldCase.rubric)
@@ -1026,7 +1232,7 @@ export function validateRunRecord(
     for (const dimension of dimensions) {
       if (!observed.has(dimension.index)) problems.push(`${label}: case "${runCase.caseId}" 缺少维度 ${dimension.index} 的观测`)
     }
-    problems.push(...validateRunRounds(runCase, goldCase, dimensions, run.runsPerCase, label))
+    problems.push(...validateRunRounds(runCase, goldCase, dimensions, run, label))
   }
   for (const goldCase of gold) {
     if (!seen.has(goldCase.caseId)) problems.push(`${label}: 缺少 case "${goldCase.caseId}" 的观测`)
@@ -1035,12 +1241,14 @@ export function validateRunRecord(
 }
 
 /**
- * 校验被检记录与基线是否为同一条检索设置。
+ * 校验被检记录与基线是否为同一条测量设置。
  *
- * 检索模拟与 oracle 给定对比文件测的是不同能力:前者的分数含检索质量,后者只测答复
- * 质量。用一条设置的基线阈值判另一条设置的运行,读数差异无法归因,因此这里必须拒绝。
+ * 两条轴都要相同:检索模拟与 oracle 给定对比文件测的是不同能力(前者的分数含检索质量),
+ * 提示词调用与工作流调用测的面也不同(后者含阶段编排与审计链)。用一条设置的基线阈值判
+ * 另一条设置的运行,读数差异无法归因,因此这里必须拒绝。
  * 记录没有检索环境(旧格式)时只在基线也没有该字段时放行——「未声明」不能被当成
- * 「与基线相同」。
+ * 「与基线相同」;被测面没有该字段的记录早于工作流设置,读的仍是同一条提示词调用路径,
+ * 因此 {@link executionOf} 把省略归一为 `prompt`。
  *
  * @param run 被检记录。
  * @param baseline 基线记录。
@@ -1049,8 +1257,14 @@ export function validateRunRecord(
  */
 export function comparisonSettingProblems(run: RunRecord, baseline: RunRecord, label: string): string[] {
   const problems: string[] = []
-  const baselineSettings = new Map(baseline.cases.map(entry => [entry.caseId, entry.retrieval] as const))
   const describe = (setting: RetrievalSetting | undefined): string => setting ?? '未记录'
+  if (executionOf(run) !== executionOf(baseline) || run.workflowId !== baseline.workflowId) {
+    problems.push(
+      `${label}: 被测面为 ${surfaceOf(run)},基线为 ${surfaceOf(baseline)};`
+      + '两条记录的分数不可比,请在同一被测面下重录基线或运行',
+    )
+  }
+  const baselineSettings = new Map(baseline.cases.map(entry => [entry.caseId, entry.retrieval] as const))
   for (const runCase of run.cases) {
     if (!baselineSettings.has(runCase.caseId)) continue
     const baselineSetting = baselineSettings.get(runCase.caseId)
@@ -1064,25 +1278,51 @@ export function comparisonSettingProblems(run: RunRecord, baseline: RunRecord, l
 }
 
 /**
- * 校验门槛策略与基线自身的可满足性。
+ * 按被测面取基线声明。
  *
- * 包含:benchmarkId 一致、金标摘要已记录且与当前金标相符、门槛取值域合法、逐节点覆盖
- * 指向真实节点、基线(如有)结构合法且本身不得低于自己声明的下限——一个永远不可能绿的
- * 门禁比没有门禁更糟。
+ * @param config 门禁策略。
+ * @param execution 被测面。
+ * @param workflowId 工作流设置采集所用的 manifest id;`execution` 为 prompt 时省略。
+ * @returns 匹配的声明;配置没有声明该被测面时为 undefined。
+ */
+export function findBaselineDeclaration(
+  config: GateConfig,
+  execution: ExecutionSetting,
+  workflowId?: string,
+): BaselineDeclaration | undefined {
+  return config.baselines.find(declaration => declaration.execution === execution
+    && declaration.workflowId === workflowId)
+}
+
+/**
+ * 取一条记录应当与哪条基线比较。
+ *
+ * @param config 门禁策略。
+ * @param record 被检或待提升的记录。
+ * @returns 匹配该被测面的声明;配置没有声明该被测面时为 undefined。
+ */
+export function baselineDeclarationFor(config: GateConfig, record: RunRecord): BaselineDeclaration | undefined {
+  return findBaselineDeclaration(config, executionOf(record), record.workflowId)
+}
+
+/**
+ * 校验门槛策略与每条已声明基线自身的可满足性。
+ *
+ * 包含:benchmarkId 一致、金标摘要已记录且相符、门槛取值域合法、逐节点覆盖指向真实节点、
+ * 每条基线(已落盘的)结构合法、记录的被测面与配置声明一致、且基线本身不低于自己声明的
+ * 下限——一个永远不可能绿的门禁比没有门禁更糟。
  *
  * @param config 门禁策略。
  * @param space 问题空间 DAG。
  * @param gold 金标 case 集。
- * @param baseline 已记录的基线;未记录时为 undefined。
- * @param baselineLabel 基线来源标签(用于诊断)。
+ * @param baselines 配置声明的每条基线及其已落盘的记录;未采集的条目 `record` 省略。
  * @returns 一条问题一条消息。
  */
 export function validateGateConfig(
   config: GateConfig,
   space: ProblemSpace,
   gold: readonly GoldCase[],
-  baseline: RunRecord | undefined,
-  baselineLabel: string,
+  baselines: readonly DeclaredBaseline[],
 ): string[] {
   const problems: string[] = []
   if (config.benchmarkId !== space.benchmarkId) {
@@ -1111,19 +1351,38 @@ export function validateGateConfig(
   for (const nodeId of Object.keys(config.thresholds.nodes)) {
     if (space.nodes[nodeId] === undefined) problems.push(`gate: thresholds.nodes 指向不存在的节点 "${nodeId}"`)
   }
-  if (baseline !== undefined) {
-    problems.push(...validateRunRecord(baseline, space, gold, baselineLabel))
+  for (const entry of baselines) {
+    const baseline = entry.record
+    if (baseline === undefined) continue
+    if (executionOf(baseline) !== entry.declaration.execution
+      || baseline.workflowId !== entry.declaration.workflowId) {
+      problems.push(
+        `gate: ${entry.label} 的被测面是 ${surfaceOf(baseline)},`
+        + `配置声明的是 ${surfaceOf(entry.declaration)};基线记录与被测面串了`,
+      )
+    }
+    problems.push(...validateRunRecord(baseline, space, gold, entry.label))
     const baselineVerdict = evaluateRun(space, config, baseline, undefined)
     for (const outcome of [...baselineVerdict.nodes, ...baselineVerdict.cases]) {
       if (outcome.verdict !== 'pass') {
-        problems.push(`gate: 基线自身在 "${outcome.id}" 上 ${outcome.verdict}(分数 ${outcome.score}),门槛不可能被满足`)
+        problems.push(`gate: 基线 ${entry.label} 自身在 "${outcome.id}" 上 ${outcome.verdict}(分数 ${outcome.score}),门槛不可能被满足`)
       }
     }
     if (baselineVerdict.aggregateVerdict !== 'pass') {
-      problems.push(`gate: 基线自身聚合判定为 ${baselineVerdict.aggregateVerdict}(分数 ${baselineVerdict.aggregateScore}),门槛不可能被满足`)
+      problems.push(`gate: 基线 ${entry.label} 自身聚合判定为 ${baselineVerdict.aggregateVerdict}(分数 ${baselineVerdict.aggregateScore}),门槛不可能被满足`)
     }
   }
   return problems
+}
+
+/**
+ * 渲染一条记录或一条基线声明所属的被测面,用于诊断输出。
+ *
+ * @param source 带 `execution`/`workflowId` 的记录、声明或待声明取值。
+ * @returns `prompt`,或带 manifest id 的 `workflow/<id>`。
+ */
+export function surfaceOf(source: { execution?: ExecutionSetting; workflowId?: string }): string {
+  return executionOf(source) === 'workflow' ? `workflow/${source.workflowId ?? '未记录'}` : 'prompt'
 }
 
 /** 解析某个节点实际生效的门槛。 */

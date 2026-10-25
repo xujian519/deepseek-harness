@@ -29,6 +29,9 @@ cases:
     # 对比文件 D1 与公知常识的认定直接写在 statement 里:检索环境为 oracle,
     # 分数只测答复与论证质量;simulation 需要另建受控语料。
     retrieval: oracle
+    # 该 case 也能在 `--execution workflow` 下采集:阶段清单、审批门与答复撰写阶段都取自这个
+    # manifest,评测器不另立定义。没有该字段的 case 在工作流设置下会被采集器拒绝。
+    workflow: patent_oa_response_v1
     dimensions:
       1: { nodes: { distinguishing-features: 28 } }
       2: { nodes: { technical-problem: 18 } }

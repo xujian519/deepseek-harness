@@ -17,8 +17,11 @@ import {
   caseScores,
   caseScoresByRun,
   caseRoundScores,
+  baselineDeclarationFor,
   comparisonSettingProblems,
   evaluateRun,
+  executionOf,
+  findBaselineDeclaration,
   findCycles,
   formatVerdict,
   goldDigest,
@@ -33,12 +36,14 @@ import {
   parseRubricDimensions,
   roundScore,
   scoreSpread,
+  surfaceOf,
   textDigest,
   validateGateConfig,
   validateProblemSpace,
   validateRunRecord,
   verdictPassed,
   type CaseMapping,
+  type DeclaredBaseline,
   type DimensionMapping,
   type GateConfig,
   type GoldCase,
@@ -140,6 +145,16 @@ function withGoldRounds(cases: readonly GoldCase[], record: RunRecord): RunRecor
   return record
 }
 
+/** 给每条逐轮观测补权项版本:第 n 轮的取代链深度是 n。 */
+function withClaimVersions(record: RunRecord): RunRecord {
+  for (const runCase of record.cases) {
+    for (const round of runCase.rounds ?? []) {
+      round.claimVersions = Array.from({ length: record.runsPerCase }, () => round.round)
+    }
+  }
+  return record
+}
+
 /** 造一份逐次观测与均值一致的多次运行记录。 */
 function recordWithScores(scores: readonly number[]): RunRecord {
   const record = recordFrom(gold, () => roundScore(mean(scores)), scores.length)
@@ -218,6 +233,25 @@ function writeRawRecord(value: unknown): string {
   const path = join(dir, 'run.json')
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
   return path
+}
+
+/** 在临时目录里落一份 gate 配置(YAML 接受 JSON 文档),返回路径。 */
+function writeGate(value: unknown): string {
+  const dir = mkdtempSync(join(tmpdir(), 'patent-oas-gate-config-'))
+  scratchDirs.push(dir)
+  const path = join(dir, 'gate.yaml')
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  return path
+}
+
+/** 现有门槛取值,供只改 `baselines` 的配置负例复用。 */
+function currentThresholds(): GateConfig['thresholds'] {
+  return structuredClone(config.thresholds)
+}
+
+/** 把一条记录挂到仓库现有基线声明上,组成 `validateGateConfig` 的一项输入。 */
+function declared(record: RunRecord, label: string): DeclaredBaseline {
+  return { declaration: first(config.baselines), label, record }
 }
 
 /** 以源码启动方式运行门禁脚本。 */
@@ -390,18 +424,18 @@ describe('多轮金标布局', () => {
 
 describe('门槛策略', () => {
   it('当前策略可满足,且已记录的金标摘要与金标相符', () => {
-    expect(validateGateConfig(config, space, gold, undefined, 'baseline')).toEqual([])
+    expect(validateGateConfig(config, space, gold, [])).toEqual([])
     expect(config.goldDigest).toBe(goldDigest(gold))
   })
 
   it('金标摘要过期即失败', () => {
     const stale: GateConfig = { ...config, goldDigest: 'sha256:stale' }
-    expect(validateGateConfig(stale, space, gold, undefined, 'baseline').join('\n')).toContain('goldDigest 与当前金标不符')
+    expect(validateGateConfig(stale, space, gold, []).join('\n')).toContain('goldDigest 与当前金标不符')
   })
 
   it('未记录金标摘要即失败', () => {
     const missing: GateConfig = { ...config, goldDigest: null }
-    expect(validateGateConfig(missing, space, gold, undefined, 'baseline').join('\n')).toContain('未记录 goldDigest')
+    expect(validateGateConfig(missing, space, gold, []).join('\n')).toContain('未记录 goldDigest')
   })
 
   it('门槛取值越界或为负即失败', () => {
@@ -409,7 +443,7 @@ describe('门槛策略', () => {
       ...config,
       thresholds: { ...config.thresholds, node: { minScore: 120, maxDrop: -1 } },
     }
-    const problems = validateGateConfig(outOfRange, space, gold, undefined, 'baseline').join('\n')
+    const problems = validateGateConfig(outOfRange, space, gold, []).join('\n')
     expect(problems).toContain('thresholds.node.minScore 120 超出 0–100')
     expect(problems).toContain('thresholds.node.maxDrop -1 不能为负')
   })
@@ -419,13 +453,50 @@ describe('门槛策略', () => {
       ...config,
       thresholds: { ...config.thresholds, nodes: { 'distinguishing-feature': { minScore: 75 } } },
     }
-    expect(validateGateConfig(typo, space, gold, undefined, 'baseline').join('\n')).toContain('不存在的节点 "distinguishing-feature"')
+    expect(validateGateConfig(typo, space, gold, []).join('\n')).toContain('不存在的节点 "distinguishing-feature"')
   })
 
   it('基线自身低于门槛即失败', () => {
-    const weak = recordFrom(gold, () => 40)
-    const problems = validateGateConfig(config, space, gold, weak, 'weak-baseline').join('\n')
+    const weak = declared(recordFrom(gold, () => 40), 'weak-baseline')
+    const problems = validateGateConfig(config, space, gold, [weak]).join('\n')
     expect(problems).toContain('门槛不可能被满足')
+  })
+
+  it('基线记录的被测面与声明不符即失败', () => {
+    const workflow = recordFrom(gold, () => 90)
+    workflow.execution = 'workflow'
+    workflow.workflowId = 'patent_oa_response_v1'
+    const problems = validateGateConfig(config, space, gold, [declared(workflow, 'prompt-baseline.json')]).join('\n')
+    expect(problems).toContain('基线记录与被测面串了')
+  })
+
+  it('baselines 缺失、越界或重复声明即失败', async () => {
+    await expect(loadGateConfig(writeGate({ benchmarkId: 'patent-oas', thresholds: currentThresholds() })))
+      .rejects.toThrow('baselines 必须是非空数组')
+    await expect(loadGateConfig(writeGate({
+      benchmarkId: 'patent-oas',
+      baselines: [{ execution: 'workflow', path: 'x.json' }],
+      thresholds: currentThresholds(),
+    }))).rejects.toThrow('execution 为 workflow 时必须声明 workflowId')
+    await expect(loadGateConfig(writeGate({
+      benchmarkId: 'patent-oas',
+      baselines: [{ execution: 'prompt', workflowId: 'patent_oa_response_v1', path: 'x.json' }],
+      thresholds: currentThresholds(),
+    }))).rejects.toThrow('execution 为 prompt 时不得声明 workflowId')
+    await expect(loadGateConfig(writeGate({
+      benchmarkId: 'patent-oas',
+      baselines: [
+        { execution: 'prompt', path: 'a.json' },
+        { execution: 'prompt', path: 'b.json' },
+      ],
+      thresholds: currentThresholds(),
+    }))).rejects.toThrow('重复声明被测面 prompt')
+  })
+
+  it('每条声明的被测面就是它自己的基线', () => {
+    expect(config.baselines).toEqual([
+      { execution: 'prompt', path: 'packages/self-evolve/evaluation/patent-oas-baseline.json' },
+    ])
   })
 })
 
@@ -516,6 +587,179 @@ describe('检索设置的可比性', () => {
       .toContain('检索环境为 未记录,基线为 oracle')
     const legacyBaseline = structuredClone(legacy)
     expect(comparisonSettingProblems(legacy, legacyBaseline, 'run.json')).toEqual([])
+  })
+})
+
+describe('被测面的可比性', () => {
+  const oaAnswer = gold.filter(entry => entry.caseId === 'oa-answer')
+
+  /** 只含 oa-answer 的问题空间:工作流设置目前只有这一个 case 声明了 manifest。 */
+  function oaSpace(): ProblemSpace {
+    const narrowed = cloneSpace()
+    narrowed.cases = { 'oa-answer': mappingOf(narrowed, 'oa-answer') }
+    return narrowed
+  }
+
+  /** 一条工作流设置的两轮记录:oa-answer 带 workflowId 与逐轮权项版本。 */
+  function workflowRecord(runsPerCase = 1): RunRecord {
+    const record = withClaimVersions(recordFrom(oaAnswer, () => 90, runsPerCase))
+    record.execution = 'workflow'
+    record.workflowId = 'patent_oa_response_v1'
+    return record
+  }
+
+  it('被测面缺省时读作 prompt,workflow 带出 manifest', () => {
+    expect(executionOf({})).toBe('prompt')
+    expect(surfaceOf({ execution: 'workflow', workflowId: 'patent_oa_response_v1' })).toBe('workflow/patent_oa_response_v1')
+    expect(surfaceOf({})).toBe('prompt')
+  })
+
+  it('工作流记录带 workflowId 与逐轮权项版本即通过', () => {
+    expect(validateRunRecord(workflowRecord(), oaSpace(), oaAnswer, 'run.json')).toEqual([])
+  })
+
+  it('提示词记录与旧记录仍通过同一校验', () => {
+    expect(validateRunRecord(recordFrom(gold, () => 90), space, gold, 'run.json')).toEqual([])
+    const legacy = recordFrom(gold, () => 90)
+    delete legacy.execution
+    expect(validateRunRecord(legacy, space, gold, 'run.json')).toEqual([])
+  })
+
+  it('工作流记录缺 workflowId 或逐轮权项版本即失败', () => {
+    const missingManifest = workflowRecord()
+    delete missingManifest.workflowId
+    expect(validateRunRecord(missingManifest, oaSpace(), oaAnswer, 'run.json').join('\n'))
+      .toContain('workflow 设置必须记录 workflowId')
+    const missingVersions = workflowRecord()
+    for (const round of roundsOf(missingVersions)) delete round.claimVersions
+    expect(validateRunRecord(missingVersions, oaSpace(), oaAnswer, 'run.json').join('\n'))
+      .toContain('缺少 claimVersions')
+  })
+
+  it('提示词记录不该带权项版本,prompt 记录不该带 manifest', () => {
+    const record = recordFrom(oaAnswer, () => 90)
+    for (const round of roundsOf(record)) round.claimVersions = [1]
+    expect(validateRunRecord(record, oaSpace(), oaAnswer, 'run.json').join('\n'))
+      .toContain('权项版本只由工作流设置的审计日志复算')
+    const withManifest: RunRecord = { ...recordFrom(oaAnswer, () => 90), workflowId: 'patent_oa_response_v1' }
+    expect(validateRunRecord(withManifest, oaSpace(), oaAnswer, 'run.json').join('\n'))
+      .toContain('prompt 设置记录了 workflowId')
+  })
+
+  it('权项版本个数、取值与逐轮前进都受检', () => {
+    const short = workflowRecord(2)
+    first(roundsOf(short)).claimVersions = [1]
+    expect(validateRunRecord(short, oaSpace(), oaAnswer, 'run.json').join('\n')).toContain('个权项版本,应为 2')
+    const zero = workflowRecord()
+    first(roundsOf(zero)).claimVersions = [0]
+    expect(validateRunRecord(zero, oaSpace(), oaAnswer, 'run.json').join('\n')).toContain('必须是 1 起的整数')
+    const stuck = workflowRecord()
+    const rounds = roundsOf(stuck)
+    if (rounds[1] === undefined) throw new Error('fixture: 缺少第 2 轮观测')
+    rounds[1].claimVersions = [1]
+    expect(validateRunRecord(stuck, oaSpace(), oaAnswer, 'run.json').join('\n')).toContain('修订链未前进')
+  })
+
+  it('manifest 与问题空间声明不符即失败', () => {
+    const record = workflowRecord()
+    record.workflowId = 'patent_infringement_v1'
+    expect(validateRunRecord(record, oaSpace(), oaAnswer, 'run.json').join('\n'))
+      .toContain('问题空间为它声明的工作流是 patent_oa_response_v1')
+    const outside = withClaimVersions(recordFrom(oaAnswer, () => 90))
+    outside.execution = 'workflow'
+    outside.workflowId = 'patent_oa_response_v1'
+    const unowned = cloneSpace()
+    delete mappingOf(unowned, 'oa-answer').workflow
+    expect(validateRunRecord(outside, unowned, oaAnswer, 'run.json').join('\n'))
+      .toContain('按 manifest "patent_oa_response_v1" 采集')
+  })
+
+  it('跨被测面拒绝比对,同一被测面放行', () => {
+    const prompt = recordFrom(gold, () => 90)
+    const workflow = workflowRecord()
+    expect(comparisonSettingProblems(structuredClone(workflow), workflow, 'run.json')).toEqual([])
+    expect(comparisonSettingProblems({ ...workflow, cases: [...prompt.cases] }, prompt, 'run.json').join('\n'))
+      .toContain('被测面为 workflow/patent_oa_response_v1,基线为 prompt')
+    const otherManifest = structuredClone(workflow)
+    otherManifest.workflowId = 'patent_infringement_v1'
+    expect(comparisonSettingProblems(otherManifest, workflow, 'run.json').join('\n'))
+      .toContain('基线为 workflow/patent_oa_response_v1')
+  })
+
+  it('旧记录与提示词基线仍可比:省略的被测面读作 prompt', () => {
+    const baseline = recordFrom(gold, () => 90)
+    const explicit: RunRecord = { ...structuredClone(baseline), execution: 'prompt' }
+    expect(comparisonSettingProblems(explicit, baseline, 'run.json')).toEqual([])
+  })
+
+  it('基线按记录自己的被测面路由', () => {
+    const declaredPrompt = first(config.baselines)
+    expect(findBaselineDeclaration(config, 'prompt')).toBe(declaredPrompt)
+    expect(baselineDeclarationFor(config, recordFrom(gold, () => 90))).toBe(declaredPrompt)
+    expect(baselineDeclarationFor(config, workflowRecord())).toBeUndefined()
+    const withWorkflow: GateConfig = {
+      ...config,
+      baselines: [...config.baselines, {
+        execution: 'workflow',
+        workflowId: 'patent_oa_response_v1',
+        path: 'packages/self-evolve/evaluation/patent-oas-workflow-baseline.json',
+      }],
+    }
+    expect(findBaselineDeclaration(withWorkflow, 'workflow', 'patent_oa_response_v1')?.path)
+      .toBe('packages/self-evolve/evaluation/patent-oas-workflow-baseline.json')
+    expect(baselineDeclarationFor(withWorkflow, workflowRecord())?.execution).toBe('workflow')
+  })
+
+  it('记录的被测面与权项版本随文件往返,越界取值被读侧拒绝', async () => {
+    const loaded = await loadRunRecord(writeRecord(workflowRecord()))
+    expect(loaded.execution).toBe('workflow')
+    expect(loaded.workflowId).toBe('patent_oa_response_v1')
+    expect(roundsOf(loaded)[0]?.claimVersions).toEqual([1])
+    await expect(loadRunRecord(writeRawRecord({ ...workflowRecord(), execution: 'preset' })))
+      .rejects.toThrow('字段 "execution" 必须是 prompt 或 workflow')
+    await expect(loadRunRecord(writeRawRecord({
+      benchmarkId: 'patent-oas',
+      recordedAt: '2026-10-25T00:00:00.000Z',
+      runsPerCase: 1,
+      cases: [{
+        caseId: 'oa-answer',
+        dimensions: [],
+        rounds: [{ round: 1, dimensions: [], deliverableDigests: [], claimVersions: ['v1'] }],
+      }],
+    }))).rejects.toThrow('字段 "claimVersions[0]" 必须是有限数')
+    await expect(loadRunRecord(writeRawRecord({
+      benchmarkId: 'patent-oas',
+      recordedAt: '2026-10-25T00:00:00.000Z',
+      runsPerCase: 1,
+      cases: [{
+        caseId: 'oa-answer',
+        dimensions: [],
+        rounds: [{ round: 1, dimensions: [], deliverableDigests: [], claimVersions: 'v1' }],
+      }],
+    }))).rejects.toThrow('字段 "claimVersions" 必须是数组')
+  })
+
+  it('问题空间的 workflow 声明只能是非空字符串', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'patent-oas-space-'))
+    scratchDirs.push(dir)
+    const path = join(dir, 'problem-space.yaml')
+    writeFileSync(path, readFileSync(problemSpacePath, 'utf8').replace('workflow: patent_oa_response_v1', 'workflow: ""'), 'utf8')
+    await expect(loadProblemSpace(path)).rejects.toThrow('字段 "workflow" 不能是空串')
+  })
+
+  it('未声明被测面的记录不能被提升为基线', () => {
+    const record = recordFrom(gold, () => 90)
+    delete record.execution
+    const result = runGate('--accept', writeRecord(record))
+    expect(result.status, String(result.stderr)).toBe(1)
+    expect(String(result.stderr)).toContain('未记录被测面(execution),不能落为基线')
+  })
+
+  it('工作流记录没有在 gate.yaml 声明基线时拒绝落盘并给出条目', () => {
+    const result = runGate('--accept', writeRecord(workflowRecord()))
+    expect(result.status, String(result.stderr)).toBe(1)
+    expect(String(result.stderr)).toContain('baselines 没有声明被测面 workflow/patent_oa_response_v1 的基线')
+    expect(String(result.stderr)).toContain('"workflowId":"patent_oa_response_v1"')
   })
 })
 
@@ -785,7 +1029,7 @@ describe('判定与归因', () => {
 describe('门禁进程', () => {
   it('基线缺席时拒绝放行、记录后报已记录', () => {
     // 基线一旦按 README 记录下来,这条用例必须继续成立,而不是因为「下一步动作」变红。
-    const recorded = existsSync(resolve(root, config.baselinePath))
+    const recorded = existsSync(resolve(root, first(config.baselines).path))
     const result = runGate()
     expect(result.error).toBeUndefined()
     expect(result.signal).toBeNull()
@@ -837,6 +1081,7 @@ describe('门禁进程', () => {
 
   it('带检索环境的记录可被提升为基线', async () => {
     const record = recordFrom(gold, () => 90)
+    record.execution = 'prompt'
     const path = writeRecord(record)
     const dir = mkdtempSync(join(tmpdir(), 'patent-oas-baseline-'))
     scratchDirs.push(dir)
