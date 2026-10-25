@@ -179,7 +179,7 @@
             config:
               styleGuide: assistant-neutral
               templateDirs:
-                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-web-app/package.json')), 'skills/legal/litigation/legal-litigation-party-document-templates/templates')
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-web-app/package.json')), 'skills/legal/handwritten/legal-litigation-party-document-templates/templates')
 
           # ── goals ───────────────────────────────────────────────────────────────────
 

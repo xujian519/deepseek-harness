@@ -19,7 +19,7 @@ Modifications for DeepSeek Harness:
 - The upstream US/EU regulatory feed catalog is omitted; the privacy and
   product watch lists are labeled as comparative material.
 
-Separately, `litigation/legal-litigation-party-document-templates/references/styles`
+Separately, `handwritten/legal-litigation-party-document-templates/references/styles`
 reproduces 105 "party reference civil-litigation document styles" published by
 the Supreme People's Court (2016-09-28, retrieved 2026-10-26). These are official
 documents reproduced as a format reference and are not part of the Apache-licensed

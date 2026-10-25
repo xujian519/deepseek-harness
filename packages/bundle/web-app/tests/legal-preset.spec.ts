@@ -45,12 +45,6 @@ interface PresetDeclaration extends PresetRow {
   }
 }
 
-/** One skill file's frontmatter. */
-interface SkillFrontmatter {
-  name?: unknown
-  description?: unknown
-}
-
 /** Every file under a directory, recursively. */
 function allFiles(directory: string): string[] {
   const found: string[] = []
@@ -67,14 +61,22 @@ function skillFiles(directory: string): string[] {
   return allFiles(directory).filter(file => basename(file) === 'SKILL.md')
 }
 
-/** Parse one skill's frontmatter. */
-function frontmatter(file: string): SkillFrontmatter {
+/** Parse one skill or template's YAML frontmatter. */
+function frontmatter(file: string): Record<string, unknown> {
   const source = readFileSync(file, 'utf8')
   const end = source.indexOf('\n---\n', 4)
   if (!source.startsWith('---\n') || end === -1) throw new TypeError(`${file}: missing frontmatter`)
   const parsed: unknown = yaml.load(source.slice(4, end))
-  if (typeof parsed !== 'object' || parsed === null) throw new TypeError(`${file}: frontmatter is not an object`)
-  return parsed
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new TypeError(`${file}: frontmatter is not an object`)
+  }
+  return parsed as Record<string, unknown>
+}
+
+/** The variable declarations in one template's frontmatter. */
+function templateVariables(file: string): readonly { name?: unknown }[] {
+  const declared = frontmatter(file)['vars']
+  return Array.isArray(declared) ? (declared as { name?: unknown }[]) : []
 }
 
 /** Flatten a preset's entry list, keeping nested group rows. */
@@ -164,7 +166,8 @@ describe('legal skill catalog', () => {
       criminal: 6,
       employment: 19,
       ip: 11,
-      litigation: 20,
+      // Only the imported library lives here; the hand-written party-document skill is under `handwritten/`.
+      litigation: 19,
       practice: 4,
       privacy: 8,
       procurement: 5,
@@ -176,6 +179,7 @@ describe('legal skill catalog', () => {
       const count = files.filter(file => relative(LEGAL_SKILLS, file).startsWith(`${domain}/`)).length
       expect(count, `${domain} skill count`).toBe(expected)
     }
+    expect(files.filter(file => relative(LEGAL_SKILLS, file).startsWith('handwritten/'))).toHaveLength(1)
     expect(files.filter(file => relative(LEGAL_SKILLS, file).startsWith('mode/'))).toHaveLength(5)
   })
 
@@ -301,7 +305,7 @@ describe('legal skill catalog', () => {
 describe('party-document template library', () => {
   const SKILL = join(
     LEGAL_SKILLS,
-    'litigation/legal-litigation-party-document-templates',
+    'handwritten/legal-litigation-party-document-templates',
   )
   const STYLES = join(SKILL, 'references/styles')
   const TEMPLATES = join(SKILL, 'templates')
@@ -314,9 +318,7 @@ describe('party-document template library', () => {
     expect(styleFiles).toHaveLength(105)
     const sources = new Set<string>()
     for (const file of styleFiles) {
-      const parsed: unknown = yaml.load(readFileSync(file, 'utf8').split('\n---\n', 1)[0]?.slice(4) ?? '')
-      expect(typeof parsed, file).toBe('object')
-      const meta = parsed as Record<string, unknown>
+      const meta = frontmatter(file)
       expect(meta['title'], file).toEqual(expect.any(String))
       expect(meta['category'], file).toEqual(expect.any(String))
       expect(meta['source'], file).toMatch(/^https:\/\/www\.court\.gov\.cn\/susongyangshi\/xiangqing\/\d+\.html$/u)
@@ -344,9 +346,7 @@ describe('party-document template library', () => {
     for (const name of ['style-203.md', 'style-407.md', 'style-534.md']) {
       const file = allFiles(STYLES).find(candidate => candidate.endsWith(name))
       if (file === undefined) throw new Error(`missing conflict style ${name}`)
-      const parsed: unknown = yaml.load(readFileSync(file, 'utf8').split('\n---\n', 1)[0]?.slice(4) ?? '')
-      expect(typeof parsed, file).toBe('object')
-      expect((parsed as Record<string, unknown>)['source_conflict'], file).toEqual(expect.any(String))
+      expect(frontmatter(file)['source_conflict'], file).toEqual(expect.any(String))
       expect(catalog, name).toContain(name)
     }
   })
@@ -356,9 +356,7 @@ describe('party-document template library', () => {
     expect(templateFiles).toHaveLength(13)
     const names = new Set<string>()
     for (const file of templateFiles) {
-      const parsed: unknown = yaml.load(readFileSync(file, 'utf8').split('\n---\n', 1)[0]?.slice(4) ?? '')
-      expect(typeof parsed, file).toBe('object')
-      const meta = parsed as Record<string, unknown>
+      const meta = frontmatter(file)
       expect(meta['name'], file).toMatch(/^legal-[a-z-]+$/u)
       expect(meta['domain'], file).toBe('legal')
       expect(meta['category'], file).toBe('litigation')
@@ -373,10 +371,8 @@ describe('party-document template library', () => {
   it('declares every placeholder a template body uses', () => {
     const templateFiles = allFiles(TEMPLATES).filter(file => file.endsWith('.md'))
     for (const file of templateFiles) {
-      const [header = '', body = ''] = readFileSync(file, 'utf8').split('\n---\n', 2)
-      const parsed: unknown = yaml.load(header.slice(4))
-      expect(typeof parsed, file).toBe('object')
-      const declared = (parsed as { vars?: { name?: unknown }[] }).vars ?? []
+      const body = readFileSync(file, 'utf8').split('\n---\n', 2)[1] ?? ''
+      const declared = templateVariables(file)
       const declaredNames = new Set(declared.map(variable => String(variable.name)))
       const usedNames = new Set(
         [...body.matchAll(/\{\{([a-z][a-z0-9_]*)\}\}/gu)].map(match => match[1] ?? ''),
@@ -385,16 +381,18 @@ describe('party-document template library', () => {
     }
   })
 
+  it('uses a gap marker the delivery gate rejects', () => {
+    const skill = readFileSync(join(SKILL, 'SKILL.md'), 'utf8')
+    expect(skill).not.toContain('[待补：')
+    expect(skill).toContain('[待填写：')
+  })
+
   it('keeps the skill variable table in sync with the template schemas', () => {
     const skill = readFileSync(join(SKILL, 'SKILL.md'), 'utf8')
     const rows = [...skill.matchAll(/^\| `(legal-[a-z-]+)` \|[^\n]*\| (.*) \|$/gmu)]
     expect(rows).toHaveLength(13)
     for (const [, name = '', variables = ''] of rows) {
-      const parsed: unknown = yaml.load(
-        readFileSync(join(TEMPLATES, `${name}.md`), 'utf8').split('\n---\n', 1)[0]?.slice(4) ?? '',
-      )
-      expect(typeof parsed, name).toBe('object')
-      const declared = (parsed as { vars?: { name?: unknown }[] }).vars ?? []
+      const declared = templateVariables(join(TEMPLATES, `${name}.md`))
       const declaredNames = new Set(declared.map(variable => String(variable.name)))
       const referencedNames = new Set([...variables.matchAll(/\{\{([a-z][a-z0-9_]*)\}\}/gu)].map(match => match[1] ?? ''))
       expect(referencedNames, name).toEqual(declaredNames)

@@ -28,7 +28,7 @@ Open your legal work root (for example `~/legal-workspace`) as the session works
 
 ## Skills
 
-Thirteen imported domain libraries (124 skills) plus one hand-written party-document skill, 125 domain skills in total, namespaced so the flat catalog has no collisions:
+Thirteen imported domain libraries (124 skills) plus one hand-written party-document skill under `skills/legal/handwritten/`, 125 domain skills in total, namespaced so the flat catalog has no collisions:
 
 | Prefix | Skills | Coverage |
 |--------|--------|----------|

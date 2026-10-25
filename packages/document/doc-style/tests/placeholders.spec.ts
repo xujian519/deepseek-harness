@@ -46,13 +46,18 @@ describe('placeholderBracePattern', () => {
 
 describe('residualPlaceholderPatterns', () => {
   it('reports the fillable braces first, then every marker form', () => {
-    const text = '前 {{机构名称}} 后 [TBD] [placeholder] Lorem ipsum 待补充'
+    const text = '前 {{机构名称}} 后 [TBD] [placeholder] Lorem ipsum 待补充 ××× (写明工作单位)'
     const found = residualPlaceholderPatterns().flatMap(pattern => text.match(pattern) ?? [])
-    expect(found).toEqual(['{{机构名称}}', '[TBD]', '[placeholder]', 'Lorem ipsum', '待补充'])
+    expect(found).toEqual(['{{机构名称}}', '[TBD]', '[placeholder]', 'Lorem ipsum', '待补充', '×××', '(写明'])
   })
 
   it('takes the markers from the shared table', () => {
-    const expected = [...PLACEHOLDER_MARKERS.bracketed.map(word => `[${word}]`), ...PLACEHOLDER_MARKERS.latin, ...PLACEHOLDER_MARKERS.chinese]
+    const expected = [
+      ...PLACEHOLDER_MARKERS.bracketed.map(word => `[${word}]`),
+      ...PLACEHOLDER_MARKERS.latin,
+      ...PLACEHOLDER_MARKERS.chinese,
+      ...PLACEHOLDER_MARKERS.blankForms,
+    ]
     const found = residualPlaceholderPatterns().flatMap(pattern => expected.join(' ').match(pattern) ?? [])
     expect(found).toEqual(expected)
   })
