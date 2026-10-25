@@ -52,7 +52,7 @@ const ELIGIBILITY_STAGE: WorkflowStage = {
   atom: 'eligibility',
 }
 
-/** 检索关键词阶段：新颖性、创造性与可专利性的原子检索共用。 */
+/** 检索关键词阶段：新颖性、创造性与可专利性的原子检索取检索词，审查意见答复取检索策略。 */
 const SEARCH_KEYWORDS_STAGE: WorkflowStage = {
   id: 'generate_keywords',
   strategy: 'chain',
@@ -484,11 +484,12 @@ export const patentOaResponseManifest: WorkflowManifest = {
       description: '对立审查员模型：独立评估答复计划的薄弱环节（确定性骨架，完整版调用模型）',
       atom: 'adversary-model',
     },
+    SEARCH_KEYWORDS_STAGE,
     {
       id: 'draft',
       strategy: 'chain',
-      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart、答复计划与对立检验报告）',
-      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model'],
+      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart、答复计划、对立检验报告与检索关键词）',
+      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model', 'generate_keywords'],
       guidance: [
         '驳回类型对照表（先按解析结果定主策略，再逐类处理；多种类型并存时以最核心的驳回理由确定主策略）：',
         '- A-充分公开（专利法26.3）：说明书未清楚完整说明 → 举证实施例、实验数据与本领域可实现性',
@@ -502,6 +503,7 @@ export const patentOaResponseManifest: WorkflowManifest = {
         '答复方向四选一并说明理由：①纯争辩（不修改）——事实认定有误/结合无技术启示/区别特征认定错误；②修改+争辩——将从属特征并入独权即可克服；③混合策略——重写权利要求（增补区别特征/重新划界）并争辩剩余争议；④放弃答复——缺陷无法克服（如公开不充分涉及全部实施例），须明示当事人。',
         '层级说明：上游 response-plan 产出的策略表是逐项理由的机器默认——争辩／修改／未识别条款时的争辩+修改；四选一是本案层面的方向判断，两者不一致时以本案判断为准，并在意见陈述中说明理由。',
         '三步法争辩：第一步锁定最接近现有技术；第二步逐条列出区别特征，按其客观作用确定实际解决的技术问题（不得包含区别特征自身的指引）；第三步反驳结合启示与公知常识认定，强调预料不到的技术效果。',
+        '检索策略：把 generate_keywords 阶段产出的关键词落到「证据与引用」一节，写成可执行的检索方案——逐组列出关键词（含上位、下位与同义词）、拟用的 IPC/CPC 分类号、拟检索的数据库，并说明每组检索要核验什么（区别特征是否属公知常识、对比文件之间是否存在结合启示）。本节只陈述检索方案，不冒充已完成的检索：未实际检索到的文献不得写成对比文件，不得编造文献号与公开日。',
         '撰写规范：论证按「事实 → 规则 → 论证」三层组织、按争点分节（新颖性／创造性／其他争点），不以通知书审查意见项号铺陈；事实只陈述、逐项编号（F1…／P1…）并注明出处（权项号／说明书节次／对比文件段落），评价一律归入论证；修改时在答复书中列出修改后权利要求全文且不得超出原记载范围（A33）；禁止编造实验数据，禁止无逻辑链的空泛断言。',
         '输出顺序：总体立场 → 本次修改（修改对照表＋修改后独立权利要求全文）→ 本案事实 → 适用规则 → 意见陈述 → 其他缺陷的处理 → 证据与引用 → 结论与请求（与 oa-response 模板八节一致）。',
       ].join('\n'),

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-26-patent-oa-search-strategy-stage.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-26-patent-oa-search-strategy-stage.md
+/agent-note-carrying-the-oa-answer-s-search-strategy-through-the-manifest:
+  en: 88ad3a18a1e481cd
+  zh: ec4edbd62c44e5af
+/agent-note-carrying-the-oa-answer-s-search-strategy-through-the-manifest/problem:
+  en: a3e92be3d92c87e8
+  zh: 2a2f9c7c984d2326
+/agent-note-carrying-the-oa-answer-s-search-strategy-through-the-manifest/decision:
+  en: 556715ea033b4ecc
+  zh: ed4d87185e8cb2de
+/agent-note-carrying-the-oa-answer-s-search-strategy-through-the-manifest/alternatives-considered:
+  en: 5d14e8ba6abb820b
+  zh: ebc62952aa93b75a
+/agent-note-carrying-the-oa-answer-s-search-strategy-through-the-manifest/consequences:
+  en: c9cc0cc94f36fe0d
+  zh: 6fa22ef79e06fdb9

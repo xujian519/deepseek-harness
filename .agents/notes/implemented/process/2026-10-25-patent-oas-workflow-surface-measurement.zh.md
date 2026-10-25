@@ -24,9 +24,9 @@ Status: implemented
 
 **工作流的组合方式是经 overlay 在宿主平面挂 patent 工具行。** preset 是 agent 平面,只有 `dsh-agent-preset-registry` 能挂它;headless 组合既不装配该注册器,其运行器也会拒绝 preset 会话。`examples/patent-oas/patent-workflow.patch.yml` 因此插入 `@deepseek-ai/dsh-patent-tools`,与录制的 `patent-oa-response` 场景同一做法。shipped `patent` preset 的人设层与技能层留在本次测量之外。
 
-**预算随被测面走。** 一轮工作流执行 12 个阶段,所以 `workflow` 下 `--runs` 缺省 1、`prompt` 下仍是 3;`--dry-run` 在任何调用之前打印每轮阶段数与阶段执行总数。
+**预算随被测面走。** 一轮工作流要把整份 manifest 的阶段跑完,所以 `workflow` 下 `--runs` 缺省 1、`prompt` 下仍是 3;`--dry-run` 在任何调用之前打印每轮阶段数与阶段执行总数。
 
-**门槛属于被测面;这一面产不出证据的节点按不评处理,而不是打分。** `gate.yaml.surfaces` 点名某个面不评哪些节点;`evaluateRun` 的打分视图把它们同时从节点、case 与聚合三层加权里删掉,判定输出一行 `[not-assessed]` 说明豁免了什么、来自哪个面。`validateGateConfig` 要求这条豁免至少绑定该面某个 case 的一个节点、至少留下一个可评节点、且节点名真实存在,过期豁免会让门禁红而不是悄悄放宽。2026-10-25 的首次带 key 工作流实测(聚合 90.46)在 `prior-art-search` 与 `deliverable-format` 上测得 45.0,两者只由 `oa-answer` 第 5 维喂分,而 `patent_oa_response_v1` 没有检索阶段;`gate.yaml` 记下这个理由,清单补上阶段时豁免就删。
+**门槛属于被测面;这一面产不出证据的节点按不评处理,而不是打分。** `gate.yaml.surfaces` 点名某个面不评哪些节点;`evaluateRun` 的打分视图把它们同时从节点、case 与聚合三层加权里删掉,判定输出一行 `[not-assessed]` 说明豁免了什么、来自哪个面。`validateGateConfig` 要求这条豁免至少绑定该面某个 case 的一个节点、至少留下一个可评节点、且节点名真实存在,过期豁免会让门禁红而不是悄悄放宽。这套机制是为首次带 key 工作流实测建的:那次在 `prior-art-search` 与 `deliverable-format` 上测得 45.0,两者只由 `oa-answer` 第 5 维喂分,而当时 `patent_oa_response_v1` 没有产出检索证据的阶段;给清单补上那个阶段之后,这条豁免就删掉了,见 [OA 答复的检索策略阶段](../feature/2026-10-26-patent-oa-search-strategy-stage.zh.md)。
 
 **一条记录必须覆盖的范围就是它的被测面跑得动的 case。** `requiredCasesOf` 在 `workflow` 下返回声明了该 manifest 的金标 case,在 `prompt` 下返回全部金标 case。旧规则要求观测每个金标 case,让工作流面既采不了也落不了基线:只有 `oa-answer` 声明了 manifest,其余 case 没有该工作流可跑。
 
@@ -48,7 +48,7 @@ Status: implemented
 
 **只在节点层豁免。** 拒绝:case 均值会继续吃第 5 维的满分权重,聚合里仍留着被豁免声明为缺失的证据,同一个数字在两个面上含义就不同了。
 
-**为了这次采集给 `patent_oa_response_v1` 加检索阶段。** 暂缓:清单是产品资产,而本 issue 把阶段定义留在评测器之外。豁免同时写明自己的删除条件。
+**为了这次采集给 `patent_oa_response_v1` 加检索阶段。** 此处暂缓:清单是产品资产,而本 issue 把阶段定义留在评测器之外,所以由豁免写明删除条件。阶段在 [OA 答复的检索策略阶段](../feature/2026-10-26-patent-oa-search-strategy-stage.zh.md) 里补上了。
 
 ## Consequences
 

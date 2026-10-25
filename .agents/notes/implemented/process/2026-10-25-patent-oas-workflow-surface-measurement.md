@@ -24,11 +24,11 @@ Feeding those surfaces into the benchmark had two constraints. First, the evalua
 
 **The workflow composition is the patent tool rows mounted host-plane by an overlay.** A preset is agent-plane and only `dsh-agent-preset-registry` can mount one; the headless composition does not run that registry and its runner rejects preset sessions. `examples/patent-oas/patent-workflow.patch.yml` therefore inserts `@deepseek-ai/dsh-patent-tools`, the same approach the recorded `patent-oa-response` scenario takes. The persona and skill layers of the shipped `patent` preset stay outside this measurement.
 
-**Budget follows the surface.** A workflow round executes 12 stages, so `--runs` defaults to 1 under `workflow` and stays 3 under `prompt`; `--dry-run` prints the stage count per round and the total stage executions before any call is made.
+**Budget follows the surface.** A workflow round executes every stage of the manifest, so `--runs` defaults to 1 under `workflow` and stays 3 under `prompt`; `--dry-run` prints the stage count per round and the total stage executions before any call is made.
 
 **A record must cover exactly the cases its own surface can run.** `requiredCasesOf` returns the gold cases declaring the record's manifest under `workflow` and the whole gold set under `prompt`. The previous rule — every gold case observed — made the workflow surface impossible to capture or accept, because only `oa-answer` declares a manifest and the other cases cannot run it.
 
-**Thresholds belong to a surface, and a node that surface cannot produce evidence for is exempted rather than scored.** `gate.yaml.surfaces` names the nodes one surface does not assess; the scoring view in `evaluateRun` drops them from the node, case and aggregate weightings together, and the verdict prints a `[not-assessed]` line naming the exemption and the surface it came from. `validateGateConfig` requires the exemption to bind at least one node of that surface's cases, to leave at least one node assessable, and to name real nodes, so a stale exemption fails the gate instead of quietly widening it. The first keyed workflow capture (2026-10-25, aggregate 90.46) measured 45.0 on `prior-art-search` and `deliverable-format`, both fed only by dimension 5 of `oa-answer`, while `patent_oa_response_v1` has no search stage; `gate.yaml` carries that reason and the exemption goes away when the manifest gains the stage.
+**Thresholds belong to a surface, and a node that surface cannot produce evidence for is exempted rather than scored.** `gate.yaml.surfaces` names the nodes one surface does not assess; the scoring view in `evaluateRun` drops them from the node, case and aggregate weightings together, and the verdict prints a `[not-assessed]` line naming the exemption and the surface it came from. `validateGateConfig` requires the exemption to bind at least one node of that surface's cases, to leave at least one node assessable, and to name real nodes, so a stale exemption fails the gate instead of quietly widening it. The mechanism was built for the first keyed workflow capture, which measured 45.0 on `prior-art-search` and `deliverable-format` — both fed only by dimension 5 of `oa-answer` — while `patent_oa_response_v1` had no stage that produced search evidence; giving that manifest the stage removed the exemption, see [the OA answer's search-strategy stage](../feature/2026-10-26-patent-oa-search-strategy-stage.md).
 
 ## Alternatives considered
 
@@ -48,7 +48,7 @@ Feeding those surfaces into the benchmark had two constraints. First, the evalua
 
 **Exempt at the node layer alone.** Rejected: the case mean would keep dimension 5's full points, so the aggregate would still carry the evidence the exemption declares absent, and the same number would mean two things on two surfaces.
 
-**Add a search stage to `patent_oa_response_v1` to close the gap.** Deferred: the manifest is a product asset and this issue keeps its stage definitions outside the evaluator. The exemption names this as the condition for its own removal.
+**Add a search stage to `patent_oa_response_v1` to close the gap.** Deferred here: the manifest is a product asset and this issue keeps its stage definitions outside the evaluator, so the exemption carried the removal condition instead. The stage was added in [the OA answer's search-strategy stage](../feature/2026-10-26-patent-oa-search-strategy-stage.md).
 
 ## Consequences
 
