@@ -8,6 +8,7 @@
  * 两个脚本都按名复用同一个任务空间（不 finish）：下一次调用沿用它的登录态与标签页，
  * 这也是本通道只复用 ego lite 登录态、不自己处理登录的原因。页内只取原文，判定与解析
  * 回到 `cnipr-receipt.ts` 的纯函数，除了页面自身状态的两处判断：登录态与结果页渲染。
+ * `page.evaluate` 的回调在页面上下文执行，只读 args 与字面量，不引用脚本体顶层常量。
  * @module @deepseek-ai/dsh-patent-data/cnipr-script
  */
 
@@ -140,7 +141,7 @@ const extractLinks = (args) => {
         resolve({ error: String(error) })
       }
     }
-    setTimeout(() => resolve({ error: '详情检索 ' + DETAIL_TIMEOUT_MS + ' 毫秒未返回' }), DETAIL_TIMEOUT_MS)
+    setTimeout(() => resolve({ error: '详情检索 ' + args.detailTimeoutMs + ' 毫秒未返回' }), args.detailTimeoutMs)
     xhr.send(body)
   })
 }
@@ -157,7 +158,7 @@ try {
       await page.click('#search-btn', { timeout: ACTION_TIMEOUT_MS })
       await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: NAVIGATION_TIMEOUT_MS }), '检索结果页')
       await waitForState(page, () => page.waitForSelector('#detailSearch', { timeout: RESULT_TIMEOUT_MS }), '结果页详情表单')
-      const found = await page.evaluate(extractLinks, { cursor: 0, pattern: ${JSON.stringify(CNIPR_PDF_URL_PATTERN)} })
+      const found = await page.evaluate(extractLinks, { cursor: 0, pattern: ${JSON.stringify(CNIPR_PDF_URL_PATTERN)}, detailTimeoutMs: ${budgets.detailTimeoutMs} })
       items.push({ number, ...found })
     } catch (error) {
       items.push({ number, error: failureOf(error, 'page_state').message })
