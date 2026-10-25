@@ -35,6 +35,11 @@ describe('release process helpers', () => {
     if (command !== 'pnpm') expect(args[0]).toMatch(/pnpm/u)
     expect(capture(command, [...args, '--version'])).toMatch(/^\d+\.\d+\.\d+/u)
   })
+
+  it('captures output larger than the default synchronous buffer', () => {
+    const output = capture(process.execPath, ['-e', "process.stdout.write('x'.repeat(2 * 1024 * 1024))"])
+    expect(output).toHaveLength(2 * 1024 * 1024)
+  })
 })
 
 describe('release tarball readers', () => {

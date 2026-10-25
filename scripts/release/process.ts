@@ -30,7 +30,13 @@ export interface CommandResult {
  * @returns The exit status and captured streams.
  */
 export function attempt(command: string, args: readonly string[], options: RunOptions = {}): CommandResult {
-  const result = spawnSync(command, [...args], { cwd: options.cwd, env: options.env, encoding: 'utf8' })
+  // `tar -tzf` listings of asset-heavy packages exceed spawnSync's 1MB default.
+  const result = spawnSync(command, [...args], {
+    cwd: options.cwd,
+    env: options.env,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
   if (result.error !== undefined) throw result.error
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
 }
