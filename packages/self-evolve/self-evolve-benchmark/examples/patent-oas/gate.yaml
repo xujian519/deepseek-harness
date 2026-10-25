@@ -38,17 +38,6 @@ baselines:
     workflowId: patent_oa_response_v1
     path: packages/self-evolve/evaluation/patent-oas-workflow-baseline.json
 
-# 逐被测面的评分范围:这一面不产出证据的节点不参评,而不是按 0 分记进 case。
-# 2026-10-25 首次工作流实测(oa-answer,聚合 84.55)里 `prior-art-search` 与
-# `deliverable-format` 都只有 45.0:两者只由第 5 维「检索策略与答复格式」喂分,而
-# `patent_oa_response_v1` 的 12 个阶段没有任何检索阶段,交付物全文 0 次出现「检索」。
-# 这是清单决定的证据缺失,不是模型波动,所以按不评处理:这两个节点同时退出 case 与聚合的加权。
-# 清单补上检索阶段后删掉这一条,读数口径就回到与提示词面可比。
-surfaces:
-  - execution: workflow
-    workflowId: patent_oa_response_v1
-    notAssessedNodes: [prior-art-search, deliverable-format]
-
 thresholds:
   node: { minScore: 70, maxDrop: 5 }
   case: { minScore: 70, maxDrop: 3 }

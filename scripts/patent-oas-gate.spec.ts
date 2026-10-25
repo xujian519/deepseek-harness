@@ -796,10 +796,12 @@ describe('逐被测面的评分范围', () => {
   }
 
   it('评分范围按被测面命中,提示词面不受影响', () => {
-    expect(config.surfaces).toEqual([workflowPolicy])
-    expect(notAssessedNodesOf(config, weakSearchRecord())).toEqual(exempt)
-    expect(notAssessedNodesOf(config, { execution: 'prompt' })).toEqual([])
-    expect(notAssessedNodesOf({ ...config, surfaces: [] }, weakSearchRecord())).toEqual([])
+    // 仓库策略当前不豁免任何节点:答复清单的 generate_keywords 阶段让交付物带得出检索策略。
+    expect(config.surfaces).toEqual([])
+    const scoped: GateConfig = { ...config, surfaces: [workflowPolicy] }
+    expect(notAssessedNodesOf(scoped, weakSearchRecord())).toEqual(exempt)
+    expect(notAssessedNodesOf(scoped, { execution: 'prompt' })).toEqual([])
+    expect(notAssessedNodesOf(config, weakSearchRecord())).toEqual([])
   })
 
   it('不评的节点从节点、case 与聚合三层一并退出', () => {
