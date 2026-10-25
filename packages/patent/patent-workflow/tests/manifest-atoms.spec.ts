@@ -100,7 +100,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
       patent_disclosure_v1: 22,
       patent_inventiveness_v1: 16,
       patent_patentability_v1: 14,
-      patent_oa_response_v1: 12,
+      patent_oa_response_v1: 13,
       patent_invalidation_v1: 11,
       patent_reexamination_v1: 11,
       patent_infringement_v1: 8,
@@ -122,7 +122,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
       patent_disclosure_v1: 10,
       patent_inventiveness_v1: 7,
       patent_patentability_v1: 4,
-      patent_oa_response_v1: 3,
+      patent_oa_response_v1: 4,
       patent_invalidation_v1: 4,
       patent_reexamination_v1: 4,
       patent_infringement_v1: 3,
@@ -428,9 +428,24 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
     )
   })
 
-  it('OA 答复：draft 消费解析结果、claim-chart、答复计划与对立检验报告（描述里的"消费"由 consumes 兑现）', () => {
+  it('OA 答复：generate_keywords 接在 adversary-model 之后、draft 之前，交 keywords 原子', () => {
+    const keywords = stageOf('patent_oa_response_v1', 'generate_keywords')
+    expect(keywords?.atom).toBe('keywords')
+    expect(keywords?.guidance).toBeUndefined()
+    expect(indexOf('patent_oa_response_v1', 'adversary-model')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'generate_keywords'),
+    )
+    expect(indexOf('patent_oa_response_v1', 'generate_keywords')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'draft'),
+    )
+    // 答复面只取检索关键词，不接 search：对比文件由通知书给出，联网检索会把不可复现的语料带进答复。
+    expect(stageOf('patent_oa_response_v1', 'search')).toBeUndefined()
+    expect(stageOf('patent_oa_response_v1', 'prior_art_filter')).toBeUndefined()
+  })
+
+  it('OA 答复：draft 消费解析结果、claim-chart、答复计划、对立检验报告与检索关键词（描述里的"消费"由 consumes 兑现）', () => {
     expect(stageOf('patent_oa_response_v1', 'draft')?.consumes).toEqual([
-      'dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model',
+      'dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model', 'generate_keywords',
     ])
   })
 

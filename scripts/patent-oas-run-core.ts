@@ -12,7 +12,7 @@
  * `previous-deliverable.md` 参考;终局维度只取最后一轮,逐轮观测写入记录的 `rounds`。
  *
  * 被测面(`execution`)有两条:`prompt` 就是上面的提示词调用;`workflow` 让执行者经
- * `patent_workflow_run` 跑 `patent_oa_response_v1` manifest 的 12 个阶段,把撰写阶段的答复另存为
+ * `patent_workflow_run` 跑 `patent_oa_response_v1` manifest 的全部阶段,把撰写阶段的答复另存为
  * 本轮交付物,再经 `matter_log_append` 落一条审计记录。工作流设置多记两样东西:记录里的
  * `workflowId`,以及 `rounds[].claimVersions` —— 每轮交付物在 `_matter-log.md` 取代链上的深度,
  * 由 {@link parseMatterEntries} 从日志复算,不是执行者自报。阶段定义、审批门阶段与日志文法都取自
@@ -1024,7 +1024,7 @@ function flagValues(args: readonly string[], flag: string): string[] {
  * 缺省的输出与工作目录落在 `.artifacts/patent-oas/<stamp>/`(该目录不进版本库),
  * 因为 run 记录是证据、日志与交付物是定位失败用的中间产物。
  *
- * `--execution workflow` 把缺省 `--runs` 降为 1:一次运行要跑完整 manifest 的 12 个阶段,
+ * `--execution workflow` 把缺省 `--runs` 降为 1:一次运行要把整份 manifest 的阶段跑完,
  * 3 次运行的调用量比提示词设置高一个量级以上。
  *
  * @param args 命令行参数(不含 node 与脚本路径)。

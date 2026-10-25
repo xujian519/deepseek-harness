@@ -696,7 +696,7 @@ describe('工作流设置编排', () => {
           completed: options.completed ?? true,
           stages: [{ stageId: 'draft', strategy: 'chain', output: '答复正文', degraded: false }],
           degradedSteps: options.degradedSteps ?? [],
-          summary: `工作流 ${manifestId}: 12/12 阶段完成`,
+          summary: `工作流 ${manifestId}: 13/13 阶段完成`,
           ...options.interruptedStage === undefined ? {} : { interrupted: { stageId: options.interruptedStage, message: '等待人工确认' } },
         }), 'utf8')
       }
@@ -750,8 +750,8 @@ describe('工作流设置编排', () => {
     expect(workflow?.approvalStages).toEqual(['approval'])
     expect(plan.execution).toBe('workflow')
     expect(plan.calls).toBe(14)
-    expect(plan.stageRuns).toBe(24)
-    expect(formatRunPlan(plan, 'headless')).toContain('每轮 12 阶段,合计 24 次阶段执行')
+    expect(plan.stageRuns).toBe(26)
+    expect(formatRunPlan(plan, 'headless')).toContain('每轮 13 阶段,合计 26 次阶段执行')
   })
 
   it('没有声明 manifest 的 case 在工作流设置下被拒', () => {

@@ -1,6 +1,6 @@
 {
   "benchmarkId": "patent-oas",
-  "recordedAt": "2026-10-25T15:20:42.340Z",
+  "recordedAt": "2026-10-25T17:54:35.199Z",
   "execution": "workflow",
   "workflowId": "patent_oa_response_v1",
   "runsPerCase": 1,
@@ -19,13 +19,13 @@
           "index": 2,
           "label": "实际解决的技术问题",
           "points": 18,
-          "score": 85
+          "score": 92
         },
         {
           "index": 3,
           "label": "技术启示分析",
           "points": 18,
-          "score": 80
+          "score": 90
         },
         {
           "index": 4,
@@ -37,7 +37,7 @@
           "index": 5,
           "label": "检索策略与答复格式",
           "points": 13,
-          "score": 45
+          "score": 100
         },
         {
           "index": 6,
@@ -52,11 +52,11 @@
           "dimensions": [
             {
               "index": 1,
-              "score": 92
+              "score": 100
             },
             {
               "index": 2,
-              "score": 90
+              "score": 85
             },
             {
               "index": 3,
@@ -64,19 +64,19 @@
             },
             {
               "index": 4,
-              "score": 100
+              "score": 95
             },
             {
               "index": 5,
-              "score": 84
+              "score": 95
             },
             {
               "index": 6,
-              "score": 60
+              "score": 85
             }
           ],
           "deliverableDigests": [
-            "sha256:467755275f7e531d40c31e8dd18848e30a761b930fbf6533263e780a38c92f78"
+            "sha256:4d094f73d089b27454ef8b3d2fa07a3eab2c708348699702eb1fe403d80ec92a"
           ],
           "claimVersions": [
             1
@@ -92,11 +92,11 @@
             },
             {
               "index": 2,
-              "score": 85
+              "score": 92
             },
             {
               "index": 3,
-              "score": 80
+              "score": 90
             },
             {
               "index": 4,
@@ -104,7 +104,7 @@
             },
             {
               "index": 5,
-              "score": 45
+              "score": 100
             },
             {
               "index": 6,
@@ -112,7 +112,7 @@
             }
           ],
           "deliverableDigests": [
-            "sha256:ffa8d9fa57cbe1acd530e62fad664370d3c77ec41a084f6535924ad413be3fe1"
+            "sha256:7eb72ef19341dde6b652741f59f08c83a686e5c8f5463e4f4f0e6c2b8fa9add4"
           ],
           "claimVersions": [
             2
@@ -122,7 +122,7 @@
     }
   ],
   "tokens": {
-    "input": 3349708,
-    "output": 28120
+    "input": 3105545,
+    "output": 21739
   }
 }

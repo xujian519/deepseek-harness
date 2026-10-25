@@ -14,7 +14,7 @@
     {
       "stageId": "parse",
       "strategy": "chain",
-      "output": "驳回类型为创造性（专利法第22条第3款，权利要求1-3）与保护范围不清楚（专利法第26条第4款，权利要求3）。",
+      "output": "驳回类型为创造性（专利法第22条第3款，权利要求1-3）与权利要求3保护范围不清楚（专利法第26条第4款）两类理由并存。",
       "degraded": false,
       "retries": 0,
       "atom": "oa-parse"
@@ -30,7 +30,7 @@
     {
       "stageId": "claim-chart",
       "strategy": "chain",
-      "output": "要素级映射要点：将权利要求1拆分为阀体、直管加热结构、螺旋形加热介质通道等要素，逐项比对D1（阀体与直管加热结构）与D2（螺旋形通道），标注区别特征与D2的启示缺口。",
+      "output": "要素级映射要点：将权利要求1-3逐项拆为阀体、直管加热结构、螺旋形加热介质通道等要素，分别对应对比文件1（X类，公开阀体与直管加热结构）与对比文件2（Y类，公开螺旋形通道、目的为延长介质停留时间），逐格标注公开与区别。",
       "degraded": false,
       "retries": 0,
       "atom": "claim-chart"
@@ -38,7 +38,7 @@
     {
       "stageId": "response-plan",
       "strategy": "chain",
-      "output": "策略摘要：以D1未公开螺旋形通道与D2缺乏结合启示为主线，先区分区别特征与技术效果，再修正权利要求3的清楚性缺陷；必答段落含区别特征认定、技术效果论证、D2启示不足、修改说明。",
+      "output": "策略摘要：对创造性以区别技术特征及对比文件2的相反教导论证非显而易见，对权利要求3以澄清与限缩修改克服不清楚；必答段落为区别特征认定段、技术启示否定段、修改依据说明段。",
       "degraded": false,
       "retries": 0,
       "atom": "response-plan"
@@ -52,9 +52,17 @@
       "atom": "adversary-model"
     },
     {
+      "stageId": "generate_keywords",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "keywords"
+    },
+    {
       "stageId": "draft",
       "strategy": "chain",
-      "output": "答复策略为争辩权利要求1相对于D1与D2的结合具备突出的实质性特点和显著进步，并同时修改权利要求3以消除不清楚缺陷。",
+      "output": "答复策略：先确认与对比文件1的区别特征在于螺旋形伴热通道的布置及其与阀体的换热配合，再论证对比文件2的延长停留时间目的不构成结合启示，最后以权利要求3的清楚性修改同步修改说明书背景技术。",
       "degraded": false,
       "retries": 0
     },
@@ -75,7 +83,7 @@
     {
       "stageId": "response_check",
       "strategy": "chain",
-      "output": "答复合规检查结论：意见陈述已逐条回应创造性驳回理由与不清楚驳回理由，修改未超范围，答复形式与期限符合要求。",
+      "output": "答复合规检查结论：答复覆盖全部驳回条款与权利要求，修改未超出原说明书和权利要求书记载的范围，形式与引用均合规。",
       "degraded": false,
       "retries": 0,
       "atom": "response-check"
@@ -83,7 +91,7 @@
     {
       "stageId": "amendment_basis",
       "strategy": "chain",
-      "output": "修改依据检查结论：权利要求3的修改内容均可由原说明书及权利要求书记载直接得出，未引入新的技术内容，符合专利法第33条的规定。",
+      "output": "修改依据检查结论：背景技术段的修改仅删除占位对比文件号并限定为直管布置的现有技术，属原说明书记载范围内的适应性修改。",
       "degraded": false,
       "retries": 0,
       "atom": "amendment-basis"
@@ -91,7 +99,7 @@
     {
       "stageId": "legal_gaps",
       "strategy": "chain",
-      "output": "法条缺口汇总结论：专利法第22条第3款的创造性抗辩需补齐D2技术启示的对比论证，专利法第26条第4款的清楚性缺陷通过限缩修改补正，暂无法条适用上的其他缺口。",
+      "output": "法条缺口汇总结论：创造性争辩尚需补充对比文件2技术启示的实证依据，权利要求3的清楚性修改需在答复中同步记载修改依据。",
       "degraded": false,
       "retries": 0,
       "atom": "legal-gaps"
@@ -109,7 +117,8 @@
     "dispute-framing",
     "dispute-framing-refine",
     "adversary-model",
+    "generate_keywords",
     "adversary-review"
   ],
-  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 8/12 阶段完成，降级阶段: dispute-framing、dispute-framing-refine、adversary-model、adversary-review"
+  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 8/13 阶段完成，降级阶段: dispute-framing、dispute-framing-refine、adversary-model、generate_keywords、adversary-review"
 }
