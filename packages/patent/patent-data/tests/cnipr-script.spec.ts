@@ -1,5 +1,6 @@
 // CNIPR 脚本生成：驱动页面的关键步骤必须出现在脚本体里，且参数内嵌（ego 只从 stdin
 // 收脚本、不继承环境变量、不接受 argv，故包内不使用部署技能的请求文件协议）。
+import vm from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import {
   CNIPR_LEGAL_TAG,
@@ -17,6 +18,15 @@ import type { CniprPageBudgets } from '@deepseek-ai/dsh-patent-data'
 type AsyncFunctionConstructor = new (body: string) => (...args: unknown[]) => Promise<unknown>
 
 const AsyncFunction = (async function () {}).constructor as AsyncFunctionConstructor
+
+/** 取出脚本体里交给 `page.evaluate` 的函数定义；它在页面上下文独立求值。 */
+function pageCallbackSource(script: string, name: string, nextAnchor: string): string {
+  const marker = `const ${name} = `
+  const start = script.indexOf(marker)
+  const end = script.indexOf(nextAnchor, start)
+  if (start < 0 || end < 0) throw new Error(`未找到 ${name} 的定义`)
+  return script.slice(start + marker.length, end)
+}
 
 describe('generated script bodies', () => {
   it('compile as JavaScript before they reach ego-browser', () => {
@@ -75,7 +85,41 @@ describe('page budgets', () => {
       expect(script).not.toContain('45000')
     }
     // 详情 XHR 的失败文案跟随配置，而不是写死秒数。
-    expect(scripts(budgets)[0]).toContain("'详情检索 ' + DETAIL_TIMEOUT_MS + ' 毫秒未返回'")
+    expect(scripts(budgets)[0]).toContain("'详情检索 ' + args.detailTimeoutMs + ' 毫秒未返回'")
+    // 页面上下文读不到脚本体顶层常量，预算经 evaluate 的 args 传入。
+    expect(scripts(budgets)[0]).toMatch(/page\.evaluate\(extractLinks, \{[^\n]*detailTimeoutMs: 7000 \}\)/)
+  })
+
+  it('runs the detail callback with only its evaluate arguments', async () => {
+    // 回归：超时曾被写成顶层常量 DETAIL_TIMEOUT_MS，页面上下文里不存在，真机每次
+    // ReferenceError，整批直链恒失败。在无外层变量的沙箱里求值才能抓到这类错误。
+    const source = pageCallbackSource(
+      buildCniprPdfLinksScript(['CN122072823A'], budgets),
+      'extractLinks',
+      'const items = []',
+    )
+    const delays: number[] = []
+    class FakeFormData {
+      set(): void {}
+    }
+    class FakeXhr {
+      open(): void {}
+      send(): void {}
+    }
+    const sandbox = {
+      document: { getElementById: () => ({}) },
+      FormData: FakeFormData,
+      XMLHttpRequest: FakeXhr,
+      setTimeout: (callback: () => void, ms: number) => {
+        delays.push(ms)
+        callback()
+      },
+    }
+    const extractLinks = vm.runInNewContext(source, sandbox) as (args: unknown) => Promise<unknown>
+    await expect(extractLinks({ cursor: 0, pattern: 'PDF', detailTimeoutMs: 7_000 })).resolves.toEqual({
+      error: '详情检索 7000 毫秒未返回',
+    })
+    expect(delays).toEqual([7_000])
   })
 })
 
