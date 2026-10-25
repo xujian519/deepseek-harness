@@ -10,7 +10,8 @@
 # domain libraries (AI governance, commercial, corporate, criminal, employment,
 # IP, law practice, research, litigation, privacy, procurement, product, and
 # regulatory) plus the hand-written mode skills (setup, matter, research,
-# citation-check, quality-gate). All state the agent writes lives inside the
+# citation-check, quality-gate) and the party-document style skill under
+# `litigation`. All state the agent writes lives inside the
 # session workspace — `./.legal` for profiles and references, `./matters/<slug>`
 # for cases — so the `workspace-write` sandbox covers every mutation without
 # granting access to the rest of `$HOME`.
@@ -20,7 +21,7 @@
       config:
         id: legal
         name: 法律模式
-        description: 面向个人法律实务：覆盖 AI 治理、商事合同、公司并购、刑事辩护、劳动用工、知识产权、律师业务、中国法研究、诉讼仲裁、数据隐私、政府采购、产品合规与监管合规。检索经 ego lite 浏览器打开官方法源，结论逐条落到证据文件；交付前按技能执行引用核验与质量门禁。
+        description: 面向个人法律实务：覆盖 AI 治理、商事合同、公司并购、刑事辩护、劳动用工、知识产权、律师业务、中国法研究、诉讼仲裁、诉讼文书样式、数据隐私、政府采购、产品合规与监管合规。检索经 ego lite 浏览器打开官方法源，结论逐条落到证据文件；交付前按技能执行引用核验与质量门禁。
         order: 7
         plugins:
           # ── identity ────────────────────────────────────────────────────────────────
@@ -82,7 +83,7 @@
                 ## 输出纪律
                 - 结论先行，随后给依据与风险；不使用"整体上风险可控"这类不可追溯的表述。
                 - 每个法律结论后附证据编号 `[E-…]` 或条号/案号；每个建议写明主体、动作、期限与所需材料。
-                - 对外文件结尾附："本文件由 AI 辅助生成，供执业参考，不构成正式法律意见。正式意见应由具备相应资质的律师结合完整材料出具。"
+                - 对外咨询文件结尾附："本文件由 AI 辅助生成，供执业参考，不构成正式法律意见。正式意见应由具备相应资质的律师结合完整材料出具。" 向法院提交的诉讼文书（起诉状、答辩状、申请书、异议书等）正文不附该声明；把声明、AI 使用说明与待核验事项放在交付摘要或内部复核备忘录。
                 - 交付摘要列出：交付件路径、核验状态、未决缺口、下一步建议。
 
                 ## 技能
@@ -169,8 +170,16 @@
 
           - id: doc-template
             name: '@deepseek-ai/dsh-doc-template'
+            # `templateDirs` adds the party-document styles from the Supreme People's
+            # Court's litigation-form catalog. The core templates carry typed
+            # variables for common filings; `legal-party-document` is the generic
+            # bridge for the remaining styles. The directory ships inside this
+            # bundle's `skills` tree, so it follows the installation the same way
+            # `skill-filesystem` resolves its root.
             config:
               styleGuide: assistant-neutral
+              templateDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-web-app/package.json')), 'skills/legal/handwritten/legal-litigation-party-document-templates/templates')
 
           # ── goals ───────────────────────────────────────────────────────────────────
 

@@ -7,8 +7,8 @@
  * Two forms live here. {@link placeholderBracePattern} is the fillable one: a
  * `{{name}}` the caller substitutes by name, so the render side and the gate
  * must agree on exactly which braces are placeholders. {@link residualPlaceholderPatterns}
- * adds the markers no variable fills — `[TBD]`, `Lorem ipsum`, `待补充` — that
- * an unfinished draft carries and the gate rejects.
+ * adds the markers no variable fills — `[TBD]`, `Lorem ipsum`, `待补充`,
+ * `×××` — that an unfinished draft carries and the gate rejects.
  * @module @deepseek-ai/dsh-doc-style/placeholders
  */
 
@@ -24,6 +24,13 @@ export const PLACEHOLDER_MARKERS = {
   latin: ['lorem ipsum'],
   /** Chinese markers saying the text is yet to be written. */
   chinese: ['待补充', '待填写', '此处填写'],
+  /**
+   * Official-form blanks copied from a boilerplate: undated `×××` fields and
+   * the `(写明…)` instruction a filled copy must replace. Bare `……` is ordinary
+   * prose punctuation and stays out of the table; a form that uses it for an
+   * empty field must be rewritten to one of the `chinese` markers.
+   */
+  blankForms: ['×××', '(写明', '（写明'],
 } as const
 
 /**
@@ -42,7 +49,8 @@ export function placeholderBracePattern(): RegExp {
 
 /**
  * Every residual-placeholder form the gate rejects, in report order: the
- * fillable braces first, then the bracketed, Latin, and Chinese markers.
+ * fillable braces first, then the bracketed, Latin, Chinese, and official-form
+ * markers.
  *
  * Each expression is fresh: a caller owns its `lastIndex`.
  * @returns one global expression per form.
@@ -53,6 +61,7 @@ export function residualPlaceholderPatterns(): readonly RegExp[] {
     new RegExp(`\\[(?:${alternation(PLACEHOLDER_MARKERS.bracketed)})\\]`, 'giu'),
     new RegExp(alternation(PLACEHOLDER_MARKERS.latin), 'giu'),
     new RegExp(alternation(PLACEHOLDER_MARKERS.chinese), 'gu'),
+    new RegExp(alternation(PLACEHOLDER_MARKERS.blankForms), 'gu'),
   ]
 }
 

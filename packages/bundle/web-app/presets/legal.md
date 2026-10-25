@@ -6,7 +6,7 @@ The `legal` agent preset composes a personal Chinese-law practice agent on the D
 
 ## What it mounts
 
-Beyond the standard working rows (shell, filesystem, jobs, reminders, skills, the goal command and tool, plan mode, compaction, delegation, web, and the clock row), the preset adds two deliverable rows: `@deepseek-ai/dsh-doc-template` renders Markdown/DOCX/PDF from reviewed templates, and `@deepseek-ai/dsh-document-deliver` records the delivered files and runs its deterministic document checks. The persona adds the legal identity, the citation discipline, and the delivery gate.
+Beyond the standard working rows (shell, filesystem, jobs, reminders, skills, the goal command and tool, plan mode, compaction, delegation, web, and the clock row), the preset adds two deliverable rows: `@deepseek-ai/dsh-doc-template` renders Markdown/DOCX/PDF from reviewed templates and loads the party-document templates through `templateDirs`; `@deepseek-ai/dsh-document-deliver` records the delivered files and runs its deterministic document checks. The persona adds the legal identity, the citation discipline, and the delivery gate.
 
 `tool-web` runs with `search: false` and `fetch: true`. Retrieval goes through the host's Yuandian MCP tools when the official plugin is installed, and through ego lite otherwise: the model runs `ego-browser nodejs` in `tool-bash` and follows the `legal-research` skill, so a search summary never stands in for an inspected source. `web_fetch` stays as a static fallback for public pages when the browser is unavailable. The preset itself declares no legal MCP row; Yuandian is a host plugin, so a profile without it keeps the keyless browser path.
 
@@ -28,7 +28,7 @@ Open your legal work root (for example `~/legal-workspace`) as the session works
 
 ## Skills
 
-Thirteen imported domain libraries (124 skills), namespaced so the flat catalog has no collisions:
+Thirteen imported domain libraries (124 skills) plus one hand-written party-document skill under `skills/legal/handwritten/`, 125 domain skills in total, namespaced so the flat catalog has no collisions:
 
 | Prefix | Skills | Coverage |
 |--------|--------|----------|
@@ -40,7 +40,7 @@ Thirteen imported domain libraries (124 skills), namespaced so the flat catalog 
 | `legal-ip-*` | 11 | clearance, FTO, portfolio, OSS review, takedown, cease-and-desist, intake |
 | `legal-practice-*` | 4 | consultation analysis, complaint triage, service proposals |
 | `legal-research-*` | 5 | authority check, case comparison, issue memo, lecture source pack |
-| `legal-litigation-*` | 19 | intake, chronology, claim chart, demand letters, legal hold, hearing outline |
+| `legal-litigation-*` | 20 | intake, chronology, claim chart, demand letters, legal hold, hearing outline, Supreme People's Court party-document styles |
 | `legal-privacy-*` | 8 | PIA, DSAR, DPA review, policy monitoring, regulatory gap analysis |
 | `legal-procurement-*` | 5 | bid review, challenge complaint, contract performance, regime triage |
 | `legal-product-*` | 6 | launch review, marketing claims, feature risk, issue triage |
@@ -53,6 +53,10 @@ Five hand-written mode skills:
 - `legal-research` — ego lite retrieval with an evidence log.
 - `legal-citation-check` — verify statutes, interpretations, and cases.
 - `legal-quality-gate` — P0/P1 delivery gate and disclaimer.
+
+### Party-document styles
+
+`legal-litigation-party-document-templates` carries the Supreme People's Court's "party reference civil-litigation document styles": 32 leaf categories and 105 forms published 2016-09-28 and retrieved 2026-10-26 (the site's 非诉程序 node is a group), each with its official body and explanatory notes. The skill selects by stage and party type, preserves the official structure, and states that the Civil Procedure Law article numbers in a 2016 form are historical: every citation must be checked against current law before it supports a conclusion. Twelve dedicated doc-template assets cover the common filings (complaints, answers, appeals, retrial, execution, preservation, jurisdiction objection, recusal, authorization letters, and legal-representative certificates); one generic template carries the remaining styles. The body of a court filing carries no AI disclaimer; the disclaimer, the AI-use note, and unresolved items belong in the delivery summary or an internal review memo.
 
 The privacy and product reference baselines include comparative U.S./EU watch lists, labeled `法域提示` at the top of each file. Chinese substantive privacy rules live in `pipil-core-provisions.md`, and the regulatory watcher uses the Chinese regulator list in its skill body.
 
@@ -71,6 +75,8 @@ The shipped evidence is the keyless composition test and the preset gates: they 
 ## Source and license
 
 The imported corpus comes from [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0, Copyright 陈石律师 / CSlawyer1985, licensed under the Apache License 2.0. `skills/legal/LICENSE` and `skills/legal/NOTICE` carry the license and attribution; `skills/legal/SOURCES.md` records the source version and commit. The modifications are listed in the NOTICE: namespaced skill names, rewritten paths and commands, product-name normalization, one matter pointer, ego lite retrieval, and the comparative-law labeling. The surrounding bundle remains MIT.
+
+The party-document style transcriptions in `legal-litigation-party-document-templates` come from the Supreme People's Court website (published 2016-09-28, retrieved 2026-10-26). They are official state documents reproduced as a format reference and are not part of the Apache-licensed corpus; `skills/legal/SOURCES.md` records the source and retrieval date.
 
 ## Windows
 

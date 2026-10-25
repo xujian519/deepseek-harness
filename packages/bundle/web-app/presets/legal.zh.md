@@ -6,7 +6,7 @@
 
 ## 挂载内容
 
-除标准工作行（shell、文件、jobs、提醒、skills、goal 命令与工具、计划模式、压缩、委托、web，以及告诉模型今天日期的时钟行）外，本 preset 另挂载两个交付行：`@deepseek-ai/dsh-doc-template` 按受审模板渲染 Markdown/DOCX/PDF，`@deepseek-ai/dsh-document-deliver` 登记交付件并运行确定性文档检查。人设补上法律身份、引用纪律与交付门禁。
+除标准工作行（shell、文件、jobs、提醒、skills、goal 命令与工具、计划模式、压缩、委托、web，以及告诉模型今天日期的时钟行）外，本 preset 另挂载两个交付行：`@deepseek-ai/dsh-doc-template` 按受审模板渲染 Markdown/DOCX/PDF，并通过 `templateDirs` 加载当事人诉讼文书模板；`@deepseek-ai/dsh-document-deliver` 登记交付件并运行确定性文档检查。人设补上法律身份、引用纪律与交付门禁。
 
 `tool-web` 配置为 `search: false`、`fetch: true`。宿主机安装了元典官方插件时，检索优先走 `mcp__yuandian__*`；未安装时走 ego lite：模型在 `tool-bash` 中运行 `ego-browser nodejs`，按 `legal-research` 技能操作，因此搜索摘要不能代替已打开的原文。`web_fetch` 只在浏览器不可用时作为公开静态页面的兜底。本预设自身不声明法律 MCP；元典是宿主插件，没有安装它的 profile 仍使用 keyless 浏览器路径。
 
@@ -28,7 +28,7 @@
 
 ## 技能
 
-十三个导入的领域库（124 个技能），统一命名空间，扁平目录也不会重名：
+十三个导入的领域库（124 个技能）加一个手写在 `skills/legal/handwritten/` 下的当事人诉讼文书技能，共 125 个领域技能；统一命名空间，扁平目录也不会重名：
 
 | 前缀 | 技能数 | 覆盖 |
 |------|--------|------|
@@ -40,7 +40,7 @@
 | `legal-ip-*` | 11 | 检索、FTO、组合管理、OSS 审查、下架、停止侵权函、发明 intake |
 | `legal-practice-*` | 4 | 咨询分析、投诉分流、服务方案 |
 | `legal-research-*` | 5 | 法源核验、类案比较、争点备忘录、讲座来源包 |
-| `legal-litigation-*` | 19 | 接案、时间线、要件表、律师函、证据保全、庭审提纲 |
+| `legal-litigation-*` | 20 | 接案、时间线、要件表、律师函、证据保全、庭审提纲、最高法当事人文书样式 |
 | `legal-privacy-*` | 8 | PIA、DSAR、DPA 审查、政策监测、监管差距分析 |
 | `legal-procurement-*` | 5 | 投标审查、质疑投诉、合同履行、制度分流 |
 | `legal-product-*` | 6 | 上线审查、宣传合规、功能风险、问题分流 |
@@ -53,6 +53,10 @@
 - `legal-research` — ego lite 检索与证据记录。
 - `legal-citation-check` — 核验法条、司法解释与案例。
 - `legal-quality-gate` — P0/P1 交付门禁与免责声明。
+
+### 当事人诉讼文书样式
+
+`legal-litigation-party-document-templates` 收录最高人民法院官网“当事人参考民事诉讼文书样式”的 32 个末级类目、105 份样式（官网“非诉程序”为分组节点；官网发布 2016-09-28，抓取于 2026-10-26），每份保留官方正文与【说明】。技能按诉讼阶段与主体类型选型，要求保留官方结构，并明确提示：样式中的《民事诉讼法》条号是发布时文本，进入交付件前必须按现行法核验。12 个专用 doc-template 覆盖起诉状、答辩状、上诉状、再审、执行、保全、管辖异议、回避、授权委托书与法定代表人身份证明，另有 1 个通用模板承接其余样式。法院提交文书的正文不附 AI 免责声明；声明、AI 使用说明与待核验事项放在交付摘要或内部复核备忘录。
 
 隐私与产品的参考基线包含美国/欧盟比较法监测，文件顶部以“法域提示”标明。中国法隐私规则见 `pipil-core-provisions.md`，监管动态技能正文使用中国监管机构清单。
 
@@ -71,6 +75,8 @@
 ## 来源与许可证
 
 导入内容来自 [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0，版权人为陈石律师 / CSlawyer1985，采用 Apache License 2.0。`skills/legal/LICENSE` 与 `skills/legal/NOTICE` 保存许可证与署名，`skills/legal/SOURCES.md` 记录源版本与提交号。修改内容列在 NOTICE 中：技能命名空间、路径与命令重写、产品名归一、单一案件指针、ego lite 检索，以及比较法标注。外围 bundle 仍为 MIT。
+
+`legal-litigation-party-document-templates` 的当事人文书样式转录自最高人民法院官网（2016-09-28 发布，2026-10-26 抓取）。这些是国家机关公文，作为格式参考收录，不属于上述 Apache 许可语料；来源与抓取记录见 `skills/legal/SOURCES.md`。
 
 ## Windows
 

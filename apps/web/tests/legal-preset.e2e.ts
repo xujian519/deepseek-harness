@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-skill'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
@@ -37,7 +38,7 @@ it('mounts the legal preset with its packaged skill catalog', async () => {
         .map(skill => skill.name)
         .filter(name => name.startsWith('legal-'))
         .sort()
-      expect(names).toHaveLength(129)
+      expect(names).toHaveLength(130)
       for (const name of [
         'legal-setup',
         'legal-matter',
@@ -66,10 +67,25 @@ it('mounts the legal preset with its packaged skill catalog', async () => {
       }
 
       const tools = ctx.tools.schemas(handle.agent).map(tool => tool.name)
-      for (const name of ['bash', 'web_fetch', 'document_deliver', 'render_doc_template']) {
+      for (const name of ['bash', 'web_fetch', 'document_deliver', 'list_doc_templates', 'render_doc_template']) {
         expect(tools).toContain(name)
       }
       expect(tools).not.toContain('web_search')
+
+      // The preset's `templateDirs` expression must reach the party-document
+      // assets through the installed package path, not only in the source tree.
+      const listed = await ctx.tools.execute({
+        signal: new AbortController().signal,
+        callId: ToolCallId('legal-list-party-document-templates'),
+        name: 'list_doc_templates',
+        arguments: { domain: 'legal' },
+        agent: handle.agent,
+      })
+      expect(listed.isError).toBe(false)
+      const listing = listed.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
+      expect(listing).toContain('13 document templates')
+      expect(listing).toContain('legal-civil-complaint-natural-person')
+      expect(listing).toContain('legal-party-document')
 
       const composition = [
         'tools:',

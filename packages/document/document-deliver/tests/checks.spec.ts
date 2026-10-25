@@ -62,6 +62,16 @@ describe('checkDocumentText', () => {
     expect(findings.map(finding => finding.level)).toEqual(['block', 'block', 'warn', 'warn'])
   })
 
+  it('blocks official-form blanks and the gate-recognized gap marker', () => {
+    expect(checkDocumentText([
+      '# 起诉状', '', '被告：[待填写：身份证号]', '', '事实：×××。', '', '理由：(写明事实)。', '',
+    ].join('\n')).map(finding => finding.detail)).toEqual([
+      '第 3 行仍有残余占位符 "待填写"',
+      '第 5 行仍有残余占位符 "×××"',
+      '第 7 行仍有残余占位符 "(写明"',
+    ])
+  })
+
   it('matches the bracketed markers without case', () => {
     expect(checkDocumentText('[placeholder]\n\n[todo] [xxx]\n').map(finding => finding.detail)).toEqual([
       '第 1 行仍有残余占位符 "[placeholder]"',

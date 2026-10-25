@@ -41,7 +41,7 @@ kind: "package-reference"
 <a id="placeholder-vocabulary"></a>
 ## 占位符词表
 
-文档流水线拒绝与填充的是同一份共享词表，而不是每个消费方各持一份。`placeholderBracePattern()` 是可填形式：`{{` 与 `}}` 之间不含花括号与换行、长度 1–80 的任意内容，因此 `{{client_name}}`、`{{客户名称}}` 与带空格的 `{{ case_id }}` 都算占位符——消费方匹配变量名之前先 trim，这正是「门禁拦下的每一种花括号形式都填得掉」的由来。`residualPlaceholderPatterns()` 追加没人能填的标记形式：方括号里的 `[TBD]`/`[TODO]`/`[REPLACE]`/`[PLACEHOLDER]`/`[XXX]`、`Lorem ipsum`，以及 `待补充`/`待填写`/`此处填写`；它们从 `PLACEHOLDER_MARKERS` 表读出来，文档与技能正文据此枚举的清单与门禁实际执行的一致。
+文档流水线拒绝与填充的是同一份共享词表，而不是每个消费方各持一份。`placeholderBracePattern()` 是可填形式：`{{` 与 `}}` 之间不含花括号与换行、长度 1–80 的任意内容，因此 `{{client_name}}`、`{{客户名称}}` 与带空格的 `{{ case_id }}` 都算占位符——消费方匹配变量名之前先 trim，这正是「门禁拦下的每一种花括号形式都填得掉」的由来。`residualPlaceholderPatterns()` 追加没人能填的标记形式：方括号里的 `[TBD]`/`[TODO]`/`[REPLACE]`/`[PLACEHOLDER]`/`[XXX]`、`Lorem ipsum`、`待补充`/`待填写`/`此处填写`，以及官方表格里的填写位 `×××`、`(写明`、`（写明`；它们从 `PLACEHOLDER_MARKERS` 表读出来，文档与技能正文据此枚举的清单与门禁实际执行的一致。单独的 `……` 属于正常标点，不进入词表；从官方表格照抄、用 `……` 作为空字段的文书必须改写为中文标记。
 
 每次调用都返回新的表达式：扫描方各自持有 `lastIndex`，两个消费方不共享扫描状态。模板引擎用花括号形式按名替换并报出替换后仍然剩下的内容；`document_deliver` 的核验拒绝那些残余形式。两者都读本模块，因此改动任一种形式都不可能只落在一边。
 

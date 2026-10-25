@@ -122,6 +122,7 @@ skills:
 - legal-litigation-matter-update
 - legal-litigation-neutral-hearing-outline
 - legal-litigation-oc-status
+- legal-litigation-party-document-templates
 - legal-litigation-portfolio-status
 - legal-litigation-privilege-log-review
 - legal-litigation-subpoena-triage
