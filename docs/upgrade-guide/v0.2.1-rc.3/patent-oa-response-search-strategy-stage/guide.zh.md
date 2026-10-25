@@ -20,6 +20,6 @@ description: "The office-action answer manifest gained a model-backed `generate_
 ## 迁移
 
 1. 用 `patent_workflow_run` 做审查意见答复的调用方不需要改参数——阶段定义来自清单。代价是每次运行多一次模型调用。核对落盘记录 `data/cases/<caseId>/workflow-runs/<caseKey>__patent_oa_response_v1.json`：`stages` 含 `generate_keywords`，`degradedSteps` 保持为空。
-2. 自己拼装答复的 recap 调用方（`patent_workflow`）必须在 `outputs` 里补一条 `generate_keywords`，与原有的八个阶段并列，否则接受该阶段标记为降级。
+2. 自己拼装答复的 recap 调用方（`patent_workflow`）必须在 `outputs` 里补一条 `generate_keywords`，与已经交上去的那些阶段并列，否则接受该阶段标记为降级。
 3. 任何断言该 manifest 落盘记录的地方——阶段 id 列表、`n/12` 的摘要文本、逐轮阶段数——都改为 13 个阶段。`snapshots/session/patent-oa-response/` 与 `snapshots/session/patent-oa-chain/` 两份录制快照用 `pnpm run test:snapshot:record` 重录。
 4. 升级后复核的答复书应当在「证据与引用」里带上检索方案。若某份交付物为没人做过的检索写出了文献号，那正是指导禁止的情形；按缺陷上报，不要把它当作凑章节的内容。

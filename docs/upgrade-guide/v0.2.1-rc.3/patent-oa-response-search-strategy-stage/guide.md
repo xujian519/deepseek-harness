@@ -20,6 +20,6 @@ The `patent-oas` gate in `packages/self-evolve/self-evolve-benchmark/examples/pa
 ## Migration
 
 1. Callers of `patent_workflow_run` for office-action answers need no argument change — stage definitions come from the manifest. Expect one additional model call per run. Confirm through the persisted record at `data/cases/<caseId>/workflow-runs/<caseKey>__patent_oa_response_v1.json`: `stages` includes `generate_keywords` and `degradedSteps` stays empty.
-2. Recap callers that assemble the answer themselves (`patent_workflow`) must pass a `generate_keywords` entry in `outputs` alongside the eight stages they already supply, or accept that stage marked degraded.
+2. Recap callers that assemble the answer themselves (`patent_workflow`) must pass a `generate_keywords` entry in `outputs` alongside the stages they already supply, or accept that stage marked degraded.
 3. Anything asserting on a persisted record for this manifest — stage id lists, the `n/12` summary text, per-round stage counts — moves to 13 stages. Recorded session snapshots under `snapshots/session/patent-oa-response/` and `snapshots/session/patent-oa-chain/` are re-recorded with `pnpm run test:snapshot:record`.
 4. Answers you review after upgrading should carry the retrieval plan in 证据与引用. If a deliverable states document numbers for a search nobody ran, that is the failure the guidance forbids; report it rather than treating the section as filler.
