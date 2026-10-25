@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-25-patent-oas-workflow-surface-measurement.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-10-25-patent-oas-workflow-surface-measurement.md
+/agent-note-measuring-the-oa-workflow-surface-through-the-product-executor:
+  en: 64b518fc54691c1e
+  zh: f83dc4b1bf01a2eb
+/agent-note-measuring-the-oa-workflow-surface-through-the-product-executor/problem:
+  en: d1bfa06e1980346a
+  zh: d017b38e766e9d7d
+/agent-note-measuring-the-oa-workflow-surface-through-the-product-executor/decision:
+  en: 4c0ff7dfad627ce7
+  zh: 8836fcaf82cda8da
+/agent-note-measuring-the-oa-workflow-surface-through-the-product-executor/alternatives-considered:
+  en: 7b7d74849525cc3b
+  zh: 9f9d9f2a29fe6f11
+/agent-note-measuring-the-oa-workflow-surface-through-the-product-executor/consequences:
+  en: 9269c9da8f32abd3
+  zh: 94ebabe129afd07b

@@ -1,0 +1,17 @@
+# patent-oas 工作流评测的采集组合:把 patent 工具行挂到 headless 组合之上。
+#
+# 被测对象是 `patent_oa_response_v1` manifest 的阶段与 `_matter-log.md` 的修订链,两者都由
+# `@deepseek-ai/dsh-patent-tools` 提供的工具驱动:`patent_workflow_run` 跑 manifest,
+# `matter_log_append` 逐轮留档。该包自带内置原子与工作流原子的注册,所以一行就够;
+# `patent-rule`/`patent-document` 不参与答复书的生成路径(评测只判工作流产物正文)。
+#
+# 为什么不挂 shipped 的 `patent` agent preset:preset 是 agent 平面,只有
+# `dsh-agent-preset-registry` 能挂它,而 headless 组合不装配该注册器。这与录制场景
+# `snapshots/session/patent-oa-response/cordis.yml` 的做法一致——按同一批工具行装配,
+# 区别只在评测不需要交付门禁与渲染行。因此本设置测的是工作流与审计链,不含 preset 的
+# 人设与技能层;两者的读数不能混比,记录里的 `execution: workflow` 与 `workflowId` 就是
+# 为这条留的。
+
+- insert:
+    - id: patent-tools
+      name: '@deepseek-ai/dsh-patent-tools'

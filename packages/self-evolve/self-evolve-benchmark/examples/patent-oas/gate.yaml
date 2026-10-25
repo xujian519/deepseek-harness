@@ -17,17 +17,37 @@
 #   - 2026-10-24 重录前曾为 amendment-grounding(50)与 technical-teaching(60)单列下限:
 #     前者的两轮用例前提与第 1 轮实际产出不一致,后者的 rubric 只给两个可辩护结论之一
 #     满分。两处根因修复后分别测得 83.3 与 92.2,均回到统一 node 下限。
-# 基线记录后(`--accept`),门槛必须仍能被基线满足,否则门禁自己永远红——那是配置错误,
-# 由门禁直接报出。
+# `--run` 与 `--accept` 用的基线都在 `baselines` 里声明;门槛对每条基线都要可满足,
+# 否则门禁自己永远红——那是配置错误,由门禁直接报出。
 
 benchmarkId: patent-oas
 
 goldDigest: "sha256:34e3e528668f78a1becb71753bc2348e1311b9f4d26d481af08b6b495739df26"
 
-# 基线由一次实测产生,再由门禁提升:
-#   pnpm run gate:patent-oas                        # 采集(需要 key),写出 run 记录
+# 基线按被测面各一条:提示词调用(`prompt`)与工作流调用(`workflow`)测的不是同一能力面,
+# 读数不能互比,所以 `--accept` 按记录自己的 `execution`/`workflowId` 找落点,找不到就拒绝。
+# 一条基线由一次实测产生,再由门禁提升:
+#   pnpm run gate:patent-oas -- --execution prompt                 # 采集(需要 key),写出 run 记录
 #   pnpm run verify-patent-oas-gold -- --accept <run.json>
-baselinePath: packages/self-evolve/evaluation/patent-oas-baseline.json
+# 每个被测面只要求覆盖它自己能跑的 case:工作流面目前只有 `oa-answer` 声明了
+# `patent_oa_response_v1`,其余 case 没有该工作流可跑,所以那条基线的记录不含它们。
+baselines:
+  - execution: prompt
+    path: packages/self-evolve/evaluation/patent-oas-baseline.json
+  - execution: workflow
+    workflowId: patent_oa_response_v1
+    path: packages/self-evolve/evaluation/patent-oas-workflow-baseline.json
+
+# 逐被测面的评分范围:这一面不产出证据的节点不参评,而不是按 0 分记进 case。
+# 2026-10-25 首次工作流实测(oa-answer,聚合 84.55)里 `prior-art-search` 与
+# `deliverable-format` 都只有 45.0:两者只由第 5 维「检索策略与答复格式」喂分,而
+# `patent_oa_response_v1` 的 12 个阶段没有任何检索阶段,交付物全文 0 次出现「检索」。
+# 这是清单决定的证据缺失,不是模型波动,所以按不评处理:这两个节点同时退出 case 与聚合的加权。
+# 清单补上检索阶段后删掉这一条,读数口径就回到与提示词面可比。
+surfaces:
+  - execution: workflow
+    workflowId: patent_oa_response_v1
+    notAssessedNodes: [prior-art-search, deliverable-format]
 
 thresholds:
   node: { minScore: 70, maxDrop: 5 }

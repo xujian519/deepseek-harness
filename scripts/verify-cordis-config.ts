@@ -38,6 +38,8 @@ const root = resolve(import.meta.dirname, '..')
 // resolve from apps/cli.
 const appOverlayFiles = new Set([
   'examples/opendesign/cordis.yml',
+  // The `patent-oas` workflow capture spawns apps/cli's `dsh` with this overlay.
+  'packages/self-evolve/self-evolve-benchmark/examples/patent-oas/patent-workflow.patch.yml',
   ...globSync('apps/cli/config/examples/**/*.yml', { cwd: root }),
 ])
 const metadataFields = ['id', 'name', 'group', 'inject', 'intercept', 'isolate'] as const
