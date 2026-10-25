@@ -776,6 +776,8 @@ describe('工作流设置编排', () => {
     expect(prompt).toContain('matter_log_append')
     expect(prompt).toContain('action 传 "修订"')
     expect(prompt).toContain('supersedes 传 ["outputs/oa-response-r1.md"]')
+    expect(prompt).toContain('上一轮交付物给了修改后的权利要求就逐字摘录修改后的权项正文')
+    expect(prompt).toContain('不要把审查员的编号论点或【要求】里的步骤列表放进 claims')
     expect(prompt).toContain('审查意见正文')
     expect(workflowExecutorPrompt({
       agentStatePath: '/tmp/agent-state',
@@ -784,6 +786,18 @@ describe('工作流设置编排', () => {
       round: workflowRound('oa-answer', 1, 1),
       roundNumber: 1,
     })).toContain('action 传 "建案"')
+  })
+
+  it('首轮提示词只让执行者从任务文本摘录权项,不引入上一轮权项', () => {
+    const prompt = workflowExecutorPrompt({
+      agentStatePath: '/tmp/agent-state',
+      statement: '正文',
+      plan: { manifestId: 'patent_oa_response_v1', stages: [], deliverableStage: 'draft', approvalStages: [] },
+      round: workflowRound('oa-answer', 1, 1),
+      roundNumber: 1,
+    })
+    expect(prompt).toContain('从上面这段任务文本里逐字摘录权利要求正文')
+    expect(prompt).not.toContain('supersedes')
   })
 
   it('逐轮权项版本从审计日志复算,记录被门禁接受', async () => {

@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
   GATE_FILE,
   PATENT_OAS_EXAMPLE_DIR,
@@ -33,6 +33,7 @@ import {
   mean,
   nodeScores,
   nodeScoresByRun,
+  notAssessedNodesOf,
   parseRubricDimensions,
   roundScore,
   scoreSpread,
@@ -42,6 +43,7 @@ import {
   validateProblemSpace,
   validateRunRecord,
   verdictPassed,
+  type BaselineDeclaration,
   type CaseMapping,
   type DeclaredBaseline,
   type DimensionMapping,
@@ -50,8 +52,9 @@ import {
   type ProblemSpace,
   type ProblemSpaceNode,
   type RunRecord,
+  type SurfacePolicy,
 } from './patent-oas-gate-core.ts'
-import { acceptBaseline } from './verify-patent-oas-gold.ts'
+import { acceptBaseline, acceptTarget } from './verify-patent-oas-gold.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const exampleDir = resolve(root, PATENT_OAS_EXAMPLE_DIR)
@@ -496,6 +499,11 @@ describe('门槛策略', () => {
   it('每条声明的被测面就是它自己的基线', () => {
     expect(config.baselines).toEqual([
       { execution: 'prompt', path: 'packages/self-evolve/evaluation/patent-oas-baseline.json' },
+      {
+        execution: 'workflow',
+        workflowId: 'patent_oa_response_v1',
+        path: 'packages/self-evolve/evaluation/patent-oas-workflow-baseline.json',
+      },
     ])
   })
 })
@@ -694,20 +702,14 @@ describe('被测面的可比性', () => {
 
   it('基线按记录自己的被测面路由', () => {
     const declaredPrompt = first(config.baselines)
+    const declaredWorkflow = first(config.baselines.filter(entry => entry.execution === 'workflow'))
     expect(findBaselineDeclaration(config, 'prompt')).toBe(declaredPrompt)
     expect(baselineDeclarationFor(config, recordFrom(gold, () => 90))).toBe(declaredPrompt)
-    expect(baselineDeclarationFor(config, workflowRecord())).toBeUndefined()
-    const withWorkflow: GateConfig = {
-      ...config,
-      baselines: [...config.baselines, {
-        execution: 'workflow',
-        workflowId: 'patent_oa_response_v1',
-        path: 'packages/self-evolve/evaluation/patent-oas-workflow-baseline.json',
-      }],
-    }
-    expect(findBaselineDeclaration(withWorkflow, 'workflow', 'patent_oa_response_v1')?.path)
-      .toBe('packages/self-evolve/evaluation/patent-oas-workflow-baseline.json')
-    expect(baselineDeclarationFor(withWorkflow, workflowRecord())?.execution).toBe('workflow')
+    expect(findBaselineDeclaration(config, 'workflow', 'patent_oa_response_v1')).toBe(declaredWorkflow)
+    expect(baselineDeclarationFor(config, workflowRecord())).toBe(declaredWorkflow)
+    expect(findBaselineDeclaration(config, 'workflow', 'patent_novelty_v1')).toBeUndefined()
+    const promptOnly: GateConfig = { ...config, baselines: [declaredPrompt] }
+    expect(baselineDeclarationFor(promptOnly, workflowRecord())).toBeUndefined()
   })
 
   it('记录的被测面与权项版本随文件往返,越界取值被读侧拒绝', async () => {
@@ -755,11 +757,132 @@ describe('被测面的可比性', () => {
     expect(String(result.stderr)).toContain('未记录被测面(execution),不能落为基线')
   })
 
-  it('工作流记录没有在 gate.yaml 声明基线时拒绝落盘并给出条目', () => {
-    const result = runGate('--accept', writeRecord(workflowRecord()))
-    expect(result.status, String(result.stderr)).toBe(1)
-    expect(String(result.stderr)).toContain('baselines 没有声明被测面 workflow/patent_oa_response_v1 的基线')
-    expect(String(result.stderr)).toContain('"workflowId":"patent_oa_response_v1"')
+  it('没有在 gate.yaml 声明基线的被测面不能落盘,并给出要追加的条目', () => {
+    const promptOnly: GateConfig = { ...config, baselines: [first(config.baselines)] }
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(acceptTarget(promptOnly, workflowRecord())).toBeUndefined()
+    const printed = error.mock.calls.flat().join('\n')
+    expect(printed).toContain('baselines 没有声明被测面 workflow/patent_oa_response_v1 的基线')
+    expect(printed).toContain('"workflowId":"patent_oa_response_v1"')
+    error.mockRestore()
+  })
+
+  it('已声明的基线路径都在仓库内且文件已落盘', () => {
+    for (const declaration of config.baselines) {
+      expect(isOutsideRoot(root, declaration.path), declaration.path).toBe(false)
+      expect(existsSync(resolve(root, declaration.path)), declaration.path).toBe(true)
+    }
+  })
+})
+
+describe('逐被测面的评分范围', () => {
+  const exempt = ['prior-art-search', 'deliverable-format']
+
+  /** 一条只豁免工作流面两个检索相关节点的评分范围。 */
+  const workflowPolicy: SurfacePolicy = {
+    execution: 'workflow',
+    workflowId: 'patent_oa_response_v1',
+    notAssessedNodes: [...exempt],
+  }
+
+  /** 第 5 维(检索策略与答复格式)只拿 45 分、其余维度 90 分的工作流记录。 */
+  function weakSearchRecord(): RunRecord {
+    const record = withClaimVersions(
+      recordFrom(gold.filter(entry => entry.caseId === 'oa-answer'), (_caseId, index) => index === 5 ? 45 : 90),
+    )
+    record.execution = 'workflow'
+    record.workflowId = 'patent_oa_response_v1'
+    return record
+  }
+
+  it('评分范围按被测面命中,提示词面不受影响', () => {
+    expect(config.surfaces).toEqual([workflowPolicy])
+    expect(notAssessedNodesOf(config, weakSearchRecord())).toEqual(exempt)
+    expect(notAssessedNodesOf(config, { execution: 'prompt' })).toEqual([])
+    expect(notAssessedNodesOf({ ...config, surfaces: [] }, weakSearchRecord())).toEqual([])
+  })
+
+  it('不评的节点从节点、case 与聚合三层一并退出', () => {
+    const scoped = evaluateRun(space, { ...config, surfaces: [workflowPolicy] }, weakSearchRecord(), undefined)
+    const unscoped = evaluateRun(space, { ...config, surfaces: [] }, weakSearchRecord(), undefined)
+    expect(unscoped.cases.map(entry => entry.score)).toEqual([84.15])
+    expect(unscoped.nodes.filter(entry => exempt.includes(entry.id)).map(entry => entry.verdict))
+      .toEqual(['below-floor', 'below-floor'])
+    expect(scoped.cases.map(entry => entry.score)).toEqual([90])
+    expect(scoped.aggregateScore).toBe(90)
+    expect(scoped.aggregateVerdict).toBe('pass')
+    expect(scoped.nodes.map(entry => entry.id)).not.toContain('prior-art-search')
+    expect(scoped.notAssessed).toEqual(['deliverable-format', 'prior-art-search'])
+    expect(scoped.cases[0]?.rounds?.map(entry => entry.score)).toEqual([90, 90])
+  })
+
+  it('判定输出把豁免说出来,读数口径不留暗账', () => {
+    const scoped = evaluateRun(space, { ...config, surfaces: [workflowPolicy] }, weakSearchRecord(), undefined)
+    expect(formatVerdict(scoped)).toContain('[not-assessed] deliverable-format、prior-art-search')
+    expect(formatVerdict(evaluateRun(space, { ...config, surfaces: [] }, weakSearchRecord(), undefined)))
+      .not.toContain('not-assessed')
+  })
+
+  it('基线自身的可满足性也走同一豁免,换面就不豁免', () => {
+    const scopedConfig: GateConfig = { ...config, surfaces: [workflowPolicy] }
+    const declaration: BaselineDeclaration = {
+      execution: 'workflow',
+      workflowId: 'patent_oa_response_v1',
+      path: 'packages/self-evolve/evaluation/patent-oas-workflow-baseline.json',
+    }
+    expect(validateGateConfig(scopedConfig, space, gold, [{ declaration, label: 'workflow-baseline.json', record: weakSearchRecord() }]))
+      .toEqual([])
+    const asPrompt: RunRecord = { ...weakSearchRecord(), execution: 'prompt' }
+    delete asPrompt.workflowId
+    expect(validateGateConfig(scopedConfig, space, gold, [{ declaration: first(config.baselines), label: 'prompt-baseline.json', record: asPrompt }]).join('\n'))
+      .toContain('自身在 "prior-art-search" 上 below-floor')
+  })
+
+  it('评分范围配置的非法取值在加载时拒绝', async () => {
+    const base = {
+      benchmarkId: 'patent-oas',
+      goldDigest: config.goldDigest,
+      baselines: config.baselines,
+      thresholds: currentThresholds(),
+    }
+    await expect(loadGateConfig(writeGate({ ...base, surfaces: 'x' }))).rejects.toThrow('surfaces 必须是数组')
+    await expect(loadGateConfig(writeGate({ ...base, surfaces: [{ execution: 'prompt', workflowId: 'patent_oa_response_v1', notAssessedNodes: exempt }] })))
+      .rejects.toThrow('execution 为 prompt 时不得声明 workflowId')
+    await expect(loadGateConfig(writeGate({ ...base, surfaces: [{ execution: 'workflow', notAssessedNodes: exempt }] })))
+      .rejects.toThrow('execution 为 workflow 时必须声明 workflowId')
+    await expect(loadGateConfig(writeGate({ ...base, surfaces: [{ execution: 'prompt', notAssessedNodes: [] }] })))
+      .rejects.toThrow('notAssessedNodes 必须是非空数组')
+    await expect(loadGateConfig(writeGate({ ...base, surfaces: [{ execution: 'prompt', notAssessedNodes: ['  '] }] })))
+      .rejects.toThrow('必须是非空字符串')
+    await expect(loadGateConfig(writeGate({ ...base, surfaces: [{ execution: 'prompt', notAssessedNodes: ['parse', 'parse'] }] })))
+      .rejects.toThrow('重复列出节点 parse')
+    await expect(loadGateConfig(writeGate({
+      ...base,
+      surfaces: [{ execution: 'prompt', notAssessedNodes: exempt }, { execution: 'prompt', notAssessedNodes: ['parse'] }],
+    }))).rejects.toThrow('surfaces 重复声明被测面 prompt')
+    expect((await loadGateConfig(writeGate(base))).surfaces).toEqual([])
+  })
+
+  it('豁免指向该面没有的节点、或把该面清空时门禁报出', () => {
+    const otherManifest: GateConfig = {
+      ...config,
+      surfaces: [{ execution: 'workflow', workflowId: 'patent_novelty_v1', notAssessedNodes: exempt }],
+    }
+    expect(validateGateConfig(otherManifest, space, gold, []).join('\n')).toContain('没有问题空间里可采的 case')
+    const dangling: GateConfig = {
+      ...config,
+      surfaces: [{ execution: 'workflow', workflowId: 'patent_oa_response_v1', notAssessedNodes: ['nope'] }],
+    }
+    const problems = validateGateConfig(dangling, space, gold, []).join('\n')
+    expect(problems).toContain('指向不存在的节点 "nope"')
+    expect(problems).toContain('这条豁免不改变任何读数')
+    const everything = Object.values(mappingOf(space, 'oa-answer').dimensions)
+      .flatMap(entry => Object.keys(entry.nodes))
+    const cleared: GateConfig = {
+      ...config,
+      surfaces: [{ execution: 'workflow', workflowId: 'patent_oa_response_v1', notAssessedNodes: everything }],
+    }
+    expect(validateGateConfig(cleared, space, gold, []).join('\n')).toContain('豁免了该面全部可评节点')
   })
 })
 

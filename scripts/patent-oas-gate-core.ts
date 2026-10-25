@@ -104,6 +104,21 @@ export interface DeclaredBaseline {
   record?: RunRecord
 }
 
+/**
+ * 一个被测面的评分范围:该面不产生可评证据的节点不参评。
+ *
+ * 不评不等于放过:节点从 case 与聚合的加权里一并退出,判定输出仍列出这些节点,
+ * 读数的口径因此看得见。豁免的理由必须写在配置里(哪条工作流清单缺哪个阶段)。
+ */
+export interface SurfacePolicy {
+  /** 该范围所属的被测面。 */
+  execution: ExecutionSetting
+  /** `execution` 为 workflow 时,该面的 manifest id;prompt 面省略。 */
+  workflowId?: string
+  /** 该面不评的节点 id(至少一个)。 */
+  notAssessedNodes: string[]
+}
+
 /** 门禁策略。 */
 export interface GateConfig {
   /** 策略所属的 benchmark id。 */
@@ -112,6 +127,8 @@ export interface GateConfig {
   goldDigest: string | null
   /** 各被测面的基线声明,按配置顺序;同一被测面不得重复声明。 */
   baselines: BaselineDeclaration[]
+  /** 逐被测面的评分范围,按配置顺序;未声明的面全部参评。 */
+  surfaces: SurfacePolicy[]
   /** 门槛:默认值、聚合门槛、逐节点覆盖。 */
   thresholds: {
     node: Required<GateThreshold>
@@ -304,6 +321,8 @@ export interface GateVerdict {
   nodes: NodeOutcome[]
   /** 逐 case 判定,按 case id 排序。 */
   cases: CaseOutcome[]
+  /** 该被测面不评的节点;没有豁免时省略。 */
+  notAssessed?: string[]
 }
 
 /** rubric 维度标题行:`1. 区别特征认定(30 分):`。 */
@@ -659,10 +678,46 @@ export async function loadGateConfig(path: string): Promise<GateConfig> {
       ...declaresWorkflow ? { workflowId: requireString(rawEntry, 'workflowId', where) } : {},
     }
   })
-  const settingKey = (entry: BaselineDeclaration): string => `${entry.execution}:${entry.workflowId ?? ''}`
+  const settingKey = (entry: BaselineDeclaration | SurfacePolicy): string => `${entry.execution}:${entry.workflowId ?? ''}`
   const duplicated = baselines.find((entry, index) => baselines.findIndex(other => settingKey(other) === settingKey(entry)) !== index)
   if (duplicated !== undefined) {
     throw new Error(`${path}: baselines 重复声明被测面 ${settingKey(duplicated)};一个被测面只有一条基线`)
+  }
+  const rawSurfaces = root.surfaces
+  if (rawSurfaces !== undefined && rawSurfaces !== null && !Array.isArray(rawSurfaces)) {
+    throw new Error(`${path}: surfaces 必须是数组`)
+  }
+  const surfaces: SurfacePolicy[] = (Array.isArray(rawSurfaces) ? rawSurfaces : []).map((raw, index): SurfacePolicy => {
+    const where = `${path}: surfaces[${String(index)}]`
+    if (!isRecord(raw)) throw new Error(`${where}: 必须是对象`)
+    const execution = requireExecution(raw, 'execution', where)
+    const declaresWorkflow = raw.workflowId !== undefined && raw.workflowId !== null
+    if (execution === 'prompt' && declaresWorkflow) {
+      throw new Error(`${where}: execution 为 prompt 时不得声明 workflowId`)
+    }
+    if (execution === 'workflow' && !declaresWorkflow) {
+      throw new Error(`${where}: execution 为 workflow 时必须声明 workflowId`)
+    }
+    if (!Array.isArray(raw.notAssessedNodes) || raw.notAssessedNodes.length === 0) {
+      throw new Error(`${where}: notAssessedNodes 必须是非空数组;整面都评时不要声明这一条`)
+    }
+    const notAssessedNodes = raw.notAssessedNodes.map((node, position): string => {
+      if (typeof node !== 'string' || node.trim() === '') {
+        throw new Error(`${where}: notAssessedNodes[${String(position)}] 必须是非空字符串`)
+      }
+      return node
+    })
+    const missing = notAssessedNodes.find((node, position) => notAssessedNodes.indexOf(node) !== position)
+    if (missing !== undefined) throw new Error(`${where}: notAssessedNodes 重复列出节点 ${missing}`)
+    return {
+      execution,
+      ...declaresWorkflow ? { workflowId: requireString(raw, 'workflowId', where) } : {},
+      notAssessedNodes,
+    }
+  })
+  const duplicatedSurface = surfaces.find((entry, index) => surfaces.findIndex(other => settingKey(other) === settingKey(entry)) !== index)
+  if (duplicatedSurface !== undefined) {
+    throw new Error(`${path}: surfaces 重复声明被测面 ${settingKey(duplicatedSurface)};一个被测面只有一条评分范围`)
   }
   const digest = optionalString(root, 'goldDigest', path) ?? null
   const rawThresholds = requireRecord(root, 'thresholds', path)
@@ -684,6 +739,7 @@ export async function loadGateConfig(path: string): Promise<GateConfig> {
     benchmarkId,
     goldDigest: digest,
     baselines,
+    surfaces,
     thresholds: {
       node: readThreshold(rawThresholds.node, `${path}: thresholds.node`),
       case: readThreshold(rawThresholds.case, `${path}: thresholds.case`),
@@ -1234,10 +1290,30 @@ export function validateRunRecord(
     }
     problems.push(...validateRunRounds(runCase, goldCase, dimensions, run, label))
   }
-  for (const goldCase of gold) {
+  for (const goldCase of requiredCasesOf(run, space, gold)) {
     if (!seen.has(goldCase.caseId)) problems.push(`${label}: 缺少 case "${goldCase.caseId}" 的观测`)
   }
   return problems
+}
+
+/**
+ * 一条记录必须覆盖哪些 case。
+ *
+ * 工作流设置只测问题空间为该 manifest 声明过工作流的 case;按金标全集要求会让这一面既无法
+ * 单独采集、也无法落基线,因为其余 case 没有该工作流可跑。
+ *
+ * @param run 被检记录。
+ * @param space 问题空间(提供逐 case 的工作流声明)。
+ * @param gold 金标 case 列表。
+ * @returns 该记录必须逐个给出观测的 case。
+ */
+export function requiredCasesOf(
+  run: Pick<RunRecord, 'execution' | 'workflowId'>,
+  space: ProblemSpace,
+  gold: readonly GoldCase[],
+): readonly GoldCase[] {
+  if (executionOf(run) !== 'workflow') return gold
+  return gold.filter(goldCase => space.cases[goldCase.caseId]?.workflow === run.workflowId)
 }
 
 /**
@@ -1350,6 +1426,25 @@ export function validateGateConfig(
   }
   for (const nodeId of Object.keys(config.thresholds.nodes)) {
     if (space.nodes[nodeId] === undefined) problems.push(`gate: thresholds.nodes 指向不存在的节点 "${nodeId}"`)
+  }
+  for (const policy of config.surfaces) {
+    const where = `gate: surfaces(${surfaceOf(policy)})`
+    for (const nodeId of policy.notAssessedNodes) {
+      if (space.nodes[nodeId] === undefined) problems.push(`${where} 指向不存在的节点 "${nodeId}"`)
+    }
+    const surfaceCases = Object.values(space.cases)
+      .filter(mapping => policy.execution === 'prompt' || mapping.workflow === policy.workflowId)
+    if (surfaceCases.length === 0) {
+      problems.push(`${where} 没有问题空间里可采的 case;要么为这些 case 声明 workflow,要么删掉这条评分范围`)
+      continue
+    }
+    const bound = new Set(surfaceCases.flatMap(mapping => Object.values(mapping.dimensions).flatMap(entry => Object.keys(entry.nodes))))
+    if (![...bound].some(nodeId => policy.notAssessedNodes.includes(nodeId))) {
+      problems.push(`${where} 的 notAssessedNodes 在该面的 case 上没有绑定任何节点;这条豁免不改变任何读数,应删除`)
+    }
+    if ([...bound].every(nodeId => policy.notAssessedNodes.includes(nodeId))) {
+      problems.push(`${where} 豁免了该面全部可评节点(${[...bound].join('、')});这一面不再有任何读数`)
+    }
   }
   for (const entry of baselines) {
     const baseline = entry.record
@@ -1585,6 +1680,101 @@ export function nodeScoresByRun(space: ProblemSpace, run: RunRecord): Map<string
 }
 
 /**
+ * 该被测面声明为不评的节点 id。
+ *
+ * @param config 门禁策略。
+ * @param source 记录或待判定来源的 `execution`/`workflowId`。
+ * @returns 不评的节点 id;该面没有声明评分范围时为空。
+ */
+export function notAssessedNodesOf(
+  config: GateConfig,
+  source: { execution?: ExecutionSetting; workflowId?: string },
+): string[] {
+  const policy = config.surfaces.find(entry => entry.execution === executionOf(source) && entry.workflowId === source.workflowId)
+  return policy === undefined ? [] : policy.notAssessedNodes
+}
+
+/**
+ * 找出一个维度拆解里仍然参评的节点。
+ *
+ * @param nodes 维度到节点的权重拆解。
+ * @param exempt 该面不评的节点 id。
+ * @returns 去掉不评节点后的拆解;该维度已无可评节点时返回 undefined。
+ */
+function keptNodes(nodes: Record<string, number>, exempt: ReadonlySet<string>): Record<string, number> {
+  return Object.fromEntries(Object.entries(nodes).filter(([nodeId]) => !exempt.has(nodeId)))
+}
+
+/**
+ * 取列表首项;空列表说明装置或配置不成立。
+ *
+ * @param values 待取列表。
+ * @returns 首项。
+ */
+function first<T>(values: readonly T[]): T {
+  const value = values[0]
+  if (value === undefined) throw new Error('期望非空列表')
+  return value
+}
+
+/** 一次判定实际使用的打分视图:被豁免的节点与其观察来源都已退出。 */
+interface ScoringScope {
+  /** 去掉不评节点后的问题空间。 */
+  space: ProblemSpace
+  /** 只保留可评维度观测的记录。 */
+  run: RunRecord
+  /** 该面实际退出的节点。 */
+  notAssessed: string[]
+}
+
+/**
+ * 按被测面收窄问题空间与记录,得到只用于打分的视图。
+ *
+ * 不评的节点从逐节点、逐 case 与聚合三层一并退出:只把它从节点层删掉而让 case 分继续吃该维度的
+ * 满分权重,等于把一个不产出证据的切面按 0 分记进 case。结构校验不看这个视图,仍按完整记录与
+ * 完整 rubric 判定,所以豁免只改变读数口径,不放过任何字段缺失。
+ *
+ * @param space 问题空间 DAG。
+ * @param config 门禁策略。
+ * @param run 被判定的一次运行。
+ * @returns 打分视图。
+ */
+function scoringScope(space: ProblemSpace, config: GateConfig, run: RunRecord): ScoringScope {
+  const declared = notAssessedNodesOf(config, run)
+  if (declared.length === 0) return { space, run, notAssessed: [] }
+  const exempt = new Set(declared)
+  const mappingShape = first(Object.values(space.cases))
+  const cases: Record<string, CaseMapping> = {}
+  for (const [caseId, mapping] of Object.entries(space.cases)) {
+    const dimensions: typeof mappingShape.dimensions = {}
+    for (const [rawIndex, entry] of Object.entries(mapping.dimensions)) {
+      const nodes = keptNodes(entry.nodes, exempt)
+      if (Object.keys(nodes).length > 0) dimensions[Number(rawIndex)] = { nodes }
+    }
+    cases[caseId] = { ...mapping, dimensions }
+  }
+  const observed = new Set<string>()
+  const casesRun = run.cases.map((runCase) => {
+    const mapping = space.cases[runCase.caseId]
+    for (const dimension of runCase.dimensions) {
+      for (const nodeId of Object.keys(mapping?.dimensions[dimension.index]?.nodes ?? {})) {
+        if (exempt.has(nodeId)) observed.add(nodeId)
+      }
+    }
+    const kept = new Set(Object.keys(cases[runCase.caseId]?.dimensions ?? {}).map(Number))
+    const dimensions = runCase.dimensions.filter(entry => kept.has(entry.index))
+    if (runCase.rounds === undefined) return { ...runCase, dimensions }
+    const rounds = runCase.rounds.map(round => ({ ...round, dimensions: round.dimensions.filter(entry => kept.has(entry.index)) }))
+    return { ...runCase, dimensions, rounds }
+  })
+  return {
+    space: { ...space, cases },
+    run: { ...run, cases: casesRun },
+    notAssessed: [...exempt].filter(nodeId => observed.has(nodeId)).sort(),
+  }
+}
+
+/**
  * 判定一次 run:逐 case、逐问题空间节点以及聚合的门槛检查,以及与基线的回退比较。
  *
  * 三个层级都判:节点层给出问题空间归因,case 层防止「单个 case 掉分被节点均值摊薄」,
@@ -1602,9 +1792,11 @@ export function evaluateRun(
   run: RunRecord,
   baseline: RunRecord | undefined,
 ): GateVerdict {
-  const scores = nodeScores(space, run)
-  const baselineScores = baseline === undefined ? undefined : nodeScores(space, baseline)
-  const nodeScoresPerRun = nodeScoresByRun(space, run)
+  const scope = scoringScope(space, config, run)
+  const baselineScope = baseline === undefined ? undefined : scoringScope(space, config, baseline)
+  const scores = nodeScores(scope.space, scope.run)
+  const baselineScores = baselineScope === undefined ? undefined : nodeScores(baselineScope.space, baselineScope.run)
+  const nodeScoresPerRun = nodeScoresByRun(scope.space, scope.run)
   const nodes: NodeOutcome[] = [...scores]
     .map(([nodeId, score]) => {
       const baselineScore = baselineScores?.get(nodeId)
@@ -1623,10 +1815,10 @@ export function evaluateRun(
       const byDomain = (space.nodes[a.id]?.domain ?? '').localeCompare(space.nodes[b.id]?.domain ?? '')
       return byDomain !== 0 ? byDomain : a.id.localeCompare(b.id)
     })
-  const caseList = caseScores(run)
-  const baselineCaseList = baseline === undefined ? undefined : caseScores(baseline)
-  const caseScoresPerRun = caseScoresByRun(run)
-  const caseRounds = caseRoundScores(run)
+  const caseList = caseScores(scope.run)
+  const baselineCaseList = baselineScope === undefined ? undefined : caseScores(baselineScope.run)
+  const caseScoresPerRun = caseScoresByRun(scope.run)
+  const caseRounds = caseRoundScores(scope.run)
   const cases: CaseOutcome[] = caseList.map((entry) => {
     const baselineScore = baselineCaseList?.find(candidate => candidate.caseId === entry.caseId)?.score
     const spread = scoreSpread(caseScoresPerRun.get(entry.caseId) ?? [])
@@ -1648,6 +1840,7 @@ export function evaluateRun(
     aggregateVerdict: judge(aggregateScore, aggregateBaseline, config.thresholds.aggregate),
     nodes,
     cases,
+    ...scope.notAssessed.length === 0 ? {} : { notAssessed: scope.notAssessed },
   }
 }
 
@@ -1682,6 +1875,7 @@ export function formatVerdict(verdict: GateVerdict): string {
     lines.push(`[${entry.verdict}] case ${describeOutcome(entry)}${describeRounds(entry.rounds)}${describeSpread(entry.spread)}`)
   }
   for (const node of verdict.nodes) lines.push(`[${node.verdict}] ${node.id} ${describeOutcome(node)}${describeSpread(node.spread)}`)
+  if (verdict.notAssessed !== undefined) lines.push(`[not-assessed] ${verdict.notAssessed.join('、')} 由该被测面豁免,不参与 case 与聚合加权`)
   return lines.join('\n')
 }
 

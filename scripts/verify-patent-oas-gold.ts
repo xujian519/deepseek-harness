@@ -106,7 +106,7 @@ async function declaredBaselines(config: GateConfig): Promise<DeclaredBaseline[]
  * @param record 待落基线或待判定的记录。
  * @returns 一条问题文本。
  */
-function undeclaredSurfaceProblem(record: RunRecord): string {
+export function undeclaredSurfaceProblem(record: RunRecord): string {
   const declaration = {
     execution: executionOf(record),
     ...(record.workflowId === undefined ? {} : { workflowId: record.workflowId }),
@@ -125,7 +125,7 @@ function undeclaredSurfaceProblem(record: RunRecord): string {
  * @param record 待提升的记录。
  * @returns 基线目标绝对路径;该被测面无法落基线时为 undefined。
  */
-function acceptTarget(config: GateConfig, record: RunRecord): string | undefined {
+export function acceptTarget(config: GateConfig, record: RunRecord): string | undefined {
   const declaration = baselineDeclarationFor(config, record)
   if (declaration === undefined) {
     console.error(`verify-patent-oas-gold: ${undeclaredSurfaceProblem(record)}`)

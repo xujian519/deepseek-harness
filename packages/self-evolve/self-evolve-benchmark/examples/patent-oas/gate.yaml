@@ -29,11 +29,25 @@ goldDigest: "sha256:34e3e528668f78a1becb71753bc2348e1311b9f4d26d481af08b6b495739
 # 一条基线由一次实测产生,再由门禁提升:
 #   pnpm run gate:patent-oas -- --execution prompt                 # 采集(需要 key),写出 run 记录
 #   pnpm run verify-patent-oas-gold -- --accept <run.json>
-# 工作流那条要等一次 `--execution workflow` 的实测落盘后才追加:没有读数时不预先声明,
-# 否则门禁会为一个还不存在的设置报「基线未记录」。
+# 每个被测面只要求覆盖它自己能跑的 case:工作流面目前只有 `oa-answer` 声明了
+# `patent_oa_response_v1`,其余 case 没有该工作流可跑,所以那条基线的记录不含它们。
 baselines:
   - execution: prompt
     path: packages/self-evolve/evaluation/patent-oas-baseline.json
+  - execution: workflow
+    workflowId: patent_oa_response_v1
+    path: packages/self-evolve/evaluation/patent-oas-workflow-baseline.json
+
+# 逐被测面的评分范围:这一面不产出证据的节点不参评,而不是按 0 分记进 case。
+# 2026-10-25 首次工作流实测(oa-answer,聚合 84.55)里 `prior-art-search` 与
+# `deliverable-format` 都只有 45.0:两者只由第 5 维「检索策略与答复格式」喂分,而
+# `patent_oa_response_v1` 的 12 个阶段没有任何检索阶段,交付物全文 0 次出现「检索」。
+# 这是清单决定的证据缺失,不是模型波动,所以按不评处理:这两个节点同时退出 case 与聚合的加权。
+# 清单补上检索阶段后删掉这一条,读数口径就回到与提示词面可比。
+surfaces:
+  - execution: workflow
+    workflowId: patent_oa_response_v1
+    notAssessedNodes: [prior-art-search, deliverable-format]
 
 thresholds:
   node: { minScore: 70, maxDrop: 5 }

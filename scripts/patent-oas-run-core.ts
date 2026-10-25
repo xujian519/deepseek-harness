@@ -533,6 +533,10 @@ export function workflowRound(caseId: string, run: number, round: number): Workf
  * 上游产出注入与 `requireAllSteps` 判定由工作流引擎负责,评测器不重实现。无人值守采集要显式
  * 放行审批门,否则 `requireAllSteps` 把停在人工确认的运行判为未完成。
  *
+ * `claims` 与 `input` 分开传:要素级阶段在没有 `claims` 时按 `input` 全文切分权项段,而任务文本里
+ * 审查员论点与步骤列表都是行首编号,会被当成权项段,逐字子串校验必然失败(实测首轮 `claim-chart`
+ * 因此降级)。
+ *
  * @param options 该轮的任务文本、工作流清单、产物定位与上一轮交付物。
  * @returns 提示词。
  */
@@ -546,8 +550,11 @@ export function workflowExecutorPrompt(options: {
 }): string {
   const { plan, round } = options
   const approval = plan.approvalStages.map(stage => `"${stage}"`).join(', ')
+  const claimsBasis = options.previousArtifact === undefined
+    ? 'claims 只传本轮待答复的权利要求原文:从上面这段任务文本里逐字摘录权利要求正文,去掉行首 "- 独立权利要求 1:" 这类标签'
+    : 'claims 只传本轮待答复的权利要求原文:上一轮交付物给了修改后的权利要求就逐字摘录修改后的权项正文,否则从上面这段任务文本里逐字摘录权利要求正文,去掉行首 "- 独立权利要求 1:" 这类标签'
   const steps = [
-    `1. 调用 patent_workflow_run 跑完整工作流:manifestId 传 "${plan.manifestId}",caseId 传 "${round.caseId}"${plan.approvalStages.length > 0 ? `,approveStageIds 传 [${approval}]` : ''},input 逐字原样传下面这段任务文本(不要改写、不要省略、不要只传片段):`,
+    `1. 调用 patent_workflow_run 跑完整工作流:manifestId 传 "${plan.manifestId}",caseId 传 "${round.caseId}"${plan.approvalStages.length > 0 ? `,approveStageIds 传 [${approval}]` : ''},input 逐字原样传下面这段任务文本(不要改写、不要省略、不要只传片段);${claimsBasis}。不要把审查员的编号论点或【要求】里的步骤列表放进 claims——要素级阶段按行首编号切分权利要求段,混进去会把论点行当成权项。`,
     '',
     options.statement,
     '',
