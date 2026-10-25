@@ -11,3 +11,16 @@
 
 The generated tree is committed; regenerate after changing the source or the
 transforms in `scripts/import-legal-content.ts`.
+
+## Supreme People's Court party-document styles
+
+- Source: https://www.court.gov.cn/susong.html, branch "当事人参考民事诉讼文书样式"
+- Forms: 105, published 2016-09-28
+- Retrieved: 2026-10-26
+- Location: `litigation/legal-litigation-party-document-templates/references/styles/`
+- Transcription: official body and 【说明】 copied from each detail page; no substantive edits.
+
+These are official documents of a state organ, reproduced as a format reference;
+they are not part of the Apache-licensed imported corpus above. The Civil
+Procedure Law article numbers in a 2016 form are historical and must be checked
+against current law before use.

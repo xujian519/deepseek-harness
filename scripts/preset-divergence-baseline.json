@@ -45,7 +45,7 @@
     },
     "doc-template": {
       "document.patch.yml": "4e39d12aeb",
-      "legal.patch.yml": "aa49e10ed8"
+      "legal.patch.yml": "fefa67445e"
     },
     "patent-rule": {
       "legal.patch.yml": "09db5bfd4b",
@@ -54,7 +54,7 @@
     "persona": {
       "cordis.patch.yml": "128bdee840",
       "document.patch.yml": "5a0c4de460",
-      "legal.patch.yml": "1822a99c5c",
+      "legal.patch.yml": "fc28c8b6d4",
       "minimal.patch.yml": "cc5f870f42",
       "patent.patch.yml": "84aa65d54b",
       "ptc.patch.yml": "b5a7fe963b",
