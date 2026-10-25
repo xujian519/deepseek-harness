@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 651
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/651.html"
 published: "2016-09-28"
-purpose: "案外人向人民法院提出异议时"
+purpose: "案外人向人民法院提出异议"
 ---
 
 # 执行异议书(案外人提出异议用)

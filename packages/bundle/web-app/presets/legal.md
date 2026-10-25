@@ -76,6 +76,8 @@ The shipped evidence is the keyless composition test and the preset gates: they 
 
 The imported corpus comes from [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0, Copyright 陈石律师 / CSlawyer1985, licensed under the Apache License 2.0. `skills/legal/LICENSE` and `skills/legal/NOTICE` carry the license and attribution; `skills/legal/SOURCES.md` records the source version and commit. The modifications are listed in the NOTICE: namespaced skill names, rewritten paths and commands, product-name normalization, one matter pointer, ego lite retrieval, and the comparative-law labeling. The surrounding bundle remains MIT.
 
+The party-document style transcriptions in `legal-litigation-party-document-templates` come from the Supreme People's Court website (published 2016-09-28, retrieved 2026-10-26). They are official state documents reproduced as a format reference and are not part of the Apache-licensed corpus; `skills/legal/SOURCES.md` records the source and retrieval date.
+
 ## Windows
 
 The mode skills include PowerShell equivalents for workspace setup and matter management; retrieval through `ego-browser` works on Windows with the `%TEMP%` request path documented in `legal-research`.

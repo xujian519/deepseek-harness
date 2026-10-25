@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 640
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/640.html"
 published: "2016-09-28"
-purpose: "申请执行人提供被执行人财产状况或线索时"
+purpose: "申请执行人提供被执行人财产状况或线索"
 ---
 
 # 被执行人财产状况表(申请执行人提供被执行人财产状况用)

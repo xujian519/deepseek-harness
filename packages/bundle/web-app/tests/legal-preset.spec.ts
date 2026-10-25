@@ -1,6 +1,7 @@
 /**
- * The `legal` preset ships thirteen imported Chinese-law skill libraries and
- * five hand-written mode skills inside this bundle. The preset's value depends
+ * The `legal` preset ships thirteen imported Chinese-law skill libraries, one
+ * hand-written party-document skill, and five hand-written mode skills inside
+ * this bundle. The preset's value depends
  * on the catalog staying collision-free and on every writable path staying
  * inside the session workspace, so this spec reads the shipped preset and skill
  * tree and fails when either property is lost.
@@ -154,7 +155,7 @@ describe('legal knowledge tool mount', () => {
 describe('legal skill catalog', () => {
   const files = skillFiles(LEGAL_SKILLS)
 
-  it('ships the thirteen imported domains and the five mode skills', () => {
+  it('ships the thirteen imported domains, the party-document skill, and the five mode skills', () => {
     expect(files).toHaveLength(130)
     const counts: Readonly<Record<string, number>> = {
       ai: 9,
@@ -331,9 +332,23 @@ describe('party-document template library', () => {
 
   it('indexes every shipped style in the catalog', () => {
     const catalog = readFileSync(CATALOG, 'utf8')
-    expect(catalog.match(/\]\(styles\//gu)).toHaveLength(105)
+    const documentTable = catalog.split('## 全部文书\n')[1] ?? ''
+    expect(documentTable.match(/\| \[style-\d+\.md\]/gu)).toHaveLength(105)
     expect(catalog).toContain('https://www.court.gov.cn/susong.html')
     expect(catalog).toContain('105 份文书')
+  })
+
+  it('flags official pages whose title, notes, or body disagree', () => {
+    const catalog = readFileSync(CATALOG, 'utf8')
+    expect(catalog).toContain('## 已知官网冲突')
+    for (const name of ['style-203.md', 'style-407.md', 'style-534.md']) {
+      const file = allFiles(STYLES).find(candidate => candidate.endsWith(name))
+      if (file === undefined) throw new Error(`missing conflict style ${name}`)
+      const parsed: unknown = yaml.load(readFileSync(file, 'utf8').split('\n---\n', 1)[0]?.slice(4) ?? '')
+      expect(typeof parsed, file).toBe('object')
+      expect((parsed as Record<string, unknown>)['source_conflict'], file).toEqual(expect.any(String))
+      expect(catalog, name).toContain(name)
+    }
   })
 
   it('ships unique, legal-domain renderable templates', () => {
@@ -353,6 +368,21 @@ describe('party-document template library', () => {
       names.add(String(meta['name']))
     }
     expect(names).toContain('legal-party-document')
+  })
+
+  it('declares every placeholder a template body uses', () => {
+    const templateFiles = allFiles(TEMPLATES).filter(file => file.endsWith('.md'))
+    for (const file of templateFiles) {
+      const [header = '', body = ''] = readFileSync(file, 'utf8').split('\n---\n', 2)
+      const parsed: unknown = yaml.load(header.slice(4))
+      expect(typeof parsed, file).toBe('object')
+      const declared = (parsed as { vars?: { name?: unknown }[] }).vars ?? []
+      const declaredNames = new Set(declared.map(variable => String(variable.name)))
+      const usedNames = new Set(
+        [...body.matchAll(/\{\{([a-z][a-z0-9_]*)\}\}/gu)].map(match => match[1] ?? ''),
+      )
+      expect([...usedNames].sort(), file).toEqual([...declaredNames].sort())
+    }
   })
 
   it('keeps the skill variable table in sync with the template schemas', () => {

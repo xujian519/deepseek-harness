@@ -44,8 +44,8 @@ vars:
   - name: copies
     type: string
     required: false
-    default: "按原告人数"
-    description: "答辩状副本份数"
+    default: "1份（按原告人数提交）"
+    description: "答辩状副本份数及说明，例如：1份（按原告人数提交）"
   - name: signature
     type: string
     required: false
@@ -76,7 +76,7 @@ vars:
 
 {{court_name}}
 
-附：本答辩状副本{{copies}}份
+附：本答辩状副本{{copies}}。
 
 答辩人（公章和签名）：{{signature}}
 

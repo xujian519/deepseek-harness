@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 646
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/646.html"
 published: "2016-09-28"
-purpose: "复议申请人向人民法院申请复议时"
+purpose: "复议申请人向人民法院申请复议"
 ---
 
 # 复议申请书(当事人、利害关系人申请复议用)

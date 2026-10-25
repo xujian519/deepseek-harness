@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 652
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/652.html"
 published: "2016-09-28"
-purpose: "参与分配案件中债权人或被执行人不服财产分配方案提出异议时"
+purpose: "参与分配案件中债权人或被执行人不服财产分配方案提出异议"
 ---
 
 # 执行异议书(对财产分配方案提出异议用)

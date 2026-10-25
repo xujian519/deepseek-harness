@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 653
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/653.html"
 published: "2016-09-28"
-purpose: "执行担保人向法院提供保证时"
+purpose: "执行担保人向法院提供保证"
 ---
 
 # 保证书(执行担保用)

@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 648
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/648.html"
 published: "2016-09-28"
-purpose: "申请执行人向人民法院申请提级时"
+purpose: "申请执行人向人民法院申请提级执行"
 ---
 
 # 申请书(申请提级执行用)

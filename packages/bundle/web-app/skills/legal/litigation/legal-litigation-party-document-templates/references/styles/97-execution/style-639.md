@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 639
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/639.html"
 published: "2016-09-28"
-purpose: "申请执行人向人民法院申请执行时"
+purpose: "申请执行人向人民法院申请执行"
 ---
 
 # 申请书(申请执行用)

@@ -48,8 +48,8 @@ vars:
   - name: copies
     type: string
     required: false
-    default: "按被告人数"
-    description: "起诉状副本份数"
+    default: "1份（按被告人数提交）"
+    description: "起诉状副本份数及说明，例如：1份（按被告人数提交）"
   - name: signature
     type: string
     required: false
@@ -86,7 +86,7 @@ vars:
 
 {{court_name}}
 
-附：本起诉状副本{{copies}}份
+附：本起诉状副本{{copies}}。
 
 起诉人（公章和签名）：{{signature}}
 

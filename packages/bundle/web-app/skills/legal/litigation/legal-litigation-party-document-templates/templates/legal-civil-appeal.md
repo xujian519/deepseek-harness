@@ -74,8 +74,8 @@ vars:
   - name: copies
     type: string
     required: false
-    default: "按对方当事人人数"
-    description: "上诉状副本份数"
+    default: "1份（按对方当事人人数提交）"
+    description: "上诉状副本份数及说明，例如：1份（按对方当事人人数提交）"
   - name: signature
     type: string
     required: false
@@ -110,7 +110,7 @@ vars:
 
 {{court_name}}
 
-附：本上诉状副本{{copies}}份
+附：本上诉状副本{{copies}}。
 
 上诉人（签名或者盖章）：{{signature}}
 

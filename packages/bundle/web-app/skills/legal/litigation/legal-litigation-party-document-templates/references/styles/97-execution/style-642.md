@@ -4,7 +4,7 @@ category: "执行程序"
 style_id: 642
 source: "https://www.court.gov.cn/susongyangshi/xiangqing/642.html"
 published: "2016-09-28"
-purpose: "异议人向人民法院提出异议时"
+purpose: "异议人向人民法院提出异议"
 ---
 
 # 执行异议书(当事人、利害关系人提出异议用)

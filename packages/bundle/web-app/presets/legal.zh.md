@@ -76,6 +76,8 @@
 
 导入内容来自 [claude-for-legal-ZH](https://github.com/CSlawyer1985/claude-for-legal-ZH) 1.1.0，版权人为陈石律师 / CSlawyer1985，采用 Apache License 2.0。`skills/legal/LICENSE` 与 `skills/legal/NOTICE` 保存许可证与署名，`skills/legal/SOURCES.md` 记录源版本与提交号。修改内容列在 NOTICE 中：技能命名空间、路径与命令重写、产品名归一、单一案件指针、ego lite 检索，以及比较法标注。外围 bundle 仍为 MIT。
 
+`legal-litigation-party-document-templates` 的当事人文书样式转录自最高人民法院官网（2016-09-28 发布，2026-10-26 抓取）。这些是国家机关公文，作为格式参考收录，不属于上述 Apache 许可语料；来源与抓取记录见 `skills/legal/SOURCES.md`。
+
 ## Windows
 
 模式技能包含工作区初始化与案件管理的 PowerShell 等价命令；`legal-research` 记录了 Windows 下 `ego-browser` 使用 `%TEMP%` 请求路径的写法。

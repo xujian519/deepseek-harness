@@ -79,8 +79,8 @@ vars:
   - name: copies
     type: string
     required: false
-    default: "按对方当事人人数"
-    description: "再审申请书副本份数"
+    default: "1份（按对方当事人人数提交）"
+    description: "再审申请书副本份数及说明，例如：1份（按对方当事人人数提交）"
   - name: signature
     type: string
     required: false
@@ -117,7 +117,7 @@ vars:
 
 {{court_name}}
 
-附：本民事再审申请书副本{{copies}}份
+附：本民事再审申请书副本{{copies}}。
 
 再审申请人（签名或者盖章）：{{signature}}
 
