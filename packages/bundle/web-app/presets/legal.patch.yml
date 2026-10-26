@@ -321,10 +321,15 @@
                     - legal
                   # 交付前置门禁：document_deliver 在本会话内必须先跑过
                   # legal_law_verify 并留下成功记录；未满足即拒绝该次调用，使缺闸门
-                  # 证据的交付件不落盘。格式与 patent preset 的 deliveryGate 对齐。
+                  # 证据的交付件不落盘。evidence 要求至少识别到一条引用，空文本跑一次
+                  # 不算数；未核验或未收录的引用按默认策略 block，其结果被台账排除。
                   deliveryGate:
                     - tool: document_deliver
                       requires: [legal_law_verify]
+                      evidence:
+                        legal_law_verify:
+                          - field: findings
+                            minItems: 1
 
           # ── legal law index ──────────────────────────────────────────────────────
 
@@ -343,6 +348,8 @@
                 config:
                   onMismatch: block
                   onUnmatched: warn
+                  onUnverified: block
+                  onNotIndexed: block
 
           # ── legal knowledge ────────────────────────────────────────────────────
 

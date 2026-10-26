@@ -89,6 +89,10 @@ const CN_BASE: Record<string, number> = {
  * 十万 and beyond without a lookup table.
  */
 function cnToArabic(cn: string): number {
+  if (cn === '') return 0
+  // A leading 零/〇 is a positional placeholder ("一百零一"), not a value.
+  if (cn.startsWith('零') || cn.startsWith('〇')) return cnToArabic(cn.slice(1))
+
   // Single-character base case
   const cnValue = CN_BASE[cn]
   if (cnValue !== undefined && cnValue < 10) return cnValue
