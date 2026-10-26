@@ -9,7 +9,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolExecutionInput } from '@deepseek-ai/dsh-tools'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval/types'
 // Type-only: makes `ctx.provide('approval', …)` and `ctx.get('approval')` resolve.
-import type {} from '@deepseek-ai/dsh-user-approval'
+import type { ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import { describe, expect, it, vi } from 'vitest'
 import { requireTeamApproval, TeamApprovalError, type TeamApprovalAsk } from '../src/approval.ts'
 
@@ -45,15 +45,20 @@ function ask(overrides: Partial<TeamApprovalAsk> = {}): TeamApprovalAsk {
 
 /**
  * @param outcome - the decision the fake answerer returns, or `'throws'` for an answerer failure.
- * @returns a context carrying that answerer and the answerer's spy.
+ * @param policy - the effective approval policy the fake service reports.
+ * @returns a context carrying that answerer, its spy, and the policy spy.
  */
-function contextWithAnswerer(outcome: ApprovalOutcome | 'throws'): { ctx: Context; request: ReturnType<typeof vi.fn> } {
+function contextWithAnswerer(
+  outcome: ApprovalOutcome | 'throws',
+  policy: ApprovalPolicy = 'ask',
+): { ctx: Context; request: ReturnType<typeof vi.fn>; policyOf: ReturnType<typeof vi.fn> } {
   const ctx = new Context()
   const request = vi.fn(() => outcome === 'throws'
     ? Promise.reject(new Error('answerer exploded'))
     : Promise.resolve(outcome))
-  ctx.provide('approval', { request } as never)
-  return { ctx, request }
+  const policyOf = vi.fn(() => policy)
+  ctx.provide('approval', { request, policyOf } as never)
+  return { ctx, request, policyOf }
 }
 
 /**
@@ -88,6 +93,14 @@ describe('requireTeamApproval', () => {
     const refusal = await refusalFrom(() => requireTeamApproval(ctx, ask()))
     expect(refusal.outcome).toBe(outcome)
     expect(refusal.message).toContain('本次操作未执行')
+  })
+
+  it('names a never policy as an automatic refusal, not a user rejection', async () => {
+    const { ctx } = contextWithAnswerer('rejected', 'never')
+    const refusal = await refusalFrom(() => requireTeamApproval(ctx, ask()))
+    expect(refusal.outcome).toBe('rejected')
+    expect(refusal.message).toContain('审批策略为 never')
+    expect(refusal.message).toContain('这不是用户对本次操作的否决')
   })
 
   it('refuses when the deployment mounts no answerer', async () => {

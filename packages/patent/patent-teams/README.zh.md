@@ -46,7 +46,7 @@ kind: "package-reference"
     approveClosure: false        # ask the approval answerers before archiving the team
 ```
 
-十二个工具中有两个决定的是案件本身而不是案内的工作：`patent_teams_create` 开队、`patent_teams_delete` 收口。打开 `approveCreation` 或 `approveClosure` 后，工具在改动发生前先向本部署的 `approval` 服务索取一次决策——用户决定因此站在队长与案件两端之间：队长负责推进工作，但不单方决定「该不该组队」与「案件是否做完」。请求写明工具、具体调用与理由（建队时为队名与目标，收口时为关闭案件），审计配对由审批服务自己写入。开启开关但部署没有应答者时按拒绝处理、不放行：本模块抛 `TeamApprovalError` 并点明结果（`rejected`、`cancelled` 或 `unavailable`），模型看到的是这次调用失败。两个开关默认均为 `false`；patent 预设两个都打开。
+十二个工具中有两个决定的是案件本身而不是案内的工作：`patent_teams_create` 开队、`patent_teams_delete` 收口。打开 `approveCreation` 或 `approveClosure` 后，工具在改动发生前先向本部署的 `approval` 服务索取一次决策——用户决定因此站在队长与案件两端之间：队长负责推进工作，但不单方决定「该不该组队」与「案件是否做完」。请求写明工具、具体调用与理由（建队时为队名与目标，收口时为关闭案件），审计配对由审批服务自己写入。开启开关但部署没有应答者时按拒绝处理、不放行：本模块抛 `TeamApprovalError` 并点明结果（`rejected`、`cancelled` 或 `unavailable`），模型看到的是这次调用失败。在 `never` 审批策略下的拒绝会点明这是策略自动拒绝，而不是用户决定。两个开关默认均为 `false`；patent 预设两个都打开。
 
 `qualityGate` 默认关闭，只作用于创建时带 `worker` 契约的任务。完成时必须带输出（本次提交，或之前更新已存下）；契约缺字段、内容不足或规则门禁命中都会把任务打回给成员并附反馈。`passThreshold` 只控制何时在反馈中点名综合评分偏低，不决定是否打回。
 

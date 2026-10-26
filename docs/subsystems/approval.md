@@ -112,6 +112,13 @@ Approval service that applies session policy before answerers and logs every ask
 setPolicy(agent: Agent, policy: ApprovalPolicy): void
 
 /**
+ * The policy every ask for this agent resolves under right now.
+ * @param agent - the agent whose session supplies the policy override.
+ * @returns the session's last logged policy, else the configured default.
+ */
+policyOf(agent: Agent): ApprovalPolicy
+
+/**
  * Ask the composed answerers to decide one readonly same-process request.
  * The service borrows the request, agent, session, and live signal directly.
  * The request requires an open turn because the audit pair must be enclosed

@@ -434,7 +434,7 @@ describe('approval gates', () => {
   /** An approval service whose request resolves with `outcome`. */
   function answerWith(outcome: 'allowed-once' | 'rejected' | 'cancelled') {
     const request = vi.fn(async (_ask: ApprovalRequest) => outcome)
-    return { request }
+    return { request, policyOf: vi.fn(() => 'ask' as const) }
   }
 
   function exec() {
