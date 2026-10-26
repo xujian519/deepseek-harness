@@ -6,7 +6,7 @@ import { globalAtomRegistry, globalStageHandlerRegistry } from '@deepseek-ai/dsh
 import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 import * as tool from '../src/index.ts'
 
-/** The 33 tools registered by patent-tools (render_patent_document is owned by dsh-patent-document). */
+/** The 35 tools registered by patent-tools (render_patent_document is owned by dsh-patent-document). */
 const EXPECTED_TOOLS = [
   'patent_search',
   'patent_metadata',
@@ -30,6 +30,8 @@ const EXPECTED_TOOLS = [
   'flexible_plan',
   'triz_contradiction_analysis',
   'analyze_patent_figure',
+  'check_patent_figure_consistency',
+  'compare_patent_figure_analysis',
   'evaluate_evidence',
   'patent_workflow',
   'search_patent_figure',
@@ -96,7 +98,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     expect(typeof tool.apply).toBe('function')
   })
 
-  it('registers all 33 tools via ctx.plugin (direct mount)', async () => {
+  it('registers all 35 tools via ctx.plugin (direct mount)', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)

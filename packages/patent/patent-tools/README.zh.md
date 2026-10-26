@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 33 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
+description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 35 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、跨图一致性与图文比对、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 33 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
+函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 35 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、跨图一致性与图文比对、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
 
 ## 目录
 
@@ -115,7 +115,7 @@ Schemastery 配置，所有字段可选。
 
 #### 模型所见
 
-33 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推；`patent_search` 还在引擎失败或零命中时经 CNIPR 再检索一次（带 `assignee:` 这类 Google 字段语法的查询不咨询该通道），并点名本次实际服务的通道。两者对瞬时上游失败（超时、连接断开）各按带界退避重试两次，退避耗尽仍失败时报告已尝试次数。`patent_pdf_download` 逐篇点名通道（`Google Patents（nuo 引擎）` 或 `CNIPR（中国知识产权网）`），并在 `warnings` 里列出「被咨询过但未能服务」的通道，使回退可见、不与被接手的那篇混为一谈；续传条目的通道取自 MANIFEST 的记录。`patent_legal_status` 逐篇点名通道，并把引擎答不出的号经 CNIPR 重查一次；该通道也没有记录时保留引擎给出的原因。`matter_log_append` 在一次消息里列出被拒回合的每一处缺陷，各带稳定规则 id 与修法（该先落盘的产物、撰写轮需要的新路径、日志中查不到的旧版），使拒绝说明缺的是留档记录的哪一部分，而不只是「本轮被拒」。
+35 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推；`patent_search` 还在引擎失败或零命中时经 CNIPR 再检索一次（带 `assignee:` 这类 Google 字段语法的查询不咨询该通道），并点名本次实际服务的通道。两者对瞬时上游失败（超时、连接断开）各按带界退避重试两次，退避耗尽仍失败时报告已尝试次数。`patent_pdf_download` 逐篇点名通道（`Google Patents（nuo 引擎）` 或 `CNIPR（中国知识产权网）`），并在 `warnings` 里列出「被咨询过但未能服务」的通道，使回退可见、不与被接手的那篇混为一谈；续传条目的通道取自 MANIFEST 的记录。`patent_legal_status` 逐篇点名通道，并把引擎答不出的号经 CNIPR 重查一次；该通道也没有记录时保留引擎给出的原因。`matter_log_append` 在一次消息里列出被拒回合的每一处缺陷，各带稳定规则 id 与修法（该先落盘的产物、撰写轮需要的新路径、日志中查不到的旧版），使拒绝说明缺的是留档记录的哪一部分，而不只是「本轮被拒」。
 
 #### Token 影响
 
@@ -132,6 +132,7 @@ Schemastery 配置，所有字段可选。
 - **`flexible_plan` 命名** — Sati 的 `patentFlexiblePlanTool.ts` 声明名为 `flexible_plan`（非 `patent_flexible_plan`）；dsh 工具信任 Sati 的 name 字段。
 - **图片模态门禁范围** — `analyze_patent_figure` 把附图发送给解析出的附图模型路由，并按该路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；图片字节经 harness 附件服务入库后以持久引用随请求发送，附件服务或路由缺失时以 `setup_required` 显式报错。`search_patent_figure` 读取索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。索引由 `analyze_patent_figure` 写入 Config.figureIndexFile；索引缺失或为空时返回零命中并附引导提示，而非报错。
 - **化学引擎未移植** — `recognize_chemical_structure` 与 `validate_specification` 的化学表征检查降级为不可用，因为识别流水线（VLM 两步法、name→SMILES、RDKit 校验）尚未移植：RDKit 只是其中缺失件之一，不是唯一一件，因此无论宿主机装了什么，该工具都返回不可用结果。
+- **图元内核** — `figure/mm-primitives` 是毫米坐标格式化与包围盒的唯一实现；直绘渲染器、落版页与引线通路都经它写 SVG 数值，一张图不会因绘制路径不同而混用精度。
 - **视觉分析深度与化学引擎** — `analyze_patent_figure` 移植了 Sati 的包装层，提供单步/两步视觉分析；Sati PatentVision/PatentLMM 引擎中的电路网表与多图一致性检查未移植。附图生成、落版、渲染复核、Graphviz/Inkscape/FreeCAD 通路与关键词附图索引均已在本包实现。化学引擎（VLM 两步法、name→SMILES、RDKit 校验）仍未移植，因此 `recognize_chemical_structure` 返回不可用结果，`validate_specification` 的化学表征检查也随之降级。
 - **附图生成范围** — `generate_patent_figure` 的 SVG 默认经内置 `@viz-js/viz` WASM 引擎渲染（Config.figureRenderer）；png/pdf 与 `figureRenderer: 'cli'` 走 `dot` 子进程，后者仍是系统依赖——这些路径缺失时 fail loud 并给出安装引导。该 WASM 渲染是同步调用、一旦开始无法中断，故输入规模受限：原始 DOT 超过 64 000 个字符（分层/树形引擎 `dot`/`circo`/`twopi`）或 20 000 个字符（强制导向引擎 `neato`/`fdp`/`sfdp`）同样改走 `dot` 子进程，结构化图元素上限 200 个（节点 + 边，嵌套节点计入）——超出即 `invalid_tool_input`，请拆分为 `panels`。`raw_dot` 必须自包含：`image`/`shapefile`/`fontpath` 等文件引用属性被拒绝，因为子进程路径会按宿主文件系统解析它们。引线标号对框图/层级图 SVG 默认开启（流程图与 `raw_dot`/`template` 默认关闭；per-call `leader_lines` 覆盖）：标号置于部件外侧并以 `<line>` 引线相连，替代内嵌标签后缀；非 SVG 格式保持内嵌标号并返回警告。放置时按所在组的平移把节点坐标换算到根坐标系，跳过会压盖已绘边线、箭头或边标签的方向，并在标号或引线越出根元素声明画布时扩展 `viewBox`/`width`/`height`——画布之外的 SVG 内容不会渲染。节点位于缩放/旋转/翻转的组内时无法这样定位：其标号内嵌进部件名并给出警告。每次生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 返回图面用语检查警告：非必需注释（注释前缀、正文引用、尺寸标注、比例标注、句末标点）、非中文词语（缩写与数字符号除外）、图号入图、数字与括号引号连用、非阿拉伯数字标号；检查只提示、不改写输入。矢量图型（`circuit`/`plot`/`cross_section`/`sequence_diagram`/`appearance_view`）不过 Graphviz，由 `vector-figure-build` 直接产出毫米坐标的 SVG 片段：电路图按网格放置符号并正交走线、T 形结点画实心连接点；曲线图画坐标轴与刻度并在图上禁用比例说明；剖视图画 45° 剖面线（相邻件方向相反或间距不等）与剖切位置符号——零件不写 `hatch` 就静默取默认 45°/3 毫米，故工具会逐图报出该默认值，非剖切实体应写 `hatch: "none"` 而不是用细长多边形伪造，标号、引线与中心线分别用 `sections.labels`、`sections.centerlines` 表达；时序图画生命线与消息箭线；外观设计视图按第一角（或第三角）排布六面视图、统一比例并在每个视图正下方标注视图名称。`panels` 渲染多面板组合（`fig1A`/`fig1B`，…）并共用同一标号系列；面板后缀必须互不重复，且 `panels` 不能与顶层结构/矢量输入同时提供（两者均报错，不再覆盖同一文件或静默丢弃图形）；外观设计视图片段只允许几何内容——script、style、foreignObject/iframe/object/embed、动画、事件处理属性、`javascript:` URL 与 ENTITY/CDATA 在落版前即被拒绝；per-call `figure_family` 对附图索引中同一家族记录的组件跨代续接标号——未声明家族即逐图独立编号，索引中无 `figureFamily` 的条目永不参与。`semantic` 彩色填充仅当色彩承载技术内容时使用（依据《专利审查指南》第一部分第一章 4.3，2023 修订；默认 `grayscale` 黑白）；`raw_dot`/`template` 模式无结构化组件/连接还原（索引条目残缺）。每张交付 SVG 都在落版之后、文字转路径之前复核，纯 SVG 输出同样在内（此前只有 png/pdf 的 SVG 全链与矢量直绘会复核）；净距按图型分档（`RENDER_CLEARANCE_MM`）：剖视图、结构线稿与内嵌标号的 Graphviz 图为 1.5 毫米，引线标号/原始 DOT 图为 0.5 毫米，电路图/曲线图/时序图为 0.7/0.9/0.7 毫米，外观设计视图片段暂不判。同一 `<g class="node|edge">` 分组内的文字与线段——节点标签在其节点框内、边标签挨着自己的边——不参与净距与贯穿判定：那是排版，不是跨元素压线。
 - **附图提交规格与落版** — `figure/office-profile` 固化了已核实的目标法域数值：中国 A4 与 25/25/15/15 毫米页边距、图号「图N」（两幅以上才编号，依据指南第一部分第一章 4.3）、附图页码「第N页 共M页」（单页「第N页」）；PCT 的可用绘图区与 0.32 厘米最短字高（Rule 11.6(c)、11.13(h)）、图号「Fig. N」、不得着色（11.13(a)）、页码「1/3」；USPTO 的页边距与最短字高（37 CFR 1.84(g)、1.84(p)(3)）、图号「FIG. N」。给定 `target_office` 时 `figure/submission-page` 把图形落版为固定幅面的附图页（图号画在图形正下方、页码画在版心底部），`figure/compliance` 再核对彩色策略（PCT 直接拒绝彩色；美国实用申请彩色需呈请）、多幅图未编号与落版字高，并返回落版缩放比与尺寸。落版经 SVG 全链到达 png/pdf：Graphviz 的 `page`/`size`/`margin` 属性只影响图形自身画布（本机实测 Graphviz 15.1.1：`page` 对 svg/png/pdf 不产生幅面，`size` 只在超限时按比例缩小，`margin` 只加空白），因此给了 `target_office` 的 png/pdf 调用先出 SVG、落版、复核，再用 Inkscape 导出；没有 Inkscape 时退回渲染器直接出图，并报告落版与复核未生效。未给 `target_office` 的 png/pdf 调用行为不变。EPO 未列入档案：EPC Rule 46/47 与 EPO 审查指南的一手文本在本次核实时无法取得（epo.org 返回 403）。「缩小到三分之二仍可辨」只报出缩小后的实测字高、不设阈值告警，因为三个法域都没有给出该情形下的数值下限。

@@ -26,7 +26,8 @@
  */
 
 import { glyphBox, leaderEnd } from './glyph-box.ts'
-import { escapeXmlAttribute, fmt, VectorFigureError, type VectorFigureSpec } from './vector-figure.ts'
+import { boundsOfPoints, formatMm as fmt, type MmPoint } from './mm-primitives.ts'
+import { escapeXmlAttribute, VectorFigureError, type VectorFigureSpec } from './vector-figure.ts'
 
 /** 剖面线参数：45° 细实线；相邻零件方向相反或间距不等以区分（GB/T 4457.5 实践）。 */
 export type HatchSpec = {
@@ -166,7 +167,7 @@ export type SectionDiagramInput = {
 }
 
 /** 二维点（毫米）。 */
-type Point = readonly [number, number]
+type Point = MmPoint
 
 /** 文本锚点水平对齐方式。 */
 type TextAnchor = 'start' | 'middle' | 'end'
@@ -206,7 +207,6 @@ type PolygonDraw = {
 type DiagramText = { readonly text: string; readonly at: Point; readonly anchor: TextAnchor; readonly fontSizeMm: number }
 
 /** 包围盒（原始坐标，毫米）。 */
-type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
 
 /** 轮廓与剖切位置线的粗实线线宽（毫米，GB/T 4457.4 线宽系列）。 */
 const THICK_STROKE_MM = 0.5
@@ -598,7 +598,7 @@ function textExtent(text: string, at: Point, anchor: TextAnchor, fontSizeMm: num
  * @returns 数字视觉中心落点。
  */
 function outsideLabelAt(points: readonly Point[], fontSizeMm: number): Point {
-  const bounds = boundsOf(points)
+  const bounds = boundsOfPoints(points)
   const gap = LABEL_OUTSIDE_GAP_FACTOR * fontSizeMm
   return [bounds.maxX + gap, bounds.minY - gap]
 }
@@ -682,23 +682,6 @@ function cuttingMarkGeometry(mark: CuttingMark): CuttingMarkGeometry {
   }
 }
 
-/**
- * 一组点的包围盒。
- * @param points - 参与包围盒的点（调用方保证非空）。
- * @returns 最小/最大坐标。
- */
-function boundsOf(points: readonly Point[]): Bounds {
-  // 调用方保证非空：parts 非空且每个零件轮廓至少 3 个顶点。
-  const first = points[0] as Point
-  const bounds: Bounds = { minX: first[0], minY: first[1], maxX: first[0], maxY: first[1] }
-  for (const point of points) {
-    if (point[0] < bounds.minX) bounds.minX = point[0]
-    if (point[0] > bounds.maxX) bounds.maxX = point[0]
-    if (point[1] < bounds.minY) bounds.minY = point[1]
-    if (point[1] > bounds.maxY) bounds.maxY = point[1]
-  }
-  return bounds
-}
 
 /**
  * SVG 坐标点文本（平移后）。
@@ -910,7 +893,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     labels.push(mark.id.trim())
   }
 
-  const bounds = boundsOf(extents)
+  const bounds = boundsOfPoints(extents)
   const offset: Point = [paddingMm - bounds.minX, paddingMm - bounds.minY]
   // 文字在全部线条之后绘制：剖面线不得妨碍附图标记线和主线条的识别。
   // 引线带 `data-dsh-role="leader"`：复核的「标号净距」判据只针对非引线图元，

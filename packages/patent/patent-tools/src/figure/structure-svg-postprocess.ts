@@ -14,6 +14,7 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/structure-svg-postprocess
  */
 
+import { formatMm as fmt } from './mm-primitives.ts'
 import { assertSafeSvg, DEFAULT_SVG_MAX_BYTES } from './svg-annotate.ts'
 import { measureInkBounds } from './render-check.ts'
 
@@ -56,11 +57,6 @@ const WIDTH_EPSILON = 1e-9
 
 /** 几何分组的开标签（带 `stroke-width` 的 `<g>`）。 */
 const GROUP_WITH_STROKE_WIDTH = /<g\b[^>]*\bstroke-width\s*=\s*"([^"]*)"[^>]*>/g
-
-/** 数位格式化（去尾零，至多三位小数）。 */
-function fmt(value: number): string {
-  return String(Math.round(value * 1000) / 1000)
-}
 
 /** 改写一个开标签里的 `stroke-width`（其余属性顺序与写法原样保留）。 */
 function withStrokeWidth(tag: string, widthMm: number, dash?: string): string {

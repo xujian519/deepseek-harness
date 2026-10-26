@@ -15,6 +15,8 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/vector-figure
  */
 
+import { formatMm } from './mm-primitives.ts'
+
 /** 矢量图构建错误码。 */
 export type VectorFigureErrorCode = 'empty_input' | 'invalid_input' | 'too_large'
 
@@ -63,7 +65,7 @@ export function fmt(value: number): string {
   if (!Number.isFinite(value)) {
     throw new VectorFigureError('invalid_input', `坐标必须是有限数：${String(value)}`)
   }
-  return String(Math.round(value * 1000) / 1000)
+  return formatMm(value)
 }
 
 /**

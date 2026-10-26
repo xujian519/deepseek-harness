@@ -15,6 +15,7 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/submission-page
  */
 
+import { formatMm as fmtMm } from './mm-primitives.ts'
 import { assertSafeSvg, DEFAULT_SVG_MAX_BYTES, SvgAnnotateError } from './svg-annotate.ts'
 import { resolveSvgViewport } from './svg-viewport.ts'
 import { escapeXmlAttribute } from './vector-figure.ts'
@@ -272,11 +273,6 @@ export function buildSubmissionPage(input: SubmissionPageInput): SubmissionPageR
       }),
   }
   return { svg: lines.join('\n'), metrics, warnings }
-}
-
-/** 毫米数值格式化（至多 3 位小数）。 */
-function fmtMm(value: number): string {
-  return String(Math.round(value * 1000) / 1000)
 }
 
 /**

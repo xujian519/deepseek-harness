@@ -23,6 +23,7 @@
  */
 
 import { existsSync } from 'node:fs'
+import { formatMm as fmtMm } from './mm-primitives.ts'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -188,11 +189,6 @@ function geometryRegression(before: string, outlined: string): string | undefine
   const range = (box: InkBounds): string =>
     `(${fmtMm(box.minX)}, ${fmtMm(box.minY)})-(${fmtMm(box.maxX)}, ${fmtMm(box.maxY)})`
   return `转换产物的墨迹范围 ${range(converted)} 超出原图 ${range(original)}`
-}
-
-/** 毫米数值（至多三位小数，与落版页的写法一致）。 */
-function fmtMm(value: number): string {
-  return String(Math.round(value * 1000) / 1000)
 }
 
 /**
