@@ -99,6 +99,40 @@ const OVERLAP_MIN_MM = 0.2
  * 1.5 毫米约为 3.5 毫米字号下字身与图线之间可读空白的下限。
  */
 const DEFAULT_TEXT_CLEARANCE_MM = 1.5
+/**
+ * 按图型分档的净距下限（毫米）。各图型按自己的合法排版间距取值：阈值只抓真正的
+ * 贴靠与重叠，不把工具自己的正确输出判负。
+ *
+ * 实测（本机，2026-10-26，现有 fixture 与 WASM 渲染）：电路图 0.8、曲线图 1.0、
+ * 时序图 0.8；Graphviz 图中，内嵌标号的流程图 4.9、状态图 2.3，而默认开引线标号的
+ * 框图最小 0.6（标号本就贴在节点框外）。节点内标签 0.3–0.9、边标签与其自身的边
+ * 同组，已由 {@link sameGroup} 豁免。故矢量图型取实测下界再减 0.1；内嵌标号的
+ * Graphviz 图型取 1.5，引线标号/原始 DOT 取 0.5。`appearance_view` 是外部 SVG 片段，
+ * 语义分组未知，本轮不判净距（穿字仍判）。
+ */
+export const RENDER_CLEARANCE_MM: Readonly<Record<string, number>> = {
+  cross_section: 1.5,
+  structure: 1.5,
+  flowchart: 1.5,
+  state_diagram: 1.5,
+  block_diagram: 0.5,
+  component_hierarchy: 0.5,
+  raw_dot: 0.5,
+  template: 0.5,
+  circuit: 0.7,
+  plot: 0.9,
+  sequence_diagram: 0.7,
+  appearance_view: 0,
+}
+
+/**
+ * 图型对应的净距下限；未知图型返回 0（只判穿字）。
+ * @param figureType - 生成或分析侧的图型名。
+ * @returns 净距（毫米），0 表示不判净距。
+ */
+export function clearanceMmForFigure(figureType: string): number {
+  return RENDER_CLEARANCE_MM[figureType] ?? 0
+}
 /** 判定线段同一位置时的坐标容差（毫米，遮挡切分用）。 */
 const SPLIT_TOLERANCE = 1e-9
 /** 点划线签名：短于此值的线段是「点」（毫米）。 */
@@ -290,6 +324,11 @@ function segmentDistance(a: Segment, b: Segment): number {
   )
 }
 
+/** 文字与其线段是否属于同一语义分组（同一 `<g class="node|edge">`）。 */
+function sameGroup(text: ScannedText, item: DrawnSegment): boolean {
+  return text.group !== undefined && item.group !== undefined && text.group.id === item.group.id
+}
+
 /** 仿射矩形到线段的最短距离（毫米）：取四条边各自到该线段的最短距离。 */
 function quadSegmentDistance(quad: GlyphQuad, segment: Segment): number {
   const corners = quadCorners(quad)
@@ -335,6 +374,10 @@ function textClearanceFindings(
     let nearest = Number.POSITIVE_INFINITY
     for (const item of drawn) {
       if (item.leader) continue
+      // 同组文字与线段是同一语义元素的两个部分：节点标签本就排在节点框内
+      // （实测距框 0.3–0.9 毫米），边标签本就贴着它自己的边。把这类排版贴靠
+      // 判成净距不足会让每张 Graphviz 图都恒报。
+      if (sameGroup(text, item)) continue
       for (const piece of visiblePieces(item, occluders)) {
         if (!quadCrossedBySegment(inflated, [piece.x1, piece.y1], [piece.x2, piece.y2])) continue
         nearest = Math.min(nearest, quadSegmentDistance(quad, piece))
@@ -767,6 +810,16 @@ export function measureInkBounds(svg: string, options: { maxBytes?: number } = {
 }
 
 /**
+ * 阻断级发现：除 `not-measured` 以外的全部 findings。`not-measured` 是诚实降级
+ * （声明哪些事实没量测），不是图面缺陷，不阻断交付。
+ * @param report - 复核报告。
+ * @returns 应阻断交付的发现。
+ */
+export function blockingFindings(report: RenderCheckReport): RenderCheckFinding[] {
+  return report.findings.filter(finding => finding.check !== 'not-measured')
+}
+
+/**
  * 量测一张已生成的附图并报告渲染层面才可见的问题。
  *
  * 元素按嵌套逐层继承变换与样式（见模块文档的量测范围）；凡不在范围内的结构，报告
@@ -800,7 +853,12 @@ export function checkFigureRendering(
   for (const shape of scan.shapes) {
     for (const subpath of shape.subpaths) {
       const segments = subpathSegments(subpath)
-      drawn.push(...segments.map(segment => ({ segment, order: shape.order, leader: shape.role === LEADER_ROLE })))
+      drawn.push(...segments.map(segment => ({
+        segment,
+        order: shape.order,
+        leader: shape.role === LEADER_ROLE,
+        ...(shape.group === undefined ? {} : { group: shape.group }),
+      })))
       // 不透明填充的闭合轮廓遮挡更早绘制的图元；开放子路径的填充按闭合处理，故不列入。
       if (shape.occludes && subpath.closed) occluders.push({ points: subpath.points, order: shape.order })
       if (subpath.closed) {
@@ -825,8 +883,11 @@ export function checkFigureRendering(
   const crossed = new Set<number>()
   scan.texts.forEach((text, index) => {
     const quad = textQuad(text)
-    const hit = drawn.some(item => visiblePieces(item, occluders)
-      .some(piece => quadCrossedBySegment(quad, [piece.x1, piece.y1], [piece.x2, piece.y2])))
+    // 边标签与它自己的边同组：Graphviz 把边标签放在边旁，二者共用一段文字框，
+    // 这不是「标签压到别的线」的缺陷。跨组仍判——那才是真正的压线。
+    const hit = drawn.some(item => !(sameGroup(text, item) && item.group?.kind === 'edge')
+      && visiblePieces(item, occluders)
+        .some(piece => quadCrossedBySegment(quad, [piece.x1, piece.y1], [piece.x2, piece.y2])))
     if (!hit) return
     crossed.add(index)
     findings.push({

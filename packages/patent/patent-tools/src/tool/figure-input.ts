@@ -106,6 +106,12 @@ export type GeneratePatentFigureDeps = {
    */
   requireCuttingMarks?: boolean
   /**
+   * 渲染复核门禁（Config.figureFailOnRenderFindings）：为 true 时，复核发现除
+   * `not-measured` 外的问题即判本次生成失败，文件保留供修正但不导出交付件；
+   * 缺省只把发现折成警告。非 SVG 直绘通路没有可量测的图面，门禁不生效并给出警告。
+   */
+  failOnRenderFindings?: boolean
+  /**
    * 部署的图面文字字号（毫米，Config.figureFontMm）：直绘图型的图面字号与 DOT 的
    * fontsize 由它定，落版核算的字高也用它；模型显式给的字号优先。缺省时不改历史默认。
    */

@@ -289,3 +289,25 @@ describe('structure view constants', () => {
     expect(structureSvgFilename(2, 'top')).toBe('fig2_top.svg')
   })
 })
+
+describe('结构线稿的标号引线', () => {
+  it('引线止于数字占位框外缘，并标注 leader 角色', () => {
+    const script = buildStructureScript(params({
+      callouts: [{ numeral: '102', point3d: [10, 20, 30], label: '底板' }],
+    }))
+    expect(script).toContain('data-dsh-role="leader"')
+    expect(script).toContain('box_x, box_y, half_w, half_h = numeral_box(text_x, text_y, callout["numeral"])')
+    expect(script).toContain('end_x, end_y = leader_end(box_x, box_y, half_w, half_h, unit_x, unit_y)')
+    // 旧写法把数字锚点直接当引线终点，必然穿过自己的标号。
+    expect(script).not.toContain('% (fmt(anchor_x), fmt(anchor_y), fmt(text_x), fmt(text_y), fmt(STROKE_WIDTH))')
+  })
+
+  it('字宽比例与复核侧 glyph-box 一致，画布按真实占位框外扩', () => {
+    const script = buildStructureScript(params())
+    expect(script).toContain('GLYPH_WIDTH_RATIO = 0.62')
+    expect(script).toContain('GLYPH_ASCENT_RATIO = 0.75')
+    expect(script).toContain('GLYPH_DESCENT_RATIO = 0.12')
+    expect(script).toContain('min_x = min(min_x, box_x - half_w)')
+    expect(script).toContain('max_x = max(max_x, box_x + half_w)')
+  })
+})

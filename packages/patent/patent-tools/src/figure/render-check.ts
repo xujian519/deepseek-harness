@@ -13,7 +13,9 @@
  *   {@link DEFAULT_TEXT_CLEARANCE_MM}），标号与元件名周围没有可读的空白。判据把
  *   占位框外扩净距后再用同一「贯穿」判定；引线（绘图侧标注
  *   {@link ROLE_ATTRIBUTE}）与落在不透明填充内的线段不参与——前者本来就止于文字外框，
- *   后者在图面上不可见。
+ *   后者在图面上不可见。同一语义分组（Graphviz 的 `<g class="node|edge">`）内的
+ *   文字与线段也不参与：节点标签本就排在节点框内、边标签本就贴着自己的边，那是排版
+ *   而非缺陷；跨组压线仍判。生成工具按图型取 {@link RENDER_CLEARANCE_MM} 的分档值。
  * - **点划线被实线覆盖**：同一行既有「长划+点」的点划段、又有一整段连续实线，
  *   点划线的间隔在图面上不可见（上下半剖的两半公共边正好落在轴线位置时如此）。
  * - **相邻零件剖面线难以区分**：两件轮廓相邻，剖面线的方向差不超过
@@ -61,6 +63,9 @@
 export {
   checkFigureRendering,
   measureInkBounds,
+  clearanceMmForFigure,
+  blockingFindings,
+  RENDER_CLEARANCE_MM,
 } from './render-check-findings.ts'
 export type {
   InkBounds,

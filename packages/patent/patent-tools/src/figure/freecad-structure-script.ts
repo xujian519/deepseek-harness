@@ -318,6 +318,13 @@ CANVAS_PADDING = float(PARAMS["canvasPadding"])
 STROKE_WIDTH = float(PARAMS["strokeWidth"])
 EDGE_SAMPLES = int(PARAMS["edgeSamples"])
 
+# 数字占位框的比例：与绘图层 glyph-box.ts 的 textWidthMm/glyphBox 同口径
+# （数字宽度 0.62 字号、ascent 0.75、descent 0.12），复核侧按同一组比例判定，
+# 故引线止点与复核口径不会各算一套。
+GLYPH_WIDTH_RATIO = 0.62
+GLYPH_ASCENT_RATIO = 0.75
+GLYPH_DESCENT_RATIO = 0.12
+
 # 最小空白 TechDraw 模板：DrawPage 需要一个模板才会执行视图投影；本方案只取
 # viewPartAsSvg 的几何片段、不套模板边框，故模板内容仅需一个页面矩形。
 MINIMAL_TEMPLATE = (
@@ -363,6 +370,31 @@ def projected_bbox_center(view, shapes):
         raise RuntimeError("投影未产生任何几何：模型可能为空或视图朝向退化")
     center = ((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0)
     return center, (min(xs), max(xs), min(ys), max(ys))
+
+
+def numeral_box(text_x, text_y, value):
+    """
+    数字占位框：中心与半宽/半高（y-down 画布帧）。
+
+    number_text 把基线按 0.35 字高下沉，故框中心约等于传入的锚点；半高取
+    ascent 与 descent 的均值，宽度按每个数字 0.62 字高累加。
+    """
+    half_w = GLYPH_WIDTH_RATIO * NUMERAL_FONT_SIZE * len(value) / 2.0
+    half_h = (GLYPH_ASCENT_RATIO + GLYPH_DESCENT_RATIO) * NUMERAL_FONT_SIZE / 2.0
+    center_y = text_y + NUMERAL_FONT_SIZE * (0.35 - (GLYPH_ASCENT_RATIO - GLYPH_DESCENT_RATIO) / 2.0)
+    return text_x, center_y, half_w, half_h
+
+
+def leader_end(center_x, center_y, half_w, half_h, unit_x, unit_y):
+    """
+    从数字框中心沿 (unit_x, unit_y) 的反方向退到框边（与 glyph-box.ts 的
+    leaderEnd 同口径）：各自先出框的轴向决定后退量。引线止于此点，不再穿过
+    自己的标号。
+    """
+    step_x = float("inf") if unit_x == 0 else half_w / abs(unit_x)
+    step_y = float("inf") if unit_y == 0 else half_h / abs(unit_y)
+    back = min(step_x, step_y)
+    return center_x - unit_x * back, center_y - unit_y * back
 
 
 def number_text(text_x, text_y, value):
@@ -452,17 +484,19 @@ def callout_fragments(view, center, bbox):
             unit_x, unit_y = anchor_x / length, anchor_y / length
         text_x = anchor_x + unit_x * LEADER_OFFSET
         text_y = anchor_y + unit_y * LEADER_OFFSET
+        box_x, box_y, half_w, half_h = numeral_box(text_x, text_y, callout["numeral"])
+        end_x, end_y = leader_end(box_x, box_y, half_w, half_h, unit_x, unit_y)
         fragments.append(
             '<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="#000000" '
-            'stroke-width="%s" fill="none"/>'
-            % (fmt(anchor_x), fmt(anchor_y), fmt(text_x), fmt(text_y), fmt(STROKE_WIDTH))
+            'stroke-width="%s" fill="none" data-dsh-role="leader"/>'
+            % (fmt(anchor_x), fmt(anchor_y), fmt(end_x), fmt(end_y), fmt(STROKE_WIDTH))
         )
         fragments.append(number_text(text_x, text_y, callout["numeral"]))
-        # 文本盒外扩，纳入画布包围盒。
-        min_x = min(min_x, text_x - NUMERAL_FONT_SIZE)
-        max_x = max(max_x, text_x + NUMERAL_FONT_SIZE)
-        min_y = min(min_y, text_y - NUMERAL_FONT_SIZE)
-        max_y = max(max_y, text_y + NUMERAL_FONT_SIZE)
+        # 按数字真实占位框外扩画布，多位标号不会被右缘裁掉。
+        min_x = min(min_x, box_x - half_w)
+        max_x = max(max_x, box_x + half_w)
+        min_y = min(min_y, box_y - half_h)
+        max_y = max(max_y, box_y + half_h)
         anchors.append(
             {
                 "numeral": callout["numeral"],
@@ -510,14 +544,8 @@ def detail_marking_fragments(view, center, view_name):
         text_x, text_y = detail_label_position(circle_x, circle_y, radius)
         fragments.append(number_text(text_x, text_y, detail["reference"]))
         boxes.append((circle_x - radius, circle_x + radius, circle_y - radius, circle_y + radius))
-        boxes.append(
-            (
-                text_x - NUMERAL_FONT_SIZE,
-                text_x + NUMERAL_FONT_SIZE,
-                text_y - NUMERAL_FONT_SIZE,
-                text_y + NUMERAL_FONT_SIZE,
-            )
-        )
+        box_x, box_y, half_w, half_h = numeral_box(text_x, text_y, detail["reference"])
+        boxes.append((box_x - half_w, box_x + half_w, box_y - half_h, box_y + half_h))
     if not boxes:
         return [], None
     extent = (

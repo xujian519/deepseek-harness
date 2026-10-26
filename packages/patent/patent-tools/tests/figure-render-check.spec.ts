@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkFigureRendering } from '../src/figure/render-check.ts'
+import { blockingFindings, checkFigureRendering, clearanceMmForFigure } from '../src/figure/render-check.ts'
 import { scanSvg } from '../src/figure/render-check-scan.ts'
 import { buildSectionDiagram } from '../src/figure/section-diagram.ts'
 import { SvgAnnotateError } from '../src/figure/svg-annotate.ts'
@@ -1076,5 +1076,78 @@ describe('checkFigureRendering 遮挡与零长度线段', () => {
       numeral,
     ].join('\n')))
     expect(dashed.findings).toEqual([])
+  })
+})
+
+describe('图型净距分档与阻断判定', () => {
+  it('按实测下界给出各图型的净距阈值', () => {
+    expect(clearanceMmForFigure('cross_section')).toBe(1.5)
+    expect(clearanceMmForFigure('structure')).toBe(1.5)
+    expect(clearanceMmForFigure('flowchart')).toBe(1.5)
+    expect(clearanceMmForFigure('state_diagram')).toBe(1.5)
+    expect(clearanceMmForFigure('block_diagram')).toBe(0.5)
+    expect(clearanceMmForFigure('component_hierarchy')).toBe(0.5)
+    expect(clearanceMmForFigure('raw_dot')).toBe(0.5)
+    expect(clearanceMmForFigure('circuit')).toBe(0.7)
+    expect(clearanceMmForFigure('plot')).toBe(0.9)
+    expect(clearanceMmForFigure('sequence_diagram')).toBe(0.7)
+    expect(clearanceMmForFigure('appearance_view')).toBe(0)
+    expect(clearanceMmForFigure('没有这个图型')).toBe(0)
+  })
+
+  it('not-measured 是诚实降级，不算阻断级发现', () => {
+    const report = checkFigureRendering(svg('<use href="#missing"/>'))
+    expect(report.findings.map(finding => finding.check)).toEqual(['not-measured'])
+    expect(blockingFindings(report)).toEqual([])
+  })
+
+  it('真实缺陷是阻断级发现', () => {
+    const report = checkFigureRendering(svg([
+      '<line x1="60" y1="5" x2="60" y2="35" stroke-width="0.25"/>',
+      '<text x="60" y="22" text-anchor="middle">条件</text>',
+    ].join('\n')))
+    expect(blockingFindings(report).map(finding => finding.check)).toContain('text-crossed-by-line')
+  })
+})
+
+describe('节点/边语义分组', () => {
+  /** 节点框：x 10–60、y 10–30；标签在框内，距上边约 1 毫米。 */
+  const NODE_FRAME = '<polygon points="10,10 60,10 60,30 10,30" stroke-width="0.5"/>'
+
+  it('节点标签排在节点框内不判净距，同位置但不同组仍判', () => {
+    const inside = checkFigureRendering(svg(
+      `<g class="node">${NODE_FRAME}<text x="35" y="23" text-anchor="middle">标签</text></g>`,
+    ), { textClearanceMm: 1.5 })
+    expect(inside.findings).toEqual([])
+
+    const outside = checkFigureRendering(svg(
+      `<g class="node">${NODE_FRAME}</g><text x="35" y="23" text-anchor="middle">标签</text>`,
+    ), { textClearanceMm: 1.5 })
+    expect(outside.findings.map(finding => finding.check)).toEqual(['text-clearance'])
+  })
+
+  it('无关 class 不建立分组；无 class 的嵌套 g 继承外层节点组', () => {
+    const unrelated = checkFigureRendering(svg(
+      `<g class="graph">${NODE_FRAME}<text x="35" y="23" text-anchor="middle">标签</text></g>`,
+    ), { textClearanceMm: 1.5 })
+    expect(unrelated.findings.map(finding => finding.check)).toEqual(['text-clearance'])
+
+    const inherited = checkFigureRendering(svg(
+      `<g class="node"><g>${NODE_FRAME}<text x="35" y="23" text-anchor="middle">标签</text></g></g>`,
+    ), { textClearanceMm: 1.5 })
+    expect(inherited.findings).toEqual([])
+  })
+
+  it('边标签被它自己的边穿过不报，被另一条边穿过仍报', () => {
+    const edge = [
+      '<g class="edge"><line x1="60" y1="5" x2="60" y2="35" stroke-width="0.25"/>',
+      '<text x="60" y="22" text-anchor="middle">条件</text></g>',
+    ].join('\n')
+    expect(checkFigureRendering(svg(edge)).findings).toEqual([])
+
+    const crossedByOther = checkFigureRendering(svg(
+      `${edge}\n<line x1="60" y1="5" x2="60" y2="35" stroke-width="0.25"/>`,
+    ))
+    expect(crossedByOther.findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
   })
 })

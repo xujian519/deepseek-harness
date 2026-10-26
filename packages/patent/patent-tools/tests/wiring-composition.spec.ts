@@ -297,6 +297,7 @@ describe('registerPatentTools 显式部署配置', () => {
       inkscapeExecutable: fakeExecutable('inkscape'),
       freecadExecutable: fakeExecutable('freecadcmd'),
       figureRequireCuttingMarks: true,
+      figureFailOnRenderFindings: true,
       figureFontMm: 4.23,
       figurePageSize: 'a4',
       figureOrientation: 'landscape',
@@ -322,6 +323,8 @@ describe('registerPatentTools 显式部署配置', () => {
     if (figure === undefined) throw new Error('缺少附图生成 deps')
 
     expect(figure.resolveFont?.(['壳体'])).toBe('Custom Font')
+    expect(figure.failOnRenderFindings).toBe(true)
+    expect(mock.structures.at(-1)?.failOnRenderFindings).toBe(true)
 
     const source = join(workspace(), 'fig.svg')
     writeFileSync(source, '<svg xmlns="http://www.w3.org/2000/svg"><text>图</text></svg>')
