@@ -133,7 +133,7 @@ export function createCheckPatentFigureConsistencyTool(): ToolDefinition {
         return [{ type: 'text', text: [...lines, ...sections].join('\n') }]
       },
     },
-    async execute(args) {
+    execute(args) {
       if (args.figures.length === 0) {
         throw new PatentToolError('invalid_tool_input', 'figures 至少需要一张附图', { tool: 'check_patent_figure_consistency' })
       }
@@ -164,7 +164,7 @@ export function createCheckPatentFigureConsistencyTool(): ToolDefinition {
         })),
       }))
       const report = checkFigureSetConsistency(entries, args.claim_context)
-      return toOutput(report)
+      return Promise.resolve(toOutput(report))
     },
   })
 }

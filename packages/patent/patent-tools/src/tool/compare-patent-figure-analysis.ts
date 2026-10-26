@@ -92,7 +92,7 @@ export function createComparePatentFigureAnalysisTool(): ToolDefinition {
         }]
       },
     },
-    async execute(args) {
+    execute(args) {
       const report = compareFigureAnalysis({
         expected: {
           ...(args.expected.figure_type === undefined ? {} : { figureType: args.expected.figure_type }),
@@ -103,7 +103,7 @@ export function createComparePatentFigureAnalysisTool(): ToolDefinition {
           components: toMarks(args.analysis.components),
         },
       })
-      return toOutput(report)
+      return Promise.resolve(toOutput(report))
     },
   })
 }

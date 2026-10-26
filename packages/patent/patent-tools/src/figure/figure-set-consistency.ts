@@ -40,10 +40,9 @@ export function hasNumeralPrefix(textBeforeNumeral: string): boolean {
   return STRONG_PREFIX.test(window) || SOFT_PREFIX.test(window)
 }
 
-/** `matchAll` 的匹配对象总带 `index`；`?? 0` 只满足严格类型。 */
+/** `matchAll` 的匹配对象总带 `index`。 */
 function matchOffset(match: RegExpExecArray): number {
-  /* v8 ignore next -- RegExpStringIterator always sets index */
-  return match.index ?? 0
+  return match.index
 }
 
 /**

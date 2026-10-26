@@ -26,7 +26,8 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     const catalog = await collectToolCatalog()
     const names = catalog.flatMap(entry => entry.schemas.map(s => s.name)).sort()
     expect(names).toEqual([
-      'add_patent_figure_references', 'analyze_patent_figure', 'ask_user_question', 'bash', 'bash', 'build_patent_filing', 'claim_chart_build', 'cordis_inspect_list',
+      'add_patent_figure_references', 'analyze_patent_figure', 'ask_user_question', 'bash', 'bash', 'build_patent_filing', 'check_patent_figure_consistency',
+      'claim_chart_build', 'compare_patent_figure_analysis', 'cordis_inspect_list',
       'cordis_inspect_query', 'create_goal', 'create_worktree', 'document_deliver', 'draft_claims', 'draft_specification', 'edit', 'evaluate_evidence', 'evaluate_legal_evidence',
       'exit_plan_mode', 'flexible_plan', 'generate_patent_figure', 'generate_structure_figure', 'get_goal', 'glob', 'grep', 'interrupt_agent',
       'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'knowledge_note_save', 'law_search', 'law_verify', 'legal_law_verify', 'list_agents',

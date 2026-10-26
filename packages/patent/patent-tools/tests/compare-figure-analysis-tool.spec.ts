@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { createComparePatentFigureAnalysisTool } from '../src/tool/compare-patent-figure-analysis.ts'
 
 const signal = new AbortController().signal
@@ -20,8 +20,14 @@ function execute(ctx: Context, name: string, args: unknown, label: string) {
   return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
 }
 
-function text(result: { content: { type: string; text?: string }[] }): string {
+function text(result: ToolExecutionResult): string {
   return result.content.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
+}
+
+/** 断言执行成功并取出规范化输出（spec 内按字面量结构继续断言）。 */
+function valueOf(result: ToolExecutionResult): ToolValue {
+  if (result.isError) throw new Error(`tool call failed: ${JSON.stringify(result.error)}`)
+  return result.value as ToolValue
 }
 
 type ToolValue = {
@@ -38,10 +44,11 @@ describe('compare_patent_figure_analysis', () => {
     const result = await execute(ctx, 'compare_patent_figure_analysis', {
       expected: { figure_type: 'flowchart', components: [{ ref_number: '10', name: '壳体' }] },
       analysis: { figure_type: 'flowchart', components: [{ ref_number: '10', name: '壳体' }] },
-    }, 'm1') as { value: ToolValue }
-    expect(result.value.consistent).toBe(true)
-    expect(result.value.expectedCount).toBe(1)
-    const rendered = text(result as unknown as { content: { type: string; text?: string }[] })
+    }, 'm1')
+    const value = valueOf(result)
+    expect(value.consistent).toBe(true)
+    expect(value.expectedCount).toBe(1)
+    const rendered = text(result)
     expect(rendered).toContain('图文比对：期望 vs 识图')
     expect(rendered).toContain('图文比对通过')
   })
@@ -51,10 +58,11 @@ describe('compare_patent_figure_analysis', () => {
     const result = await execute(ctx, 'compare_patent_figure_analysis', {
       expected: { components: [{ ref_number: '10', name: '壳体' }] },
       analysis: { components: [{ ref_number: '20' }, { ref_number: '10', name: '底座' }] },
-    }, 'm2') as { value: ToolValue }
-    expect(result.value.consistent).toBe(false)
-    expect(result.value.findings.map(finding => finding.check)).toEqual(['name-mismatch', 'unexpected-mark'])
-    const rendered = text(result as unknown as { content: { type: string; text?: string }[] })
+    }, 'm2')
+    const value = valueOf(result)
+    expect(value.consistent).toBe(false)
+    expect(value.findings.map(finding => finding.check)).toEqual(['name-mismatch', 'unexpected-mark'])
+    const rendered = text(result)
     expect(rendered).toContain('## 发现的问题')
     expect(rendered).toContain('[name-mismatch]')
     expect(rendered).toContain('[unexpected-mark]')
@@ -65,8 +73,9 @@ describe('compare_patent_figure_analysis', () => {
     const result = await execute(ctx, 'compare_patent_figure_analysis', {
       expected: { figure_type: 'flowchart', components: [] },
       analysis: { figure_type: 'block_diagram', components: [] },
-    }, 'm3') as { value: ToolValue }
-    expect(result.value.findings[0]?.check).toBe('figure-type-mismatch')
-    expect(result.value.summary).toContain('图型不符')
+    }, 'm3')
+    const value = valueOf(result)
+    expect(value.findings[0]?.check).toBe('figure-type-mismatch')
+    expect(value.summary).toContain('图型不符')
   })
 })
