@@ -153,7 +153,7 @@ describe('generate_structure_figure 落版', () => {
       }, 's-layout') as { isError: boolean; value: { layout?: { office: string; sheetNumber: string; pageScale: number }; warnings: string[] } }
       expect(result.isError).toBe(false)
       expect(result.value.layout?.office).toBe('cnipa')
-      expect(result.value.layout?.sheetNumber).toBe('1')
+      expect(result.value.layout?.sheetNumber).toBe('第1页 共2页')
       expect(result.value.layout?.pageScale).toBeGreaterThan(0)
       const written = readFileSync(join(outDir, 'fig3', 'fig3_iso.svg'), 'utf8')
       expect(written).toContain('width="210mm" height="297mm"')
@@ -503,7 +503,7 @@ describe('generate_structure_figure wording & validation', () => {
         fit_to_page: false,
         persist_index: false,
       }, exec) as { layout?: { sheetNumber: string; caption?: string } }
-      expect(value.layout?.sheetNumber).toBe('1')
+      expect(value.layout?.sheetNumber).toBe('第1页')
       expect(value.layout?.caption).toBe('图1')
     } finally {
       rmSync(dir, { recursive: true, force: true })

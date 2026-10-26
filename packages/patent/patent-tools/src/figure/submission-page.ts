@@ -67,7 +67,7 @@ export type SubmissionPageInput = {
   profile: OfficeProfile
   /** 图号文字（如「图1」）；undefined 表示本幅不标图号（单幅图）。 */
   caption?: string | undefined
-  /** 附图页页码文字（如「2」「2/3」）；undefined 表示不标页码。 */
+  /** 附图页页码文字（如「第2页 共3页」「2/3」）；undefined 表示不标页码。 */
   sheetNumber?: string | undefined
   /** 图形正文的数字与字母字号（用户单位，如 DOT 的 fontsize=10），用于核算字高。 */
   bodyFontSize?: number | undefined

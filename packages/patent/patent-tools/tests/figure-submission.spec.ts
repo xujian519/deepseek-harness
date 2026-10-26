@@ -102,8 +102,9 @@ describe('office-profile：目标法域附图规格', () => {
     expect(() => figureCaption(officeProfile('cnipa'), 3, 2)).toThrow(RangeError)
   })
 
-  it('页码：中国写页序，PCT/美国写「页序/总页数」', () => {
-    expect(sheetNumberText(officeProfile('cnipa'), 2, 5)).toBe('2')
+  it('页码：中国写「第N页 共M页」（单页写「第N页」），PCT/美国写「页序/总页数」', () => {
+    expect(sheetNumberText(officeProfile('cnipa'), 2, 5)).toBe('第2页 共5页')
+    expect(sheetNumberText(officeProfile('cnipa'), 1, 1)).toBe('第1页')
     expect(sheetNumberText(officeProfile('pct'), 2, 5)).toBe('2/5')
     expect(sheetNumberText(officeProfile('uspto'), 1, 1)).toBe('1/1')
     expect(() => sheetNumberText(officeProfile('cnipa'), 0, 5)).toThrow(RangeError)
@@ -650,7 +651,7 @@ describe('generate_patent_figure：落版接线', () => {
       }
       expect(value.value.layout.office).toBe('cnipa')
       expect(value.value.layout.caption).toBe('图1')
-      expect(value.value.layout.sheetNumber).toBe('1')
+      expect(value.value.layout.sheetNumber).toBe('第1页')
       expect(value.value.layout.charHeightMm).toBeGreaterThan(0)
       const written = readFileSync(join(outDir, 'fig1.svg'), 'utf8')
       expect(written).toContain('width="210mm" height="297mm"')
@@ -747,7 +748,7 @@ describe('generate_patent_figure：落版接线', () => {
       expect(sized.isError).toBe(false)
       const written = readFileSync(join(outDir, 'sized.svg'), 'utf8')
       expect(written).toMatch(/font-size="5"[^>]*>图1<\/text>/)
-      expect(written).toMatch(/font-size="4"[^>]*>1<\/text>/)
+      expect(written).toMatch(/font-size="4"[^>]*>第1页<\/text>/)
       for (const [callId, field, value] of [['s9', 'caption_font_mm', 0], ['s10', 'caption_gap_mm', -1], ['s11', 'sheet_font_mm', 0]] as const) {
         const bad = await execute(ctx, 'generate_patent_figure', {
           figure_type: 'flowchart',
