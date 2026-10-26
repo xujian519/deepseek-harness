@@ -53,13 +53,18 @@ export interface TeamApprovalAsk {
  * @param ctx - the plugin context; the `approval` service is resolved from it when mounted.
  * @param ask - the captain, tool, reason, and cancellation for the question.
  * @returns nothing; the promise settles only on an `allowed-once` decision.
- * @throws TeamApprovalError when no answerer is mounted or the decision was not a grant.
+ * @throws TeamApprovalError when no answerer is mounted or the decision was not a grant;
+ *   a `never` policy is named as an automatic refusal rather than a user rejection.
  */
 export async function requireTeamApproval(ctx: Context, ask: TeamApprovalAsk): Promise<void> {
   const approval = ctx.get('approval')
   if (approval === undefined) {
     throw new TeamApprovalError('unavailable', `${ask.reason}（本部署未挂载审批服务，按拒绝处理；挂载审批服务或关闭该审批开关后再执行）`)
   }
+  // Read before asking: the policy decides whether any interactive answerer can
+  // see this request, so a `never` refusal must not be reported as the user
+  // rejecting the plan.
+  const policy = approval.policyOf(ask.agent)
   const outcome = await approval.request({
     agent: ask.agent,
     toolName: ask.toolName,
@@ -68,6 +73,9 @@ export async function requireTeamApproval(ctx: Context, ask: TeamApprovalAsk): P
     signal: ask.signal,
   })
   if (outcome !== 'allowed-once') {
+    if (policy === 'never') {
+      throw new TeamApprovalError(outcome, `${ask.reason}（本会话审批策略为 never：审批提示不会弹出，所有需要审批的操作被自动拒绝。这不是用户对本次操作的否决——请用户把权限模式切回会弹审批的模式后重试；不要重复调用）`)
+    }
     throw new TeamApprovalError(outcome, `${ask.reason}（审批结果为 ${outcome}，本次操作未执行）`)
   }
 }

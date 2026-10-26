@@ -379,6 +379,15 @@ describe('approval policy (the approval/policy fold)', () => {
     expect(session.snapshotEvents().at(-1)).toMatchObject({ type: 'approval/policy', data: { policy: 'ask' } })
   })
 
+  it('reports the effective policy, including the configured default', async () => {
+    const ctx = new Context()
+    await ctx.plugin(ApprovalService, { policy: 'never' })
+    const { agent, session } = sessionAgent('sess-policy-of')
+    expect(ctx.approval.policyOf(agent)).toBe('never')
+    setApprovalPolicy(session, 'ask')
+    expect(ctx.approval.policyOf(agent)).toBe('ask')
+  })
+
   it('rejects a policy outside the closed vocabulary before appending', () => {
     const append = vi.fn()
     const session = { append } as unknown as Session
