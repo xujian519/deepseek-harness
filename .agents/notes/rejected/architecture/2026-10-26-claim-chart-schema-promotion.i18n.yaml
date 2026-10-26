@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-26-claim-chart-schema-promotion.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/rejected/architecture/2026-10-26-claim-chart-schema-promotion.md
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract:
+  en: a05f4fa97c8fbc9e
+  zh: b445d7764ed3cc2d
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract/problem:
+  en: 694fc066184fad21
+  zh: 26d6441775a903b5
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract/proposal:
+  en: 0f4905e301ab4fcf
+  zh: 068992cc2291ed5a
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract/alternatives-considered:
+  en: 6119e2aff3b6be5a
+  zh: 76136ef5249c23eb
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract/alternatives-considered/why-not-cross-domain-reuse:
+  en: 56f56e0d4e741086
+  zh: 2f168b409778f221
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract/alternatives-considered/why-not-a-versioned-governed-schema:
+  en: e3c77c1cb6d6466b
+  zh: 4b6cb312374456de
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract/alternatives-considered/why-not-durable-persistence:
+  en: 8ab90144b2c7850b
+  zh: 2752290c22835882
+/agent-note-promoting-the-claim-chart-schema-to-a-governed-contract/alternatives-considered/why-keep-the-current-layering-chosen:
+  en: 2a974bddd686dc56
+  zh: f652e8691f8f7f92
