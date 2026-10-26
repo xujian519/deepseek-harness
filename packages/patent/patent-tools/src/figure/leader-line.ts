@@ -629,8 +629,8 @@ function leaderLineFragment(placement: AnchorPlacement, numeral: string, fontSiz
   const line = placement.line
   const text = placement.text
   return [
-    `<line x1="${fmtCoord(line.x1)}" y1="${fmtCoord(line.y1)}" x2="${fmtCoord(line.x2)}" y2="${fmtCoord(line.y2)}" stroke="black" stroke-width="1"/>`,
-    `<text x="${fmtCoord(text.x)}" y="${fmtCoord(text.y)}" font-size="${fmtCoord(fontSize)}" text-anchor="${text.anchor}" xml:space="preserve">${escapeXmlText(numeral)}</text>`,
+    `<line x1="${fmtCoord(line.x1)}" y1="${fmtCoord(line.y1)}" x2="${fmtCoord(line.x2)}" y2="${fmtCoord(line.y2)}" stroke="black" stroke-width="1" data-dsh-role="leader"/>`,
+    `<text x="${fmtCoord(text.x)}" y="${fmtCoord(text.y)}" font-size="${fmtCoord(fontSize)}" text-anchor="${text.anchor}" stroke="none" xml:space="preserve">${escapeXmlText(numeral)}</text>`,
   ].join('\n')
 }
 

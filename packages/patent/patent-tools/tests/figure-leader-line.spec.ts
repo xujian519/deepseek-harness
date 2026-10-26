@@ -49,6 +49,9 @@ describe('annotateSvgWithLeaderLines 坐标帧', () => {
     // 组坐标右边缘 60 经 translate(4 66) 换算为根坐标 64；中线 y=-28 → 38。
     expect(out).toContain('<line x1="64" y1="38" x2="74" y2="38"')
     expect(out).toContain('<text x="77" y="41.5"')
+    // 引线标 role，复核的净距判定据此跳过引线本身。
+    expect(out).toContain('data-dsh-role="leader"')
+    expect(out).toContain('stroke="none"')
   })
 
   it('多层组平移累加，且左上越界时画布外移', () => {
