@@ -73,7 +73,8 @@ const ACTION_TIMEOUT_MS = ${budgets.actionTimeoutMs}
 const RESULT_TIMEOUT_MS = ${budgets.resultTimeoutMs}
 const RENDER_TIMEOUT_MS = ${budgets.renderTimeoutMs}
 const DETAIL_TIMEOUT_MS = ${budgets.detailTimeoutMs}
-const pageText = async (page) => await page.evaluate(() => (document.body ? document.body.innerText : ''))
+const readBodyText = () => (document.body ? document.body.innerText : '')
+const pageText = async (page) => await page.evaluate(readBodyText)
 const failureOf = (error, fallback) => ({
   code: error && error.cniprCode ? error.cniprCode : fallback,
   message: error && error.message ? error.message : String(error),
@@ -185,17 +186,20 @@ export function buildCniprLegalScript(
   return `${sharedPreamble(budgets)}
 const entries = ${JSON.stringify(entries)}
 const APP_NUMBER = new RegExp(${JSON.stringify(CNIPR_RESULT_APP_NUMBER_PATTERN.source)}, 'i')
+const submitHomeSearch = () => {
+  const input = document.querySelector('input[name="q"]')
+  input.closest('form').querySelector('button').click()
+}
+const hasAppNumberLabel = () => !!document.body && /申请号[：:]/.test(document.body.innerText)
 const resolveAppNumber = async (page, pubNumber) => {
   await waitForState(page, () => page.goto(BASE + '/', { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'domcontentloaded' }), 'CNIPR 首页')
   await page.fill('input[name="q"]', pubNumber, { clearFirst: true })
-  await page.evaluate(() => {
-    const input = document.querySelector('input[name="q"]')
-    input.closest('form').querySelector('button').click()
-  })
+  await page.evaluate(submitHomeSearch)
   await waitForState(page, () => page.waitForURL(/doOverviewSearch4Index/, { timeout: RESULT_TIMEOUT_MS }), '检索结果页')
-  await waitForState(page, () => page.waitForFunction(() => !!document.body && /申请号[：:]/.test(document.body.innerText), undefined, { timeout: RENDER_TIMEOUT_MS }), '结果页渲染')
+  await waitForState(page, () => page.waitForFunction(hasAppNumberLabel, undefined, { timeout: RENDER_TIMEOUT_MS }), '结果页渲染')
   return (await pageText(page)).replace(/\\s+/g, ' ').match(APP_NUMBER)
 }
+const hasLegalHeading = () => !!document.body && document.body.innerText.indexOf('法律状态检索结果') >= 0
 const queryLegal = async (page, appNumber) => {
   await page.goto(BASE + '/pages!legal.action', { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
   await waitForState(page, () => page.waitForSelector('#strAn', { timeout: RESULT_TIMEOUT_MS }), '法律状态检索表单')
@@ -203,7 +207,7 @@ const queryLegal = async (page, appNumber) => {
   await page.click('input[type=submit][value=检索]', { timeout: ACTION_TIMEOUT_MS })
   await waitForState(page, () => page.waitForURL(/doLegalSearch/, { timeout: RESULT_TIMEOUT_MS }), '法律状态结果页')
   // 只等结果区标题：零命中的结果页不输出记录数标记，等它必然超时（实测）。
-  await waitForState(page, () => page.waitForFunction(() => !!document.body && document.body.innerText.indexOf('法律状态检索结果') >= 0, undefined, { timeout: RENDER_TIMEOUT_MS }), '法律状态结果渲染')
+  await waitForState(page, () => page.waitForFunction(hasLegalHeading, undefined, { timeout: RENDER_TIMEOUT_MS }), '法律状态结果渲染')
   return await pageText(page)
 }
 const items = []
@@ -274,19 +278,21 @@ const readPage = (args) => {
     }),
   }
 }
+const clickPagination = (wanted) => {
+  const link = Array.from(document.querySelectorAll('#pagination_top a'))
+    .find(anchor => anchor.innerText.trim() === String(wanted))
+  if (!link) return false
+  link.click()
+  return true
+}
+const pageMarkerIs = (wanted) => {
+  const marker = document.querySelector('#startPage')
+  return !!marker && marker.value === String(wanted)
+}
 const turnToPage = async (page, target) => {
-  const moved = await page.evaluate((wanted) => {
-    const link = Array.from(document.querySelectorAll('#pagination_top a'))
-      .find(anchor => anchor.innerText.trim() === String(wanted))
-    if (!link) return false
-    link.click()
-    return true
-  }, target)
+  const moved = await page.evaluate(clickPagination, target)
   if (!moved) return false
-  await waitForState(page, () => page.waitForFunction((wanted) => {
-    const marker = document.querySelector('#startPage')
-    return !!marker && marker.value === String(wanted)
-  }, target, { timeout: RESULT_TIMEOUT_MS }), '第 ' + target + ' 页')
+  await waitForState(page, () => page.waitForFunction(pageMarkerIs, target, { timeout: RESULT_TIMEOUT_MS }), '第 ' + target + ' 页')
   await waitForState(page, () => page.waitForSelector('div.g_item', { timeout: RENDER_TIMEOUT_MS }), '第 ' + target + ' 页记录')
   return true
 }

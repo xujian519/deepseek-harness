@@ -123,6 +123,128 @@ describe('page budgets', () => {
   })
 })
 
+describe('page callbacks', () => {
+  const pdfScript = buildCniprPdfLinksScript(['CN122072823A'])
+  const legalScript = buildCniprLegalScript([{ number: '2023113560975', appNumber: '202311356097.5' }])
+  const searchScript = buildCniprSearchScript('石墨烯电池', 3)
+
+  /** 在无脚本体作用域的沙箱里求值一个页面回调。 */
+  function pageCallback(
+    script: string,
+    name: string,
+    nextAnchor: string,
+    sandbox: Record<string, unknown>,
+  ): (...args: unknown[]) => unknown {
+    return vm.runInNewContext(pageCallbackSource(script, name, nextAnchor), sandbox) as (...args: unknown[]) => unknown
+  }
+
+  it('passes only named script-body callbacks to the page context', () => {
+    // 内联回调逃得过沙箱回归，命名常量才可被逐个执行。
+    for (const body of [pdfScript, legalScript, searchScript]) {
+      expect(body).not.toMatch(/page\.(?:evaluate|waitForFunction)\(\s*(?:\(|function\b)/)
+    }
+  })
+
+  it('reads the body text with only the page globals', () => {
+    const read = pageCallback(pdfScript, 'readBodyText', 'const pageText', {
+      document: { body: { innerText: '欢迎您，徐健' } },
+    })
+    expect(read()).toBe('欢迎您，徐健')
+
+    const missingBody = pageCallback(pdfScript, 'readBodyText', 'const pageText', { document: { body: null } })
+    expect(missingBody()).toBe('')
+  })
+
+  it('submits the home search form with only the page globals', () => {
+    const clicks: string[] = []
+    const submit = pageCallback(legalScript, 'submitHomeSearch', 'const hasAppNumberLabel', {
+      document: {
+        querySelector: () => ({
+          closest: () => ({ querySelector: () => ({ click: () => clicks.push('submit') }) }),
+        }),
+      },
+    })
+    submit()
+    expect(clicks).toEqual(['submit'])
+  })
+
+  it('detects the application-number label with only the page globals', () => {
+    const found = pageCallback(legalScript, 'hasAppNumberLabel', 'const resolveAppNumber', {
+      document: { body: { innerText: '申请号：202311356097.5' } },
+    })
+    expect(found()).toBe(true)
+
+    const absent = pageCallback(legalScript, 'hasAppNumberLabel', 'const resolveAppNumber', {
+      document: { body: { innerText: '共 2 条' } },
+    })
+    expect(absent()).toBe(false)
+  })
+
+  it('detects the legal-status heading with only the page globals', () => {
+    const found = pageCallback(legalScript, 'hasLegalHeading', 'const queryLegal', {
+      document: { body: { innerText: '法律状态检索结果 共 2 条' } },
+    })
+    expect(found()).toBe(true)
+
+    const absent = pageCallback(legalScript, 'hasLegalHeading', 'const queryLegal', {
+      document: { body: { innerText: '无检索结果' } },
+    })
+    expect(absent()).toBe(false)
+  })
+
+  it('clicks a pagination link with only the evaluate argument', () => {
+    const clicks: number[] = []
+    const click = pageCallback(searchScript, 'clickPagination', 'const pageMarkerIs', {
+      document: {
+        querySelectorAll: () => [
+          { innerText: '1', click: () => clicks.push(1) },
+          { innerText: ' 2 ', click: () => clicks.push(2) },
+        ],
+      },
+    })
+    expect(click(2)).toBe(true)
+    expect(clicks).toEqual([2])
+    expect(click(9)).toBe(false)
+  })
+
+  it('reads the page marker with only the evaluate argument', () => {
+    const current = pageCallback(searchScript, 'pageMarkerIs', 'const turnToPage', {
+      document: { querySelector: () => ({ value: '2' }) },
+    })
+    expect(current(2)).toBe(true)
+    expect(current(3)).toBe(false)
+
+    const noMarker = pageCallback(searchScript, 'pageMarkerIs', 'const turnToPage', {
+      document: { querySelector: () => null },
+    })
+    expect(noMarker(2)).toBe(false)
+  })
+
+  it('reads result rows with only the evaluate argument', () => {
+    const row = (number: string, title: string, text: string) => ({
+      querySelector: (selector: string) => {
+        if (selector === 'input[name="recordno"]') return { getAttribute: () => number }
+        if (selector === 'li[name="patti"]') return { getAttribute: () => title }
+        if (selector === 'div.g_cont') return { innerText: text }
+        return null
+      },
+    })
+    const read = pageCallback(searchScript, 'readPage', 'const clickPagination', {
+      document: {
+        querySelector: () => ({ innerText: '全部655件专利' }),
+        querySelectorAll: () => [row('CN113650574B', '石墨烯电池', '摘要一'), row('CN100000000A', '另一件', '摘要二')],
+      },
+    })
+    expect(read({ offset: 3 })).toEqual({
+      header: '全部655件专利',
+      items: [
+        { cursor: 3, number: 'CN113650574B', title: '石墨烯电池', text: '摘要一' },
+        { cursor: 4, number: 'CN100000000A', title: '另一件', text: '摘要二' },
+      ],
+    })
+  })
+})
+
 describe('buildCniprPdfLinksScript', () => {
   it('embeds the numbers, the task space, and the login gate', () => {
     const script = buildCniprPdfLinksScript(['CN122072823A', 'CN100000000A'])
