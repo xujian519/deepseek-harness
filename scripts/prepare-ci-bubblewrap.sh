@@ -21,7 +21,15 @@ fi
 archive="${RUNNER_TEMP}/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb"
 root="${RUNNER_TEMP}/dsh-bubblewrap"
 
-curl --fail --silent --show-error --location --retry 3 --retry-all-errors --output "$archive" "$BUBBLEWRAP_URL"
+# Launchpad intermittently answers 503 or drops the connection, and a dead
+# socket otherwise holds one attempt open for minutes. Bound each attempt with
+# a speed floor so the retries run inside the job's time budget.
+curl --fail --silent --show-error --location \
+  --connect-timeout 15 --max-time 120 \
+  --speed-limit 1024 --speed-time 20 \
+  --retry 8 --retry-delay 5 --retry-max-time 300 \
+  --retry-all-errors \
+  --output "$archive" "$BUBBLEWRAP_URL"
 printf '%s  %s\n' "$BUBBLEWRAP_SHA256" "$archive" | sha256sum --check --status
 mkdir -p "$root"
 dpkg-deb --extract "$archive" "$root"
