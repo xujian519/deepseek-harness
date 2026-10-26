@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { createCheckPatentFigureConsistencyTool } from '../src/tool/check-patent-figure-consistency.ts'
+
+const signal = new AbortController().signal
+
+async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  for (const tool of tools) ctx.tools.register(tool)
+  return ctx
+}
+
+function execute(ctx: Context, name: string, args: unknown, label: string) {
+  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+}
+
+function text(result: { content: { type: string; text?: string }[] }): string {
+  return result.content.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
+}
+
+type ToolValue = {
+  figureCount: number
+  numericComponents: { refNumber: string; name: string; figureNumbers: number[] }[]
+  conflicts: { ref: string; message: string }[]
+  missingFigureNumbers: number[]
+  missingRefs: number[]
+  warnings: string[]
+  summary: string
+  consistent: boolean
+}
+
+describe('check_patent_figure_consistency', () => {
+  it('合并跨图标记并通过，摘要与渲染文本一致', async () => {
+    const ctx = await ctxWith(createCheckPatentFigureConsistencyTool())
+    const result = await execute(ctx, 'check_patent_figure_consistency', {
+      figures: [
+        { figure_number: 1, components: [{ ref_number: '10', name: '壳体' }] },
+        { figure_number: 2, components: [{ ref_number: '10', name: '壳体' }, { ref_number: '20', name: '盖板' }] },
+      ],
+      claim_context: '壳体(10)与盖板(20)连接',
+    }, 'c1') as { value: ToolValue }
+    expect(result.value.consistent).toBe(true)
+    expect(result.value.numericComponents).toEqual([
+      { refNumber: '10', name: '壳体', figureNumbers: [1, 2] },
+      { refNumber: '20', name: '盖板', figureNumbers: [2] },
+    ])
+    const rendered = text(result as unknown as { content: { type: string; text?: string }[] })
+    expect(rendered).toContain('跨图一致性检查：2 张附图')
+    expect(rendered).toContain('跨图一致性检查通过')
+  })
+
+  it('报出跨图冲突、缺号与缺标，名称缺省按空串处理', async () => {
+    const ctx = await ctxWith(createCheckPatentFigureConsistencyTool())
+    const result = await execute(ctx, 'check_patent_figure_consistency', {
+      figures: [
+        { figure_number: 1, components: [{ ref_number: '10', name: '壳体' }] },
+        { figure_number: 3, components: [{ ref_number: '10', name: '底座' }, { ref_number: '20' }] },
+      ],
+      claim_context: '壳体(10)与转轴(30)连接',
+    }, 'c2') as { value: ToolValue }
+    expect(result.value.consistent).toBe(false)
+    expect(result.value.conflicts).toHaveLength(1)
+    expect(result.value.missingFigureNumbers).toEqual([2])
+    expect(result.value.missingRefs).toEqual([30])
+    expect(result.value.numericComponents).toContainEqual({ refNumber: '20', name: '', figureNumbers: [3] })
+    const rendered = text(result as unknown as { content: { type: string; text?: string }[] })
+    expect(rendered).toContain('## 跨图冲突')
+    expect(rendered).toContain('## 缺失图号')
+    expect(rendered).toContain('## 未识别标记')
+  })
+
+  it('figures 为空时报 invalid_tool_input', async () => {
+    const ctx = await ctxWith(createCheckPatentFigureConsistencyTool())
+    const result = await execute(ctx, 'check_patent_figure_consistency', { figures: [] }, 'c3') as { isError: boolean }
+    expect(result.isError).toBe(true)
+    expect(text(result as unknown as { content: { type: string; text?: string }[] })).toContain('至少需要一张附图')
+  })
+
+  it('图号不是正整数时报 invalid_tool_input', async () => {
+    const ctx = await ctxWith(createCheckPatentFigureConsistencyTool())
+    const result = await execute(ctx, 'check_patent_figure_consistency', {
+      figures: [{ figure_number: 0, components: [] }],
+    }, 'c4') as { isError: boolean }
+    expect(result.isError).toBe(true)
+    expect(text(result as unknown as { content: { type: string; text?: string }[] })).toContain('必须是正整数')
+  })
+
+  it('图号重复时报 invalid_tool_input', async () => {
+    const ctx = await ctxWith(createCheckPatentFigureConsistencyTool())
+    const result = await execute(ctx, 'check_patent_figure_consistency', {
+      figures: [
+        { figure_number: 1, components: [] },
+        { figure_number: 1, components: [] },
+      ],
+    }, 'c5') as { isError: boolean }
+    expect(result.isError).toBe(true)
+    expect(text(result as unknown as { content: { type: string; text?: string }[] })).toContain('figure_number 重复')
+  })
+})

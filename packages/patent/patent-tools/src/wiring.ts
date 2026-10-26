@@ -1,5 +1,5 @@
 /**
- * Registration of the 33 patent tools on a Cordis context. `apply` in the package
+ * Registration of the 34 patent tools on a Cordis context. `apply` in the package
  * entry delegates here; the exports in this module are the composition surface
  * that tools and tests build on directly.
  * @module @deepseek-ai/dsh-patent-tools/wiring
@@ -44,6 +44,7 @@ import { createEvaluateEvidenceTool } from './tool/evaluate-evidence.ts'
 import { createRuleCheckTool } from './tool/rule-check.ts'
 import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
+import { createCheckPatentFigureConsistencyTool } from './tool/check-patent-figure-consistency.ts'
 import { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
 import { createGenerateStructureFigureTool } from './tool/generate-structure-figure.ts'
 import type { GenerateStructureFigureDeps } from './tool/generate-structure-figure.ts'
@@ -282,7 +283,7 @@ function registerPackageAtoms(
 }
 
 /**
- * Register the 33 patent tools.
+ * Register the 34 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */
@@ -445,6 +446,10 @@ export function registerPatentTools(ctx: Context, config: Config): void {
   ctx.tools.register(createSearchPatentFigureTool({
     loadIndex: () => figureIndexStore.load(figureIndexFile),
   }))
+
+  // 跨图一致性：对多张附图的分析结果做确定性校验（同一标记跨图同名、图号连续、
+  // 权利要求引用齐全）。纯函数、无模型调用；电学符号与网表不在范围。
+  ctx.tools.register(createCheckPatentFigureConsistencyTool())
 
   // Figure generation: default renderer is the bundled WASM engine (SVG with no
   // system dependency); PNG/PDF and figureRenderer="cli" go through the dot CLI

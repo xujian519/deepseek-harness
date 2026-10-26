@@ -57,6 +57,10 @@ export { createAnalyzePatentFigureTool, FIGURE_SPEC_GUIDE, resolveGateRoute } fr
 export type { AnalyzePatentFigureInput, AnalyzePatentFigureDeps, FigureAnalysisResult, FigureComponent, FigureType } from './tool/analyze-patent-figure.ts'
 export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-patent-figure.ts'
 export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps } from './tool/search-patent-figure.ts'
+export { createCheckPatentFigureConsistencyTool } from './tool/check-patent-figure-consistency.ts'
+export type { CheckPatentFigureConsistencyInput } from './tool/check-patent-figure-consistency.ts'
+export { checkFigureSetConsistency, extractClaimNumeralRefs, hasNumeralPrefix } from './figure/figure-set-consistency.ts'
+export type { FigureSetEntry, FigureSetConflict, FigureSetReport } from './figure/figure-set-consistency.ts'
 export { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
 export { FIGURE_GENERATOR_MODEL_USED } from './tool/figure-input.ts'
 export { expandSectionSource, SectionSourceError, SECTION_SOURCE_SIZE_TOLERANCE } from './figure/section-source.ts'
@@ -241,7 +245,7 @@ export const name = 'patent-tools'
 export const inject = ['tools']
 
 /**
- * Register the 33 patent tools and their workflow atoms.
+ * Register the 34 patent tools and their workflow atoms.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated plugin configuration.
  */

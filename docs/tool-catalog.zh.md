@@ -53,7 +53,7 @@
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
 | `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | list_doc_templates 列出随包的文档模板及其变量与支持的格式；render_doc_template 用给定变量把其中一个渲染为 Markdown、HTML 或 DOCX，并返回文档、残余占位符与变量警告。部署还可在 `styleGuide` 中指定已加载的书写风格名，把该风格指南作为系统提示段落注入。 |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`matter_log_append`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`check_patent_figure_consistency`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`matter_log_append`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`、`verify_deliverable` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`、`verify_patent_filing` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）按随包模板的体例成文为一件 DOCX，段落编号按 spec 的节声明执行；verify_patent_filing 就同一模板对成品跑体例与内容断言（分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、说明书名称、权项数、按节声明生效的编号连续性、残留内部痕迹）。 |
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled `<writing_skills>` block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
@@ -3100,6 +3100,66 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
   },
   "required": [
     "image_path"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `check_patent_figure_consistency`
+
+校验同一案件多张附图的跨图一致性：把 analyze_patent_figure 对每张图的识别结果放进 figures（图号 + 标记号/名称），检查 ① 同一数字标记在不同图中名称是否一致（如 10 在图1 是「壳体」、在图2 变成「底座」即报冲突）；② 图号是否从 1 起连续（缺号逐项列出）；③ 给出 claim_context（权利要求书或说明书正文）时，其中引用的数字标记（括号形「(10)」、直连形「壳体10」）是否都在某张图中识别到。纯确定性校验，不调用模型；电学符号与网表不在范围。一致时返回 consistent=true 与空警告，否则逐条给出可修正的警告。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "figures": {
+      "type": "array",
+      "description": "各图的标记清单；至少一张，图号不得重复",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "figure_number": {
+            "type": "integer",
+            "description": "图号（1 起，同一案件内唯一）"
+          },
+          "components": {
+            "type": "array",
+            "description": "本图识别出的组件列表（analyze_patent_figure 的结果）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref_number": {
+                  "type": "string",
+                  "description": "附图标记号（数字型，与图面一致）"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "该标记在本图中的部件名称"
+                }
+              },
+              "required": [
+                "ref_number"
+              ]
+            }
+          }
+        },
+        "required": [
+          "figure_number",
+          "components"
+        ]
+      }
+    },
+    "claim_context": {
+      "type": "string",
+      "description": "权利要求书或说明书正文（可选）：给出时核对其中引用的数字标记是否都在附图中识别到"
+    }
+  },
+  "required": [
+    "figures"
   ]
 }
 ```
