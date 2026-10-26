@@ -37,7 +37,7 @@ describe('generateYamlIndex', () => {
     expect(yaml).toContain('verifiedOn: null')
   })
 
-  it('writes article text and provenance when transcribing', () => {
+  it('writes article text, source file, and verification date when transcribing', () => {
     const parsed = parseLawMarkdown(LAW, '/tmp/测试法(2020-01-01).md')
     const yaml = generateYamlIndex(parsed, { transcribe: true, verifiedOn: '2026-10-26' })
     expect(yaml).toContain('text: 第一条内容。')
