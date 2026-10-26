@@ -31,10 +31,10 @@ import { TARGET_OFFICES } from '../figure/office-profile.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
 import { buildVectorFigure, isVectorFigureType } from '../figure/vector-figure-build.ts'
 import { VectorFigureError, vectorFigureSvg } from '../figure/vector-figure.ts'
-import { checkFigureRendering } from '../figure/render-check.ts'
+import { clearanceMmForFigure } from '../figure/render-check.ts'
+import { gateRenderedSvg } from '../figure/render-check-gate.ts'
 import { SectionSourceError, expandSectionSource } from '../figure/section-source.ts'
 import type { SectionSourceExpansion } from '../figure/section-source.ts'
-import { SvgAnnotateError } from '../figure/svg-annotate.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { FIGURE_TYPE_NAMES, FIGURE_TYPES } from './analyze-patent-figure.ts'
 import { collectComponents, collectFigureWording, inferFigureType, presentStructuralFields, presentVectorFields, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
@@ -399,7 +399,8 @@ async function generateSingleFigure(
       input: normalized,
       suffix: '',
       format,
-      check: vector,
+      // SVG 交付物总能复核；png/pdf 直绘没有可量测的图面。
+      check: vector || format === 'svg',
       figureType: normalized.figure_type,
       style: context.style,
       signal: context.signal,
@@ -705,7 +706,14 @@ async function finishSvgChain(args: {
     output: staged,
     ...styleBodyFont(args.deps, args.figureType),
   })
-  await checkRenderedFigure({ path: args.svgPath, warnings: staged.warnings, figureType: args.figureType })
+  await gateRenderedSvg({
+    path: args.svgPath,
+    warnings: staged.warnings,
+    clearanceMm: clearanceMmForFigure(args.figureType),
+    failOnFindings: args.deps.failOnRenderFindings === true,
+    tool: 'generate_patent_figure',
+    ...(args.suffix === '' ? {} : { label: `面板 ${args.suffix} ` }),
+  })
   await outlineFigureText({ deps: args.deps, path: args.svgPath, format: 'svg', signal: args.signal, warnings: staged.warnings })
   const exported = await args.deps.exportFigure?.({
     path: args.svgPath,
@@ -754,7 +762,18 @@ async function finishDirectRender(args: {
     output: args.output,
     ...styleBodyFont(args.deps, args.figureType),
   })
-  if (args.check) await checkRenderedFigure({ path: args.outcomePath, warnings: args.output.warnings, figureType: args.figureType })
+  if (args.check) {
+    await gateRenderedSvg({
+      path: args.outcomePath,
+      warnings: args.output.warnings,
+      clearanceMm: clearanceMmForFigure(args.figureType),
+      failOnFindings: args.deps.failOnRenderFindings === true,
+      tool: 'generate_patent_figure',
+      ...(args.suffix === '' ? {} : { label: `面板 ${args.suffix} ` }),
+    })
+  } else if (args.deps.failOnRenderFindings === true) {
+    args.output.warnings.push('渲染复核未执行（该格式走渲染器直绘、没有 SVG 可量测）：figureFailOnRenderFindings 对本次输出不生效')
+  }
   await outlineFigureText({
     deps: args.deps,
     path: args.outcomePath,
@@ -1016,48 +1035,6 @@ async function layoutSubmissionPage(args: {
   const applied = await applySubmissionPage(args.outcomePath, plan, args.format, args.output.warnings)
   if (applied !== undefined) {
     args.output.layout = buildLayout(plan, applied, args.style, args.input.figure_count ?? 1, args.output.warnings)
-  }
-}
-
-/**
- * 渲染复核：量测交付文件，把发现折成警告（只对直绘图型）。
- *
- * 放在落版之后、文字转路径之前：落版会改写坐标与画布，复核要量的是最终交付物；转路径
- * 之后图面已无 `<text>`，贯穿判定无从做起。只查得出「画出来才看得见」的问题（标号被
- * 线条贯穿、点划线被实线覆盖、相邻零件剖面线的方向与间距都分不清、内容越出画布），与
- * 输入检查互补。
- * 体量上限已由 vectorFigureSvg 按 DEFAULT_VECTOR_BODY_MAX_BYTES 卡住，复核不再按同一上限
- * 二次拦截（复核含未量测说明，超限被拒会把它整段吞掉）；调用方给的外观视图片段仍可能带上
- * 复核本身拒绝的结构，那时记一条跳过说明，不吞掉已生成的图。
- *
- * **标号净距只对机械剖视图开启**：1.5 毫米（复核的缺省值）来自 A6 案的实测——剖切面上
- * 密布剖面线时，标号贴住剖面线带或轴线就读不出。其余图型的图面词语本来就贴着符号放：
- * 电路图的元件名与连线说明按 `LABEL_GAP_MM` 落在符号与走线旁、曲线图的轴名贴着轴画，
- * 对这些图型套用同一净距会把工具自己画对的图报成缺陷。需要更严或更松时，调用方用
- * `verify_patent_figure` 的 `text_clearance_mm` 显式指定。
- * @param args - the delivered path, the figure type and the warning sink.
- */
-async function checkRenderedFigure(args: { path: string; warnings: string[]; figureType: GenerateFigureType }): Promise<void> {
-  let svg: string
-  try {
-    svg = await readFile(args.path, 'utf8')
-  } catch (error) {
-    /* v8 ignore start -- the delivered file was just written; a read failure is reported without aborting */
-    args.warnings.push(`渲染复核被跳过：读取 ${args.path} 失败（${error instanceof Error ? error.message : String(error)}）`)
-    return
-    /* v8 ignore stop */
-  }
-  try {
-    const report = checkFigureRendering(svg, {
-      maxBytes: Buffer.byteLength(svg, 'utf8'),
-      ...(args.figureType === 'cross_section' ? {} : { textClearanceMm: 0 }),
-    })
-    args.warnings.push(...report.findings.map(finding => `渲染复核：${finding.message}`))
-  } catch (error) {
-    /* v8 ignore start -- the rendered file already passed the same safety check during layout/write */
-    if (!(error instanceof SvgAnnotateError)) throw error
-    args.warnings.push(`渲染复核被跳过：${error.message}`)
-    /* v8 ignore stop */
   }
 }
 

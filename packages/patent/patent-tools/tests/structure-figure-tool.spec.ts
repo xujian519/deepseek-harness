@@ -1049,3 +1049,58 @@ describe('generate_structure_figure 装配体（model_paths）', () => {
     }
   })
 })
+
+describe('generate_structure_figure 渲染复核门禁', () => {
+  /** 跨组线穿过文字：真实缺陷。 */
+  const CROSSED = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="40mm" viewBox="0 0 120 40">',
+    '  <g fill="none" stroke="#000000">',
+    '    <g class="node"><polygon points="10,10 40,10 40,30 10,30"/></g>',
+    '    <line x1="60" y1="5" x2="60" y2="35" stroke-width="0.25"/>',
+    '    <text x="60" y="22" text-anchor="middle">条件</text>',
+    '  </g>',
+    '</svg>',
+  ].join('\n')
+
+  it('strict 命中阻断级发现时抛错，已写入的视图保留', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render } = okRenderer({ svg: CROSSED })
+      const tool = createGenerateStructureFigureTool({
+        render,
+        enabled: true,
+        outputDir: outDir,
+        cwd: dir,
+        failOnRenderFindings: true,
+      })
+      const error = await tool.execute({ model_path: writeModel(dir, 'a.step'), views: ['iso'] }, exec)
+        .catch((caught: unknown) => caught)
+      expect((error as Error).message).toContain('渲染复核未通过')
+      expect((error as Error).message).toContain('图面文字「条件」被线条贯穿')
+      expect((error as Error).message).toContain('fig1_iso.svg')
+      expect(existsSync(join(outDir, 'fig1', 'fig1_iso.svg'))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('默认模式只记警告，不阻断', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render } = okRenderer({ svg: CROSSED })
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_structure_figure', {
+        model_path: writeModel(dir, 'a.step'),
+        views: ['iso'],
+      }, 'gate1')
+      expect(result.isError).toBe(false)
+      const warnings = (result as never as { value: { warnings: string[] } }).value.warnings
+      expect(warnings.some(warning => warning.includes('渲染复核：图面文字「条件」被线条贯穿'))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

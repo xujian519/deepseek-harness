@@ -501,6 +501,7 @@ export function registerPatentTools(ctx: Context, config: Config): void {
     loadIndex: async () => (await figureIndexStore.load(figureIndexFile)).entries,
     resolveFont: labels => resolveDotFont(config, labels),
     ...(config.figureRequireCuttingMarks === undefined ? {} : { requireCuttingMarks: config.figureRequireCuttingMarks }),
+    ...(config.figureFailOnRenderFindings === undefined ? {} : { failOnRenderFindings: config.figureFailOnRenderFindings }),
     ...(config.figureFontMm === undefined ? {} : { figureFontMm: config.figureFontMm }),
     ...(config.figurePageSize === undefined ? {} : { pageSize: config.figurePageSize }),
     ...(config.figureOrientation === undefined ? {} : { orientation: config.figureOrientation }),
@@ -541,6 +542,7 @@ export function registerPatentTools(ctx: Context, config: Config): void {
     outputDir: resolveFigureOutputDir(config),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
     ...(config.structureFigureScale === undefined ? {} : { defaultScale: config.structureFigureScale }),
+    ...(config.figureFailOnRenderFindings === undefined ? {} : { failOnRenderFindings: config.figureFailOnRenderFindings }),
     ...(structureViews === undefined ? {} : { defaultViews: structureViews }),
   }))
 

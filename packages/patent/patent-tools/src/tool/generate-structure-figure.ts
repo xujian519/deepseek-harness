@@ -26,6 +26,8 @@ import { FIGURE_TYPE_NAMES } from './analyze-patent-figure.ts'
 import type { FigureAnalysisResult, FigureComponent } from './analyze-patent-figure.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
 import { DEFAULT_SVG_MAX_BYTES, assertSafeSvg } from '../figure/svg-annotate.ts'
+import { clearanceMmForFigure } from '../figure/render-check.ts'
+import { gateRenderedSvg } from '../figure/render-check-gate.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import {
   DEFAULT_STRUCTURE_VIEWS,
@@ -215,6 +217,12 @@ export type GenerateStructureFigureDeps = {
   defaultScale?: number
   /** 视图默认（Config.structureFigureViews）。 */
   defaultViews?: readonly StructureViewName[]
+  /**
+   * 渲染复核门禁（Config.figureFailOnRenderFindings）：为 true 时任一视图的复核
+   * 发现除 `not-measured` 外的问题即判本次生成失败，已写入的视图保留供修正；
+   * 缺省只把发现折成警告。
+   */
+  failOnRenderFindings?: boolean
   /**
    * 可选文字转路径（Config.figureTextToPath 注入的 port）：把每个视图 SVG 的 `<text>`
    * 换成轮廓路径。Config 未开启时缺省，视为不转换。
@@ -843,6 +851,19 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
         run.callouts.map(callout => callout.numeral),
       ))
       const layout = await applyStructureLayout({ run, figures, warnings })
+      // 复核放在落版之后、文字转路径之前：落版改写坐标与画布，转路径后图面已无 `<text>`。
+      for (const figure of figures) {
+        for (const viewPath of figure.paths) {
+          await gateRenderedSvg({
+            path: resolve(run.cwd, viewPath),
+            warnings,
+            clearanceMm: clearanceMmForFigure('structure'),
+            failOnFindings: deps.failOnRenderFindings === true,
+            tool: 'generate_structure_figure',
+            label: `图${figure.figureNumber} `,
+          })
+        }
+      }
       await outlineStructureViews({ run, figures, signal: exec.signal })
       let indexed = false
       if ((run.input.persist_index ?? true) && deps.upsertIndex !== undefined) {

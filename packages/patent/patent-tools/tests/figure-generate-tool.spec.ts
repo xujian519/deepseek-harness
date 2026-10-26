@@ -965,7 +965,10 @@ describe('generate_patent_figure leader lines', () => {
         persist_index: false,
       }, 'll6')
       expect(result.isError).toBe(false)
-      expect((valueOf(result) as { warnings: string[] }).warnings).toEqual(['引线标注被跳过：SVG 包含 ENTITY/CDATA 等不安全结构，拒绝处理'])
+      expect((valueOf(result) as { warnings: string[] }).warnings).toEqual([
+        '引线标注被跳过：SVG 包含 ENTITY/CDATA 等不安全结构，拒绝处理',
+        '渲染复核被跳过：SVG 包含 ENTITY/CDATA 等不安全结构，拒绝处理',
+      ])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -1581,6 +1584,110 @@ describe('generate_patent_figure：面板与非 SVG 全链', () => {
       expect(value.path).toBe('fig1.png')
       // 中间 SVG 的 DOT 已按引线模式关闭内嵌标号；回退直出仍沿用同一份 DOT。
       expect(calls[0]?.dot).not.toContain('"start" [label="100. 开始"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('渲染复核门禁（strict）', () => {
+  /** 跨组线穿过文字：真实缺陷（同组豁免不覆盖）。 */
+  const CROSSED_SVG = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="40mm" viewBox="0 0 120 40">',
+    '  <g fill="none" stroke="#000000">',
+    '    <g class="node"><polygon points="10,10 40,10 40,30 10,30"/></g>',
+    '    <line x1="60" y1="5" x2="60" y2="35" stroke-width="0.25"/>',
+    '    <text x="60" y="22" text-anchor="middle">条件</text>',
+    '  </g>',
+    '</svg>',
+  ].join('\n')
+
+  /** 写死 SVG 内容的渲染器替身（raw_dot 不需要结构输入，适合直接喂缺陷图）。 */
+  function fixedRenderer(svg: string) {
+    return (spec: GraphvizRenderSpec): Promise<GraphvizRenderOutcome> => {
+      const out = join(spec.outputDir, `${spec.filename}.${spec.format}`)
+      writeFileSync(out, spec.format === 'svg' ? svg : 'png-bytes')
+      return Promise.resolve({ ok: true, path: out })
+    }
+  }
+
+  function resultText(result: unknown): string {
+    return (result as { content: { type: string; text?: string }[] }).content
+      .filter(block => block.type === 'text')
+      .map(block => block.text ?? '')
+      .join('')
+  }
+
+  it('strict 命中阻断级发现时抛错，文件保留但不作为交付件', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const tool = createGeneratePatentFigureTool({
+        render: fixedRenderer(CROSSED_SVG),
+        outputDir: outDir,
+        cwd: dir,
+        failOnRenderFindings: true,
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'raw_dot',
+        dot: 'digraph G { a; }',
+        persist_index: false,
+      }, 'strict1')
+      expect(result.isError).toBe(true)
+      const text = resultText(result)
+      expect(text).toContain('渲染复核未通过')
+      expect(text).toContain('图面文字「条件」被线条贯穿')
+      expect(text).toContain(join(outDir, 'fig1.svg'))
+      expect(existsSync(join(outDir, 'fig1.svg'))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('默认模式只把发现折成警告，不阻断', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const tool = createGeneratePatentFigureTool({
+        render: fixedRenderer(CROSSED_SVG),
+        outputDir: outDir,
+        cwd: dir,
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'raw_dot',
+        dot: 'digraph G { a; }',
+        persist_index: false,
+      }, 'strict2')
+      expect(result.isError).toBe(false)
+      const warnings = (valueOf(result) as { warnings: string[] }).warnings
+      expect(warnings.some(warning => warning.includes('渲染复核：图面文字「条件」被线条贯穿'))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('非 SVG 直绘通路没有可量测的图面，strict 不生效并给出警告', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const tool = createGeneratePatentFigureTool({
+        render: fixedRenderer(CROSSED_SVG),
+        outputDir: outDir,
+        cwd: dir,
+        failOnRenderFindings: true,
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: [{ id: 's1', label: '开始', next: [] }],
+        format: 'png',
+        persist_index: false,
+      }, 'strict3')
+      expect(result.isError).toBe(false)
+      const warnings = (valueOf(result) as { warnings: string[] }).warnings
+      expect(warnings.some(warning => warning.includes('渲染复核未执行'))).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

@@ -75,6 +75,12 @@ export interface Config {
    */
   figureRequireCuttingMarks?: boolean
   /**
+   * 渲染复核门禁：为 true 时，两个附图生成工具在复核发现除 `not-measured` 外的问题时
+   * 判本次生成失败（文件保留供修正，不导出交付件）；默认 false，只把发现折成警告。
+   * 非 SVG 直绘通路没有可量测的图面，门禁不生效并给出警告。
+   */
+  figureFailOnRenderFindings?: boolean
+  /**
    * 图面文字字号的部署默认（毫米）：直绘图型的图面字号、DOT 图型的 fontsize 与落版核算
    * 的字高都由它定（小四 = 4.23 毫米、四号 = 4.94 毫米）；模型显式给的字号优先。
    * 必须为正数：0 会让图面文字失去字高，故在加载时由 schema 拒绝。
@@ -143,6 +149,7 @@ export const Config: z<Config> = z.object({
   figureOutputDir: z.string(),
   figureTextToPath: z.boolean(),
   figureRequireCuttingMarks: z.boolean(),
+  figureFailOnRenderFindings: z.boolean(),
   figureFontMm: z.number().min(Number.MIN_VALUE),
   figureMinFontMm: z.number().min(Number.MIN_VALUE),
   inkscapeExecutable: z.string(),

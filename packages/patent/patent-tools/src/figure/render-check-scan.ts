@@ -50,6 +50,13 @@ export type Matrix = readonly [number, number, number, number, number, number]
 /** 文字占位框经变换后的像：`O`、`O+e1`、`O+e1+e2`、`O+e2`。 */
 export type Quad = readonly [Point, Point, Point, Point]
 
+/**
+ * 语义分组：Graphviz 把节点与边各自包在 `<g class="node|edge">` 内，节点标签与
+ * 节点轮廓、边标签与边路径因此同组。复核据此区分「同一语义元素内部的排版贴靠」
+ * 与「跨元素的真实压线」。
+ */
+export type ScanGroup = { readonly id: number; readonly kind: 'node' | 'edge' }
+
 /** 一个描边图形（元素可能含多条子路径）。 */
 export type Shape = {
   readonly subpaths: readonly SubPath[]
@@ -67,6 +74,8 @@ export type Shape = {
   readonly occludes: boolean
   /** 元素在文档序中的位置（0 起）：遮挡只作用于序号更小的图元。 */
   readonly order: number
+  /** 所属语义分组（最近一层 `<g class="node|edge">`）；无分组时为 undefined。 */
+  readonly group?: ScanGroup
 }
 
 /** 一个文字元素：内容与经该元素变换后的文字占位框。 */
@@ -76,6 +85,8 @@ export type ScannedText = {
   readonly box: GlyphBox
   /** 该元素的累计变换（占位框经它映射到根坐标系）。 */
   readonly matrix: Matrix
+  /** 所属语义分组（{@link ScanGroup}）；无分组时为 undefined。 */
+  readonly group?: ScanGroup
 }
 
 /** 一条落在图面上的线段及其来源。 */
@@ -85,6 +96,8 @@ export type DrawnSegment = {
   readonly order: number
   /** 所属图形被标注为引线（{@link ROLE_ATTRIBUTE}）。 */
   readonly leader: boolean
+  /** 所属语义分组（{@link ScanGroup}）；无分组时为 undefined。 */
+  readonly group?: ScanGroup
 }
 
 /** 遮挡面：不透明填充的闭合轮廓及其文档序。 */
@@ -111,6 +124,8 @@ export type Frame = {
   readonly textAnchor: GlyphTextAnchor
   /** 位于不直接渲染的定义容器内、或 `display: none`：子树整体跳过。 */
   readonly skip: boolean
+  /** 所属语义分组：`<g class="node|edge">` 建立，后代继承；无分组时为 undefined。 */
+  readonly group?: ScanGroup
 }
 
 /** 一张 SVG 的图面事实。 */
@@ -546,9 +561,17 @@ function geometryOf(name: string, tag: string, note: (reason: string) => void): 
  * @param note - 记录未量测原因的收集器。
  * @returns 该元素的帧；变换不可识别时 undefined。
  */
-function childFrame(parent: Frame, name: string, tag: string, note: (reason: string) => void): Frame | undefined {
+function childFrame(
+  parent: Frame,
+  name: string,
+  tag: string,
+  note: (reason: string) => void,
+  nextGroupId: () => number,
+): Frame | undefined {
   const transform = parseTransform(styled(tag, 'transform'))
   if (transform === undefined) return undefined
+  const groupKind = name === 'g' ? groupKindOf(attr(tag, 'class')) : undefined
+  const group = groupKind === undefined ? parent.group : { id: nextGroupId(), kind: groupKind }
   const stroke = styled(tag, 'stroke')
   const fill = styled(tag, 'fill')
   const rawFontSize = styled(tag, 'font-size')
@@ -570,7 +593,17 @@ function childFrame(parent: Frame, name: string, tag: string, note: (reason: str
     textAnchor: textAnchorValue(styled(tag, 'text-anchor')) ?? parent.textAnchor,
     // `display: none` 的子树不渲染：既不算墨迹，也不再逐元素记为未量测。
     skip: parent.skip || styled(tag, 'display') === 'none' || DEFINITION_CONTAINERS.has(name),
+    ...(group === undefined ? {} : { group }),
   }
+}
+
+/** 从 `class` 属性识别 Graphviz 的语义分组；其他 `<g>` 不建立分组。 */
+function groupKindOf(className: string | undefined): 'node' | 'edge' | undefined {
+  if (className === undefined) return undefined
+  const tokens = className.trim().split(/\s+/)
+  if (tokens.includes('node')) return 'node'
+  if (tokens.includes('edge')) return 'edge'
+  return undefined
 }
 
 /**
@@ -590,6 +623,7 @@ function textEntry(content: string, tag: string, frame: Frame): ScannedText {
       frame.textAnchor,
     ),
     matrix: frame.matrix,
+    ...(frame.group === undefined ? {} : { group: frame.group }),
   }
 }
 
@@ -665,6 +699,11 @@ export function scanSvg(svg: string): Scan {
   if (viewport.note !== undefined) note(viewport.note)
   let rootSvgSeen = false
   let orderCount = 0
+  let groupCount = 0
+  const nextGroupId = (): number => {
+    groupCount += 1
+    return groupCount
+  }
   let pending: { readonly contentStart: number; readonly tag: string; readonly frame: Frame } | undefined
 
   for (const match of source.matchAll(TAG_PATTERN)) {
@@ -684,7 +723,7 @@ export function scanSvg(svg: string): Scan {
     const parent = stack[stack.length - 1] as Frame
     /* v8 ignore next -- the tag pattern always captures the optional self-closing slash. */
     const selfClosing = (match[4] ?? '') === '/'
-    const own = childFrame(parent, name, tag, note)
+    const own = childFrame(parent, name, tag, note, nextGroupId)
     if (own === undefined) {
       note('含 `translate`/`scale`/`rotate`/`matrix` 之外的变换（或参数非法），相关图元的几何未量测')
       if (!selfClosing) stack.push({ ...parent, skip: true })
@@ -737,6 +776,7 @@ export function scanSvg(svg: string): Scan {
       ...(role === undefined ? {} : { role }),
       occludes: frame.occludes,
       order: orderCount,
+      ...(frame.group === undefined ? {} : { group: frame.group }),
     })
     orderCount += 1
   }
