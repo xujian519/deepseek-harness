@@ -21,6 +21,7 @@ import type { FigureHierarchyEdge } from '../figure/hierarchy-check.ts'
 import { checkFigureRendering } from '../figure/render-check.ts'
 import type { RenderCheckReport } from '../figure/render-check.ts'
 import { SvgAnnotateError } from '../figure/svg-annotate.ts'
+import { FINDING_FIELDS } from './internal/analysis-schemas.ts'
 import { SVG_PATH_PARAM, SVG_PATH_RESULT_FIELDS, readSvgInput } from './internal/svg-input.ts'
 
 /** 依赖注入。cwd 为路径基准，默认 process.cwd()。 */
@@ -153,7 +154,7 @@ export function createVerifyPatentFigureTool(deps: VerifyPatentFigureDeps = {}):
             items: {
               type: 'object',
               additionalProperties: false,
-              properties: { check: { type: 'string', required: true }, message: { type: 'string', required: true } },
+              properties: FINDING_FIELDS,
             },
           },
         },

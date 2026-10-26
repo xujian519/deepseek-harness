@@ -13,6 +13,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 import { checkFigureSetConsistency } from '../figure/figure-set-consistency.ts'
 import type { FigureSetEntry, FigureSetReport } from '../figure/figure-set-consistency.ts'
+import { MARK_COMPONENT_SCHEMA, REPORT_TAIL_FIELDS } from './internal/analysis-schemas.ts'
 
 /** 输入：各图的标记清单与可选的引用正文。 */
 export type CheckPatentFigureConsistencyInput = {
@@ -56,14 +57,7 @@ export function createCheckPatentFigureConsistencyTool(): ToolDefinition {
             components: {
               type: 'array',
               required: true,
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  ref_number: { type: 'string', required: true, description: '附图标记号（数字型，与图面一致）' },
-                  name: { type: 'string', description: '该标记在本图中的部件名称' },
-                },
-              },
+              items: MARK_COMPONENT_SCHEMA,
               description: '本图识别出的组件列表（analyze_patent_figure 的结果）',
             },
           },
@@ -122,8 +116,7 @@ export function createCheckPatentFigureConsistencyTool(): ToolDefinition {
           missingFigureNumbers: { type: 'array', required: true, items: { type: 'integer' } },
           missingRefs: { type: 'array', required: true, items: { type: 'integer' } },
           warnings: { type: 'array', required: true, items: { type: 'string' } },
-          summary: { type: 'string', required: true },
-          consistent: { type: 'boolean', required: true },
+          ...REPORT_TAIL_FIELDS,
         },
       },
       render: (_args, value) => {

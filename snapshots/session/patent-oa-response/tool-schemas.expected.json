@@ -146,11 +146,11 @@
                     "properties": {
                       "ref_number": {
                         "type": "string",
-                        "description": "附图标记号（数字型，与图面一致）"
+                        "description": "附图标记号（与图面一致）"
                       },
                       "name": {
                         "type": "string",
-                        "description": "该标记在本图中的部件名称"
+                        "description": "该标号的部件名称"
                       }
                     },
                     "required": [
@@ -213,6 +213,87 @@
           "mode",
           "claim_text",
           "targets"
+        ]
+      }
+    },
+    {
+      "name": "compare_patent_figure_analysis",
+      "description": "比对出图期望与识图结果：expected 给出生成附图时声明的图型与标号清单，analysis 给出 analyze_patent_figure 的识别结果，本工具逐项报告缺标（期望有、识图无）、多标（识图有、期望无）、名称不符（两侧名称都非空且不同）与图型不符。纯确定性比对，不调用模型；连接关系暂不比对。闭环用法：generate_patent_figure → analyze_patent_figure → 本工具；无发现时 consistent=true。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "figure_type": {
+                "type": "string",
+                "description": "图型名称（如 flowchart、cross_section）；两侧都给出时比对，缺省不判"
+              },
+              "components": {
+                "type": "array",
+                "description": "该侧的标号清单",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "ref_number": {
+                      "type": "string",
+                      "description": "附图标记号（与图面一致）"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "该标号的部件名称"
+                    }
+                  },
+                  "required": [
+                    "ref_number"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "components"
+            ]
+          },
+          "analysis": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "figure_type": {
+                "type": "string",
+                "description": "图型名称（如 flowchart、cross_section）；两侧都给出时比对，缺省不判"
+              },
+              "components": {
+                "type": "array",
+                "description": "该侧的标号清单",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "ref_number": {
+                      "type": "string",
+                      "description": "附图标记号（与图面一致）"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "该标号的部件名称"
+                    }
+                  },
+                  "required": [
+                    "ref_number"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "components"
+            ]
+          }
+        },
+        "required": [
+          "expected",
+          "analysis"
         ]
       }
     },

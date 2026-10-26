@@ -48,7 +48,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `check_patent_figure_consistency`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `matter_log_append`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `check_patent_figure_consistency`, `claim_chart_build`, `compare_patent_figure_analysis`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `matter_log_append`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`, `verify_deliverable` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
 | `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`, `verify_patent_filing` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, with paragraph numbering following the spec's per-section declaration; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, the specification title, claim count, numbering continuity where a section declares it, and surviving internal marks. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
@@ -3132,11 +3132,11 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
               "properties": {
                 "ref_number": {
                   "type": "string",
-                  "description": "附图标记号（数字型，与图面一致）"
+                  "description": "附图标记号（与图面一致）"
                 },
                 "name": {
                   "type": "string",
-                  "description": "该标记在本图中的部件名称"
+                  "description": "该标号的部件名称"
                 }
               },
               "required": [
@@ -3204,6 +3204,92 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "mode",
     "claim_text",
     "targets"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `compare_patent_figure_analysis`
+
+比对出图期望与识图结果：expected 给出生成附图时声明的图型与标号清单，analysis 给出 analyze_patent_figure 的识别结果，本工具逐项报告缺标（期望有、识图无）、多标（识图有、期望无）、名称不符（两侧名称都非空且不同）与图型不符。纯确定性比对，不调用模型；连接关系暂不比对。闭环用法：generate_patent_figure → analyze_patent_figure → 本工具；无发现时 consistent=true。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "figure_type": {
+          "type": "string",
+          "description": "图型名称（如 flowchart、cross_section）；两侧都给出时比对，缺省不判"
+        },
+        "components": {
+          "type": "array",
+          "description": "该侧的标号清单",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ref_number": {
+                "type": "string",
+                "description": "附图标记号（与图面一致）"
+              },
+              "name": {
+                "type": "string",
+                "description": "该标号的部件名称"
+              }
+            },
+            "required": [
+              "ref_number"
+            ]
+          }
+        }
+      },
+      "required": [
+        "components"
+      ]
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "figure_type": {
+          "type": "string",
+          "description": "图型名称（如 flowchart、cross_section）；两侧都给出时比对，缺省不判"
+        },
+        "components": {
+          "type": "array",
+          "description": "该侧的标号清单",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ref_number": {
+                "type": "string",
+                "description": "附图标记号（与图面一致）"
+              },
+              "name": {
+                "type": "string",
+                "description": "该标号的部件名称"
+              }
+            },
+            "required": [
+              "ref_number"
+            ]
+          }
+        }
+      },
+      "required": [
+        "components"
+      ]
+    }
+  },
+  "required": [
+    "expected",
+    "analysis"
   ]
 }
 ```
