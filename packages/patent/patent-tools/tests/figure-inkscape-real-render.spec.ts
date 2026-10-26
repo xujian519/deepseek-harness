@@ -19,9 +19,9 @@ import { vectorFigureSvg } from '../src/figure/vector-figure.ts'
  * 验证「已生成附图 → 文字转轮廓路径」的完整链路：文字消失、画布与几何逐值保持、
  * 转换后的文件仍能通过渲染复核。
  *
- * CI 上没有这条链路的信号：`.github/workflows/ci-fork.yml` 只装 graphviz 与
- * fonts-noto-cjk，不装 Inkscape（本机开发环境装了），所以 CI 上这一组必然跳过，
- * 跳过即「无信号」而不是「通过」；要信号得把 Inkscape 装进 CI 镜像。
+ * CI 信号由 `.github/workflows/ci-fork.yml` 的 `node-cad-render` job 提供：
+ * `scripts/prepare-ci-cad.sh` 装上 Inkscape 并用 `--require-zero` 拒绝任何跳过。
+ * 单元与覆盖率 lane 只装 graphviz 与 fonts-noto-cjk，这一组在那里仍然整组跳过。
  */
 
 /** 无 Inkscape 时跳过端到端 suite。 */
