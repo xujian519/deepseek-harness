@@ -3786,7 +3786,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
 
-剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
+剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、break_lines（断裂线：长零件省略中段时在被断开的两端各画一条细实线，零件拆成两段轮廓给出）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
 
 CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_path（STEP/IGES/BREP）与剖切平面 plane（origin 平面内一点、normal 法向、可选 reference 图面「向右」基准）即由本机 FreeCAD 切出闭合轮廓与剖面线；返回的提示里给出切出的材料区域清单（净面积与图面范围），parts 仍按区域逐个给 label、hatch 与 stroke_width_mm，并用 anchor（落在该区域内的一个图面坐标点）把它与区域对上——区域顺序由 OCCT 决定，不能用序号对。剖面线由模型按区域（含孔）精确裁出，孔里不会被打上；source.scale 缩放图面（默认 1），labels/centerlines/cutting_marks 请给同一比例下的图面坐标。给 part_size_mm 会与模型包围盒比对，不符即报错（挡住模型单位读错导致的整体比例错误）。需要本机安装 FreeCAD 1.1+。
 
@@ -4341,6 +4341,50 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
                   "from",
                   "to",
                   "arrow"
+                ]
+              }
+            },
+            "break_lines": {
+              "type": "array",
+              "description": "断裂线（折断线，细实线）：长零件省略中段时，在被断开的两端各画一条；零件轮廓由调用方拆成两段给出，断口之间留出省略区",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": "array",
+                    "description": "断口起点（图面毫米）",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "to": {
+                    "type": "array",
+                    "description": "断口终点：与起点不同，方向即断口横跨方向",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "style": {
+                    "type": "string",
+                    "description": "线型：锯齿（默认）或波浪",
+                    "enum": [
+                      "zigzag",
+                      "wavy"
+                    ]
+                  },
+                  "amplitude_mm": {
+                    "type": "number",
+                    "description": "齿高/波幅（毫米），默认 1.5"
+                  },
+                  "teeth": {
+                    "type": "integer",
+                    "description": "锯齿数/波数，默认按断口长度每 3 毫米一个（至少 2）"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
                 ]
               }
             },

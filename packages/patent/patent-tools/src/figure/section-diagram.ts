@@ -105,6 +105,31 @@ export type SectionCenterline = {
   to: readonly [number, number]
 }
 
+/**
+ * 断裂线（折断线）：长零件省略中段时，在被断开的两端各画一条细实线。
+ *
+ * 本模块只画断口标记，不切断零件轮廓——调用方把零件拆成两段轮廓分别给出，断口之间
+ * 留出省略区。
+ */
+export type SectionBreakLine = {
+  /** 断口起点（毫米）。 */
+  from: readonly [number, number]
+  /** 断口终点（毫米）：与起点不同，方向即断口横跨方向。 */
+  to: readonly [number, number]
+  /** 线型：锯齿（默认）或波浪。 */
+  style?: 'zigzag' | 'wavy' | undefined
+  /** 齿高/波幅（毫米），默认 {@link DEFAULT_BREAK_AMPLITUDE_MM}；须为正数。 */
+  amplitudeMm?: number | undefined
+  /** 锯齿数/波数，默认按断口长度每 {@link BREAK_TOOTH_SPACING_MM} 毫米一个（至少 2）。 */
+  teeth?: number | undefined
+}
+
+/** 断裂线齿高/波幅默认值（毫米）。 */
+const DEFAULT_BREAK_AMPLITUDE_MM = 1.5
+
+/** 断裂线默认齿距（毫米）：断口长度除以它取整得到默认齿数。 */
+const BREAK_TOOTH_SPACING_MM = 3
+
 /** 剖切位置符号（剖切位置线 + 投射方向箭头 + 字母）。 */
 export type CuttingMark = {
   /** 剖切标记字母（如 'A'）。 */
@@ -128,6 +153,8 @@ export type SectionDiagramInput = {
   centerlines?: readonly SectionCenterline[]
   /** 剖切位置符号（0 个或多个）。 */
   cuttingMarks?: readonly CuttingMark[]
+  /** 断裂线（0 条或多条）：细实线，标记长零件省略段的两端。 */
+  breakLines?: readonly SectionBreakLine[]
   /** 图面字号（毫米），默认 3.5（附图标记与剖切字母同用）。 */
   labelFontSizeMm?: number
   /** 轮廓与剖切位置线的粗实线线宽（毫米），默认 0.5；零件自己的 `strokeWidthMm` 优先。 */
@@ -295,6 +322,51 @@ function assertCenterline(centerline: SectionCenterline): void {
   if (centerline.from[0] === centerline.to[0] && centerline.from[1] === centerline.to[1]) {
     throw new VectorFigureError('invalid_input', `中心线两端点不能重合：(${String(centerline.from[0])}, ${String(centerline.from[1])})`)
   }
+}
+
+/**
+ * 生成断裂线的折线顶点：锯齿按齿数交替偏到两侧，波浪按正弦取样。
+ *
+ * 两端点不做偏移，使断口线起止于零件被断开的位置；幅度与齿数都校验为正，
+ * 零长度断口直接报错，避免画出一条不可见的标记。
+ * @param line - 断裂线参数。
+ * @param index - 在输入数组中的序号（用于错误信息）。
+ * @returns 折线顶点（毫米）。
+ * @throws VectorFigureError('invalid_input') 端点重合、幅度非正或齿数小于 2 时。
+ */
+function breakLinePoints(line: SectionBreakLine, index: number): Point[] {
+  const subject = `断裂线 #${index + 1} `
+  assertFinitePoint(line.from, `${subject}起点`)
+  assertFinitePoint(line.to, `${subject}终点`)
+  const dx = line.to[0] - line.from[0]
+  const dy = line.to[1] - line.from[1]
+  const length = Math.hypot(dx, dy)
+  if (length === 0) throw new VectorFigureError('invalid_input', `${subject}两端点不能重合`)
+  const amplitude = line.amplitudeMm ?? DEFAULT_BREAK_AMPLITUDE_MM
+  if (!Number.isFinite(amplitude) || amplitude <= 0) {
+    throw new VectorFigureError('invalid_input', `${subject}齿高必须为正数：${String(amplitude)}`)
+  }
+  const teeth = line.teeth ?? Math.max(2, Math.round(length / BREAK_TOOTH_SPACING_MM))
+  if (!Number.isInteger(teeth) || teeth < 2) {
+    throw new VectorFigureError('invalid_input', `${subject}齿数必须是不小于 2 的整数：${String(teeth)}`)
+  }
+  // 单位轴与左法向：偏移沿法向取正负。
+  const ux = dx / length
+  const uy = dy / length
+  const nx = -uy
+  const ny = ux
+  const zigzag = (line.style ?? 'zigzag') === 'zigzag'
+  // 锯齿：每齿两段、交替偏向两侧；波浪：正弦取样，两端点 sin(0)=sin(2π·teeth)=0 自然落在断口线上。
+  const steps = zigzag ? teeth * 2 : Math.max(32, teeth * 8)
+  const points: Point[] = []
+  for (let step = 0; step <= steps; step += 1) {
+    const t = step / steps
+    const sign = zigzag
+      ? (step === 0 || step === steps ? 0 : (step % 2 === 0 ? -1 : 1))
+      : Math.sin(2 * Math.PI * teeth * t)
+    points.push([line.from[0] + dx * t + nx * amplitude * sign, line.from[1] + dy * t + ny * amplitude * sign])
+  }
+  return points
 }
 
 /**
@@ -727,6 +799,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
   const polygons: PolygonDraw[] = []
   const hatches: SectionSegment[] = []
   const centerlines: SectionSegment[] = []
+  const breakLines: (readonly Point[])[] = []
   const leaders: SectionSegment[] = []
   const positionLines: SectionSegment[] = []
   const arrowHeads: (readonly Point[])[] = []
@@ -800,6 +873,12 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     extents.push(centerline.from, centerline.to)
   }
 
+  for (const [index, line] of (input.breakLines ?? []).entries()) {
+    const points = breakLinePoints(line, index)
+    breakLines.push(points)
+    extents.push(...points)
+  }
+
   for (const [index, label] of (input.labels ?? []).entries()) {
     const subject = `标号 #${index + 1} `
     assertFinitePoint(label.at, `${subject}落点`)
@@ -840,6 +919,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     ...polygons.map(draw => polygonElement(draw.points, offset, draw.strokeMm, draw.hatchGroup)),
     ...hatches.map(segment => segmentElement(segment, offset, thinMm)),
     ...centerlines.map(segment => segmentElement(segment, offset, thinMm)),
+    ...breakLines.map(points => polylineElement(points, offset, thinMm)),
     ...leaders.map(segment => segmentElement(segment, offset, thinMm, 'leader')),
     ...positionLines.map(segment => segmentElement(segment, offset, thickMm)),
     ...arrowHeads.map(points => polylineElement(points, offset, thickMm)),

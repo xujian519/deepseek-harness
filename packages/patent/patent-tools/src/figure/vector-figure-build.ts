@@ -137,6 +137,13 @@ export type SectionFigureJson = {
     to: readonly [number, number]
     arrow: 'left' | 'right' | 'up' | 'down'
   }[]
+  break_lines?: readonly {
+    from: readonly [number, number]
+    to: readonly [number, number]
+    style?: 'zigzag' | 'wavy' | undefined
+    amplitude_mm?: number | undefined
+    teeth?: number | undefined
+  }[]
   label_font_size_mm?: number
   /** 轮廓与剖切位置线的粗实线线宽（毫米），默认 0.5。 */
   stroke_width_mm?: number
@@ -339,6 +346,15 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
           ...(sections.labels === undefined ? {} : { labels: sections.labels }),
           ...(sections.centerlines === undefined ? {} : { centerlines: sections.centerlines }),
           ...(sections.cutting_marks === undefined ? {} : { cuttingMarks: sections.cutting_marks }),
+          ...(sections.break_lines === undefined ? {} : {
+            breakLines: sections.break_lines.map(line => ({
+              from: line.from,
+              to: line.to,
+              style: line.style,
+              amplitudeMm: line.amplitude_mm,
+              teeth: line.teeth,
+            })),
+          }),
           ...(labelFontSizeMm === undefined ? {} : { labelFontSizeMm }),
           ...(sections.stroke_width_mm === undefined ? {} : { strokeWidthMm: sections.stroke_width_mm }),
           ...(sections.thin_stroke_width_mm === undefined ? {} : { thinStrokeWidthMm: sections.thin_stroke_width_mm }),

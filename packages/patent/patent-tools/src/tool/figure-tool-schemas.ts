@@ -193,6 +193,21 @@ export const SECTION_INPUT_SCHEMA = {
         },
       },
     },
+    break_lines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          from: { ...POINT_SCHEMA, required: true, description: '断口起点（图面毫米）' },
+          to: { ...POINT_SCHEMA, required: true, description: '断口终点：与起点不同，方向即断口横跨方向' },
+          style: { type: 'string', enum: ['zigzag', 'wavy'], description: '线型：锯齿（默认）或波浪' },
+          amplitude_mm: { type: 'number', description: '齿高/波幅（毫米），默认 1.5' },
+          teeth: { type: 'integer', description: '锯齿数/波数，默认按断口长度每 3 毫米一个（至少 2）' },
+        },
+      },
+      description: '断裂线（折断线，细实线）：长零件省略中段时，在被断开的两端各画一条；零件轮廓由调用方拆成两段给出，断口之间留出省略区',
+    },
     label_font_size_mm: { type: 'number', description: '图面字号（毫米），默认 3.5；附图标记与剖切字母同用' },
     stroke_width_mm: { type: 'number', description: '轮廓与剖切位置线的粗实线线宽（毫米），不小于 0.18（GB/T 4457.4），默认 0.5' },
     thin_stroke_width_mm: { type: 'number', description: '剖面线、中心线与引线的细实线线宽（毫米），不小于 0.18，默认 0.25' },
