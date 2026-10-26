@@ -84,13 +84,23 @@ describe('legal_law_verify tool', () => {
     expect(value.blocked).toBe(false)
   }, HOST_TIMEOUT)
 
-  it('reports unverified for auto-generated index entries without text', async () => {
-    // The shipped index has text: null for auto-generated entries
+  it('verifies a transcribed entry from the shipped index', async () => {
+    // The shipped index transcribes the core statutes, 民法典 among them.
     const value = await run(await host(), { text: '根据民法典第143条的规定' })
     expect(value.findings).toHaveLength(1)
-    expect(value.findings[0]!.decision).toBe('unverified')
+    expect(value.findings[0]!.decision).toBe('valid')
     expect(value.findings[0]!.law).toBe('民法典')
     expect(value.findings[0]!.article).toBe(143)
+  }, HOST_TIMEOUT)
+
+  it('reports unverified for an indexed entry whose text is missing', async () => {
+    const untranscribed = new Map<LegalLawName, LegalLawBaseline>([['民法典', {
+      ...verifiedIndex.get('民法典')!,
+      articles: [{ article: 143, topics: [], text: null, sourceDoc: null, verifiedOn: null }],
+    }]])
+    const value = await run(await host(untranscribed), { text: '根据民法典第143条的规定' })
+    expect(value.findings).toHaveLength(1)
+    expect(value.findings[0]!.decision).toBe('unverified')
   }, HOST_TIMEOUT)
 
   it('accepts a citation the verified index has transcribed', async () => {

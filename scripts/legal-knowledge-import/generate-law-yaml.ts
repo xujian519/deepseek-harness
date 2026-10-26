@@ -17,6 +17,26 @@ import { parseLawMarkdown, type ParsedLaw } from './parse-law-md.ts'
 // Public types
 // ---------------------------------------------------------------------------
 
+/** Options that control what the generated index records. */
+export type GenerateIndexOptions = {
+  /**
+   * Write each article's body, source file, and transcription date into the
+   * index. Without this, entries stay `text: null` and cite only existence.
+   */
+  transcribe?: boolean
+  /** Date recorded as the transcription check date; required when transcribing. */
+  verifiedOn?: string
+}
+
+/** Options for a batch run: index options plus the law documents to emit. */
+export type BatchGenerateOptions = GenerateIndexOptions & {
+  /**
+   * Emit only these law keys, each either a `shortName` (e.g. `民法典`) or a
+   * split-file key (e.g. `民法典·总则`). Omit to emit every law.
+   */
+  only?: readonly string[]
+}
+
 /** Result summary for a batch run. */
 export type BatchResult = {
   /** Number of files successfully processed. */
@@ -152,9 +172,16 @@ export function extractTopicsFromText(text: string, lawName: string): string[] {
  * ```
  *
  * @param parsed - the parsed law data.
+ * @param options - whether to transcribe article text and the date to record.
  * @returns the YAML string.
  */
-export function generateYamlIndex(parsed: ParsedLaw): string {
+export function generateYamlIndex(parsed: ParsedLaw, options: GenerateIndexOptions = {}): string {
+  const transcribe = options.transcribe === true
+  if (transcribe && options.verifiedOn === undefined) {
+    throw new Error('generateYamlIndex: transcribe requires verifiedOn')
+  }
+  const verifiedOn = transcribe ? options.verifiedOn ?? null : null
+  const sourceDoc = transcribe ? basename(parsed.sourceFile) : null
   const maxArticle = parsed.articles.length > 0
     ? Math.max(...parsed.articles.map(a => a.number))
     : null
@@ -175,9 +202,9 @@ export function generateYamlIndex(parsed: ParsedLaw): string {
   const articles = uniqueArticles.map(article => ({
     article: article.number,
     topics: extractTopicsFromText(article.text, parsed.shortName),
-    text: null as string | null,
-    sourceDoc: null as string | null,
-    verifiedOn: null as string | null,
+    text: transcribe && article.text.trim() !== '' ? article.text : null,
+    sourceDoc,
+    verifiedOn,
   }))
 
   const header = `# ${parsed.name}法条索引 — 自动生成。${parsed.subtitle ? `（${parsed.subtitle}）` : ''}\n#\n# 源文件：${basename(parsed.sourceFile)}\n`
@@ -188,8 +215,8 @@ export function generateYamlIndex(parsed: ParsedLaw): string {
     document: parsed.name + (parsed.subtitle ? ` · ${parsed.subtitle}` : ''),
     revision,
     maxArticle,
-    maxVerifiedOn: null as string | null,
-    maxSource: null as string | null,
+    maxVerifiedOn: verifiedOn,
+    maxSource: sourceDoc,
     articles,
   }
 
@@ -491,12 +518,14 @@ function deduplicateLaws(laws: ParsedLaw[]): Map<string, ParsedLaw> {
  *
  * @param inputDir - root directory to scan recursively.
  * @param outputDir - directory to write `.yaml` index files into.
+ * @param options - which documents to emit and whether to transcribe their text.
  * @returns a summary of the batch run.
  */
 // oxlint-disable-next-line typescript/require-await -- batch entry keeps an async signature for callers; the generator is synchronous
 export async function batchGenerate(
   inputDir: string,
   outputDir: string,
+  options: BatchGenerateOptions = {},
 ): Promise<BatchResult> {
   const result: BatchResult = { processed: 0, skipped: 0, failures: [], written: [] }
 
@@ -530,9 +559,17 @@ export async function batchGenerate(
   // Ensure output directory exists
   mkdirSync(outputDir, { recursive: true })
 
+  const only = options.only === undefined ? undefined : new Set(options.only)
+
   // Generate YAML files
   for (const [, law] of deduped) {
-    const yaml = generateYamlIndex(law)
+    const lawKey = law.subtitle ? `${law.shortName}·${law.subtitle}` : law.shortName
+    if (only !== undefined && !only.has(lawKey)
+      && !(law.subtitle === undefined && only.has(law.shortName))) {
+      result.skipped++
+      continue
+    }
+    const yaml = generateYamlIndex(law, options)
     const filename = lawYamlFilename(law.shortName, law.subtitle)
     const outPath = join(outputDir, filename)
     writeFileSync(outPath, yaml, 'utf8')
@@ -547,19 +584,38 @@ export async function batchGenerate(
 // CLI entry point
 // ---------------------------------------------------------------------------
 
+/** Parse CLI arguments, keeping positional directories separate from flags. */
+function parseCli(argv: string[]): { inputDir: string; outputDir: string; options: BatchGenerateOptions } {
+  const positional: string[] = []
+  const options: BatchGenerateOptions = {}
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index] ?? ''
+    if (arg === '--transcribe') {
+      options.transcribe = true
+    } else if (arg === '--verified-on') {
+      const value = argv[++index]
+      if (value === undefined) throw new Error('--verified-on 需要一个 YYYY-MM-DD 日期')
+      options.verifiedOn = value
+    } else if (arg === '--only') {
+      const value = argv[++index]
+      if (value === undefined) throw new Error('--only 需要一个逗号分隔的法律名列表')
+      options.only = value.split(',').map(name => name.trim()).filter(name => name !== '')
+    } else {
+      positional.push(arg)
+    }
+  }
+  const [inputDir, outputDir] = positional
+  if (inputDir === undefined || outputDir === undefined) {
+    throw new Error('Usage: tsx generate-law-yaml.ts <input-dir> <output-dir> [--transcribe --verified-on YYYY-MM-DD] [--only 名称1,名称2]')
+  }
+  return { inputDir, outputDir, options }
+}
+
 /** Run the batch generator from the command line. */
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  const inputDir = args[0]
-  const outputDir = args[1]
+  const { inputDir, outputDir, options } = parseCli(process.argv.slice(2))
 
-  if (!inputDir || !outputDir) {
-    console.error('Usage: tsx generate-law-yaml.ts <input-dir> <output-dir>')
-    console.error('Example: tsx generate-law-yaml.ts /path/to/Laws-1.0.0 packages/legal/legal-law/assets/legal-law/')
-    process.exit(1)
-  }
-
-  const result = await batchGenerate(inputDir, outputDir)
+  const result = await batchGenerate(inputDir, outputDir, options)
 
   console.log('\n=== Batch Summary ===')
   console.log(`Processed: ${result.processed}`)

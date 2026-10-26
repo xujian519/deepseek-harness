@@ -22,16 +22,19 @@ import type {
 } from './types.ts'
 
 /**
- * Default policy: an article beyond a verified ceiling blocks; an entry whose
- * text is still awaiting transcription, and a proposition no entry carries,
- * are reported without blocking.
+ * Default policy: a citation that cannot be checked blocks delivery. That
+ * covers an article beyond the verified ceiling, a law or article the index
+ * does not carry, and an indexed article whose text has not been transcribed.
+ * `unmatched` stays a warning because no entry decides the proposition; a
+ * deployment can relax any decision through `Config` when its corpus is
+ * incomplete.
  */
 export const DEFAULT_LEGAL_CITATION_POLICY: LegalCitationPolicySet = {
   mismatch: 'block',
   unmatched: 'warn',
   outOfRange: 'block',
-  notIndexed: 'warn',
-  unverified: 'warn',
+  notIndexed: 'block',
+  unverified: 'block',
 }
 
 /** Options for one verification call. */

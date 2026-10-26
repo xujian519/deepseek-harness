@@ -146,6 +146,11 @@ describe('resolveLegalCitationPolicy', () => {
     const finding = verifyLegalCitation(articleRef(143), index, { proposition: '过错侵权责任的承担' })
     expect(resolveLegalCitationPolicy(finding, policies)).toBe('warn')
   })
+
+  it('blocks citations it cannot check by default', () => {
+    expect(DEFAULT_LEGAL_CITATION_POLICY.unverified).toBe('block')
+    expect(DEFAULT_LEGAL_CITATION_POLICY.notIndexed).toBe('block')
+  })
 })
 
 describe('renderLegalCitationFindings', () => {

@@ -261,6 +261,27 @@ describe('parseLawMarkdown — edge cases', () => {
     expect(parsed.articles[0]!.text).toContain('第二款内容')
     expect(parsed.articles).toHaveLength(2)
   })
+
+  it('reads article numbers that contain a zero placeholder', () => {
+    const content = `# 测试法
+
+<!-- INFO END -->
+
+第一条 起始。
+
+第一百条 整百。
+
+第一百零一条 百零一。
+
+第一百零二条 百零二。
+
+第五百零九条 五百零九。
+
+第一千零一条 千零一。
+`
+    const parsed = parseLawMarkdown(content, '测试.md')
+    expect(parsed.articles.map(article => article.number)).toEqual([1, 100, 101, 102, 509, 1001])
+  })
 })
 
 // ---------------------------------------------------------------------------
