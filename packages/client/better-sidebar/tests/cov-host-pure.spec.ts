@@ -126,18 +126,20 @@ describe('explorer listing errors and bounds', () => {
 })
 
 describe('name-search budget stop points', () => {
-  it('stops descending once the match cap is reached and reports truncation', async () => {
+  it('stops descending once the match cap is reached inside a subtree', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-sidebar-searchcap-'))
     try {
-      mkdirSync(join(root, 'sub'), { recursive: true })
-      writeFileSync(join(root, 'mfile.txt'), '')
-      writeFileSync(join(root, 'sub', 'mdeep.txt'), '')
-      // The first match exhausts the cap; the sibling directory must not be
-      // descended (or, when reached first, matched) after truncation.
+      // Both matches sit one level down, so the cap trips inside the recursion
+      // whatever order `readdir` reports: the parent then stops before
+      // descending its other child instead of collecting a second match.
+      mkdirSync(join(root, 'one'), { recursive: true })
+      mkdirSync(join(root, 'two'), { recursive: true })
+      writeFileSync(join(root, 'one', 'm-one.txt'), '')
+      writeFileSync(join(root, 'two', 'm-two.txt'), '')
       const result = await searchFiles(root, 'm', { maxMatches: 1 })
       expect(result.truncated).toBe(true)
       expect(result.matches).toHaveLength(1)
-      expect(result.matches[0]).toMatch(/^sub\/mdeep\.txt$|^mfile\.txt$/)
+      expect(result.matches[0]).toMatch(/^(one\/m-one|two\/m-two)\.txt$/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
