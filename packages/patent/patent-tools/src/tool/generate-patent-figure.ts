@@ -673,6 +673,27 @@ function needsSvgChain(args: {
 }
 
 /**
+ * 复核一张已交付的 SVG：净距按图型分档，strict 按部署开关，面板编号进报告前缀。
+ * @param args - the deps carrying the strict switch, the delivered path, the warning sink, the figure type, and the panel suffix.
+ */
+async function checkDeliveredSvg(args: {
+  deps: GeneratePatentFigureDeps
+  path: string
+  warnings: string[]
+  figureType: GenerateFigureType
+  suffix: string
+}): Promise<void> {
+  await gateRenderedSvg({
+    path: args.path,
+    warnings: args.warnings,
+    clearanceMm: clearanceMmForFigure(args.figureType),
+    failOnFindings: args.deps.failOnRenderFindings === true,
+    tool: 'generate_patent_figure',
+    ...(args.suffix === '' ? {} : { label: `面板 ${args.suffix} ` }),
+  })
+}
+
+/**
  * SVG 全链的收尾：在中间 SVG 上落版、复核、转路径，再导出请求的格式。
  *
  * 三步的警告先攒在暂存输出里，导出成功才并入：导出失败时它们描述的交付物并不存在，
@@ -706,13 +727,12 @@ async function finishSvgChain(args: {
     output: staged,
     ...styleBodyFont(args.deps, args.figureType),
   })
-  await gateRenderedSvg({
+  await checkDeliveredSvg({
+    deps: args.deps,
     path: args.svgPath,
     warnings: staged.warnings,
-    clearanceMm: clearanceMmForFigure(args.figureType),
-    failOnFindings: args.deps.failOnRenderFindings === true,
-    tool: 'generate_patent_figure',
-    ...(args.suffix === '' ? {} : { label: `面板 ${args.suffix} ` }),
+    figureType: args.figureType,
+    suffix: args.suffix,
   })
   await outlineFigureText({ deps: args.deps, path: args.svgPath, format: 'svg', signal: args.signal, warnings: staged.warnings })
   const exported = await args.deps.exportFigure?.({
@@ -763,13 +783,12 @@ async function finishDirectRender(args: {
     ...styleBodyFont(args.deps, args.figureType),
   })
   if (args.check) {
-    await gateRenderedSvg({
+    await checkDeliveredSvg({
+      deps: args.deps,
       path: args.outcomePath,
       warnings: args.output.warnings,
-      clearanceMm: clearanceMmForFigure(args.figureType),
-      failOnFindings: args.deps.failOnRenderFindings === true,
-      tool: 'generate_patent_figure',
-      ...(args.suffix === '' ? {} : { label: `面板 ${args.suffix} ` }),
+      figureType: args.figureType,
+      suffix: args.suffix,
     })
   } else if (args.deps.failOnRenderFindings === true) {
     args.output.warnings.push('渲染复核未执行（该格式走渲染器直绘、没有 SVG 可量测）：figureFailOnRenderFindings 对本次输出不生效')
