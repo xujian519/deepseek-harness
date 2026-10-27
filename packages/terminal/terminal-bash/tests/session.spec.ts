@@ -1262,6 +1262,33 @@ describe('LocalPtySession readiness and output', () => {
     await timedOut
   })
 
+  it('does not accept a stdin wait before the controlled prompt as exact readiness', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const inspector = new FakeInspector()
+    const session = makeSession(terminal, inspector, config({ exactProbeAfterMs: 20, idleSilenceMs: 50 }))
+    try {
+      // A pwsh bootstrap send is written before the shell has rendered its
+      // controlled prompt. The wait it blocks in belongs to the shell's own
+      // startup, not to evidence that the setup command ran.
+      const bootstrap = session.startSend({ text: 'setup', submit: true })
+      let settled = false
+      void bootstrap.done.then(() => { settled = true })
+      inspector.waiting = true
+      await vi.advanceTimersByTimeAsync(30)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(40)
+      expect((await bootstrap.done).waitReason).toBe('inferred_idle')
+
+      const followUp = session.startSend({ text: '', submit: false })
+      terminal.emitData('\x1b]133;D;0\x07dsh> ')
+      await vi.advanceTimersByTimeAsync(20)
+      expect((await followUp.done).waitReason).toBe('stdin_read')
+    } finally {
+      await session.close('pre-prompt readiness cleanup')
+    }
+  })
+
   it('preserves the caller abort reason when startup cannot resolve a foreground group', async () => {
     const terminal = new FakeTerminal()
     const inspector = new FakeInspector()
