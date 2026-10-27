@@ -31,6 +31,14 @@ const SCROLLBACK_PAGE_LINES = 1_000
  * captured output, while a longer one delays the completion marker.
  */
 const POLL_INTERVAL_MS = 25
+/**
+ * Grace for a completion marker that is still in flight when a send settles on
+ * stdin readiness. The shell can reach its read before the PTY has delivered the
+ * command's final output, so a short drain returns the complete result instead of
+ * the echoed wrapper. An interactive child keeps the same bound before its
+ * partial output is returned.
+ */
+const COMPLETION_DRAIN_MS = 250
 
 const DEFAULT_DESCRIPTION = 'Run commands in a persistent PowerShell shell. State, including the current directory and exported environment variables, persists across calls for this agent.'
 /** Default PTY backend for each owner-isolated persistent shell. */
@@ -169,6 +177,48 @@ function partialOutput(
 
 async function pause(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
+}
+
+/**
+ * Render a send that settled on stdin readiness before its completion marker
+ * appeared. The marker normally follows within a few output chunks; the drain
+ * gives it one bounded window before falling back to partial output.
+ * @param ctx - context carrying the terminal service.
+ * @param owner - agent that owns the session.
+ * @param id - session id to read.
+ * @param marker - nonces for this command.
+ * @param wrapped - wrapper source to strip from a fallback extraction.
+ * @param fallback - output retained by the settled send.
+ * @param fallbackTruncated - whether the settled send's output was truncated.
+ * @param maxOutputChars - model-facing output bound.
+ * @returns the complete or partial model-facing result.
+ */
+async function drainStdinSettledOutput(
+  ctx: Context,
+  owner: Agent,
+  id: TerminalSessionId,
+  marker: CommandMarkers,
+  wrapped: string,
+  fallback: string,
+  fallbackTruncated: boolean,
+  maxOutputChars: number,
+): Promise<string> {
+  const deadline = Date.now() + COMPLETION_DRAIN_MS
+  for (;;) {
+    const latest = ctx.terminals.read(owner, id, { offset: 0, count: SCROLLBACK_PAGE_LINES })
+    if (latest.text.includes(marker.end)) {
+      const complete = commandOutput(retainedScrollback(ctx, owner, id, latest), marker, wrapped)
+      if (complete !== undefined) return renderCaptured(complete, maxOutputChars)
+    }
+    if (Date.now() >= deadline) {
+      const snapshot = retainedScrollback(ctx, owner, id, latest)
+      return renderCaptured(
+        partialOutput(snapshot, marker, wrapped, fallback, fallbackTruncated),
+        maxOutputChars,
+      )
+    }
+    await pause()
+  }
 }
 
 function nextScrollbackOffset(page: TerminalReadResult, offset: number): number | undefined {
@@ -403,13 +453,12 @@ async function executeCommand(
     }
     // The shell reads stdin again (its prompt, or a foreground child's own
     // read) without having printed the end marker — an interrupt, a replaced
-    // shell, or an interactive child. Return what was captured instead of
-    // spinning until the command deadline.
+    // shell, or an interactive child. A completion marker can also still be in
+    // flight from the command that just finished, so drain before returning
+    // what was captured instead of spinning until the command deadline.
     if (result.waitReason === 'stdin_read') {
-      const snapshot = retainedScrollback(ctx, owner, id, latest)
-      return renderCaptured(
-        partialOutput(snapshot, marker, wrapped, fallback, fallbackTruncated),
-        config.maxOutputChars,
+      return await drainStdinSettledOutput(
+        ctx, owner, id, marker, wrapped, fallback, fallbackTruncated, config.maxOutputChars,
       )
     }
     await pause()

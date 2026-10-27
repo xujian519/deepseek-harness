@@ -102,6 +102,7 @@ type StubMode =
   | 'empty-page-after-latest'
   | 'paged-scrollback'
   | 'with-echo'
+  | 'late-completion'
   | 'exit-after-send'
   | 'prompt-collision'
 
@@ -176,6 +177,15 @@ class StubTerminalSession implements TerminalBackendSession {
       const output = `${sent}\n${start ?? ''}\nhello from stub\n${end ?? ''}0\n${this.motd}`
       this.scrollback += output
       return this.operation(Promise.resolve(this.result(output, 'stdin_read')))
+    }
+    if (this.mode === 'late-completion') {
+      // The send settles on the shell's stdin wait before the PTY delivers the
+      // real markers; the tool must drain that window before answering.
+      const echo = `${sent}\n`
+      this.scrollback += echo
+      const completion = `${start ?? ''}\nlate output\n${end ?? ''}0\n${this.motd}`
+      setTimeout(() => { this.scrollback += completion }, 60)
+      return this.operation(Promise.resolve(this.result(echo, 'stdin_read')))
     }
     if (this.mode === 'exit-after-send') {
       // A fast `exit` settles the send with an echoed wrapper (marker end,
@@ -368,6 +378,16 @@ describe('tool-pwsh-persistent', () => {
     expect(result).not.toContain('__DSH_PERSISTENT_PWSH_START_')
     expect(result).not.toContain('__DSH_PERSISTENT_PWSH_END_')
     expect(result).not.toContain('Invoke-Expression')
+  })
+
+  it('drains a completion marker that arrives after stdin readiness', async () => {
+    const { ctx, owner, stub } = await setup({ backendType: 'stub' })
+    await call(ctx, owner, 'warm up')
+    const session = stub.sessions[0]!
+    session.mode = 'late-completion'
+    session.scrollback = ''
+
+    expect(text(await call(ctx, owner, 'late completion'))).toBe('late output')
   })
 
   it("preserves command output that equals the backend's prompt text", async () => {
