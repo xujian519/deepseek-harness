@@ -1315,6 +1315,38 @@ describe('LocalPtySession readiness and output', () => {
     expect(await operation.done).toMatchObject({ waitReason: 'stdin_read' })
   })
 
+  it('keeps a settled send\'s delayed prompt from settling the next send', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const inspector = new FakeInspector()
+    const session = makeSession(terminal, inspector, config({ exactProbeAfterMs: 20 }))
+    await initialize(session, terminal)
+
+    // The first send settles on the exact stdin-wait probe; its prompt marker
+    // has not arrived yet.
+    const first = session.startSend({ text: 'first', submit: true })
+    inspector.waiting = true
+    await vi.advanceTimersByTimeAsync(30)
+    expect((await first.done).waitReason).toBe('stdin_read')
+
+    const second = session.startSend({ text: 'second', submit: true })
+    let settled = false
+    void second.done.then(() => { settled = true })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // The first send's prompt arrives late: the second send must not read it as
+    // its own completion evidence while its command has not run.
+    terminal.emitData('\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(20)
+    expect(settled).toBe(false)
+
+    terminal.emitData('second-output\r\n\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect(await second.done).toMatchObject({ waitReason: 'stdin_read' })
+    await session.close('delayed prompt cleanup')
+  })
+
   it('retains a prompt marker until the startup shell regains the foreground group', async () => {
     vi.useFakeTimers()
     const terminal = new FakeTerminal()
