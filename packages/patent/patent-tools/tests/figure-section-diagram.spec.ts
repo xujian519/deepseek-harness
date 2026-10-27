@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSectionDiagram, type CuttingMark } from '../src/figure/section-diagram.ts'
+import { buildSectionDiagram, type CuttingMark, type SectionBreakLine } from '../src/figure/section-diagram.ts'
 import { VectorFigureError } from '../src/figure/vector-figure.ts'
 
 /** 10×10 正方形零件：剖面线的数量、方向与顶点对齐判定的基准。 */
@@ -330,6 +330,56 @@ describe('buildSectionDiagram 校验', () => {
     expect(at({ angleDeg: Number.NaN })).toContain('剖面线角度必须在 (0, 90] 度内：NaN')
     expect(at({ direction: 'sideways' as 'forward' })).toContain('剖面线方向只能是 forward 或 backward：sideways')
     expect(() => buildSectionDiagram({ parts: [{ outline: SQUARE, hatch: { angleDeg: 90 } }] })).not.toThrow()
+  })
+
+  it('断裂线：默认锯齿两端落在断口线上，齿高进入画布', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE }],
+      breakLines: [{ from: [0, -4], to: [20, -4] }],
+      paddingMm: 0,
+    })
+    const lines = [...spec.body.matchAll(/<polyline points="([^"]+)" stroke-width="0\.25"\/>/g)]
+      .map(match => match[1]!.trim().split(' ').map(pair => pair.split(',').map(Number) as [number, number]))
+    expect(lines).toHaveLength(1)
+    const line = lines[0]!
+    // 默认齿数 = round(20 / 3) = 7 → 2×7 段、15 个顶点。
+    expect(line).toHaveLength(15)
+    expect(line[0]?.[0]).toBe(0)
+    expect(line.at(-1)?.[0]).toBe(20)
+    // 画布平移后最低点落在 y=0，且整条线的纵向跨度等于两倍齿高（3 毫米）。
+    const ys = line.map(point => point[1])
+    expect(Math.min(...ys)).toBe(0)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(3, 6)
+    expect(spec.widthMm).toBe(20)
+    expect(spec.heightMm).toBeCloseTo(15.5, 6)
+  })
+
+  it('断裂线：波浪线型与显式齿高/齿数', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: SQUARE }],
+      breakLines: [
+        { from: [0, -4], to: [10, -4], style: 'wavy', teeth: 2 },
+        { from: [0, 16], to: [10, 16], amplitudeMm: 1, teeth: 2 },
+      ],
+      paddingMm: 0,
+    })
+    const lines = [...spec.body.matchAll(/<polyline points="([^"]+)" stroke-width="0\.25"\/>/g)]
+      .map(match => match[1]!.trim().split(' ').map(pair => pair.split(',').map(Number)))
+    // 波浪取 max(32, teeth×8) 段；锯齿取 2×齿数 段。
+    expect(lines[0]).toHaveLength(33)
+    expect(lines[1]).toHaveLength(5)
+    const zigzagYs = lines[1]!.map(point => point[1]!)
+    expect(Math.max(...zigzagYs) - Math.min(...zigzagYs)).toBeCloseTo(2, 6)
+  })
+
+  it('断裂线：端点重合、齿高非正、齿数非法都抛 invalid_input', () => {
+    const line = (value: SectionBreakLine) =>
+      errorMessage(() => buildSectionDiagram({ parts: [{ outline: SQUARE }], breakLines: [value] }))
+    expect(line({ from: [1, 1], to: [1, 1] })).toContain('断裂线 #1 两端点不能重合')
+    expect(line({ from: [0, 0], to: [10, 0], amplitudeMm: 0 })).toContain('断裂线 #1 齿高必须为正数：0')
+    expect(line({ from: [0, 0], to: [10, 0], teeth: 1 })).toContain('断裂线 #1 齿数必须是不小于 2 的整数：1')
+    expect(line({ from: [0, 0], to: [10, 0], teeth: 1.5 })).toContain('断裂线 #1 齿数必须是不小于 2 的整数：1.5')
+    expect(line({ from: [Number.NaN, 0], to: [10, 0] })).toContain('断裂线 #1 起点坐标必须是有限数')
   })
 
   it('剖切位置符号与画布留白非法抛 invalid_input', () => {

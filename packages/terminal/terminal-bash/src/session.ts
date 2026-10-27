@@ -253,6 +253,13 @@ export class LocalPtySession implements TerminalBackendSession {
   private promptSeen = false
   private promptTextSeen = false
   private promptTail = ''
+  /**
+   * A send settled before its prompt marker arrived, so that marker is still
+   * outstanding. It completes the settled send's prompt and must not count as
+   * the next send's evidence; it outlives `resetReadinessEvidence` for that
+   * reason (the delayed-marker generation boundary in the README).
+   */
+  private promptOwed = false
   private shellPgid: number | undefined
   private initializing = false
   private lastOutputAt = Date.now()
@@ -479,13 +486,16 @@ export class LocalPtySession implements TerminalBackendSession {
     const sanitized = this.sanitizer.push(data)
     this.appendOutput(sanitized.text)
     if (sanitized.prompt) {
-      // TODO(pty-delayed-signal-prompt): defining a marker-generation boundary, so a
-      // signal-delayed prompt is never read as evidence for a later send, needs a
-      // reproducer. The retention-and-poll compensation in force until then is the
-      // readiness model's contract in this package's README.
-      this.promptSeen = true
-      this.promptTail = ''
-      this.lastOutputAt = Date.now()
+      if (this.promptOwed) {
+        // The marker a settled send left outstanding: it says the shell reached
+        // that send's prompt, not that the current send's command ran.
+        this.promptOwed = false
+        this.lastOutputAt = Date.now()
+      } else {
+        this.promptSeen = true
+        this.promptTail = ''
+        this.lastOutputAt = Date.now()
+      }
     }
     if (this.promptSeen && sanitized.promptTail !== undefined) {
       const remaining = Math.max(0, CONTROLLED_PROMPT.length + 1 - this.promptTail.length)
@@ -586,6 +596,10 @@ export class LocalPtySession implements TerminalBackendSession {
     const operation = this.lifecycle.current
     if (operation === undefined) return
     const scrollbackTruncated = this.scrollback.truncated
+    // The exact stdin-wait tier settles while the shell is returning to its
+    // prompt, so its marker is still outstanding: it completes this send, and
+    // the next send must not read it as its own evidence.
+    if (waitReason === 'stdin_read' && !this.promptSeen) this.promptOwed = true
     if (retainOwnership) this.lifecycle.retain()
     else this.lifecycle.clear()
     operation.settle(waitReason, this.statusValue, scrollbackTruncated)

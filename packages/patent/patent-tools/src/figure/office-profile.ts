@@ -58,7 +58,10 @@ export type CaptionStyle = 'figure-number' | 'fig' | 'fig-upper'
 /** 色彩策略：monochrome=不得着色（PCT/USPTO 实用申请）；color-if-necessary=必要时可提交彩色（中国 2023 版起）。 */
 export type ColorPolicy = 'monochrome' | 'color-if-necessary'
 
-/** 附图页码写法：figure-pages=中国「附图应当用阿拉伯数字顺序编写页码」；sheet-of=PCT/USPTO 的「1/3」。 */
+/**
+ * 附图页码写法：figure-pages=中国「附图应当用阿拉伯数字顺序编写页码」，写作「第2页 共5页」（单页「第2页」）；
+ * sheet-of=PCT/USPTO 的「1/3」。
+ */
 export type SheetNumbering = 'figure-pages' | 'sheet-of'
 
 /** 一个法域的附图提交规格（只读：调用方不得就地修改档案常数）。 */
@@ -166,7 +169,7 @@ export function figureCaption(profile: OfficeProfile, figureNumber: number, figu
  * @param profile - 目标法域规格。
  * @param sheetIndex - 当前附图页序号（1 起）。
  * @param sheetTotal - 附图页总数（≥ sheetIndex）。
- * @returns 页码文字（中国为「2」，PCT/USPTO 为「2/3」）。
+ * @returns 页码文字（中国为「第2页 共5页」，单页时为「第2页」；PCT/USPTO 为「2/5」）。
  * @throws RangeError 序号不是满足 1 ≤ sheetIndex ≤ sheetTotal 的整数时。
  */
 export function sheetNumberText(profile: OfficeProfile, sheetIndex: number, sheetTotal: number): string {
@@ -176,5 +179,7 @@ export function sheetNumberText(profile: OfficeProfile, sheetIndex: number, shee
   if (!Number.isInteger(sheetTotal) || sheetTotal < sheetIndex) {
     throw new RangeError(`附图页总数必须是不小于序号的整数：${String(sheetTotal)}`)
   }
-  return profile.sheetNumbering === 'sheet-of' ? `${sheetIndex}/${sheetTotal}` : String(sheetIndex)
+  if (profile.sheetNumbering === 'sheet-of') return `${sheetIndex}/${sheetTotal}`
+  // 页码与附图标记同为纯数字时，视觉判读会把页脚「2」当成一个无对应图形的标号。
+  return sheetTotal > 1 ? `第${sheetIndex}页 共${sheetTotal}页` : `第${sheetIndex}页`
 }

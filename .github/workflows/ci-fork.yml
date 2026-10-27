@@ -128,6 +128,52 @@ jobs:
       - name: Documentation checks
         run: pnpm run test:docs
 
+  node-cad-render:
+    # The FreeCAD and Inkscape smoke suites skip themselves when their executable
+    # is missing, so the STEP → TechDraw and SVG → path chains shipped no CI
+    # signal: a skipped suite reads green. This lane provisions both renderers
+    # and then requires every case to run — `figure-cad-ci-signal.spec.ts` fails
+    # if an install disappears, and the skip gate fails if a suite starts
+    # skipping again.
+    if: github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: node 24 / CAD real render
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare FreeCAD and Inkscape
+        # Ubuntu's FreeCAD package predates the 1.1 API the renderer uses, so the
+        # script extracts the pinned AppImage instead of mounting it.
+        run: bash scripts/prepare-ci-cad.sh
+
+      - name: Real CAD render suites
+        # DSH_CAD_CI_SIGNAL scopes `figure-cad-ci-signal.spec.ts` to this lane;
+        # the unit and coverage lanes install neither renderer and stay green.
+        env:
+          DSH_CAD_CI_SIGNAL: '1'
+        run: >-
+          pnpm exec vitest run
+          packages/patent/patent-tools/tests/figure-freecad-real-render.spec.ts
+          packages/patent/patent-tools/tests/figure-inkscape-real-render.spec.ts
+          packages/patent/patent-tools/tests/figure-cad-ci-signal.spec.ts
+          --reporter=default --reporter=json --outputFile=cad-report.json
+
+      - name: Reject skipped CAD suites
+        run: pnpm run verify-test-skips --report cad-report.json --require-zero
+
   node-built-suites:
     # The unit lane deliberately runs an unbuilt tree, so every suite that needs a
     # `pnpm run build` product self-skipped: the published entry paths (built bin,

@@ -131,11 +131,26 @@ describe('skip budget enforcement', () => {
     expect(() => verifyTestSkips(root, path)).toThrow(/invalid baseline budget/u)
   })
 
+  it('rejects any skip in require-zero mode, even inside the recorded budget', () => {
+    const root = makeRoot()
+    writeBaseline(root, { [process.platform]: budget(3, 2) })
+    const path = writeReport(root, [{ name: 'a.spec.ts', statuses: ['passed', 'skipped', 'passed'] }])
+    expect(() => verifyTestSkips(root, path, { requireZero: true })).toThrow(/must run every case/u)
+    expect(() => verifyTestSkips(root, path, { requireZero: true })).toThrow(/a\.spec\.ts/u)
+  })
+
+  it('accepts a run with no skips in require-zero mode without a platform budget', () => {
+    const root = makeRoot()
+    writeBaseline(root, { plan9: budget(1, 0) })
+    const path = writeReport(root, [{ name: 'a.spec.ts', statuses: ['passed', 'passed'] }])
+    expect(verifyTestSkips(root, path, { requireZero: true })).toBe(0)
+  })
+
   it('records the observed budget on update and keeps the other platforms', () => {
     const root = makeRoot()
     writeBaseline(root, { plan9: budget(1, 0) })
     const path = writeReport(root, [{ name: 'a.spec.ts', statuses: ['passed', 'skipped', 'skipped'] }])
-    expect(verifyTestSkips(root, path, true)).toBe(2)
+    expect(verifyTestSkips(root, path, { update: true })).toBe(2)
     const written: unknown = JSON.parse(readFileSync(join(root, 'scripts/test-skip-baseline.json'), 'utf8'))
     expect(written).toEqual({ plan9: budget(1, 0), [process.platform]: budget(3, 2) })
   })

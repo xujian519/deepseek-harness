@@ -31,6 +31,7 @@ import {
   textElementContent,
   validateSvgReferences,
 } from './svg-annotate.ts'
+import { formatMm } from './mm-primitives.ts'
 import type { SvgAnnotateReference } from './svg-annotate.ts'
 
 /** 引线标号选项。 */
@@ -156,9 +157,9 @@ const LENGTH_UNIT_PX: Record<string, number> = {
   mm: 96 / 25.4,
 }
 
-/** 坐标格式化（最多 1 位小数）。 */
+/** 坐标格式化（最多 1 位小数）：引线坐标只到十分之一毫米，比全局精度更松。 */
 function fmtCoord(value: number): string {
-  return String(Math.round(value * 10) / 10)
+  return formatMm(value, 1)
 }
 
 /** 两矩形是否相交（共享边界不算）。 */

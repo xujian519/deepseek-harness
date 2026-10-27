@@ -19,9 +19,14 @@ import { vectorFigureSvg } from '../src/figure/vector-figure.ts'
  * 验证「已生成附图 → 文字转轮廓路径」的完整链路：文字消失、画布与几何逐值保持、
  * 转换后的文件仍能通过渲染复核。
  *
- * CI 上没有这条链路的信号：`.github/workflows/ci-fork.yml` 只装 graphviz 与
- * fonts-noto-cjk，不装 Inkscape（本机开发环境装了），所以 CI 上这一组必然跳过，
- * 跳过即「无信号」而不是「通过」；要信号得把 Inkscape 装进 CI 镜像。
+ * CI 信号由 `.github/workflows/ci-fork.yml` 的 `node-cad-render` job 提供：
+ * `scripts/prepare-ci-cad.sh` 装上 Inkscape 并用 `--require-zero` 拒绝任何跳过。
+ * 单元与覆盖率 lane 只装 graphviz 与 fonts-noto-cjk，这一组在那里仍然整组跳过。
+ *
+ * CI 装的是发行版 Inkscape（Ubuntu noble 的 1.2.2），本机是 1.4.4：两者语义一致但
+ * 序列化不同（线宽写成呈现属性还是行内样式、polyline 写成 `points` 还是等价路径），
+ * 版本特有的行为（1.4.4 的 PDF 截断）另有假子进程单测覆盖。本文件只断言跨版本
+ * 成立的事实。
  */
 
 /** 无 Inkscape 时跳过端到端 suite。 */
@@ -96,12 +101,14 @@ describe.skipIf(!hasInkscape)('Inkscape 文字转路径（真实子进程）', (
     // 文字全部成为路径：文件里不再有 <text>，但文字形状的墨迹仍在（标号框仍可量测为图形）。
     expect(outlined).not.toMatch(/<text[\s>]/)
     expect(outlined).toContain('<path')
-    // 画布尺寸与线宽逐值保持（转换不改坐标系、不改线宽）。
+    // 画布尺寸与线宽逐值保持（转换不改坐标系、不改线宽）。线宽按版本落在呈现属性
+    // `stroke-width="0.25"` 或行内样式 `style="stroke-width:0.25"`，两种都算保留。
     expect(outlined).toContain('width="66mm"')
     expect(outlined).toContain('height="40mm"')
     expect(outlined).toContain('viewBox="0 0 66 40"')
-    expect(outlined).toContain('stroke-width="0.25"')
-    expect(outlined).toContain('points="19.5,13 23,13 25,13 28.5,13"')
+    expect(outlined).toMatch(/stroke-width\s*[:=]\s*["']?0?\.25/)
+    // 线段几何不在字符串层比对：`outlineSvgText` 自己用墨迹范围回归挡住走样（上面的
+    // ok 即证明通过），而各版本把 polyline 写成 `points` 或等价的相对 `d`。
     // 产物比输入大（字形轮廓比 <text> 长），但不是空文件。
     expect(statSync(path).size).toBeGreaterThan(svg.length)
 
@@ -179,14 +186,22 @@ describe.skipIf(!hasInkscape)('Inkscape 格式导出（真实子进程）', () =
     expect(size?.heightMm).toBeCloseTo(297, 1)
   })
 
-  it('图面文字未转路径时 PDF 被 Inkscape 截断：护栏报 render_failed 而非交出半成品', async () => {
+  it('图面文字未转路径时导出 PDF：成功交出的产物必须结构完整，否则报 render_failed', async () => {
     const source = laidOutPageFile()
     const target = join(source, '..', 'fig1-raw.pdf')
     const outcome = await exportWithInkscape(realSubprocess(), { path: source, outcomePath: target, format: 'pdf' }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
-    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
-    expect(outcome.ok ? '' : outcome.error).toContain('产物不完整')
-    // 护栏看的是产物结构而不是退出码：文件确实被写出来了，只是缺 xref/%%EOF。
-    expect(readFileSync(target).length).toBeGreaterThan(0)
+    // 1.4.4 对个别中文字形会在字体对象后截断 PDF（退出码仍是 0），1.2.2 不截断。
+    // 两个版本的结论都合法，契约只有一条：不完整的 PDF 绝不当成功交付。
+    const pdf = readFileSync(target)
+    expect(pdf.length).toBeGreaterThan(0)
+    const tail = pdf.subarray(Math.max(0, pdf.length - 1024)).toString('latin1')
+    if (outcome.ok) {
+      expect(tail).toContain('startxref')
+      expect(tail.trimEnd().endsWith('%%EOF')).toBe(true)
+    } else {
+      expect(outcome).toMatchObject({ code: 'render_failed' })
+      expect(outcome.error).toContain('产物不完整')
+    }
   })
 
   it('A4 附图页导出 PNG：像素尺寸按 dpi 换算', async () => {

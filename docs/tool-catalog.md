@@ -48,7 +48,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `matter_log_append`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `check_patent_figure_consistency`, `claim_chart_build`, `compare_patent_figure_analysis`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `law_search`, `matter_log_append`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`, `verify_deliverable` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
 | `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`, `verify_patent_filing` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | build_patent_filing assembles one CNIPA application document (abstract, abstract drawing, claims, specification, drawings) into a DOCX whose formatting is reverse-derived from the template shipped in the package, with paragraph numbering following the spec's per-section declaration; verify_patent_filing asserts the finished file against that template — section count and headers, spacing, indent, size, non-black text, the five specification parts, the specification title, claim count, numbering continuity where a section declares it, and surviving internal marks. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
@@ -3104,6 +3104,66 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
 
+### `check_patent_figure_consistency`
+
+校验同一案件多张附图的跨图一致性：把 analyze_patent_figure 对每张图的识别结果放进 figures（图号 + 标记号/名称），检查 ① 同一数字标记在不同图中名称是否一致（如 10 在图1 是「壳体」、在图2 变成「底座」即报冲突）；② 图号是否从 1 起连续（缺号逐项列出）；③ 给出 claim_context（权利要求书或说明书正文）时，其中引用的数字标记（括号形「(10)」、直连形「壳体10」）是否都在某张图中识别到。纯确定性校验，不调用模型；电学符号与网表不在范围。一致时返回 consistent=true 与空警告，否则逐条给出可修正的警告。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "figures": {
+      "type": "array",
+      "description": "各图的标记清单；至少一张，图号不得重复",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "figure_number": {
+            "type": "integer",
+            "description": "图号（1 起，同一案件内唯一）"
+          },
+          "components": {
+            "type": "array",
+            "description": "本图识别出的组件列表（analyze_patent_figure 的结果）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref_number": {
+                  "type": "string",
+                  "description": "附图标记号（与图面一致）"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "该标号的部件名称"
+                }
+              },
+              "required": [
+                "ref_number"
+              ]
+            }
+          }
+        },
+        "required": [
+          "figure_number",
+          "components"
+        ]
+      }
+    },
+    "claim_context": {
+      "type": "string",
+      "description": "权利要求书或说明书正文（可选）：给出时核对其中引用的数字标记是否都在附图中识别到"
+    }
+  },
+  "required": [
+    "figures"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
 ### `claim_chart_build`
 
 构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖判定（逐权项判定，整体取覆盖最佳权项）、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。mode=invalidity/reexamination 时另给出确定性结论段：逐权项对比文件的单篇全覆盖判定（从属权项已按引用链并入所引用权项的全部要素）、相对主对比文件的区别特征、从属权项"仅附加特征被覆盖"的法条路径问题与引用关系缺陷。pin-cite 格式 [文档id 段[xxxx] 图n]，例如 [D1 段[0032] 图3]；文档 id 可含空格（如 [产品 A 段[0001]]），段号可写范围（如 [D1 段[0032]-[0034]]），多图写作 图3、图4；目标未提供源文时 pin-cite 留空串。
@@ -3144,6 +3204,92 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "mode",
     "claim_text",
     "targets"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `compare_patent_figure_analysis`
+
+比对出图期望与识图结果：expected 给出生成附图时声明的图型与标号清单，analysis 给出 analyze_patent_figure 的识别结果，本工具逐项报告缺标（期望有、识图无）、多标（识图有、期望无）、名称不符（两侧名称都非空且不同）与图型不符。纯确定性比对，不调用模型；连接关系暂不比对。闭环用法：generate_patent_figure → analyze_patent_figure → 本工具；无发现时 consistent=true。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "figure_type": {
+          "type": "string",
+          "description": "图型名称（如 flowchart、cross_section）；两侧都给出时比对，缺省不判"
+        },
+        "components": {
+          "type": "array",
+          "description": "该侧的标号清单",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ref_number": {
+                "type": "string",
+                "description": "附图标记号（与图面一致）"
+              },
+              "name": {
+                "type": "string",
+                "description": "该标号的部件名称"
+              }
+            },
+            "required": [
+              "ref_number"
+            ]
+          }
+        }
+      },
+      "required": [
+        "components"
+      ]
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "figure_type": {
+          "type": "string",
+          "description": "图型名称（如 flowchart、cross_section）；两侧都给出时比对，缺省不判"
+        },
+        "components": {
+          "type": "array",
+          "description": "该侧的标号清单",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ref_number": {
+                "type": "string",
+                "description": "附图标记号（与图面一致）"
+              },
+              "name": {
+                "type": "string",
+                "description": "该标号的部件名称"
+              }
+            },
+            "required": [
+              "ref_number"
+            ]
+          }
+        }
+      },
+      "required": [
+        "components"
+      ]
+    }
+  },
+  "required": [
+    "expected",
+    "analysis"
   ]
 }
 ```
@@ -3634,11 +3780,11 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 输出格式：默认 svg。png/pdf 在需要落版（给了 target_office）时走「先出 SVG → 落版 → 渲染复核 → 文字转路径 → 用本机 Inkscape 导出」的全链，故落版、复核与引线标号对它们同样生效；本机没有 Inkscape 时退回渲染器直接出图，并给出「落版与复核未生效」的警告。直绘图型（电路/曲线/剖视/时序/外观）只有 SVG 一条绘图通路，导出 png/pdf 同样需要 Inkscape。含中文的图导出 pdf 时要先开启文字转路径（Config.figureTextToPath）——Inkscape 对个别未转路径的中文字形会写出缺 xref 的不完整 PDF，工具检出后按导出失败处理，不交出半成品。
 
-落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。fit_to_page=false 时只核算尺寸、不改写画布。
+落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「第2页 共3页」，单页「第2页」；PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。fit_to_page=false 时只核算尺寸、不改写画布。
 
 引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；png/pdf 走导出全链时引线随中间 SVG 一起进最终产物，否则不支持并返回警告、保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
 
-剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
+剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、break_lines（断裂线：长零件省略中段时在被断开的两端各画一条细实线，零件拆成两段轮廓给出）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。线宽按 GB/T 4457.4 指定：stroke_width_mm 与 thin_stroke_width_mm 给出图级的粗实线（轮廓、剖切位置线，默认 0.5）与细实线（剖面线、中心线、引线，默认 0.25），零件自己的 parts[].stroke_width_mm 覆盖图级粗线宽（薄壁件加粗时用）；取值不得低于 0.18 毫米。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿或与图线净距不足、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）；标号净距只对剖视图开启（1.5 毫米），电路图、曲线图这类「文字贴着符号放」的图型不套用。
 
 CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_path（STEP/IGES/BREP）与剖切平面 plane（origin 平面内一点、normal 法向、可选 reference 图面「向右」基准）即由本机 FreeCAD 切出闭合轮廓与剖面线；返回的提示里给出切出的材料区域清单（净面积与图面范围），parts 仍按区域逐个给 label、hatch 与 stroke_width_mm，并用 anchor（落在该区域内的一个图面坐标点）把它与区域对上——区域顺序由 OCCT 决定，不能用序号对。剖面线由模型按区域（含孔）精确裁出，孔里不会被打上；source.scale 缩放图面（默认 1），labels/centerlines/cutting_marks 请给同一比例下的图面坐标。给 part_size_mm 会与模型包围盒比对，不符即报错（挡住模型单位读错导致的整体比例错误）。需要本机安装 FreeCAD 1.1+。
 
@@ -4193,6 +4339,50 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
                   "from",
                   "to",
                   "arrow"
+                ]
+              }
+            },
+            "break_lines": {
+              "type": "array",
+              "description": "断裂线（折断线，细实线）：长零件省略中段时，在被断开的两端各画一条；零件轮廓由调用方拆成两段给出，断口之间留出省略区",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": "array",
+                    "description": "断口起点（图面毫米）",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "to": {
+                    "type": "array",
+                    "description": "断口终点：与起点不同，方向即断口横跨方向",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "style": {
+                    "type": "string",
+                    "description": "线型：锯齿（默认）或波浪",
+                    "enum": [
+                      "zigzag",
+                      "wavy"
+                    ]
+                  },
+                  "amplitude_mm": {
+                    "type": "number",
+                    "description": "齿高/波幅（毫米），默认 1.5"
+                  },
+                  "teeth": {
+                    "type": "integer",
+                    "description": "锯齿数/波数，默认按断口长度每 3 毫米一个（至少 2）"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
                 ]
               }
             },

@@ -97,6 +97,14 @@ function formatInventory(files: readonly SkippedFile[]): string {
   return files.map(entry => `  ${String(entry.skipped).padStart(4)}  ${entry.file}`).join('\n')
 }
 
+/** How one skip-gate run treats the observed skips. */
+export type SkipGateOptions = {
+  /** Rewrite this platform's budget from the run instead of comparing against it. */
+  update?: boolean
+  /** Require every case to run: a lane that installed its dependencies has no acceptable skip. */
+  requireZero?: boolean
+}
+
 /**
  * Enforce the skip budget recorded for the current platform.
  *
@@ -104,20 +112,29 @@ function formatInventory(files: readonly SkippedFile[]): string {
  * one runs the suites the others cannot, so a budget is recorded per platform rather than shared.
  * @param repoRoot - repository root holding the baseline.
  * @param reportPath - vitest JSON report to read.
- * @param update - rewrite this platform's budget from the run instead of comparing against it.
+ * @param options - update or require-zero mode; both off compares against the baseline.
  * @returns the observed skip count.
- * @throws when the platform is unrecorded, the report is unusable, or skips exceed the budget.
+ * @throws when the platform is unrecorded, the report is unusable, skips exceed the budget, or
+ * `requireZero` observed a skip.
  */
-export function verifyTestSkips(repoRoot: string, reportPath: string, update = false): number {
+export function verifyTestSkips(repoRoot: string, reportPath: string, options: SkipGateOptions = {}): number {
   const report = readSkipReport(reportPath, repoRoot)
   const baseline = readBaseline(repoRoot)
   const platform = process.platform
-  if (update) {
+  if (options.requireZero === true && report.skipped > 0) {
+    throw new Error(`verify-test-skips: this lane must run every case, but ${String(report.skipped)}`
+      + ` of ${String(report.cases)} skipped. A lane that provisions its renderers has no acceptable`
+      + ` skip:\n${formatInventory(report.files)}`)
+  }
+  if (options.update === true) {
     baseline[platform] = { cases: report.cases, skipped: report.skipped }
     writeFileSync(resolve(repoRoot, baselinePath),
       `${JSON.stringify(Object.fromEntries(Object.entries(baseline).sort(([a], [b]) => a.localeCompare(b))), null, 2)}\n`)
     return report.skipped
   }
+  // Require-zero lanes are defined by their own inventory, not by a platform
+  // budget: a run with no skips passes even where no baseline is recorded.
+  if (options.requireZero === true) return report.skipped
   const budget = baseline[platform]
   if (budget === undefined) {
     throw new Error(`verify-test-skips: ${platform} has no recorded budget. Record this run with`
@@ -144,14 +161,16 @@ if (import.meta.filename === resolve(process.argv[1] ?? '')) {
     const args = process.argv.slice(2)
     let reportPath = defaultReportPath
     let update = false
+    let requireZero = false
     for (let index = 0; index < args.length; index += 1) {
       if (args[index] === '--update') update = true
+      else if (args[index] === '--require-zero') requireZero = true
       else if (args[index] === '--report' && args[index + 1] !== undefined) {
         reportPath = args[index + 1] as string
         index += 1
-      } else throw new Error('Usage: pnpm run verify-test-skips [--report <path>] [--update]')
+      } else throw new Error('Usage: pnpm run verify-test-skips [--report <path>] [--update | --require-zero]')
     }
-    const skipped = verifyTestSkips(root, resolve(root, reportPath), update)
+    const skipped = verifyTestSkips(root, resolve(root, reportPath), { update, requireZero })
     console.log(`verify-test-skips: ${String(skipped)} skipped case(s) within the ${process.platform} budget.`)
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))

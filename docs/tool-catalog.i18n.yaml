@@ -9,8 +9,8 @@
   en: 788235fe5e9f4199
   zh: 891fd445df64adeb
 /tool-schema-catalog/tool-package-map:
-  en: 9053c5ddbaa776f5
-  zh: 07ded4a8c9b0f546
+  en: b1431bd99d58fcf8
+  zh: 5aecdb867365ed7e
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -350,9 +350,15 @@
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/analyze-patent-figure:
   en: 5eacdbb5b0b8fd84
   zh: e7ef3ab4b21fd08f
+/tool-schema-catalog/deepseek-ai-dsh-patent-tools/check-patent-figure-consistency:
+  en: af5b198efc6b5c02
+  zh: 0bde1d8e405e8741
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/claim-chart-build:
   en: 45fbf5f2bac4d785
   zh: 618a6ea9b4a08a0b
+/tool-schema-catalog/deepseek-ai-dsh-patent-tools/compare-patent-figure-analysis:
+  en: 428704da71a90330
+  zh: 1a190d23f8b39f8e
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/draft-claims:
   en: c8432c6a61c45bda
   zh: b3c8945dac2a7d72
@@ -366,8 +372,8 @@
   en: 0bf396584eab8572
   zh: 170fae9fe33b1001
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/generate-patent-figure:
-  en: cab2b19ec6eda79c
-  zh: 7377837174b32a52
+  en: 74b4708101d65bce
+  zh: d3f00f46afcec304
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/generate-structure-figure:
   en: 089f6fada8e70c65
   zh: b5e1525d65942457

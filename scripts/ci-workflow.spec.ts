@@ -999,6 +999,25 @@ describe('fork CI workflow', () => {
     expect(graphviz).toBeLessThan(suite)
   })
 
+  // The FreeCAD and Inkscape smoke suites skip themselves when their executable
+  // is missing, so a lane that runs them without provisioning reads green over no
+  // render coverage. The lane must install first, scope the signal spec to itself,
+  // and reject every skip instead of comparing against the platform budget.
+  it('provisions both CAD renderers before the CAD lane runs the suites', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'node-cad-render')
+    if (!Array.isArray(job.steps)) throw new TypeError('node-cad-render must define steps')
+    const steps = job.steps.filter(isRecord)
+    const prepare = steps.findIndex(step => String(step.run) === 'bash scripts/prepare-ci-cad.sh')
+    const suite = steps.findIndex(step => String(step.run).includes('figure-freecad-real-render.spec.ts'))
+    const zero = steps.findIndex(step => String(step.run).includes('--require-zero'))
+
+    expect(prepare).toBeGreaterThanOrEqual(0)
+    expect(suite).toBeGreaterThan(prepare)
+    expect(zero).toBeGreaterThan(suite)
+    expect(String(steps[suite]?.run)).toContain('figure-inkscape-real-render.spec.ts')
+    expect(steps[suite]?.env).toMatchObject({ DSH_CAD_CI_SIGNAL: '1' })
+  })
+
   // The snapshot lane boots the shipped profiles from built `lib/` and reaches the
   // real confinement path, so its job owns both steps; and a `snapshots` filter
   // alone would drop the corpus policy file under `scripts/`, which is where the

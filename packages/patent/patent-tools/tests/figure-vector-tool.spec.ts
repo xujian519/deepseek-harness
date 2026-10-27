@@ -151,6 +151,40 @@ describe('generate_patent_figure：矢量图型（直接绘制 SVG）', () => {
     }
   })
 
+  it('剖视图：break_lines 落成细实线折线，非法参数报 invalid_tool_input', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-vec-'))
+    const outDir = join(dir, 'figs')
+    const tracker = trackingRenderer()
+    const tool = createGeneratePatentFigureTool({ render: tracker.render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const parts = [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 3 } }]
+      const ok = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'cross_section',
+        sections: {
+          parts,
+          break_lines: [
+            { from: [0, -4], to: [40, -4] },
+            { from: [0, 24], to: [40, 24], style: 'wavy', teeth: 3 },
+          ],
+        },
+      }, 'br1')
+      expect(ok.isError).toBe(false)
+      const svg = readFileSync(join(outDir, 'fig1.svg'), 'utf8')
+      // 剖面线与中心线是 <line>，只有断裂线是 0.25 毫米折线。
+      expect(svg.match(/<polyline points="[^"]+" stroke-width="0.25"\/>/g) ?? []).toHaveLength(2)
+
+      const bad = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'cross_section',
+        sections: { parts, break_lines: [{ from: [0, -4], to: [40, -4], amplitude_mm: -1 }] },
+      }, 'br2')
+      expect(bad.isError).toBe(true)
+      expect(text(bad)).toContain('断裂线 #1 齿高必须为正数')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('曲线图带实用新型「不得仅有性能图」提示；剖视图含剖面线', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-vec-'))
     const outDir = join(dir, 'figs')

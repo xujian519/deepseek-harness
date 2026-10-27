@@ -15,6 +15,7 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/submission-page
  */
 
+import { formatMm as fmtMm } from './mm-primitives.ts'
 import { assertSafeSvg, DEFAULT_SVG_MAX_BYTES, SvgAnnotateError } from './svg-annotate.ts'
 import { resolveSvgViewport } from './svg-viewport.ts'
 import { escapeXmlAttribute } from './vector-figure.ts'
@@ -67,7 +68,7 @@ export type SubmissionPageInput = {
   profile: OfficeProfile
   /** 图号文字（如「图1」）；undefined 表示本幅不标图号（单幅图）。 */
   caption?: string | undefined
-  /** 附图页页码文字（如「2」「2/3」）；undefined 表示不标页码。 */
+  /** 附图页页码文字（如「第2页 共3页」「2/3」）；undefined 表示不标页码。 */
   sheetNumber?: string | undefined
   /** 图形正文的数字与字母字号（用户单位，如 DOT 的 fontsize=10），用于核算字高。 */
   bodyFontSize?: number | undefined
@@ -272,11 +273,6 @@ export function buildSubmissionPage(input: SubmissionPageInput): SubmissionPageR
       }),
   }
   return { svg: lines.join('\n'), metrics, warnings }
-}
-
-/** 毫米数值格式化（至多 3 位小数）。 */
-function fmtMm(value: number): string {
-  return String(Math.round(value * 1000) / 1000)
 }
 
 /**
