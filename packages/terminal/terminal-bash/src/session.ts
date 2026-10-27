@@ -260,6 +260,14 @@ export class LocalPtySession implements TerminalBackendSession {
    * reason (the delayed-marker generation boundary in the README).
    */
   private promptOwed = false
+  /**
+   * Whether the controlled prompt has been rendered at least once. A stdin wait
+   * observed before that first prompt belongs to the shell's own startup and says
+   * nothing about a completed send; accepting it would publish a shell whose
+   * prompt installation has not run, and the first command written into that
+   * window can race the setup command's marker.
+   */
+  private promptEverSeen = false
   private shellPgid: number | undefined
   private initializing = false
   private lastOutputAt = Date.now()
@@ -486,6 +494,7 @@ export class LocalPtySession implements TerminalBackendSession {
     const sanitized = this.sanitizer.push(data)
     this.appendOutput(sanitized.text)
     if (sanitized.prompt) {
+      this.promptEverSeen = true
       if (this.promptOwed) {
         // The marker a settled send left outstanding: it says the shell reached
         // that send's prompt, not that the current send's command ran.
@@ -554,7 +563,10 @@ export class LocalPtySession implements TerminalBackendSession {
       }
       const elapsed = Date.now() - operation.startedAt
       const startupHasOutput = !this.initializing || !this.scrollback.isEmpty
-      const acceptsStdinWait = startupHasOutput && foreground !== undefined
+      // Until the shell has rendered its controlled prompt, a stdin wait is the
+      // shell's own startup read, not a completed send: the prompt function may
+      // not be installed yet, and a command written now races that installation.
+      const acceptsStdinWait = this.promptEverSeen && startupHasOutput && foreground !== undefined
         && operation.acceptsStdinWait(foreground.processGroupId, foreground.inputWaiting)
       if (elapsed >= this.config.exactProbeAfterMs && acceptsStdinWait) {
         this.settleActive('stdin_read')
