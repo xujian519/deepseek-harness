@@ -14,36 +14,32 @@
  *
  * 输入词汇与归一在 `figure-input.ts`，DOT 构建与标注在 `figure-render-plan.ts`，
  * 落版在 `figure-submission.ts`，结果组装在 `figure-output.ts`，输入 schema 在
- * `figure-tool-schemas.ts`；本模块持有 schema 门面、单图与多面板两条执行路径。
+ * `figure-tool-schemas.ts`，多面板路径在 `figure-panels.ts`，交付链在
+ * `figure-delivery.ts`，共享运行参数在 `figure-run.ts`；本模块持有 schema 门面与
+ * 单图执行路径。
  * @module @deepseek-ai/dsh-patent-tools/tool/generate-patent-figure
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { defineTool, validateArgs } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
-import { DIAGRAM_TEMPLATE_NAMES, DOT_ENGINES, DOT_FORMATS, DotBuildError, assignNumerals, resolvePageBundle } from '../figure/dot-builder.ts'
-import type { DotEngine, DotFormat, DotPageBundle, NumeralAssignment } from '../figure/dot-builder.ts'
-import { figureSentence } from '../figure/figure-description.ts'
+import { DIAGRAM_TEMPLATE_NAMES, DOT_ENGINES, DOT_FORMATS, DotBuildError, resolvePageBundle } from '../figure/dot-builder.ts'
+import type { DotFormat } from '../figure/dot-builder.ts'
 import { sanitizeDotFilename } from '../figure/graphviz-renderer.ts'
 import { TARGET_OFFICES } from '../figure/office-profile.ts'
-import type { TargetOffice } from '../figure/office-profile.ts'
 import { buildVectorFigure, isVectorFigureType } from '../figure/vector-figure-build.ts'
 import { VectorFigureError, vectorFigureSvg } from '../figure/vector-figure.ts'
-import { clearanceMmForFigure } from '../figure/render-check.ts'
-import { gateRenderedSvg } from '../figure/render-check-gate.ts'
 import { SectionSourceError, expandSectionSource } from '../figure/section-source.ts'
 import type { SectionSourceExpansion } from '../figure/section-source.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
-import { FIGURE_TYPE_NAMES, FIGURE_TYPES } from './analyze-patent-figure.ts'
-import { collectComponents, collectFigureWording, inferFigureType, presentStructuralFields, presentVectorFields, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
-import type { DotFigureType, GenerateFigureType, GeneratePatentFigureDeps, GeneratePatentFigureInput, GeneratePatentFigureOutput, GeneratePatentFigurePanelInput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
+import { FIGURE_TYPES } from './analyze-patent-figure.ts'
+import { collectComponents, collectFigureWording, inferFigureType, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
+import type { DotFigureType, GeneratePatentFigureDeps, GeneratePatentFigureInput, GeneratePatentFigureOutput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
 import type { SectionFigureJson } from '../figure/vector-figure-build.ts'
 import { buildOutput, indexAnalysis, renderGenerateFigureResult, upsertFigureIndex } from './figure-output.ts'
 import { annotateRenderedSvg, buildFigureDot } from './figure-render-plan.ts'
-import { applySubmissionPage, buildLayout, resolveSubmission } from './figure-submission.ts'
-import type { SubmissionPlanInput } from './figure-submission.ts'
 import {
   APPEARANCE_INPUT_SCHEMA,
   BLOCK_SCHEMA,
@@ -62,6 +58,10 @@ import {
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
 import { assertRendered, sectionSourceError } from './internal/render-outcome.ts'
 import { WARNINGS_SCHEMA } from './internal/tool-output.ts'
+import { assignFigureNumerals, resolveFontPt } from './figure-run.ts'
+import type { FigureContext } from './figure-run.ts'
+import { generatePanels } from './figure-panels.ts'
+import { finishDirectRender, finishSvgChain, needsSvgChain } from './figure-delivery.ts'
 
 const DESCRIPTION = [
   '生成专利风格附图：流程图（方法步骤）、状态图（状态+转移条件）、系统框图（组件+连接）、组件层级图，以及直接绘制 SVG 的电路图、曲线图/坐标图、剖视图（含剖面线与剖切符号）、时序图、外观设计六面视图排布；另有内置模板与原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。',
@@ -88,51 +88,6 @@ const DESCRIPTION = [
   '',
   '本机未安装 Graphviz 时返回 setup_required 与安装引导。',
 ].join('\n')
-
-/** 一次生成调用的运行参数：输出目录基准、格式、引擎、色彩策略与取消信号。 */
-type FigureContext = {
-  deps: GeneratePatentFigureDeps
-  cwd: string
-  format: DotFormat
-  engine: DotEngine
-  style: 'grayscale' | 'semantic'
-  signal: AbortSignal
-}
-
-/** 面板的结构输入：面板 schema 已把图型限制为 DOT 图型，此处按该约束收窄。 */
-type PanelStructural = StructuralFigureInput & { figure_type: DotFigureType }
-
-/** 一个面板的构建计划：文件后缀、收窄后的图型、引线开关与结构输入。 */
-type PanelPlan = {
-  suffix: string
-  figureType: DotFigureType
-  leaderLines: boolean
-  structural: PanelStructural
-}
-
-/** 多面板一次调用中逐面板复用的数据：标号分配结果、字体与落版参数。 */
-type PanelRun = {
-  input: GeneratePatentFigureInput
-  context: FigureContext
-  figureNumber: number
-  outputDir: string
-  fontName: string
-  fontPt: number | undefined
-  pageBundle: DotPageBundle | undefined
-  assignments: readonly NumeralAssignment[]
-}
-
-/** 毫米 → pt（1pt = 25.4/72 毫米）：图面字号以毫米表述，DOT 与落版核算用 pt。 */
-const MM_PER_PT = 25.4 / 72
-
-/**
- * 部署图面字号（毫米）换算成 DOT 的 pt 值；未配置时 undefined（DOT 保持历史默认）。
- * @param figureFontMm - 部署配置的图面字号（毫米）。
- * @returns DOT 的 fontsize（pt）；未配置时 undefined。
- */
-function resolveFontPt(figureFontMm: number | undefined): number | undefined {
-  return figureFontMm === undefined ? undefined : Math.round((figureFontMm / MM_PER_PT) * 100) / 100
-}
 
 /** 单图一次渲染的参数：渲染器、文件命名、标号与引线。 */
 type SingleFigureRun = {
@@ -201,66 +156,6 @@ async function resolveSectionsFile(
     )
   }
   return { ...rest, sections: parsed }
-}
-
-/**
- * panels 模式：全部面板组件并入一次 assignNumerals（FIG.1A/1B 共享连续系列），
- * 逐面板构建/渲染/标注后合并输出。
- * @param input - the model-supplied input.
- * @param context - the resolved run parameters.
- * @returns the merged output for every panel.
- */
-async function generatePanels(
-  input: GeneratePatentFigureInput,
-  context: FigureContext,
-): Promise<GeneratePatentFigureOutput> {
-  const { deps, cwd } = context
-  /* v8 ignore next -- execute() only dispatches here with panels present; ?? guards standalone library callers */
-  const panels = input.panels ?? []
-  assertPanelInput(input, panels)
-  const figureNumber = input.figure_number ?? 1
-  const panelStructurals = toPanelStructurals(panels, input)
-  const allComponents = panelStructurals.flatMap(ps => collectComponents(ps.structural))
-  const fontName = (deps.resolveFont ?? ((): string => 'Helvetica'))(allComponents.map(c => c.label))
-  const familySeeds = await resolveFamilySeeds(input.figure_family, allComponents, deps)
-  // 显式标号优先级：面板 numerals > 顶层 numerals > 家族种子。
-  const panelNumerals: Record<string, string> = {}
-  for (const panel of panels) {
-    for (const [id, numeral] of Object.entries(readNumerals(panel.numerals, `面板 ${panel.suffix}`))) {
-      panelNumerals[id] = numeral
-    }
-  }
-  const explicit: Record<string, string> = {
-    ...familySeeds.explicit,
-    ...readNumerals(input.numerals, '顶层'),
-    ...panelNumerals,
-  }
-  const assignments = assignFigureNumerals({
-    ids: allComponents.map(c => c.id),
-    figureNumber,
-    explicit,
-    numeralStart: input.numeral_start,
-    numeralStep: input.numeral_step,
-    reserved: familySeeds.reserved,
-  })
-  const pageBundle = resolvePageBundle({
-    pageSize: input.page_size ?? deps.pageSize,
-    orientation: input.orient ?? deps.orientation,
-    dpi: input.dpi ?? deps.dpi,
-    marginCm: input.margin ?? deps.marginCm,
-  })
-  /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
-  const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
-  await mkdir(outputDir, { recursive: true })
-  const run: PanelRun = {
-    input, context, figureNumber, outputDir, fontName,
-    fontPt: resolveFontPt(deps.figureFontMm), pageBundle, assignments,
-  }
-  const panelOutputs: { suffix: string; output: GeneratePatentFigureOutput }[] = []
-  for (const ps of panelStructurals) {
-    panelOutputs.push(await renderPanel(ps, run))
-  }
-  return mergePanelOutputs({ panelOutputs, panelStructurals, input, context })
 }
 
 /**
@@ -442,374 +337,6 @@ function normalizeSingleFigure(input: ResolvedFigureInput): NormalizedFigureInpu
 }
 
 /**
- * panels 模式的输入约束：与顶层结构输入互斥、列表非空、不接受 filename、后缀限字母数字下划线连字符。
- * @param input - the model-supplied input.
- * @param panels - the supplied panels.
- * @throws PatentToolError for each violated constraint.
- */
-function assertPanelInput(input: GeneratePatentFigureInput, panels: readonly GeneratePatentFigurePanelInput[]): void {
-  // Vector inputs are not panel fields, and sending one alongside `panels` would
-  // otherwise be parsed, validated, and then silently dropped.
-  const topLevelFields = [...presentStructuralFields(input), ...presentVectorFields(input)].map(p => p.field)
-  if (topLevelFields.length > 0) {
-    throw new PatentToolError('invalid_tool_input', `panels 不能与顶层结构输入（${topLevelFields.join('、')}）同时提供`, { tool: 'generate_patent_figure' })
-  }
-  if (panels.length === 0) {
-    throw new PatentToolError('invalid_tool_input', 'panels 不能为空列表', { tool: 'generate_patent_figure' })
-  }
-  if (input.filename !== undefined) {
-    throw new PatentToolError('invalid_tool_input', 'panels 模式按 figN<suffix> 命名输出文件，不接受 filename', { tool: 'generate_patent_figure' })
-  }
-  const suffixes = new Set<string>()
-  for (const panel of panels) {
-    if (!/^[A-Za-z0-9_-]+$/.test(panel.suffix)) {
-      throw new PatentToolError('invalid_tool_input', `面板后缀只能包含字母/数字/下划线/连字符：${panel.suffix}`, { tool: 'generate_patent_figure' })
-    }
-    // Compare case-insensitively: fig1A.svg and fig1a.svg are one file on
-    // case-insensitive filesystems, so the second panel would overwrite the first.
-    const normalized = panel.suffix.toLowerCase()
-    if (suffixes.has(normalized)) {
-      throw new PatentToolError('invalid_tool_input', `面板后缀重复：${panel.suffix}（每个面板必须使用不同后缀，否则会覆盖同一输出文件）`, { tool: 'generate_patent_figure' })
-    }
-    suffixes.add(normalized)
-  }
-}
-
-/**
- * 逐面板解析图型（缺省推断）并构造结构化输入；引线标号按面板图型取默认。
- * @param panels - the supplied panels.
- * @param input - the top-level input the panel fields inherit from.
- * @returns one plan per panel, in supplied order.
- */
-function toPanelStructurals(
-  panels: readonly GeneratePatentFigurePanelInput[],
-  input: GeneratePatentFigureInput,
-): PanelPlan[] {
-  return panels.map((panel) => {
-    // schema 层已把面板图型限制为 DOT 图型（矢量图型字段不在面板 schema 内），此处按该约束收窄。
-    const figureType = (panel.figure_type ?? inferFigureType(panel, `面板 ${panel.suffix}`)) as DotFigureType
-    return {
-      suffix: panel.suffix,
-      figureType,
-      // 顶层 leader_lines 强制全部面板；缺省按面板图型取默认（框图/层级图开）。
-      leaderLines: input.leader_lines ?? (figureType === 'block_diagram' || figureType === 'component_hierarchy'),
-      structural: {
-        figure_type: figureType,
-        steps: panel.steps ?? [],
-        states: panel.states ?? [],
-        transitions: panel.transitions ?? [],
-        blocks: panel.blocks ?? [],
-        connections: panel.connections ?? [],
-        tree: panel.tree ?? [],
-        template: panel.template,
-        dot: panel.dot,
-        invention_name: input.invention_name,
-      } satisfies PanelStructural,
-    }
-  })
-}
-
-/**
- * 分配标号系列。显式标号重复、系列起止非法都在这里译成 invalid_tool_input：
- * 单图与多面板两条路径共用同一条分配与报错路径。
- * @param args - ids in figure order, the figure number, explicit numerals, and optional start/step/reserved.
- * @returns the assignments in id order; empty when the figure has no components.
- * @throws PatentToolError when the series bounds or an explicit numeral is invalid.
- */
-function assignFigureNumerals(args: {
-  ids: readonly string[]
-  figureNumber: number
-  explicit: Record<string, string>
-  numeralStart?: number | undefined
-  numeralStep?: number | undefined
-  reserved?: readonly string[] | undefined
-}): NumeralAssignment[] {
-  if (args.ids.length === 0) return []
-  try {
-    return assignNumerals(args.ids, {
-      figureNumber: args.figureNumber,
-      ...(args.numeralStart === undefined ? {} : { start: args.numeralStart }),
-      ...(args.numeralStep === undefined ? {} : { step: args.numeralStep }),
-      explicit: args.explicit,
-      ...(args.reserved === undefined || args.reserved.length === 0 ? {} : { reserved: args.reserved }),
-    })
-  } catch (error) {
-    /* v8 ignore start -- assignNumerals only throws DotBuildError; keep the rethrow loud for invariant drift */
-    if (error instanceof DotBuildError) {
-      throw new PatentToolError('invalid_tool_input', `标号分配失败：${error.message}`, { tool: 'generate_patent_figure' })
-    }
-    throw error
-    /* v8 ignore stop */
-  }
-}
-
-/**
- * 面板渲染：按该面板的组件子集取标号，构建并渲染，再标注引线、落版。
- * @param panel - the panel plan.
- * @param run - the data shared by every panel of this call.
- * @returns the panel suffix with its output record.
- */
-async function renderPanel(
-  panel: PanelPlan,
-  run: PanelRun,
-): Promise<{ suffix: string; output: GeneratePatentFigureOutput }> {
-  const { deps, format } = run.context
-  const panelIds = new Set(collectComponents(panel.structural).map(c => c.id))
-  const panelAssignments = run.assignments.filter(a => panelIds.has(a.id))
-  const numeralsForBuilder = Object.fromEntries(panelAssignments.map(a => [a.id, a.numeral]))
-  const numeralBy = new Map(panelAssignments.map(a => [a.id, a.numeral]))
-  const chain = needsSvgChain({
-    figureType: panel.figureType,
-    format,
-    targetOffice: run.input.target_office,
-    exportAvailable: deps.exportFigure !== undefined,
-  })
-  const leaderLinesActive = panel.leaderLines && (format === 'svg' || chain)
-  let dot: string
-  try {
-    dot = buildFigureDot(panel.structural, {
-      figureNumber: run.figureNumber,
-      numeralsForBuilder,
-      numeralStep: run.input.numeral_step,
-      style: run.context.style,
-      fontName: run.fontName,
-      fontPt: run.fontPt,
-      pageBundle: run.pageBundle,
-      leaderLinesActive,
-    })
-  } catch (error) {
-    /* v8 ignore start -- builders only throw DotBuildError; keep the rethrow loud for invariant drift */
-    if (error instanceof DotBuildError) {
-      throw new PatentToolError('invalid_tool_input', `附图内容校验失败（面板 ${panel.suffix}）：${error.message}`, { tool: 'generate_patent_figure' })
-    }
-    throw error
-    /* v8 ignore stop */
-  }
-  const outcome = await deps.render({
-    dot,
-    filename: `fig${run.figureNumber}${panel.suffix}`,
-    format: chain ? 'svg' : format,
-    engine: run.context.engine,
-    outputDir: run.outputDir,
-    signal: run.context.signal,
-  })
-  assertRendered(outcome, 'generate_patent_figure')
-  const output = buildOutput(panel.structural, {
-    cwd: run.context.cwd,
-    outcomePath: chain ? outcome.path.replace(/\.svg$/, `.${format}`) : outcome.path,
-    figureNumber: run.figureNumber,
-    format,
-    engine: run.context.engine,
-    figureType: toFigureType(panel.figureType),
-    numeralBy,
-    suffix: panel.suffix,
-  })
-  if (leaderLinesActive) {
-    await annotateRenderedSvg(outcome.path, output.numeralMap, output.warnings)
-  }
-  // 全链成功后不再走直绘收尾；失败则按请求的格式重渲染一次，交付物与不带
-  // target_office 时逐字节相同（`finishSvgChain` 已把未生效的原因写进警告）。
-  let directPath = outcome.path
-  const chained = chain && await finishSvgChain({
-    deps,
-    svgPath: outcome.path,
-    outcomePath: output.absolutePath,
-    input: run.input,
-    suffix: panel.suffix,
-    format,
-    figureType: panel.figureType,
-    dpi: run.input.dpi ?? deps.dpi,
-    style: run.context.style,
-    signal: run.context.signal,
-    output,
-    hasDirectRender: true,
-  }) === 'done'
-  if (!chained) {
-    if (chain) {
-      const direct = await deps.render({
-        dot,
-        filename: `fig${run.figureNumber}${panel.suffix}`,
-        format,
-        engine: run.context.engine,
-        outputDir: run.outputDir,
-        signal: run.context.signal,
-      })
-      assertRendered(direct, 'generate_patent_figure')
-      directPath = direct.path
-    }
-    await finishDirectRender({
-      deps,
-      outcomePath: directPath,
-      input: run.input,
-      suffix: panel.suffix,
-      format,
-      check: false,
-      figureType: panel.figureType,
-      style: run.context.style,
-      signal: run.context.signal,
-      output,
-    })
-  }
-  return { suffix: panel.suffix, output }
-}
-
-/**
- * 是否需要「SVG 全链」交付非 SVG：先出 SVG、落版、复核、文字转路径，再交 Inkscape 导出。
- *
- * 两种情况需要它——落版/复核/文字转路径只作用于 SVG，而矢量图型本来就只有 SVG 一条
- * 绘图通路（渲染器无法直接出 png/pdf）。没有注入导出端口时不走全链：渲染器直接出图，
- * 落版与复核的缺席由各自的警告说明。
- * @param args - the figure type, the requested format, the target office, and whether the export port is wired.
- * @returns 本次调用是否走全链。
- */
-function needsSvgChain(args: {
-  figureType: GenerateFigureType
-  format: DotFormat
-  targetOffice: TargetOffice | undefined
-  exportAvailable: boolean
-}): boolean {
-  if (args.format === 'svg' || !args.exportAvailable) return false
-  return isVectorFigureType(args.figureType) || args.targetOffice !== undefined
-}
-
-/**
- * 复核一张已交付的 SVG：净距按图型分档，strict 按部署开关，面板编号进报告前缀。
- * @param args - the deps carrying the strict switch, the delivered path, the warning sink, the figure type, and the panel suffix.
- */
-async function checkDeliveredSvg(args: {
-  deps: GeneratePatentFigureDeps
-  path: string
-  warnings: string[]
-  figureType: GenerateFigureType
-  suffix: string
-}): Promise<void> {
-  await gateRenderedSvg({
-    path: args.path,
-    warnings: args.warnings,
-    clearanceMm: clearanceMmForFigure(args.figureType),
-    failOnFindings: args.deps.failOnRenderFindings === true,
-    tool: 'generate_patent_figure',
-    ...(args.suffix === '' ? {} : { label: `面板 ${args.suffix} ` }),
-  })
-}
-
-/**
- * SVG 全链的收尾：在中间 SVG 上落版、复核、转路径，再导出请求的格式。
- *
- * 三步的警告先攒在暂存输出里，导出成功才并入：导出失败时它们描述的交付物并不存在，
- * 逐条抛出去会误导用户。
- * @param args - the deps, the intermediate SVG and final paths, the layout input, the format, dpi, signal, and the output to extend.
- * @returns 'done' 表示导出成功；'fallback' 表示导出失败但调用方还有直绘通路可退回。
- * @throws PatentToolError 导出失败且该图型没有 SVG 直绘以外的通路时（`setup_required` / `tool_execution_failed`）。
- */
-async function finishSvgChain(args: {
-  deps: GeneratePatentFigureDeps
-  svgPath: string
-  outcomePath: string
-  input: SubmissionPlanInput
-  suffix: string
-  format: DotFormat
-  dpi: number | undefined
-  style: 'grayscale' | 'semantic'
-  signal: AbortSignal
-  output: GeneratePatentFigureOutput
-  figureType: GenerateFigureType
-  /** 渲染器直接出图的通路是否存在（矢量图型为 false：导出失败即无产物可交）。 */
-  hasDirectRender: boolean
-}): Promise<'done' | 'fallback'> {
-  const staged: GeneratePatentFigureOutput = { ...args.output, warnings: [] }
-  await layoutSubmissionPage({
-    input: args.input,
-    suffix: args.suffix,
-    outcomePath: args.svgPath,
-    format: 'svg',
-    style: args.style,
-    output: staged,
-    ...styleBodyFont(args.deps, args.figureType),
-  })
-  await checkDeliveredSvg({
-    deps: args.deps,
-    path: args.svgPath,
-    warnings: staged.warnings,
-    figureType: args.figureType,
-    suffix: args.suffix,
-  })
-  await outlineFigureText({ deps: args.deps, path: args.svgPath, format: 'svg', signal: args.signal, warnings: staged.warnings })
-  const exported = await args.deps.exportFigure?.({
-    path: args.svgPath,
-    outcomePath: args.outcomePath,
-    format: toExportFormat(args.format),
-    ...(args.dpi === undefined ? {} : { dpi: args.dpi }),
-    signal: args.signal,
-  })
-  if (exported !== undefined && exported.ok) {
-    args.output.warnings.push(...staged.warnings)
-    if (staged.layout !== undefined) args.output.layout = staged.layout
-    return 'done'
-  }
-  /* v8 ignore next -- chain implies the export port is wired, so the call always returns an outcome */
-  const reason = exported === undefined ? '宿主未注入格式导出端口' : exported.error
-  if (!args.hasDirectRender) {
-    throw new PatentToolError(exported?.code === 'not_installed' ? 'setup_required' : 'tool_execution_failed', `导出 ${args.format} 失败：${reason}`, { tool: 'generate_patent_figure' })
-  }
-  args.output.warnings.push(`未能导出 ${args.format}：${reason}；落版、渲染复核与文字转路径未生效（它们只作用于 SVG），改由渲染器直接出图`)
-  return 'fallback'
-}
-
-/**
- * 渲染器直绘路径的收尾：落版、按需复核、文字转路径。全链回退时也走这里——那时
- * 交付物是渲染器的原始产物，这三步应按各自对非 SVG 的既有规则给出警告。
- * @param args - the deps, the delivered path and format, whether to run the render check, the signal, and the warning sink.
- */
-async function finishDirectRender(args: {
-  deps: GeneratePatentFigureDeps
-  outcomePath: string
-  input: SubmissionPlanInput
-  suffix: string
-  format: DotFormat
-  check: boolean
-  style: 'grayscale' | 'semantic'
-  signal: AbortSignal
-  output: GeneratePatentFigureOutput
-  figureType: GenerateFigureType
-}): Promise<void> {
-  await layoutSubmissionPage({
-    input: args.input,
-    suffix: args.suffix,
-    outcomePath: args.outcomePath,
-    format: args.format,
-    style: args.style,
-    output: args.output,
-    ...styleBodyFont(args.deps, args.figureType),
-  })
-  if (args.check) {
-    await checkDeliveredSvg({
-      deps: args.deps,
-      path: args.outcomePath,
-      warnings: args.output.warnings,
-      figureType: args.figureType,
-      suffix: args.suffix,
-    })
-  } else if (args.deps.failOnRenderFindings === true) {
-    args.output.warnings.push('渲染复核未执行（该格式走渲染器直绘、没有 SVG 可量测）：figureFailOnRenderFindings 对本次输出不生效')
-  }
-  await outlineFigureText({
-    deps: args.deps,
-    path: args.outcomePath,
-    format: args.format,
-    signal: args.signal,
-    warnings: args.output.warnings,
-  })
-}
-
-/** 导出格式窄化（全链只在非 SVG 时启用）。 */
-function toExportFormat(format: DotFormat): 'png' | 'pdf' {
-  /* v8 ignore next -- 全链由 needsSvgChain 保证只在 png/pdf 时启用 */
-  if (format !== 'png' && format !== 'pdf') throw new PatentToolError('invalid_tool_input', `不支持的导出格式：${format}`, { tool: 'generate_patent_figure' })
-  return format
-}
-
-/**
  * 剖切来源展开：`sections.source` 给出时调 FreeCAD 切出轮廓与剖面线并填回输入。
  *
  * 中间产物（脚本、几何 JSON、`.pat`）落进输出目录下按图号区分的子目录：文件名固定，
@@ -935,151 +462,6 @@ async function renderSingleFigure(
   })
   assertRendered(outcome, 'generate_patent_figure')
   return { path: outcome.path, vectorLabels: undefined, vectorWarnings: [] }
-}
-
-/**
- * 合并各面板输出：面板句各一句 + 全部面板共用一条「图中」标号表，并写附图索引。
- * @param args - the panel outputs and plans, the top-level input, and the run parameters.
- * @returns the merged tool output.
- */
-async function mergePanelOutputs(args: {
-  panelOutputs: readonly { suffix: string; output: GeneratePatentFigureOutput }[]
-  panelStructurals: readonly PanelPlan[]
-  input: GeneratePatentFigureInput
-  context: FigureContext
-}): Promise<GeneratePatentFigureOutput> {
-  const { panelOutputs, panelStructurals, input, context } = args
-  const { deps, format, engine, style } = context
-  const figureNumber = input.figure_number ?? 1
-  const mergedNumerals = panelOutputs.flatMap(po => po.output.numeralMap)
-  const sentences = panelOutputs.map(po => figureSentence(
-    figureNumber,
-    FIGURE_TYPE_NAMES[po.output.figureType],
-    input.invention_name,
-    po.suffix,
-  ))
-  const sharedNumerals = mergedNumerals.map(m => `${m.numeral}-${m.label}`).join('，')
-  const figureDescription = sharedNumerals === ''
-    ? `${sentences.join('；')}。`
-    : `${sentences.join('；')}；图中：${sharedNumerals}。`
-  const warnings = panelOutputs.flatMap(po => po.output.warnings)
-  if (panelStructurals.some(ps => ps.leaderLines) && format !== 'svg') {
-    warnings.push(`引线标号仅支持 SVG 矢量输出；本次 ${format} 保持内嵌标号`)
-  }
-  warnings.push(...figureWordingWarnings(
-    panelStructurals.flatMap(ps => collectFigureWording(ps.structural)),
-    mergedNumerals.map(entry => entry.numeral),
-  ))
-  let indexed = false
-  if ((input.persist_index ?? true) && deps.upsertIndex !== undefined) {
-    indexed = true
-    for (const po of panelOutputs) {
-      // 任一面板写入失败即整体未索引；失败原因由 upsertFigureIndex 记进 warnings。
-      if (!await upsertFigureIndex({
-        upsertIndex: deps.upsertIndex,
-        imagePath: po.output.path,
-        analysis: indexAnalysis(po.output, style, input.figure_family),
-        warnings,
-        label: `面板 ${po.suffix} `,
-      })) {
-        indexed = false
-      }
-    }
-  }
-  /* v8 ignore start -- panels is validated non-empty above, so the first panel always exists */
-  return {
-    path: panelOutputs[0]?.output.path ?? '',
-    absolutePath: panelOutputs[0]?.output.absolutePath ?? '',
-    format,
-    engine,
-    figureNumber,
-    figureType: panelOutputs[0]?.output.figureType ?? 'unknown',
-    figureDescription,
-    numeralMap: mergedNumerals,
-    components: panelOutputs.flatMap(po => po.output.components),
-    connections: panelOutputs.flatMap(po => po.output.connections),
-    warnings,
-    indexed,
-    panels: panelOutputs.map(po => ({
-      suffix: po.suffix,
-      path: po.output.path,
-      absolutePath: po.output.absolutePath,
-      figureType: po.output.figureType,
-      ...(po.output.layout === undefined ? {} : { layout: po.output.layout }),
-    })),
-  }
-  /* v8 ignore stop */
-}
-
-/**
- * 落版核算用的正文字号（用户单位）：直绘图型的用户单位是毫米，DOT 图是 pt；
- * 未配置图面字号（Config.figureFontMm）时 undefined，落版核算沿用历史默认 10pt。
- * @param deps - the tool dependencies (carrying the deployment figure font size).
- * @param figureType - the figure type of this render.
- * @returns the body font size in the artifact's user units; undefined when unconfigured.
- */
-function bodyFontFor(deps: GeneratePatentFigureDeps, figureType: GenerateFigureType): number | undefined {
-  const mm = deps.figureFontMm
-  if (mm === undefined) return undefined
-  return isVectorFigureType(figureType) ? mm : resolveFontPt(mm)
-}
-
-/**
- * 落版参数里的正文字号字段：未配置图面字号时不带该字段（exactOptionalPropertyTypes）。
- * @param deps - the tool dependencies (carrying the deployment figure font size).
- * @param figureType - the figure type of this render.
- * @returns the field to spread into the layout call.
- */
-function styleBodyFont(deps: GeneratePatentFigureDeps, figureType: GenerateFigureType): { bodyFontSize?: number } {
-  const size = bodyFontFor(deps, figureType)
-  return size === undefined ? {} : { bodyFontSize: size }
-}
-
-/**
- * 落版与合规核算：给定 target_office 时把图形落到该法域幅面，并把结果挂到输出上。
- * @param args - the input, the panel suffix (`''` for the single path), the rendered path, the format, the style, and the output to extend.
- */
-async function layoutSubmissionPage(args: {
-  input: SubmissionPlanInput
-  suffix: string
-  outcomePath: string
-  format: DotFormat
-  style: 'grayscale' | 'semantic'
-  output: GeneratePatentFigureOutput
-  /** 图面字号（用户单位）：DOT 图为 pt、直绘图型为毫米；未配置时 undefined。 */
-  bodyFontSize?: number
-}): Promise<void> {
-  const plan = resolveSubmission(args.input, args.suffix, args.bodyFontSize)
-  if (plan === undefined) return
-  const applied = await applySubmissionPage(args.outcomePath, plan, args.format, args.output.warnings)
-  if (applied !== undefined) {
-    args.output.layout = buildLayout(plan, applied, args.style, args.input.figure_count ?? 1, args.output.warnings)
-  }
-}
-
-/**
- * 文字转路径：把已落版文件里的 `<text>` 换成轮廓路径（Config.figureTextToPath）。
- *
- * 放在落版之后：落版会改写坐标与画布，先转的路径还得再被改写一次；转完不再有
- * 步骤解析文件（索引只记路径）。只对 SVG 生效——png/pdf 由渲染器按 Config.dotFont
- * 出字，那时给出「本参数不生效」的警告而不是静默忽略。
- * @param args - the deps, the finished path, the output format, the caller's cancel signal, and the warning sink.
- */
-async function outlineFigureText(args: {
-  deps: GeneratePatentFigureDeps
-  path: string
-  format: DotFormat
-  signal: AbortSignal
-  warnings: string[]
-}): Promise<void> {
-  const outline = args.deps.outlineText
-  if (outline === undefined) return
-  if (args.format !== 'svg') {
-    args.warnings.push(`文字转路径（Config.figureTextToPath）仅对 SVG 输出生效；本次 ${args.format} 仍由渲染器按 Config.dotFont 出字`)
-    return
-  }
-  const outcome = await outline({ path: args.path, signal: args.signal })
-  assertRendered(outcome, 'generate_patent_figure')
 }
 
 /**

@@ -359,11 +359,35 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | 计数 | 值 |
 | --- | --- |
 | `structure.long-functions` | 187 |
-| `structure.large-files` | 77 |
+| `structure.large-files` | 74 |
+| `structure.patent-large-files` | 7 |
 | `lint.v8-ignore` | 1270 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
+
+### 专利域 >800 行文件裁定（2026-10-27）
+
+`packages/patent` 原有 10 个 >800 行源文件，本次逐条定性：7 个保留为「大但单一职责」，3 个拆到 800 行以下；拆分后全仓 >800 文件 77→**74**，专利域 10→**7**。`packages/legal` 与 `packages/document` 当前无 >800 行文件。
+
+拆分落点：`generate-patent-figure.ts` 拆出 `figure-panels.ts`（多面板路径）、`figure-delivery.ts`（落版/复核/转路径/导出）与 `figure-run.ts`（共享运行参数与标号）；`evidence/engine.ts` 拆出 `signals.ts`、`judgment.ts`、`public-use.ts`、`conditions.ts` 与 `proof-standard.ts`；`generate-structure-figure.ts` 拆出 `structure-types.ts`、`structure-model.ts` 与 `structure-render.ts`。
+
+门禁 `verify-tech-debt-counters` 复算下表：`接受` 行不得超过记录上限且必须仍 >800，`拆分` 行不得超过 800；审计域内出现未登记的新大文件即失败。上限是裁定时的尺寸，有意增长须在同一 PR 内重新定性。
+
+<!-- structure-baseline:start -->
+| 文件 | 裁定 | 上限 | 理由 |
+| --- | --- | ---: | --- |
+| `packages/patent/patent-deadline/src/statutes.ts` | 接受 | 1304 | 法定期限条目集：每个期限与法条同址，28 个函数 3–87 行，装配共享；拆分会把法条引用与期限计算拆散 |
+| `packages/patent/patent-tools/src/figure/render-check-findings.ts` | 接受 | 946 | 纯几何判据：30+ 个小谓词 + 109 行编排，无 I/O，无第二消费方 |
+| `packages/patent/patent-tools/src/figure/section-diagram.ts` | 接受 | 918 | 纯几何绘制：146 行主绘制 + 小工具，与 `leader-line` 同类 |
+| `packages/patent/patent-tools/src/figure/leader-line.ts` | 接受 | 908 | 纯几何：稳定在 906→908，无状态、无 I/O |
+| `packages/patent/patent-core/src/atoms/handlers/builtin/evidence-check.ts` | 接受 | 842 | 单个 atom handler 的五阶段，最大函数 123 行，仅超阈值 5% |
+| `packages/patent/patent-tools/src/figure/dot-builder.ts` | 接受 | 839 | 单一 DOT 词汇表：五个 builder 各 <60 行，共享头部/标号/转义契约 |
+| `packages/patent/patent-core/src/ipc/ipc-classifier.ts` | 接受 | 807 | 数据表为主：`IPC_DOMAINS` 409 行 + 明细表 260 行，分类函数 <30 行 |
+| `packages/patent/patent-tools/src/tool/generate-patent-figure.ts` | 拆分 | 800 | 多面板路径与交付链已分拆；入口保留 schema 与单图编排 |
+| `packages/patent/patent-core/src/evidence/engine.ts` | 拆分 | 800 | 三性、类型特定、使用公开、证明标准已分模块；类只保留编排 |
+| `packages/patent/patent-tools/src/tool/generate-structure-figure.ts` | 拆分 | 800 | 类型、模型 I/O、渲染收尾已分模块；入口保留 schema 与工具装配 |
+<!-- structure-baseline:end -->
 
 - **2026-10-27 CI 门槛清理**:`lint.v8-ignore` 由 1271 降至 **1270**;`figure-set-consistency.ts` 的 `matchAll` 偏移取值被 lint 判为不必要空值合并,去掉 `?? 0` 后原「`RegExpStringIterator` 必带 `index`」的豁免随之删除,该函数本就由用例覆盖;其余计数不变。
 - **2026-10-26 附图跨图一致性与图文比对**:`lint.v8-ignore` 由 1267 升至 **1271**;新增 `check_patent_figure_consistency` 与 `compare_patent_figure_analysis` 两个确定性工具,`matchAll` 匹配对象总带 `index`、标号索引与首次图号同时建立、正则捕获组必选这三类不可达分支补带理由的豁免;其余新增分支由用例覆盖。

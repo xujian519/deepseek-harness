@@ -30,13 +30,10 @@ export {
 } from './ledger.ts'
 export { ClaimBinding } from './claimBinding.ts'
 export { ConflictDetector, type EvidenceConflict } from './conflict.ts'
-export {
-  EvidenceEngine,
-  inferEvidenceType,
-  evaluateFourElements,
-  STANDARD_PREPONDERANCE,
-  STANDARD_CLEAR_CONVINCING,
-} from './engine.ts'
+export { EvidenceEngine } from './engine.ts'
+export { inferEvidenceType } from './judgment.ts'
+export { evaluateFourElements } from './public-use.ts'
+export { STANDARD_PREPONDERANCE, STANDARD_CLEAR_CONVINCING } from './proof-standard.ts'
 export type {
   EvidenceJudgment,
   EvidenceJudgmentEngine,

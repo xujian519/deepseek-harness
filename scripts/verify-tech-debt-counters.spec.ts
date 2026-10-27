@@ -6,14 +6,22 @@ import {
   BLOCK_END,
   BLOCK_START,
   INSTRUMENT_SOURCES,
+  STRUCTURE_BLOCK_END,
+  STRUCTURE_BLOCK_START,
   checkLedgerCounters,
+  checkStructureBaseline,
   countMarkerLines,
   diffCounters,
   listTrackedFiles,
+  measureStructureBaseline,
   parseCounterBlock,
+  parseStructureBlock,
   pathspecMatcher,
+  structureBaselineClean,
   type CommandRunner,
+  type StructureRulingRow,
 } from './verify-tech-debt-counters.ts'
+import type { StructureReport } from './report-structure.ts'
 
 const roots: string[] = []
 
@@ -38,6 +46,30 @@ function trackedRunner(paths: readonly string[]): CommandRunner {
     expect([command, ...args]).toEqual(['git', 'ls-files', '-z'])
     return paths.map(path => `${path}\0`).join('')
   }
+}
+
+/** Render a ledger whose structure block declares the given rows. */
+function structureLedger(
+  rows: readonly string[],
+  markers: readonly [string, string] = [STRUCTURE_BLOCK_START, STRUCTURE_BLOCK_END],
+): string {
+  return [
+    '# Ledger',
+    '',
+    'Prose before the table.',
+    '',
+    markers[0],
+    '| 文件 | 裁定 | 上限 | 理由 |',
+    '| --- | --- | ---: | --- |',
+    ...rows,
+    markers[1],
+    '',
+  ].join('\n')
+}
+
+/** An empty structure report carrying only the oversized-file list under test. */
+function structureReport(largeFiles: StructureReport['largeFiles']): StructureReport {
+  return { scanned: 0, testFiles: 0, generatedFiles: 0, longFunctions: [], largeFiles, generatedLargeFiles: [] }
 }
 
 /** Render a ledger whose counter block declares the given rows. */
@@ -177,6 +209,7 @@ describe('ledger counter gate', () => {
       'docs/TECH_DEBT.md': ledger([
         '| `structure.long-functions` | 0 |',
         '| `structure.large-files` | 0 |',
+        '| `structure.patent-large-files` | 0 |',
         '| `lint.v8-ignore` | 1 |',
         '| `lint.ts-expect-error` | 0 |',
         '| `packages.patent-directories` | 2 |',
@@ -195,6 +228,7 @@ describe('ledger counter gate', () => {
       'docs/TECH_DEBT.md': ledger([
         '| `structure.long-functions` | 0 |',
         '| `structure.large-files` | 0 |',
+        '| `structure.patent-large-files` | 0 |',
         '| `lint.v8-ignore` | 1135 |',
         '| `lint.ts-expect-error` | 0 |',
         '| `packages.patent-directories` | 2 |',
@@ -210,5 +244,92 @@ describe('ledger counter gate', () => {
       actual: 1,
       measures: 'lines carrying a `v8 ignore` directive in shipped package sources',
     }])
+  })
+
+  it('reads structure rulings from the ledger table', () => {
+    expect(parseStructureBlock(structureLedger([
+      '| `packages/patent/a.ts` | 接受 | 1304 | 法条与计算同址 |',
+      '| `packages/patent/b.ts` | 拆分 | 800 | 交付链已分拆 |',
+    ]))).toEqual([
+      { path: 'packages/patent/a.ts', ruling: 'accept', cap: 1304, reason: '法条与计算同址' },
+      { path: 'packages/patent/b.ts', ruling: 'split', cap: 800, reason: '交付链已分拆' },
+    ])
+  })
+
+  it('rejects a structure block with no table, a repeated block, or no row', () => {
+    expect(() => parseStructureBlock('# Ledger\n')).toThrow(/expected exactly one .*structure-baseline:start.* found 0 start/)
+    expect(() => parseStructureBlock(`${structureLedger(['| `packages/patent/a.ts` | 接受 | 900 | x |'])}\n${STRUCTURE_BLOCK_START}\n${STRUCTURE_BLOCK_END}\n`))
+      .toThrow(/found 2 start\(s\) and 2 end\(s\)/)
+    expect(() => parseStructureBlock(structureLedger([]))).toThrow(/the structure block declares no row/)
+  })
+
+  it('rejects a malformed, duplicated, out-of-scope, or unreasoned structure row', () => {
+    expect(() => parseStructureBlock(structureLedger(['| packages/patent/a.ts | 接受 | 900 | x |'])))
+      .toThrow(/expected a row naming one path/)
+    expect(() => parseStructureBlock(structureLedger([
+      '| `packages/patent/a.ts` | 接受 | 900 | x |',
+      '| `packages/patent/a.ts` | 接受 | 900 | y |',
+    ]))).toThrow(/duplicate structure row/)
+    expect(() => parseStructureBlock(structureLedger(['| `packages/core/a.ts` | 接受 | 900 | x |'])))
+      .toThrow(/outside the audited domains/)
+    expect(() => parseStructureBlock(structureLedger(['| `packages/patent/a.ts` | 接受 | 900 |  |'])))
+      .toThrow(/expected a row naming one path/)
+    expect(() => parseStructureBlock(structureLedger(['| `packages/patent/a.ts` | 保留 | 900 | x |'])))
+      .toThrow(/expected a row naming one path/)
+  })
+
+  it('accepts rulings at their ceiling and split targets at the threshold', () => {
+    const rows: StructureRulingRow[] = [
+      { path: 'packages/patent/a.ts', ruling: 'accept', cap: 1304, reason: 'x' },
+      { path: 'packages/patent/b.ts', ruling: 'split', cap: 800, reason: 'y' },
+    ]
+    const sizes = new Map([['packages/patent/a.ts', 1304], ['packages/patent/b.ts', 800]])
+    expect(measureStructureBaseline(rows, [], path => sizes.get(path))).toEqual({
+      missing: [], unruled: [], overCap: [], stale: [],
+    })
+  })
+
+  it('reports over-cap growth, stale accepted rows, unruled files, and missing paths', () => {
+    const rows: StructureRulingRow[] = [
+      { path: 'packages/patent/a.ts', ruling: 'accept', cap: 1304, reason: 'x' },
+      { path: 'packages/patent/b.ts', ruling: 'split', cap: 800, reason: 'y' },
+      { path: 'packages/patent/gone.ts', ruling: 'accept', cap: 900, reason: 'z' },
+    ]
+    const sizes = new Map([
+      ['packages/patent/a.ts', 700],
+      ['packages/patent/b.ts', 801],
+    ])
+    const diff = measureStructureBaseline(
+      rows,
+      [
+        { path: 'packages/patent/c.ts', lines: 900 },
+        { path: 'packages/legal/d.ts', lines: 850 },
+        { path: 'packages/core/e.ts', lines: 900 },
+      ],
+      path => sizes.get(path),
+    )
+    expect(diff.missing).toEqual(['packages/patent/gone.ts'])
+    expect(diff.overCap).toEqual([{ path: 'packages/patent/b.ts', ruling: 'split', cap: 800, lines: 801 }])
+    expect(diff.stale).toEqual([{ path: 'packages/patent/a.ts', lines: 700 }])
+    expect(diff.unruled).toEqual([
+      { path: 'packages/patent/c.ts', lines: 900 },
+      { path: 'packages/legal/d.ts', lines: 850 },
+    ])
+    expect(structureBaselineClean(diff)).toBe(false)
+  })
+
+  it('checks the ledger against the tree and reads split targets below the threshold', () => {
+    const root = fixtureRoot({
+      'docs/TECH_DEBT.md': structureLedger([
+        '| `packages/patent/a.ts` | 接受 | 900 | 单一职责 |',
+        '| `packages/patent/b.ts` | 拆分 | 800 | 已分拆 |',
+      ]),
+      'packages/patent/a.ts': 'export const a = 1\n',
+      'packages/patent/b.ts': 'export const b = 1\n',
+    })
+    const structure = structureReport([{ path: 'packages/patent/a.ts', lines: 900 }])
+    expect(checkStructureBaseline(root, structure)).toEqual({
+      missing: [], unruled: [], overCap: [], stale: [],
+    })
   })
 })
