@@ -1,5 +1,5 @@
 /** Scheduling policy for post-merge native runtime carriers and Wine. */
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import { load } from 'js-yaml'
@@ -28,11 +28,9 @@ interface Workflow {
 }
 
 function workflow(name: string): Workflow {
-  // The fork keeps most upstream workflows archived; ci-windows and ci-python
-  // run live.
-  const live = resolve(root, '.github/workflows', name)
-  const archived = resolve(root, '.github/workflows-disabled', name)
-  return load(readFileSync(existsSync(live) ? live : archived, 'utf8')) as Workflow
+  // The fork keeps every upstream workflow archived, so a missing archived copy
+  // fails loudly instead of resolving to a live file the fork never runs.
+  return load(readFileSync(resolve(root, '.github/workflows-disabled', name), 'utf8')) as Workflow
 }
 
 function commands(job: Job): string[] {

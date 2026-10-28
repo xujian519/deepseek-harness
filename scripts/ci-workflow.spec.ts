@@ -17,8 +17,8 @@ const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js-${{ githu
 describe('CI workflow', () => {
   it('keeps at most eleven worker jobs active across PR workflows while Python runtime targets follow the SDK suite', () => {
     const ci = loadArchivedWorkflow('.github/workflows/ci.yml')
-    const ciWindows = loadWorkflow('.github/workflows/ci-windows.yml')
-    const ciPython = loadWorkflow('.github/workflows/ci-python.yml')
+    const ciWindows = loadArchivedWorkflow('.github/workflows/ci-windows.yml')
+    const ciPython = loadArchivedWorkflow('.github/workflows/ci-python.yml')
     const compatibility = workflowJob(ci, 'node-compat')
     const runtime = workflowJob(ciPython, 'python-runtime')
     if (!isRecord(ci.jobs)
@@ -103,7 +103,7 @@ describe('CI workflow', () => {
     ] as const
     const blocking: string[] = []
     for (const [file, name] of verdicts) {
-      const workflow = loadReleaseWorkflow(file)
+      const workflow = loadArchivedWorkflow('.github/workflows/' + file)
       const verdict = workflowJob(workflow, name)
       if (!isRecord(workflow.jobs) || !Array.isArray(verdict.needs)) {
         throw new TypeError(`${file} must define jobs and the ${name} verdict needs`)
@@ -131,7 +131,7 @@ describe('CI workflow', () => {
 
   it('retains aggregate diagnostics in required builds and protected publication', () => {
     const ci = loadArchivedWorkflow('.github/workflows/ci.yml')
-    const windows = loadWorkflow('.github/workflows/ci-windows.yml')
+    const windows = loadArchivedWorkflow('.github/workflows/ci-windows.yml')
     for (const [workflow, name, command] of [
       [ci, 'node-24-consumers', 'pnpm run check:ci:consumers'],
       [windows, 'windows-build', 'pnpm run check:ci:windows-blocking'],
@@ -243,7 +243,7 @@ describe('CI workflow', () => {
   })
 
   it('skips coverage-history uploads on cancellation but retains Wine cleanup', () => {
-    const coverage = workflowJob(loadWorkflow('.github/workflows/ci-windows.yml'), 'windows-coverage')
+    const coverage = workflowJob(loadArchivedWorkflow('.github/workflows/ci-windows.yml'), 'windows-coverage')
     const wine = workflowJob(loadArchivedWorkflow('.github/workflows/ci-master.yml'), 'windows')
     expect(coverage.steps).toContainEqual(expect.objectContaining({
       name: 'Save coverage duration history', if: '${{ !cancelled() }}',
@@ -255,7 +255,7 @@ describe('CI workflow', () => {
     ['node-24-coverage', 'ci.yml', 'Linux', 'LINUX', 'pnpm run check:ci:coverage'],
     ['windows-coverage', 'ci-windows.yml', 'Windows', 'WINDOWS', 'pnpm run check:ci:coverage'],
   ])('reuses %s coverage timings only within its platform and runner pool', (jobName, file, platform, variable, command) => {
-    const job = workflowJob(loadReleaseWorkflow(file), jobName)
+    const job = workflowJob(loadArchivedWorkflow('.github/workflows/' + file), jobName)
     if (!Array.isArray(job.steps)) throw new TypeError(`${jobName} must define steps`)
     const steps = job.steps.filter(isRecord)
     const checkout = steps.findIndex(step => step.uses === 'actions/checkout@v7.0.1')
@@ -283,7 +283,7 @@ describe('CI workflow', () => {
     const files = ['ci.yml', 'ci-windows.yml', 'ci-master.yml']
     const setups: Array<{ jobName: string; step: unknown }> = []
     for (const file of files) {
-      const workflow: unknown = loadReleaseWorkflow(file)
+      const workflow: unknown = loadArchivedWorkflow('.github/workflows/' + file)
       if (!isRecord(workflow) || !isRecord(workflow.jobs)) throw new TypeError(`${file} must define jobs`)
       for (const [jobName, job] of Object.entries(workflow.jobs)) {
         if (!isRecord(job) || !Array.isArray(job.steps)) continue
@@ -367,7 +367,7 @@ describe('CI workflow', () => {
 
   it('keeps split native Windows PR jobs with failover in their own workflow, plus a master-only standby', () => {
     const workflow = loadArchivedWorkflow('.github/workflows/ci.yml')
-    const windowsWorkflow = loadWorkflow('.github/workflows/ci-windows.yml')
+    const windowsWorkflow = loadArchivedWorkflow('.github/workflows/ci-windows.yml')
     const masterWorkflow = loadArchivedWorkflow('.github/workflows/ci-master.yml')
     if (!isRecord(workflow.jobs)
       || !isRecord(windowsWorkflow.jobs)
@@ -776,14 +776,14 @@ describe('CI workflow', () => {
     }
     expect(Object.keys(workflow.on).sort()).toEqual(['push', 'workflow_dispatch'])
     expect(Object.keys(prWorkflow.on)).toEqual(['pull_request'])
-    const windowsWorkflow = loadWorkflow('.github/workflows/ci-windows.yml')
+    const windowsWorkflow = loadArchivedWorkflow('.github/workflows/ci-windows.yml')
     if (!isRecord(windowsWorkflow.on)) throw new TypeError('CI Windows workflow must define on')
     expect(Object.keys(windowsWorkflow.on)).toEqual(['pull_request'])
     expect(windowsWorkflow.concurrency).toEqual(workflow.concurrency)
     // Duplicated env must not drift: a Node bump on one lane only would run
     // Linux and Windows against different versions.
     expect(windowsWorkflow.env).toEqual(prWorkflow.env)
-    const pythonWorkflow = loadWorkflow('.github/workflows/ci-python.yml')
+    const pythonWorkflow = loadArchivedWorkflow('.github/workflows/ci-python.yml')
     if (!isRecord(pythonWorkflow.on)) throw new TypeError('CI Python workflow must define on')
     expect(Object.keys(pythonWorkflow.on)).toEqual(['pull_request'])
     expect(pythonWorkflow.concurrency).toEqual(workflow.concurrency)
@@ -866,7 +866,7 @@ describe('CI workflow', () => {
   })
 
   it('requires release-shaped Python runtime validation on Linux and Windows x64 in CI Python', () => {
-    const workflow = loadWorkflow('.github/workflows/ci-python.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/ci-python.yml')
     const pythonRuntime = workflowJob(workflow, 'python-runtime')
     const aggregate = workflowJob(workflow, 'python-checks-passed')
     if (!Array.isArray(aggregate.needs)) {
@@ -884,7 +884,7 @@ describe('CI workflow', () => {
     })
     expect(aggregate.needs).toEqual(['python-sdk', 'python-runtime'])
     for (const file of ['ci.yml', 'ci-windows.yml']) {
-      const other = loadReleaseWorkflow(file)
+      const other = loadArchivedWorkflow('.github/workflows/' + file)
       if (!isRecord(other.jobs)) throw new TypeError(`${file} must define jobs`)
       expect(other.jobs).not.toHaveProperty('python-runtime')
     }
@@ -1563,7 +1563,7 @@ describe('Weighted approval workflow', () => {
       if: "failure() && steps.revoke.outputs.active == 'true'",
       run: 'node .github/review-ownership/check-approval.mjs error',
     })
-    const pythonJob = workflowJob(loadWorkflow('.github/workflows/ci-python.yml'), 'python-sdk')
+    const pythonJob = workflowJob(loadArchivedWorkflow('.github/workflows/ci-python.yml'), 'python-sdk')
     expect(pythonJob.steps).toContainEqual({
       name: 'Test production blame scoring',
       run: "uv run --python 3.10 --with-requirements .github/review-ownership/requirements.txt python -m unittest discover -s .github/review-ownership -p 'test_*.py'",
@@ -1829,16 +1829,6 @@ function loadWorkflow(path: string): Record<string, unknown> {
  */
 function loadArchivedWorkflow(path: string): Record<string, unknown> {
   return parseWorkflow(path.replace('.github/workflows/', '.github/workflows-disabled/'))
-}
-
-/** Upstream workflows the fork still runs live rather than archiving. */
-const LIVE_UPSTREAM_WORKFLOWS = new Set(['ci-windows.yml', 'ci-python.yml', 'expected-filenames.yml'])
-
-/** Load one upstream workflow from where the fork keeps it: live or archived. */
-function loadReleaseWorkflow(file: string): Record<string, unknown> {
-  return LIVE_UPSTREAM_WORKFLOWS.has(file)
-    ? loadWorkflow('.github/workflows/' + file)
-    : loadArchivedWorkflow('.github/workflows/' + file)
 }
 
 function nodeStepSource(job: Record<string, unknown>, id: string): string {

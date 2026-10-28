@@ -27,8 +27,8 @@ interface CompatibilityJob {
 const workflow = yaml.load(readFileSync(resolve(import.meta.dirname, '../.github/workflows-disabled/ci.yml'), 'utf8')) as {
   jobs: { 'node-compat': CompatibilityJob }
 }
-// Python keeps its own required verdict in ci-python.yml.
-const pythonWorkflow = yaml.load(readFileSync(resolve(import.meta.dirname, '../.github/workflows/ci-python.yml'), 'utf8')) as {
+// Python keeps its own required verdict in ci-python.yml, which the fork archives.
+const pythonWorkflow = yaml.load(readFileSync(resolve(import.meta.dirname, '../.github/workflows-disabled/ci-python.yml'), 'utf8')) as {
   jobs: { 'python-sdk': { 'runs-on': string } }
 }
 const job = workflow.jobs['node-compat']
