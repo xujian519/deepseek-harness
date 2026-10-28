@@ -480,7 +480,7 @@ describe('tool-terminal task integration', () => {
     const started = await call(ctx, 'terminal_send', { sessionId: 'pty-1', text: '', run_in_background: true }, agent)
     const jobId = backgroundJobId(started)
     expect(text(started)).toContain(jobId)
-    expect(text(await call(ctx, 'job_kill', { job_id: jobId }, agent))).toContain('requested cancellation')
+    expect(text(await call(ctx, 'job_kill', { job_id: jobId }, agent))).toBe(`job ${jobId} [status: killed, wait: stdin_read]`)
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(text(await call(ctx, 'job_output', { job_id: jobId }, agent))).toContain('[status: killed')
 

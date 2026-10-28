@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-tool-jobs` to inspect and control background commands and PTY work through `job_output`, `job_list`, and `job_kill`. Reads can wait within a configured timeout, and a wait yields early to a user steer; list results identify each job's kind and status, and cancellation settles after the work stops. When owned work finishes, the agent receives an in-session notice carrying short output: busy agents get it next step, and idle agents are woken by a follow-up turn. Configuration controls wait limits, completion delivery, and an optional consecutive-wakeup cap. Stream output has one reader, and pending notices do not survive owner disposal.
+Use `dsh-tool-jobs` to inspect and control background commands and PTY work through `job_output`, `job_list`, and `job_kill`. Reads can wait a configured timeout and yield to a user steer; list results identify each job's kind and status, and a kill waits for work to stop and reports the terminal state. When owned work finishes, the agent receives an in-session notice with short output: busy agents get it next step, and idle agents are woken by a follow-up turn. Configuration controls wait limits, delivery, and an optional wakeup cap. Stream output has one reader; pending notices do not survive owner disposal.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ Load this plugin in any composition where the agent should start, observe, and s
 
 - `job_output(job_id, wait?, timeout_ms?)` — Read a job's output. Stream jobs return only the output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. Reads are non-blocking unless `wait: true`. A wait ends on settlement, on the configured timeout, or when a user-authored message is queued for the current step — a chat steer; input queued for a later turn does not end it, and neither do plugin notices or injected context, which stay queued for the next step. A steer and the timeout both return the job's current state, leave it running, and never cancel its producer, so a later read still collects the completion; an interrupted wait names its cause in the status line (`[status: running, user steered]`). A read renders stdout first and stderr in one `[stderr]` section, notes output that left memory before the read, and carries a job's result (a subagent's answer) exactly once, on the first read after settlement.
 - `job_list()` — List your background jobs with their ids, kinds, and statuses, one per line: `<id> [<kind>] <status> — <label>`.
-- `job_kill(job_id, reason?)` — Request cancellation of a running job immediately; the job settles as `killed` once its work actually stops. A terminal job returns its current snapshot, and the optional reason is recorded and forwarded to the job.
+- `job_kill(job_id, reason?)` — Request cancellation of a running job and wait for its work to stop, bounded by `killTimeoutMs`; the result carries the terminal snapshot, or the `stopping` snapshot when the bound expires. An already-finished job returns its current snapshot, and the optional reason is recorded and forwarded to the job.
 
 The three tools return `{ text, job }`, `PublicJobSnapshot[]`, and `{ outcome: 'cancellation-requested' | 'already-finished', job }` respectively. A public snapshot carries id, kind, label, status with the live progress line or the terminal detail, and start/finish times, and omits ownership and ring offsets. All three render through generic UI cards: `read` for output and list, `execute` for kill.
 
@@ -52,6 +52,7 @@ Loading the plugin with no config is the common path; a `waitTimeoutMs` above `m
 | Field | Default | Meaning |
 |---|---|---|
 | `waitTimeoutMs` | `30,000` | Wait used when `wait: true` omits `timeout_ms` |
+| `killTimeoutMs` | `30,000` | How long `job_kill` waits for the cancelled work to stop; capped by `maxWaitTimeoutMs` |
 | `maxWaitTimeoutMs` | `600,000` | Cap for model-supplied waits; larger values clamp down to it |
 | `completionDelivery` | `wakeup` | `wakeup` opens a turn on an idle owner; `quiet` leaves the notice pending |
 | `maxConsecutiveWakes` | unset | Turns one owner may open by wake before notices degrade to injection; unset means no cap |
@@ -156,7 +157,7 @@ Prefix-stable while tool definitions and visibility are unchanged. Registration 
 
 #### What the model sees
 
-Reads return output or `(no new output)` followed by `[status: <status>]` and optional detail. An empty list returns `(no background jobs)`. Kill returns `requested cancellation of job <id>` or the existing terminal status. An owned completion the model has not already collected uses the notice above, with the job's unread output when it fits. A `wait: true` read returns `[status: running]` when the wait yielded to a user steer or timed out — a yield names its cause beside the progress line, as `[status: running, user steered]` — and the terminal status when it collected the settlement.
+Reads return output or `(no new output)` followed by `[status: <status>]` and optional detail. An empty list returns `(no background jobs)`. Kill returns `job <id> [status: <status>]` once the work stops; when the settlement bound expires first it returns `requested cancellation of job <id>; [status: stopping]`. An owned completion the model has not already collected uses the notice above, with the job's unread output when it fits. A `wait: true` read returns `[status: running]` when the wait yielded to a user steer or timed out — a yield names its cause beside the progress line, as `[status: running, user steered]` — and the terminal status when it collected the settlement.
 
 #### Token effect
 

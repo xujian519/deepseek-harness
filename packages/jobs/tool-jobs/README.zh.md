@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list` 与 `job_kill` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，而等待会因用户 steer 提前结束；列表结果标识各任务的 kind 与状态，而取消只有在工作停止后才结算。归属明确的工作完成时，agent（智能体）会收到携带简短输出的会话内通知：繁忙的 agent 在下一步收到，空闲的 agent 则由 follow-up 轮次唤醒。配置控制等待上限、完成投递与可选的连续唤醒上限。流输出只有一个读取方，待领通知无法在所有者释放后存活。
+使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list` 与 `job_kill` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，并因用户 steer 提前结束；列表结果标识各任务的 kind 与状态，而杀停会等待工作停止并报告终止态。归属明确的工作完成时，agent（智能体）会收到带简短输出的会话内通知：繁忙的 agent 在下一步收到，空闲的 agent 则由 follow-up 轮次唤醒。配置控制等待上限、投递与可选的唤醒上限。流输出只有一个读取方；待领通知无法在所有者释放后存活。
 
 ## 目录
 
@@ -31,7 +31,7 @@ kind: "package-reference"
 
 - `job_output(job_id, wait?, timeout_ms?)`——读取任务输出。流任务只返回自上次读取以来的输出；最终输出任务在结算后返回其结果。每个响应都以 `[status: ...]` 结尾。除非 `wait: true`，否则读取是非阻塞的。等待会在三种情况下结束：结算、到达配置的超时，或当前步骤有用户撰写的消息排队（chat steer）；排队到后续轮次的输入不会结束等待，插件通知与注入的上下文也不会结束等待，它们留到下一步投递。steer 与超时都返回任务的当前状态、让任务保持运行，且都不会取消其生产方，因此之后的读取仍能收走完成结果；被打断的等待会在状态行写明原因（`[status: running, user steered]`）。一次读取先渲染 stdout，再把 stderr 放进一段 `[stderr]`，标注读取前已离开内存的输出，并在结算后的第一次读取恰好携带一次任务的结果（subagent 的回答）。
 - `job_list()`——列出你的后台任务及其 id、kind 与状态，每行一个：`<id> [<kind>] <status> — <label>`。
-- `job_kill(job_id, reason?)`——立即请求取消运行中的任务；任务在其工作真正停止后以 `killed` 结算。终止任务返回其当前快照，可选的原因会被记录并转发给任务。
+- `job_kill(job_id, reason?)`——请求取消运行中的任务并等待其工作停止（受 `killTimeoutMs` 约束）；结果携带终止快照，若超出上限则携带 `stopping` 快照。已终止的任务返回其当前快照，可选的原因会被记录并转发给任务。
 
 三个工具依次返回 `{ text, job }`、`PublicJobSnapshot[]` 与 `{ outcome: 'cancellation-requested' | 'already-finished', job }`。公共快照携带 id、kind、label、带实时进度行或终态 detail 的状态，以及开始／结束时间，并省略归属与环偏移。三个工具都通过通用 UI 卡片渲染：output 和 list 用 `read`，kill 用 `execute`。
 
@@ -52,6 +52,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `waitTimeoutMs` | `30,000` | `wait: true` 省略 `timeout_ms` 时使用的等待时间 |
+| `killTimeoutMs` | `30,000` | `job_kill` 等待被取消工作停止的时长；受 `maxWaitTimeoutMs` 封顶 |
 | `maxWaitTimeoutMs` | `600,000` | 模型所给等待时间的上限；更大的值向下收敛到它 |
 | `completionDelivery` | `wakeup` | `wakeup` 为空闲所有者开启一轮；`quiet` 让通知继续待领 |
 | `maxConsecutiveWakes` | 未设置 | 一个所有者可由唤醒开启的轮数，超出后通知降级为注入；未设置即不封顶 |
@@ -156,7 +157,7 @@ Track every background job id you start. You are notified in-session when a job 
 
 #### 模型看到什么
 
-读取会返回输出或 `(no new output)`，随后是 `[status: <status>]` 和可选 detail。空列表返回 `(no background jobs)`。kill 返回 `requested cancellation of job <id>` 或现有终止状态。模型尚未收走且有所有者归属的完成使用上述通知，并在容纳得下时附带任务的未读输出。`wait: true` 的读取在等待让位于用户 steer 或超时时返回 `[status: running]`（让位时会在进度行旁写明原因，如 `[status: running, user steered]`），在收走结算时返回终止状态。
+读取会返回输出或 `(no new output)`，随后是 `[status: <status>]` 和可选 detail。空列表返回 `(no background jobs)`。kill 在工作停止后返回 `job <id> [status: <status>]`；若结算上限先到，则返回 `requested cancellation of job <id>; [status: stopping]`。模型尚未收走且有所有者归属的完成使用上述通知，并在容纳得下时附带任务的未读输出。`wait: true` 的读取在等待让位于用户 steer 或超时时返回 `[status: running]`（让位时会在进度行旁写明原因，如 `[status: running, user steered]`），在收走结算时返回终止状态。
 
 #### Token 影响
 

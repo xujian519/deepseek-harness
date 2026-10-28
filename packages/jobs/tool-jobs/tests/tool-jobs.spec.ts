@@ -137,13 +137,18 @@ async function disposeAgentScope(agent: Agent): Promise<void> {
  * A controllable producer spec: pushes output and progress through the handle
  * the registry hands its starter, settles `done` on demand, records cancels.
  */
-function producer(overrides: Partial<Omit<JobSpec, 'run' | 'output'> & JobHooks> = {}) {
+function producer(overrides: Partial<Omit<JobSpec, 'run' | 'output'> & JobHooks & { settleOnCancel: boolean }> = {}) {
   let settle!: (outcome: JobOutcome) => void
   let handle: JobHandle | undefined
   const cancels: (string | undefined)[] = []
-  const { kind = 'bash', label = 'sleep 60', owner, outputLimitBytes, ...hookOverrides } = overrides
+  const { kind = 'bash', label = 'sleep 60', owner, outputLimitBytes, settleOnCancel = false, ...hookOverrides } = overrides
   const hooks: JobHooks = {
-    cancel(reason) { cancels.push(reason) },
+    cancel(reason) {
+      cancels.push(reason)
+      // A real producer stops its work on cancellation; the fake keeps running
+      // unless the test asks for that settlement.
+      if (settleOnCancel) settle({ status: 'killed', detail: 'signal: SIGTERM' })
+    },
     done: new Promise<JobOutcome>((res) => { settle = res }),
     ...hookOverrides,
   }
@@ -225,6 +230,7 @@ describe('tool-jobs setup', () => {
   })
 
   it('defaults delivery to unbounded wakeup and rejects an unknown lane', () => {
+    expect(ToolJobs.Config({}).killTimeoutMs).toBe(30_000)
     expect(ToolJobs.Config({}).completionDelivery).toBe('wakeup')
     expect(ToolJobs.Config({}).maxConsecutiveWakes).toBeUndefined()
     expect(() => ToolJobs.Config({ completionDelivery: 'loud' as never })).toThrow()
@@ -611,9 +617,9 @@ describe('job_list', () => {
 })
 
 describe('job_kill', () => {
-  it('requests cancellation with the forwarded reason', async () => {
-    const { ctx } = await setup()
-    const p = producer()
+  it('waits for the cancelled work to stop and reports the terminal state', async () => {
+    const { ctx } = await setup({ killTimeoutMs: 200 })
+    const p = producer({ settleOnCancel: true })
     ctx.jobs.start(p.spec)
 
     const result = await call(ctx, 'job_kill', { job_id: startedId(ctx, 'bash-1'), reason: 'superseded' })
@@ -621,16 +627,45 @@ describe('job_kill', () => {
     const killValue = result.value as { outcome: string; job: Record<string, unknown> }
     expect(killValue).toMatchObject({
       outcome: 'cancellation-requested',
-      job: { id: startedId(ctx, 'bash-1'), kind: 'bash', label: 'sleep 60', status: 'stopping' },
+      job: { id: startedId(ctx, 'bash-1'), kind: 'bash', label: 'sleep 60', status: 'killed', detail: 'signal: SIGTERM; superseded' },
     })
     expect(killValue.job).not.toHaveProperty('owner')
     expect(killValue.job).not.toHaveProperty('output')
-    expect(text(result)).toBe(`requested cancellation of job ${startedId(ctx, 'bash-1')}`)
+    expect(text(result)).toBe(`job ${startedId(ctx, 'bash-1')} [status: killed, signal: SIGTERM; superseded]`)
     expect(p.cancels).toEqual(['superseded'])
   })
 
+  it('reports a job that outlasts the settlement bound as still stopping', async () => {
+    const { ctx } = await setup({ killTimeoutMs: 20 })
+    const p = producer()
+    ctx.jobs.start(p.spec)
+
+    const result = await call(ctx, 'job_kill', { job_id: startedId(ctx, 'bash-1'), reason: 'stuck' })
+    if (result.isError) throw new Error('expected job_kill success')
+    const killValue = result.value as { outcome: string; job: Record<string, unknown> }
+    expect(killValue).toMatchObject({
+      outcome: 'cancellation-requested',
+      job: { id: startedId(ctx, 'bash-1'), status: 'stopping' },
+    })
+    expect(text(result)).toBe(`requested cancellation of job ${startedId(ctx, 'bash-1')}; [status: stopping]`)
+    expect(p.cancels).toEqual(['stuck'])
+  })
+
+  it('reports a settlement that lands while the kill waits', async () => {
+    const { ctx } = await setup({ killTimeoutMs: 500 })
+    const p = producer()
+    ctx.jobs.start(p.spec)
+
+    const pending = call(ctx, 'job_kill', { job_id: startedId(ctx, 'bash-1') })
+    await tick()
+    p.settle({ status: 'killed', detail: 'signal: SIGTERM' })
+    const result = await pending
+    if (result.isError) throw new Error('expected job_kill success')
+    expect(text(result)).toBe(`job ${startedId(ctx, 'bash-1')} [status: killed, signal: SIGTERM]`)
+  })
+
   it('applies the producer output limit to a cancellation acknowledgement', async () => {
-    const { ctx } = await setup()
+    const { ctx } = await setup({ killTimeoutMs: 20 })
     const p = producer({ outputLimitBytes: 8 })
     ctx.jobs.start(p.spec)
 
@@ -654,7 +689,7 @@ describe('job_kill', () => {
   })
 
   it('bounds single-text post policy while preserving structured policy results', async () => {
-    const { ctx } = await setup()
+    const { ctx } = await setup({ killTimeoutMs: 20 })
     ctx.on('tools/post-execute', (exec, _result, next) => {
       if (exec.name !== 'job_kill') return next()
       const reason = (exec.arguments as { reason?: unknown }).reason
@@ -1081,7 +1116,7 @@ describe('completion notices', () => {
   })
 
   it('suppresses the notice for a job the model already killed', async () => {
-    const { ctx } = await setup()
+    const { ctx } = await setup({ killTimeoutMs: 20 })
     const inject = vi.fn()
     const owner = await fakeAgent(ctx, 'sess-1', { inject })
     const p = producer({ owner: owner.id })
@@ -1191,7 +1226,7 @@ describe('completion notices', () => {
   })
 
   it('keeps a claim on one job while another job settles', async () => {
-    const { ctx } = await setup()
+    const { ctx } = await setup({ killTimeoutMs: 20 })
     const inject = vi.fn()
     const owner = await fakeAgent(ctx, 'sess-1', { inject })
     const killed = producer({ owner: owner.id })
@@ -1637,15 +1672,17 @@ describe('released waits crossed by a settlement', () => {
         name: 'job_output', arguments: { job_id: id, wait: true }, agent: owner,
       })
       await registered.promise
-      // The model killed the job it was waiting on; that result is its delivery.
-      expect(text(await call(ctx, 'job_kill', { job_id: id }, owner))).toContain('requested')
-      insertNextStep(ctx, owner, 'RELEASE_INPUT')
+      // The model killed the job it was waiting on; the kill waits for the
+      // settlement and reports it, which is that completion's delivery.
+      const killed = call(ctx, 'job_kill', { job_id: id }, owner)
+      await tick()
       p.settle({ status: 'killed', detail: 'cancelled by the user' })
-      // The released read never commits, so the withheld notice must not repeat
-      // the kill result the model already collected.
-      controller.abort()
+      expect(text(await killed)).toContain('status: killed')
+      insertNextStep(ctx, owner, 'RELEASE_INPUT')
+      // The released read carries the same settlement, so no notice repeats it.
       const result = await pending
-      expect(result.isError).toBe(true)
+      expect(result.isError).toBe(false)
+      expect(text(result)).toContain('status: killed')
       await tick()
       expect(inject).not.toHaveBeenCalled()
     } finally { await ctx.fiber.dispose() }
