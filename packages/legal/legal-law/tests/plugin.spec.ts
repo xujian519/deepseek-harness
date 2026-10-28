@@ -8,6 +8,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { apply, assertLegalLawIndexReadable, LegalLawBaselineError, type Config } from '../src/index.ts'
+import { createLegalLawIndex } from '../src/baseline.ts'
 import { createLegalLawVerifyTool, type LegalLawVerifyOutput } from '../src/tool/law-verify.ts'
 import type { LegalCitationPolicySet, LegalLawBaseline, LegalLawName } from '../src/types.ts'
 
@@ -16,6 +17,11 @@ function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'legal-law-plugin-'))
   tempDirs.push(dir)
   return dir
+}
+
+/** Manifest text for the given `[law, document, file]` rows. */
+function manifestText(rows: Array<[string, string, string]>): string {
+  return JSON.stringify({ laws: rows })
 }
 
 afterEach(() => {
@@ -92,6 +98,7 @@ describe('legal-law plugin', () => {
   it('registers the tool over an explicit index directory', async () => {
     const dir = tempDir()
     writeFileSync(join(dir, 'civil-code.yaml'), INDEX_YAML)
+    writeFileSync(join(dir, 'manifest.json'), manifestText([['民法典', '中华人民共和国民法典', 'civil-code.yaml']]))
     const ctx = await host()
     apply(ctx, config(dir))
     const result = await execute(ctx, { references: ['民法典第143条'] })
@@ -105,11 +112,18 @@ describe('legal-law plugin', () => {
     apply(ctx, config())
     const result = await execute(ctx, { references: ['民法典第143条'] })
     expect(result.isError).toBe(false)
-  }, 180_000)
+  })
 
   it('rejects an empty index directory at registration', async () => {
     const ctx = await host()
     expect(() => { apply(ctx, config(tempDir())) }).toThrow(LegalLawBaselineError)
+  })
+
+  it('rejects an index directory without a manifest at registration', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'civil-code.yaml'), INDEX_YAML)
+    const ctx = await host()
+    expect(() => { apply(ctx, config(dir)) }).toThrow('法条索引清单不可读')
   })
 
   it('rejects an unreadable index directory at registration', async () => {
@@ -123,42 +137,41 @@ describe('legal-law plugin', () => {
   })
 })
 
-describe('lazy baseline loading', () => {
-  it('calls a loader once across tool calls', async () => {
-    let loads = 0
+describe('manifest-backed index', () => {
+  it('parses each cited law once across tool calls', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'civil-code.yaml'), INDEX_YAML)
+    writeFileSync(join(dir, 'manifest.json'), manifestText([['民法典', '中华人民共和国民法典', 'civil-code.yaml']]))
     const ctx = await host()
     ctx.tools.register(createLegalLawVerifyTool({
-      baselines: () => {
-        loads += 1
-        return MINIMAL_INDEX
-      },
+      baselines: createLegalLawIndex(dir),
       policies: POLICIES,
       supportThreshold: 0.5,
     }))
     const first = await execute(ctx, { references: ['民法典第143条第2款第1项'], proposition: '条件' })
-    const second = await execute(ctx, { references: ['民法典第143条'] })
     expect(first.isError).toBe(false)
-    expect(second.isError).toBe(false)
-    expect(loads).toBe(1)
     const value = first.value as LegalLawVerifyOutput
     expect(value.findings[0]).toMatchObject({ article: 143, paragraph: 2, item: 1 })
+    // A parsed law stays cached: dropping the file does not affect the next call.
+    rmSync(join(dir, 'civil-code.yaml'))
+    const second = await execute(ctx, { references: ['民法典第143条'] })
+    expect(second.isError).toBe(false)
   })
 
-  it('retries a failed loader on the next call', async () => {
-    let loads = 0
+  it('retries a failed law load on the next call', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'civil-code.yaml'), 'law: 民法典')
+    writeFileSync(join(dir, 'manifest.json'), manifestText([['民法典', '中华人民共和国民法典', 'civil-code.yaml']]))
     const ctx = await host()
     ctx.tools.register(createLegalLawVerifyTool({
-      baselines: () => {
-        loads += 1
-        return loads === 1 ? Promise.reject(new Error('first load failed')) : Promise.resolve(MINIMAL_INDEX)
-      },
+      baselines: createLegalLawIndex(dir),
       policies: POLICIES,
     }))
     const failed = await execute(ctx, { references: ['民法典第143条'] })
     expect(failed.isError).toBe(true)
+    writeFileSync(join(dir, 'civil-code.yaml'), INDEX_YAML)
     const retried = await execute(ctx, { references: ['民法典第143条'] })
     expect(retried.isError).toBe(false)
-    expect(loads).toBe(2)
   })
 
   it('reads a map-backed index on every call', async () => {

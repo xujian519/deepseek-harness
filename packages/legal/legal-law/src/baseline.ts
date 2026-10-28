@@ -6,11 +6,17 @@
  * `sourceDoc`, `verifiedOn`). A missing or malformed file fails the plugin
  * load, because a gate that silently runs with no index would report every
  * citation as checked.
+ *
+ * The directory holds one manifest (`manifest.json`) naming the file behind
+ * each law, plus one YAML file per law. {@link createLegalLawIndex} reads the
+ * manifest and parses only the laws a citation names; the whole-corpus loaders
+ * stay for callers that need every law at once.
  * @module @deepseek-ai/dsh-legal-law/baseline
  */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import {
   IndexAssetError,
   parseYamlMapping,
@@ -21,11 +27,14 @@ import {
   readString,
   type AssetFail,
 } from '@deepseek-ai/dsh-patent-index-asset'
-import { legalLawBaselineDir, listLegalLawFiles } from './asset-location.ts'
+import { LEGAL_LAW_MANIFEST_FILE, legalLawBaselineDir, listLegalLawFiles } from './asset-location.ts'
 import { rebuildStatutePattern } from './reference.ts'
 import type {
   LegalArticleEntry,
   LegalLawBaseline,
+  LegalLawIndex,
+  LegalLawIndexEntry,
+  LegalLawManifest,
   LegalLawName,
 } from './types.ts'
 
@@ -82,14 +91,213 @@ function legalLawIndexFiles(baselineDir?: string): string[] {
 }
 
 /**
- * Check that the index directory exists and holds at least one file, without
- * parsing any of them. Plugin registration uses this so a missing asset fails
- * the deployment while the 72 MB index is parsed only when the tool runs.
+ * Check that the index directory exists, holds at least one `.yaml` file, and
+ * ships its manifest, without parsing any of them. Plugin registration uses
+ * this so a missing asset fails the deployment while the 72 MB index is parsed
+ * only when the tool runs.
  * @param baselineDir - directory override; defaults to the packaged assets.
- * @throws LegalLawBaselineError when the directory is unreadable or empty.
+ * @throws LegalLawBaselineError when the directory is unreadable or empty, or the manifest is missing.
  */
 export function assertLegalLawIndexReadable(baselineDir?: string): void {
   legalLawIndexFiles(baselineDir)
+  const manifest = join(legalLawBaselineDir(baselineDir), LEGAL_LAW_MANIFEST_FILE)
+  try {
+    statSync(manifest)
+  } catch (error) {
+    throw new LegalLawBaselineError(`法条索引清单不可读：${manifest}（${(error as Error).message}）`, manifest)
+  }
+}
+
+/**
+ * Parse the index manifest: one `[law, document, file]` row per law.
+ * @param source - the manifest's JSON text.
+ * @param origin - the manifest path, used in error messages.
+ * @returns the manifest, keyed by law name in the order it lists them.
+ * @throws LegalLawBaselineError when the JSON is malformed, a row is not three non-empty strings, or a law or file is listed twice.
+ */
+export function parseLegalLawManifest(source: string, origin: string): LegalLawManifest {
+  const fail: AssetFail = message => new LegalLawBaselineError(message, origin)
+  let root: unknown
+  try {
+    root = JSON.parse(source)
+  } catch (error) {
+    throw fail(`法条索引清单不是合法 JSON：${(error as Error).message}`)
+  }
+  if (typeof root !== 'object' || root === null || !('laws' in root)) {
+    throw fail('法条索引清单必须声明 laws 数组')
+  }
+  const rows: unknown = root.laws
+  if (!Array.isArray(rows)) throw fail('法条索引清单的 laws 必须是数组')
+
+  const manifest = new Map<LegalLawName, LegalLawIndexEntry>()
+  const files = new Set<string>()
+  for (const row of rows) {
+    const entry = readManifestRow(row, manifest.size, fail)
+    if (manifest.has(entry.law)) throw fail(`同一部法律被索引了两次：${entry.law}`)
+    if (files.has(entry.file)) throw fail(`同一索引文件被登记了两次：${entry.file}`)
+    manifest.set(entry.law, entry)
+    files.add(entry.file)
+  }
+  if (manifest.size === 0) throw fail('法条索引清单没有登记任何法律')
+  return manifest
+}
+
+/** Read one manifest row, rejecting anything that is not three non-empty strings. */
+function readManifestRow(row: unknown, index: number, fail: AssetFail): LegalLawIndexEntry {
+  if (!Array.isArray(row)) throw fail(`法条索引清单第 ${index + 1} 条必须是 [law, document, file] 数组`)
+  const cells: unknown[] = row
+  const [law, document, file] = cells
+  if (cells.length !== 3 || typeof law !== 'string' || typeof document !== 'string' || typeof file !== 'string') {
+    throw fail(`法条索引清单第 ${index + 1} 条必须是三个字符串 [law, document, file]`)
+  }
+  if (law.trim() === '' || document.trim() === '' || file.trim() === '') {
+    throw fail(`法条索引清单第 ${index + 1} 条有空字段：${JSON.stringify(cells)}`)
+  }
+  if (!file.endsWith('.yaml') || file.includes('/') || file.includes('\\') || file.startsWith('..')) {
+    throw fail(`法条索引清单第 ${index + 1} 条的文件必须是索引目录内的 .yaml 文件：${file}`)
+  }
+  return { law, document, file }
+}
+
+/**
+ * Create an index that learns its law names from the manifest and parses a
+ * law's file only when a citation names it.
+ *
+ * One index caches the manifest and every baseline it loaded, so repeated
+ * verifications in the same tool instance parse each law at most once. A failed
+ * manifest read or file load leaves the next call free to retry.
+ * @param baselineDir - directory override; defaults to the packaged assets.
+ * @returns the index.
+ */
+export function createLegalLawIndex(baselineDir?: string): LegalLawIndex {
+  const dir = legalLawBaselineDir(baselineDir)
+  const baselines = new Map<LegalLawName, LegalLawBaseline>()
+  const loading = new Map<LegalLawName, Promise<LegalLawBaseline>>()
+  let manifest: Promise<LegalLawManifest> | undefined
+
+  const manifestOf = (): Promise<LegalLawManifest> => {
+    manifest ??= readLegalLawManifest(dir).then(
+      (loaded) => {
+        registerManifestNames(loaded)
+        return loaded
+      },
+      (error: unknown) => {
+        manifest = undefined
+        throw error
+      },
+    )
+    return manifest
+  }
+
+  const manifestFor = async (signal?: AbortSignal): Promise<LegalLawManifest> => {
+    throwIfStopped(signal)
+    const loaded = await stopWith(manifestOf(), signal)
+    throwIfStopped(signal)
+    return loaded
+  }
+
+  const loadOne = (entry: LegalLawIndexEntry): Promise<LegalLawBaseline> => {
+    const cached = baselines.get(entry.law)
+    if (cached !== undefined) return Promise.resolve(cached)
+    const inFlight = loading.get(entry.law)
+    if (inFlight !== undefined) return inFlight
+    const file = join(dir, entry.file)
+    const pending = (async () => {
+      const source = await readIndexFile(file).catch((error: unknown) => {
+        throw new LegalLawBaselineError(`法条索引文件不可读：${file}（${(error as Error).message}）`, file)
+      })
+      const baseline = parseLegalLawBaseline(source, file)
+      if (baseline.law !== entry.law || baseline.document !== entry.document) {
+        throw new LegalLawBaselineError(
+          `法条索引清单与文件不一致：清单登记 ${entry.law}/《${entry.document}》，文件声明 ${baseline.law}/《${baseline.document}》`,
+          file,
+        )
+      }
+      baselines.set(baseline.law, baseline)
+      return baseline
+    })()
+    loading.set(entry.law, pending)
+    pending.then(
+      () => { loading.delete(entry.law) },
+      () => { loading.delete(entry.law) },
+    )
+    return pending
+  }
+
+  return {
+    async loadNames(signal) {
+      const loaded = await manifestFor(signal)
+      return Object.freeze([...loaded.keys()])
+    },
+    async load(laws, signal) {
+      const loaded = await manifestFor(signal)
+      const found = new Map<LegalLawName, LegalLawBaseline>()
+      for (const law of new Set(laws)) {
+        throwIfStopped(signal)
+        const entry = loaded.get(law)
+        if (entry === undefined) continue
+        found.set(law, await stopWith(loadOne(entry), signal))
+      }
+      throwIfStopped(signal)
+      return found
+    },
+  }
+}
+
+/**
+ * Settle with `work`, or reject with the signal's reason when the caller
+ * cancels. The read itself is shared with other callers, so one caller's abort
+ * stops only its own wait and leaves the read running for the others.
+ * @param work - the shared operation.
+ * @param signal - the caller's cancellation.
+ * @returns the operation's outcome, or the signal's abort reason.
+ */
+function stopWith<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (signal === undefined) return work
+  // Callers check first; this keeps an already-cancelled signal from hanging the
+  // wait, since an abort event that already fired never reaches the listener.
+  throwIfStopped(signal)
+  return new Promise<T>((resolve, reject) => {
+    const stop = (): void => { reject(asError(signal.reason)) }
+    signal.addEventListener('abort', stop, { once: true })
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', stop)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', stop)
+        reject(asError(error))
+      },
+    )
+  })
+}
+
+/** Throw the caller's abort reason, normalized to an Error. */
+function throwIfStopped(signal?: AbortSignal): void {
+  if (signal?.aborted === true) throw asError(signal.reason)
+}
+
+/** Present a rejection value as an Error; an abort reason may be any value. */
+function asError(reason: unknown): Error {
+  return reason instanceof Error ? reason : new Error(String(reason), { cause: reason })
+}
+
+/** Read one index file. The read is shared, so it does not take a caller's signal. */
+function readIndexFile(file: string): Promise<string> {
+  return readFile(file, 'utf8')
+}
+
+/** Read the manifest from an index directory. */
+async function readLegalLawManifest(dir: string): Promise<LegalLawManifest> {
+  const file = join(dir, LEGAL_LAW_MANIFEST_FILE)
+  let source: string
+  try {
+    source = await readIndexFile(file)
+  } catch (error) {
+    throw new LegalLawBaselineError(`法条索引清单不可读：${file}（${(error as Error).message}）`, file)
+  }
+  return parseLegalLawManifest(source, file)
 }
 
 /**
@@ -117,23 +325,36 @@ export function loadLegalLawBaselines(baselineDir?: string): Map<LegalLawName, L
  * synchronous {@link loadLegalLawBaselines} remains for callers that already
  * run outside the event loop.
  * @param baselineDir - directory override; defaults to the packaged assets.
+ * @param signal - caller cancellation; an abort rejects the load, including during a file read.
  * @returns the baselines by law name.
  * @throws LegalLawBaselineError when the directory is unreadable, empty, or holds a malformed file.
+ * @throws the signal's abort reason when the caller cancels.
  */
 export async function loadLegalLawBaselinesAsync(
   baselineDir?: string,
+  signal?: AbortSignal,
 ): Promise<Map<LegalLawName, LegalLawBaseline>> {
   const files = legalLawIndexFiles(baselineDir)
 
   const baselines = new Map<LegalLawName, LegalLawBaseline>()
   for (const file of files) {
-    const baseline = parseLegalLawBaseline(await readFile(file, 'utf8'), file)
+    signal?.throwIfAborted()
+    const baseline = parseLegalLawBaseline(await readFile(file, { encoding: 'utf8', signal }), file)
     registerBaseline(baselines, baseline, file)
     // Parsing one file is synchronous; yield so other sessions run between files.
     await new Promise<void>(resolve => setImmediate(resolve))
   }
   finalizeStatutePattern()
   return baselines
+}
+
+/** Register every law a manifest declares, so the parser recognizes it before any file is parsed. */
+function registerManifestNames(manifest: LegalLawManifest): void {
+  for (const entry of manifest.values()) {
+    _knownNames.add(entry.law)
+    registerAlias(entry.law, entry.document)
+  }
+  finalizeStatutePattern()
 }
 
 /** Add one parsed baseline, rejecting duplicate law names and tracking its alias. */
@@ -148,10 +369,15 @@ function registerBaseline(
   baselines.set(baseline.law, baseline)
   // Track known law names for discoverability
   _knownNames.add(baseline.law)
-  // A formal citation uses the document title (中华人民共和国会计法); the
-  // index keys the entry by the short name (会计法).
-  const title = baseline.document.replace(/（[^）]*）$/u, '').trim()
-  if (title !== '' && title !== baseline.law) _knownAliases.set(title, baseline.law)
+  registerAlias(baseline.law, baseline.document)
+}
+
+/** Map a document title to its short law name; a formal citation writes the title. */
+function registerAlias(law: LegalLawName, document: string): void {
+  // The index keys the entry by the short name (会计法) while the title carries
+  // the formal one (中华人民共和国会计法), so both forms must resolve.
+  const title = document.replace(/（[^）]*）$/u, '').trim()
+  if (title !== '' && title !== law) _knownAliases.set(title, law)
 }
 
 /** Rebuild the statute-matching regex after a load added names or aliases. */

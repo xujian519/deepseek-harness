@@ -3,9 +3,9 @@ import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { loadLegalLawBaselines } from '../src/baseline.ts'
+import { createLegalLawIndex } from '../src/baseline.ts'
 import { createLegalLawVerifyTool, type LegalLawVerifyOutput } from '../src/tool/law-verify.ts'
-import type { LegalCitationPolicySet, LegalLawBaseline, LegalLawName } from '../src/types.ts'
+import type { LegalCitationPolicySet, LegalLawBaseline, LegalLawIndex, LegalLawName } from '../src/types.ts'
 
 const POLICIES: LegalCitationPolicySet = {
   mismatch: 'block',
@@ -15,7 +15,9 @@ const POLICIES: LegalCitationPolicySet = {
   unverified: 'warn',
 }
 
-const shipped = loadLegalLawBaselines()
+// The shipped index parses a law only when a citation names it, so module load
+// costs one manifest read on the first shipped-index call.
+const shipped = createLegalLawIndex()
 
 const verifiedIndex = new Map<LegalLawName, LegalLawBaseline>([['民法典', {
   law: '民法典',
@@ -47,7 +49,10 @@ const twoArticleIndex = new Map<LegalLawName, LegalLawBaseline>([['民法典', {
   ],
 }]])
 
-async function host(index = shipped, policies = POLICIES): Promise<Context> {
+async function host(
+  index: Map<LegalLawName, LegalLawBaseline> | LegalLawIndex = shipped,
+  policies = POLICIES,
+): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
@@ -191,5 +196,64 @@ describe('legal_law_verify tool', () => {
     })
     expect(value.counts.valid).toBe(1)
     expect(value.counts['out-of-range']).toBe(1)
+  }, HOST_TIMEOUT)
+
+  it('rejects an unusable call before it reads the index', async () => {
+    const reads: string[] = []
+    const index: LegalLawIndex = {
+      loadNames: async () => {
+        reads.push('names')
+        return []
+      },
+      load: async () => {
+        reads.push('laws')
+        return verifiedIndex
+      },
+    }
+    const ctx = await host(index)
+    for (const args of [{}, { text: ' \n\t ' }]) {
+      expect((await execute(ctx, args)).isError).toBe(true)
+    }
+    expect(reads).toEqual([])
+  }, HOST_TIMEOUT)
+
+  it('rejects an unparsable reference before it loads a law', async () => {
+    const loads: LegalLawName[][] = []
+    const index: LegalLawIndex = {
+      loadNames: async () => [],
+      load: async (laws) => {
+        loads.push([...laws])
+        return verifiedIndex
+      },
+    }
+    const result = await execute(await host(index), { references: ['见前述条款'] })
+    expect(result.isError).toBe(true)
+    expect(loads).toEqual([])
+  }, HOST_TIMEOUT)
+
+  it('loads only the laws the references name', async () => {
+    const loads: LegalLawName[][] = []
+    const index: LegalLawIndex = {
+      loadNames: async () => [],
+      load: async (laws) => {
+        loads.push([...laws])
+        return verifiedIndex
+      },
+    }
+    await run(await host(index), { text: '根据民法典第143条和劳动合同法第10条' })
+    expect(loads).toEqual([['民法典', '劳动合同法']])
+  }, HOST_TIMEOUT)
+
+  it('forwards the caller cancellation signal to the index', async () => {
+    let seen: AbortSignal | undefined
+    const index: LegalLawIndex = {
+      loadNames: async (signal) => {
+        seen = signal
+        return []
+      },
+      load: async () => verifiedIndex,
+    }
+    await run(await host(index), { references: ['民法典第143条'] })
+    expect(seen).toBeInstanceOf(AbortSignal)
   }, HOST_TIMEOUT)
 })

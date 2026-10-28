@@ -3,32 +3,35 @@
  * legal-law index shipped with this package.
  *
  * The index covers all laws in the `assets/legal-law/` directory. Plugin load
- * checks that the directory is readable and non-empty; the YAML files are
- * parsed on the first verification and cached, so a deployment that never runs
- * the tool does not pay for the 7,900-file index.
+ * checks that the directory is readable and non-empty; the manifest is read and
+ * the cited laws' YAML files are parsed on the first verification, so neither a
+ * deployment that never runs the tool nor a verification that cites one law
+ * pays for the 7,900-file corpus.
  * @module @deepseek-ai/dsh-legal-law
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { assertLegalLawIndexReadable, loadLegalLawBaselinesAsync } from './baseline.ts'
+import { assertLegalLawIndexReadable, createLegalLawIndex } from './baseline.ts'
 import { createLegalLawVerifyTool } from './tool/law-verify.ts'
 import { DEFAULT_LEGAL_CITATION_POLICY } from './verify.ts'
 import { LEGAL_PROPOSITION_SUPPORT_DEFAULT } from './support.ts'
 import type { LegalCitationPolicy, LegalCitationPolicySet } from './types.ts'
 
-// Public library API: the reference parser, the index loader, the verifier, and
-// the tool factory.
+// Public library API: the reference parser, the index, the verifier, and the
+// tool factory.
 export {
   assertLegalLawIndexReadable,
+  createLegalLawIndex,
   findLegalArticle,
   LegalLawBaselineError,
   legalLawNames,
   loadLegalLawBaselines,
   loadLegalLawBaselinesAsync,
   parseLegalLawBaseline,
+  parseLegalLawManifest,
 } from './baseline.ts'
-export { legalLawBaselineDir, listLegalLawFiles } from './asset-location.ts'
+export { LEGAL_LAW_MANIFEST_FILE, legalLawBaselineDir, listLegalLawFiles } from './asset-location.ts'
 export {
   extractLegalLawReferences,
   formatCnNumber,
@@ -71,6 +74,9 @@ export type {
   LegalCitationPolicySet,
   LegalLawArticleReference,
   LegalLawBaseline,
+  LegalLawIndex,
+  LegalLawIndexEntry,
+  LegalLawManifest,
   LegalLawName,
   LegalLawReference,
 } from './types.ts'
@@ -83,7 +89,7 @@ export const inject = ['tools']
 
 /** Model-facing legal-law plugin configuration. */
 export interface Config {
-  /** Directory holding the legal-law index YAML files; defaults to the packaged index. */
+  /** Directory holding the legal-law index YAML files and their `manifest.json`; defaults to the packaged index. */
   baselineDir?: string
   /** Treatment of a citation whose proposition a verified article does not support, while another entry does. */
   onMismatch: LegalCitationPolicy
@@ -120,9 +126,10 @@ export const Config: z<Config> = z.object({
  */
 export function apply(ctx: Context, config: Config): void {
   // The shipped index is 7,900+ YAML files (72 MB). Validate the directory at
-  // registration, but parse it on the first verification: every Web boot mounts
-  // the shipped presets eagerly, and paying that parse per boot pushed web
-  // readiness past the profile's startup deadline.
+  // registration, but read the manifest and parse cited laws on the first
+  // verification: every Web boot mounts the shipped presets eagerly, and
+  // paying that parse per boot pushed web readiness past the profile's
+  // startup deadline.
   assertLegalLawIndexReadable(config.baselineDir)
   const policies: LegalCitationPolicySet = {
     mismatch: config.onMismatch,
@@ -132,7 +139,7 @@ export function apply(ctx: Context, config: Config): void {
     unverified: config.onUnverified,
   }
   ctx.tools.register(createLegalLawVerifyTool({
-    baselines: () => loadLegalLawBaselinesAsync(config.baselineDir),
+    baselines: createLegalLawIndex(config.baselineDir),
     policies,
     supportThreshold: config.propositionSupport,
   }))

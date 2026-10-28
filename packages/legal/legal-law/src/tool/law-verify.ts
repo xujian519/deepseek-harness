@@ -16,8 +16,8 @@ import {
   citationVerifyReport,
   citationVerifyToolOptions,
 } from '@deepseek-ai/dsh-patent-core'
-import { formatLegalLawReference, parseLegalLawReference, scanUnrecognizedLegalCitations } from '../reference.ts'
-import { renderLegalCitationRows, resolveLegalCitationPolicy, verifyLegalCitation, verifyLegalCitations } from '../verify.ts'
+import { extractLegalLawReferences, formatLegalLawReference, parseLegalLawReference, scanUnrecognizedLegalCitations } from '../reference.ts'
+import { renderLegalCitationRows, resolveLegalCitationPolicy, verifyLegalCitation } from '../verify.ts'
 import type { LegalVerifyOptions } from '../verify.ts'
 import type {
   LegalCitationDecision,
@@ -25,7 +25,9 @@ import type {
   LegalCitationPolicy,
   LegalCitationPolicySet,
   LegalLawBaseline,
+  LegalLawIndex,
   LegalLawName,
+  LegalLawReference,
 } from '../types.ts'
 
 /** Thrown when the tool input cannot be turned into references to check. */
@@ -87,11 +89,11 @@ export type LegalLawVerifyOutput = {
 /** Injected collaborators: the index and the deployment's policy. */
 export type LegalLawVerifyToolOptions = {
   /**
-   * The loaded index, or a loader that parses it on the first verification.
-   * The loader runs at most once; a rejection leaves the next call free to retry.
+   * A loaded index, or an index that parses a law only when a citation names
+   * it. An index reads its manifest once; a rejection leaves the next call free
+   * to retry.
    */
-  baselines: Map<LegalLawName, LegalLawBaseline>
-    | (() => Map<LegalLawName, LegalLawBaseline> | Promise<Map<LegalLawName, LegalLawBaseline>>)
+  baselines: Map<LegalLawName, LegalLawBaseline> | LegalLawIndex
   policies: LegalCitationPolicySet
   /** Overlap a proposition must reach before an entry's text supports it. */
   supportThreshold?: number
@@ -111,38 +113,32 @@ const DESCRIPTION = [
 ].join('\n')
 
 /**
- * Create the `legal_law_verify` tool over a loaded index.
- * @param options - the loaded index and the citation policy.
+ * Create the `legal_law_verify` tool over an index.
+ * @param options - the index and the citation policy.
  * @returns the tool definition.
  */
 export function createLegalLawVerifyTool(options: LegalLawVerifyToolOptions): ToolDefinition {
-  const { baselines: baselineSource, policies, supportThreshold } = options
-  const load = typeof baselineSource === 'function'
-    ? baselineSource
-    : (): Map<LegalLawName, LegalLawBaseline> => baselineSource
-  let baselines: Map<LegalLawName, LegalLawBaseline> | undefined
-  let pending: Promise<Map<LegalLawName, LegalLawBaseline>> | undefined
-  const resolveBaselines = (): Promise<Map<LegalLawName, LegalLawBaseline>> => {
-    if (baselines !== undefined) return Promise.resolve(baselines)
-    pending ??= Promise.resolve(load()).then(
-      (loaded) => {
-        baselines = loaded
-        return loaded
-      },
-      (error: unknown) => {
-        pending = undefined
-        throw error
-      },
-    )
-    return pending
-  }
+  const { baselines: index, policies, supportThreshold } = options
   return defineTool(citationVerifyToolOptions({
     name: 'legal_law_verify',
     description: DESCRIPTION,
     referenceExample: '民法典第143条 / 劳动合同法第10条第2款',
     findingSchema: FINDING_SCHEMA,
     report: renderToolReport,
-    run: async args => runVerify(args, await resolveBaselines(), policies, supportThreshold),
+    run: async (args, signal) => {
+      const problem = citationInputProblem(args)
+      if (problem !== null) throw new LegalLawVerifyToolError(problem.code, problem.message)
+      // The parser must know every law the index carries before it can read a
+      // citation, so an on-demand index reads its manifest before extraction.
+      // Only the laws the references name are parsed.
+      if (!(index instanceof Map)) await index.loadNames(signal)
+      signal.throwIfAborted()
+      const references = referencesToCheck(args)
+      const baselines = index instanceof Map
+        ? index
+        : await index.load(references.map(reference => reference.law), signal)
+      return runVerify(args, references, baselines, policies, supportThreshold)
+    },
   }))
 }
 
@@ -155,16 +151,41 @@ const FINDING_SCHEMA = citationFindingSchema({
   ...CITATION_FINDING_DECISION_PROPERTIES,
 })
 
+/**
+ * Parse every reference the input asks about: the ones in `text`, then the
+ * exact `references`.
+ *
+ * Reference parsing needs the index's law names but none of its article data,
+ * so this runs after the manifest read and before any law file is parsed.
+ * @param args - the tool input.
+ * @returns the parsed references, in the order their findings are reported.
+ * @throws LegalLawVerifyToolError when a requested reference is not exactly one reference.
+ */
+function referencesToCheck(args: LegalLawVerifyInput): LegalLawReference[] {
+  const references = args.text === undefined ? [] : extractLegalLawReferences(args.text)
+  for (const raw of args.references ?? []) {
+    const reference = parseLegalLawReference(raw)
+    if (reference === null) {
+      throw new LegalLawVerifyToolError('unparsable_reference', `无法把「${raw}」解析为单条法条引用：请给出条号（如 民法典第143条）`)
+    }
+    references.push(reference)
+  }
+  return references
+}
+
 /** Run the verification and project it into the tool's output value. */
 function runVerify(
   args: LegalLawVerifyInput,
+  references: readonly LegalLawReference[],
   baselines: Map<LegalLawName, LegalLawBaseline>,
   policies: LegalCitationPolicySet,
   supportThreshold: number | undefined,
 ): LegalLawVerifyOutput {
-  const problem = citationInputProblem(args)
-  if (problem !== null) throw new LegalLawVerifyToolError(problem.code, problem.message)
-  const findings = collectFindings(args, baselines, supportThreshold)
+  const options: LegalVerifyOptions = {
+    ...(args.proposition === undefined ? {} : { proposition: args.proposition }),
+    ...(supportThreshold === undefined ? {} : { supportThreshold }),
+  }
+  const findings = references.map(reference => verifyLegalCitation(reference, baselines, options))
   return citationVerifyReport({
     findings,
     project: finding => toFinding(finding, policies),
@@ -173,28 +194,6 @@ function runVerify(
       ? []
       : scanUnrecognizedLegalCitations(args.text, findings.map(finding => finding.reference)),
   })
-}
-
-/** Collect the findings for the requested text and references. */
-function collectFindings(
-  args: LegalLawVerifyInput,
-  baselines: Map<LegalLawName, LegalLawBaseline>,
-  supportThreshold: number | undefined,
-): LegalCitationFinding[] {
-  const options: LegalVerifyOptions = {
-    ...(args.proposition === undefined ? {} : { proposition: args.proposition }),
-    ...(supportThreshold === undefined ? {} : { supportThreshold }),
-  }
-  const references = args.references ?? []
-  const findings = args.text === undefined ? [] : verifyLegalCitations(args.text, baselines, options)
-  for (const raw of references) {
-    const reference = parseLegalLawReference(raw)
-    if (reference === null) {
-      throw new LegalLawVerifyToolError('unparsable_reference', `无法把「${raw}」解析为单条法条引用：请给出条号（如 民法典第143条）`)
-    }
-    findings.push(verifyLegalCitation(reference, baselines, options))
-  }
-  return findings
 }
 
 /** Project one finding into the tool's serializable form. */

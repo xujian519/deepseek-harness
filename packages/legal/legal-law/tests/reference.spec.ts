@@ -112,6 +112,34 @@ describe('parseLegalLawReference', () => {
     })
     expect(parseLegalLawReference('中华人民共和国会计法第9条')!.law).toBe('会计法')
   })
+
+  it('matches names from every chunk of the statute pattern', () => {
+    const names = Array.from({ length: 1_200 }, (_, index) => `测试法${index}`)
+    rebuildStatutePattern(names)
+    for (const name of [names[0], names[600], names[1_199]]) {
+      expect(parseLegalLawReference(`${name!}第12条`)).toMatchObject({
+        law: name,
+        article: 12,
+        raw: `${name}第12条`,
+      })
+    }
+  })
+
+  it('keeps one reference when a nested name falls in a later chunk', () => {
+    const short = '中华人民共和国测试法'
+    const long = `某省实施《${short}》`
+    // Longer than the nested name and shorter than the compound name, so the
+    // filler pushes the nested name into the second chunk.
+    const filler = Array.from({ length: 500 }, (_, index) => `填充法律法规实施条例${index}`)
+    rebuildStatutePattern([long, ...filler, short])
+    const references = extractLegalLawReferences(`${long}第3条`)
+    expect(references).toEqual([{
+      kind: 'law-article',
+      law: long,
+      article: 3,
+      raw: `${long.replaceAll('》', '')}第3条`,
+    }])
+  })
 })
 
 describe('extractLegalLawReferences', () => {

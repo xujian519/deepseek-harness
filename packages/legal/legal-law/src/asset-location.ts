@@ -4,7 +4,7 @@
  * The index ships inside the package (`assets/legal-law/`) and resolves relative
  * to this module, so both the source tree and the built `lib/` bundle read the
  * same directory. An explicit directory replaces the packaged one and must
- * mirror its layout.
+ * mirror its layout, `manifest.json` included.
  * @module @deepseek-ai/dsh-legal-law/asset-location
  */
 
@@ -13,6 +13,13 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ASSETS_LEGAL_LAW_URL = new URL('../assets/legal-law/', import.meta.url)
+
+/**
+ * Manifest file inside a legal-law index directory. It lists which law each
+ * `.yaml` file holds, so a caller can learn the index's law names without
+ * parsing the article data.
+ */
+export const LEGAL_LAW_MANIFEST_FILE = 'manifest.json'
 
 /**
  * Directory holding the legal-law index assets: the explicit override when

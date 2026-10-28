@@ -826,10 +826,10 @@ const TOOL_PACKAGES: ToolPackage[] = [
     requires: ['ctx.tools'],
     writes: ['tool/call', 'tool/result'],
     mount(ctx) {
-      // Harvesting the schema does not need the shipped index, and loading its
-      // 7,900+ YAML files dominates every catalog boot. Register the tool over
-      // an empty baseline map with the shipped policy defaults; the package's
-      // own load path is exercised by its integration suite.
+      // Harvesting the schema does not need the shipped index, and reading its
+      // manifest plus one law file would add I/O to every catalog boot. Register
+      // the tool over an empty baseline map with the shipped policy defaults;
+      // the package's own load path is exercised by its integration suite.
       ctx.tools.register(LegalLaw.createLegalLawVerifyTool({
         baselines: new Map<LegalLaw.LegalLawName, LegalLaw.LegalLawBaseline>(),
         policies: LegalLaw.DEFAULT_LEGAL_CITATION_POLICY,

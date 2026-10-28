@@ -285,8 +285,8 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // The document style assets (4 style YAML files) ship as package-root assets
   // resolved via import.meta.url.
   '@deepseek-ai/dsh-doc-style': ['assets'],
-  // The legal-law per-statute index YAML files ship as package-root assets
-  // resolved via import.meta.url.
+  // The legal-law per-statute index YAML files and their manifest ship as
+  // package-root assets resolved via import.meta.url.
   '@deepseek-ai/dsh-legal-law': ['assets'],
   // The evidence rule-set YAML (legal-evidence-rules.yaml) ships as a
   // package-root asset resolved via import.meta.url.

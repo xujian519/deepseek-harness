@@ -83,6 +83,42 @@ export type LegalLawBaseline = {
   articles: LegalArticleEntry[]
 }
 
+/** One law's row in the index manifest: which file holds it and what it is called. */
+export type LegalLawIndexEntry = {
+  /** Law name the citation parser produces. */
+  law: LegalLawName
+  /** Document title; its form without a trailing parenthetical is a citation alias. */
+  document: string
+  /** Index file name inside the index directory. */
+  file: string
+}
+
+/** Every law a deployed index carries, keyed by law name. */
+export type LegalLawManifest = ReadonlyMap<LegalLawName, LegalLawIndexEntry>
+
+/**
+ * A legal-law index read through its manifest: the law names and file names
+ * stay cheap to obtain, and a law's articles are parsed only when a citation
+ * names it.
+ */
+export type LegalLawIndex = {
+  /**
+   * Read the manifest and teach the reference parser every law name and
+   * document title it declares. The first call reads the manifest; a failed
+   * read leaves the next call free to retry.
+   * @param signal - caller cancellation.
+   * @returns the law names the index carries, frozen in manifest order.
+   */
+  loadNames(signal?: AbortSignal): Promise<readonly LegalLawName[]>
+  /**
+   * Load the article data for the named laws.
+   * @param laws - law names to load; names the manifest does not list are absent from the result.
+   * @param signal - caller cancellation; an abort ends this caller's wait while a read another caller shares continues.
+   * @returns the baselines for the requested laws the index carries.
+   */
+  load(laws: Iterable<LegalLawName>, signal?: AbortSignal): Promise<Map<LegalLawName, LegalLawBaseline>>
+}
+
 /** Verdict for one citation. */
 export type LegalCitationDecision =
   /** Indexed, text verified, and the proposition (when given) matches. */

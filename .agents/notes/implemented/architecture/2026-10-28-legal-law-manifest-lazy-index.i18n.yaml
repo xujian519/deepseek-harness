@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-28-legal-law-manifest-lazy-index.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-28-legal-law-manifest-lazy-index.md
+/agent-note-load-legal-law-baselines-per-cited-law-from-a-shipped-manifest:
+  en: f676b05389eb6975
+  zh: ad02b4771c72e9a2
+/agent-note-load-legal-law-baselines-per-cited-law-from-a-shipped-manifest/problem:
+  en: 2fce6cc73223a286
+  zh: d90a871c7f8fcc74
+/agent-note-load-legal-law-baselines-per-cited-law-from-a-shipped-manifest/decision:
+  en: b6f2d9410e9a5152
+  zh: 62976b2478156f54
+/agent-note-load-legal-law-baselines-per-cited-law-from-a-shipped-manifest/alternatives-considered:
+  en: 7d3e045fb5039fda
+  zh: 0bdf0316e1262653
+/agent-note-load-legal-law-baselines-per-cited-law-from-a-shipped-manifest/consequences:
+  en: c18aa7a5cd78b9c7
+  zh: 3871ae4de7e11431
+/agent-note-load-legal-law-baselines-per-cited-law-from-a-shipped-manifest/testing:
+  en: c9cee9610d440ead
+  zh: e83976e49eb07c3d

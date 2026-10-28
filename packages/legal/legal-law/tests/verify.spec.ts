@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findLegalArticle, loadLegalLawBaselines } from '../src/baseline.ts'
+import { findLegalArticle, createLegalLawIndex } from '../src/baseline.ts'
 import { createLegalOverlapIndex, legalTextOverlap, legalTopicOverlap } from '../src/support.ts'
 import {
   DEFAULT_LEGAL_CITATION_POLICY,
@@ -195,18 +195,16 @@ describe('legalTextOverlap', () => {
   })
 })
 
-describe('loadLegalLawBaselines (integration)', () => {
-  // Loading 7,900+ YAML files takes minutes under coverage instrumentation.
-  it('loads the shipped index and finds articles', () => {
-    // Loading 7900+ YAML files takes time
-    const shipped = loadLegalLawBaselines()
+describe('createLegalLawIndex (integration)', () => {
+  it('loads a cited law from the shipped index and finds its articles', async () => {
+    const shipped = await createLegalLawIndex().load(['民法典'])
     // The auto-generated index covers 民法典 with all 1260 articles
-    const civilCode = shipped.get('民法典')!
+    const civilCode = shipped.get('民法典')
     expect(civilCode).toBeDefined()
-    const article143 = findLegalArticle(civilCode, 143)
+    const article143 = findLegalArticle(civilCode!, 143)
     expect(article143).toBeDefined()
     // Auto-generated entries have text: null until verified
     // The key check is that the article is indexed
     expect(article143!.article).toBe(143)
-  }, 180_000)
+  })
 })
