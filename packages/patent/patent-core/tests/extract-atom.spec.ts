@@ -41,15 +41,19 @@ describe('extract 分键输出', () => {
     expect(out._error).toBeUndefined()
   })
 
-  it('output_key=insight：只要求 insight，写入 state.insight', async () => {
+  it('output_key=insight：只要求 insight，写入 state.insight，且不再声称按 problems 顺序对齐', async () => {
+    const captured: { schema?: unknown; prompt?: string } = {}
     const out = await new ExtractHandler().execute({
       state: { text: '一种装置', output_key: 'insight' },
-      provider: providerFor(JSON.stringify({ insight: ['认知1'] })),
+      provider: providerFor(JSON.stringify({ insight: ['认知1'] }), captured),
     })
 
     expect(out.insight).toEqual(['认知1'])
     expect(out.features).toBeUndefined()
     expect(out._error).toBeUndefined()
+    // 独立模式看不到 problems：提示词与 schema 都不许再承诺跨数组顺序对齐。
+    expect(JSON.stringify(captured.schema)).not.toContain('problems 的顺序')
+    expect(captured.prompt).not.toContain('problems 的顺序')
   })
 
   it('output_key=features：接受 features-only 输出', async () => {
@@ -116,6 +120,130 @@ describe('extract 分键输出', () => {
 
     expect(out.problems).toEqual([])
     expect(out._error).toBeUndefined()
+  })
+})
+
+describe('extract 问题—发明认知配对模式', () => {
+  it('output_mode=problem_insight：写入配对数组与 problems 投影，不写 insight 投影', async () => {
+    const captured: { schema?: unknown; prompt?: string } = {}
+    const out = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_mode: 'problem_insight' },
+      provider: providerFor(JSON.stringify({
+        problem_insight: [
+          { id: 'P1', problem: '问题1', insight: '认知1' },
+          { id: 'P2', problem: '问题2' },
+        ],
+      }), captured),
+    })
+
+    expect(out.problem_insight).toEqual([
+      { id: 'P1', problem: '问题1', insight: '认知1' },
+      { id: 'P2', problem: '问题2' },
+    ])
+    expect(out.problems).toEqual(['问题1', '问题2'])
+    expect(out.insight).toBeUndefined()
+    expect(out._error).toBeUndefined()
+    expect(captured.schema).toMatchObject({ required: ['problem_insight'] })
+    expect(captured.prompt).toContain('"problem_insight"')
+    expect(captured.prompt).toContain('id 在同一输出内唯一')
+    expect(captured.prompt).toContain('不得编造原文没有的技术手段')
+  })
+
+  it.each([
+    { label: '非数组', value: 'x', reason: 'problem_insight 不是数组' },
+    { label: '非对象项', value: ['x'], reason: 'problem_insight 数组含非对象项（下标 0）' },
+    { label: '缺 id', value: [{ problem: 'p' }], reason: 'problem_insight 第 1 项缺少非空 id' },
+    {
+      label: '重复 id',
+      value: [{ id: 'P1', problem: 'p' }, { id: ' P1 ', problem: 'q' }],
+      reason: 'problem_insight 的 id 重复：P1',
+    },
+    { label: '缺 problem', value: [{ id: 'P1' }], reason: 'problem_insight 第 1 项（id P1）缺少非空 problem' },
+    {
+      label: 'insight 非字符串',
+      value: [{ id: 'P1', problem: 'p', insight: 1 }],
+      reason: 'problem_insight 第 1 项（id P1）的 insight 不是字符串',
+    },
+  ])('非法配对输出（$label）：整阶段降级，不保留部分配对', async ({ value, reason }) => {
+    const out = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_mode: 'problem_insight' },
+      provider: providerFor(JSON.stringify({ problem_insight: value })),
+    })
+
+    expect(String(out._error)).toContain(reason)
+    expect(out.problem_insight).toBeUndefined()
+    expect(out.problems).toBeUndefined()
+  })
+
+  it('空白 insight 视为未提炼；配对数组为空是合法结果', async () => {
+    const blank = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_mode: 'problem_insight' },
+      provider: providerFor(JSON.stringify({ problem_insight: [{ id: 'P1', problem: '问题1', insight: '  ' }] })),
+    })
+    expect(blank.problem_insight).toEqual([{ id: 'P1', problem: '问题1' }])
+
+    const empty = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_mode: 'problem_insight' },
+      provider: providerFor(JSON.stringify({ problem_insight: [] })),
+    })
+    expect(empty.problem_insight).toEqual([])
+    expect(empty.problems).toEqual([])
+    expect(empty._error).toBeUndefined()
+  })
+
+  it('缺少 problem_insight 或输出非 JSON：降级并点名该键', async () => {
+    const missing = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_mode: 'problem_insight' },
+      provider: providerFor(JSON.stringify({ problems: ['问题1'] })),
+    })
+    expect(String(missing._error)).toContain('problem_insight 不是数组')
+
+    const notJson = await new ExtractHandler().execute({
+      state: { text: '一种装置', output_mode: 'problem_insight' },
+      provider: providerFor('这不是 JSON'),
+    })
+    expect(String(notJson._error)).toContain('缺少 problem_insight 数组')
+  })
+
+  it('与规则缺口反哺组合：schema 同时要求配对数组与 revision_coverage', async () => {
+    const captured: { schema?: unknown; prompt?: string } = {}
+    const out = await new ExtractHandler().execute({
+      state: {
+        text: '一种装置',
+        output_mode: 'problem_insight',
+        revision_targets: [{ checkId: 'time-baseline', provision: '专利法第22条第5款', label: '时间基准' }],
+      },
+      provider: providerFor(JSON.stringify({
+        problem_insight: [{ id: 'P1', problem: '问题1', insight: '认知1' }],
+        revision_coverage: { 'time-baseline': ['申请日 2024-01-01'] },
+      }), captured),
+    })
+
+    expect(out.problem_insight).toEqual([{ id: 'P1', problem: '问题1', insight: '认知1' }])
+    expect(out.revision_coverage).toEqual({ 'time-baseline': ['申请日 2024-01-01'] })
+    expect(captured.schema).toMatchObject({ required: ['problem_insight', 'revision_coverage'] })
+    expect(captured.prompt).toContain('[time-baseline] 专利法第22条第5款 — 时间基准')
+  })
+
+  it('output_mode 与 output_key 互斥；未知或非字符串 mode 直接降级', async () => {
+    const provider = providerFor(JSON.stringify({ problem_insight: [] }))
+    const both = await new ExtractHandler().execute({
+      state: { text: 'x', output_mode: 'problem_insight', output_key: 'problems' },
+      provider,
+    })
+    expect(String(both._error)).toContain('output_mode 与 output_key 不能同时使用')
+
+    const unknown = await new ExtractHandler().execute({
+      state: { text: 'x', output_mode: 'pairs' },
+      provider,
+    })
+    expect(String(unknown._error)).toContain('未知的 output_mode：pairs')
+
+    const notString = await new ExtractHandler().execute({
+      state: { text: 'x', output_mode: 1 },
+      provider,
+    })
+    expect(String(notString._error)).toContain('output_mode 不是字符串')
   })
 })
 

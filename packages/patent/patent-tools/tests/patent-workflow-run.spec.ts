@@ -79,8 +79,12 @@ const exec = toolExec()
 
 function fakeModel(): PatentModelPort {
   return {
-    stream: async function* () {
-      yield { type: 'delta', text: '{"features": ["f1"], "problems": ["p1"], "effects": ["e1"]}' }
+    stream: async function* (request) {
+      const prompt = request.messages.map(m => m.content).join('\n')
+      const text = prompt.includes('problem_insight')
+        ? '{"problem_insight": [{"id": "P1", "problem": "p1", "insight": "i1"}]}'
+        : '{"features": ["f1"], "problems": ["p1"], "effects": ["e1"]}'
+      yield { type: 'delta', text }
       yield { type: 'done' }
     },
   }
@@ -198,6 +202,12 @@ describe('patent_workflow_run', () => {
     expect(value.manifestId).toBe('patent_disclosure_v1')
     expect(value.interruptNote).toBeDefined()
     expect(value.interruptNote).toContain('review_gate')
+    // 配对抽取按新协议接线：问题与发明认知同一次调用产出，三路抽取与 merge 都不降级。
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    for (const stageId of ['extract_problem', 'extract_features', 'extract_effects', 'merge']) {
+      expect(stages.find(stage => stage.stageId === stageId)?.degraded, stageId).toBe(false)
+    }
+    expect(stages.find(stage => stage.stageId === 'extract_problem')?.output).toContain('problem_insight')
   })
 
   it('disclosure manifest: prior-art filtering drops post-cutoff hits before novelty', async () => {

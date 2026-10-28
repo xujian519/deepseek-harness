@@ -175,9 +175,12 @@ export const patentDisclosureManifest: WorkflowManifest = {
     {
       id: 'extract_problem',
       strategy: 'sub_agent',
-      description: '提取待解决的技术问题',
+      description: '一次性提取待解决的技术问题及其对应的发明认知（配对输出）',
       atom: 'extract',
-      params: { extraction_type: '提取待解决的技术问题（严格输出 problems 数组）', output_key: 'problems' },
+      params: {
+        extraction_type: '提取待解决的技术问题并提炼对应的发明认知',
+        output_mode: 'problem_insight',
+      },
     },
     {
       id: 'extract_features',
@@ -192,16 +195,6 @@ export const patentDisclosureManifest: WorkflowManifest = {
       description: '提取技术效果',
       atom: 'extract',
       params: { extraction_type: '提取技术效果（严格输出 effects 数组）', output_key: 'effects' },
-    },
-    {
-      id: 'extract_insight',
-      strategy: 'sub_agent',
-      description: '提炼发明认知（使特征组合得以奏效的机制层认知）',
-      atom: 'extract',
-      params: {
-        extraction_type: '提炼发明认知（严格输出 insight 数组，逐条按 problems 的顺序对应）',
-        output_key: 'insight',
-      },
     },
     { id: 'merge', strategy: 'chain', description: '融合 PFIE 四元组（问题↔发明认知↔特征↔效果）', atom: 'merge' },
     {

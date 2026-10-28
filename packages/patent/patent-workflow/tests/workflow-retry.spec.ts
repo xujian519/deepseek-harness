@@ -580,7 +580,7 @@ describe('workflow retry validation', () => {
   it('patentDisclosureManifest: structure and retry declarations are valid', () => {
     expect(() => { validateWorkflowManifest(patentDisclosureManifest) }).not.toThrow()
     expect(patentDisclosureManifest.id).toBe('patent_disclosure_v1')
-    expect(patentDisclosureManifest.stages).toHaveLength(22)
+    expect(patentDisclosureManifest.stages).toHaveLength(21)
     const consistency = patentDisclosureManifest.stages.find(s => s.id === 'consistency')!
     expect(consistency.retry?.rewindTo).toBe('extract_problem')
     expect(consistency.retry!.whenOutputMatches).toMatch(/不一致\|矛盾\|缺少\|孤立/)
@@ -594,11 +594,14 @@ describe('workflow retry validation', () => {
       'spec-check', 'time-baseline',
     ])
     const extractStages = patentDisclosureManifest.stages.filter(s => s.id.startsWith('extract_'))
-    expect(extractStages).toHaveLength(4)
-    expect(extractStages.map(s => s.params?.output_key).sort()).toEqual(['effects', 'features', 'insight', 'problems'])
+    expect(extractStages).toHaveLength(3)
+    expect(extractStages.map(s => s.params?.output_key).filter(Boolean).sort()).toEqual(['effects', 'features'])
+    // 问题与发明认知由同一次调用产出：merge 按条目配对，不再依赖跨数组下标。
+    expect(extractStages[0]?.params).toMatchObject({ output_mode: 'problem_insight' })
+    expect(extractStages[0]?.params?.output_key).toBeUndefined()
     const ids = patentDisclosureManifest.stages.map(s => s.id)
-    expect(ids.indexOf('extract_effects') < ids.indexOf('extract_insight')).toBe(true)
-    expect(ids.indexOf('extract_insight') < ids.indexOf('merge')).toBe(true)
+    expect(ids.indexOf('extract_problem') < ids.indexOf('extract_effects')).toBe(true)
+    expect(ids.indexOf('extract_effects') < ids.indexOf('merge')).toBe(true)
     expect(ids.indexOf('merge') < ids.indexOf('consistency')).toBe(true)
     expect(ids.indexOf('report') < ids.indexOf('draft_claims')).toBe(true)
     // 审批门在 legal-gaps 反哺回路之后：回退不会跨过人工确认。

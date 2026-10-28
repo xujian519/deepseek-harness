@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.3/patent-disclosure-problem-insight-extraction/guide.md
+/:
+  en: a0f86cbec487e04a
+  zh: 552c06922bb3850c
+/disclosure-extraction-pairs-problems-with-insights-in-one-call:
+  en: 1a98c74a91ed4e95
+  zh: daa3664fec7ff93c
+/disclosure-extraction-pairs-problems-with-insights-in-one-call/change:
+  en: e6297b5cd4b298be
+  zh: ac8a4e7d9f68d20b
+/disclosure-extraction-pairs-problems-with-insights-in-one-call/migration:
+  en: 1061d420aac06b6f
+  zh: 0a6ceabbc234d694

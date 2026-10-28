@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-10-28-disclosure-extraction-pairs-by-problem.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-disclosure-extraction-pairs-by-problem.md
+/agent-note-disclosure-problems-and-insights-come-from-one-extraction-call:
+  en: a1a92e5348535cc5
+  zh: b796cfbfdfa9da83
+/agent-note-disclosure-problems-and-insights-come-from-one-extraction-call/problem:
+  en: fb31806174418937
+  zh: 426a340da1155e02
+/agent-note-disclosure-problems-and-insights-come-from-one-extraction-call/decision:
+  en: 69bd24cad18842d9
+  zh: c62fc4280dfc195e
+/agent-note-disclosure-problems-and-insights-come-from-one-extraction-call/alternatives-considered:
+  en: 744af249b83d7841
+  zh: ddfe95bae6ce1436
+/agent-note-disclosure-problems-and-insights-come-from-one-extraction-call/consequences:
+  en: 24573a2567c5d534
+  zh: 8bf24d8a8bb16d38
+/agent-note-disclosure-problems-and-insights-come-from-one-extraction-call/testing:
+  en: e73df73edb5bfa94
+  zh: 81bf7c97131eca4e
+/agent-note-disclosure-problems-and-insights-come-from-one-extraction-call/related:
+  en: 9c6ab5c8574db59a
+  zh: 11134ea0d0e9dfec

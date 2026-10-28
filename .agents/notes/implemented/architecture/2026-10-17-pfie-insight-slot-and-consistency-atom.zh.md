@@ -18,7 +18,7 @@ Insight 槽位不得进入三步法的"实际解决的技术问题"。《专利�
 
 `PFETriple` 承载 `insight?: string`——该组特征之所以奏效的机制层理由。它是可选的：`keywords`、`novelty` 与 `draft-claims` 只读问题与特征，不跑 Insight 提取的 manifest 不应因此降级。
 
-`patent_disclosure_v1` 在 `extract_effects` 与 `merge` 之间增加第四路提取 `extract_insight`，`output_key: 'insight'`。`EXTRACT_SCHEMA` 承载 `insight` 数组，`ExtractHandler` 把它写在自己的键下，故四路互不覆盖。`MergeHandler` 像另两个槽位一样把 `insight[i]` 配到 `problem[i]`，多余的发明认知以 `；` 追加到末组。
+`patent_disclosure_v1` 让发明认知与它所解释的问题在同一次抽取中产出：`extract_problem` 以 `output_mode: 'problem_insight'` 运行 `extract`，handler 写入配对数组 `problem_insight` 与派生投影 `problems`。`MergeHandler` 把每条配对当作一组读取，因此认知不需要单独抽取，也不会与问题顺序错位；[配对决策](../bug-fix/2026-10-28-disclosure-extraction-pairs-by-problem.zh.md)记录该改动与代价。`output_key: 'insight'` 保留给独立抽取该槽位的计划，merge 的索引路径仍按 `insight[i]` 配 `problem[i]` 处理由该模式写入的 state。
 
 `consistency` 阶段改用确定性原子 `pfe-consistency`（`PfeConsistencyHandler`），即对合并后分组的纯函数。它报告三类违规，构成封闭集合 `PFE_CONSISTENCY_VIOLATION_IDS`：
 
@@ -60,7 +60,7 @@ Insight 槽位不得进入三步法的"实际解决的技术问题"。《专利�
 
 `insight` 在随包 manifest 里有生产者、消费者与用例。没有任何阶段填充的字段会是死数据。
 
-第四路提取让每次交底书 run 多一次模型调用。违规会回退到 `extract_problem` 一次（`maxRetries: 1`），重跑四路提取与 `merge`；`extract_insight` 位于 `extract_problem` 之后，故回退也会重跑它。
+把发明认知与问题放在同一次抽取中配对，代价是一次模型调用而非两次。违规会回退到 `extract_problem` 一次（`maxRetries: 1`），重跑三路提取与 `merge`；问题与认知来自同一次重跑调用。提示词字符预算用例由配对决策记录持有。
 
 `patent-workflow-run.ts` 的英文工具描述仍把该管线概括为 "PFE extraction"。该文本被钉在 `snapshots/session/patent-oa-response/tool-schemas.expected.json` 里，改动它会作废一份无密钥录制；该概括仍然成立，因为管线依旧提取问题、特征与效果。`flexible_plan` 的原子清单确实点出了 `pfe-consistency`，因为 `registration.spec.ts` 要求该清单覆盖每个已注册原子，而 `docs/tool-catalog.md` 由它重新生成。
 
@@ -68,7 +68,7 @@ Insight 槽位不得进入三步法的"实际解决的技术问题"。《专利�
 
 `packages/patent/patent-core/tests/pfe-consistency.spec.ts` 覆盖每一类违规、它们彼此的隔离、封闭集合漂移守卫、降级路径，以及回退契约：违规摘要命中 manifest 声明的信号，合规摘要不命中。
 
-`packages/patent/patent-workflow/tests/manifest-atoms.spec.ts` 钉住 `consistency` 点名该原子、不携带 `consumes`、其输出命中它自己声明的 `whenOutputMatches`，以及 `extract_insight` 位于回退目标之后、`merge` 之前。
+`packages/patent/patent-workflow/tests/manifest-atoms.spec.ts` 钉住 `consistency` 点名该原子、不携带 `consumes`、其输出命中它自己声明的 `whenOutputMatches`，以及 `extract_problem` 携带配对模式并排在 `merge` 之前。
 
 `packages/patent/patent-core/tests/atoms.spec.ts` 覆盖发明认知配对、键缺失的情形、多余发明认知，以及一组以空特征列表收尾。`packages/patent/patent-tools/tests/registration.spec.ts` 覆盖注册表与 `flexible_plan` 描述。
 
