@@ -2139,12 +2139,12 @@ export interface LegalKnowledgeConfig {
 ## `@deepseek-ai/dsh-legal-law`
 
 - `inject`: `tools`
-- `source`: [`packages/legal/legal-law/src/index.ts:91`](../packages/legal/legal-law/src/index.ts)
+- `source`: [`packages/legal/legal-law/src/index.ts:85`](../packages/legal/legal-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing legal-law plugin configuration. */
 export interface Config {
-  /** Directory holding the legal-law index YAML files and their `manifest.json`; defaults to the packaged index. */
+  /** Directory holding the legal-law index YAML files; defaults to the packaged index. */
   baselineDir?: string
   /** Treatment of a citation whose proposition a verified article does not support, while another entry does. */
   onMismatch: LegalCitationPolicy
