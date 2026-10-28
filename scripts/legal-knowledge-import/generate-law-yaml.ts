@@ -11,6 +11,8 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, relative } from 'node:path'
 import { dump as yamlDump } from 'js-yaml'
+import { LEGAL_LAW_MANIFEST_FILE } from '../../packages/legal/legal-law/src/asset-location.ts'
+import { writeLawManifest } from './generate-law-manifest.ts'
 import { parseLawMarkdown, type ParsedLaw } from './parse-law-md.ts'
 
 // ---------------------------------------------------------------------------
@@ -577,6 +579,10 @@ export async function batchGenerate(
   }
 
   console.log(`[batch] Wrote ${result.written.length} YAML index files to ${outputDir}`)
+  // The runtime learns the law names and file names from the manifest, so a
+  // regenerated directory is only loadable once the manifest matches its files.
+  const listed = writeLawManifest(outputDir)
+  console.log(`[batch] Wrote ${LEGAL_LAW_MANIFEST_FILE} for ${listed} laws to ${outputDir}`)
   return result
 }
 

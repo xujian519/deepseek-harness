@@ -1,7 +1,8 @@
 import { describe, expect, it, afterEach } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { LEGAL_LAW_MANIFEST_FILE } from '../../../packages/legal/legal-law/src/asset-location.ts'
 import { batchGenerate, generateYamlIndex } from '../generate-law-yaml.ts'
 import { parseLawMarkdown } from '../parse-law-md.ts'
 
@@ -72,6 +73,8 @@ describe('batchGenerate', () => {
 
     expect(existsSync(join(output, '甲法.yaml'))).toBe(true)
     expect(existsSync(join(output, '乙法.yaml'))).toBe(false)
+    const manifest = JSON.parse(readFileSync(join(output, LEGAL_LAW_MANIFEST_FILE), 'utf8')) as { laws: string[][] }
+    expect(manifest.laws).toEqual([['甲法', '中华人民共和国甲法', '甲法.yaml']])
   })
 
   it('matches a split volume only by its compound key', async () => {

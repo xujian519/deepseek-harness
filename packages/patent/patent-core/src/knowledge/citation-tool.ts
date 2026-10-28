@@ -150,12 +150,12 @@ export function citationVerifyRender<TFinding>(
 /**
  * Build the execute callback every citation-verify tool declares.
  * @param run - runs the domain's verification and returns its output value.
- * @returns the execute callback.
+ * @returns the execute callback, forwarding the caller's cancellation signal.
  */
 export function citationVerifyExecute<TArgs, TOutput>(
-  run: (args: TArgs) => TOutput | Promise<TOutput>,
-): (args: TArgs) => Promise<TOutput> {
-  return args => Promise.resolve(run(args))
+  run: (args: TArgs, signal: AbortSignal) => TOutput | Promise<TOutput>,
+): (args: TArgs, exec: { readonly signal: AbortSignal }) => Promise<TOutput> {
+  return (args, exec) => Promise.resolve(run(args, exec.signal))
 }
 
 /**
@@ -199,8 +199,8 @@ export function citationVerifyToolOptions<
   findingSchema: TFindingSchema
   /** Renders the domain's full report from the tool output. */
   report: (findings: TFinding[], blocked: boolean, unrecognized: string[]) => string
-  /** Runs the domain's verification and returns its output value, synchronously or as a promise. */
-  run: (args: TArgs) => TValue | Promise<TValue>
+  /** Runs the domain's verification against the caller's cancellation signal. */
+  run: (args: TArgs, signal: AbortSignal) => TValue | Promise<TValue>
 }): {
   name: string
   description: string
@@ -209,7 +209,7 @@ export function citationVerifyToolOptions<
     schema: ReturnType<typeof citationVerifyOutputSchema<TFindingSchema>>
     render: (args: unknown, value: { findings: TFinding[]; blocked: boolean; unrecognized: string[] }) => { type: 'text'; text: string }[]
   }
-  execute: (args: TArgs) => Promise<TValue>
+  execute: (args: TArgs, exec: { readonly signal: AbortSignal }) => Promise<TValue>
 } {
   return {
     name: input.name,

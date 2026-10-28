@@ -17,7 +17,7 @@ description: "法律模式现在拦截无法核验的引用，随包索引转录
 
 ## 迁移
 
-1. 引用十七部核心法之外的法律、或语料缺失条文的交付件，现在会在 `document_deliver` 被拒绝。可以改引已转录条文，把 `baselineDir` 指向转录了所需条文的部署索引，或在语料确实更窄时刻意放宽 `Config` 中的 `onUnverified` / `onNotIndexed`。
+1. 引用十七部核心法之外的法律、或语料缺失条文的交付件，现在会在 `document_deliver` 被拒绝。可以改引已转录条文，把 `baselineDir` 指向转录了所需条文的部署索引，或在语料确实更窄时刻意放宽 `Config` 中的 `onUnverified` / `onNotIndexed`。部署索引现在必须带有 `manifest.json`，加载器靠它得知每个文件对应哪部法律；缺少清单的目录会在插件加载时被 `assertLegalLawIndexReadable` 拒绝。
 2. 对空文本跑 `legal_law_verify` 不再满足交付门禁：结果必须至少携带一条 finding。
-3. 通过转录路径重新生成索引：`tsx scripts/legal-knowledge-import/generate-law-yaml.ts <source-dir> packages/legal/legal-law/assets/legal-law --transcribe --verified-on <YYYY-MM-DD> --only <names>`。不带 `--transcribe` 时条目回到 `text: null`。
+3. 通过转录路径重新生成索引：`tsx scripts/legal-knowledge-import/generate-law-yaml.ts <source-dir> packages/legal/legal-law/assets/legal-law --transcribe --verified-on <YYYY-MM-DD> --only <names>`。不带 `--transcribe` 时条目回到 `text: null`。该命令会在写完 YAML 后重写 `manifest.json`；若手工改过 YAML 文件，需要再跑 `tsx scripts/legal-knowledge-import/generate-law-manifest.ts <dir>`，而 `law` 或 `document` 与清单行不一致的文件会在该法下次被引用时失败。
 4. 审阅者应把 `unverified` 读作"本索引无法判定该引用"，而不是"该引用错误"；已转录条目若不承载该命题，报 `mismatch`。
