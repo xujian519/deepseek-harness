@@ -486,12 +486,12 @@ function producedFromTimeline(timeline: ConversationTimelineSnapshot): DocumentD
       const previous = produced[index]
       // The map entry and the array index move together; the guard only
       // narrows the index access for the compiler.
-      if (previous !== undefined) {
-        const merged = augmented(previous, entry)
-        produced[index] = merged
-        // A merge can introduce the key the earlier entry did not have.
-        claimKeys(seen, merged, index)
-      }
+      /* v8 ignore next -- the fold only records indices it pushed, so the indexed row always exists */
+      if (previous === undefined) continue
+      const merged = augmented(previous, entry)
+      produced[index] = merged
+      // A merge can introduce the key the earlier entry did not have.
+      claimKeys(seen, merged, index)
     }
   }
   return { produced }

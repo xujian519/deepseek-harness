@@ -58,6 +58,25 @@ describe('decodeByteWindow', () => {
     expect(decodeByteWindow(byteWindow([0x61, 0xc3, 0xa9], false))).toEqual({ content: 'aé', truncated: true })
   })
 
+  it('drops a three-byte character the window cut after two bytes', () => {
+    // 'a' plus the first two bytes of '中' (0xe4 0xb8 0xad).
+    expect(decodeByteWindow(byteWindow([0x61, 0xe4, 0xb8], false))).toEqual({ content: 'a', truncated: true })
+  })
+
+  it('drops a four-byte character the window cut after three bytes', () => {
+    // 'a' plus the first three bytes of '😀' (0xf0 0x9f 0x98 0x80).
+    expect(decodeByteWindow(byteWindow([0x61, 0xf0, 0x9f, 0x98], false))).toEqual({ content: 'a', truncated: true })
+  })
+
+  it('keeps a complete four-byte character the window ends on', () => {
+    expect(decodeByteWindow(byteWindow([0xf0, 0x9f, 0x98, 0x80], false))).toEqual({ content: '😀', truncated: true })
+  })
+
+  it('rejects a byte that leads no UTF-8 sequence', () => {
+    // 0xf8 leads no sequence, so the cut is not the cause: the bytes are invalid.
+    expect(() => decodeByteWindow(byteWindow([0x61, 0xf8], false))).toThrow()
+  })
+
   it('throws for bytes that are not UTF-8 instead of decoding replacement glyphs', () => {
     expect(() => decodeByteWindow(byteWindow([0xff, 0xfe], true))).toThrow()
   })

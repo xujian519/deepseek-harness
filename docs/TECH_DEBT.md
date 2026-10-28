@@ -361,7 +361,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | `structure.long-functions` | 187 |
 | `structure.large-files` | 74 |
 | `structure.patent-large-files` | 7 |
-| `lint.v8-ignore` | 1270 |
+| `lint.v8-ignore` | 1272 |
 | `lint.ts-expect-error` | 173 |
 | `packages.patent-directories` | 16 |
 <!-- tech-debt-counters:end -->
@@ -389,6 +389,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | `packages/patent/patent-tools/src/tool/generate-structure-figure.ts` | 拆分 | 800 | 类型、模型 I/O、渲染收尾已分模块；入口保留 schema 与工具装配 |
 <!-- structure-baseline:end -->
 
+- **2026-10-28 文档工作室覆盖率豁免退休**:`lint.v8-ignore` 由 1270 升至 **1272**;`ui-document-studio` 撤回最后 4 条 coverage `exclude`(StudioView / document-deliverables / file-reads / client/index),包内 9 个源文件补齐到逐文件 100%;补齐过程中不可达的编译器收窄与防御守卫改为带理由的豁免,其中计入本计数的两处——`document-deliverables.ts` 的折叠索引守卫(提前 `continue`,其后的合并路径仍计入统计)与 `client/index.ts` 的重试窗口「会话已离开」守卫(离开会话必经 catalog 订阅触发 `stopRetry`);`StudioView.tsx` 的两处捕获组收窄不计入该计数,该行统计的路径 spec 只收 `src` 下的 `.ts`。其余新增分支由用例覆盖。
 - **2026-10-27 CI 门槛清理**:`lint.v8-ignore` 由 1271 降至 **1270**;`figure-set-consistency.ts` 的 `matchAll` 偏移取值被 lint 判为不必要空值合并,去掉 `?? 0` 后原「`RegExpStringIterator` 必带 `index`」的豁免随之删除,该函数本就由用例覆盖;其余计数不变。
 - **2026-10-26 附图跨图一致性与图文比对**:`lint.v8-ignore` 由 1267 升至 **1271**;新增 `check_patent_figure_consistency` 与 `compare_patent_figure_analysis` 两个确定性工具,`matchAll` 匹配对象总带 `index`、标号索引与首次图号同时建立、正则捕获组必选这三类不可达分支补带理由的豁免;其余新增分支由用例覆盖。
 - **2026-10-24 legal 审查修复**:`lint.v8-ignore` 由 1268 降至 **1267**;legal-evidence 的 `evidenceType` 由参数 schema 的 `required` 与 `enum` 保证,删除不可达的类型守卫及其豁免;其余计数不变。
