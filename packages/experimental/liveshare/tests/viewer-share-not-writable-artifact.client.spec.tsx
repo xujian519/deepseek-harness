@@ -6,6 +6,7 @@
 
 import { act, cleanup, waitFor } from '@testing-library/react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import { createFixtureFaces } from './viewer-fixture.client.ts'
 import { installViewerInputFixture } from './viewer-input-fixture.client.ts'
 import { installViewerRelay } from './viewer-relay.client.ts'
@@ -92,5 +93,5 @@ describe('Assembled liveshare viewer page on a share that stopped allowing write
       )
     }, { timeout: 15_000 })
     expect(composer.textContent).toContain('hello')
-  }, 180_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })

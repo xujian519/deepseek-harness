@@ -6,6 +6,7 @@
 
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import { createFixtureFaces } from './viewer-fixture.client.ts'
 import { installViewerInputFixture } from './viewer-input-fixture.client.ts'
 import { installViewerRelay } from './viewer-relay.client.ts'
@@ -108,5 +109,5 @@ describe('Assembled liveshare viewer page prompting an unprepared branch', () =>
     expect(document.querySelectorAll('[data-slot="sidebar.session.row.leading"] span')).toHaveLength(1)
     expect(document.querySelector('[role="treeitem"][aria-selected="true"]')).toBe(childRow)
     expect(composer.textContent).toContain('hello')
-  }, 180_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })

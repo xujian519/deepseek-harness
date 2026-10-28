@@ -3,6 +3,7 @@
 
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import { createFixtureFaces } from './viewer-fixture.client.ts'
 import type { FixtureWorld } from './viewer-fixture.client.ts'
 import { installViewerInputFixture } from './viewer-input-fixture.client.ts'
@@ -174,5 +175,5 @@ describe('Assembled liveshare viewer page', () => {
       expect(document.body.textContent).toContain('This page cannot open workspace files')
     }, { timeout: 15_000 })
     expect(document.body.textContent).not.toContain('no registered tab type claims')
-  }, 120_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })

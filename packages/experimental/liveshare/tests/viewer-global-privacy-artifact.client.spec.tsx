@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import type { PrivacyOwnerModule, PrivacyOwnerReader } from './viewer-privacy-bridge.ts'
 import { parseViewerRequest } from '../src/viewer-channel.ts'
 import type { ViewerAnswer, ViewerCallRequest } from '../src/viewer-channel.ts'
@@ -221,5 +222,5 @@ describe('Assembled viewer page global configuration privacy', () => {
     await act(async () => { owner?.completeReply('fx-alpha') })
     await waitFor(() => { expect(document.body.textContent).toContain(`回声：${text}`) }, { timeout: 15_000 })
     expect(dispatch).not.toHaveBeenCalled()
-  }, 180_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })

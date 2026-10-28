@@ -6,6 +6,7 @@
 
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import { createFixtureFaces } from './viewer-fixture.client.ts'
 import { installViewerInputFixture } from './viewer-input-fixture.client.ts'
 import { installViewerRelay } from './viewer-relay.client.ts'
@@ -89,5 +90,5 @@ describe('Assembled liveshare viewer page stopping a run the Host cannot confine
     // The run the Host kept running still has its own action, so the page never reports an end that did
     // not happen.
     expect(screen.getByRole('button', { name: '停止生成' })).toBeDefined()
-  }, 180_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })

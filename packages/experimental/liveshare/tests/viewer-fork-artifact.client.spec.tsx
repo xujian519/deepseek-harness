@@ -6,6 +6,7 @@
 
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import { createFixtureFaces } from './viewer-fixture.client.ts'
 import type { FixtureWorld } from './viewer-fixture.client.ts'
 import { installViewerInputFixture, promptEcho } from './viewer-input-fixture.client.ts'
@@ -245,5 +246,5 @@ describe('Assembled liveshare viewer page branching a share', () => {
       expect(document.body.textContent).toContain('Sharing stopped')
     }, { timeout: 15_000 })
     expect(screen.queryAllByRole('button', { name: 'Branch into a new conversation' })).toHaveLength(0)
-  }, 180_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })

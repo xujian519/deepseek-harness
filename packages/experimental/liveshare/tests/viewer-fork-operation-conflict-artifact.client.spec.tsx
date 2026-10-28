@@ -6,6 +6,7 @@
 
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import { createFixtureFaces } from './viewer-fixture.client.ts'
 import { installViewerInputFixture } from './viewer-input-fixture.client.ts'
 import { installViewerRelay } from './viewer-relay.client.ts'
@@ -93,5 +94,5 @@ describe('Assembled liveshare viewer page on a refused branch request', () => {
     expect(screen.queryByText('分支')).toBeNull()
     expect(document.querySelector('[contenteditable="true"]')).toBeNull()
     expect(document.body.textContent).toContain('仅可查看')
-  }, 180_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })

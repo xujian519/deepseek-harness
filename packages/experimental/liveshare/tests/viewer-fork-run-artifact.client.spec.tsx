@@ -6,6 +6,7 @@
 
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { ARTIFACT_MOUNT_TIMEOUT_MS } from './viewer-artifact-case.client.ts'
 import { createFixtureFaces } from './viewer-fixture.client.ts'
 import { installViewerInputFixture } from './viewer-input-fixture.client.ts'
 import { installViewerRelay } from './viewer-relay.client.ts'
@@ -92,5 +93,5 @@ describe('Assembled liveshare viewer page stopping its own branch', () => {
       expect(screen.queryByRole('button', { name: '停止生成' })).toBeNull()
     }, { timeout: 15_000 })
     expect(screen.getAllByRole('button', { name: '发送消息' }).length).toBeGreaterThan(0)
-  }, 180_000)
+  }, ARTIFACT_MOUNT_TIMEOUT_MS)
 })
