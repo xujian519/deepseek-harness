@@ -594,7 +594,9 @@ describe('background execution through the job runtime', () => {
     await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true })
 
     const killed = await call(ctx, 'job_kill', { job_id: currentId(ctx) })
-    expect(text(killed)).toBe(`requested cancellation of job ${currentId(ctx)}`)
+    // The kill waits for the settlement, so its own result carries the terminal
+    // state the following read would otherwise have to confirm.
+    expect(text(killed)).toBe(`job ${currentId(ctx)} [status: killed, signal: SIGTERM]`)
     // The cancel reached the process handle; the task settles as killed with
     // the signal detail mapped by processOutcome.
     const final = await call(ctx, 'job_output', { job_id: currentId(ctx), wait: true })

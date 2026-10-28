@@ -171,10 +171,21 @@ export function controlDetails(
         expandedSummary: target,
       }
     }
-    case 'job_kill':
-      if (text === `requested cancellation of job ${target}`) return receipt(target, { label: t('detail.receipt.cancel'), tone: 'warning' }, t, [], arg(args, 'reason'))
+    case 'job_kill': {
+      // A kill waits for the settlement, so the usual result is the terminal
+      // snapshot; the requested wording survives only for the bound expiring
+      // and for sessions recorded before the wait.
+      const settledPrefix = `job ${target} [status: `
+      if (text.startsWith(settledPrefix) && text.endsWith(']')) {
+        const body = text.slice(settledPrefix.length, -1)
+        const separator = body.indexOf(', ')
+        const status = separator < 0 ? body : body.slice(0, separator)
+        return receipt(target, detailBadge(status, t), t, [], separator < 0 ? undefined : body.slice(separator + 2))
+      }
+      if (text === `requested cancellation of job ${target}` || text.startsWith(`requested cancellation of job ${target}; [status: `)) return receipt(target, { label: t('detail.receipt.cancel'), tone: 'warning' }, t, [], arg(args, 'reason'))
       if (text.startsWith(`job ${target} had already finished `)) return receipt(target, { label: t('detail.receipt.alreadyFinished'), tone: 'neutral' }, t)
       return null
+    }
     case 'terminal_open': {
       const match = /^started terminal session (\S+)(?: \((.*?)\))? \[type: ([^\]]+)\]\n([\s\S]*)$/u.exec(text)
       if (match === null || match[1] === undefined || match[3] === undefined || match[4] === undefined) return null
