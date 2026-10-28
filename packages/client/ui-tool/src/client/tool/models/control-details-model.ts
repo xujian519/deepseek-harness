@@ -182,7 +182,7 @@ export function controlDetails(
         const status = separator < 0 ? body : body.slice(0, separator)
         return receipt(target, detailBadge(status, t), t, [], separator < 0 ? undefined : body.slice(separator + 2))
       }
-      if (text === `requested cancellation of job ${target}` || text === `requested cancellation of job ${target}; [status: stopping]`) return receipt(target, { label: t('detail.receipt.cancel'), tone: 'warning' }, t, [], arg(args, 'reason'))
+      if (text === `requested cancellation of job ${target}` || text.startsWith(`requested cancellation of job ${target}; [status: `)) return receipt(target, { label: t('detail.receipt.cancel'), tone: 'warning' }, t, [], arg(args, 'reason'))
       if (text.startsWith(`job ${target} had already finished `)) return receipt(target, { label: t('detail.receipt.alreadyFinished'), tone: 'neutral' }, t)
       return null
     }

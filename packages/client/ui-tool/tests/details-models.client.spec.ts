@@ -98,6 +98,7 @@ describe('control detail adapters', () => {
     expect(details('list_subagent_models', 'deepseek-chat — Fast\nunknown', { model: 'deepseek-chat' })?.items).toHaveLength(2)
     expect(details('job_kill', 'requested cancellation of job j1', { job_id: 'j1', reason: 'stop' })?.summary).toContain('Cancellation requested')
     expect(details('job_kill', 'requested cancellation of job j1; [status: stopping]', { job_id: 'j1', reason: 'stuck' })?.items[0]?.description).toBe('stuck')
+    expect(details('job_kill', 'requested cancellation of job j1; [status: stopping, wait: stdin_read]', { job_id: 'j1', reason: 'stuck' })?.summary).toContain('Cancellation requested')
     expect(details('job_kill', 'job j1 [status: killed, signal: SIGTERM; stop]', { job_id: 'j1' })?.items[0]).toMatchObject({ title: 'j1', badge: { label: 'Cancelled' }, description: 'signal: SIGTERM; stop' })
     expect(details('job_kill', 'job j1 [status: killed]', { job_id: 'j1' })?.items[0]?.description).toBeUndefined()
     expect(details('job_kill', 'job j1 [status: killed', { job_id: 'j1' })).toBeNull()
