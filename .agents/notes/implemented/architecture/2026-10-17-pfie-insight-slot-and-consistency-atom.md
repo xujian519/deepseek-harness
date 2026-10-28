@@ -18,7 +18,7 @@ The insight slot must not reach the three-step method's "实际解决的技术�
 
 `PFETriple` carries `insight?: string` — the mechanism-level reason a group's features work. It is optional, because `keywords`, `novelty` and `draft-claims` read only the problem and features, and a manifest that runs no insight extraction must not degrade.
 
-`patent_disclosure_v1` runs a fourth extraction, `extract_insight`, between `extract_effects` and `merge`, with `output_key: 'insight'`. `EXTRACT_SCHEMA` carries the `insight` array and `ExtractHandler` writes it under its own key, so the four runs do not overwrite one another. `MergeHandler` pairs `insight[i]` with `problem[i]` like the other two slots and appends surplus insights to the last group joined by `；`.
+`patent_disclosure_v1` produces the insight together with the problem it explains: `extract_problem` runs `extract` with `output_mode: 'problem_insight'`, and the handler writes the paired `problem_insight` array plus a `problems` projection. `MergeHandler` reads each pair as one group, so the insight needs no separate extraction and cannot drift out of problem order; [the pairing decision](../bug-fix/2026-10-28-disclosure-extraction-pairs-by-problem.md) records the change and its cost. `output_key: 'insight'` remains for plans that extract the slot independently, and merge's index path still pairs `insight[i]` with `problem[i]` for states written that way.
 
 The `consistency` stage runs the deterministic atom `pfe-consistency` (`PfeConsistencyHandler`), a pure function over the merged groups. It reports three violation kinds, the closed set `PFE_CONSISTENCY_VIOLATION_IDS`:
 
@@ -60,7 +60,7 @@ The structural limit is deliberate. `I⇒S` and `S⊨P` state field-presence and
 
 `insight` has a producer, a consumer and a test in the shipped manifest. A field that no stage fills would be dead data.
 
-The fourth extraction costs one more model call per disclosure run. A violation rewinds to `extract_problem` once (`maxRetries: 1`), which re-runs the four extractions and `merge`; `extract_insight` sits after `extract_problem`, so the rewind re-runs it too.
+Pairing the insight with its problem inside one extraction costs one model call, not two. A violation rewinds to `extract_problem` once (`maxRetries: 1`), which re-runs the three extractions and `merge`; problems and insights come from the same re-run call. The pairing note owns the prompt-character budget test.
 
 `patent-workflow-run.ts`'s English tool description still summarizes the pipeline as "PFE extraction". That text is pinned in `snapshots/session/patent-oa-response/tool-schemas.expected.json`, and changing it would invalidate a keyless recording; the summary stays true because the pipeline still extracts problem, feature and effect. `flexible_plan`'s atom list does name `pfe-consistency`, because `registration.spec.ts` requires that list to cover every registered atom, and `docs/tool-catalog.md` is regenerated from it.
 
@@ -68,7 +68,7 @@ The fourth extraction costs one more model call per disclosure run. A violation 
 
 `packages/patent/patent-core/tests/pfe-consistency.spec.ts` covers each violation kind, their isolation from one another, the closed-set drift guard, the degraded paths, and the retry contract: a violating summary matches the signal the manifest declares and a clean one does not.
 
-`packages/patent/patent-workflow/tests/manifest-atoms.spec.ts` pins that `consistency` names the atom, carries no `consumes`, and produces output matching the `whenOutputMatches` it declares, and that `extract_insight` sits after the rewind target and before `merge`.
+`packages/patent/patent-workflow/tests/manifest-atoms.spec.ts` pins that `consistency` names the atom, carries no `consumes`, and produces output matching the `whenOutputMatches` it declares, and that `extract_problem` carries the pairing mode before `merge`.
 
 `packages/patent/patent-core/tests/atoms.spec.ts` covers insight pairing, the absent-key case, surplus insights, and a group ending with an empty feature list. `packages/patent/patent-tools/tests/registration.spec.ts` covers the registry and the `flexible_plan` description.
 

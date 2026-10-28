@@ -91,6 +91,7 @@ export {
   coverageAtom,
   CoverageHandler,
   type PFETriple,
+  type ProblemInsightEntry,
   pfeConsistencyAtom,
   PfeConsistencyHandler,
   PFE_CONSISTENCY_VIOLATION_IDS,

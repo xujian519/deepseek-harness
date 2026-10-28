@@ -82,7 +82,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
     const disclosure = manifestOf('patent_disclosure_v1').stages.map(stage => stage.id)
     expect(disclosure).not.toContain('dispute-framing')
     expect(disclosure).not.toContain('dispute-framing-refine')
-    expect(disclosure).toHaveLength(22)
+    expect(disclosure).toHaveLength(21)
   })
 
   it('修正阶段排在已锁定的时间基准或程序理由之后，且阶段数在默认预算内', () => {
@@ -97,7 +97,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
     }
     const expectedCounts: Record<string, number> = {
       patent_novelty_v1: 14,
-      patent_disclosure_v1: 22,
+      patent_disclosure_v1: 21,
       patent_inventiveness_v1: 16,
       patent_patentability_v1: 14,
       patent_oa_response_v1: 13,
@@ -119,7 +119,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
     }
     const expectedLlmStages: Record<string, number> = {
       patent_novelty_v1: 4,
-      patent_disclosure_v1: 10,
+      patent_disclosure_v1: 9,
       patent_inventiveness_v1: 7,
       patent_patentability_v1: 4,
       patent_oa_response_v1: 4,
@@ -664,13 +664,44 @@ describe('PFIE 一致性阶段：确定性原子与回退信号闭环', () => {
     expect(signalMatches(String(out.pfe_consistency_summary), signal)).toBe(false)
   })
 
-  it('extract_insight 在 merge 之前，且回退目标 extract_problem 在它之前（回退后四元组整体重算）', () => {
-    expect(indexOf('patent_disclosure_v1', 'extract_insight')).toBeLessThan(
+  it('问题与发明认知由 extract_problem 单次配对产出，且位于 merge 之前（回退后四元组整体重算）', () => {
+    const problem = stageOf('patent_disclosure_v1', 'extract_problem')!
+    expect(problem.atom).toBe('extract')
+    expect(problem.params).toMatchObject({ output_mode: 'problem_insight' })
+    expect(problem.params?.output_key).toBeUndefined()
+    expect(indexOf('patent_disclosure_v1', 'extract_problem')).toBeLessThan(
       indexOf('patent_disclosure_v1', 'merge'),
     )
-    expect(indexOf('patent_disclosure_v1', 'extract_problem')).toBeLessThan(
-      indexOf('patent_disclosure_v1', 'extract_insight'),
-    )
+  })
+
+  it('披露提取链真实接线：配对抽取的结果按条目进入 merge，与数组顺序无关', async () => {
+    registerBuiltinAtoms()
+    const extract = LookupStageHandler('extract')!
+    const merge = LookupStageHandler('merge')!
+    // 模型把 P2 写在前面，problems 投影（由 extract 派生）因此是 [问题2, 问题1]；
+    // 特征与效果是另一路抽取，顺序与问题无关。
+    const extracted = await extract.execute({
+      state: { text: '交底书', output_mode: 'problem_insight', extraction_type: '提取待解决的技术问题并提炼对应的发明认知' },
+      provider: {
+        callLLM: async () => JSON.stringify({
+          problem_insight: [
+            { id: 'P2', problem: '问题2', insight: '认知2' },
+            { id: 'P1', problem: '问题1', insight: '认知1' },
+          ],
+        }),
+      },
+    })
+    expect(extracted._error).toBeUndefined()
+    expect(extracted.problems).toEqual(['问题2', '问题1'])
+    const merged = await merge.execute({
+      state: { ...extracted, features: ['特征A', '特征B'], effects: ['效果A', '效果B'] },
+    })
+    expect(merged._error).toBeUndefined()
+    expect(merged.pfe_triples).toMatchObject([
+      { id: 'T1', problem: '问题2', insight: '认知2', features: ['特征A'], effects: ['效果A'] },
+      { id: 'T2', problem: '问题1', insight: '认知1', features: ['特征B'], effects: ['效果B'] },
+    ])
+    expect(String(merged.merge_result)).toContain('（配对: problem_insight）')
   })
 
   it('consistency 声明 atom 时不再声明 consumes（原子直接读 state，consumes 会是死数据）', () => {

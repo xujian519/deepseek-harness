@@ -6078,7 +6078,7 @@ One of:
 
 SHA-256: `56c52ae9fe025e02ee5836e0f1ec40e5953f970c14ba19990d21d61d1a81e88f`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:88`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:106`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6986,7 +6986,7 @@ One of:
 
 SHA-256: `477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445`
 
-Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:56`](../packages/patent/patent-core/src/evidence/ledger.ts)
+Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:81`](../packages/patent/patent-core/src/evidence/ledger.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -7004,7 +7004,7 @@ Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:56`](../packages/p
 
 SHA-256: `fe87180c1564d51949d37f0fa3e7deada5217598a3c12c1af700828dcb183979`
 
-Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:40`](../packages/patent/patent-core/src/evidence/ledger.ts)
+Sources: [`packages/patent/patent-core/src/evidence/ledger.ts:65`](../packages/patent/patent-core/src/evidence/ledger.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -7064,7 +7064,7 @@ One of:
 
 SHA-256: `89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:211`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:229`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -7082,7 +7082,7 @@ Sources: [`packages/patent/patent-core/src/workflow/types.ts:211`](../packages/p
 
 SHA-256: `76245606df2f48cb94a6f3b745d0c764659e515c0be1535994b1b214f06eda59`
 
-Sources: [`packages/patent/patent-core/src/workflow/types.ts:194`](../packages/patent/patent-core/src/workflow/types.ts)
+Sources: [`packages/patent/patent-core/src/workflow/types.ts:212`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

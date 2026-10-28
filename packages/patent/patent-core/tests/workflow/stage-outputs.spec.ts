@@ -46,6 +46,9 @@ describe('clearStageOutputs', () => {
       features: ['旧特征'],
       problems: ['旧问题'],
       effects: ['旧效果'],
+      insight: ['旧认知'],
+      problem_insight: [{ id: 'P1', problem: '旧问题', insight: '旧认知' }],
+      revision_coverage: { 'time-baseline': ['旧事实'] },
       check: '旧一致性',
     }
     clearStageOutputs({ state, stages, atoms })

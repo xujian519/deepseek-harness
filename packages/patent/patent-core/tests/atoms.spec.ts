@@ -216,9 +216,10 @@ describe('builtin handlers', () => {
     expect(prompts[0]).toContain('MTU 拆分规则')
     expect(prompts[0]).toContain('[待确认]')
     await h.execute({
-      state: { text: 'x', extraction_type: '提取待解决的技术问题（严格输出 problems 数组）', output_key: 'problems' },
+      state: { text: 'x', extraction_type: '提取技术特征与待解决问题', output_key: 'problems' },
       provider: capture,
     })
+    // MTU 规则按结构化的 output_key 判定：提示词文本含“特征”不再触发注入。
     expect(prompts[1]).not.toContain('MTU 拆分规则')
   })
 
@@ -458,6 +459,114 @@ describe('extract 分键 / merge / draft-claims', () => {
     expect(triples[0]!.effects).toEqual(['效果1'])
     expect(triples[1]!.id).toBe('T2')
     expect(String(out.merge_result)).toMatch(/2 个问题 \/ 2 条发明认知 \/ 2 个特征 \/ 2 个效果/)
+    expect(String(out.merge_result)).toContain('（配对: index）')
+  })
+
+  it('MergeHandler：problem_insight 按条目配对，与条目顺序及 problems 投影无关', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({
+      state: {
+        problem_insight: [
+          { id: 'P2', problem: '问题2', insight: '认知2' },
+          { id: 'P1', problem: '问题1', insight: '认知1' },
+        ],
+        problems: ['问题1', '问题2'],
+        features: ['特征A', '特征B'],
+        effects: ['效果A', '效果B'],
+      },
+    })
+    const triples = out.pfe_triples as Array<{
+      id: string
+      problem: string
+      insight?: string
+      features: string[]
+      effects: string[]
+    }>
+    expect(triples).toHaveLength(2)
+    expect(triples[0]).toMatchObject({
+      id: 'T1', problem: '问题2', insight: '认知2', features: ['特征A'], effects: ['效果A'],
+    })
+    expect(triples[1]).toMatchObject({
+      id: 'T2', problem: '问题1', insight: '认知1', features: ['特征B'], effects: ['效果B'],
+    })
+    expect(String(out.merge_result)).toContain('2 个问题 / 2 条发明认知 / 2 个特征 / 2 个效果（配对: problem_insight）')
+  })
+
+  it('MergeHandler：配对条目缺 insight 时不写该键，且忽略遗留的 insight 数组', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({
+      state: {
+        problem_insight: [{ id: 'P1', problem: '问题1' }],
+        insight: ['上一代认知'],
+        features: ['特征A'],
+        effects: [],
+      },
+    })
+    const triples = out.pfe_triples as Array<Record<string, unknown>>
+    expect('insight' in triples[0]!).toBe(false)
+    expect(String(out.merge_result)).toContain('0 条发明认知')
+  })
+
+  it('MergeHandler：配对模式下多余特征/效果并入末组；无配对时构造单一空问题组', async () => {
+    const h = LookupStageHandler('merge')!
+    const extra = await h.execute({
+      state: {
+        problem_insight: [{ id: 'P1', problem: '问题1', insight: '认知1' }],
+        features: ['特征A', '特征B'],
+        effects: ['效果A', '效果B'],
+      },
+    })
+    const triples = extra.pfe_triples as Array<{ features: string[]; effects: string[] }>
+    expect(triples).toHaveLength(1)
+    expect(triples[0]!.features).toEqual(['特征A', '特征B'])
+    expect(triples[0]!.effects).toEqual(['效果A', '效果B'])
+
+    const noPairs = await h.execute({
+      state: { problem_insight: [], features: ['特征A'], effects: [] },
+    })
+    const single = noPairs.pfe_triples as Array<{ problem: string; features: string[] }>
+    expect(single).toHaveLength(1)
+    expect(single[0]!.problem).toBe('')
+    expect(single[0]!.features).toEqual(['特征A'])
+  })
+
+  it('MergeHandler：配对条目多于特征/效果时，越界组拿到空数组', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({
+      state: {
+        problem_insight: [
+          { id: 'P1', problem: '问题1', insight: '认知1' },
+          { id: 'P2', problem: '问题2' },
+        ],
+        features: ['特征A'],
+        effects: [],
+      },
+    })
+    const triples = out.pfe_triples as Array<{ features: string[]; effects: string[] }>
+    expect(triples).toHaveLength(2)
+    expect(triples[1]!.features).toEqual([])
+    expect(triples[1]!.effects).toEqual([])
+  })
+
+  it('MergeHandler：problem_insight 存在但非法时降级，不回退索引配对', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({
+      state: {
+        problem_insight: [{ id: 'P1' }],
+        problems: ['问题1'],
+        features: ['特征A'],
+        effects: [],
+        insight: ['认知1'],
+      },
+    })
+    expect(String(out._error)).toContain('problem_insight 第 1 项（id P1）缺少非空 problem')
+    expect(out.pfe_triples).toBeUndefined()
+  })
+
+  it('MergeHandler：配对为空且无特征/效果时降级', async () => {
+    const h = LookupStageHandler('merge')!
+    const out = await h.execute({ state: { problem_insight: [] } })
+    expect(String(out._error)).toMatch(/四路提取结果均为空/)
   })
 
   it('MergeHandler：没有发明认知时不写 insight 键（缺省即未提炼）', async () => {

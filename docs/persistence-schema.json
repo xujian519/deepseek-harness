@@ -28200,7 +28200,7 @@
         "packages/patent/patent-core/src/evidence/ledger.ts#WorkflowEvidenceLedger"
       ],
       "sources": [
-        "packages/patent/patent-core/src/evidence/ledger.ts:56"
+        "packages/patent/patent-core/src/evidence/ledger.ts:81"
       ]
     },
     {
@@ -28535,7 +28535,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#RevisionRecord"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:88"
+        "packages/patent/patent-core/src/workflow/types.ts:106"
       ]
     },
     {
@@ -29144,7 +29144,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:194"
+        "packages/patent/patent-core/src/workflow/types.ts:212"
       ]
     },
     {
@@ -29492,7 +29492,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:211"
+        "packages/patent/patent-core/src/workflow/types.ts:229"
       ]
     },
     {
@@ -31636,7 +31636,7 @@
         "packages/patent/patent-core/src/evidence/ledger.ts#WorkflowEvidenceReceipt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/evidence/ledger.ts:40"
+        "packages/patent/patent-core/src/evidence/ledger.ts:65"
       ]
     },
     {

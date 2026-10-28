@@ -6080,7 +6080,7 @@ SHA-256: `530da6c0267813bb4511af72883cc518834e624e3b3220a7062955fd57a788a6`
 
 SHA-256: `56c52ae9fe025e02ee5836e0f1ec40e5953f970c14ba19990d21d61d1a81e88f`
 
-来源：[`packages/patent/patent-core/src/workflow/types.ts:88`](../packages/patent/patent-core/src/workflow/types.ts)
+来源：[`packages/patent/patent-core/src/workflow/types.ts:106`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6988,7 +6988,7 @@ SHA-256: `c2deb7c9183735d4e0fffddf5c623f4e34daa1c8e96b111982e957dfcbbcf896`
 
 SHA-256: `477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445`
 
-来源：[`packages/patent/patent-core/src/evidence/ledger.ts:56`](../packages/patent/patent-core/src/evidence/ledger.ts)
+来源：[`packages/patent/patent-core/src/evidence/ledger.ts:81`](../packages/patent/patent-core/src/evidence/ledger.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -7006,7 +7006,7 @@ SHA-256: `477ba18223a8de055a2dc9e7d6017c84361b7b85f40532ce2d95df205d269445`
 
 SHA-256: `fe87180c1564d51949d37f0fa3e7deada5217598a3c12c1af700828dcb183979`
 
-来源：[`packages/patent/patent-core/src/evidence/ledger.ts:40`](../packages/patent/patent-core/src/evidence/ledger.ts)
+来源：[`packages/patent/patent-core/src/evidence/ledger.ts:65`](../packages/patent/patent-core/src/evidence/ledger.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -7066,7 +7066,7 @@ SHA-256: `6b9fe30f63b2d8a14ba18e37bcc9399dadc9174f0065b27d35da9b914bf3f57a`
 
 SHA-256: `89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a`
 
-来源：[`packages/patent/patent-core/src/workflow/types.ts:211`](../packages/patent/patent-core/src/workflow/types.ts)
+来源：[`packages/patent/patent-core/src/workflow/types.ts:229`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -7084,7 +7084,7 @@ SHA-256: `89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a`
 
 SHA-256: `76245606df2f48cb94a6f3b745d0c764659e515c0be1535994b1b214f06eda59`
 
-来源：[`packages/patent/patent-core/src/workflow/types.ts:194`](../packages/patent/patent-core/src/workflow/types.ts)
+来源：[`packages/patent/patent-core/src/workflow/types.ts:212`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

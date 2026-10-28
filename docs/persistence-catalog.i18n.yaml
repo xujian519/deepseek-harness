@@ -1554,8 +1554,8 @@
   en: fcff8709a6994ca7
   zh: 458332c74be1869b
 /session-persistence-event-catalog/resolved-persistence-types/revisionrecord:
-  en: c759e2125ddf9ec0
-  zh: 5bcb4b1f72086037
+  en: 6a6989f9f5889e3d
+  zh: b185e5474ddaddb5
 /session-persistence-event-catalog/resolved-persistence-types/revisionrecord~2:
   en: e67994460ec7522e
   zh: ecd5996b09b425c2
@@ -1704,11 +1704,11 @@
   en: 5c12839c8ce1a762
   zh: dc1c044849c2dee7
 /session-persistence-event-catalog/resolved-persistence-types/workflowevidenceledger:
-  en: e00dabea9711456b
-  zh: c173232de087f6fe
+  en: 46c3e8317f7f385a
+  zh: b39dd308476447d2
 /session-persistence-event-catalog/resolved-persistence-types/workflowevidencereceipt:
-  en: 0ee099a71417a23d
-  zh: b6d3e39c162fef91
+  en: 84a595becb57a8fb
+  zh: 42c74bc2c38a29f1
 /session-persistence-event-catalog/resolved-persistence-types/workflowevidencereceipt~2:
   en: 6289926b8680538a
   zh: 925517de34302c46
@@ -1716,11 +1716,11 @@
   en: 9efb34ef00eb4ca0
   zh: 28764e552ab8771e
 /session-persistence-event-catalog/resolved-persistence-types/workflowinterrupt:
-  en: 44f1eecc75cb02e0
-  zh: 3d11e54e34cc8c14
+  en: 0510856d793838a0
+  zh: db3aa49d753523f9
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult:
-  en: 6949949f649a681a
-  zh: 16d4590d3dfdf7f3
+  en: 0f85ce89041000e4
+  zh: 40cc5bb59daf97a1
 /session-persistence-event-catalog/resolved-persistence-types/workflowstageresult~2:
   en: 9a0bbdc586b3ba3b
   zh: 2af20ed5e3d4da7f

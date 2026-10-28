@@ -37,6 +37,7 @@ export {
   mergeAtom,
   MergeHandler,
   type PFETriple,
+  type ProblemInsightEntry,
 } from './extract.ts'
 export {
   pfeConsistencyAtom,
