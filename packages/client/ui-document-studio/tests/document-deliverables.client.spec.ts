@@ -7,12 +7,13 @@ import { describe, expect, it } from 'vitest'
 import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 import { ConversationNodeAssembler } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  ConversationMatch, ConversationNodeDefinition, ConversationStartMatch,
+  ConversationMatch, ConversationNodeDefinition, ConversationStartMatch, TurnLocation,
   ConversationTimelineSnapshot, ConversationViewDefinition, ConversationViewNode,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import {
-  documentDeliverablesDefinition, documentDeliverablesViewDefinition, parseCheckReports,
+  DOCUMENT_DELIVER_TOOL, documentDeliverablesDefinition, documentDeliverablesViewDefinition,
+  parseCheckReports, parseDeliverRegistration,
   type DocumentDeliverablesSnapshot, type DocumentTurnDeliverables,
 } from '../src/client/document-deliverables.ts'
 
@@ -671,5 +672,160 @@ describe('canonical deliverable identity', () => {
       checks: [{ path: ABS, format: 'html', status: 'checked', findings: [] }],
     })
     expect(reports?.get(ABS)).toEqual({ status: 'checked', findings: [] })
+  })
+})
+
+describe('payload rejection and mutation-argument derivation', () => {
+  /** Paths the turn publishes for a sequence of calls and their results. */
+  function producedPaths(entries: readonly SessionLiveEventEntry[]): readonly string[] {
+    const value = assembler([at(1, 'turn/start', { turn: 1 }), ...entries])
+    return (turnDataOf(value)?.produced ?? []).map(entry => entry.path)
+  }
+
+  /** A turn whose window published no document-deliverable data at all. */
+  function emptyTurn(turn: number): TurnLocation {
+    return {
+      turn,
+      start: undefined,
+      end: undefined,
+      status: 'unknown',
+      steps: [],
+      data: {
+        get: () => undefined,
+        source: () => ({ getSnapshot: () => undefined, subscribe: () => () => {} }),
+      },
+    }
+  }
+
+  it('rejects a registration payload that is not an object with files and a gate', () => {
+    const parse = (payload: unknown): unknown =>
+      parseDeliverRegistration(DOCUMENT_DELIVER_TOOL, JSON.stringify(payload))
+    // A payload that is not an object at all, and one that is null.
+    expect(parse('text')).toBeUndefined()
+    expect(parse(null)).toBeUndefined()
+    // `files` must be an array of objects carrying a string path and format.
+    expect(parse({ files: 'nope', gate: { p0: ['x'] } })).toBeUndefined()
+    expect(parse({ files: [null], gate: { p0: ['x'] } })).toBeUndefined()
+    expect(parse({ files: [7], gate: { p0: ['x'] } })).toBeUndefined()
+    // The gate is required, and P0 must be a string list.
+    expect(parse({ files: [{ path: 'a.html', format: 'html' }] })).toBeUndefined()
+    expect(parse({ files: [{ path: 'a.html', format: 'html' }], gate: null })).toBeUndefined()
+    expect(parse({ files: [{ path: 'a.html', format: 'html' }], gate: { p0: 'x' } })).toBeUndefined()
+    expect(parse({ files: [{ path: 'a.html', format: 'html' }], gate: { p0: [1] } })).toBeUndefined()
+    expect(parse({ files: [{ path: 'a.html', format: 'html' }], gate: { p0: ['x'], p1: 'y' } })).toBeUndefined()
+  })
+
+  it('rejects a check report whose entry or finding is malformed', () => {
+    // A report entry without a path, or with findings that are not a list.
+    expect(parseCheckReports({ checks: [{ status: 'checked', findings: [] }] })).toBeUndefined()
+    expect(parseCheckReports({ checks: [{ path: 'a.html', status: 'checked', findings: 'nope' }] })).toBeUndefined()
+    // A finding that is not an object rejects the whole payload.
+    expect(parseCheckReports({ checks: [{ path: 'a.html', status: 'checked', findings: [null] }] })).toBeUndefined()
+    // A finding with no line is valid and records no position.
+    expect(parseCheckReports({
+      checks: [{ path: 'a.html', status: 'checked', findings: [{ check: 'x', level: 'warn', detail: 'd' }] }],
+    })).toEqual(new Map([['a.html', { status: 'checked', findings: [{ check: 'x', level: 'warn', detail: 'd' }] }]]))
+  })
+
+  it('derives a mutation path only from a complete first-party mutation call', () => {
+    expect(producedPaths([
+      // `write` without string content is not a settled write.
+      call(2, 'w1', 'write', { file_path: 'a.html' }),
+      result(3, 'w1'),
+      call(4, 'w2', 'write', { file_path: 'b.html', content: 'x' }),
+      result(5, 'w2'),
+      // An `edit` must replace a non-empty old string with a different one.
+      call(6, 'e1', 'edit', { file_path: 'c.md', old_string: '', new_string: 'x' }),
+      result(7, 'e1'),
+      call(8, 'e2', 'edit', { file_path: 'd.md', old_string: 'a', new_string: 'b', replace_all: true }),
+      result(9, 'e2'),
+      call(10, 'e3', 'edit', { file_path: 'e.md', old_string: 'a', new_string: 'a' }),
+      result(11, 'e3'),
+      call(12, 'e4', 'edit', { file_path: 'f.md', old_string: 'a', new_string: 'b', replace_all: 'yes' }),
+      result(13, 'e4'),
+      // Arguments that do not parse to a record, and a tool that is no mutation.
+      rawCall(14, 'raw', 'write', 'null'),
+      result(15, 'raw'),
+      call(16, 'read', 'read', { file_path: 'g.md' }),
+      result(17, 'read'),
+    ])).toEqual(['b.html', 'd.md'])
+  })
+
+  it('derives a path from a complete editor mutation command only', () => {
+    expect(producedPaths([
+      call(2, 'c1', 'str_replace_editor', { command: 'create', path: 'a.html', file_text: '<p>x</p>' }),
+      result(3, 'c1'),
+      // `create` without file text declares no content.
+      call(4, 'c2', 'str_replace_editor', { command: 'create', path: 'b.html' }),
+      result(5, 'c2'),
+      // `str_replace` needs a non-empty old string; the new string is optional.
+      call(6, 's1', 'str_replace_editor', { command: 'str_replace', path: 'c.md', old_str: 'a' }),
+      result(7, 's1'),
+      call(8, 's2', 'str_replace_editor', { command: 'str_replace', path: 'd.md', old_str: '', new_str: 'x' }),
+      result(9, 's2'),
+      call(10, 's3', 'str_replace_editor', { command: 'str_replace', path: 'e.md', old_str: 'a', new_str: 1 }),
+      result(11, 's3'),
+      // `insert` needs a whole, non-negative line and the inserted text.
+      call(12, 'i1', 'str_replace_editor', { command: 'insert', path: 'f.md', insert_line: 0, new_str: 'x' }),
+      result(13, 'i1'),
+      call(14, 'i2', 'str_replace_editor', { command: 'insert', path: 'g.md', insert_line: -1, new_str: 'x' }),
+      result(15, 'i2'),
+      call(16, 'i3', 'str_replace_editor', { command: 'insert', path: 'h.md', insert_line: 1.5, new_str: 'x' }),
+      result(17, 'i3'),
+      call(18, 'i4', 'str_replace_editor', { command: 'insert', path: 'i.md', insert_line: 1 }),
+      result(19, 'i4'),
+      // A non-mutating command, and a blank path, contribute nothing.
+      call(20, 'v1', 'str_replace_editor', { command: 'view', path: 'j.md' }),
+      result(21, 'v1'),
+      call(22, 'v2', 'str_replace_editor', { command: 'create', path: '   ', file_text: 'x' }),
+      result(23, 'v2'),
+    ])).toEqual(['a.html', 'c.md', 'f.md'])
+  })
+
+  it('ignores an update match that is neither a tool call nor a tool result', () => {
+    const state = { turn: 1, calls: new Map(), produced: [] }
+    const match = matched(at(1, 'turn/start', { turn: 1 }), 'update')
+    expect(documentDeliverablesDefinition.update({ state } as never, match)).toBe(state)
+  })
+
+  it('keeps a registration brief reference through a later rewrite', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      rawCall(2, 'reg', DOCUMENT_DELIVER_TOOL, JSON.stringify({
+        files: [{ path: 'out/report.html', format: 'html' }], gate: { p0: ['x'] }, brief_ref: 'brief.md',
+      })),
+      result(3, 'reg'),
+      call(4, 'w', 'write', { file_path: 'out/report.html', content: 'x' }),
+      result(5, 'w'),
+    ])
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([{
+      seq: 3, path: 'out/report.html', format: 'html', gate: { p0: ['x'], p1: [] }, briefRef: 'brief.md',
+    }])
+  })
+
+  it('adopts a brief reference a later registration adds to an earlier rewrite', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'w', 'write', { file_path: 'out/report.html', content: 'x' }),
+      result(3, 'w'),
+      at(4, 'turn/start', { turn: 2 }),
+      rawCall(5, 'reg', DOCUMENT_DELIVER_TOOL, JSON.stringify({
+        files: [{ path: 'out/report.html', format: 'html' }], gate: { p0: ['x'] }, brief_ref: 'brief.md',
+      }), 2),
+      result(6, 'reg', false, 2),
+    ])
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([{
+      seq: 3, path: 'out/report.html', format: 'html', gate: { p0: ['x'], p1: [] }, briefRef: 'brief.md',
+    }])
+  })
+
+  it('skips a turn whose window published no document-deliverable data', () => {
+    const timeline: ConversationTimelineSnapshot = {
+      turnOrder: [1],
+      turns: new Map([[1, emptyTurn(1)]]),
+    }
+    expect(documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline })).toEqual({ produced: [] })
   })
 })

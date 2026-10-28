@@ -56,12 +56,11 @@ interface ReadFailure {
   readonly message: string
 }
 
-/** The empty state's workspace probe. */
-interface ScanState {
-  readonly state: 'idle' | 'scanning' | 'done' | 'failed'
-  readonly paths: readonly string[]
-  readonly message?: string
-}
+/** The empty state's workspace probe; a failure carries the message it reports. */
+type ScanState =
+  | { readonly state: 'idle' | 'scanning'; readonly paths: readonly string[] }
+  | { readonly state: 'done'; readonly paths: readonly string[] }
+  | { readonly state: 'failed'; readonly paths: readonly string[]; readonly message: string }
 
 /** Render a byte count the way a person reads one. */
 function humanBytes(bytes: number): string {
@@ -142,29 +141,49 @@ export function parseDocumentSections(html: string): readonly DocumentSection[] 
   const sections: DocumentSection[] = []
   const seen = new Set<string>()
   starts.forEach((start, index) => {
-    const id = (start[1] ?? start[2] ?? '').trim()
+    const captured = start[1] ?? start[2]
+    /* v8 ignore next -- the alternation captures exactly one quote style, so the empty fallback only narrows the array access */
+    const id = (captured ?? '').trim()
     if (id === '' || seen.has(id)) return
     seen.add(id)
     const body = html.slice(start.index, starts[index + 1]?.index ?? html.length)
     const heading = /<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/i.exec(body)
-    sections.push({ id, heading: heading === null ? '' : plainText(heading[1] ?? '') })
+    if (heading === null) {
+      sections.push({ id, heading: '' })
+      return
+    }
+    /* v8 ignore next -- a matched heading always captures its inner HTML; the fallback only narrows the array access */
+    sections.push({ id, heading: plainText(heading[1] ?? '') })
   })
   return sections
 }
 
-/** Produced-file chip labels: a duplicated basename gains its parent directory. */
-function chipLabels(produced: readonly DocumentDeliverable[]): ReadonlyMap<string, string> {
-  const counts = new Map<string, number>()
-  for (const file of produced) {
-    const name = basename(file.path)
-    counts.set(name, (counts.get(name) ?? 0) + 1)
+/** One produced file paired with the label its list row shows. */
+interface FileRow {
+  readonly file: DocumentDeliverable
+  /** The list label: the basename, plus the parent directory when another file shares it. */
+  label: string
+}
+
+/**
+ * Pair each produced file with its list label.
+ * @param produced - the session's produced files, in display order.
+ * @returns one row per produced file, in the same order.
+ */
+function fileRows(produced: readonly DocumentDeliverable[]): readonly FileRow[] {
+  const rows: FileRow[] = produced.map(file => ({ file, label: basename(file.path) }))
+  const byName = new Map<string, FileRow[]>()
+  for (const row of rows) {
+    const name = basename(row.file.path)
+    const group = byName.get(name)
+    if (group === undefined) byName.set(name, [row])
+    else group.push(row)
   }
-  const labels = new Map<string, string>()
-  for (const file of produced) {
-    const name = basename(file.path)
-    labels.set(file.path, (counts.get(name) ?? 0) > 1 ? `${name} · ${parentDir(file.path)}` : name)
+  for (const [name, group] of byName) {
+    if (group.length === 1) continue
+    for (const row of group) row.label = `${name} · ${parentDir(row.file.path)}`
   }
-  return labels
+  return rows
 }
 
 /** Outcome of one desktop print-to-PDF request (mirror of the preload bridge). */
@@ -181,6 +200,11 @@ export interface DesktopPrintResult {
 export interface DesktopPrintBridge {
   printHtmlToPdf(payload: { html: string; suggestedName?: string }): Promise<DesktopPrintResult>
 }
+
+/** One print request's settled outcome, reported beside the file it printed. */
+type PrintOutcome =
+  | { readonly path: string; readonly kind: 'saved'; readonly saved: string }
+  | { readonly path: string; readonly kind: 'failed'; readonly message: string }
 
 declare global {
   interface Window {
@@ -342,7 +366,7 @@ export function StudioView({
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [content, setContent] = useState<{ text: string; truncated: boolean } | null>(null)
   const [error, setError] = useState<ReadFailure | null>(null)
-  const [printOutcome, setPrintOutcome] = useState<{ path: string; saved?: string; failed?: string } | null>(null)
+  const [printOutcome, setPrintOutcome] = useState<PrintOutcome | null>(null)
   const [actionFailure, setActionFailure] = useState<{ path: string; message: string } | null>(null)
   const [draftNotice, setDraftNotice] = useState<{ path: string; kind: 'revise' | 'section' } | null>(null)
   const [scan, setScan] = useState<ScanState>({ state: 'idle', paths: [] })
@@ -468,7 +492,7 @@ export function StudioView({
     () => produced.find(file => file.path === selectedPath) ?? null,
     [produced, selectedPath],
   )
-  const labels = useMemo(() => chipLabels(produced), [produced])
+  const rows = useMemo(() => fileRows(produced), [produced])
   const selectedName = selected === null ? '' : basename(selected.path)
   const previewable = selectedPath !== null && isTextPreviewable(selectedPath)
   const sections = useMemo(
@@ -477,6 +501,11 @@ export function StudioView({
       : [],
     [selectedPath, content],
   )
+  // The HTML the print action exports: the previewed document while the frame
+  // is showing, so the action never has to re-check a null it cannot see.
+  const printable = selectedPath !== null && htmlPreview !== null
+    ? { path: selectedPath, html: htmlPreview }
+    : null
   const notice = draftNotice !== null && draftNotice.path === selectedPath ? draftNotice.kind : null
 
   // One preview pane per state; the hint covers only "nothing selected", so a
@@ -512,24 +541,28 @@ export function StudioView({
     preview = null
   }
 
-  const onPrint = async (): Promise<void> => {
-    if (selectedPath === null || htmlPreview === null) return
+  const onPrint = async (target: { readonly path: string; readonly html: string }): Promise<void> => {
     setPrintOutcome(null)
     // The preview read is the host's bounded window; re-read completely so the
     // PDF is not silently the cut head.
-    let html = htmlPreview
+    let html = target.html
     if (content?.truncated === true) {
       try {
-        const full = await readFileTextComplete(selectedPath)
+        const full = await readFileTextComplete(target.path)
         if (full.truncated) {
-          setPrintOutcome({ path: selectedPath, failed: t('studio.print.tooLarge', { limit: humanBytes(full.limitBytes) }) })
+          setPrintOutcome({
+            path: target.path,
+            kind: 'failed',
+            message: t('studio.print.tooLarge', { limit: humanBytes(full.limitBytes) }),
+          })
           return
         }
         html = full.content
       } catch (reason: unknown) {
         setPrintOutcome({
-          path: selectedPath,
-          failed: reason instanceof WorkspaceReadError
+          path: target.path,
+          kind: 'failed',
+          message: reason instanceof WorkspaceReadError
             ? readFailureText(reason, t)
             : reason instanceof Error ? reason.message : String(reason),
         })
@@ -539,15 +572,18 @@ export function StudioView({
     if (window.desktop?.printHtmlToPdf !== undefined) {
       const result = await window.desktop.printHtmlToPdf({
         html,
-        suggestedName: selectedName,
+        suggestedName: basename(target.path),
       })
-      if (result.error !== undefined) setPrintOutcome({ path: selectedPath, failed: result.error })
-      else if (result.cancelled !== true && result.path !== undefined) {
-        setPrintOutcome({ path: selectedPath, saved: result.path })
+      if (result.error !== undefined) {
+        setPrintOutcome({ path: target.path, kind: 'failed', message: result.error })
+      } else if (result.cancelled !== true && result.path !== undefined) {
+        setPrintOutcome({ path: target.path, kind: 'saved', saved: result.path })
       }
       return
     }
-    if (!printHtmlDocument(html)) setPrintOutcome({ path: selectedPath, failed: t('studio.print.blocked') })
+    if (!printHtmlDocument(html)) {
+      setPrintOutcome({ path: target.path, kind: 'failed', message: t('studio.print.blocked') })
+    }
   }
 
   /** Run one file action, reporting a failure beside the action that failed. */
@@ -578,7 +614,7 @@ export function StudioView({
             <p className={css.emptyText}>{t('studio.empty')}</p>
             {scan.state === 'scanning' && <p className={css.note}>{t('studio.empty.scanning')}</p>}
             {scan.state === 'failed' && (
-              <p className={css.note}>{t('studio.empty.scanFailed', { message: scan.message ?? '' })}</p>
+              <p className={css.note}>{t('studio.empty.scanFailed', { message: scan.message })}</p>
             )}
             {scan.state === 'done' && scan.paths.length > 0 && (
               <div className={css.candidates}>
@@ -603,7 +639,7 @@ export function StudioView({
           <>
             <div className={css.listHeader} data-document-deliverables-list>
               <div className={css.files}>
-                {produced.map(file => (
+                {rows.map(({ file, label }) => (
                   <button
                     key={file.path}
                     type="button"
@@ -612,7 +648,7 @@ export function StudioView({
                     title={file.path}
                     onClick={() => { setSelectedPath(file.path); setSectionId('') }}
                   >
-                    <span className={css.fileName}>{labels.get(file.path) ?? basename(file.path)}</span>
+                    <span className={css.fileName}>{label}</span>
                     <DeliverableBadges
                       file={file}
                       stale={stale.has(file.path)}
@@ -650,8 +686,8 @@ export function StudioView({
                         {t('studio.action.previewSidebar')}
                       </button>
                     )}
-                    {htmlPreview !== null && (
-                      <button type="button" className={css.action} onClick={() => { void onPrint() }}>
+                    {printable !== null && (
+                      <button type="button" className={css.action} onClick={() => { void onPrint(printable) }}>
                         {t('studio.action.print')}
                       </button>
                     )}
@@ -673,9 +709,9 @@ export function StudioView({
               )}
               {printOutcome !== null && printOutcome.path === selectedPath && (
                 <p className={css.note}>
-                  {printOutcome.saved !== undefined
+                  {printOutcome.kind === 'saved'
                     ? t('studio.print.exported', { path: printOutcome.saved })
-                    : t('studio.print.failed', { message: printOutcome.failed ?? '' })}
+                    : t('studio.print.failed', { message: printOutcome.message })}
                 </p>
               )}
               {notice === 'revise' && <p className={css.note}>{t('studio.revise.inserted')}</p>}

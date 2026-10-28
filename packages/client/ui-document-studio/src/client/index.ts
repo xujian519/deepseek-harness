@@ -186,7 +186,9 @@ export function apply(ctx: ClientContext): void {
     }
     const tick = (): void => {
       if (retryFor === undefined) return
-      // The user may have left the session while the setter was mounting.
+      // Leaving a session tears this window down through the catalog
+      // subscription, so the guard only answers a timer that outlived it.
+      /* v8 ignore next 3 -- leaving a session runs stopRetry through the catalog subscription */
       if (ctx.sessions.list.getSnapshot().byId[retryFor]?.retainedBy.mainView === undefined) {
         stopRetry()
         return

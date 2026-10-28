@@ -501,6 +501,345 @@ describe('StudioView', () => {
     expect(completeViewRequest).toHaveBeenCalledTimes(1)
   })
 
+  it('renders the empty list when the session carries no produced snapshot', async () => {
+    const props = studioProps([])
+    const store = createSnapshotStore<ConversationSnapshot>(conversationSnapshot({
+      views: { get: () => undefined, grouped: () => undefined },
+    }))
+    render(<StudioView {...props} useConversation={bindSnapshotSelector(store)} />)
+    expect(await screen.findByText(t('studio.empty'))).toBeTruthy()
+  })
+
+  it('holds a focus request until the list resolves it, and acknowledges one that names no listed file', async () => {
+    const completeViewRequest = vi.fn()
+    const request = { view: 'documentDeliverables', focus: 'out/a.md' }
+    const { rerender } = render(
+      <StudioView {...studioProps([])} viewRequest={request} completeViewRequest={completeViewRequest} />,
+    )
+    expect(await screen.findByText(t('studio.empty'))).toBeTruthy()
+    // An empty list cannot resolve the request, so the request survives.
+    expect(completeViewRequest).not.toHaveBeenCalled()
+    // A list that does not hold the named file still settles the request.
+    rerender(
+      <StudioView
+        {...studioProps([{ seq: 1, path: 'out/b.md' }])}
+        viewRequest={{ view: 'documentDeliverables', focus: 'out/gone.md' }}
+        completeViewRequest={completeViewRequest}
+      />,
+    )
+    expect(await screen.findByText('<h1>out/b.md</h1>')).toBeTruthy()
+    expect(completeViewRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a read that settles after the selection moved on', async () => {
+    let rejectFirst: (reason: unknown) => void = () => {}
+    const readFileText = vi.fn((path: string) => path === 'out/a.md'
+      ? new Promise<never>((_, reject) => { rejectFirst = reject })
+      : Promise.resolve({ content: '# B', truncated: false }))
+    render(
+      <StudioView {...studioProps([{ seq: 1, path: 'out/a.md' }, { seq: 2, path: 'out/b.md' }], { readFileText })} />,
+    )
+    fireEvent.click(screen.getAllByText('b.md')[0]!)
+    expect(await screen.findByText('# B')).toBeTruthy()
+    rejectFirst(new Error('late failure'))
+    await vi.waitFor(() => { expect(screen.queryByText(t('studio.error.notText'))).toBeNull() })
+  })
+
+  it('localizes every read failure by its Host code, including a client-side decode failure', async () => {
+    const cases: Array<[unknown, string]> = [
+      [new WorkspaceReadError('outside', 'workspace-file/outside-workspace'), t('studio.error.denied')],
+      [new WorkspaceReadError('too big', 'workspace-file/too-large'), t('studio.error.generic', { message: 'too big' })],
+      [new Error('not valid UTF-8: out/a.md'), t('studio.error.notText')],
+      ['unreadable', t('studio.error.notText')],
+    ]
+    for (const [rejection, expected] of cases) {
+      cleanup()
+      // The view has a non-Error rejection arm that must be exercised.
+      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the rejection reason is the fixture
+      const readFileText = vi.fn(() => Promise.reject(rejection))
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/a.md' }], { readFileText })} />)
+      expect(await screen.findByText(expected)).toBeTruthy()
+    }
+  })
+
+  it('leaves the verdict unmarked when the Host cannot stat the file, and keeps it while the token holds', async () => {
+    const unstatable = vi.fn(() => Promise.resolve({}))
+    render(
+      <StudioView {...studioProps([{
+        seq: 1, path: 'out/r.html', checks: { status: 'checked', findings: [] },
+      }], { statVersions: unstatable })} />,
+    )
+    expect(await screen.findByText(t('studio.file.checkedPassed'))).toBeTruthy()
+
+    cleanup()
+    const statVersions = vi.fn(() => Promise.resolve({ 'out/r.html': 'v1' }))
+    const produced = () => [{ seq: 1, path: 'out/r.html', checks: { status: 'checked', findings: [] } }]
+    const { rerender } = render(<StudioView {...studioProps(produced(), { statVersions })} />)
+    expect(await screen.findByText(t('studio.file.checkedPassed'))).toBeTruthy()
+    rerender(<StudioView {...studioProps(produced(), { statVersions })} />)
+    await vi.waitFor(() => { expect(statVersions).toHaveBeenCalledTimes(2) })
+    expect(screen.getByText(t('studio.file.checkedPassed'))).toBeTruthy()
+    expect(screen.queryByText(t('studio.file.changed'))).toBeNull()
+  })
+
+  it('clears the changed marker once no listed file carries a verdict', async () => {
+    const statVersions = vi.fn()
+      .mockResolvedValueOnce({ 'out/r.html': 'v1' })
+      .mockResolvedValueOnce({ 'out/r.html': 'v2' })
+    const checked = [{ seq: 1, path: 'out/r.html', format: 'html', checks: { status: 'checked', findings: [] } }]
+    const { rerender } = render(<StudioView {...studioProps(checked, { statVersions })} />)
+    expect(await screen.findByText(t('studio.file.checkedPassed'))).toBeTruthy()
+    // Let the first stat settle so its token becomes the baseline the next one moves.
+    await new Promise((resolve) => { setTimeout(resolve, 0) })
+    rerender(<StudioView {...studioProps([{ seq: 1, path: 'out/r.html', format: 'html', checks: { status: 'checked', findings: [] } }], { statVersions })} />)
+    expect(await screen.findByText(t('studio.file.changed'))).toBeTruthy()
+    rerender(<StudioView {...studioProps([{ seq: 2, path: 'out/plain.md' }], { statVersions })} />)
+    expect(await screen.findByText('<h1>out/plain.md</h1>')).toBeTruthy()
+    expect(screen.queryByText(t('studio.file.changed'))).toBeNull()
+  })
+
+  it('drops a freshness stat that settles after the produced list changed, and one that fails', async () => {
+    const resolvers: Array<(versions: Record<string, string>) => void> = []
+    const statVersions = vi.fn(() => new Promise<Record<string, string>>((resolve) => { resolvers.push(resolve) }))
+    const checked = () => [{ seq: 1, path: 'out/r.html', checks: { status: 'checked', findings: [] } }]
+    const { rerender } = render(<StudioView {...studioProps(checked(), { statVersions })} />)
+    rerender(<StudioView {...studioProps(checked(), { statVersions })} />)
+    await vi.waitFor(() => { expect(resolvers).toHaveLength(2) })
+    // The first effect's window closed with the list; its answer must not land.
+    resolvers[0]!({ 'out/r.html': 'v2' })
+    await new Promise((resolve) => { setTimeout(resolve, 0) })
+    expect(screen.queryByText(t('studio.file.changed'))).toBeNull()
+    resolvers[1]!({ 'out/r.html': 'v1' })
+    await vi.waitFor(() => { expect(statVersions).toHaveBeenCalledTimes(2) })
+    expect(screen.getByText(t('studio.file.checkedPassed'))).toBeTruthy()
+  })
+
+  it('leaves the verdict unmarked when the freshness stat fails', async () => {
+    const statVersions = vi.fn(() => Promise.reject(new Error('stat unavailable')))
+    render(
+      <StudioView {...studioProps([{
+        seq: 1, path: 'out/r.html', checks: { status: 'checked', findings: [] },
+      }], { statVersions })} />,
+    )
+    expect(await screen.findByText(t('studio.file.checkedPassed'))).toBeTruthy()
+    await vi.waitFor(() => { expect(statVersions).toHaveBeenCalledTimes(1) })
+    expect(screen.queryByText(t('studio.file.changed'))).toBeNull()
+  })
+
+  it('drops a probe answer that a later scan superseded', async () => {
+    const resolvers: Array<(paths: string[]) => void> = []
+    const probeUnregistered = vi.fn(() => new Promise<string[]>((resolve) => { resolvers.push(resolve) }))
+    const { rerender } = render(<StudioView {...studioProps([], { probeUnregistered })} />)
+    // Produced files arriving and leaving again closes the first scan's window.
+    rerender(<StudioView {...studioProps([{ seq: 1, path: 'out/report.md' }], { probeUnregistered })} />)
+    rerender(<StudioView {...studioProps([], { probeUnregistered })} />)
+    await vi.waitFor(() => { expect(resolvers).toHaveLength(2) })
+    resolvers[0]!(['out/stale.md'])
+    await new Promise((resolve) => { setTimeout(resolve, 0) })
+    expect(screen.queryByText('out/stale.md')).toBeNull()
+    resolvers[1]!(['out/fresh.md'])
+    expect(await screen.findByText('out/fresh.md')).toBeTruthy()
+  })
+
+  it('drops a workspace probe that settles after the studio unmounts', async () => {
+    let resolveProbe: (paths: string[]) => void = () => {}
+    let rejectProbe: (reason: unknown) => void = () => {}
+    const resolved = vi.fn(() => new Promise<string[]>((resolve) => { resolveProbe = resolve }))
+    const rejected = vi.fn(() => new Promise<string[]>((_, reject) => { rejectProbe = reject }))
+
+    const first = render(<StudioView {...studioProps([], { probeUnregistered: resolved })} />)
+    first.unmount()
+    resolveProbe(['out/late.md'])
+    await Promise.resolve()
+
+    const second = render(<StudioView {...studioProps([], { probeUnregistered: rejected })} />)
+    second.unmount()
+    rejectProbe(new Error('late failure'))
+    await Promise.resolve()
+    expect(screen.queryByText(t('studio.empty.scanFailed', { message: 'late failure' }))).toBeNull()
+  })
+
+  it('reports a non-error probe failure as its string form', async () => {
+    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- a non-Error rejection is the case under test
+    const probeUnregistered = vi.fn(() => Promise.reject('offline'))
+    render(<StudioView {...studioProps([], { probeUnregistered })} />)
+    expect(await screen.findByText(t('studio.empty.scanFailed', { message: 'offline' }))).toBeTruthy()
+  })
+
+  it('reports a non-error action failure as its string form', async () => {
+    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- a non-Error rejection is the case under test
+    const showInFolder = vi.fn(() => Promise.reject('denied'))
+    render(<StudioView {...studioProps([{ seq: 1, path: 'out/report.md' }], { showInFolder })} />)
+    fireEvent.click(screen.getByText(t('studio.action.folder')))
+    expect(await screen.findByText(t('studio.action.revealFailed', { message: 'denied' }))).toBeTruthy()
+  })
+
+  it('hands the previewed file to the sidebar from the action row', async () => {
+    const openInSidebar = vi.fn(() => true)
+    render(<StudioView {...studioProps([{ seq: 1, path: 'out/report.md' }], { openInSidebar })} />)
+    expect(await screen.findByText('<h1>out/report.md</h1>')).toBeTruthy()
+    fireEvent.click(screen.getAllByText(t('studio.action.previewSidebar'))[0]!)
+    expect(openInSidebar).toHaveBeenCalledWith('out/report.md')
+  })
+
+  it('requests a revision of a file with no machine findings, and reports a refused insert', async () => {
+    const insertDraft = vi.fn((_text: string) => false)
+    render(<StudioView {...studioProps([{ seq: 1, path: 'out/plain.md' }], { insertDraft })} />)
+    fireEvent.click(screen.getByText(t('studio.action.revise')))
+    expect(insertDraft).toHaveBeenCalledWith(t('studio.revise.none'))
+    expect(screen.queryByText(t('studio.revise.inserted'))).toBeNull()
+  })
+
+  it('lists a finding that carries no line number as one item', async () => {
+    const insertDraft = vi.fn((_text: string) => true)
+    render(
+      <StudioView {...studioProps([{
+        seq: 1, path: 'out/warned.md',
+        checks: { status: 'checked', findings: [{ check: 'c', level: 'warn', detail: '无行号提示' }] },
+      }], { insertDraft })} />,
+    )
+    fireEvent.click(screen.getByText(t('studio.action.revise')))
+    const draft = insertDraft.mock.calls[0]?.[0] ?? ''
+    expect(draft).toContain('无行号提示')
+    expect(draft).not.toContain('第 ')
+  })
+
+  it('reports the Host cap in a readable size when a complete read refuses the file', async () => {
+    const caps: Array<[number, string]> = [[512, '512 B'], [2048, '2 KB'], [5 * 1024 * 1024, '5 MB']]
+    for (const [limitBytes, size] of caps) {
+      cleanup()
+      const readFileTextComplete = vi.fn((): Promise<CompleteReadText> =>
+        Promise.resolve({ truncated: true, limitBytes }))
+      render(
+        <StudioView {...studioProps([{ seq: 1, path: 'out/big.html' }], {
+          readFileText: vi.fn(() => Promise.resolve({ content: '<h1>head</h1>', truncated: true })),
+          readFileTextComplete,
+        })} />,
+      )
+      await screen.findByTitle('big.html')
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.failed', {
+        message: t('studio.print.tooLarge', { limit: size }),
+      }))).toBeTruthy()
+      expect(readFileTextComplete).toHaveBeenCalledWith('out/big.html')
+    }
+  })
+
+  it('prints the complete file when the preview window was cut', async () => {
+    const write = vi.fn()
+    const open = vi.spyOn(window, 'open').mockReturnValue({
+      document: { open: vi.fn(), write, close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    } as never)
+    const readFileTextComplete = vi.fn((): Promise<CompleteReadText> =>
+      Promise.resolve({ truncated: false, content: '<html>full</html>' }))
+    render(
+      <StudioView {...studioProps([{ seq: 1, path: 'out/big.html' }], {
+        readFileText: vi.fn(() => Promise.resolve({ content: '<html>head', truncated: true })),
+        readFileTextComplete,
+      })} />,
+    )
+    await screen.findByTitle('big.html')
+    fireEvent.click(screen.getByText(t('studio.action.print')))
+    await vi.waitFor(() => { expect(write).toHaveBeenCalledWith('<html>full</html>') })
+    open.mockRestore()
+  })
+
+  it('reports a failed complete read beside the file it could not print', async () => {
+    const cases: Array<[unknown, string]> = [
+      [new WorkspaceReadError('gone', 'workspace-file/not-found'), t('studio.error.notFound')],
+      [new Error('disk full'), 'disk full'],
+      ['unreadable', 'unreadable'],
+    ]
+    for (const [rejection, message] of cases) {
+      cleanup()
+      render(
+        <StudioView {...studioProps([{ seq: 1, path: 'out/big.html' }], {
+          readFileText: vi.fn(() => Promise.resolve({ content: '<h1>head</h1>', truncated: true })),
+          // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the rejection reason is the fixture
+          readFileTextComplete: vi.fn(() => Promise.reject(rejection)),
+        })} />,
+      )
+      await screen.findByTitle('big.html')
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.failed', { message }))).toBeTruthy()
+    }
+  })
+
+  it('prints through the desktop bridge and reports saved, failed, and dismissed outcomes', async () => {
+    const printHtmlToPdf = vi.fn()
+      .mockResolvedValueOnce({ path: '/tmp/out/report.pdf' })
+      .mockResolvedValueOnce({ error: 'raster failed' })
+      .mockResolvedValueOnce({ cancelled: true })
+      .mockResolvedValueOnce({})
+    window.desktop = { printHtmlToPdf }
+    try {
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/report.html' }])} />)
+      await screen.findByTitle('report.html')
+
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.exported', { path: '/tmp/out/report.pdf' }))).toBeTruthy()
+      expect(printHtmlToPdf).toHaveBeenCalledWith({
+        html: '<h1>out/report.html</h1>', suggestedName: 'report.html',
+      })
+
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.failed', { message: 'raster failed' }))).toBeTruthy()
+
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      await vi.waitFor(() => { expect(printHtmlToPdf).toHaveBeenCalledTimes(3) })
+      expect(screen.queryByText(t('studio.print.failed', { message: 'raster failed' }))).toBeNull()
+
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      await vi.waitFor(() => { expect(printHtmlToPdf).toHaveBeenCalledTimes(4) })
+      expect(screen.queryByText(t('studio.print.failed', { message: 'raster failed' }))).toBeNull()
+    } finally {
+      delete window.desktop
+    }
+  })
+
+  it('inserts a reference for a section without a heading and reports a refused insert', async () => {
+    const insertDraft = vi.fn((_text: string) => false)
+    const html = '<section data-doc-id="plain"><p>x</p></section>'
+    render(
+      <StudioView {...studioProps([{ seq: 1, path: 'out/report.html' }], {
+        insertDraft,
+        readFileText: vi.fn(() => Promise.resolve({ content: html, truncated: false })),
+      })} />,
+    )
+    await screen.findByTitle('report.html')
+    fireEvent.change(screen.getByLabelText(t('studio.section.pick')), { target: { value: 'plain' } })
+    fireEvent.click(screen.getByText(t('studio.section.insert')))
+    expect(insertDraft).toHaveBeenCalledWith(
+      `${t('studio.section.reference', { path: 'out/report.html', id: 'plain' })}\n\n${t('studio.section.instruction')}`,
+    )
+    expect(screen.queryByText(t('studio.section.inserted'))).toBeNull()
+  })
+
+  it('ignores a section pick the reloaded document no longer declares', async () => {
+    const insertDraft = vi.fn(() => true)
+    const first = '<section data-doc-id="sec-a"><h2>A</h2></section>'
+    const second = '<section data-doc-id="sec-b"><h2>B</h2></section>'
+    const { rerender } = render(
+      <StudioView {...studioProps([{ seq: 1, path: 'out/report.html' }], {
+        insertDraft,
+        readFileText: vi.fn(() => Promise.resolve({ content: first, truncated: false })),
+      })} />,
+    )
+    await screen.findByTitle('report.html')
+    fireEvent.change(screen.getByLabelText(t('studio.section.pick')), { target: { value: 'sec-a' } })
+    rerender(
+      <StudioView {...studioProps([{ seq: 1, path: 'out/report.html' }], {
+        insertDraft,
+        readFileText: vi.fn(() => Promise.resolve({ content: second, truncated: false })),
+      })} />,
+    )
+    expect(await screen.findByText('sec-b · B')).toBeTruthy()
+    fireEvent.click(screen.getByText(t('studio.section.insert')))
+    expect(insertDraft).not.toHaveBeenCalled()
+  })
+
   it('classifies preview kinds by extension and parses declared sections', () => {
     expect(isHtmlPath('a.html')).toBe(true)
     expect(isHtmlPath('a.htm')).toBe(true)
