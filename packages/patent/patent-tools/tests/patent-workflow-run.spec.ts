@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -9,6 +9,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
+  caseWorkflowRunsDir,
   globalAtomRegistry,
   globalStageHandlerRegistry,
   registerBuiltinAtoms,
@@ -1210,6 +1211,24 @@ describe('patent_workflow_run', () => {
     expect(granted.ok).toBe(true)
     expect(granted.completed).toBe(true)
     expect(granted.interruptNote).toBeUndefined()
+  })
+
+  it('rejects a corrupted persisted checkpoint instead of silently resuming from the initial state', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-wf-'))
+    const cwd = temp
+    const tool = createPatentWorkflowRunTool({ model: noveltyGraphModel(), search: fakeSearch, cwd, ruleEvaluator: stubRuleEvaluator })
+
+    // 缺 state 的 checkpoint 正是 issue #601 报告的形状：过去会被当作有效记录，
+    // resume 时引擎把 undefined 静默换成初始状态，恢复变成无声重跑。
+    const checkpointsDir = join(cwd, caseWorkflowRunsDir('case-1'), 'checkpoints')
+    await mkdir(checkpointsDir, { recursive: true })
+    const checkpointFile = join(checkpointsDir, 'patent_novelty-0.json')
+    await writeFile(checkpointFile, JSON.stringify({ id: 'patent_novelty-0', graphId: 'patent_novelty' }), 'utf8')
+
+    await expect(tool.execute(
+      { graph: 'novelty', input: 'x', caseId: 'case-1', resumeCheckpointId: 'patent_novelty-0' },
+      exec,
+    )).rejects.toThrow(/patent_novelty-0\.json/)
   })
 
   it('marks a graph run with a handler-returned _error incomplete and keeps internal keys out of state', async () => {

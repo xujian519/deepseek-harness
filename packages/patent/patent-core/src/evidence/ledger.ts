@@ -32,6 +32,31 @@ export type WorkflowEvidenceSource =
   | 'conflicting-application-unknown'
 
 /**
+ * Every evidence source category. The table keeps the persisted-record check in
+ * step with the union: adding a member without listing it here fails to compile.
+ */
+export const WORKFLOW_EVIDENCE_SOURCES = {
+  material: true,
+  claims: true,
+  'prior-art': true,
+  'prior-art-excluded': true,
+  'prior-art-undated': true,
+  evidence: true,
+  'conflicting-application': true,
+  'conflicting-application-excluded': true,
+  'conflicting-application-unknown': true,
+} as const satisfies Record<WorkflowEvidenceSource, true>
+
+/**
+ * Test whether a value is a declared evidence source category.
+ * @param value - Value to check.
+ * @returns True when the value is a {@link WorkflowEvidenceSource}.
+ */
+export function isWorkflowEvidenceSource(value: unknown): value is WorkflowEvidenceSource {
+  return typeof value === 'string' && Object.hasOwn(WORKFLOW_EVIDENCE_SOURCES, value)
+}
+
+/**
  * One evidence receipt: the stable fields of a tool-call receipt plus the
  * domain metadata a citation check needs. `startedAt` is omitted because a
  * workflow run has one start time, carried by the session event, and a

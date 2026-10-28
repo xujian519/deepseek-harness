@@ -80,6 +80,7 @@ Independent; the pipeline registers no prompt, tool schema, or result of its own
 ## Known Limitations and Deferred Work
 
 - **Storage optional via `ctx.get('storage')`** — file products (workflow-run and flexible-plan stores) use the caller-provided `JsonFileStore` backends; the service does not wire the storage-domain seam, so ctx.storage integration is deferred.
+- **Persisted run records are validated, not versioned** — `JsonFileWorkflowRunStore` rejects a record whose fields do not match `WorkflowRunResult` (including nested stage, interrupt, evidence-ledger, and revision fields) with a `StoredRecordError` naming the file; `listRuns` only lists file names and never parses. The format carries no version field, so an incompatible older shape is rejected as invalid rather than migrated. `JsonFileFlexiblePlanStore` likewise rejects a plan whose `caseId` differs from its file name.
 - **Approval fails closed without an answerer** — with no approval service mounted (or no answerer composed), `runPlantask` rejects the plan to replanning instead of auto-approving.
 - **Docket production is unwired** — the schema, the disposition asset, and the invariant predicates ship here, but no surface yet turns a review's issue list into docket items or supplies them to a transition, so a caller that omits `issues` gets no item-based refusal.
 - **The round counter is per process** — `maxRounds` is counted in the service, not in the session log: a restart clears it, and a plan that reaches `finished` clears its registration.

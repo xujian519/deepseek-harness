@@ -86,6 +86,7 @@ Independent; the pipeline registers no prompt, tool schema, or result of its own
 ## 已知局限与延期工作
 
 - **存储经 `ctx.get('storage')` 可选** — 文件产物（workflow-run 与 flexible-plan 存储）使用调用方提供的 `JsonFileStore` 后端；服务不接线 storage-domain 接缝，ctx.storage 集成延期。
+- **运行记录只校验、不带版本号** — `JsonFileWorkflowRunStore` 对字段不符合 `WorkflowRunResult` 的记录（含阶段、中断、证据账本、回退留痕等嵌套字段）抛带文件路径的 `StoredRecordError`；`listRuns` 只列文件名、不解析内容。格式没有版本字段，不兼容的旧形状按非法记录拒绝，不做迁移。`JsonFileFlexiblePlanStore` 同样拒绝 `caseId` 与文件名不一致的计划。
 - **无答案者时审批 fail-closed** — 无审批服务挂载（或未组合答案者）时，`runPlantask` 拒绝计划转至 replanning 而非自动放行。
 - **案卷条目的产出未接线** — schema、处置资产与不变量谓词都随包发布，但还没有任何面把复核结论的问题清单变成案卷条目、或把它们交给某次迁移，因此省略 `issues` 的调用方得不到基于条目的拒绝。
 - **轮次计数器按进程** — `maxRounds` 计在服务里而非会话日志里：重启即清零，计划收到 `finished` 也清零该登记。

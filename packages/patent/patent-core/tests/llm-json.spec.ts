@@ -4,6 +4,8 @@ import {
   parseJsonStringArray,
   parseOptionalJsonStringArray,
   readJsonNumber,
+  readNonEmptyString,
+  readOptionalNonEmptyString,
   stripCodeFence,
   tryParseJson,
 } from '@deepseek-ai/dsh-patent-core'
@@ -51,6 +53,27 @@ describe('readJsonNumber', () => {
     expect(readJsonNumber(3)).toBe(3)
     expect(readJsonNumber('3')).toBeUndefined()
     expect(readJsonNumber(null)).toBeUndefined()
+  })
+})
+
+describe('readNonEmptyString', () => {
+  it('returns the written value without trimming', () => {
+    expect(readNonEmptyString({ id: ' a ' }, 'id')).toBe(' a ')
+  })
+
+  it('rejects missing, blank, and non-string fields', () => {
+    expect(readNonEmptyString({}, 'id')).toBeUndefined()
+    expect(readNonEmptyString({ id: '   ' }, 'id')).toBeUndefined()
+    expect(readNonEmptyString({ id: 7 }, 'id')).toBeUndefined()
+  })
+})
+
+describe('readOptionalNonEmptyString', () => {
+  it('distinguishes a missing field from an invalid one', () => {
+    expect(readOptionalNonEmptyString({}, 'note')).toBeUndefined()
+    expect(readOptionalNonEmptyString({ note: 'n' }, 'note')).toBe('n')
+    expect(readOptionalNonEmptyString({ note: '' }, 'note')).toBeNull()
+    expect(readOptionalNonEmptyString({ note: 7 }, 'note')).toBeNull()
   })
 })
 

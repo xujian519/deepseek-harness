@@ -29,13 +29,18 @@ export type { CreateLlmModelPortOptions } from './model-port.ts'
 export {
   asJsonArray,
   asJsonRecord,
+  isFiniteNumber,
   isJsonRecord,
+  isNonEmptyStringArray,
+  isNonNegativeInteger,
   parseJsonRecordArray,
   parseJsonStringArray,
   parseOptionalJsonStringArray,
   readJsonNumber,
   readJsonString,
   readJsonStringArray,
+  readNonEmptyString,
+  readOptionalNonEmptyString,
   stripCodeFence,
   tryParseJson,
   type JsonRecordArrayResult,
@@ -367,6 +372,7 @@ export {
   Ledger,
   STANDARD_CLEAR_CONVINCING,
   STANDARD_PREPONDERANCE,
+  WORKFLOW_EVIDENCE_SOURCES,
   buildWorkflowEvidenceLedger,
   contentHash,
   createSpan,
@@ -381,6 +387,7 @@ export {
   isLocatable,
   isMonthOnlyDate,
   isPreciseDate,
+  isWorkflowEvidenceSource,
   loadEvidenceRulesEngine,
   parseDateFlexible,
   platformCategory,
@@ -400,8 +407,18 @@ export {
   ruleAssertion,
 } from './reasoning/index.ts'
 
-// Persistence + path helpers (single home; re-exported by dsh-patent-data).
-export { JsonFileStore, SAFE_ID_PATTERN, assertSafeId, assertSafePathSegment, atomicWriteJson } from './persist-utils.ts'
+// Persistence + path helpers (single home). dsh-patent-data re-exports the four
+// symbols its historical public surface carried (JsonFileStore, SAFE_ID_PATTERN,
+// assertSafeId, atomicWriteJson); everything else is imported from here.
+export {
+  JsonFileStore,
+  SAFE_ID_PATTERN,
+  StoredRecordError,
+  assertSafeId,
+  assertSafePathSegment,
+  atomicWriteJson,
+  parseStoredJsonRecord,
+} from './persist-utils.ts'
 export {
   CASE_OUTPUTS_REL,
   CASE_ROOT_REL,
@@ -615,7 +632,9 @@ export type { WorkflowStageBudget } from './workflow/budget.ts'
 export { compileSignal, digestText, parseRetrySignals, signalMatches } from './workflow/signal.ts'
 export { clearStageOutputs } from './workflow/stage-outputs.ts'
 export type { ClearStageOutputsOptions } from './workflow/stage-outputs.ts'
-export { WorkflowError } from './workflow/types.ts'
+export { WORKFLOW_STRATEGIES, WorkflowError, isWorkflowStrategy } from './workflow/types.ts'
+export { validateRevisionLog } from './workflow/revision-log.ts'
+export type { RevisionLogResult } from './workflow/revision-log.ts'
 export type {
   RetrySignal,
   RevisionRecord,
