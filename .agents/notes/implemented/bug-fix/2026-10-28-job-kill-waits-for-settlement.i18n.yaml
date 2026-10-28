@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-10-28-job-kill-waits-for-settlement.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-job-kill-waits-for-settlement.md
+/agent-note-a-kill-reports-the-settled-job:
+  en: bd9528963ad98a7c
+  zh: 8ab66830ee78e37b
+/agent-note-a-kill-reports-the-settled-job/problem:
+  en: c3cada5ee04b3b24
+  zh: fab0ce16bea97207
+/agent-note-a-kill-reports-the-settled-job/decision:
+  en: 641b62d4aaa688d4
+  zh: f5597ee9f63b208e
+/agent-note-a-kill-reports-the-settled-job/alternatives-considered:
+  en: bde182d3d397dfe7
+  zh: d0f37783d93c10f5
+/agent-note-a-kill-reports-the-settled-job/consequences:
+  en: 1ac59d96cd2564fd
+  zh: 9161044a3fd4f9a5
+/agent-note-a-kill-reports-the-settled-job/testing:
+  en: 0b9acb42d84789e7
+  zh: 1c65a4309bd8c533
+/agent-note-a-kill-reports-the-settled-job/related:
+  en: d64994a4fab025b5
+  zh: cb64fa5387fd6af8

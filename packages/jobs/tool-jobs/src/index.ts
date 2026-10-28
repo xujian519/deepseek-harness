@@ -37,10 +37,17 @@ export const inject = ['tools', 'jobs', 'systemPrompt']
  */
 export type CompletionDelivery = 'quiet' | 'wakeup'
 
-/** Configures bounded `job_output` waits and completion-notice delivery. */
+/** Configures bounded `job_output` waits, `job_kill` settlement waits, and completion-notice delivery. */
 export interface Config {
   /** Wait duration applied when `job_output` sets `wait` without `timeout_ms` (default 30s). */
   waitTimeoutMs?: number
+  /**
+   * How long `job_kill` waits for the cancelled job to settle before reporting
+   * its current state (default 30s, capped by `maxWaitTimeoutMs`). The call
+   * normally returns as soon as the work stops; the bound only answers a
+   * producer that ignores cancellation.
+   */
+  killTimeoutMs?: number
   /** Hard cap on any single wait; a larger model-supplied `timeout_ms` is clamped down to it (default 10min). */
   maxWaitTimeoutMs?: number
   /** Whether a completion opens a turn on an idle owner (default `wakeup`). */
@@ -58,6 +65,7 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   waitTimeoutMs: z.number().min(1).default(30_000),
+  killTimeoutMs: z.number().min(1).default(30_000),
   maxWaitTimeoutMs: z.number().min(1).default(600_000),
   completionDelivery: z.union(['quiet', 'wakeup'] as const).default('wakeup'),
   maxConsecutiveWakes: z.number().min(1),
@@ -192,6 +200,8 @@ function readBody(read: JobRead): { text: string; job: PublicJobSnapshot } {
 export function apply(ctx: Context, config: Config): void {
   const waitDefault = config.waitTimeoutMs ?? 30_000
   const waitCap = config.maxWaitTimeoutMs ?? 600_000
+  // The cap bounds every wait this plugin owns, including the kill settlement.
+  const killTimeout = Math.min(config.killTimeoutMs ?? 30_000, waitCap)
   const delivery = config.completionDelivery ?? 'wakeup'
   const wakeBudget = config.maxConsecutiveWakes
 
@@ -390,26 +400,40 @@ export function apply(ctx: Context, config: Config): void {
           job: { ...PUBLIC_JOB_SCHEMA, required: true },
         },
       },
-      render: (_args, value) => [{
-        type: 'text',
-        text: value.outcome === 'already-finished'
-          ? `job ${value.job.id} had already finished ${statusLine(value.job)}`
-          : `requested cancellation of job ${value.job.id}`,
-      }],
+      render: (_args, value) => {
+        if (value.outcome === 'already-finished') {
+          return [{ type: 'text', text: `job ${value.job.id} had already finished ${statusLine(value.job)}` }]
+        }
+        // The call waits for the settlement, so a job still `stopping` here is
+        // the bound expiring rather than the usual answer.
+        return [{
+          type: 'text',
+          text: value.job.status === 'stopping'
+            ? `requested cancellation of job ${value.job.id}; ${statusLine(value.job)}`
+            : `job ${value.job.id} ${statusLine(value.job)}`,
+        }]
+      },
     },
-    execute(args, exec) {
+    async execute(args, exec) {
       const id = validateJobId(args.job_id)
       const jobs = ctx.jobs
       const result = jobs.kill(id, exec.agent?.id, args.reason)
-      // The model's own kill is its delivery: the settlement notice would only
-      // repeat what this tool result already said.
-      if (result === 'requested') killedByModel.add(id)
+      if (result === 'requested') {
+        // The model's own kill is its delivery: the settlement notice would only
+        // repeat what this tool result already said.
+        killedByModel.add(id)
+        // Report the terminal state instead of the request: the settlement then
+        // lands inside this call, so the session never records it beside the
+        // next step by timing chance. The bound answers a producer that ignores
+        // cancellation without holding the step open.
+        await jobs.wait(id, killTimeout, exec.agent?.id, exec.signal)
+      }
       // A projection describes current state without consuming pending output.
       const job = publicJob(jobs.get(id, exec.agent?.id))
-      return Promise.resolve({
+      return {
         outcome: result === 'already-finished' ? 'already-finished' as const : 'cancellation-requested' as const,
         job,
-      })
+      }
     },
     presentCall: args => presentJobCall(`Kill background job ${args.job_id}`, 'execute', args.job_id),
   }))

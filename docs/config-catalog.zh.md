@@ -2141,12 +2141,12 @@ export interface LegalKnowledgeConfig {
 ## `@deepseek-ai/dsh-legal-law`
 
 - `inject`: `tools`
-- `source`: [`packages/legal/legal-law/src/index.ts:85`](../packages/legal/legal-law/src/index.ts)
+- `source`: [`packages/legal/legal-law/src/index.ts:91`](../packages/legal/legal-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing legal-law plugin configuration. */
 export interface Config {
-  /** Directory holding the legal-law index YAML files; defaults to the packaged index. */
+  /** Directory holding the legal-law index YAML files and their `manifest.json`; defaults to the packaged index. */
   baselineDir?: string
   /** Treatment of a citation whose proposition a verified article does not support, while another entry does. */
   onMismatch: LegalCitationPolicy
@@ -5251,10 +5251,17 @@ export interface Config {
 - `source`: [`packages/jobs/tool-jobs/src/index.ts:41`](../packages/jobs/tool-jobs/src/index.ts)
 
 ```ts config-catalog
-/** Configures bounded `job_output` waits and completion-notice delivery. */
+/** Configures bounded `job_output` waits, `job_kill` settlement waits, and completion-notice delivery. */
 export interface Config {
   /** Wait duration applied when `job_output` sets `wait` without `timeout_ms` (default 30s). */
   waitTimeoutMs?: number
+  /**
+   * How long `job_kill` waits for the cancelled job to settle before reporting
+   * its current state (default 30s, capped by `maxWaitTimeoutMs`). The call
+   * normally returns as soon as the work stops; the bound only answers a
+   * producer that ignores cancellation.
+   */
+  killTimeoutMs?: number
   /** Hard cap on any single wait; a larger model-supplied `timeout_ms` is clamped down to it (default 10min). */
   maxWaitTimeoutMs?: number
   /** Whether a completion opens a turn on an idle owner (default `wakeup`). */

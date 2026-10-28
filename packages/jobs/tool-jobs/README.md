@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-tool-jobs` to inspect and control background commands and PTY work through `job_output`, `job_list`, and `job_kill`. Reads can wait within a configured timeout, list results identify each job's kind and status, and cancellation settles only after the work stops. When owned work finishes, the agent receives an in-session notice: busy agents receive it in their next step, while idle agents are woken by a follow-up turn. Configuration controls wait limits, completion delivery, and an optional cap on consecutive wakeups. Stream output is consumed by one reader, and pending notices do not survive owner disposal.
+Use `dsh-tool-jobs` to inspect and control background commands and PTY work through `job_output`, `job_list`, and `job_kill`. Reads can wait within a configured timeout, list results identify each job's kind and status, and a kill waits for the work to stop, reporting the terminal state. When owned work finishes, the agent receives an in-session notice: busy agents receive it in their next step, while idle agents are woken by a follow-up turn. Configuration controls wait limits, completion delivery, and an optional cap on consecutive wakeups. Stream output is consumed by one reader, and pending notices do not survive owner disposal.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ Load this plugin in any composition where the agent should start, observe, and s
 
 - `job_output(job_id, wait?, timeout_ms?)` — Read a job's output. Stream jobs return only the output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. Reads are non-blocking unless `wait: true`, which waits up to the configured cap and leaves a still-running job alive on timeout. A read renders stdout first and stderr in one `[stderr]` section, notes output that left memory before the read, and carries a job's result (a subagent's answer) exactly once, on the first read after settlement.
 - `job_list()` — List your background jobs with their ids, kinds, and statuses, one per line: `<id> [<kind>] <status> — <label>`.
-- `job_kill(job_id, reason?)` — Request cancellation of a running job immediately; the job settles as `killed` once its work actually stops. A terminal job returns its current snapshot, and the optional reason is recorded and forwarded to the job.
+- `job_kill(job_id, reason?)` — Request cancellation of a running job and wait for its work to stop, bounded by `killTimeoutMs`; the result carries the terminal snapshot, or the `stopping` snapshot when the bound expires. An already-finished job returns its current snapshot, and the optional reason is recorded and forwarded to the job.
 
 The three tools return `{ text, job }`, `PublicJobSnapshot[]`, and `{ outcome: 'cancellation-requested' | 'already-finished', job }` respectively. A public snapshot carries id, kind, label, status with the live progress line or the terminal detail, and start/finish times, and omits ownership and ring offsets. All three render through generic UI cards: `read` for output and list, `execute` for kill.
 
@@ -52,6 +52,7 @@ Loading the plugin with no config is the common path; a `waitTimeoutMs` above `m
 | Field | Default | Meaning |
 |---|---|---|
 | `waitTimeoutMs` | `30,000` | Wait used when `wait: true` omits `timeout_ms` |
+| `killTimeoutMs` | `30,000` | How long `job_kill` waits for the cancelled work to stop; capped by `maxWaitTimeoutMs` |
 | `maxWaitTimeoutMs` | `600,000` | Cap for model-supplied waits; larger values clamp down to it |
 | `completionDelivery` | `wakeup` | `wakeup` opens a turn on an idle owner; `quiet` leaves the notice pending |
 | `maxConsecutiveWakes` | unset | Turns one owner may open by wake before notices degrade to injection; unset means no cap |

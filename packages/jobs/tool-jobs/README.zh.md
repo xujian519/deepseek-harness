@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list` 与 `job_kill` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，列表结果标识各任务的 kind 与状态，而取消只有在工作停止后才结算。归属明确的工作完成时，agent（智能体）会收到会话内通知：繁忙的 agent 在下一步收到通知，空闲的 agent 则由 follow-up 轮次唤醒。配置控制等待上限、完成投递与可选的连续唤醒上限。流输出仅供单一读取方消费，待领通知无法在所有者释放后存活。
+使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list` 与 `job_kill` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，列表结果标识各任务的 kind 与状态，而杀停会等待工作停止并报告终止态。归属明确的工作完成时，agent（智能体）会收到会话内通知：繁忙的 agent 在下一步收到通知，空闲的 agent 则由 follow-up 轮次唤醒。配置控制等待上限、完成投递与可选的连续唤醒上限。流输出仅供单一读取方消费，待领通知无法在所有者释放后存活。
 
 ## 目录
 
@@ -31,7 +31,7 @@ kind: "package-reference"
 
 - `job_output(job_id, wait?, timeout_ms?)`——读取任务输出。流任务只返回自上次读取以来的输出；最终输出任务在结算后返回其结果。每个响应都以 `[status: ...]` 结尾。除非 `wait: true`，否则读取是非阻塞的；`wait: true` 最多等待到配置上限，超时时仍让运行中的任务保持存活。一次读取先渲染 stdout，再把 stderr 放进一段 `[stderr]`，标注读取前已离开内存的输出，并在结算后的第一次读取恰好携带一次任务的结果（subagent 的回答）。
 - `job_list()`——列出你的后台任务及其 id、kind 与状态，每行一个：`<id> [<kind>] <status> — <label>`。
-- `job_kill(job_id, reason?)`——立即请求取消运行中的任务；任务在其工作真正停止后以 `killed` 结算。终止任务返回其当前快照，可选的原因会被记录并转发给任务。
+- `job_kill(job_id, reason?)`——请求取消运行中的任务并等待其工作停止（受 `killTimeoutMs` 约束）；结果携带终止快照，若超出上限则携带 `stopping` 快照。已终止的任务返回其当前快照，可选的原因会被记录并转发给任务。
 
 三个工具依次返回 `{ text, job }`、`PublicJobSnapshot[]` 与 `{ outcome: 'cancellation-requested' | 'already-finished', job }`。公共快照携带 id、kind、label、带实时进度行或终态 detail 的状态，以及开始／结束时间，并省略归属与环偏移。三个工具都通过通用 UI 卡片渲染：output 和 list 用 `read`，kill 用 `execute`。
 
@@ -52,6 +52,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `waitTimeoutMs` | `30,000` | `wait: true` 省略 `timeout_ms` 时使用的等待时间 |
+| `killTimeoutMs` | `30,000` | `job_kill` 等待被取消工作停止的时长；受 `maxWaitTimeoutMs` 封顶 |
 | `maxWaitTimeoutMs` | `600,000` | 模型所给等待时间的上限；更大的值向下收敛到它 |
 | `completionDelivery` | `wakeup` | `wakeup` 为空闲所有者开启一轮；`quiet` 让通知继续待领 |
 | `maxConsecutiveWakes` | 未设置 | 一个所有者可由唤醒开启的轮数，超出后通知降级为注入；未设置即不封顶 |
