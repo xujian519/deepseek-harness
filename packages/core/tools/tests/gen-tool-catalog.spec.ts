@@ -37,11 +37,11 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'patent_deadlines', 'patent_eval', 'patent_fees', 'patent_kg_query', 'patent_legal_status', 'patent_metadata', 'patent_pdf_download', 'patent_plan_task',
       'patent_search', 'patent_teams_add_member', 'patent_teams_archive', 'patent_teams_claim_task', 'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete', 'patent_teams_reassign_task',
       'patent_teams_remove_member', 'patent_teams_send_message', 'patent_teams_status', 'patent_teams_update_task', 'patent_teams_wait', 'patent_wiki_search', 'patent_worker_validate', 'patent_workflow', 'patent_workflow_run',
-      'plugin_manager', 'plugin_market', 'present', 'pwsh', 'pwsh', 'query_writing_patterns', 'ralph', 'read', 'read_image',
+      'plugin_manager', 'plugin_market', 'present', 'propose_action', 'pwsh', 'pwsh', 'query_writing_patterns', 'ralph', 'read', 'read_image',
       'read_mcp_resource', 'recognize_chemical_structure', 'render_doc_template', 'render_patent_document', 'rule_check', 'run_code', 'schedule_create', 'schedule_delete',
       'schedule_list', 'schedule_update', 'search_patent_figure', 'self_evolve_inspect_patterns', 'self_evolve_now', 'send_message', 'send_message', 'session_event_read',
       'session_event_search', 'session_event_trace', 'session_search', 'session_trace', 'skill', 'spawn_teammate', 'stagehand_act', 'stagehand_extract',
-      'stagehand_navigate', 'stagehand_observe', 'stagehand_screenshot', 'stagehand_tabs', 'str_replace_editor', 'subagent', 'team_task_create', 'team_task_get',
+      'stagehand_navigate', 'stagehand_observe', 'stagehand_screenshot', 'stagehand_tabs', 'str_replace_editor', 'subagent', 'subagent_oar', 'team_task_create', 'team_task_get',
       'team_task_list', 'team_task_update', 'terminal_close', 'terminal_list', 'terminal_open', 'terminal_read', 'terminal_send', 'terminal_signal',
       'todo_write', 'triz', 'triz_contradiction_analysis', 'update_goal', 'validate_specification', 'verify_deliverable', 'verify_patent_figure', 'verify_patent_filing',
       'wait_agent', 'web_fetch', 'web_search', 'workbench_link_patent_case', 'workflow', 'working_directory', 'write',
@@ -72,6 +72,8 @@ describe('gen-tool-catalog collectToolCatalog', () => {
 
   it('attributes each harvested tool with its registering plugin source', async () => {
     const catalog = await collectToolCatalog()
+    const ptc = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-executor-ptc')
+    expect(ptc?.sources.run_code).toBe('packages/core/tool-executor-ptc/src/ptc.ts')
     const bash = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-bash')
     expect(bash?.sources.bash).toBe('packages/shell/tool-bash/src/index.ts')
     const control = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-subagent-control')

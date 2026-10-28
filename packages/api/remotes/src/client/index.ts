@@ -8,15 +8,16 @@ import userQuestionsRemote from '@deepseek-ai/dsh-user-questions/remote'
 import commandsRemote from '@deepseek-ai/dsh-commands/remote'
 import accountRemote from '@deepseek-ai/dsh-api-account-controller/remote'
 import settingsControllerRemote from '@deepseek-ai/dsh-api-settings-controller/remote'
-import pluginCatalogRemote from '@deepseek-ai/dsh-api-plugin-market-controller/remote'
 import officeToPdfRemote from '@deepseek-ai/dsh-office-to-pdf/remote'
 import goalsRemote from '@deepseek-ai/dsh-goal/remote'
 import scheduleRemote from '@deepseek-ai/dsh-schedule/remote'
 import llmRemote from '@deepseek-ai/dsh-llm/remote'
 import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import pluginManagerRemote from '@deepseek-ai/dsh-plugin-manager/remote'
-import pluginMarketRemote from '@deepseek-ai/dsh-plugin-market/remote'
+import pluginCatalogRemote from '@deepseek-ai/dsh-api-plugin-market-controller/remote'
+import toolResultsRemote from '@deepseek-ai/dsh-client-ui-trajectory/remote'
 import pluginRegistryProbeRemote from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
+import pluginMarketRemote from '@deepseek-ai/dsh-plugin-market/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
 import permissionPresetsRemote from '@deepseek-ai/dsh-permission-presets/remote'
@@ -34,18 +35,20 @@ import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 
 export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 export type {
-  BundleInfo, BundleRowInfo, ChangeResult, IncompatiblePlugin, InspectOptions, InstallBundleOptions, InstallSpecKind, ManagementError,
-  PackageResult,
+  BundleDetail, BundleInfo, BundleRowInfo, ChangeResult, IncompatiblePlugin, InspectOptions, InstallBundleOptions, InstallSpecKind,
+  ManagementError, PackageResult,
   PluginChange, PluginEntryId, PluginInfo, PluginInspectProblem, PluginInstallCancellation, PluginInstallFailureKind,
   PluginInstallLogChunk, PluginInstallProgress, PluginInstallRequestId, PluginRegistries, PluginSpecInspection,
+  PluginUpdateProgress, PluginUpdateResult, PluginUpdateStep, PluginVersion, PluginVersionList, RegistryAttempt,
   ReadOnlyReason, Registry, RestartReason,
 } from '@deepseek-ai/dsh-plugin-manager/types'
 export type {} from '@deepseek-ai/dsh-plugin-manager/remote'
 export type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
+export type {} from '@deepseek-ai/dsh-client-ui-trajectory/remote'
 export type {} from '@deepseek-ai/dsh-plugin-market/remote'
 export type {
   MarketCompatibility, MarketIndexSummary, MarketInstallation, MarketInstallationStatus, MarketListingEntry, MarketListingVersion,
-  MarketQuery, MarketSearchResult, MarketSort,
+  MarketQuery, MarketSearchResult, MarketSort, PluginDetail, PluginDetailDocumentId, PluginDetailOrigin,
 } from '@deepseek-ai/dsh-plugin-market/types'
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type {} from '@deepseek-ai/dsh-agent-preset-registry/remote'
@@ -193,7 +196,7 @@ export const inject = ['remote']
 export const REMOTE_CONTRIBUTIONS: readonly TypertRemoteContribution[] = [
   productAnalyticsRemote,
   agentPresetsRemote, commandsRemote, settingsControllerRemote, accountRemote, goalsRemote, llmRemote, dynamicRemote, scheduleRemote,
-  pluginInventoryRemote, pluginManagerRemote, pluginMarketRemote, pluginCatalogRemote, pluginRegistryProbeRemote,
+  pluginInventoryRemote, pluginManagerRemote, pluginMarketRemote, pluginCatalogRemote, pluginRegistryProbeRemote, toolResultsRemote,
   messageFeedbackRemote,
   sessionFeedbackRemote, fileUploadsRemote, sessionReferencesRemote,
   permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,

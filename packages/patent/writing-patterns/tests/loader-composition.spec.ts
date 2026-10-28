@@ -15,6 +15,8 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 // Relative: the package has no tsconfig.base.json alias, and the Loader maps
 // the cordis.yml specifier to the plugin module handed to it below.
 import * as WritingPatterns from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 let root: string | undefined
 let context: Context | undefined
@@ -32,6 +34,7 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   await writeFile(configPath, [
     "- name: '@deepseek-ai/dsh-system-prompt'",
     "- name: '@deepseek-ai/dsh-tools'",
+    "- name: '@deepseek-ai/dsh-tool-executor-native'",
     "- name: '@deepseek-ai/dsh-writing-patterns'",
     ...configLines.length > 0 ? ['  config:', ...configLines] : [],
     '',
@@ -45,6 +48,7 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
     ['@deepseek-ai/dsh-tools', ToolRuntime],
+    ['@deepseek-ai/dsh-tool-executor-native', NativeToolExecutor],
     ['@deepseek-ai/dsh-writing-patterns', WritingPatterns],
   ])
   ctx.loader.internal = {
@@ -64,7 +68,7 @@ describe('writing-patterns real Loader composition through cordis.yml', () => {
     const ctx = await boot([])
     expect(ctx.tools.schemas().map(schema => schema.name)).toContain('query_writing_patterns')
 
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('write-patterns-search'),
       name: 'query_writing_patterns',
@@ -93,7 +97,7 @@ describe('writing-patterns real Loader composition through cordis.yml', () => {
       '    sectionCategories:',
       '      - oa_inventiveness',
     ])
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('write-patterns-cap'),
       name: 'query_writing_patterns',

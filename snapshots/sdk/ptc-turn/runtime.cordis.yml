@@ -1,0 +1,3 @@
+# The base bundle already mounts `ptc-runtime`; a second row with that id is a
+# duplicate loader entry. This scenario adds no rows of its own.
+[]

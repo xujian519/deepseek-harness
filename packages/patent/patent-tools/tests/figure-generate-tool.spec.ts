@@ -13,6 +13,7 @@ import { createAddPatentFigureReferencesTool } from '../src/tool/add-patent-figu
 import { createSearchPatentFigureTool } from '../src/tool/search-patent-figure.ts'
 import { figureIndexStore } from '../src/figure/index-store.ts'
 import type { FigureIndexEntry } from '../src/figure/index-store.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -25,7 +26,7 @@ async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
 }
 
 function execute(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {

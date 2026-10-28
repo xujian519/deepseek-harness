@@ -19,6 +19,7 @@ import type {
   JudicialInterpretationRecord,
   LegalRegulationRecord,
 } from '../src/types.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const tempDirs: string[] = []
 const contexts: Context[] = []
@@ -100,7 +101,7 @@ async function host(): Promise<Context> {
 }
 
 function execute(ctx: Context, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('legal-knowledge-search'),
     name: 'legal_knowledge_search',

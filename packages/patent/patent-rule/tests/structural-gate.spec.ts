@@ -6,9 +6,10 @@ import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as PatentRule from '@deepseek-ai/dsh-patent-rule'
 import type { StructuralGateEntry } from '@deepseek-ai/dsh-patent-rule'
+import { defineContentToolFixture, executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -329,7 +330,7 @@ describe('tools/pre-execute 制品结构门禁', () => {
   }
 
   function call(ctx: Context, args: Record<string, unknown>) {
-    return ctx.tools.execute({
+    return executeToolFixture(ctx, {
       name: 'render_patent_document',
       callId: ToolCallId('structural-call'),
       arguments: args,
@@ -358,7 +359,7 @@ describe('tools/pre-execute 制品结构门禁', () => {
     ctx.tools.register(documentTool('other_tool'))
     const allowed = await call(ctx, { template: 'claims-spec', sections: { claims: '一种装置，其特征在于：A。' } })
     expect(allowed.isError).toBe(false)
-    const other = await ctx.tools.execute({
+    const other = await executeToolFixture(ctx, {
       name: 'other_tool',
       callId: ToolCallId('other-call'),
       arguments: { sections: { claims: '一种装置。' } },

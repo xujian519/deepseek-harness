@@ -32,6 +32,7 @@ import { StreamFrameGate } from './stream-frame-gate.ts'
  * @param labels - localized labels consumed by rendered blocks.
  * @param fileMentions - workspace file references the source may resolve, when the owner supplies them.
  * @param pathImages - path images the source may resolve, when the owner supplies them.
+ * @param omitHtml - whether raw HTML renders nothing instead of literal text.
  * @returns the settled elements, without the streaming renderer's per-frame caching.
  */
 export function renderSettled(
@@ -39,6 +40,7 @@ export function renderSettled(
   labels: MarkdownLabels,
   fileMentions: MarkdownFileMentions | undefined,
   pathImages: MarkdownPathImages | undefined,
+  omitHtml: boolean,
 ): ReactNode[] {
   const root = parseGfmWithMath(text)
   const targets = createReferenceTargets()
@@ -48,6 +50,7 @@ export function renderSettled(
     labels,
     fileMentions,
     pathImages,
+    omitHtml,
     targets,
     footnoteOrder: [],
     footnoteCounts: new Map(),
@@ -83,10 +86,12 @@ export class StreamingRenderer {
 
   /**
    * @param labels - Localized Markdown chrome baked into cached elements; the owner replaces the renderer when it changes.
+   * @param omitHtml - Whether raw HTML renders nothing; the owner replaces the renderer when it changes.
    * @param gate - Frame admission for replies whose open tail block outgrows {@link StreamFrameGate}'s budget.
    */
   constructor(
     private readonly labels: MarkdownLabels,
+    readonly omitHtml: boolean,
     private readonly gate: StreamFrameGate = new StreamFrameGate(),
   ) {}
 
@@ -145,6 +150,7 @@ export class StreamingRenderer {
         labels: this.labels,
         fileMentions: undefined,
         pathImages: undefined,
+        omitHtml: this.omitHtml,
         targets: frameTargets,
         footnoteOrder: this.frozenFootnoteOrder,
         footnoteCounts: this.frozenFootnoteCounts,
@@ -164,6 +170,7 @@ export class StreamingRenderer {
       labels: this.labels,
       fileMentions: undefined,
       pathImages: undefined,
+      omitHtml: this.omitHtml,
       targets: frameTargets,
       footnoteOrder: [...this.frozenFootnoteOrder],
       footnoteCounts: new Map(this.frozenFootnoteCounts),

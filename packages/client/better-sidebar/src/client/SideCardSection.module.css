@@ -117,12 +117,14 @@
   color: inherit;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
-}
+}@media (hover: hover) {
 
-/* Hover affordance on disabled cards only (enabled cards are already lit). */
-.card:not(.cardOn):hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  border-color: var(--dsw-alias-label-dimmed);
+
+  /* Hover affordance on disabled cards only (enabled cards are already lit). */
+  .card:not(.cardOn):hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    border-color: var(--dsw-alias-label-dimmed);
+  }
 }
 
 /* Enabled = highlighted: a SOFTENED brand border (color-mix, the icon-chip
@@ -267,21 +269,27 @@
   border-style: dashed;
   border-color: var(--dsw-alias-border-l2);
   text-align: left;
-}
+}@media (hover: hover) {
 
-.addCard:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  border-color: var(--dsw-alias-interactive-bg-hover-accent);
-  color: var(--dsw-alias-label-primary);
-}
 
-.addCard:hover .cardTitle {
-  color: var(--dsw-alias-label-primary);
-}
+  .addCard:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    border-color: var(--dsw-alias-interactive-bg-hover-accent);
+    color: var(--dsw-alias-label-primary);
+  }
+}@media (hover: hover) {
 
-.addCard:hover .cardIconChip {
-  border-color: color-mix(in srgb, var(--dsw-alias-button-primary-fill) 35%, transparent);
-  color: var(--dsw-alias-button-primary-fill);
+
+  .addCard:hover .cardTitle {
+    color: var(--dsw-alias-label-primary);
+  }
+}@media (hover: hover) {
+
+
+  .addCard:hover .cardIconChip {
+    border-color: color-mix(in srgb, var(--dsw-alias-button-primary-fill) 35%, transparent);
+    color: var(--dsw-alias-button-primary-fill);
+  }
 }
 
 .addCard:focus-visible {
@@ -319,11 +327,13 @@
 
 .cardOn .cardSettings {
   border-top-color: color-mix(in srgb, var(--dsw-alias-button-primary-fill) 18%, transparent);
-}
+}@media (hover: hover) {
 
-.cardSettings:hover {
-  background: var(--dsw-alias-interactive-bg-hover-accent);
-  color: var(--dsw-alias-brand-primary);
+
+  .cardSettings:hover {
+    background: var(--dsw-alias-interactive-bg-hover-accent);
+    color: var(--dsw-alias-brand-primary);
+  }
 }
 
 /* The gear icon button on a general settings ROW (the position-compat
@@ -343,12 +353,14 @@
   cursor: pointer;
   flex: none;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-}
+}@media (hover: hover) {
 
-.rowGear:hover {
-  border-color: var(--dsw-alias-interactive-bg-hover-accent);
-  background: var(--dsw-alias-interactive-bg-hover-accent);
-  color: var(--dsw-alias-brand-primary);
+
+  .rowGear:hover {
+    border-color: var(--dsw-alias-interactive-bg-hover-accent);
+    background: var(--dsw-alias-interactive-bg-hover-accent);
+    color: var(--dsw-alias-brand-primary);
+  }
 }
 
 /* Settings-row recipe (the DSH General section rows): title/desc left,
@@ -425,10 +437,12 @@
   corner-shape: round;
 
 
-}
+}@media (hover: hover) {
 
-.switch:hover .switchTrack {
-  border-color: var(--dsw-alias-label-dimmed);
+
+  .switch:hover .switchTrack {
+    border-color: var(--dsw-alias-label-dimmed);
+  }
 }
 
 .switchInput:checked + .switchTrack {
@@ -484,10 +498,12 @@
   font-size: 13px;
   line-height: 20px;
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.selectAnchor:hover {
-  border-color: var(--dsw-alias-label-dimmed);
+
+  .selectAnchor:hover {
+    border-color: var(--dsw-alias-label-dimmed);
+  }
 }
 
 .selectAnchorIcon {
@@ -587,10 +603,12 @@
 .popupRows::-webkit-scrollbar-thumb {
   border-radius: 3px;
   background: var(--dsw-alias-scrollbar-bg-l2, var(--dsw-alias-border-l2));
-}
+}@media (hover: hover) {
 
-.popupRows::-webkit-scrollbar-thumb:hover {
-  background: var(--dsw-alias-scrollbar-hover-l2, var(--dsw-alias-label-dimmed));
+
+  .popupRows::-webkit-scrollbar-thumb:hover {
+    background: var(--dsw-alias-scrollbar-hover-l2, var(--dsw-alias-label-dimmed));
+  }
 }
 
 .popupRow {
@@ -605,10 +623,12 @@
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-3);
   transition: border-color 0.16s, background 0.16s;
-}
+}@media (hover: hover) {
 
-.popupRow:hover {
-  border-color: var(--dsw-alias-label-dimmed);
+
+  .popupRow:hover {
+    border-color: var(--dsw-alias-label-dimmed);
+  }
 }
 
 /* The popup's Done button: the settings primary-button recipe
@@ -668,12 +688,14 @@
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-1);
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.pluginTopicBtn:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  border-color: var(--dsw-alias-interactive-bg-hover-accent);
-  color: var(--dsw-alias-label-primary);
+
+  .pluginTopicBtn:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    border-color: var(--dsw-alias-interactive-bg-hover-accent);
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 .pluginTopicBtn:focus-visible {
@@ -730,12 +752,14 @@
   cursor: pointer;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
-}
+}@media (hover: hover) {
 
-.pluginJumpBtn:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  border-color: var(--dsw-alias-interactive-bg-hover-accent);
-  color: var(--dsw-alias-label-primary);
+
+  .pluginJumpBtn:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    border-color: var(--dsw-alias-interactive-bg-hover-accent);
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 .pluginJumpBtn:focus-visible {
@@ -763,11 +787,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.pluginName:hover {
-  text-decoration: underline;
-  color: var(--dsw-alias-button-primary-fill);
+
+  .pluginName:hover {
+    text-decoration: underline;
+    color: var(--dsw-alias-button-primary-fill);
+  }
 }
 
 .pluginDesc {
@@ -804,10 +830,12 @@
   cursor: pointer;
   background: var(--dsw-alias-label-primary);
   color: var(--dsw-alias-bg-layer-3);
-}
+}@media (hover: hover) {
 
-.pluginCopyBtn:hover {
-  background: var(--dsw-alias-button-primary-hover);
+
+  .pluginCopyBtn:hover {
+    background: var(--dsw-alias-button-primary-hover);
+  }
 }
 
 .pluginCopyBtn:focus-visible {
@@ -966,11 +994,13 @@
   background: none;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.openWithRemove:hover {
-  color: var(--dsw-alias-state-error-primary);
-  background: var(--dsw-alias-bg-layer-2);
+
+  .openWithRemove:hover {
+    color: var(--dsw-alias-state-error-primary);
+    background: var(--dsw-alias-bg-layer-2);
+  }
 }
 
 .openWithHint {

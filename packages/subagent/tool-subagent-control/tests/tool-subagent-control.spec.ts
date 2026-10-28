@@ -20,6 +20,7 @@ import * as tool from '../src/index.ts'
 import { parkParent } from './park-parent.ts'
 import { TestSessionQuery } from './test-session-query.ts'
 import { loadStoredSession } from '../../subagent/tests/persistence-helpers.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 /** One scripted response that may wait on a caller-released gate before streaming. */
 interface GatedEntry {
@@ -92,7 +93,7 @@ function callTool(
   agent?: unknown,
   signal: AbortSignal = testToolSignal,
 ) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal,
     callId: ToolCallId(`call-${++calls}`),
     name,
@@ -344,17 +345,20 @@ describe('dsh-tool-subagent-control', () => {
     await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     const fiber = await ctx.plugin(tool)
-    expect(ctx.tools.schemas().some(schema => schema.name === 'send_message')).toBe(true)
-    expect(ctx.tools.schemas().some(schema => schema.name === 'interrupt_agent')).toBe(true)
+    const names = ['send_message', 'interrupt_agent', 'list_agents']
+    for (const name of names) expect(ctx.tools.schemas().filter(schema => schema.name === name)).toHaveLength(1)
+    expect(ctx.tools.get('list_subagent_models')).toBeUndefined()
     await fiber.dispose()
-    expect(ctx.tools.schemas().some(schema => schema.name === 'send_message')).toBe(false)
-    expect(ctx.tools.schemas().some(schema => schema.name === 'interrupt_agent')).toBe(false)
+    for (const name of names) expect(ctx.tools.get(name)).toBeUndefined()
+    const reloaded = await ctx.plugin(tool)
+    for (const name of names) expect(ctx.tools.schemas().filter(schema => schema.name === name)).toHaveLength(1)
+    await reloaded.dispose()
   })
 
   it('has the namespace-plugin export shape (no stray default)', () => {
     expect('default' in tool).toBe(false)
     expect(tool.name).toBe('tool-subagent-control')
-    expect(tool.inject).toEqual(['tools', 'subagents'])
+    expect(tool.inject).toEqual(['tools', 'subagents', 'agents'])
     expect(typeof tool.apply).toBe('function')
   })
 })

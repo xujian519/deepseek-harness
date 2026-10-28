@@ -481,7 +481,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 ### H6. 模型可见恢复/中止文案三包复制且已漂移
 
-- **位置**:`packages/core/session/src/repair.ts:104-106` vs `packages/core/agent-loop/src/tool-calls.ts:291-293`;`packages/core/tools/src/index.ts:1945-1949` vs `tool-calls.ts:266-272`
+- **位置**:`packages/core/session/src/repair.ts:104-106` vs `packages/core/tools/src/batch.ts:291-293`;`packages/core/tools/src/index.ts:1945-1949` vs `tool-calls.ts:266-272`
 - **问题**:同一错误码 `TOOL_OUTCOME_UNKNOWN` 对应两段相似但不相同的模型可见文案(「interrupted after it was recorded」vs「failed while this call was executing」);`'Error: tool call aborted before dispatch'` 字面量双份,tool-calls.ts 还手工重构了 tools 包已有的 `toolAbortedBeforeDispatchResult()` 形状。违反「pin stable model-visible text verbatim」,模型对恢复语义的认知会随微调漂移。
 - **修复**:**已收敛**(2026-08-30)。`TOOL_OUTCOME_UNKNOWN` 双文案已随上游消失(session/repair.ts 持唯一现实定义,README 逐字钉住);`'tool call aborted before dispatch'` 合成结果改为导出 tools 包 canonical 工厂 `toolAbortedBeforeDispatchResult()`,agent-loop 的 `appendSkippedToolCall` 与 session-checkpoint-policy 的 `tools/execute` 中止臂删手抄形状改调工厂,输出逐字节不变。`toolAbortedResult` 保持私有(无手抄面)。
 

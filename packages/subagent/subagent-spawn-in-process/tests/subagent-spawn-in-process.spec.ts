@@ -13,7 +13,7 @@ import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { MockAdapter, maxTokensResponse, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import * as spawn from '../src/index.ts'
 import { STRUCTURED_OUTPUT_TOOL } from '@deepseek-ai/dsh-subagent'
-import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import { defineContentToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
@@ -350,6 +350,7 @@ describe('dsh-subagent-spawn-in-process', () => {
   it('unregisters the provider when its fiber is disposed (HMR safety)', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+
     await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(AgentRegistry)

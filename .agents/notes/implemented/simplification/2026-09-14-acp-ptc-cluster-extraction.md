@@ -6,7 +6,7 @@ English | [中文](2026-09-14-acp-ptc-cluster-extraction.zh.md)
 
 ## Problem
 
-Two entry modules carried module-level code that shares no symbol with the handlers beside it. `packages/acp/acp/src/index.ts` reached 543 lines and its `apply` 341, with the `session/list` keyset cursor — an opaque base64url token, its decode/encode pair, and the byte-stable ordering comparison — sitting in the same module scope as ACP handshake, admission, and teardown. `packages/core/tools/src/ptc.ts` reached 678 lines, where the `run_code` schema text per language (a flavor table keyed by runtime language plus the resolver that reads the mounted runtime) and the JSON presentation of a completion value both lived outside `createRunCodeTool`, next to code that never calls them.
+Two entry modules carried module-level code that shares no symbol with the handlers beside it. `packages/acp/acp/src/index.ts` reached 543 lines and its `apply` 341, with the `session/list` keyset cursor — an opaque base64url token, its decode/encode pair, and the byte-stable ordering comparison — sitting in the same module scope as ACP handshake, admission, and teardown. `packages/core/tool-executor-ptc/src/ptc.ts` reached 678 lines, where the `run_code` schema text per language (a flavor table keyed by runtime language plus the resolver that reads the mounted runtime) and the JSON presentation of a completion value both lived outside `createRunCodeTool`, next to code that never calls them.
 
 [The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) lists both as batch-1 items, the batch whose cuts preserve behavior by construction: no instance state, no new interface, no behavior change, and the entry module re-exports what moved. This note records what those two cuts produced.
 
@@ -17,10 +17,10 @@ Three modules hold what the entry modules used to inline, and both entry modules
 | Module | Lines | Owns |
 | --- | --- | --- |
 | `packages/acp/acp/src/session-list-cursor.ts` | 75 | `interface SessionListCursor` and the four pure functions over it: `decodeSessionListCursor`, `encodeSessionListCursor`, `isAfterSessionListCursor`, `compareSessionIds`. |
-| `packages/core/tools/src/run-code-flavor.ts` | 110 | `interface RunCodeFlavor`, `TYPESCRIPT_FLAVOR`, the module-private `PYTHON_FLAVOR` and `RUN_CODE_FLAVORS`, `type CodeSdkLanguage`, and `resolveFlavor`. |
-| `packages/core/tools/src/json-render.ts` | 103 | `JSON_INDENT`, `MAX_JSON_INDENT_CHARS`, the module-private `JsonRenderTask` and `renderJsonValue`, and the exported `renderValue`. |
+| `packages/core/tool-executor-ptc/src/ptc.ts` | 110 | `interface RunCodeFlavor`, `TYPESCRIPT_FLAVOR`, the module-private `PYTHON_FLAVOR` and `RUN_CODE_FLAVORS`, `type CodeSdkLanguage`, and `resolveFlavor`. |
+| `packages/core/tool-executor-ptc/src/ptc.ts` | 103 | `JSON_INDENT`, `MAX_JSON_INDENT_CHARS`, the module-private `JsonRenderTask` and `renderJsonValue`, and the exported `renderValue`. |
 
-`packages/acp/acp/src/index.ts` is 503 lines and `packages/core/tools/src/ptc.ts` is 492.
+`packages/acp/acp/src/index.ts` is 503 lines and `packages/core/tool-executor-ptc/src/ptc.ts` is 492.
 
 ### What the ACP cut moved
 

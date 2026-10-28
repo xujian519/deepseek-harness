@@ -12,6 +12,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Pkg from '../src/index.ts'
 import { STYLED_TEMPLATE_VARIABLES, styledTemplateRoot } from './styled-template.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 let roots: string[] = []
 
@@ -32,6 +34,7 @@ async function toolContext(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   await ctx.plugin(LocalFileSystem)
   return ctx
 }
@@ -104,7 +107,7 @@ describe('@deepseek-ai/dsh-doc-template plugin surface', () => {
     const ctx = await toolContext()
     Pkg.apply(ctx, {})
     expect(toolNames(ctx)).toContain('render_doc_template')
-    const listed = await ctx.tools.execute({
+    const listed = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: 'list_doc_templates' as never,
       name: 'list_doc_templates',
@@ -139,7 +142,7 @@ describe('@deepseek-ai/dsh-doc-template plugin surface', () => {
       '',
     ].join('\n'))
     const { ctx } = await install({ templateDirs: [templates], styleDirs: [styles], defaultLanguage: 'en-US' })
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: 'render_doc_template' as never,
       name: 'render_doc_template',
@@ -156,7 +159,7 @@ describe('@deepseek-ai/dsh-doc-template plugin surface', () => {
     // The patent-report bodies carry their own `> ⚠️ {{disclaimer}}` line, so the
     // check is the style's own disclaimer text rather than the marker.
     const { ctx } = await install({ templateDirs: [await styledTemplateRoot()], includeDisclaimer: false })
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: 'render_doc_template' as never,
       name: 'render_doc_template',

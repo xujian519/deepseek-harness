@@ -85,7 +85,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`client/`](client/README.zh.md) | web GUI 浏览器半侧：shell、协议层、对象服务、slot、`ui-*` 插件 |
 | [`desktop/`](desktop/README.zh.md) | 桌面操作系统集成：Service Definition + Electron shell 提供方 + 沙盒化目录选择桥 + CLI 驱动的 macOS 原生工具 |
 | [`test-support/`](test-support/README.zh.md) | 测试基础设施（testkit、回放、Loader 冒烟测试） |
-| [`util/`](util/README.zh.md) | 组间共享的低层工具（`Branded<B>`、home/路径辅助函数、超时、留存）；运行期依赖只出现在确实需要它的原语里（`zod`、`undici`、`dsh-util-values`） |
+| [`util/`](util/README.zh.md) | 组间共享的低层工具与纯数据包列表（`Branded<B>`、home/路径辅助函数、超时、留存、官方组合包列表）；运行期依赖只出现在确实需要它的原语里（`zod`、`undici`、`dsh-util-values`） |
 
 -----
 

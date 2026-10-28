@@ -9,7 +9,7 @@ import { structuredPatch } from 'diff'
 import type { ConversationPromptSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
-import { jsonTreeLabels } from '../types.ts'
+import { jsonTreeLabels } from './trajectory-types.ts'
 
 function ToolGlyph() {
   return (

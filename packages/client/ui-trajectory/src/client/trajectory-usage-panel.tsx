@@ -6,7 +6,7 @@
 import type { TrajectoryCellProps } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
-import type { TrajectoryUsage } from '../types.ts'
+import type { TrajectoryUsage } from './trajectory-types.ts'
 
 export function TokenRows({ cell, t }: { cell: TrajectoryCellProps; t: TrajectoryTranslate }) {
   const content = cell.output !== undefined && cell.think !== undefined

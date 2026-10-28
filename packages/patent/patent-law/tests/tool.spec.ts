@@ -6,6 +6,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { loadLawBaselines } from '../src/baseline.ts'
 import { createLawVerifyTool, type LawVerifyOutput } from '../src/tool/law-verify.ts'
 import type { CitationPolicySet, LawBaseline, LawName } from '../src/types.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const POLICIES: CitationPolicySet = {
   mismatch: 'block',
@@ -63,7 +64,7 @@ async function host(index = shipped, policies = POLICIES): Promise<Context> {
 }
 
 function execute(ctx: Context, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('law-verify'),
     name: 'law_verify',

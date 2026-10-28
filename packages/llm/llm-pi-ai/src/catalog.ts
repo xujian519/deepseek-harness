@@ -270,9 +270,9 @@ const COMPLETIONS_COMPAT_GATE = {
   zaiToolStream: 'withhold',
   supportsOpenAIGrammarTools: 'withhold',
   sendSessionAffinityHeaders: 'withhold',
-  sessionAffinityFormat: 'withhold',
   supportsMidConvoSystemMessages: 'withhold',
   supportsMidConvoToolAdditions: 'withhold',
+  sessionAffinityFormat: 'withhold',
 } as const satisfies Record<keyof OpenAICompletionsCompat, CompatDisposition>
 
 /** Disposition of every `OpenAIResponsesCompat` field; a drift gate like the one above. */
@@ -282,11 +282,12 @@ const RESPONSES_COMPAT_GATE = {
   supportsStrictMode: 'offer',
   supportsLongCacheRetention: 'offer',
   sessionAffinityFormat: 'withhold',
-  supportsMidConvoSystemMessages: 'withhold',
   supportsOpenAIGrammarTools: 'withhold',
   supportsAdditionalTools: 'withhold',
   supportsToolSearch: 'withhold',
   supportsExplicitPromptCacheMode: 'withhold',
+  supportsMidConvoSystemMessages: 'withhold',
+  supportsMidConvoEffort: 'withhold',
 } as const satisfies Record<keyof OpenAIResponsesCompat, CompatDisposition>
 
 /** Disposition of every `AnthropicMessagesCompat` field; a drift gate like the one above. */
@@ -300,9 +301,9 @@ const ANTHROPIC_COMPAT_GATE = {
   supportsStrictTools: 'offer',
   sendSessionAffinityHeaders: 'withhold',
   sessionAffinityFormat: 'withhold',
-  supportsMidConvoEffort: 'withhold',
   supportsMidConvoSystemMessages: 'withhold',
   supportsMidConvoToolChanges: 'withhold',
+  supportsMidConvoEffort: 'withhold',
   allowedFallbackModels: 'withhold',
 } as const satisfies Record<keyof AnthropicMessagesCompat, CompatDisposition>
 

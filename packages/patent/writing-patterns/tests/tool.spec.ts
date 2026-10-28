@@ -10,6 +10,7 @@ import {
   type QueryWritingPatternsOutput,
 } from '../src/tool/query-writing-patterns.ts'
 import { PATTERN_CATEGORIES } from '../src/types.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const MATCH_LIMIT = 5
 
@@ -22,7 +23,7 @@ async function host(): Promise<Context> {
 }
 
 function execute(ctx: Context, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('query-writing-patterns'),
     name: 'query_writing_patterns',

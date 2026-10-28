@@ -17,6 +17,8 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as ToolPluginMarket from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 vi.mock('node:dns/promises', () => ({
   lookup: async () => [{ address: '93.184.216.34' }],
@@ -67,6 +69,7 @@ async function setup(): Promise<{ ctx: Context; fiber: Fiber }> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   const { apply } = await import('../../../host/plugin-market/src/provider.ts')
   await ctx.plugin(apply, { sourceFile: join(dir, 'sources.json') })
   const fiber = await ctx.plugin(ToolPluginMarket)
@@ -86,7 +89,7 @@ function fakeAgent(ctx: Context): Agent {
 }
 
 function call(ctx: Context, name: string, args: unknown, agent?: Agent) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name,

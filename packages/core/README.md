@@ -29,6 +29,8 @@ Use the core packages to build or extend an agent that records durable session h
 | [`system-prompt/`](system-prompt/README.md) | System-prompt assembly from ordered sections, tool schemas, and variables | `ctx.systemPrompt` |
 | [`prompt-cache/`](prompt-cache/README.md) | Prompt-prefix cache for `SystemPrompt.assemble()`, so later assemblies reuse a session's stable-prefix sections | `ctx.promptCache` |
 | [`tools/`](tools/README.md) | The tool registry and guarded execution pipeline the loop dispatches through | `ctx.tools` |
+| [`tool-executor-native/`](tool-executor-native/README.md) | Native function-call execution with scoped tools and bounded batch dispatch | installs an executor in `ctx.tools` |
+| [`tool-executor-ptc/`](tool-executor-ptc/README.md) | Program-based execution with generated SDKs, nested calls, and parallel dispatch limits | installs an executor in `ctx.tools` |
 | [`agent-tool-presentation/`](agent-tool-presentation/README.md) | Per-agent tool-presentation selector for presets | no ctx key |
 | [`agent/`](agent/README.md) | The `Agent` handle plugins program against, plus its live registry and events | `ctx.agents` |
 | [`agent-default-model/`](agent-default-model/README.md) | The deployment default model selection entry points apply to fresh agents | `ctx.agentDefaultModel` |

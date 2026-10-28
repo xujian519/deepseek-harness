@@ -31,6 +31,7 @@ import {
   stageFlagAndPreview,
   writeRunArtifacts,
 } from '../src/tool/internal/workflow-helpers.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 // 镜像生产装配（B1）：内置原子注册进全局注册表，novelty 等 manifest 的 atom
 // 阶段才能通过 runWorkflow 的 fail-fast。
@@ -205,7 +206,7 @@ describe('patent_workflow', () => {
     await ctx.plugin(ToolRuntime)
     ctx.tools.register(createPatentWorkflowTool())
     const signal = new AbortController().signal
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal,
       callId: ToolCallId('pw-1'),
       name: 'patent_workflow',

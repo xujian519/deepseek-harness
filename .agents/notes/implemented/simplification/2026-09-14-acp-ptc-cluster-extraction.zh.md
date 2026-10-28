@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-两个入口模块都带着与身旁 handler 不共用任何符号的模块级代码。`packages/acp/acp/src/index.ts` 长到 543 行、`apply` 占 341 行，而 `session/list` 的 keyset 游标——一个不透明的 base64url token、它的解码/编码对，以及按字节稳定的排序比较——与 ACP 握手、准入、teardown 共处同一模块作用域。`packages/core/tools/src/ptc.ts` 长到 678 行，其中 `run_code` 各语言的 schema 文本（按运行时语言索引的 flavor 表，加读取已挂载运行时的解析器）与完成值的 JSON 呈现都位于 `createRunCodeTool` 之外，旁边是从不调用它们的代码。
+两个入口模块都带着与身旁 handler 不共用任何符号的模块级代码。`packages/acp/acp/src/index.ts` 长到 543 行、`apply` 占 341 行，而 `session/list` 的 keyset 游标——一个不透明的 base64url token、它的解码/编码对，以及按字节稳定的排序比较——与 ACP 握手、准入、teardown 共处同一模块作用域。`packages/core/tool-executor-ptc/src/ptc.ts` 长到 678 行，其中 `run_code` 各语言的 schema 文本（按运行时语言索引的 flavor 表，加读取已挂载运行时的解析器）与完成值的 JSON 呈现都位于 `createRunCodeTool` 之外，旁边是从不调用它们的代码。
 
 [拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这两者都列为批次 1 的项。批次 1 的切法按构造保持行为：无实例状态、无新接口、行为不变，且入口模块再导出被搬走的东西。本 note 记录这两刀实际产出了什么。
 
@@ -17,10 +17,10 @@ Status: implemented
 | 模块 | 行数 | 归属 |
 | --- | --- | --- |
 | `packages/acp/acp/src/session-list-cursor.ts` | 75 | `interface SessionListCursor`，以及围绕它的四个纯函数：`decodeSessionListCursor`、`encodeSessionListCursor`、`isAfterSessionListCursor`、`compareSessionIds`。 |
-| `packages/core/tools/src/run-code-flavor.ts` | 110 | `interface RunCodeFlavor`、`TYPESCRIPT_FLAVOR`、模块私有的 `PYTHON_FLAVOR` 与 `RUN_CODE_FLAVORS`、`type CodeSdkLanguage`，以及 `resolveFlavor`。 |
-| `packages/core/tools/src/json-render.ts` | 103 | `JSON_INDENT`、`MAX_JSON_INDENT_CHARS`、模块私有的 `JsonRenderTask` 与 `renderJsonValue`，以及导出的 `renderValue`。 |
+| `packages/core/tool-executor-ptc/src/ptc.ts` | 110 | `interface RunCodeFlavor`、`TYPESCRIPT_FLAVOR`、模块私有的 `PYTHON_FLAVOR` 与 `RUN_CODE_FLAVORS`、`type CodeSdkLanguage`，以及 `resolveFlavor`。 |
+| `packages/core/tool-executor-ptc/src/ptc.ts` | 103 | `JSON_INDENT`、`MAX_JSON_INDENT_CHARS`、模块私有的 `JsonRenderTask` 与 `renderJsonValue`，以及导出的 `renderValue`。 |
 
-`packages/acp/acp/src/index.ts` 现为 503 行，`packages/core/tools/src/ptc.ts` 现为 492 行。
+`packages/acp/acp/src/index.ts` 现为 503 行，`packages/core/tool-executor-ptc/src/ptc.ts` 现为 492 行。
 
 ### ACP 这一刀搬走了什么
 

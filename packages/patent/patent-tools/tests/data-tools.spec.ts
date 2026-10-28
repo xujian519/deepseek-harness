@@ -9,6 +9,7 @@ import { createPatentMetadataTool, compactPatentNumber } from '../src/tool/paten
 import { createPatentLegalStatusTool } from '../src/tool/patent-legal-status.ts'
 import { CNIPR_CHANNEL, GOOGLE_PATENTS_CHANNEL } from '../src/tool/internal/upstream-channel.ts'
 import type { LegalStatusOptions, PatentData } from '@deepseek-ai/nuo-patent'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -47,7 +48,7 @@ async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
 }
 
 function execute(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {

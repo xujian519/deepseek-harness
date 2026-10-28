@@ -9,6 +9,7 @@ import {
   renderWorkerValidate,
   type PatentWorkerValidateOutput,
 } from '../src/tool/patent-worker-validate.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 
@@ -92,7 +93,7 @@ describe('patent_worker_validate', () => {
     await ctx.plugin(ToolRuntime)
     ctx.tools.register(createPatentWorkerValidateTool())
     const signal = new AbortController().signal
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal,
       callId: ToolCallId('wv-1'),
       name: 'patent_worker_validate',

@@ -28,7 +28,7 @@ function markup(children: ReactNode[]): string {
 
 /** The DOM a fresh streaming renderer produces for `text`. */
 function freshMarkup(text: string): string {
-  return markup(new StreamingRenderer(markdownLabels).render(text))
+  return markup(new StreamingRenderer(markdownLabels, false).render(text))
 }
 
 /**
@@ -46,7 +46,7 @@ function steppingGate(stepMs = 30): StreamFrameGate {
 
 describe('coalesced streaming frames', () => {
   it('hands a held-back frame the previous elements and renders the accumulated text on the retry', () => {
-    const renderer = new StreamingRenderer(markdownLabels, steppingGate())
+    const renderer = new StreamingRenderer(markdownLabels, false, steppingGate())
     const first = renderer.render(SOURCE)
     expect(markup(first)).toBe(freshMarkup(SOURCE))
     // The 30 ms frame outran the budget, so this chunk waits inside its cool-down.
@@ -59,7 +59,7 @@ describe('coalesced streaming frames', () => {
   })
 
   it('renders a rewritten document instead of holding it back', () => {
-    const renderer = new StreamingRenderer(markdownLabels, steppingGate())
+    const renderer = new StreamingRenderer(markdownLabels, false, steppingGate())
     renderer.render(SOURCE)
     const rewritten = renderer.render('totally different document')
     // A non-append rewrite is not this frame's continuation, so it renders inside the cool-down.

@@ -8,7 +8,7 @@ English | [中文](2026-09-13-lint-suppression-reasons.zh.md)
 
 Issue #94 reported that a few `oxlint-disable` / `eslint-disable` / `@ts-expect-error` directives in the repository state no reason, and asked for a ruling on how far one comment may cover. Its evidence had gone stale in both directions:
 
-- Of the three named sites, `packages/compaction/compaction-basic/src/region.ts:130` and `packages/core/tools/src/testing.ts:30` indeed had no reason in their block; `packages/session-query/session-query/tests/observation.spec.ts:115` had one, 28 lines above it in the same function body.
+- Of the three named sites, `packages/compaction/compaction-basic/src/region.ts:130` and `packages/test-support/tool-testkit/src/index.ts:30` indeed had no reason in their block; `packages/session-query/session-query/tests/observation.spec.ts:115` had one, 28 lines above it in the same function body.
 - The Issue also reported that region.ts's other ten directives were mostly reason-less and that the reasons on `:102` and `:547` explained only `no-deprecated`. Neither holds: those ten carry a comment, and each of the two dual-rule directives carries one line per rule.
 
 A parser-level recount over the linted corpus finds 400 directives, so the residue was small. Nothing kept it small: `reportUnusedDisableDirectives` asks the opposite question (is this directive needed?), and a directive with no reason passed every gate.

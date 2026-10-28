@@ -27,6 +27,8 @@ import * as ToolSubagentControl from '@deepseek-ai/dsh-tool-subagent-control'
 import * as plugin from '../src/index.ts'
 import { MEMBER_DENIED_TOOLS } from '../src/members.ts'
 import { PATENT_TEAMS_TOOL_NAMES } from '../src/tools.ts'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 
 let root: string | undefined
 let context: Context | undefined
@@ -47,6 +49,7 @@ async function boot(): Promise<Context> {
     "- name: '@deepseek-ai/dsh-working-directory'",
     "- name: '@deepseek-ai/dsh-subagent'",
     "- name: '@deepseek-ai/dsh-tools'",
+    "- name: '@deepseek-ai/dsh-tool-executor-native'",
     "- name: '@deepseek-ai/dsh-system-prompt'",
     "- name: '@deepseek-ai/dsh-tool-subagent-control'",
     "- name: '@deepseek-ai/dsh-patent-teams'",
@@ -64,6 +67,7 @@ async function boot(): Promise<Context> {
     ['@deepseek-ai/dsh-working-directory', WorkingDirectory],
     ['@deepseek-ai/dsh-subagent', SubagentRuntime],
     ['@deepseek-ai/dsh-tools', ToolRuntime],
+    ['@deepseek-ai/dsh-tool-executor-native', NativeToolExecutor],
     ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
     ['@deepseek-ai/dsh-tool-subagent-control', ToolSubagentControl],
     ['@deepseek-ai/dsh-patent-teams', plugin],
@@ -102,6 +106,15 @@ describe('dsh-patent-teams real Loader composition', () => {
     // instead of a first-add_member failure in a deployment.
     const key = { id: 'member-scope' as SessionId } as Agent
     let scope!: Scope
+    // The subagent runtime that owns the global `send_message` tool mounts
+    // beside this plugin in a deployment; this composition stands in for it.
+    ctx.tools.register(defineTool({
+      name: 'send_message',
+      description: 'test stand-in',
+      parameters: { content: { type: 'string', required: true } },
+      output: { schema: { type: 'json' }, render: () => [] },
+      async execute() { return null },
+    }))
     await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, key) },
       { inject: ['tools', 'systemPrompt'] }))
     expect(() => scope.ctx.tools.restrict({ deny: [...MEMBER_DENIED_TOOLS] })).not.toThrow()

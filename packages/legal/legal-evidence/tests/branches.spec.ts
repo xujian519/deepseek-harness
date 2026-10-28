@@ -24,6 +24,7 @@ import { LegalEvidenceEngine } from '../src/engine.ts'
 import { parseLegalRuleSet } from '../src/rule-set.ts'
 import { createEvaluateLegalEvidenceTool } from '../src/tool/evaluate-evidence.ts'
 import type { LegalEvidenceInput, LegalEvidenceType } from '../src/types.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const input = (overrides: Partial<LegalEvidenceInput> = {}): LegalEvidenceInput => ({
   evidenceId: 'branch-evidence',
@@ -598,7 +599,7 @@ describe('engine branches', () => {
 describe('plugin entry', () => {
   it('registers the tool over the packaged rules asset', async () => {
     const ctx = await hostWith()
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('legal-evidence-default'),
       name: 'evaluate_legal_evidence',
@@ -611,7 +612,7 @@ describe('plugin entry', () => {
     const dir = tempDir()
     writeFileSync(join(dir, 'legal-evidence-rules.yaml'), 'weights:\n  relevance: 1\n  legality: 0\n  authenticity: 0\n')
     const ctx = await hostWith({ rulesDir: dir })
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('legal-evidence-explicit-rules'),
       name: 'evaluate_legal_evidence',
@@ -630,7 +631,7 @@ describe('plugin entry', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     ctx.tools.register(createEvaluateLegalEvidenceTool(new LegalEvidenceEngine()))
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('legal-evidence-no-findings'),
       name: 'evaluate_legal_evidence',
@@ -646,7 +647,7 @@ describe('plugin entry', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     ctx.tools.register(createEvaluateLegalEvidenceTool(new LegalEvidenceEngine()))
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('legal-evidence-low'),
       name: 'evaluate_legal_evidence',

@@ -20,6 +20,7 @@ import { expect, it } from 'vitest'
 import * as Cua from '../src/index.ts'
 import { installNativeFixture, startFixtureHost } from './native-fixture.ts'
 import { Request } from '@deepseek-ai/dsh-cua/protocol'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const bridge = fileURLToPath(new URL('../../cua/lib/bridge.js', import.meta.url))
 const bootstrap = join(dirname(fileURLToPath(import.meta.resolve('@deepseek-ai/dsh-ptc-runtime-node/package.json'))), 'lib/persistent-process.js')
@@ -50,7 +51,7 @@ it.skipIf(process.platform === 'win32' || !existsSync(bridge) || !existsSync(boo
       await ctx.plugin(NodeRuntime, { executionMode: 'persistent-in-memory', launch: { kind: 'node-script', executable: process.execPath, bootstrapPath: bootstrap } })
       await ctx.plugin(Loader)
       ctx.loader.builtins.cua = Cua
-      const entry = await ctx.loader.create({ name: 'cordis:cua', config: { helperPath, allowedApps: [{ 'id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'name': 'Fixture', 'executablePath': '/fixture/app' }] } })
+      const entry = await ctx.loader.create({ name: 'cordis:cua', config: { agentPreset: false, helperPath, allowedApps: [{ 'id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'name': 'Fixture', 'executablePath': '/fixture/app' }] } })
       await ctx.loader.resolve(entry).fiber!.await()
       await mountAgentLoopTestHarness(ctx)
       ctx.llm.registerAdapter(['bridge-fixture'], new VisualAdapter())
@@ -63,7 +64,7 @@ it.skipIf(process.platform === 'win32' || !existsSync(bridge) || !existsSync(boo
         bindings: [{ global: 'tools', functions: { cua: async (args) => {
           const operation = Request.parse(args)
           calls.push({ phase, method: operation.method })
-          const result = await ctx.tools.execute({ agent: handle.agent, signal: new AbortController().signal,
+          const result = await executeToolFixture(ctx, { agent: handle.agent, signal: new AbortController().signal,
             callId: ToolCallId(`external-cua-${++count}`), name: 'cua', arguments: operation })
           images += result.content.filter(block => block.type === 'image').length
           return result.value ?? null
@@ -71,7 +72,7 @@ it.skipIf(process.platform === 'win32' || !existsSync(bridge) || !existsSync(boo
       }))
       expect((await run('await import("@deepseek-ai/dsh-cua/bridge")', 'unresolved')).error?.message).toContain('Cannot find package')
       const section = (await ctx.systemPrompt.assemble()).sections.find(value => value.name === 'computer-use:dsh-cua')
-      const initialization = section?.text.split('Persistent PTC initialization:\n')[1]
+      const initialization = section?.text.match(/Persistent PTC initialization:\n\n```ts\n([\s\S]*?)\n```/u)?.[1]
       expect(initialization).toContain('/lib/bridge.js')
       const first = await run(`${initialization}\nvar app = await cua.getApp("test.fixture"); var win = await app.getWindow(7); await win.click(0); var shot = await win.getScreenshot(); ({ mimeType: shot.mimeType, pixelWidth: shot.pixelWidth, pixelHeight: shot.pixelHeight, windowId: shot.windowId, byteLength: shot.bytes.length });`, 'first')
       expect(first.error).toBeUndefined()

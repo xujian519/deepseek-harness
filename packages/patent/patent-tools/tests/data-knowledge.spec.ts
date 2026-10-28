@@ -15,6 +15,7 @@ import { createPatentCaseSearchTool } from '../src/tool/patent-case-search.ts'
 import { createPatentWikiSearchTool } from '../src/tool/patent-wiki-search.ts'
 import { createPatentKgQueryTool } from '../src/tool/patent-kg-query.ts'
 import type { KgAdapter } from '../src/tool/patent-kg-query.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -27,7 +28,7 @@ async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
 }
 
 function execute(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {
@@ -125,7 +126,7 @@ describe('patent_search failure and render paths', () => {
       },
     })
     const ctx = await ctxWith(tool)
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: controller.signal,
       callId: ToolCallId('ps-retry-abort'),
       name: 'patent_search',

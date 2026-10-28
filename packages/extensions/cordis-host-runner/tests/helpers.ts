@@ -1,3 +1,4 @@
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { Context } from '@deepseek-ai/cordis'
 import Timer from '@deepseek-ai/cordis-plugin-timer'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -9,6 +10,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import DynamicCordisRunnerService from '../src/index.ts'
 import type { Config } from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 /**
  * Shared spec harness: a real `SystemPrompt` + `ToolRegistry` + timer tree with
@@ -56,6 +58,7 @@ export async function setup(config?: Config): Promise<Harness> {
   await ctx.plugin(Timer)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRegistry)
+  await ctx.plugin(NativeToolExecutor)
   const gateway: Gateway = { events: [] }
   ctx.on('@deepseek-ai/cordis/request-run', (request) => {
     gateway.events.push(['@deepseek-ai/cordis/request-run', request])
@@ -145,7 +148,7 @@ let callCounter = 0
 
 /** Execute a registered tool through the real registry pipeline. */
 export function call(ctx: Context, name: string, args: unknown): Promise<ToolExecutionResult> {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId(`call-${++callCounter}`),
     name,

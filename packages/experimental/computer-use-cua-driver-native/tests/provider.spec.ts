@@ -1,5 +1,6 @@
 /** Native SDK lifecycle and catalog behavior without desktop access. */
 
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import ComputerUseRegistry from '@deepseek-ai/dsh-computer-use'
@@ -9,6 +10,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import * as NativeProvider from '../src/index.ts'
 import { catalog, fixture, resetFixture } from './fixtures/cua-driver.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 vi.mock('@trycua/cua-driver', async () => import('./fixtures/cua-driver.ts'))
 
@@ -20,6 +22,7 @@ beforeEach(async () => {
   await ctx.plugin(ComputerUseRegistry)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
 })
 
 afterEach(async () => {
@@ -27,7 +30,7 @@ afterEach(async () => {
 })
 
 function execute(rawName: string, args: Record<string, unknown> = {}) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     name: `cua_driver_native__${rawName}`,
     callId: ToolCallId('native-test'),
     arguments: args,
@@ -109,7 +112,7 @@ describe('Cua Driver native provider', () => {
         return settled.promise
       },
     })
-    const result = ctx.tools.execute({
+    const result = executeToolFixture(ctx, {
       name: 'unrelated', callId: ToolCallId('unrelated'), arguments: {}, signal: controller.signal,
     })
     try {

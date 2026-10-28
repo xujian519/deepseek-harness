@@ -24,6 +24,7 @@ import {
 import { createListDocTemplatesTool } from '../src/tool/list-doc-templates.ts'
 import { createRenderDocTemplateTool } from '../src/tool/render-doc-template.ts'
 import { STYLED_TEMPLATE_VARIABLES, styledTemplateRoot } from './styled-template.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 let roots: string[] = []
 
@@ -55,7 +56,7 @@ async function host(templateDirs?: readonly string[]): Promise<Context> {
 
 /** Execute one registered tool. */
 function execute(ctx: Context, name: string, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId(name),
     name,

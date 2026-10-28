@@ -10,7 +10,7 @@ fork 从上游的 `dsh-v0.2.1-alpha.4` tag 前进到 `dsh-v0.2.1-alpha.5`：36 �
 
 这个 release 的主体内容是桌面、Web 与账号设置。Windows 打包 runner 交由 Task Scheduler 监管；发布流程新增 `preflight-desktop-publish` / `desktop-publish-qualification` 脚本对，并附上留存产物与 COS 拒绝的 golden；Windows 打包默认为签名；账号设置插件新增层叠通知面（`notice-transition.ts`，以及 `v0.2.1-alpha.4/account-notification-fields` 升级指南）。Web 获得 provider 感知的模型标签 slot、按会话共享的终端发现、插件变更后的斜杠菜单刷新，以及一处侧栏裁剪修复。vendor 拿到分阶段推进的 `cordis-rc11-upgrade-plan.md`。
 
-只有一条上游工作线触及 fork。release 的两个提交重做了 PTC 指令的组装方式，使任何调用点都不再依赖共享散文，随后又把面向模型的措辞恢复到已发布 SDK persona 所兼容的文本。两者合起来重写了 `packages/core/tools/src/ptc.ts`、`ts-types.ts` 与 `py-types.ts`，恢复后的措辞还传到 `packages/fs/tool-fs/src/read.ts`、`packages/subagent/tool-subagent/src/index.ts`、工具 catalog，以及每一份带 system prompt 的 session 与 SDK 快照。
+只有一条上游工作线触及 fork。release 的两个提交重做了 PTC 指令的组装方式，使任何调用点都不再依赖共享散文，随后又把面向模型的措辞恢复到已发布 SDK persona 所兼容的文本。两者合起来重写了 `packages/core/tool-executor-ptc/src/ptc.ts`、`ts-types.ts` 与 `py-types.ts`，恢复后的措辞还传到 `packages/fs/tool-fs/src/read.ts`、`packages/subagent/tool-subagent/src/index.ts`、工具 catalog，以及每一份带 system prompt 的 session 与 SDK 快照。
 
 ## 决策
 
@@ -19,12 +19,12 @@ fork 从上游的 `dsh-v0.2.1-alpha.4` tag 前进到 `dsh-v0.2.1-alpha.5`：36 �
 
   | 文件 | 解法 |
   |---|---|
-  | `packages/core/tools/src/ptc.ts` | 保留 fork 的 run-code flavor 抽取，把 release 的改动移植进去 |
+  | `packages/core/tool-executor-ptc/src/ptc.ts` | 保留 fork 的 run-code flavor 抽取，把 release 的改动移植进去 |
   | `packages/lsp/tool-lsp/package.json` | 取 fork 的 manifest，仅把版本提到 `0.2.1-alpha.5` |
   | `docs/tool-catalog.i18n.yaml` | 生成物附属文件；由生成器重录 |
   | `snapshots/session/ptc-python-turn/tool-schemas.expected.json` | 由 fork 回放重录；两侧都不复制 |
 
-- **release 的 PTC 改动落在 `run-code-flavor.ts`，而不是 `ptc.ts`。** fork 把一个语言的 `run_code` 描述与它的 `code` 参数描述放在一起，位于 `packages/core/tools/src/run-code-flavor.ts`，上游没有这个模块。上游两个提交带来四项改动：`runCodeFlavor` 获得 `execution` 覆写，用于程序格式措辞；新增 `TYPESCRIPT_FUNCTION_FLAVOR` 描述 `programFormat` 为 `function-body` 的运行时；`resolveFlavor` 在 `runtime.language === 'typescript' && runtime.programFormat === 'function-body'` 时分支到它；参数顺序把 `code` 移到 `description` 之前，静态 `parameters` 块与动态 getter 都改，jsdoc 与 `RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION` 中被删掉的「Provide `description` before `code`」一句随之调整。前三项属于 flavor 模块，已移植进 `run-code-flavor.ts`；第四项属于 `ptc.ts`，自动合并完成。
+- **release 的 PTC 改动落在 `run-code-flavor.ts`，而不是 `ptc.ts`。** fork 把一个语言的 `run_code` 描述与它的 `code` 参数描述放在一起，位于 `packages/core/tool-executor-ptc/src/ptc.ts`，上游没有这个模块。上游两个提交带来四项改动：`runCodeFlavor` 获得 `execution` 覆写，用于程序格式措辞；新增 `TYPESCRIPT_FUNCTION_FLAVOR` 描述 `programFormat` 为 `function-body` 的运行时；`resolveFlavor` 在 `runtime.language === 'typescript' && runtime.programFormat === 'function-body'` 时分支到它；参数顺序把 `code` 移到 `description` 之前，静态 `parameters` 块与动态 getter 都改，jsdoc 与 `RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION` 中被删掉的「Provide `description` before `code`」一句随之调整。前三项属于 flavor 模块，已移植进 `run-code-flavor.ts`；第四项属于 `ptc.ts`，自动合并完成。
 - **release 有意改动面向模型的提示文本，重录后的 golden 承载 release 的文本。** 恢复措辞的那个提交把文本移回已发布 SDK persona 所兼容的版本，因此合并后的树在 fork 合并前发出较长句子的地方发出**较短**的句子：`read` 去掉「or sed, head, or tail」并加上「to continue reading large files」，subagent 段落删去「end your turn instead of sleeping or polling」一句。两句的来源文件随文本一同变动。在这里与 release 不一致的重录 golden 是构建产物问题，不是 fork 分歧。
 - **版本在 fork 自有面上统一钉住。** 根 manifest、47 份 fork 独有 manifest，以及 `packages/client/better-sidebar/src/client/service.ts` 中的 `SIDEBAR_SERVICE_VERSION` 一并前进到 `0.2.1-alpha.5`。`pnpm exec tsx scripts/release/verify.ts --family dsh` 在该版本下解析出 388 个家族成员，无未排序的 peer 声明；`pnpm install --lockfile-only` 报「Already up to date」，未触碰 `pnpm-lock.yaml`。
 - **工具 catalog 配对重录，而非取某一侧。** `docs/tool-catalog.i18n.yaml` 由 catalog 的成对页面生成；生成器同一次运行重写了 `docs/tool-catalog.md`、`docs/tool-catalog.zh.md`、`docs/config-catalog.md`、`docs/config-catalog.zh.md` 与 `apps/cli/composition.md`，`verify-translation-pairing --write` 重录附属文件。

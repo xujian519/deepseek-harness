@@ -4,6 +4,8 @@
 // -> resume flow and the patent/* session events on the real session log.
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import SessionStore from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
@@ -51,6 +53,8 @@ const emptySearchProvider: StageProvider = {
 describe('PatentWorkflow service', () => {
   it('drives a plantask run through approval_pending -> approve -> resume', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(ApprovalService)
     await ctx.plugin(PatentWorkflow)
     try {
@@ -77,6 +81,8 @@ describe('PatentWorkflow service', () => {
 
   it('fails closed (replanning) when no approval answerer is composed', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(ApprovalService)
     await ctx.plugin(PatentWorkflow)
     try {
@@ -96,6 +102,8 @@ describe('PatentWorkflow service', () => {
 
   it('supports an out-of-band approve/reject decision entry', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(ApprovalService)
     await ctx.plugin(PatentWorkflow)
     try {

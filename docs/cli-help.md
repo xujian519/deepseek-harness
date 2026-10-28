@@ -101,7 +101,7 @@ Example:
 <a id="dsh-headless"></a>
 ## `dsh headless`
 
-Invocations: `dsh headless --help`, `dsh --profile headless --help`, `dsh self-evolve --help`, `dsh --profile self-evolve --help`
+Invocations: `dsh headless --help`, `dsh --profile headless --help`
 
 ```text
 Usage: dsh --profile headless [options] [command] [task...]
@@ -109,32 +109,40 @@ Usage: dsh --profile headless [options] [command] [task...]
 Answer one task and exit; the answer goes to stdout and diagnostics to stderr.
 
 Arguments:
-  task               the task text; multiple words are joined by spaces, and `-`
-                     reads stdin
+  task                        the task text; multiple words are joined by
+                              spaces, and `-` reads stdin
 
 Options:
-  --json             write newline-delimited run events to stdout instead of the
-                     final message
-  --session-id <id>  adopt the persisted Session with this id; an unknown id is
-                     an error
-  -h, --help         show this help
+  --json                      write newline-delimited run events to stdout
+                              instead of the final message
+  --session-id <id>           adopt the persisted Session with this id; an
+                              unknown id is an error
+  --permission-mode <preset>  select a configured permission preset for this
+                              task, including on resume
+  --approval-policy <policy>  set approval behavior after selecting the
+                              permission preset (choices: "ask", "never")
+  --add-dir <path>            allow an additional physical absolute directory
+                              under workspace-write (repeatable)
+  -h, --help                  show this help
 
 Commands:
-  browsers           Probe local browser automation backends (ego lite →
-                     BrowserOS neo → browser-use → @playwright/mcp).
+  browsers                    Probe local browser automation backends (ego lite
+                              → BrowserOS neo → browser-use → @playwright/mcp).
 
 Examples:
   dsh --profile headless "run the tests"          answer one task and exit
   echo "run the tests" | dsh --profile headless   read the task from stdin
   dsh --profile headless --json "run the tests"   emit machine-readable run events
   dsh --profile headless --session-id session-… "continue"   resume an existing Session
+  dsh --profile headless --permission-mode workspace-write --add-dir /repo/.git "commit the fix"
+                                                        grant shared Git metadata for this task
 
 ```
 
 <a id="dsh-headless-browsers"></a>
 ## `dsh headless browsers`
 
-Invocations: `dsh headless browsers --help`, `dsh --profile headless browsers --help`, `dsh self-evolve browsers --help`, `dsh --profile self-evolve browsers --help`
+Invocations: `dsh headless browsers --help`, `dsh --profile headless browsers --help`
 
 ```text
 Usage: dsh --profile headless browsers [options]

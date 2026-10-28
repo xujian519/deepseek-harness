@@ -72,7 +72,6 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-jobs/`](ui-jobs/README.md) | Lists this session's background jobs with on-demand streaming record panels | — |
 | [`ui-schedule/`](ui-schedule/README.md) | Lists the current Session's active reminders in a read-only header catalog | — |
 | [`ui-model-selection/`](ui-model-selection/README.md) | Provides model selection in conversation surfaces | — |
-| [`ui-deepseek-model-label-1017/`](ui-deepseek-model-label-1017/README.md) | Adds the temporary 1017 badge to official DeepSeek Flash model labels | — |
 | [`ui-permission-presets/`](ui-permission-presets/README.md) | Configures default permissions and switches the current session's access | — |
 | [`ui-plan/`](ui-plan/README.md) | Presents active plan-mode status and its exit control | — |
 | [`ui-settings-plugins/`](ui-settings-plugins/README.md) | Owns the Built-in plugins settings section shell and its tab extension point | — |
@@ -97,6 +96,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-message-feedback/`](ui-message-feedback/README.md) | Provides message ratings and feedback dialogs opened from ratings, `/feedback`, or the Session Header menu | `ctx.feedbackUi` |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.md) | In-app directory browsing surface for the workspace directory flow | — |
 | [`ui-directory-picker-native/`](ui-directory-picker-native/README.md) | Native directory-picker surface driving the local Desktop or Host OS chooser | — |
+| [`ui-file-drag/`](ui-file-drag/README.md) | Application-scoped file transfers and localized drag failure feedback | — |
 | [`better-sidebar/`](better-sidebar/README.md) | Presents the per-session workspace right sidebar: explorer, editor, terminal, git, side chat, subagent, and browser tabs | `ctx.betterSidebar` (client) |
 | [`ui-open-in-app/`](ui-open-in-app/README.md) | Session-header split button opening the workspace directory in an installed application, and the document preview's default-application controls for one file | — |
 | [`ui-patent-teams/`](ui-patent-teams/README.md) | Restores the PatentTeams monitor to the Web UI: one durable team card and the fixed Teams conversation view | — |

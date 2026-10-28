@@ -8,7 +8,6 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
@@ -17,6 +16,8 @@ import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import SubagentRuntime, { SubagentRunId } from '@deepseek-ai/dsh-subagent'
 import * as HooksClaude from '@deepseek-ai/dsh-hooks-claude-code'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import { defineContentToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -160,7 +161,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       let ran = false
       ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'e', parameters: {}, async execute() { ran = true; return [{ type: 'text', text: 'x' }] } }))
       const { ToolCallId } = await import('@deepseek-ai/dsh-llm')
-      const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'echo', arguments: {} })
+      const result = await executeToolFixture(ctx, { signal: testToolSignal, callId: ToolCallId('c1'), name: 'echo', arguments: {} })
       expect(ran).toBe(false)
       expect(result.isError).toBe(true)
     })

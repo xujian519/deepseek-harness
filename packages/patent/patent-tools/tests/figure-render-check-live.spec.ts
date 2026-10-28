@@ -11,6 +11,7 @@ import { renderWithVizWasm } from '../src/figure/viz-wasm-renderer.ts'
 import { blockingFindings, checkFigureRendering, clearanceMmForFigure } from '../src/figure/render-check.ts'
 import { buildVectorFigure } from '../src/figure/vector-figure-build.ts'
 import { vectorFigureSvg } from '../src/figure/vector-figure.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 /**
  * 净距分档的实测护栏：现有合法输出在各自阈值下必须零阻断。
@@ -34,7 +35,7 @@ async function generateGraphviz(input: Record<string, unknown>): Promise<string>
     resolveFont: () => 'Helvetica',
   }))
   try {
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal,
       callId: ToolCallId(String(input.figure_type)),
       name: 'generate_patent_figure',

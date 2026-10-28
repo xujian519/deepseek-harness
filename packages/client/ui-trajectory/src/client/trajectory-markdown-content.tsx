@@ -13,8 +13,8 @@ import type { TrajectorySourceBlock } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
 import { isToolCallOnly, markdownSource } from './trajectory-record-presentation.tsx'
-import type { TableRecord } from '../types.ts'
-import { markdownLabels } from '../types.ts'
+import type { TableRecord } from './trajectory-types.ts'
+import { markdownLabels } from './trajectory-types.ts'
 
 function MarkdownFragment({
   text,

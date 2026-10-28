@@ -38,9 +38,11 @@ export interface SessionEntry {
 /**
  * Store attachment for the append path: the store writes it on `enter` and the
  * append path reads it, so it lives beside the {@link SessionEntry} it maps to
- * and stays off the package's public surface.
+ * and stays off the package's public surface. A store-owned Session that is not
+ * entered retains a null entry: independent Sessions have no key at all, and
+ * store-owned ones stay read-only until their creation announcement completes.
  */
-export const attachments = new WeakMap<Session, SessionEntry>()
+export const attachments = new WeakMap<Session, SessionEntry | null>()
 
 /**
  * Grammar of a {@link PluginRecordType}: `plugin:` followed by
@@ -349,6 +351,9 @@ export class Session {
    * the log, the append is committed: observer failures are logged and
    * contained per listener, so they do not change the return value or prevent
    * later listeners from observing the same accepted event.
+   * Independent Sessions append without notifying store observers. Once a store
+   * prepares or enters the instance, writes require a completed creation
+   * announcement and remain disabled after removal.
    *
    * @param type - The event type (key of {@link SessionEventMap}).
    * @param data - The event payload; must be JSON-serializable.
@@ -365,7 +370,9 @@ export class Session {
    * @returns the logged event — its assigned `seq`/`time` plus the SNAPSHOT of
    *   `data` that entered the log, so reading `event.data` back sees the logged
    *   value, never the caller's still-mutable input.
-   * @throws if `data` or surface metadata is not losslessly JSON-serializable
+   * @throws if a store-owned Session is unentered or its creation announcement
+   *   has not completed, or if `data` or surface
+   *   metadata is not losslessly JSON-serializable
    *   (BigInt, function, symbol, undefined, negative zero, non-finite number,
    *   circular reference, sparse array, or an exotic object such as
    *   Map/Set/Date/class instance), or when the candidate violates the
@@ -387,6 +394,8 @@ export class Session {
   ): SessionEvent<T> {
     // The conditional tuple types forbid mixing the option shapes at call
     // sites; the body reads both through one intersection view.
+    // Payload getters can detach the Session while the snapshots are read.
+    this.publicationEntry()
     const options = opts[0] as (SurfaceIntent & AppendOptions) | undefined
     const surfaceMetadata = {
       ...options?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: options.sourceEventSeqs },
@@ -425,6 +434,7 @@ export class Session {
    * @returns the record's sequence number.
    */
   #appendRecord(type: PluginRecordType, data: unknown): SessionSeq {
+    this.publicationEntry()
     const dataSnapshot = snapshotJsonValue(data)
     if (dataSnapshot === undefined) {
       throw new Error(`plugin record "${type}" carries non-JSON-serializable data`)
@@ -449,6 +459,12 @@ export class Session {
    */
   private publicationEntry(): SessionEntry | undefined {
     const entry = attachments.get(this)
+    if (entry === null) {
+      throw new Error(`session "${this.id}" cannot append outside a SessionStore`)
+    }
+    if (entry !== undefined && !entry.lifecycle.isCreationComplete) {
+      throw new Error(`session "${this.id}" cannot append before session/created completes`)
+    }
     if (entry?.lifecycle.hasOpenDispatch) {
       throw new Error('session append cannot reenter while another append is being published')
     }

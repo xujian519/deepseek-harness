@@ -12,8 +12,8 @@ import { trajectoryPreviewText } from './trajectory-preview.ts'
 import { PTC_TOOL_NAME, codeProgram } from './code-program.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
-import type { ParentRecords, TableRecord } from '../types.ts'
-import { jsonTreeLabels } from '../types.ts'
+import type { ParentRecords, TableRecord } from './trajectory-types.ts'
+import { jsonTreeLabels } from './trajectory-types.ts'
 
 interface ToolCallTextParts {
   program: boolean

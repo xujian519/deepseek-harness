@@ -1,3 +1,4 @@
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -22,6 +23,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import WorkingDirectoryService from '@deepseek-ai/dsh-working-directory'
 import WorktreeService from '@deepseek-ai/dsh-experimental-worktree'
 import * as ToolWorktree from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const exec = promisify(execFile)
 let context: Context | undefined
@@ -54,9 +56,11 @@ describe('worktree tool through real Loader composition', () => {
       ['@deepseek-ai/dsh-agent', AgentRegistry],
       ['@deepseek-ai/dsh-session', SessionStore],
       ['@deepseek-ai/dsh-session-projection', SessionProjectionRegistry],
+
       ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
       ['@deepseek-ai/dsh-llm', LlmRuntime],
       ['@deepseek-ai/dsh-tools', ToolRuntime],
+      ['@deepseek-ai/dsh-tool-executor-native', NativeToolExecutor],
       ['@deepseek-ai/dsh-fs-local', LocalFileSystem],
       ['@deepseek-ai/dsh-subprocess-local', LocalSubprocessRuntime],
       ['@deepseek-ai/dsh-sandbox-local', LocalSandbox],
@@ -82,7 +86,7 @@ describe('worktree tool through real Loader composition', () => {
     await context.loader.await()
 
     const agent = await context.agentLoop.create(SessionId('worktree-loader'), {}, { cwd: repository })
-    const invoke = (name: string, agentValue = agent) => context!.tools.execute({
+    const invoke = (name: string, agentValue = agent) => executeToolFixture(context!, {
       name: 'create_worktree', callId: ToolCallId(name), arguments: { name }, agent: agentValue, signal: new AbortController().signal,
     })
     const result = await invoke('new-checkout')
@@ -93,7 +97,7 @@ describe('worktree tool through real Loader composition', () => {
     expect(context.workingDirectory.get(agent.session)).toBe(path)
     expect(await readFile(join(path, 'file.txt'), 'utf8')).toBe('committed\n')
 
-    const failure = await context.tools.execute({
+    const failure = await executeToolFixture(context, {
       name: 'create_worktree', callId: ToolCallId('no-agent'), arguments: {}, signal: new AbortController().signal,
     })
     expect(failure.isError).toBe(true)

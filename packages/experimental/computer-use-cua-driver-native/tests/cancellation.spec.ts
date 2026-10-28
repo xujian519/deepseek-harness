@@ -14,6 +14,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import * as NativeProvider from '../src/index.ts'
 import { fixture, resetFixture } from './fixtures/cua-driver.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 vi.mock('@trycua/cua-driver', async () => import('./fixtures/cua-driver.ts'))
 
@@ -63,7 +64,7 @@ it('aborts model admission on unload, restores caller cancellation, and closes t
     return next()
   })
   const controller = new AbortController()
-  const result = ctx.tools.execute({
+  const result = executeToolFixture(ctx, {
     agent, signal: controller.signal, callId: ToolCallId('native-admission'),
     name: 'cua_driver_native__get_window_state', arguments: { pid: 9, window_id: 7 },
   })

@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 let roots: string[] = []
 let context: Context | undefined
@@ -63,7 +64,7 @@ async function boot(configLines: readonly string[] = []): Promise<Context> {
 
 /** Execute one tool of the booted composition. */
 async function execute(ctx: Context, name: string, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: name as never,
     name,

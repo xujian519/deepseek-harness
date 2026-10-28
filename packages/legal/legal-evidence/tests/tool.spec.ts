@@ -5,6 +5,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { LegalEvidenceEngine } from '../src/engine.ts'
 import { createEvaluateLegalEvidenceTool, type EvaluateLegalEvidenceOutput } from '../src/tool/evaluate-evidence.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 async function host(engine?: LegalEvidenceEngine): Promise<Context> {
   const ctx = new Context()
@@ -15,7 +16,7 @@ async function host(engine?: LegalEvidenceEngine): Promise<Context> {
 }
 
 function execute(ctx: Context, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('evaluate-legal-evidence'),
     name: 'evaluate_legal_evidence',

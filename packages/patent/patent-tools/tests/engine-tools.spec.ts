@@ -9,6 +9,7 @@ import type { EvidenceEngine } from '@deepseek-ai/dsh-patent-core'
 import { createRuleCheckTool } from '../src/tool/rule-check.ts'
 import { createEvaluateEvidenceTool } from '../src/tool/evaluate-evidence.ts'
 import { createClaimChartBuildTool } from '../src/tool/claim-chart-build.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -21,7 +22,7 @@ async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
 }
 
 function execute(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {

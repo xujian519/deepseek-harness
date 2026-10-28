@@ -24,6 +24,9 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../util/brand"
+    },
+    {
       "path": "../../core/scope"
     },
     {

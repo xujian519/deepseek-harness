@@ -14,6 +14,7 @@ import {
   principleNames,
 } from '../src/index.ts'
 import { TRIZ_PROMPT_TEXT } from '../src/prompt.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const testToolSignal = new AbortController().signal
 
@@ -41,7 +42,7 @@ function text(result: { content: { type: string; text?: string }[] }): string {
 }
 
 function execute(host: Context, name: string, args: unknown, callLabel: string) {
-  return host.tools.execute({ signal: testToolSignal, callId: ToolCallId(callLabel), name, arguments: args })
+  return executeToolFixture(host, { signal: testToolSignal, callId: ToolCallId(callLabel), name, arguments: args })
 }
 
 async function setupPlugin(config: Record<string, unknown> = {}): Promise<Context> {

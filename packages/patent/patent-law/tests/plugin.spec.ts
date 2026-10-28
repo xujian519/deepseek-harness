@@ -5,6 +5,8 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { globalAtomRegistry, globalStageHandlerRegistry } from '@deepseek-ai/dsh-patent-core'
 import * as Pkg from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 /** The shipped citation policy, which the schema also defaults every field to. */
 const SHIPPED = Pkg.DEFAULT_CITATION_POLICY
@@ -30,6 +32,7 @@ async function install(overrides: Partial<Pkg.Config> = {}) {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   const fiber = await ctx.plugin(Pkg, resolveConfig(overrides))
   return { ctx, fiber }
 }
@@ -107,6 +110,7 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     await expect(ctx.plugin(Pkg, resolveConfig({ lineageDir: '/nonexistent/lineage-dir' }))).rejects.toThrow(/ENOENT|no such file/)
   })
 
@@ -117,7 +121,7 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
 
   it('applies the configured citation policy', async () => {
     const { ctx } = await install({ onUnverified: 'block' })
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('law-verify-policy'),
       name: 'law_verify',
@@ -133,6 +137,7 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     await expect(ctx.plugin(Pkg, resolveConfig({ baselineDir: '/nonexistent/law-dir' }))).rejects.toThrow(/法条索引目录不可读/)
   })
 

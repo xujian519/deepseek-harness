@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-skill'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { compareOrRefreshGolden, launchWebScaffold, webSnapshotMode } from './scaffold.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 /** Model-facing composition golden for the legal preset. */
 const COMPOSITION = fileURLToPath(new URL('./expected/legal-preset/composition.expected.md', import.meta.url))
@@ -74,7 +75,7 @@ it('mounts the legal preset with its packaged skill catalog', async () => {
 
       // The preset's `templateDirs` expression must reach the party-document
       // assets through the installed package path, not only in the source tree.
-      const listed = await ctx.tools.execute({
+      const listed = await executeToolFixture(ctx, {
         signal: new AbortController().signal,
         callId: ToolCallId('legal-list-party-document-templates'),
         name: 'list_doc_templates',

@@ -107,9 +107,13 @@ describe('installProxyFromEnvironment', () => {
   })
 
   it('connects directly when the bypass list covers the target', async () => {
-    const { dispose } = await install(env({ HTTP_PROXY: proxyUrl, NO_PROXY: 'origin.test' }))
+    // A loopback address outside the built-in bypass list keeps the probe on
+    // the bypassed connection path and refused in milliseconds; a hostname
+    // would make the assertion depend on the host's DNS resolver.
+    const directTarget = 'http://127.0.0.2:1/'
+    const { dispose } = await install(env({ HTTP_PROXY: proxyUrl, NO_PROXY: '127.0.0.2' }))
     try {
-      await expect(fetch(proxyTarget, { signal: AbortSignal.timeout(1500) })).rejects.toThrow()
+      await expect(fetch(directTarget, { signal: AbortSignal.timeout(1500) })).rejects.toThrow()
       expect(proxied).toEqual([])
     } finally {
       await dispose()

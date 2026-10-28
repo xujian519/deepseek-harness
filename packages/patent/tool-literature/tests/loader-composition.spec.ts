@@ -13,6 +13,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 let root: string | undefined
 let context: Context | undefined
@@ -63,7 +64,7 @@ async function boot(configLines: readonly string[]): Promise<Context> {
 
 /** Run one arXiv search through the booted plugin. */
 function searchArxiv(ctx: Context, query: string) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('search'),
     name: 'paper_search',
@@ -91,7 +92,7 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
     expect(names).toContain('paper_list_sources')
     expect(names).toContain('paper_search')
 
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('list-sources'),
       name: 'paper_list_sources',
@@ -109,7 +110,7 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
     const original = globalThis.fetch
     globalThis.fetch = (async () => new Response(ATOM_FEED, { status: 200 }))
     try {
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal: new AbortController().signal,
         callId: ToolCallId('search'),
         name: 'paper_search',

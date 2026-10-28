@@ -11,6 +11,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as WorkingDirectoryTool from '@deepseek-ai/dsh-tool-working-directory'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 async function fixture(config?: (root: string) => WorkingDirectoryConfig) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-working-directory-')))
@@ -345,7 +346,7 @@ describe('Session working directories', () => {
     await mkdir(join(f.root, 'child'))
     const fiber = f.ctx.plugin(WorkingDirectoryTool)
     await fiber
-    const execute = (arguments_: { cd?: string }, withAgent = true) => f.ctx.tools.execute({
+    const execute = (arguments_: { cd?: string }, withAgent = true) => executeToolFixture(f.ctx, {
       name: 'working_directory', callId: ToolCallId('directory-call'), arguments: arguments_,
       signal: new AbortController().signal, ...withAgent ? { agent: f.agent } : {},
     })

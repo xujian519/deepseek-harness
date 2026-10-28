@@ -29,6 +29,8 @@ kind: "package-group"
 | [`system-prompt/`](system-prompt/README.zh.md) | 由有序段、工具 schema 与变量进行的系统提示词组装 | `ctx.systemPrompt` |
 | [`prompt-cache/`](prompt-cache/README.zh.md) | 为 `SystemPrompt.assemble()` 提供提示词前缀缓存，让后续组装复用会话的 stable 前缀段 | `ctx.promptCache` |
 | [`tools/`](tools/README.zh.md) | 供循环分发使用的工具注册表与带防护机制的执行流水线 | `ctx.tools` |
+| [`tool-executor-native/`](tool-executor-native/README.zh.md) | 带作用域工具与有界批量分发的原生函数调用执行 | 在 `ctx.tools` 中安装执行器 |
+| [`tool-executor-ptc/`](tool-executor-ptc/README.zh.md) | 基于程序的执行，含生成 SDK、嵌套调用与并行分发上限 | 在 `ctx.tools` 中安装执行器 |
 | [`agent-tool-presentation/`](agent-tool-presentation/README.zh.md) | 为 preset 提供按 agent 的工具呈现方式选择器 | 无 ctx key |
 | [`agent/`](agent/README.zh.md) | 供插件编程使用的 `Agent` 句柄，以及其实时注册表与事件 | `ctx.agents` |
 | [`agent-default-model/`](agent-default-model/README.zh.md) | 入口对全新 agent 应用的部署默认模型选择 | `ctx.agentDefaultModel` |

@@ -7,7 +7,7 @@ import type { TrajectoryTurnModel } from './layout.ts'
 import { trajectoryRecordId } from './trajectory-record.ts'
 import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
 import type { TrajectoryTranslate } from './locales.ts'
-import type { RecordState, TableRecord, TrajectoryRequestNumber } from '../types.ts'
+import type { RecordState, TableRecord, TrajectoryRequestNumber } from './trajectory-types.ts'
 
 /**
  * Flatten grouped turns into one ledger record per cell, marking each record's group and
@@ -111,7 +111,7 @@ export function indexRequestBoundaries(
     const key = requestKey(record.turn, record.group)
     if (!requestGroups.has(key)) continue
     if (boundaries.has(key)) continue
-    if (record.cell.kind === 'user' || record.cell.kind === 'context') continue
+    if (record.cell.kind === 'user' || record.cell.kind === 'context' || record.cell.kind === 'system') continue
     boundaries.set(key, record.cell.index)
   }
   return boundaries

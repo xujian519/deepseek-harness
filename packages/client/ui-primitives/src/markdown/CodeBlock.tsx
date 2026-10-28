@@ -1,8 +1,7 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { Fragment, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { CSSProperties, ReactNode, Ref } from 'react'
 import clsx from 'clsx'
 import { writeClipboard } from '../clipboard.ts'
-import { COPIED_FEEDBACK_MS } from '../use-copy-feedback.ts'
 import { CodeToolbar, type CodeToolbarLabels } from '../CodeToolbar.tsx'
 import {
   StreamingHighlightSession, grammarLoadCount, highlightToHtml, subscribeGrammarLoaded,
@@ -157,13 +156,6 @@ export function CodeBlock({
   const [copied, setCopied] = useState(false)
   const [localWrapped, setWrapped] = useState(true)
   const wrapped = wrap ?? localWrapped
-  // The copied text is the rendered <pre>'s own, read at click time; the shared
-  // hook takes its text up front, so this site keeps its send and cancels the
-  // reset itself when the block unmounts inside the feedback window.
-  const copyTimer = useRef<number | null>(null)
-  useEffect(() => () => {
-    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
-  }, [])
 
   const onCopy = useCallback(() => {
     if (copied) return
@@ -173,11 +165,7 @@ export function CodeBlock({
     void writeClipboard(text).then((ok) => {
       if (!ok) return
       setCopied(true)
-      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
-      copyTimer.current = window.setTimeout(() => {
-        copyTimer.current = null
-        setCopied(false)
-      }, COPIED_FEEDBACK_MS)
+      window.setTimeout(() => { setCopied(false) }, 1000)
     })
   }, [copied, trimmed])
 
@@ -210,7 +198,7 @@ export function CodeBlock({
           copied={copied} wrapped={wrapped} onCopy={onCopy}
           onWrap={wrap === undefined ? () => { setWrapped(value => !value) } : undefined}
         /> : <div className={css.banner} data-code-block-banner>
-          <div className={css.infostring}>{lang ?? ''}</div>
+          <div className={css.infostring} data-text-interaction-exclude="">{lang ?? ''}</div>
           <div className={css.action}>
             <button type="button" className={css.copyButton} onClick={onCopy}>
               {copied ? copiedLabel : copyLabel}

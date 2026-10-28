@@ -1,21 +1,14 @@
-/**
- * Reject one scheduler preparation to exercise the terminal internal-failure path.
- *
- * The scheduler handshake is reached through the shared `TOOL_RUNTIME_SCHEDULER`
- * key; the fork carries it as a namespaced string so a profile that hoists a
- * second copy of the tools package still resolves the same property.
- */
-export const inject = ['tools']
-
-/** The `TOOL_RUNTIME_SCHEDULER` key exported by `@deepseek-ai/dsh-tools`. */
-const TOOL_RUNTIME_SCHEDULER = '@deepseek-ai/dsh-tools:runtime-scheduler'
+/** Reject one scheduler preparation to exercise the terminal internal-failure path. */
+export const inject = ['tools', 'loader']
 
 /** @param {import('@deepseek-ai/cordis').Context} ctx - Scenario-owned runtime. */
-export function apply(ctx) {
-  const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER]
-  if (scheduler === undefined) throw new Error('Scheduler failure fixture requires the active tool scheduler')
-  const prepare = scheduler.prepare
-  ctx.effect(() => {
+export async function apply(ctx) {
+  // Resolve through the running profile so packaged runs share the bundled error classes.
+  const { NativeToolExecutor } = await ctx.loader.import('@deepseek-ai/dsh-tool-executor-native')
+  ctx.on('agent/created', ({ agent }) => {
+    const executor = new NativeToolExecutor(agent.ctx)
+    const scheduler = executor.pipeline
+    const prepare = scheduler.prepare
     scheduler.prepare = async input => {
       if (input.callId === 'scheduler-fail') {
         scheduler.prepare = prepare
@@ -23,6 +16,6 @@ export function apply(ctx) {
       }
       return prepare.call(scheduler, input)
     }
-    return () => { scheduler.prepare = prepare }
-  }, 'scheduler failure fixture')
+    agent.ctx.tools.setExecutor(executor)
+  })
 }

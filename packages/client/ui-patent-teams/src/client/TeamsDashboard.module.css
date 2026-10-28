@@ -328,13 +328,15 @@
   font: inherit;
   text-align: left;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
+}@media (hover: hover) {
 
-.memberButton:hover,
-.memberButton:focus-visible {
-  border-color: var(--dsw-alias-state-business-primary);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent);
-  transform: translateY(-1px);
+
+  .memberButton:hover,
+  .memberButton:focus-visible {
+    border-color: var(--dsw-alias-state-business-primary);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent);
+    transform: translateY(-1px);
+  }
 }
 
 .avatar {

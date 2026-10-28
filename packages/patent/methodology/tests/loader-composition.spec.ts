@@ -13,6 +13,8 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as Methodology from '@deepseek-ai/dsh-methodology'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 let root: string | undefined
 let context: Context | undefined
@@ -30,6 +32,7 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   await writeFile(configPath, [
     "- name: '@deepseek-ai/dsh-system-prompt'",
     "- name: '@deepseek-ai/dsh-tools'",
+    "- name: '@deepseek-ai/dsh-tool-executor-native'",
     "- name: '@deepseek-ai/dsh-methodology'",
     ...configLines.length > 0 ? ['  config:', ...configLines] : [],
     '',
@@ -43,6 +46,7 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
     ['@deepseek-ai/dsh-tools', ToolRuntime],
+    ['@deepseek-ai/dsh-tool-executor-native', NativeToolExecutor],
     ['@deepseek-ai/dsh-methodology', Methodology],
   ])
   ctx.loader.internal = {
@@ -66,7 +70,7 @@ describe('methodology real Loader composition through cordis.yml', () => {
     const assembly = await ctx.systemPrompt.assemble()
     expect(assembly.sections.some(section => section.name === 'tool:triz')).toBe(true)
 
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('triz-lookup'),
       name: 'triz',

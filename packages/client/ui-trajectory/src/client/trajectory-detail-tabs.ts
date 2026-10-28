@@ -3,7 +3,7 @@
  * record or a session request exposes, and the member tables those lists are built from.
  */
 
-import type { DetailTab, TableRecord } from '../types.ts'
+import type { DetailTab, TableRecord } from './trajectory-types.ts'
 import type { TrajectoryKey } from './locales.ts'
 import { codeProgram } from './code-program.ts'
 import { isMarkdownRecord } from './trajectory-record-presentation.tsx'

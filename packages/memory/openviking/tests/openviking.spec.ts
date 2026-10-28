@@ -12,6 +12,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 
 import { apply, Config, createPreInitSync, dedupeWarn, errorLabel, inject, name, probeHealth } from '../src/index.ts'
 import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 describe('@deepseek-ai/dsh-openviking plugin surface', () => {
   it('exports the Cordis function-plugin namespace', () => {
@@ -41,6 +42,7 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     const config = Config({ endpoint: 'http://127.0.0.1:1' }) as Parameters<typeof apply>[1]
     const fiber = await ctx.plugin(apply, config)
     await new Promise(resolve => setTimeout(resolve, 30))
@@ -51,6 +53,7 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     const tmp = await mkdtemp(join(tmpdir(), 'ov-mount-'))
     const stateFile = join(tmp, 'state.json')
     const config = Config({ endpoint: 'http://127.0.0.1:1', stateFile }) as Parameters<typeof apply>[1]
@@ -118,6 +121,7 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     const tmp = await mkdtemp(join(tmpdir(), 'ov-mount-'))
     const stateFile = join(tmp, 'state.json')
     await (await import('node:fs/promises')).writeFile(stateFile, '{not json')
@@ -135,6 +139,7 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     const stateFile = join(tmp, 'state.json')
     await ctx.plugin(SystemPrompt, { personaPrefix: 'You are an agent.' })
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     const fiber = ctx.plugin(apply, Config({ endpoint: 'http://127.0.0.1:1', stateFile }))
     await fiber.await()
     const assembly = await ctx.systemPrompt.assemble({ agent: { id: 'a1' } } as never)

@@ -29,7 +29,7 @@
  * event carrier, and the disposal notification — stays with the owner.
  */
 export class EntryLifecycle {
-  private announced = false
+  private announcementState: 'none' | 'dispatching' | 'complete' | 'failed' = 'none'
   private announcementOpen = false
   private openDispatches = 0
   private removalRequested = false
@@ -41,7 +41,17 @@ export class EntryLifecycle {
    *   the announcement dispatch is still open.
    */
   get isAnnounced(): boolean {
-    return this.announced
+    return this.announcementState !== 'none'
+  }
+
+  /**
+   * Whether the creation announcement dispatch finished successfully. The
+   * owner may require it before admitting writes that depend on creation
+   * listeners having observed the entry.
+   * @returns true only after {@link completeAnnouncement}.
+   */
+  get isCreationComplete(): boolean {
+    return this.announcementState === 'complete'
   }
 
   /**
@@ -63,21 +73,36 @@ export class EntryLifecycle {
    *   call from a creation listener, since an entry is announced at most once.
    */
   announce(subject: string): void {
-    if (this.announced) throw new Error(`${subject} was already announced`)
+    if (this.announcementState !== 'none') throw new Error(`${subject} was already announced`)
     // Claim before the owner dispatches: a listener cannot announce a second
     // time, and a removal that arrives mid-dispatch still pairs with this
     // creation rather than preceding it.
-    this.announced = true
+    this.announcementState = 'dispatching'
     this.announcementOpen = true
   }
 
   /**
-   * Close the announcement dispatch opened by {@link announce}.
+   * Close the announcement dispatch opened by {@link announce} after it
+   * completed successfully.
+   * @returns whether the caller must remove the entry now — a removal was
+   *   requested while the announcement was open and no dispatch remains.
+   */
+  completeAnnouncement(): boolean {
+    this.announcementOpen = false
+    this.announcementState = 'complete'
+    return this.consumeRemoval()
+  }
+
+  /**
+   * Close the announcement dispatch opened by {@link announce} after it threw.
+   * The creation edge stays claimed, so the entry cannot be announced again,
+   * while {@link isCreationComplete} stays false.
    * @returns whether the caller must remove the entry now — a removal was
    *   requested while the announcement was open and no dispatch remains.
    */
   endAnnouncement(): boolean {
     this.announcementOpen = false
+    if (this.announcementState === 'dispatching') this.announcementState = 'failed'
     return this.consumeRemoval()
   }
 

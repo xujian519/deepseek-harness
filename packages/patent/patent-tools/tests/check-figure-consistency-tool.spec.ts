@@ -5,6 +5,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { createCheckPatentFigureConsistencyTool } from '../src/tool/check-patent-figure-consistency.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -17,7 +18,7 @@ async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
 }
 
 function execute(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 function text(result: ToolExecutionResult): string {

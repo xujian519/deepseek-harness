@@ -105,7 +105,7 @@ describe('OpenCode session header', () => {
     const server = await mockServer([{ events: textEvents }])
     const { headers } = await sendRequest(server, {
       'opencode-go': { apiKeyEnv: 'PI_TEST_KEY', baseURL: server.url },
-    }, { provider: 'opencode-go', model: 'deepseek-v4-flash', sessionId: SESSION_A })
+    }, { provider: 'opencode-go', model: 'deepseek-v4-pro', sessionId: SESSION_A })
 
     expect(headers[SESSION_HEADER]).toBe('session-a')
   })
@@ -140,7 +140,7 @@ describe('OpenCode session header', () => {
     const server = await mockServer([{ events: textEvents }, { events: textEvents }, { events: textEvents }])
     const providers = { 'opencode-go': { apiKeyEnv: 'PI_TEST_KEY', baseURL: server.url } }
     for (const sessionId of [SESSION_A, SESSION_B, SESSION_A]) {
-      await sendRequest(server, providers, { provider: 'opencode-go', model: 'deepseek-v4-flash', sessionId })
+      await sendRequest(server, providers, { provider: 'opencode-go', model: 'deepseek-v4-pro', sessionId })
     }
 
     expect(server.headers.map(headers => headers[SESSION_HEADER])).toEqual(['session-a', 'session-b', 'session-a'])
@@ -154,7 +154,7 @@ describe('OpenCode session header', () => {
         baseURL: server.url,
         headers: { 'X-OpenCode-Session': 'deployment-pinned' },
       },
-    }, { provider: 'opencode-go', model: 'deepseek-v4-flash', sessionId: SESSION_A })
+    }, { provider: 'opencode-go', model: 'deepseek-v4-pro', sessionId: SESSION_A })
 
     expect(headers[SESSION_HEADER]).toBe('deployment-pinned')
   })

@@ -9,6 +9,8 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as Pkg from '../src/index.ts'
 import { WRITING_PATTERNS_SECTION_NAME } from '../src/prompt.ts'
 import type { QueryWritingPatternsOutput } from '../src/tool/query-writing-patterns.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 let root: string | undefined
 
@@ -21,6 +23,7 @@ async function install(config: Record<string, unknown> = {}) {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   const fiber = await ctx.plugin(Pkg, config)
   return { ctx, fiber }
 }
@@ -82,6 +85,7 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     Pkg.apply(ctx, {})
     expect(ctx.tools.schemas().some(schema => schema.name === 'query_writing_patterns')).toBe(true)
     expect((await ctx.systemPrompt.assemble()).sections.map(section => section.name))
@@ -128,7 +132,7 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
 
   it('applies the configured result cap to narrowed calls but not to the argument-free listing', async () => {
     const { ctx } = await install({ matchLimit: 1 })
-    const narrowed = await ctx.tools.execute({
+    const narrowed = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('query-writing-patterns-cap'),
       name: 'query_writing_patterns',
@@ -137,7 +141,7 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
     if (narrowed.isError) throw new Error('expected success')
     expect((narrowed.value as QueryWritingPatternsOutput).patterns).toHaveLength(1)
 
-    const catalog = await ctx.tools.execute({
+    const catalog = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('query-writing-patterns-catalog'),
       name: 'query_writing_patterns',
@@ -153,6 +157,7 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     await expect(ctx.plugin(Pkg, { patternDir: '/nonexistent/pattern-dir' })).rejects.toThrow(/无法读取写作模式资产目录/)
   })
 
@@ -168,7 +173,7 @@ describe('@deepseek-ai/dsh-writing-patterns plugin surface', () => {
     ].join('\n'))
     const { ctx } = await install({ patternDir: root })
 
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('query-writing-patterns-custom'),
       name: 'query_writing_patterns',

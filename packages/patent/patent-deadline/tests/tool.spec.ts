@@ -5,6 +5,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { loadWorkCalendar, WorkCalendar } from '../src/work-calendar.ts'
 import { createPatentDeadlinesTool, type PatentDeadlinesOutput } from '../src/tool/patent-deadlines.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const FIXED_TODAY = { year: 2026, month: 9, day: 20 }
 
@@ -21,7 +22,7 @@ async function host(): Promise<Context> {
 }
 
 function execute(ctx: Context, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('patent-deadlines'),
     name: 'patent_deadlines',

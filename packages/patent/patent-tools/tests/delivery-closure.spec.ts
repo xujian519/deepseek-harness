@@ -15,7 +15,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionInput } from '@deepseek-ai/dsh-tools'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type {
@@ -27,6 +27,7 @@ import type {
 } from '@deepseek-ai/dsh-subprocess'
 import { createRenderPatentDocumentTool } from '@deepseek-ai/dsh-patent-document'
 import * as PatentRule from '@deepseek-ai/dsh-patent-rule'
+import { defineContentToolFixture, executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -132,7 +133,7 @@ async function mount(): Promise<Mounted> {
 }
 
 function execute(ctx: Context, name: string, args: Record<string, unknown>) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     name,
     callId: ToolCallId(`${name}-closure-call`),
     arguments: args,

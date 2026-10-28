@@ -10,6 +10,7 @@ import { BrowserUseExtractor, type ScriptRun } from '@deepseek-ai/dsh-browser-ba
 import type { Connector } from '../src/protocol/types.ts'
 import { ConnectorRegistry } from '../src/runtime/connector-registry.ts'
 import { createPaperDownloadTool } from '../src/tool/paper-download.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -67,7 +68,7 @@ async function executeTool(args: unknown, deps: ExecuteToolDeps) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   ctx.tools.register(createPaperDownloadTool(deps))
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: deps.callSignal ?? signal,
     callId: ToolCallId('pd-1'),
     name: 'paper_download',
@@ -540,7 +541,7 @@ describe('paper_download', () => {
         registry: registryWith({ extra: { pdf_url: 'https://pdf.example/x.pdf' } }),
         fetchImpl: failingFetch(403),
       }))
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal,
         callId: ToolCallId('pd-2'),
         name: 'paper_download',

@@ -140,7 +140,7 @@
     "tool-plugin-manager": {
       "cordis.patch.yml": "689227cb3b",
       "ptc.patch.yml": "d66d1ee2d1",
-      "standard.patch.yml": "296018e07d"
+      "standard.patch.yml": "1add527f8e"
     },
     "tool-plugin-market": {
       "cordis.patch.yml": "b3bef6e6d7",
@@ -180,12 +180,12 @@
       "standard.patch.yml": "d132cb2a6d"
     },
     "tool-subagent": {
-      "cordis.patch.yml": "cf47f743a7",
+      "cordis.patch.yml": "dcdca9149c",
       "document.patch.yml": "2a916d7eda",
       "legal.patch.yml": "2a916d7eda",
       "patent.patch.yml": "2a916d7eda",
-      "ptc.patch.yml": "cf47f743a7",
-      "standard.patch.yml": "cf47f743a7"
+      "ptc.patch.yml": "dcdca9149c",
+      "standard.patch.yml": "dcdca9149c"
     },
     "tool-subagent-control": {
       "cordis.patch.yml": "3d9b0c534b",
@@ -202,14 +202,6 @@
       "patent.patch.yml": "69e3fbf193",
       "ptc.patch.yml": "a0bca0cb97",
       "standard.patch.yml": "a0bca0cb97"
-    },
-    "tool-subagent-list-agents": {
-      "cordis.patch.yml": "9d73757b44",
-      "document.patch.yml": "a35e773c1d",
-      "legal.patch.yml": "a35e773c1d",
-      "patent.patch.yml": "a35e773c1d",
-      "ptc.patch.yml": "9d73757b44",
-      "standard.patch.yml": "9d73757b44"
     },
     "tool-todo": {
       "cordis.patch.yml": "b47093e288",
@@ -264,6 +256,7 @@
       "self-evolve",
       "self-evolve-benchmark",
       "tool-literature",
+      "tool-subagent-list-agents",
       "writing-patterns"
     ],
     "document.patch.yml": [
@@ -372,6 +365,7 @@
       "self-evolve",
       "self-evolve-benchmark",
       "tool-literature",
+      "tool-subagent-list-agents",
       "writing-patterns"
     ],
     "standard.patch.yml": [
@@ -392,6 +386,7 @@
       "self-evolve",
       "self-evolve-benchmark",
       "tool-literature",
+      "tool-subagent-list-agents",
       "writing-patterns"
     ]
   }

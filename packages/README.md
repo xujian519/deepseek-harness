@@ -85,7 +85,7 @@ New packages join existing groups, and a new group updates its own README and th
 | [`client/`](client/README.md) | Web-GUI browser half: shell, wire, object services, slots, `ui-*` plugins |
 | [`desktop/`](desktop/README.md) | Desktop OS integration: Service Definition + Electron shell provider + sandboxed directory-picker bridge + CLI-backed macOS native tools |
 | [`test-support/`](test-support/README.md) | Test infrastructure (testkits, replay, Loader smokes) |
-| [`util/`](util/README.md) | Low-level shared utilities (`Branded<B>`, home/path helpers, timeout, retention); runtime dependencies only where a primitive needs one (`zod`, `undici`, `dsh-util-values`) |
+| [`util/`](util/README.md) | Low-level shared utilities and package lists (`Branded<B>`, home/path helpers, timeout, retention, official bundle lists); runtime dependencies only where needed (`zod`, `undici`, `dsh-util-values`) |
 
 -----
 
