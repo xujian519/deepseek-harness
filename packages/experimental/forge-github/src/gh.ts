@@ -77,7 +77,9 @@ export function ghRunner(config: GhConfig): GhRunner {
       if (pid === undefined) return
       try {
         if (detached) process.kill(-pid, 'SIGKILL')
+        /* v8 ignore start -- Windows has no process groups, and its lane never runs this coverage gate. */
         else subprocess.kill('SIGKILL')
+        /* v8 ignore stop */
       } catch {
         // The process already exited; its group is gone.
       }

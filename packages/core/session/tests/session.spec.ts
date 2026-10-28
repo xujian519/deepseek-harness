@@ -1586,6 +1586,22 @@ describe('SessionStore', () => {
     expect(events.at(-1)?.type).toBe('user/message')
   })
 
+  it('removes a session whose creation listener detached before a later listener threw', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const disposed: string[] = []
+    ctx.on('session/disposed', (session) => { disposed.push(session.id) })
+    const session = ctx.sessions.prepare(SessionId('detach-then-throw'))
+    const detach = ctx.sessions.enter(session)
+    ctx.on('session/created', () => { detach() })
+    ctx.on('session/created', () => { throw new Error('boom after detach') })
+
+    // The failed announcement must still honor the removal the first listener requested.
+    expect(() => { ctx.sessions.announce(session) }).toThrow('boom after detach')
+    expect(ctx.sessions.get(session.id)).toBeUndefined()
+    expect(disposed).toEqual(['detach-then-throw'])
+  })
+
   it('contains session/event observer failures after the append commit point', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)

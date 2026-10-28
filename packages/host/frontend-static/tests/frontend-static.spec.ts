@@ -303,3 +303,37 @@ describe('real Loader composition', () => {
     expect([index.status, index.headers.get('cache-control'), index.headers.get('etag')]).toEqual([200, null, null])
   })
 })
+
+describe('index authorization', () => {
+  /** The fallback seat the plugin claims, standing in for the webserver's registration. */
+  type FallbackSeat = { resource(request: Request): Promise<Response> }
+
+  it('captures a refusal whose writeHead carries no headers', async () => {
+    root = await mkdtemp(join(tmpdir(), 'dsh-frontend-static-unit-'))
+    const distIndex = join(root, 'index.html')
+    await writeFile(distIndex, '<body>shell</body>')
+    let fallback: FallbackSeat | undefined
+    context = new Context()
+    context.provide('webServer', {
+      registerFallback(seat: FallbackSeat) {
+        fallback = seat
+        return () => {}
+      },
+      renderIndex: (html: string) => html,
+    } as never)
+    context.provide('connection', {
+      browserPeer: {},
+      // The protocol makes headers optional; a refusal may answer with a status alone.
+      authorizeIndex(_request: unknown, response: { writeHead(status: number): void }) {
+        response.writeHead(401)
+        return false
+      },
+    } as never)
+    await context.plugin(FrontendStatic, { distIndex })
+
+    if (fallback === undefined) throw new Error('frontend-static test: the plugin claimed no fallback seat')
+    const refusal = await fallback.resource(new Request('http://dsh.invalid/'))
+
+    expect([refusal.status, refusal.headers.get('content-type'), await refusal.text()]).toEqual([401, null, ''])
+  })
+})
