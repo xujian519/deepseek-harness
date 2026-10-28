@@ -8,6 +8,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as methodology from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 vi.mock('../src/data.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/data.ts')>()
@@ -25,7 +26,7 @@ function text(result: { content: { type: string; text?: string }[] }): string {
 }
 
 function execute(host: Context, name: string, args: unknown, callLabel: string) {
-  return host.tools.execute({ signal: testToolSignal, callId: ToolCallId(callLabel), name, arguments: args })
+  return executeToolFixture(host, { signal: testToolSignal, callId: ToolCallId(callLabel), name, arguments: args })
 }
 
 async function setupPlugin(config: Record<string, unknown> = {}): Promise<Context> {

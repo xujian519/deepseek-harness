@@ -131,13 +131,16 @@ async function prepareListing(
   const projections = ctx.get('sessionProjections')
   // Checked before any read, even with zero candidates: mode/label are the
   // row's strong contract, so a missing fold capability is a deterministic
-  // deployment configuration error, never an empty success.
+  // deployment configuration error, never an empty success. SubagentRuntime
+  // injects the registry, so this guard only answers a reconfiguration.
+  /* v8 ignore start -- SubagentRuntime injects the registry before this service mounts. */
   if (projections === undefined) {
     throw new SubagentError(
       'listing subagents requires the sessionProjections registry (load @deepseek-ai/dsh-session-projection)',
       'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE',
     )
   }
+  /* v8 ignore stop */
   // Strict global read, never the `ctx.sessions` property proxy: the proxy is
   // caller-scope bound, so a consumer plugin without its own `sessions`
   // injection (the model-facing tool, the API proxy) would throw on access.

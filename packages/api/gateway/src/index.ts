@@ -16,8 +16,8 @@ import { callResources, eventResources } from './access.ts'
 import { Deque } from '@deepseek-ai/dsh-deque'
 import type { WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
 import type {} from '@deepseek-ai/dsh-cmdline'
-import { assertResolvedConfig, isPlainObject } from '@deepseek-ai/dsh-value'
 import z from '@deepseek-ai/schemastery'
 export type { TypertGatewayFaultDetails } from './remote-error-codes.ts'
 import {
@@ -37,6 +37,7 @@ import {
 } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   InvokeRemoteRequest,
+  PendingRemoteEventInfo,
   TypertGateway,
   TypertGatewayErrorCode,
   TypertGatewayWireStream,
@@ -71,6 +72,7 @@ import {
 
 export type {
   InvokeRemoteRequest,
+  PendingRemoteEventInfo,
   TypertGateway,
   TypertGatewayErrorCode,
   TypertGatewayWireStream,
@@ -159,6 +161,8 @@ export interface Config {
   readonly websocketHeartbeatIntervalMs?: number
   /** Buffered uplink frame bytes one logical stream may hold before it fails with `gateway/uplink-overflow`. @default 262144 */
   readonly streamInboxBytes?: number
+  /** Per-message compression for the Remote stream WebSocket; `'none'` disables the extension. @default 'deflate' */
+  readonly websocketCompression?: 'none' | 'deflate'
 }
 
 /**
@@ -208,6 +212,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     websocketHeartbeatIntervalMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS)
       .default(DEFAULT_WEBSOCKET_HEARTBEAT_INTERVAL_MS),
     streamInboxBytes: z.number().step(1).min(1).default(DEFAULT_STREAM_INBOX_BYTES),
+    websocketCompression: z.union([z.const('none'), z.const('deflate')]).default('deflate'),
   })
 
   /** Carrier adapter shared by the WebSocket mux and local Host transports. */
@@ -248,8 +253,11 @@ export class TypertGatewayService extends Service implements TypertGateway {
           (endpoint, payload, uplink, peer, control, window) =>
             this.openWireStream(endpoint, payload, uplink, peer, control.signal, control, window),
           this.wireStream.failure,
-          resolved.websocketHeartbeatIntervalMs,
-          resolved.streamInboxBytes,
+          {
+            heartbeatIntervalMs: resolved.websocketHeartbeatIntervalMs,
+            streamInboxBytes: resolved.streamInboxBytes,
+            compression: resolved.websocketCompression === 'deflate',
+          },
         )
         const releases = new Set<Promise<void>>()
         webCtx.effect(function* () {
@@ -323,6 +331,14 @@ export class TypertGatewayService extends Service implements TypertGateway {
   }
 
   /**
+   * Inspect unsettled forwarded events without changing their lifetime.
+   * @returns detached event names and Agent identities.
+   */
+  getPendingRemoteEvents(): readonly PendingRemoteEventInfo[] {
+    return [...this.pendingRemoteEvents.values()].map(({ frame }) => ({ event: frame.event, agentId: frame.agentId }))
+  }
+
+  /**
    * Register the sole application-selected forwarded-event source.
    * @param source - stream factory installed by the Remote assembly.
    * @param host - stable Host facts included in each Client generation's opening frame.
@@ -366,6 +382,18 @@ export class TypertGatewayService extends Service implements TypertGateway {
   }
 
   /**
+   * The `resources` readers of a method, read from the root Service's class
+   * metadata so a Context method's receiver is not resolved before access is
+   * decided; `undefined` when the Service is absent or the method declares none.
+   */
+  private resourceReaders(descriptor: InvocationDescriptor): RemoteMethodMarker['resources'] {
+    const receiver: unknown = this.ctx.get(descriptor.service)
+    if (!isObject(receiver)) return undefined
+    const member = descriptor.implementation ?? descriptor.method
+    return remoteMethods(originalOf(receiver)).find(marker => marker.method === member)?.resources
+  }
+
+  /**
    * Iterate each active Service's original receiver with its raw `typertRemote` value.
    * Consumers keep their own binding checks: the claim scan needs only an object exposing a
    * string namespace, while descriptor resolution validates the whole binding.
@@ -379,18 +407,6 @@ export class TypertGatewayService extends Service implements TypertGateway {
       const value: unknown = Reflect.get(original, 'typertRemote')
       yield { serviceKey, original, value }
     }
-  }
-
-  /**
-   * The `resources` readers of a method, read from the root Service's class
-   * metadata so a Context method's receiver is not resolved before access is
-   * decided; `undefined` when the Service is absent or the method declares none.
-   */
-  private resourceReaders(descriptor: InvocationDescriptor): RemoteMethodMarker['resources'] {
-    const receiver: unknown = this.ctx.get(descriptor.service)
-    if (!isObject(receiver)) return undefined
-    const member = descriptor.implementation ?? descriptor.method
-    return remoteMethods(originalOf(receiver)).find(marker => marker.method === member)?.resources
   }
 
   private collectSrcClaims(): ReadonlySet<string> {
@@ -1719,6 +1735,12 @@ function assertJsonValue(value: unknown, ancestors: Set<object>): void {
   } finally {
     ancestors.delete(value)
   }
+}
+
+function isPlainObject(value: object): value is Record<string, unknown> {
+  if (Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value) as object | null
+  return prototype === null || prototype === Object.prototype
 }
 
 function isObject(value: unknown): value is object {

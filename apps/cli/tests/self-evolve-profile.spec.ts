@@ -21,6 +21,7 @@ import {
 } from '@deepseek-ai/dsh-app-boot'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import * as toolSelfEvolve from '@deepseek-ai/dsh-tool-self-evolve'
 
 const TOOL_ROW_ID = 'tool-self-evolve'
@@ -98,6 +99,7 @@ describe('the shipped self-evolve profile', () => {
     ctx.provide('agents', { get: () => undefined } as never)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
     await ctx.plugin(toolSelfEvolve)
     // The registry the model reads: both tools resolve in the global view, and
     // the prompt section that advertises them is assembled too.

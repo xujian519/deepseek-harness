@@ -11,6 +11,7 @@ import { apply, assertLegalLawIndexReadable, LegalLawBaselineError, type Config 
 import { createLegalLawIndex } from '../src/baseline.ts'
 import { createLegalLawVerifyTool, type LegalLawVerifyOutput } from '../src/tool/law-verify.ts'
 import type { LegalCitationPolicySet, LegalLawBaseline, LegalLawName } from '../src/types.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const tempDirs: string[] = []
 function tempDir(): string {
@@ -86,7 +87,7 @@ async function host(): Promise<Context> {
 }
 
 function execute(ctx: Context, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('legal-law-plugin'),
     name: 'legal_law_verify',

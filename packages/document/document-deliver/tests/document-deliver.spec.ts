@@ -27,6 +27,7 @@ import {
   type DeliverableCheckReport,
 } from '../src/tool.ts'
 import { DEFAULT_LENGTH_TOLERANCE, DEFAULT_MAX_FINDINGS_PER_CHECK } from '../src/checks.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 const exec = { signal } as unknown as ToolRunContext
@@ -100,7 +101,7 @@ async function mounted(config: plugin.Config = {}): Promise<Context> {
 }
 
 async function run(ctx: Context, args: unknown): Promise<{ isError: boolean; content: string }> {
-  const result = await ctx.tools.execute({
+  const result = await executeToolFixture(ctx, {
     signal,
     callId: ToolCallId('d-1'),
     name: 'document_deliver',

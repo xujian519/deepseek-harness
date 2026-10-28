@@ -8,7 +8,7 @@ import type { AssistantMetricDetail } from './trajectory-record.ts'
 import { formatElapsedSeconds } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
-import type { TableRecord, TrajectoryRequestNumber } from '../types.ts'
+import type { TableRecord, TrajectoryRequestNumber } from './trajectory-types.ts'
 
 export function formatDurationMs(milliseconds: number, t: TrajectoryTranslate): string {
   if (milliseconds < 1_000) return t('unit.milliseconds', { value: Math.round(milliseconds) })

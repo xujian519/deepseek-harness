@@ -15,7 +15,7 @@ Issue #86 asks that the oversized files under `packages/` be split. Its inventor
 | `packages/typert/generator/src/analyzer.ts` | 1253 | The package analyzer over the extracted type graph and Remote/RPC analyzer | yes — both slices landed |
 | `packages/experimental/code-runtime-python/src/index.ts` | 364 | The plugin: registration, binding validation, staging | yes — both slices landed |
 | `packages/core/session/src/index.ts` | 488 | The store: publication protocol, lifecycle, and fork path | yes |
-| `packages/core/tools/src/ptc.ts` | 372 | One tool factory over the extracted dispatch lane | yes |
+| `packages/core/tool-executor-ptc/src/ptc.ts` | 372 | One tool factory over the extracted dispatch lane | yes |
 | `packages/acp/acp/src/index.ts` | 503 | One 341-line `apply` | yes |
 | `packages/client/better-sidebar/src/client/state.ts` | 1900 | Clone center | no |
 | `packages/client/better-sidebar/src/client/Sidebar.tsx` | 1775 | Clone center | no |

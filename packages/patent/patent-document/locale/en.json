@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Patent document rendering",
+    "description": "Resolves templates and renders patent PDFs through headless Chrome."
+  }
+}

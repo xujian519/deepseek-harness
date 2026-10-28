@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Patent rule engine",
+    "description": "Evaluates YAML compliance rule packs and gates patent output."
+  }
+}

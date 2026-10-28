@@ -24,6 +24,7 @@ import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
 import { findDot } from '@deepseek-ai/dsh-patent-tools'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import * as ToolJobs from '@deepseek-ai/dsh-tool-jobs'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 let root: string | undefined
 let context: Context | undefined
@@ -123,7 +124,7 @@ describe('patent-tools real Loader composition', () => {
     const notes = join(await mkdtemp(join(tmpdir(), 'dsh-patent-tools-notes-')), '99-知识库')
     try {
       const ctx = await boot(notes)
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal: new AbortController().signal,
         callId: ToolCallId('loader-note-1'),
         name: 'knowledge_note_save',
@@ -147,7 +148,7 @@ describe('patent-tools real Loader composition', () => {
         '    figureOutputDir: ' + JSON.stringify(figures),
         '    figureIndexFile: ' + JSON.stringify(join(notes, 'figures-index.json')),
       ])
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal: new AbortController().signal,
         callId: ToolCallId('loader-figure-1'),
         name: 'generate_patent_figure',
@@ -172,7 +173,7 @@ describe('patent-tools real Loader composition', () => {
         '    figureOutputDir: ' + JSON.stringify(figures),
         '    figureIndexFile: ' + JSON.stringify(join(notes, 'figures-index.json')),
       ])
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal: new AbortController().signal,
         callId: ToolCallId('loader-outline-1'),
         name: 'generate_patent_figure',
@@ -209,7 +210,7 @@ describe('patent-tools real Loader composition', () => {
       // The model tools the run's consumer needs are part of the same composition.
       expect(ctx.tools.schemas().map(schema => schema.name)).toContain('job_list')
 
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal: new AbortController().signal,
         callId: ToolCallId('loader-background-1'),
         name: 'patent_workflow_run',
@@ -240,7 +241,7 @@ describe('patent-tools real Loader composition', () => {
       // The tool is registered by the real apply(); executing with an invalid
       // patent list fails at the tool's own validation regardless of whether the
       // host has ego-browser installed, proving the adapter wiring is live.
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal: new AbortController().signal,
         callId: ToolCallId('loader-pdf-1'),
         name: 'patent_pdf_download',

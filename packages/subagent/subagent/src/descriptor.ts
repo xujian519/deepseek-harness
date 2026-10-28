@@ -28,7 +28,7 @@ import type { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 // subpath re-exports its snapshot function) off the host Context
 // augmentations, which would otherwise enter the client program and flip
 // Context['sessions'] to the host SessionStore face.
-import type { ToolRestriction } from '@deepseek-ai/dsh-tools/types'
+import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 import { isRecord } from '@deepseek-ai/dsh-value'
 
 declare module '@deepseek-ai/dsh-session/types' {

@@ -14,6 +14,7 @@ import {
   watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { newEnglishPage, saveFailureShot } from './support.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v3.jsonl', import.meta.url))
 const EXPECTED_DIR = fileURLToPath(new URL('./expected/jobs-menu-layering', import.meta.url))
@@ -116,7 +117,7 @@ describe.skipIf(MODE === 'record')('web e2e: jobs menu layering', () => {
     const opened = scaffold.ctx.agents.get(SEED_ID)
     if (opened === undefined) throw new Error('opened session has no live Agent')
     agent = opened
-    const started = await scaffold.ctx.tools.execute({
+    const started = await executeToolFixture(scaffold.ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('jobs-menu-layering-e2e'),
       name: 'bash',

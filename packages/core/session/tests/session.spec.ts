@@ -1551,9 +1551,9 @@ describe('SessionStore', () => {
 
     await fiber.dispose()
     expect(ctx.sessions.get(SessionId('scoped'))).toBeUndefined()
-    session.append('user/message', createUserMessage({
+    expect(() => session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'late' }], source: { kind: 'user' },
-    }), { surfaceOp: 'append' })
+    }), { surfaceOp: 'append' })).toThrow('cannot append outside a SessionStore')
     expect(observed).toBe(0)
   })
 
@@ -1584,6 +1584,22 @@ describe('SessionStore', () => {
       content: [{ type: 'text', text: 'hi' }], source: { kind: 'user' },
     }), { surfaceOp: 'append' })
     expect(events.at(-1)?.type).toBe('user/message')
+  })
+
+  it('removes a session whose creation listener detached before a later listener threw', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const disposed: string[] = []
+    ctx.on('session/disposed', (session) => { disposed.push(session.id) })
+    const session = ctx.sessions.prepare(SessionId('detach-then-throw'))
+    const detach = ctx.sessions.enter(session)
+    ctx.on('session/created', () => { detach() })
+    ctx.on('session/created', () => { throw new Error('boom after detach') })
+
+    // The failed announcement must still honor the removal the first listener requested.
+    expect(() => { ctx.sessions.announce(session) }).toThrow('boom after detach')
+    expect(ctx.sessions.get(session.id)).toBeUndefined()
+    expect(disposed).toEqual(['detach-then-throw'])
   })
 
   it('contains session/event observer failures after the append commit point', async () => {
@@ -1801,6 +1817,9 @@ describe('SessionStore', () => {
     const detachUnannounced = ctx.sessions.enter(unannounced)
     detachUnannounced()
     expect(heard).toEqual([])
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(warnings).toEqual([])
 
     const announced = ctx.sessions.prepare(SessionId('contained-disposal'))
     const detach = ctx.sessions.enter(announced)

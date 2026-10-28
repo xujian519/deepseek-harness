@@ -9,6 +9,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { LawSearchResult } from '@deepseek-ai/dsh-patent-knowledge'
 import { createLawSearchTool } from '../src/tool/law-search.ts'
 import type { LawSearchDeps } from '../src/tool/law-search.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -50,7 +51,7 @@ async function ctxWith(deps: LawSearchDeps): Promise<Context> {
 }
 
 function call(ctx: Context, args: Record<string, unknown>, label = 'law') {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name: 'law_search', arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name: 'law_search', arguments: args })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {

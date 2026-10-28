@@ -6,13 +6,13 @@ English | [中文](2026-09-15-ptc-dispatch-pool-extraction.zh.md)
 
 ## Problem
 
-`packages/core/tools/src/ptc.ts` was 492 lines, and 320 of them were `createRunCodeTool`'s `execute`. Most of that body scheduled rather than dispatched: the `PendingDispatch` interface, two queues with three bookkeeping collections, the one driver pass, the settlement drain, and the backpressure wait — 116 lines whose subject is when a sub-dispatch starts and commits, not what one is.
+`packages/core/tool-executor-ptc/src/ptc.ts` was 492 lines, and 320 of them were `createRunCodeTool`'s `execute`. Most of that body scheduled rather than dispatched: the `PendingDispatch` interface, two queues with three bookkeeping collections, the one driver pass, the settlement drain, and the backpressure wait — 116 lines whose subject is when a sub-dispatch starts and commits, not what one is.
 
 [The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) holds this cut in batch 3, the batch whose cuts sit on semantics and must each show what they preserve. It names the four behaviors at stake: the ordered commit lane, the exclusive barrier, backpressure, and the wakeup-order defense.
 
 ## Decision
 
-`packages/core/tools/src/ptc-dispatch-pool.ts` (176 lines) exports `class DispatchPool`; `packages/core/tools/src/ptc.ts` is 372 lines.
+`packages/core/tool-executor-ptc/src/ptc.ts` (176 lines) exports `class DispatchPool`; `packages/core/tool-executor-ptc/src/ptc.ts` is 372 lines.
 
 | Moved | Form in the new module |
 | --- | --- |
@@ -82,4 +82,4 @@ The settle-event side work moves from a transport-local set into `pool.track(wor
 - [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's second landed cut)
 - [Extracting the session's incremental folds](2026-09-14-session-folds-extraction.md) (batch 3's first landed cut)
 - [Extracting the `acp`/`ptc` clusters](2026-09-14-acp-ptc-cluster-extraction.md) (batch 1's cut of this file: the static spec, the flavor table, and the JSON presentation)
-- `packages/core/tools/src/ptc-dispatch-pool.ts`, `packages/core/tools/tests/ptc-dispatch-pool.spec.ts`
+- `packages/core/tool-executor-ptc/src/ptc.ts`, `packages/core/tool-executor-ptc/tests/ptc.spec.ts`

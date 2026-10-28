@@ -9,6 +9,7 @@ import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
@@ -16,6 +17,7 @@ import * as macosTools from '../src/index.ts'
 import { createExecFileRunner, type CliRunOptions, type CliRunner } from '../src/runner.ts'
 import { createMacosTools, createStatPathCheck, type MacosLimits } from '../src/tools.ts'
 import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 const contexts: Context[] = []
@@ -68,6 +70,7 @@ function stubAgent(ctx: Context, id: string): Agent {
     options: {},
     session,
     inbox: unsupportedInbox(),
+    model: { current: () => undefined, select: () => {} },
     status: 'idle',
     ctx: new Context(),
     send(_message: UserMessage, _target: InboxTarget, _wakeup: boolean) {},
@@ -103,6 +106,7 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
   const ctx = new Context()
   contexts.push(ctx)
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
@@ -131,8 +135,8 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
 
   const execute = (name: string, args: unknown, execOptions: { agentless?: boolean } = {}) =>
     execOptions.agentless === true
-      ? ctx.tools.execute({ signal, callId: ToolCallId(`call-${Math.random()}`), name, arguments: args })
-      : ctx.agents.withInitiator(agent, () => ctx.tools.execute({
+      ? executeToolFixture(ctx, { signal, callId: ToolCallId(`call-${Math.random()}`), name, arguments: args })
+      : ctx.agents.withInitiator(agent, () => executeToolFixture(ctx, {
         signal,
         callId: ToolCallId(`call-${Math.random()}`),
         name,

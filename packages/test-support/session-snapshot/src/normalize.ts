@@ -106,6 +106,12 @@ export interface NormalizeOptions {
   cwdPathMode?: CwdPathMode
   /** Keep already-redacted typed ids and arbitrary UUID-like prose unchanged. */
   identityMode?: 'legacy' | 'preserve'
+  /**
+   * Job-id tokens already derived from the complete log. A single-record
+   * comparison cannot derive them itself, so refresh passes the log-wide map to
+   * keep its normalization equal to the whole-log comparison.
+   */
+  jobIdTokens?: ReadonlyMap<string, string>
 }
 
 /** Comparison controls for complete primary and child Session logs. */
@@ -332,6 +338,30 @@ export function normalizeStdout(
 }
 
 /**
+ * Map a session log's job ids to their stable `{{id:N}}` tokens in first-seen order.
+ * Tokens the log already carries are reserved so derived ordinals cannot collide.
+ * @param rawLog The session JSONL content.
+ * @returns Job id to token; empty when the log has no job records.
+ */
+export function sessionJobIdTokens(rawLog: string): Map<string, string> {
+  const jobTokens = new Map<string, string>()
+  const reservedTokens = new Set(rawLog.match(/\{\{id:[1-9]\d*\}\}/g) ?? [])
+  let nextJobToken = 1
+  for (const line of rawLog.split('\n')) {
+    if (line.trim().length === 0) continue
+    const record = JSON.parse(line) as Record<string, unknown>
+    if ((record.type !== 'job/registered' && record.type !== 'job/settled')
+      || record.data === null || typeof record.data !== 'object') continue
+    const id = (record.data as Record<string, unknown>).jobId
+    if (typeof id !== 'string' || (id.search(UUID_RE) < 0 && !SHORT_JOB_ID_RE.test(id)) || jobTokens.has(id)) continue
+    let token: string
+    do { token = `{{id:${nextJobToken++}}}` } while (reservedTokens.has(token))
+    jobTokens.set(id, token)
+  }
+  return jobTokens
+}
+
+/**
  * Normalize a session JSONL log into a stable expected output: the header line's
  * volatile fields (`createdAt`, `id`, `cwd`) are zeroed/scrubbed; event,
  * historical packed-row, embedded Assistant-stream, goal lifecycle, and
@@ -356,20 +386,9 @@ export function normalizeSessionLog(
   const identityMode = options.identityMode ?? 'legacy'
   const lines = rawLog.split('\n').filter(line => line.trim().length > 0)
   const parsed = lines.map(line => JSON.parse(line) as Record<string, unknown>)
-  const jobTokens = new Map<string, string>()
-  const reservedTokens = new Set(rawLog.match(/\{\{id:[1-9]\d*\}\}/g) ?? [])
-  let nextJobToken = 1
-  if (identityMode === 'legacy') {
-    for (const record of parsed) {
-      if ((record.type !== 'job/registered' && record.type !== 'job/settled')
-        || record.data === null || typeof record.data !== 'object') continue
-      const id = (record.data as Record<string, unknown>).jobId
-      if (typeof id !== 'string' || (id.search(UUID_RE) < 0 && !SHORT_JOB_ID_RE.test(id)) || jobTokens.has(id)) continue
-      let token: string
-      do { token = `{{id:${nextJobToken++}}}` } while (reservedTokens.has(token))
-      jobTokens.set(id, token)
-    }
-  }
+  const jobTokens = identityMode === 'legacy'
+    ? new Map(options.jobIdTokens ?? sessionJobIdTokens(rawLog))
+    : new Map<string, string>()
   const replaceJobs = (value: unknown): unknown => {
     if (typeof value === 'string') {
       let output = value

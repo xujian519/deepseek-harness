@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { apply, Config, inject, name } from '../src/index.ts'
 import { readTeam } from '../src/state.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 let context: Context | undefined
 const roots: string[] = []
@@ -42,6 +43,7 @@ function fakeCaptain(id: string, cwd: string): Agent {
   const agent: Agent = {
     id: SessionId(id),
     session,
+    model: { current: () => undefined, select: () => {} },
     options: { provider: 'spawn', model: 'deepseek-v4' },
     status: 'idle',
     ctx: new Context(),
@@ -91,7 +93,7 @@ async function mount(): Promise<Context> {
 }
 
 function call(ctx: Context, agent: Agent, tool: string, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId(`call-${++callSeq}`),
     name: tool,

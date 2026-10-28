@@ -9,8 +9,8 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TrajectorySourceBlock } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
-import type { TableRecord } from '../types.ts'
-import { jsonTreeLabels, markdownLabels } from '../types.ts'
+import type { TableRecord } from './trajectory-types.ts'
+import { jsonTreeLabels, markdownLabels } from './trajectory-types.ts'
 
 export function RequestOptions({
   options,

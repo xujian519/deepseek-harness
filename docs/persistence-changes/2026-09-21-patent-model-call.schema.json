@@ -1,127 +1,16 @@
 {
   "formatVersion": 1,
   "roots": [
-    {
-      "key": "event:patent/model-call",
-      "kind": "event",
-      "event": "patent/model-call",
-      "surface": false,
-      "digest": "9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 4,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 6,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "callSequence",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "callSite",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "llmStreamCall",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "manifestId",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "model",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "output",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "usage",
-                "type": 5,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "inputTokens",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "outputTokens",
-                "type": 2,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "patent/model-call"
-          }
-        ]
-      }
-    }
+    {"key":"event:patent/model-call","kind":"event","event":"patent/model-call","surface":false,"digest":"9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0"}
   ],
-  "types": []
+  "types": [],
+  "nodes": {
+    "0657d3ca5ac4e7bf": {"kind":"primitive","type":"number"},
+    "4cd48f3e5108bd6e": {"kind":"primitive","type":"string"},
+    "598d1d2f53c11941": {"kind":"object","properties":[{"name":"callSequence","type":"0657d3ca5ac4e7bf","optional":true},{"name":"callSite","type":"4cd48f3e5108bd6e","optional":false},{"name":"llmStreamCall","type":"dacf3d5f3e4ff619","optional":false},{"name":"manifestId","type":"4cd48f3e5108bd6e","optional":true},{"name":"model","type":"4cd48f3e5108bd6e","optional":true},{"name":"output","type":"4cd48f3e5108bd6e","optional":false},{"name":"provider","type":"4cd48f3e5108bd6e","optional":true},{"name":"usage","type":"aec56c91a0f50f29","optional":true}],"indices":[]},
+    "9f02fcbc7e776511": {"kind":"object","properties":[{"name":"data","type":"598d1d2f53c11941","optional":false},{"name":"ignorable","type":"dacf3d5f3e4ff619","optional":true},{"name":"seq","type":"0657d3ca5ac4e7bf","optional":false},{"name":"time","type":"0657d3ca5ac4e7bf","optional":false},{"name":"type","type":"ae8f246e9a4be18f","optional":false}],"indices":[]},
+    "ae8f246e9a4be18f": {"kind":"literal","value":"patent/model-call"},
+    "aec56c91a0f50f29": {"kind":"object","properties":[{"name":"inputTokens","type":"0657d3ca5ac4e7bf","optional":true},{"name":"outputTokens","type":"0657d3ca5ac4e7bf","optional":true}],"indices":[]},
+    "dacf3d5f3e4ff619": {"kind":"literal","value":true}
+  }
 }

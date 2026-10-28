@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "文献検索",
+    "description": "arXiv、OpenAlex、Semantic Scholar、Crossref を検索します。"
+  }
+}

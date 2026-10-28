@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Patent filing documents",
+    "description": "Assembles a CNIPA application into DOCX from the shipped template and checks the result."
+  }
+}

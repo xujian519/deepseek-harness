@@ -1798,10 +1798,10 @@ describe('constructor lifecycle listeners', () => {
     new BasicSelfEvolveEngine(ctx, baseConfig({ maxStepReflectionsPerTurn: 0 }))
     let calls = 0
     ctx.emit('agent/pre-step', {
-      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: { aborted: true } as AbortSignal,
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, modelSelection: { provider: 'mock', model: 'mock' }, signal: { aborted: true } as AbortSignal,
     }, async () => { calls += 1; return { kind: 'reject' } })
     ctx.emit('agent/pre-step', {
-      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, modelSelection: { provider: 'mock', model: 'mock' }, signal: new AbortController().signal,
     }, async () => { calls += 1; return { kind: 'reject' } })
     expect(calls).toBe(2)
   })
@@ -1817,7 +1817,7 @@ describe('constructor lifecycle listeners', () => {
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'x' }))
     let nextCalled = false
     ctx.emit('agent/pre-step', {
-      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, modelSelection: { provider: 'mock', model: 'mock' }, signal: new AbortController().signal,
     }, async () => { nextCalled = true; return { kind: 'reject' } })
     await vi.waitFor(() => { expect(nextCalled).toBe(true) })
   })
@@ -1832,7 +1832,7 @@ describe('constructor lifecycle listeners', () => {
     let nextCalled = false
     // A broken agent object makes maybeReflect throw before any session work.
     ctx.emit('agent/pre-step', {
-      agent: null as never, messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+      agent: null as never, messages: [], turn: 1, step: 1, modelSelection: { provider: 'mock', model: 'mock' }, signal: new AbortController().signal,
     }, async () => { nextCalled = true; return { kind: 'reject' } })
     await vi.waitFor(() => { expect(nextCalled).toBe(true) })
   })
@@ -1848,7 +1848,7 @@ describe('constructor lifecycle listeners', () => {
     ctx.provide('llm', { stream: async function* () { throw 'llm-boom' } } as never)
     let nextCalled = false
     ctx.emit('agent/pre-step', {
-      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, modelSelection: { provider: 'mock', model: 'mock' }, signal: new AbortController().signal,
     }, async () => { nextCalled = true; return { kind: 'reject' } })
     await vi.waitFor(() => { expect(nextCalled).toBe(true) })
   })

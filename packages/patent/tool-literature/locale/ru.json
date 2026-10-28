@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Поиск литературы",
+    "description": "Ищет в arXiv, OpenAlex, Semantic Scholar и Crossref."
+  }
+}

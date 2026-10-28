@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import {
   EVIDENCE_COMPLIANCE_TOOL,
@@ -13,6 +13,7 @@ import {
   evi011GuardConditionFields,
   patentAssetDir,
 } from '@deepseek-ai/dsh-patent-rule'
+import { defineContentToolFixture, executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -105,7 +106,7 @@ describe('EVI-011 evidence-compliance guards', () => {
     }
     ctx.on('tools/pre-execute', () => Promise.resolve({ kind: 'allow' as const }), { prepend: true })
 
-    const result = await ctx.tools.execute(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'overseas', notarized: false, legalized: false }))
+    const result = await executeToolFixture(ctx, exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'overseas', notarized: false, legalized: false }))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/EVI-011-notarization/)
   })

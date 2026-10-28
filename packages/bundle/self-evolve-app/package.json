@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-self-evolve-app",
   "description": "The dsh self-evolve opt-in bundle: the self-evolve capability seam, provider, and tools as a profile patch layer",
-  "version": "0.2.1-rc.3",
+  "version": "0.2.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -20,9 +20,11 @@
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./src/*": "./src/*",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
+    "locale/*.json",
     "lib/index.js",
     "cordis.patch.yml",
     "lib/types/**/*.d.ts"

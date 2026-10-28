@@ -13,6 +13,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as PatentDeadline from '@deepseek-ai/dsh-patent-deadline'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 let root: string | undefined
 let context: Context | undefined
@@ -62,7 +63,7 @@ describe('patent-deadline real Loader composition through cordis.yml', () => {
     const ctx = await boot([])
     expect(ctx.tools.schemas().map(schema => schema.name)).toContain('patent_deadlines')
 
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('patent-deadlines'),
       name: 'patent_deadlines',
@@ -78,7 +79,7 @@ describe('patent-deadline real Loader composition through cordis.yml', () => {
 
   it('honours a configured warning horizon', async () => {
     const ctx = await boot(['    reminderLeadDays: 20000'])
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('patent-deadlines-lead'),
       name: 'patent_deadlines',

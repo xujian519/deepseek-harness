@@ -38,10 +38,12 @@
   line-height: 18px;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.filterChip:hover {
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
+
+  .filterChip:hover {
+    background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
+  }
 }
 
 /* The active chip and every card tag carry the tag's hue through --tag-hue;
@@ -140,11 +142,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.cardBadge:hover {
-  color: var(--dsw-alias-label-secondary);
-  text-decoration: underline;
+
+  .cardBadge:hover {
+    color: var(--dsw-alias-label-secondary);
+    text-decoration: underline;
+  }
 }
 
 .columnEmpty {

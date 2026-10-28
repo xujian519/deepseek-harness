@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Self-evolve policy",
+    "description": "Selects evolution work from idle pressure and session projections."
+  }
+}

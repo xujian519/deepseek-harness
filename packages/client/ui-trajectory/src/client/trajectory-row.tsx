@@ -15,7 +15,7 @@ import { RecordListText, RecordPresentation } from './trajectory-record-presenta
 import { KIND_ICON, KIND_LABEL_KEY } from './trajectory-kind.tsx'
 import type { SelectedRequest } from './trajectory-record-inspector.tsx'
 import type { TrajectoryTranslate } from './locales.ts'
-import type { TableRecord, TrajectoryRequestNumber } from '../types.ts'
+import type { TableRecord, TrajectoryRequestNumber } from './trajectory-types.ts'
 import css from './TrajectoryTable.module.css'
 
 type RequestBoundaryStyle = CSSProperties & {

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Desktop bridge",
+    "description": "Provides the Electron-main bridge for the desktop capability seam."
+  }
+}

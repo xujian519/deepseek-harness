@@ -11,6 +11,7 @@ import {
   renderPlanTask,
   type PatentPlanTaskOutput,
 } from '../src/tool/patent-plan-task.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 
@@ -135,7 +136,7 @@ describe('patent_plan_task', () => {
     await ctx.plugin(ToolRuntime)
     ctx.tools.register(createPatentPlanTaskTool())
     const signal = new AbortController().signal
-    const executing = await ctx.tools.execute({
+    const executing = await executeToolFixture(ctx, {
       signal,
       callId: ToolCallId('pt-1'),
       name: 'patent_plan_task',
@@ -145,7 +146,7 @@ describe('patent_plan_task', () => {
     if (executing.isError) throw new Error('expected success')
     expect(text(executing)).toContain('awaiting_approval → executing')
 
-    const replanning = await ctx.tools.execute({
+    const replanning = await executeToolFixture(ctx, {
       signal,
       callId: ToolCallId('pt-2'),
       name: 'patent_plan_task',
@@ -155,7 +156,7 @@ describe('patent_plan_task', () => {
     if (replanning.isError) throw new Error('expected success')
     expect(text(replanning)).toContain('awaiting_feedback → replanning')
 
-    const defaultFrom = await ctx.tools.execute({
+    const defaultFrom = await executeToolFixture(ctx, {
       signal,
       callId: ToolCallId('pt-3'),
       name: 'patent_plan_task',

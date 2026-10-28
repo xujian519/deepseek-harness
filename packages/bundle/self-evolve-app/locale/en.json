@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Self-evolve profile bundle",
+    "description": "Mounts the self-evolve capability seam, provider, and tools as a profile patch layer."
+  }
+}

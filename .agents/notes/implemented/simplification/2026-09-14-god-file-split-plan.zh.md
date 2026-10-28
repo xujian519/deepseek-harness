@@ -15,7 +15,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | `packages/typert/generator/src/analyzer.ts` | 1253 | 落在抽出的类型图与 Remote/RPC 分析器之上的包分析器 | 在——两刀均已落地 |
 | `packages/experimental/code-runtime-python/src/index.ts` | 364 | 插件本体：注册、binding 校验、脚本落盘 | 在——两半均已落地 |
 | `packages/core/session/src/index.ts` | 488 | store：发布协议、生命周期与 fork 路径 | 在 |
-| `packages/core/tools/src/ptc.ts` | 372 | 单个工具工厂，调度车道已抽出 | 在 |
+| `packages/core/tool-executor-ptc/src/ptc.ts` | 372 | 单个工具工厂，调度车道已抽出 | 在 |
 | `packages/acp/acp/src/index.ts` | 503 | 单个 341 行的 `apply` | 在 |
 | `packages/client/better-sidebar/src/client/state.ts` | 1900 | 克隆中心 | 不在 |
 | `packages/client/better-sidebar/src/client/Sidebar.tsx` | 1775 | 克隆中心 | 不在 |

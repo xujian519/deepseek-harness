@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Desktop-Brücke",
+    "description": "Stellt die Electron-Hauptprozess-Brücke für die Desktop-Fähigkeitsschnittstelle bereit."
+  }
+}

@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import { apply, Config, inject, name } from '../src/index.ts'
 import { recordRetiredMemberIds } from '../src/state.ts'
 import { PATENT_TEAMS_TOOL_NAMES } from '../src/tools.ts'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 
 let context: Context | undefined
 const roots: string[] = []
@@ -44,6 +45,7 @@ function fakeCaptain(id: string, cwd: string): Agent {
   const agent: Agent = {
     id: SessionId(id),
     session,
+    model: { current: () => undefined, select: () => {} },
     options: { provider: 'spawn', model: 'deepseek-v4' },
     status: 'idle',
     ctx: new Context(),
@@ -102,6 +104,7 @@ async function mount(options: MountOptions = {}): Promise<Context> {
   ctx.provide('subagents', makeSubagentsStub(options.children ?? []))
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   await ctx.plugin({
     name,
     inject,

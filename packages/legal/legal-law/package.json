@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-legal-law",
   "description": "Shipped Chinese legal-law index for the DeepSeek Harness: law-article reference parsing, a per-law index recording each entry's source and verification date, citation verification that never silently passes an unverified article, and the legal_law_verify tool",
-  "version": "0.2.1-rc.3",
+  "version": "0.2.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -19,9 +19,11 @@
       "default": "./lib/index.js"
     },
     "./src/*": "./src/*",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
+    "locale/*.json",
     "lib/index.js",
     "assets",
     "lib/types/**/*.d.ts"
@@ -37,7 +39,8 @@
     "@deepseek-ai/cordis": "workspace:~"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-tools": "workspace:*",
-    "@deepseek-ai/cordis": "workspace:~"
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-tool-testkit": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*"
   }
 }

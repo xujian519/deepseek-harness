@@ -16,6 +16,7 @@ import {
   writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -24,8 +25,8 @@ import type {
   RecordState,
   TableRecord,
   TrajectoryRequestNumber,
-} from '../types.ts'
-import { jsonTreeLabels, markdownLabels } from '../types.ts'
+} from './trajectory-types.ts'
+import { jsonTreeLabels, markdownLabels } from './trajectory-types.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import { formatElapsedSeconds, trajectoryRecordId } from './trajectory-record.ts'
 import { type CodeProgram, codeProgram } from './code-program.ts'
@@ -49,6 +50,7 @@ import { RequestUsagePanel, TokenRows, UsageRows } from './trajectory-usage-pane
 import { MarkdownRecordContent } from './trajectory-markdown-content.tsx'
 import { SystemPromptDiff, ToolCatalog } from './trajectory-prompt-diff.tsx'
 import { detailTabs, requestDetailTabs } from './trajectory-detail-tabs.ts'
+import type { WatchToolResult } from './watch-tool-result.ts'
 import type { DetailTabItem } from './trajectory-detail-tabs.ts'
 import { KIND_LABEL_KEY } from './trajectory-kind.tsx'
 import type { DetailsResizeHandlers } from './trajectory-resize-handle.ts'
@@ -61,6 +63,8 @@ export interface SelectedRequest {
 
 /** Props for the trajectory record inspector. */
 export interface RecordInspectorProps {
+  /** Observe the selected result while the Result tab is open. */
+  watchToolResult?: WatchToolResult | undefined
   /** Trajectory locale seat. */
   t: TrajectoryTranslate
   /** Slot-backed durable image renderer shared with the Chat gallery. */
@@ -302,15 +306,7 @@ function ProgramOutput({ record, stringWrapping, onOpen, t }: {
     </div>
   )
   return onOpen === undefined
-    ? (
-      <section className={css.programPanel}>
-        <header className={css.overviewHeading}>
-          <span>{t('code.output')}</span>
-          {actions}
-        </header>
-        {body}
-      </section>
-    )
+    ? body
     : <OverviewSection label={t('code.output')} onOpen={onOpen} actions={actions}>{body}</OverviewSection>
 }
 
@@ -322,6 +318,7 @@ function ProgramOutput({ record, stringWrapping, onOpen, t }: {
  * @returns The inspector aside, or null without a showable selection.
  */
 export function RecordInspector({
+  watchToolResult,
   t,
   renderSlot,
   loadImage,
@@ -354,6 +351,18 @@ export function RecordInspector({
   const promptSelected = selectedSystemPrompt !== undefined
   const selectedState = selected === undefined ? undefined : stateOf(selected)
   const selectedProgram = selected === undefined ? undefined : codeProgram(selected.cell)
+  const resultSeq = activeTab === 'output' ? selected?.cell.resultSeq : undefined
+  const [liveResult, setLiveResult] = useState<{ seq: number; owner: WatchToolResult; value: JsonValue | undefined }>()
+  useEffect(() => {
+    setLiveResult(undefined)
+    if (resultSeq === undefined || watchToolResult === undefined) return
+    let active = true
+    const dispose = watchToolResult(resultSeq, (value) => {
+      if (active) setLiveResult({ seq: resultSeq, owner: watchToolResult, value })
+    })
+    return () => { active = false; dispose() }
+  }, [resultSeq, watchToolResult])
+  const resultValue = liveResult?.seq === resultSeq && liveResult?.owner === watchToolResult ? liveResult?.value : undefined
   const selectedRequestInfo = selectedRequest === null
     ? undefined
     : sessionRequestNumbers?.find(request =>
@@ -535,7 +544,7 @@ export function RecordInspector({
         id="trajectory-detail-panel"
         className={activeTab === 'overview'
           ? `${css.detailBody} ${css.detailBodySummary}`
-          : selectedProgram !== undefined && (activeTab === 'input' || activeTab === 'output')
+          : selectedProgram !== undefined && activeTab === 'input'
             ? `${css.detailBody} ${css.detailBodyProgram}`
             : css.detailBody}
         role="tabpanel"
@@ -957,9 +966,30 @@ export function RecordInspector({
             )
         )}
         {!promptSelected && selected !== undefined && activeTab === 'output' && (
-          selectedProgram === undefined
-            ? <RecordPayload record={selected} direction="output" renderSlot={renderSlot} loadImage={loadImage} stringWrapping={stringWrapping} t={t} />
-            : <ProgramOutput record={selected} stringWrapping={stringWrapping} t={t} />
+          selected.cell.kind === 'tool' || selected.cell.kind === 'subtool'
+            ? <div className={css.resultSections}>
+              <section className={css.resultSection} aria-label={t('record.rawResult')}>
+                <header className={css.overviewHeading}>
+                  <h3 className={css.resultTitle}>{t('record.rawResult')}</h3>
+                </header>
+                {resultValue === undefined
+                  ? <p className={css.noPayload}>{t(stateOf(selected) === 'running' ? 'code.running' : 'record.rawResultUnavailable')}</p>
+                  : resultValue !== null && typeof resultValue === 'object'
+                    ? <JsonTree data={resultValue} label={t('record.resultJson')}
+                      labels={jsonTreeLabels(t)} stringWrapping={stringWrapping}
+                      collapsedStringLines={12} className={css.jsonPayload} />
+                    : <pre className={css.programOutput}>{JSON.stringify(resultValue)}</pre>}
+              </section>
+              <section className={css.resultSection} aria-label={t('record.renderedResult')}>
+                <header className={css.overviewHeading}>
+                  <h3 className={css.resultTitle}>{t('record.renderedResult')}</h3>
+                </header>
+                {selectedProgram === undefined
+                  ? <RecordPayload record={selected} direction="output" renderSlot={renderSlot} loadImage={loadImage} stringWrapping={stringWrapping} t={t} />
+                  : <ProgramOutput record={selected} stringWrapping={stringWrapping} t={t} />}
+              </section>
+            </div>
+            : <RecordPayload record={selected} direction="output" renderSlot={renderSlot} loadImage={loadImage} stringWrapping={stringWrapping} t={t} />
         )}
         {!promptSelected && selected !== undefined && activeTab === 'schema' && (
           <RecordSchema record={selected} stringWrapping={stringWrapping} t={t} />

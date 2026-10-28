@@ -20,12 +20,13 @@ import css from './TrajectoryTable.module.css'
 import { collapseAssistantRecords, collapseTurnRecords, filterRecords, flattenRecords, indexRequestBoundaries, indexRequestBoundaryRuns, indexRequestNumbers, requestIdentity, requestKey } from './trajectory-record-model.ts'
 import { TrajectoryRow } from './trajectory-row.tsx'
 import { RecordInspector } from './trajectory-record-inspector.tsx'
+import type { WatchToolResult } from './watch-tool-result.ts'
 import { detailTabs } from './trajectory-detail-tabs.ts'
 import { useResizeHandle } from './trajectory-resize-handle.ts'
 import type { SelectedRequest } from './trajectory-record-inspector.tsx'
-import type { DetailTab, TableRecord, TrajectoryRequestNumber } from '../types.ts'
+import type { DetailTab, TableRecord, TrajectoryRequestNumber } from './trajectory-types.ts'
 
-export type { TrajectoryRequestNumber, TrajectoryUsage } from '../types.ts'
+export type { TrajectoryRequestNumber, TrajectoryUsage } from './trajectory-types.ts'
 
 const BOTTOM_FOLLOW_THRESHOLD_PX = 2
 
@@ -79,6 +80,8 @@ interface OlderLoadAnchor {
 
 /** Props for the trajectory ledger. */
 export interface TrajectoryTableProps {
+  /** Observe the selected result while the Result tab is open. */
+  watchToolResult?: WatchToolResult | undefined
   /** Wrapping control shared by all JSON inspectors. */
   stringWrapping?: JsonTreeProps['stringWrapping']
   /** Trajectory locale seat. */
@@ -138,6 +141,7 @@ export interface TrajectoryTableProps {
  * @returns The ledger and an optional local record inspector.
  */
 export function TrajectoryTable({
+  watchToolResult,
   t,
   stringWrapping,
   renderSlot,
@@ -690,6 +694,7 @@ export function TrajectoryTable({
         </table>
       </div>
       <RecordInspector
+        watchToolResult={watchToolResult}
         t={t}
         renderSlot={renderSlot}
         loadImage={loadImage}

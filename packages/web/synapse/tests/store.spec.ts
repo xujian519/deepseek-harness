@@ -284,4 +284,19 @@ describe('WorkspaceStore', () => {
     const reread = await reloaded.get(dsh.id)
     expect(reread.threads[0]?.messages).toHaveLength(MAX_THREAD_MESSAGES)
   })
+
+  it('drops a pending debounced write on disposal', async () => {
+    const dataFile = tempFile('dsh-synapse-dispose')
+    const store = new WorkspaceStore(dataFile)
+    await store.create('画布')
+    const before = await readFile(dataFile, 'utf8')
+
+    // A projection sync writes in the debounced window; disposal must cancel it
+    // instead of letting the write land after the owner removed its workspace.
+    await store.syncSessions([{ id: 'session-1', cwd: '/work' }])
+    store.dispose()
+    await new Promise(resolve => setTimeout(resolve, 900))
+
+    expect(await readFile(dataFile, 'utf8')).toBe(before)
+  })
 })

@@ -1,0 +1,5 @@
+# The base bundle already mounts `ptc-runtime`; a second row with that id is a
+# duplicate loader entry.
+- insert:
+    - id: ptc-cancel-fixture
+      name: './cancel.mjs'

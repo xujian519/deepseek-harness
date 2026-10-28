@@ -15,7 +15,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { readJsonlRowsCached, readLatestJsonRow, appendJsonlCapped } from './jsonl.ts'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -659,7 +659,6 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   constructor(ctx: Context, config: BasicSelfEvolveConfig) {
     super(ctx)
     this.config = resolveConfig(config)
-    ctx.effect(() => ctx.sessionProjections.register(failurePatternsProjectionDefinition))
     // Every runtime contribution this provider makes unwinds with the fiber.
     ctx.effect(() => () => {
       this.disposeLiveContributions()
@@ -754,6 +753,11 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       // the runner registry does not accumulate never-activated plugins.
       void this.dropL4Plugin(owner.agentId, owner.pluginId)
     }))
+  }
+
+  /** Register the failure-pattern projection before any mining or draining runs. */
+  protected async [Service.init](): Promise<void> {
+    await this.ctx.sessionProjections.register(failurePatternsProjectionDefinition)
   }
 
   /** Undefine an L4 plugin this provider defined when its run was refused or failed (P2.2). */

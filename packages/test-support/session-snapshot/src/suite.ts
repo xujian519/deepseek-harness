@@ -49,6 +49,7 @@ import {
   scrubSessionSnapshot,
   scrubSystemPrompts,
   scrubToolSchemas,
+  sessionJobIdTokens,
   tokenizeSessionFixtureCwd,
 } from './normalize.ts'
 
@@ -976,12 +977,23 @@ function preserveNormalizedVolatiles(
   return Object.is(normalizedFresh, normalizedExisting) ? existing : fresh
 }
 
-/** Normalize one aligned record with the same contract used by fixture comparison. */
+/**
+ * Normalize one aligned record with the same contract used by fixture comparison.
+ * @param record - one fresh or committed record from the aligned pair.
+ * @param context - that log's volatile values.
+ * @param jobIdTokens - log-wide job tokens, which a single record cannot derive.
+ * @returns the record as whole-log comparison would see it.
+ */
 function normalizedRefreshRecord(
   record: Record<string, unknown>,
   context: NormalizeContext,
+  jobIdTokens?: ReadonlyMap<string, string>,
 ): Record<string, unknown> {
-  return JSON.parse(normalizeSessionLog(`${JSON.stringify(record)}\n`, context)) as Record<string, unknown>
+  return JSON.parse(normalizeSessionLog(
+    `${JSON.stringify(record)}\n`,
+    context,
+    jobIdTokens === undefined ? {} : { jobIdTokens },
+  )) as Record<string, unknown>
 }
 
 /**
@@ -1063,6 +1075,13 @@ function collectNormalizedStringMappings(
 /**
  * Build a log-wide bijection for normalized-equivalent strings.
  * Any unexplained record mismatch or conflicting replacement disables reuse.
+ * @param records - the stabilized fresh records being written back.
+ * @param freshRecords - the freshly harvested records before replacements.
+ * @param existingRecords - the committed fixture records, packed rows expanded.
+ * @param freshContext - the harvested run's volatile values.
+ * @param existingContext - the committed fixture's own volatile values.
+ * @param freshJobIdTokens - log-wide job tokens for the fresh records.
+ * @returns fresh-string to committed-string replacements, or undefined when alignment is ambiguous.
  */
 function normalizedStringMappings(
   records: Record<string, unknown>[],
@@ -1070,6 +1089,7 @@ function normalizedStringMappings(
   existingRecords: Record<string, unknown>[],
   freshContext: NormalizeContext,
   existingContext: NormalizeContext,
+  freshJobIdTokens: ReadonlyMap<string, string>,
 ): Map<string, string> | undefined {
   const excludedStrings = new Set<string>()
   for (const record of [...freshRecords, ...existingRecords]) {
@@ -1094,7 +1114,7 @@ function normalizedStringMappings(
       if (!collectNormalizedStringMappings(
         record,
         existingRecord,
-        normalizedRefreshRecord(freshRecords[recordIndex] as Record<string, unknown>, freshContext),
+        normalizedRefreshRecord(freshRecords[recordIndex] as Record<string, unknown>, freshContext, freshJobIdTokens),
         normalizedRefreshRecord(existingRecord, existingContext),
         excludedStrings,
         forward,
@@ -1135,12 +1155,14 @@ export function stabilizeRefreshLog(
   const existingRecords = logicalRecords(parseJsonlRecords(existing))
   const records = parseJsonlRecords(stable)
   const existingContext = fixtureContext(existing)
+  const freshJobIdTokens = sessionJobIdTokens(records.map(record => JSON.stringify(record)).join('\n'))
   const stringMappings = normalizedStringMappings(
     records,
     freshRecords,
     existingRecords,
     freshContext,
     existingContext,
+    freshJobIdTokens,
   )
   let existingIndex = 0
   let previousEventTime: unknown
@@ -1163,7 +1185,7 @@ export function stabilizeRefreshLog(
         record = preserveNormalizedVolatiles(
           record,
           existingRecord,
-          normalizedRefreshRecord(freshRecords[i] as Record<string, unknown>, freshContext),
+          normalizedRefreshRecord(freshRecords[i] as Record<string, unknown>, freshContext, freshJobIdTokens),
           normalizedRefreshRecord(existingRecord, existingContext),
           stringMappings,
         ) as Record<string, unknown>

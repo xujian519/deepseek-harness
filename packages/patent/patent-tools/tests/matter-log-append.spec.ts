@@ -28,6 +28,7 @@ import {
   MATTER_LOG_FILE,
   type MatterLogRequest,
 } from '../src/tool/matter-log-append.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -40,7 +41,7 @@ async function run(caseDir: string, args: Record<string, unknown>) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   ctx.tools.register(createMatterLogAppendTool())
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal,
     callId: ToolCallId(`matter-${String(calls++)}`),
     name: 'matter_log_append',

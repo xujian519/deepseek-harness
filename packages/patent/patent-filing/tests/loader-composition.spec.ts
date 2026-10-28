@@ -15,6 +15,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as PatentFiling from '@deepseek-ai/dsh-patent-filing'
 import type { SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { argvOf, fakeSubprocess, stdoutHandle } from './helpers.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 /**
  * Import mapped source modules without claiming support for Node's HMR internals:
@@ -138,7 +139,7 @@ describe('patent-filing real Loader composition through cordis.yml', () => {
   it('builds through the tool runtime and answers with model-facing prose', async () => {
     const ctx = await boot()
     const figure = join(outDir ?? '', 'fig1.png')
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('patent-filing-build'),
       name: 'build_patent_filing',
@@ -173,7 +174,7 @@ describe('patent-filing real Loader composition through cordis.yml', () => {
 describe('patent-filing verification through the tool runtime', () => {
   it('answers with the assertion report as model-facing prose', async () => {
     const ctx = await boot()
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('patent-filing-verify'),
       name: 'verify_patent_filing',

@@ -1,3 +1,4 @@
+import { subagentCatalogProjectionDefinition } from '../src/catalog.ts'
 import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -73,6 +74,7 @@ async function setup(
   }
   await ctx.plugin(TestSessionQuery)
   await mountWorkingDirectoryFixture(ctx)
+  if (ctx.get('sessionProjections') === undefined) await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
   await ctx.plugin(SubagentFork, { providerName: 'fork' })
@@ -294,6 +296,7 @@ describe('SubagentRuntime.listChildren', () => {
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(TestSessionQuery)
     await mountWorkingDirectoryFixture(ctx)
+    if (ctx.get('sessionProjections') === undefined) await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
     const ancestor = ctx.sessions.create(SessionId('catalog-ancestor'))
     ancestor.append('turn/start', { turn: 1 })
@@ -324,6 +327,7 @@ describe('SubagentRuntime.listChildren', () => {
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(TestSessionQuery)
     await mountWorkingDirectoryFixture(ctx)
+    if (ctx.get('sessionProjections') === undefined) await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
     const parent = ctx.sessions.create(SessionId('chunk-parent'))
     for (let index = 0; index < 1_001; index += 1) {
@@ -338,7 +342,8 @@ describe('SubagentRuntime.listChildren', () => {
       })
     }
     const listSessions = vi.spyOn(ctx.sessionQuery, 'listSessions')
-    const state = ctx.sessionProjections.stateOf(parent, 'subagentCatalog')
+    const projection = await ctx.sessionProjections.register(subagentCatalogProjectionDefinition)
+    const state = projection.stateOf(parent)
     const chunkLengths: number[] = []
     for (let chunk = state?.head; chunk !== undefined; chunk = chunk.previous) {
       chunkLengths.push(chunk.values.length)
@@ -356,6 +361,7 @@ describe('SubagentRuntime.listChildren', () => {
     const withoutProjection = new Context()
     await withoutProjection.plugin(SessionStore)
     await mountWorkingDirectoryFixture(withoutProjection)
+    await withoutProjection.plugin(SessionProjectionRegistry)
     await withoutProjection.plugin(SubagentRuntime)
     const parent = withoutProjection.sessions.create(SessionId('parent'))
     await expect(withoutProjection.subagents.listChildren(parent.id)).rejects.toMatchObject({
@@ -470,12 +476,13 @@ describe('SubagentRuntime.listDescendants', () => {
     }])
   })
 
-  it('discovers continuable descendants below ordinary and activation intermediates', { timeout: 20_000 }, async () => {
+  it('discovers continuable descendants below activation intermediates and stops at independent forks', { timeout: 20_000 }, async () => {
     const { ctx, parent } = await setup([textResponse('one shot')])
-    // An ordinary fork has no descriptor: omitted itself, subtree still walked.
+    // An ordinary fork is an independent Session root: its own subtree is not
+    // part of the source's lineage.
     const fork = ctx.sessions.fork(parent.session, undefined, SessionId('plain-fork'))
     await ctx.sessions.flush(fork)
-    const underFork = await authorChild(ctx, '00000000-0000-4000-8000-00000000bbb1', {
+    await authorChild(ctx, '00000000-0000-4000-8000-00000000bbb1', {
       parentSession: fork.header.id,
       createdAt: 2,
       origin: 'subagent',
@@ -502,10 +509,7 @@ describe('SubagentRuntime.listDescendants', () => {
     // The fork is absent (descriptor-less); the settled activation is present
     // with its mode so a caller can see the lineage it walked through.
     expect(entries.map(entry => entry.id)).not.toContain(fork.header.id)
-    expect(entries).toContainEqual({
-      kind: 'child', id: underFork, label: 'under the fork', mode: 'continuable',
-      activity: 'inactive', hasChildren: false, parentId: fork.header.id, depth: 2,
-    })
+    expect(entries.map(entry => entry.id)).not.toContain('00000000-0000-4000-8000-00000000bbb1')
     expect(entries).toContainEqual(expect.objectContaining({
       kind: 'child', id: settledId, mode: 'continuable', parentId: parent.id, depth: 1,
     }))
@@ -789,15 +793,6 @@ describe('SubagentRuntime.listDescendants', () => {
     expect(list).not.toHaveBeenCalled()
   })
 
-  it('fails loud when the projection registry is not mounted', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SessionStore)
-    await mountWorkingDirectoryFixture(ctx)
-    await ctx.plugin(SubagentRuntime)
-    await expect(ctx.subagents.listDescendants(SessionId('no-projections-root'))).rejects.toThrow(
-      expect.objectContaining({ code: 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE' }) as Error,
-    )
-  })
   it('verifies a cold candidate still belongs to its enumerated lifecycle', async () => {
     const { ctx, parent } = await setup([])
     const childId = await authorChild(ctx, '00000000-0000-4000-8000-00000000ddd1', {

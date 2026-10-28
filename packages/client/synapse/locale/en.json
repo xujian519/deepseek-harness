@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Synapse session map (browser)",
+    "description": "Adds the session-map view switch and the Synapse iframe bridge to the Web GUI."
+  }
+}

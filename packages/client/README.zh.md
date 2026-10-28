@@ -72,7 +72,6 @@ kind: "package-group"
 | [`ui-jobs/`](ui-jobs/README.zh.md) | 列出本会话的后台任务，并提供按需展开的流式输出面板 | — |
 | [`ui-schedule/`](ui-schedule/README.zh.md) | 在只读标题栏目录中列出当前会话中生效的提醒 | — |
 | [`ui-model-selection/`](ui-model-selection/README.zh.md) | 在对话界面中提供模型选择 | — |
-| [`ui-deepseek-model-label-1017/`](ui-deepseek-model-label-1017/README.zh.md) | 为官方 DeepSeek Flash 模型名称添加临时的 1017 角标 | — |
 | [`ui-permission-presets/`](ui-permission-presets/README.zh.md) | 配置默认权限并切换当前会话的访问模式 | — |
 | [`ui-plan/`](ui-plan/README.zh.md) | 展示生效中的 plan mode 状态及其退出控件 | — |
 | [`ui-settings-plugins/`](ui-settings-plugins/README.zh.md) | 负责「内置插件」设置分区壳及其标签页扩展点 | — |
@@ -97,6 +96,7 @@ kind: "package-group"
 | [`ui-message-feedback/`](ui-message-feedback/README.zh.md) | 提供消息赞踩，以及从赞踩、`/feedback` 或会话标题栏菜单打开的反馈弹窗 | `ctx.feedbackUi` |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.zh.md) | 面向工作区目录流程的应用内目录浏览界面 | — |
 | [`ui-directory-picker-native/`](ui-directory-picker-native/README.zh.md) | 驱动本地 Desktop 或 Host OS 选择器的原生目录选择界面 | — |
+| [`ui-file-drag/`](ui-file-drag/README.zh.md) | 应用级文件传输，并为拖拽失败提供本地化提示 | — |
 | [`better-sidebar/`](better-sidebar/README.zh.md) | 呈现按会话隔离的工作区右侧边栏：explorer、editor、terminal、git、side chat、subagent 与 browser 标签页 | `ctx.betterSidebar`（客户端） |
 | [`ui-open-in-app/`](ui-open-in-app/README.zh.md) | 在已安装应用中打开工作区目录的会话标题栏拆分按钮，以及文档预览里用默认应用打开单个文件的控件 | — |
 | [`ui-patent-teams/`](ui-patent-teams/README.zh.md) | 把 PatentTeams 监视面带回 Web UI：一张持久团队卡片与固定的「团队」会话视图 | — |

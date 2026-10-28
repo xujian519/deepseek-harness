@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Prompt cache",
+    "description": "Applies a prompt-prefix cache strategy to the system-prompt assembly."
+  }
+}

@@ -1,0 +1,23 @@
+# The default retry policy jitters the backoff, so `llm/retry.delayMs` would
+# differ on every replay. This scenario asserts the malformed-argument retry,
+# not the delay; pin the same zero-jitter policy `empty-response-retry` uses.
+- id: llm-replay
+  config:
+    providers:
+      - id: deepseek-official
+        name: DeepSeek
+        retryPolicy:
+          mode: normal
+          maxRetries: 5
+          backoff:
+            initialDelayMs: 500
+            maxDelayMs: 10000
+            jitterRatio: 0
+        models:
+          - id: deepseek-v4-flash
+          - id: deepseek-v4-pro
+      - id: deepseek-messages
+        name: DeepSeek Messages
+        models:
+          - id: deepseek-v4-flash
+          - id: deepseek-v4-pro

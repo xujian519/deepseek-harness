@@ -1310,6 +1310,22 @@ describe('stabilizeRefreshLog', () => {
     expect(((output[3]?.data as { message: { id: string } }).message).id).toBe(existingAssistantId)
   })
 
+  it('keeps a job id tokenized in text that echoed it', () => {
+    const jobId = 'bash-0123456789abcdef'
+    const log = (id: string): string => [
+      JSON.stringify({ type: 'session', id: 'same', createdAt: 1, cwd: '/same' }),
+      JSON.stringify({ type: 'job/registered', data: { jobId: id, startedAt: 1 } }),
+      JSON.stringify({
+        type: 'tool/result',
+        data: { callId: 'call-1', content: [{ type: 'text', text: `started background job ${id}` }] },
+      }),
+      '',
+    ].join('\n')
+    const existing = log('{{id:1}}')
+
+    expect(stabilize(log(jobId), existing)).toBe(existing)
+  })
+
   it('leaves an aligned complete message id to the fixture-ready structural pass', () => {
     const freshId = '11111111-1111-4111-8111-111111111111'
     const existingId = '22222222-2222-4222-8222-222222222222'

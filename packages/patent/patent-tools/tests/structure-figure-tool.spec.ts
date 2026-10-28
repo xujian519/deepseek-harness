@@ -12,6 +12,7 @@ import { STRUCTURE_MANIFEST_FILENAME } from '../src/figure/freecad-structure-scr
 import { createGenerateStructureFigureTool, STRUCTURE_FIGURE_MODEL_USED } from '../src/tool/generate-structure-figure.ts'
 import type { GenerateStructureFigureInput } from '../src/tool/generate-structure-figure.ts'
 import type { FigureIndexEntry } from '../src/figure/index-store.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 /**
  * generate_structure_figure 工具规格：mock 渲染器（不依赖 FreeCAD），验证门禁、
@@ -30,7 +31,7 @@ async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
 }
 
 function execute(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 function tempDir(): string {

@@ -25,6 +25,7 @@ import { templatesDirectory } from '../src/asset-location.ts'
 import { createTemplateStore } from '../src/store.ts'
 import { listDocTemplates } from '../src/tool/list-doc-templates.ts'
 import type { RenderDocTemplateOutput } from '../src/tool/render-doc-template.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const DOCX_LIMITS: ZipReadLimits = { maxArchiveEntries: 10_000, maxUncompressedBytes: 64 * 1024 * 1024 }
 
@@ -72,7 +73,7 @@ async function mounted(cwd: string): Promise<Context> {
 
 /** Execute one registered tool. */
 function execute(ctx: Context, name: string, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId(name),
     name,

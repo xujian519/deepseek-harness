@@ -16,6 +16,7 @@ import {
   type FlexiblePlanAction,
   type FlexiblePlanOutput,
 } from '../src/tool/patent-flexible-plan.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 type WorkflowRunResultLike = Pick<WorkflowRunResult, 'manifestId' | 'caseType' | 'summary' | 'completed' | 'stages' | 'degradedSteps'> & { interrupted?: { stageId: string; message: string } }
 
@@ -389,7 +390,7 @@ describe('flexible_plan', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     ctx.tools.register(tool)
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('fp-1'),
       name: 'flexible_plan',

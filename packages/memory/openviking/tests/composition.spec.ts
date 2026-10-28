@@ -21,6 +21,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineTool, type PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import * as openviking from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 let context: Context | undefined
 let root: string | undefined
@@ -127,7 +128,7 @@ describe('@deepseek-ai/dsh-openviking real Loader composition', () => {
         type: 'user/message', seq: attempt + 1, time: Date.now(),
         data: { content: [{ type: 'text', text: `composition probe ${attempt}` }], source: { kind: 'user' } },
       } as never)
-      await context.tools.execute({
+      await executeToolFixture(context, {
         signal,
         callId: ToolCallId(`comp-memcommit-${attempt}`),
         name: 'memcommit',
@@ -153,7 +154,7 @@ describe('@deepseek-ai/dsh-openviking real Loader composition', () => {
     // A viking:// URI on a local path tool is denied through the real
     // scheduler, and the terminal deny never reaches downstream listeners.
     const seenBefore = downstream.mock.calls.length
-    const denied = await context.tools.execute({
+    const denied = await executeToolFixture(context, {
       signal,
       callId: ToolCallId('comp-deny'),
       name: 'read',

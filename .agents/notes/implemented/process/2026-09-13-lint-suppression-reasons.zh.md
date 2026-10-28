@@ -8,7 +8,7 @@ Status: implemented
 
 Issue #94 报告仓库里有少数 `oxlint-disable` / `eslint-disable` / `@ts-expect-error` 指令完全没写理由，并要求就「一条注释最多能覆盖多大范围」作出裁定。它的证据两个方向上都已过期：
 
-- 点名的三处里，`packages/compaction/compaction-basic/src/region.ts:130` 与 `packages/core/tools/src/testing.ts:30` 所在块内确实没有任何理由；`packages/session-query/session-query/tests/observation.spec.ts:115` 有理由，只是它位于同一函数体内、该指令上方 28 行处。
+- 点名的三处里，`packages/compaction/compaction-basic/src/region.ts:130` 与 `packages/test-support/tool-testkit/src/index.ts:30` 所在块内确实没有任何理由；`packages/session-query/session-query/tests/observation.spec.ts:115` 有理由，只是它位于同一函数体内、该指令上方 28 行处。
 - 该 Issue 还称 region.ts 其余十处同类抑制多为无理由、`:102` 与 `:547` 的理由只解释了 `no-deprecated`。两者都不成立：那十处都带有注释，两条双规则指令也各有一行对应各自规则的理由。
 
 按解析器口径对受 lint 约束的语料重新计数，共 400 条抑制指令，因此残留其实很小。但没有任何机制让它保持小：`reportUnusedDisableDirectives` 问的是相反的问题（这条指令是否还有必要），而一条没写理由的指令可以通过所有门禁。

@@ -8,6 +8,7 @@ import type { FeePolicy } from '../src/compute.ts'
 import { loadFeeTable } from '../src/fees.ts'
 import { createPatentFeesTool, type PatentFeesOutput } from '../src/tool/patent-fees.ts'
 import type { FeeTable } from '../src/types.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 /** The packaged index: amounts transcribed from the official fee standard. */
 const shipped = loadFeeTable()
@@ -67,7 +68,7 @@ async function host(table: FeeTable = shipped, policy: FeePolicy = DEFAULT_FEE_P
 }
 
 function execute(ctx: Context, args: unknown) {
-  return ctx.tools.execute({
+  return executeToolFixture(ctx, {
     signal: new AbortController().signal,
     callId: ToolCallId('patent-fees'),
     name: 'patent_fees',

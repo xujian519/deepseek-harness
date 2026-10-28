@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Puente de escritorio",
+    "description": "Proporciona el puente del proceso principal de Electron para la interfaz de capacidad de escritorio."
+  }
+}

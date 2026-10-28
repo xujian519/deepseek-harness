@@ -37,6 +37,8 @@ The projection cache is part of the list endpoint: each cold row carries cached 
 
 Workers are compiled plain-Node processes, each started fresh against a seeded root. They compose the production Session store, projection registry, JSONL persistence, SQLite Session query with `openAt: first-search` on an in-memory index, JSON storage and projection cache, the Web projection set, AgentLoop, and the real `SessionController`. Transport lookups, upload registration, default model selection, and the Workspace registry are inert providers, because no measured path depends on them.
 
+The shared corpus and projection-list controller fixture awaits controller activation and supplies the fixed attachment image policy. Its snapshots therefore include the production `imageLimits` unit; attachment I/O remains outside these workloads. Event corpora, measurement endpoints, and budgets are unchanged.
+
 | Case | Corpus | Samples | Endpoint |
 |---|---|---:|---|
 | List | 3,000 | 3 | Host boot; first `session.list`; repeated `session.list` in the same process |
@@ -47,7 +49,7 @@ The file must finish within five minutes on standard hosted CI, including seedin
 
 ## Calibration evidence
 
-Budgets use standard two-CPU hosted CI expectations (Linux x64, Node 24.21, PR #5403), rounded above the higher recorded median across the AMD EPYC 7763 and EPYC 9V74 runners and multiplied by the shared 1.25 headroom. Samples varied by up to 15% within one run; the runner models differed by up to 25% per endpoint. The hosted-to-reference ratio is 2.4 to 3.4, above the shared reference scale of 2, so reference-machine scaling would reject ordinary hosted runs.
+Budgets use standard two-CPU hosted CI expectations (Linux x64, Node 24.21, PR #5403), rounded above the higher recorded median across the AMD EPYC 7763 and EPYC 9V74 runners and multiplied by the shared 1.25 headroom; peak RSS uses the higher recorded sample, because a run reports one `maxRSS` per process. Samples varied by up to 15% within one run; the runner models differed by up to 25% per endpoint. The hosted-to-reference ratio is 2.4 to 3.4, above the shared reference scale of 2, so reference-machine scaling would reject ordinary hosted runs.
 
 | Endpoint (7763 / 9V74) | Hosted medians | Expectation | Budget |
 |---|---|---:|---:|
@@ -58,8 +60,10 @@ Budgets use standard two-CPU hosted CI expectations (Linux x64, Node 24.21, PR #
 | Search 1,000: repeat (one sample) | 3,426.3 / 2,704 ms | 3,500 ms | 4,375 ms |
 | Fork: strata median | 95.5 / 73.5 ms | 100 ms | 125 ms |
 | Fork: p99, rank 988 (7763 only) | 1,066.2 ms | 1,100 ms | 1,375 ms |
-| Fork: longest (one sample) | 19,162.1 / 20,326.7 ms | 20,400 ms | 25,500 ms |
-| Peak RSS: list / search / fork | 742.7 / 1,197.8 / 745.1 MB (higher model) | 750 / 1,200 / 750 MB | 938 / 1,500 / 938 MB |
+| Fork: longest | 19,162.1 / 20,326.7 ms (one sample each) | 20,400 ms | 25,500 ms |
+| Peak RSS: list / search / fork | 742.7 / 1,197.8 / 1,065.6 MB (higher recorded sample) | 750 / 1,200 / 1,100 MB | 938 / 1,500 / 1,375 MB |
+
+The longest fork runs three samples per endpoint and enforces their median: six hosted runs report 684.6–692.2 MB for its `maxRSS`, and run 40723084288 reports 1,065.6 MB on the same AMD EPYC 7763 class. That spread follows the allocation phase of one process rather than a level shift, so a single sample cannot set a ceiling; the samples' median carries the memory verdict and the budget covers the higher recorded sample. Three samples cost about 17 s on the slower class, which the file's 300 s limit absorbs (208.9 s measured in that run).
 
 With seeding in one process, the complete file took 294.5 s on the EPYC 7763 runner (85 s seeding, 26 s listing, 149 s searching, 34 s forking) and 266.6 s on the 9V74. With parallel preparation it took 276.8 s on the 7763: the two preparation processes took 59 s and 65 s, because they share two CPUs with Zstandard and garbage-collection threads, and writing the corpora took 4.6 s. The other cases varied by less than 3% between runs on one runner model. Each additional 1,000 listed Sessions costs about 9 s, so a larger list corpus would leave less than a tenth of the limit for runner variation.
 

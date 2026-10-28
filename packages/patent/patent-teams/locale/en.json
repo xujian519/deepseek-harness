@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Patent teams",
+    "description": "Runs captain-led teams with dependency-aware tasks, mailboxes, and a shared scheduler."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Patent workflow",
+    "description": "Runs the patent execution state machine with human approval points."
+  }
+}

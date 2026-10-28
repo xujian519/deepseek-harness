@@ -46,10 +46,12 @@
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.subagentRefresh:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+
+  .subagentRefresh:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .subagentBody {
@@ -77,33 +79,39 @@
   text-align: left;
   cursor: pointer;
   outline: none;
-}
+}@media (hover: hover) {
 
-.subagentRow:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+
+  .subagentRow:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 /* Keyboard focus (mirror of the official catalog row): a visible fill only
    when focused via keyboard; the selected state below still wins on top. */
 .subagentRow:focus-visible {
   background: var(--dsw-alias-interactive-bg-hover);
-}
+}@media (hover: hover) {
 
-/* The currently-open session, highlighted in place (mirror of the workspace
-   `.sessionRow.selected` — declared after the hover/focus rules so it wins). */
-.subagentRowActive,
-.subagentRowActive:hover,
-.subagentRowActive:focus-visible {
-  background: var(--dsw-alias-interactive-bg-active);
+
+  /* The currently-open session, highlighted in place (mirror of the workspace
+     `.sessionRow.selected` — declared after the hover/focus rules so it wins). */
+  .subagentRowActive,
+  .subagentRowActive:hover,
+  .subagentRowActive:focus-visible {
+    background: var(--dsw-alias-interactive-bg-active);
+  }
 }
 
 .subagentRowDisabled {
   color: var(--dsw-alias-label-dimmed);
   cursor: not-allowed;
-}
+}@media (hover: hover) {
 
-.subagentRowDisabled:hover {
-  background: transparent;
+
+  .subagentRowDisabled:hover {
+    background: transparent;
+  }
 }
 
 /* Loading placeholders are disabled but keep the default cursor (official
@@ -267,11 +275,13 @@
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-xxxs-strong-11);
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.subagentErrorRetry:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
+
+  .subagentErrorRetry:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 /* ── Background-job section (below the topology tree) ────────────────── */
@@ -322,20 +332,24 @@
   align-items: center;
   gap: 4px;
   border-radius: 8px;
-}
+}@media (hover: hover) {
 
-.jobsRow:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+
+  .jobsRow:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .jobsRowSettled {
   opacity: 0.8;
-}
+}@media (hover: hover) {
 
-/* The row whose output is shown in the bottom dock. */
-.jobsRowSelected,
-.jobsRowSelected:hover {
-  background: var(--dsw-alias-interactive-bg-active);
+
+  /* The row whose output is shown in the bottom dock. */
+  .jobsRowSelected,
+  .jobsRowSelected:hover {
+    background: var(--dsw-alias-interactive-bg-active);
+  }
 }
 
 .jobsRowMain {
@@ -426,23 +440,27 @@
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.jobsKill:hover {
-  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
-  color: var(--dsw-alias-state-error-primary);
-}
 
-/* The armed (first-click) state: a filled confirm chip instead of the icon. */
-.jobsKillArmed,
-.jobsKillArmed:hover {
-  width: auto;
-  height: 20px;
-  padding: 0 8px;
-  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
-  color: var(--dsw-alias-state-error-primary);
-  font: var(--dsw-font-xxxs-strong-11);
-  white-space: nowrap;
+  .jobsKill:hover {
+    background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+    color: var(--dsw-alias-state-error-primary);
+  }
+}@media (hover: hover) {
+
+
+  /* The armed (first-click) state: a filled confirm chip instead of the icon. */
+  .jobsKillArmed,
+  .jobsKillArmed:hover {
+    width: auto;
+    height: 20px;
+    padding: 0 8px;
+    background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+    color: var(--dsw-alias-state-error-primary);
+    font: var(--dsw-font-xxxs-strong-11);
+    white-space: nowrap;
+  }
 }
 
 .jobsKill:disabled {
@@ -517,10 +535,12 @@
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-}
+}@media (hover: hover) {
 
-.jobsPaneClose:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+
+  .jobsPaneClose:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .jobsPanePre {

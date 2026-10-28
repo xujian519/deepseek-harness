@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Caché de prompts",
+    "description": "Aplica una estrategia de caché de prefijo del prompt al ensamblado del prompt del sistema."
+  }
+}

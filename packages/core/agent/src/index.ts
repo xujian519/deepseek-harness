@@ -9,21 +9,21 @@ import { Context, FiberState, getTraceable, Service, symbols } from '@deepseek-a
 import type { Fiber } from '@deepseek-ai/cordis'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { isPromise } from 'node:util/types'
-import { emitContained } from '@deepseek-ai/dsh-contained-emit'
-import { EntryLifecycle } from '@deepseek-ai/dsh-entry-lifecycle'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
-import type { SessionEvent, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
-import { errorMessage } from '@deepseek-ai/dsh-value'
+import type { Session, SessionEvent, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import { installTurnArchiveAdmission } from './archive-admission.ts'
-import type { Agent } from './types.ts'
+import type { Agent, TurnBoundaryProjection } from './types.ts'
 import type { AgentOptions, SessionStartSource } from './runtime-types.ts'
+import { turnBoundaryProjectionDefinition } from './projection.ts'
 
 export * from './runtime-types.ts'
 export * from './types.ts'
+export { AgentModel, modelSelectionProjectionDefinition, installModelSelection } from './model-selection.ts'
+export type { ModelSelectionProjectionState } from './model-selection.ts'
 export type * from './projection.ts'
 export * from './consumed-work.ts'
-export * from './model-selection.ts'
 export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from './dispatch.ts'
 export type { AgentEventDispatch, AgentSubjectEvent } from './dispatch.ts'
 
@@ -96,23 +96,24 @@ export interface CreateAgentOptions {
    * The factory validates and snapshots the seed before publication.
    */
   readonly seed?: readonly SessionEvent[]
-  /** Per-agent options (model, …). */
+  /** Route fallback and output controls; see {@link AgentOptions} for live accessor semantics. */
   readonly agentOptions?: AgentOptions
   /** Optional creation-only cancellation signal; detached before the returned handle becomes visible. */
   readonly signal?: AbortSignal
   /**
    * Creation-time composition of the agent's scoped world. The factory awaits
-   * setup after minting `agentCtx` but BEFORE inserting or announcing either
-   * the session or agent, so observers can never see a partially configured
-   * world. Setup may return an {@link AgentSetupCommit}; the factory invokes its
+   * setup after minting `agentCtx`, entering the SessionStore, and completing
+   * `session/created`. The Session
+   * accepts live events during setup; the Agent remains outside its registry
+   * until setup completes. Agent creation is announced after setup. Setup may return an {@link AgentSetupCommit}; the factory invokes its
    * synchronous `commit()` after every setup await settles and immediately
    * before registry publication. This lets mutable provisioning revalidate at
    * the exact publication boundary. Everything registered through `agentCtx`
    * (scoped tools, prompt sections/variables, `restrict()`, listeners, awaited
-   * child plugins) exists before `session/created`, `agent/created`,
+   * child plugins) exists before `agent/created`,
    * and the first prompt assembly. A setup
    * throw/rejection, commit throw, or owner disposal rolls the scope back
-   * without publishing either id.
+   * without announcing Agent creation. Already committed Session events remain stored.
    *
    * **Setup composes, it never drives**: the callback is trusted same-process
    * code and receives the full scoped context, so this is a contract rather
@@ -130,18 +131,18 @@ export interface ResumeAgentOptions {
   readonly resumeSessionId: SessionId
   /** Live parent Agent for runtime ownership; omit for a root Agent. */
   readonly parentAgent?: Agent
-  /** Per-agent options (model, …). */
+  /** Route fallback and output controls; see {@link AgentOptions} for live accessor semantics. */
   readonly agentOptions?: AgentOptions
   /** Optional creation-only cancellation signal for persistence load/setup; detached before return. */
   readonly signal?: AbortSignal
   /**
    * Resume-time composition of the agent's fresh scoped world. Persistence is
-   * loaded first; the factory then mints `agentCtx` and awaits setup while the
-   * reconstructed session and agent remain unpublished. The callback has the
+   * loaded first; the factory then enters and announces the reconstructed Session and awaits
+   * setup in the fresh `agentCtx` before registering the Agent. The callback has the
    * same trusted composition-only contract and optional synchronous
    * publication commit as {@link CreateAgentOptions.setup}: all registrations
-   * exist before either creation announcement, and rejection, commit failure,
-   * or owner disposal rolls the transaction back without publishing either id.
+   * exist before Agent creation is announced, and rejection, commit failure,
+   * or owner disposal unwinds the transaction while preserving pending inbox input.
    */
   readonly setup?: AgentSetup
 }
@@ -174,13 +175,16 @@ export interface AgentHandle {
 export interface AgentFactory {
   /**
    * Create a new agent on a caller-supplied session id. Async because creation
-   * awaits unpublished setup, invokes its optional synchronous commit, inserts
-   * both session and agent, announces session creation, and awaits serial
+   * enters and announces the Session, awaits setup and its optional synchronous commit,
+   * inserts the Agent, and awaits serial
    * `agent/created` listeners before releasing queued work. The sequence is
    * rollback-covered, but notifications delivered before a later listener
    * failure remain observable; every agent or session creation announcement
    * that began is paired by `agent/disposed` or `session/disposed` during
-   * rollback. The owner disposes the resolved handle to stop/drain,
+   * rollback. Once Agent initialization begins, failures reject after its
+   * scope and acquired write handle finish cleanup. Cancellation during
+   * persistence acquisition may reject before a late handle is available to close.
+   * The owner disposes the resolved handle to stop/drain,
    * unregister, remove the session, and unwind the scope.
    * The registry passes a context carrying the `create()` caller's fiber and
    * scope as `ownerCtx`. The implementation attaches the unpublished
@@ -196,7 +200,7 @@ export interface AgentFactory {
    * persisted session for write, reads and repairs the log, publishes it, and
    * awaits the optional unpublished setup transaction; must be called after
    * `ctx.sessionPersistence` exists (consumers inject `sessionPersistence`).
-   * Publication follows the same setup-commit and ordered boundary as
+   * Initialization cleanup and publication follow the same timing as
    * {@link createAgent}.
    * @param ownerCtx - caller-bound context that owns load, setup, and the live handle.
    * @param options - persisted identity, configuration, optional live parent, and setup.
@@ -217,7 +221,9 @@ interface AgentEntry {
   /** Runtime creator-agent ownership; independent of durable session lineage. */
   readonly owner: Agent | undefined
   readonly carrier: Scoped<Agent>
-  readonly lifecycle: EntryLifecycle
+  announced: boolean
+  announcing: boolean
+  detachRequested: boolean
 }
 
 /** One tracked boundary plus its inherited nesting chain. */
@@ -244,6 +250,9 @@ interface FactorySlot {
  * nested lineage that starts an owning-fiber unload is excluded from its own drain.
  */
 export class AgentRegistry extends Service {
+  static inject = ['sessionProjections']
+
+  private turnBoundaryProjectionHandle!: ProjectionHandle<TurnBoundaryProjection>
   private store = new Map<SessionId, AgentEntry>()
   private factory: FactorySlot | undefined
   private readonly initiators = new AsyncLocalStorage<Agent | undefined>()
@@ -283,6 +292,19 @@ export class AgentRegistry extends Service {
     // Archive admission: the Workspace registry asks what still runs for a
     // Session before hiding it; a running turn answers here, for every Agent.
     installTurnArchiveAdmission(ctx, sessionId => this.get(sessionId))
+  }
+
+  protected async [Service.init](): Promise<void> {
+    this.turnBoundaryProjectionHandle = await this.ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
+  }
+
+  /**
+   * Read the turn and step positions recorded in a Session.
+   * @param session - Session whose committed events are read.
+   * @returns the current turn and step positions; do not mutate the returned value.
+   */
+  turnBoundaryOf(session: Session): TurnBoundaryProjection {
+    return this.turnBoundaryProjectionHandle.stateOf(session)
   }
 
   /**
@@ -473,16 +495,32 @@ export class AgentRegistry extends Service {
       agent,
       owner,
       carrier,
-      lifecycle: new EntryLifecycle(),
+      announced: false,
+      announcing: false,
+      detachRequested: false,
     }
     this.store.set(id, entry)
-    // A creation listener may take this capability; the primitive defers
-    // removal until the announcement dispatch unwinds.
-    return entry.lifecycle.detachCapability(() => { this.detachEntered(entry) })
+    let entered = true
+    const detach = (): void => {
+      if (!entered) return
+      entered = false
+      // Every callback reached by this creation dispatch must observe the same
+      // live entry, and disposal must follow creation. A listener may own
+      // the advanced detach capability, so make that ordering structural:
+      // visibility and the paired disposal are deferred until announce()'s
+      // serial dispatch has settled.
+      if (entry.announcing) {
+        entry.detachRequested = true
+        return
+      }
+      this.detachEntered(entry)
+    }
+    return detach
   }
 
   /** Remove one exact entered agent and emit its paired disposal when announced. */
   private detachEntered(entry: AgentEntry): void {
+    entry.detachRequested = false
     // A stale capability can never delete a later same-id lifecycle. The
     // captured entry identity is the final boundary.
     /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
@@ -492,14 +530,23 @@ export class AgentRegistry extends Service {
     // so emitting disposed would invent an impossible lifecycle edge. Marking
     // happens before the created emit: if a later created listener throws,
     // earlier listeners may already have observed it and must see disposal.
-    if (!entry.lifecycle.isAnnounced) return
+    if (!entry.announced) return
     this.emitDisposed(entry)
   }
 
   /** Emit the paired disposal edge through the entry's stable carrier. */
   private emitDisposed(entry: AgentEntry): void {
     const args: unknown[] = [entry.carrier, 'agent/disposed', { agent: entry.agent }]
-    emitContained(this.ctx, `agent "${entry.id}": agent/disposed`, args, errorMessage)
+    for (const callback of this.ctx.events.dispatch('emit', args)) {
+      try {
+        const returned: unknown = callback(...args)
+        void Promise.resolve(returned).catch((error: unknown) => {
+          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${String(error)}`)
+        })
+      } catch (error: unknown) {
+        this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${String(error)}`)
+      }
+    }
   }
 
   /**
@@ -517,7 +564,13 @@ export class AgentRegistry extends Service {
     if (entry === undefined || entry.agent !== agent) {
       throw new Error(`agent "${agent.id}" is not live in this registry`)
     }
-    entry.lifecycle.announce(`agent "${entry.id}"`)
+    if (entry.announced || entry.announcing) {
+      throw new Error(`agent "${entry.id}" was already announced`)
+    }
+    // Mark before dispatch so a listener cannot recursively create a second
+    // lifecycle edge; detach still pairs a partially delivered first edge.
+    entry.announcing = true
+    entry.announced = true
     try {
       await this.ctx.serial(entry.carrier, 'agent/created', {
         agent: entry.agent,
@@ -525,7 +578,8 @@ export class AgentRegistry extends Service {
         ...signal === undefined ? {} : { signal },
       })
     } finally {
-      if (entry.lifecycle.endAnnouncement()) this.detachEntered(entry)
+      entry.announcing = false
+      if (entry.detachRequested) this.detachEntered(entry)
     }
   }
 

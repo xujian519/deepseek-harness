@@ -32,6 +32,7 @@ import {
   redactSessionSnapshotIds,
   refreshFixtureReplacements,
   reconcileCatalogCreationTimes,
+  REPLAY_CREDENTIAL_ENV,
   restorePinnedToolSchemas,
   scrubModelRequestBulk,
   scrubSessionSnapshot,
@@ -101,6 +102,8 @@ function dirOf(url: string): string {
 }
 
 interface SdkAssertions {
+  /** Client decisions for the internal approval protocol recording. */
+  approvalOutcomes?: readonly ('allowed-once' | 'rejected')[]
   /** Additional profile patches applied after the shared composition. */
   patches?: readonly string[]
   /** Wait for the recorded provider title before sending each subsequent prompt. */
@@ -127,6 +130,20 @@ interface SdkAssertions {
 }
 
 const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
+  'approval': {
+    approvalOutcomes: ['allowed-once', 'rejected'],
+    environment: { DSH_PERMISSION_MODE: 'workspace-write' },
+    patches: [fileURLToPath(new URL('./approval/runtime.cordis.yml', import.meta.url))],
+  },
+
+  'desktop-context': {
+    expectedFinalResponse: 'SDK snapshot OK',
+    runtimeContext: {
+      includes: ['Current working directory:'],
+      excludes: ['Current DeepSeek Harness implementation checkout:', 'Current DeepSeek Harness Web GUI URL:'],
+    },
+  },
+  'desktop-ptc-context': { expectedFinalResponse: 'SDK snapshot OK' },
   'minimal-image-compaction': {
     expectedFinalResponse: 'MINIMAL_IMAGE_OK',
     expectedTools: { bash: ['command'], read_image: ['file_path'], working_directory: [] },
@@ -142,7 +159,11 @@ const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
     patches: [fileURLToPath(new URL('./tool-error-details/runtime.cordis.yml', import.meta.url))],
     expectedFinalResponse: 'ERROR_DETAILS_OK',
   },
+  'ptc-cancel': {
+    patches: [fileURLToPath(new URL('./ptc-cancel/runtime.cordis.yml', import.meta.url))],
+  },
   'ptc-turn': {
+    patches: [fileURLToPath(new URL('./ptc-turn/runtime.cordis.yml', import.meta.url))],
     expectedFinalResponse: 'CODE_ONE+CODE_TWO',
     expectedTools: { run_code: ['code', 'description'] },
   },
@@ -533,66 +554,43 @@ function notificationEvent(notification: HarnessNotification): JsonObject | unde
     : undefined
 }
 
-/** State one root-session wait is blocked on, reported verbatim when its budget runs out. */
-interface AwaitedRootEvent {
-  readonly scenario: string
-  readonly sessionId: string
-  readonly state: string
-}
-
-/**
- * Budget for one awaited root event. A settlement notice delivered to the wrong
- * inbox boundary leaves the turn it would have opened unstarted, so the wait has
- * to fail with the turn's name inside the case budget instead of letting vitest
- * report a bare 120 s timeout. The slowest scenario measures about 6 s.
- */
-const ROOT_EVENT_WAIT_MS = 30_000
-
-/**
- * Await the next root-session event satisfying `match`.
- * @param subscription - notification stream scoped to the session tree.
- * @param awaited - scenario, session, and event description reported on timeout.
- * @param match - predicate identifying the awaited event.
- * @param observe - side effects applied to every notification seen on the way.
- * @param timeoutMs - budget for the whole wait, not for one notification.
- */
 async function waitForRootEvent(
   subscription: NotificationSubscription,
-  awaited: AwaitedRootEvent,
+  sessionId: string,
   match: (event: JsonObject) => boolean,
   observe: (notification: HarnessNotification) => void,
-  timeoutMs = ROOT_EVENT_WAIT_MS,
 ): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  const diagnostic = `${awaited.scenario}: session "${awaited.sessionId}" did not deliver ${awaited.state} within ${timeoutMs}ms`
   while (true) {
-    const notification = await awaitWithinDeadline(subscription.next(), diagnostic, deadline)
+    const notification = await subscription.next()
     observe(notification)
-    const event = notification.params.sessionId === awaited.sessionId ? notificationEvent(notification) : undefined
+    const event = notification.params.sessionId === sessionId ? notificationEvent(notification) : undefined
     if (event !== undefined && match(event)) return
   }
 }
 
-/**
- * Await one value, reporting the caller's diagnostic when the deadline passes first.
- * @param pending - the value to await.
- * @param diagnostic - failure reported when the deadline passes first.
- * @param deadline - epoch milliseconds after which the wait fails.
- * @returns the awaited value.
- */
-async function awaitWithinDeadline<T>(pending: Promise<T>, diagnostic: string, deadline: number): Promise<T> {
-  // A value the deadline abandons must not surface as an unhandled rejection.
-  void pending.catch(() => undefined)
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const expiry = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(diagnostic)), Math.max(deadline - Date.now(), 0))
-  })
-  try {
-    return await Promise.race([pending, expiry])
-  } finally {
-    if (timer !== undefined) clearTimeout(timer)
-  }
-}
+// These recorded compositions also pin pre-desktop SDK or headless headers.
+// New desktop-context cases exercise the shipped SDK defaults without this patch.
+const legacySdkCompositions = new Set([
+  'default',
+  'dynamic-tool-updates',
+  'image',
+  'ptc',
+  'sdk-account-provider-signout',
+  'sdk-default',
+  'sdk-dsh-sdk-diagnostic',
+  'sdk-dsh-sdk-dynamic-route',
+  'sdk-minimal',
+  'sdk-serial-created',
+  'sdk-upload',
+  'session-title',
+  'session-title-stability',
+  'subagent-activation-limit',
+  'subagent-continuable-inheritance',
+  'subagent-durability-failure',
+  'subagent-send-message',
+  'system-prompt-in-history',
+])
+const legacySdkContextPatch = fileURLToPath(new URL('./legacy-context.patch.yml', import.meta.url))
 
 function authoredPatches(scenario: CorpusScenario, replaying: boolean): string[] {
   const owner = compositionOwner(scenario)
@@ -637,17 +635,23 @@ async function runScenario(scenario: CorpusScenario): Promise<{
   const patchRoot = join(cwd, '.snapshot-patches')
   await mkdir(patchRoot, { recursive: true })
   const assertions = SDK_ASSERTIONS[scenario.name] ?? {}
-  const patches = [...authoredPatches(scenario, !recording), ...assertions.patches ?? []]
+  const patches = [
+    ...legacySdkCompositions.has(scenario.manifest.composition) ? [legacySdkContextPatch] : [],
+    ...authoredPatches(scenario, !recording),
+    ...assertions.patches ?? [],
+    ...scenario.name === 'session-resume' && !recording ? [join(scenario.dir, 'replay.cordis.yml')] : [],
+  ]
     .map((patch, index) => materializeProfilePatch(patch, cwd, scenario.manifest.profile, patchRoot, index))
   let childSessionsRoot: string | undefined
   let childEnvironment: Record<string, string> = {}
   if (assertions.dshSdkChild !== undefined) {
     const childHome = join(cwd, '.child-dsh')
-    const childPatch = materializeProfilePatch(assertions.dshSdkChild.config, cwd, 'sdk', patchRoot, patches.length)
+    const legacyChildPatch = materializeProfilePatch(legacySdkContextPatch, cwd, 'sdk', patchRoot, patches.length)
+    const childPatch = materializeProfilePatch(assertions.dshSdkChild.config, cwd, 'sdk', patchRoot, patches.length + 1)
     await mkdir(childHome, { recursive: true })
     childSessionsRoot = join(childHome, 'sessions')
     childEnvironment = {
-      DSH_TEST_CHILD_PATCHES: JSON.stringify([childPatch]),
+      DSH_TEST_CHILD_PATCHES: JSON.stringify([legacyChildPatch, childPatch]),
       DSH_TEST_CHILD_HOME: childHome,
     }
   }
@@ -673,6 +677,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
   if (actions[0] !== undefined) await prepareTurnReplay(actions[0].turn)
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined)) as Record<string, string>,
+    ...recording ? {} : REPLAY_CREDENTIAL_ENV,
     DSH_SNAPSHOT: mode,
     DSH_SNAPSHOT_PROVIDER: route.provider,
     DSH_SNAPSHOT_MODEL: route.model,
@@ -692,8 +697,9 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     ...resumeReplayFile === undefined ? {} : { DSH_SNAPSHOT_OVERRIDE: resumeReplayFile },
   }
 
-  const createHarness = (): DeepSeekHarness => new DeepSeekHarness({
+  const createHarness = (model = route.model): DeepSeekHarness => new DeepSeekHarness({
     profile: scenario.manifest.profile,
+    ...(assertions.approvalOutcomes === undefined ? {} : { approvalRequests: true }),
     patches,
     dshHome,
     processCwd: cwd,
@@ -702,7 +708,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     requestTimeoutMs: 110_000,
     cwd,
     provider: route.provider,
-    model: route.model,
+    model,
   })
   let harness = createHarness()
   try {
@@ -710,8 +716,18 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     const observedMethods = new Set<string>()
     const results: RunResult[] = []
     const sessionId = 'fixture-root-session'
-    const rootEvent = (state: string): AwaitedRootEvent => ({ scenario: scenario.name, sessionId, state })
     const liveSessions: (string | undefined)[] = [sessionId]
+    if (assertions.approvalOutcomes !== undefined) {
+      const outcomes = [...assertions.approvalOutcomes]
+      harness.client.start()
+      harness.client.onRequest(async (method, params) => {
+        expect(method).toBe('approval/request')
+        expect(params).toMatchObject({ sessionId, toolName: 'fixture-write' })
+        const outcome = outcomes.shift()
+        if (outcome === undefined) throw new Error('unexpected approval request')
+        return { outcome }
+      })
+    }
     await harness.start()
     let subscription = harness.client.subscribeSessionTree(sessionId)
     const titleSubscription = assertions.waitForProviderTitle === true
@@ -735,7 +751,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
         if (action.content === undefined) {
           await waitForRootEvent(
             subscription,
-            rootEvent(`turn/end of turn ${action.turn}`),
+            sessionId,
             event => event.type === 'turn/end' && (event.data as JsonObject | undefined)?.turn === action.turn,
             observe,
           )
@@ -745,7 +761,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
           subscription.close()
           await harness.close()
           await prepareTurnReplay(action.turn)
-          harness = createHarness()
+          harness = createHarness('deepseek-v4-pro')
           await harness.start()
           subscription = harness.client.subscribeSessionTree(sessionId)
           await expect(harness.resumeSession('missing-session')).rejects.toThrow()
@@ -762,10 +778,9 @@ async function runScenario(scenario: CorpusScenario): Promise<{
         if (titleSubscription !== undefined) {
           const expected = expectedTitles[results.length - 1]?.data as JsonObject | undefined
           expect(expected, 'each turn has a recorded provider title').toBeDefined()
-          await waitForRootEvent(titleSubscription, rootEvent(`provider session/title after turn ${results.length}`),
-            event => event.type === 'session/title'
-              && ((event.data as JsonObject).source as JsonObject).kind === 'provider'
-              && (event.data as JsonObject).title === expected?.title, observe)
+          await waitForRootEvent(titleSubscription, sessionId, event => event.type === 'session/title'
+            && ((event.data as JsonObject).source as JsonObject).kind === 'provider'
+            && (event.data as JsonObject).title === expected?.title, observe)
         }
         if (completionSubscription !== undefined) {
           expect(result.finalResponse, 'run returns at the first parent idle').toBe('DONE')
@@ -804,13 +819,13 @@ async function runScenario(scenario: CorpusScenario): Promise<{
         }
         await waitForRootEvent(
           subscription,
-          rootEvent(`turn/end of turn ${action.turn}`),
+          sessionId,
           event => event.type === 'turn/end' && (event.data as JsonObject | undefined)?.turn === action.turn,
           observe,
         )
       }
       for (const type of postTurnEventTypes(primaryFixture)) {
-        await waitForRootEvent(subscription, rootEvent(`${type} after the last turn`), event => event.type === type, observe)
+        await waitForRootEvent(subscription, sessionId, event => event.type === type, observe)
       }
     } finally {
       subscription.close()
@@ -998,8 +1013,24 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
       )
       reconcileCatalogCreationTimes(ordered.map(log => log.content), 'validate')
       const actualContext = contextOf(ordered, cwd)
+      if (scenario.name === 'ptc-cancel') {
+        const events = results.flatMap(result => result.events)
+        expect(events.find(event => event.type === 'tool/result')).toMatchObject({ data: {
+          message: {
+            toolCallId: 'ptc-cancel',
+            isError: true,
+            content: [{ type: 'text', text: 'Error: tool call aborted' }],
+          },
+          error: { name: 'AbortError', code: 'ABORTED' },
+        } })
+        expect(events.find(event => event.type === 'turn/end')).toMatchObject({
+          data: { reason: { kind: 'aborted', reason: { kind: 'user' } } },
+        })
+      }
       if (scenario.name === 'minimal-image-compaction') {
         const events = results.flatMap(result => result.events)
+        const failures = events.filter(event => event.type === 'turn/end' && event.data.reason.kind === 'error')
+        expect(failures, 'minimal profile completes its checkpointed turn').toEqual([])
         const image = events.find(event => event.type === 'tool/result')
         expect(image).toMatchObject({ data: { message: {
           toolCallId: 'minimal-image-read',
@@ -1116,7 +1147,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         const events = results.flatMap(result => result.events)
         const headers = events.filter(event => event.type === 'request/header')
           .map(event => (event.data.header as { tools: { name: string }[] }).tools.map(tool => tool.name))
-        expect(headers).toHaveLength(2)
+        expect(headers, JSON.stringify(events.filter(event => event.type === 'turn/end' || event.type === 'tool/result'))).toHaveLength(2)
         expect(headers[0]).toContain('bash')
         expect(headers[0]).not.toContain('run_code')
         expect(headers[1]).toEqual(['run_code'])
@@ -1134,7 +1165,8 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         }
       }
       if (assertions.expectedFinalResponse !== undefined) {
-        expect(results.at(-1)?.finalResponse, `${scenario.name}: final response`).toBe(assertions.expectedFinalResponse)
+        const failures = results.flatMap(result => result.events).filter(event => event.type === 'turn/end' || event.type === 'tool/result')
+        expect(results.at(-1)?.finalResponse, `${scenario.name}: final response; outcomes: ${JSON.stringify(failures)}`).toBe(assertions.expectedFinalResponse)
         const parent = ordered[0]
         if (parent === undefined) throw new Error(`${scenario.name}: no primary session log`)
         const turnEnds = records(parent.content).filter(record => record.type === 'turn/end')
@@ -1280,70 +1312,13 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
           for (const clause of assertions.runtimeContext.includes) expect(system).not.toContain(clause)
         }
       }
+      if (scenario.name === 'serial-created') {
+        expect(observedMethods.has('subagent.started')).toBe(false)
+      }
       if (ordered.length > 1 && assertions.dshSdkChild === undefined) {
         expect(observedMethods.has('subagent.started')).toBe(true)
         expect(observedMethods.has('subagent.finished')).toBe(true)
       }
     })
   }
-})
-
-/** Notification stream that replays fixed notifications and then never settles. */
-class QueuedNotifications implements NotificationSubscription {
-  private readonly queued: HarnessNotification[]
-
-  constructor(...notifications: HarnessNotification[]) {
-    this.queued = [...notifications]
-  }
-
-  next(): Promise<HarnessNotification> {
-    const notification = this.queued.shift()
-    return notification === undefined
-      ? new Promise<HarnessNotification>(() => { /* the wait must reach its budget */ })
-      : Promise.resolve(notification)
-  }
-
-  tryNext(): HarnessNotification | undefined {
-    return undefined
-  }
-
-  close(): void {
-    /* the stream owns nothing to detach */
-  }
-
-  async *[Symbol.asyncIterator](): AsyncGenerator<HarnessNotification> {
-    for (;;) yield await this.next()
-  }
-}
-
-describe('root event wait', () => {
-  const awaited: AwaitedRootEvent = {
-    scenario: 'budget-scenario',
-    sessionId: 'budget-session',
-    state: 'turn/end of turn 2',
-  }
-  const notification = (type: string): HarnessNotification => ({
-    method: 'session.event',
-    params: { sessionId: 'budget-session', event: { type } },
-  })
-
-  it('names the awaited state when no matching notification arrives', async () => {
-    await expect(waitForRootEvent(
-      new QueuedNotifications(notification('step/start')),
-      awaited,
-      event => event.type === 'turn/end',
-      () => undefined,
-      20,
-    )).rejects.toThrow('budget-scenario: session "budget-session" did not deliver turn/end of turn 2 within 20ms')
-  })
-
-  it('returns when the awaited event arrives inside the budget', async () => {
-    await expect(waitForRootEvent(
-      new QueuedNotifications(notification('turn/end')),
-      awaited,
-      event => event.type === 'turn/end',
-      () => undefined,
-      20,
-    )).resolves.toBeUndefined()
-  })
 })

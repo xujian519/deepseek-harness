@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-patent-knowledge",
   "description": "knowledge.db query seam: case-law, legal, wiki-card, IPC, and knowledge-graph lookups plus the patent-knowledge:install data bootstrap for the DeepSeek Harness",
-  "version": "0.2.1-rc.3",
+  "version": "0.2.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -26,9 +26,11 @@
       "default": "./lib/bin.js"
     },
     "./src/*": "./src/*",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
+    "locale/*.json",
     "lib/index.js",
     "lib/bin.js",
     "lib/types/**/*.d.ts"

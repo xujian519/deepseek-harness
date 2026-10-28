@@ -11,6 +11,7 @@ import { createSemanticScholarConnector } from '../src/runtime/connectors/semant
 import { createCrossrefConnector } from '../src/runtime/connectors/crossref.ts'
 import { createPaperSearchTool } from '../src/tool/paper-search.ts'
 import { createPaperListSourcesTool } from '../src/tool/paper-list-sources.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const testToolSignal = new AbortController().signal
 
@@ -35,7 +36,7 @@ function text(result: { content: { type: string; text?: string }[] }): string {
 }
 
 function execute(ctx: Context, name: string, args: unknown, callLabel: string) {
-  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(callLabel), name, arguments: args })
+  return executeToolFixture(ctx, { signal: testToolSignal, callId: ToolCallId(callLabel), name, arguments: args })
 }
 
 async function setupPlugin(): Promise<Context> {
@@ -270,7 +271,7 @@ describe('paper_search over an injected-fetchImpl registry', () => {
       },
     })
     const ctx = await setupRegistry(registry)
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: controller.signal,
       callId: ToolCallId('abort'),
       name: 'paper_search',

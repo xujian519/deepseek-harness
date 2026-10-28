@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Mapa de sessões Synapse (navegador)",
+    "description": "Adiciona à interface web o seletor de visão do mapa de sessões e a ponte iframe do Synapse."
+  }
+}

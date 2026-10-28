@@ -7,6 +7,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { createPatentEvalTool, evaluatePatentContent } from '../src/tool/patent-eval.ts'
 import { createDraftClaimsTool, draftClaims } from '../src/tool/draft-claims.ts'
 import { createDraftSpecificationTool, draftSpecification } from '../src/tool/draft-specification.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -19,7 +20,7 @@ async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
 }
 
 function execute(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
+  return executeToolFixture(ctx, { signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {

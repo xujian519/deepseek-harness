@@ -41,8 +41,10 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
-     * Creation announcement during session publication. A synchronous throw vetoes and rolls
-     * back with a paired disposal; detach requested during dispatch is deferred.
+     * Read-only creation announcement after store entry.
+     * New events reject until every synchronous listener has returned successfully.
+     * A synchronous throw vetoes creation and rolls back with a paired disposal;
+     * detach requested during dispatch is deferred.
      * A returned-promise rejection is logged but cannot retroactively veto this
      * synchronous boundary.
      * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners
@@ -210,7 +212,7 @@ export class SessionStore extends Service {
    *   `eventState`, every seed event is either independently owned or any
    *   shared value is deeply frozen; {@link Session.fromRestore} validates and
    *   adopts those values without copying or freezing them.
-   * @returns the constructed session, NOT yet in the store.
+   * @returns the store-owned session, not yet entered and read-only until announced.
    * @throws if a session with `id` already exists, metadata is not a plain
    *   lossless-JSON record with valid scalar fields, or `meta.cwd` is a
    *   non-absolute path.
@@ -228,8 +230,8 @@ export class SessionStore extends Service {
       const { eventState } = options
       switch (eventState) {
         case 'detached':
-        case 'shared-frozen':
-          return Session.fromRestore(
+        case 'shared-frozen': {
+          const session = Session.fromRestore(
             sessionId,
             options.seed,
             options.meta,
@@ -237,6 +239,9 @@ export class SessionStore extends Service {
             eventState,
             this.projections,
           )
+          attachments.set(session, null)
+          return session
+        }
         case undefined:
           break
         /* v8 ignore next -- closed-union exhaustiveness guard */
@@ -257,12 +262,15 @@ export class SessionStore extends Service {
       ...meta?.delegationDepth === undefined ? {} : { delegationDepth: meta.delegationDepth },
       ...meta?.agentPreset === undefined ? {} : { agentPreset: meta.agentPreset },
     }
-    return Session.create(sessionId, seed, header, options?.inheritedEventCount, this.projections)
+    const session = Session.create(sessionId, seed, header, options?.inheritedEventCount, this.projections)
+    attachments.set(session, null)
+    return session
   }
 
   /**
-   * Enter a {@link prepare}d session into the store: install the module-private
-   * append publication hooks and add it to the store. Returns the DETACH
+   * Enter a session into the store: install the module-private
+   * append publication hooks and add it to the store. Writes remain disabled
+   * until {@link announce} completes successfully. Returns the DETACH
    * disposer (hooks + store removal). Does NOT emit `session/created` —
    * the caller yields this disposer inside its effect and THEN calls
    * {@link announce}, so a throwing `session/created` listener rolls the attach
@@ -276,7 +284,7 @@ export class SessionStore extends Service {
    * the two back-to-back so they never trip this, but the public API cannot
    * assume that.
    *
-   * @param session - a {@link prepare}d session not yet in the store.
+   * @param session - an unentered session; independent instances become store-owned.
    * @returns the detach disposer (publication hooks + store removal). When called from
    *   a synchronous `session/created` listener, removal and disposal wait until
    *   that creation dispatch unwinds.
@@ -288,7 +296,7 @@ export class SessionStore extends Service {
     // This is the authoritative collision boundary after arbitrary unpublished
     // preparation. Only one exact same-id transaction can publish.
     if (this.store.has(id)) throw new Error(`session "${id}" already exists`)
-    if (attachments.has(session)) throw new Error(`session "${id}" is already attached to a store`)
+    if (attachments.get(session) != null) throw new Error(`session "${id}" is already attached to a store`)
     const entry: SessionEntry = {
       id,
       session,
@@ -311,7 +319,7 @@ export class SessionStore extends Service {
     /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
     if (this.store.get(entry.id) !== entry) return
     this.store.delete(entry.id)
-    attachments.delete(entry.session)
+    attachments.set(entry.session, null)
     if (entry.lifecycle.isAnnounced) this.emitDisposed(entry)
   }
 
@@ -339,8 +347,10 @@ export class SessionStore extends Service {
           this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${String(error)}`)
         })
       }
-    } finally {
+      if (entry.lifecycle.completeAnnouncement()) entry.detach()
+    } catch (error: unknown) {
       if (entry.lifecycle.endAnnouncement()) entry.detach()
+      throw error
     }
   }
 
@@ -390,7 +400,7 @@ export class SessionStore extends Service {
   /** Return the exact live entry; detached/prepared objects reject. */
   private liveEntryFor(session: Session): SessionEntry {
     const entry = attachments.get(session)
-    if (entry === undefined || this.store.get(entry.id) !== entry) {
+    if (entry == null || this.store.get(entry.id) !== entry) {
       throw new Error(`session "${session.id}" is not live in this store`)
     }
     return entry
@@ -414,7 +424,7 @@ export class SessionStore extends Service {
   }
 
   /**
-   * Create a live child session from an exact prefix of a live source.
+   * Create an independent live session from an exact prefix of a live source.
    * `boundary` is an inclusive source event seq; omitted means the source's
    * current last event. An open tail receives synthetic tool results and
    * step/turn closers with the forked cause. Closed steps and turns remain
@@ -443,7 +453,6 @@ export class SessionStore extends Service {
       inheritedEventCount: SessionLogOffset(resolved === undefined ? 0 : resolved + 1),
       meta: {
         ...liveSource.header.cwd !== undefined ? { cwd: liveSource.header.cwd } : {},
-        parentSession: liveSource.id,
         isSeeded: true,
       },
     })

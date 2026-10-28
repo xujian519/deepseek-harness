@@ -4,6 +4,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as Pkg from '../src/index.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 async function install(overrides: Partial<Pkg.Config> = {}) {
   const ctx = new Context()
@@ -55,7 +56,7 @@ describe('@deepseek-ai/dsh-patent-fees plugin surface', () => {
 
   it('withholds the total under the shipped policy and sums the verified part when turned off', async () => {
     const strict = await install()
-    const withheld = await strict.ctx.tools.execute({
+    const withheld = await executeToolFixture(strict.ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('patent-fees-strict'),
       name: 'patent_fees',
@@ -64,7 +65,7 @@ describe('@deepseek-ai/dsh-patent-fees plugin surface', () => {
     expect((withheld.value as { total: { amount?: string } }).total.amount).toBeUndefined()
 
     const relaxed = await install({ failOnUnverified: false })
-    const reported = await relaxed.ctx.tools.execute({
+    const reported = await executeToolFixture(relaxed.ctx, {
       signal: new AbortController().signal,
       callId: ToolCallId('patent-fees-relaxed'),
       name: 'patent_fees',

@@ -33,6 +33,7 @@ import { specCheckAtom, SpecCheckHandler } from '../src/atoms/spec-check.ts'
 import { responseCheckAtom, ResponseCheckHandler } from '../src/atoms/response-check.ts'
 import { eligibilityAtom, EligibilityHandler } from '../src/atoms/eligibility.ts'
 import { legalGapsAtom, LegalGapsHandler } from '../src/atoms/legal-gaps.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 registerBuiltinAtoms()
 // slop-gate、spec-check、response-check、eligibility 与 legal-gaps 依赖本包实现，真实注册在 apply()；
@@ -1427,7 +1428,7 @@ describe('patent_workflow_run', () => {
     await ctx.plugin(ToolRuntime)
     ctx.tools.register(createPatentWorkflowRunTool())
     const signal = new AbortController().signal
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal,
       callId: ToolCallId('wfr-1'),
       name: 'patent_workflow_run',

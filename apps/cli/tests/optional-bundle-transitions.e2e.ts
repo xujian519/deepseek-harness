@@ -21,6 +21,7 @@ import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { textResponse, toolCallResponse } from '../../../packages/core/agent-loop/tests/mock-adapter.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const root = fileURLToPath(new URL('../../..', import.meta.url))
 const installAnchor = join(root, 'apps/cli/package.json')
@@ -232,7 +233,7 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
 
   it('loads the actual badge asset only while its bundle is selected', async () => {
     const owner = await agent()
-    const load = (callId: string) => ctx.tools.execute({
+    const load = (callId: string) => executeToolFixture(ctx, {
       callId: ToolCallId(callId), name: 'skill', arguments: { name: 'dsh-badge' },
       agent: owner.agent, signal: new AbortController().signal,
     })

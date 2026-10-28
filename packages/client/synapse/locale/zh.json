@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Synapse 会话地图（浏览器）",
+    "description": "为 Web 界面增加会话地图视图切换与 Synapse iframe 桥接。"
+  }
+}

@@ -6,9 +6,10 @@ import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import * as PatentRule from '@deepseek-ai/dsh-patent-rule'
+import { defineContentToolFixture, executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -73,7 +74,7 @@ describe('tools/post-execute output gate', () => {
   it('blocks a delivery-tool result hitting a block-level rule', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('render_patent_document', '包含 BLOCKWORD 的文档'))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/TEST-BLOCK/)
   })
@@ -83,7 +84,7 @@ describe('tools/post-execute output gate', () => {
     let requested: unknown
     ctx.provide('approval', { request: async (req: unknown): Promise<string> => { requested = req; return 'allowed-once' } })
     ctx.tools.register(deliveryTool('draft_claims', '包含 REVIEWWORD 的文档'))
-    const result = await ctx.tools.execute(exec('draft_claims'))
+    const result = await executeToolFixture(ctx, exec('draft_claims'))
     expect(result.isError).toBe(false)
     expect(requested).toBeDefined()
     expect((requested as { toolName?: string })?.toolName).toBe('draft_claims')
@@ -93,7 +94,7 @@ describe('tools/post-execute output gate', () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     ctx.provide('approval', { request: async (): Promise<string> => 'rejected' })
     ctx.tools.register(deliveryTool('draft_specification', '包含 REVIEWWORD 的文档'))
-    const result = await ctx.tools.execute(exec('draft_specification'))
+    const result = await executeToolFixture(ctx, exec('draft_specification'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/TEST-REVIEW/)
   })
@@ -104,7 +105,7 @@ describe('tools/post-execute output gate', () => {
       request: async (): Promise<string> => { throw new Error('approval bridge unavailable') },
     })
     ctx.tools.register(deliveryTool('draft_claims', '包含 REVIEWWORD 的文档'))
-    const result = await ctx.tools.execute(exec('draft_claims'))
+    const result = await executeToolFixture(ctx, exec('draft_claims'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/审批通道异常/)
     expect(result.error?.message).toMatch(/approval bridge unavailable/)
@@ -113,7 +114,7 @@ describe('tools/post-execute output gate', () => {
   it('fails closed on a review-level result with no approval answerer', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('validate_specification', '包含 REVIEWWORD 的文档'))
-    const result = await ctx.tools.execute(exec('validate_specification'))
+    const result = await executeToolFixture(ctx, exec('validate_specification'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/无审批通道/)
   })
@@ -123,7 +124,7 @@ describe('tools/post-execute output gate', () => {
     // is blocked rather than delivered when no approval channel is mounted.
     const ctx = await mount({})
     ctx.tools.register(deliveryTool('draft_claims', '本次分析的最终建议如下。'))
-    const result = await ctx.tools.execute(exec('draft_claims'))
+    const result = await executeToolFixture(ctx, exec('draft_claims'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/PAT-APPROVAL-001/)
     expect(result.error?.message).toMatch(/无审批通道/)
@@ -137,7 +138,7 @@ describe('tools/post-execute output gate', () => {
       return next()
     })
     ctx.tools.register(deliveryTool('other_tool', '包含 BLOCKWORD 的文档'))
-    const result = await ctx.tools.execute(exec('other_tool'))
+    const result = await executeToolFixture(ctx, exec('other_tool'))
     expect(result.isError).toBe(false)
     expect(downstreamCalled).toBe(true)
   })
@@ -148,9 +149,9 @@ describe('tools/post-execute output gate', () => {
     await ctx.plugin(ToolRuntime)
     const fiber = await ctx.plugin(PatentRule, { rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('render_patent_document', '包含 BLOCKWORD 的文档'))
-    expect((await ctx.tools.execute(exec('render_patent_document'))).isError).toBe(true)
+    expect((await executeToolFixture(ctx, exec('render_patent_document'))).isError).toBe(true)
     await fiber.dispose()
-    const after = await ctx.tools.execute(exec('render_patent_document'))
+    const after = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(after.isError).toBe(false)
   })
 
@@ -171,7 +172,7 @@ describe('tools/post-execute output gate', () => {
         },
       }),
     )
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(false)
     expect(downstreamCalled).toBe(true)
   })
@@ -184,7 +185,7 @@ describe('tools/post-execute output gate', () => {
       return next()
     })
     ctx.tools.register(deliveryTool('render_patent_document', '   '))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(false)
     expect(downstreamCalled).toBe(true)
   })
@@ -198,7 +199,7 @@ describe('tools/post-execute output gate', () => {
       return next()
     })
     ctx.tools.register(deliveryTool('render_patent_document', '包含 WARNWORD 的文档'))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(false)
     expect(downstreamCalled).toBe(true)
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('命中 warn 级规则 TEST-WARN'))
@@ -225,7 +226,7 @@ describe('tools/post-execute output gate', () => {
       return { kind: 'block', feedback: [{ type: 'text', text: '下游拦截' }], additionalContexts: [downstream] }
     })
     ctx.tools.register(deliveryTool('render_patent_document', '包含 WARNWORD 的文档'))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toBe('下游拦截')
     const contexts = result.additionalContexts ?? []
@@ -235,7 +236,7 @@ describe('tools/post-execute output gate', () => {
   it('adds warn context to a block-level hit of the same result', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('render_patent_document', 'BLOCKWORD 与 WARNWORD 同现'))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/TEST-BLOCK/)
     const [context] = result.additionalContexts ?? []
@@ -248,7 +249,7 @@ describe('tools/post-execute output gate', () => {
   it('adds warn context to a review-level hit that fails closed', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('validate_specification', 'REVIEWWORD 与 WARNWORD 同现'))
-    const result = await ctx.tools.execute(exec('validate_specification'))
+    const result = await executeToolFixture(ctx, exec('validate_specification'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/无审批通道/)
     const [context] = result.additionalContexts ?? []
@@ -262,7 +263,7 @@ describe('tools/post-execute output gate', () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     const infoSpy = vi.spyOn(ctx.logger, 'info')
     ctx.tools.register(deliveryTool('render_patent_document', '包含 LOGWORD 的文档'))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(false)
     expect(result.additionalContexts ?? []).toHaveLength(0)
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('命中 log 级规则 TEST-LOG'))
@@ -272,7 +273,7 @@ describe('tools/post-execute output gate', () => {
   it('attaches no context when no rule fires', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('render_patent_document', '普通文档，无命中'))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(false)
     expect(result.additionalContexts ?? []).toHaveLength(0)
   })
@@ -280,7 +281,7 @@ describe('tools/post-execute output gate', () => {
   it('injects warn context from the shipped rule set', async () => {
     const ctx = await mount({})
     ctx.tools.register(deliveryTool('draft_claims', '本方案毫无疑问优于现有技术。'))
-    const result = await ctx.tools.execute(exec('draft_claims'))
+    const result = await executeToolFixture(ctx, exec('draft_claims'))
     expect(result.isError).toBe(false)
     const [context] = result.additionalContexts ?? []
     const text = (context?.content ?? [])
@@ -302,7 +303,7 @@ describe('tools/post-execute output gate', () => {
       },
     }, { rulesDir: makeRulesFixture() })
     ctx.tools.register(deliveryTool('render_patent_document', '包含 BLOCKWORD 的文档'))
-    const result = await ctx.tools.execute(exec('render_patent_document'))
+    const result = await executeToolFixture(ctx, exec('render_patent_document'))
     expect(result.isError).toBe(true)
     expect(result.error?.message).toMatch(/TEST-BLOCK/)
   })

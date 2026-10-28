@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-28-upstream-dsh-v0.2.2-alpha.2-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-10-28-upstream-dsh-v0.2.2-alpha.2-sync.md
+/agent-note-upstream-v0-2-2-alpha-2-sync:
+  en: 99cf5be9eb4b1a13
+  zh: a10110cda939c13d
+/agent-note-upstream-v0-2-2-alpha-2-sync/problem:
+  en: 982945c5dfb18cca
+  zh: afc6b86a4015df08
+/agent-note-upstream-v0-2-2-alpha-2-sync/decision:
+  en: 4f1a6db0ae00ab1e
+  zh: fcc2c2c875063bec
+/agent-note-upstream-v0-2-2-alpha-2-sync/consequences:
+  en: b5735113dc1aa41c
+  zh: dd0172192fd44e3b
+/agent-note-upstream-v0-2-2-alpha-2-sync/alternatives-considered:
+  en: b278c7abb163e483
+  zh: 5f300cf75b40dc5f
+/agent-note-upstream-v0-2-2-alpha-2-sync/testing:
+  en: f503cd10822dc50c
+  zh: 43f5c8776798e5dc

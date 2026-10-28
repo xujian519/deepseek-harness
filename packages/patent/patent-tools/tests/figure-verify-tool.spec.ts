@@ -8,6 +8,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import { createGeneratePatentFigureTool } from '../src/tool/generate-patent-figure.ts'
 import { createVerifyPatentFigureTool } from '../src/tool/verify-patent-figure.ts'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 const signal = new AbortController().signal
 
@@ -45,7 +46,7 @@ describe('verify_patent_figure', () => {
         '<line x1="4" y1="20" x2="12" y2="20" stroke-width="0.25"/>',
         '<text x="60" y="20" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">1</text>',
       ].join('\n')))
-      const result = await ctx.tools.execute({ signal, callId: ToolCallId('vf1'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg' } })
+      const result = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf1'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg' } })
       expect(result.isError).toBe(false)
       const body = text(result)
       expect(body).toContain('附图渲染复核：fig1.svg')
@@ -69,7 +70,7 @@ describe('verify_patent_figure', () => {
         '<line x1="30" y1="20" x2="80" y2="10" stroke-width="0.25"/>',
         '<text x="80" y="11.2" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">3</text>',
       ].join('\n')))
-      const result = await ctx.tools.execute({ signal, callId: ToolCallId('vf2'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg' } })
+      const result = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf2'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg' } })
       expect(result.isError).toBe(false)
       const value = result as { value: { findings: { check: string; message: string }[] } }
       expect(value.value.findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
@@ -83,18 +84,18 @@ describe('verify_patent_figure', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
     const ctx = await ctxWith(dir)
     try {
-      const missing = await ctx.tools.execute({ signal, callId: ToolCallId('vf3'), name: 'verify_patent_figure', arguments: { svg_path: 'nope.svg' } })
+      const missing = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf3'), name: 'verify_patent_figure', arguments: { svg_path: 'nope.svg' } })
       expect(missing.isError).toBe(true)
       expect(text(missing)).toContain('SVG 文件不存在：nope.svg')
 
       // 目录当路径：读得出「存在」但读不出文本，报 invalid_tool_input 而不是 file_not_found。
       mkdirSync(join(dir, 'adir'))
-      const asDirectory = await ctx.tools.execute({ signal, callId: ToolCallId('vf3b'), name: 'verify_patent_figure', arguments: { svg_path: 'adir' } })
+      const asDirectory = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf3b'), name: 'verify_patent_figure', arguments: { svg_path: 'adir' } })
       expect(asDirectory.isError).toBe(true)
       expect(text(asDirectory)).toContain('SVG 文件不可读：adir')
 
       writeFileSync(join(dir, 'unsafe.svg'), '<!ENTITY x "y"><svg></svg>')
-      const unsafe = await ctx.tools.execute({ signal, callId: ToolCallId('vf4'), name: 'verify_patent_figure', arguments: { svg_path: 'unsafe.svg' } })
+      const unsafe = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf4'), name: 'verify_patent_figure', arguments: { svg_path: 'unsafe.svg' } })
       expect(unsafe.isError).toBe(true)
       expect(text(unsafe)).toContain('SVG 复核被拒')
     } finally {
@@ -113,7 +114,7 @@ describe('verify_patent_figure 量测缺省', () => {
       await ctx.plugin(SystemPrompt)
       await ctx.plugin(ToolRuntime)
       ctx.tools.register(createVerifyPatentFigureTool())
-      const result = await ctx.tools.execute({ signal, callId: ToolCallId('vf-abs'), name: 'verify_patent_figure', arguments: { svg_path: file } })
+      const result = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf-abs'), name: 'verify_patent_figure', arguments: { svg_path: file } })
       expect(result.isError).toBe(false)
       expect(text(result)).toContain('文字元素 1 个')
     } finally {
@@ -126,7 +127,7 @@ describe('verify_patent_figure 量测缺省', () => {
     const ctx = await ctxWith(dir)
     try {
       writeFileSync(join(dir, 'bare.svg'), '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>')
-      const result = await ctx.tools.execute({ signal, callId: ToolCallId('vf5'), name: 'verify_patent_figure', arguments: { svg_path: 'bare.svg' } })
+      const result = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf5'), name: 'verify_patent_figure', arguments: { svg_path: 'bare.svg' } })
       expect(result.isError).toBe(false)
       const value = result as { value: { widthMm?: number; strokeWidthMm: unknown[]; orientationDeg: unknown[] } }
       expect(value.value.widthMm).toBeUndefined()
@@ -156,7 +157,7 @@ describe('generate_patent_figure → verify_patent_figure 联合复核', () => {
     }))
     ctx.tools.register(createVerifyPatentFigureTool({ cwd: dir }))
     try {
-      const generated = await ctx.tools.execute({
+      const generated = await executeToolFixture(ctx, {
         signal,
         callId: ToolCallId('gv1'),
         name: 'generate_patent_figure',
@@ -175,7 +176,7 @@ describe('generate_patent_figure → verify_patent_figure 联合复核', () => {
         },
       })
       expect(generated.isError).toBe(false)
-      const verified = await ctx.tools.execute({ signal, callId: ToolCallId('gv2'), name: 'verify_patent_figure', arguments: { svg_path: 'figs/fig1.svg' } })
+      const verified = await executeToolFixture(ctx, { signal, callId: ToolCallId('gv2'), name: 'verify_patent_figure', arguments: { svg_path: 'figs/fig1.svg' } })
       expect(verified.isError).toBe(false)
       const value = verified as { value: { findings: unknown[]; textCount: number } }
       expect(value.value.findings).toEqual([])
@@ -197,7 +198,7 @@ describe('verify_patent_figure 标号净距', () => {
   /** 复核给定 SVG 文本的 findings。 */
   async function verify(dir: string, body: string, args: Record<string, unknown>): Promise<{ check: string; message: string }[]> {
     writeFileSync(join(dir, 'fig1.svg'), body)
-    const result = await ctxWith(dir).then(ctx => ctx.tools.execute({
+    const result = await ctxWith(dir).then(ctx => executeToolFixture(ctx, {
       signal, callId: ToolCallId('vc1'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', ...args },
     }))
     expect(result.isError).toBe(false)
@@ -246,7 +247,7 @@ describe('verify_patent_figure 标号净距', () => {
     const ctx = await ctxWith(dir)
     try {
       writeFileSync(join(dir, 'fig1.svg'), figure(16))
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         signal, callId: ToolCallId('vc2'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', text_clearance_mm: -1 },
       })
       expect(result.isError).toBe(true)
@@ -269,7 +270,7 @@ describe('verify_patent_figure 标号净距', () => {
     }))
     ctx.tools.register(createVerifyPatentFigureTool({ cwd: dir }))
     try {
-      const generated = await ctx.tools.execute({
+      const generated = await executeToolFixture(ctx, {
         signal,
         callId: ToolCallId('vc3'),
         name: 'generate_patent_figure',
@@ -282,7 +283,7 @@ describe('verify_patent_figure 标号净距', () => {
         },
       })
       expect(generated.isError).toBe(false)
-      const verified = await ctx.tools.execute({ signal, callId: ToolCallId('vc4'), name: 'verify_patent_figure', arguments: { svg_path: 'figs/fig1.svg' } })
+      const verified = await executeToolFixture(ctx, { signal, callId: ToolCallId('vc4'), name: 'verify_patent_figure', arguments: { svg_path: 'figs/fig1.svg' } })
       const body = text(verified)
       expect(body).toContain('未发现问题')
       // 引线（data-dsh-role="leader"）止于数字外框：若把它算作图元，这里必报净距。
@@ -303,7 +304,7 @@ describe('verify_patent_figure 图内层级 ↔ 权项', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
     try {
       writeFileSync(join(dir, 'fig1.svg'), FIGURE)
-      const result = await ctxWith(dir).then(ctx => ctx.tools.execute({
+      const result = await ctxWith(dir).then(ctx => executeToolFixture(ctx, {
         signal,
         callId: ToolCallId('vh1'),
         name: 'verify_patent_figure',
@@ -328,7 +329,7 @@ describe('verify_patent_figure 图内层级 ↔ 权项', () => {
     try {
       writeFileSync(join(dir, 'fig1.svg'), FIGURE)
       const ctx = await ctxWith(dir)
-      const onlyHierarchy = await ctx.tools.execute({
+      const onlyHierarchy = await executeToolFixture(ctx, {
         signal,
         callId: ToolCallId('vh2'),
         name: 'verify_patent_figure',
@@ -336,7 +337,7 @@ describe('verify_patent_figure 图内层级 ↔ 权项', () => {
       })
       expect(onlyHierarchy.isError).toBe(false)
       expect((onlyHierarchy as { value: { findings: unknown[] } }).value.findings).toEqual([])
-      const onlyClaims = await ctx.tools.execute({
+      const onlyClaims = await executeToolFixture(ctx, {
         signal,
         callId: ToolCallId('vh3'),
         name: 'verify_patent_figure',
@@ -360,7 +361,7 @@ describe('verify_patent_figure 字高下限', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
     try {
       writeFileSync(join(dir, 'fig1.svg'), SMALL)
-      const result = await ctxWith(dir).then(ctx => ctx.tools.execute({
+      const result = await ctxWith(dir).then(ctx => executeToolFixture(ctx, {
         signal, callId: ToolCallId('vf-min'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 3 },
       }))
       expect(result.isError).toBe(false)
@@ -381,9 +382,9 @@ describe('verify_patent_figure 字高下限', () => {
     ctx.tools.register(createVerifyPatentFigureTool({ cwd: dir, minFontMm: 3 }))
     try {
       writeFileSync(join(dir, 'fig1.svg'), SMALL)
-      const byDefault = await ctx.tools.execute({ signal, callId: ToolCallId('vf-dflt'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg' } })
+      const byDefault = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf-dflt'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg' } })
       expect((byDefault as { value: { findings: { check: string }[] } }).value.findings.map(finding => finding.check)).toEqual(['font-below-minimum'])
-      const overridden = await ctx.tools.execute({ signal, callId: ToolCallId('vf-over'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 1 } })
+      const overridden = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf-over'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 1 } })
       expect((overridden as { value: { findings: unknown[] } }).value.findings).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -395,7 +396,7 @@ describe('verify_patent_figure 字高下限', () => {
     const ctx = await ctxWith(dir)
     try {
       writeFileSync(join(dir, 'fig1.svg'), SMALL)
-      const result = await ctx.tools.execute({ signal, callId: ToolCallId('vf-bad'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 0 } })
+      const result = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf-bad'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', min_font_mm: 0 } })
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('min_font_mm 必须是正数')
     } finally {

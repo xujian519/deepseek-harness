@@ -34,15 +34,18 @@ export type { MarkdownCodeLabels, MarkdownFileMentions, MarkdownLabels, Markdown
  * `MarkdownDelegateProvider` can delegate ordinary HTTP(S) activation while
  * modified clicks retain native behavior. `variant="compact"` uses secondary
  * text sizing, uniform bold headings, and tight block spacing; the default
- * `body` variant uses the full document typography.
+ * `body` variant uses the full document typography. `omitHtml` renders raw
+ * HTML as nothing instead of literal text, for documents written for HTML
+ * renderers, such as package READMEs. `textInteractionSource` marks the
+ * existing root as a source for text selection interactions.
  * The provider's `openFile` enables local Markdown links in settled messages,
  * including `#L24` and `#L24-L30` destinations (ranges open at their first line).
- * @returns A GFM document with TeX math rendered through KaTeX; raw HTML and
- * unsafe protocols are disabled. Local links without an opener remain text;
+ * @returns A GFM document with TeX math rendered through KaTeX; raw HTML never
+ * renders as markup, and unsafe protocols are disabled. Local links without an opener remain text;
  * absolute HTTP(S) images render directly.
  */
 export const MarkdownText = memo(function MarkdownText({
-  text, streaming = false, labels, fileMentions, pathImages, variant = 'body', frameGate,
+  text, streaming = false, labels, fileMentions, pathImages, variant = 'body', omitHtml = false, textInteractionSource = false, frameGate,
 }: {
   text: string
   streaming?: boolean
@@ -50,6 +53,8 @@ export const MarkdownText = memo(function MarkdownText({
   fileMentions?: MarkdownFileMentions | undefined
   pathImages?: MarkdownPathImages | undefined
   variant?: 'body' | 'compact'
+  omitHtml?: boolean
+  textInteractionSource?: boolean
   /**
    * Frame admission for a streaming reply's open tail block. Product renders
    * leave it unset; a caller that passes one owns its clock, which lets a test
@@ -60,19 +65,22 @@ export const MarkdownText = memo(function MarkdownText({
   const streamRef = useRef<StreamingRenderer | null>(null)
   const streamLabelsRef = useRef<MarkdownLabels>(labels)
   const streamGateRef = useRef<StreamFrameGate | undefined>(frameGate)
+  const streamOmitHtmlRef = useRef(omitHtml)
   const [frameTick, retryFrame] = useReducer((tick: number): number => tick + 1, 0)
   const children = useMemo(() => {
     if (!streaming) {
       streamRef.current = null
-      return renderSettled(text, labels, fileMentions, pathImages)
+      return renderSettled(text, labels, fileMentions, pathImages, omitHtml)
     }
-    if (streamRef.current === null || streamLabelsRef.current !== labels || streamGateRef.current !== frameGate) {
-      streamRef.current = new StreamingRenderer(labels, frameGate)
+    if (streamRef.current === null || streamLabelsRef.current !== labels
+      || streamGateRef.current !== frameGate || streamOmitHtmlRef.current !== omitHtml) {
+      streamRef.current = new StreamingRenderer(labels, omitHtml, frameGate)
       streamLabelsRef.current = labels
       streamGateRef.current = frameGate
+      streamOmitHtmlRef.current = omitHtml
     }
     return streamRef.current.render(text)
-  }, [text, streaming, labels, fileMentions, pathImages, frameTick])
+  }, [text, streaming, labels, fileMentions, pathImages, frameGate, omitHtml, frameTick])
   // A frame the streaming renderer held back still has to land when the reply
   // pauses, so its cool-down is awaited here rather than left to the next chunk.
   useEffect(() => {
@@ -83,5 +91,6 @@ export const MarkdownText = memo(function MarkdownText({
     return () => { clearTimeout(timer) }
   })
   return <div className={clsx(css.markdown, variant === 'compact' && css.compact)}
+    data-text-interaction-source={textInteractionSource ? '' : undefined}
     data-markdown-variant={variant === 'compact' ? variant : undefined}>{children}</div>
 })

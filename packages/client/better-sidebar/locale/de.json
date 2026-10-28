@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Seitenleisten-Arbeitsbereich",
+    "description": "Fügt eine VSCode-ähnliche rechte Seitenleiste mit Explorer, Editor, Terminal, Git und Browser hinzu, getrennt je Sitzung."
+  }
+}

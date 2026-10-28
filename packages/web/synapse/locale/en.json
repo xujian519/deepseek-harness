@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Synapse session map (host)",
+    "description": "Serves the Synapse canvas and the committed-session projection store."
+  }
+}

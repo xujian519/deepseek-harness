@@ -65,11 +65,13 @@
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
   transition: background-color 100ms ease-out, color 100ms ease-out;
-}
+}@media (hover: hover) {
 
-.sidechatIconBtn:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
+
+  .sidechatIconBtn:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 .sidechatIconBtn:disabled {
@@ -119,10 +121,12 @@
   corner-shape: round;
 
 
-}
+}@media (hover: hover) {
 
-.sidechatPrimaryBtn:hover:not(:disabled) {
-  opacity: 0.88;
+
+  .sidechatPrimaryBtn:hover:not(:disabled) {
+    opacity: 0.88;
+  }
 }
 
 .sidechatPrimaryBtn:disabled {
@@ -211,10 +215,12 @@
 
 .sidechatRowSummary::-webkit-details-marker {
   display: none;
-}
+}@media (hover: hover) {
 
-.sidechatRowSummary:hover {
-  color: var(--dsw-alias-label-secondary);
+
+  .sidechatRowSummary:hover {
+    color: var(--dsw-alias-label-secondary);
+  }
 }
 
 .sidechatRowStatic {
@@ -401,10 +407,12 @@
   corner-shape: round;
 
 
-}
+}@media (hover: hover) {
 
-.sidechatSendBtn:hover:not(:disabled) {
-  opacity: 0.88;
+
+  .sidechatSendBtn:hover:not(:disabled) {
+    opacity: 0.88;
+  }
 }
 
 .sidechatSendBtn:disabled {
