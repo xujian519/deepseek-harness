@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { JsonFileStore, SAFE_ID_PATTERN, assertSafeId, atomicWriteJson } from '@deepseek-ai/dsh-patent-data'
+import { StoredRecordError, parseStoredJsonRecord } from '@deepseek-ai/dsh-patent-core'
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), 'persist-utils-test-'))
@@ -74,6 +75,61 @@ describe('JsonFileStore', () => {
       expect(await store.load('run')).toEqual({ n: 1 })
     } finally {
       rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('JsonFileStore parse 回调契约', () => {
+  it('把记录文件路径传给 parser', async () => {
+    const dir = tempDir()
+    try {
+      const seen: string[] = []
+      const store = new JsonFileStore<string>(dir, (raw, file) => {
+        seen.push(file)
+        return JSON.parse(raw) as string
+      })
+      await store.save('a1', 'value')
+      expect(await store.load('a1')).toBe('value')
+      expect(seen).toEqual([join(dir, 'a1.json')])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('parser 抛出的 ENOENT 错误向上传播，不被当作文件缺失', async () => {
+    const dir = tempDir()
+    try {
+      const store = new JsonFileStore<string>(dir, () => {
+        const error: NodeJS.ErrnoException = new Error('parser rejected the record')
+        error.code = 'ENOENT'
+        throw error
+      })
+      await store.save('a1', 'value')
+      await expect(store.load('a1')).rejects.toThrow('parser rejected the record')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('parseStoredJsonRecord', () => {
+  it('返回解析后的 JSON 对象', () => {
+    expect(parseStoredJsonRecord('{"a":1}', 'x.json', 'run')).toEqual({ a: 1 })
+  })
+
+  it('非对象 JSON 与非法 JSON 都抛带文件与记录类型的错误', () => {
+    const file = join(tmpdir(), 'x.json')
+    for (const raw of ['[]', 'null', '"text"', '42', '{not json']) {
+      let caught: StoredRecordError | undefined
+      try {
+        parseStoredJsonRecord(raw, file, 'checkpoint')
+      } catch (error) {
+        if (error instanceof StoredRecordError) caught = error
+      }
+      expect(caught, raw).toBeInstanceOf(StoredRecordError)
+      expect(caught?.file).toBe(file)
+      expect(caught?.recordKind).toBe('checkpoint')
+      expect(caught?.message).toContain(file)
     }
   })
 })

@@ -8,10 +8,54 @@
  * 假定节点幂等（同输入同输出），审批门场景下 LLM 节点在门之前，重放影响有限。
  */
 
-import { JsonFileStore } from '../persist-utils.ts'
+import { basename } from 'node:path'
+import { JsonFileStore, StoredRecordError, parseStoredJsonRecord } from '../persist-utils.ts'
+import {
+  isFiniteNumber,
+  isJsonRecord,
+  isNonEmptyStringArray,
+  isNonNegativeInteger,
+  readNonEmptyString,
+} from '../llm-json.ts'
 import { APPROVAL_GRANTED_NODES_KEY } from '../atoms/index.ts'
 import type { CheckpointStore, GraphCheckpoint, GraphRunResult, GraphState, RunOptions } from './types.ts'
 import { cloneState } from './state.ts'
+
+/** 记录类型名：进入 StoredRecordError 的消息。 */
+const CHECKPOINT_RECORD_KIND = 'checkpoint'
+
+/**
+ * 解析并校验一份持久化的检查点记录。
+ *
+ * 磁盘内容不满足 {@link GraphCheckpoint} 契约时抛 {@link StoredRecordError}。
+ * 缺 `state` 的记录若被当作有效值返回，resume 时 `resumeFrom?.state ?? initial`
+ * 会把缺失的状态静默换成初始状态，恢复变成无声重跑。
+ *
+ * `id` 必须等于文件名：`grantApproval` 用记录内的 `id` 回写，不一致时会覆盖另一条检查点。
+ * @param raw - 文件原文。
+ * @param file - 记录文件路径。
+ * @returns 通过校验的检查点。
+ */
+export function parseGraphCheckpoint(raw: string, file: string): GraphCheckpoint {
+  const record = parseStoredJsonRecord(raw, file, CHECKPOINT_RECORD_KIND)
+  const invalid = (detail: string): StoredRecordError =>
+    new StoredRecordError(file, CHECKPOINT_RECORD_KIND, detail)
+  const id = readNonEmptyString(record, 'id')
+  if (id === undefined) throw invalid('id must be a non-empty string')
+  const graphId = readNonEmptyString(record, 'graphId')
+  if (graphId === undefined) throw invalid('graphId must be a non-empty string')
+  const stepIndex = record['stepIndex']
+  if (!isNonNegativeInteger(stepIndex)) throw invalid('stepIndex must be a non-negative integer')
+  const state = record['state']
+  if (!isJsonRecord(state)) throw invalid('state must be a JSON object')
+  const activeNodes = record['activeNodes']
+  if (!isNonEmptyStringArray(activeNodes)) throw invalid('activeNodes must be an array of non-empty strings')
+  const createdAt = record['createdAt']
+  if (!isFiniteNumber(createdAt)) throw invalid('createdAt must be a finite number')
+  const fileId = basename(file, '.json')
+  if (id !== fileId) throw invalid(`id ${JSON.stringify(id)} does not match file name ${JSON.stringify(fileId)}`)
+  return { id, graphId, stepIndex, state, activeNodes, createdAt }
+}
 
 /** 内存检查点存储（默认；单进程内可用）。 */
 export class InMemoryCheckpointStore implements CheckpointStore {
@@ -51,12 +95,17 @@ export class InMemoryCheckpointStore implements CheckpointStore {
   }
 }
 
-/** 每 id 一个 JSON 文件的检查点存储（复用 JsonFileStore 原子写）。 */
+/**
+ * 每 id 一个 JSON 文件的检查点存储（复用 JsonFileStore 原子写）。
+ *
+ * 读取时逐字段校验并核对 `id` 与文件名；不满足契约的记录抛
+ * {@link StoredRecordError}，不会作为有效检查点返回。
+ */
 export class JsonFileCheckpointStore implements CheckpointStore {
   private readonly store: JsonFileStore<GraphCheckpoint>
 
   constructor(dir: string) {
-    this.store = new JsonFileStore<GraphCheckpoint>(dir, raw => JSON.parse(raw) as GraphCheckpoint, 'checkpointId')
+    this.store = new JsonFileStore<GraphCheckpoint>(dir, parseGraphCheckpoint, 'checkpointId')
   }
 
   async save(checkpoint: GraphCheckpoint): Promise<void> {

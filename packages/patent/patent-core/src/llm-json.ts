@@ -59,6 +59,39 @@ export function asJsonRecord(value: unknown): Record<string, unknown> | undefine
 }
 
 /**
+ * 判断值是否为有限数字（排除 NaN 与 ±Infinity）。
+ *
+ * 持久化记录的数值字段用它判定：`typeof value === 'number'` 会放过 NaN，
+ * 而 `JSON.parse` 无法产出 NaN，只有损坏或手改的记录才会带进这种值。
+ * @param value - 待判定的值。
+ * @returns 值是否为有限数字。
+ */
+export function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+/**
+ * 判断值是否为非负整数。
+ * @param value - 待判定的值。
+ * @returns 值是否为非负整数。
+ */
+export function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+/**
+ * 判断值是否为非空字符串数组。
+ *
+ * 空串元素在领域层没有含义（节点名、阶段 id、状态键都非空），却会让下游按名字
+ * 查找时静默失配，因此在 durable 边界直接拒绝。
+ * @param value - 待判定的值。
+ * @returns 值是否为非空字符串数组（空数组合法）。
+ */
+export function isNonEmptyStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(entry => typeof entry === 'string' && entry.trim() !== '')
+}
+
+/**
  * 读取一个 JSON 数组；其它形状返回空数组。
  * @param value - 待窄化的值。
  * @returns 数组形状的值，或空数组。
@@ -76,6 +109,38 @@ export function readJsonString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+/**
+ * 读取记录中必填的非空字符串字段；缺失或形状不符返回 undefined。
+ *
+ * 返回写入时的原值而不去空白：持久化记录按写入内容回读，校验只判断非空，
+ * 不改写字段内容（需要去空白的容错消费方用 {@link readJsonString}）。
+ * @param record - 待读取的 JSON 对象。
+ * @param key - 字段名。
+ * @returns 字段原值，或 undefined。
+ */
+export function readNonEmptyString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key]
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
+}
+
+/**
+ * 读取记录中可选的非空字符串字段：字段缺失返回 undefined，给出但形状不符返回 null。
+ *
+ * 三态返回让调用方区分「没写这个字段」与「写了但非法」：前者保持字段缺省，
+ * 后者必须按结构错误拒绝。
+ * @param record - 待读取的 JSON 对象。
+ * @param key - 字段名。
+ * @returns 字段原值、undefined（缺失）或 null（非法）。
+ */
+export function readOptionalNonEmptyString(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined | null {
+  const value = record[key]
+  if (value === undefined) return undefined
+  return typeof value === 'string' && value.trim() !== '' ? value : null
 }
 
 /**

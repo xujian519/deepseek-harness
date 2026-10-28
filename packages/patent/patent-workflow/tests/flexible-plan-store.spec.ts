@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { StoredRecordError } from '@deepseek-ai/dsh-patent-core'
 import { FlexiblePlanError, createFlexiblePlan, JsonFileFlexiblePlanStore } from '@deepseek-ai/dsh-patent-workflow'
 
 async function withTempDir(fn: (dir: string) => Promise<void>): Promise<void> {
@@ -53,6 +54,15 @@ describe('JsonFileFlexiblePlanStore', () => {
       expect(() => createFlexiblePlan('../evil', 'invalidation')).toThrow(FlexiblePlanError)
       await expect(store.loadPlan('../evil')).rejects.toThrow(RangeError)
       await expect(store.loadPlan('.hidden')).rejects.toThrow(RangeError)
+    })
+  })
+
+  it('rejects a plan whose caseId does not match the file name', async () => {
+    await withTempDir(async (dir) => {
+      const store = new JsonFileFlexiblePlanStore(dir)
+      const plan = createFlexiblePlan('case-1', 'invalidation')
+      await writeFile(join(dir, 'case-1.json'), JSON.stringify({ ...plan, caseId: 'case-2' }), 'utf8')
+      await expect(store.loadPlan('case-1')).rejects.toThrow(StoredRecordError)
     })
   })
 

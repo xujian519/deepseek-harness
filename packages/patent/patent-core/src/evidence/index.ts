@@ -22,6 +22,8 @@ export { Ledger, contentHash, receiptFromToolExecution, type Receipt } from './r
 export {
   buildWorkflowEvidenceLedger,
   EVIDENCE_SNIPPET_LIMIT,
+  WORKFLOW_EVIDENCE_SOURCES,
+  isWorkflowEvidenceSource,
   priorArtReceiptCitationIds,
   type BuildWorkflowEvidenceLedgerOptions,
   type WorkflowEvidenceLedger,

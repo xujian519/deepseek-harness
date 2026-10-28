@@ -152,6 +152,7 @@ Independent; the draft schema is submitted per call inside tool arguments and ne
 - **证据规则资产暂存桩** — `loadEvidenceRulesEngine(ruleDirs?)` 接受显式目录，未传时返回默认权重引擎；真实规则包由 `dsh-patent-rule`（P4.1）解析。
 - **IPC 数据以资产打包** — `ipc-standards.yaml` 随包发布在 `assets/`，经 `import.meta.url` 从源码与构建后 lib 均可解析。
 - **检查点仍为文件存储** — `JsonFileCheckpointStore` 经共享的 `JsonFileStore` 持久化每超步检查点；`ctx.storage` 接缝随工作流集成（P3.1）落地。
+- **持久化记录只校验、不带版本号** — `JsonFileCheckpointStore` 对字段不符合 `GraphCheckpoint` 的记录（含 `id` 与文件名不一致）抛带文件路径的 `StoredRecordError`，`list`/`loadLatest` 遇损坏文件直接失败而不是跳过。格式没有版本字段，不兼容的旧形状按非法记录拒绝，不做迁移。
 - **图引擎为纯计算** — 超步引擎与各域子图在进程内运行、无 `ctx`；LLM 与检索能力经注入的 `StageProvider` 提供。
 - **单一性是相似度指标** — 评分与评级来自对清洗后权利要求文本的加权词法相似度；本模块不给出法律结论，`fair` 或 `poor` 表示该组权利要求需要代理师复核，而不是直接判定为不满足单一性。
 - **程序文书解析是词法判定** — 理由表沿用上游的宽词（清楚、支持），命中只表示文书写到了该条款，不表示该理由已被实质论证；相关性与逐篇权项取自文献号周围的文本，不是审查员的权威对应。

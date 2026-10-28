@@ -1,5 +1,5 @@
-import { expect, it } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -9,6 +9,7 @@ import {
   GraphInterruptError,
   InMemoryCheckpointStore,
   JsonFileCheckpointStore,
+  StoredRecordError,
   grantApproval,
   isGateApproved,
   runGraphWithCheckpoints,
@@ -244,4 +245,134 @@ it('InMemoryCheckpointStore.loadLatest 返回克隆：外部修改不污染存�
   const again = await store.loadLatest('g')
   expect(again?.state).toEqual({ a: 1 })
   expect(again?.activeNodes).toEqual(['x'])
+})
+
+describe('JsonFileCheckpointStore：磁盘记录结构校验', () => {
+  /** 写一份磁盘记录；文件名即 checkpoint id，内容可任意改坏。 */
+  async function writeRecord(dir: string, id: string, content: unknown): Promise<string> {
+    const file = join(dir, `${id}.json`)
+    await writeFile(file, JSON.stringify(content), 'utf8')
+    return file
+  }
+
+  /** 读取并断言被拒绝，返回结构化的存储错误。 */
+  async function loadError(store: JsonFileCheckpointStore, id: string): Promise<StoredRecordError> {
+    try {
+      await store.load(id)
+    } catch (error) {
+      if (error instanceof StoredRecordError) return error
+      throw error
+    }
+    throw new Error(`expected checkpoint "${id}" to be rejected`)
+  }
+
+  const valid = { id: 'g-0', graphId: 'g', stepIndex: 0, state: { a: 1 }, activeNodes: ['b'], createdAt: 1 }
+
+  it('缺 state 的记录被拒绝，错误带文件路径与记录类型（issue #601）', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sati-cp-bad-'))
+    try {
+      const store = new JsonFileCheckpointStore(dir)
+      const file = await writeRecord(dir, 'g-0', { ...valid, state: undefined })
+      const error = await loadError(store, 'g-0')
+      expect(error.file).toBe(file)
+      expect(error.recordKind).toBe('checkpoint')
+      expect(error.detail).toContain('state')
+      expect(error.message).toContain(file)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('逐字段拒绝形状不符的记录', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sati-cp-fields-'))
+    try {
+      const store = new JsonFileCheckpointStore(dir)
+      const cases: Array<[string, string, Record<string, unknown>]> = [
+        ['graphId 为空串', 'graphId', { graphId: '' }],
+        ['graphId 非字符串', 'graphId', { graphId: 7 }],
+        ['stepIndex 为字符串', 'stepIndex', { stepIndex: '0' }],
+        ['stepIndex 非整数', 'stepIndex', { stepIndex: 1.5 }],
+        ['stepIndex 为负', 'stepIndex', { stepIndex: -1 }],
+        ['state 为数组', 'state', { state: [] }],
+        ['state 为 null', 'state', { state: null }],
+        ['activeNodes 非数组', 'activeNodes', { activeNodes: 'b' }],
+        ['activeNodes 含非字符串', 'activeNodes', { activeNodes: ['b', 2] }],
+        ['createdAt 非数字', 'createdAt', { createdAt: 'now' }],
+        ['createdAt 为 null', 'createdAt', { createdAt: null }],
+      ]
+      for (const [index, [label, field, patch]] of cases.entries()) {
+        const id = `bad-${index}`
+        await writeRecord(dir, id, { ...valid, ...patch, id })
+        const error = await loadError(store, id)
+        expect(error.detail, label).toContain(field)
+        expect(error.file, label).toBe(join(dir, `${id}.json`))
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('拒绝非法 id：非字符串与空串', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sati-cp-idtype-'))
+    try {
+      const store = new JsonFileCheckpointStore(dir)
+      await writeRecord(dir, 'non-string-id', { ...valid, id: 7 })
+      expect((await loadError(store, 'non-string-id')).detail).toContain('id')
+      await writeRecord(dir, 'empty-id', { ...valid, id: '' })
+      expect((await loadError(store, 'empty-id')).detail).toContain('id')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('记录 id 与文件名不一致时拒绝，防止 grantApproval 回写覆盖另一条记录', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sati-cp-id-'))
+    try {
+      const store = new JsonFileCheckpointStore(dir)
+      await writeRecord(dir, 'a', { ...valid, id: 'b' })
+      const error = await loadError(store, 'a')
+      expect(error.detail).toContain('id')
+      expect(error.file).toBe(join(dir, 'a.json'))
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('损坏的 JSON 抛结构错误而非 SyntaxError', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sati-cp-json-'))
+    try {
+      const store = new JsonFileCheckpointStore(dir)
+      await writeFile(join(dir, 'broken.json'), '{not json', 'utf8')
+      const error = await loadError(store, 'broken')
+      expect(error.file).toBe(join(dir, 'broken.json'))
+      expect(error.detail).toContain('JSON')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('list / loadLatest 遇损坏记录 fail-loud，不静默跳过', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sati-cp-list-'))
+    try {
+      const store = new JsonFileCheckpointStore(dir)
+      await store.save({ ...valid })
+      await writeRecord(dir, 'g-1', { id: 'g-1', graphId: 'g' })
+      await expect(store.list('g')).rejects.toThrow(StoredRecordError)
+      await expect(store.loadLatest('g')).rejects.toThrow(StoredRecordError)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('接受边界合法值：空 state 与空 activeNodes', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sati-cp-min-'))
+    try {
+      const store = new JsonFileCheckpointStore(dir)
+      const minimal: GraphCheckpoint = { id: 'g-9', graphId: 'g', stepIndex: 0, state: {}, activeNodes: [], createdAt: 0 }
+      await store.save(minimal)
+      expect(await store.load('g-9')).toEqual(minimal)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 })

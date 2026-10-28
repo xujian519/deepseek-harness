@@ -13,6 +13,24 @@ import type { StageProvider } from '../types.ts'
 /** 阶段执行策略：chain / react / sub_agent。 */
 export type WorkflowStrategy = 'chain' | 'react' | 'sub_agent'
 
+/**
+ * 阶段执行策略全集。表驱动判定与联合类型保持同步：新增策略却漏写此表会编译失败。
+ */
+export const WORKFLOW_STRATEGIES = {
+  chain: true,
+  react: true,
+  sub_agent: true,
+} as const satisfies Record<WorkflowStrategy, true>
+
+/**
+ * 判断值是否为已声明的阶段执行策略。
+ * @param value - 待判定的值。
+ * @returns 值是否为 WorkflowStrategy。
+ */
+export function isWorkflowStrategy(value: unknown): value is WorkflowStrategy {
+  return typeof value === 'string' && Object.hasOwn(WORKFLOW_STRATEGIES, value)
+}
+
 /** 单个工作流阶段：id、策略、描述与可选原子/参数/重试配置。 */
 export type WorkflowStage = {
   id: string

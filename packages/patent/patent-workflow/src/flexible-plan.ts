@@ -18,6 +18,7 @@ import {
   digestText,
   getIpcDomain,
   manifestToGraph,
+  validateRevisionLog,
   type ArticleJudgment,
   type CompiledGraph,
   type FactBlackboard,
@@ -531,33 +532,15 @@ export function fromJSON(text: string): FlexiblePlanState {
   return data as FlexiblePlanState
 }
 
-/** 校验持久化的回退留痕：只接受带必填字符串字段的对象数组。 */
+/**
+ * 校验持久化的回退留痕：只接受带必填字符串字段的对象数组。
+ *
+ * 判定规则由 `validateRevisionLog` 统一持有（workflow-run 的磁盘记录消费同一形状），
+ * 这里只负责把原因包装成本层的错误类型。
+ */
 function assertRevisionLog(value: unknown): void {
-  if (!Array.isArray(value)) {
-    throw new FlexiblePlanError('fromJSON: revisions 必须是数组')
-  }
-  for (const item of value) {
-    if (typeof item !== 'object' || item === null) {
-      throw new FlexiblePlanError('fromJSON: revisions 含非对象元素')
-    }
-    const record = item as Record<string, unknown>
-    for (const key of ['gapId', 'rewindTo', 'requestedBy', 'before', 'rationale'] as const) {
-      if (typeof record[key] !== 'string' || record[key].trim() === '') {
-        throw new FlexiblePlanError(`fromJSON: revision.${key} 缺失或不是非空字符串`)
-      }
-    }
-    for (const key of ['after', 'evidence', 'at'] as const) {
-      if (record[key] !== undefined && (typeof record[key] !== 'string' || record[key].trim() === '')) {
-        throw new FlexiblePlanError(`fromJSON: revision.${key} 必须是非空字符串`)
-      }
-    }
-    if (record['outcome'] !== 'applied' && record['outcome'] !== 'exhausted') {
-      throw new FlexiblePlanError('fromJSON: revision.outcome 必须是 applied / exhausted')
-    }
-    if (typeof record['round'] !== 'number' || !Number.isInteger(record['round']) || record['round'] < 1) {
-      throw new FlexiblePlanError('fromJSON: revision.round 必须是正整数')
-    }
-  }
+  const result = validateRevisionLog(value)
+  if (!result.ok) throw new FlexiblePlanError(`fromJSON: ${result.reason}`)
 }
 
 // ---------------------------------------------------------------------------
