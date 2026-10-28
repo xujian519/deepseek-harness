@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Prompt-Cache",
+    "description": "Wendet eine Präfix-Cache-Strategie auf den Aufbau des System-Prompts an."
+  }
+}

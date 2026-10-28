@@ -133,6 +133,7 @@ function positiveInt(value: string | null): number | null | undefined {
 /** Mount the Synapse routes and live projection on the existing DSH Web Server. */
 export function apply(ctx: Context, config: SynapseConfig): void {
   const store = new WorkspaceStore(config.dataFile)
+  ctx.effect(() => () => { store.dispose() }, 'synapse: store write timer')
   const projectionWorkspaceTitle = typeof config.projectionWorkspaceTitle === 'string' && config.projectionWorkspaceTitle.trim() !== ''
     ? config.projectionWorkspaceTitle.trim().slice(0, MAX_TITLE_LENGTH)
     : 'DSH 任务'

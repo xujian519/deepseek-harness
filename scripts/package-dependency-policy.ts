@@ -67,7 +67,8 @@ const SAFE_HOST_DEPENDENCY_EXPORTS = {
   '@deepseek-ai/dsh-session': ['SessionId'],
   '@deepseek-ai/dsh-session/types': ['SessionLogOffset'],
   '@deepseek-ai/dsh-session-format': ['sessionFormatLogFilename'],
-  '@deepseek-ai/dsh-subagent/client': ['snapshotSubagentDescriptor'],
+  // Builds a durable descriptor from caller-owned values; the release moved it off the `/client` face.
+  '@deepseek-ai/dsh-subagent': ['snapshotSubagentDescriptor'],
   '@deepseek-ai/dsh-storage-domain': ['defineDomain'],
   '@deepseek-ai/dsh-timeout': ['MAX_TIMER_DELAY_MS'],
   '@deepseek-ai/dsh-tools': ['defineTool'],

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Moteur de règles brevets",
+    "description": "Évalue des paquets de règles de conformité YAML et contrôle la sortie des brevets."
+  }
+}

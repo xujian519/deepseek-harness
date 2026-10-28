@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Pacote de auto-evolução",
+    "description": "Monta a interface de capacidade de auto-evolução, o provedor e as ferramentas como camada de patch do perfil."
+  }
+}

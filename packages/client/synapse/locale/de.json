@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Synapse-Sitzungskarte (Browser)",
+    "description": "Fügt der Web-Oberfläche die Ansichtsumschaltung der Sitzungskarte und die Synapse-iframe-Brücke hinzu."
+  }
+}

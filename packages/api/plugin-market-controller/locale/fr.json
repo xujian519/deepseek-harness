@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "API du catalogue de plugins",
+    "description": "Expose la surface de découverte du catalogue de plugins via l'interface du marché des plugins."
+  }
+}

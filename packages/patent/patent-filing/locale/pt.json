@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Documentos de pedido de patente",
+    "description": "Monta um pedido CNIPA em DOCX a partir do modelo incluído e verifica o resultado."
+  }
+}

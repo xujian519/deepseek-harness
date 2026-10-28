@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Synapse セッションマップ（ブラウザー）",
+    "description": "Web GUI にセッションマップの表示切り替えと Synapse iframe ブリッジを追加します。"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin catalog",
+    "description": "Adds a read-only plugin discovery tab with sources, search, and install preview."
+  }
+}

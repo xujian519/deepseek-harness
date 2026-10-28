@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "桌面目录选择器",
+    "description": "为桌面外壳提供基于 Electron 的目录选择器。"
+  }
+}

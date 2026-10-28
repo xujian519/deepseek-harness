@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Mapa de sesiones Synapse (host)",
+    "description": "Sirve el lienzo de Synapse y el almacén de proyecciones de sesiones confirmadas."
+  }
+}

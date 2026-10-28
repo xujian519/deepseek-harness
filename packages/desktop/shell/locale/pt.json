@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ponte da área de trabalho",
+    "description": "Fornece a ponte do processo principal do Electron para a interface de capacidade da área de trabalho."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Motor de reglas de patentes",
+    "description": "Evalúa paquetes de reglas de cumplimiento en YAML y controla la salida de patentes."
+  }
+}

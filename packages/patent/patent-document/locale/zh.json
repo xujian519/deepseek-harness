@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "专利文档渲染",
+    "description": "解析模板并通过无头 Chrome 渲染专利 PDF。"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Desktop directory picker",
+    "description": "Provides the Electron-backed directory picker for the desktop shell."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin catalog API",
+    "description": "Serves the plugin-catalog discovery surface over the plugin-market seam."
+  }
+}

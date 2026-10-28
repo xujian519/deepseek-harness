@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Mapa de sesiones Synapse (navegador)",
+    "description": "Añade el conmutador de vista del mapa de sesiones y el puente iframe de Synapse a la interfaz web."
+  }
+}

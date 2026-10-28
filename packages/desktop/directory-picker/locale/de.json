@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Verzeichnisauswahl für den Desktop",
+    "description": "Stellt die Electron-basierte Verzeichnisauswahl für die Desktop-Shell bereit."
+  }
+}

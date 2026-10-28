@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Seletor de diretórios da área de trabalho",
+    "description": "Fornece o seletor de diretórios baseado em Electron para o shell da área de trabalho."
+  }
+}

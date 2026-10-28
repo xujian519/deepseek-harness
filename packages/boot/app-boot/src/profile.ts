@@ -32,8 +32,7 @@ import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { applyEntryPatches, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import type { DshBundleManifest, DshPackageManifest } from '@deepseek-ai/dsh-package-manifest'
-import { INSTALLATION_OWNED_PROFILE_TUPLES, PROFILE_TEMPLATES as OFFICIAL_PROFILE_TEMPLATES, RETIRED_BUNDLES } from '@deepseek-ai/dsh-official-bundles'
-import type { ProfileTemplate } from '@deepseek-ai/dsh-official-bundles'
+import { INSTALLATION_OWNED_PROFILE_TUPLES, PROFILE_TEMPLATES, RETIRED_BUNDLES } from '@deepseek-ai/dsh-official-bundles'
 import { assertBundlePlatform } from './bundle-platform.ts'
 import { evaluatePluginCompatibility, pluginCompatibilityWarning } from './plugin-compatibility.ts'
 import { readProfileVersionExemptions } from './profile-compatibility.ts'
@@ -177,17 +176,11 @@ export function resolveProfileDir(name: string, home: string = resolveDshHome())
 }
 
 /**
- * The shipped profile templates auto-initialized on first use, by name: the
- * installation-owned table from `@deepseek-ai/dsh-official-bundles` plus this
- * installation's experimental opt-in `self-evolve` template, which reuses the
- * headless runner with the self-evolve bundle mounted.
+ * The shipped profile templates auto-initialized on first use, by name. The
+ * installation-owned table in `@deepseek-ai/dsh-official-bundles` is their only
+ * home, so profile initialization, `dsh plugin`, and product gates all read one list.
  */
-export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
-  ...OFFICIAL_PROFILE_TEMPLATES,
-  'self-evolve': {
-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@deepseek-ai/dsh-self-evolve-app'],
-  },
-}
+export { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles'
 
 const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this dsh profile, applied after every bundle layer:
 # a top-level YAML array of loader patch entries (id-targeted config

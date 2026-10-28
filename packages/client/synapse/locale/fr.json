@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Carte des sessions Synapse (navigateur)",
+    "description": "Ajoute le sélecteur de vue carte des sessions et le pont iframe Synapse à l'interface web."
+  }
+}

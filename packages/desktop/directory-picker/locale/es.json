@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Selector de directorios de escritorio",
+    "description": "Proporciona el selector de directorios basado en Electron para el shell de escritorio."
+  }
+}

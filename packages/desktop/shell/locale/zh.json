@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "桌面桥接",
+    "description": "为桌面能力接缝提供 Electron 主进程桥接。"
+  }
+}

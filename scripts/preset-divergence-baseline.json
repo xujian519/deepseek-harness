@@ -256,7 +256,6 @@
       "self-evolve",
       "self-evolve-benchmark",
       "tool-literature",
-      "tool-subagent-list-agents",
       "writing-patterns"
     ],
     "document.patch.yml": [
@@ -338,7 +337,6 @@
       "tool-subagent",
       "tool-subagent-control",
       "tool-subagent-fork",
-      "tool-subagent-list-agents",
       "tool-todo",
       "tool-web",
       "tool-workflow",
@@ -365,7 +363,6 @@
       "self-evolve",
       "self-evolve-benchmark",
       "tool-literature",
-      "tool-subagent-list-agents",
       "writing-patterns"
     ],
     "standard.patch.yml": [
@@ -386,7 +383,6 @@
       "self-evolve",
       "self-evolve-benchmark",
       "tool-literature",
-      "tool-subagent-list-agents",
       "writing-patterns"
     ]
   }

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Pont de bureau",
+    "description": "Fournit le pont du processus principal Electron pour l'interface de capacité de bureau."
+  }
+}

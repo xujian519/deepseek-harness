@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Patentregel-Engine",
+    "description": "Bewertet YAML-Konformitätsregelpakete und prüft Patentausgaben."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Cache de prompts",
+    "description": "Aplica uma estratégia de cache de prefixo do prompt à montagem do prompt de sistema."
+  }
+}

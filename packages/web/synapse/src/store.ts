@@ -479,6 +479,17 @@ export class WorkspaceStore {
     }, SAVE_DEBOUNCE_MS)
   }
 
+  /**
+   * Cancel a pending debounced write. Every deferred mutation is projection-derived and
+   * rebuilds from session logs, so the owner drops the write on disposal instead of
+   * letting it land in a torn-down workspace.
+   */
+  dispose(): void {
+    if (this.flushTimer === null) return
+    clearTimeout(this.flushTimer)
+    this.flushTimer = null
+  }
+
   /** Persist the current state when dirty, ordered after in-flight mutations.
    * @returns The save promise, or a no-op when not dirty. */
   flush(): Promise<unknown> {

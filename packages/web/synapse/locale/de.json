@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Synapse-Sitzungskarte (Host)",
+    "description": "Stellt die Synapse-Leinwand und den Projektionsspeicher bestätigter Sitzungen bereit."
+  }
+}

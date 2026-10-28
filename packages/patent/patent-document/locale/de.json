@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Patentdokument-Rendering",
+    "description": "Löst Vorlagen auf und rendert Patent-PDFs über ein kopfloses Chrome."
+  }
+}

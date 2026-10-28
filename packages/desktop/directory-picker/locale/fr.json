@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Sélecteur de répertoires de bureau",
+    "description": "Fournit le sélecteur de répertoires basé sur Electron pour le shell de bureau."
+  }
+}

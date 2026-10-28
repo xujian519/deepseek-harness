@@ -36,27 +36,34 @@ function relative(file: string): string {
   return file.slice(root.length).replaceAll('\\', '/')
 }
 
-/** Every TypeScript source file under each workspace package's `src`, excluding declarations. */
 /**
- * Fork-only client plugins that still ship English and Chinese dictionaries.
- * They were written before the shipped-language parity rule and are not part of
- * this upstream sync; bringing them to the full dictionary set is tracked
- * separately so the sync does not mix translation work into the merge.
+ * Fork-only client package directories whose additional shipped languages are
+ * still being translated. Their English and Chinese dictionaries stay under the
+ * gate; only the missing languages are waived until the translations land.
  */
-const PENDING_LOCALE_PACKAGES = new Set([
-  'ui-document-studio',
-  'ui-patent-teams',
-  'ui-plugin-catalog',
-  'ui-todo-board',
-  'better-sidebar',
+const PENDING_LOCALE_PACKAGES: ReadonlySet<string> = new Set([
+  'packages/client/better-sidebar',
+  'packages/client/ui-document-studio',
+  'packages/client/ui-patent-teams',
+  'packages/client/ui-plugin-catalog',
+  'packages/client/ui-todo-board',
 ])
 
+/**
+ * Whether a declaring file belongs to a package whose additional translations are pending.
+ * @param file - repo-relative source path.
+ * @returns whether the missing-language rule is waived for that package.
+ */
+function isPendingLocalePackage(file: string): boolean {
+  return [...PENDING_LOCALE_PACKAGES].some(directory => file.startsWith(`${directory}/`))
+}
+
+/** Every TypeScript source file under each workspace package's `src`, excluding declarations. */
 function sourceFiles(): string[] {
   const files: string[] = []
   const packagesRoot = resolve(root, 'packages')
   for (const group of directories(packagesRoot)) {
     for (const pkg of directories(resolve(packagesRoot, group))) {
-      if (PENDING_LOCALE_PACKAGES.has(pkg)) continue
       walk(resolve(packagesRoot, group, pkg, 'src'), files)
     }
   }
@@ -184,10 +191,12 @@ function dictionariesIn(file: string): Dictionary[] {
         if (literal === undefined || !ts.isObjectLiteralExpression(literal)) {
           // The dictionary argument must resolve to an object literal; the
           // gate refuses rather than skips, so the symmetry it verifies never
-          // silently narrows.
-          refuse(ns.getText(source), tag.text, why)
+          // silently narrows. A pending package registers dictionaries declared
+          // in a sibling module, whose own exported literals stay covered.
+          if (!isPendingLocalePackage(rel)) refuse(ns.getText(source), tag.text, why)
+          return
         }
-        const dictionary: ts.ObjectLiteralExpression = literal as ts.ObjectLiteralExpression
+        const dictionary = literal
         // The namespace expression's source text identifies the pair, so the
         // zh and en calls for one namespace meet and calls for different
         // namespaces stay apart.
@@ -307,9 +316,12 @@ function registrationProblems(file: string): string[] {
         }
         if (entries.has('zh') && entries.has('en')) {
           const site = `${relative(file)}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`
+          const pending = isPendingLocalePackage(relative(file))
           for (const language of SHIPPED_LOCALE_IDS) {
             const dictionary = entries.get(language)
-            if (dictionary === undefined) problems.push(`${site}: registration has no ${language} dictionary`)
+            if (dictionary === undefined) {
+              if (!pending) problems.push(`${site}: registration has no ${language} dictionary`)
+            }
             else if (ts.isIdentifier(dictionary) && !imported.has(dictionary.text) && !locals.has(dictionary.text)) {
               problems.push(`${site}: ${language} dictionary ${dictionary.text} is not imported or declared`)
             }
@@ -395,7 +407,7 @@ describe('shipped locale dictionaries', () => {
       for (const language of SHIPPED_LOCALE_IDS.filter(id => id !== 'en' && id !== 'zh')) {
         const translatedDictionary = slot.get(language)
         if (translatedDictionary === undefined) {
-          problems.push(`${key} has no ${language} dictionary`)
+          if (!isPendingLocalePackage(zh.file)) problems.push(`${key} has no ${language} dictionary`)
         } else {
           const missing = en.keys.filter(k => !translatedDictionary.keys.includes(k))
           const extra = translatedDictionary.keys.filter(k => !en.keys.includes(k))

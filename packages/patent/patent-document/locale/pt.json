@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Renderização de documentos de patentes",
+    "description": "Resolve modelos e renderiza PDFs de patentes via Chrome sem interface."
+  }
+}

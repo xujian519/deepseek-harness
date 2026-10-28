@@ -23,6 +23,11 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
   'sdk-minimal': {
     bundles: ['@deepseek-ai/dsh-sdk-minimal'],
   },
+  // The experimental opt-in profile reuses the headless runner with the
+  // self-evolve bundle mounted.
+  'self-evolve': {
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@deepseek-ai/dsh-self-evolve-app'],
+  },
 }
 
 /**

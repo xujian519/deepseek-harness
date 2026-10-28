@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Vue des équipes brevets",
+    "description": "Affiche les cartes de conversation des équipes brevets et une vue fixe des équipes dérivée des événements de session."
+  }
+}
