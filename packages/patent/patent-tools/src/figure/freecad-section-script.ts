@@ -40,9 +40,6 @@ import {
 /** 脚本写出的剖切几何文件名（渲染器按它读回结果）。 */
 export const SECTION_GEOMETRY_FILENAME = 'section-geometry.json'
 
-/** 脚本执行成功时打印的前缀（渲染器据此诊断，与结构脚本的 `STRUCTURE_OK` 同形）。 */
-export const SECTION_OK_PREFIX = 'SECTION_OK'
-
 /** 构建剖切脚本的入参。 */
 export type SectionScriptParams = {
   /** 模型文件绝对路径（STEP/IGES/BREP，由 Part.read 载入）。 */

@@ -9,7 +9,7 @@
 
 import type { TemplateDraftSchema, TemplateSectionSlot } from '@deepseek-ai/dsh-patent-core'
 import type { DocumentTemplateId } from '../types.ts'
-import { GENERIC_TEMPLATE_IDS, isGenericTemplateId } from './generic.ts'
+import { isGenericTemplateId } from './generic.ts'
 
 /** 已接入受控草案的表单模板 id。 */
 export const FORM_TEMPLATE_IDS = ['right-evaluation-report', 'search-report-form'] as const
@@ -253,6 +253,3 @@ export type DraftTemplateId = FormTemplateId | GenericTemplateId
 export function isDraftTemplateId(id: DocumentTemplateId): id is DraftTemplateId {
   return isFormTemplateId(id) || isGenericTemplateId(id)
 }
-
-/** 全部接入草案的模板 id 列表（错误消息与日志用）。 */
-export const DRAFT_TEMPLATE_IDS: readonly string[] = [...FORM_TEMPLATE_IDS, ...GENERIC_TEMPLATE_IDS]

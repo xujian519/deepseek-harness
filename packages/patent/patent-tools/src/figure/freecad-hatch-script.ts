@@ -29,9 +29,6 @@ export const HATCH_GEOMETRY_FILENAME = 'section-hatch.json'
 /** 脚本生成的 `.pat` 文件名（写在输出目录内，随产物一起留档）。 */
 export const HATCH_PAT_FILENAME = 'section-hatch.pat'
 
-/** 脚本执行成功时打印的前缀（渲染器据此诊断，与剖切脚本的 `SECTION_OK` 同形）。 */
-export const HATCH_OK_PREFIX = 'HATCH_OK'
-
 /** 构建剖面线脚本的入参。 */
 export type HatchScriptParams = {
   /** 已解析的剖面线请求（含 `.pat` 文本与 patScale）。 */
