@@ -154,7 +154,7 @@ Prefix-stable while tool definitions and visibility are unchanged. Registration 
 
 #### What the model sees
 
-Reads return output or `(no new output)` followed by `[status: <status>]` and optional detail. An empty list returns `(no background jobs)`. Kill returns `requested cancellation of job <id>` or the existing terminal status. An owned completion the model has not already collected uses the notice above.
+Reads return output or `(no new output)` followed by `[status: <status>]` and optional detail. An empty list returns `(no background jobs)`. Kill returns `job <id> [status: <status>]` once the work stops; when the settlement bound expires first it returns `requested cancellation of job <id>; [status: stopping]`. An owned completion the model has not already collected uses the notice above.
 
 #### Token effect
 

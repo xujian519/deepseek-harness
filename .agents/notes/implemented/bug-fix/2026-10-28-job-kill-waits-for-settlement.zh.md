@@ -38,9 +38,11 @@ Status: implemented
 
 杀停通常在工作停止的同一瞬间返回；忽略取消的生产方最多让该步骤占用 `killTimeoutMs`。`background-job-admission` 的 fixture 现在把结算记录在杀停结果之前，随后的前台命令也能确定地被准入。`job_output` 的等待语义不变。
 
+渲染结果是模型可见文本，消费方随之更新：`tool-bash`、`tool-pwsh` 与 `tool-terminal` 断言终止行，Web 的 `job_kill` 详情卡渲染终止状态，同时仍识别早期会话记录的 `requested cancellation` 文本。
+
 ## 测试
 
-`packages/jobs/tool-jobs/tests/tool-jobs.spec.ts` 覆盖已结算的杀停、上限先到而任务仍为 `stopping`、等待期间落地结算、早已结束的路径、通知抑制，以及适用于新渲染的输出上限。
+`packages/jobs/tool-jobs/tests/tool-jobs.spec.ts` 覆盖已结算的杀停、上限先到而任务仍为 `stopping`、等待期间落地结算、早已结束的路径、通知抑制，以及适用于新渲染的输出上限。消费方套件（`tool-bash`、`tool-pwsh`、`tool-terminal`）与 Web 详情卡用例断言结算后的结果，以及保留的 `requested cancellation` 回执。
 
 `snapshots/session/background-job-admission` 连续六次本地回放全绿（三次空闲，三次在八进程 CPU 负载下），整条快照车道为 227 passed / 2 platform skips。包覆盖率保持 100%（171/171 statements，147/147 branches）；`typecheck`、lint 与 `test:docs` 均通过。
 

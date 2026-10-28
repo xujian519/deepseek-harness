@@ -154,7 +154,7 @@ Track every background job id you start. You are notified in-session when a job 
 
 #### 模型看到什么
 
-读取会返回输出或 `(no new output)`，随后是 `[status: <status>]` 和可选 detail。空列表返回 `(no background jobs)`。kill 返回 `requested cancellation of job <id>` 或现有终止状态。模型尚未收走且有所有者归属的完成使用上述通知。
+读取会返回输出或 `(no new output)`，随后是 `[status: <status>]` 和可选 detail。空列表返回 `(no background jobs)`。kill 在工作停止后返回 `job <id> [status: <status>]`；若结算上限先到，则返回 `requested cancellation of job <id>; [status: stopping]`。模型尚未收走且有所有者归属的完成使用上述通知。
 
 #### Token 影响
 

@@ -38,9 +38,11 @@ The tool description, parameters, and output schema are unchanged. The wait is d
 
 A kill normally returns as soon as the work stops; a producer that ignores cancellation holds the step for at most `killTimeoutMs`. The `background-job-admission` fixture records the settlement before the kill result, and the following foreground command is admitted deterministically. `job_output` waits are unchanged.
 
+The rendered result is model-visible text, so its consumers moved with it: `tool-bash`, `tool-pwsh`, and `tool-terminal` assert the terminal line, and the Web `job_kill` detail card renders the settled status while still recognizing the `requested cancellation` text that earlier sessions recorded.
+
 ## Testing
 
-`packages/jobs/tool-jobs/tests/tool-jobs.spec.ts` covers the settled kill, the bound expiring on a job that keeps `stopping`, a settlement that lands mid-wait, the already-finished path, notice suppression, and the output caps that apply to the new rendering.
+`packages/jobs/tool-jobs/tests/tool-jobs.spec.ts` covers the settled kill, the bound expiring on a job that keeps `stopping`, a settlement that lands mid-wait, the already-finished path, notice suppression, and the output caps that apply to the new rendering. The consumer suites (`tool-bash`, `tool-pwsh`, `tool-terminal`) and the Web detail-card spec assert the settled result and the retained `requested cancellation` receipts.
 
 `snapshots/session/background-job-admission` replays green over six consecutive local runs (three idle, three under an eight-process CPU load), and the full snapshot lane reports 227 passed / 2 platform skips. Package coverage stays at 100% (171/171 statements, 147/147 branches); `typecheck`, lint, and `test:docs` pass.
 
