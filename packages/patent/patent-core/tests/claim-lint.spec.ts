@@ -91,6 +91,29 @@ describe('parseClaimDocument', () => {
     expect(document.extraneous.map(entry => entry.text)).toEqual(['## 对照表', '新权 2 引自权 1。'])
   })
 
+  it('择一限定的区间引用仍按从属权项解析', () => {
+    const document = parseClaimDocument([
+      '1. 一种装置。',
+      '2. 一种装置。',
+      '3. 一种装置。',
+      '4. 根据权利要求 1 至 3 中任一项所述的装置，其特征在于，还包括壳体。',
+      '5. 根据权利要求 1 或 2 中任意一项所述的装置，其特征在于，还包括壳体。',
+      '6. 根据权利要求 1 至 3 之一所述的装置，其特征在于，还包括壳体。',
+      '7. 根据权利要求 1 至 3 中任一权利要求所述的装置，其特征在于，还包括壳体。',
+    ].join('\n'))
+    expect(document.claims.map(claim => claim.references))
+      .toEqual([[], [], [], [1, 2, 3], [1, 2], [1, 2, 3], [1, 2, 3]])
+    expect(document.claims[3]?.independent).toBe(false)
+    expect(document.claims[3]?.subject).toBe('装置')
+  })
+
+  it('跨度异常的引用区间不展开，只保留端点', () => {
+    const document = parseClaimDocument(
+      '1. 一种装置。\n2. 根据权利要求 1 至 999999999 所述的装置，其特征在于，还包括壳体。',
+    )
+    expect(document.claims[1]?.references).toEqual([1, 999999999])
+  })
+
   it('识别区间、顿号、全角数字与「或」并列的引用号', () => {
     const document = parseClaimDocument(
       '1. 一种装置。\n2. 一种装置。\n3. 一种装置。\n4. 根据权利要求 1 至 ３ 所述的装置。\n5. 根据权利要求 2、4 所述的装置。',
@@ -194,6 +217,17 @@ describe('lintClaimText: 结构性规则', () => {
     ].join('\n'))
     const messages = findingsOf(report, 'multiple-dependent').map(entry => entry.claim)
     expect(messages).toEqual([3, 5])
+  })
+
+  it('择一引用接上引用链，不误报引用基础', () => {
+    const report = lintClaimText([
+      '1. 一种转子，包括转子铁芯和永磁体，所述转子铁芯设有磁钢槽，其特征在于，所述磁钢槽内设有所述永磁体。',
+      '2. 根据权利要求 1 所述的转子，其特征在于，所述磁钢槽的槽壁为平面。',
+      '3. 根据权利要求 2 所述的转子，其特征在于，所述槽壁设有隔磁桥。',
+      '4. 根据权利要求 1 至 3 中任一项所述的转子，其特征在于，所述永磁体为钕铁硼。',
+    ].join('\n'))
+    expect(findingsOf(report, 'antecedent-basis')).toEqual([])
+    expect(report.passed).toBe(true)
   })
 
   it('引用链上重复出现的权项只拼接一次', () => {
