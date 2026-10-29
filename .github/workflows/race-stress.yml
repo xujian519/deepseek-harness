@@ -16,7 +16,7 @@ env:
 
 jobs:
   race-stress:
-    if: github.repository == 'xujian519/deepseek-harness'
+    if: github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: nightly race stress (repeats + shuffle)
     steps:
