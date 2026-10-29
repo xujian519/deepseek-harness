@@ -56,6 +56,7 @@ import { loggedToolModel } from './internal/model-call-log.ts'
 import {
   buildWorkflowProvider,
   buildWorkflowRunContext,
+  type SpecificationRunOptions,
   createChainStageExecutor,
   renderWorkflowResultText,
   renderWorkflowStageLines,
@@ -76,7 +77,7 @@ declare module '@deepseek-ai/dsh-jobs' {
 }
 
 /** Tool input: manifest or graph path plus the material and approval controls. */
-export type PatentWorkflowRunInput = {
+export type PatentWorkflowRunInput = SpecificationRunOptions & {
   /** Manifest id (default patent_disclosure_v1); mutually exclusive with graph. */
   manifestId?: string
   /** Domain graph to run end-to-end (takes precedence over manifestId). */
@@ -93,6 +94,10 @@ export type PatentWorkflowRunInput = {
   input: string
   /** Claims text, when supplied separately from `input` (element-level atoms read this instead). */
   claims?: string
+  /** Figure-analysis entries as a JSON array (`{figureNumber?, usable, components:[{refNumber}]}`). */
+  figureAnalysis?: string
+  /** Drawing file paths; the figure-analysis stage calls `analyze_patent_figure` for each. */
+  figureFiles?: string[]
   /** Application filing date; the time-baseline stage uses it for the prior-art cutoff. */
   filingDate?: string
   /** Earliest priority date; the earlier of it and filingDate becomes the prior-art cutoff. */
@@ -212,6 +217,7 @@ const DESCRIPTION = [
   'Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report).',
   'Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array).',
   'Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material.',
+  'For the specification stages, pass title/abstract/patentType/hasDrawings/figureAnalysis/figureFiles/drawingCount/abstractFigureNumber; a utility model without drawings fails the form check, an unfinished draft (placeholder sections) fails spec-check, and omitted items appear in spec_not_assessed.',
   'Pass conflictingApplications (a JSON array) to run the A22.2 second-sentence conflicting-application check; entries need filingDate/publicationDate and a caller-judged sameInvention boolean. Conflicting applications are filed before but published on or after the target date, so the prior-art search cannot find them.',
   'Pass evidence (a JSON array) and evidenceDeadline to run the invalidation/reexamination evidence-check stage; it reports form defects, late submissions without a justification, prior-art dates at or after the cutoff, and evidence not linked to a ground or claim.',
   'The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.',
@@ -301,6 +307,15 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       caseId: { type: 'string', description: 'Optional case id enabling run/checkpoint persistence.' },
       input: { type: 'string', required: true, description: 'Initial material consumed by the extract atoms.' },
       claims: { type: 'string', description: 'Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material.' },
+      title: { type: 'string', description: 'Invention title for the drafted specification; passed to the specification checker as the title field.' },
+      abstract: { type: 'string', description: 'Abstract text; the specification checker validates its length, keywords, claim references, reference-mark parentheses, and advertising words.' },
+      background: { type: 'string', description: 'Background-technique text; the specification drafting stage writes it into 背景技术 instead of leaving a drafting placeholder.' },
+      patentType: { type: 'string', enum: ['invention', 'utility_model'], description: 'Patent type; a utility model must have drawings, and an omitted type is checked as an invention with a warning.' },
+      hasDrawings: { type: 'boolean', description: 'Whether the application has drawings; the specification checker infers it from figure numbers and figure analysis when omitted.' },
+      figureAnalysis: { type: 'string', description: 'Figure-analysis entries as a JSON array: {figureNumber?, usable, components:[{refNumber}]}. Enables drawing-mark consistency checks.' },
+      figureFiles: { type: 'array', items: { type: 'string' }, description: 'Drawing file paths (optional): the figure-analysis stage runs analyze_patent_figure on each; empty means no drawings and the stage skips explicitly.' },
+      drawingCount: { type: 'integer', description: 'Declared drawing count; compared with the drawing-description entries.' },
+      abstractFigureNumber: { type: 'integer', description: 'Abstract figure number from the request form; checked against the existing figure numbers.' },
       filingDate: { type: 'string', description: 'Application filing date (e.g. 2024-06-01 or 2024年6月1日). The time-baseline stage uses it for the prior-art cutoff; without it or priorityDate that stage degrades.' },
       priorityDate: { type: 'string', description: 'Earliest priority date. The earlier of it and filingDate becomes the prior-art cutoff.' },
       chartTargets: { type: 'string', description: 'claim-chart target objects JSON (default empty).' },
@@ -613,6 +628,58 @@ function parseEvidence(raw: string): unknown[] {
   return parseJsonArray(raw, 'evidence', '无效/复审证据条目')
 }
 
+/**
+ * Validate figure-analysis entries at the tool input boundary. The state is read
+ * by the specification checker as typed entries, so a malformed entry must fail
+ * the call instead of reaching the checker as a bare value.
+ * @param raw - the figure-analysis JSON string.
+ * @returns the validated entries.
+ */
+function parseFigureAnalysis(raw: string): unknown[] {
+  const entries = parseJsonArray(raw, 'figureAnalysis', '附图分析条目')
+  return entries.map((entry, index) => {
+    const field = `figureAnalysis[${index}]`
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new PatentToolError('invalid_tool_input', `${field} 必须是对象`, { tool: 'patent_workflow_run' })
+    }
+    const record = entry as Record<string, unknown>
+    if (typeof record['usable'] !== 'boolean') {
+      throw new PatentToolError('invalid_tool_input', `${field}.usable 必须是布尔值`, { tool: 'patent_workflow_run' })
+    }
+    if (record['figureNumber'] !== undefined && !isPositiveInteger(record['figureNumber'])) {
+      throw new PatentToolError('invalid_tool_input', `${field}.figureNumber 必须是正整数`, { tool: 'patent_workflow_run' })
+    }
+    if (!Array.isArray(record['components'])) {
+      throw new PatentToolError('invalid_tool_input', `${field}.components 必须是数组`, { tool: 'patent_workflow_run' })
+    }
+    const components = record['components'].map((component, componentIndex) => {
+      const componentField = `${field}.components[${componentIndex}]`
+      if (component === null || typeof component !== 'object' || Array.isArray(component)) {
+        throw new PatentToolError('invalid_tool_input', `${componentField} 必须是对象`, { tool: 'patent_workflow_run' })
+      }
+      const refNumber = (component as Record<string, unknown>)['refNumber']
+      if (typeof refNumber !== 'string') {
+        throw new PatentToolError('invalid_tool_input', `${componentField}.refNumber 必须是字符串`, { tool: 'patent_workflow_run' })
+      }
+      return { refNumber }
+    })
+    return {
+      usable: record['usable'],
+      components,
+      ...(record['figureNumber'] !== undefined ? { figureNumber: record['figureNumber'] } : {}),
+    }
+  })
+}
+
+/**
+ * Whether a tool argument is a positive integer.
+ * @param value - the argument value.
+ * @returns true for a positive integer.
+ */
+function isPositiveInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+}
+
 /** The provider deps with the model port bound to the calling agent's session. */
 function bindModel(
   deps: PatentWorkflowRunDeps,
@@ -636,6 +703,19 @@ function parseOptionalDate(value: string | undefined, field: string): string | u
   return trimmed
 }
 
+/**
+ * Validate a positive-integer tool argument.
+ * @param value - the argument value.
+ * @param field - argument name used in the diagnostic.
+ * @returns the value.
+ */
+function positiveInteger(value: number, field: string): number {
+  if (!isPositiveInteger(value)) {
+    throw new PatentToolError('invalid_tool_input', `${field} 必须是正整数: ${value}`, { tool: 'patent_workflow_run' })
+  }
+  return value
+}
+
 /** 装配工作流上下文（manifest 与 graph 两条路径共用同一输入映射）。 */
 function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
   const filingDate = parseOptionalDate(input.filingDate, 'filingDate')
@@ -645,6 +725,17 @@ function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
     ...(input.caseId !== undefined ? { caseId: input.caseId } : {}),
     input: input.input,
     ...(input.claims !== undefined ? { claims: input.claims } : {}),
+    ...(input.title !== undefined ? { title: input.title } : {}),
+    ...(input.abstract !== undefined ? { abstract: input.abstract } : {}),
+    ...(input.background !== undefined ? { background: input.background } : {}),
+    ...(input.patentType !== undefined ? { patentType: input.patentType } : {}),
+    ...(input.hasDrawings !== undefined ? { hasDrawings: input.hasDrawings } : {}),
+    ...(input.figureAnalysis !== undefined ? { figureAnalysis: parseFigureAnalysis(input.figureAnalysis) } : {}),
+    ...(input.figureFiles !== undefined ? { figureFiles: input.figureFiles } : {}),
+    ...(input.drawingCount !== undefined ? { drawingCount: positiveInteger(input.drawingCount, 'drawingCount') } : {}),
+    ...(input.abstractFigureNumber !== undefined
+      ? { abstractFigureNumber: positiveInteger(input.abstractFigureNumber, 'abstractFigureNumber') }
+      : {}),
     ...(filingDate !== undefined ? { filingDate } : {}),
     ...(priorityDate !== undefined ? { priorityDate } : {}),
     ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),

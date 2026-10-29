@@ -68,6 +68,31 @@ const PRIOR_ART_FILTER_STAGE: WorkflowStage = {
   atom: 'prior-art-filter',
 }
 
+/**
+ * 附图分析阶段：披露与可专利性共用。sub_agent 逐图调用 `analyze_patent_figure`，
+ * 输出 JSON 数组或 `[SKIP] 原因`；随后的确定性原子把文本收口到 `figure_analysis`。
+ */
+const FIGURE_ANALYSIS_STAGES: readonly WorkflowStage[] = [
+  {
+    id: 'figure_analysis',
+    strategy: 'sub_agent',
+    description: '逐图分析附图（调用 analyze_patent_figure），输出 {figureNumber, usable, components:[{refNumber}]} 的 JSON 数组；无附图或视觉能力不可用时只输出 [SKIP] 原因',
+    guidance: [
+      '读取 state.figure_files（附图路径数组）。为空时只输出 `[SKIP] 无附图`，不得编造分析结果。',
+      '对每个路径调用 `analyze_patent_figure`（参数 svg_path 或 image_path 按文件扩展名选择），逐图记录 figureNumber（1 起）、usable 与 components[].refNumber。',
+      '只输出 JSON 数组本身，不要 Markdown 代码块、解释或前后缀。',
+      '工具报 model_cannot_accept_image（当前模型不支持图像输入）时，只输出 `[SKIP] 视觉能力不可用`。',
+    ].join('\n'),
+  },
+  {
+    id: 'figure_analysis_parse',
+    strategy: 'chain',
+    description: '附图分析结果收口（确定性）：解析上一步的 JSON，写入 figure_analysis；无附图/未产出/视觉不可用时写 figure_analysis_skipped',
+    atom: 'figure-analysis',
+    params: { source_key: 'figure_analysis' },
+  },
+]
+
 /** 说明书草案阶段：披露与可专利性共用，为 spec-check 的 spec 模式提供五部分文本。 */
 const DRAFT_SPECIFICATION_STAGE: WorkflowStage = {
   id: 'draft_specification',
@@ -247,6 +272,7 @@ export const patentDisclosureManifest: WorkflowManifest = {
       description: '基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）',
       atom: 'draft-claims',
     },
+    ...FIGURE_ANALYSIS_STAGES,
     DRAFT_SPECIFICATION_STAGE,
     {
       id: 'spec_check',
@@ -415,6 +441,7 @@ export const patentPatentabilityManifest: WorkflowManifest = {
       description: '基于区别特征布局权利要求（规避 D1）（原子路径不支持，收口模式）',
       consumes: ['dispute-framing-refine', 'parse', 'time_baseline', 'eligibility', 'prior_art_filter', 'claim-chart'],
     },
+    ...FIGURE_ANALYSIS_STAGES,
     DRAFT_SPECIFICATION_STAGE,
     {
       id: 'spec_check',

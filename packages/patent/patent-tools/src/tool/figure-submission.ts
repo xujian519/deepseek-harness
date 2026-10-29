@@ -8,7 +8,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { PatentToolError } from '../error.ts'
 import { drawingComplianceWarnings } from '../figure/compliance.ts'
 import type { DotFormat } from '../figure/dot-builder.ts'
-import { figureCaption, officeProfile, sheetNumberText } from '../figure/office-profile.ts'
+import { captionMatches, figureCaption, officeProfile, sheetNumberText } from '../figure/office-profile.ts'
 import type { OfficeProfile, TargetOffice } from '../figure/office-profile.ts'
 import { buildSubmissionPage, DEFAULT_CAPTION_FONT_MM, DEFAULT_CAPTION_GAP_MM, DEFAULT_SHEET_FONT_MM, SUBMISSION_ROTATIONS } from '../figure/submission-page.ts'
 import type { SubmissionRotation } from '../figure/submission-page.ts'
@@ -36,6 +36,8 @@ type SubmissionPlan = {
   sheetFontMm: number
   /** 图形绕绘图区中心顺时针旋转的角度。 */
   rotateDeg: SubmissionRotation
+  /** 本幅是否为摘要附图。 */
+  abstractFigure: boolean
 }
 
 /** 落版执行结果（指标 + 实际写上图面的图号与页码）。 */
@@ -53,6 +55,7 @@ export type SubmissionPlanInput = {
   sheet_index?: number | undefined
   sheet_total?: number | undefined
   caption?: string | undefined
+  abstract_figure?: boolean | undefined
   fit_to_page?: boolean | undefined
   caption_font_mm?: number | undefined
   caption_gap_mm?: number | undefined
@@ -80,7 +83,17 @@ export function resolveSubmission(
   let caption: string | undefined
   let sheetNumber: string
   try {
-    const base = input.caption ?? figureCaption(profile, input.figure_number ?? 1, input.figure_count ?? 1)
+    const figureNumber = input.figure_number ?? 1
+    const figureCount = input.figure_count ?? 1
+    if (input.caption !== undefined && input.caption !== '' && !captionMatches(profile, input.caption, figureNumber, figureCount)) {
+      const expected = figureCaption(profile, figureNumber, figureCount)
+      throw new Error(
+        expected === undefined
+          ? `该法域在附图不足两幅时不编号，不能自定义 caption「${input.caption}」`
+          : `自定义 caption「${input.caption}」不符合该法域写法，应为「${expected}」`,
+      )
+    }
+    const base = input.caption ?? figureCaption(profile, figureNumber, figureCount)
     caption = base === undefined || base === '' ? undefined : `${base}${suffix}`
     sheetNumber = sheetNumberText(profile, input.sheet_index ?? 1, input.sheet_total ?? 1)
   } catch (error) {
@@ -96,6 +109,7 @@ export function resolveSubmission(
     captionGapMm: positiveMm(input.caption_gap_mm, DEFAULT_CAPTION_GAP_MM, 'caption_gap_mm'),
     sheetFontMm: positiveMm(input.sheet_font_mm, DEFAULT_SHEET_FONT_MM, 'sheet_font_mm'),
     rotateDeg: readRotation(input.rotate_deg),
+    abstractFigure: input.abstract_figure === true,
   }
 }
 
@@ -190,6 +204,7 @@ export function buildLayout(
     style,
     figureCount,
     hasCaption: applied.caption !== undefined,
+    abstractFigure: plan.abstractFigure,
     metrics,
   }))
   return {

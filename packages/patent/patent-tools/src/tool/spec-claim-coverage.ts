@@ -87,6 +87,7 @@ export function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[
         verdict.grade === 'poor'
           ? {
             rule: 'claim_unity',
+            family: 'claims',
             severity: 'error',
             section: '权利要求书',
             message: `${pair} 的${similarity}低于 60% 阈值，可能不满足单一性`,
@@ -94,6 +95,7 @@ export function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[
           }
           : {
             rule: 'claim_unity',
+            family: 'claims',
             severity: 'warning',
             section: '权利要求书',
             message: `${pair} 的${similarity}接近 60% 阈值，建议复核单一性`,
@@ -117,6 +119,7 @@ export function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[
     if (!item.valid) {
       violations.push({
         rule: 'claim_coverage_entry',
+        family: 'claims',
         severity: 'error',
         section: '权利要求书',
         message: `覆盖条目 ${item.claimId} 不合法：${item.invalidReason}`,
@@ -127,6 +130,7 @@ export function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[
     if (item.coverage === 'full') continue
     violations.push({
       rule: 'claim_embodiment_coverage',
+      family: 'claims',
       severity: item.coverage === 'none' ? 'error' : 'warning',
       section: '具体实施方式',
       message: `权利要求 ${item.claimId} 的 ${item.uncovered.length}/${item.featureCount} 项特征未获实施例支持：${item.uncovered.join('、')}`,
@@ -137,6 +141,7 @@ export function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[
   for (const gap of matrix.gaps) {
     violations.push({
       rule: 'claim_coverage_gap',
+      family: 'claims',
       severity: 'warning',
       section: '权利要求书',
       message: `覆盖条目缺少权利要求 ${String(gap)}`,

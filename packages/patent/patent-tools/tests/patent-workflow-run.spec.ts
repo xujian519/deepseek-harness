@@ -21,6 +21,7 @@ import {
 import { JobId } from '@deepseek-ai/dsh-jobs'
 import type { JobHooks, JobSpec, JobView } from '@deepseek-ai/dsh-jobs'
 import { PatentToolError } from '../src/error.ts'
+import { buildWorkflowRunContext } from '../src/tool/internal/workflow-helpers.ts'
 import {
   createPatentWorkflowRunTool,
   renderWorkflowRun,
@@ -29,6 +30,7 @@ import {
 } from '../src/tool/patent-workflow-run.ts'
 import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
 import { draftSpecificationAtom, DraftSpecificationHandler } from '../src/atoms/draft-specification.ts'
+import { figureAnalysisAtom, FigureAnalysisHandler } from '../src/atoms/figure-analysis.ts'
 import { specCheckAtom, SpecCheckHandler } from '../src/atoms/spec-check.ts'
 import { responseCheckAtom, ResponseCheckHandler } from '../src/atoms/response-check.ts'
 import { eligibilityAtom, EligibilityHandler } from '../src/atoms/eligibility.ts'
@@ -42,6 +44,8 @@ globalAtomRegistry.register(slopGateAtom)
 globalStageHandlerRegistry.register(new SlopGateHandler())
 globalAtomRegistry.register(draftSpecificationAtom)
 globalStageHandlerRegistry.register(new DraftSpecificationHandler())
+globalAtomRegistry.register(figureAnalysisAtom)
+globalStageHandlerRegistry.register(new FigureAnalysisHandler())
 globalAtomRegistry.register(specCheckAtom)
 globalStageHandlerRegistry.register(new SpecCheckHandler())
 globalAtomRegistry.register(responseCheckAtom)
@@ -1475,6 +1479,150 @@ describe('patent_workflow_run — run records', () => {
     expect(gapEvents).toHaveLength(1)
     expect(gapEvents[0]!.data).toMatchObject({ manifestId: 'patent_novelty_v1' })
     expect((gapEvents[0]!.data as { report: string }).report).toContain('法条缺口汇总')
+  })
+})
+
+describe('specification workflow gates', () => {
+  const runDisclosure = async (extra: Record<string, unknown>) => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    return (await tool.execute(
+      {
+        manifestId: 'patent_disclosure_v1',
+        input: '本实施例提供一种检测装置，包括壳体和设置在壳体内的弹簧。',
+        approveStageIds: ['review_gate'],
+        ...extra,
+      },
+      exec,
+    )) as PatentWorkflowRunOutput
+  }
+
+  it('passes a complete invention draft without drawings through spec-check and legal-gaps', async () => {
+    const value = await runDisclosure({
+      title: '一种检测装置',
+      abstract: '摘要内容。关键词：检测。',
+      background: '现有检测装置的检测精度不足。',
+      patentType: 'invention',
+      hasDrawings: false,
+    })
+    expect(value.ok).toBe(true)
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const draft = stages.find(stage => stage.stageId === 'draft_specification')
+    expect(draft?.output).toContain('现有检测装置的检测精度不足。')
+    expect(draft?.output).toContain('专利类型: invention')
+    expect(draft?.output).toContain('**说明书草案（一种检测装置）**')
+    const specCheck = stages.find(stage => stage.stageId === 'spec_check')
+    expect(specCheck?.degraded).toBe(false)
+    expect(specCheck?.output).toContain('说明书合规检查（A26.3/A26.4）：通过')
+    const gaps = stages.find(stage => stage.stageId === 'legal_gaps')
+    expect(gaps?.output).toContain('[通过] 专利法实施细则第20条、第21条')
+    expect(gaps?.output).toContain('[未评估] 专利法第26条第3款')
+  })
+
+  it('parses the sub-agent figure-analysis output into the array spec-check reads', async () => {
+    const fallback = fakeModel()
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        const prompt = request.messages.map(message => message.content).join('\n')
+        if (!prompt.includes('逐图分析附图')) {
+          yield* fallback.stream(request)
+          return
+        }
+        yield { type: 'delta', text: '[{"figureNumber":1,"usable":true,"components":[{"refNumber":"1"}]}]' }
+        yield { type: 'done' }
+      },
+    }
+    const tool = createPatentWorkflowRunTool({ model, search: fakeSearch })
+    const value = await tool.execute({
+      manifestId: 'patent_disclosure_v1',
+      input: '本实施例提供一种检测装置，包括壳体。',
+      approveStageIds: ['review_gate'],
+      title: '一种检测装置',
+      patentType: 'invention',
+      hasDrawings: true,
+      figureFiles: ['fig1.svg'],
+    }, exec) as PatentWorkflowRunOutput
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const parsed = stages.find(stage => stage.stageId === 'figure_analysis_parse')
+    expect(parsed?.degraded).toBe(false)
+    expect(parsed?.output).toContain('"usable": true')
+  })
+
+  it('fails a utility model without drawings and blocks the form checkpoint', async () => {
+    const value = await runDisclosure({
+      title: '一种检测装置',
+      background: '现有检测装置的检测精度不足。',
+      patentType: 'utility_model',
+      hasDrawings: false,
+      figureAnalysis: JSON.stringify([
+        { figureNumber: 1, usable: true, components: [{ refNumber: '1' }] },
+        { usable: true, components: [] },
+      ]),
+      drawingCount: 1,
+      abstractFigureNumber: 1,
+      figureFiles: ['fig1.svg'],
+    })
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const specCheck = stages.find(stage => stage.stageId === 'spec_check')
+    expect(specCheck?.output).toContain('未通过')
+    const gaps = stages.find(stage => stage.stageId === 'legal_gaps')
+    expect(gaps?.output).toContain('[未通过] 专利法实施细则第20条、第21条')
+  })
+})
+
+describe('specification inputs', () => {
+  it('maps title, abstract, patent type, drawings and figure analysis into the workflow state', () => {
+    const ctx = buildWorkflowRunContext({
+      input: '技术交底书',
+      title: '一种检测装置',
+      abstract: '摘要内容。',
+      background: '现有检测装置精度不足。',
+      patentType: 'utility_model',
+      hasDrawings: true,
+      figureAnalysis: [{ figureNumber: 1, usable: true, components: [{ refNumber: '1' }] }],
+      figureFiles: ['fig1.svg'],
+      drawingCount: 1,
+      abstractFigureNumber: 1,
+    })
+    expect(ctx).toMatchObject({
+      title: '一种检测装置',
+      abstract: '摘要内容。',
+      background: '现有检测装置精度不足。',
+      patent_type: 'utility_model',
+      has_drawings: true,
+      figure_analysis: [{ figureNumber: 1, usable: true, components: [{ refNumber: '1' }] }],
+      figure_files: ['fig1.svg'],
+      drawing_count: 1,
+      abstract_figure_number: 1,
+    })
+  })
+
+  it('rejects malformed figure-analysis entries at the tool input boundary', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    const cases: Array<[string, string]> = [
+      ['{"usable":true}', 'figureAnalysis 必须是 JSON 数组'],
+      ['[null]', 'figureAnalysis[0] 必须是对象'],
+      ['[{"usable":"yes","components":[]}]', 'figureAnalysis[0].usable 必须是布尔值'],
+      ['[{"usable":true,"figureNumber":0,"components":[]}]', 'figureAnalysis[0].figureNumber 必须是正整数'],
+      ['[{"usable":true}]', 'figureAnalysis[0].components 必须是数组'],
+      ['[{"usable":true,"components":[null]}]', 'figureAnalysis[0].components[0] 必须是对象'],
+      ['[{"usable":true,"components":[{"refNumber":1}]}]', 'figureAnalysis[0].components[0].refNumber 必须是字符串'],
+    ]
+    for (const [figureAnalysis, message] of cases) {
+      await expect(
+        tool.execute({ manifestId: 'patent_disclosure_v1', input: 'x', figureAnalysis }, exec),
+        message,
+      ).rejects.toThrow(message)
+    }
+  })
+
+  it('rejects non-positive drawing counts and abstract figure numbers', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    await expect(
+      tool.execute({ manifestId: 'patent_disclosure_v1', input: 'x', drawingCount: 0 }, exec),
+    ).rejects.toThrow(/drawingCount/)
+    await expect(
+      tool.execute({ manifestId: 'patent_disclosure_v1', input: 'x', abstractFigureNumber: 0 }, exec),
+    ).rejects.toThrow(/abstractFigureNumber/)
   })
 })
 

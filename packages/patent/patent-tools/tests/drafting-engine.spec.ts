@@ -11,7 +11,7 @@ import type { RuleSet } from '@deepseek-ai/dsh-patent-core'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../src/error.ts'
 import { createDraftClaimsTool, draftClaims, renderDraftClaims, validateClaims, type DraftedClaim } from '../src/tool/draft-claims.ts'
-import { createDraftSpecificationTool, draftSpecification } from '../src/tool/draft-specification.ts'
+import { composeAbstract, createDraftSpecificationTool, draftSpecification } from '../src/tool/draft-specification.ts'
 import { createEvaluateEvidenceTool } from '../src/tool/evaluate-evidence.ts'
 import { createPatentEvalTool, evaluatePatentContent } from '../src/tool/patent-eval.ts'
 import { createRuleCheckTool } from '../src/tool/rule-check.ts'
@@ -185,6 +185,21 @@ describe('draft_specification deeper paths', () => {
     expect(embodiments?.content).toContain('实施例1：结构细节')
   })
 
+  it('composes a ≤300-character abstract with a keyword line and no claim citation', () => {
+    const abstract = composeAbstract({
+      title: '一种智能门锁',
+      technical_problem: '现有门锁无法远程授权',
+      technical_solution: '采用蓝牙模块与控制器',
+      beneficial_effects: '授权响应时间缩短',
+    })
+    expect(Array.from(abstract).length).toBeLessThanOrEqual(300)
+    expect(abstract).toContain('关键词：智能门锁')
+    expect(abstract).not.toMatch(/权利要求\s*\d/)
+    const clipped = composeAbstract({ title: '装置', technical_solution: '长'.repeat(400) })
+    expect(Array.from(clipped).length).toBeLessThanOrEqual(300)
+    expect(clipped).toContain('关键词：装置')
+  })
+
   it('placeholder-flagged sections and drawing/embodiment hints', () => {
     const out = draftSpecification({ title: '装置', has_drawings: true })
     const content = out.sections.find(s => s.name === '发明内容')
@@ -213,10 +228,10 @@ describe('draft_specification deeper paths', () => {
   })
 
   it('warns for an over-25-char title and renders the warning', async () => {
-    const out = draftSpecification({ title: '一'.repeat(26) })
+    const out = draftSpecification({ title: '一'.repeat(26), patent_type: 'invention' })
     expect(out.warnings[0]).toContain('超过 25 字')
     const ctx = await ctxWith(createDraftSpecificationTool())
-    const result = await execute(ctx, 'draft_specification', { title: '二'.repeat(30) }, 'ds-3')
+    const result = await execute(ctx, 'draft_specification', { title: '二'.repeat(30), patent_type: 'invention' }, 'ds-3')
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('**警告**')

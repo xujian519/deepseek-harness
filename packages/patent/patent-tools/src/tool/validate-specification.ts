@@ -21,16 +21,33 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { locateMatch } from '@deepseek-ai/dsh-patent-core'
 import { evaluatedTexts, EVALUATED_TEXT_SCHEMA, renderEvaluatedTexts } from '../internal/evaluated-input.ts'
+import { checkAbstract } from './spec-abstract.ts'
 import { checkClaimCoverage, checkClaimSet } from './spec-claim-coverage.ts'
+import { checkClarity } from './spec-clarity.ts'
 import {
+  checkBackgroundCitations,
+  checkEffectComparison,
+  checkSequenceListing,
+  checkTermConsistency,
+  checkTextMedia,
+  checkUtilityModelFigureContent,
+} from './spec-description-extras.ts'
+import {
+  checkFigureDescriptionName,
   checkFigureMarkConsistency,
+  checkFigureNumberDuplicate,
+  checkFigureNumberSequence,
+  checkFigureReferenceMissing,
+  checkDrawingCount,
   countInDrawingSection,
-  extractAbstractDrawingNumber,
-  getDrawingSection,
-  knownFigureNumbers,
+  figureNumbersIn,
+  hasFigureNumberSuffix,
 } from './spec-figure-marks.ts'
 import { checkNumericRangeCoverage, formatRange } from './spec-numeric.ts'
-import { checkSpecStyle, SPEC_SECTION_HEADINGS } from './spec-style.ts'
+import { checkEmptySections, checkPlaceholderContent, sectionBodies } from './spec-placeholder.ts'
+import { checkSpecProhibitions, checkTitle } from './spec-prohibitions.ts'
+import { checkSpecStyle } from './spec-style.ts'
+import { checkStructure, requiredSections } from './spec-structure.ts'
 import {
   CHEM_CHARACTERIZATION_TERMS,
   checkChemicalCharacterization,
@@ -38,18 +55,17 @@ import {
   checkSmilesValidity,
 } from './spec-quantification.ts'
 import type {
+  SpecNotAssessed,
   SpecViolation,
   ValidateSpecificationDeps,
   ValidateSpecificationInput,
   ValidateSpecificationOutput,
 } from './spec-types.ts'
 
-/** Required sections (matching Sati's requiredSections), keyed off the one heading list. */
-const REQUIRED_SECTIONS: Array<{ name: string; pattern: RegExp }> = SPEC_SECTION_HEADINGS.map(name => ({
-  name,
-  pattern: new RegExp(`^#{1,3}\\s*${name}`, 'm'),
-}))
-const VAGUE_TERMS = ['约', '大致', '可能', '优选', '例如', '大约', '左右', '较好']
+/** Sections whose headings appear in the text. */
+function presentSections(text: string): Set<string> {
+  return new Set(sectionBodies(text).map(section => section.name))
+}
 
 /**
  * Score: each error deducts 0.25, each warning 0.1, floor 0; passed depends only on errors.
@@ -74,12 +90,24 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
   const text = input.text ?? ''
   const title = input.title?.trim() ?? ''
   const present = presentSections(text)
+  const structure = checkStructure(input, text, present)
+  const required = requiredSections(structure.patentType, structure.hasDrawings)
   const violations: SpecViolation[] = [
-    ...formViolations(text, title, present),
-    ...checkSpecStyle(text, input.abstract),
-    ...abstractViolations(input, present),
-    ...clarityViolations(text),
-    ...drawingViolations(input, text, present),
+    ...structure.violations,
+    ...checkTitle(title),
+    ...checkSpecStyle(text, input.abstract, required),
+    ...checkPlaceholderContent(text),
+    ...checkEmptySections(text),
+    ...checkSpecProhibitions(text),
+    ...checkAbstract(input, structure.hasDrawings),
+    ...checkClarity(text),
+    ...checkBackgroundCitations(text),
+    ...checkEffectComparison(text),
+    ...checkSequenceListing(text),
+    ...checkTextMedia(text),
+    ...checkTermConsistency(text),
+    ...drawingViolations(input, text),
+    ...checkUtilityModelFigureContent(text, input.patent_type),
     ...embodimentViolations(text),
     ...effectViolations(text),
     ...chemicalViolations(input, text),
@@ -90,6 +118,7 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
     passed: scored.passed,
     score: scored.score,
     violations,
+    not_assessed: notAssessedItems(input, structure.hasDrawings),
     evaluated: evaluatedTexts({
       text: input.text,
       title: input.title,
@@ -100,136 +129,37 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
 }
 
 /**
- * Required sections whose heading appears in the text.
- * @param text - the specification text.
- * @returns the names of the required sections found.
- */
-function presentSections(text: string): Set<string> {
-  const present = new Set<string>()
-  for (const sec of REQUIRED_SECTIONS) {
-    if (sec.pattern.test(text)) present.add(sec.name)
-  }
-  return present
-}
-
-/**
- * Five-part section completeness and invention-title length. An empty text
- * reports the empty case instead of listing every section as missing.
- * @param text - the specification text.
- * @param title - the trimmed invention title.
- * @param present - the required sections found in the text.
- * @returns section and title violations.
- */
-function formViolations(text: string, title: string, present: Set<string>): SpecViolation[] {
-  const violations: SpecViolation[] = []
-  const missing = REQUIRED_SECTIONS.map(s => s.name).filter(n => !present.has(n))
-  if (text.trim().length > 0 && missing.length > 0) {
-    violations.push({
-      rule: 'sections',
-      severity: 'error',
-      message: `缺少必要章节：${missing.join('、')}`,
-      suggestion: `请按顺序撰写${SPEC_SECTION_HEADINGS.join('、')}`,
-    })
-  } else if (text.trim().length === 0) {
-    violations.push({
-      rule: 'sections',
-      severity: 'error',
-      message: '说明书缺少所有必要章节（text 为空）',
-      suggestion: '请提供说明书全文',
-    })
-  }
-
-  if (title.length > 25) {
-    violations.push({
-      rule: 'title_length',
-      severity: 'error',
-      section: '技术领域',
-      message: `发明名称超过 25 字限制（${title.length} 字）`,
-      suggestion: '请缩短至 25 字以内，使用通用技术术语',
-    })
-  }
-  return violations
-}
-
-/**
- * Abstract length, keywords, and drawing designation. The designation is only
- * checked when the specification has a drawing section with real drawings.
+ * Build the not-assessed list: every item deterministic rules cannot decide,
+ * with the reason it stays open.
  * @param input - the specification input under validation.
- * @param present - the required sections found in the text.
- * @returns abstract violations.
+ * @param hasDrawings - whether the specification has drawings.
+ * @returns the not-assessed items.
  */
-function abstractViolations(input: ValidateSpecificationInput, present: Set<string>): SpecViolation[] {
-  const violations: SpecViolation[] = []
-  const text = input.text ?? ''
-  if (input.abstract && Array.from(input.abstract.trim()).length > 300) {
-    violations.push({
-      rule: 'abstract_length',
-      severity: 'error',
-      section: '摘要',
-      message: `摘要超过 300 字限制（${Array.from(input.abstract.trim()).length} 字）`,
-      suggestion: '请压缩至 300 字以内',
-    })
+function notAssessedItems(input: ValidateSpecificationInput, hasDrawings: boolean): SpecNotAssessed[] {
+  const items: SpecNotAssessed[] = [
+    { id: 'enablement', label: '充分公开（A26.3）', reason: '能否实现需要所属领域技术人员作技术判断' },
+    { id: 'claim-support-breadth', label: '权利要求概括范围（A26.4）', reason: '概括是否超出实施例支持需要实体判断' },
+  ]
+  if (input.title !== undefined && input.title.trim().length > 0) {
+    items.push({ id: 'title-name-place', label: '发明名称中的人名、地名', reason: '名称是否属于非技术词语需要语义判断' })
   }
-  if (input.abstract && input.abstract.trim().length > 0 && !/关键词|关键字/.test(input.abstract)) {
-    violations.push({
-      rule: 'abstract_keywords',
-      severity: 'warning',
-      section: '摘要',
-      message: '摘要未包含关键词',
-      suggestion: '在摘要末尾添加关键词，如“关键词：…；…”，便于检索分类',
-    })
-  }
-  if (input.abstract && present.has('附图说明')) {
-    const drawingSection = getDrawingSection(text)
-    const hasRealDrawings = !/无附图/.test(drawingSection)
-    if (hasRealDrawings && !/摘要附图|附图.{0,16}图\s*\d|图\s*\d.{0,16}摘要/.test(input.abstract)) {
-      violations.push({
-        rule: 'abstract_drawing',
-        severity: 'warning',
-        section: '摘要',
-        // 指南 4.5.2：有附图须指定一幅最能说明技术特征的附图作摘要附图，且须在缩小到 4 厘米×6 厘米时仍可辨。
-        message: '说明书含附图但摘要未指定摘要附图（《专利审查指南》第一部分第一章 4.5.2：应当指定一幅最能说明技术特征的附图，并保证缩小到 4 厘米×6 厘米时仍能分辨细节）',
-        suggestion: '在摘要中注明“摘要附图为图X”，与附图说明对应；该图须在 4 厘米×6 厘米缩放下仍可分辨',
-      })
+  if (hasDrawings) {
+    items.push(
+      { id: 'drawing-legibility', label: '附图清晰度', reason: '缩小到三分之二后是否清晰需要图面判断' },
+      { id: 'drawing-same-scale', label: '同一附图的比例一致性', reason: '比例是否一致需要制图信息' },
+      { id: 'photo-suitability', label: '照片是否属于特殊情况', reason: '照片适用性需要审查判断' },
+    )
+    if (input.figure_analysis === undefined || input.figure_analysis.length === 0) {
+      items.push({ id: 'figure-analysis', label: '图面标号一致性', reason: '未提供附图分析结果，图面标号未核' })
     }
-    const designated = extractAbstractDrawingNumber(input.abstract)
-    if (designated !== undefined) {
-      const known = knownFigureNumbers(text, input.figure_analysis)
-      if (known.length > 0 && !known.includes(designated)) {
-        violations.push({
-          rule: 'abstract_drawing',
-          severity: 'warning',
-          section: '摘要',
-          message: `摘要附图指定的图${designated}在附图中不存在（本申请附图为图${known.join('、图')}）`,
-          suggestion: '把摘要附图改为实际存在的某一幅附图，或核对附图说明中的图号',
-        })
-      }
+    if (input.abstract_figure_number === undefined) {
+      items.push({ id: 'abstract-drawing-designation', label: '摘要附图指定', reason: '未提供请求书中的摘要附图号' })
+    }
+    if (hasFigureNumberSuffix(input.text ?? '')) {
+      items.push({ id: 'figure-number-suffix', label: '带字母后缀的图号', reason: '首期只核纯数字与中文数字图号' })
     }
   }
-  return violations
-}
-
-/**
- * Vague wording in the specification text.
- * @param text - the specification text.
- * @returns clarity violations.
- */
-function clarityViolations(text: string): SpecViolation[] {
-  const violations: SpecViolation[] = []
-  const vagueHits = VAGUE_TERMS.filter(t => text.includes(t))
-  if (vagueHits.length > 0) {
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- vagueHits are substrings of text, so a match always exists
-    const location = locateMatch(text, vagueHits)!
-    violations.push({
-      rule: 'clarity',
-      severity: 'warning',
-      message: `说明书包含模糊表述：${vagueHits.join('、')}`,
-      suggestion: "删除'约/大致/可能/优选/例如'等模糊表述，使用确定的技术术语",
-      line: location.line,
-      matchedSentence: location.matchedSentence,
-    })
-  }
-  return violations
+  return items
 }
 
 /**
@@ -240,14 +170,15 @@ function clarityViolations(text: string): SpecViolation[] {
  * @param present - the required sections found in the text.
  * @returns drawing violations.
  */
-function drawingViolations(input: ValidateSpecificationInput, text: string, present: Set<string>): SpecViolation[] {
+function drawingViolations(input: ValidateSpecificationInput, text: string): SpecViolation[] {
   const violations: SpecViolation[] = []
+  const present = presentSections(text)
   const hasDrawingSection = present.has('附图说明')
-  const figRefs = text.match(/图\s*[一二三四五六七八九十\d]+/g) ?? []
-  const bodyRefs = figRefs.length - countInDrawingSection(text)
+  const bodyRefs = figureNumbersIn(text).length - countInDrawingSection(text)
   if (hasDrawingSection && bodyRefs === 0) {
     violations.push({
       rule: 'drawings',
+      family: 'figures',
       severity: 'warning',
       section: '附图说明',
       message: '存在附图说明章节但正文未引用任何附图（图1、图2...）',
@@ -257,12 +188,20 @@ function drawingViolations(input: ValidateSpecificationInput, text: string, pres
   if (!hasDrawingSection && bodyRefs > 0) {
     violations.push({
       rule: 'drawings',
+      family: 'figures',
       severity: 'warning',
       message: `正文引用了 ${bodyRefs} 处附图但缺少附图说明章节`,
       suggestion: '补充附图说明章节，逐图说明图名和内容',
     })
   }
 
+  violations.push(
+    ...checkFigureNumberSequence(text),
+    ...checkFigureNumberDuplicate(text),
+    ...checkFigureReferenceMissing(text),
+    ...checkFigureDescriptionName(text),
+    ...checkDrawingCount(text, input.drawing_count),
+  )
   if (input.figure_analysis?.length) {
     violations.push(...checkFigureMarkConsistency(text, input.figure_analysis, input.claims))
   }
@@ -281,6 +220,7 @@ function embodimentViolations(text: string): SpecViolation[] {
   if (text.trim().length > 0 && embodimentCount === 0) {
     violations.push({
       rule: 'embodiments',
+      family: 'description',
       severity: 'error',
       section: '具体实施方式',
       message: '说明书未记载任何实施例',
@@ -293,6 +233,7 @@ function embodimentViolations(text: string): SpecViolation[] {
     if (endpointMissing.length > 0) {
       violations.push({
         rule: 'numeric_range_endpoints',
+        family: 'description',
         severity: 'error',
         section: '具体实施方式',
         message: `数值范围缺少端点值实施例：${endpointMissing.map(formatRange).join('、')}`,
@@ -302,6 +243,7 @@ function embodimentViolations(text: string): SpecViolation[] {
     if (midpointMissing.length > 0) {
       violations.push({
         rule: 'numeric_range_midpoint',
+        family: 'description',
         severity: 'warning',
         section: '具体实施方式',
         message: `数值范围缺少中间值实施例：${midpointMissing.map(formatRange).join('、')}`,
@@ -325,6 +267,7 @@ function effectViolations(text: string): SpecViolation[] {
     const location = locateMatch(text, vagueEffects)!
     violations.push({
       rule: 'effect_data_quantified',
+      family: 'description',
       severity: 'warning',
       section: '发明内容',
       message: `效果表述缺少定量数据支撑：${vagueEffects.slice(0, 3).join('；')}`,
@@ -350,6 +293,7 @@ function chemicalViolations(input: ValidateSpecificationInput, text: string): Sp
     if (missingTerms.length === CHEM_CHARACTERIZATION_TERMS.length) {
       violations.push({
         rule: 'chemical_characterization',
+        family: 'description',
         severity: 'warning',
         section: '具体实施方式',
         message: '化学领域说明书未提供任何产物表征数据',
@@ -378,6 +322,7 @@ export function checkClaimViolations(input: ValidateSpecificationInput, text: st
       const rate = missingFeatures.length / total
       violations.push({
         rule: 'claim_coverage',
+        family: 'claims',
         severity: rate > 0.5 ? 'error' : 'warning',
         section: '发明内容',
         message: `权利要求中的 ${missingFeatures.length}/${total} 个技术特征未在说明书记载：${missingFeatures.join('、')}`,
@@ -401,9 +346,13 @@ export function renderSpecification(value: ValidateSpecificationOutput, heading 
   const warnings = value.violations.filter(v => v.severity === 'warning')
   const evaluated = renderEvaluatedTexts(value.evaluated)
   const trailer = evaluated === '' ? '' : `\n\n${evaluated}`
-  const head = `${heading}：${value.passed ? '通过' : '未通过'}（得分 ${value.score}）`
+  const open = value.not_assessed.length === 0
+    ? '未评估项：无'
+    : ['未评估项（确定性规则不能判断，需人工或实体审查）：', ...value.not_assessed.map(item => `- ${item.id}：${item.label}——${item.reason}`)].join('\n')
+  // `passed` 只表示已运行的确定性规则未发现 error，不表示符合专利法。
+  const head = `${heading}：${value.passed ? '通过（确定性规则未发现 error）' : '未通过'}（得分 ${value.score}）`
   if (value.violations.length === 0) {
-    return `${head}，未发现违规项。${trailer}`
+    return `${head}\n共 0 项违规（error 0、warning 0）\n\n${open}${trailer}`
   }
   const rows = value.violations.map((v) => {
     const where = v.section === undefined ? '' : `（${v.section}）`
@@ -417,22 +366,30 @@ export function renderSpecification(value: ValidateSpecificationOutput, heading 
     `共 ${value.violations.length} 项违规（error ${errors.length}、warning ${warnings.length}）：`,
     '',
     ...rows,
+    '',
+    open,
   ].join('\n') + trailer
 }
 
 const DESCRIPTION = [
   '验证专利说明书是否符合撰写要求（确定性规则，无 LLM 调用）。',
-  '- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节，且顺序符合《专利法实施细则》第二十条',
-  '- 标题集合：说明书只允许上述五部分标题（正文内的「要解决的技术问题／技术方案／有益效果／实施例一／替代实施方式」等一律不是标题）',
-  '- 附图引用形式：说明书记载标记不加括号（指南第二部分第二章 §2.2.6）、图号写作图1、段落编号提示',
-  '- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词、摘要附图、摘要不得使用标题',
-  '- 模糊表述、附图说明与图引用一致性、实施例存在性',
+  '- 结构完整性：按专利类型与有无附图计算必要章节，且顺序符合《专利法实施细则》第二十条；实用新型必须有附图；占位标记与空章节报 error',
+  '- 标题集合：说明书只允许规定章节标题（正文内的「要解决的技术问题／技术方案／有益效果／实施例一」等一律不是标题）',
+  '- 附图引用形式：说明书记载标记不加括号（指南第二部分第二章 §2.2.6）、图号写作图1、图号连续且不重复、附图说明有图名、正文引用可解析、段落编号提示',
+  '- 发明名称长度（>40 字 error、26–40 字 warning）与摘要长度（≤300 字）、摘要关键词、摘要附图号、摘要不得引用权利要求或使用宣传语',
+  '- 禁止性条款：说明书不得引用权利要求编号，不得使用商业宣传用语或残留内部流程标记（细则第二十条第三款）',
+  '- 模糊表述（按上下文匹配「约 10%」「10% 左右」，不误伤「约束」「左右两侧」）、附图说明与图引用一致性、实施例存在性',
   '- 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例',
   '- 独立权利要求之间的单一性（A31.1，传 claim_units 时）',
   '- 权项—实施例覆盖矩阵（A26.3/A26.4，传 coverage_entries 时；覆盖度由 features 与 embodiment_refs 计算，不接受调用方给定的覆盖度结论）',
   '- 效果数据定量性、化学领域产物表征数据（tech_domain=chemical 时）',
+  '- 背景技术引证的国别/公开号/日期、有益效果与现有技术的对比、序列表引用、正文图片与表格位置、术语与附图标记一致性、实用新型附图内容（均为 warning，启发式）',
   '',
-  '用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。',
+  '用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / patent_type / has_drawings / drawing_count / abstract_figure_number / figure_analysis / claim_units / coverage_entries 启用相应校验。',
+  '',
+  'patent_type 未传时按发明检查并给出 warning；has_drawings 未传时从图号与附图分析推断。',
+  '',
+  'passed 只表示已运行的确定性规则未发现 error，不表示符合专利法；not_assessed 列出确定性规则不能判断的事项，需人工或实体审查。',
   '',
   '注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。',
   '',
@@ -451,13 +408,21 @@ export function createValidateSpecificationTool(deps?: ValidateSpecificationDeps
     parameters: {
       text: { type: 'string', description: '说明书全文（markdown，含章节标题）' },
       title: { type: 'string', description: '发明名称（可选，单独校验长度）' },
-      abstract: { type: 'string', description: '摘要（可选，校验长度/关键词/摘要附图）' },
+      abstract: { type: 'string', description: '摘要（可选，校验长度/关键词/附图标记括号/宣传语）' },
       claims: { type: 'string', description: '权利要求书全文（可选，用于特征覆盖比对）' },
       tech_domain: {
         type: 'string',
         enum: ['mechanical', 'electrical', 'chemical', 'software', 'general'],
         description: '技术领域（chemical 时附加化学表征数据校验）',
       },
+      patent_type: {
+        type: 'string',
+        enum: ['invention', 'utility_model'],
+        description: '专利类型；未传时按发明检查并给出 warning。实用新型必须附图',
+      },
+      has_drawings: { type: 'boolean', description: '是否有附图；未传时从图号、附图说明与附图分析推断' },
+      drawing_count: { type: 'number', description: '声明的附图数量（可选，与附图说明条目数比对）' },
+      abstract_figure_number: { type: 'number', description: '请求书中的摘要附图号（可选，有附图时校验该图存在）' },
       figure_analysis: {
         type: 'array',
         items: {
@@ -538,12 +503,31 @@ export function createValidateSpecificationTool(deps?: ValidateSpecificationDeps
               additionalProperties: false,
               properties: {
                 rule: { type: 'string', required: true },
+                family: {
+                  type: 'string',
+                  required: true,
+                  enum: ['structure', 'title', 'abstract', 'description', 'prohibitions', 'figures', 'claims'],
+                },
                 severity: { type: 'string', required: true, enum: ['error', 'warning'] },
                 section: { type: 'string' },
                 message: { type: 'string', required: true },
                 suggestion: { type: 'string' },
                 line: { type: 'number' },
                 matchedSentence: { type: 'string' },
+              },
+            },
+          },
+          not_assessed: {
+            type: 'array',
+            required: true,
+            description: '确定性规则不能判断、需要人工或实体审查的事项',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true, description: '稳定标识，与工作流状态及 legal-gaps 共用' },
+                label: { type: 'string', required: true, description: '未评估项名称' },
+                reason: { type: 'string', required: true, description: '确定性规则不能判断的原因' },
               },
             },
           },

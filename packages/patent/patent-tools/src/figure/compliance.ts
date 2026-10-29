@@ -28,6 +28,8 @@ export type DrawingComplianceInput = {
   figureCount: number
   /** 本次落版是否已标注图号。 */
   hasCaption: boolean
+  /** 本幅是否为请求书指定的摘要附图。 */
+  abstractFigure?: boolean
   /** 落版尺寸。 */
   metrics: SubmissionPageMetrics
 }
@@ -73,6 +75,17 @@ export function drawingComplianceWarnings(input: DrawingComplianceInput): string
   if (minCharHeightMm !== undefined && metrics.charHeightMm !== undefined && metrics.charHeightMm < minCharHeightMm) {
     warnings.push(
       `落版后图中数字与字母字高约 ${mm(metrics.charHeightMm)}，低于该法域要求的 ${mm(minCharHeightMm)}（${profile.office === 'pct' ? 'PCT 实施细则 11.13(h)' : '37 CFR 1.84(p)(3)'}）：请减少图面元件或缩小图幅后重排`,
+    )
+  }
+
+  // 摘要附图另有 40×60 毫米的缩放可辨要求（《专利审查指南》第二部分第二章 2.4）。
+  // 只报告缩放后的字高，不宣称「清晰」——清晰与否仍由人工判断。
+  if (input.abstractFigure === true && metrics.charHeightMm !== undefined
+    && metrics.placedWidthMm > 0 && metrics.placedHeightMm > 0) {
+    const scale = Math.min(40 / metrics.placedWidthMm, 60 / metrics.placedHeightMm)
+    const scaled = metrics.charHeightMm * scale
+    warnings.push(
+      `摘要附图缩小到 40×60 毫米时图中数字与字母字高约 ${mm(scaled)}：请人工确认各细节仍可分辨（《专利审查指南》第二部分第二章 2.4）；本工具不判定“清晰”`,
     )
   }
 

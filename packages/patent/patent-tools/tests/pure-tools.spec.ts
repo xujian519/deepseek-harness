@@ -89,9 +89,11 @@ describe('draft_claims', () => {
 
 describe('draft_specification', () => {
   it('assembles the five sections', () => {
-    const out = draftSpecification({ title: '一种装置' })
+    const out = draftSpecification({ title: '一种装置', has_drawings: true })
     expect(out.sections.map(s => s.name)).toEqual(['技术领域', '背景技术', '发明内容', '附图说明', '具体实施方式'])
     expect(out.sections.some(s => s.placeholder)).toBe(true)
+    expect(out.complete).toBe(false)
+    expect(out.missing_inputs).toContain('具体实施方式')
   })
 
   it('warns when a utility model lacks drawings', () => {

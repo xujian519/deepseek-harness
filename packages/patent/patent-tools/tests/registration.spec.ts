@@ -69,6 +69,7 @@ const REGISTERED_ATOMS = [
   'eligibility',
   'evidence-check',
   'extract',
+  'figure-analysis',
   'groundedness',
   'grounds',
   'keywords',
@@ -140,7 +141,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await expect(ctx.plugin(tool, { workflowStageBudget: 20 }))
-      .rejects.toThrow(/patent_disclosure_v1 的阶段数 21 超出预算 20/)
+      .rejects.toThrow(/patent_disclosure_v1 的阶段数 23 超出预算 20/)
   })
 
   it('fails plugin load when a manifest exceeds the configured model-calling stage budget', async () => {
@@ -148,14 +149,14 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await expect(ctx.plugin(tool, { workflowLlmStageBudget: 8 }))
-      .rejects.toThrow(/patent_disclosure_v1 的模型调用阶段数 9 超出预算 8/)
+      .rejects.toThrow(/patent_disclosure_v1 的模型调用阶段数 10 超出预算 8/)
   })
 
   it('accepts budgets raised to the current built-in manifest sizes', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    await ctx.plugin(tool, { workflowStageBudget: 21, workflowLlmStageBudget: 9 })
+    await ctx.plugin(tool, { workflowStageBudget: 23, workflowLlmStageBudget: 10 })
     expect(ctx.tools.schemas().map(schema => schema.name)).toContain('patent_workflow_run')
   })
 

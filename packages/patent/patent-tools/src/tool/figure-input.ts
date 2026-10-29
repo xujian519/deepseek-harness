@@ -197,6 +197,8 @@ export type GeneratePatentFigureInput = SharedFigureInputFields & {
   sheet_total?: number
   /** 图号文字覆盖（缺省按目标法域生成「图1」/「Fig. 1」/「FIG. 1」；panels 模式自动追加面板后缀）。 */
   caption?: string
+  /** 本幅是否为请求书指定的摘要附图：给出时按 40×60 毫米缩放核算可辨度量。 */
+  abstract_figure?: boolean
   /** 是否把图形落版到固定幅面（仅 SVG 且给定 target_office 时生效）；false 时只核算尺寸、不改写画布。 */
   fit_to_page?: boolean
   /** 图号字高（毫米，默认 4）。 */

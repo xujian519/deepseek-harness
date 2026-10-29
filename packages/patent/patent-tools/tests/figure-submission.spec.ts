@@ -357,6 +357,26 @@ describe('figure-submission：落版应用与布局核算', () => {
   })
 })
 
+describe('figure-submission：图号写法与页码', () => {
+  it('自定义图号必须匹配目标法域写法', () => {
+    expect(resolveSubmission({ target_office: 'cnipa', figure_number: 2, figure_count: 2, caption: '图2' }, '')?.caption).toBe('图2')
+    expect(() => resolveSubmission({ target_office: 'cnipa', figure_number: 2, figure_count: 2, caption: 'Fig. 2' }, ''))
+      .toThrow('不符合该法域写法')
+    expect(() => resolveSubmission({ target_office: 'cnipa', figure_number: 1, figure_count: 1, caption: '图1' }, ''))
+      .toThrow('不足两幅时不编号')
+  })
+
+  it('未写页码时落版给出 warning', () => {
+    const page = buildSubmissionPage({
+      drawingSvg: '<svg width="10mm" height="10mm" xmlns="http://www.w3.org/2000/svg"><g/></svg>',
+      profile: officeProfile('cnipa'),
+      caption: '图1',
+      sheetNumber: undefined,
+    })
+    expect(page.warnings.join('\n')).toContain('未写页码')
+  })
+})
+
 describe('figure-submission：落版参数解析', () => {
   it('rotate_deg 收窄到闭集；非闭集值报 invalid_tool_input', () => {
     expect(resolveSubmission({}, '')).toBeUndefined()
@@ -423,6 +443,28 @@ describe('compliance：合规核算', () => {
       metrics: metrics(),
     })
     expect(uncaptioned.join('\n')).toContain('37 CFR 1.84(u)')
+  })
+
+  it('摘要附图按 40×60 毫米核算缩放后字高，且不宣称清晰', () => {
+    const warnings = drawingComplianceWarnings({
+      profile: officeProfile('cnipa'),
+      style: 'grayscale',
+      figureCount: 2,
+      hasCaption: true,
+      abstractFigure: true,
+      metrics: metrics({ placedWidthMm: 80, placedHeightMm: 120, charHeightMm: 4 }),
+    })
+    expect(warnings.join('\n')).toContain('40×60 毫米')
+    expect(warnings.join('\n')).toContain('字高约 2 毫米')
+    expect(warnings.join('\n')).toContain('不判定“清晰”')
+    // 非摘要附图不产生该警告。
+    expect(drawingComplianceWarnings({
+      profile: officeProfile('cnipa'),
+      style: 'grayscale',
+      figureCount: 2,
+      hasCaption: true,
+      metrics: metrics({ placedWidthMm: 80, placedHeightMm: 120, charHeightMm: 4 }),
+    })).toEqual([])
   })
 
   it('中国：彩色提示必要性与「正下方」编号依据', () => {

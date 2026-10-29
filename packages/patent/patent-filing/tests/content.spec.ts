@@ -33,8 +33,13 @@ describe('validateContent', () => {
     expect(() => validateContent(content({ specification: [] }))).toThrow(/specification 说明书至少要有 1 个节点/)
   })
 
-  it('rejects an empty figure list', () => {
-    expect(() => validateContent(content({ figures: [] }))).toThrow(/figures 附图（不能为空） 至少要有 1 项/)
+  it('accepts an empty figure list for a drawing-free invention', () => {
+    expect(validateContent(content({ figures: [] })).figures).toEqual([])
+  })
+
+  it('rejects a blank figure path and an abstract figure index without figures', () => {
+    expect(() => validateContent(content({ figures: [''] }))).toThrow(/figures\[0\] 不能为空/)
+    expect(() => validateContent(content({ figures: [], abstractFigureIndex: 0 }))).toThrow(/无附图申请不得指定摘要附图/)
   })
 
   it('accepts an abstract figure index inside the figure list and defaults nothing', () => {

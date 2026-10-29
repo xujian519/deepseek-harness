@@ -80,6 +80,25 @@ describe('verify_patent_figure', () => {
     }
   })
 
+  it('delivery_review=true 时加查横向、框线与图面词语', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
+    const ctx = await ctxWith(dir)
+    try {
+      writeFileSync(join(dir, 'fig1.svg'), svg([
+        '<rect x="1" y="1" width="118" height="38" fill="none" stroke="#000"/>',
+        '<text x="60" y="20" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">controller</text>',
+      ].join('\n')))
+      const result = await executeToolFixture(ctx, { signal, callId: ToolCallId('vf-delivery'), name: 'verify_patent_figure', arguments: { svg_path: 'fig1.svg', delivery_review: true } })
+      expect(result.isError).toBe(false)
+      const value = result as { value: { findings: { check: string }[] } }
+      expect(value.value.findings.map(finding => finding.check)).toEqual(
+        expect.arrayContaining(['figure-orientation', 'figure-frame', 'figure-wording']),
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('文件缺失报 file_not_found，不安全 SVG 报 invalid_tool_input', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-verify-'))
     const ctx = await ctxWith(dir)

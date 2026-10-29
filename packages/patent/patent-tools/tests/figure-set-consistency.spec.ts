@@ -111,6 +111,17 @@ describe('checkFigureSetConsistency', () => {
     expect(report.consistent).toBe(true)
   })
 
+  it('同一图号出现两次时列出重复图号', () => {
+    const report = checkFigureSetConsistency([
+      { figureNumber: 1, components: [] },
+      { figureNumber: 1, components: [] },
+    ])
+    expect(report.duplicateFigureNumbers).toEqual([1])
+    expect(report.warnings.some(warning => warning.includes('附图编号重复：1'))).toBe(true)
+    expect(report.summary).toContain('重复图号 1 个')
+    expect(report.consistent).toBe(false)
+  })
+
   it('图号不连续时列出缺失图号', () => {
     const report = checkFigureSetConsistency([
       { figureNumber: 1, components: [] },

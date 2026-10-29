@@ -68,6 +68,7 @@ import { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 import { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
 import { slopGateAtom, SlopGateHandler } from './atoms/slop-gate.ts'
 import { draftSpecificationAtom, DraftSpecificationHandler } from './atoms/draft-specification.ts'
+import { figureAnalysisAtom, FigureAnalysisHandler } from './atoms/figure-analysis.ts'
 import { specCheckAtom, SpecCheckHandler } from './atoms/spec-check.ts'
 import { responseCheckAtom, ResponseCheckHandler } from './atoms/response-check.ts'
 import { eligibilityAtom, EligibilityHandler } from './atoms/eligibility.ts'
@@ -305,6 +306,7 @@ export function registerPatentTools(ctx: Context, config: Config): void {
   registerPackageAtoms(ctx, [
     { atom: slopGateAtom, handler: new SlopGateHandler() },
     { atom: draftSpecificationAtom, handler: new DraftSpecificationHandler() },
+    { atom: figureAnalysisAtom, handler: new FigureAnalysisHandler() },
     { atom: specCheckAtom, handler: new SpecCheckHandler() },
     { atom: responseCheckAtom, handler: new ResponseCheckHandler() },
     { atom: eligibilityAtom, handler: new EligibilityHandler() },

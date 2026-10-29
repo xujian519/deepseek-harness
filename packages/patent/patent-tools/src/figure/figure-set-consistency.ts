@@ -109,6 +109,8 @@ export type FigureSetReport = {
   conflicts: FigureSetConflict[]
   /** 1 到最大图号之间缺失的图号。 */
   missingFigureNumbers: number[]
+  /** 在输入中重复出现的图号（同一图号标了两张图）。 */
+  duplicateFigureNumbers: number[]
   /** 权利要求/说明书引用、但任何图中都未识别的数字标记。 */
   missingRefs: number[]
   /** 人类可读警告。 */
@@ -175,13 +177,20 @@ export function checkFigureSetConsistency(
   }
 
   const missingFigureNumbers: number[] = []
+  const duplicateFigureNumbers: number[] = []
   if (figureNumbers.length > 0) {
     const max = Math.max(...figureNumbers)
     for (let number = 1; number <= max; number += 1) {
       if (!figureNumbers.includes(number)) missingFigureNumbers.push(number)
     }
+    const seen = new Set<number>()
+    for (const number of figureNumbers) {
+      if (seen.has(number) && !duplicateFigureNumbers.includes(number)) duplicateFigureNumbers.push(number)
+      seen.add(number)
+    }
   }
   if (missingFigureNumbers.length > 0) warnings.push(`附图编号不连续，缺失图号：${missingFigureNumbers.join(', ')}`)
+  if (duplicateFigureNumbers.length > 0) warnings.push(`附图编号重复：${duplicateFigureNumbers.join(', ')}`)
   warnings.push(...conflicts.map(conflict => conflict.message))
 
   const numericRefs = new Set(Object.keys(numericComponents))
@@ -191,12 +200,16 @@ export function checkFigureSetConsistency(
     warnings.push(`权利要求/说明书中引用但未在附图中识别：${missingRefs.join(', ')}`)
   }
 
-  const consistent = conflicts.length === 0 && missingFigureNumbers.length === 0 && missingRefs.length === 0
+  const consistent = conflicts.length === 0
+    && missingFigureNumbers.length === 0
+    && duplicateFigureNumbers.length === 0
+    && missingRefs.length === 0
   const summary = buildSummary({
     figureCount: sorted.length,
     componentCount: numericRefs.size,
     conflictCount: conflicts.length,
     missingFigureCount: missingFigureNumbers.length,
+    duplicateFigureCount: duplicateFigureNumbers.length,
     missingRefCount: missingRefs.length,
   })
 
@@ -205,6 +218,7 @@ export function checkFigureSetConsistency(
     numericComponents,
     conflicts,
     missingFigureNumbers,
+    duplicateFigureNumbers,
     missingRefs,
     warnings,
     summary,
@@ -218,12 +232,16 @@ function buildSummary(stats: {
   componentCount: number
   conflictCount: number
   missingFigureCount: number
+  duplicateFigureCount: number
   missingRefCount: number
 }): string {
   const parts = [`附图 ${String(stats.figureCount)} 张，合并识别 ${String(stats.componentCount)} 个数字标记。`]
   if (stats.conflictCount > 0) parts.push(`跨图标记冲突 ${String(stats.conflictCount)} 处。`)
   if (stats.missingFigureCount > 0) parts.push(`缺失图号 ${String(stats.missingFigureCount)} 个。`)
+  if (stats.duplicateFigureCount > 0) parts.push(`重复图号 ${String(stats.duplicateFigureCount)} 个。`)
   if (stats.missingRefCount > 0) parts.push(`权利要求/说明书中有 ${String(stats.missingRefCount)} 个引用未在附图中识别。`)
-  if (stats.conflictCount + stats.missingFigureCount + stats.missingRefCount === 0) parts.push('跨图一致性检查通过。')
+  if (stats.conflictCount + stats.missingFigureCount + stats.duplicateFigureCount + stats.missingRefCount === 0) {
+    parts.push('跨图一致性检查通过。')
+  }
   return parts.join('')
 }

@@ -276,7 +276,7 @@ overrides:
   EX-DIS-002:
     action: warn
     premise: *specification
-    reason: "完整性提醒（说明书发明内容三要素：技术问题/方案/效果）"
+    reason: "形式提示（只查技术问题/方案/效果关键词是否存在；三者是否对应由人工或 LLM 判断）"
   EX-INV-001:
     action: warn
     premise: *inventiveness
