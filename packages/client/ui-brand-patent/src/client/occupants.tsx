@@ -1,25 +1,12 @@
 /** Brand-slot occupants for the sidebar and the blank-session hero. */
 import type { HeroBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SidebarBrandMarkOwnerProps, SidebarBrandNameOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { localBuildVersion } from '@deepseek-ai/dsh-client-ui-primitives'
 import { PatentMark, strokeForSize } from './Mark.tsx'
 import css from './Wordmark.module.css'
 
 /** The product name this fork presents. */
 const PRODUCT_NAME = 'DSH Patent'
-
-/**
- * Format the build metadata exactly as the shell's local-build fallback does,
- * so taking over the name slot does not change what the chip reports.
- * @returns the version string, or undefined when the build carried none.
- */
-function buildVersion(): string | undefined {
-  const version = process.env.DSH_CLIENT_VERSION
-  if (version === undefined) return undefined
-  const commit = process.env.DSH_CLIENT_COMMIT_HASH
-  return version
-    + (commit === undefined ? '' : `-${commit}`)
-    + (process.env.DSH_CLIENT_GIT_DIRTY === 'true' ? '-dirty' : '')
-}
 
 /**
  * Sidebar mark occupant.
@@ -41,7 +28,7 @@ export function PatentSidebarMark({ size }: SidebarBrandMarkOwnerProps) {
  * @returns the product name and, when the build carried one, its version.
  */
 export function PatentSidebarName(_props: SidebarBrandNameOwnerProps) {
-  const version = buildVersion()
+  const version = localBuildVersion()
   return (
     <span className={css.root}>
       <span className={css.title}>{PRODUCT_NAME}</span>
