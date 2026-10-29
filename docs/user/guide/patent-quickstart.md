@@ -2,7 +2,7 @@
 
 English | [中文](patent-quickstart.zh.md)
 
-This guide takes a first patent task from a source checkout to a completed analysis. It starts after the [Web UI is running](../../../README.md#run).
+This guide takes a first patent task from a source checkout to a completed analysis, starting with the [Web UI](../../../README.md#run).
 
 ## Before you start
 
@@ -29,7 +29,7 @@ Fork capabilities are not part of the published upstream package, so this source
 
 ## Select the patent preset
 
-Create a task and open the agent-preset picker. The patent composition is published as **专利模式** (Patent mode). The preset is fixed once the task starts, so choose it before sending the first message.
+Create a task and open the agent-preset picker. The patent preset is published as **专利模式** (Patent mode). The preset is fixed once the task starts, so choose it before sending the first message.
 
 ## Run a first task
 

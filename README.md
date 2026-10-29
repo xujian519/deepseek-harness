@@ -11,7 +11,7 @@ Upstream documentation: [https://deepseek-harness.github.io/deepseek-harness/](h
 - **Patent practice**: invention-disclosure analysis, prior-art search, novelty and inventive-step analysis, claim and specification drafting, office-action responses, invalidation, and infringement comparison.
 - **Patent tools**: search, metadata, legal status, document rendering, deadlines, and fees, with a quality gate that runs before delivery.
 - **Legal domain**: statute citation verification, evidence assessment, and case and regulation lookup.
-- **Patent agent preset**: an agent composition named **专利模式** (Patent mode), delivered with the Web UI bundle.
+- **Patent agent preset**: a preset named **专利模式** (Patent mode), delivered with the Web UI bundle.
 
 These capabilities are included in this repository; packaging and verification status varies by feature. See [docs/architecture.md](docs/architecture.md) for how packages compose.
 

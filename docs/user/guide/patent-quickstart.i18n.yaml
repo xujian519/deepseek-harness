@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/user/guide/patent-quickstart.md
 /patent-quick-start:
-  en: 39d139eb88d38492
-  zh: b6da23db927a07bb
+  en: b426f28a958a3256
+  zh: 4fe1fcb4cd722232
 /patent-quick-start/before-you-start:
   en: 04a84cc9703d3d04
   zh: e58323eaf664359d
@@ -15,8 +15,8 @@
   en: 71595d5387c4d657
   zh: 55e588fb3dd83168
 /patent-quick-start/select-the-patent-preset:
-  en: e5b856354e888989
-  zh: a2306705d1dae908
+  en: 3c085f22000af387
+  zh: 8c6ee2777404bb62
 /patent-quick-start/run-a-first-task:
   en: d8027288490a879d
   zh: b8fbc20e0501ee6b
