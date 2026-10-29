@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-本仓库是一个 fork：`origin` 是 `xujian519/deepseek-harness`，`upstream` 是 `deepseek-ai/deepseek-harness`。上游不接受 PR，因此 fork 自有工作无法回流，fork 必须在上游基线之上永久承载自己新增或修复的一切，只要这些工作仍然有用。fork 拥有自己的表面（desktop、patent、self-evolve、synapse、plugin-market、openviking、`dsh-timeout-guard` 改名）、自己的免费版 CI 布局，以及一个与上游发布线对齐的工作区统一版本族，而上游发布仍在不断到来，并逐个前向合并（[rc.1 同步](2026-08-21-upstream-v0-1-1-rc-1-sync.zh.md)、[rc.2 同步](2026-08-23-upstream-v0-1-1-rc-2-sync.zh.md)）。缺少一条固定规则时，修复的去向与同步方向都各有一个看似合理却错误的默认：向上游贡献，或把 fork 历史重建到上游 master 之上。
+本仓库是一个 fork：`origin` 是 `xujian519/dsh-patent`，`upstream` 是 `deepseek-ai/deepseek-harness`。上游不接受 PR，因此 fork 自有工作无法回流，fork 必须在上游基线之上永久承载自己新增或修复的一切，只要这些工作仍然有用。fork 拥有自己的表面（desktop、patent、self-evolve、synapse、plugin-market、openviking、`dsh-timeout-guard` 改名）、自己的免费版 CI 布局，以及一个与上游发布线对齐的工作区统一版本族，而上游发布仍在不断到来，并逐个前向合并（[rc.1 同步](2026-08-21-upstream-v0-1-1-rc-1-sync.zh.md)、[rc.2 同步](2026-08-23-upstream-v0-1-1-rc-2-sync.zh.md)）。缺少一条固定规则时，修复的去向与同步方向都各有一个看似合理却错误的默认：向上游贡献，或把 fork 历史重建到上游 master 之上。
 
 ## 决策
 
