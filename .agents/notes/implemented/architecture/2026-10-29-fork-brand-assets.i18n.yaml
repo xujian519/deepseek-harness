@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-29-fork-brand-assets.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-29-fork-brand-assets.md
+/agent-note-fork-brand-assets:
+  en: 9bb130cf977a3f38
+  zh: a5048e82b9242ac0
+/agent-note-fork-brand-assets/problem:
+  en: 88e022efc5942cfb
+  zh: a66c4652d4568bb6
+/agent-note-fork-brand-assets/decision:
+  en: d7ef6c2f9b2409b3
+  zh: 575690d4e0eb2027
+/agent-note-fork-brand-assets/alternatives-considered:
+  en: babe893b4c8e6c2f
+  zh: 61341c2478add32c
+/agent-note-fork-brand-assets/consequences:
+  en: 80d85023129daeb1
+  zh: e15857a1e8d942b3
+/agent-note-fork-brand-assets/testing:
+  en: 380c3901b962500a
+  zh: 39aa46ef63f8d168
