@@ -684,7 +684,7 @@ describe('CI workflow', () => {
     const benchmark = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'benchmarks')
 
     expect(benchmark.name).toBe('node 24 / benchmarks')
-    expect(benchmark.if).toBe("github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'")
+    expect(benchmark.if).toBe("github.event_name == 'pull_request' && github.repository_owner == 'xujian519'")
     expect(benchmark['runs-on']).toBe('ubuntu-latest')
     expect(benchmark.needs).toBeUndefined()
     expect(benchmark['continue-on-error']).toBeUndefined()

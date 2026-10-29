@@ -13,9 +13,12 @@ env:
   PRIMARY_NODE_VERSION: '24'
   DSH_TELEMETRY_DISABLED: '1'
 
+# The fork's lanes run only under this account's repository. The guard names
+# the owner rather than the repository: a rename under the same owner would
+# otherwise skip every job and leave the required checks unreported.
 jobs:
   node-checks:
-    if: github.repository == 'xujian519/deepseek-harness'
+    if: github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / lint + typecheck + test + docs
     steps:
@@ -135,7 +138,7 @@ jobs:
     # and then requires every case to run — `figure-cad-ci-signal.spec.ts` fails
     # if an install disappears, and the skip gate fails if a suite starts
     # skipping again.
-    if: github.repository == 'xujian519/deepseek-harness'
+    if: github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / CAD real render
     timeout-minutes: 30
@@ -182,7 +185,7 @@ jobs:
     # discovers, printing each one's executed pass count and a ::warning:: for a
     # suite that still ran nothing. `scripts/ci-workflow.spec.ts` asserts this job
     # builds before it runs them and that the unit and coverage lanes stay unbuilt.
-    if: github.repository == 'xujian519/deepseek-harness'
+    if: github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / built artifacts
     timeout-minutes: 45
@@ -232,7 +235,7 @@ jobs:
     # persisted logs. No lane invoked it, so its pinned expectations drifted to
     # 83 failing cases of 190 before they were refreshed. PR-only, as upstream's
     # artifacts lane is: a pull request gates its own merge.
-    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    if: github.event_name == 'pull_request' && github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / snapshots
     timeout-minutes: 45
@@ -287,7 +290,7 @@ jobs:
     # (103 cases) against goldens that predate the same added client plugins,
     # so gating a merge on them would only move that red into CI. Lifting them
     # is its own repair, registered in docs/TECH_DEBT.md.
-    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    if: github.event_name == 'pull_request' && github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / web snapshots
     timeout-minutes: 30
@@ -332,7 +335,7 @@ jobs:
         run: pnpm run test:web:built snapshot
 
   node-hygiene:
-    if: github.repository == 'xujian519/deepseek-harness'
+    if: github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / hygiene
     timeout-minutes: 45
@@ -369,7 +372,7 @@ jobs:
         run: pnpm run hygiene
 
   node-coverage:
-    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    if: github.event_name == 'pull_request' && github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / coverage
     timeout-minutes: 180
@@ -433,7 +436,7 @@ jobs:
     # workflows-disabled/, while docs/testing.md still described the lane as a
     # required PR gate. `scripts/ci-workflow.spec.ts` asserts this job's shape
     # against this file, not against the archived copy.
-    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    if: github.event_name == 'pull_request' && github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: node 24 / benchmarks
     timeout-minutes: 20
@@ -461,7 +464,7 @@ jobs:
         run: pnpm run check:ci:bench
 
   python-checks:
-    if: github.repository == 'xujian519/deepseek-harness'
+    if: github.repository_owner == 'xujian519'
     runs-on: ubuntu-latest
     name: python 3.10 / keyless SDK
     steps:
