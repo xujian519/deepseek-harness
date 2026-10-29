@@ -1,16 +1,25 @@
-# DeepSeek Harness
+# DSH Patent
 
 [English](README.md) | 中文
 
-DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
+**DSH Patent** 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的专利实务分支；后者是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness。本分支保留上游**一切皆插件**的架构，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
 
-它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
+上游文档：[https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
 
-文档：[https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
+## 本分支新增能力
+
+- **专利实务**：交底书分析、现有技术检索、新颖性与创造性分析、权利要求与说明书撰写、审查意见答复、无效宣告与侵权比对。
+- **专利工具**：检索、元数据、法律状态、文书渲染、期限与费用，并带交付前的质量门禁。
+- **法律域**：法条引用核验、证据评估、案例与法规检索。
+- **专利预设**：名为**专利模式**的 Agent 组合，随 Web UI bundle 交付。
+
+这些能力都包含在本仓库中；打包与验证状态因功能而异。包的组合方式见[架构文档](docs/architecture.zh.md)。
+
+**输出为起草辅助，不构成正式法律意见。** 参见[安全说明](SAFETY.zh.md)。
 
 ## 开发者预览
 
-DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
+DSH Patent 沿用上游的 _开发者预览_ 状态，正在快速迭代。**未来将出现破坏兼容性的变更。**
 
 运行本项目前，请阅读[安全说明](SAFETY.zh.md)。
 
@@ -18,37 +27,43 @@ DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来
 
 ## 运行
 
-### 通过 `npm` 运行
-
-安装 `Node.js`，然后运行：
-
-```sh
-npx @deepseek-ai/dsh web
-```
-
-该命令默认会在 `http://127.0.0.1:3080` 启动 Web UI，本机启动时还会用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。详见 [Web UI 指南](docs/user/guide/index.zh.md)。
-
 <a id="run-from-source"></a>
 
 ### 从源码运行
 
-如需从仓库源码运行：
+本分支的能力需要从本仓库构建；上游发行包不包含这些能力。需要 Node.js >= 24.9 与 pnpm 11.28.5。
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
+git clone https://github.com/xujian519/dsh-patent.git
+cd dsh-patent
 pnpm install
 pnpm run build
 pnpm dsh web
 ```
 
-`pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。
+`pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。该命令默认在 `http://127.0.0.1:3080` 启动 Web UI；本机启动时用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。参见 [Web UI 指南](docs/user/guide/index.zh.md)。
+
+### 运行上游发行包
+
+`npx @deepseek-ai/dsh web` 安装的是上游发行版，不包含本分支的专利或法律能力。
+
+## 快速开始：专利任务
+
+1. 按上述方式从源码启动 Web UI。
+2. 打开**设置 → 模型**，填入 [DeepSeek API key](https://platform.deepseek.com/) 并保存。
+3. 选择案卷目录作为工作区。
+4. 新建任务，在 Agent 预设中选择**专利模式**。
+5. 描述任务，例如："读取本工作区的交底书，列出技术问题、发明构思、关键技术特征与技术效果。"
+
+完整的首次上手流程见[专利快速开始](docs/user/guide/patent-quickstart.zh.md)。
 
 ## 社区与支持
 
-- 通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
+- 通过本仓库的 [Issues](https://github.com/xujian519/dsh-patent/issues) 报告问题、提出需求。
+- 上游 harness 的问题请走[上游 Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions)与 [DeepSeek Harness Discord 社区](https://discord.gg/4MrtZUhpxg)。
 - 为你的插件仓库添加 [`dsh-plugin`](https://github.com/topics/dsh-plugin) 话题，便于被发现。
-- 欢迎加入 DeepSeek Harness 企微群！扫描下方二维码填写入群问卷，小助手会定期发送入群邀请。
+
+欢迎加入 DeepSeek Harness 企微群！扫描下方二维码填写入群问卷，小助手会定期发送入群邀请。
 
 <table>
   <thead>

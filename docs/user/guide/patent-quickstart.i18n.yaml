@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for patent-quickstart.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/user/guide/patent-quickstart.md
+/patent-quick-start:
+  en: 39d139eb88d38492
+  zh: b6da23db927a07bb
+/patent-quick-start/before-you-start:
+  en: 04a84cc9703d3d04
+  zh: e58323eaf664359d
+/patent-quick-start/start-the-web-ui:
+  en: c6579c58b3b1969f
+  zh: e11724e51218ccd6
+/patent-quick-start/configure-the-model-and-workspace:
+  en: 71595d5387c4d657
+  zh: 55e588fb3dd83168
+/patent-quick-start/select-the-patent-preset:
+  en: e5b856354e888989
+  zh: a2306705d1dae908
+/patent-quick-start/run-a-first-task:
+  en: d8027288490a879d
+  zh: b8fbc20e0501ee6b
+/patent-quick-start/what-to-expect:
+  en: 0244bbe09029da61
+  zh: 598c48fabd9ce3f9
+/patent-quick-start/continue:
+  en: a0481f9b1bcef61e
+  zh: e6215ed24615b1ce

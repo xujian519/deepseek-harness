@@ -2,33 +2,39 @@
 # section, a hash of its English and Chinese blocks outside code blocks and generated regions.
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
-/deepseek-harness:
-  en: f68c4f080ce55ff2
-  zh: 88a76d7f7f0b260e
-/deepseek-harness/developer-preview:
-  en: 4ef4d8a71ac143f0
-  zh: 1bfc3149ba8e5543
-/deepseek-harness/run:
+/dsh-patent:
+  en: 61509e06c884d2b0
+  zh: d0f8272d31a8c830
+/dsh-patent/what-this-fork-adds:
+  en: 4cdc994f4fe35bb0
+  zh: e36104eac190397e
+/dsh-patent/developer-preview:
+  en: 5798a2e33b2b249d
+  zh: 3daa502ecfc1c573
+/dsh-patent/run:
   en: 4e0248e4c6474fc6
-  zh: eb2fb8d78c7d6bc0
-/deepseek-harness/run/run-from-npm:
-  en: e22005cd42e6cbad
-  zh: 0f536f4208df1d60
-/deepseek-harness/run/run-from-source:
-  en: 819e3f7c144d0d64
-  zh: de815f040975dba7
-/deepseek-harness/community-and-support:
-  en: 20acf6451fdc869b
-  zh: d06246dd019ecef7
-/deepseek-harness/contributing:
+  zh: 5491f0aa70750247
+/dsh-patent/run/run-from-source:
+  en: c229eb2c25df4945
+  zh: 3de4d292569b0882
+/dsh-patent/run/run-the-upstream-package:
+  en: 373c075a2532ab35
+  zh: ac859ccc5aaa6e94
+/dsh-patent/quick-start-patent-work:
+  en: 73d5798d66c5938f
+  zh: ee4cbc62f5f7447d
+/dsh-patent/community-and-support:
+  en: 49481c22c4cbda4a
+  zh: bd4b12e857ba7d58
+/dsh-patent/contributing:
   en: cabc2d3e9f8898bd
   zh: 83b6d238bae29ce3
-/deepseek-harness/development:
+/dsh-patent/development:
   en: 803ca2b11b497bed
   zh: 8b4071eb0e7783ef
-/deepseek-harness/citation:
+/dsh-patent/citation:
   en: 6704e9e5a8d49a91
   zh: 85c9cdd8d56f8e9d
-/deepseek-harness/license:
+/dsh-patent/license:
   en: 926995344fc1c72b
   zh: c92fab5abf85932f
