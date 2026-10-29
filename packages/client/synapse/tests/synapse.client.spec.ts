@@ -311,10 +311,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  // Disposal clears the sync debounce but leaves the 300ms open fallback armed,
-  // so close the map first: a stale fallback would otherwise sync a detached
-  // instance into whichever test runs next.
-  fromCanvas('synapse:close')
   for (const runtime of booted.reverse()) runtime.dispose()
   booted = []
   document.querySelectorAll('.dsh-synapse-host').forEach((node) => { node.remove() })
@@ -837,6 +833,16 @@ describe('synapse map overlay lifecycle', () => {
     expect(sent('synapse:map-opened')).toHaveLength(0)
     vi.advanceTimersByTime(1000)
     expect(overlay().hidden).toBe(true)
+  })
+
+  it('releases the opening fallback when the plugin disposes mid-open', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const runtime = boot()
+    switchButton('map').click()
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+    runtime.dispose()
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('closes on Escape only while the map is showing', () => {
