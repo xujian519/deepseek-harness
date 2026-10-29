@@ -42,6 +42,7 @@ import { createDraftSpecificationTool } from './tool/draft-specification.ts'
 import { createValidateSpecificationTool } from './tool/validate-specification.ts'
 import { createEvaluateEvidenceTool } from './tool/evaluate-evidence.ts'
 import { createRuleCheckTool } from './tool/rule-check.ts'
+import { createClaimLintTool } from './tool/claim-lint.ts'
 import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
 import { createCheckPatentFigureConsistencyTool } from './tool/check-patent-figure-consistency.ts'
@@ -388,6 +389,7 @@ export function registerPatentTools(ctx: Context, config: Config): void {
   ctx.tools.register(createDraftSpecificationTool())
   ctx.tools.register(createValidateSpecificationTool())
   ctx.tools.register(createRuleCheckTool())
+  ctx.tools.register(createClaimLintTool())
   ctx.tools.register(createParseOfficeActionTool())
   ctx.tools.register(createPatentWorkerValidateTool())
   ctx.tools.register(createPatentPlanTaskTool())
