@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-brand-patent/README.md
+/:
+  en: d745b505dd0bd563
+  zh: 539ae2161a421252
+/deepseek-ai-dsh-client-ui-brand-patent:
+  en: 13976dfd1d47eb91
+  zh: da3b844e0031b61a
+/deepseek-ai-dsh-client-ui-brand-patent/summary:
+  en: ed5cc4b875c2e5c3
+  zh: 6a0c63bb9bcadfd4
+/deepseek-ai-dsh-client-ui-brand-patent/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3f32246b8cdaaea1
+/deepseek-ai-dsh-client-ui-brand-patent/use-this-package:
+  en: 211c30a918b4bfef
+  zh: 0069ec6aca1f4763
+/deepseek-ai-dsh-client-ui-brand-patent/use-this-package/why-it-registers-without-a-profile-gate:
+  en: d4f92e674946cd1b
+  zh: 9350faebcd21d94a
+/deepseek-ai-dsh-client-ui-brand-patent/use-this-package/the-mark:
+  en: cc62f32250cbb2a3
+  zh: 2913d3fe1a9a4567
+/deepseek-ai-dsh-client-ui-brand-patent/use-this-package/sizes-and-stroke-weight:
+  en: 17efff4ad69cb8ef
+  zh: bcf8064370010040
+/deepseek-ai-dsh-client-ui-brand-patent/understand-the-implementation:
+  en: 74153bc76459435c
+  zh: d269cba18a7770c6
+/deepseek-ai-dsh-client-ui-brand-patent/further-exploration:
+  en: d11ed1b47e3417d3
+  zh: 81d198ea05a9e60e
+/deepseek-ai-dsh-client-ui-brand-patent/model-experience:
+  en: 618008c7641070e7
+  zh: 7233febb4d92ccfb
+/deepseek-ai-dsh-client-ui-brand-patent/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: f57cc48a1b5cbfa9
+/deepseek-ai-dsh-client-ui-brand-patent/known-limitations-and-deferred-work:
+  en: 7ac8b602c5b8f545
+  zh: 89f4ac0cd9d4ceab
+/deepseek-ai-dsh-client-ui-brand-patent/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: b23ea3e6cbd56734
