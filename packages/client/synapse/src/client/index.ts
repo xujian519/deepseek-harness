@@ -432,6 +432,7 @@ export function apply(ctx: ClientContext): void {
     unsubscribeWorkspaces()
     window.clearTimeout(syncTimer)
     window.clearTimeout(retryTimer)
+    window.clearTimeout(mapOpenFallback)
     if (placementFrame !== 0) window.cancelAnimationFrame(placementFrame)
     placementObserver?.disconnect()
     for (const unsubscribe of liveUnsubscribers.values()) unsubscribe()
