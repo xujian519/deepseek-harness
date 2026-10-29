@@ -1,8 +1,8 @@
 /**
- * Function plugin registering the 33 model-facing patent tools ported from Sati:
+ * Function plugin registering the 36 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * office-action parsing, drafting, specification validation, evidence judgment,
- * rule check, figure analysis + generation, PDF download, chemical recognition,
+ * rule check, claim-set lint, figure analysis + generation, PDF download, chemical recognition,
  * knowledge notes, the workflow/plan state machines, and the personal-workbench
  * case bridge. `render_patent_document` is owned by
  * @deepseek-ai/dsh-patent-document (its apply() registers it); this package
@@ -53,6 +53,8 @@ export { createEvaluateEvidenceTool } from './tool/evaluate-evidence.ts'
 export type { EvaluateEvidenceInput, EvaluateEvidenceOutput, EvaluateEvidenceDeps } from './tool/evaluate-evidence.ts'
 export { createRuleCheckTool } from './tool/rule-check.ts'
 export type { RuleCheckInput, RuleCheckOutput, RuleViolationView, RuleCheckDeps } from './tool/rule-check.ts'
+export { createClaimLintTool } from './tool/claim-lint.ts'
+export type { ClaimLintFindingOutput, ClaimLintOutput } from './tool/claim-lint.ts'
 export { createAnalyzePatentFigureTool, FIGURE_SPEC_GUIDE, resolveGateRoute } from './tool/analyze-patent-figure.ts'
 export type { AnalyzePatentFigureInput, AnalyzePatentFigureDeps, FigureAnalysisResult, FigureComponent, FigureType } from './tool/analyze-patent-figure.ts'
 export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-patent-figure.ts'
@@ -249,7 +251,7 @@ export const name = 'patent-tools'
 export const inject = ['tools']
 
 /**
- * Register the 35 patent tools and their workflow atoms.
+ * Register the 36 patent tools and their workflow atoms.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated plugin configuration.
  */

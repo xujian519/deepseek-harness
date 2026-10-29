@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 35 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、跨图一致性与图文比对、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
+description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 36 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、跨图一致性与图文比对、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 35 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、跨图一致性与图文比对、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
+函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 36 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成、跨图一致性与图文比对、案卷只追加日志以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
 
 ## 目录
 
@@ -40,6 +40,7 @@ kind: "package-reference"
 | `validate_specification` | 质量 | 确定性 |
 | `evaluate_evidence` | 证据 | `@deepseek-ai/dsh-patent-core` 证据引擎 |
 | `rule_check` | 质量 | `@deepseek-ai/dsh-patent-rule` 规则引擎 |
+| `claim_lint` | 质量 | 确定性 `@deepseek-ai/dsh-patent-core` 权利要求书形式自检（编号、引用方向、多项从属形式、引用基础、主题名称、两段式、用语、标点、正文之外的内容）；结构性规则精确判定，用语类规则是词表启发式 |
 | `analyze_patent_figure` | 分析 | 经 `FigureAnalysisEngine` 走视觉 ModelPort（Config.figureAnalysisMode：`single`=一次调用，默认；`two-step`=结构抽取+说明生成两次调用）；按附图模型做图片输入门禁 |
 | `search_patent_figure` | 检索 | 附图索引关键词检索（索引由 `analyze_patent_figure` 写入，见 Config.figureIndexFile） |
 | `check_patent_figure_consistency` | 质量 | 对 `analyze_patent_figure` 的多图识别结果做确定性跨图校验（不调用模型）：同一数字标记在各图中必须同名、图号必须从 1 起连续、`claim_context`（权利要求书或说明书正文）中引用的标记（括号形「(10)」「（10）」或直连形「壳体10」）必须在某张图中识别到。电学符号与网表暂不在范围（电学分析引擎尚未移植）。 |
@@ -115,7 +116,7 @@ Schemastery 配置，所有字段可选。
 
 #### 模型所见
 
-35 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推；`patent_search` 还在引擎失败或零命中时经 CNIPR 再检索一次（带 `assignee:` 这类 Google 字段语法的查询不咨询该通道），并点名本次实际服务的通道。两者对瞬时上游失败（超时、连接断开）各按带界退避重试两次，退避耗尽仍失败时报告已尝试次数。`patent_pdf_download` 逐篇点名通道（`Google Patents（nuo 引擎）` 或 `CNIPR（中国知识产权网）`），并在 `warnings` 里列出「被咨询过但未能服务」的通道，使回退可见、不与被接手的那篇混为一谈；续传条目的通道取自 MANIFEST 的记录。`patent_legal_status` 逐篇点名通道，并把引擎答不出的号经 CNIPR 重查一次；该通道也没有记录时保留引擎给出的原因。`matter_log_append` 在一次消息里列出被拒回合的每一处缺陷，各带稳定规则 id 与修法（该先落盘的产物、撰写轮需要的新路径、日志中查不到的旧版），使拒绝说明缺的是留档记录的哪一部分，而不只是「本轮被拒」。
+36 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。`patent_search` 与 `patent_metadata` 在渲染结果与上游失败消息里都点名所读通道（`Google Patents（nuo 引擎）`），检索报告据此写明事实来自哪个通道，而不必从命中的 URL 反推；`patent_search` 还在引擎失败或零命中时经 CNIPR 再检索一次（带 `assignee:` 这类 Google 字段语法的查询不咨询该通道），并点名本次实际服务的通道。两者对瞬时上游失败（超时、连接断开）各按带界退避重试两次，退避耗尽仍失败时报告已尝试次数。`patent_pdf_download` 逐篇点名通道（`Google Patents（nuo 引擎）` 或 `CNIPR（中国知识产权网）`），并在 `warnings` 里列出「被咨询过但未能服务」的通道，使回退可见、不与被接手的那篇混为一谈；续传条目的通道取自 MANIFEST 的记录。`patent_legal_status` 逐篇点名通道，并把引擎答不出的号经 CNIPR 重查一次；该通道也没有记录时保留引擎给出的原因。`matter_log_append` 在一次消息里列出被拒回合的每一处缺陷，各带稳定规则 id 与修法（该先落盘的产物、撰写轮需要的新路径、日志中查不到的旧版），使拒绝说明缺的是留档记录的哪一部分，而不只是「本轮被拒」。
 
 #### Token 影响
 
@@ -146,6 +147,7 @@ Schemastery 配置，所有字段可选。
 - **证据规则资产** — `evaluate_evidence` 经 `@deepseek-ai/dsh-patent-rule` 的资产定位解析 `evidence-rules.yaml`；缺失时引擎降级为默认权重。
 - **TRIZ 分析属发明人侧且有意的窄** — `triz_contradiction_analysis` 一次只读一篇交底书：不构建问题依赖图、不度量幻觉率、不做跨文档合并。它给出的矛盾是工程参数之间的设计层取舍，因此绝不进入审查意见答复或无效论证——三步法第二步的技术问题表述仍归 `checkAtomic` 与创造性子图。证据无法在交底书原文定位的矛盾被丢弃并计数，而不是照报；矩阵中没有推荐原理的格报成空缺，而不是从相邻格补一个。
 
+- **`claim_lint` 读的是权项形式而非实质** — 引用基础规则把「所述」之后的术语按虚词截断并封顶 8 字；中文没有形态学边界，因此整体未被引入的复合词（如已有「转子铁芯」时的「所述转子铁芯外圆」）报 warning 而非 error。用语规则（功能性/效果性限定、方法特征、非技术内容、商业性用语、引用说明书或附图）是词表匹配：命中意味着该处需要人工判读，不等于权项有缺陷。本工具不做权项与说明书的支持性比对（那是 `validate_specification` 的特征覆盖检查），也不评判可专利性。
 - **违规定位只覆盖字面命中** — `rule_check` 与 `validate_specification` 对**计入本次违规的最早一处命中**回报 `line` 与 `matchedSentence`，使告警可以在原处判读，不必通读全文。开启否定语境或引文豁免的词表检查（`negationContext`、`quoteImmune`）取的是豁免之后剩下最早的那一处，不是该词在文本中的最早出现。缺项类与比例类检查（章节缺失、覆盖率、数值范围端点）、`quote_repetition`（证据带重复次数，不是原文中的连续片段），以及读取独立入参字段的检查（发明名称、摘要、权利要求）不带这两项：那里指向说明书的行号没有对应位置。
 
 - **带 block 级违规的 `rule_check` 不是交付证据** — 任一违规的 `action` 为 `block` 时，结果带 `blocked: true`；patent-rule 的交付台账会忽略声明该标志的前置结果。自检发现硬拦截后必须修订并重跑；只有 `review` 命中的自检仍算数，因为交付时的输出门禁会对渲染件请求审批。`blocked` 覆盖自检自身的结论，尚未证明被检文本与交付件一致。

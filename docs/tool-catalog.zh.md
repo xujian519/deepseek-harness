@@ -54,7 +54,7 @@
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给定 improving/worsening 参数对时读取对应的 39×39 矛盾矩阵单元格；registerSection（默认 true）只切换常驻的 tool:triz 提示词区段。 |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`check_patent_figure_consistency`、`claim_chart_build`、`compare_patent_figure_analysis`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`matter_log_append`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`check_patent_figure_consistency`、`claim_chart_build`、`claim_lint`、`compare_patent_figure_analysis`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`matter_log_append`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`、`verify_deliverable` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`、`verify_patent_filing` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）按随包模板的体例成文为一件 DOCX，段落编号按 spec 的节声明执行；verify_patent_filing 就同一模板对成品跑体例与内容断言（分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、说明书名称、权项数、按节声明生效的编号连续性、残留内部痕迹）。 |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
@@ -3296,6 +3296,31 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     "mode",
     "claim_text",
     "targets"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `claim_lint`
+
+确定性检查权利要求书的撰写形式（不调用模型），逐条给出《专利法》/《专利法实施细则》/《专利审查指南》依据：编号连续、引用方向（从权只能引用在先权项）、多项从属（择一引用、不得作为另一项多项从属的引用基础）、引用基础（「所述X」须在本项或所引权项中在先引入）、从权主题名称与所引用权项一致、从权须有附加技术特征的限定部分、独权的前序部分+特征部分、功能性/效果性限定、工艺方法特征、不产生技术效果的内容、商业性宣传用语、引用说明书或附图的用语、每项仅一个结尾句号、正文之外不得有标题/表格/说明行。结构化规则是确定性的；用语类规则是词表启发式，命中不等于违规，须人工复核。通过的判据是零 error，出现 warning 时仍需逐条确认。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "权利要求书全文（markdown 或纯文本，含各项编号）。"
+    },
+    "max_claims": {
+      "type": "number",
+      "description": "撰写约束的权项数上限（可选）；超出时报 warning。"
+    }
+  },
+  "required": [
+    "text"
   ]
 }
 ```
