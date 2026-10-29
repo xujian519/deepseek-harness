@@ -55,6 +55,18 @@ function dirSize(dir: string): number {
     .reduce((sum, entry) => sum + (entry.isFile() ? entry.size : 0), 0)
 }
 
+/** A directory whose `git` hangs, so a `git --version` probe cannot finish inside any deadline that bounds it. */
+function hangingGit(dir: string): string {
+  mkdirSync(dir)
+  // The stub replaces PATH, so each delay utility needs its absolute path.
+  if (process.platform === 'win32') {
+    writeFileSync(join(dir, 'git.cmd'), '@echo off\r\n%SystemRoot%\\System32\\ping.exe -n 6 127.0.0.1 >nul\r\n')
+  } else {
+    writeFileSync(join(dir, 'git'), '#!/bin/sh\nexec /bin/sleep 5\n', { mode: 0o755 })
+  }
+  return dir
+}
+
 /** A repository with `files` committed on its default branch, served as a `file:` URL. */
 function repository(name: string, files: Record<string, string | Uint8Array>): { url: string; commit: string; dir: string } {
   const dir = join(root, 'sources', name)
@@ -149,9 +161,11 @@ it('reports an unreachable host as a network failure, a failed local command as 
   await expect(broken).rejects.toThrow('git update-ref')
   await expect(broken).rejects.not.toBeInstanceOf(DetailFailure)
   expect(readdirSync(join(root, 'cache'))).toEqual([])
-  // Git that cannot answer `git --version` within the deadline cannot run.
+  // Git that cannot answer `git --version` in time cannot run; the stub hangs, so Git's own start-up speed never decides
+  // whether the probe finishes first.
   const other = repository('t2', { 'README.md': 'x' })
-  await expectRejection(cache({ timeoutMs: 1 }).read(other.url, other.commit, 'README.md', 100, signal), { reason: 'git-unavailable' }, 'timed out')
+  vi.stubEnv('PATH', hangingGit(join(root, 'slow-git')))
+  await expectRejection(cache({ timeoutMs: 100 }).read(other.url, other.commit, 'README.md', 100, signal), { reason: 'git-unavailable' }, 'timed out')
   vi.stubEnv('PATH', join(root, 'no-git'))
   const missing = cache().read(other.url, other.commit, 'README.md', 100, signal)
   await expectRejection(missing, { reason: 'git-unavailable' }, 'git --version')
