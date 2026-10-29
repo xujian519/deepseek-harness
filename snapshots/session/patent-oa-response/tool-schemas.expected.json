@@ -217,6 +217,26 @@
       }
     },
     {
+      "name": "claim_lint",
+      "description": "确定性检查权利要求书的撰写形式（不调用模型），逐条给出《专利法》/《专利法实施细则》/《专利审查指南》依据：编号连续、引用方向（从权只能引用在先权项）、多项从属（择一引用、不得作为另一项多项从属的引用基础）、引用基础（「所述X」须在本项或所引权项中在先引入）、从权主题名称与所引用权项一致、从权须有附加技术特征的限定部分、独权的前序部分+特征部分、功能性/效果性限定、工艺方法特征、不产生技术效果的内容、商业性宣传用语、引用说明书或附图的用语、每项仅一个结尾句号、正文之外不得有标题/表格/说明行。结构化规则是确定性的；用语类规则是词表启发式，命中不等于违规，须人工复核。通过的判据是零 error，出现 warning 时仍需逐条确认。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "权利要求书全文（markdown 或纯文本，含各项编号）。"
+          },
+          "max_claims": {
+            "type": "number",
+            "description": "撰写约束的权项数上限（可选）；超出时报 warning。"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
+    },
+    {
       "name": "compare_patent_figure_analysis",
       "description": "比对出图期望与识图结果：expected 给出生成附图时声明的图型与标号清单，analysis 给出 analyze_patent_figure 的识别结果，本工具逐项报告缺标（期望有、识图无）、多标（识图有、期望无）、名称不符（两侧名称都非空且不同）与图型不符。纯确定性比对，不调用模型；连接关系暂不比对。闭环用法：generate_patent_figure → analyze_patent_figure → 本工具；无发现时 consistent=true。",
       "parameters": {

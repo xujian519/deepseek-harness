@@ -9,8 +9,8 @@
   en: 788235fe5e9f4199
   zh: 891fd445df64adeb
 /tool-schema-catalog/tool-package-map:
-  en: e54fdf58d7980444
-  zh: 12be3a3ee2249796
+  en: 06d04b32d3174424
+  zh: 7f28754130bbc839
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -368,6 +368,9 @@
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/claim-chart-build:
   en: 45fbf5f2bac4d785
   zh: 618a6ea9b4a08a0b
+/tool-schema-catalog/deepseek-ai-dsh-patent-tools/claim-lint:
+  en: 82ed48d0434f8ebd
+  zh: 5cd0d189f22eeeaf
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/compare-patent-figure-analysis:
   en: 428704da71a90330
   zh: 1a190d23f8b39f8e
