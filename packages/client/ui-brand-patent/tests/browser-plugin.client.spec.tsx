@@ -154,7 +154,7 @@ describe('occupants', () => {
   })
 
   it('omits the version chip when the build carried no version', () => {
-    vi.stubEnv('DSH_CLIENT_VERSION', undefined as never)
+    vi.stubEnv('DSH_CLIENT_VERSION', undefined)
     const view = render(<PatentSidebarName />)
     expect(view.container.textContent).toBe('DSH Patent')
   })
