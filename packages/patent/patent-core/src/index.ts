@@ -225,6 +225,15 @@ export {
   checkEmbodimentCoverage,
 } from './claim-coverage/index.ts'
 
+// Claim-set formal lint: numbering, references, antecedent basis, subject names, wording.
+export type * from './claim-lint/index.ts'
+export {
+  findAntecedentGaps,
+  lintClaimText,
+  parseClaimDocument,
+  referencedTerms,
+} from './claim-lint/index.ts'
+
 // Adversary model: independent evaluation of response plans from an opposing examiner's perspective.
 export type * from './adversary/index.ts'
 export {
