@@ -3,15 +3,17 @@
  *
  * 包装既有的确定性校验器，不新写规则：
  * - `mode: 'spec'`：`validateSpecification` 的完整说明书规则（A26.3 充分公开、
- *   A26.4 清楚支持），传 `claims` 时同时做权项特征覆盖；另写
- *   `specification_check_report`/`specification_check_passed`，供 legal-gaps 单独
- *   区分“说明书检查已运行”与权利要求检查；
+ *   A26.4 清楚支持），传 `claims` 时同时做权项特征覆盖；按违规 `family` 另写
+ *   `spec_form_check_passed`、`spec_claims_check_passed`、
+ *   `spec_figure_check_passed`、`spec_prohibitions_check_passed` 与 `spec_not_assessed`，
+ *   供 legal-gaps 分条映射法条；
  * - `mode: 'claims'`：只跑 `checkClaimViolations`（A26.4 特征覆盖 + A31.1 单一性 +
- *   权项—实施例覆盖），避免把说明书形式规则套到权利要求文本上。
+ *   权项-实施例覆盖），避免把说明书形式规则套到权利要求文本上。
  *
- * 输入键可由阶段参数覆盖：`text_key`、`claims_key`、`claim_units_key`、
- * `coverage_entries_key`。工作流里收口阶段的产出落在 `state[stage.id]`，故
- * W-04 用 `claims_key: 'draft'` 读取布局后的权利要求。
+ * 输入键可由阶段参数覆盖：`text_key`、`claims_key`、`title_key`、`abstract_key`、
+ * `patent_type_key`、`has_drawings_key`、`figure_analysis_key`、`drawing_count_key`、
+ * `abstract_figure_number_key`、`claim_units_key`、`coverage_entries_key`。工作流里
+ * 收口阶段的产出落在 `state[stage.id]`，故 W-04 用 `claims_key: 'draft'` 读取布局后的权利要求。
  */
 
 import {
@@ -31,9 +33,17 @@ import {
 import type {
   ClaimUnitInput,
   CoverageEntryInput,
+  FigureAnalysisResult,
+  SpecFamily,
   ValidateSpecificationInput,
 } from '../tool/spec-types.ts'
 import { firstStateString, resolveTechDomain } from './state-values.ts'
+
+/** Families whose errors make the specification's form check fail. */
+const FORM_FAMILIES: readonly SpecFamily[] = ['structure', 'title', 'abstract', 'description', 'prohibitions', 'figures']
+
+/** Patent types the checker accepts from the state. */
+const PATENT_TYPES = ['invention', 'utility_model'] as const
 
 /** 检查模式：说明书规则集或权利要求规则集。 */
 export type SpecCheckMode = 'spec' | 'claims'
@@ -41,9 +51,24 @@ export type SpecCheckMode = 'spec' | 'claims'
 /** spec-check 原子：说明书合规（spec）或权利要求合规（claims）的确定性检查。 */
 export const specCheckAtom: Atom = {
   name: 'spec-check',
-  description: '说明书/权利要求合规检查（A26.3/A26.4/A31）：spec 模式校验说明书规则集，claims 模式校验权项特征覆盖、单一性与实施例覆盖',
+  description: '说明书/权利要求合规检查（A26.3/A26.4/A31）：spec 模式校验说明书规则集并输出形式、权项、附图、禁止性条款分项判定与未评估清单，claims 模式校验权项特征覆盖、单一性与实施例覆盖',
   category: 'gate',
-  inputSchema: ['specification', 'source_text', 'claims_draft', 'claims', 'claim_units', 'coverage_entries'],
+  inputSchema: [
+    'specification',
+    'source_text',
+    'claims_draft',
+    'claims',
+    'claim_units',
+    'coverage_entries',
+    'title',
+    'invention_title',
+    'abstract',
+    'patent_type',
+    'has_drawings',
+    'figure_analysis',
+    'drawing_count',
+    'abstract_figure_number',
+  ],
   outputSchema: [
     'spec_check_report',
     'spec_check_passed',
@@ -51,6 +76,13 @@ export const specCheckAtom: Atom = {
     'spec_check_violations',
     'specification_check_report',
     'specification_check_passed',
+    'spec_form_check_report',
+    'spec_form_check_passed',
+    'spec_claims_check_report',
+    'spec_claims_check_passed',
+    'spec_figure_check_passed',
+    'spec_prohibitions_check_passed',
+    'spec_not_assessed',
   ],
 }
 
@@ -77,6 +109,27 @@ function optionalArray(state: PipelineState, key: string, fallback: string): unk
 function resolveMode(state: PipelineState): SpecCheckMode | undefined {
   const mode = getStateString(state, 'mode', 'spec')
   return mode === 'spec' || mode === 'claims' ? mode : undefined
+}
+
+/**
+ * 解析专利类型。
+ * @param state - 阶段执行态（阶段参数已合入）。
+ * @returns 合法专利类型；未声明或未知值返回 undefined。
+ */
+function resolvePatentType(state: PipelineState): 'invention' | 'utility_model' | undefined {
+  const value = getStateString(state, 'patent_type')
+  return PATENT_TYPES.find(type => type === value)
+}
+
+/**
+ * 读取可选数值键（正整数）。
+ * @param state - 阶段执行态。
+ * @param key - 状态键。
+ * @returns 数值；缺失、非数字或非正整数时返回 undefined。
+ */
+function stateNumber(state: PipelineState, key: string): number | undefined {
+  const value = state[key]
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
 }
 
 /** spec-check 执行器：按模式调用既有校验器并输出结构化违规项。 */
@@ -115,37 +168,79 @@ export class SpecCheckHandler implements StageHandler {
       'coverage_entries',
     ) as CoverageEntryInput[] | undefined
     const techDomain = resolveTechDomain(state)
+    const title = firstStateString(state, [getStateString(state, 'title_key', 'title'), 'title', 'invention_title'])
+    const abstract = firstStateString(state, [getStateString(state, 'abstract_key', 'abstract'), 'abstract'])
+    const patentType = resolvePatentType(state)
+    const hasDrawings = state[getStateString(state, 'has_drawings_key', 'has_drawings')]
+    const figureAnalysis = optionalArray(
+      state,
+      getStateString(state, 'figure_analysis_key', 'figure_analysis'),
+      'figure_analysis',
+    ) as FigureAnalysisResult[] | undefined
+    const drawingCount = stateNumber(state, getStateString(state, 'drawing_count_key', 'drawing_count'))
+    const abstractFigureNumber = stateNumber(
+      state,
+      getStateString(state, 'abstract_figure_number_key', 'abstract_figure_number'),
+    )
     const validationInput: ValidateSpecificationInput = {
       text,
       ...(claims.trim().length > 0 ? { claims } : {}),
       ...(techDomain !== undefined ? { tech_domain: techDomain } : {}),
+      ...(title.length > 0 ? { title } : {}),
+      ...(abstract.length > 0 ? { abstract } : {}),
+      ...(patentType !== undefined ? { patent_type: patentType } : {}),
+      ...(typeof hasDrawings === 'boolean' ? { has_drawings: hasDrawings } : {}),
+      ...(figureAnalysis !== undefined ? { figure_analysis: figureAnalysis } : {}),
+      ...(drawingCount !== undefined ? { drawing_count: drawingCount } : {}),
+      ...(abstractFigureNumber !== undefined ? { abstract_figure_number: abstractFigureNumber } : {}),
       ...(claimUnits !== undefined ? { claim_units: claimUnits } : {}),
       ...(coverageEntries !== undefined ? { coverage_entries: coverageEntries } : {}),
     }
 
     if (mode === 'spec') {
       const output = validateSpecification(validationInput)
-      const report = renderSpecification(output, '说明书合规检查（A26.3/A26.4）')
+      const formViolations = output.violations.filter(v => FORM_FAMILIES.includes(v.family))
+      const claimsViolations = output.violations.filter(v => v.family === 'claims')
       return {
-        spec_check_report: report,
+        spec_check_report: renderSpecification(output, '说明书合规检查（A26.3/A26.4）'),
         spec_check_passed: output.passed,
         spec_check_score: output.score,
         spec_check_violations: output.violations,
-        specification_check_report: report,
+        specification_check_report: renderSpecification(output, '说明书合规检查（A26.3/A26.4）'),
         specification_check_passed: output.passed,
+        spec_form_check_report: renderSpecification(
+          { ...output, violations: formViolations, not_assessed: [] },
+          '说明书形式检查（细则第20/21条、指南第二部分第二章）',
+        ),
+        spec_form_check_passed: !formViolations.some(v => v.severity === 'error'),
+        ...(claims.trim().length > 0
+          ? {
+            spec_claims_check_report: renderSpecification(
+              { ...output, violations: claimsViolations, not_assessed: [] },
+              '权利要求支持与单一性检查（A26.4/A31.1）',
+            ),
+            spec_claims_check_passed: !claimsViolations.some(v => v.severity === 'error'),
+          }
+          : {}),
+        spec_figure_check_passed: !output.violations.some(v => v.family === 'figures' && v.severity === 'error'),
+        spec_prohibitions_check_passed: !output.violations.some(v => v.family === 'prohibitions' && v.severity === 'error'),
+        spec_not_assessed: output.not_assessed,
       }
     }
 
     const violations = checkClaimViolations(validationInput, text)
     const scored = computeSpecScore(violations)
+    const report = renderSpecification(
+      { passed: scored.passed, score: scored.score, violations, not_assessed: [], evaluated: [] },
+      '权利要求合规检查（A26.4/A31.1）',
+    )
     return {
-      spec_check_report: renderSpecification(
-        { passed: scored.passed, score: scored.score, violations, evaluated: [] },
-        '权利要求合规检查（A26.4/A31.1）',
-      ),
+      spec_check_report: report,
       spec_check_passed: scored.passed,
       spec_check_score: scored.score,
       spec_check_violations: violations,
+      spec_claims_check_report: report,
+      spec_claims_check_passed: scored.passed,
     }
   }
 }

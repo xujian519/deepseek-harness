@@ -260,8 +260,26 @@ export function renderWorkflowResultText(opts: RenderWorkflowResultTextOptions):
   ].join('\n')
 }
 
+/** Specification inputs shared by the run tool and the context mapper. */
+export interface SpecificationRunOptions {
+  /** Invention title, read by the specification drafting and checking stages. */
+  title?: string
+  /** Abstract text, read by the specification checker. */
+  abstract?: string
+  /** Background-technique text, read by the specification drafting stage. */
+  background?: string
+  /** Patent type, read by the specification drafting and checking stages. */
+  patentType?: 'invention' | 'utility_model'
+  /** Whether the application has drawings; the specification checker infers it when absent. */
+  hasDrawings?: boolean
+  /** Declared drawing count, compared with the drawing-description entries. */
+  drawingCount?: number
+  /** Abstract figure number from the request form. */
+  abstractFigureNumber?: number
+}
+
 /** Options mapping a tool's input into the workflow context the atoms read. */
-export interface BuildWorkflowRunContextOptions {
+export interface BuildWorkflowRunContextOptions extends SpecificationRunOptions {
   /** Case identity (may contain a {caseId} placeholder). */
   caseId?: string
   /** Initial material consumed by the extract atoms. */
@@ -271,6 +289,10 @@ export interface BuildWorkflowRunContextOptions {
    * material (e.g. an office action as `input` plus the claims under review).
    */
   claims?: string
+  /** Figure-analysis entries, mapped to the state the specification checker reads. */
+  figureAnalysis?: unknown[]
+  /** Drawing file paths, read by the figure-analysis stage before drafting. */
+  figureFiles?: string[]
   /** Application filing date, read by the time-baseline atom. */
   filingDate?: string
   /** Earliest priority date, read by the time-baseline atom. */
@@ -322,6 +344,15 @@ export function buildWorkflowRunContext(opts: BuildWorkflowRunContextOptions): W
     claim: claimText,
     claim_text: claimText,
     ...(claims !== undefined ? { claims } : {}),
+    ...(opts.title !== undefined ? { title: opts.title } : {}),
+    ...(opts.abstract !== undefined ? { abstract: opts.abstract } : {}),
+    ...(opts.background !== undefined ? { background: opts.background } : {}),
+    ...(opts.patentType !== undefined ? { patent_type: opts.patentType } : {}),
+    ...(opts.hasDrawings !== undefined ? { has_drawings: opts.hasDrawings } : {}),
+    ...(opts.figureAnalysis !== undefined ? { figure_analysis: opts.figureAnalysis } : {}),
+    ...(opts.figureFiles !== undefined ? { figure_files: opts.figureFiles } : {}),
+    ...(opts.drawingCount !== undefined ? { drawing_count: opts.drawingCount } : {}),
+    ...(opts.abstractFigureNumber !== undefined ? { abstract_figure_number: opts.abstractFigureNumber } : {}),
     ...(opts.filingDate !== undefined ? { filing_date: opts.filingDate } : {}),
     ...(opts.priorityDate !== undefined ? { priority_date: opts.priorityDate } : {}),
     chart_targets: opts.chartTargets ?? '',

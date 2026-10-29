@@ -93,11 +93,12 @@ rules:
             - 植物品种
       minConfidence: 1
   - id: EX-DIS-002
-    name: 说明书—发明内容三要素
+    name: 说明书—发明内容要素关键词（形式提示）
+    description: 仅检查技术问题、技术方案、有益效果的关键词是否出现，不判断三者是否对应或方案是否成立；实体判断由 spec-check 的 not_assessed 条目交给人工或 LLM。
     domain: patent_disclosure
     phase: post_execution
-    severity: critical
-    action: block
+    severity: major
+    action: warn
     legalBasis: 审查指南第二部分第二章2.2.4
     check:
       type: structural_analysis
@@ -120,7 +121,8 @@ rules:
             - 优点
             - 有益的
   - id: EX-DIS-003
-    name: 说明书—实施例充分性
+    name: 说明书—实施例关键词（形式提示）
+    description: 仅检查「实施例/具体实施」字样是否出现，不判断实施例是否足以使本领域技术人员实现；充分公开由 spec-check 标为 not_assessed。
     domain: patent_disclosure
     phase: post_execution
     severity: major
@@ -136,7 +138,8 @@ rules:
             - 具体实施
       minConfidence: 1
   - id: EX-DIS-004
-    name: 说明书—附图说明规范
+    name: 说明书—附图说明关键词（形式提示）
+    description: 仅检查附图说明相关字样是否出现；图号连续性、图名、正文引用与摘要附图号由 validate_specification 的 figures 规则检查。
     domain: patent_disclosure
     phase: post_execution
     severity: major

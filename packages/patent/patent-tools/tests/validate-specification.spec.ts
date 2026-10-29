@@ -36,7 +36,7 @@ const VALID_SPEC = [
 
 describe('validateSpecification', () => {
   it('passes a complete specification', () => {
-    const out = validateSpecification({ text: VALID_SPEC })
+    const out = validateSpecification({ text: VALID_SPEC, patent_type: 'invention' })
     expect(out).toMatchObject({ passed: true, score: 1, violations: [] })
     // vitest asymmetric matcher is typed any; the field holds the matcher object
     const anyDigest = expect.any(String) as string
@@ -67,11 +67,18 @@ describe('validateSpecification', () => {
     expect(v?.message).toContain('text 为空')
   })
 
-  it('reports a title over 25 characters', () => {
-    const out = validateSpecification({ text: VALID_SPEC, title: '一'.repeat(26) })
+  it('reports a title over 40 characters as an error', () => {
+    const out = validateSpecification({ text: VALID_SPEC, title: '一'.repeat(41) })
     const v = out.violations.find(x => x.rule === 'title_length')
     expect(v?.severity).toBe('error')
-    expect(v?.message).toContain('26')
+    expect(v?.message).toContain('41')
+  })
+
+  it('reports a 26–40 character title as a warning', () => {
+    const out = validateSpecification({ text: VALID_SPEC, title: '一种检测装置'.repeat(5) })
+    const v = out.violations.find(x => x.rule === 'title_length')
+    expect(v?.severity).toBe('warning')
+    expect(v?.message).toContain('25')
   })
 
   it('reports an abstract over 300 characters', () => {
@@ -86,10 +93,10 @@ describe('validateSpecification', () => {
     expect(v?.severity).toBe('warning')
   })
 
-  it('reports an abstract without a drawing reference', () => {
+  it('reports the abstract figure designation as not assessed when the request form omits it', () => {
     const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。关键词：检测。' })
-    const v = out.violations.find(x => x.rule === 'abstract_drawing')
-    expect(v?.severity).toBe('warning')
+    expect(out.violations.find(x => x.rule === 'abstract_drawing')).toBeUndefined()
+    expect(out.not_assessed.map(item => item.id)).toContain('abstract-drawing-designation')
   })
 
   it('reports vague wording', () => {
@@ -318,15 +325,15 @@ describe('checkSmilesValidity', () => {
 describe('computeSpecScore', () => {
   it('scores errors and warnings', () => {
     expect(computeSpecScore([])).toEqual({ passed: true, score: 1 })
-    expect(computeSpecScore([{ rule: 'x', severity: 'error', message: '' }])).toEqual({ passed: false, score: 0.75 })
-    expect(computeSpecScore([{ rule: 'x', severity: 'warning', message: '' }])).toEqual({ passed: true, score: 0.9 })
+    expect(computeSpecScore([{ rule: 'x', family: 'structure', severity: 'error', message: '' }])).toEqual({ passed: false, score: 0.75 })
+    expect(computeSpecScore([{ rule: 'x', family: 'structure', severity: 'warning', message: '' }])).toEqual({ passed: true, score: 0.9 })
   })
 })
 
 describe('renderSpecification', () => {
   it('renders pass and violation prose', () => {
-    expect(renderSpecification({ passed: true, score: 1, violations: [], evaluated: [] })).toContain('通过')
-    const fail = { passed: false, score: 0.75, violations: [{ rule: 'sections', severity: 'error' as const, message: '缺少必要章节', suggestion: '请补充' }], evaluated: [] }
+    expect(renderSpecification({ passed: true, score: 1, violations: [], not_assessed: [], evaluated: [] })).toContain('通过')
+    const fail = { passed: false, score: 0.75, violations: [{ rule: 'sections', family: 'structure' as const, severity: 'error' as const, message: '缺少必要章节', suggestion: '请补充' }], not_assessed: [], evaluated: [] }
     expect(renderSpecification(fail)).toContain('未通过')
     expect(renderSpecification(fail)).toContain('请补充')
   })
@@ -336,6 +343,7 @@ describe('renderSpecification', () => {
       passed: true,
       score: 1,
       violations: [],
+      not_assessed: [],
       evaluated: [{ field: 'text', chars: 12164, digest: '3f9a2c1b' }],
     })
     expect(out).toContain('评估输入: text 12164 字 · 3f9a2c1b')
@@ -348,7 +356,7 @@ describe('createValidateSpecificationTool', () => {
     expect(tool.name).toBe('validate_specification')
     expect(typeof tool.execute).toBe('function')
     expect(typeof tool.output.render).toBe('function')
-    const value = await tool.execute({ text: VALID_SPEC }, {} as never)
+    const value = await tool.execute({ text: VALID_SPEC, patent_type: 'invention' }, {} as never)
     // vitest asymmetric matcher is typed any; the field holds the matcher object
     const anyDigest = expect.any(String) as string
     expect(value).toMatchObject({
@@ -357,11 +365,13 @@ describe('createValidateSpecificationTool', () => {
       violations: [],
       evaluated: [{ field: 'text', chars: VALID_SPEC.length, digest: anyDigest }],
     })
+    const output = value as { not_assessed: unknown[] }
+    expect(output.not_assessed.length).toBeGreaterThan(0)
   })
 
   it('renders model-facing text', () => {
     const tool = createValidateSpecificationTool()
-    const blocks = tool.output.render({}, { passed: true, score: 1, violations: [], evaluated: [] })
+    const blocks = tool.output.render({}, { passed: true, score: 1, violations: [], not_assessed: [], evaluated: [] })
     // vitest asymmetric matcher is typed any; the literal text field holds the matcher object
     const textMatcher = expect.stringContaining('通过') as string
     expect(blocks).toEqual([{ type: 'text', text: textMatcher }])
@@ -433,14 +443,22 @@ describe('figure mark consistency edge cases', () => {
 })
 
 describe('abstract and claim coverage edge cases', () => {
-  it('accepts an abstract naming the summary figure', () => {
-    const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。摘要附图为图1。关键词：检测。' })
-    expect(out.violations.find(x => x.rule === 'abstract_drawing')).toBeUndefined()
+  it('accepts a requested summary figure that exists', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      abstract: '摘要内容。关键词：检测。',
+      abstract_figure_number: 1,
+    })
+    expect(out.violations.find(x => x.rule === 'abstract_drawing_number')).toBeUndefined()
   })
 
-  it('warns when the abstract names a figure that does not exist', () => {
-    const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。摘要附图为图9。关键词：检测。' })
-    const v = out.violations.find(x => x.rule === 'abstract_drawing')
+  it('reports a requested summary figure that does not exist', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      abstract: '摘要内容。关键词：检测。',
+      abstract_figure_number: 9,
+    })
+    const v = out.violations.find(x => x.rule === 'abstract_drawing_number')
     expect(v?.message).toContain('图9在附图中不存在')
     expect(v?.suggestion).toContain('核对附图说明')
   })
@@ -448,6 +466,7 @@ describe('abstract and claim coverage edge cases', () => {
   it('extracts the abstract figure number and reconciles it with the analyzed figures', () => {
     expect(extractAbstractDrawingNumber('摘要附图为图3。关键词：检测。')).toBe(3)
     expect(extractAbstractDrawingNumber('摘要附图采用图12表示整体结构')).toBe(12)
+    expect(extractAbstractDrawingNumber('摘要附图为图三')).toBe(3)
     expect(extractAbstractDrawingNumber('本摘要未指定摘要附图')).toBeUndefined()
     const figures = [
       { figureNumber: 2, usable: true, components: [{ refNumber: '100' }] },
@@ -465,10 +484,11 @@ describe('abstract and claim coverage edge cases', () => {
     expect(out.violations.filter(x => x.rule === 'abstract_drawing')).toEqual([])
   })
 
-  it('reports the 4×6 cm readability rule when no summary figure is named', () => {
+  it('keeps summary-figure readability and designation as not assessed', () => {
     const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。关键词：检测。' })
-    const v = out.violations.find(x => x.rule === 'abstract_drawing')
-    expect(v?.message).toContain('4 厘米×6 厘米')
+    const ids = out.not_assessed.map(item => item.id)
+    expect(ids).toContain('abstract-drawing-designation')
+    expect(ids).toContain('drawing-legibility')
   })
 
   it('warns at 50% claim coverage and passes when fully covered', () => {
@@ -657,9 +677,10 @@ describe('renderSpecification with section and no suggestion', () => {
       passed: false,
       score: 0.9,
       violations: [
-        { rule: 'sections', severity: 'error' as const, section: '摘要', message: '摘要过长', suggestion: '压缩' },
-        { rule: 'clarity', severity: 'warning' as const, message: '模糊表述' },
+        { rule: 'sections', family: 'structure' as const, severity: 'error' as const, section: '摘要', message: '摘要过长', suggestion: '压缩' },
+        { rule: 'clarity', family: 'description' as const, severity: 'warning' as const, message: '模糊表述' },
       ],
+      not_assessed: [],
       evaluated: [],
     })
     expect(out).toContain('（摘要）')
@@ -672,8 +693,9 @@ describe('renderSpecification with section and no suggestion', () => {
       passed: false,
       score: 0.9,
       violations: [
-        { rule: 'clarity', severity: 'warning' as const, message: '模糊表述：约', line: 12, matchedSentence: '本实施例中温度约为 60℃。' },
+        { rule: 'clarity', family: 'description' as const, severity: 'warning' as const, message: '模糊表述：约', line: 12, matchedSentence: '本实施例中温度约为 60℃。' },
       ],
+      not_assessed: [],
       evaluated: [],
     })
     expect(out).toContain('模糊表述：约（第 12 行「本实施例中温度约为 60℃。」）')

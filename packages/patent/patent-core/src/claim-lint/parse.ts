@@ -20,10 +20,21 @@ const EXTRANEOUS_LINE = /^(?:#{1,6}(?:\s|$)|>|\||-{3,}|\*\*\*|!\[)/
 /**
  * 引用部分：句首的「根据权利要求 N … 所述」。
  *
+ * 编号后允许择一限定（「中任一项」「中任意一项」「中的任一项」「之一」「各」
+ * 「中任一权利要求」）：这是多项从属权利要求的规范写法，认不出限定词就会把这类
+ * 从属权项当成独立权利要求，引用链随之断开。
+ *
  * 只锚定句首——独立权利要求正文里也会出现「权利要求 1 所述的转子」，那是交叉
  * 引用，不使本项成为从属权利要求。
  */
-const REFERENCE_CLAUSE = /^根据权利要求\s*[0-9０-９][0-9０-９\s、，,或和及至\-—~～]*所述/
+const REFERENCE_CLAUSE =
+  /^根据权利要求\s*[0-9０-９][0-9０-９\s、，,或和及至\-—~～]*(?:(?:中\s*(?:的\s*)?)?(?:任(?:意)?一(?:项|权利要求)|之一))?各?\s*所述/
+
+/** 引用部分里的择一限定词；区间判定前剥离，它们不参与编号。 */
+const REFERENCE_QUALIFIER = /(?:中\s*(?:的\s*)?)?(?:任(?:意)?一(?:项|权利要求)|之一)|各/g
+
+/** 区间展开上限：正常权项数远低于此，跨度更大的写法只保留端点，不按区间展开。 */
+const MAX_REFERENCE_SPAN = 1000
 
 /** 正文中的交叉引用：「权利要求 N 所述」。 */
 const CROSS_REFERENCE = /权利要求\s*[0-9０-９]+\s*所述/g
@@ -62,11 +73,17 @@ function toHalfWidth(value: string): string {
 function parseReferenceNumbers(clause: string): number[] {
   const body = clause.replace(/^根据权利要求/, '').replace(/所述$/, '')
   const numbers = new Set<number>()
-  for (const part of toHalfWidth(body).split(/[、，,]|或|和|及/)) {
+  for (const part of toHalfWidth(body).replace(REFERENCE_QUALIFIER, '').split(/[、，,]|或|和|及/)) {
     const range = REFERENCE_RANGE.exec(part.trim())
     if (range !== null) {
       const from = Number(range[1])
       const to = Number(range[2])
+      if (Math.abs(to - from) > MAX_REFERENCE_SPAN) {
+        // 写错的编号不展开：只留端点，引用方向规则会把不存在的权项报出来。
+        numbers.add(from)
+        numbers.add(to)
+        continue
+      }
       for (let n = Math.min(from, to); n <= Math.max(from, to); n += 1) numbers.add(n)
       continue
     }

@@ -194,7 +194,12 @@ function orientation(segment: Segment): number {
 }
 
 /** 包围盒。 */
-function bounds(points: Poly): { minX: number; minY: number; maxX: number; maxY: number } {
+/**
+ * Axis-aligned bounding box of a point set.
+ * @param points - polygon vertices in the same coordinate system.
+ * @returns the bounding box.
+ */
+export function polyBounds(points: Poly): BoundsBox {
   const xs = points.map(point => point[0])
   const ys = points.map(point => point[1])
   return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }
@@ -409,8 +414,8 @@ function isMirrorPair(a: Poly, b: Poly): boolean {
     .map(point => `${String(Math.round(point[0] * 1000))}:${String(Math.round(point[1] * 1000))}`)
     .sort()
     .join('|')
-  const boxA = bounds(a)
-  const boxB = bounds(b)
+  const boxA = polyBounds(a)
+  const boxB = polyBounds(b)
   const sameSize = Math.abs((boxA.maxX - boxA.minX) - (boxB.maxX - boxB.minX)) <= MIRROR_TOLERANCE_MM
     && Math.abs((boxA.maxY - boxA.minY) - (boxB.maxY - boxB.minY)) <= MIRROR_TOLERANCE_MM
   if (!sameSize) return false
@@ -642,8 +647,8 @@ function hatchCollisions(
       if (group !== undefined && group === groups[right]) continue
       const a = outlines[left] as Poly
       const b = outlines[right] as Poly
-      const boxA = bounds(a)
-      const boxB = bounds(b)
+      const boxA = polyBounds(a)
+      const boxB = polyBounds(b)
       const gap = Math.max(
         Math.max(boxA.minX, boxB.minX) - Math.min(boxA.maxX, boxB.maxX),
         Math.max(boxA.minY, boxB.minY) - Math.min(boxA.maxY, boxB.maxY),
@@ -708,7 +713,7 @@ function outlineOverlaps(
   groups: readonly (number | undefined)[],
   stroked: readonly boolean[],
 ): RenderCheckFinding[] {
-  const boxes = outlines.map(bounds)
+  const boxes = outlines.map(polyBounds)
   const round = (value: number): string => String(Math.round(value * 10) / 10)
   const findings: RenderCheckFinding[] = []
   for (let left = 0; left < outlines.length; left += 1) {
@@ -772,7 +777,7 @@ function inkBounds(scan: Scan): InkBounds | undefined {
     ...scan.shapes.flatMap(shape => shape.subpaths.flatMap(subpath => subpath.points)),
     ...scan.texts.flatMap(text => [...quadCorners(textQuad(text))]),
   ]
-  return points.length === 0 ? undefined : bounds(points)
+  return points.length === 0 ? undefined : polyBounds(points)
 }
 
 /**

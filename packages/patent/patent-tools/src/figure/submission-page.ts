@@ -194,6 +194,9 @@ export function buildSubmissionPage(input: SubmissionPageInput): SubmissionPageR
     }
   }
   const { geometry, warnings } = parseDrawingSvg(input.drawingSvg)
+  if (sheetNumber === undefined || sheetNumber.trim() === '') {
+    warnings.push('附图页未写页码：每一幅附图页都应当编页码，请补写页码后再交付')
+  }
   if (bodyFontSize !== undefined && (!Number.isFinite(bodyFontSize) || bodyFontSize <= 0)) {
     throw new RangeError(`正文字号必须为正：${String(bodyFontSize)}`)
   }

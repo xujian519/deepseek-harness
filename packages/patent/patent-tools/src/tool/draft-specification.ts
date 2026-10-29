@@ -57,11 +57,17 @@ export type DraftSpecificationOutput = {
   title: string
   tech_domain: TechDomain
   patent_type: PatentType
+  /** Deterministic abstract (≤300 characters) carrying the title, problem, solution and effects. */
+  abstract: string
   sections: SpecificationSection[]
+  /** Whether every section carries written content rather than a drafting guide. */
+  complete: boolean
+  /** Sections still holding a drafting guide. */
+  missing_inputs: string[]
   warnings: string[]
 }
 
-const DESCRIPTION = '根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分）。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。'
+const DESCRIPTION = '根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分，无附图发明省略附图说明），并生成不超过 300 字、含关键词行的确定性摘要。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。'
 
 /**
  * Render the canonical draft into model-facing Markdown.
@@ -75,7 +81,14 @@ const DESCRIPTION = '根据技术交底书或技术方案撰写符合要求的�
  * @returns the rendered Markdown text.
  */
 export function renderDraftSpecification(value: DraftSpecificationOutput): string {
-  const lines = [`**说明书草案（${value.title}）**`, `技术领域: ${value.tech_domain} · 专利类型: ${value.patent_type}`, '']
+  const completeness = value.complete ? '完整' : `未完成（缺少：${value.missing_inputs.join('、')}）`
+  const lines = [
+    `**说明书草案（${value.title}）**`,
+    `技术领域: ${value.tech_domain} · 专利类型: ${value.patent_type} · 完整度: ${completeness}`,
+    '',
+    `摘要: ${value.abstract}`,
+    '',
+  ]
   for (const section of value.sections) {
     lines.push(`## ${section.name}`, '', section.content, '')
   }
@@ -93,7 +106,11 @@ const DOMAIN_LABELS: Partial<Record<TechDomain, string>> = {
 
 function buildTechField(title: string, domain: TechDomain): SpecificationSection {
   const domainLabel = DOMAIN_LABELS[domain] ?? ''
-  return { name: '技术领域', content: `本发明涉及${domainLabel}技术领域，尤其涉及一种${title}。`, placeholder: false }
+  const subject = title.startsWith('一种') ? title : `一种${title}`
+  const content = domainLabel.length > 0
+    ? `本发明涉及${domainLabel}技术领域，尤其涉及${subject}。`
+    : `本发明涉及${subject}。`
+  return { name: '技术领域', content, placeholder: false }
 }
 
 function buildBackground(background?: string): SpecificationSection {
@@ -115,7 +132,11 @@ function buildContent(input: DraftSpecificationInput): SpecificationSection {
   return { name: '发明内容', content: parts.join('\n'), placeholder: !(problem && solution && effects) }
 }
 
-function buildDrawings(descriptions?: string[], hasDrawings?: boolean): SpecificationSection {
+function buildDrawings(
+  descriptions: string[] | undefined,
+  hasDrawings: boolean | undefined,
+  patentType: PatentType,
+): SpecificationSection | undefined {
   if (descriptions && descriptions.length > 0) {
     const content = descriptions.map((d, i) => {
       const trimmed = d.trim()
@@ -123,10 +144,11 @@ function buildDrawings(descriptions?: string[], hasDrawings?: boolean): Specific
     }).join('\n')
     return { name: '附图说明', content, placeholder: false }
   }
-  if (hasDrawings) {
+  if (hasDrawings === true || patentType === 'utility_model') {
     return { name: '附图说明', content: '【撰写指引】按图序逐图说明：图1为整体结构示意图，图2为局部放大图（按实际附图调整）。', placeholder: true }
   }
-  return { name: '附图说明', content: '【撰写指引】如无附图可省略本节；如有附图，按图序说明每幅附图的图名和内容。', placeholder: true }
+  // 指南第二部分第二章 2.3：发明专利可以没有附图，此时不输出空的附图说明章节。
+  return undefined
 }
 
 function buildEmbodiments(embodiments?: string[], patentType?: PatentType): SpecificationSection {
@@ -135,6 +157,37 @@ function buildEmbodiments(embodiments?: string[], patentType?: PatentType): Spec
     return { name: '具体实施方式', content, placeholder: false }
   }
   return { name: '具体实施方式', content: `【撰写指引】撰写至少一个实施例，使所属领域技术人员能够实现：① 实施例的操作步骤/参数/条件记载完整；② 数值范围给出端点值和至少一个中间值的实施例；③ 有益效果有定量效果数据；④ 有与最接近现有技术的对比实验数据（${patentType === 'utility_model' ? '实用新型' : '创造性'}判断的关键支撑）。`, placeholder: true }
+}
+
+/** Trim to a codepoint budget, never splitting a surrogate pair. */
+function clip(text: string, limit: number): string {
+  const chars = Array.from(text)
+  return chars.length <= limit ? text : chars.slice(0, limit).join('')
+}
+
+/**
+ * Compose a deterministic abstract from the same fields the draft uses.
+ *
+ * The abstract never cites a claim number and always ends with a keyword line;
+ * the body is clipped so the whole text stays within the 300-character limit.
+ * @param input - the specification-drafting request.
+ * @returns the abstract text (1..300 characters).
+ */
+export function composeAbstract(input: DraftSpecificationInput): string {
+  const title = input.title.trim()
+  const subject = title.startsWith('一种') ? title : `一种${title}`
+  const problem = input.technical_problem?.trim() ?? ''
+  const solution = input.technical_solution?.trim() ?? ''
+  const effects = input.beneficial_effects?.trim() ?? ''
+  const keywordSource = subject.replace(/^一种/, '').replace(/[，。；、：:,.;\s]/g, '')
+  const keywords = `关键词：${clip(keywordSource, 20)}`
+  const parts = [`本发明公开了${subject}`]
+  if (problem.length > 0) parts.push(`，要解决的技术问题是${problem}`)
+  if (solution.length > 0) parts.push(`。技术方案：${solution}`)
+  if (effects.length > 0) parts.push(`。有益效果：${effects}`)
+  const body = parts.join('').replace(/[。；]+$/, '')
+  const budget = 300 - Array.from(keywords).length - 1
+  return `${clip(body, budget)}。${keywords}`
 }
 
 function resolveDomain(hint: TechDomain | undefined, title: string, input: DraftSpecificationInput): TechDomain {
@@ -167,20 +220,31 @@ export function draftSpecification(input: DraftSpecificationInput): DraftSpecifi
   const patentType: PatentType = input.patent_type ?? 'invention'
   const domain = resolveDomain(input.tech_domain, title, input)
   const warnings: string[] = []
+  if (input.patent_type === undefined) warnings.push('未声明专利类型，草案按发明专利处理')
   if (title.length > 25) warnings.push(`发明名称 ${title.length} 字，超过 25 字限制`)
   if (patentType === 'utility_model' && !input.has_drawings) warnings.push('实用新型必须有附图，请确认补充附图')
   const explicitDescriptions = input.drawing_descriptions && input.drawing_descriptions.length > 0 ? input.drawing_descriptions : undefined
   const autoDescriptions = input.figure_analysis?.map(f => enrichFigureDescription(f).trim()).filter(d => d.length > 0) ?? []
   const drawingDescriptions = explicitDescriptions ?? (autoDescriptions.length > 0 ? autoDescriptions : undefined)
   if (!explicitDescriptions && autoDescriptions.length > 0) warnings.push('附图说明由附图智能分析自动生成，请人工核对附图标记与图面一致')
-  const sections: SpecificationSection[] = [
+  const sections = [
     buildTechField(title, domain),
     buildBackground(input.background),
     buildContent(input),
-    buildDrawings(drawingDescriptions, input.has_drawings),
+    buildDrawings(drawingDescriptions, input.has_drawings, patentType),
     buildEmbodiments(input.embodiments, patentType),
-  ]
-  return { title, tech_domain: domain, patent_type: patentType, sections, warnings }
+  ].filter((section): section is SpecificationSection => section !== undefined)
+  const missingInputs = sections.filter(section => section.placeholder).map(section => section.name)
+  return {
+    title,
+    tech_domain: domain,
+    patent_type: patentType,
+    abstract: composeAbstract(input),
+    sections,
+    complete: missingInputs.length === 0,
+    missing_inputs: missingInputs,
+    warnings,
+  }
 }
 
 const SECTION_SCHEMA = {
@@ -279,7 +343,10 @@ export function createDraftSpecificationTool(): ToolDefinition {
           title: { type: 'string', required: true },
           tech_domain: { type: 'string', required: true, enum: ['mechanical', 'electrical', 'chemical', 'software', 'general'] },
           patent_type: { type: 'string', required: true, enum: ['invention', 'utility_model'] },
+          abstract: { type: 'string', required: true, description: '确定性摘要（≤300 字，含关键词行，不引用权利要求编号）' },
           sections: { type: 'array', required: true, items: SECTION_SCHEMA },
+          complete: { type: 'boolean', required: true },
+          missing_inputs: { type: 'array', required: true, items: { type: 'string' } },
           warnings: WARNINGS_SCHEMA,
         },
       },

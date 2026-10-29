@@ -12,7 +12,7 @@
 # Every body is a quoted heredoc, so backticks and `$` inside them stay literal.
 set -euo pipefail
 
-REPO=xujian519/deepseek-harness
+REPO=xujian519/dsh-patent
 
 printf 'reading existing titles from %s ...\n' "$REPO"
 existing=$(gh issue list --repo "$REPO" --state all --limit 1000 --json title --jq '.[].title')

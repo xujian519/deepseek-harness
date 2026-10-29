@@ -114,6 +114,22 @@ describe('contentFromDraft', () => {
     expect(contentFromDraft(specDraft({ abstractFigure: '2' })).abstractFigureIndex).toBe(1)
   })
 
+  it('无附图草案省略附图说明章节与摘要附图下标', () => {
+    const draft = specDraft({
+      figureFiles: [],
+      abstractFigure: '1',
+      sections: {
+        ...specDraft().sections,
+        drawingDescriptions: [],
+      },
+    })
+    const content = contentFromDraft(draft)
+    const headings = content.specification.filter(node => node.kind === 'h3').map(node => node.text)
+    expect(headings).toEqual(['技术领域', '背景技术', '发明内容', '具体实施方式'])
+    expect(content.figures).toEqual([])
+    expect(content.abstractFigureIndex).toBeUndefined()
+  })
+
   it('附图说明的图号跨列表块连续编号', () => {
     const draft = specDraft({ figureFiles: ['fig1.svg', 'fig2.png', 'fig3.png'] })
     draft.sections.drawingDescriptions = [

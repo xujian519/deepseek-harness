@@ -75,6 +75,11 @@ export type LegalGapCheckpoint = {
   notAssessed?: (state: PipelineState) => boolean
   /** 返回 true 时该法条在本程序中不适用。 */
   notApplicable?: (state: PipelineState) => boolean
+  /**
+   * 未评估项是否进入反哺清单；实体判断项（如概括范围）无法靠补提事实解决，
+   * 置 false 以免每轮都触发无意义回退。
+   */
+  revisionTarget?: boolean
   /** `notApplicable` 读取的判定键；声明后由 atom 输入键派生收录。 */
   scopeKey?: string
 }
@@ -108,24 +113,45 @@ const ELIGIBILITY_CHECK: LegalGapCheckpoint = {
   pendingKey: 'eligibility_pending',
 }
 
-/** 权利要求支持与单一性检查：披露与可专利性共用。 */
+/** 说明书形式检查：结构、标题、摘要、附图、禁止性条款；披露与可专利性共用。 */
+const SPEC_FORM_CHECK: LegalGapCheckpoint = {
+  id: 'spec-form',
+  provision: '专利法实施细则第20条、第21条；审查指南第二部分第二章2.2.2–2.2.7',
+  label: '说明书形式要求',
+  severity: 'block',
+  assessKeys: ['spec_form_check_report'],
+  failureKey: 'spec_form_check_passed',
+}
+
+/** 权利要求特征覆盖与单一性检查：披露与可专利性共用。 */
 const CLAIM_SUPPORT_CHECK: LegalGapCheckpoint = {
   id: 'claim-support',
   provision: '专利法第26条第4款、第31条第1款',
-  label: '权利要求支持与单一性',
+  label: '权利要求特征覆盖与单一性',
   severity: 'block',
-  assessKeys: ['spec_check_report'],
-  failureKey: 'spec_check_passed',
+  assessKeys: ['spec_claims_check_report'],
+  failureKey: 'spec_claims_check_passed',
 }
 
-/** 充分公开检查：只在 spec-check 的 spec 模式运行后视为已评估，与权项检查分开。 */
+/** 充分公开检查：确定性形式检查不能证明“能够实现”，只有实体报告才判通过。 */
 const ENABLEMENT_CHECK: LegalGapCheckpoint = {
   id: 'enablement',
   provision: '专利法第26条第3款',
   label: '充分公开',
   severity: 'warn',
-  assessKeys: ['specification_check_report'],
-  failureKey: 'specification_check_passed',
+  assessKeys: ['enablement_report'],
+  failureKey: 'enablement_passed',
+}
+
+/** 权利要求概括范围：始终需要实体判断，确定性规则不覆盖。 */
+const CLAIM_SUPPORT_BREADTH_CHECK: LegalGapCheckpoint = {
+  id: 'claim-support-breadth',
+  provision: '专利法第26条第4款',
+  label: '权利要求概括范围的支持',
+  severity: 'warn',
+  assessKeys: [],
+  notAssessed: () => true,
+  revisionTarget: false,
 }
 
 /** 证据审查：无效与复审共用。 */
@@ -175,7 +201,9 @@ export const LEGAL_GAP_CHECKS: Record<LegalGapProfile, readonly LegalGapCheckpoi
       severity: 'warn',
       assessKeys: ['novelty_conclusion', 'novelty_result'],
     },
+    SPEC_FORM_CHECK,
     CLAIM_SUPPORT_CHECK,
+    CLAIM_SUPPORT_BREADTH_CHECK,
     ENABLEMENT_CHECK,
   ],
   inventiveness: [
@@ -201,7 +229,9 @@ export const LEGAL_GAP_CHECKS: Record<LegalGapProfile, readonly LegalGapCheckpoi
     ELIGIBILITY_CHECK,
     TIME_BASELINE_CHECK,
     GRACE_PERIOD_CHECK,
+    SPEC_FORM_CHECK,
     CLAIM_SUPPORT_CHECK,
+    CLAIM_SUPPORT_BREADTH_CHECK,
     ENABLEMENT_CHECK,
   ],
   'oa-response': [
@@ -336,7 +366,7 @@ type LegalGapRevisionTarget = {
 export const legalGapsAtom: Atom = {
   name: 'legal-gaps',
   description:
-    '法条缺口聚合：按案件类型把确定性检查产出映射回法条，汇总未通过、未评估与不适用项并给可复核依据',
+    '法条缺口聚合：按案件类型把确定性检查产出映射回法条（说明书形式、权项覆盖与单一性、充分公开分开判定），汇总未通过、未评估与不适用项并给可复核依据',
   category: 'gate',
   inputSchema: deriveInputKeys(),
   outputSchema: [
@@ -417,10 +447,11 @@ function evaluateCheckpoint(
     }
   }
   if (checkpoint.notAssessed?.(state) === true) {
+    const keys = checkpoint.assessKeys.join(' / ')
     return {
       ...base,
       status: 'not-assessed',
-      evidence: supplemented(`${checkpoint.assessKeys.join(' / ')} 报告本次未执行`),
+      evidence: supplemented(keys === '' ? '该项需要实体判断，确定性检查未覆盖' : `${keys} 报告本次未执行`),
     }
   }
   const assessedKey = checkpoint.assessKeys.find(key => hasValue(state[key]))
@@ -482,11 +513,14 @@ export class LegalGapsHandler implements StageHandler {
     const items = LEGAL_GAP_CHECKS[profile].map(checkpoint => evaluateCheckpoint(input.state, checkpoint, coverage))
     const passed = !items.some(item => item.status === 'failed' && item.severity === 'block')
     const unassessed = items.filter(item => item.status === 'not-assessed')
-    const targets: LegalGapRevisionTarget[] = unassessed.slice(0, MAX_REVISION_TARGETS).map(item => ({
-      checkId: item.id,
-      provision: item.provision,
-      label: item.label,
-    }))
+    const targets: LegalGapRevisionTarget[] = unassessed
+      .filter(item => LEGAL_GAP_CHECKS[profile].find(check => check.id === item.id)?.revisionTarget !== false)
+      .slice(0, MAX_REVISION_TARGETS)
+      .map(item => ({
+        checkId: item.id,
+        provision: item.provision,
+        label: item.label,
+      }))
     const signals: RetrySignal[] = targets.map(target => ({
       gapId: target.checkId,
       rationale: `${target.provision} — ${target.label}：上一轮确定性检查未覆盖`,

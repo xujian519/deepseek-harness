@@ -277,16 +277,19 @@ describe('legal-gaps 原子', () => {
         reference_date: '2024-06-01',
         prior_art_filter_report: '现有技术过滤：排除 1 篇晚于截止日的文献',
         novelty_result: '逐特征新颖性初判：具备新颖性',
-        spec_check_report: '权利要求合规检查：通过',
-        spec_check_passed: true,
-        specification_check_report: '说明书合规检查：通过',
-        specification_check_passed: true,
+        spec_form_check_report: '说明书形式检查：通过',
+        spec_form_check_passed: true,
+        spec_claims_check_report: '权利要求支持与单一性检查：通过',
+        spec_claims_check_passed: true,
+        enablement_report: '充分公开：通过',
+        enablement_passed: true,
       },
     })
     expect(out['legal_gaps_passed']).toBe(true)
-    expect(out['legal_gaps_unassessed']).toEqual([])
+    expect(out['legal_gaps_unassessed']).toEqual(['claim-support-breadth'])
     const items = out['legal_gaps_items'] as LegalGapItem[]
     expect(items.find(item => item.id === 'grace-period')?.status).toBe('passed')
+    expect(items.find(item => item.id === 'spec-form')?.status).toBe('passed')
     expect(items.find(item => item.id === 'claim-support')?.status).toBe('passed')
     expect(items.find(item => item.id === 'enablement')).toMatchObject({
       status: 'passed',
@@ -294,18 +297,23 @@ describe('legal-gaps 原子', () => {
     })
   })
 
-  it('披露清单：说明书检查未通过时充分公开记为未通过但不阻断', async () => {
+  it('披露清单：形式检查失败形成阻断项，充分公开没有实体报告时记未评估', async () => {
     const out = await new LegalGapsHandler().execute({
       state: {
         profile: 'disclosure',
-        specification_check_report: '说明书合规检查：未通过（缺少必要章节）',
-        specification_check_passed: false,
+        spec_form_check_report: '说明书形式检查：未通过（缺少必要章节）',
+        spec_form_check_passed: false,
       },
     })
-    expect(out['legal_gaps_passed']).toBe(true)
+    expect(out['legal_gaps_passed']).toBe(false)
     const items = out['legal_gaps_items'] as LegalGapItem[]
-    expect(items.find(item => item.id === 'enablement')).toMatchObject({
+    expect(items.find(item => item.id === 'spec-form')).toMatchObject({
       status: 'failed',
+      severity: 'block',
+    })
+    // 形式检查不能证明“能够实现”；只有 enablement_report 才能判通过。
+    expect(items.find(item => item.id === 'enablement')).toMatchObject({
+      status: 'not-assessed',
       severity: 'warn',
     })
   })
@@ -337,18 +345,22 @@ describe('legal-gaps 原子', () => {
         eligibility_report: '可专利客体筛查：通过',
         eligibility_passed: true,
         eligibility_pending: [],
-        spec_check_report: '权利要求合规检查：通过',
-        spec_check_passed: true,
-        specification_check_report: '说明书合规检查：通过',
-        specification_check_passed: true,
+        spec_form_check_report: '说明书形式检查：通过',
+        spec_form_check_passed: true,
+        spec_claims_check_report: '权利要求支持与单一性检查：通过',
+        spec_claims_check_passed: true,
+        enablement_report: '充分公开：通过',
+        enablement_passed: true,
       },
     })
     expect(out['legal_gaps_passed']).toBe(true)
-    expect(out['legal_gaps_unassessed']).toEqual(['time-baseline', 'grace-period'])
+    expect(out['legal_gaps_unassessed']).toEqual(['time-baseline', 'grace-period', 'claim-support-breadth'])
     const items = out['legal_gaps_items'] as LegalGapItem[]
     expect(items.find(item => item.id === 'eligibility')?.status).toBe('passed')
     expect(items.find(item => item.id === 'claim-support')?.status).toBe('passed')
     expect(items.find(item => item.id === 'enablement')?.status).toBe('passed')
+    // 概括范围始终需要实体判断，不因其他检查通过而变成 passed。
+    expect(items.find(item => item.id === 'claim-support-breadth')?.status).toBe('not-assessed')
   })
 
   it('profile 缺失或未知时降级，不猜测案件类型', async () => {
@@ -383,7 +395,8 @@ describe('legal-gaps 原子', () => {
       { checkId: 'eligibility', provision: '专利法第2条第2款、第5条、第25条', label: '可专利客体' },
       { checkId: 'time-baseline', provision: '专利法第22条第5款', label: '现有技术时间基准' },
       { checkId: 'grace-period', provision: '专利法第24条', label: '宽限期公开' },
-      { checkId: 'claim-support', provision: '专利法第26条第4款、第31条第1款', label: '权利要求支持与单一性' },
+      { checkId: 'spec-form', provision: '专利法实施细则第20条、第21条；审查指南第二部分第二章2.2.2–2.2.7', label: '说明书形式要求' },
+      { checkId: 'claim-support', provision: '专利法第26条第4款、第31条第1款', label: '权利要求特征覆盖与单一性' },
       { checkId: 'enablement', provision: '专利法第26条第3款', label: '充分公开' },
     ])
     const signals = out['_revision_signals'] as Array<{ gapId: string; rationale: string }>
@@ -391,6 +404,7 @@ describe('legal-gaps 原子', () => {
       'eligibility',
       'time-baseline',
       'grace-period',
+      'spec-form',
       'claim-support',
       'enablement',
     ])
@@ -402,16 +416,11 @@ describe('legal-gaps 原子', () => {
   it('没有未评估项时清空反哺清单且不产生信号', async () => {
     const out = await new LegalGapsHandler().execute({
       state: {
-        profile: 'patentability',
-        eligibility_report: '通过',
-        eligibility_passed: true,
-        eligibility_pending: [],
-        reference_date: '2024-01-01',
-        prior_art_filter_report: '已过滤',
-        spec_check_report: '通过',
-        spec_check_passed: true,
-        specification_check_report: '通过',
-        specification_check_passed: true,
+        profile: 'oa-response',
+        response_check_report: '答复规范检查：通过',
+        response_check_passed: true,
+        amendment_basis_report: '修改依据检查：通过',
+        amendment_basis_passed: true,
       },
     })
     expect(out['revision_targets']).toEqual([])

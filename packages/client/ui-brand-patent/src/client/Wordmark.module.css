@@ -1,0 +1,38 @@
+/* The sidebar's product name, replacing the shell's local-build fallback.
+   Geometry copies the fallback's (a 24px-tall column holding a 13px title over
+   a 10px version chip) so swapping the occupant does not move the mark or the
+   collapsed/expanded rail transition. */
+
+.root {
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  height: 24px;
+  white-space: nowrap;
+}
+
+.title {
+  font-size: 12px;
+  line-height: 13px;
+  letter-spacing: 0;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The version chip keeps the fallback's inverted treatment: it reads as build
+   metadata beside the product name, not as a second brand line. */
+.version {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 10px;
+  padding: 0 3px;
+  border-radius: 2px;
+  color: var(--dsw-alias-label-primary-inverted);
+  background: var(--dsw-alias-label-primary);
+  font-family: var(--ds-font-family-code);
+  font-size: 6px;
+  line-height: 1;
+}

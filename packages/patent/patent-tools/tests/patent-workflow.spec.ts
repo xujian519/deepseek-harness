@@ -16,6 +16,7 @@ import {
 import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
 import { draftSpecificationAtom, DraftSpecificationHandler } from '../src/atoms/draft-specification.ts'
+import { figureAnalysisAtom, FigureAnalysisHandler } from '../src/atoms/figure-analysis.ts'
 import { specCheckAtom, SpecCheckHandler } from '../src/atoms/spec-check.ts'
 import { responseCheckAtom, ResponseCheckHandler } from '../src/atoms/response-check.ts'
 import { eligibilityAtom, EligibilityHandler } from '../src/atoms/eligibility.ts'
@@ -41,6 +42,8 @@ globalAtomRegistry.register(slopGateAtom)
 globalStageHandlerRegistry.register(new SlopGateHandler())
 globalAtomRegistry.register(draftSpecificationAtom)
 globalStageHandlerRegistry.register(new DraftSpecificationHandler())
+globalAtomRegistry.register(figureAnalysisAtom)
+globalStageHandlerRegistry.register(new FigureAnalysisHandler())
 globalAtomRegistry.register(specCheckAtom)
 globalStageHandlerRegistry.register(new SpecCheckHandler())
 globalAtomRegistry.register(responseCheckAtom)

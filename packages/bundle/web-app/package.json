@@ -211,7 +211,8 @@
     "commander": "^15.0.0",
     "open": "^11.0.2",
     "@deepseek-ai/dsh-client-ui-secret-mask": "workspace:*",
-    "@deepseek-ai/dsh-harness-dev-context": "workspace:*"
+    "@deepseek-ai/dsh-harness-dev-context": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-brand-patent": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~",

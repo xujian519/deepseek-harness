@@ -351,8 +351,16 @@
       name: '@deepseek-ai/dsh-client-ui-chat'
 
     # Official occupants for the generic sidebar and conversation brand slots.
+    # Disabled on this fork: its build profile is never `official`, so this
+    # package registers nothing anyway, and the patent package below owns the
+    # same single-occupant slots. Keeping the row documents the swap.
     - id: ui-brand-official
       name: '@deepseek-ai/dsh-client-ui-brand-official'
+      disabled: true
+
+    # DSH Patent occupants for the same slots, registered unconditionally.
+    - id: ui-brand-patent
+      name: '@deepseek-ai/dsh-client-ui-brand-patent'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'
