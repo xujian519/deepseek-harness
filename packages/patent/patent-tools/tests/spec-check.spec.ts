@@ -21,7 +21,7 @@ const run = (state: Record<string, unknown>) => handler.execute({ state })
 
 describe('SpecCheckHandler', () => {
   it('spec mode passes a complete specification and reports the spec rule set', async () => {
-    const out = await run({ mode: 'spec', text: VALID_SPEC })
+    const out = await run({ mode: 'spec', text: VALID_SPEC, patent_type: 'invention' })
     expect(out.spec_check_passed).toBe(true)
     expect(out.spec_check_score).toBe(1)
     expect(out.spec_check_violations).toEqual([])
@@ -29,6 +29,58 @@ describe('SpecCheckHandler', () => {
     expect(String(out.spec_check_report)).toContain('通过')
     expect(out.specification_check_passed).toBe(true)
     expect(out.specification_check_report).toBe(out.spec_check_report)
+    expect(out.spec_form_check_passed).toBe(true)
+    expect(out.spec_figure_check_passed).toBe(true)
+    expect(out.spec_prohibitions_check_passed).toBe(true)
+    expect(Array.isArray(out.spec_not_assessed)).toBe(true)
+  })
+
+  it('spec mode reads title, abstract, patent type, drawings and figure analysis', async () => {
+    const out = await run({
+      mode: 'spec',
+      text: VALID_SPEC,
+      title: '一种检测装置',
+      abstract: '摘要内容。关键词：检测。',
+      patent_type: 'invention',
+      has_drawings: true,
+      figure_analysis: [{ usable: true, components: [{ refNumber: '1' }] }],
+      drawing_count: 2,
+      abstract_figure_number: 9,
+    })
+    const violations = out.spec_check_violations as SpecViolation[]
+    expect(violations.find(v => v.rule === 'drawing_count')?.severity).toBe('error')
+    expect(violations.find(v => v.rule === 'abstract_drawing_number')?.severity).toBe('error')
+    expect(out.spec_form_check_passed).toBe(false)
+    expect(out.spec_figure_check_passed).toBe(false)
+    const notAssessed = out.spec_not_assessed as Array<{ id: string }>
+    expect(notAssessed.map(item => item.id)).not.toContain('figure-analysis')
+  })
+
+  it('spec mode fails a utility model without drawings', async () => {
+    const out = await run({ mode: 'spec', text: VALID_SPEC, patent_type: 'utility_model', has_drawings: false })
+    const violations = out.spec_check_violations as SpecViolation[]
+    expect(violations.find(v => v.rule === 'utility_model_drawings')?.severity).toBe('error')
+    expect(out.spec_form_check_passed).toBe(false)
+  })
+
+  it('spec mode does not report a claims verdict when no claims are supplied', async () => {
+    const out = await run({ mode: 'spec', text: VALID_SPEC, patent_type: 'invention' })
+    expect(out.spec_claims_check_passed).toBeUndefined()
+    expect(out.spec_claims_check_report).toBeUndefined()
+  })
+
+  it('spec mode writes separate form, claims, figure and prohibition verdicts', async () => {
+    const out = await run({
+      mode: 'spec',
+      text: `${VALID_SPEC}\n对比文件为世界领先方案。`,
+      claims: '1. 一种检测装置，其特征在于，包括所述壳体、所述弹簧、所述电机。',
+      patent_type: 'invention',
+    })
+    expect(out.spec_form_check_passed).toBe(false)
+    expect(out.spec_prohibitions_check_passed).toBe(false)
+    expect(out.spec_claims_check_passed).toBe(false)
+    expect(String(out.spec_form_check_report)).toContain('说明书形式检查')
+    expect(String(out.spec_claims_check_report)).toContain('权利要求支持与单一性检查')
   })
 
   it('spec mode reports a missing required section as an error', async () => {

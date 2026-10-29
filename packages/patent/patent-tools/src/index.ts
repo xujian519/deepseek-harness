@@ -190,6 +190,7 @@ export type {
 } from './tool/matter-log-append.ts'
 export { slopGateAtom, SlopGateHandler, SLOP_GATE_PASS_THRESHOLD } from './atoms/slop-gate.ts'
 export { draftSpecificationAtom, DraftSpecificationHandler } from './atoms/draft-specification.ts'
+export { figureAnalysisAtom, FigureAnalysisHandler } from './atoms/figure-analysis.ts'
 export { specCheckAtom, SpecCheckHandler, type SpecCheckMode } from './atoms/spec-check.ts'
 export {
   responseCheckAtom,

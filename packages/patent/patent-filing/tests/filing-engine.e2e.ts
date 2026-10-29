@@ -245,4 +245,47 @@ describe.skipIf(interpreter === undefined)('filing engine end to end', () => {
       await rm(dir, { recursive: true, force: true })
     }
   }, 120_000)
+
+  it('无附图发明省略摘要附图与说明书附图两节，成品仍通过验收', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-filing-e2e-nofig-'))
+    try {
+      const subprocess = new LocalSubprocessRuntime(new Context())
+      const common = {
+        subprocess,
+        specPath: defaultSpecPath(),
+        templatePath: defaultTemplatePath(),
+        timeoutMs: DEFAULT_ENGINE_TIMEOUT_MS,
+      }
+      const built = await buildFiling({
+        content: {
+          abstract: ['本发明公开一种无需附图的检测方法。'],
+          claims: ['1. 一种检测方法，其特征在于，包括采集步骤与判断步骤。'],
+          specification: [
+            { kind: 'h3', text: '技术领域' },
+            { kind: 'p', text: '本发明属于检测技术领域。' },
+            { kind: 'h3', text: '背景技术' },
+            { kind: 'p', text: '现有检测方法缺少快速判断步骤。' },
+            { kind: 'h3', text: '发明内容' },
+            { kind: 'p', text: '本发明提供一种检测方法。' },
+            { kind: 'h3', text: '具体实施方式' },
+            { kind: 'p', text: '实施例1：采集信号后按阈值判断。' },
+          ] as { kind: 'h3' | 'p'; text: string }[],
+          figures: [],
+        },
+        outputName: '无附图',
+        outputDir: dir,
+      }, { ...common, defaultOutputDir: dir, figureScale: 1 }, process.cwd(), new AbortController().signal)
+      expect(built.sections.map(tally => tally.key)).toEqual(['abstract', 'claims', 'specification'])
+      expect(built.figures).toEqual([])
+
+      const verified = await verifyFiling({ docxPath: built.docxPath }, common, new AbortController().signal)
+      expect(verified.errors).toEqual([])
+      expect(verified.passed).toBe(true)
+      expect(verified.info.sections).toBe(3)
+      expect(verified.info.figures).toBe(0)
+      expect(verified.info.layout.map(tally => tally.key)).toEqual(['abstract', 'claims', 'specification'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 120_000)
 })

@@ -532,6 +532,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       sheet_index: { type: 'integer', description: '附图页序号，默认 1' },
       sheet_total: { type: 'integer', description: '附图页总数，默认 1（PCT/USPTO 页码写作「序号/总数」）' },
       caption: { type: 'string', description: '图号文字覆盖（缺省按目标法域生成；panels 模式自动追加面板后缀，如 图1A / Fig. 1A）' },
+      abstract_figure: { type: 'boolean', description: '本幅是否为请求书指定的摘要附图（默认 false）：true 时按缩小到 40×60 毫米核算可辨度量并给出 warning' },
       fit_to_page: { type: 'boolean', description: '默认 true：把图形落版到目标法域幅面（SVG，或经 Inkscape 全链导出的 png/pdf）；false 时只核算尺寸、不改写画布' },
       caption_font_mm: { type: 'number', description: '图号字高（毫米，默认 4）；目标法域对图面文字有最小字高要求时用它调大，须为正数' },
       caption_gap_mm: { type: 'number', description: '图号与图形之间的间距（毫米，默认 3），须为正数' },

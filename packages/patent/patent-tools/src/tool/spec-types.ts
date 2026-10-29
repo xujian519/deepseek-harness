@@ -5,8 +5,28 @@
  * point in `validate-specification.ts` own them.
  */
 
-import type { TechDomain } from './draft-claims.ts'
+import type { PatentType, TechDomain } from './draft-claims.ts'
 import type { EvaluatedText } from '../internal/evaluated-input.ts'
+
+/** Rule family a violation belongs to; per-family verdicts read this. */
+export type SpecFamily =
+  | 'structure'
+  | 'title'
+  | 'abstract'
+  | 'description'
+  | 'prohibitions'
+  | 'figures'
+  | 'claims'
+
+/** One item a deterministic rule set cannot decide; surfaced instead of silently passing. */
+export type SpecNotAssessed = {
+  /** Stable identifier, shared with the workflow state and `legal-gaps`. */
+  id: string
+  /** Short human-readable label. */
+  label: string
+  /** Why deterministic rules cannot decide it. */
+  reason: string
+}
 
 /** Tool input: the specification fields to validate. */
 export type ValidateSpecificationInput = {
@@ -20,6 +40,14 @@ export type ValidateSpecificationInput = {
   claims?: string
   /** Technical domain; "chemical" enables the characterization-data check. */
   tech_domain?: TechDomain
+  /** Patent type; a utility model requires drawings. Defaults to invention with a warning. */
+  patent_type?: PatentType
+  /** Whether the application has drawings; inferred from the text and figure analysis when absent. */
+  has_drawings?: boolean
+  /** Declared drawing count; compared with the drawing-description entries when supplied. */
+  drawing_count?: number
+  /** Abstract figure number from the request form; checked against existing figure numbers. */
+  abstract_figure_number?: number
   /** Figure-analysis results (optional); enables figure-mark consistency. */
   figure_analysis?: FigureAnalysisResult[]
   /** Structured claims (optional); enables the independent-claim unity check. */
@@ -56,6 +84,8 @@ export type CoverageEntryInput = {
 /** One compliance violation. */
 export type SpecViolation = {
   rule: string
+  /** Rule family; `spec-check` derives per-family verdicts from it. */
+  family: SpecFamily
   severity: 'error' | 'warning'
   section?: string
   message: string
@@ -76,6 +106,8 @@ export type ValidateSpecificationOutput = {
   passed: boolean
   score: number
   violations: SpecViolation[]
+  /** Items deterministic rules cannot decide; callers must surface these rather than read `passed` as full compliance. */
+  not_assessed: SpecNotAssessed[]
   /** Identity of the text inputs this run read, so another run can be compared with it. */
   evaluated: EvaluatedText[]
 }

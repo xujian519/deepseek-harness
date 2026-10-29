@@ -97,7 +97,7 @@ export interface SpecDraft {
   claims: string[]
   /** 摘要段落；≥1 段，每段非空。 */
   abstract: string[]
-  /** 附图文件路径，按图序；≥1 项，每项非空。 */
+  /** 附图文件路径，按图序；每项非空。无附图发明（指南第二部分第二章 2.3）可以为空数组。 */
   figureFiles: string[]
   /**
    * 摘要附图号：1..figureFiles 项数的整数；缺省为第 1 幅。

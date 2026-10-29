@@ -78,6 +78,8 @@ export function contentFromDraft(draft: SpecDraft): FilingContent {
   const counter: CaptionCounter = { count: 0 }
   const specification: SpecificationNode[] = []
   for (const partId of SPEC_PART_ORDER) {
+    // 指南第二部分第二章 2.3：无附图发明不写空的附图说明章节。
+    if (partId === 'drawingDescriptions' && draft.figureFiles.length === 0) continue
     specification.push({ kind: 'h3', text: SPEC_PART_HEADINGS[partId] })
     const blocks = draft.sections[partId]
     specification.push(
@@ -89,7 +91,9 @@ export function contentFromDraft(draft: SpecDraft): FilingContent {
     claims: draft.claims.map((claim, index) => `${index + 1}. ${claim}`),
     specification,
     figures: [...draft.figureFiles],
-    // 摘要附图号在草案里是 1 起的图号，内容模型用 0 起下标；缺省（草案未给）即第 1 张。
-    ...(draft.abstractFigure !== undefined ? { abstractFigureIndex: Number(draft.abstractFigure) - 1 } : {}),
+    // 摘要附图号在草案里是 1 起的图号，内容模型用 0 起下标；无附图时不设该字段。
+    ...(draft.abstractFigure !== undefined && draft.figureFiles.length > 0
+      ? { abstractFigureIndex: Number(draft.abstractFigure) - 1 }
+      : {}),
   }
 }

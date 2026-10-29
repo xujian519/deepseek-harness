@@ -16,6 +16,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
+import { checkFigureDelivery } from '../figure/delivery-review.ts'
 import { checkFigureHierarchy } from '../figure/hierarchy-check.ts'
 import type { FigureHierarchyEdge } from '../figure/hierarchy-check.ts'
 import { checkFigureRendering } from '../figure/render-check.ts'
@@ -49,6 +50,8 @@ export type VerifyPatentFigureInput = {
   hierarchy?: FigureHierarchyEdge[]
   /** 权利要求书正文；与 `hierarchy` 同时给出时才判构造层级一致性。 */
   claims?: string
+  /** 交付前复核：加查图面词语、位图/照片、整幅框线与横向方向。 */
+  delivery_review?: boolean
 }
 
 /** 输出：量测值 + 发现问题（与 `figure/render-check` 的报告同形）。 */
@@ -85,6 +88,8 @@ const DESCRIPTION = [
   '构造层级判据只在同时给出 hierarchy（出图时声明的父标记 → 直接子标记）与 claims（权利要求书正文）时生效：权利要求写出的归属（如「恒电位控制单元31的输入端311」）必须与声明的层级一致，否则报出矛盾。两端标记都必须是声明过的节点，权利要求序号与图号因此不参与。',
   '',
   '与 generate_patent_figure 的返回值配合使用：生成后按本工具复核，把 findings 当作必须处理的图面缺陷。',
+  '',
+  'delivery_review=true 时加查交付前四项：图面词语（非必需注释、非中文、标号带括号）、`<image>` 位图/照片、覆盖整幅图纸的边框、横向摆放。四项只看 SVG 文本，不判图面内容是否清楚。',
 ].join('\n')
 
 /**
@@ -118,6 +123,10 @@ export function createVerifyPatentFigureTool(deps: VerifyPatentFigureDeps = {}):
       claims: {
         type: 'string',
         description: '权利要求书正文：与 hierarchy 同时给出时，核对其中的归属表述（如「控制单元31的输入端311」）与声明的图内层级是否一致',
+      },
+      delivery_review: {
+        type: 'boolean',
+        description: '交付前复核（默认 false）：加查图面词语、位图/照片、整幅框线与横向方向',
       },
     },
     output: {
@@ -219,6 +228,7 @@ export function createVerifyPatentFigureTool(deps: VerifyPatentFigureDeps = {}):
       const hierarchyFindings = args.hierarchy !== undefined && args.claims !== undefined
         ? checkFigureHierarchy(args.hierarchy, args.claims)
         : []
+      const deliveryFindings = args.delivery_review === true ? checkFigureDelivery(svg) : []
       return {
         path,
         absolutePath: absPath,
@@ -228,7 +238,8 @@ export function createVerifyPatentFigureTool(deps: VerifyPatentFigureDeps = {}):
         ...(report.minFontMm === undefined ? {} : { minFontMm: report.minFontMm }),
         strokeWidthMm: report.strokeWidthMm.map(entry => ({ ...entry })),
         orientationDeg: report.orientationDeg.map(entry => ({ ...entry })),
-        findings: [...report.findings, ...hierarchyFindings].map(finding => ({ check: finding.check, message: finding.message })),
+        findings: [...report.findings, ...hierarchyFindings, ...deliveryFindings]
+          .map(finding => ({ check: finding.check, message: finding.message })),
       }
     },
   })

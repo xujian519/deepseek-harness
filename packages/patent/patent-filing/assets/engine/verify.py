@@ -13,7 +13,7 @@
 
 * **体例**：分节数 / 各节页眉 / 行距 / 首行缩进 / 字号 / 无非黑色文字。
   这些是"静默缺陷"高发区——模型看不出来，源件的 `docs check` 也不覆盖。
-* **内容**：说明书五部分齐备 / 说明书名称（spec 声明 ``specification_title`` 时：第一行
+* **内容**：说明书各部分齐备（无附图时「附图说明」由 spec 的 optional 声明豁免）/ 说明书名称（spec 声明 ``specification_title`` 时：第一行
   ＝权利要求 1 的主题名称、左右居中、其后空一行）/ 权利要求项数 / ``[NNNN]`` 编号连续
   （**按 spec 的 numbering 政策生效**：没有节声明编号时该断言无主体）/ 附图数量 /
   每一节都承载了内容（空节是静默缺陷：成文时某一节的类型或来源键错了，成品会少一整节，
@@ -120,6 +120,22 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
     style = spec["style"]
     body_text = "\n".join(_text(el) for el in _iter_paragraph_elements(d))
 
+    # 无附图申请省略 optional 的「摘要附图」「说明书附图」两节：成品节数少于 spec
+    # 声明的节数时，按「全部 optional 节都省略」核对；其他差额一律报错。
+    optional = [sec for sec in spec["sections"] if sec.get("optional")]
+    if len(d.sections) == len(spec["sections"]):
+        effective = list(spec["sections"])
+    elif len(d.sections) == len(spec["sections"]) - len(optional) and optional:
+        effective = [sec for sec in spec["sections"] if not sec.get("optional")]
+    else:
+        effective = list(spec["sections"])
+        errors.append(
+            f"分节数 {len(d.sections)} 与 spec 声明 {len(spec['sections'])} 不符"
+            f"（可选节 {len(optional)} 个：只能全部保留或全部省略）"
+        )
+    spec_to_effective = {id(sec): index for index, sec in enumerate(effective)}
+    no_figures = len(d.sections) < len(spec["sections"])
+
     # spec 声明 specification_title 时，说明书第一行是"顶格"的名称行：按段核对缩进时要豁免它
     # （它显式写 0），并对它单独做三项断言（文本＝权1 主题名称／左右居中／其后空一行）。
     title_rule = spec.get("specification_title")
@@ -128,11 +144,12 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
     title_element = None
     if title_rule is not None:
         title_sections = section_paragraphs(d)
-        title_index = next(
-            (i for i, sec in enumerate(spec["sections"])
+        title_section = next(
+            (sec for sec in spec["sections"]
              if sec["key"] == title_rule.get("section", "specification")),
             None,
         )
+        title_index = None if title_section is None else spec_to_effective.get(id(title_section))
         if title_index is not None and title_index < len(title_sections):
             filled = [el for el in title_sections[title_index] if _text(el).strip()]
             title_element = filled[0] if filled else None
@@ -151,10 +168,11 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
     for s in d.sections:
         paras = s.header.paragraphs
         headers.append(paras[0].text.strip() if paras else "")
-    if len(d.sections) != a["section_count"]:
-        errors.append(f"分节数 {len(d.sections)} ≠ 期望 {a['section_count']}")
-    if headers != a["headers"]:
-        errors.append(f"各节页眉不匹配：{headers} ≠ {a['headers']}")
+    expected_headers = [sec["header"] for sec in effective]
+    if len(d.sections) != len(expected_headers):
+        errors.append(f"分节数 {len(d.sections)} ≠ 期望 {len(expected_headers)}（可选节按实际内容取舍）")
+    if headers != expected_headers:
+        errors.append(f"各节页眉不匹配：{headers} ≠ {expected_headers}")
 
     # ---- 体例：段落格式（含表格单元格）
     n_par = 0
@@ -183,7 +201,10 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
                     errors.append(f"非黑色文字 {r.font.color.rgb}（Word 内置标题体例？）：{p.text[:18]!r}")
 
     # ---- 内容：说明书五部分 / 权项 / 编号
+    optional_headings = set(a.get("optional_spec_headings", [])) if no_figures else set()
     for h in a["spec_headings"]:
+        if h in optional_headings:
+            continue
         if not re.search(rf"^\s*{re.escape(h)}\s*$", body_text, re.M):
             errors.append(f"说明书缺法定部分标题：{h}")
 
@@ -255,12 +276,46 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
 
     # ---- 结构归属
     layout = section_layout(d)
-    for i, sec in enumerate(spec["sections"]):
+    for i, sec in enumerate(effective):
         if i >= len(layout):
             break
         paragraphs, figures = layout[i]
         if paragraphs == 0 and figures == 0:
             errors.append(f"节 {sec['key']} 未承载任何内容（段落 0，图片 0）")
+
+    # ---- 附图：每图一页、摘要附图恰一张、图号文字与图序一致
+    figure_breaks = 0
+    figure_captions: list[int] = []
+    if len(d.inline_shapes) != sum(entry[1] for entry in layout):
+        errors.append(
+            f"图片总数 {len(d.inline_shapes)} 与各节归属合计 {sum(entry[1] for entry in layout)} 不一致"
+        )
+    all_sections = section_paragraphs(d)
+    for i, sec in enumerate(effective):
+        if sec["key"] != "figures" or i >= len(layout):
+            continue
+        count = layout[i][1]
+        section_elements = all_sections[i] if i < len(all_sections) else []
+        figure_breaks = sum(
+            1 for el in section_elements
+            for br in el.findall(".//" + qn("w:br"))
+            if br.get(qn("w:type")) == "page"
+        )
+        if count > 0 and figure_breaks != count - 1:
+            errors.append(
+                f"说明书附图每图一页：{count} 张图之间有 {figure_breaks} 个分页符，应为 {count - 1} 个"
+            )
+        for el in section_elements:
+            found = re.match(r"^\s*图\s*(\d+)\s*$", _text(el))
+            if found:
+                figure_captions.append(int(found.group(1)))
+        if figure_captions and figure_captions != list(range(1, len(figure_captions) + 1)):
+            errors.append(f"图号文字与图序不一致：{figure_captions}")
+    if not no_figures:
+        abstract_index = next((i for i, sec in enumerate(effective) if sec["key"] == "abstract_figure"), None)
+        if abstract_index is not None and abstract_index < len(layout) and layout[abstract_index][1] != 1:
+            errors.append(f"摘要附图节应恰有 1 张图，实测 {layout[abstract_index][1]} 张")
+
     info = {
         "sections": len(d.sections),
         "headers": headers,
@@ -271,8 +326,8 @@ def verify(spec: dict, docx_path: Path, template_path: Path | None = None) -> di
         "numbering": f"1..{len(numbers)}" if numbers else "无",
         "tables": len(d.tables),
         "figures": len(d.inline_shapes),
-        "layout": {spec["sections"][i]["key"]: {"paragraphs": v[0], "figures": v[1]}
-                   for i, v in enumerate(layout) if i < len(spec["sections"])},
+        "layout": {sec["key"]: {"paragraphs": v[0], "figures": v[1]}
+                   for i, (sec, v) in enumerate(zip(effective, layout))},
         "template": None,
     }
 

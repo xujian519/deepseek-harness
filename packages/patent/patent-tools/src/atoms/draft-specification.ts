@@ -26,7 +26,7 @@ import { firstStateString, resolveTechDomain } from './state-values.ts'
 /** draft-specification 原子：从工作流状态生成五部分说明书草案。 */
 export const draftSpecificationAtom: Atom = {
   name: 'draft-specification',
-  description: '生成五部分说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式，确定性）：读取技术方案、问题、效果与实施例，供 spec-check 的 spec 模式检查 A26.3/A26.4',
+  description: '生成说明书草案与摘要（技术领域/背景技术/发明内容/具体实施方式，有附图时含附图说明，确定性）：读取技术方案、问题、效果与实施例，输出 ≤300 字摘要、完整度与缺失章节，供 spec-check 的 spec 模式检查 A26.3/A26.4',
   category: 'extract',
   inputSchema: [
     'title',
@@ -45,7 +45,8 @@ export const draftSpecificationAtom: Atom = {
     'patent_type',
     'has_drawings',
   ],
-  outputSchema: ['specification', 'draft_specification_warnings'],
+  // title/patent_type 是调用方输入：同名键不能声明为输出，否则阶段回退清理会先删掉输入。
+  outputSchema: ['specification', 'abstract', 'draft_specification_warnings', 'draft_title', 'draft_patent_type', 'complete', 'missing_inputs'],
 }
 
 const PATENT_TYPES: readonly PatentType[] = ['invention', 'utility_model']
@@ -136,7 +137,12 @@ export class DraftSpecificationHandler implements StageHandler {
     const draft = draftSpecification(draftInput)
     return {
       specification: renderDraftSpecification(draft),
+      abstract: draft.abstract,
       draft_specification_warnings: draft.warnings,
+      draft_title: draft.title,
+      draft_patent_type: draft.patent_type,
+      complete: draft.complete,
+      missing_inputs: draft.missing_inputs,
     }
   }
 }

@@ -165,6 +165,24 @@ export function figureCaption(profile: OfficeProfile, figureNumber: number, figu
 }
 
 /**
+ * 调用方自定义图号是否与目标法域的写法一致。
+ *
+ * 自定义 caption 仍须遵守该法域的图号格式（中国「图1」、PCT「Fig. 1」、
+ * USPTO「FIG. 1」）；该法域要求单幅图不编号时，给出任何图号都不合规。
+ * @param profile - 目标法域规格。
+ * @param caption - 调用方给出的图号文字；undefined 表示不标图号。
+ * @param figureNumber - 本幅图号（1 起）。
+ * @param figureCount - 本案附图总数（≥ figureNumber）。
+ * @returns 图号文字符合该法域写法时 true。
+ * @throws RangeError figureNumber 或 figureCount 超出允许范围时。
+ */
+export function captionMatches(profile: OfficeProfile, caption: string | undefined, figureNumber: number, figureCount: number): boolean {
+  const expected = figureCaption(profile, figureNumber, figureCount)
+  if (expected === undefined) return caption === undefined || caption === ''
+  return caption === expected
+}
+
+/**
  * 生成附图页页码文字。
  * @param profile - 目标法域规格。
  * @param sheetIndex - 当前附图页序号（1 起）。

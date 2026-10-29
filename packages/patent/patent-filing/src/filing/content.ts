@@ -68,9 +68,13 @@ export function validateContent(content: FilingContent): FilingContent {
   if (content.specification.length === 0) {
     throw new PatentFilingError('specification 说明书至少要有 1 个节点')
   }
-  nonEmptyList(content.figures, 'figures 附图（不能为空）')
+  // 指南第二部分第二章 2.3：发明可以没有附图；无图时不得指定摘要附图。
+  content.figures.forEach((figure, index) => { nonEmpty(figure, `figures[${index}]`) })
   if (content.abstractFigureIndex !== undefined) {
     const index = content.abstractFigureIndex
+    if (content.figures.length === 0) {
+      throw new PatentFilingError('abstractFigureIndex 已给出，但 figures 为空：无附图申请不得指定摘要附图')
+    }
     if (!Number.isInteger(index) || index < 0 || index >= content.figures.length) {
       throw new PatentFilingError(
         `abstractFigureIndex ${index} 不是有效附图下标（须为 0..${content.figures.length - 1} 的整数，figures 共 ${content.figures.length} 张）`,

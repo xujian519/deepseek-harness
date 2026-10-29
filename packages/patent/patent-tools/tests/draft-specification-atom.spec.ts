@@ -29,6 +29,8 @@ describe('DraftSpecificationHandler', () => {
     expect(specification).toContain('图1为整体结构示意图')
     expect(specification).toContain('实施例1：本实施例提供一种检测装置')
     expect(out.draft_specification_warnings).toEqual([])
+    expect(String(out.abstract)).toContain('关键词：检测装置')
+    expect(Array.from(String(out.abstract)).length).toBeLessThanOrEqual(300)
   })
 
   it('derives the title from the first source line and falls back to the solution as the embodiment', async () => {
@@ -86,7 +88,7 @@ describe('DraftSpecificationHandler', () => {
     expect(String(out._error)).toContain('输入为空')
   })
 
-  it('produces a draft that spec-check accepts in spec mode', async () => {
+  it('produces a complete draft that spec-check accepts in spec mode', async () => {
     const draft = await run({
       title: '检测装置',
       source_text: '本实施例提供一种检测装置，包括壳体和设置在壳体内的弹簧。',
@@ -94,8 +96,11 @@ describe('DraftSpecificationHandler', () => {
       effects: ['提高检测精度，误差由 2 毫米降至 1 毫米。'],
       embodiments: ['本实施例提供一种检测装置，包括壳体和设置在壳体内的弹簧。'],
       drawing_descriptions: ['整体结构示意图'],
+      background: '现有检测装置的检测精度不足。',
       has_drawings: true,
     })
+    expect(draft.complete).toBe(true)
+    expect(draft.missing_inputs).toEqual([])
     const checked = await new SpecCheckHandler().execute({
       state: {
         ...draft,
@@ -107,7 +112,31 @@ describe('DraftSpecificationHandler', () => {
     })
     expect(checked.spec_check_passed).toBe(true)
     expect(checked.specification_check_passed).toBe(true)
+    expect(checked.spec_form_check_passed).toBe(true)
     expect(String(checked.specification_check_report)).toContain('说明书合规检查')
     expect(String(checked.specification_check_report)).toContain('通过')
+  })
+
+  it('an unfinished draft fails spec-check and names the missing sections', async () => {
+    const draft = await run({ title: '检测装置', source_text: '一种检测装置，包括壳体。' })
+    expect(draft.complete).toBe(false)
+    expect(draft.missing_inputs).toContain('背景技术')
+    const checked = await new SpecCheckHandler().execute({
+      state: { ...draft, mode: 'spec', text_key: 'specification' },
+    })
+    expect(checked.spec_check_passed).toBe(false)
+    expect(String(checked.spec_check_report)).toContain('模板占位标记')
+  })
+
+  it('omits the drawing section from an invention draft without drawings', async () => {
+    const draft = await run({ title: '检测装置', source_text: '一种检测装置，包括壳体。' })
+    expect(String(draft.specification)).not.toContain('## 附图说明')
+    expect(draft.missing_inputs).not.toContain('附图说明')
+  })
+
+  it('keeps the drawing guide for a utility model without drawings', async () => {
+    const draft = await run({ title: '检测装置', source_text: '一种检测装置，包括壳体。', patent_type: 'utility_model' })
+    expect(String(draft.specification)).toContain('## 附图说明')
+    expect(draft.missing_inputs).toContain('附图说明')
   })
 })

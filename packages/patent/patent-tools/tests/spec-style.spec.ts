@@ -179,7 +179,7 @@ describe('checkSpecStyle', () => {
 describe('validateSpecification style integration', () => {
   it('carries the style violations into the report and the score', () => {
     const text = ['## 技术领域', '本发明涉及一种检测装置。', '## 背景技术', '现有检测装置精度不足。', '## 发明内容', '本发明提供一种高精度检测装置。', '## 附图说明', '图1是结构示意图。', '## 具体实施方式', '实施例1：所述壳体（1）与如图 1 所示的部件连接。'].join('\n')
-    const out = validateSpecification({ text })
+    const out = validateSpecification({ text, patent_type: 'invention' })
     expect(out.passed).toBe(false)
     expect(out.violations.map(v => v.rule)).toEqual(['figure_mark_parentheses', 'figure_number_spacing'])
     expect(out.score).toBeLessThan(1)

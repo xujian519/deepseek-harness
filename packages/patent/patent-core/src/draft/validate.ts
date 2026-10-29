@@ -101,8 +101,8 @@ function readRequiredString(record: Record<string, unknown>, key: string, path: 
   return requireNonEmptyString(record[key], `${path}.${key}`, violations)
 }
 
-/** 读取非空数组：缺失、非数组、空数组均记违规。 */
-function readNonEmptyArray(value: unknown, path: string, violations: string[], emptyMessage: string): unknown[] | undefined {
+/** 读取数组：缺失、非数组记违规；给出 emptyMessage 时空数组也记违规。 */
+function readArray(value: unknown, path: string, violations: string[], emptyMessage?: string): unknown[] | undefined {
   if (value === undefined) {
     violations.push(`${path} 缺失`)
     return undefined
@@ -111,16 +111,25 @@ function readNonEmptyArray(value: unknown, path: string, violations: string[], e
     violations.push(`${path} 必须是数组`)
     return undefined
   }
-  if (value.length === 0) {
+  if (emptyMessage !== undefined && value.length === 0) {
     violations.push(`${path} ${emptyMessage}`)
     return undefined
   }
   return value as unknown[]
 }
 
-/** 读取字符串数组：缺失、非数组、空数组、非字符串项、空项均记违规。 */
-function readStringList(value: unknown, path: string, violations: string[], emptyMessage = '至少一项'): string[] | undefined {
-  const array = readNonEmptyArray(value, path, violations, emptyMessage)
+/** 读取字符串数组：缺失、非数组、非字符串项、空项均记违规；给出 emptyMessage 时空数组也记违规。 */
+function readStringList(
+  value: unknown,
+  path: string,
+  violations: string[],
+  emptyMessage: string | undefined = '至少一项',
+): string[] | undefined {
+  return readStringListWith(path, violations, readArray(value, path, violations, emptyMessage))
+}
+
+/** 逐项校验字符串数组并保持数组长度一致。 */
+function readStringListWith(path: string, violations: string[], array: unknown[] | undefined): string[] | undefined {
   if (array === undefined) return undefined
   const items: string[] = []
   array.forEach((item, index) => {
@@ -139,8 +148,8 @@ function readStringList(value: unknown, path: string, violations: string[], empt
  * @param violations - 违规收集器。
  * @returns 窄化后的块数组；存在违规返回 undefined。
  */
-function validateBlocks(value: unknown, path: string, violations: string[]): DraftBlock[] | undefined {
-  const array = readNonEmptyArray(value, path, violations, '至少一个块')
+function validateBlocks(value: unknown, path: string, violations: string[], allowEmpty = false): DraftBlock[] | undefined {
+  const array = readArray(value, path, violations, allowEmpty ? undefined : '至少一个块')
   if (array === undefined) return undefined
   const blocks: DraftBlock[] = []
   array.forEach((item, index) => {
@@ -201,7 +210,7 @@ function validateBlock(value: unknown, path: string, violations: string[]): Draf
 function validateTable(record: Record<string, unknown>, path: string, violations: string[], unknownKeys: boolean): DraftBlock | undefined {
   const name = readRequiredString(record, 'name', path, violations)
   const header = readStringList(record.header, `${path}.header`, violations, '至少一列')
-  const rowsArray = readNonEmptyArray(record.rows, `${path}.rows`, violations, '至少一行')
+  const rowsArray = readArray(record.rows, `${path}.rows`, violations, '至少一行')
   let valid = !unknownKeys
   if (name !== undefined && TABLE_NUMBER_PREFIX.test(name)) {
     violations.push(`${path}.name 不得以「表+数字」开头（编号由渲染器自动生成）：${JSON.stringify(name)}`)
@@ -271,7 +280,8 @@ function validateSpecSections(value: unknown, violations: string[]): Record<Spec
       valid = false
       continue
     }
-    const blocks = validateBlocks(record[partId], `sections.${partId}`, violations)
+    // 无附图发明可以没有附图说明：该部分允许空数组，其余四部分仍须有内容。
+    const blocks = validateBlocks(record[partId], `sections.${partId}`, violations, partId === 'drawingDescriptions')
     if (blocks === undefined) {
       valid = false
       continue
@@ -313,7 +323,8 @@ export function validateSpecDraft(input: unknown): SpecDraft {
     })
   }
   const abstractParagraphs = readStringList(root.abstract, 'abstract', violations, '至少一段')
-  const figureFiles = readStringList(root.figureFiles, 'figureFiles', violations)
+  // 无附图发明的 figureFiles 可以是空数组；逐项仍要求非空。
+  const figureFiles = readStringList(root.figureFiles, 'figureFiles', violations, undefined)
   const abstractFigure = root.abstractFigure === undefined
     ? undefined
     : requireNonEmptyString(root.abstractFigure, 'abstractFigure', violations)
@@ -462,7 +473,7 @@ function validateTemplateFields(
  * @returns 窄化后的行数组；存在违规返回 undefined。
  */
 function validateRows(value: unknown, path: string, columns: number | undefined, violations: string[]): string[][] | undefined {
-  const array = readNonEmptyArray(value, path, violations, '至少一行')
+  const array = readArray(value, path, violations, '至少一行')
   if (array === undefined) return undefined
   const rows: string[][] = []
   let width: number | undefined
@@ -516,7 +527,7 @@ function validateTemplateBlocks(value: unknown, path: string, violations: string
  * @returns 窄化后的理由项数组；存在违规返回 undefined。
  */
 function validateGrounds(value: unknown, path: string, violations: string[]): DraftGroundItem[] | undefined {
-  const array = readNonEmptyArray(value, path, violations, '至少一项')
+  const array = readArray(value, path, violations, '至少一项')
   if (array === undefined) return undefined
   const before = violations.length
   const items: DraftGroundItem[] = []
@@ -548,7 +559,7 @@ function validateGrounds(value: unknown, path: string, violations: string[]): Dr
  * 校验权利要求序号列表：≥1 项，各项为 ≥1 的整数，去重后升序。
  */
 function readPositiveIntegerList(value: unknown, path: string, violations: string[]): number[] | undefined {
-  const array = readNonEmptyArray(value, path, violations, '至少一个权利要求序号')
+  const array = readArray(value, path, violations, '至少一个权利要求序号')
   if (array === undefined) return undefined
   const before = violations.length
   const numbers = new Set<number>()

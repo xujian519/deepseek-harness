@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-10-29-patent-specification-verdicts-split-form-from-substance.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-29-patent-specification-verdicts-split-form-from-substance.md
+/agent-note-patent-specification-verdicts-separate-form-from-substance:
+  en: 31243890c2996bd7
+  zh: e4cb18c663231cd6
+/agent-note-patent-specification-verdicts-separate-form-from-substance/problem:
+  en: d2e8301aeb3f7cbe
+  zh: 2134da038288d062
+/agent-note-patent-specification-verdicts-separate-form-from-substance/decision:
+  en: 0c4159d36ac4b6ea
+  zh: 9b1ba246ba36c5f6
+/agent-note-patent-specification-verdicts-separate-form-from-substance/later-coverage-in-the-same-release:
+  en: df0b30e789515a68
+  zh: e3493c2ab4970edd
+/agent-note-patent-specification-verdicts-separate-form-from-substance/alternatives-considered:
+  en: 294b5f21820ad6f0
+  zh: df755dfff9bf81f6
+/agent-note-patent-specification-verdicts-separate-form-from-substance/testing:
+  en: 137f1be2ea21a47a
+  zh: 55c73331a0d11ed0
+/agent-note-patent-specification-verdicts-separate-form-from-substance/consequences:
+  en: 580eb911d7feb2dc
+  zh: f00a6f6fd3c74a7e

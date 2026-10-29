@@ -5,10 +5,10 @@
 
   "sections": [
     { "key": "abstract",        "header": "说明书摘要", "from": "abstract",      "kind": "text",   "numbering": "none" },
-    { "key": "abstract_figure", "header": "摘要附图",   "from": "figures",       "kind": "figure", "figure_index": 0, "figure_index_from": "abstractFigureIndex" },
+    { "key": "abstract_figure", "header": "摘要附图",   "from": "figures",       "kind": "figure", "figure_index": 0, "figure_index_from": "abstractFigureIndex", "optional": true },
     { "key": "claims",          "header": "权利要求书", "from": "claims",        "kind": "text",   "numbering": "none" },
     { "key": "specification",   "header": "说明书",     "from": "specification", "kind": "mixed",  "numbering": "none" },
-    { "key": "figures",         "header": "说明书附图", "from": "figures",       "kind": "figure", "figure_all": true, "one_per_page": true }
+    { "key": "figures",         "header": "说明书附图", "from": "figures",       "kind": "figure", "figure_all": true, "one_per_page": true, "optional": true }
   ],
 
   "style": {
@@ -34,6 +34,7 @@
     "section_count": 5,
     "headers": ["说明书摘要", "摘要附图", "权利要求书", "说明书", "说明书附图"],
     "spec_headings": ["技术领域", "背景技术", "发明内容", "附图说明", "具体实施方式"],
+    "optional_spec_headings": ["附图说明"],
     "claim_pattern": "^\\s*[0-9]+\\.\\s*(?:一种|根据权利要求|如权利要求)",
     "numbering_pattern": "^\\[(\\d{4})\\]",
     "continuity": true,

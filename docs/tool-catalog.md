@@ -3468,7 +3468,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `draft_specification`
 
-根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分）。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。
+根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分，无附图发明省略附图说明），并生成不超过 300 字、含关键词行的确定性摘要。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。
 
 ```json
 {
@@ -3749,7 +3749,7 @@ Flexible plan for patent cases (stage-level HITL). create: build a plan (optiona
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key, output_mode: problem_insight), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of draft, reference_documents, claims, office_action)."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key, output_mode: problem_insight), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, figure-analysis (params.source_key), spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of draft, reference_documents, claims, office_action)."
           },
           "params": {
             "type": "object",
@@ -3807,7 +3807,7 @@ Flexible plan for patent cases (stage-level HITL). create: build a plan (optiona
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key, output_mode: problem_insight), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of draft, reference_documents, claims, office_action)."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, dispute-framing, dispute-framing-refine, draft-claims, draft-specification, extract (params.extraction_type, output_key, output_mode: problem_insight), groundedness, pfe-consistency, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, response-plan, search, amendment-basis (params.amended_text_keys, original_text_keys), slop-gate, figure-analysis (params.source_key), spec-check (params.mode: spec|claims, text_key, claims_key), citation-check (params.ref_text_keys, prior_art_key), time-baseline (params.filing_date_key, priority_date_key), prior-art-filter (params.publication_date_key, a24_exception_key), conflicting-application (params.conflicting_applications_key, target_date_key, target_filing_date_key), evidence-check (params.evidence_key, deadline_key, reference_date_key, filing_date_key, priority_date_key), eligibility (params.claims_key, text_key), numeric-range (params.claim_text_keys, prior_art_key), problem-check (params.diff_text_keys, feature_keys), response-check (params.response_key, office_action_key, notice_key). legal-gaps (params.profile: novelty|disclosure|inventiveness|patentability|oa-response|invalidation|reexamination|infringement). adversary-model (params: none; reads office_action, claims, response_plan, response_plan_summary and calls the model), adversary-review (params: none; deterministic re-check of draft, reference_documents, claims, office_action)."
         },
         "params": {
           "type": "object",
@@ -5162,6 +5162,10 @@ CAD 剖视（sections.source）：复杂件不必手算轮廓——给 model_pat
       "type": "string",
       "description": "图号文字覆盖（缺省按目标法域生成；panels 模式自动追加面板后缀，如 图1A / Fig. 1A）"
     },
+    "abstract_figure": {
+      "type": "boolean",
+      "description": "本幅是否为请求书指定的摘要附图（默认 false）：true 时按缩小到 40×60 毫米核算可辨度量并给出 warning"
+    },
     "fit_to_page": {
       "type": "boolean",
       "description": "默认 true：把图形落版到目标法域幅面（SVG，或经 Inkscape 全链导出的 png/pdf）；false 时只核算尺寸、不改写画布"
@@ -6072,7 +6076,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `patent_workflow_run`
 
-Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. Pass conflictingApplications (a JSON array) to run the A22.2 second-sentence conflicting-application check; entries need filingDate/publicationDate and a caller-judged sameInvention boolean. Conflicting applications are filed before but published on or after the target date, so the prior-art search cannot find them. Pass evidence (a JSON array) and evidenceDeadline to run the invalidation/reexamination evidence-check stage; it reports form defects, late submissions without a justification, prior-art dates at or after the cutoff, and evidence not linked to a ground or claim. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port. A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.
+Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. For the specification stages, pass title/abstract/patentType/hasDrawings/figureAnalysis/figureFiles/drawingCount/abstractFigureNumber; a utility model without drawings fails the form check, an unfinished draft (placeholder sections) fails spec-check, and omitted items appear in spec_not_assessed. Pass conflictingApplications (a JSON array) to run the A22.2 second-sentence conflicting-application check; entries need filingDate/publicationDate and a caller-judged sameInvention boolean. Conflicting applications are filed before but published on or after the target date, so the prior-art search cannot find them. Pass evidence (a JSON array) and evidenceDeadline to run the invalidation/reexamination evidence-check stage; it reports form defects, late submissions without a justification, prior-art dates at or after the cutoff, and evidence not linked to a ground or claim. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port. A manifest run holds the turn until it finishes or pauses at an approval gate, so pass run_in_background: true to get a job id at once and keep working (collect with job_output; job_kill stops it at the next stage boundary); graph runs are foreground-only.
 
 ```json
 {
@@ -6118,6 +6122,49 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
     "claims": {
       "type": "string",
       "description": "Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material."
+    },
+    "title": {
+      "type": "string",
+      "description": "Invention title for the drafted specification; passed to the specification checker as the title field."
+    },
+    "abstract": {
+      "type": "string",
+      "description": "Abstract text; the specification checker validates its length, keywords, claim references, reference-mark parentheses, and advertising words."
+    },
+    "background": {
+      "type": "string",
+      "description": "Background-technique text; the specification drafting stage writes it into 背景技术 instead of leaving a drafting placeholder."
+    },
+    "patentType": {
+      "type": "string",
+      "description": "Patent type; a utility model must have drawings, and an omitted type is checked as an invention with a warning.",
+      "enum": [
+        "invention",
+        "utility_model"
+      ]
+    },
+    "hasDrawings": {
+      "type": "boolean",
+      "description": "Whether the application has drawings; the specification checker infers it from figure numbers and figure analysis when omitted."
+    },
+    "figureAnalysis": {
+      "type": "string",
+      "description": "Figure-analysis entries as a JSON array: {figureNumber?, usable, components:[{refNumber}]}. Enables drawing-mark consistency checks."
+    },
+    "figureFiles": {
+      "type": "array",
+      "description": "Drawing file paths (optional): the figure-analysis stage runs analyze_patent_figure on each; empty means no drawings and the stage skips explicitly.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "drawingCount": {
+      "type": "integer",
+      "description": "Declared drawing count; compared with the drawing-description entries."
+    },
+    "abstractFigureNumber": {
+      "type": "integer",
+      "description": "Abstract figure number from the request form; checked against the existing figure numbers."
     },
     "filingDate": {
       "type": "string",
@@ -6283,17 +6330,23 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 ### `validate_specification`
 
 验证专利说明书是否符合撰写要求（确定性规则，无 LLM 调用）。
-- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节，且顺序符合《专利法实施细则》第二十条
-- 标题集合：说明书只允许上述五部分标题（正文内的「要解决的技术问题／技术方案／有益效果／实施例一／替代实施方式」等一律不是标题）
-- 附图引用形式：说明书记载标记不加括号（指南第二部分第二章 §2.2.6）、图号写作图1、段落编号提示
-- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词、摘要附图、摘要不得使用标题
-- 模糊表述、附图说明与图引用一致性、实施例存在性
+- 结构完整性：按专利类型与有无附图计算必要章节，且顺序符合《专利法实施细则》第二十条；实用新型必须有附图；占位标记与空章节报 error
+- 标题集合：说明书只允许规定章节标题（正文内的「要解决的技术问题／技术方案／有益效果／实施例一」等一律不是标题）
+- 附图引用形式：说明书记载标记不加括号（指南第二部分第二章 §2.2.6）、图号写作图1、图号连续且不重复、附图说明有图名、正文引用可解析、段落编号提示
+- 发明名称长度（>40 字 error、26–40 字 warning）与摘要长度（≤300 字）、摘要关键词、摘要附图号、摘要不得引用权利要求或使用宣传语
+- 禁止性条款：说明书不得引用权利要求编号，不得使用商业宣传用语或残留内部流程标记（细则第二十条第三款）
+- 模糊表述（按上下文匹配「约 10%」「10% 左右」，不误伤「约束」「左右两侧」）、附图说明与图引用一致性、实施例存在性
 - 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例
 - 独立权利要求之间的单一性（A31.1，传 claim_units 时）
 - 权项—实施例覆盖矩阵（A26.3/A26.4，传 coverage_entries 时；覆盖度由 features 与 embodiment_refs 计算，不接受调用方给定的覆盖度结论）
 - 效果数据定量性、化学领域产物表征数据（tech_domain=chemical 时）
+- 背景技术引证的国别/公开号/日期、有益效果与现有技术的对比、序列表引用、正文图片与表格位置、术语与附图标记一致性、实用新型附图内容（均为 warning，启发式）
 
-用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。
+用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / patent_type / has_drawings / drawing_count / abstract_figure_number / figure_analysis / claim_units / coverage_entries 启用相应校验。
+
+patent_type 未传时按发明检查并给出 warning；has_drawings 未传时从图号与附图分析推断。
+
+passed 只表示已运行的确定性规则未发现 error，不表示符合专利法；not_assessed 列出确定性规则不能判断的事项，需人工或实体审查。
 
 注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。
 
@@ -6313,7 +6366,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "abstract": {
       "type": "string",
-      "description": "摘要（可选，校验长度/关键词/摘要附图）"
+      "description": "摘要（可选，校验长度/关键词/附图标记括号/宣传语）"
     },
     "claims": {
       "type": "string",
@@ -6329,6 +6382,26 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
         "software",
         "general"
       ]
+    },
+    "patent_type": {
+      "type": "string",
+      "description": "专利类型；未传时按发明检查并给出 warning。实用新型必须附图",
+      "enum": [
+        "invention",
+        "utility_model"
+      ]
+    },
+    "has_drawings": {
+      "type": "boolean",
+      "description": "是否有附图；未传时从图号、附图说明与附图分析推断"
+    },
+    "drawing_count": {
+      "type": "number",
+      "description": "声明的附图数量（可选，与附图说明条目数比对）"
+    },
+    "abstract_figure_number": {
+      "type": "number",
+      "description": "请求书中的摘要附图号（可选，有附图时校验该图存在）"
     },
     "figure_analysis": {
       "type": "array",
@@ -6452,6 +6525,8 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 与 generate_patent_figure 的返回值配合使用：生成后按本工具复核，把 findings 当作必须处理的图面缺陷。
 
+delivery_review=true 时加查交付前四项：图面词语（非必需注释、非中文、标号带括号）、`<image>` 位图/照片、覆盖整幅图纸的边框、横向摆放。四项只看 SVG 文本，不判图面内容是否清楚。
+
 ```json
 {
   "type": "object",
@@ -6491,6 +6566,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "claims": {
       "type": "string",
       "description": "权利要求书正文：与 hierarchy 同时给出时，核对其中的归属表述（如「控制单元31的输入端311」）与声明的图内层级是否一致"
+    },
+    "delivery_review": {
+      "type": "boolean",
+      "description": "交付前复核（默认 false）：加查图面词语、位图/照片、整幅框线与横向方向"
     }
   },
   "required": [
@@ -6711,7 +6790,7 @@ render_patent_document renders patent deliverables (claims/specification/search 
 
 ### `build_patent_filing`
 
-把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图，共 5 节），并与成品一并给出体例实测与模板指纹。 草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure、五部分 sections 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书是否写 `[NNNN]` 段落编号由 spec 的 numbering 声明决定：声明 paragraph 时按 spec 顺序写入，正文里已带编号的先剥后写、与段落顺序不一致会报错而不是静默覆盖；随包 spec 声明 none，说明书不写段落编号——没有法条要求它。 附图按图序传入 draft.figureFiles，其中 draft.abstractFigure 指定的那张（缺省第 1 张）进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。
+把受控草案按本部署的申请文件模板体例成文为一件 CNIPA 专利申请文件（有附图时 5 节：说明书摘要 / 摘要附图 / 权利要求书 / 说明书 / 说明书附图；无附图发明省略摘要附图与说明书附图两节，为 3 节），并与成品一并给出体例实测与模板指纹。 草案走 draft 参数（required），与 render_patent_document 的 claims-spec 同一份结构（著录项 meta、不带项号的 claims、多段 abstract、figureFiles、摘要附图号 abstractFigure、五部分 sections 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数）；权项项号、附图说明的「图N为……」与表题「表 N · 名称」由本工具按与 HTML 通道相同的算法生成。旧的 content 参数已删除：传 content 会被参数校验以「missing required property draft」拒绝。 正文体例（字体、字号、行距、首行缩进、分节与页眉）由模板决定，调用方只提供内容，不要自己排格式。 说明书是否写 `[NNNN]` 段落编号由 spec 的 numbering 声明决定：声明 paragraph 时按 spec 顺序写入，正文里已带编号的先剥后写、与段落顺序不一致会报错而不是静默覆盖；随包 spec 声明 none，说明书不写段落编号——没有法条要求它。 附图按图序传入 draft.figureFiles，其中 draft.abstractFigure 指定的那张（缺省第 1 张）进「摘要附图」节，全部进「说明书附图」节且每图独占一页；`.svg` 源件先栅格化为位图再入文。无附图发明（指南第二部分第二章 2.3）传 figureFiles: []、drawingDescriptions: []，且不要给 abstractFigure。
 
 ```json
 {
@@ -6719,7 +6798,7 @@ render_patent_document renders patent deliverables (claims/specification/search 
   "properties": {
     "draft": {
       "type": "object",
-      "description": "申请文件受控草案。受控草案（结构化 JSON，与 render_patent_document 的 claims-spec draft 同一份 SpecDraft 结构）：meta（caseNumber（案卷号，HTML 通道印在抬头编号行与页脚；docx 通道不印）、title/applicant/inventor/agent/date）、claims（不带项号，≥1 项）、abstract（≥1 段）、figureFiles（按图序）、abstractFigure（摘要附图号，1..figureFiles 项数，缺省 1）、sections（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分的 paragraph/list/table 块；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数；表格仅允许出现在具体实施方式）",
+      "description": "申请文件受控草案。受控草案（结构化 JSON，与 render_patent_document 的 claims-spec draft 同一份 SpecDraft 结构）：meta（caseNumber（案卷号，HTML 通道印在抬头编号行与页脚；docx 通道不印）、title/applicant/inventor/agent/date）、claims（不带项号，≥1 项）、abstract（≥1 段）、figureFiles（按图序；无附图发明可为空数组）、abstractFigure（摘要附图号，1..figureFiles 项数，缺省 1；无附图时不要给）、sections（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分的 paragraph/list/table 块；无附图时 drawingDescriptions 为空数组；附图说明部分的列表项即附图条目，条数须等于 figureFiles 项数；表格仅允许出现在具体实施方式）",
       "additionalProperties": true
     },
     "outputName": {
@@ -6746,7 +6825,7 @@ Source: [`packages/patent/patent-filing/src/index.ts`](../packages/patent/patent
 
 ### `verify_patent_filing`
 
-对一件申请文件 .docx 跑体例与内容断言：分节数、各节页眉、行距、首行缩进（图片段与说明书名称行按顶格核对）、字号、是否出现非黑色文字（Word 内置标题样式会带蓝色）、说明书五部分是否齐备、说明书名称（spec 声明 specification_title 时：首行等于权利要求 1 的主题名称、左右居中、其后空一行）、每一节是否都承载了内容（空节意味着内容没落进那一节，而分节数、页眉与编号连续性都不会报）、权利要求项数、`[NNNN]` 段落编号是否从 1 起连续（按 spec 的 numbering 声明生效，没有节声明编号时该断言无主体）、各节实际承载的段落与图片数、以及内部复核痕迹是否清除。 同时核对成品体例与模板反解体例是否一致——模板漂移会报错。 这些是模型看不出来的静默缺陷，交付前必须跑；断言不通过时 `errors` 逐条给出实测值。
+对一件申请文件 .docx 跑体例与内容断言：分节数（有附图 5 节、无附图 3 节，按可选节的实际取舍核对）、各节页眉、行距、首行缩进（图片段与说明书名称行按顶格核对）、字号、是否出现非黑色文字（Word 内置标题样式会带蓝色）、说明书各部分是否齐备（无附图时「附图说明」不是必需项）、说明书名称（spec 声明 specification_title 时：首行等于权利要求 1 的主题名称、左右居中、其后空一行）、每一节是否都承载了内容（空节意味着内容没落进那一节，而分节数、页眉与编号连续性都不会报）、权利要求项数、`[NNNN]` 段落编号是否从 1 起连续（按 spec 的 numbering 声明生效，没有节声明编号时该断言无主体）、各节实际承载的段落与图片数、图片总数与各节归属一致、说明书附图每图一页与摘要附图恰一张、图号文字与图序一致（图号由文档承载时）、以及内部复核痕迹是否清除。 同时核对成品体例与模板反解体例是否一致——模板漂移会报错。 这些是模型看不出来的静默缺陷，交付前必须跑；断言不通过时 `errors` 逐条给出实测值。
 
 ```json
 {

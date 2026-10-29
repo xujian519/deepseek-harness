@@ -39,6 +39,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -238,6 +239,35 @@ class Template:
         else:
             self.body.append(element)
 
+    def remove_section(self, index: int):
+        """删除第 index 节的分节边界，使该节并入相邻节（用于无附图时可省略的节）。
+
+        非末节删掉该节的分节符段落；末节的分节符是 body 级 sectPr（不能删），
+        改为把前一节分节符里的页眉/页脚引用搬到 body 级 sectPr，再删掉前一节的
+        分节符——合并后的节沿用前一节的页眉。调用方按索引降序删除，前面的索引
+        因此仍然有效。
+        """
+        if index < len(self.enders):
+            ender = self.enders[index]
+            ender.getparent().remove(ender)
+            self.enders.pop(index)
+            return
+        if not self.enders or self.body_sect is None:
+            raise SystemExit("删除末节失败：模板没有可合并的前一节分节符")
+        prev = self.enders[-1]
+        prev_sect = prev.find(qn("w:pPr")).find(qn("w:sectPr"))
+        refs = [
+            ref for tag in ("w:headerReference", "w:footerReference")
+            for ref in prev_sect.findall(qn(tag))
+        ]
+        for tag in ("w:headerReference", "w:footerReference"):
+            for old in self.body_sect.findall(qn(tag)):
+                self.body_sect.remove(old)
+        for ref in reversed(refs):
+            self.body_sect.insert(0, copy.deepcopy(ref))
+        prev.getparent().remove(prev)
+        self.enders.pop()
+
     def add_picture(self, anchor, image: Path, width_cm: float, style: dict):
         holder = OxmlElement("w:p")
         # 图片段写**显式零缩进**：居中内容若带首行缩进，渲染器会把整幅图右移一个缩进量。
@@ -310,6 +340,9 @@ def validate_spec(spec: dict, content: dict) -> re.Pattern:
                     f"spec {where} 的 numbering {sec.get('numbering')!r} 未定义；可用：{'、'.join(NUMBERING_POLICIES)}"
                 )
         if sec["kind"] == "figure" and not sec.get("figure_all"):
+            # 可选节在来源为空时会被省略；此时没有图序可校验。
+            if sec.get("optional") and len(content["figures"]) == 0:
+                continue
             index, origin = single_figure_index(sec, content)
             if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(content["figures"]):
                 raise SystemExit(
@@ -387,6 +420,14 @@ def specification_title(spec: dict, content: dict) -> str | None:
     return title
 
 
+def omitted_sections(spec: dict, content: dict) -> list[int]:
+    """无内容且声明 optional 的节：无附图申请省略「摘要附图」与「说明书附图」。"""
+    return [
+        index for index, sec in enumerate(spec["sections"])
+        if sec.get("optional") and sec["from"] in content and len(content[sec["from"]]) == 0
+    ]
+
+
 def table_width_twips(doc) -> int:
     """文档首节的版心宽度（twips）：页宽减左右页边距；取不到时 0。
 
@@ -428,8 +469,12 @@ def build(spec: dict, content: dict, template_path: Path, out_path: Path) -> dic
     title = specification_title(spec, content)
     title_section = (spec.get("specification_title") or {}).get("section", "specification")
     table_width = table_width_twips(tpl.doc)
+    omitted = omitted_sections(spec, content)
 
     for i, sec in enumerate(spec["sections"]):
+        if i in omitted:
+            # 不落内容也不报告：该节的边界在循环后删除，成品里没有这一节。
+            continue
         anchor = tpl.clear(i)
         kind = sec["kind"]
         added = {"key": sec["key"], "paragraphs": 0, "figures": 0}
@@ -488,6 +533,10 @@ def build(spec: dict, content: dict, template_path: Path, out_path: Path) -> dic
             raise SystemExit(f"引擎缺节类型 {kind!r} 的处理分支（spec 第 {i + 1} 节）")
 
         report["sections"].append(added)
+
+    # 降序删除可选节的边界：前面的节索引不受影响。
+    for index in sorted(omitted, reverse=True):
+        tpl.remove_section(index)
 
     if upstream_mismatch:
         raise SystemExit(
