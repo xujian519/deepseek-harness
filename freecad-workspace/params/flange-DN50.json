@@ -1,0 +1,14 @@
+{
+  "part": "flange",
+  "variant": "DN50",
+  "description": "DN50 法兰，外径 160，厚 20，4 个 M16 螺栓孔（节圆 125）",
+  "params": {
+    "OD": 160.0,
+    "ID": 56.0,
+    "T": 20.0,
+    "BCD": 125.0,
+    "BOLT_D": 17.5,
+    "N_BOLTS": 4
+  },
+  "outputs": ["step", "stl"]
+}
