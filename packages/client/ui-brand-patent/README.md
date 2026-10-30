@@ -90,7 +90,7 @@ These limits define how this fork's brand presentation is supplied. They are cur
 - **One occupant set** — alternative presentation belongs in another Cordis package occupying the same slots.
 - **The hero occupant is static** — the hover morph the official fish performs is not reproduced, because no deformation of the hooks keeps the coupling readable at 34 px.
 - **The mark is maintained in two places** — the SVG sources under `brand/assets/` and the path constants in `src/client/Mark.tsx` describe the same geometry and must move together; the asset gate pins only the SVG side.
-- **The version chip does not copy on click** — the shell fallback copies the version to the clipboard and raises the sidebar's toast; this occupant renders the same text without that affordance, because reaching across packages for both would couple brand presentation to sidebar state.
+- **No build version in the brand area** — neither this occupant nor the shell fallback renders a version chip next to the product name; build identity stays in packaging metadata and diagnostics.
 
 <a id="dev-note"></a>
 ### Dev Note
