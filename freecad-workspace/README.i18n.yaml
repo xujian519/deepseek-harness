@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write freecad-workspace/README.md
+/freecad-workspace:
+  en: d39ba88b7a34ede0
+  zh: f4387b9c08ef65c9
+/freecad-workspace/layout:
+  en: f141b35af4b159cc
+  zh: 1ecc53526a1e2d60
+/freecad-workspace/running:
+  en: 2f8cb637d1b83573
+  zh: 61e852c3e7d8c114
+/freecad-workspace/exit-codes:
+  en: c39516e92821d71c
+  zh: 639d74086f31d2f0
+/freecad-workspace/current-state:
+  en: 13c57111f56abfd8
+  zh: 5e83ae3802dfc26d
+/freecad-workspace/known-limitations:
+  en: be4c6d4928b8a68b
+  zh: 6a9a3564acef0f70
