@@ -165,12 +165,14 @@ def _assert_geometry(shape, params: dict, builder) -> None:
 
     bbox = shape.BoundBox
     actual = [bbox.XLength, bbox.YLength, bbox.ZLength]
-    for key, axis in builder.SIZE_KEYS.items():
+    for key, axes in builder.SIZE_KEYS.items():
         want = float(params[key])
-        if abs(actual[axis] - want) > BBOX_TOLERANCE_MM:
-            raise GeometryError(
-                f"包围盒 {key} 与参数不符：实际 {actual[axis]:.3f}，期望 {want:.3f}"
-            )
+        axes = axes if isinstance(axes, (list, tuple)) else (axes,)
+        for axis in axes:
+            if abs(actual[axis] - want) > BBOX_TOLERANCE_MM:
+                raise GeometryError(
+                    f"包围盒 {key}（轴 {axis}）与参数不符：实际 {actual[axis]:.3f}，期望 {want:.3f}"
+                )
 
 
 def _require_nonempty(path: pathlib.Path) -> None:

@@ -12,7 +12,7 @@ params/      参数表（JSON，每个变体一份）
 scripts/     build.py / validate.py / sheet.py / dim_rules.py / import2d.py / common/
 incoming/    客户原始图纸，按案件分子目录，只读
 out/         生成物，按 <part>/<variant>/ 分层
-docs/        基线、命名规范、字段字典
+docs/        基线、命名规范、字段字典、API 片段、故障对策
 ```
 
 ## 运行
@@ -58,14 +58,16 @@ macOS 的 `FreeCADCmd` 在 `FreeCAD.app/Contents/MacOS/FreeCADCmd`；Windows 为
 
 ## 当前状态
 
-- 阶段 0–3 的代码已建立：目录骨架、A4 图框、板类件构建器、`build.py`、`validate.py`、`sheet.py`、`dim_rules.py`。
+- 阶段 0–3 的代码已建立：目录骨架、A4 图框、板/法兰/阶梯轴/L 形支架四类构建器，`build.py`、`validate.py`、`sheet.py`、`dim_rules.py`。
 - 阶段 5 的 `import2d.py` 已实现，DXF 路径在沙箱用合成图实测通过；DWG/PDF 路径依赖本机转换器，未实测。
-- 本仓库的沙箱没有 FreeCAD，`build.py` / `validate.py` / `sheet.py` 尚未在真实 `FreeCADCmd` 下执行；离线检查（语法、参数校验、模板 XML、标注规则）已通过。
+- 阶段 4 的上下文资产已建立：`docs/api_snippets.md`、`docs/field-dictionary.md`（含模板字段与四类零件参数表）、`docs/failure_playbook.md`、`docs/agent-contract.md`（代理权限与护栏）、四份 `params/*.json` 样例。
+- 四份参数样例已通过 `scripts/common/params.py` 校验，并与各零件族的 `REQUIRED` 字段及数值约束一致。
+- 本仓库的沙箱没有 FreeCAD，`build.py` / `validate.py` / `sheet.py` 尚未在真实 `FreeCADCmd` 下执行；离线检查（语法、参数校验、模板 XML、标注规则、DXF/PDF 转换）已通过。
 
 ## 已知限制
 
 - `dim_rules.py` 假定 `EdgeN` 序号与 `view.getVisibleEdges()` 顺序一致，需在目标机实测；不一致时尺寸会引用到错误边，必须核对 `dimensions.json`。
-- `pitch_dia`（节圆直径）未实现，一律进 `manual_review.md`。
+- `pitch_dia`（节圆直径）已实现：按圆心共圆分组，取最远一对孔边出直径尺寸；需在目标机核对 `dimensions.json` 中该尺寸的测量值是否等于 `BCD`。
 - 孔径的数量前缀依赖 `DrawViewDimension.FormatSpec`，若该属性不接受自定义前缀，会记录在 `dimensions.json` 的 `reason`。
 - `sheet.py` 用 `hasattr(group, "AutoDistribute")` 判断自动布局能力，手工布局为后备路径，未在 1.1.4 上验证。
 - `import2d.py` 的 DWG 路径依赖 `dwg2dxf`，沙箱没有该工具，未实测；多页 PDF 会产出 `model-2.svg` 等文件，`convert.json` 的 `outputs` 会列出全部 SVG。

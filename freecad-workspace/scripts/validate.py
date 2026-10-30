@@ -117,12 +117,14 @@ def _check_bbox(step_path: pathlib.Path, shape, manifest: dict) -> list[str]:
     problems: list[str] = []
     bbox = shape.BoundBox
     actual = [bbox.XLength, bbox.YLength, bbox.ZLength]
-    for key, axis in builder.SIZE_KEYS.items():
+    for key, axes in builder.SIZE_KEYS.items():
         want = float(params[key])
-        if abs(actual[axis] - want) > BBOX_TOLERANCE_MM:
-            problems.append(
-                f"{step_path.name} 包围盒 {key}：实际 {actual[axis]:.3f}，期望 {want:.3f}"
-            )
+        axes = axes if isinstance(axes, (list, tuple)) else (axes,)
+        for axis in axes:
+            if abs(actual[axis] - want) > BBOX_TOLERANCE_MM:
+                problems.append(
+                    f"{step_path.name} 包围盒 {key}（轴 {axis}）：实际 {actual[axis]:.3f}，期望 {want:.3f}"
+                )
     return problems
 
 

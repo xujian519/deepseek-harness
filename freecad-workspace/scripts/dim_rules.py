@@ -25,6 +25,7 @@ PARAM_KEYS = {
     "overall_x": "L",
     "overall_y": "W",
     "hole_dia": "HOLE_D",
+    "pitch_dia": "BCD",
     "thickness": "T",
 }
 
@@ -47,13 +48,7 @@ def select(rule: str, edges: list[tuple[int, object]], params: dict) -> dict:
         return _hole_diameter(edges, params)
     if rule == "thickness":
         return _thickness(edges, params)
-    return {
-        "rule": rule,
-        "status": "manual",
-        "edges": [],
-        "value": None,
-        "reason": "节圆直径尚未实现：需要按圆心共圆分组后再生成尺寸",
-    }
+    return _pitch_diameter(edges, params)
 
 
 def _manual(rule: str, reason: str, edges: list[int] | None = None) -> dict:
@@ -181,3 +176,61 @@ def circle_center(edge: object) -> tuple[float, float] | None:
     if center is None or getattr(curve, "Radius", None) is None:
         return None
     return float(center.X), float(center.Y)
+
+
+def _pitch_diameter(edges: list[tuple[int, object]], params: dict) -> dict:
+    """把圆心共圆的孔分组，计算节圆直径。
+
+    节圆圆心取所有孔心的质心；节圆半径取各孔心到质心的平均距离，
+    若偏差超过容差则视为不共圆，转人工标注。
+    """
+    circles: list[tuple[int, tuple[float, float]]] = []
+    for number, edge in edges:
+        center = circle_center(edge)
+        if center is not None:
+            circles.append((number, center))
+
+    if len(circles) < 2:
+        return _manual("pitch_dia", f"投影中只有 {len(circles)} 个圆，无法确定节圆")
+
+    center_x = sum(c[1][0] for c in circles) / len(circles)
+    center_y = sum(c[1][1] for c in circles) / len(circles)
+    radii = [math.hypot(px - center_x, py - center_y) for _, (px, py) in circles]
+    avg_radius = sum(radii) / len(radii)
+
+    if avg_radius <= TOLERANCE:
+        return _manual("pitch_dia", "所有圆心重合，无法确定节圆")
+
+    max_dev = max(abs(r - avg_radius) for r in radii)
+    if max_dev > TOLERANCE:
+        return _manual(
+            "pitch_dia",
+            f"圆心不共圆，半径偏差最大 {max_dev:.4f} mm",
+            [c[0] for c in circles],
+        )
+
+    pitch_dia = 2 * avg_radius
+    expected = params.get("BCD")
+    if expected is not None and abs(pitch_dia - float(expected)) > TOLERANCE:
+        return _manual(
+            "pitch_dia",
+            f"节圆直径 {pitch_dia:.3f} mm，与参数 BCD={expected} 不符",
+            [c[0] for c in circles],
+        )
+
+    # 取圆心距最大的一对孔作为尺寸引用，其距离即节圆直径。
+    best_pair: tuple[float, int, int] | None = None
+    for index, (first_number, (fx, fy)) in enumerate(circles):
+        for second_number, (sx, sy) in circles[index + 1:]:
+            distance = math.hypot(fx - sx, fy - sy)
+            if best_pair is None or distance > best_pair[0]:
+                best_pair = (distance, first_number, second_number)
+
+    return {
+        "rule": "pitch_dia",
+        "status": "ok",
+        "edges": [best_pair[1], best_pair[2]],
+        "value": pitch_dia,
+        "quantity": len(circles),
+        "reason": None,
+    }

@@ -271,16 +271,21 @@ def _create_dimension(document, page, view, result: dict) -> bool:
     dimension = None
     try:
         dimension = document.addObject("TechDraw::DrawViewDimension", f"Dim_{result['rule']}")
-        dimension.Type = "Diameter" if result["rule"] == "hole_dia" else "Distance"
+        dimension.Type = "Diameter" if result["rule"] in ("hole_dia", "pitch_dia") else "Distance"
         dimension.References2D = [(view, f"Edge{number}") for number in result["edges"]]
         page.addView(dimension)
         dimension.X = float(getattr(view, "X", 0)) + DIM_OFFSET_MM
         dimension.Y = float(getattr(view, "Y", 0)) + DIM_OFFSET_MM
-        if result.get("quantity", 1) > 1:
+        if result["rule"] == "hole_dia" and result.get("quantity", 1) > 1:
             try:
                 dimension.FormatSpec = f"{result['quantity']}×⌀%.1f"
             except (AttributeError, ValueError) as error:
                 result["reason"] = f"数量前缀未生效：{error}"
+        elif result["rule"] == "pitch_dia":
+            try:
+                dimension.FormatSpec = "⌀%.1f"
+            except (AttributeError, ValueError) as error:
+                result["reason"] = f"直径符号未生效：{error}"
         document.recompute()
         return True
     except Exception as error:
