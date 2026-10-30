@@ -32,6 +32,9 @@ EXIT_ENV = 5
 TEMPLATE_NAME = "A4_landscape.svg"
 FALLBACK_PAGE_MM = (297.0, 210.0)
 
+# 这些视图的投影朝向给出的是右视图，出图时整体水平镜像成左视图。
+FLIP_X_VIEWS = frozenset({"Left"})
+
 
 def main(argv: list[str] | None = None) -> int:
     """执行一次出图。
@@ -162,10 +165,14 @@ def _fill_fields(template, fields: dict) -> None:
 
 
 def _project_views(shape) -> dict:
-    """用 Part.HLRBRep 生成三视图的可见边投影。
+    """用 Part.HLRBRep 生成三视图的边投影。
 
     无头模式下 TechDraw 的 HLR 不运行，故直接调用 OpenCASCADE 的 HLRBRep。
     为使各视图落在统一的 XY 平面，先将实体旋转到对应朝向再沿 Z 投影。
+
+    圆柱面和孔的侧面轮廓不在 `vCompound()` 里，而在 `outLineVCompound()`；
+    相切过渡边在 `Rg1LineVCompound()`。三类都并入，否则法兰、轴的侧视图会
+    只剩半圈轮廓线。
 
     @param shape - Part.Shape 实体。
     @returns {视图名: Part.Shape(可见边复合)}。
@@ -173,24 +180,33 @@ def _project_views(shape) -> dict:
     import FreeCAD as App
     import Part
 
-    def _project(source, direction):
+    def _project(source):
         hlr = Part.HLRBRep.Algo()
         hlr.add(source)
         hlr.showAll()
-        hlr.setProjector(direction)
+        hlr.setProjector(App.Vector(0, 0, 1))
         hlr.update()
-        return Part.HLRBRep.HLRToShape(hlr).vCompound()
+        to_shape = Part.HLRBRep.HLRToShape(hlr)
+        parts = [
+            getattr(to_shape, category)()
+            for category in ("vCompound", "outLineVCompound", "Rg1LineVCompound")
+        ]
+        return Part.Compound([part for part in parts if len(part.Edges) > 0])
 
-    projections: dict = {}
-    projections["Top"] = _project(shape, App.Vector(0, 0, 1))
+    # 俯视图：沿 +Z 投影，画幅 X 向右、Y 向上。
+    projections: dict = {"Top": _project(shape)}
 
+    # 主视图：绕 X 转 -90°，画幅 X 向右、Z 向上。
     front_src = shape.copy()
     front_src.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), -90)
-    projections["Front"] = _project(front_src, App.Vector(0, 0, 1))
+    projections["Front"] = _project(front_src)
 
+    # 左视图：先绕 Z 转 -90° 再绕 X 转 -90°，画幅 Y 向右、Z 向上；
+    # 该朝向看到的是右视图，出图时对 X 取反即得左视图（见 FLIP_X_VIEWS）。
     left_src = shape.copy()
-    left_src.rotate(App.Vector(0, 0, 0), App.Vector(0, 1, 0), 90)
-    projections["Left"] = _project(left_src, App.Vector(0, 0, 1))
+    left_src.rotate(App.Vector(0, 0, 0), App.Vector(0, 0, 1), -90)
+    left_src.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), -90)
+    projections["Left"] = _project(left_src)
 
     return projections
 
@@ -464,8 +480,8 @@ def _export_dxf(
 ) -> None:
     """生成 DXF：A4 图框 + 标题栏 + 三视图 + 尺寸标注。
 
-    直接解析 Part 形状的边（Line/Circle）并手写 DXF 实体，避开 importDXF 无法
-    处理 Draft 文本对象的问题。
+    直接解析 Part 形状的边（直线、整圆、圆弧、BSpline 折线）并手写 DXF 实体，
+    避开 importDXF 无法处理 Draft 文本对象的问题。
 
     @param projections - {视图名: Part.Shape}。
     @param results - 标注规则结果。
@@ -492,6 +508,7 @@ def _export_dxf(
 
     lines: list[tuple[float, float, float, float]] = []
     circles: list[tuple[float, float, float]] = []
+    arcs: list[tuple[float, float, float, float, float]] = []  # (cx, cy, r, 起始角, 张角)
     texts: list[tuple[str, float, float, float]] = []  # (text, x, y, height)
 
     # 图框：外框 + 内框。
@@ -516,54 +533,83 @@ def _export_dxf(
     for text, x, y in title_texts:
         texts.append((text, x, y, 3.0))
 
-    # 视图布局：俯视图左上，主视图在俯视图下方，左视图在主视图右侧。
+    # 视图布局：主视图左上，俯视图在主视图下方，左视图在主视图右侧。
     positions = _layout_views(projections, inner_w, inner_h, margin)
     for name, (x, y, scale) in positions.items():
         # 把视图包围盒左下角对齐到槽位原点，避免原点不在几何内部时越出图框。
         bbox = projections[name].BoundBox
+        flip_x = name in FLIP_X_VIEWS
         # 直接从未缩放形状读取几何，再对坐标施加缩放和平移；
         # FreeCAD 0.21 中 shape.scale() 会使 edge.Curve 无法读取。
+        # 左视图按右视图投影后再水平镜像，偏移取镜像后的左边界 -XMax。
+        off_x = x + float(bbox.XMax) * scale if flip_x else x - float(bbox.XMin) * scale
         _collect_shape_geometry(
             projections[name],
             lines,
             circles,
+            arcs,
             scale,
-            x - float(bbox.XMin) * scale,
+            off_x,
             y - float(bbox.YMin) * scale,
+            flip_x=flip_x,
         )
 
     # 尺寸标注：在视图下方逐条堆叠，避免同视图多条尺寸文字互相覆盖。
     stacked: dict[str, int] = {}
+    emitted: set[tuple[str, str]] = set()
     for result in results:
         if result["status"] != "ok" or result.get("value") is None:
             continue
         view_name = result["view"]
         if view_name not in positions:
             continue
-        vx, vy, scale = positions[view_name]
         label = _dimension_label(result)
+        # 同一视图里长宽相等时会出现两条一样的文字，只保留一条。
+        if not label or (view_name, label) in emitted:
+            continue
+        emitted.add((view_name, label))
+        vx, vy, scale = positions[view_name]
         slot = stacked.get(view_name, 0)
         stacked[view_name] = slot + 1
         texts.append((label, vx, vy - 8 - slot * 5, 2.5))
 
-    _write_dxf(dxf_path, lines, circles, texts)
+    _write_dxf(dxf_path, lines, circles, arcs, texts)
 
 
 def _collect_shape_geometry(
-    shape, lines: list, circles: list, scale: float = 1.0, off_x: float = 0.0, off_y: float = 0.0
+    shape,
+    lines: list,
+    circles: list,
+    arcs: list,
+    scale: float = 1.0,
+    off_x: float = 0.0,
+    off_y: float = 0.0,
+    flip_x: bool = False,
 ) -> None:
-    """从 Part 形状提取直线和圆，追加到 lines/circles。
+    """从 Part 形状提取直线、整圆、圆弧与折线，追加到对应列表。
 
     坐标先乘以 scale 再平移 (off_x, off_y)，避免调用 shape.scale() 导致
-    FreeCAD 0.21 中 edge.Curve 无法读取。
+    FreeCAD 0.21 中 edge.Curve 无法读取。圆角等非整圆边的 Curve 也是
+    `Circle`，这里按端点角度区分整圆与圆弧，避免把圆角画成整圆。
+    圆的侧视轮廓在 HLR 里是 BSpline，按离散点判定为直线段或折线。
 
     @param shape - Part.Shape 投影视图。
     @param lines - 收集到的 (x1, y1, x2, y2)。
     @param circles - 收集到的 (cx, cy, r)。
+    @param arcs - 收集到的 (cx, cy, r, 起始角°, 张角°)。
     @param scale - 缩放系数。
     @param off_x - X 方向平移。
     @param off_y - Y 方向平移。
+    @param flip_x - 为真时先把 X 取反再平移，用于左视图水平镜像。
     """
+    import math
+
+    def _px(value: float) -> float:
+        return (-value if flip_x else value) * scale + off_x
+
+    def _py(value: float) -> float:
+        return value * scale + off_y
+
     for edge in shape.Edges:
         try:
             curve = getattr(edge, "Curve", None)
@@ -573,22 +619,86 @@ def _collect_shape_geometry(
             if cname == "Line":
                 v0 = edge.Vertexes[0]
                 v1 = edge.Vertexes[-1]
-                lines.append((
-                    float(v0.X) * scale + off_x,
-                    float(v0.Y) * scale + off_y,
-                    float(v1.X) * scale + off_x,
-                    float(v1.Y) * scale + off_y,
-                ))
+                lines.append((_px(float(v0.X)), _py(float(v0.Y)), _px(float(v1.X)), _py(float(v1.Y))))
             elif cname == "Circle":
                 center = curve.Center
-                circles.append((
-                    float(center.x) * scale + off_x,
-                    float(center.y) * scale + off_y,
-                    float(curve.Radius) * scale,
-                ))
-            # 其它曲线类型（Arc 等）暂不处理。
+                radius = float(curve.Radius) * scale
+                cx = _px(float(center.x))
+                cy = _py(float(center.y))
+                vertices = list(getattr(edge, "Vertexes", []))
+                closed = len(vertices) < 2 or math.hypot(
+                    float(vertices[0].X) - float(vertices[-1].X),
+                    float(vertices[0].Y) - float(vertices[-1].Y),
+                ) <= 1e-6
+                if closed:
+                    circles.append((cx, cy, radius))
+                    continue
+                start, extent = _edge_arc(edge, float(center.x), float(center.y))
+                if extent is not None:
+                    if flip_x:
+                        # 镜像把角度 θ 映射为 180°-θ，圆弧反向，改写起始角。
+                        start = 180.0 - (start + extent)
+                    arcs.append((cx, cy, radius, start, extent))
+            else:
+                _collect_sampled(edge, lines, _px, _py)
         except Exception:
             continue
+
+
+def _collect_sampled(edge, lines: list, px, py) -> None:
+    """把非直线/圆的投影边离散成直线段；退化为直线的边只写一条。
+
+    圆环侧视时 HLR 给出 BSpline，离散后所有点的 Y 相同，取首尾跨度即可。
+
+    @param edge - 投影边。
+    @param lines - 收集到的 (x1, y1, x2, y2)。
+    @param px - X 坐标换算函数。
+    @param py - Y 坐标换算函数。
+    """
+    points = [point for point in edge.discretize(8)]
+    if len(points) < 2:
+        return
+    xs = [px(float(point.x)) for point in points]
+    ys = [py(float(point.y)) for point in points]
+    if max(ys) - min(ys) <= 1e-3:
+        middle = (min(ys) + max(ys)) / 2
+        lines.append((min(xs), middle, max(xs), middle))
+        return
+    if max(xs) - min(xs) <= 1e-3:
+        middle = (min(xs) + max(xs)) / 2
+        lines.append((middle, min(ys), middle, max(ys)))
+        return
+    for first, second in zip(points, points[1:]):
+        lines.append((px(float(first.x)), py(float(first.y)), px(float(second.x)), py(float(second.y))))
+
+
+def _edge_arc(edge, center_x: float, center_y: float) -> tuple[float, float] | None:
+    """把圆弧边的端点换算成 DXF 的起始角与逆时针张角。
+
+    HLR 边的参数区间不一定是 [0, 1]，`valueAt(0.5)` 求不到几何中点，
+    故用弧长换算张角，再判断从首点逆时针到末点是否正好覆盖该张角。
+
+    @param edge - 投影边，Curve 为 Circle。
+    @param center_x - 圆心 X（未缩放坐标系）。
+    @param center_y - 圆心 Y（未缩放坐标系）。
+    @returns (起始角°, 张角°)；退化边返回 (0.0, None)。
+    """
+    import math
+
+    radius = float(edge.Curve.Radius)
+    if radius <= 0:
+        return 0.0, None
+    vertices = edge.Vertexes
+    first, last = vertices[0], vertices[-1]
+    angle_first = math.degrees(math.atan2(float(first.Y) - center_y, float(first.X) - center_x))
+    angle_last = math.degrees(math.atan2(float(last.Y) - center_y, float(last.X) - center_x))
+    extent = math.degrees(float(edge.Length) / radius)
+    if extent <= 1e-6 or extent >= 360.0 - 1e-6:
+        return angle_first, None
+    if abs((angle_last - angle_first) % 360.0 - extent) <= 1e-3:
+        return angle_first, extent
+    # 边是顺时针方向：从末点逆时针出发才能覆盖同样的弧。
+    return angle_last, extent
 
 
 def _unique(items: list, key) -> list:
@@ -608,6 +718,7 @@ def _write_dxf(
     path: str,
     lines: list[tuple[float, float, float, float]],
     circles: list[tuple[float, float, float]],
+    arcs: list[tuple[float, float, float, float, float]],
     texts: list[tuple[str, float, float, float]],
 ) -> None:
     """写入最小可用的 R12 DXF 文件，含 HEADER 与 ENTITIES 段。
@@ -616,7 +727,7 @@ def _write_dxf(
     代码页 ANSI_936，保证中文标题栏在 AutoCAD/LibreCAD 中正常显示。
 
     HLR 会把同一段几何拆成多条边（一个孔常被拆成两个半圆弧），这里按坐标
-    去重，避免同一圆被写成两条重叠的 CIRCLE。
+    去重，避免同一段几何被重复写出。
     """
     def _line_key(item):
         x1, y1, x2, y2 = item
@@ -626,6 +737,10 @@ def _write_dxf(
 
     lines = _unique(lines, _line_key)
     circles = _unique(circles, lambda c: (round(c[0], 4), round(c[1], 4), round(c[2], 4)))
+    arcs = _unique(
+        arcs,
+        lambda a: (round(a[0], 4), round(a[1], 4), round(a[2], 4), round(a[3], 3), round(a[4], 3)),
+    )
 
     out: list[str] = []
     out += ["0", "SECTION", "2", "HEADER"]
@@ -649,6 +764,14 @@ def _write_dxf(
             "40", f"{r:.6f}",
         ]
 
+    for cx, cy, r, start, extent in arcs:
+        out += [
+            "0", "ARC", "8", "0",
+            "10", f"{cx:.6f}", "20", f"{cy:.6f}", "30", "0.0",
+            "40", f"{r:.6f}",
+            "50", f"{start:.6f}", "51", f"{(start + extent) % 360.0:.6f}",
+        ]
+
     for text, x, y, h in texts:
         # GB2312/936 不含 U+2300（⌀），统一换成 AutoCAD 控制码。
         text = text.replace("⌀", "%%c")
@@ -668,35 +791,53 @@ def _write_dxf(
 def _layout_views(
     projections: dict, inner_w: float, inner_h: float, margin: float
 ) -> dict:
-    """按三视图第一角法摆放，返回 {视图名: (页面X, 页面Y, 缩放)}。"""
-    # 计算各视图尺寸并求统一缩放。
+    """按第一角法摆放三视图，返回 {视图名: (页面X, 页面Y, 缩放)}。
+
+    主视图在上，俯视图在主视图正下方，左视图在主视图右侧。标题栏占右下角，
+    视图区整体位于其上方；视图底边再留出堆叠尺寸文字的高度。
+
+    @param projections - {视图名: 投影形状}。
+    @param inner_w - 内框宽度。
+    @param inner_h - 内框高度。
+    @param margin - 页边距。
+    @returns 每个视图的槽位左下角坐标与统一缩放。
+    """
     sizes = {}
     for name, shape in projections.items():
+        if len(shape.Edges) == 0:
+            sizes[name] = (1.0, 1.0)
+            continue
         bb = shape.BoundBox
-        sizes[name] = (bb.XLength, bb.YLength)
+        sizes[name] = (max(bb.XLength, 1e-6), max(bb.YLength, 1e-6))
 
-    # 第一角法：俯视图在左上，主视图在俯视图正下方，左视图在主视图右侧。
-    top_w, top_h = sizes.get("Top", (1, 1))
-    front_w, front_h = sizes.get("Front", (1, 1))
-    left_w, left_h = sizes.get("Left", (1, 1))
+    top_w, top_h = sizes.get("Top", (1.0, 1.0))
+    front_w, front_h = sizes.get("Front", (1.0, 1.0))
+    left_w, left_h = sizes.get("Left", (1.0, 1.0))
 
-    gap = 15.0
-    total_w = max(top_w, front_w) + gap + left_w
-    total_h = top_h + gap + front_h
+    # 视图间距固定 30 mm，留出视图下方堆叠的尺寸文字（每条 5 mm）。
+    gap = 30.0
+    # 视图区在标题栏（顶边 margin+40）之上 5 mm 起，顶部与内框也留 5 mm，并在区域内居中。
+    top_limit = margin + inner_h - 5.0
+    bottom_limit = margin + 45.0
+    avail_w = inner_w - 10
+    avail_h = top_limit - bottom_limit
+    scale = min(
+        (avail_w - gap) / (max(front_w, top_w) + left_w),
+        (avail_h - gap) / (front_h + top_h),
+        1.0,
+    )
 
-    avail_w = inner_w - 40
-    avail_h = inner_h - 60
-    scale = min(avail_w / total_w, avail_h / total_h, 1.0)
+    used_w = max(front_w, top_w) * scale + gap + left_w * scale
+    used_h = top_h * scale + gap + front_h * scale
+    origin_x = margin + max((inner_w - used_w) / 2, 5.0)
+    origin_y = bottom_limit + max((avail_h - used_h) / 2, 0.0)
 
-    origin_x = margin + 15
-    origin_y = margin + 50
-
-    top_x = origin_x
-    top_y = origin_y + (front_h * scale) + gap
     front_x = origin_x
-    front_y = origin_y
-    left_x = origin_x + (front_w * scale) + gap
-    left_y = origin_y
+    front_y = origin_y + top_h * scale + gap
+    top_x = origin_x
+    top_y = origin_y
+    left_x = origin_x + front_w * scale + gap
+    left_y = front_y
 
     return {
         "Top": (top_x, top_y, scale),
