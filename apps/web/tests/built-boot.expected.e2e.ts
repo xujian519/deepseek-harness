@@ -65,15 +65,19 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
     expect(document.querySelector('svg[viewBox="26 0 156 24"]')).not.toBeNull()
     expect(screen.queryByText('DSH Patent')).toBeNull()
   } else {
-    expect(document.querySelector('svg[viewBox="0 0 23.16 17.04"]')).not.toBeNull()
+    // The fork's brand package occupies both brand slots: the hooks mark and
+    // the product name render instead of the shell's local-build fallback.
+    expect(document.querySelector('svg[viewBox="0 0 64 64"]')).not.toBeNull()
+    // The brand area shows the product name only; build-version metadata
+    // stays out of the sidebar whatever the build record carries.
+    screen.getByText('DSH Patent')
     const version = clientBuildValue('DSH_CLIENT_VERSION')
     if (version === undefined) throw new Error('default client build record must carry DSH_CLIENT_VERSION')
     const commit = clientBuildValue('DSH_CLIENT_COMMIT_HASH')
     const buildVersion = version
       + (commit === undefined ? '' : `-${commit}`)
       + (clientBuildValue('DSH_CLIENT_GIT_DIRTY') === 'true' ? '-dirty' : '')
-    screen.getByText('DSH Local Build')
-    screen.getByText(buildVersion)
+    expect(screen.queryByText(buildVersion)).toBeNull()
   }
   // The compact layout dropped group session counts; the fixture workspace
   // group row renders immediately with its sessions beneath it.

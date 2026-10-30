@@ -145,26 +145,12 @@ describe('occupants', () => {
     ])
   })
 
-  it('renders the product name and the build version chip', () => {
-    vi.stubEnv('DSH_CLIENT_VERSION', '0.2.2-alpha.2')
-    vi.stubEnv('DSH_CLIENT_COMMIT_HASH', 'abc1234')
-    const view = render(<PatentSidebarName />)
-    expect(view.container.textContent).toContain('DSH Patent')
-    expect(view.container.textContent).toContain('0.2.2-alpha.2-abc1234')
-  })
-
-  it('omits the version chip when the build carried no version', () => {
-    vi.stubEnv('DSH_CLIENT_VERSION', undefined)
-    const view = render(<PatentSidebarName />)
-    expect(view.container.textContent).toBe('DSH Patent')
-  })
-
-  it('marks the version chip dirty when the build had uncommitted changes', () => {
+  it('renders only the product name, even when the build carried a version', () => {
     vi.stubEnv('DSH_CLIENT_VERSION', '0.2.2-alpha.2')
     vi.stubEnv('DSH_CLIENT_COMMIT_HASH', 'abc1234')
     vi.stubEnv('DSH_CLIENT_GIT_DIRTY', 'true')
     const view = render(<PatentSidebarName />)
-    expect(view.container.textContent).toContain('0.2.2-alpha.2-abc1234-dirty')
+    expect(view.container.textContent).toBe('DSH Patent')
   })
 
   it('marks the artwork decorative so the wordmark owns the accessible name', () => {
