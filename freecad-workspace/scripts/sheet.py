@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 用投影边匹配标注规则，匹配失败时回退到 3D 几何测量。
     try:
-        results = _place_dimensions(projections, spec["params"], model.Shape)
+        results = _place_dimensions(projections, spec["params"], model.Shape, spec["part"])
     except Exception as error:
         return _fail(EXIT_GEOMETRY, f"标注失败：{type(error).__name__}：{error}")
 
@@ -200,10 +200,18 @@ def _visible_edges(projection) -> list[tuple[int, object]]:
     return [(number, edge) for number, edge in enumerate(projection.Edges, start=1)]
 
 
-def _place_dimensions(projections: dict, params: dict, shape=None) -> list[dict]:
-    """为每条规则匹配尺寸；投影边匹配失败时回退到 Part 几何测量。"""
+def _place_dimensions(projections: dict, params: dict, shape=None, part: str | None = None) -> list[dict]:
+    """为每条规则匹配尺寸；投影边匹配失败时回退到 Part 几何测量。
+
+    @param projections - {视图名: 投影形状}。
+    @param params - 参数表数值。
+    @param shape - Part.Shape 实体，用于回退测量。
+    @param part - 零件族名，缺省按板类规则集。
+    @returns 每条规则的结果字典。
+    """
+    rules = dim_rules.rules_for(part) if part else dim_rules.RULES
     results: list[dict] = []
-    for rule in dim_rules.RULES:
+    for rule in rules:
         view_name = dim_rules.RULE_VIEWS[rule]
         projection = projections.get(view_name)
         if projection is None or len(projection.Edges) == 0:
@@ -293,6 +301,27 @@ def _measure_from_shape(rule: str, shape, params: dict) -> dict:
         reason = None if value is not None else "孔数不足或不共圆，无法确定节圆"
         if value is None:
             return {"rule": rule, "status": "manual", "edges": [], "value": None, "reason": reason}
+    elif rule == "shaft_length":
+        # parts/shaft.py 把各段圆柱沿 Z 轴依次堆叠，故总长取 Z 向包围盒。
+        value = bbox.ZLength
+        key, expected_value = declared
+        reason = None if abs(value - expected_value) <= 1e-3 else \
+            f"实测 {value:.3f} mm，与参数 {key}={expected_value} 不符"
+    elif rule in ("shaft_dia_1", "shaft_dia_2", "shaft_dia_3"):
+        diameters = _shaft_segment_diameters(shape)
+        index = int(rule.rsplit("_", 1)[1])
+        if len(diameters) < index:
+            return {
+                "rule": rule,
+                "status": "manual",
+                "edges": [],
+                "value": None,
+                "reason": f"沿轴向只测到 {len(diameters)} 段圆柱，无法标注第 {index} 段直径",
+            }
+        value = diameters[index - 1]
+        key, expected_value = declared
+        reason = None if abs(value - expected_value) <= 1e-3 else \
+            f"实测 {value:.3f} mm，与参数 {key}={expected_value} 不符"
     else:
         return {"rule": rule, "status": "manual", "edges": [], "value": None, "reason": f"未知规则 {rule}"}
 
@@ -326,6 +355,26 @@ def _cylindrical_faces(shape) -> list:
         center = surface.Center
         cylinders.append({"face": face, "radius": radius, "axis": axis, "center": center})
     return cylinders
+
+
+def _shaft_segment_diameters(shape) -> list[float]:
+    """按轴向位置排序，返回阶梯轴各段圆柱的直径。
+
+    每段圆柱可能被布尔运算拆成多个面，故按面的 Z 区间分组，同组取最大半径。
+    只统计轴线平行于 Z 的圆柱面，排除孔等其它圆柱特征。
+
+    @param shape - Part.Shape 实体。
+    @returns 从小到大按 Z 排列的各段直径；无圆柱面时返回空列表。
+    """
+    groups: dict[tuple[float, float], float] = {}
+    for cyl in _cylindrical_faces(shape):
+        axis = cyl["axis"]
+        if abs(abs(float(axis.z)) - 1.0) > 1e-3:
+            continue
+        bbox = cyl["face"].BoundBox
+        key = (round(float(bbox.ZMin), 3), round(float(bbox.ZMax), 3))
+        groups[key] = max(groups.get(key, 0.0), cyl["radius"])
+    return [2 * groups[key] for key in sorted(groups)]
 
 
 def _hole_radius_param(params: dict) -> float | None:
@@ -483,7 +532,8 @@ def _export_dxf(
             y - float(bbox.YMin) * scale,
         )
 
-    # 尺寸标注：在对应视图旁添加文字。
+    # 尺寸标注：在视图下方逐条堆叠，避免同视图多条尺寸文字互相覆盖。
+    stacked: dict[str, int] = {}
     for result in results:
         if result["status"] != "ok" or result.get("value") is None:
             continue
@@ -492,7 +542,9 @@ def _export_dxf(
             continue
         vx, vy, scale = positions[view_name]
         label = _dimension_label(result)
-        texts.append((label, vx - 15, vy + 5, 2.5))
+        slot = stacked.get(view_name, 0)
+        stacked[view_name] = slot + 1
+        texts.append((label, vx, vy - 8 - slot * 5, 2.5))
 
     _write_dxf(dxf_path, lines, circles, texts)
 
@@ -668,6 +720,8 @@ def _dimension_label(result: dict) -> str:
         prefix = f"{qty}×" if qty > 1 else ""
         return f"{prefix}%%c{value:.1f}"
     if rule == "pitch_dia":
+        return f"%%c{value:.1f}"
+    if rule.startswith("shaft_dia"):
         return f"%%c{value:.1f}"
     return f"{value:.1f}"
 

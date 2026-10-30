@@ -62,13 +62,13 @@ python3 scripts/import2d.py --input drawing.dxf --drop-layer TITLE --drop-patter
 - 阶段 5 的 `import2d.py` 已实现，DXF 路径在沙箱用合成图实测通过；DWG/PDF 路径依赖本机转换器，未实测。
 - 阶段 4 的上下文资产已建立：`docs/api_snippets.md`、`docs/field-dictionary.md`（含模板字段与四类零件参数表）、`docs/failure_playbook.md`、`docs/agent-contract.md`（代理权限与护栏）、四份 `params/*.json` 样例。
 - 四份参数样例已通过 `scripts/common/params.py` 校验，并与各零件族的 `REQUIRED` 字段及数值约束一致。
-- `build.py` / `verify.py` / `sheet.py` 已在 FreeCAD 0.21.2 下跑通四类零件：`build.py` 产出 FCStd/STEP/STL/manifest；`verify.py` 体积与包围盒校验通过；`sheet.py` 产出 DXF（含图框、标题栏、三视图、尺寸文字）、`dimensions.json` 与 `manual_review.md`。四份 DXF 均通过 `ezdxf` 的 `audit()`（0 error），图形全部落在 A4 图框内。
+- `build.py` / `verify.py` / `sheet.py` 已在 FreeCAD 0.21.2 下跑通四类零件：`build.py` 产出 FCStd/STEP/STL/manifest；`verify.py` 体积与包围盒校验通过；`sheet.py` 产出 DXF（含图框、标题栏、三视图、尺寸文字）、`dimensions.json` 与 `manual_review.md`；四类零件都有自动尺寸（轴类按轴类规则标总长与三段直径）。四份 DXF 均通过 `ezdxf` 的 `audit()`（0 error），图形全部落在 A4 图框内。
 
 ## 已知限制
 
 - DXF 导出用 `Part.HLRBRep.Algo` 直接做三视图投影（无头模式下 TechDraw HLR 不运行），再手写 R12 DXF 实体（LINE/CIRCLE/TEXT）；不支持圆弧等其它曲线类型，遇到时会跳过。
 - DXF 为 R12（AC1009），没有 Unicode：文字按 `$DWGCODEPAGE=ANSI_936` 以 cp936 编码写入；直径符号用 AutoCAD 控制码 `%%c`（打开后显示为 ⌀），因为 U+2300 不在 GB2312/936 内。
-- 尺寸值取自投影边匹配或 3D 包围盒/圆柱面回退测量；标注规则只对参数表声明了对应参数的零件生效，未声明的规则直接转人工。`dimensions.json` 中 `status=manual` 的项需人工核对（例如矩形孔阵无节圆、轴类零件的轴向长度）；`stepped-3` 轴因无轴类专用规则，5 项全部转人工，DXF 目前只有图框和三视图、没有尺寸文字。
+- 尺寸值取自投影边匹配或 3D 包围盒/圆柱面回退测量；标注规则按零件族分组（`dim_rules.PART_RULES`），只对参数表声明了对应参数的规则生效，未声明的规则直接转人工。`dimensions.json` 中 `status=manual` 的项需人工核对（例如矩形孔阵无节圆）。轴类零件用独立规则集：总长取轴向包围盒，各段直径取轴向圆柱面（`shaft_length` / `shaft_dia_1..3`），按固定三段设计，少于三段的轴会把多余规则转人工。新增零件族必须在 `PART_RULES` 登记，否则 `sheet.py` 直接报错而不会套用板类规则。
 - `shape.scale()` 在 FreeCAD 0.21 中会使 `edge.Curve` 无法读取，故视图缩放通过对坐标手动乘系数实现。
 - `import2d.py` 的 DWG 路径依赖 `dwg2dxf`，沙箱没有该工具，未实测；多页 PDF 会产出 `model-2.svg` 等文件，`convert.json` 的 `outputs` 会列出全部 SVG。
 - PDF 导出仍走 TechDraw 模板路径，需要 GUI（`xvfb-run`），未在无头环境实测。

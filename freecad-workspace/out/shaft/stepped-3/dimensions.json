@@ -6,49 +6,40 @@
   },
   "dimensions": [
     {
-      "rule": "overall_x",
-      "status": "manual",
+      "rule": "shaft_length",
+      "status": "ok",
+      "edges": [],
+      "value": 130.0,
+      "reason": null,
+      "view": "Front",
+      "created": true
+    },
+    {
+      "rule": "shaft_dia_1",
+      "status": "ok",
       "edges": [],
       "value": 40.0,
-      "reason": "实测 40.000 mm，与参数 L=130.0 不符",
-      "view": "Top",
-      "created": false
-    },
-    {
-      "rule": "overall_y",
-      "status": "manual",
-      "edges": [],
-      "value": null,
-      "reason": "参数表未声明 W，该零件不适用此项",
-      "view": "Top",
-      "created": false
-    },
-    {
-      "rule": "hole_dia",
-      "status": "manual",
-      "edges": [],
-      "value": null,
-      "reason": "参数表未声明 HOLE_D，该零件不适用此项",
-      "view": "Top",
-      "created": false
-    },
-    {
-      "rule": "pitch_dia",
-      "status": "manual",
-      "edges": [],
-      "value": null,
-      "reason": "参数表未声明 BCD，该零件不适用此项",
-      "view": "Top",
-      "created": false
-    },
-    {
-      "rule": "thickness",
-      "status": "manual",
-      "edges": [],
-      "value": null,
-      "reason": "参数表未声明 T，该零件不适用此项",
+      "reason": null,
       "view": "Front",
-      "created": false
+      "created": true
+    },
+    {
+      "rule": "shaft_dia_2",
+      "status": "ok",
+      "edges": [],
+      "value": 30.0,
+      "reason": null,
+      "view": "Front",
+      "created": true
+    },
+    {
+      "rule": "shaft_dia_3",
+      "status": "ok",
+      "edges": [],
+      "value": 20.0,
+      "reason": null,
+      "view": "Front",
+      "created": true
     }
   ],
   "files": [

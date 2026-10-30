@@ -12,13 +12,29 @@ TOLERANCE = 1e-4
 
 RULES = ("overall_x", "overall_y", "hole_dia", "pitch_dia", "thickness")
 
-# 规则 → 投影视图。板类件：俯视图出长宽与孔径，主视图出厚度。
+# 轴类零件沿轴向分段，板类的长宽/孔径规则不适用。
+SHAFT_RULES = ("shaft_length", "shaft_dia_1", "shaft_dia_2", "shaft_dia_3")
+
+# 零件族 → 规则集。新增零件族必须在此登记，否则出图时报错而不是套用板类规则。
+PART_RULES = {
+    "plate": RULES,
+    "flange": RULES,
+    "bracket": RULES,
+    "shaft": SHAFT_RULES,
+}
+
+# 规则 → 投影视图。板类件：俯视图出长宽与孔径，主视图出厚度；轴类件的主视图
+# 把轴线摆成水平，长度与分段直径都标在这里。
 RULE_VIEWS = {
     "overall_x": "Top",
     "overall_y": "Top",
     "hole_dia": "Top",
     "pitch_dia": "Top",
     "thickness": "Front",
+    "shaft_length": "Front",
+    "shaft_dia_1": "Front",
+    "shaft_dia_2": "Front",
+    "shaft_dia_3": "Front",
 }
 
 PARAM_KEYS = {
@@ -27,7 +43,24 @@ PARAM_KEYS = {
     "hole_dia": ("HOLE_D", "BOLT_D"),
     "pitch_dia": ("BCD",),
     "thickness": ("T",),
+    "shaft_length": ("L",),
+    "shaft_dia_1": ("D1",),
+    "shaft_dia_2": ("D2",),
+    "shaft_dia_3": ("D3",),
 }
+
+
+def rules_for(part: str) -> tuple[str, ...]:
+    """返回零件族参与出图的规则集。
+
+    @param part - 参数表的 part 字段。
+    @returns 该零件族的规则元组。
+    @throws ValueError - 零件族未在 PART_RULES 登记。
+    """
+    try:
+        return PART_RULES[part]
+    except KeyError:
+        raise ValueError(f"零件族 {part} 未登记标注规则，请在 dim_rules.PART_RULES 中补充") from None
 
 
 def expected(rule: str, params: dict) -> tuple[str, float] | None:
@@ -55,8 +88,10 @@ def select(rule: str, edges: list[tuple[int, object]], params: dict) -> dict:
     @param params - 参数表数值。
     @returns 含 rule、status（ok / manual）、edges、value、reason 的字典。
     """
-    if rule not in RULES:
+    if rule not in RULES and rule not in SHAFT_RULES:
         raise ValueError(f"未知标注规则：{rule}")
+    if rule in SHAFT_RULES:
+        return _manual(rule, "轴类尺寸由轴的圆柱面与轴向包围盒测量，不引用投影边")
     if rule == "overall_x":
         return _overall(edges, "x", rule, params)
     if rule == "overall_y":
