@@ -128,10 +128,10 @@ freecad-workspace/
 
 | 项 | 约定 |
 |---|---|
-| 入参 | `--params <json>`、`--out <dir>`、`--formats step,stl` |
+| 入参 | `--pass <json>`、`--out <dir>`、`--formats step,stl` |
 | 幂等 | 每次新建文档或清空目标对象，不在旧文档上追加 |
 | 输出 | `out/<part>/<variant>/model.FCStd`、`model.step`、`model.stl`、`manifest.json` |
-| 退出码 | 0 成功；2 参数错误；3 几何无效；4 导出失败 |
+| 退出码 | 0 成功；2 参数错误；3 几何无效；4 导出失败；5 运行环境缺失 |
 | 日志 | `FreeCAD.Console.PrintMessage/PrintError`，同时写 `build.log` |
 | 清单 | `manifest.json` 记录 `App.Version()`、参数哈希、包围盒、体积、时间戳 |
 
@@ -160,7 +160,7 @@ FREECAD=${FREECAD:-FreeCADCmd}
 for p in params/*.json; do
   timeout 300 "$FREECAD" scripts/build.py --pass "$p" || { echo "FAIL $p"; exit 1; }
 done
-timeout 300 "$FREECAD" scripts/validate.py --pass out/ || exit 1
+timeout 300 "$FREECAD" scripts/validate.py --out out/ || exit 1
 ```
 
 ### 4.4 阶段 2 验收

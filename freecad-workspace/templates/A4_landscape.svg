@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A4 横向图框（297 × 210 mm）。字段键与 docs/field-dictionary.md 一致。 -->
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:freecad="http://www.freecadweb.org/wiki/index.php?title=Svg_Namespace"
+     width="297mm" height="210mm" viewBox="0 0 297 210">
+  <g id="frame" fill="none" stroke="#000000" stroke-width="0.70">
+    <rect x="25" y="5" width="267" height="200"/>
+  </g>
+  <g id="titleblock" fill="none" stroke="#000000" stroke-width="0.35">
+    <path d="M112,173 L292,173"/>
+    <path d="M112,173 L112,205"/>
+    <path d="M112,185 L292,185"/>
+    <path d="M112,195 L292,195"/>
+    <path d="M192,185 L192,195"/>
+    <path d="M222,185 L222,195"/>
+    <path d="M257,185 L257,195"/>
+    <path d="M162,195 L162,205"/>
+    <path d="M222,195 L222,205"/>
+  </g>
+  <g id="labels" fill="#000000" font-family="osifont, Noto Sans CJK SC, sans-serif" font-size="2.4">
+    <text x="114" y="177">图名</text>
+    <text x="114" y="188.5">图号</text>
+    <text x="194" y="188.5">比例</text>
+    <text x="224" y="188.5">页码</text>
+    <text x="259" y="188.5">总页</text>
+    <text x="114" y="198.5">制图</text>
+    <text x="164" y="198.5">日期</text>
+    <text x="224" y="198.5">单位</text>
+  </g>
+  <g id="fields" fill="#000000" font-family="osifont, Noto Sans CJK SC, sans-serif">
+    <text x="114" y="183" font-size="5" freecad:editable="FC-Title" freecad:autofill="title">标题</text>
+    <text x="114" y="193.5" font-size="3.5" freecad:editable="FC-DrawingNumber">—</text>
+    <text x="194" y="193.5" font-size="3.5" freecad:editable="FC-Scale" freecad:autofill="scale">—</text>
+    <text x="224" y="193.5" font-size="3.5" freecad:editable="FC-PageNumber" freecad:autofill="page_number">—</text>
+    <text x="259" y="193.5" font-size="3.5" freecad:editable="FC-PageCount" freecad:autofill="page_count">—</text>
+    <text x="114" y="203.5" font-size="3.5" freecad:editable="FC-Author" freecad:autofill="author">—</text>
+    <text x="164" y="203.5" font-size="3.5" freecad:editable="FC-Date" freecad:autofill="date">—</text>
+    <text x="224" y="203.5" font-size="3.5" freecad:editable="FC-Organization" freecad:autofill="organization">—</text>
+  </g>
+</svg>

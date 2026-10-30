@@ -1,0 +1,16 @@
+{
+  "part": "plate",
+  "variant": "100x60",
+  "description": "100×60×8 板，4×2 孔阵，Φ10，外角 R2",
+  "params": {
+    "L": 100.0,
+    "W": 60.0,
+    "T": 8.0,
+    "N_HOLES_X": 4,
+    "N_HOLES_Y": 2,
+    "HOLE_D": 10.0,
+    "EDGE_M": 10.0,
+    "FILLET_R": 2.0
+  },
+  "outputs": ["step", "stl"]
+}
