@@ -1,0 +1,272 @@
+# Agent preset video: one `@deepseek-ai/dsh-agent-preset` declaration inserted
+# after the web patch, carrying the video-production agent composition. A
+# service row here MUST sit inside a group carrying an `isolate` realm: without
+# one it publishes into the root realm, where it is process-global and the
+# registry refuses the mount. Edits saved from the Web editor override this
+# row's `config.plugins` by id from the profile patch.
+- insert:
+    - id: preset-video
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: video
+        name: 视频模式
+        description: 面向短视频、口播解说、歌曲 MV 与视频切片的视频生产 Agent：规格与预算先行，分镜与资产驱动关键帧，逐镜生成图像/视频/配音，用 EDL 经 ffmpeg 合成，交付前做确定性检查并登记成片、字幕、封面与成本。
+        order: 8
+        plugins:
+          # ── identity ────────────────────────────────────────────────────────────────
+
+          # The preset's own persona, shadowing the deployment default for this agent.
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是 AI 视频导演与制片，服务于短视频、口播解说、歌曲 MV 与视频切片创作。工作语言为简体中文（按需求支持英文/双语）。
+
+                ## 身份与边界
+                - 你的专业：把故事或素材变成可交付的成片——脚本、分镜、关键帧、镜头生成、配音、字幕、合成与交付。
+                - 你不做自动发布；成片、字幕、封面与清单交给用户，发布由人决定。
+                - 你不虚构素材来源与授权：BGM、歌曲、切片源视频必须由用户提供并声明授权；拿不出来源就不用。
+
+                ## 作业纪律（违背任意一条即视为失职）
+                1. 规格先行：平台、时长、画幅、分辨率、预算、是否需要字幕与 AI 标识，先确认再写本。
+                2. 资产先行：角色、场景、道具先定妆，跨镜头复用参考图；没有资产方案不开拍。
+                3. 关键帧优先：先出首帧/首尾帧，再图生视频；纯文生视频只作兜底。
+                4. 先估后生成：每次付费生成前用 `media` 的 estimate；预算上限 50 元，单次超过 10 元必须让用户确认；单镜头可重做，旧版本保留。
+                5. 单镜可查：每个镜头写入 `video_project`，记录 prompt、时长、模型、成本与选中片段；成片只从项目与 EDL 生成。
+                6. 机器质检：交付前调用 `video_deliver`，阻断项先修；模型自述不算证据。
+                7. 交付即文件：成片 + 字幕 + 封面 + 清单 + 成本；不把成品全文贴进对话。
+                8. 诚实降级：没有视觉模型时明说“未做画面审阅”；没有 ffmpeg 时明说“无法合成”。
+
+                ## 标准流程
+                brief（平台/时长/画幅/预算/授权）→ 脚本 → 分镜与资产 → 关键帧 → 镜头生成 → 配音与字幕 → `video_assemble` → `video_deliver` → 用户终审。
+
+                ## 工具与技能
+                - `video_project`：项目与镜头清单；`media`：模型/估算/生成/状态/取消；`video_assemble`：EDL 合成；`video_deliver`：交付检查。
+                - 技能：video-brief、video-storyboard、video-generate、video-voice、video-assemble、video-deliver；按需加载。
+                - 口播解说：主播静帧 + B-roll + 配音；不做数字人口型。
+                - 歌曲 MV：歌曲与歌词由用户提供；先定 BPM/偏移，再按节拍切镜。
+                - 视频切片：源视频由用户提供并声明授权；先转写再选段（转写能力尚未接入时明说）。
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+
+          # ── shell ───────────────────────────────────────────────────────────────────
+
+          # `shell-env` stays in the HOST composition: `apps/cli/src/web.ts` injects it to
+          # publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
+          # the criterion for host-plane ownership — injection resolves before any session
+          # exists, so there is no agent to key by. Behind a preset realm those variables
+          # never reached the model's shell at all. Both shell tools consume the host
+          # registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
+          # host-plane too.
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+
+          # ── filesystem ──────────────────────────────────────────────────────────────
+
+          # Both register into the host `tools` registry and provide nothing, so
+          # they need no realm. The `fs` service and its policy stay in the host.
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+
+          # ── background jobs ────────────────────────────────────────────────────────
+
+          # Only the model-facing controls. The task REGISTRY stays on the host plane:
+          # its producers sit outside any realm this file could put it in — `tool-bash`
+          # above resolves it with `ctx.get`, and an entry-local realm here is invisible
+          # to every sibling row, so `run_in_background` would answer "background jobs
+          # unavailable" while these controls sat in the catalog. The registry is keyed by
+          # owning agent anyway, so one host instance serves every session.
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+
+          # Publishing reminders and review windows live on durable schedules. Only the
+          # model-facing schedule tool registers here; the schedule registry stays on the
+          # host plane.
+          - id: tool-schedule
+            name: '@deepseek-ai/dsh-tool-schedule'
+
+          # ── skills ──────────────────────────────────────────────────────────────────
+
+          # The skill REGISTRY lives in the host composition and is layered per scope:
+          # these rows register into THIS preset's layer of it, so they need no realm.
+          # `skill-filesystem` contributes the six video skills through
+          # `customSkillDirs`; the root resolves through the package that ships them —
+          # `@deepseek-ai/dsh-web-app/skills/video` — the way the loader resolves plugin
+          # specifiers, so it follows the installation.
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-web-app/package.json')), 'skills/video')
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+          # ── video production ────────────────────────────────────────────────────────
+
+          # One experimental row provides `ctx.media`, the cloud MiniMax-H3 video
+          # provider, the local ComfyUI provider (Z-Image Turbo keyframes; Wan
+          # 2.2 remains available as `wan2.2-ti2v-5b`), and the four model-facing
+          # tools (`media`, `video_project`, `video_assemble`, `video_deliver`). It
+          # provides a service, so it sits inside an entry-local realm; without one
+          # the registry refuses the mount because the instance would publish into
+          # the process-global root realm. `fakeProvider` stays false so every
+          # artifact comes from a real provider; a synthetic demo sets it true and
+          # selects a `synthetic/*` model id. The MiniMax key comes from the
+          # invoking directory's `.env` or the launch environment, never this file.
+          - id: video-runtime
+            name: cordis:group
+            group: true
+            isolate:
+              media: true
+            config:
+              - id: video-mode
+                name: '@deepseek-ai/dsh-experimental-video-mode'
+                config:
+                  fakeProvider: false
+                  imageModel: z-image-turbo
+                  videoModel: MiniMax-H3
+                  waitMs: 30000
+                  pollMs: 250
+                  maxArtifactBytes: 536870912
+                  ffmpegPath: ffmpeg
+                  ffprobePath: ffprobe
+                  approvalThresholdCny: 10
+                  comfyui:
+                    enabled: true
+                    baseUrl: http://127.0.0.1:8188
+                    pollMs: 2000
+                    timeoutMs: 3600000
+                    video:
+                      resolution: 480p
+                      fps: 24
+                      defaultDurationSec: 5
+                      maxDurationSec: 5
+                    image:
+                      size: 1024
+                  minimax:
+                    enabled: true
+                    apiKey: !!js process.env.MINIMAX_API_KEY ?? ''
+                    baseUrl: https://api.minimax.cn
+                    pollMs: 10000
+                    timeoutMs: 3600000
+                    resolution: 768P
+                    defaultDurationSec: 5
+                    maxDurationSec: 15
+                    aspectRatio: 9:16
+
+          # ── goals ───────────────────────────────────────────────────────────────────
+
+          # The host patch disables its own `command-goal` row and leaves the command to
+          # the preset. The goal SERVICE and its session driver stay on the host plane.
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+
+          # ── plan mode ───────────────────────────────────────────────────────────────
+
+          # Plan state is per-agent by nature, so an entry-local realm is the correct
+          # lifetime. The section carries the video-production planning discipline first
+          # and then the standard plan-mode mechanics.
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    计划正文与计划产物一律使用简体中文；在计划与思考过程中使用简体中文表述。
+
+                    你在计划模式中。面向视频生产：规格（平台/时长/画幅/预算）、脚本与分镜、资产方案、生成与合成方案、交付清单都属于“计划”范畴；获批前不得生成付费媒体或对外成片。先完成：brief → 脚本 → 分镜草案 → 用 exit_plan_mode 提交计划。计划须包含：目标与成功标准、镜头表与时长、资产与一致性方案、模型与成本估算、HITL 确认点、风险与备选方案、验收方式。
+
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual workspace. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where something lives or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group the work into ordered steps; name what each step hands to the next; cover edge cases, failure modes, checks, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another person can carry it out without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+
+          # ── compaction ──────────────────────────────────────────────────────────────
+
+          # `compaction-basic` reads `toolResultPrune` through `ctx.get`, so the pruner must
+          # share this realm rather than sit outside it.
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+
+          # ── delegation and workflows ────────────────────────────────────────────────
+
+          # The `subagents` registry and its spawn/fork backends live in the HOST
+          # composition. This preset contributes the delegation TOOLS, which resolve
+          # that host registry.
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  modelSelection: true
+                  modelDiscovery: true
+              - id: tool-subagent-fork
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: fork
+                  toolName: subagent_fork
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000

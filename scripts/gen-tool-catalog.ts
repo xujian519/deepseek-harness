@@ -89,6 +89,7 @@ import * as MacosTools from '@deepseek-ai/dsh-macos-tools'
 import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
 import * as Methodology from '@deepseek-ai/dsh-methodology'
 import * as DocumentDeliver from '@deepseek-ai/dsh-document-deliver'
+import VideoMode from '@deepseek-ai/dsh-experimental-video-mode'
 import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
 import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
 import * as PatentDeadline from '@deepseek-ai/dsh-patent-deadline'
@@ -747,6 +748,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-video-mode',
+    dir: 'video-mode',
+    source: 'packages/experimental/video-mode/src/media.ts',
+    requires: ['ctx.tools', 'ctx.fs', 'ctx.subprocess'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The synthetic provider settles without a network; fs and subprocess are
+      // present so the tool registration injected by the service activates.
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(VideoMode, { fakeProvider: true })
+    },
+    note:
+      'The media tool selects an image, video, or speech model through the provider seam and writes the artifact through ctx.fs; video_project owns the durable project document; video_assemble renders an EDL through ffmpeg; video_deliver checks the declared files and refuses incomplete or over-budget work. The synthetic provider makes the whole flow runnable without credentials; the local ComfyUI provider adds Wan 2.2 video and Z-Image images, and the cloud MiniMax-H3 provider adds per-second video generation.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-tools',
