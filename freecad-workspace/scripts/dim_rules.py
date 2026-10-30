@@ -22,12 +22,29 @@ RULE_VIEWS = {
 }
 
 PARAM_KEYS = {
-    "overall_x": "L",
-    "overall_y": "W",
-    "hole_dia": "HOLE_D",
-    "pitch_dia": "BCD",
-    "thickness": "T",
+    "overall_x": ("L", "OD"),
+    "overall_y": ("W", "OD"),
+    "hole_dia": ("HOLE_D", "BOLT_D"),
+    "pitch_dia": ("BCD",),
+    "thickness": ("T",),
 }
+
+
+def expected(rule: str, params: dict) -> tuple[str, float] | None:
+    """返回该规则在参数表中声明的键与值。
+
+    规则只对参数表声明的零件生效；缺少对应参数说明该尺寸不适用于此零件
+    （例如轴没有 `T`，法兰用 `OD` 而不是 `L`）。
+
+    @param rule - RULES 之一。
+    @param params - 参数表数值。
+    @returns (键名, 数值)，或未声明时返回 None。
+    """
+    for key in PARAM_KEYS.get(rule, ()):
+        value = params.get(key)
+        if value is not None:
+            return key, float(value)
+    return None
 
 
 def select(rule: str, edges: list[tuple[int, object]], params: dict) -> dict:
@@ -63,6 +80,11 @@ def _manual(rule: str, reason: str, edges: list[int] | None = None) -> dict:
 
 def _overall(edges: list[tuple[int, object]], axis: str, rule: str, params: dict) -> dict:
     """取沿指定轴跨度最大、且另一轴无偏移的边。"""
+    declared = expected(rule, params)
+    if declared is None:
+        return _manual(rule, f"参数表未声明 {PARAM_KEYS[rule][0]}，该零件不适用此项")
+    key, expected_value = declared
+
     best: tuple[float, int] | None = None
     for number, edge in edges:
         points = _endpoints(edge)
@@ -80,19 +102,24 @@ def _overall(edges: list[tuple[int, object]], axis: str, rule: str, params: dict
     if best is None:
         return _manual(rule, f"投影中找不到沿 {axis} 轴的直线边")
     value = best[0]
-    expected = params.get(PARAM_KEYS[rule])
-    if expected is not None and abs(value - float(expected)) > TOLERANCE:
-        return _manual(rule, f"边长为 {value:.3f} mm，与参数 {PARAM_KEYS[rule]}={expected} 不符", [best[1]])
+    if abs(value - expected_value) > TOLERANCE:
+        return _manual(rule, f"边长为 {value:.3f} mm，与参数 {key}={expected_value} 不符", [best[1]])
     return {"rule": rule, "status": "ok", "edges": [best[1]], "value": value, "reason": None}
 
 
 def _hole_diameter(edges: list[tuple[int, object]], params: dict) -> dict:
-    """取半径等于 HOLE_D/2 的圆边，返回首个引用与匹配数量。"""
-    expected = params.get("HOLE_D")
-    if expected is None:
-        return _manual("hole_dia", "参数表缺少 HOLE_D")
-    radius = float(expected) / 2
+    """取半径等于 HOLE_D/2 的圆边，返回首个引用与孔数。
+
+    一个孔在 HLR 里常被拆成两条半圆弧，因此孔数按圆心去重计数，
+    而不是按匹配到的边数。
+    """
+    declared = expected("hole_dia", params)
+    if declared is None:
+        return _manual("hole_dia", "参数表未声明 HOLE_D / BOLT_D，该零件无孔")
+    key, diameter = declared
+    radius = diameter / 2
     matches: list[int] = []
+    centers: list[tuple[float, float]] = []
     for number, edge in edges:
         curve = getattr(edge, "Curve", None)
         actual = getattr(curve, "Radius", None)
@@ -100,6 +127,12 @@ def _hole_diameter(edges: list[tuple[int, object]], params: dict) -> dict:
             continue
         if abs(float(actual) - radius) <= TOLERANCE:
             matches.append(number)
+            center = circle_center(edge)
+            if center is not None and all(
+                math.hypot(center[0] - cx, center[1] - cy) > TOLERANCE
+                for cx, cy in centers
+            ):
+                centers.append(center)
 
     if not matches:
         return _manual("hole_dia", f"投影中找不到半径 {radius:.2f} mm 的圆边")
@@ -107,14 +140,19 @@ def _hole_diameter(edges: list[tuple[int, object]], params: dict) -> dict:
         "rule": "hole_dia",
         "status": "ok",
         "edges": [matches[0]],
-        "value": float(expected),
-        "quantity": len(matches),
+        "value": diameter,
+        "quantity": len(centers) if centers else len(matches),
         "reason": None,
     }
 
 
 def _thickness(edges: list[tuple[int, object]], params: dict) -> dict:
     """取最短的一对平行水平边，作为板厚。"""
+    declared = expected("thickness", params)
+    if declared is None:
+        return _manual("thickness", "参数表未声明 T，该零件不适用板厚")
+    key, expected_value = declared
+
     horizontals: list[tuple[int, float, float]] = []
     for number, edge in edges:
         points = _endpoints(edge)
@@ -141,11 +179,10 @@ def _thickness(edges: list[tuple[int, object]], params: dict) -> dict:
     if best is None:
         return _manual("thickness", "水平边之间没有非零距离")
 
-    expected = params.get("T")
-    if expected is not None and abs(best[0] - float(expected)) > TOLERANCE:
+    if abs(best[0] - expected_value) > TOLERANCE:
         return _manual(
             "thickness",
-            f"最短平行边间距 {best[0]:.3f} mm，与参数 T={expected} 不符",
+            f"最短平行边间距 {best[0]:.3f} mm，与参数 {key}={expected_value} 不符",
             [best[1], best[2]],
         )
     return {
@@ -191,6 +228,10 @@ def _pitch_diameter(edges: list[tuple[int, object]], params: dict) -> dict:
         if center is not None:
             circles.append((number, center))
 
+    declared = expected("pitch_dia", params)
+    if declared is None:
+        return _manual("pitch_dia", "参数表未声明 BCD，该零件无节圆")
+
     if len(circles) < 2:
         return _manual("pitch_dia", f"投影中只有 {len(circles)} 个圆，无法确定节圆")
 
@@ -211,11 +252,11 @@ def _pitch_diameter(edges: list[tuple[int, object]], params: dict) -> dict:
         )
 
     pitch_dia = 2 * avg_radius
-    expected = params.get("BCD")
-    if expected is not None and abs(pitch_dia - float(expected)) > TOLERANCE:
+    key, expected_value = declared
+    if abs(pitch_dia - expected_value) > TOLERANCE:
         return _manual(
             "pitch_dia",
-            f"节圆直径 {pitch_dia:.3f} mm，与参数 BCD={expected} 不符",
+            f"节圆直径 {pitch_dia:.3f} mm，与参数 {key}={expected_value} 不符",
             [c[0] for c in circles],
         )
 

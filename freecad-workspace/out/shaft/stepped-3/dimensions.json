@@ -9,26 +9,26 @@
       "rule": "overall_x",
       "status": "manual",
       "edges": [],
-      "value": null,
-      "reason": "投影中找不到沿 x 轴的直线边",
+      "value": 40.0,
+      "reason": "实测 40.000 mm，与参数 L=130.0 不符",
       "view": "Top",
       "created": false
     },
     {
       "rule": "overall_y",
-      "status": "ok",
+      "status": "manual",
       "edges": [],
-      "value": 40.0,
-      "reason": null,
+      "value": null,
+      "reason": "参数表未声明 W，该零件不适用此项",
       "view": "Top",
-      "created": true
+      "created": false
     },
     {
       "rule": "hole_dia",
       "status": "manual",
       "edges": [],
       "value": null,
-      "reason": "参数表缺少 HOLE_D",
+      "reason": "参数表未声明 HOLE_D，该零件不适用此项",
       "view": "Top",
       "created": false
     },
@@ -37,21 +37,18 @@
       "status": "manual",
       "edges": [],
       "value": null,
-      "reason": "所有圆心重合，无法确定节圆",
+      "reason": "参数表未声明 BCD，该零件不适用此项",
       "view": "Top",
       "created": false
     },
     {
       "rule": "thickness",
-      "status": "ok",
-      "edges": [
-        8,
-        13
-      ],
-      "value": 30.0,
-      "reason": null,
+      "status": "manual",
+      "edges": [],
+      "value": null,
+      "reason": "参数表未声明 T，该零件不适用此项",
       "view": "Front",
-      "created": true
+      "created": false
     }
   ],
   "files": [

@@ -77,10 +77,8 @@ def main(argv: list[str] | None = None) -> int:
     # 用投影边匹配标注规则，匹配失败时回退到 3D 几何测量。
     try:
         results = _place_dimensions(projections, spec["params"], model.Shape)
-    except BaseException as exc:
-        import traceback
-        traceback.print_exc()
-        return _fail(EXIT_GEOMETRY, f"标注失败：{type(exc).__name__}：{exc}")
+    except Exception as error:
+        return _fail(EXIT_GEOMETRY, f"标注失败：{type(error).__name__}：{error}")
 
     files: list[str] = []
     dxf_path = out_dir / "model.dxf"
@@ -230,10 +228,11 @@ def _place_dimensions(projections: dict, params: dict, shape=None) -> list[dict]
 
         edges = _visible_edges(projection)
         result = dim_rules.select(rule, edges, params)
-        # 投影边匹配失败时，回退到 3D 几何测量取值。
+        # 投影边匹配失败时回退到 3D 测量；测量给出的原因更具体（参数未声明、
+        # 实测值与参数不符等），因此只要它有结论就采用。
         if result["status"] != "ok" and shape is not None:
             measured = _measure_from_shape(rule, shape, params)
-            if measured["status"] == "ok":
+            if measured["status"] == "ok" or measured.get("reason"):
                 result = measured
         result["view"] = view_name
         result["created"] = result["status"] == "ok"
@@ -258,22 +257,32 @@ def _measure_from_shape(rule: str, shape, params: dict) -> dict:
             "reason": "模型无 Shape，无法测量",
         }
 
+    declared = dim_rules.expected(rule, params)
+    if declared is None:
+        return {
+            "rule": rule,
+            "status": "manual",
+            "edges": [],
+            "value": None,
+            "reason": f"参数表未声明 {dim_rules.PARAM_KEYS[rule][0]}，该零件不适用此项",
+        }
+
     bbox = shape.BoundBox
     if rule == "overall_x":
         value = bbox.XLength
-        expected = params.get("L")
-        reason = None if expected is None or abs(value - float(expected)) <= 1e-3 else \
-            f"实测 {value:.3f} mm，与参数 L={expected} 不符"
+        key, expected_value = declared
+        reason = None if abs(value - expected_value) <= 1e-3 else \
+            f"实测 {value:.3f} mm，与参数 {key}={expected_value} 不符"
     elif rule == "overall_y":
         value = bbox.YLength
-        expected = params.get("W")
-        reason = None if expected is None or abs(value - float(expected)) <= 1e-3 else \
-            f"实测 {value:.3f} mm，与参数 W={expected} 不符"
+        key, expected_value = declared
+        reason = None if abs(value - expected_value) <= 1e-3 else \
+            f"实测 {value:.3f} mm，与参数 {key}={expected_value} 不符"
     elif rule == "thickness":
         value = bbox.ZLength
-        expected = params.get("T")
-        reason = None if expected is None or abs(value - float(expected)) <= 1e-3 else \
-            f"实测 {value:.3f} mm，与参数 T={expected} 不符"
+        key, expected_value = declared
+        reason = None if abs(value - expected_value) <= 1e-3 else \
+            f"实测 {value:.3f} mm，与参数 {key}={expected_value} 不符"
     elif rule == "hole_dia":
         value = _hole_diameter_from_shape(shape, params)
         reason = None if value is not None else "未找到匹配孔径的圆柱面"
@@ -287,13 +296,18 @@ def _measure_from_shape(rule: str, shape, params: dict) -> dict:
     else:
         return {"rule": rule, "status": "manual", "edges": [], "value": None, "reason": f"未知规则 {rule}"}
 
-    return {
+    result = {
         "rule": rule,
         "status": "ok" if reason is None else "manual",
         "edges": [],
         "value": round(value, 4),
         "reason": reason,
     }
+    if rule in ("hole_dia", "pitch_dia"):
+        count = len(_matching_centers(shape, params))
+        if count > 1:
+            result["quantity"] = count
+    return result
 
 
 def _cylindrical_faces(shape) -> list:
@@ -344,6 +358,30 @@ def _hole_diameter_from_shape(shape, params: dict) -> float | None:
     return None
 
 
+def _matching_centers(shape, params: dict) -> list[tuple[float, float]]:
+    """返回匹配孔径的圆柱面圆心，按 XY 去重。
+
+    通孔在布尔切割后常产生两个半圆柱面，同一孔的圆心会重复出现。
+
+    @param shape - Part.Shape 实体。
+    @param params - 参数表数值。
+    @returns 去重后的孔心坐标列表。
+    """
+    import math
+
+    radius = _hole_radius_param(params)
+    if radius is None:
+        return []
+    centers: list[tuple[float, float]] = []
+    for cyl in _cylindrical_faces(shape):
+        if abs(cyl["radius"] - radius) > 1e-3:
+            continue
+        point = (float(cyl["center"].x), float(cyl["center"].y))
+        if all(math.hypot(point[0] - cx, point[1] - cy) > 1e-3 for cx, cy in centers):
+            centers.append(point)
+    return centers
+
+
 def _pitch_diameter_from_shape(shape, params: dict) -> float | None:
     """从孔阵圆柱面测量节圆直径。
 
@@ -352,31 +390,9 @@ def _pitch_diameter_from_shape(shape, params: dict) -> float | None:
     """
     import math
 
-    radius = _hole_radius_param(params)
-    if radius is None:
-        return None
-    expected_count = _hole_count_param(params)
-
-    centers = []
-    for cyl in _cylindrical_faces(shape):
-        if abs(cyl["radius"] - radius) <= 1e-3:
-            centers.append((float(cyl["center"].x), float(cyl["center"].y)))
-
+    centers = _matching_centers(shape, params)
     if len(centers) < 2:
         return None
-
-    # 通孔在布尔切割后可能产生两个半圆柱面，按圆心去重。
-    unique: list[tuple[float, float]] = []
-    for cx, cy in centers:
-        if all(math.hypot(cx - ux, cy - uy) > 1e-3 for ux, uy in unique):
-            unique.append((cx, cy))
-    centers = unique
-
-    if len(centers) < 2:
-        return None
-    if expected_count > 0 and len(centers) != expected_count:
-        # 孔数不符时仍尝试计算，由后续共圆判断决定取舍。
-        pass
 
     center_x = sum(c[0] for c in centers) / len(centers)
     center_y = sum(c[1] for c in centers) / len(centers)
@@ -454,9 +470,18 @@ def _export_dxf(
     # 视图布局：俯视图左上，主视图在俯视图下方，左视图在主视图右侧。
     positions = _layout_views(projections, inner_w, inner_h, margin)
     for name, (x, y, scale) in positions.items():
+        # 把视图包围盒左下角对齐到槽位原点，避免原点不在几何内部时越出图框。
+        bbox = projections[name].BoundBox
         # 直接从未缩放形状读取几何，再对坐标施加缩放和平移；
         # FreeCAD 0.21 中 shape.scale() 会使 edge.Curve 无法读取。
-        _collect_shape_geometry(projections[name], lines, circles, scale, x, y)
+        _collect_shape_geometry(
+            projections[name],
+            lines,
+            circles,
+            scale,
+            x - float(bbox.XMin) * scale,
+            y - float(bbox.YMin) * scale,
+        )
 
     # 尺寸标注：在对应视图旁添加文字。
     for result in results:
@@ -514,16 +539,46 @@ def _collect_shape_geometry(
             continue
 
 
+def _unique(items: list, key) -> list:
+    """按 key 去重并保持原有顺序。"""
+    seen = set()
+    result = []
+    for item in items:
+        marker = key(item)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        result.append(item)
+    return result
+
+
 def _write_dxf(
     path: str,
     lines: list[tuple[float, float, float, float]],
     circles: list[tuple[float, float, float]],
     texts: list[tuple[str, float, float, float]],
 ) -> None:
-    """写入最小可用的 R12 DXF 文件，含 HEADER 与 ENTITIES 段。"""
+    """写入最小可用的 R12 DXF 文件，含 HEADER 与 ENTITIES 段。
+
+    R12 没有 Unicode，文字按 $DWGCODEPAGE 指定的代码页编码；此处用简体中文
+    代码页 ANSI_936，保证中文标题栏在 AutoCAD/LibreCAD 中正常显示。
+
+    HLR 会把同一段几何拆成多条边（一个孔常被拆成两个半圆弧），这里按坐标
+    去重，避免同一圆被写成两条重叠的 CIRCLE。
+    """
+    def _line_key(item):
+        x1, y1, x2, y2 = item
+        first = (round(x1, 4), round(y1, 4))
+        second = (round(x2, 4), round(y2, 4))
+        return (first, second) if first <= second else (second, first)
+
+    lines = _unique(lines, _line_key)
+    circles = _unique(circles, lambda c: (round(c[0], 4), round(c[1], 4), round(c[2], 4)))
+
     out: list[str] = []
     out += ["0", "SECTION", "2", "HEADER"]
     out += ["9", "$ACADVER", "1", "AC1009"]
+    out += ["9", "$DWGCODEPAGE", "3", "ANSI_936"]
     out += ["9", "$INSUNITS", "70", "4"]
     out += ["0", "ENDSEC"]
     out += ["0", "SECTION", "2", "ENTITIES"]
@@ -543,6 +598,8 @@ def _write_dxf(
         ]
 
     for text, x, y, h in texts:
+        # GB2312/936 不含 U+2300（⌀），统一换成 AutoCAD 控制码。
+        text = text.replace("⌀", "%%c")
         out += [
             "0", "TEXT", "8", "0",
             "10", f"{x:.6f}", "20", f"{y:.6f}", "30", "0.0",
@@ -552,7 +609,7 @@ def _write_dxf(
 
     out += ["0", "ENDSEC", "0", "EOF"]
 
-    with open(path, "w", encoding="utf-8") as handle:
+    with open(path, "w", encoding="cp936") as handle:
         handle.write("\n".join(out) + "\n")
 
 
@@ -597,7 +654,11 @@ def _layout_views(
 
 
 def _dimension_label(result: dict) -> str:
-    """把标注结果转为 DXF 文字。"""
+    """把标注结果转为 DXF 文字。
+
+    直径符号用 AutoCAD 控制码 `%%c`（渲染为 ⌀），因为 U+2300 不在 GB2312/936
+    代码页内，直接写字符会编码失败，而 `%%c` 是纯 ASCII、所有 CAD 都支持。
+    """
     rule = result["rule"]
     value = result.get("value")
     if value is None:
@@ -605,10 +666,24 @@ def _dimension_label(result: dict) -> str:
     if rule == "hole_dia":
         qty = result.get("quantity", 1)
         prefix = f"{qty}×" if qty > 1 else ""
-        return f"{prefix}⌀{value:.1f}"
+        return f"{prefix}%%c{value:.1f}"
     if rule == "pitch_dia":
-        return f"⌀{value:.1f}"
+        return f"%%c{value:.1f}"
     return f"{value:.1f}"
+
+
+def _round_value(item: dict) -> dict:
+    """复制标注结果并把数值保留三位小数，去掉浮点残差。
+
+    例如板厚实测 7.999999999999993，写入 8.0。
+
+    @param item - 单条标注结果。
+    @returns 复制后的结果，数值已四舍五入到 0.001 mm。
+    """
+    entry = dict(item)
+    if isinstance(entry.get("value"), float):
+        entry["value"] = round(entry["value"], 3)
+    return entry
 
 
 def _write_dimensions(
@@ -616,7 +691,7 @@ def _write_dimensions(
 ) -> None:
     payload = {
         "views": {name: getattr(shape, "ShapeType", None) for name, shape in projections.items()},
-        "dimensions": results,
+        "dimensions": [_round_value(item) for item in results],
         "files": files,
     }
     (out_dir / "dimensions.json").write_text(

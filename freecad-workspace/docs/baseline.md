@@ -8,12 +8,13 @@
 
 | 项目 | 结果 |
 |---|---|
-| Python | 3.14.8（仅用于离线检查，不加载 FreeCAD） |
-| `freecadcmd` / `FreeCADCmd` | 未安装 |
+| Python | 3.14.8（仅用于离线检查与 DXF 校验，不加载 FreeCAD） |
+| `freecadcmd` | 0.21.2（R33771），Linux 小写；无 GUI，TechDraw HLR 不可用 |
 | `xvfb-run` | 未安装 |
 | `inkscape` | 未安装 |
+| `ezdxf` | 1.4.3（系统 Python，用于 DXF 解析与 audit） |
 
-结论：沙箱不具备 FreeCAD 运行环境，`build.py` / `validate.py` 的真实执行必须在目标机完成。
+结论：沙箱只有 FreeCAD 0.21.2 控制台，可真实执行 `build.py` / `verify.py` / `sheet.py` 并产出 DXF；PDF 与 TechDraw HLR 路径需在装有 GUI 的目标机（1.1.4）复核。
 
 ## 目标机需要执行的校验
 

@@ -16,11 +16,11 @@
 
 ```
 读需求 → 改参数或脚本 → 运行 build.py → 读 stderr/退出码
-      → 运行 validate.py → 失败则修正 → 通过后交人工评审 diff
+      → 运行 verify.py → 失败则修正 → 通过后交人工评审 diff
 ```
 
-- 改参数后必须先跑 `build.py`，再跑 `validate.py`，最后才允许 `sheet.py`。
-- `validate.py` 不通过时不得进入 `sheet.py`。
+- 改参数后必须先跑 `build.py`，再跑 `verify.py`，最后才允许 `sheet.py`。
+- `verify.py` 不通过时不得进入 `sheet.py`。
 - 任何一步退出码非 0，必须先修再继续，不得跳步。
 
 ## 3. 硬性护栏
@@ -44,7 +44,7 @@
 
 ### 3.4 几何与数值
 
-- 所有改动必须通过 `validate.py` 的体积（0.1% 相对）与包围盒（0.1 mm）断言。
+- 所有改动必须通过 `verify.py` 的体积（0.1% 相对）与包围盒（0.1 mm）断言。
 - 体积为 0 或 `isValid()` 为假的几何不得进入出图阶段。
 - 退出码含义见 `README.md`：0 成功、2 参数、3 几何、4 导出、5 环境缺失。
 
@@ -58,7 +58,7 @@
 4. 导出错误（码 4）：检查上游产物是否存在，必要时重跑 `build.py`。
 5. 环境缺失（码 5）：停止，报告缺少的依赖，不得伪造结果。
 
-自修复成功的判据：`validate.py` 退出码为 0，且 `manifest.json` 的 `checks.volume_pass` 与 `checks.bbox_pass` 均为真。
+自修复成功的判据：`verify.py` 退出码为 0，且 `manifest.json` 的 `checks.volume_pass` 与 `checks.bbox_pass` 均为真。
 
 ## 5. 人工评审门禁
 

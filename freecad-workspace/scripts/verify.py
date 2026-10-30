@@ -1,6 +1,6 @@
 """校验输出目录中的构建产物。
 
-用法：FreeCADCmd scripts/validate.py --out out/plate
+用法：freecadcmd scripts/verify.py --out out/plate/100x60
 """
 
 from __future__ import annotations
