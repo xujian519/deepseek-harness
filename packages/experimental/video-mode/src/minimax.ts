@@ -12,6 +12,17 @@
 import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import {
+  failureCodeFor,
+  isRecord,
+  messageOf,
+  minimaxJsonHeaders,
+  parseJson,
+  rejectionMessage,
+  resolveMiniMaxKey,
+  type MiniMaxFetchLike,
+  type MiniMaxKeyResolver,
+} from './minimax-common.ts'
+import {
   MediaFailure,
   type MediaArtifact,
   type MediaEstimate,
@@ -22,6 +33,8 @@ import {
   type MediaRequest,
   type MediaTask,
 } from './types.ts'
+
+export type { MiniMaxFetchLike } from './minimax-common.ts'
 
 /** Registered provider id of the MiniMax cloud backend. */
 export const MINIMAX_PROVIDER_ID = 'minimax'
@@ -34,9 +47,6 @@ export const MINIMAX_ASPECT_RATIOS = ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16
 
 /** Resolution labels MiniMax-H3 accepts. */
 export type MiniMaxResolution = '768P' | '2K'
-
-/** Minimal fetch surface the provider needs; tests inject a stub. */
-export type MiniMaxFetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 /** Published MiniMax-H3 price in fen per generated second. */
 const PRICE_PER_SECOND_MINOR: Readonly<Record<MiniMaxResolution, number>> = {
@@ -53,10 +63,18 @@ const MAX_IMAGE_BYTES = 30 * 1024 * 1024
 const MAX_IMAGES = 9
 const MAX_PROMPT_CHARS = 7000
 
+/** Transport ceiling for one request body, including base64 image payloads. */
+const MAX_REQUEST_BYTES = 64 * 1024 * 1024
+
+/** Upper bound on a best-effort cancellation request. */
+const CANCEL_TIMEOUT_MS = 10_000
+
 /** Video settings after defaults. */
 export interface MiniMaxSettings {
-  /** Bearer API key; empty is rejected during resolution. */
+  /** Direct bearer API key; empty when the deployment names a credential ref instead. */
   readonly apiKey: string
+  /** Credential reference resolved per request through `ctx.credentials`. */
+  readonly apiKeyEnv?: string
   /** API origin, for example `https://api.minimax.cn`. */
   readonly baseUrl: string
   /** Minimum gap between two status polls for one task. */
@@ -115,10 +133,12 @@ export class MiniMaxMediaProvider implements MediaProvider {
   /**
    * @param settings - resolved provider settings.
    * @param fetchImpl - fetch implementation; tests inject a stub.
+   * @param resolveApiKey - credential resolver for `apiKeyEnv`; omitted reads the process environment.
    */
   constructor(
     private readonly settings: MiniMaxSettings,
     private readonly fetchImpl: MiniMaxFetchLike = fetch,
+    private readonly resolveApiKey?: MiniMaxKeyResolver,
   ) {
     this.modelsById = [{
       id: settings.model,
@@ -141,9 +161,14 @@ export class MiniMaxMediaProvider implements MediaProvider {
     return this.modelsById
   }
 
-  /** A key was configured; reachability is proven by the first submission. */
+  /** A key or credential reference was configured; reachability is proven by the first submission. */
   available(): boolean {
-    return true
+    return this.settings.apiKey.length > 0 || this.settings.apiKeyEnv !== undefined
+  }
+
+  /** Explain the missing credential so selection can report a remedy. */
+  unavailableReason(): string | undefined {
+    return this.available() ? undefined : 'set MINIMAX_API_KEY in the environment or name it through minimax.apiKeyEnv'
   }
 
   /**
@@ -190,7 +215,7 @@ export class MiniMaxMediaProvider implements MediaProvider {
     }
     const response = await this.fetchImpl(`${this.settings.baseUrl}/v2/video_generation`, {
       method: 'POST',
-      headers: this.headers(),
+      headers: minimaxJsonHeaders(await this.key()),
       body: JSON.stringify(body),
       signal,
     })
@@ -239,15 +264,17 @@ export class MiniMaxMediaProvider implements MediaProvider {
 
     const response = await this.fetchImpl(
       `${this.settings.baseUrl}/v2/query/video_generation/${encodeURIComponent(pending.remoteId)}`,
-      { headers: this.headers(), signal },
+      { headers: minimaxJsonHeaders(await this.key()), signal },
     )
     const text = await response.text()
     if (!response.ok) {
+      this.pending.delete(task.id)
       return failed(task, `MiniMax status query failed: ${rejectionMessage(text, response.statusText)}`)
     }
     const parsed = parseJson(text)
     const remote = isRecord(parsed) && isRecord(parsed.task) ? parsed.task : undefined
     if (remote === undefined || typeof remote.status !== 'string') {
+      this.pending.delete(task.id)
       return failed(task, 'MiniMax status response has no task status')
     }
     switch (remote.status) {
@@ -264,21 +291,22 @@ export class MiniMaxMediaProvider implements MediaProvider {
       }
       case 'succeeded': {
         const url = isRecord(remote.content) && typeof remote.content.url === 'string' ? remote.content.url : undefined
-        if (url === undefined) return failed(task, 'MiniMax succeeded without a download URL')
+        if (url === undefined) {
+          this.pending.delete(task.id)
+          return failed(task, 'MiniMax succeeded without a download URL')
+        }
         try {
           const artifact = await this.download(url, pending.durationSec, signal)
           this.pending.delete(task.id)
           return { ...task, status: 'succeeded', progress: 1, artifacts: [artifact] }
         } catch (error) {
           this.pending.delete(task.id)
-          return failed(
-            task,
-            error instanceof MediaFailure ? error.message : messageOf(error),
-            error instanceof MediaFailure ? error.code : 'MEDIA_TASK_FAILED',
-          )
+          if (error instanceof MediaFailure) return failed(task, error.message, error.code)
+          return failed(task, messageOf(error))
         }
       }
       default:
+        this.pending.delete(task.id)
         return failed(task, `MiniMax returned unknown task status ${JSON.stringify(remote.status)}`)
     }
   }
@@ -295,7 +323,7 @@ export class MiniMaxMediaProvider implements MediaProvider {
     try {
       await this.fetchImpl(
         `${this.settings.baseUrl}/v2/video_generation/${encodeURIComponent(remoteId)}`,
-        { method: 'DELETE', headers: this.headers() },
+        { method: 'DELETE', headers: minimaxJsonHeaders(await this.key()), signal: AbortSignal.timeout(CANCEL_TIMEOUT_MS) },
       )
     } catch (error) {
       // The task may already be running or deleted; the runtime marks it cancelled regardless.
@@ -303,12 +331,14 @@ export class MiniMaxMediaProvider implements MediaProvider {
     }
   }
 
-  /** Authorization and content headers for every MiniMax call. */
-  private headers(): Record<string, string> {
-    return {
-      authorization: `Bearer ${this.settings.apiKey}`,
-      'content-type': 'application/json',
-    }
+  /**
+   * Resolve the bearer key for one operation through the shared MiniMax
+   * credential path.
+   * @returns the non-empty key.
+   * @throws {@link MediaFailure} `MEDIA_PROVIDER_UNAVAILABLE` when the reference is unset.
+   */
+  private async key(): Promise<string> {
+    return resolveMiniMaxKey(this.settings, this.resolveApiKey)
   }
 
   /**
@@ -328,20 +358,28 @@ export class MiniMaxMediaProvider implements MediaProvider {
     if (references.length > MAX_IMAGES) {
       throw new MediaFailure(`MiniMax accepts at most ${MAX_IMAGES} reference images`, 'MEDIA_REQUEST_INVALID')
     }
-    const frames = references.filter(reference => reference.role === 'first-frame' || reference.role === 'last-frame')
-    const referencesOnly = references.filter(reference => reference.role !== 'first-frame' && reference.role !== 'last-frame')
-    if (frames.length > 0 && referencesOnly.length > 0) {
-      throw new MediaFailure('MiniMax cannot mix first/last frames with reference images in one request', 'MEDIA_REQUEST_INVALID')
-    }
-    if (frames.length > 2) {
+    const firstFrames = references.filter(reference => roleOf(reference) === 'first_frame').length
+    const lastFrames = references.filter(reference => roleOf(reference) === 'last_frame').length
+    if (firstFrames > 1 || lastFrames > 1) {
       throw new MediaFailure('MiniMax accepts at most one first frame and one last frame', 'MEDIA_REQUEST_INVALID')
     }
+    if (firstFrames + lastFrames > 0 && references.some(reference => roleOf(reference) === 'reference_image')) {
+      throw new MediaFailure('MiniMax cannot mix first/last frames with reference images in one request', 'MEDIA_REQUEST_INVALID')
+    }
     const content: ContentItem[] = [{ type: 'text', text: prompt }]
+    let bytes = Buffer.byteLength(prompt, 'utf8')
     for (const reference of references) {
       if (reference.kind !== 'image') {
         throw new MediaFailure(`MiniMax image references must be images, not ${reference.kind}`, 'MEDIA_REQUEST_INVALID')
       }
       const url = await imageDataUri(reference)
+      bytes += Buffer.byteLength(url, 'utf8')
+      if (bytes > MAX_REQUEST_BYTES) {
+        throw new MediaFailure(
+          `MiniMax requests are capped at ${MAX_REQUEST_BYTES} bytes including base64 images; split the request`,
+          'MEDIA_REQUEST_INVALID',
+        )
+      }
       content.push({ type: 'image_url', image_url: { url }, role: roleOf(reference) })
     }
     return content
@@ -375,9 +413,10 @@ export class MiniMaxMediaProvider implements MediaProvider {
    * @throws {@link MediaFailure} for a label MiniMax-H3 cannot produce.
    */
   private resolutionOf(request: MediaRequest): MiniMaxResolution {
-    const label = (request.resolution ?? this.settings.resolution).toUpperCase()
+    const requested = request.resolution ?? this.settings.resolution
+    const label = requested.toUpperCase()
     if (label === '768P' || label === '2K') return label
-    throw new MediaFailure(`MiniMax-H3 accepts 768P or 2K, not ${JSON.stringify(request.resolution ?? this.settings.resolution)}`, 'MEDIA_REQUEST_INVALID')
+    throw new MediaFailure(`MiniMax-H3 accepts 768P or 2K, not ${JSON.stringify(requested)}`, 'MEDIA_REQUEST_INVALID')
   }
 
   /**
@@ -461,15 +500,9 @@ function remoteIdOf(id: string): string {
  * @returns the MiniMax role.
  */
 function roleOf(reference: MediaReference): 'first_frame' | 'last_frame' | 'reference_image' {
-  switch (reference.role) {
-    case 'last-frame': return 'last_frame'
-    case 'style':
-    case 'character': return 'reference_image'
-    case 'first-frame':
-    case undefined: return 'first_frame'
-    default:
-      throw new MediaFailure(`unsupported reference role ${JSON.stringify(reference.role)}`, 'MEDIA_REQUEST_INVALID')
-  }
+  if (reference.role === 'last-frame') return 'last_frame'
+  if (reference.role === 'style' || reference.role === 'character') return 'reference_image'
+  return 'first_frame'
 }
 
 /**
@@ -517,17 +550,6 @@ function imageMediaTypeOf(path: string): string {
   }
 }
 
-/**
- * Map an HTTP status to a stable media failure code.
- * @param status - HTTP status from the create endpoint.
- * @returns the failure code.
- */
-function failureCodeFor(status: number): 'MEDIA_REQUEST_INVALID' | 'MEDIA_BUDGET_EXCEEDED' | 'MEDIA_TASK_FAILED' {
-  if (status === 400 || status === 422) return 'MEDIA_REQUEST_INVALID'
-  if (status === 402) return 'MEDIA_BUDGET_EXCEEDED'
-  return 'MEDIA_TASK_FAILED'
-}
-
 /** One settled failure record that preserves the task identity. */
 function failed(
   task: MediaTask,
@@ -535,21 +557,6 @@ function failed(
   code: MediaFailure['code'] = 'MEDIA_TASK_FAILED',
 ): MediaTask {
   return { ...task, status: 'failed', error: { code, message } }
-}
-
-/**
- * Read the provider's error message from an OpenAI-style or legacy body.
- * @param text - response text.
- * @param fallback - message used when the body carries none.
- * @returns a human-readable rejection reason.
- */
-function rejectionMessage(text: string, fallback: string): string {
-  const body = parseJson(text)
-  if (isRecord(body)) {
-    if (isRecord(body.error) && typeof body.error.message === 'string') return body.error.message
-    if (isRecord(body.base_resp) && typeof body.base_resp.status_msg === 'string') return body.base_resp.status_msg
-  }
-  return text.trim().length === 0 ? fallback : text.trim()
 }
 
 /**
@@ -561,23 +568,4 @@ function errorMessageOf(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined
   if (typeof value.message === 'string') return value.message
   return undefined
-}
-
-/** Parse JSON without throwing on a non-JSON body. */
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
-  }
-}
-
-/** Narrow a parsed JSON value to an object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/** Read an error message from an unknown thrown value. */
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

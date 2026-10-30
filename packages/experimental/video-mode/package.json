@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-experimental-video-mode",
-  "description": "Experimental video production mode: a media provider seam, deterministic project and EDL contracts, a model-facing generation/assembly/delivery tool set, a synthetic provider for end-to-end runs without credentials, a local ComfyUI provider for Wan video and Z-Image keyframes, and a cloud MiniMax-H3 video provider",
+  "description": "Experimental video production mode: a media provider seam, deterministic project and EDL contracts, a model-facing generation/assembly/delivery tool set, a synthetic provider for end-to-end runs without credentials, a local ComfyUI provider for Wan video and Z-Image keyframes, and cloud MiniMax-H3 video and MiniMax speech providers",
   "version": "0.2.2-alpha.2",
   "publishConfig": {
     "access": "public"
@@ -33,6 +33,7 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-fs": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-subprocess": "workspace:*",
@@ -45,6 +46,7 @@
     "@deepseek-ai/cordis-plugin-loader": "workspace:~",
     "@deepseek-ai/dsh-agent": "workspace:*",
     "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
+    "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-fs": "workspace:*",
     "@deepseek-ai/dsh-fs-local": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",

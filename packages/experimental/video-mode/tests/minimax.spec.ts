@@ -94,8 +94,13 @@ describe('minimax configuration', () => {
     expect(settings.aspectRatio).toBe('9:16')
   })
 
-  it('rejects a missing key, an unsupported resolution, and invalid bounds', () => {
-    expect(() => settingsOf({ apiKey: ' ' })).toThrow(/apiKey/)
+  it('keeps an empty key as unavailable configuration and rejects invalid bounds', () => {
+    const unavailable = new MiniMaxMediaProvider(settingsOf({ apiKey: ' ' }))
+    expect(unavailable.available()).toBe(false)
+    expect(unavailable.unavailableReason()).toContain('MINIMAX_API_KEY')
+    const available = new MiniMaxMediaProvider(settingsOf())
+    expect(available.available()).toBe(true)
+    expect(available.unavailableReason()).toBeUndefined()
     expect(() => settingsOf({ resolution: '480P' })).toThrow(/resolution/)
     expect(() => settingsOf({ defaultDurationSec: 3 })).toThrow(/defaultDurationSec/)
     expect(() => settingsOf({ maxDurationSec: 16 })).toThrow(/maxDurationSec/)
@@ -297,5 +302,337 @@ describe('minimax provider', () => {
     const settled = await provider.poll(submitted, new AbortController().signal)
     expect(settled.status).toBe('failed')
     expect(settled.error?.code).toBe('MEDIA_ARTIFACT_TOO_LARGE')
+  })
+})
+
+describe('minimax edge cases', () => {
+  it('reports non-video requests and unknown model ids', async () => {
+    const provider = new MiniMaxMediaProvider(settingsOf(), recorder(() => json({ task_id: 't' })).fetchImpl)
+    expect(provider.estimate({ kind: 'image', prompt: 'x' })).toEqual({ confidence: 'unknown' })
+    await expect(provider.submit({ kind: 'image', prompt: 'x' }, new AbortController().signal))
+      .rejects.toThrow(/serves video only/)
+    await expect(provider.submit({ kind: 'video', prompt: 'x', model: 'other' }, new AbortController().signal))
+      .rejects.toThrow(/serves no video model/)
+  })
+
+  it('rejects a response without a task id, including non-JSON and array bodies', async () => {
+    for (const body of [new Response('not json', { status: 200 }), new Response('[]', { status: 200 })]) {
+      const provider = new MiniMaxMediaProvider(settingsOf(), recorder(() => body).fetchImpl)
+      await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+        .rejects.toThrow(/without returning a task_id/)
+    }
+  })
+
+  it('maps HTTP rejections to request, budget, and task failures', async () => {
+    const cases: readonly (readonly [number, string, string])[] = [
+      [400, JSON.stringify({ base_resp: { status_msg: 'bad prompt' } }), 'MEDIA_REQUEST_INVALID'],
+      [422, 'plain text rejection', 'MEDIA_REQUEST_INVALID'],
+      [500, '', 'MEDIA_TASK_FAILED'],
+    ]
+    for (const [status, body, code] of cases) {
+      const provider = new MiniMaxMediaProvider(settingsOf(), recorder(() => new Response(body, { status })).fetchImpl)
+      await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+        .rejects.toMatchObject({ code })
+    }
+  })
+
+  it('reports an untracked task and throttles repeated polls', async () => {
+    const provider = new MiniMaxMediaProvider(settingsOf({ pollMs: 100 }), recorder(() => json({ task_id: 't-1' })).fetchImpl)
+    const untracked: MediaTask = { id: 'minimax-missing', provider: 'minimax', model: MINIMAX_VIDEO_MODEL, kind: 'video', status: 'running' }
+    expect((await provider.poll(untracked, new AbortController().signal)).status).toBe('failed')
+
+    let polls = 0
+    const throttled = new MiniMaxMediaProvider(settingsOf({ pollMs: 100 }), recorder((call) => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      polls += 1
+      return json({ task: { id: 't-1', status: 'queued' } })
+    }).fetchImpl)
+    const task = await submitVideo(throttled)
+    expect((await throttled.poll(task, new AbortController().signal)).status).toBe('queued')
+    expect((await throttled.poll({ ...task, status: 'queued' }, new AbortController().signal)).status).toBe('queued')
+    expect(polls).toBe(1)
+  })
+
+  it('settles queued, cancelled, failed, and unknown statuses', async () => {
+    const statuses: readonly (readonly [string, string])[] = [
+      ['queued', 'queued'],
+      ['cancelled', 'cancelled'],
+      ['waiting', 'failed'],
+    ]
+    for (const [remote, expected] of statuses) {
+      const provider = new MiniMaxMediaProvider(settingsOf(), recorder((call) => {
+        if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+        return json({ task: { id: 't-1', status: remote } })
+      }).fetchImpl)
+      const submitted = await submitVideo(provider)
+      await delay(2)
+      expect((await provider.poll(submitted, new AbortController().signal)).status).toBe(expected)
+    }
+
+    const failedProvider = new MiniMaxMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      return json({ task: { id: 't-1', status: 'failed' } })
+    }).fetchImpl)
+    const failed = await failedProvider.poll(await submitVideo(failedProvider), new AbortController().signal)
+    expect(failed.error?.message).toContain('MiniMax reported a failed task')
+  })
+
+  it('fails a succeeded task without a URL and surfaces query failures', async () => {
+    const noUrl = new MiniMaxMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      return json({ task: { id: 't-1', status: 'succeeded', content: {} } })
+    }).fetchImpl)
+    expect((await noUrl.poll(await submitVideo(noUrl), new AbortController().signal)).error?.message)
+      .toContain('without a download URL')
+
+    const malformed = new MiniMaxMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      return json({ task: {} })
+    }).fetchImpl)
+    expect((await malformed.poll(await submitVideo(malformed), new AbortController().signal)).error?.message)
+      .toContain('no task status')
+
+    const rejected = new MiniMaxMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      return json({ error: { message: 'query denied' } }, 403)
+    }).fetchImpl)
+    expect((await rejected.poll(await submitVideo(rejected), new AbortController().signal)).error?.message)
+      .toContain('status query failed')
+  })
+
+  it('fails downloads with an HTTP error, an empty body, and both size caps', async () => {
+    const router = (download: () => Response) => (call: Call): Response => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      if (call.url.includes('/v2/query/')) return json({ task: { id: 't-1', status: 'succeeded', content: { url: 'https://cdn.test/out.mp4' } } })
+      return download()
+    }
+    const run = async (download: () => Response, cap = 1024): Promise<MediaTask> => {
+      const provider = new MiniMaxMediaProvider(
+        resolveMiniMax({ enabled: true, apiKey: 'k', pollMs: 1 }, cap),
+        recorder(router(download)).fetchImpl,
+      )
+      return provider.poll(await submitVideo(provider), new AbortController().signal)
+    }
+    expect((await run(() => new Response('no', { status: 500 }))).error?.code).toBe('MEDIA_TASK_FAILED')
+    expect((await run(() => new Response(new Uint8Array(0)))).error?.code).toBe('MEDIA_ARTIFACT_INVALID')
+    expect((await run(() => new Response(new Uint8Array(8), { headers: { 'content-length': '2048' } }), 10)).error?.code)
+      .toBe('MEDIA_ARTIFACT_TOO_LARGE')
+    expect((await run(() => new Response(new Uint8Array(8)), 4)).error?.code).toBe('MEDIA_ARTIFACT_TOO_LARGE')
+  })
+
+  it('fails a download whose transport throws a non-Error', async () => {
+    const provider = new MiniMaxMediaProvider(settingsOf(), async (url) => {
+      if (url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      if (url.includes('/v2/query/')) return json({ task: { id: 't-1', status: 'succeeded', content: { url: 'https://cdn.test/out.mp4' } } })
+      throw 'socket closed'
+    })
+    const settled = await provider.poll(await submitVideo(provider), new AbortController().signal)
+    expect(settled.error).toEqual({ code: 'MEDIA_TASK_FAILED', message: 'socket closed' })
+  })
+
+  it('cancels an untracked task through its recovered remote id and swallows transport errors', async () => {
+    const calls: string[] = []
+    const provider = new MiniMaxMediaProvider(settingsOf(), async (url, init) => {
+      calls.push(`${init?.method ?? 'GET'} ${url}`)
+      if (url.endsWith('/v2/video_generation')) return json({ task_id: 't-9' })
+      throw 'offline'
+    })
+    const submitted = await submitVideo(provider)
+    await provider.cancel(submitted)
+    await provider.cancel(submitted)
+    expect(calls.filter(call => call.startsWith('DELETE'))).toHaveLength(2)
+    expect(calls.some(call => call.endsWith('/v2/video_generation/t-9'))).toBe(true)
+  })
+
+  it('validates prompt, reference count, roles, and image extensions', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-minimax-images-'))
+    try {
+      const png = join(directory, 'a.png')
+      await writeFile(png, solidPng(1, 1, 1, 1, 1))
+      const provider = new MiniMaxMediaProvider(settingsOf(), recorder(() => json({ task_id: 't-1' })).fetchImpl)
+      const signal = new AbortController().signal
+      await expect(provider.submit({ kind: 'video', prompt: 'x'.repeat(7001) }, signal))
+        .rejects.toThrow(/at most 7000 characters/)
+      await expect(provider.submit({
+        kind: 'video', prompt: 'x',
+        references: Array.from({ length: 10 }, () => ({ kind: 'image' as const, role: 'style' as const, path: png })),
+      }, signal)).rejects.toThrow(/at most 9 reference images/)
+      await expect(provider.submit({
+        kind: 'video', prompt: 'x',
+        references: [
+          { kind: 'image', role: 'first-frame', path: png },
+          { kind: 'image', role: 'first-frame', path: png },
+        ],
+      }, signal)).rejects.toThrow(/at most one first frame/)
+      await expect(provider.submit({
+        kind: 'video', prompt: 'x',
+        references: [{ kind: 'audio', path: png }],
+      }, signal)).rejects.toThrow(/must be images/)
+      await expect(provider.submit({
+        kind: 'video', prompt: 'x',
+        references: [{ kind: 'image', path: join(directory, 'missing.png') }],
+      }, signal)).rejects.toThrow(/cannot read the MiniMax reference image/)
+      await expect(provider.submit({
+        kind: 'video', prompt: 'x',
+        references: [{ kind: 'image', path: join(directory, 'frame.gif') }],
+      }, signal)).rejects.toThrow(/accepts png, jpeg, webp, heic, and heif/)
+
+      const extensions = ['a.jpg', 'a.jpeg', 'a.webp', 'a.heic', 'a.heif']
+      const references = []
+      for (const name of extensions) {
+        const path = join(directory, name)
+        await writeFile(path, 'x')
+        references.push({ kind: 'image' as const, role: 'style' as const, path })
+      }
+      references.push({ kind: 'image' as const, role: 'character' as const, path: png })
+      await expect(provider.submit({ kind: 'video', prompt: 'x', references }, signal)).resolves.toBeDefined()
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an oversized image and an aggregate request above the transport cap', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-minimax-large-'))
+    try {
+      const provider = new MiniMaxMediaProvider(settingsOf(), recorder(() => json({ task_id: 't-1' })).fetchImpl)
+      const signal = new AbortController().signal
+      const oversized = join(directory, 'huge.png')
+      await writeFile(oversized, Buffer.alloc(30 * 1024 * 1024 + 1))
+      await expect(provider.submit({
+        kind: 'video', prompt: 'x',
+        references: [{ kind: 'image', path: oversized }],
+      }, signal)).rejects.toThrow(/capped at 31457280 bytes/)
+
+      const aggregate = join(directory, 'aggregate.png')
+      await writeFile(aggregate, Buffer.alloc(24 * 1024 * 1024))
+      await expect(provider.submit({
+        kind: 'video', prompt: 'x',
+        references: [
+          { kind: 'image', role: 'style', path: aggregate },
+          { kind: 'image', role: 'style', path: aggregate },
+          { kind: 'image', role: 'style', path: aggregate },
+        ],
+      }, signal)).rejects.toThrow(/capped at 67108864 bytes/)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('minimax branch coverage', () => {
+  it('appends a non-empty negative prompt', async () => {
+    const { calls, fetchImpl } = recorder(() => json({ task_id: 't-1' }))
+    const provider = new MiniMaxMediaProvider(settingsOf(), fetchImpl)
+    await provider.submit({
+      kind: 'video', prompt: 'a door', negativePrompt: 'blurry', durationSec: 4, resolution: '2K',
+    }, new AbortController().signal)
+    const body = JSON.parse(calls[0]?.body ?? '{}') as { content?: { text?: string }[] }
+    expect(body.content?.[0]?.text).toBe('a door\n\nAvoid: blurry')
+  })
+
+  it('rejects durations below the minimum, above the maximum, and an unsupported ratio', async () => {
+    const provider = new MiniMaxMediaProvider(settingsOf(), recorder(() => json({ task_id: 't-1' })).fetchImpl)
+    const signal = new AbortController().signal
+    await expect(provider.submit({ kind: 'video', prompt: 'x', durationSec: 3 }, signal))
+      .rejects.toThrow(/durations from 4 to 15/)
+    await expect(provider.submit({ kind: 'video', prompt: 'x', durationSec: 16 }, signal))
+      .rejects.toThrow(/durations from 4 to 15/)
+    await expect(provider.submit({ kind: 'video', prompt: 'x', aspectRatio: '2:1' }, signal))
+      .rejects.toThrow(/text-to-video accepts/)
+  })
+
+  it('maps a last frame reference and rejects a status body without a task object', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-minimax-last-'))
+    try {
+      const frame = join(directory, 'end.png')
+      await writeFile(frame, solidPng(1, 1, 1, 1, 1))
+      const { calls, fetchImpl } = recorder(() => json({ task_id: 't-1' }))
+      const provider = new MiniMaxMediaProvider(settingsOf(), fetchImpl)
+      await provider.submit({
+        kind: 'video', prompt: 'x',
+        references: [{ kind: 'image', role: 'last-frame', path: frame }],
+      }, new AbortController().signal)
+      const body = JSON.parse(calls[0]?.body ?? '{}') as { content?: { role?: string }[] }
+      expect(body.content?.[1]?.role).toBe('last_frame')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+
+    const arrayStatus = new MiniMaxMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      return json([])
+    }).fetchImpl)
+    const task = await submitVideo(arrayStatus)
+    const settled = await arrayStatus.poll(task, new AbortController().signal)
+    expect(settled.error?.message).toContain('no task status')
+  })
+
+  it('reports a failed task whose error object has no message', async () => {
+    const provider = new MiniMaxMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      return json({ task: { id: 't-1', status: 'failed', error: {} } })
+    }).fetchImpl)
+    const settled = await provider.poll(await submitVideo(provider), new AbortController().signal)
+    expect(settled.error?.message).toContain('MiniMax reported a failed task')
+  })
+
+  it('cancels a task id without the provider prefix', async () => {
+    const calls: string[] = []
+    const provider = new MiniMaxMediaProvider(settingsOf(), async (url, init) => {
+      calls.push(`${init?.method ?? 'GET'} ${url}`)
+      return json({ task_id: 'x' })
+    })
+    await provider.cancel({
+      id: 'remote-7', provider: 'minimax', model: MINIMAX_VIDEO_MODEL, kind: 'video', status: 'running',
+    })
+    expect(calls[0]).toBe('DELETE https://api.minimax.cn/v2/video_generation/remote-7')
+  })
+})
+
+describe('minimax rejection fallbacks', () => {
+  it('falls back to the raw body for non-string provider messages', async () => {
+    for (const body of [
+      { error: { message: 7 } },
+      { base_resp: { status_msg: 7 } },
+      { base_resp: 'bad' },
+    ]) {
+      const provider = new MiniMaxMediaProvider(settingsOf(), recorder(() => json(body, 400)).fetchImpl)
+      await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+        .rejects.toMatchObject({ code: 'MEDIA_REQUEST_INVALID' })
+    }
+  })
+})
+
+describe('minimax credential references', () => {
+  it('resolves a named credential per request', async () => {
+    const settings = resolveMiniMax({ enabled: true, apiKeyEnv: 'MINIMAX_API_KEY', pollMs: 1 }, 1024)
+    const authorizations: (string | undefined)[] = []
+    let reads = 0
+    const provider = new MiniMaxMediaProvider(settings, async (url, init) => {
+      authorizations.push(new Headers(init?.headers).get('authorization') ?? undefined)
+      if (url.endsWith('/v2/video_generation')) return json({ task_id: 't-1' })
+      return json({ task: { id: 't-1', status: 'running' } })
+    }, async (ref) => {
+      reads += 1
+      expect(ref).toBe('MINIMAX_API_KEY')
+      return reads === 1 ? 'sk-first' : 'sk-rotated'
+    })
+    const task = await provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    await provider.poll(task, new AbortController().signal)
+    expect(authorizations).toEqual(['Bearer sk-first', 'Bearer sk-rotated'])
+  })
+
+  it('fails loudly when the named credential is unset', async () => {
+    const settings = resolveMiniMax({ enabled: true, apiKeyEnv: 'DSH_MISSING_MINIMAX_KEY', pollMs: 1 }, 1024)
+    const provider = new MiniMaxMediaProvider(settings, recorder(() => json({ task_id: 't' })).fetchImpl)
+    await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+      .rejects.toMatchObject({ code: 'MEDIA_PROVIDER_UNAVAILABLE' })
+  })
+
+  it('rejects a request with neither a direct key nor a reference', async () => {
+    const provider = new MiniMaxMediaProvider(settingsOf({ apiKey: '' }), recorder(() => json({ task_id: 't' })).fetchImpl)
+    expect(provider.available()).toBe(false)
+    await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+      .rejects.toThrow(/set MINIMAX_API_KEY or configure minimax.apiKeyEnv/)
   })
 })

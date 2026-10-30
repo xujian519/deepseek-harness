@@ -173,23 +173,20 @@ export function buildFfmpegArgs(edl: Edl, options: Pick<AssembleOptions, 'subtit
   const filters: string[] = []
   const visualLabels: string[] = []
   let inputIndex = 0
+  const fitted = `scale=${width}:${height}:force_original_aspect_ratio=decrease,`
+    + `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p`
 
   for (const clip of edl.clips) {
     switch (clip.kind) {
       case 'video':
         args.push('-i', clip.source)
         filters.push(
-          `[${inputIndex}:v]trim=start=${clip.inSec ?? 0}:end=${clip.outSec},setpts=PTS-STARTPTS,`
-          + `scale=${width}:${height}:force_original_aspect_ratio=decrease,`
-          + `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p[v${inputIndex}]`,
+          `[${inputIndex}:v]trim=start=${clip.inSec ?? 0}:end=${clip.outSec},setpts=PTS-STARTPTS,${fitted}[v${inputIndex}]`,
         )
         break
       case 'image':
         args.push('-loop', '1', '-t', String(clip.durationSec), '-i', clip.source)
-        filters.push(
-          `[${inputIndex}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,`
-          + `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p[v${inputIndex}]`,
-        )
+        filters.push(`[${inputIndex}:v]${fitted}[v${inputIndex}]`)
         break
       case 'color':
         args.push('-f', 'lavfi', '-t', String(clip.durationSec), '-i', `color=c=0x${clip.color}:s=${width}x${height}:r=${fps}`)
@@ -358,7 +355,35 @@ export function parseProbe(value: unknown): MediaProbe {
 }
 
 /**
- * Assemble one EDL into the declared output file.
+ * Resolve every path the render reads or writes through the Session
+ * filesystem, so ffmpeg receives process paths the policy already approved.
+ * @param ctx - context providing `ctx.fs`.
+ * @param edl - validated EDL.
+ * @param cwd - Session working directory.
+ * @returns the EDL with process paths.
+ */
+async function resolveEdlPaths(ctx: Context, edl: Edl, cwd: string): Promise<Edl> {
+  const resolve = async (path: string): Promise<string> =>
+    ctx.fs.processPath(await ctx.fs.resolve(path, { cwd }))
+  const clips = await Promise.all(edl.clips.map(async (clip) => {
+    if (clip.kind === 'color') return clip
+    return { ...clip, source: await resolve(clip.source) }
+  }))
+  const audio = edl.audio === undefined
+    ? undefined
+    : await Promise.all(edl.audio.map(async clip => ({ ...clip, source: await resolve(clip.source) })))
+  return {
+    ...edl,
+    clips,
+    ...audio === undefined ? {} : { audio },
+    ...edl.subtitles === undefined ? {} : { subtitles: await resolve(edl.subtitles) },
+    output: await resolve(edl.output),
+  }
+}
+
+/**
+ * Assemble one EDL into the declared output file. Every input and the output
+ * resolve through `ctx.fs` before ffmpeg runs.
  * @param ctx - context providing `ctx.subprocess` and `ctx.fs`.
  * @param value - untrusted EDL.
  * @param options - runtime options.
@@ -367,20 +392,20 @@ export function parseProbe(value: unknown): MediaProbe {
  */
 export async function assemble(ctx: Context, value: unknown, options: AssembleOptions): Promise<AssemblyResult> {
   const edl = validateEdl(value)
-  const args = buildFfmpegArgs(edl, options)
+  const resolved = await resolveEdlPaths(ctx, edl, options.cwd)
+  const args = buildFfmpegArgs(resolved, options)
   // ffmpeg creates the file but not its parent directories. Publish an empty
   // placeholder through the filesystem seam first, so the write stays under the
   // same policy and sandbox as every other artifact and the directory exists.
-  const placeholder = await ctx.fs.resolve(edl.output, { cwd: options.cwd })
-  if (await ctx.fs.stat(placeholder, options.signal) === undefined) {
-    await ctx.fs.writeBytes(placeholder, new Uint8Array(0), undefined, options.signal)
+  const target = await ctx.fs.resolve(edl.output, { cwd: options.cwd })
+  if (await ctx.fs.stat(target, options.signal) === undefined) {
+    await ctx.fs.writeBytes(target, new Uint8Array(0), undefined, options.signal)
   }
   const result = await runProcess(ctx, options.ffmpegPath, args, options.cwd, options.signal, 'MEDIA_FFMPEG_MISSING')
   if (result.exitCode !== 0) {
     const diagnostics = result.stderr.trim().split('\n').slice(-12).join('\n')
     throw new MediaFailure(`ffmpeg failed for ${edl.output}: ${diagnostics || `exit ${String(result.exitCode)}`}`, 'MEDIA_ASSEMBLY_FAILED')
   }
-  const target = await ctx.fs.resolve(edl.output, { cwd: options.cwd })
   const info = await ctx.fs.stat(target, options.signal)
   if (info === undefined || info.type !== 'file') {
     throw new MediaFailure(`ffmpeg reported success but ${edl.output} is absent`, 'MEDIA_ASSEMBLY_FAILED')

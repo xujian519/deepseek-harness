@@ -9,6 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import {
   newProject,
+  projectCost,
   projectPathFor,
   readProject,
   recordRender,
@@ -33,14 +34,13 @@ interface ProjectToolValue {
  * @returns a human-readable summary.
  */
 function summarize(project: VideoProject, path: string): string {
-  const cost = project.shots.reduce((sum, shot) => sum + (shot.costCny ?? 0), 0)
+  const cost = projectCost(project)
   const lines = [
     `Project ${project.id} at ${path}: ${project.shots.length} shots, ${project.renders.length} renders, `
     + `${cost.toFixed(2)}/${project.budgetCny.toFixed(2)} CNY, target ${project.targetSeconds}s ${project.aspect}.`,
   ]
   for (const shot of project.shots) {
-    const state = shot.status === 'ready' ? 'ready' : shot.status
-    lines.push(`${String(shot.index).padStart(2, '0')} ${shot.id} [${state}] ${shot.durationSec}s ${shot.prompt.slice(0, 100)}`)
+    lines.push(`${String(shot.index).padStart(2, '0')} ${shot.id} [${shot.status}] ${shot.durationSec}s ${shot.prompt.slice(0, 100)}`)
   }
   return lines.join('\n')
 }
@@ -89,7 +89,7 @@ export function createProjectTool(ctx: Context): ToolDefinition {
       + 'Actions: `init` creates `video/<id>/project.json`; `read` returns it; `upsert_shot` adds or replaces one shot; '
       + '`remove_shot` deletes one; `record_render` appends a finished output. '
       + 'Call `init` once, then `upsert_shot` for every storyboard shot before generating media. '
-      + 'Paths are relative to the project directory.',
+      + 'Every path, including the project file and shot media paths, is relative to the Session working directory.',
     parameters: {
       action: { type: 'string', required: true, enum: ['init', 'read', 'upsert_shot', 'remove_shot', 'record_render'] },
       project_path: { type: 'string', description: 'Project file path. Required for every action except init.' },
@@ -149,10 +149,11 @@ export function createProjectTool(ctx: Context): ToolDefinition {
           })
           const path = projectPathFor(cwd, project.id)
           const target = await writeProject(ctx, path, project, cwd, exec.signal)
+          const resolved = ctx.fs.processPath(target)
           return {
             action: 'init',
-            path: ctx.fs.processPath(target),
-            message: summarize(project, ctx.fs.processPath(target)),
+            path: resolved,
+            message: summarize(project, resolved),
           }
         }
         case 'read': {
@@ -190,8 +191,6 @@ export function createProjectTool(ctx: Context): ToolDefinition {
           await writeProject(ctx, path, updated, cwd, exec.signal)
           return { action: 'record_render', path, message: summarize(updated, path) }
         }
-        default:
-          throw new MediaFailure(`unknown video_project action ${JSON.stringify(args.action)}`, 'MEDIA_PROJECT_INVALID')
       }
     },
   })

@@ -842,6 +842,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Providers prepare local children or execute external tasks; one activation manager owns both lifecycles. The delegation tool selects a backend, control tools deliver local follow-ups, and workflows await activation results.',
   },
   {
+    key: 'media',
+    pkg: 'experimental-video-mode',
+    title: 'Media generation provider seam',
+    mode: 'seam',
+    implementations: ['experimental-video-mode'],
+    consumers: ['experimental-video-mode'],
+    note: 'The Definition, the synthetic/ComfyUI/MiniMax providers, and the model-facing media tools share the experimental package; a deployment provider registers the same interface.',
+  },
+  {
     key: 'speechToText',
     pkg: 'experimental-speech-to-text',
     title: 'Experimental speech recognition providers',

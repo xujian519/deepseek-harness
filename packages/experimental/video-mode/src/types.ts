@@ -158,6 +158,8 @@ export interface MediaProvider {
   models(): readonly MediaModel[]
   /** Cheap local readiness check; must not make network calls. */
   available(): boolean
+  /** Actionable reason {@link available} is false, read when selection rejects the provider. */
+  unavailableReason?(): string | undefined
   /** Estimate cost and duration without side effects. */
   estimate(request: MediaRequest): MediaEstimate
   /** Start one task. A synchronous provider may return `succeeded` immediately. */
@@ -214,9 +216,9 @@ export interface VideoShot {
   readonly durationSec: number
   /** Production state derived from the selected attempt. */
   readonly status: 'draft' | 'ready' | 'generating' | 'failed'
-  /** Selected keyframe path, relative to the project directory. */
+  /** Selected keyframe path, relative to the Session working directory. */
   readonly keyframePath?: string
-  /** Selected clip path, relative to the project directory. */
+  /** Selected clip path, relative to the Session working directory. */
   readonly clipPath?: string
   /** Provider and model of the selected clip. */
   readonly provider?: string
@@ -230,7 +232,7 @@ export interface VideoShot {
 export interface VideoRender {
   /** Render id, unique in the project. */
   readonly id: string
-  /** Output path, relative to the project directory. */
+  /** Output path, relative to the Session working directory. */
   readonly path: string
   /** Measured duration in seconds. */
   readonly durationSec?: number

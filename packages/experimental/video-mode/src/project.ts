@@ -6,6 +6,7 @@
  * @module @deepseek-ai/dsh-experimental-video-mode/project
  */
 
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { z } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
@@ -71,18 +72,23 @@ export interface NewProject {
 }
 
 /**
- * Derive a stable, path-safe project id from a title.
+ * Derive a stable, path-safe project id from a title. Titles with no ASCII
+ * letters or digits (for example a Chinese title) keep a deterministic hash
+ * suffix so the id stays reproducible and satisfies the document schema.
  * @param title - display title.
  * @returns lowercase letters, digits, and hyphens.
  */
 export function slugify(title: string): string {
   const slug = title
     .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/gu, '')
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/[^a-z0-9]+/gu, '-')
     .replace(/^-+|-+$/gu, '')
     .slice(0, 48)
-  return slug.length > 0 ? slug : `video-${Date.now().toString(36)}`
+  if (slug.length > 0) return slug
+  const digest = createHash('sha256').update(title.trim()).digest('hex').slice(0, 8)
+  return `video-${digest}`
 }
 
 /**
@@ -158,7 +164,7 @@ export async function readProject(ctx: Context, path: string, cwd: string, signa
   try {
     parsed = JSON.parse(text)
   } catch (error) {
-    throw new MediaFailure(`video project ${path} is not valid JSON: ${messageOf(error)}`, 'MEDIA_PROJECT_INVALID', { cause: error })
+    throw new MediaFailure(`video project ${path} is not valid JSON: ${String(error)}`, 'MEDIA_PROJECT_INVALID', { cause: error })
   }
   return validateProject(parsed)
 }
@@ -243,13 +249,4 @@ export function projectCost(project: VideoProject): number {
  */
 export function missingShotClips(project: VideoProject): readonly string[] {
   return project.shots.filter(shot => shot.clipPath === undefined).map(shot => shot.id)
-}
-
-/**
- * Read a thrown value's message without assuming an Error.
- * @param error - caught value.
- * @returns a diagnostic string.
- */
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

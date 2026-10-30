@@ -1,5 +1,5 @@
 ---
-description: "Experimental video production mode: a media provider seam, a durable project document, a reproducible EDL rendered by ffmpeg, four model-facing tools, a deterministic synthetic provider, a local ComfyUI provider for Wan 2.2 video and Z-Image images, and a cloud MiniMax-H3 video provider."
+description: "Experimental video production mode: a media provider seam, a durable project document, a reproducible EDL rendered by ffmpeg, four model-facing tools, a deterministic synthetic provider, a local ComfyUI provider for Wan 2.2 video and Z-Image images, and cloud MiniMax-H3 video and speech providers."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package is the first host slice of the video mode. It provides `ctx.media`, a provider registry for image, video, and speech generation, a durable project document under `video/<id>/project.json`, a validated edit decision list (EDL) rendered by ffmpeg, and four model-facing tools: `media`, `video_project`, `video_assemble`, and `video_deliver`. Three providers ship: a deterministic synthetic provider for credential-free runs, a local ComfyUI provider that renders Wan 2.2 TI2V-5B video and Z-Image Turbo images on the operator's machine, and a cloud MiniMax-H3 provider that submits video tasks to the MiniMax API.
+This package is the first host slice of the video mode. It provides `ctx.media`, a provider registry for image, video, and speech generation, a durable project document under `video/<id>/project.json`, a validated edit decision list (EDL) rendered by ffmpeg, and four model-facing tools: `media`, `video_project`, `video_assemble`, and `video_deliver`. Four providers ship: a deterministic synthetic provider for credential-free runs, a local ComfyUI provider that renders Wan 2.2 TI2V-5B video and Z-Image Turbo images on the operator's machine, a cloud MiniMax-H3 provider that submits video tasks to the MiniMax API, and a cloud MiniMax speech provider that synthesizes voiceover through the T2A API.
 
 ## Table of Contents
 
@@ -33,6 +33,7 @@ This package is the first host slice of the video mode. It provides `ctx.media`,
 - **The synthetic provider** — deterministic PNG, WAV, and MP4 fixtures with fixed prices. It is enabled by `fakeProvider: true`.
 - **The ComfyUI provider** — submits an API-format workflow to a local ComfyUI server, polls its history, downloads the produced file, and settles the task with inline bytes. The bundled graphs render Wan 2.2 TI2V-5B video and Z-Image Turbo images; `comfyui.video.workflowPath` and `comfyui.image.workflowPath` accept a deployment's own workflow. Local compute has no per-generation charge, so every estimate reports zero CNY.
 - **The MiniMax provider** — submits one MiniMax-H3 video task to `https://api.minimax.cn/v2/video_generation`, polls `/v2/query/video_generation/<id>`, downloads the settled MP4, and settles with inline bytes. Text, first-frame, last-frame, and reference-image inputs are supported; local image files travel as data URIs. Estimates use the published CNY rates: 0.50 per generated second at 768P and 0.80 at 2K.
+- **The MiniMax speech provider** — sends one synchronous text-to-audio request to `https://api.minimax.cn/v1/t2a_v2` and settles with inline MP3 bytes. It shares the parent `minimax` credential and origin, accepts any system voice per request, and defaults to `speech-2.8-turbo` with the `Chinese (Mandarin)_News_Anchor` voice. One Han character bills as two characters; the published rates are 2.00 CNY per 10,000 characters for `speech-2.8-turbo` and 3.50 for `speech-2.8-hd`.
 
 <a id="use-this-package"></a>
 ## Use this package
@@ -58,6 +59,7 @@ The video preset renders keyframes locally and video in the cloud:
     fakeProvider: false
     imageModel: z-image-turbo
     videoModel: MiniMax-H3
+    speechModel: speech-2.8-turbo
     comfyui:
       enabled: true
       baseUrl: http://127.0.0.1:8188
@@ -65,12 +67,18 @@ The video preset renders keyframes locally and video in the cloud:
         size: 1024
     minimax:
       enabled: true
-      apiKey: !!js process.env.MINIMAX_API_KEY ?? ''
+      apiKeyEnv: MINIMAX_API_KEY
       resolution: 768P
       aspectRatio: 9:16
+      speech:
+        enabled: true
+        model: speech-2.8-turbo
+        voiceId: Chinese (Mandarin)_News_Anchor
 ```
 
-MiniMax prerequisites: a MiniMax API key in the launch environment or the invoking directory's `.env` as `MINIMAX_API_KEY`, and H3 video access on the account or M Plan. A missing key fails at load with `video mode: minimax.apiKey must not be empty`; an unauthorized or unpaid key fails the first submission with the provider's message. MiniMax-H3 accepts 4–15 second clips at 768P or 2K; a first or last frame forces `ratio: adaptive`.
+MiniMax prerequisites: a MiniMax API key stored through the credentials service or exported as `MINIMAX_API_KEY`, and H3 video access on the account or M Plan. The preset names the reference through `minimax.apiKeyEnv`; the provider resolves it on every request, so a rotated key applies without a restart. A missing key leaves the preset usable for ComfyUI work and makes a MiniMax request fail with the remedy to store or export `MINIMAX_API_KEY`; an unauthorized or unpaid key fails the first submission with the provider's message. MiniMax-H3 accepts 4–15 second clips at 768P or 2K; a first or last frame forces `ratio: adaptive`.
+
+The speech provider uses the same key and origin. The account needs text-to-audio access; without it the first speech request fails with the provider's message. Speech requests are synchronous and accept up to 10,000 characters, so a long narration is split by sentence or shot. A missing key reports the same remedy as video, and the preset still boots for image and video work.
 
 ComfyUI prerequisites for keyframes: ComfyUI 0.38 or newer reachable at `comfyui.baseUrl`, with Z-Image Turbo, the `qwen_3_4b` text encoder, and `ae.safetensors` under `models/`. The Wan 2.2 files remain optional for deployments that select `wan2.2-ti2v-5b` explicitly. Any missing file fails at the first submission with ComfyUI's node error, and a wrong file name in the config fails the same way.
 
@@ -79,6 +87,7 @@ ComfyUI prerequisites for keyframes: ComfyUI 0.38 or newer reachable at `comfyui
 | `fakeProvider` | `true` | Mount the synthetic provider. Set false when a real provider is mounted. |
 | `imageModel` | `synthetic/image` | Default image model id. |
 | `videoModel` | `synthetic/video` | Default video model id. |
+| `speechModel` | `synthetic/speech` | Default speech model id; the video preset sets `speech-2.8-turbo`. |
 | `speechModel` | `synthetic/speech` | Default speech model id. |
 | `waitMs` | `30000` | How long `media generate` waits before returning a running task id. |
 | `pollMs` | `250` | Poll interval while waiting. |
@@ -111,7 +120,8 @@ ComfyUI prerequisites for keyframes: ComfyUI 0.38 or newer reachable at `comfyui
 | `comfyui.image.vae` | `ae.safetensors` | VAE under `models/vae`. |
 | `comfyui.image.size` | `1024` | Long side of a generated image. |
 | `minimax.enabled` | `false` | Register the MiniMax cloud video provider. |
-| `minimax.apiKey` | empty | Bearer API key; set from `$MINIMAX_API_KEY`. Empty fails at load. |
+| `minimax.apiKey` | empty | Direct bearer API key for programmatic configuration. |
+| `minimax.apiKeyEnv` | empty | Credential reference resolved through `ctx.credentials` on every request; the shipped preset uses `MINIMAX_API_KEY`. |
 | `minimax.baseUrl` | `https://api.minimax.cn` | MiniMax API origin. |
 | `minimax.pollMs` | `10000` | Minimum gap between two status polls for one task. |
 | `minimax.timeoutMs` | `3600000` | Failure deadline measured from submission. |
@@ -120,6 +130,13 @@ ComfyUI prerequisites for keyframes: ComfyUI 0.38 or newer reachable at `comfyui
 | `minimax.defaultDurationSec` | `5` | Duration used when the request omits one. |
 | `minimax.maxDurationSec` | `15` | Longest accepted request duration. |
 | `minimax.aspectRatio` | `9:16` | Text-to-video ratio when the request omits one. |
+| `minimax.speech.enabled` | `false` | Register the MiniMax speech provider. |
+| `minimax.speech.model` | `speech-2.8-turbo` | Speech model id; `speech-2.8-hd` costs more and renders higher quality. |
+| `minimax.speech.voiceId` | `Chinese (Mandarin)_News_Anchor` | Default system voice; a request may override it. |
+| `minimax.speech.speed` | `1` | Speech speed in `[0.5, 2]`. |
+| `minimax.speech.vol` | `1` | Volume in `(0, 10]`. |
+| `minimax.speech.pitch` | `0` | Pitch offset in `[-12, 12]`. |
+| `minimax.speech.emotion` | empty | Fixed emotion label; empty lets the model infer it. |
 
 A complete shot cycle:
 
@@ -140,7 +157,9 @@ The ComfyUI provider fills the workflow's `{{name}}` placeholders with the promp
 
 The bundled Wan graph runs classifier-free guidance at 1. On Apple MPS the CFG>1 batch corrupts the decoded colors while the composition survives; CFG 1 keeps the frame clean and makes the negative prompt inert. A CUDA deployment can mount its own workflow with CFG 5 through `comfyui.video.workflowPath`.
 
-The MiniMax provider sends a `content` array: one text item, then zero or more `image_url` items. A first-frame or last-frame reference sets `ratio: adaptive`; a text-only request uses the configured ratio. `submit` returns `submitted` with a runtime id prefixed by the remote `task_id`, `poll` reads the query endpoint and throttles to `pollMs`, and a succeeded task downloads `content.url` before the runtime writes it. A negative prompt has no API field, so it is appended to the positive prompt as an `Avoid:` sentence. The provider caps image files at 30 MB, references at nine, and prompts at 7000 characters.
+The MiniMax provider sends a `content` array: one text item, then zero or more `image_url` items. A first-frame or last-frame reference sets `ratio: adaptive`; a text-only request uses the configured ratio. `submit` returns `submitted` with a runtime id prefixed by the remote `task_id`, `poll` reads the query endpoint and throttles to `pollMs`, and a succeeded task downloads `content.url` before the runtime writes it. A negative prompt has no API field, so it is appended to the positive prompt as an `Avoid:` sentence. The provider caps image files at 30 MB, references at nine, prompts at 7000 characters, and one request body at 64 MiB including base64 images.
+
+The MiniMax speech provider posts `text` with `stream: false` and settles in the same call. It decodes `data.audio` from hex, reads `extra_info.audio_length` as milliseconds and `extra_info.usage_characters` as the billed character count, and prices the task from the published per-10,000-character rate. One Han character counts as two billing characters; `billingCharsOf` applies the same rule to an estimate. A business error in `base_resp` maps to a provider-unavailable, budget-exceeded, or task-failed code, and malformed hex fails as an invalid artifact before any bytes reach the workspace.
 
 The project document has a strict schema (`schemaVersion: 1`) with title, aspect, target duration, budget, shots, and renders. `video_project` reads the document, applies one mutation, validates the whole result, and writes it atomically through `ctx.fs.writeText`.
 
@@ -167,11 +186,10 @@ Prefix-stable while the registered tool set and descriptions are unchanged.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-
 - **The cloud provider serves video only** — MiniMax-H3 returns MP4 clips; keyframes still come from ComfyUI or another image provider. `MiniMax-H3-Highspeed`, `MiniMax-H3-Lite`, and `MiniMax-H3-Max` are not selectable because the provider validates the configured model id.
 - **MiniMax bills per generated second** — a 5-second 768P clip costs 2.50 CNY and a 5-second 2K clip costs 4.00 CNY before any image overage. The estimate is exact for the requested duration; the provider does not refund a failed task in the task record.
 - **The ComfyUI workflows take a prompt and one first frame** — `media generate` with `first_frame_path` uploads that image and starts the clip from it; without one the bundled Wan graph starts from noise. First-last-frame conditioning, style references, and character references need a deployment workflow.
-- **No speech provider** — ComfyUI serves image and video here, so the video preset has no text-to-speech. A voiceover needs an external speech provider or recorded audio.
+- **Speech subtitles use estimated timing** — the speech provider returns the audio and its total duration; MiniMax's sentence-level timestamp file is not yet wired into the `media` tool. `video-voice` lays out SRT lines from measured clip durations and marks sentence-split timing as an estimate.
 - **The bundled Wan graph ignores the negative prompt** — it runs CFG 1 because the CFG>1 batch corrupts colors on Apple MPS. A workflow with CFG 5 restores the negative branch on hardware and runtimes that decode it correctly.
 - **Start every local clip from a keyframe** — a keyframe-first clip through `first_frame_path` renders cleanly on MPS; a prompt-only start is experimental and can drift in color and composition. The video-mode persona and `video-generate` skill require the keyframe step.
 - **Local generation time grows with resolution and duration** — an Apple-silicon laptop at 480p takes minutes per clip and longer at 720p; `comfyui.timeoutMs` bounds the wait, and `comfyui.video.resolution` trades quality for turnaround.
@@ -179,7 +197,7 @@ Prefix-stable while the registered tool set and descriptions are unchanged.
 - **No durable task store** — task records are in memory. A provider task survives only while the process does; a restart loses the local record. The next slice adds a storage-domain journal and `ctx.jobs` integration.
 - **No transcript, MV, or clip-cutting pipeline** — the first slice covers generated image/video/speech and ffmpeg assembly. Word-level transcription, beat grids, source-video ingestion, and 9:16 reframing are planned.
 - **No Web studio or video preview** — the mode is usable through chat and headless tool calls. The `conversation.view` studio, `/api/file` Range support, and the sidebar video renderer are the next client slice.
-- **Provider URLs are not downloaded** — an artifact must arrive as bytes. A provider that returns a signed URL must download it before settling.
+- **Providers must download URLs before settling** — the artifact write path accepts bytes only. MiniMax and ComfyUI fetch their own signed output URLs first; a new provider must do the same.
 - **The synthetic MP4 is one second** — a longer EDL using it will hold the last frame or end early; use the synthetic provider for wiring, not for timing tests.
 - **ffmpeg is a host prerequisite** — the assembler fails with `MEDIA_FFMPEG_MISSING` when the executable cannot be resolved. `libass` and a CJK font are required for burned Chinese subtitles.
 - **The budget gate reads recorded shot costs** — `media generate` compares its estimate with `project.budgetCny` minus the selected attempts already recorded by `video_project`; a model that forgets to write a cost back leaves the gate under-counting. A durable ledger that the media runtime appends to is deferred.
@@ -194,5 +212,7 @@ Prefix-stable while the registered tool set and descriptions are unchanged.
 <summary>Working context for maintainers — click to expand</summary>
 
 The package is intentionally one experimental unit for the first slice. The provider seam, project document, and EDL are designed for promotion into separate `media/` and `video/` packages once the real provider set and the Web studio stabilize. Keep the synthetic provider deterministic: tests and keyless snapshots depend on fixed prices and fixed bytes.
+
+`tests/minimax-speech.e2e.ts` drives real T2A requests and spends a few fen per run; it self-skips without `MINIMAX_API_KEY`. Run it with `pnpm run test:e2e packages/experimental/video-mode/tests/minimax-speech.e2e.ts`.
 
 </details>

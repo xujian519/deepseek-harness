@@ -19,6 +19,7 @@ import VideoMode, {
   canvasFor,
   fillWorkflow,
   frameCountFor,
+  loadWorkflow,
   resolveComfyUi,
   shortSideOf,
   solidPng,
@@ -348,5 +349,377 @@ describe('comfyui configuration', () => {
     expect(settled.status).toBe('succeeded')
     expect(polls).toBe(1)
     await ctx.fiber.dispose()
+  })
+})
+
+describe('comfyui workflow files', () => {
+  it('fills nested objects and arrays', () => {
+    const template = {
+      '1': { class_type: 'X', inputs: { nested: { seed: '{{seed}}', list: ['{{prompt}}', 7] } } },
+    }
+    expect(fillWorkflow(template, VALUES)['1']?.inputs.nested).toEqual({ seed: 7, list: ['a cat', 7] })
+  })
+
+  it('loads a valid file and rejects a missing, non-JSON, or malformed workflow', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-comfy-workflow-'))
+    try {
+      const valid = join(directory, 'valid.json')
+      await writeFile(valid, JSON.stringify({ '1': { class_type: 'X', inputs: {} } }))
+      expect(loadWorkflow(valid, {})).toEqual({ '1': { class_type: 'X', inputs: {} } })
+      expect(() => loadWorkflow(join(directory, 'missing.json'), {})).toThrow(/cannot read/)
+      const broken = join(directory, 'broken.json')
+      await writeFile(broken, '{')
+      expect(() => loadWorkflow(broken, {})).toThrow(/is not JSON/)
+      const malformed = join(directory, 'malformed.json')
+      await writeFile(malformed, JSON.stringify({ '1': { inputs: {} } }))
+      expect(() => loadWorkflow(malformed, {})).toThrow(/not an API-format workflow/)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('comfyui request validation', () => {
+  it('estimates video, image, and unsupported kinds', () => {
+    const provider = new ComfyUiMediaProvider(settingsOf())
+    expect(provider.estimate({ kind: 'video', prompt: 'x' }).durationSec).toBe(5)
+    expect(provider.estimate({ kind: 'video', prompt: 'x', durationSec: 99 }).durationSec).toBe(10)
+    expect(provider.estimate({ kind: 'image', prompt: 'x' }).cost?.amountMinor).toBe(0)
+    expect(provider.estimate({ kind: 'speech', prompt: 'x' })).toEqual({ confidence: 'unknown' })
+  })
+
+  it('rejects speech, unknown models, an invalid duration, duplicate frames, and image references', async () => {
+    const provider = new ComfyUiMediaProvider(settingsOf(), recorder(() => json({ prompt_id: 'p' })).fetchImpl)
+    const signal = new AbortController().signal
+    await expect(provider.submit({ kind: 'speech', prompt: 'x' }, signal)).rejects.toThrow(/does not serve speech/)
+    await expect(provider.submit({ kind: 'video', prompt: 'x', model: 'other' }, signal)).rejects.toThrow(/serves no video model/)
+    await expect(provider.submit({ kind: 'video', prompt: 'x', durationSec: 0 }, signal)).rejects.toThrow(/duration must be positive/)
+    await expect(provider.submit({
+      kind: 'video', prompt: 'x',
+      references: [
+        { kind: 'image', role: 'first-frame', path: '/tmp/a.png' },
+        { kind: 'image', role: 'first-frame', path: '/tmp/b.png' },
+      ],
+    }, signal)).rejects.toThrow(/one first-frame reference/)
+    await expect(provider.submit({
+      kind: 'image', prompt: 'x',
+      references: [{ kind: 'image', role: 'first-frame', path: '/tmp/a.png' }],
+    }, signal)).rejects.toThrow(/references to video requests only/)
+  })
+
+  it('renders portrait and square image canvases and rejects an unsupported ratio', async () => {
+    const provider = new ComfyUiMediaProvider(settingsOf(), recorder(() => json({ prompt_id: 'p' })).fetchImpl)
+    const signal = new AbortController().signal
+    await provider.submit({ kind: 'image', prompt: 'x', aspectRatio: '9:16' }, signal)
+    await provider.submit({ kind: 'image', prompt: 'x', aspectRatio: '16:9' }, signal)
+    await provider.submit({ kind: 'image', prompt: 'x', aspectRatio: '1:1' }, signal)
+    await expect(provider.submit({ kind: 'image', prompt: 'x', aspectRatio: '4:3' }, signal)).rejects.toThrow(/Unsupported aspect ratio/)
+  })
+
+  it('reports an upload that cannot be read, rejected, or unnamed, and keeps a subfolder', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-comfy-upload-'))
+    try {
+      const frame = join(directory, 'frame.png')
+      await writeFile(frame, solidPng(2, 2, 1, 1, 1))
+      const submit = (fetchImpl: FetchLike, path = frame) => new ComfyUiMediaProvider(settingsOf(), fetchImpl)
+        .submit({ kind: 'video', prompt: 'x', references: [{ kind: 'image', role: 'first-frame', path }] }, new AbortController().signal)
+
+      await expect(submit(recorder(() => json({})).fetchImpl, join(directory, 'missing.png')))
+        .rejects.toThrow(/cannot read the first-frame image/)
+      await expect(submit(recorder(() => json({}, 500)).fetchImpl)).rejects.toThrow(/rejected the first-frame upload/)
+      await expect(submit(recorder(() => json({})).fetchImpl)).rejects.toThrow(/without returning a file name/)
+
+      const { calls, fetchImpl } = recorder((call) => {
+        if (call.url.endsWith('/upload/image')) return json({ name: 'frame.png', subfolder: 'inputs' })
+        return json({ prompt_id: 'p' })
+      })
+      await submit(fetchImpl)
+      expect(calls[1]?.body).toContain('"image":"inputs/frame.png"')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('comfyui settlement edge cases', () => {
+  /** Submit one task and poll it against a fixed history entry. */
+  async function settleWith(entry: unknown, options: { readonly kind?: 'video' | 'image'; readonly maxArtifactBytes?: number } = {}): Promise<MediaTask> {
+    const kind = options.kind ?? 'video'
+    const provider = new ComfyUiMediaProvider(
+      resolveComfyUi({ enabled: true, pollMs: 1 }, options.maxArtifactBytes ?? 64 * 1024 * 1024),
+      recorder((call) => {
+        if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+        if (call.url.includes('/history/')) return json({ p: entry })
+        if (call.url.includes('/view')) return new Response(MP4, { status: 200 })
+        throw new Error(`unexpected ${call.url}`)
+      }).fetchImpl,
+    )
+    const task = await provider.submit({ kind, prompt: 'x', durationSec: 1 }, new AbortController().signal)
+    return provider.poll(task, new AbortController().signal)
+  }
+
+  it('reports malformed and incomplete history entries', async () => {
+    expect((await settleWith('not a record')).error?.message).toContain('malformed history entry')
+    expect((await settleWith({ status: { status_str: 'error' } })).error?.message).toContain('workflow error')
+    expect((await settleWith({ status: { completed: false } })).status).toBe('running')
+    expect((await settleWith({ status: { completed: true }, outputs: {} })).error?.code).toBe('MEDIA_ARTIFACT_INVALID')
+  })
+
+  it('collects saved files from malformed output nodes', async () => {
+    const settled = await settleWith({
+      status: { completed: true },
+      outputs: {
+        a: 'not a node',
+        b: { images: 'not an array', values: ['not a record', { filename: 7 }] },
+        c: { images: [{ filename: 'clip.mp4' }] },
+      },
+    })
+    expect(settled.status).toBe('succeeded')
+    expect(settled.artifacts?.[0]?.mediaType).toBe('video/mp4')
+  })
+
+  it('maps execution errors, including an empty execution_error payload', async () => {
+    const empty = await settleWith({ status: { status_str: 'error', messages: [['execution_error', { exception_message: '  ' }]] } })
+    expect(empty.error?.message).toContain('workflow error')
+    const noisy = await settleWith({
+      status: {
+        status_str: 'error',
+        messages: ['not an array', ['other', {}], ['execution_error', 'not a record'], ['execution_error', { exception_message: 'engine failed' }]],
+      },
+    })
+    expect(noisy.error?.message).toBe('engine failed')
+  })
+
+  it('downloads every preferred video and image extension with its media type', async () => {
+    const cases: readonly (readonly ['video' | 'image', string, string])[] = [
+      ['video', 'a.mp4', 'video/mp4'],
+      ['video', 'a.webm', 'video/webm'],
+      ['video', 'a.mkv', 'video/x-matroska'],
+      ['image', 'a.png', 'image/png'],
+      ['image', 'a.jpg', 'image/jpeg'],
+      ['image', 'a.jpeg', 'image/jpeg'],
+      ['image', 'a.webp', 'image/webp'],
+    ]
+    for (const [kind, filename, mediaType] of cases) {
+      const settled = await settleWith({
+        status: { completed: true },
+        outputs: { node: { images: [{ filename, subfolder: 'sub', type: 'output' }] } },
+      }, { kind })
+      expect(settled.artifacts?.[0]?.mediaType, filename).toBe(mediaType)
+    }
+  })
+
+  it('fails a download with an HTTP error and both size caps', async () => {
+    const provider = (view: () => Response, cap = 1024): ComfyUiMediaProvider => new ComfyUiMediaProvider(
+      resolveComfyUi({ enabled: true, pollMs: 1 }, cap),
+      recorder((call) => {
+        if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+        if (call.url.includes('/history/')) {
+          return json({ p: { status: { completed: true }, outputs: { node: { images: [{ filename: 'a.mp4' }] } } } })
+        }
+        return view()
+      }).fetchImpl,
+    )
+    const run = async (view: () => Response, cap?: number): Promise<MediaTask> => {
+      const instance = provider(view, cap)
+      return instance.poll(await instance.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal), new AbortController().signal)
+    }
+    expect((await run(() => new Response('no', { status: 500 }))).error?.code).toBe('MEDIA_ARTIFACT_INVALID')
+    expect((await run(() => new Response(new Uint8Array(4), { headers: { 'content-length': '2048' } }), 10)).error?.code)
+      .toBe('MEDIA_ARTIFACT_TOO_LARGE')
+    expect((await run(() => new Response(new Uint8Array(8)), 4)).error?.code).toBe('MEDIA_ARTIFACT_TOO_LARGE')
+  })
+
+  it('fails a download whose body stream throws a non-Error', async () => {
+    const provider = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      if (call.url.includes('/history/')) {
+        return json({ p: { status: { completed: true }, outputs: { node: { images: [{ filename: 'a.mp4' }] } } } })
+      }
+      return new Response(new ReadableStream({
+        start(controller) { controller.error('stream broken') },
+      }))
+    }).fetchImpl)
+    const task = await provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    const settled = await provider.poll(task, new AbortController().signal)
+    expect(settled.error).toEqual({ code: 'MEDIA_TASK_FAILED', message: 'stream broken' })
+  })
+})
+
+describe('comfyui transport failures', () => {
+  it('reports queue shapes that do not name the prompt', async () => {
+    const shapes: readonly unknown[] = [
+      'not a record',
+      { queue_running: 'bad', queue_pending: 'bad' },
+      { queue_running: ['bad'], queue_pending: [] },
+      { queue_running: [], queue_pending: ['bad'] },
+    ]
+    for (const queue of shapes) {
+      const provider = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+        if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+        if (call.url.includes('/history/')) return json({})
+        return json(queue)
+      }).fetchImpl)
+      const task = await provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+      expect((await provider.poll(task, new AbortController().signal)).error?.message).toContain('no longer reports')
+    }
+  })
+
+  it('returns queued and running states from the queue', async () => {
+    for (const [queue, expected] of [
+      [{ queue_running: [], queue_pending: [['1', 'p']] }, 'queued'],
+      [{ queue_running: [['1', 'p']], queue_pending: [] }, 'running'],
+    ] as const) {
+      const provider = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+        if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+        if (call.url.includes('/history/')) return json({})
+        return json(queue)
+      }).fetchImpl)
+      const task = await provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+      expect((await provider.poll(task, new AbortController().signal)).status).toBe(expected)
+    }
+  })
+
+  it('reports non-success and invalid JSON from a status read', async () => {
+    const rejected = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      return json({}, 500)
+    }).fetchImpl)
+    const first = await rejected.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    await expect(rejected.poll(first, new AbortController().signal)).rejects.toThrow(/returned HTTP 500/)
+
+    const invalid = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      return new Response('not json', { status: 200 })
+    }).fetchImpl)
+    const second = await invalid.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    await expect(invalid.poll(second, new AbortController().signal)).rejects.toThrow(/returned invalid JSON/)
+  })
+
+  it('reports rejected prompt bodies by every diagnostic shape', async () => {
+    const bodies: readonly unknown[] = [
+      null,
+      {},
+      { error: { message: 'bad graph' } },
+      { node_errors: { '3': { errors: [{ message: 'missing model' }] }, '4': 'bad' } },
+      { node_errors: { '5': { errors: 'bad' } } },
+    ]
+    for (const body of bodies) {
+      const provider = new ComfyUiMediaProvider(settingsOf(), recorder(() => json(body, 400)).fetchImpl)
+      await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)).rejects.toThrow(/rejected the video workflow/)
+    }
+  })
+
+  it('rejects a success body without a prompt id and a task id without the provider prefix', async () => {
+    const provider = new ComfyUiMediaProvider(settingsOf(), recorder(() => new Response('', { status: 200 })).fetchImpl)
+    await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+      .rejects.toThrow(/without returning a prompt id/)
+
+    const plain = await provider.poll(
+      { id: 'plain', provider: 'comfyui', model: COMFYUI_VIDEO_MODEL, kind: 'video', status: 'running' },
+      new AbortController().signal,
+    )
+    expect(plain.error?.message).toContain('not tracked')
+  })
+
+  it('swallows cancellation transport failures', async () => {
+    const provider = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      throw new Error('offline')
+    }).fetchImpl)
+    const task = await provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    await expect(provider.cancel(task)).resolves.toBeUndefined()
+  })
+})
+
+describe('comfyui remaining branches', () => {
+  it('wires a first frame into a workflow without numeric node ids', () => {
+    const attached = attachStartImage({ latent: { class_type: 'Wan22ImageToVideoLatent', inputs: {} } }, 'a.png')
+    expect(attached['1']?.class_type).toBe('LoadImage')
+  })
+
+  it('throttles a repeated history poll', async () => {
+    let polls = 0
+    const provider = new ComfyUiMediaProvider(settingsOf({ pollMs: 100 }), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      if (call.url.includes('/history/')) {
+        polls += 1
+        return json({})
+      }
+      return json({ queue_running: [['1', 'p']], queue_pending: [] })
+    }).fetchImpl)
+    const task = await provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    const running = await provider.poll(task, new AbortController().signal)
+    expect(running.status).toBe('running')
+    expect((await provider.poll(running, new AbortController().signal)).status).toBe('running')
+    expect(polls).toBe(1)
+  })
+
+  it('handles non-object history and a missing status field', async () => {
+    const arrayHistory = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      if (call.url.includes('/history/')) return json([])
+      return json({ queue_running: [], queue_pending: [] })
+    }).fetchImpl)
+    const first = await arrayHistory.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    expect((await arrayHistory.poll(first, new AbortController().signal)).error?.message).toContain('no longer reports')
+
+    const noStatus = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      return json({ p: { completed: true, outputs: { node: { images: [{ filename: 'a.mp4' }] } } } })
+    }).fetchImpl)
+    const second = await noStatus.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    expect((await noStatus.poll(second, new AbortController().signal)).status).toBe('running')
+  })
+
+  it('fails a completed entry with non-object outputs', async () => {
+    const provider = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      return json({ p: { status: { completed: true }, outputs: 'bad' } })
+    }).fetchImpl)
+    const task = await provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    expect((await provider.poll(task, new AbortController().signal)).error?.code).toBe('MEDIA_ARTIFACT_INVALID')
+  })
+
+  it('ignores non-string execution errors and non-object node errors', async () => {
+    const execution = new ComfyUiMediaProvider(settingsOf(), recorder((call) => {
+      if (call.url.endsWith('/prompt')) return json({ prompt_id: 'p' })
+      return json({ p: { status: { status_str: 'error', messages: [['execution_error', { exception_message: 7 }]] } } })
+    }).fetchImpl)
+    const first = await execution.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal)
+    expect((await execution.poll(first, new AbortController().signal)).error?.message).toContain('workflow error')
+
+    const rejection = new ComfyUiMediaProvider(settingsOf(), recorder(() => json({
+      node_errors: { '1': { errors: ['bad', { message: 'missing checkpoint' }] } },
+    }, 400)).fetchImpl)
+    await expect(rejection.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+      .rejects.toThrow(/node 1: missing checkpoint/)
+  })
+
+  it('uploads without a subfolder', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-comfy-nosub-'))
+    try {
+      const frame = join(directory, 'frame.png')
+      await writeFile(frame, solidPng(2, 2, 1, 1, 1))
+      const { calls, fetchImpl } = recorder((call) => {
+        if (call.url.endsWith('/upload/image')) return json({ name: 'frame.png' })
+        return json({ prompt_id: 'p' })
+      })
+      const provider = new ComfyUiMediaProvider(settingsOf(), fetchImpl)
+      await provider.submit({
+        kind: 'video', prompt: 'x', references: [{ kind: 'image', role: 'first-frame', path: frame }],
+      }, new AbortController().signal)
+      expect(calls[1]?.body).toContain('"image":"frame.png"')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('comfyui non-JSON success body', () => {
+  it('reports a missing prompt id from a non-JSON success body', async () => {
+    const provider = new ComfyUiMediaProvider(settingsOf(), recorder(() => new Response('not json', { status: 200 })).fetchImpl)
+    await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
+      .rejects.toThrow(/without returning a prompt id/)
   })
 })

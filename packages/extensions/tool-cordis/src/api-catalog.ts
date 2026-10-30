@@ -2259,6 +2259,74 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'media',
+    summary: 'The media capability service.',
+    description: 'The media capability service. Registration is effect-scoped; selection resolves at execution time and never depends on registration order.',
+    methods: [
+      {
+        signature: 'register(provider: MediaProvider): () => void',
+        description: 'Register one provider. A duplicate id is rejected and the fiber owns the registration\'s disposal.',
+        parameters: [{ name: 'provider', description: 'provider implementation.' }],
+        returns: 'a disposer that removes the provider.',
+        throws: ['When the id is already registered.'],
+      },
+      {
+        signature: 'models(kind?: MediaKind): readonly MediaModel[]',
+        description: 'List models, optionally narrowed to one capability.',
+        parameters: [{ name: 'kind', description: 'capability filter.' }],
+        returns: 'every model of every available provider.',
+      },
+      {
+        signature: 'estimate(request: MediaRequest): MediaEstimate',
+        description: 'Estimate one request without starting work.',
+        parameters: [{ name: 'request', description: 'requested generation.' }],
+        returns: 'the selected provider\'s estimate.',
+        throws: ['{@link MediaFailure} when no provider or model serves the request.'],
+      },
+      {
+        signature: 'async submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>',
+        description: 'Submit one request without waiting for settlement.',
+        parameters: [{ name: 'request', description: 'requested generation.' }, { name: 'signal', description: 'caller cancellation, forwarded to the provider.' }],
+        returns: 'the task snapshot immediately after submission.',
+        throws: ['{@link MediaFailure} for selection, validation, and provider failures.'],
+      },
+      {
+        signature: 'async generate(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>',
+        description: 'Submit one request and wait up to `waitMs` for settlement.',
+        parameters: [{ name: 'request', description: 'requested generation.' }, { name: 'signal', description: 'caller cancellation, forwarded to the provider.' }],
+        returns: 'the settled task, or the current running task when the wait expired.',
+        throws: ['{@link MediaFailure} for selection, validation, and provider failures.'],
+      },
+      {
+        signature: 'status(taskId: string): MediaTask',
+        description: 'Read one retained task.',
+        parameters: [{ name: 'taskId', description: 'id returned by {@link generate}.' }],
+        returns: 'the latest known task.',
+        throws: ['{@link MediaFailure} `MEDIA_TASK_NOT_FOUND` for an unknown id.'],
+      },
+      {
+        signature: 'async refresh(taskId: string, signal: AbortSignal): Promise<MediaTask>',
+        description: 'Poll one retained task once through its provider. Long local generations settle here after `generate` returned a running task.',
+        parameters: [{ name: 'taskId', description: 'id returned by {@link generate}.' }, { name: 'signal', description: 'caller cancellation, forwarded to the provider.' }],
+        returns: 'the latest task.',
+        throws: ['{@link MediaFailure} `MEDIA_TASK_NOT_FOUND` for an unknown id.'],
+      },
+      {
+        signature: 'async cancel(taskId: string): Promise<MediaTask>',
+        description: 'Cancel one task through its provider.',
+        parameters: [{ name: 'taskId', description: 'id returned by {@link generate}.' }],
+        returns: 'the cancelled task record.',
+        throws: ['{@link MediaFailure} `MEDIA_TASK_NOT_FOUND` for an unknown id.'],
+      },
+      {
+        signature: 'nextTaskId(provider: string, kind: MediaKind): string',
+        description: 'Allocate the next task id for a provider and capability.',
+        parameters: [{ name: 'provider', description: 'provider id.' }, { name: 'kind', description: 'requested capability.' }],
+        returns: 'a stable, sortable task id.',
+      },
+    ],
+  },
+  {
     key: 'messageFeedback',
     summary: 'Session-log service; cold operations never construct a Session or Agent.',
     description: 'Session-log service; cold operations never construct a Session or Agent.',
@@ -7990,6 +8058,58 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'McpResourceRequest',
     declaration: 'export type McpResourceRequest = {\n    method: \'resources/list\' | \'resources/templates/list\';\n    cursor?: string;\n} | {\n    method: \'resources/read\';\n    uri: string;\n};',
+  },
+  {
+    name: 'MediaArtifact',
+    declaration: 'export interface MediaArtifact {\n    readonly id: string;\n    readonly kind: MediaKind;\n    readonly mediaType: string;\n    readonly bytes?: Uint8Array;\n    readonly url?: string;\n    readonly durationSec?: number;\n    readonly width?: number;\n    readonly height?: number;\n}',
+  },
+  {
+    name: 'MediaCost',
+    declaration: 'export interface MediaCost {\n    readonly amountMinor: number;\n    readonly currency: MediaCurrency;\n}',
+  },
+  {
+    name: 'MediaCurrency',
+    declaration: 'export type MediaCurrency = \'CNY\' | \'USD\';',
+  },
+  {
+    name: 'MediaEstimate',
+    declaration: 'export interface MediaEstimate {\n    readonly cost?: MediaCost;\n    readonly durationSec?: number;\n    readonly confidence: \'exact\' | \'estimated\' | \'unknown\';\n}',
+  },
+  {
+    name: 'MediaKind',
+    declaration: 'export type MediaKind = \'image\' | \'video\' | \'speech\';',
+  },
+  {
+    name: 'MediaModel',
+    declaration: 'export interface MediaModel {\n    readonly id: string;\n    readonly kind: MediaKind;\n    readonly provider: string;\n    readonly maxDurationSec?: number;\n    readonly aspectRatios?: readonly string[];\n    readonly referenceModes?: readonly (\'image\' | \'first-frame\' | \'last-frame\')[];\n    readonly audio?: boolean;\n    readonly price?: MediaPrice;\n}',
+  },
+  {
+    name: 'MediaPrice',
+    declaration: 'export interface MediaPrice {\n    readonly amountMinor: number;\n    readonly currency: MediaCurrency;\n    readonly unit: \'image\' | \'video-second\' | \'1000-chars\';\n}',
+  },
+  {
+    name: 'MediaProvider',
+    declaration: 'export interface MediaProvider {\n    readonly id: string;\n    readonly capabilities: readonly MediaKind[];\n    models(): readonly MediaModel[];\n    available(): boolean;\n    unavailableReason?(): string | undefined;\n    estimate(request: MediaRequest): MediaEstimate;\n    submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>;\n    poll(task: MediaTask, signal: AbortSignal): Promise<MediaTask>;\n    cancel(task: MediaTask): Promise<void>;\n}',
+  },
+  {
+    name: 'MediaReference',
+    declaration: 'export interface MediaReference {\n    readonly kind: \'image\' | \'video\' | \'audio\';\n    readonly path: string;\n    readonly role?: \'style\' | \'character\' | \'first-frame\' | \'last-frame\';\n}',
+  },
+  {
+    name: 'MediaRequest',
+    declaration: 'export interface MediaRequest {\n    readonly kind: MediaKind;\n    readonly model?: string;\n    readonly prompt: string;\n    readonly negativePrompt?: string;\n    readonly references?: readonly MediaReference[];\n    readonly durationSec?: number;\n    readonly aspectRatio?: string;\n    readonly resolution?: string;\n    readonly seed?: number;\n    readonly voice?: string;\n}',
+  },
+  {
+    name: 'MediaTask',
+    declaration: 'export interface MediaTask {\n    readonly id: string;\n    readonly provider: string;\n    readonly model: string;\n    readonly kind: MediaKind;\n    readonly status: MediaTaskStatus;\n    readonly progress?: number;\n    readonly artifacts?: readonly MediaArtifact[];\n    readonly cost?: MediaCost;\n    readonly error?: MediaTaskError;\n}',
+  },
+  {
+    name: 'MediaTaskError',
+    declaration: 'export interface MediaTaskError {\n    readonly code: string;\n    readonly message: string;\n}',
+  },
+  {
+    name: 'MediaTaskStatus',
+    declaration: 'export type MediaTaskStatus = \'queued\' | \'submitted\' | \'running\' | \'succeeded\' | \'failed\' | \'cancelled\';',
   },
   {
     name: 'MenuId',

@@ -339,8 +339,6 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
           const task = await media.cancel(args.task_id)
           return { action: 'cancel', message: `Task ${task.id} is ${task.status}.`, task: renderTask(task) }
         }
-        default:
-          throw new MediaFailure(`unknown media action ${JSON.stringify(args.action)}`, 'MEDIA_REQUEST_INVALID')
       }
     },
   })

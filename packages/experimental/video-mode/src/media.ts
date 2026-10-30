@@ -12,6 +12,7 @@
 
 import { setTimeout as delay } from 'node:timers/promises'
 import { Service, type Context } from '@deepseek-ai/cordis'
+import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import z from '@deepseek-ai/schemastery'
 import {
   COMFYUI_IMAGE_MODEL,
@@ -26,6 +27,14 @@ import {
   type MiniMaxResolution,
   type MiniMaxSettings,
 } from './minimax.ts'
+import {
+  MINIMAX_SPEECH_EMOTIONS,
+  MINIMAX_SPEECH_MODEL,
+  MINIMAX_SPEECH_VOICE,
+  MiniMaxSpeechProvider,
+  type MiniMaxSpeechEmotion,
+  type MiniMaxSpeechSettings,
+} from './minimax-speech.ts'
 import { FAKE_MP4_BASE64 } from './fixture-mp4.ts'
 import { colorFor, silentWav, solidPng } from './fixture-bytes.ts'
 import { createAssembleTool } from './tools/assemble.ts'
@@ -100,12 +109,32 @@ export interface ComfyUiImageConfig {
   readonly size?: number
 }
 
+/** MiniMax speech configuration. Credentials and origin inherit from the parent block. */
+export interface MiniMaxSpeechConfig {
+  /** Register the speech provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** Speech model id. Defaults to `speech-2.8-turbo`. */
+  readonly model?: string
+  /** Default system voice id. Defaults to a Mandarin news anchor. */
+  readonly voiceId?: string
+  /** Speech speed multiplier in `[0.5, 2]`. */
+  readonly speed?: number
+  /** Volume multiplier in `(0, 10]`. */
+  readonly vol?: number
+  /** Pitch offset in `[-12, 12]`. */
+  readonly pitch?: number
+  /** Fixed emotion label; empty lets the model infer it from the text. */
+  readonly emotion?: string
+}
+
 /** MiniMax cloud video configuration. */
 export interface MiniMaxConfig {
   /** Register the provider. Defaults to false. */
   readonly enabled?: boolean
-  /** Bearer API key; set from `$MINIMAX_API_KEY` in the preset. */
+  /** Direct bearer API key for programmatic use; empty when {@link apiKeyEnv} names the credential. */
   readonly apiKey?: string
+  /** Credential reference resolved per request through `ctx.credentials`, for example `MINIMAX_API_KEY`. */
+  readonly apiKeyEnv?: string
   /** MiniMax API origin. */
   readonly baseUrl?: string
   /** Minimum gap between two status polls for one task. */
@@ -122,6 +151,8 @@ export interface MiniMaxConfig {
   readonly maxDurationSec?: number
   /** Aspect ratio used for text-to-video when the request omits one. */
   readonly aspectRatio?: string
+  /** Speech synthesis overrides; omitted leaves the speech provider unregistered. */
+  readonly speech?: MiniMaxSpeechConfig
 }
 
 /** Local ComfyUI backend configuration. */
@@ -182,6 +213,15 @@ const MINIMAX_DEFAULTS = {
   aspectRatio: '9:16',
 } as const
 
+/** MiniMax speech defaults; the turbo model keeps voiceover cost low. */
+const MINIMAX_SPEECH_DEFAULTS = {
+  model: MINIMAX_SPEECH_MODEL,
+  voiceId: MINIMAX_SPEECH_VOICE,
+  speed: 1,
+  vol: 1,
+  pitch: 0,
+} as const
+
 /** Deployment configuration of the media runtime and the video tools. */
 export interface MediaRuntimeConfig {
   /** Mount the synthetic provider. Defaults to true for the experimental slice. */
@@ -235,6 +275,8 @@ export interface ResolvedMediaConfig {
   readonly comfyui?: ComfyUiSettings
   /** Resolved MiniMax backend; present only when the config enables it. */
   readonly minimax?: MiniMaxSettings
+  /** Resolved MiniMax speech backend; present only when the config enables it. */
+  readonly minimaxSpeech?: MiniMaxSpeechSettings
 }
 
 /**
@@ -244,6 +286,7 @@ export interface ResolvedMediaConfig {
  * @throws When a numeric bound is not a positive integer.
  */
 export function resolveMediaConfig(config: MediaRuntimeConfig = {}): ResolvedMediaConfig {
+  const minimax = config.minimax
   const resolved: ResolvedMediaConfig = {
     fakeProvider: config.fakeProvider ?? true,
     imageModel: config.imageModel ?? SYNTHETIC_IMAGE_MODEL,
@@ -281,8 +324,11 @@ export function resolveMediaConfig(config: MediaRuntimeConfig = {}): ResolvedMed
     ...config.comfyui?.enabled === true
       ? { comfyui: resolveComfyUi(config.comfyui, resolved.maxArtifactBytes) }
       : {},
-    ...config.minimax?.enabled === true
-      ? { minimax: resolveMiniMax(config.minimax, resolved.maxArtifactBytes) }
+    ...minimax?.enabled === true
+      ? { minimax: resolveMiniMax(minimax, resolved.maxArtifactBytes) }
+      : {},
+    ...minimax !== undefined && minimax.speech?.enabled === true
+      ? { minimaxSpeech: resolveMiniMaxSpeech(minimax, resolved.maxArtifactBytes) }
       : {},
   }
 }
@@ -331,19 +377,23 @@ export function resolveComfyUi(config: ComfyUiConfig, maxArtifactBytes: number):
 }
 
 /**
- * Apply defaults to the MiniMax configuration and validate its bounds.
+ * Apply defaults to the MiniMax configuration and validate its bounds. An empty
+ * key is valid configuration: the provider registers unavailable, so a preset
+ * that also carries a local provider still boots without cloud credentials.
  * @param config - partial MiniMax configuration.
  * @param maxArtifactBytes - artifact cap inherited from the media runtime.
  * @returns the complete provider settings.
- * @throws When the key is empty or a bound, resolution, or ratio is invalid.
+ * @throws When a bound, resolution, or ratio is invalid.
  */
 export function resolveMiniMax(config: MiniMaxConfig, maxArtifactBytes: number): MiniMaxSettings {
   const resolution = config.resolution ?? MINIMAX_DEFAULTS.resolution
   if (resolution !== '768P' && resolution !== '2K') {
     throw new Error('video mode: minimax.resolution must be 768P or 2K')
   }
+  const apiKeyEnv = (config.apiKeyEnv ?? '').trim()
   const settings: MiniMaxSettings = {
     apiKey: (config.apiKey ?? '').trim(),
+    ...apiKeyEnv.length === 0 ? {} : { apiKeyEnv },
     baseUrl: (config.baseUrl ?? MINIMAX_DEFAULTS.baseUrl).replace(/\/+$/, ''),
     pollMs: config.pollMs ?? MINIMAX_DEFAULTS.pollMs,
     timeoutMs: config.timeoutMs ?? MINIMAX_DEFAULTS.timeoutMs,
@@ -353,9 +403,6 @@ export function resolveMiniMax(config: MiniMaxConfig, maxArtifactBytes: number):
     defaultDurationSec: config.defaultDurationSec ?? MINIMAX_DEFAULTS.defaultDurationSec,
     maxDurationSec: config.maxDurationSec ?? MINIMAX_DEFAULTS.maxDurationSec,
     aspectRatio: config.aspectRatio ?? MINIMAX_DEFAULTS.aspectRatio,
-  }
-  if (settings.apiKey.length === 0) {
-    throw new Error('video mode: minimax.apiKey must not be empty; set $MINIMAX_API_KEY')
   }
   if (settings.baseUrl.length === 0) throw new Error('video mode: minimax.baseUrl must not be empty')
   if (settings.model !== MINIMAX_VIDEO_MODEL) {
@@ -377,6 +424,61 @@ export function resolveMiniMax(config: MiniMaxConfig, maxArtifactBytes: number):
     throw new Error(`video mode: minimax.aspectRatio must be one of ${MINIMAX_ASPECT_RATIOS.join(', ')}`)
   }
   return settings
+}
+
+/**
+ * Apply defaults to the MiniMax speech configuration and validate its bounds.
+ * Credentials and the API origin inherit from the parent MiniMax block, so a
+ * speech-only deployment configures one key and one origin.
+ * @param config - partial MiniMax configuration carrying the parent credentials.
+ * @param maxArtifactBytes - artifact cap inherited from the media runtime.
+ * @returns the complete speech provider settings.
+ * @throws When a bound, voice id, or emotion label is invalid.
+ */
+export function resolveMiniMaxSpeech(config: MiniMaxConfig, maxArtifactBytes: number): MiniMaxSpeechSettings {
+  const speech = config.speech ?? {}
+  const apiKeyEnv = (config.apiKeyEnv ?? '').trim()
+  const emotion = speechEmotionOf(speech.emotion)
+  const settings: MiniMaxSpeechSettings = {
+    apiKey: (config.apiKey ?? '').trim(),
+    ...apiKeyEnv.length === 0 ? {} : { apiKeyEnv },
+    baseUrl: (config.baseUrl ?? MINIMAX_DEFAULTS.baseUrl).replace(/\/+$/, ''),
+    model: (speech.model ?? MINIMAX_SPEECH_DEFAULTS.model).trim(),
+    voiceId: (speech.voiceId ?? MINIMAX_SPEECH_DEFAULTS.voiceId).trim(),
+    speed: speech.speed ?? MINIMAX_SPEECH_DEFAULTS.speed,
+    vol: speech.vol ?? MINIMAX_SPEECH_DEFAULTS.vol,
+    pitch: speech.pitch ?? MINIMAX_SPEECH_DEFAULTS.pitch,
+    ...emotion === undefined ? {} : { emotion },
+    maxArtifactBytes,
+  }
+  if (settings.baseUrl.length === 0) throw new Error('video mode: minimax.baseUrl must not be empty')
+  if (settings.model.length === 0) throw new Error('video mode: minimax.speech.model must not be empty')
+  if (settings.voiceId.length === 0) throw new Error('video mode: minimax.speech.voiceId must not be empty')
+  if (!(settings.speed >= 0.5 && settings.speed <= 2)) {
+    throw new Error('video mode: minimax.speech.speed must be between 0.5 and 2')
+  }
+  if (!(settings.vol > 0 && settings.vol <= 10)) {
+    throw new Error('video mode: minimax.speech.vol must be greater than 0 and at most 10')
+  }
+  if (!Number.isInteger(settings.pitch) || settings.pitch < -12 || settings.pitch > 12) {
+    throw new Error('video mode: minimax.speech.pitch must be an integer from -12 to 12')
+  }
+  return settings
+}
+
+/**
+ * Read one optional emotion label.
+ * @param value - configured label.
+ * @returns the validated label, or undefined when empty.
+ * @throws When the label is not part of the T2A vocabulary.
+ */
+function speechEmotionOf(value: string | undefined): MiniMaxSpeechEmotion | undefined {
+  const emotion = (value ?? '').trim()
+  if (emotion.length === 0) return undefined
+  if (!(MINIMAX_SPEECH_EMOTIONS as readonly string[]).includes(emotion)) {
+    throw new Error(`video mode: minimax.speech.emotion must be one of ${MINIMAX_SPEECH_EMOTIONS.join(', ')}`)
+  }
+  return emotion as MiniMaxSpeechEmotion
 }
 
 /** Schemastery face for the Loader row. */
@@ -424,6 +526,7 @@ export const Config: z<MediaRuntimeConfig> = z.object({
   minimax: z.object({
     enabled: z.boolean().default(false),
     apiKey: z.string().default(''),
+    apiKeyEnv: z.string().role('credential-ref').default(''),
     baseUrl: z.string().default(MINIMAX_DEFAULTS.baseUrl),
     pollMs: z.natural().min(1).default(MINIMAX_DEFAULTS.pollMs),
     timeoutMs: z.natural().min(1).default(MINIMAX_DEFAULTS.timeoutMs),
@@ -432,6 +535,15 @@ export const Config: z<MediaRuntimeConfig> = z.object({
     defaultDurationSec: z.natural().min(1).default(MINIMAX_DEFAULTS.defaultDurationSec),
     maxDurationSec: z.natural().min(1).default(MINIMAX_DEFAULTS.maxDurationSec),
     aspectRatio: z.string().default(MINIMAX_DEFAULTS.aspectRatio),
+    speech: z.object({
+      enabled: z.boolean().default(false),
+      model: z.string().default(MINIMAX_SPEECH_DEFAULTS.model),
+      voiceId: z.string().default(MINIMAX_SPEECH_DEFAULTS.voiceId),
+      speed: z.number().min(0.5).max(2).default(MINIMAX_SPEECH_DEFAULTS.speed),
+      vol: z.number().min(0).max(10).default(MINIMAX_SPEECH_DEFAULTS.vol),
+      pitch: z.number().min(-12).max(12).default(MINIMAX_SPEECH_DEFAULTS.pitch),
+      emotion: z.string().default(''),
+    }),
   }),
 })
 
@@ -478,7 +590,12 @@ export class MediaRuntime extends Service {
   protected [Service.init](): void {
     if (this.config.fakeProvider) this.register(new SyntheticMediaProvider(this.config.syntheticLatencyMs))
     if (this.config.comfyui !== undefined) this.register(new ComfyUiMediaProvider(this.config.comfyui))
-    if (this.config.minimax !== undefined) this.register(new MiniMaxMediaProvider(this.config.minimax))
+    if (this.config.minimax !== undefined) {
+      this.register(new MiniMaxMediaProvider(this.config.minimax, fetch, ref => this.resolveCredential(ref)))
+    }
+    if (this.config.minimaxSpeech !== undefined) {
+      this.register(new MiniMaxSpeechProvider(this.config.minimaxSpeech, fetch, ref => this.resolveCredential(ref)))
+    }
     this.ctx.inject(['tools', 'fs', 'subprocess'], (scope) => {
       scope.tools.register(createMediaTool(scope, this))
       scope.tools.register(createProjectTool(scope))
@@ -499,12 +616,26 @@ export class MediaRuntime extends Service {
       throw new MediaFailure(`media provider ${JSON.stringify(provider.id)} is already registered`, 'MEDIA_PROVIDER_AMBIGUOUS')
     }
     this.providers.set(provider.id, provider)
+    // A duplicate id is rejected above, so this map can only hold this instance
+    // until its registration is disposed.
     const release = this.ctx.effect(() => () => {
-      if (this.providers.get(provider.id) === provider) {
-        this.providers.delete(provider.id)
-      }
+      this.providers.delete(provider.id)
     })
     return () => { void release() }
+  }
+
+  /**
+   * Resolve one credential reference through the credentials service, or the
+   * process environment when the service is absent.
+   * @param ref - credential reference such as `MINIMAX_API_KEY`.
+   * @returns the non-empty secret, or undefined while unconfigured.
+   */
+  private async resolveCredential(ref: string): Promise<string | undefined> {
+    const credentials = this.ctx.get('credentials')
+    const value = credentials !== undefined
+      ? (await credentials.resolve(credentialRef(ref)))?.value
+      : process.env[ref]
+    return value !== undefined && value.length > 0 ? value : undefined
   }
 
   /**
@@ -644,9 +775,18 @@ export class MediaRuntime extends Service {
     if (request.prompt.trim().length === 0) {
       throw new MediaFailure('media request requires a non-empty prompt', 'MEDIA_REQUEST_INVALID')
     }
-    const candidates = [...this.providers.values()]
-      .filter(provider => provider.available() && provider.capabilities.includes(request.kind))
+    const providers = [...this.providers.values()]
+    const candidates = providers.filter(provider => provider.available() && provider.capabilities.includes(request.kind))
     if (candidates.length === 0) {
+      const unavailable = providers
+        .filter(provider => !provider.available() && provider.capabilities.includes(request.kind))
+        .map(provider => `${provider.id} (${provider.unavailableReason?.() ?? 'unavailable'})`)
+      if (unavailable.length > 0) {
+        throw new MediaFailure(
+          `no available media provider serves ${request.kind}: ${unavailable.join('; ')}`,
+          'MEDIA_PROVIDER_UNAVAILABLE',
+        )
+      }
       throw new MediaFailure(`no media provider serves ${request.kind}; mount a provider or enable the synthetic one`, 'MEDIA_PROVIDER_UNAVAILABLE')
     }
     const modelId = request.model ?? this.defaultModel(request.kind)

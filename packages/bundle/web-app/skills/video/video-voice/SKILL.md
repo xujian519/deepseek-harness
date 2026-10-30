@@ -1,8 +1,8 @@
 ---
 name: video-voice
 description: |
-  为视频生成配音、BGM 与字幕：按台词切分语音、记录音色与授权、输出单调时间轴的 SRT，
-  并给出响度与混音参数。没有 TTS provider 时降级为字幕卡并明说。
+  为视频生成配音、BGM 与字幕：用 MiniMax 语音逐句合成配音、记录音色与授权、输出单调时间轴的 SRT，
+  并给出响度与混音参数。没有语音 provider 时降级为字幕卡并明说。
 whenToUse: 镜头生成完成、合成之前。
 ---
 
@@ -12,14 +12,22 @@ whenToUse: 镜头生成完成、合成之前。
 
 ## 配音
 
-1. 按台词切分，一次生成一句或一个镜头的一段；记录 `voice`、provider 与时长。
-2. 音色在 brief 中定一次，全片复用；多角色时每个角色一个固定音色。
-3. 没有可用的语音 provider 时，说明“本部署没有语音合成”，改用字幕卡，不伪造音频。
+1. 先估算：`media { action: "estimate", kind: "speech", prompt: "第一句台词" }`；语音按字符计费，成本通常远低于视频。
+2. 按台词切分，一次合成一句或一个镜头的一段：
+
+   ```text
+   media { action: "generate", kind: "speech", prompt: "第一句台词", voice: "Chinese (Mandarin)_News_Anchor", output_path: "voice/s01-01.mp3", project_path: "video/<id>/project.json" }
+   ```
+
+   默认模型是 `speech-2.8-turbo`（2.00 元/万字符）；需要更高音质时把 `model` 设为 `speech-2.8-hd`（3.50 元/万字符）。生成结果按项目剩余预算拦截，并返回实际成本。
+3. 音色在 brief 中定一次，全片复用；多角色时每个角色一个固定音色。常用普通话音色：`Chinese (Mandarin)_News_Anchor`（口播）、`female-chengshu`（成熟女声）、`male-qn-qingse`（青年男声）。
+4. 用 `ffprobe` 读取每段音频的时长，按实际时长排字幕与镜头节奏；把音色、provider、时长与成本写回项目或脚本。
+5. 部署没有语音 provider 时，说明“本部署没有语音合成”，改用字幕卡，不伪造音频。
 
 ## BGM 与授权
 
 - BGM 必须由用户提供或来自明确授权的素材库；记录来源与授权范围。
-- 没有授权记录时不得混入成片；`video_deliver` 会把缺失授权的 BGM 视为阻断项。
+- 没有授权记录时不得混入成片；`video_deliver` 只检查文件、时长、画幅与预算，授权结论由你在交付摘要中声明。
 
 ## 字幕
 
@@ -31,7 +39,7 @@ whenToUse: 镜头生成完成、合成之前。
 
 - 对白为主轨，BGM 默认 `-12 dB`，有对白时 Ducking。
 - 整体响度 `-14 LUFS`，真峰值 `-1.5 dBTP`。
-- 交付前用 `ffprobe` 或 `video_deliver` 确认有音轨。
+- 交付前用 `ffprobe` 或 `video_deliver` 确认有音轨；`video_deliver` 对无音轨给出警告，不校验 BGM 授权。
 
 ## 检查清单
 

@@ -3,26 +3,26 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/video-mode/README.md
 /:
-  en: 001cb224e01dfe30
-  zh: ffe75ccdbcc739d9
+  en: 470dff4654c52d76
+  zh: 82c858d06b6379a0
 /deepseek-ai-dsh-experimental-video-mode:
   en: 58c5254c89e460ab
   zh: e6b9b396d48b3574
 /deepseek-ai-dsh-experimental-video-mode/summary:
-  en: 99f7c45a1e268db9
-  zh: ece8cc86d7d3a2c6
+  en: 188b0b6ebd72bcd6
+  zh: 0c68e01ab787f3a8
 /deepseek-ai-dsh-experimental-video-mode/table-of-contents:
   en: 81ebfb0a13571ff6
   zh: 86584aa7142f6c75
 /deepseek-ai-dsh-experimental-video-mode/what-it-mounts:
-  en: 4d57a2c76813fe40
-  zh: 2a3197b6da0a54bf
+  en: 0e1a98b37a5bebfc
+  zh: 6bebf0c343ede91f
 /deepseek-ai-dsh-experimental-video-mode/use-this-package:
-  en: c2618a01f9d64107
-  zh: a2b351e2bc3e78ce
+  en: c43ea0504322cff5
+  zh: 55ca43a44b20902b
 /deepseek-ai-dsh-experimental-video-mode/understand-the-implementation:
-  en: b5aa48ac84ba71a4
-  zh: 80157a067edec06a
+  en: 99f1f997607800c4
+  zh: 99e44d9d6d742ad4
 /deepseek-ai-dsh-experimental-video-mode/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
@@ -39,8 +39,8 @@
   en: e3a87b44a164f303
   zh: eb945d26d5621b25
 /deepseek-ai-dsh-experimental-video-mode/known-limitations-and-deferred-work:
-  en: 610b88e2454fef6f
-  zh: 6ba0213cd16088a5
+  en: e5b28c05c1f56f51
+  zh: a5dcf6fdbd6be349
 /deepseek-ai-dsh-experimental-video-mode/known-limitations-and-deferred-work/dev-note:
-  en: 2be19b162e0971ac
-  zh: 8b157cc2303cc0bc
+  en: 0e3d57d7024b5bb9
+  zh: b07c12bfa5bbf3e2

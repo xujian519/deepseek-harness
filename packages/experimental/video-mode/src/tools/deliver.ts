@@ -107,7 +107,9 @@ export function createDeliverTool(ctx: Context, media: MediaRuntime): ToolDefini
         findings.push({ check: 'budget', level: 'block', detail: `reported cost ${cost.toFixed(2)} CNY exceeds the ${project.budgetCny.toFixed(2)} CNY budget` })
       }
 
-      let probe: MediaProbe | undefined
+      // A successful delivery always probes at least one video; the block below
+      // refuses the call before this placeholder can reach the result.
+      let probe: MediaProbe = { hasAudio: false }
       let videoCount = 0
       for (const file of args.files) {
         const target = await ctx.fs.resolve(file.path, { cwd })
@@ -116,7 +118,7 @@ export function createDeliverTool(ctx: Context, media: MediaRuntime): ToolDefini
           findings.push({ check: 'file', level: 'block', detail: `${file.path} is missing` })
           continue
         }
-        if ((info.size ?? 0) === 0) {
+        if (info.size === 0) {
           findings.push({ check: 'file', level: 'block', detail: `${file.path} is empty` })
           continue
         }
@@ -160,7 +162,7 @@ export function createDeliverTool(ctx: Context, media: MediaRuntime): ToolDefini
       if (blocking.length > 0) {
         throw new MediaFailure(message, 'MEDIA_DELIVERY_BLOCKED')
       }
-      return { message, ok: true, findings, ...probe === undefined ? {} : { probe } }
+      return { message, ok: true, findings, probe }
     },
   })
 }

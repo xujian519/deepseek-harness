@@ -116,15 +116,19 @@
           # ── video production ────────────────────────────────────────────────────────
 
           # One experimental row provides `ctx.media`, the cloud MiniMax-H3 video
-          # provider, the local ComfyUI provider (Z-Image Turbo keyframes; Wan
-          # 2.2 remains available as `wan2.2-ti2v-5b`), and the four model-facing
-          # tools (`media`, `video_project`, `video_assemble`, `video_deliver`). It
-          # provides a service, so it sits inside an entry-local realm; without one
-          # the registry refuses the mount because the instance would publish into
+          # provider, the cloud MiniMax speech provider, the local ComfyUI provider
+          # (Z-Image Turbo keyframes; Wan 2.2 remains available as
+          # `wan2.2-ti2v-5b`), and the four model-facing tools (`media`,
+          # `video_project`, `video_assemble`, `video_deliver`). It provides a
+          # service, so it sits inside an entry-local realm; without one the
+          # registry refuses the mount because the instance would publish into
           # the process-global root realm. `fakeProvider` stays false so every
           # artifact comes from a real provider; a synthetic demo sets it true and
-          # selects a `synthetic/*` model id. The MiniMax key comes from the
-          # invoking directory's `.env` or the launch environment, never this file.
+          # selects a `synthetic/*` model id. `apiKeyEnv` names the credential the
+          # video and speech providers resolve per request through
+          # `ctx.credentials` (falling back to the launch environment), so no
+          # secret is written into this file. Speech inherits that credential and
+          # the MiniMax origin from the parent block.
           - id: video-runtime
             name: cordis:group
             group: true
@@ -137,6 +141,7 @@
                   fakeProvider: false
                   imageModel: z-image-turbo
                   videoModel: MiniMax-H3
+                  speechModel: speech-2.8-turbo
                   waitMs: 30000
                   pollMs: 250
                   maxArtifactBytes: 536870912
@@ -157,7 +162,7 @@
                       size: 1024
                   minimax:
                     enabled: true
-                    apiKey: !!js process.env.MINIMAX_API_KEY ?? ''
+                    apiKeyEnv: MINIMAX_API_KEY
                     baseUrl: https://api.minimax.cn
                     pollMs: 10000
                     timeoutMs: 3600000
@@ -165,6 +170,10 @@
                     defaultDurationSec: 5
                     maxDurationSec: 15
                     aspectRatio: 9:16
+                    speech:
+                      enabled: true
+                      model: speech-2.8-turbo
+                      voiceId: Chinese (Mandarin)_News_Anchor
 
           # ── goals ───────────────────────────────────────────────────────────────────
 

@@ -29,6 +29,7 @@ const snapshotAdapters = [
   'apps/web/tests/minimal-preset.snapshot.ts',
   'apps/web/tests/preset-migration.snapshot.ts',
   'apps/web/tests/subagent-fork-schedule.snapshot.ts',
+  'apps/web/tests/video-preset.snapshot.ts',
   'snapshots/acp/acp.snapshot.ts',
   'snapshots/sdk/sdk.snapshot.ts',
   'snapshots/session/headless.snapshot.ts',

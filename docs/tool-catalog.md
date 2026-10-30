@@ -3274,7 +3274,7 @@ Source: [`packages/experimental/video-mode/src/media.ts`](../packages/experiment
 
 ### `video_project`
 
-Create and edit the durable video production document. The project file is the single source of truth for shots, selected clips, renders, and the budget; the video studio reads the same file. Actions: `init` creates `video/<id>/project.json`; `read` returns it; `upsert_shot` adds or replaces one shot; `remove_shot` deletes one; `record_render` appends a finished output. Call `init` once, then `upsert_shot` for every storyboard shot before generating media. Paths are relative to the project directory.
+Create and edit the durable video production document. The project file is the single source of truth for shots, selected clips, renders, and the budget; the video studio reads the same file. Actions: `init` creates `video/<id>/project.json`; `read` returns it; `upsert_shot` adds or replaces one shot; `remove_shot` deletes one; `record_render` appends a finished output. Call `init` once, then `upsert_shot` for every storyboard shot before generating media. Every path, including the project file and shot media paths, is relative to the Session working directory.
 
 ```json
 {

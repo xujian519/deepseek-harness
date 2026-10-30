@@ -196,7 +196,7 @@
       "patent.patch.yml": "9da42c1fdc",
       "ptc.patch.yml": "d132cb2a6d",
       "standard.patch.yml": "d132cb2a6d",
-      "video.patch.yml": "8efd91d7eb"
+      "video.patch.yml": "31b7f564cf"
     },
     "tool-subagent": {
       "cordis.patch.yml": "dcdca9149c",

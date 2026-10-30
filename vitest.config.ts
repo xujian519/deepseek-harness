@@ -278,12 +278,6 @@ export default defineConfig({
         // .agents/notes/proposed/bug-fix/2026-08-26-hygiene-gate-debt-and-conflict.md.
         'packages/web/synapse/src/**/*.{ts,tsx}',
         'packages/client/ui-agent-preset/src/**/*.{ts,tsx}',
-        // First experimental video slice: the orchestration is covered by unit
-        // and real-Loader composition tests, while provider transport, ffmpeg
-        // failure ladders, and platform artifact paths need credential- and
-        // host-gated suites that land with the cloud adapter and studio.
-        // TODO(cov): replace this exemption when those suites land.
-        'packages/experimental/video-mode/src/**/*.ts',
         // Patent-domain packages are exempted one at a time, never by a family
         // glob, so a package added later is measured unless it is exempted
         // deliberately. Every shipped patent package is measured against the

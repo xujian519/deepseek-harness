@@ -212,7 +212,8 @@ export function loadWorkflow(path: string, bundled: ComfyWorkflow): ComfyWorkflo
   if (path.length === 0) return bundled
   let text: string
   try {
-    text = readFileSync(path, 'utf8')  } catch (error) {
+    text = readFileSync(path, 'utf8')
+  } catch (error) {
     throw new Error(`video mode: cannot read the ComfyUI workflow ${path}: ${messageOf(error)}`, { cause: error })
   }
   let parsed: unknown
@@ -319,12 +320,15 @@ export function shortSideOf(resolution: string): number {
   return value
 }
 
+/** Upper bound on one best-effort cancellation request. */
+const CANCEL_TIMEOUT_MS = 10_000
+
 /** One ComfyUI prompt tracked until it settles. */
 interface PendingTask {
   /** ComfyUI prompt id. */
   readonly promptId: string
   /** Requested capability. */
-  readonly kind: MediaKind
+  readonly kind: 'image' | 'video'
   /** Submission time in epoch milliseconds. */
   readonly submittedAt: number
   /** Last history poll time in epoch milliseconds. */
@@ -426,16 +430,24 @@ export class ComfyUiMediaProvider implements MediaProvider {
    * @throws {@link MediaFailure} for an unknown model, invalid request, or rejected workflow.
    */
   async submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask> {
-    const defaultModel = request.kind === 'video' ? this.settings.video.model : this.settings.image.model
-    const model = this.modelsById.find(entry => entry.id === (request.model ?? defaultModel) && entry.kind === request.kind)
+    const kind = request.kind
+    if (kind === 'speech') {
+      throw new MediaFailure('ComfyUI does not serve speech', 'MEDIA_PROVIDER_UNAVAILABLE')
+    }
+    const defaultModel = kind === 'video' ? this.settings.video.model : this.settings.image.model
+    const model = this.modelsById.find(entry => entry.id === (request.model ?? defaultModel) && entry.kind === kind)
     if (model === undefined) {
-      throw new MediaFailure(`ComfyUI serves no ${request.kind} model ${JSON.stringify(request.model)}`, 'MEDIA_MODEL_UNKNOWN')
+      throw new MediaFailure(`ComfyUI serves no ${kind} model ${JSON.stringify(request.model)}`, 'MEDIA_MODEL_UNKNOWN')
     }
     const seed = request.seed ?? Math.floor(Math.random() * 0x7fffffff)
-    const prepared = this.prepare(request, seed)
-    const firstFrame = request.references?.find(reference =>
-      reference.kind === 'image' && (reference.role === undefined || reference.role === 'first-frame'))
+    const prepared = this.prepare({ ...request, kind }, seed)
+    const firstFrames = request.references?.filter(reference =>
+      reference.kind === 'image' && (reference.role === undefined || reference.role === 'first-frame')) ?? []
     let workflow = prepared.workflow
+    if (firstFrames.length > 1) {
+      throw new MediaFailure('ComfyUI accepts one first-frame reference per request', 'MEDIA_REQUEST_INVALID')
+    }
+    const firstFrame = firstFrames[0]
     if (firstFrame !== undefined) {
       if (request.kind !== 'video') {
         throw new MediaFailure('ComfyUI attaches references to video requests only', 'MEDIA_REQUEST_INVALID')
@@ -462,7 +474,7 @@ export class ComfyUiMediaProvider implements MediaProvider {
     }
     this.pending.set(promptId, {
       promptId,
-      kind: request.kind,
+      kind,
       submittedAt: Date.now(),
       lastPollAt: 0,
       width: prepared.width,
@@ -506,6 +518,7 @@ export class ComfyUiMediaProvider implements MediaProvider {
     const queue = await this.getJson('/queue', signal)
     const state = queueState(queue, promptId)
     if (state === undefined) {
+      this.pending.delete(promptId)
       return this.failed(task, 'MEDIA_TASK_FAILED', `ComfyUI no longer reports task ${promptId}; it may have restarted`)
     }
     return { ...task, status: state }
@@ -529,7 +542,7 @@ export class ComfyUiMediaProvider implements MediaProvider {
    * @returns the filled workflow and the canvas it renders.
    * @throws {@link MediaFailure} for an invalid option.
    */
-  private prepare(request: MediaRequest, seed: number): {
+  private prepare(request: MediaRequest & { readonly kind: 'image' | 'video' }, seed: number): {
     readonly workflow: ComfyWorkflow
     readonly width: number
     readonly height: number
@@ -560,28 +573,25 @@ export class ComfyUiMediaProvider implements MediaProvider {
         durationSec,
       }
     }
-    if (request.kind === 'image') {
-      const canvas = imageCanvasFor(request.aspectRatio ?? '1:1', this.settings.image.size)
-      const { image } = this.settings
-      return {
-        workflow: fillWorkflow(this.imageWorkflow, {
-          prompt: request.prompt,
-          negativePrompt: request.negativePrompt ?? '',
-          seed,
-          width: canvas.width,
-          height: canvas.height,
-          frames: 1,
-          fps: this.settings.video.fps,
-          filenamePrefix: prefix,
-          checkpoint: image.checkpoint,
-          textEncoder: image.textEncoder,
-          vae: image.vae,
-        }),
+    const canvas = imageCanvasFor(request.aspectRatio ?? '1:1', this.settings.image.size)
+    const { image } = this.settings
+    return {
+      workflow: fillWorkflow(this.imageWorkflow, {
+        prompt: request.prompt,
+        negativePrompt: request.negativePrompt ?? '',
+        seed,
         width: canvas.width,
         height: canvas.height,
-      }
+        frames: 1,
+        fps: this.settings.video.fps,
+        filenamePrefix: prefix,
+        checkpoint: image.checkpoint,
+        textEncoder: image.textEncoder,
+        vae: image.vae,
+      }),
+      width: canvas.width,
+      height: canvas.height,
     }
-    throw new MediaFailure(`ComfyUI does not serve ${request.kind}`, 'MEDIA_PROVIDER_UNAVAILABLE')
   }
 
   /**
@@ -625,7 +635,10 @@ export class ComfyUiMediaProvider implements MediaProvider {
    * @returns the settled task.
    */
   private async settle(task: MediaTask, pending: PendingTask, entry: unknown, signal: AbortSignal): Promise<MediaTask> {
-    if (!isRecord(entry)) return this.failed(task, 'MEDIA_TASK_FAILED', 'ComfyUI returned a malformed history entry')
+    if (!isRecord(entry)) {
+      this.pending.delete(pending.promptId)
+      return this.failed(task, 'MEDIA_TASK_FAILED', 'ComfyUI returned a malformed history entry')
+    }
     const status = isRecord(entry.status) ? entry.status : undefined
     if (status?.status_str === 'error') {
       this.pending.delete(pending.promptId)
@@ -640,7 +653,14 @@ export class ComfyUiMediaProvider implements MediaProvider {
       this.pending.delete(pending.promptId)
       return this.failed(task, 'MEDIA_ARTIFACT_INVALID', `ComfyUI finished ${pending.promptId} without a ${pending.kind} file`)
     }
-    const artifact = await this.download(file, pending, signal)
+    let artifact: MediaArtifact
+    try {
+      artifact = await this.download(file, pending, signal)
+    } catch (error) {
+      this.pending.delete(pending.promptId)
+      if (error instanceof MediaFailure) return this.failed(task, error.code, error.message)
+      return this.failed(task, 'MEDIA_TASK_FAILED', messageOf(error))
+    }
     this.pending.delete(pending.promptId)
     return {
       ...task,
@@ -681,7 +701,7 @@ export class ComfyUiMediaProvider implements MediaProvider {
     return {
       id: file.filename,
       kind: pending.kind,
-      mediaType: mediaTypeOf(file.filename),
+      mediaType: mediaTypeOf(file.filename, pending.kind),
       bytes,
       width: pending.width,
       height: pending.height,
@@ -734,12 +754,13 @@ export class ComfyUiMediaProvider implements MediaProvider {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(CANCEL_TIMEOUT_MS),
       })
       await response.arrayBuffer()
     } catch (error) {
       // Cancellation is best-effort: the task is reported cancelled even when
       // the server already dropped it or is unreachable.
-      if (!(error instanceof MediaFailure)) throw error
+      void error
     }
   }
 
@@ -750,7 +771,7 @@ export class ComfyUiMediaProvider implements MediaProvider {
    * @param message - explanation.
    * @returns the failed task.
    */
-  private failed(task: MediaTask, code: 'MEDIA_TASK_FAILED' | 'MEDIA_TASK_TIMEOUT' | 'MEDIA_ARTIFACT_INVALID', message: string): MediaTask {
+  private failed(task: MediaTask, code: MediaFailure['code'], message: string): MediaTask {
     return { ...task, status: 'failed', error: { code, message } }
   }
 }
@@ -802,25 +823,23 @@ function savedFiles(outputs: unknown): SavedFile[] {
 }
 
 /** Whether one output file matches the requested capability. */
-function isPreferred(filename: string, kind: MediaKind): boolean {
+function isPreferred(filename: string, kind: 'image' | 'video'): boolean {
   const lower = filename.toLowerCase()
   if (kind === 'video') return lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mkv')
-  if (kind === 'image') return lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')
-  return lower.endsWith('.wav') || lower.endsWith('.mp3')
+  return lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')
 }
 
-/** Media type from a file extension. */
-function mediaTypeOf(filename: string): string {
+/** Media type from a preferred image or video file extension. */
+function mediaTypeOf(filename: string, kind: 'image' | 'video'): string {
   const lower = filename.toLowerCase()
-  if (lower.endsWith('.mp4')) return 'video/mp4'
-  if (lower.endsWith('.webm')) return 'video/webm'
-  if (lower.endsWith('.mkv')) return 'video/x-matroska'
+  if (kind === 'video') {
+    if (lower.endsWith('.mp4')) return 'video/mp4'
+    if (lower.endsWith('.webm')) return 'video/webm'
+    return 'video/x-matroska'
+  }
   if (lower.endsWith('.png')) return 'image/png'
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
-  if (lower.endsWith('.webp')) return 'image/webp'
-  if (lower.endsWith('.wav')) return 'audio/wav'
-  if (lower.endsWith('.mp3')) return 'audio/mpeg'
-  return 'application/octet-stream'
+  return 'image/webp'
 }
 
 /** Read the first execution error message from a history status. */

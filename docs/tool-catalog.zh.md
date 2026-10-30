@@ -3280,7 +3280,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 ### `video_project`
 
-创建与修改持久视频生产文档。 The project file is the single source of truth for shots, selected clips, renders, and the budget; the video studio reads the same file. Actions: `init` creates `video/<id>/project.json`; `read` returns it; `upsert_shot` adds or replaces one shot; `remove_shot` deletes one; `record_render` appends a finished output. Call `init` once, then `upsert_shot` for every storyboard shot before generating media. Paths are relative to the project directory.
+创建与修改持久视频生产文档。 The project file is the single source of truth for shots, selected clips, renders, and the budget; the video studio reads the same file. Actions: `init` creates `video/<id>/project.json`; `read` returns it; `upsert_shot` adds or replaces one shot; `remove_shot` deletes one; `record_render` appends a finished output. Call `init` once, then `upsert_shot` for every storyboard shot before generating media. 所有路径（包括项目文件与镜头的媒体路径）均相对于 Session 工作目录。
 
 ```json
 {

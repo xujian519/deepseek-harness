@@ -269,6 +269,8 @@ flowchart LR
   pkg_subagent_dsh_sdk["subagent-dsh-sdk"]
   pkg_tool_subagent_control["tool-subagent-control"]
   pkg_tool_ralph["tool-ralph"]
+  pkg_experimental_video_mode["experimental-video-mode"]
+  svc_media["ctx.media<br/>Media generation provider seam"]
   pkg_experimental_speech_to_text["experimental-speech-to-text"]
   svc_speechToText["ctx.speechToText<br/>Experimental speech recognition providers"]
   pkg_experimental_speech_to_text_sensevoice["experimental-speech-to-text-sensevoice"]
@@ -408,6 +410,7 @@ flowchart LR
   pkg_experimental_speech_to_text --> svc_speechToText
   pkg_experimental_speech_to_text_sensevoice --> svc_speechToText
   pkg_experimental_translator --> svc_translator
+  pkg_experimental_video_mode --> svc_media
   pkg_experimental_worktree --> svc_worktrees
   pkg_file_reference --> svc_fileReferences
   pkg_file_reference_local --> svc_fileReferences
@@ -579,6 +582,7 @@ flowchart LR
   svc_llm --> pkg_compaction_basic
   svc_lsp --> pkg_tool_lsp
   svc_mcpResources --> pkg_mcp_resources
+  svc_media --> pkg_experimental_video_mode
   svc_officeToPdf --> pkg_client_ui_sidebar_documentpreview
   svc_otel --> pkg_host_product_telemetry_otel
   svc_otel --> pkg_session_telemetry_otel
@@ -785,6 +789,7 @@ flowchart LR
 | `ctx.fs` | `seam` | [`fs`](../packages/fs/fs) | [`fs-local`](../packages/fs/fs-local), [`fs-sandbox`](../packages/fs/fs-sandbox), [`fs-ssh`](../packages/ssh/fs-ssh) | [`tool-fs`](../packages/fs/tool-fs) | [`fs-observation-policy`](../packages/fs/fs-observation-policy) | tool-fs 通过 ctx.fs 执行读取／写入／编辑；fs-sandbox 按共享沙箱模式限制变更；fs-observation-policy 通过 fs/* 事件门禁贡献基于观测状态的检查。 |
 | `ctx.compaction` | `seam` | [`compaction`](../packages/compaction/compaction) | [`compaction-basic`](../packages/compaction/compaction-basic) | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 基础后端消费步骤后的压力事件和请求错误恢复事件；不存在面向模型的压缩工具。 |
 | `ctx.subagents` | `seam` | [`subagent`](../packages/subagent/subagent) | [`subagent-spawn-in-process`](../packages/subagent/subagent-spawn-in-process), [`subagent-fork-in-process`](../packages/subagent/subagent-fork-in-process), [`subagent-acp`](../packages/subagent/subagent-acp), [`subagent-codex`](../packages/subagent/subagent-codex), [`subagent-claude-code`](../packages/subagent/subagent-claude-code), [`subagent-dsh-sdk`](../packages/subagent/subagent-dsh-sdk) | [`tool-subagent`](../packages/subagent/tool-subagent), [`tool-subagent-control`](../packages/subagent/tool-subagent-control), [`tool-ralph`](../packages/experimental/tool-ralph) | - | 提供方准备本地子级或执行外部任务；一个 activation 管理器持有两类生命周期。委派工具选择后端，控制工具投递本地后续消息，工作流等待 activation 结果。 |
+| `ctx.media` | `seam` | [`experimental-video-mode`](../packages/experimental/video-mode) | [`experimental-video-mode`](../packages/experimental/video-mode) | [`experimental-video-mode`](../packages/experimental/video-mode) | - | Service Definition、合成/ComfyUI/MiniMax provider 与面向模型的 media 工具同包；部署 provider 注册同一接口。 |
 | `ctx.speechToText` | `seam` | [`experimental-speech-to-text`](../packages/experimental/speech-to-text) | [`experimental-speech-to-text-sensevoice`](../packages/experimental/speech-to-text-sensevoice) | [`experimental-api-speech-to-text`](../packages/experimental/api-speech-to-text) | - | 路由显式选择的识别器；浏览器使用带认证的 Remote，并在提交前将转写保留在草稿中。 |
 | `ctx.agentTeams` | `core` | [`experimental-agent-team`](../packages/experimental/agent-team) | - | [`experimental-tool-agent-team`](../packages/experimental/tool-agent-team) | - | 负责隐式 Root roster、直接 peer inbox 投递、共享任务 DAG 与 continuable child 生命周期；tool-agent-team 提供模型控制工具。 |
 | `ctx.claudeCodeMods` | `core` | [`experimental-claude-code-mods`](../packages/experimental/claude-code-mods) | - | - | - | 加载 defineMod 插件添加的模组，从 harness 扩展点触发其钩子链，并通过其 Remote 绘制提示框上方的横幅。 |

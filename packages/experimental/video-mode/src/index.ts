@@ -1,8 +1,8 @@
 /**
  * Experimental video production mode. One service provides `ctx.media`, a
- * deterministic synthetic provider, local ComfyUI and cloud MiniMax-H3 video
- * providers, and four model-facing tools: `media`, `video_project`,
- * `video_assemble`, and `video_deliver`. The project document
+ * deterministic synthetic provider, a local ComfyUI provider, cloud MiniMax-H3
+ * video and MiniMax speech providers, and four model-facing tools: `media`,
+ * `video_project`, `video_assemble`, and `video_deliver`. The project document
  * and the EDL are the durable, reproducible contracts; the service owns
  * provider selection and task retention.
  *
@@ -26,6 +26,7 @@ export {
   resolveComfyUi,
   resolveMediaConfig,
   resolveMiniMax,
+  resolveMiniMaxSpeech,
 } from './media.ts'
 export type {
   ComfyUiConfig,
@@ -33,6 +34,7 @@ export type {
   ComfyUiVideoConfig,
   MediaRuntimeConfig,
   MiniMaxConfig,
+  MiniMaxSpeechConfig,
   ResolvedMediaConfig,
 } from './media.ts'
 export { MediaRuntime }
@@ -71,6 +73,15 @@ export {
   MiniMaxMediaProvider,
 } from './minimax.ts'
 export type { MiniMaxFetchLike, MiniMaxResolution, MiniMaxSettings } from './minimax.ts'
+export {
+  MINIMAX_SPEECH_EMOTIONS,
+  MINIMAX_SPEECH_MODEL,
+  MINIMAX_SPEECH_PROVIDER_ID,
+  MINIMAX_SPEECH_VOICE,
+  MiniMaxSpeechProvider,
+  billingCharsOf,
+} from './minimax-speech.ts'
+export type { MiniMaxSpeechEmotion, MiniMaxSpeechSettings } from './minimax-speech.ts'
 export type { ComfyWorkflow, ComfyWorkflowNode } from './comfyui-workflows.ts'
 export { colorFor, silentWav, solidPng } from './fixture-bytes.ts'
 

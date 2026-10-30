@@ -1841,7 +1841,7 @@ export type PaidTranslationProvider = 'deepseek-account' | 'deepseek-official'
 
 ## `@deepseek-ai/dsh-experimental-video-mode`
 
-- `source`: [`packages/experimental/video-mode/src/media.ts:186`](../packages/experimental/video-mode/src/media.ts)
+- `source`: [`packages/experimental/video-mode/src/media.ts:226`](../packages/experimental/video-mode/src/media.ts)
 
 ```ts config-catalog
 /** Deployment configuration of the media runtime and the video tools. */
@@ -1900,8 +1900,10 @@ export interface ComfyUiConfig {
 export interface MiniMaxConfig {
   /** Register the provider. Defaults to false. */
   readonly enabled?: boolean
-  /** Bearer API key; set from `$MINIMAX_API_KEY` in the preset. */
+  /** Direct bearer API key for programmatic use; empty when {@link apiKeyEnv} names the credential. */
   readonly apiKey?: string
+  /** Credential reference resolved per request through `ctx.credentials`, for example `MINIMAX_API_KEY`. */
+  readonly apiKeyEnv?: string
   /** MiniMax API origin. */
   readonly baseUrl?: string
   /** Minimum gap between two status polls for one task. */
@@ -1918,6 +1920,8 @@ export interface MiniMaxConfig {
   readonly maxDurationSec?: number
   /** Aspect ratio used for text-to-video when the request omits one. */
   readonly aspectRatio?: string
+  /** Speech synthesis overrides; omitted leaves the speech provider unregistered. */
+  readonly speech?: MiniMaxSpeechConfig
 }
 
 /** ComfyUI video settings a deployment may override. */
@@ -1958,6 +1962,24 @@ export interface ComfyUiImageConfig {
   readonly vae?: string
   /** Long side of a generated image in pixels. */
   readonly size?: number
+}
+
+/** MiniMax speech configuration. Credentials and origin inherit from the parent block. */
+export interface MiniMaxSpeechConfig {
+  /** Register the speech provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** Speech model id. Defaults to `speech-2.8-turbo`. */
+  readonly model?: string
+  /** Default system voice id. Defaults to a Mandarin news anchor. */
+  readonly voiceId?: string
+  /** Speech speed multiplier in `[0.5, 2]`. */
+  readonly speed?: number
+  /** Volume multiplier in `(0, 10]`. */
+  readonly vol?: number
+  /** Pitch offset in `[-12, 12]`. */
+  readonly pitch?: number
+  /** Fixed emotion label; empty lets the model infer it from the text. */
+  readonly emotion?: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-video-mode -->

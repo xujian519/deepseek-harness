@@ -413,6 +413,9 @@ importers:
       '@deepseek-ai/dsh-experimental-tool-worktree':
         specifier: workspace:*
         version: link:../../packages/experimental/tool-worktree
+      '@deepseek-ai/dsh-experimental-video-mode':
+        specifier: workspace:*
+        version: link:../../packages/experimental/video-mode
       '@deepseek-ai/dsh-experimental-voice-input-bundle':
         specifier: workspace:*
         version: link:../../packages/experimental/voice-input-bundle
@@ -3763,6 +3766,9 @@ importers:
       '@deepseek-ai/dsh-deliverable-file-references':
         specifier: workspace:*
         version: link:../../deliverables/deliverable-file-references
+      '@deepseek-ai/dsh-experimental-video-mode':
+        specifier: workspace:*
+        version: link:../../experimental/video-mode
       '@deepseek-ai/dsh-file-reference':
         specifier: workspace:*
         version: link:../../context/file-reference
@@ -12609,6 +12615,9 @@ importers:
       '@deepseek-ai/dsh-agent-loop-testkit':
         specifier: workspace:*
         version: link:../../test-support/agent-loop-testkit
+      '@deepseek-ai/dsh-credentials':
+        specifier: workspace:*
+        version: link:../../credentials/credentials
       '@deepseek-ai/dsh-fs':
         specifier: workspace:*
         version: link:../../fs/fs
