@@ -60,6 +60,12 @@ describe('figure number parsing', () => {
     expect(drawingEntries('图1。')).toEqual([{ number: 1, name: '' }])
   })
 
+  it('reads one entry per figure label in comma-separated and range listings', () => {
+    expect(drawingEntries('图1为A，图2为B。').map(entry => entry.number)).toEqual([1, 2])
+    expect(drawingEntries('图1至图3分别为结构图、剖视图和放大图。').map(entry => entry.number)).toEqual([1, 2, 3])
+    expect(drawingEntries('图2为图1中A处的放大图。')).toEqual([{ number: 2, name: '图1中A处的放大图' }])
+  })
+
   it('finds the drawing section only when it is a heading', () => {
     expect(getDrawingSection(FOUR_PARTS)).toBe('')
     expect(getDrawingSection('## 附图说明\n图1为结构图。')).toBe('图1为结构图。')
@@ -83,6 +89,20 @@ describe('figure sequence checks', () => {
     const gap = checkFigureNumberSequence('## 附图说明\n图1为A。\n图3为C。')
     expect(gap[0]).toMatchObject({ rule: 'figure_number_sequence', severity: 'error', family: 'figures' })
     expect(gap[0]?.message).toContain('缺少图2')
+  })
+
+  it('reads a comma-separated drawing description as separate figures', () => {
+    const text = '## 附图说明\n图1为整体结构示意图，图2为局部放大示意图。'
+    expect(checkFigureNumberSequence(text)).toEqual([])
+    expect(checkDrawingCount(text, 2)).toEqual([])
+    expect(checkFigureReferenceMissing(`${text}\n## 具体实施方式\n如图1和图2所示。`)).toEqual([])
+  })
+
+  it('expands a figure-number range instead of reporting missing figures', () => {
+    const text = '## 附图说明\n图1至图3分别为结构图、剖视图和放大图。'
+    expect(checkFigureNumberSequence(text)).toEqual([])
+    expect(checkDrawingCount(text, 3)).toEqual([])
+    expect(checkFigureReferenceMissing(`${text}\n## 具体实施方式\n如图2所示。`)).toEqual([])
   })
 
   it('reports duplicate numbers', () => {

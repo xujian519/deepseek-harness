@@ -53,25 +53,84 @@ export type DrawingEntry = {
   name: string
 }
 
+/** A separator that starts a new drawing-description entry. */
+const ENTRY_SEPARATOR = /[；;。\n，,、]/
+
+/** A connector that joins two figure numbers into one range (`图1至图3`). */
+const RANGE_CONNECTOR = /^\s*(?:至|到|[-—–~～])\s*$/
+
+/** One figure label inside the drawing description. */
+type FigureLabel = {
+  /** Parsed figure number. */
+  number: number
+  /** Offset of the `图` token. */
+  start: number
+  /** Offset just past the number token. */
+  end: number
+  /** Whether the label opens an entry, closes a range, or only appears inside the previous entry's name. */
+  role: 'entry' | 'range' | 'reference'
+}
+
 /**
- * Parse the drawing-description entries (`图N为…`, `图N：…`).
+ * Parse the drawing-description entries (`图N为…`, `图N：…`, `图1，图2…`, `图1至图3…`).
+ * A figure label followed by a separator opens a new entry, a label that closes a
+ * range (`至`/`到`/`-`/`—`/`~`/`～`) adds every number up to it, and any other
+ * label (such as `图2为图1中A处的放大图`) belongs to the entry being described.
  * @param section - the drawing-description body.
- * @returns one entry per figure-number occurrence.
+ * @returns one entry per described figure, in text order.
  */
 export function drawingEntries(section: string): DrawingEntry[] {
-  const entries: DrawingEntry[] = []
-  const pattern = new RegExp(`图\\s*(${FIGURE_NUMBER_SOURCE})\\s*([^；;。\\n]*)`, 'g')
-  for (const match of section.matchAll(pattern)) {
+  const labels: FigureLabel[] = []
+  let labelEnd = 0
+  for (const match of section.matchAll(FIGURE_REFERENCE_RE)) {
     const raw = match[1]
     /* v8 ignore next -- the pattern always captures the number group. */
     if (raw === undefined) continue
     const number = parseFigureNumber(raw)
     /* v8 ignore next -- the source only matches numeral tokens. */
     if (number === undefined) continue
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- the pattern always captures the name group.
-    entries.push({ number, name: match[2]!.replace(/^[\s为是：:、，,。；;]*/, '') })
+    const start = match.index
+    const end = start + match[0].length
+    const gap = section.slice(labelEnd, start)
+    const role: FigureLabel['role'] = labels.length === 0
+      ? 'entry'
+      : RANGE_CONNECTOR.test(gap)
+        ? 'range'
+        : ENTRY_SEPARATOR.test(gap)
+          ? 'entry'
+          : 'reference'
+    labels.push({ number, start, end, role })
+    labelEnd = end
   }
-  return entries
+
+  const groups: { numbers: number[]; start: number; nameStart: number }[] = []
+  for (const label of labels) {
+    if (label.role === 'entry') {
+      groups.push({ numbers: [label.number], start: label.start, nameStart: label.end })
+      continue
+    }
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- a non-first label always follows an entry, which opened a group.
+    const group = groups[groups.length - 1]!
+    if (label.role === 'range') {
+      // oxlint-disable-next-line typescript/no-non-null-assertion -- every group carries at least one number.
+      const last = group.numbers[group.numbers.length - 1]!
+      const from = Math.min(last, label.number)
+      const to = Math.max(last, label.number)
+      for (let n = from; n <= to; n += 1) {
+        if (!group.numbers.includes(n)) group.numbers.push(n)
+      }
+      group.nameStart = label.end
+    }
+  }
+
+  return groups.flatMap((group, index) => {
+    const next = groups[index + 1]
+    const [name = ''] = section
+      .slice(group.nameStart, next === undefined ? section.length : next.start)
+      .split(/[；;。\n]/, 1)
+    const cleaned = name.replace(/^[\s为是：:、，,。；;]*/, '')
+    return group.numbers.map(number => ({ number, name: cleaned }))
+  })
 }
 
 /**
