@@ -14,7 +14,10 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+
+from common import freecad_argv, is_entry
 from common.manifest import params_digest
+
 
 EXIT_OK = 0
 EXIT_PARAMS = 2
@@ -33,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(description="校验构建产物")
     parser.add_argument("--out", required=True, help="包含 manifest.json 的目录")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(freecad_argv(argv))
 
     target = pathlib.Path(args.out).expanduser().resolve()
     if not target.is_dir():
@@ -41,9 +44,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_PARAMS
 
     try:
-        import FreeCAD as App  # noqa: F401  仅为确认运行环境
-        import Mesh
-        import Part
+        import FreeCAD  # noqa: F401  仅为确认运行环境
     except ImportError:
         print("ERROR: 未找到 FreeCAD 模块：必须用 FreeCADCmd 运行本脚本", file=sys.stderr)
         return EXIT_ENV
@@ -65,6 +66,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _check_variant(base: pathlib.Path, manifest: dict) -> int:
+    import Mesh
+    import Part
+
     label = f"{manifest.get('part')}/{manifest.get('variant')}"
     problems: list[str] = []
 
@@ -128,5 +132,9 @@ def _check_bbox(step_path: pathlib.Path, shape, manifest: dict) -> list[str]:
     return problems
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+# 区分 `freecadcmd verify.py`（入口）与 `import verify`（模块）。
+if is_entry(__file__, __name__):
+    _code = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    raise SystemExit(_code)

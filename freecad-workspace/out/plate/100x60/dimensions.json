@@ -1,0 +1,88 @@
+{
+  "views": {
+    "Top": "Compound",
+    "Front": "Compound",
+    "Left": "Compound"
+  },
+  "dimensions": [
+    {
+      "rule": "overall_x",
+      "status": "ok",
+      "edges": [],
+      "value": 100.0,
+      "reason": null,
+      "view": "Top",
+      "created": true
+    },
+    {
+      "rule": "overall_y",
+      "status": "ok",
+      "edges": [],
+      "value": 60.0,
+      "reason": null,
+      "view": "Top",
+      "created": true
+    },
+    {
+      "rule": "hole_dia",
+      "status": "ok",
+      "edges": [
+        10
+      ],
+      "value": 10.0,
+      "quantity": 16,
+      "reason": null,
+      "view": "Top",
+      "created": true
+    },
+    {
+      "rule": "pitch_dia",
+      "status": "manual",
+      "edges": [
+        3,
+        4,
+        7,
+        8,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32
+      ],
+      "value": null,
+      "reason": "圆心不共圆，半径偏差最大 17.4057 mm",
+      "view": "Top",
+      "created": false
+    },
+    {
+      "rule": "thickness",
+      "status": "ok",
+      "edges": [
+        3,
+        28
+      ],
+      "value": 7.999999999999993,
+      "reason": null,
+      "view": "Front",
+      "created": true
+    }
+  ],
+  "files": [
+    "model.dxf"
+  ]
+}

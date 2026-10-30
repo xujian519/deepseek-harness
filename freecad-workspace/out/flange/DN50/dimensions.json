@@ -1,0 +1,60 @@
+{
+  "views": {
+    "Top": "Compound",
+    "Front": "Compound",
+    "Left": "Compound"
+  },
+  "dimensions": [
+    {
+      "rule": "overall_x",
+      "status": "ok",
+      "edges": [],
+      "value": 160.0,
+      "reason": null,
+      "view": "Top",
+      "created": true
+    },
+    {
+      "rule": "overall_y",
+      "status": "ok",
+      "edges": [],
+      "value": 160.0,
+      "reason": null,
+      "view": "Top",
+      "created": true
+    },
+    {
+      "rule": "hole_dia",
+      "status": "ok",
+      "edges": [],
+      "value": 17.5,
+      "reason": null,
+      "view": "Top",
+      "created": true
+    },
+    {
+      "rule": "pitch_dia",
+      "status": "ok",
+      "edges": [],
+      "value": 125.0,
+      "reason": null,
+      "view": "Top",
+      "created": true
+    },
+    {
+      "rule": "thickness",
+      "status": "ok",
+      "edges": [
+        6,
+        24
+      ],
+      "value": 19.999999999999986,
+      "reason": null,
+      "view": "Front",
+      "created": true
+    }
+  ],
+  "files": [
+    "model.dxf"
+  ]
+}

@@ -15,6 +15,7 @@ from datetime import datetime
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from common import freecad_argv, is_entry
 from common.manifest import make_manifest, write_manifest
 from common.params import OUTPUT_FORMATS, ParamsError, load_params
 
@@ -38,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     @param argv - 命令行参数，缺省取 sys.argv。
     @returns 进程退出码，见 README。
     """
-    args = _parse_args(argv)
+    args = _parse_args(freecad_argv(argv))
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     started = time.monotonic()
 
@@ -193,5 +194,10 @@ def _fail(code: int, message: str, out_dir: pathlib.Path | None) -> int:
     return code
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+# 区分 `freecadcmd build.py`（入口）与 `import build`（模块）。
+# FreeCAD 进程退出前需显式刷新 stdout，否则 print 输出会丢失。
+if is_entry(__file__, __name__):
+    _code = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    raise SystemExit(_code)

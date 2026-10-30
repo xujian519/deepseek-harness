@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 
+import FreeCAD as App
 import Part
 
 SIZE_KEYS = {"D_MAX": [0, 1], "L": 2}
@@ -42,7 +43,7 @@ def build(params: dict) -> Part.Shape:
     offset = 0.0
     for diameter, length in segments:
         cyl = Part.makeCylinder(diameter / 2, length)
-        cyl.translate(Part.Vector(0, 0, offset))
+        cyl.translate(App.Vector(0, 0, offset))
         cylinders.append(cyl)
         offset += length
     return cylinders[0].multiFuse(cylinders[1:]) if len(cylinders) > 1 else cylinders[0]

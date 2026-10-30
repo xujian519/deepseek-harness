@@ -9,7 +9,7 @@ templates/   SVG 图框（含 freecad:editable 与 freecad:autofill 字段）
 macros/      .FCMacro 与可复用辅助模块
 parts/       零件族构建器（Python，调用 FreeCAD Part API）
 params/      参数表（JSON，每个变体一份）
-scripts/     build.py / validate.py / sheet.py / dim_rules.py / import2d.py / common/
+scripts/     build.py / verify.py / sheet.py / dim_rules.py / import2d.py / common/
 incoming/    客户原始图纸，按案件分子目录，只读
 out/         生成物，按 <part>/<variant>/ 分层
 docs/        基线、命名规范、字段字典、API 片段、故障对策
@@ -20,13 +20,15 @@ docs/        基线、命名规范、字段字典、API 片段、故障对策
 脚本必须在 FreeCAD 的 Python 解释器下执行，不能直接用系统 `python3`：
 
 ```bash
-FreeCADCmd scripts/build.py --pass params/plate-100x60.json
-FreeCADCmd scripts/validate.py --out out/plate
-FreeCADCmd scripts/sheet.py --pass params/plate-100x60.json
+freecadcmd scripts/build.py --pass params/plate-100x60.json
+freecadcmd scripts/verify.py --out out/plate/100x60
+freecadcmd scripts/sheet.py --pass params/plate-100x60.json
 xvfb-run -a freecad scripts/sheet.py --pass params/plate-100x60.json --pdf
 ```
 
-`sheet.py` 需要先有 `out/<part>/<variant>/model.FCStd`，即先跑 `build.py`。DXF 可无头导出；PDF 需要 GUI（Linux 用 `xvfb-run`）。
+`sheet.py` 需要先有 `out/<part>/<variant>/model.FCStd`，即先跑 `build.py`。DXF 可无头导出（用 `Part.HLRBRep` 直接投影 + 手写 DXF 实体，不依赖 TechDraw HLR）；PDF 需要 GUI（Linux 用 `xvfb-run`）。
+
+macOS 的可执行文件在 `FreeCAD.app/Contents/MacOS/FreeCADCmd`；Windows 为 `FreeCADCmd.exe`；Linux 发行版通常为小写 `freecadcmd`。
 
 客户图纸接入用系统 Python，不进 FreeCAD：
 
@@ -44,8 +46,6 @@ python3 scripts/import2d.py --input drawing.dxf --drop-layer TITLE --drop-patter
 
 输出到 `out/<case>/converted/`：`model.svg`、`layers.json`（图层清单）、`convert.json`（来源哈希、转换器、删除计数）。默认删除尺寸实体、`TEXT`/`MTEXT`，并按 `--drop-layer` / `--drop-pattern` 删图层；PDF 路径没有图层信息，清理需人工，`convert.json` 会记 `cleaning: manual`。
 
-macOS 的 `FreeCADCmd` 在 `FreeCAD.app/Contents/MacOS/FreeCADCmd`；Windows 为 `FreeCADCmd.exe`。
-
 ## 退出码
 
 | 码 | 含义 |
@@ -58,16 +58,16 @@ macOS 的 `FreeCADCmd` 在 `FreeCAD.app/Contents/MacOS/FreeCADCmd`；Windows 为
 
 ## 当前状态
 
-- 阶段 0–3 的代码已建立：目录骨架、A4 图框、板/法兰/阶梯轴/L 形支架四类构建器，`build.py`、`validate.py`、`sheet.py`、`dim_rules.py`。
+- 阶段 0–3 的代码已建立：目录骨架、A4 图框、板/法兰/阶梯轴/L 形支架四类构建器，`build.py`、`verify.py`、`sheet.py`、`dim_rules.py`。
 - 阶段 5 的 `import2d.py` 已实现，DXF 路径在沙箱用合成图实测通过；DWG/PDF 路径依赖本机转换器，未实测。
 - 阶段 4 的上下文资产已建立：`docs/api_snippets.md`、`docs/field-dictionary.md`（含模板字段与四类零件参数表）、`docs/failure_playbook.md`、`docs/agent-contract.md`（代理权限与护栏）、四份 `params/*.json` 样例。
 - 四份参数样例已通过 `scripts/common/params.py` 校验，并与各零件族的 `REQUIRED` 字段及数值约束一致。
-- 本仓库的沙箱没有 FreeCAD，`build.py` / `validate.py` / `sheet.py` 尚未在真实 `FreeCADCmd` 下执行；离线检查（语法、参数校验、模板 XML、标注规则、DXF/PDF 转换）已通过。
+- `build.py` / `verify.py` / `sheet.py` 已在 FreeCAD 0.21.2 下跑通四类零件：`build.py` 产出 FCStd/STEP/STL/manifest；`verify.py` 体积与包围盒校验通过；`sheet.py` 产出 DXF（含图框、标题栏、三视图、尺寸文字）与 `dimensions.json`。
 
 ## 已知限制
 
-- `dim_rules.py` 假定 `EdgeN` 序号与 `view.getVisibleEdges()` 顺序一致，需在目标机实测；不一致时尺寸会引用到错误边，必须核对 `dimensions.json`。
-- `pitch_dia`（节圆直径）已实现：按圆心共圆分组，取最远一对孔边出直径尺寸；需在目标机核对 `dimensions.json` 中该尺寸的测量值是否等于 `BCD`。
-- 孔径的数量前缀依赖 `DrawViewDimension.FormatSpec`，若该属性不接受自定义前缀，会记录在 `dimensions.json` 的 `reason`。
-- `sheet.py` 用 `hasattr(group, "AutoDistribute")` 判断自动布局能力，手工布局为后备路径，未在 1.1.4 上验证。
+- DXF 导出用 `Part.HLRBRep.Algo` 直接做三视图投影（无头模式下 TechDraw HLR 不运行），再手写 R12 DXF 实体（LINE/CIRCLE/TEXT）；不支持圆弧等其它曲线类型，遇到时会跳过。
+- 尺寸值取自投影边匹配或 3D 包围盒/圆柱面回退测量；`dimensions.json` 中 `status=manual` 的项需人工核对（例如矩形孔阵无节圆、轴类零件的轴向长度）。
+- `shape.scale()` 在 FreeCAD 0.21 中会使 `edge.Curve` 无法读取，故视图缩放通过对坐标手动乘系数实现。
 - `import2d.py` 的 DWG 路径依赖 `dwg2dxf`，沙箱没有该工具，未实测；多页 PDF 会产出 `model-2.svg` 等文件，`convert.json` 的 `outputs` 会列出全部 SVG。
+- PDF 导出仍走 TechDraw 模板路径，需要 GUI（`xvfb-run`），未在无头环境实测。

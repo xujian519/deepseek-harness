@@ -175,7 +175,8 @@ def circle_center(edge: object) -> tuple[float, float] | None:
     center = getattr(curve, "Center", None)
     if center is None or getattr(curve, "Radius", None) is None:
         return None
-    return float(center.X), float(center.Y)
+    # Base.Vector 使用小写 x/y；Part.Vertex 使用大写 X/Y，此处 center 为 Vector。
+    return float(center.x), float(center.y)
 
 
 def _pitch_diameter(edges: list[tuple[int, object]], params: dict) -> dict:
