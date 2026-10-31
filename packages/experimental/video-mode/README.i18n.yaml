@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/video-mode/README.md
+/:
+  en: f2396553f4d855ea
+  zh: 5ac2db28f31073bf
+/deepseek-ai-dsh-experimental-video-mode:
+  en: 58c5254c89e460ab
+  zh: e6b9b396d48b3574
+/deepseek-ai-dsh-experimental-video-mode/summary:
+  en: 7c3b7e751fdb61ab
+  zh: 87e0c63d3d40ea03
+/deepseek-ai-dsh-experimental-video-mode/table-of-contents:
+  en: 81ebfb0a13571ff6
+  zh: 86584aa7142f6c75
+/deepseek-ai-dsh-experimental-video-mode/what-it-mounts:
+  en: 5dc816e555f508e2
+  zh: f5c6de3864c127ab
+/deepseek-ai-dsh-experimental-video-mode/use-this-package:
+  en: d13a45d5eaae368f
+  zh: 6b589c7de83a90f2
+/deepseek-ai-dsh-experimental-video-mode/understand-the-implementation:
+  en: bc40016a11cdbdbd
+  zh: 18327206ee99e535
+/deepseek-ai-dsh-experimental-video-mode/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-video-mode/model-experience/tool-schemas:
+  en: 3039bc5e7a796b21
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-experimental-video-mode/model-experience/tool-schemas/what-the-model-sees:
+  en: 7e0acc2d5a820162
+  zh: f32bf42a46326db0
+/deepseek-ai-dsh-experimental-video-mode/model-experience/tool-schemas/token-effect:
+  en: 55dde63ed81ebea5
+  zh: ba964dcd073423ca
+/deepseek-ai-dsh-experimental-video-mode/model-experience/tool-schemas/kv-cache-effect:
+  en: e3a87b44a164f303
+  zh: eb945d26d5621b25
+/deepseek-ai-dsh-experimental-video-mode/known-limitations-and-deferred-work:
+  en: 8489b23ff1105b0e
+  zh: cfbe295a467d855e
+/deepseek-ai-dsh-experimental-video-mode/known-limitations-and-deferred-work/dev-note:
+  en: 05d678933215c93b
+  zh: 1b5c81d1750f6e63

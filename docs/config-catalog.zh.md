@@ -1838,6 +1838,183 @@ export type PaidTranslationProvider = 'deepseek-account' | 'deepseek-official'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-translator -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-video-mode -->
+<a id="deepseek-aidsh-experimental-video-mode"></a>
+
+## `@deepseek-ai/dsh-experimental-video-mode`
+
+- `source`: [`packages/experimental/video-mode/src/media.ts:271`](../packages/experimental/video-mode/src/media.ts)
+
+```ts config-catalog
+/** Deployment configuration of the media runtime and the video tools. */
+export interface MediaRuntimeConfig {
+  /** Mount the synthetic provider. Defaults to true for the experimental slice. */
+  readonly fakeProvider?: boolean
+  /** Default image model id. */
+  readonly imageModel?: string
+  /** Default video model id. */
+  readonly videoModel?: string
+  /** Default speech model id. */
+  readonly speechModel?: string
+  /** Longest `media generate` wait before it returns a running task id. */
+  readonly waitMs?: number
+  /** Poll interval while waiting for a task. */
+  readonly pollMs?: number
+  /** Largest accepted artifact size in bytes. */
+  readonly maxArtifactBytes?: number
+  /** Retained task records; the oldest settled record is evicted first. */
+  readonly maxTasks?: number
+  /** ffmpeg executable name or path. */
+  readonly ffmpegPath?: string
+  /** ffprobe executable name or path. */
+  readonly ffprobePath?: string
+  /** Synthetic provider delay before it settles a task. */
+  readonly syntheticLatencyMs?: number
+  /** Subtitle font family passed to the burn-in filter; empty selects ffmpeg's default. */
+  readonly subtitleFont?: string
+  /** Single-generation cost above which the media tool requires explicit confirmation, in CNY. */
+  readonly approvalThresholdCny?: number
+  /** Local ComfyUI backend; omitted leaves it unregistered. */
+  readonly comfyui?: ComfyUiConfig
+  /** MiniMax cloud video backend; omitted leaves it unregistered. */
+  readonly minimax?: MiniMaxConfig
+  /** SiliconFlow cloud video backend; omitted leaves it unregistered. */
+  readonly siliconflow?: SiliconFlowConfig
+}
+
+/** Local ComfyUI backend configuration. */
+export interface ComfyUiConfig {
+  /** Register the provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** ComfyUI HTTP origin. */
+  readonly baseUrl?: string
+  /** Minimum gap between two history polls for one task. */
+  readonly pollMs?: number
+  /** Failure deadline measured from submission. */
+  readonly timeoutMs?: number
+  /** Output subdirectory prefix the server writes into. */
+  readonly outputPrefix?: string
+  /** Video overrides. */
+  readonly video?: ComfyUiVideoConfig
+  /** Image overrides. */
+  readonly image?: ComfyUiImageConfig
+}
+
+/** MiniMax cloud video configuration. */
+export interface MiniMaxConfig {
+  /** Register the provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** Direct bearer API key for programmatic use; empty when {@link apiKeyEnv} names the credential. */
+  readonly apiKey?: string
+  /** Credential reference resolved per request through `ctx.credentials`, for example `MINIMAX_API_KEY`. */
+  readonly apiKeyEnv?: string
+  /** MiniMax API origin. */
+  readonly baseUrl?: string
+  /** Minimum gap between two status polls for one task. */
+  readonly pollMs?: number
+  /** Failure deadline measured from submission. */
+  readonly timeoutMs?: number
+  /** Model id reported to consumers and submitted to the API. */
+  readonly model?: string
+  /** Resolution used when a request omits one; `768P` or `2K`. */
+  readonly resolution?: string
+  /** Duration used when a request omits one. */
+  readonly defaultDurationSec?: number
+  /** Longest accepted request duration. */
+  readonly maxDurationSec?: number
+  /** Aspect ratio used for text-to-video when the request omits one. */
+  readonly aspectRatio?: string
+  /** Speech synthesis overrides; omitted leaves the speech provider unregistered. */
+  readonly speech?: MiniMaxSpeechConfig
+}
+
+/** SiliconFlow cloud video configuration. */
+export interface SiliconFlowConfig {
+  /** Register the provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** Direct bearer API key for programmatic use; empty when {@link apiKeyEnv} names the credential. */
+  readonly apiKey?: string
+  /** Credential reference resolved per request through `ctx.credentials`, for example `SILICONFLOW_API_KEY`. */
+  readonly apiKeyEnv?: string
+  /** SiliconFlow API origin, including the `/v1` prefix. */
+  readonly baseUrl?: string
+  /** Minimum gap between two status polls for one task. */
+  readonly pollMs?: number
+  /** Failure deadline measured from submission. */
+  readonly timeoutMs?: number
+  /** Model id reported to consumers and submitted to the API. */
+  readonly model?: string
+  /** Aspect ratio used when the request omits one. */
+  readonly aspectRatio?: string
+  /** Price of one completed video in major currency units. */
+  readonly pricePerVideo?: number
+  /** Currency of {@link pricePerVideo}; the mainland site bills CNY and the international site USD. */
+  readonly currency?: MediaCurrency
+}
+
+/** ComfyUI video settings a deployment may override. */
+export interface ComfyUiVideoConfig {
+  /** Model id reported to consumers. */
+  readonly model?: string
+  /** API-format workflow file; empty uses the bundled Wan 2.2 graph. */
+  readonly workflowPath?: string
+  /** UNET file name under `models/diffusion_models`. */
+  readonly checkpoint?: string
+  /** Text encoder file name under `models/text_encoders`. */
+  readonly textEncoder?: string
+  /** VAE file name under `models/vae`. */
+  readonly vae?: string
+  /** Short side of the canvas, as a `<n>p` label. */
+  readonly resolution?: string
+  /** Frame rate written into the clip. */
+  readonly fps?: number
+  /** Duration used when a request omits one. */
+  readonly defaultDurationSec?: number
+  /** Longest accepted request duration. */
+  readonly maxDurationSec?: number
+  /** Negative prompt used when a request omits one. */
+  readonly negativePrompt?: string
+}
+
+/** ComfyUI image settings a deployment may override. */
+export interface ComfyUiImageConfig {
+  /** Model id reported to consumers. */
+  readonly model?: string
+  /** API-format workflow file; empty uses the bundled Z-Image graph. */
+  readonly workflowPath?: string
+  /** UNET file name under `models/diffusion_models`. */
+  readonly checkpoint?: string
+  /** Text encoder file name under `models/text_encoders`. */
+  readonly textEncoder?: string
+  /** VAE file name under `models/vae`. */
+  readonly vae?: string
+  /** Long side of a generated image in pixels. */
+  readonly size?: number
+}
+
+/** MiniMax speech configuration. Credentials and origin inherit from the parent block. */
+export interface MiniMaxSpeechConfig {
+  /** Register the speech provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** Speech model id. Defaults to `speech-2.8-turbo`. */
+  readonly model?: string
+  /** Default system voice id. Defaults to a Mandarin news anchor. */
+  readonly voiceId?: string
+  /** Speech speed multiplier in `[0.5, 2]`. */
+  readonly speed?: number
+  /** Volume multiplier in `(0, 10]`. */
+  readonly vol?: number
+  /** Pitch offset in `[-12, 12]`. */
+  readonly pitch?: number
+  /** Fixed emotion label; empty lets the model infer it from the text. */
+  readonly emotion?: string
+}
+
+/** Currency carried by a price. */
+export type MediaCurrency = 'CNY' | 'USD'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-video-mode -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-worktree -->
 <a id="deepseek-aidsh-experimental-worktree"></a>
 
@@ -6332,6 +6509,7 @@ export type PatternCategory = (typeof PATTERN_CATEGORIES)[number]
 | `@deepseek-ai/dsh-client-ui-approval` | — | [`packages/client/ui-approval/src/index.ts`](../packages/client/ui-approval/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-attachment` | — | [`packages/client/ui-attachment/src/index.ts`](../packages/client/ui-attachment/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-brand-official` | — | [`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-brand-patent` | — | [`packages/client/ui-brand-patent/src/index.ts`](../packages/client/ui-brand-patent/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-chat` | — | [`packages/client/ui-chat/src/index.ts`](../packages/client/ui-chat/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-commands` | — | [`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-conversation` | — | [`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts) |
@@ -6381,6 +6559,7 @@ export type PatternCategory = (typeof PATTERN_CATEGORIES)[number]
 | `@deepseek-ai/dsh-client-ui-todo-board` | — | [`packages/client/ui-todo-board/src/index.ts`](../packages/client/ui-todo-board/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-tool` | — | [`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-user-questions` | — | [`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-video-studio` | — | [`packages/client/ui-video-studio/src/index.ts`](../packages/client/ui-video-studio/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-workflow-run` | — | [`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-workspace` | — | [`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts) |
 | `@deepseek-ai/dsh-command-compact` | `commands` · `compaction` | [`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts) |

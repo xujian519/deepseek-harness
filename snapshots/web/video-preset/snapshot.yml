@@ -1,0 +1,8 @@
+version: 1
+scenario: video-preset
+profile: web
+composition: video-preset
+recording: live
+header:
+  class: video-preset
+  pin: true

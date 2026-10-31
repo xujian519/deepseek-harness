@@ -9,8 +9,8 @@
   en: 788235fe5e9f4199
   zh: 891fd445df64adeb
 /tool-schema-catalog/tool-package-map:
-  en: 06d04b32d3174424
-  zh: 7f28754130bbc839
+  en: 7e870d4b09f020b5
+  zh: 65981da069a31761
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -351,8 +351,23 @@
   en: d5b714d8bdd80c24
   zh: d5b714d8bdd80c24
 /tool-schema-catalog/deepseek-ai-dsh-document-deliver/document-deliver:
-  en: f3d00745e9d07cd8
-  zh: ad8614f8d87e0ee5
+  en: 33469f479e384760
+  zh: feae886a56c3ecb8
+/tool-schema-catalog/deepseek-ai-dsh-experimental-video-mode:
+  en: a828531164240105
+  zh: 7830eb1b06bc25e4
+/tool-schema-catalog/deepseek-ai-dsh-experimental-video-mode/media:
+  en: da8ed31d5bf4c500
+  zh: 54aa6b9ff24a93c5
+/tool-schema-catalog/deepseek-ai-dsh-experimental-video-mode/video-assemble:
+  en: 4158658109f4d323
+  zh: 70c274cc8211268e
+/tool-schema-catalog/deepseek-ai-dsh-experimental-video-mode/video-deliver:
+  en: 4f2cc32907053fbb
+  zh: ae635b0e0ee50abc
+/tool-schema-catalog/deepseek-ai-dsh-experimental-video-mode/video-project:
+  en: e500b5e5e8195671
+  zh: f037308e633aba64
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools:
   en: 8eb7d5b8022ad7df
   zh: 8eb7d5b8022ad7df

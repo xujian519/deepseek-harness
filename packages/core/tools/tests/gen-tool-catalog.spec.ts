@@ -33,7 +33,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'knowledge_note_save', 'law_search', 'law_verify', 'legal_law_verify', 'list_agents',
       'list_agents', 'list_doc_templates', 'list_mcp_resource_templates', 'list_mcp_resources', 'list_subagent_models', 'load_workspace_dependencies', 'lsp', 'macos_app',
       'macos_clipboard_get', 'macos_clipboard_set', 'macos_notify', 'macos_open_path', 'macos_open_url', 'macos_speak', 'market_plugin_preview', 'market_plugin_search',
-      'market_source_list', 'matter_log_append', 'paper_download', 'paper_list_sources', 'paper_search', 'parse_office_action', 'patent_analysis_report', 'patent_case_search',
+      'market_source_list', 'matter_log_append', 'media', 'paper_download', 'paper_list_sources', 'paper_search', 'parse_office_action', 'patent_analysis_report', 'patent_case_search',
       'patent_deadlines', 'patent_eval', 'patent_fees', 'patent_kg_query', 'patent_legal_status', 'patent_metadata', 'patent_pdf_download', 'patent_plan_task',
       'patent_search', 'patent_teams_add_member', 'patent_teams_archive', 'patent_teams_claim_task', 'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete', 'patent_teams_reassign_task',
       'patent_teams_remove_member', 'patent_teams_send_message', 'patent_teams_status', 'patent_teams_update_task', 'patent_teams_wait', 'patent_wiki_search', 'patent_worker_validate', 'patent_workflow', 'patent_workflow_run',
@@ -44,7 +44,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'stagehand_navigate', 'stagehand_observe', 'stagehand_screenshot', 'stagehand_tabs', 'str_replace_editor', 'subagent', 'subagent_oar', 'team_task_create', 'team_task_get',
       'team_task_list', 'team_task_update', 'terminal_close', 'terminal_list', 'terminal_open', 'terminal_read', 'terminal_send', 'terminal_signal',
       'todo_write', 'triz', 'triz_contradiction_analysis', 'update_goal', 'validate_specification', 'verify_deliverable', 'verify_patent_figure', 'verify_patent_filing',
-      'wait_agent', 'web_fetch', 'web_search', 'workbench_link_patent_case', 'workflow', 'working_directory', 'write',
+      'video_assemble', 'video_deliver', 'video_project', 'wait_agent', 'web_fetch', 'web_search', 'workbench_link_patent_case', 'workflow', 'working_directory', 'write',
     ])
     // Every tool carries a JSON-Schema `parameters` object (what the model sees).
     for (const entry of catalog) {

@@ -8,6 +8,7 @@
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+/* jscpd:ignore-start -- sibling client studios share the Context imports */
 import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -27,6 +28,7 @@ import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 // Type-only: pulls the optional `sidebarRight` service (the file preview handoff).
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 // Type-only: pulls the agentPreset Session-projection key (summary.projectionValues).
+/* jscpd:ignore-end */
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import {
   DOCUMENT_DELIVERABLES_TARGET, documentDeliverablesDefinition, documentDeliverablesViewDefinition,
@@ -88,6 +90,7 @@ function insertDraft(ctx: ClientContext, sessionId: SessionId, text: string): bo
  * @param action - `reveal` selects the file in the OS file manager instead of opening it.
  * @returns completion; a Host refusal rejects so the view can report it.
  */
+/* jscpd:ignore-start -- the Host file action and dictionary registration are the shared studio skeleton */
 async function openPath(
   ctx: ClientContext,
   resolve: (path: string) => string,
@@ -108,6 +111,7 @@ async function openPath(
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-document-studio: dictionaries')
+  /* jscpd:ignore-end */
 
   ctx.uiConversation.events.register(documentDeliverablesDefinition)
   ctx.uiConversation.views.register(documentDeliverablesViewDefinition)

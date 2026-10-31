@@ -54,6 +54,7 @@
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给定 improving/worsening 参数对时读取对应的 39×39 矛盾矩阵单元格；registerSection（默认 true）只切换常驻的 tool:triz 提示词区段。 |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
+| `@deepseek-ai/dsh-experimental-video-mode` | `media`, `video_assemble`, `video_deliver`, `video_project` | `ctx.tools`、`ctx.fs`、`ctx.subprocess` | `tool/call`、`tool/result` | - | 视频模式：media 选择图像/视频/语音模型并通过 ctx.fs 写入产物；video_project 拥有持久项目文档；video_assemble 通过 ffmpeg 渲染 EDL；video_deliver 检查声明文件并拒绝不完整或超预算的交付。随包提供确定性合成 provider、本地 ComfyUI provider（Wan 2.2 视频、Z-Image 图像），以及云端 MiniMax-H3（按秒计费）与 SiliconFlow Wan2.2（按条计费）视频 provider。 |
 | `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`check_patent_figure_consistency`、`claim_chart_build`、`claim_lint`、`compare_patent_figure_analysis`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`matter_log_append`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`、`verify_deliverable` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`、`verify_patent_filing` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）按随包模板的体例成文为一件 DOCX，段落编号按 spec 的节声明执行；verify_patent_filing 就同一模板对成品跑体例与内容断言（分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、说明书名称、权项数、按节声明生效的编号连续性、残留内部痕迹）。 |
@@ -3100,6 +3101,319 @@ paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、Open
 来源：[`packages/document/document-deliver/src/index.ts`](../packages/document/document-deliver/src/index.ts)
 
 document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。交付工作室把该调用折叠进交付物清单与质量门徽标。
+
+<a id="deepseek-aidsh-patent-tools"></a>
+
+<a id="deepseek-aidsh-experimental-video-mode"></a>
+
+## `@deepseek-ai/dsh-experimental-video-mode`
+
+本包为实验性视频模式；工具描述与参数保留英文声明，行为与限制见包 README。
+
+### `media`
+
+通过已配置的媒体 provider 生成或查看图像、视频片段与语音。 Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; `generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; `cancel` stops one. 带 `project_path` 的 `status` 可恢复运行时重启前的任务。 Prefer `estimate` before a paid generation. 语音请求传 `subtitles` 时会在音频旁写出 `.srt` 字幕文件。 The synthetic provider is for demos and tests; configure the local ComfyUI provider or a real provider for production. Generated files land under the Session workspace; keep each shot in its own directory.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Operation to run.",
+      "enum": [
+        "models",
+        "estimate",
+        "generate",
+        "status",
+        "cancel"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "description": "Capability to generate. Required for estimate and generate.",
+      "enum": [
+        "image",
+        "video",
+        "speech"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "description": "Model id from `models`; omitted uses the configured default."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Positive generation prompt. Required for estimate and generate."
+    },
+    "negative_prompt": {
+      "type": "string",
+      "description": "Content the model should avoid."
+    },
+    "duration_sec": {
+      "type": "number",
+      "description": "Requested video or speech duration in seconds."
+    },
+    "aspect_ratio": {
+      "type": "string",
+      "description": "Requested aspect ratio, for example `9:16`."
+    },
+    "resolution": {
+      "type": "string",
+      "description": "Requested resolution, for example `720p`."
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Deterministic seed when the provider accepts one."
+    },
+    "first_frame_path": {
+      "type": "string",
+      "description": "Image that starts the video clip, relative to the Session working directory. Sent as the provider first-frame reference; video only."
+    },
+    "voice": {
+      "type": "string",
+      "description": "Speech voice id."
+    },
+    "subtitles": {
+      "type": "boolean",
+      "description": "Request timed captions with speech. Generate writes an `.srt` sidecar beside the audio."
+    },
+    "output_path": {
+      "type": "string",
+      "description": "Artifact path relative to the Session working directory. Required for generate."
+    },
+    "wait": {
+      "type": "boolean",
+      "description": "Wait for settlement before returning. Defaults to true; a false value submits and returns the task id immediately."
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Task id for status and cancel."
+    },
+    "project_path": {
+      "type": "string",
+      "description": "Project file used to enforce the remaining budget and to journal in-flight tasks. Pass it on generate and status so a restart can resume the task."
+    },
+    "confirm_cost": {
+      "type": "boolean",
+      "description": "Confirm a generation whose estimated cost is above the configured approval threshold. Ask the user first."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+来源： [`packages/experimental/video-mode/src/media.ts`](../packages/experimental/video-mode/src/media.ts)
+
+### `video_assemble`
+
+用 ffmpeg 把一份编辑决策表（EDL）渲染为 MP4。 The EDL names the canvas, ordered visual clips (`video` with `inSec`/`outSec`, `image` with `durationSec`, or `color` with `durationSec`), optional audio clips, an optional subtitle file to burn in, and the output path. All paths are relative to the Session working directory. Returns the measured duration, resolution, and audio presence. Write the EDL to a JSON file first when it is long, then pass the same object here.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "edl": {
+      "type": "object",
+      "description": "Complete EDL object. See the tool description for its fields.",
+      "additionalProperties": true
+    },
+    "output": {
+      "type": "string",
+      "description": "Override `edl.output`."
+    }
+  },
+  "required": [
+    "edl"
+  ]
+}
+```
+
+来源： [`packages/experimental/video-mode/src/media.ts`](../packages/experimental/video-mode/src/media.ts)
+
+### `video_deliver`
+
+登记视频生产的成品文件并做机器检查。 Declare the final MP4 as `video`, its subtitle file as `subtitles`, its cover image as `poster`, and a JSON manifest as `manifest`. The tool reads the project, refuses a video whose shots are incomplete or whose reported cost exceeds the budget, and probes the video for duration, resolution, and audio. Blocking findings refuse the registration; warnings are recorded so the user can decide. This is a declaration, not a converter: the bytes must already exist in the Session workspace.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Existing file path relative to the Session working directory."
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "video",
+              "subtitles",
+              "poster",
+              "manifest",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "format"
+        ]
+      }
+    },
+    "project_path": {
+      "type": "string",
+      "description": "Project file path."
+    }
+  },
+  "required": [
+    "files",
+    "project_path"
+  ]
+}
+```
+
+来源： [`packages/experimental/video-mode/src/media.ts`](../packages/experimental/video-mode/src/media.ts)
+
+### `video_project`
+
+创建与修改持久视频生产文档。 The project file is the single source of truth for shots, selected clips, renders, and the budget; the video studio reads the same file. Actions: `init` creates `video/<id>/project.json`; `read` returns it; `upsert_shot` adds or replaces one shot; `remove_shot` deletes one; `record_render` appends a finished output. Call `init` once, then `upsert_shot` for every storyboard shot before generating media. 所有路径（包括项目文件与镜头的媒体路径）均相对于 Session 工作目录。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "init",
+        "read",
+        "upsert_shot",
+        "remove_shot",
+        "record_render"
+      ]
+    },
+    "project_path": {
+      "type": "string",
+      "description": "Project file path. Required for every action except init."
+    },
+    "title": {
+      "type": "string",
+      "description": "Display title. Required for init."
+    },
+    "id": {
+      "type": "string",
+      "description": "Project id for init; derived from the title when omitted."
+    },
+    "aspect": {
+      "type": "string",
+      "description": "Output aspect ratio. Defaults to 9:16.",
+      "enum": [
+        "9:16",
+        "16:9",
+        "1:1"
+      ]
+    },
+    "target_seconds": {
+      "type": "number",
+      "description": "Planned duration in seconds. Defaults to 45."
+    },
+    "budget_cny": {
+      "type": "number",
+      "description": "Hard budget in CNY. Defaults to 50."
+    },
+    "shot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "duration_sec": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "ready",
+            "generating",
+            "failed"
+          ]
+        },
+        "keyframe_path": {
+          "type": "string"
+        },
+        "clip_path": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "cost_cny": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "prompt",
+        "duration_sec",
+        "status"
+      ]
+    },
+    "shot_id": {
+      "type": "string",
+      "description": "Shot id for remove_shot."
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "duration_sec": {
+          "type": "number"
+        },
+        "cost_cny": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ]
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+来源： [`packages/experimental/video-mode/src/media.ts`](../packages/experimental/video-mode/src/media.ts)
+
+The media tool selects an image, video, or speech model through the provider seam and writes the artifact through ctx.fs; video_project owns the durable project document; video_assemble renders an EDL through ffmpeg; video_deliver checks the declared files and refuses incomplete or over-budget work. The synthetic provider makes the whole flow runnable without credentials; the local ComfyUI provider adds Wan 2.2 video and Z-Image images, and the cloud MiniMax-H3 and SiliconFlow Wan2.2 providers add per-second and per-video generation.
 
 <a id="deepseek-aidsh-patent-tools"></a>
 

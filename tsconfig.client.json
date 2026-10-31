@@ -121,6 +121,7 @@
     { "path": "./packages/client/ui-tool" },
     { "path": "./packages/client/ui-deliverables/tsconfig.client.json" },
     { "path": "./packages/client/ui-document-studio" },
+    { "path": "./packages/client/ui-video-studio" },
     { "path": "./packages/client/ui-workflow-run" },
     { "path": "./packages/client/ui-patent-teams" },
     { "path": "./packages/client/ui-workspace" },

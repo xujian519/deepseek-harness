@@ -53,6 +53,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-sidebar-right/`](ui-sidebar-right/README.md) | Holds the right Sidebar: one docking surface per session, over the docking kit and the tab-type registry | `ctx.sidebarRight` / `ctx.sidebarRightTabs` |
 | [`ui-dockkit/`](ui-dockkit/README.md) | Provides the docking layout engine — a split tree of tabbed panes with invertible operations — and the components that render and drive it | — |
 | [`ui-brand-official/`](ui-brand-official/README.md) | Fills the generic browser-brand slots with the official name and marks | — |
+| [`ui-brand-patent/`](ui-brand-patent/README.md) | Fills the sidebar and hero brand slots with the DSH Patent name and mark | — |
 | [`ui-workspace/`](ui-workspace/README.md) | Provides workspace selection and creation surfaces | — |
 | [`ui-conversation/`](ui-conversation/README.md) | Presents the active conversation and its input surface | — |
 | [`ui-chat/`](ui-chat/README.md) | Projects and renders the Chat conversation target | — |
@@ -93,6 +94,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-plugin-catalog/`](ui-plugin-catalog/README.md) | Contributes the read-only Plugin catalog tab to the Plugins settings section | — |
 | [`ui-deliverables/`](ui-deliverables/README.md) | Produces the changed-files card with its comparison tabs, delivery cards, and clickable final-response file references | — |
 | [`ui-document-studio/`](ui-document-studio/README.md) | Contributes the document studio: a produced-files conversation view tab with host preview and open / show-in-folder / print actions | — |
+| [`ui-video-studio/`](ui-video-studio/README.md) | Contributes the video production board: a conversation view tab that discovers video projects, shows shots, renders, pending tasks, and the CNY ledger, and previews media through the authenticated file route | — |
 | [`ui-message-feedback/`](ui-message-feedback/README.md) | Provides message ratings and feedback dialogs opened from ratings, `/feedback`, or the Session Header menu | `ctx.feedbackUi` |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.md) | In-app directory browsing surface for the workspace directory flow | — |
 | [`ui-directory-picker-native/`](ui-directory-picker-native/README.md) | Native directory-picker surface driving the local Desktop or Host OS chooser | — |

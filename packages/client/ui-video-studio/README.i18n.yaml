@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-video-studio/README.md
+/:
+  en: bdfca9d1fedeb903
+  zh: fbdf0b46181b69bd
+/deepseek-ai-dsh-client-ui-video-studio:
+  en: 48485c7e04e51e35
+  zh: c91ec019cf78e412
+/deepseek-ai-dsh-client-ui-video-studio/summary:
+  en: 400cded774158bd3
+  zh: ecc647e8c5f7759e
+/deepseek-ai-dsh-client-ui-video-studio/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 044477dabb3eb249
+/deepseek-ai-dsh-client-ui-video-studio/use-this-package:
+  en: 2b1bf71125ff8305
+  zh: 00c8b92cbee2f8ce
+/deepseek-ai-dsh-client-ui-video-studio/use-this-package/the-project-header:
+  en: 73ce70266450b626
+  zh: 93855439378adad2
+/deepseek-ai-dsh-client-ui-video-studio/use-this-package/shots-renders-and-tasks:
+  en: fdfe389abce1f84e
+  zh: e72fe6e9ecf6643c
+/deepseek-ai-dsh-client-ui-video-studio/use-this-package/the-preview-and-actions:
+  en: 1404ddc16a27e784
+  zh: 0ba8ed14949da19b
+/deepseek-ai-dsh-client-ui-video-studio/understand-the-implementation:
+  en: 42994cb1cfd92bd2
+  zh: 3c63d3f0c39978c2
+/deepseek-ai-dsh-client-ui-video-studio/further-exploration:
+  en: 2e844a0d394edc20
+  zh: 6576b1703e759aa3
+/deepseek-ai-dsh-client-ui-video-studio/model-experience:
+  en: 26b58007c7fda624
+  zh: e09cf8d65dbeb7ce
+/deepseek-ai-dsh-client-ui-video-studio/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: 47e8697f40a65eaa
+/deepseek-ai-dsh-client-ui-video-studio/known-limitations-and-deferred-work:
+  en: 03ef0d701076806c
+  zh: f9da1a7e517fd6a5
+/deepseek-ai-dsh-client-ui-video-studio/known-limitations-and-deferred-work/dev-note:
+  en: 1bd884978174bc2b
+  zh: ba33d9f08b2e7cb3

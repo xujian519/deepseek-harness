@@ -634,6 +634,109 @@ The full presentation field docs live in [`packages/core/tools/src/presentation.
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxmedia--mediaruntime"></a>
+
+### `ctx.media` — `MediaRuntime`
+
+The media capability service. Registration is effect-scoped; selection resolves at execution time and never depends on registration order.
+
+```ts cordis-catalog
+/**
+ * Register one provider. A duplicate id is rejected and the fiber owns the
+ * registration's disposal.
+ * @param provider - provider implementation.
+ * @returns a disposer that removes the provider.
+ * @throws When the id is already registered.
+ */
+register(provider: MediaProvider): () => void
+
+/**
+ * List models, optionally narrowed to one capability.
+ * @param kind - capability filter.
+ * @returns every model of every available provider.
+ */
+models(kind?: MediaKind): readonly MediaModel[]
+
+/**
+ * Estimate one request without starting work.
+ * @param request - requested generation.
+ * @returns the selected provider's estimate.
+ * @throws {@link MediaFailure} when no provider or model serves the request.
+ */
+estimate(request: MediaRequest): MediaEstimate
+
+/**
+ * Submit one request without waiting for settlement.
+ * @param request - requested generation.
+ * @param signal - caller cancellation, forwarded to the provider.
+ * @returns the task snapshot immediately after submission.
+ * @throws {@link MediaFailure} for selection, validation, and provider failures.
+ */
+async submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>
+
+/**
+ * Submit one request and wait up to `waitMs` for settlement.
+ * @param request - requested generation.
+ * @param signal - caller cancellation, forwarded to the provider.
+ * @returns the settled task, or the current running task when the wait expired.
+ * @throws {@link MediaFailure} for selection, validation, and provider failures.
+ */
+async generate(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>
+
+/**
+ * Wait up to `waitMs` for one submitted task to settle.
+ * @param task - submitted task.
+ * @param signal - caller cancellation, forwarded to the provider.
+ * @returns the settled task, or the current running task when the wait expired.
+ * @throws {@link MediaFailure} when the owning provider disappeared.
+ */
+async wait(task: MediaTask, signal: AbortSignal): Promise<MediaTask>
+
+/**
+ * Rebuild in-flight provider state from a journal record after a restart.
+ * @param record - persisted task snapshot and request.
+ * @returns the resumed task.
+ * @throws {@link MediaFailure} when the provider is gone, cannot resume, or rejects the record.
+ */
+resume(record: MediaTaskRecord): MediaTask
+
+/**
+ * Read one retained task.
+ * @param taskId - id returned by {@link generate}.
+ * @returns the latest known task.
+ * @throws {@link MediaFailure} `MEDIA_TASK_NOT_FOUND` for an unknown id.
+ */
+status(taskId: string): MediaTask
+
+/**
+ * Poll one retained task once through its provider. Long local generations
+ * settle here after `generate` returned a running task.
+ * @param taskId - id returned by {@link generate}.
+ * @param signal - caller cancellation, forwarded to the provider.
+ * @returns the latest task.
+ * @throws {@link MediaFailure} `MEDIA_TASK_NOT_FOUND` for an unknown id.
+ */
+async refresh(taskId: string, signal: AbortSignal): Promise<MediaTask>
+
+/**
+ * Cancel one task through its provider.
+ * @param taskId - id returned by {@link generate}.
+ * @returns the cancelled task record.
+ * @throws {@link MediaFailure} `MEDIA_TASK_NOT_FOUND` for an unknown id.
+ */
+async cancel(taskId: string): Promise<MediaTask>
+
+/**
+ * Allocate the next task id for a provider and capability.
+ * @param provider - provider id.
+ * @param kind - requested capability.
+ * @returns a stable, sortable task id.
+ */
+nextTaskId(provider: string, kind: MediaKind): string
+```
+
+Source: [`packages/experimental/video-mode/src/media.ts`](../../packages/experimental/video-mode/src/media.ts)
+
 <a id="ctxtools--toolsservice"></a>
 
 ### `ctx.tools` — `ToolsService`
