@@ -191,6 +191,9 @@ export function readWorkspaceManifests(repositoryRoot: string): WorkspaceManifes
 const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // Tools entry points share error classes and invocation stages through runtime chunks.
   '@deepseek-ai/dsh-tools': ['lib/pipeline.js', 'lib/shared-*.js'],
+  // The video preset resolves its six skills from this package's own location,
+  // and the operator guides ship beside the preset declaration.
+  '@deepseek-ai/dsh-experimental-video-bundle': ['presets/video.md', 'presets/video.zh.md', 'skills'],
   // The embedded OAR implementation retains its upstream license.
   '@deepseek-ai/dsh-experimental-subagent-oar': ['LICENSE-OAR'],
   // CUA publishes its client API and attributed native source for local macOS builds.
@@ -246,8 +249,6 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
     'presets/document.zh.md',
     'presets/legal.md',
     'presets/legal.zh.md',
-    'presets/video.md',
-    'presets/video.zh.md',
     'skills',
     'lib/public-url-*.js',
   ],

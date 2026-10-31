@@ -16,6 +16,7 @@ import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import { VIDEO_BUNDLE_FIXTURE } from './video-bundle-fixture.ts'
 import {
   assertFixtureInventory,
   launchWebScaffold,
@@ -82,6 +83,7 @@ describe('video preset snapshot', () => {
     }
     scaffold = await launchWebScaffold({
       replayContextWindow: 1_000_000,
+      ...VIDEO_BUNDLE_FIXTURE,
       ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, compareReplaySession: true, paceMs: 10 }),
     })
     handle = await scaffold.ctx.agents.create({

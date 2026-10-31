@@ -9,7 +9,6 @@
     - tab "Board"
     - tab "Deliverables"
     - tab "Teams"
-    - tab "Video"
   - button "More conversation views"
 - text: "Use the bash tool to run exactly: printf 'MINIMAL_BASH_CARD_OK\\n'. Then reply exactly MINIMAL_PRESET_REQUEST_OK and stop. {{clock}}"
 - button "Copy"

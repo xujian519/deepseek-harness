@@ -15,6 +15,7 @@ import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { launchWebScaffold, watchConsole, type WebScaffold } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import { VIDEO_BUNDLE_FIXTURE } from './video-bundle-fixture.ts'
 
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/video-preset/session.v4.jsonl', import.meta.url))
 const PROMPT = 'Call the video_project tool once with action init and title "Keyless Boot", then reply exactly VIDEO_SNAPSHOT_OK and stop.'
@@ -49,7 +50,7 @@ describe('video studio', () => {
     } catch {
       ffmpeg = false
     }
-    scaffold = await launchWebScaffold({ replayFixture: FIXTURE, paceMs: 5, compareReplaySession: false })
+    scaffold = await launchWebScaffold({ ...VIDEO_BUNDLE_FIXTURE, replayFixture: FIXTURE, paceMs: 5, compareReplaySession: false })
   })
 
   afterAll(async () => {

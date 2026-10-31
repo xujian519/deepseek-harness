@@ -136,47 +136,6 @@
     },
     "standard.patch.yml": {
       "class": "utility"
-    },
-    "video.patch.yml": {
-      "class": "delivery",
-      "forbiddenKeys": [],
-      "personaMaxChars": 2200,
-      "requiredRows": [
-        "persona",
-        "agent-instructions",
-        "time-context",
-        "tool-bash",
-        "tool-pwsh",
-        "tool-fs",
-        "tool-fs-search",
-        "tool-jobs",
-        "tool-schedule",
-        "skill-filesystem",
-        "tool-skill",
-        "command-goal",
-        "tool-goal",
-        "planning",
-        "plan-mode",
-        "compaction",
-        "compaction-basic",
-        "command-compact",
-        "tool-result-pruner",
-        "delegation",
-        "tool-subagent-control",
-        "tool-subagent",
-        "tool-subagent-fork",
-        "workflow-ptc",
-        "tool-workflow",
-        "tool-ask-user",
-        "tool-todo",
-        "tool-web"
-      ],
-      "explainedAbsences": {
-        "tool-plugin-market": "Read-only plugin catalog browsing over the host `pluginCatalog` service. Installing or removing a plugin is a deployment action taken through the `dsh plugin` CLI, not a step of producing a video.",
-        "present": "`present` declares an arbitrary accessible file as a deliverable for the client UI. This mode declares its deliverables through `video_deliver`, which carries the machine checks the video studio renders; a second declaration channel would split that state.",
-        "tool-plugin-manager": "The plugin-manager tools write profile configuration; the host patch ships this row disabled and a video production has no profile-editing step.",
-        "openviking": "Opt-in external memory over an HTTP service this composition does not run. A video production is grounded in the files and sources the user supplies, not in recalled session history."
-      }
     }
   }
 }

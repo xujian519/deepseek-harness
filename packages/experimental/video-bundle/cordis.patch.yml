@@ -1,0 +1,10 @@
+# The optional video bundle's host-side rows. The video agent preset follows in
+# `presets/video.patch.yml`, listed after this file in `dsh.bundle.patch`.
+#
+# The studio is the browser half: the Video conversation view (discovered
+# projects, shots, renders, pending tasks, the CNY ledger) and its clip and
+# keyframe preview. It ships switched off with the rest of the bundle; a profile
+# that never enables the bundle keeps the chat tab default.
+- insert:
+    - id: ui-video-studio
+      name: '@deepseek-ai/dsh-client-ui-video-studio'

@@ -9,7 +9,6 @@
     - tab "Deliverables"
     - tab "Board"
     - tab "Teams"
-    - tab "Video"
   - button "More conversation views"
 - text: Use read_image to inspect red.png. Then reply exactly MINIMAL_IMAGE_OK and stop. {{clock}}
 - button "Copy"

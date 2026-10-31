@@ -1,0 +1,16 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="6" y="8" width="24" height="20" rx="4" fill="url(#video-bundle-card)" fill-opacity="0.9" />
+  <path d="M15 13.5L23 18L15 22.5V13.5Z" fill="#FFFFFF" />
+  <rect x="9" y="4" width="3" height="4" rx="1" fill="#FFFFFF" fill-opacity="0.9" />
+  <rect x="16.5" y="4" width="3" height="4" rx="1" fill="#FFFFFF" fill-opacity="0.9" />
+  <rect x="24" y="4" width="3" height="4" rx="1" fill="#FFFFFF" fill-opacity="0.9" />
+  <rect x="9" y="28" width="3" height="4" rx="1" fill="#FFFFFF" fill-opacity="0.9" />
+  <rect x="16.5" y="28" width="3" height="4" rx="1" fill="#FFFFFF" fill-opacity="0.9" />
+  <rect x="24" y="28" width="3" height="4" rx="1" fill="#FFFFFF" fill-opacity="0.9" />
+  <defs>
+    <linearGradient id="video-bundle-card" x1="18" y1="8" x2="18" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67C7FE" />
+      <stop offset="1" stop-color="#3F77D8" />
+    </linearGradient>
+  </defs>
+</svg>

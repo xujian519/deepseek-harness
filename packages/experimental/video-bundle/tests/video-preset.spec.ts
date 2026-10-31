@@ -15,8 +15,8 @@ import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
-const PRESET = join(REPO_ROOT, 'packages/bundle/web-app/presets/video.patch.yml')
-const SKILLS = join(REPO_ROOT, 'packages/bundle/web-app/skills/video')
+const PRESET = join(REPO_ROOT, 'packages/experimental/video-bundle/presets/video.patch.yml')
+const SKILLS = join(REPO_ROOT, 'packages/experimental/video-bundle/skills/video')
 
 /** One preset row: the fields this spec reads. */
 interface PresetRow {

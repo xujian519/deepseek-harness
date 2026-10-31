@@ -1,0 +1,61 @@
+{
+  "name": "@deepseek-ai/dsh-experimental-video-bundle",
+  "description": "Experimental video production switched on from the plugin manager: the video agent preset, six production skills, the media tools, and the Web studio",
+  "version": "0.2.2-alpha.2",
+  "icon": "./icon.svg",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/experimental/video-bundle"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./presets/*.patch.yml": "./presets/*.patch.yml",
+    "./skills/*": "./skills/*",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "icon.svg",
+    "locale/*.json",
+    "lib/index.js",
+    "cordis.patch.yml",
+    "presets/video.patch.yml",
+    "presets/video.md",
+    "presets/video.zh.md",
+    "skills",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-client-ui-video-studio": "workspace:*",
+    "@deepseek-ai/dsh-experimental-video-mode": "workspace:*"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "js-yaml": "^4.3.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/video.patch.yml"
+      ]
+    }
+  }
+}

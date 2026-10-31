@@ -413,9 +413,9 @@ importers:
       '@deepseek-ai/dsh-experimental-tool-worktree':
         specifier: workspace:*
         version: link:../../packages/experimental/tool-worktree
-      '@deepseek-ai/dsh-experimental-video-mode':
+      '@deepseek-ai/dsh-experimental-video-bundle':
         specifier: workspace:*
-        version: link:../../packages/experimental/video-mode
+        version: link:../../packages/experimental/video-bundle
       '@deepseek-ai/dsh-experimental-voice-input-bundle':
         specifier: workspace:*
         version: link:../../packages/experimental/voice-input-bundle
@@ -3736,9 +3736,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-user-questions':
         specifier: workspace:*
         version: link:../../client/ui-user-questions
-      '@deepseek-ai/dsh-client-ui-video-studio':
-        specifier: workspace:*
-        version: link:../../client/ui-video-studio
       '@deepseek-ai/dsh-client-ui-workflow-run':
         specifier: workspace:*
         version: link:../../client/ui-workflow-run
@@ -3769,9 +3766,6 @@ importers:
       '@deepseek-ai/dsh-deliverable-file-references':
         specifier: workspace:*
         version: link:../../deliverables/deliverable-file-references
-      '@deepseek-ai/dsh-experimental-video-mode':
-        specifier: workspace:*
-        version: link:../../experimental/video-mode
       '@deepseek-ai/dsh-file-reference':
         specifier: workspace:*
         version: link:../../context/file-reference
@@ -12653,6 +12647,25 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:*
         version: link:../../util/values
+
+  packages/experimental/video-bundle:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-video-studio':
+        specifier: workspace:*
+        version: link:../../client/ui-video-studio
+      '@deepseek-ai/dsh-experimental-video-mode':
+        specifier: workspace:*
+        version: link:../video-mode
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:~
+        version: link:../../../vendor/include
+      js-yaml:
+        specifier: ^4.3.2
+        version: 4.3.2
 
   packages/experimental/video-mode:
     dependencies:
