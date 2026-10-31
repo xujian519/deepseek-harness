@@ -3106,7 +3106,7 @@ document_deliver records the delivered files (path + format), the P0/P1 quality-
 
 ### `media`
 
-Generate or inspect images, video clips, and speech through the configured media providers. Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; `generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; `cancel` stops one. Prefer `estimate` before a paid generation. The synthetic provider is for demos and tests; configure a real provider for production. Generated files land under the Session workspace; keep each shot in its own directory.
+Generate or inspect images, video clips, and speech through the configured media providers. Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; `generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; `cancel` stops one. Prefer `estimate` before a paid generation. Speech accepts `subtitles` and then writes an `.srt` sidecar beside the audio. The synthetic provider is for demos and tests; configure a real provider for production. Generated files land under the Session workspace; keep each shot in its own directory.
 
 ```json
 {
@@ -3167,6 +3167,10 @@ Generate or inspect images, video clips, and speech through the configured media
     "voice": {
       "type": "string",
       "description": "Speech voice id."
+    },
+    "subtitles": {
+      "type": "boolean",
+      "description": "Request timed captions with speech. Generate writes an `.srt` sidecar beside the audio."
     },
     "output_path": {
       "type": "string",

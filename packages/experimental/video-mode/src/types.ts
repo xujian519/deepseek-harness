@@ -78,6 +78,18 @@ export interface MediaRequest {
   readonly seed?: number
   /** Voice id for `speech`. */
   readonly voice?: string
+  /** Request timed captions for `speech`; a serving provider returns them on the artifact. */
+  readonly subtitles?: boolean
+}
+
+/** One timed caption line of a speech artifact. */
+export interface MediaSubtitleCue {
+  /** Spoken text of the line. */
+  readonly text: string
+  /** Start offset in seconds from the beginning of the audio. */
+  readonly startSec: number
+  /** End offset in seconds from the beginning of the audio. */
+  readonly endSec: number
 }
 
 /** One produced artifact. A provider returns inline bytes or a downloadable URL. */
@@ -98,6 +110,8 @@ export interface MediaArtifact {
   readonly width?: number
   /** Encoded height for `image` and `video`. */
   readonly height?: number
+  /** Timed caption lines for `speech`; the media tools write them as an SRT sidecar. */
+  readonly subtitles?: readonly MediaSubtitleCue[]
 }
 
 /** Failure carried by a settled task. */

@@ -16,13 +16,13 @@ whenToUse: 镜头生成完成、合成之前。
 2. 按台词切分，一次合成一句或一个镜头的一段：
 
    ```text
-   media { action: "generate", kind: "speech", prompt: "第一句台词", voice: "Chinese (Mandarin)_News_Anchor", output_path: "voice/s01-01.mp3", project_path: "video/<id>/project.json" }
+   media { action: "generate", kind: "speech", prompt: "第一句台词", voice: "Chinese (Mandarin)_News_Anchor", subtitles: true, output_path: "voice/s01-01.mp3", project_path: "video/<id>/project.json" }
    ```
 
-   默认模型是 `speech-2.8-turbo`（2.00 元/万字符）；需要更高音质时把 `model` 设为 `speech-2.8-hd`（3.50 元/万字符）。生成结果按项目剩余预算拦截，并返回实际成本。
+   默认模型是 `speech-2.8-turbo`（2.00 元/万字符）；需要更高音质时把 `model` 设为 `speech-2.8-hd`（3.50 元/万字符）。生成结果按项目剩余预算拦截，并返回实际成本。`subtitles: true` 会同时写出 `voice/s01-01.srt`，时间轴来自 provider 的词级时间戳；结果里的 `subtitlesPath` 就是该文件。
 3. 音色在 brief 中定一次，全片复用；多角色时每个角色一个固定音色。常用普通话音色：`Chinese (Mandarin)_News_Anchor`（口播）、`female-chengshu`（成熟女声）、`male-qn-qingse`（青年男声）。
-4. 用 `ffprobe` 读取每段音频的时长，按实际时长排字幕与镜头节奏；把音色、provider、时长与成本写回项目或脚本。
-5. 部署没有语音 provider 时，说明“本部署没有语音合成”，改用字幕卡，不伪造音频。
+4. 用 `ffprobe` 读取每段音频的时长，按实际时长排镜头节奏；字幕直接用上一步写出的 SRT。把音色、provider、时长与成本写回项目或脚本。
+5. 部署没有语音 provider 时，说明“本部署没有语音合成”，改用字幕卡，不伪造音频；没有词级时间戳时按音频实测时长均分，并说明这是估算。
 
 ## BGM 与授权
 
@@ -31,8 +31,8 @@ whenToUse: 镜头生成完成、合成之前。
 
 ## 字幕
 
-1. 按镜头与台词生成 `out/<project>.srt`；每行不超过 16 个汉字，最多两行。
-2. 时间轴按音频实测时长排；没有词级时间戳时按句子均分，并说明这是估算。
+1. 优先使用 `media` 写出的 SRT（`voice/<shot>.srt`），按镜头顺序拼接为 `out/<project>.srt`；每行不超过 16 个汉字，最多两行，超长时自行拆分。
+2. 时间轴来自 provider 的词级时间戳；provider 没有返回时间戳时按音频实测时长均分，并说明这是估算。
 3. 默认烧录字幕；`libass` 或 CJK 字体缺失时改为软字幕，并在交付摘要中标注平台可能不识别。
 
 ## 混音参数

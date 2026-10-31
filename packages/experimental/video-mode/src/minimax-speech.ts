@@ -25,6 +25,7 @@ import {
   type MediaModel,
   type MediaProvider,
   type MediaRequest,
+  type MediaSubtitleCue,
   type MediaTask,
 } from './types.ts'
 
@@ -93,6 +94,34 @@ const PRICE_PER_10K_CHARS_MINOR: Readonly<Record<string, number>> = {
 const SAMPLE_RATE_HZ = 32_000
 const BITRATE = 128_000
 
+/** Bound on the subtitle-download request so a stalled object store cannot hold the tool open. */
+const SUBTITLE_FETCH_TIMEOUT_MS = 30_000
+
+/** Longest caption line before a hard break, in characters. */
+const MAX_CUE_CHARS = 24
+
+/** Shortest run that may close at a comma, in characters. */
+const MIN_COMMA_CUE_CHARS = 12
+
+/** Sentence terminators that close one caption line. */
+const SENTENCE_END: ReadonlySet<string> = new Set(['。', '！', '？', '!', '?', '；', ';', '…'])
+
+/** Clause separators that may close a caption line once it is long enough. */
+const CLAUSE_END: ReadonlySet<string> = new Set(['，', ',', '、', '：', ':'])
+
+/** Closing marks that belong to the sentence they follow. */
+const CLOSERS: ReadonlySet<string> = new Set(['”', '"', '』', '」', '）', ')', '】', '》'])
+
+/** One word-level timestamp from the subtitle file. */
+interface TimedWord {
+  /** Spoken token, often one Han character. */
+  readonly text: string
+  /** Start offset in seconds. */
+  readonly startSec: number
+  /** End offset in seconds. */
+  readonly endSec: number
+}
+
 /** One Han character bills as two characters; every other character bills as one. */
 const HAN_CHARACTER = /\p{Script=Han}/u
 
@@ -139,6 +168,107 @@ function businessCodeFor(status: number): MediaFailure['code'] {
   if (status === 1004) return 'MEDIA_PROVIDER_UNAVAILABLE'
   if (status === 1008) return 'MEDIA_BUDGET_EXCEEDED'
   return 'MEDIA_TASK_FAILED'
+}
+
+/**
+ * Group character timestamps into caption lines. MiniMax returns one segment
+ * with per-character timing, so line breaks come from the text: a sentence
+ * terminator always closes a line, a comma closes one that is long enough, and
+ * a line reaching {@link MAX_CUE_CHARS} breaks at the current token.
+ * @param words - timed tokens in playback order.
+ * @returns caption lines with their measured offsets.
+ */
+function cuesOf(words: readonly TimedWord[]): MediaSubtitleCue[] {
+  // Merge a closing mark into the terminator it follows so the sentence keeps it.
+  const merged: TimedWord[] = []
+  for (const word of words) {
+    const previous = merged.at(-1)
+    if (previous !== undefined && CLOSERS.has(word.text.trim()) && SENTENCE_END.has(previous.text.trim())) {
+      merged[merged.length - 1] = { text: previous.text + word.text, startSec: previous.startSec, endSec: word.endSec }
+      continue
+    }
+    merged.push(word)
+  }
+
+  const cues: MediaSubtitleCue[] = []
+  let text = ''
+  let start = 0
+  let end = 0
+  const flush = (): void => {
+    const line = text.trim()
+    text = ''
+    if (line.length === 0 || !/[\p{L}\p{N}]/u.test(line)) return
+    cues.push({ text: line, startSec: start, endSec: Math.max(end, start + 0.001) })
+  }
+  for (const word of merged) {
+    if (text.length === 0) start = word.startSec
+    text += word.text
+    end = word.endSec
+    // A token that starts with punctuation closes the line it ends; merged
+    // closing marks keep the terminator at the front of the token.
+    const symbol = word.text.trim().charAt(0)
+    const closesLine = SENTENCE_END.has(symbol) || (CLAUSE_END.has(symbol) && text.length >= MIN_COMMA_CUE_CHARS)
+    if (closesLine || text.length >= MAX_CUE_CHARS) flush()
+  }
+  flush()
+  return cues
+}
+
+/**
+ * Read one finite offset, in seconds.
+ * @param value - millisecond field from the subtitle file.
+ * @returns the offset, or undefined when the value is not a finite number.
+ */
+function secondsOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * Read MiniMax's word-level subtitle file.
+ * @param text - downloaded file body.
+ * @returns caption lines.
+ * @throws {@link MediaFailure} `MEDIA_ARTIFACT_INVALID` when the file is not the expected JSON.
+ */
+function parseSubtitleFile(text: string): MediaSubtitleCue[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (error) {
+    throw new MediaFailure(`MiniMax speech subtitle file is not JSON: ${String(error)}`, 'MEDIA_ARTIFACT_INVALID', { cause: error })
+  }
+  if (!Array.isArray(parsed)) {
+    throw new MediaFailure('MiniMax speech subtitle file is not a JSON array', 'MEDIA_ARTIFACT_INVALID')
+  }
+  const words: TimedWord[] = []
+  for (const segment of parsed) {
+    if (!isRecord(segment)) {
+      throw new MediaFailure('MiniMax speech subtitle segment is not an object', 'MEDIA_ARTIFACT_INVALID')
+    }
+    const timed = segment.timestamped_words
+    if (timed === undefined) continue
+    if (!Array.isArray(timed)) {
+      throw new MediaFailure('MiniMax speech subtitle segment has no word list', 'MEDIA_ARTIFACT_INVALID')
+    }
+    for (const word of timed) {
+      if (!isRecord(word) || typeof word.word !== 'string') {
+        throw new MediaFailure('MiniMax speech subtitle word lacks text or timing', 'MEDIA_ARTIFACT_INVALID')
+      }
+      const startSec = secondsOf(word.time_begin)
+      const endSec = secondsOf(word.time_end)
+      if (startSec === undefined || endSec === undefined) {
+        throw new MediaFailure('MiniMax speech subtitle word lacks text or timing', 'MEDIA_ARTIFACT_INVALID')
+      }
+      words.push({ text: word.word, startSec: startSec / 1000, endSec: endSec / 1000 })
+    }
+  }
+  if (words.length === 0) {
+    throw new MediaFailure('MiniMax speech subtitle file has no timed words', 'MEDIA_ARTIFACT_INVALID')
+  }
+  const cues = cuesOf(words)
+  if (cues.length === 0) {
+    throw new MediaFailure('MiniMax speech subtitle file produced no caption lines', 'MEDIA_ARTIFACT_INVALID')
+  }
+  return cues
 }
 
 /**
@@ -241,7 +371,8 @@ export class MiniMaxSpeechProvider implements MediaProvider {
         format: 'mp3',
         channel: 1,
       },
-      subtitle_enable: false,
+      subtitle_enable: request.subtitles === true,
+      ...request.subtitles === true ? { subtitle_type: 'word' } : {},
     }
     const response = await this.fetchImpl(`${this.settings.baseUrl}/v1/t2a_v2`, {
       method: 'POST',
@@ -265,8 +396,11 @@ export class MiniMaxSpeechProvider implements MediaProvider {
       throw new MediaFailure(`MiniMax speech error ${base.status_code}: ${reason}`, businessCodeFor(base.status_code))
     }
     const data = isRecord(parsed) && isRecord(parsed.data) ? parsed.data : undefined
-    const hex = data !== undefined && typeof data.audio === 'string' ? data.audio : undefined
-    if (hex === undefined) {
+    if (data === undefined) {
+      throw new MediaFailure('MiniMax speech returned no audio', 'MEDIA_ARTIFACT_INVALID')
+    }
+    const hex = data.audio
+    if (typeof hex !== 'string') {
       throw new MediaFailure('MiniMax speech returned no audio', 'MEDIA_ARTIFACT_INVALID')
     }
     const bytes = decodeAudio(hex)
@@ -276,6 +410,9 @@ export class MiniMaxSpeechProvider implements MediaProvider {
         'MEDIA_ARTIFACT_TOO_LARGE',
       )
     }
+    const subtitleFile = data.subtitle_file
+    const subtitleUrl = typeof subtitleFile === 'string' && subtitleFile.length > 0 ? subtitleFile : undefined
+    const captions = request.subtitles === true ? await this.captionsOf(subtitleUrl, signal) : undefined
     const info = isRecord(parsed) && isRecord(parsed.extra_info) ? parsed.extra_info : undefined
     const audioLength = info !== undefined && typeof info.audio_length === 'number' && Number.isFinite(info.audio_length)
       ? info.audio_length
@@ -292,6 +429,7 @@ export class MiniMaxSpeechProvider implements MediaProvider {
       mediaType: 'audio/mpeg',
       bytes,
       ...audioLength === undefined || audioLength <= 0 ? {} : { durationSec: audioLength / 1000 },
+      ...captions === undefined ? {} : { subtitles: captions },
     }
     this.counter += 1
     return {
@@ -303,6 +441,37 @@ export class MiniMaxSpeechProvider implements MediaProvider {
       ...costMinor === undefined ? {} : { cost: { amountMinor: costMinor, currency: 'CNY' } },
       artifacts: [artifact],
     }
+  }
+
+  /**
+   * Download and group the word-level subtitle file MiniMax returns.
+   * @param url - signed subtitle URL from the synthesis response.
+   * @param signal - caller cancellation.
+   * @returns caption lines.
+   * @throws {@link MediaFailure} when the URL is absent, the download fails, the file is oversized, or its format is not the expected JSON.
+   */
+  private async captionsOf(url: string | undefined, signal: AbortSignal): Promise<readonly MediaSubtitleCue[]> {
+    if (url === undefined) {
+      throw new MediaFailure('MiniMax speech returned no subtitle file', 'MEDIA_ARTIFACT_INVALID')
+    }
+    const response = await this.fetchImpl(url, {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(SUBTITLE_FETCH_TIMEOUT_MS)]),
+    })
+    if (!response.ok) {
+      throw new MediaFailure(
+        `MiniMax speech subtitle download failed: ${response.status} ${response.statusText}`.trim(),
+        'MEDIA_ARTIFACT_INVALID',
+      )
+    }
+    const text = await response.text()
+    const size = Buffer.byteLength(text)
+    if (size > this.settings.maxArtifactBytes) {
+      throw new MediaFailure(
+        `MiniMax speech subtitle file is ${size} bytes, above the configured ${this.settings.maxArtifactBytes}-byte cap`,
+        'MEDIA_ARTIFACT_TOO_LARGE',
+      )
+    }
+    return parseSubtitleFile(text)
   }
 
   /**

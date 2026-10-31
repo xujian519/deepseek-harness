@@ -237,6 +237,29 @@ describe('submission and generation', () => {
     await expect(second.media.generate({ kind: 'video', prompt: 'x', model: 'hanging/video' }, aborted.signal)).rejects.toThrow()
     await second.ctx.fiber.dispose()
   })
+
+  it('gives synthetic speech deterministic caption lines only when asked', async () => {
+    const { ctx, media } = await bareRuntime()
+    media.register(new SyntheticMediaProvider())
+    const captioned = await media.submit(
+      { kind: 'speech', prompt: '一二三四五六七八九十一二 ', subtitles: true },
+      new AbortController().signal,
+    )
+    expect(captioned.artifacts?.[0]?.subtitles).toEqual([
+      { text: '一二三四五六七八九十一二', startSec: 0, endSec: 2 },
+    ])
+    const gapped = await media.submit(
+      { kind: 'speech', prompt: `${'甲'.repeat(12)}${' '.repeat(12)}乙`, subtitles: true },
+      new AbortController().signal,
+    )
+    expect(gapped.artifacts?.[0]?.subtitles).toEqual([
+      { text: '甲'.repeat(12), startSec: 0, endSec: 1.5 },
+      { text: '乙', startSec: 1.5, endSec: 3 },
+    ])
+    const plain = await media.submit({ kind: 'speech', prompt: '你好' }, new AbortController().signal)
+    expect(plain.artifacts?.[0]?.subtitles).toBeUndefined()
+    await ctx.fiber.dispose()
+  })
 })
 
 describe('retained tasks', () => {

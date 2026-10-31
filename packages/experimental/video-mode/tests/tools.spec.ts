@@ -5,7 +5,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -23,6 +23,7 @@ import { unsupportedInbox, unsupportedModel } from '@deepseek-ai/dsh-agent-loop-
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import VideoMode, {
+  silentWav,
   solidPng,
   type MediaArtifact,
   type MediaModel,
@@ -30,7 +31,7 @@ import VideoMode, {
   type MediaReference,
   type MediaRuntimeConfig,
 } from '../src/index.ts'
-import { derivedPath, writeArtifact } from '../src/tools/shared.ts'
+import { derivedPath, subtitlePathOf, writeArtifact } from '../src/tools/shared.ts'
 
 const FFMPEG = (() => {
   try {
@@ -179,6 +180,9 @@ describe('media tool', () => {
     const created = await boot()
     expect(errorOf(await call(created, 'media', { action: 'estimate', prompt: 'x' }))).toContain('requires `kind`')
     expect(errorOf(await call(created, 'media', { action: 'estimate', kind: 'image' }))).toContain('non-empty `prompt`')
+    expect(errorOf(await call(created, 'media', {
+      action: 'estimate', kind: 'video', prompt: 'x', subtitles: true,
+    }))).toContain('`subtitles` for speech only')
     expect(errorOf(await call(created, 'media', { action: 'generate', kind: 'image', prompt: 'x' }))).toContain('requires `output_path`')
     expect(errorOf(await call(created, 'media', { action: 'status' }))).toContain('requires `task_id`')
     expect(errorOf(await call(created, 'media', { action: 'cancel' }))).toContain('requires `task_id`')
@@ -288,6 +292,52 @@ describe('media tool', () => {
     expect(String(written.message)).toContain('out/no-extension')
     expect((await stat(join(root, 'out/no-extension'))).size).toBe(MP4.length)
   })
+
+  it('writes a caption sidecar for speech with timed lines', async () => {
+    const created = await boot()
+    const result = valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'speech', prompt: '第一句。第二句。还有第三句。', subtitles: true, output_path: 'out/narration.mp3',
+    }))
+    expect(String(result.message)).toContain('Captions:')
+    const artifacts = result.artifacts as readonly { readonly path: string; readonly subtitlesPath?: string }[]
+    expect(artifacts[0]?.subtitlesPath).toMatch(/narration\.srt$/)
+    const srt = await readFile(join(root, 'out/narration.srt'), 'utf8')
+    expect(srt).toMatch(/^1\n00:00:00,000 --> /)
+    expect(srt).toContain('第一句。第二句。还有第')
+  })
+
+  it('writes a caption sidecar when status settles a speech task', async () => {
+    const created = await boot()
+    created.media.register(providerOf({
+      id: 'speech-stub',
+      models: [{ id: 'stub/speech', kind: 'speech', provider: 'speech-stub' }],
+      submit: async request => ({
+        id: 'stub-speech-1', provider: 'speech-stub', model: request.model ?? 'stub/speech', kind: request.kind, status: 'submitted',
+      }),
+      poll: async task => ({
+        ...task,
+        status: 'succeeded',
+        artifacts: [{
+          id: 'voice',
+          kind: 'speech',
+          mediaType: 'audio/wav',
+          bytes: silentWav(1),
+          durationSec: 1,
+          subtitles: [{ text: '你好。', startSec: 0, endSec: 1 }],
+        }],
+      }),
+    }))
+    const submitted = valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'speech', prompt: 'x', model: 'stub/speech', subtitles: true, output_path: 'out/voice.wav', wait: false,
+    }))
+    expect(String(submitted.message)).toContain('Submitted speech task')
+
+    const settled = valueOf(await call(created, 'media', {
+      action: 'status', task_id: 'stub-speech-1', output_path: 'out/voice.wav',
+    }))
+    expect(String(settled.message)).toContain('Captions:')
+    expect(await readFile(join(root, 'out/voice.srt'), 'utf8')).toContain('你好。')
+  })
 })
 
 describe('project tool', () => {
@@ -312,10 +362,12 @@ describe('project tool', () => {
 })
 
 describe('artifact writing', () => {
-  it('derives suffixed paths', () => {
+  it('derives suffixed and caption paths', () => {
     expect(derivedPath('out/a.mp4', 0)).toBe('out/a.mp4')
     expect(derivedPath('out/a.mp4', 1)).toBe('out/a-2.mp4')
     expect(derivedPath('out/a', 1)).toBe('out/a-2')
+    expect(subtitlePathOf('out/voice.mp3')).toBe('out/voice.srt')
+    expect(subtitlePathOf('out/voice')).toBe('out/voice.srt')
   })
 
   it('rejects missing, empty, oversized, and mislabeled artifacts', async () => {

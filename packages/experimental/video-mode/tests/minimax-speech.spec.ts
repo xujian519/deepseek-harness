@@ -501,3 +501,156 @@ describe('speech provider', () => {
     await expect(provider.cancel()).resolves.toBeUndefined()
   })
 })
+
+describe('speech captions', () => {
+  const SUBTITLE_URL = 'https://subtitles.test/words.json'
+
+  /** One segment with word-level timestamps, as the real file reports them. */
+  function wordFile(words: readonly (readonly [string, number, number])[]): unknown {
+    return [{
+      text: words.map(([word]) => word).join(''),
+      timestamped_words: words.map(([word, begin, end]) => ({ word, time_begin: begin, time_end: end })),
+    }]
+  }
+
+  /** Route the synthesis call and the subtitle download to separate stubs. */
+  function captionRecorder(body: unknown, options: { readonly raw?: string; readonly status?: number; readonly statusText?: string } = {}) {
+    return recorder((call) => {
+      if (call.url !== SUBTITLE_URL) {
+        return json({ data: { audio: MP3_HEX, subtitle_file: SUBTITLE_URL }, extra_info: { audio_length: 4000 } })
+      }
+      return options.raw === undefined
+        ? json(body, options.status ?? 200)
+        : new Response(options.raw, { status: options.status ?? 200, statusText: options.statusText ?? '' })
+    })
+  }
+
+  /** Submit one request that asks for captions. */
+  function submitWithCaptions(provider: MiniMaxSpeechProvider, prompt = '第一句。第二句。'): Promise<MediaTask> {
+    return provider.submit({ kind: 'speech', prompt, subtitles: true }, new AbortController().signal)
+  }
+
+  it('requests word timestamps and returns caption lines', async () => {
+    const { calls, fetchImpl } = captionRecorder(wordFile([
+      ['第', 0, 100], ['一', 100, 200], ['句', 200, 300], ['。', 300, 400],
+      ['第', 400, 500], ['二', 500, 600], ['句', 600, 700], ['。', 700, 800],
+    ]))
+    const provider = new MiniMaxSpeechProvider(settingsOf(), fetchImpl)
+
+    const task = await submitWithCaptions(provider)
+
+    const body = JSON.parse(calls[0]?.body ?? '{}') as { subtitle_enable?: boolean; subtitle_type?: string }
+    expect(body).toMatchObject({ subtitle_enable: true, subtitle_type: 'word' })
+    expect(calls.map(call => call.url)).toEqual(['https://api.minimax.cn/v1/t2a_v2', SUBTITLE_URL])
+    expect(task.artifacts?.[0]?.subtitles).toEqual([
+      { text: '第一句。', startSec: 0, endSec: 0.4 },
+      { text: '第二句。', startSec: 0.4, endSec: 0.8 },
+    ])
+  })
+
+  it('closes a long clause at a comma and hard-breaks a line at the character budget', async () => {
+    const clause = captionRecorder(wordFile([
+      ...Array.from({ length: 12 }, (_, index) => ['甲', index * 100, index * 100 + 100] as const),
+      ['，', 1200, 1300],
+      ['好', 1300, 1400],
+    ]))
+    const clauseTask = await submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), clause.fetchImpl))
+    expect(clauseTask.artifacts?.[0]?.subtitles).toEqual([
+      { text: `${'甲'.repeat(12)}，`, startSec: 0, endSec: 1.3 },
+      { text: '好', startSec: 1.3, endSec: 1.4 },
+    ])
+
+    const hard = captionRecorder(wordFile(
+      Array.from({ length: 25 }, (_, index) => ['乙', index * 100, index * 100 + 100] as const),
+    ))
+    const hardTask = await submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), hard.fetchImpl))
+    expect(hardTask.artifacts?.[0]?.subtitles).toEqual([
+      { text: '乙'.repeat(24), startSec: 0, endSec: 2.4 },
+      { text: '乙', startSec: 2.4, endSec: 2.5 },
+    ])
+  })
+
+  it('keeps a closing mark with its sentence and drops punctuation-only or blank lines', async () => {
+    const closed = captionRecorder(wordFile([
+      ['好', 100, 200],
+      ['。', 200, 300],
+      ['”', 300, 400],
+      [' ', 400, 500],
+    ]))
+    const closedTask = await submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), closed.fetchImpl))
+    expect(closedTask.artifacts?.[0]?.subtitles).toEqual([
+      { text: '好。”', startSec: 0.1, endSec: 0.4 },
+    ])
+
+    const symbols = captionRecorder(wordFile([
+      ['。', 0, 100],
+      ['好', 100, 200],
+      ['。', 200, 300],
+    ]))
+    const symbolTask = await submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), symbols.fetchImpl))
+    expect(symbolTask.artifacts?.[0]?.subtitles).toEqual([
+      { text: '好。', startSec: 0.1, endSec: 0.3 },
+    ])
+
+    const stray = captionRecorder(wordFile([
+      ['好', 0, 100],
+      ['”', 100, 200],
+    ]))
+    const strayTask = await submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), stray.fetchImpl))
+    expect(strayTask.artifacts?.[0]?.subtitles).toEqual([
+      { text: '好”', startSec: 0, endSec: 0.2 },
+    ])
+
+    const shortClause = captionRecorder(wordFile([
+      ['好', 0, 100],
+      ['，', 100, 200],
+      ['好', 200, 300],
+    ]))
+    const shortTask = await submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), shortClause.fetchImpl))
+    expect(shortTask.artifacts?.[0]?.subtitles).toEqual([
+      { text: '好，好', startSec: 0, endSec: 0.3 },
+    ])
+  })
+
+  it('rejects a synthesis response without a subtitle file', async () => {
+    const provider = new MiniMaxSpeechProvider(
+      settingsOf(),
+      recorder(() => json({ data: { audio: MP3_HEX } })).fetchImpl,
+    )
+    await expect(submitWithCaptions(provider)).rejects.toThrow('MiniMax speech returned no subtitle file')
+  })
+
+  it('reports a failed subtitle download', async () => {
+    const { fetchImpl } = captionRecorder(undefined, { raw: '', status: 500, statusText: 'Server Error' })
+    await expect(submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), fetchImpl)))
+      .rejects.toThrow('MiniMax speech subtitle download failed: 500 Server Error')
+  })
+
+  it('rejects a subtitle file above the artifact cap', async () => {
+    const { fetchImpl } = captionRecorder(wordFile([['好', 0, 100]]))
+    await expect(submitWithCaptions(new MiniMaxSpeechProvider({ ...settingsOf(), maxArtifactBytes: 64 }, fetchImpl)))
+      .rejects.toMatchObject({ code: 'MEDIA_ARTIFACT_TOO_LARGE' })
+  })
+
+  it('rejects malformed subtitle payloads', async () => {
+    const payloads: readonly (readonly [string, string])[] = [
+      ['not json', 'is not JSON'],
+      ['{}', 'is not a JSON array'],
+      ['[1]', 'segment is not an object'],
+      ['[{"timestamped_words":"x"}]', 'has no word list'],
+      ['[{"timestamped_words":["x"]}]', 'word lacks text or timing'],
+      ['[{"timestamped_words":[{"time_begin":0,"time_end":1}]}]', 'word lacks text or timing'],
+      ['[{"timestamped_words":[{"word":"a","time_end":1}]}]', 'word lacks text or timing'],
+      ['[{"timestamped_words":[{"word":"a","time_begin":1e999,"time_end":1}]}]', 'word lacks text or timing'],
+      ['[{"timestamped_words":[{"word":"a","time_begin":0}]}]', 'word lacks text or timing'],
+      ['[{"timestamped_words":[{"word":"a","time_begin":0,"time_end":1e999}]}]', 'word lacks text or timing'],
+      ['[{"text":"no timing"}]', 'has no timed words'],
+      ['[{"timestamped_words":[{"word":"。","time_begin":0,"time_end":100}]}]', 'produced no caption lines'],
+    ]
+    for (const [raw, message] of payloads) {
+      const { fetchImpl } = captionRecorder(undefined, { raw })
+      await expect(submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), fetchImpl)))
+        .rejects.toThrow(message)
+    }
+  })
+})

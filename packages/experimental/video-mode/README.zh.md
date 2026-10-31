@@ -33,7 +33,7 @@ kind: "package-reference"
 - **合成 provider** —— 确定性的 PNG、WAV、MP4 素材与固定价格。由 `fakeProvider: true` 启用。
 - **ComfyUI provider** —— 向本地 ComfyUI 提交 API 格式工作流，轮询其历史记录，下载产物文件，并以内联字节结算任务。随包工作流渲染 Wan 2.2 TI2V-5B 视频与 Z-Image Turbo 图像；`comfyui.video.workflowPath` 与 `comfyui.image.workflowPath` 可换成部署自有工作流。本地算力没有按次计费，因此预估成本恒为 0 元。
 - **MiniMax provider** —— 向 `https://api.minimax.cn/v2/video_generation` 提交一个 MiniMax-H3 视频任务，轮询 `/v2/query/video_generation/<id>`，下载结算后的 MP4，并以内联字节返回。支持文本、首帧、尾帧与参考图输入；本地图片以 data URI 传输。预估算使用公布的元/秒价：768P 每秒 0.50 元，2K 每秒 0.80 元。
-- **MiniMax 语音 provider** —— 向 `https://api.minimax.cn/v1/t2a_v2` 发送一次同步语音合成请求，并以内联 MP3 字节结算。它与父级 `minimax` 共用凭据与 API 源，单次请求可指定任意系统音色，默认使用 `speech-2.8-turbo` 与 `Chinese (Mandarin)_News_Anchor`。一个汉字按两个字符计费；公布价格为 `speech-2.8-turbo` 每万字符 2.00 元、`speech-2.8-hd` 每万字符 3.50 元。
+- **MiniMax 语音 provider** —— 向 `https://api.minimax.cn/v1/t2a_v2` 发送一次同步语音合成请求，并以内联 MP3 字节结算。它与父级 `minimax` 共用凭据与 API 源，单次请求可指定任意系统音色，默认使用 `speech-2.8-turbo` 与 `Chinese (Mandarin)_News_Anchor`。一个汉字按两个字符计费；公布价格为 `speech-2.8-turbo` 每万字符 2.00 元、`speech-2.8-hd` 每万字符 3.50 元。请求带 `subtitles: true` 时还会下载 MiniMax 的词级时间戳文件并返回字幕行；`media generate` 将其写成音频旁的 `.srt`。
 
 <a id="use-this-package"></a>
 ## 使用本包
@@ -161,6 +161,8 @@ MiniMax provider 发送 `content` 数组：一个 text 项，随后零个或多�
 
 MiniMax 语音 provider 以 `stream: false` 提交 `text`，并在同一次调用内结算。它把 `data.audio` 从 hex 解码，读取 `extra_info.audio_length` 作为毫秒时长、`extra_info.usage_characters` 作为计费字符数，并按公布的每万字符价格计算成本。一个汉字按两个计费字符计算；`billingCharsOf` 对预估应用同一规则。`base_resp` 中的业务错误会映射为 provider 不可用、预算超限或任务失败码；非法 hex 会在字节写入工作区之前以无效产物失败。
 
+带 `subtitles: true` 的语音请求会以 `subtitle_type: word` 打开 `subtitle_enable`，下载签名后的 `data.subtitle_file`，并把逐字时间戳分组为字幕行：句末标点结束一行，逗号在整行达到 12 个字符后结束一行，整行达到 24 个字符时在当前词处分行。`media` 工具把这些行格式化为 SubRip，写在音频旁边，因此 `voice/s01-01.mp3` 会得到 `voice/s01-01.srt`。时间戳文件缺失、不可读、超大或格式错误时，任务以 `MEDIA_ARTIFACT_INVALID` 失败，不会在不带字幕的情况下结算音频。
+
 项目文档使用严格 schema（`schemaVersion: 1`），包含标题、画幅、目标时长、预算、镜头与成片。`video_project` 读取文档、应用一次修改、校验完整结果，再通过 `ctx.fs.writeText` 原子写入。
 
 EDL 是可复现的渲染契约。`buildFfmpegArgs` 生成一张滤镜图：每个视觉片段裁切、等比补边到画布、重采样到画布帧率并拼接；可选音频片段裁切、增益并混音；字幕按安全区样式烧录；输出 H.264/AAC 并带 `+faststart`。汇编器先通过 `ctx.fs` 发布空输出占位文件，让父目录在同一写入策略下存在。
@@ -189,7 +191,7 @@ EDL 是可复现的渲染契约。`buildFfmpegArgs` 生成一张滤镜图：每�
 - **云端 provider 只服务视频** —— MiniMax-H3 返回 MP4 片段；关键帧仍来自 ComfyUI 或其他图像 provider。`MiniMax-H3-Highspeed`、`MiniMax-H3-Lite` 与 `MiniMax-H3-Max` 暂不可选，provider 只接受 `MiniMax-H3`。
 - **MiniMax 按生成秒数计费** —— 5 秒 768P 片段为 2.50 元，5 秒 2K 片段为 4.00 元，尚未计入图片超额。估算对请求时长是精确的；失败任务不会在任务记录中退款。
 - **ComfyUI 工作流接收提示词与一张首帧** —— `media generate` 传 `first_frame_path` 时上传该图并从它开始生成；不传时随包 Wan 图从噪声开始。首尾帧条件、风格参考与角色参考需要部署自有工作流。
-- **语音字幕使用估算时间轴** —— 语音 provider 返回音频与总时长；MiniMax 的句级时间戳文件尚未接入 `media` 工具。`video-voice` 按实测片段时长排布 SRT，并把按句拆分的时间轴标注为估算。
+- **字幕换行由标点决定** —— 语音 provider 按句末标点、逗号与 24 字符预算对词级时间戳分组，长句会在固定宽度处分行，而非编辑器指定的位置。需要在别处分行时直接调整 SRT。
 - **随包 Wan 工作流忽略负向提示** —— 它使用 CFG 1，因为在 Apple MPS 上 CFG>1 的批量分支会让颜色失真。硬件与运行时能正确解码 CFG 5 时，可用自定义工作流恢复负向分支。
 - **每个本地片段都从关键帧开始** —— 通过 `first_frame_path` 的首帧片段在 MPS 上渲染正常；纯提示词起始仍属实验性，颜色与构图可能漂移。视频模式 persona 与 `video-generate` 技能要求先出关键帧。
 - **本地生成时间随分辨率与时长增长** —— Apple 芯片笔记本 480p 每条片段需数分钟，720p 更久；`comfyui.timeoutMs` 限制等待，`comfyui.video.resolution` 用于在质量与周转间取舍。

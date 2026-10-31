@@ -92,6 +92,28 @@ maybe('MiniMaxSpeechProvider real API', () => {
     expect(task.cost?.currency).toBe('CNY')
   }, 30_000)
 
+  it('returns timed captions for a request that asks for them', async () => {
+    const prompt = '第一句用于确认字幕。第二句应当单独成行。'
+    const provider = new MiniMaxSpeechProvider(settings())
+
+    const task = await provider.submit({ kind: 'speech', prompt, subtitles: true }, new AbortController().signal)
+
+    const artifact = task.artifacts?.[0]
+    if (artifact?.subtitles === undefined) throw new Error('MiniMax speech returned no inline audio with captions')
+    const cues = artifact.subtitles
+    expect(cues.length).toBeGreaterThanOrEqual(2)
+    expect(cues.map(cue => cue.text).join('')).toContain('第二句应当单独成行')
+    for (const [index, cue] of cues.entries()) {
+      expect(cue.endSec).toBeGreaterThan(cue.startSec)
+      const previous = cues[index - 1]
+      if (previous !== undefined) expect(cue.startSec).toBeGreaterThanOrEqual(previous.endSec - 0.001)
+    }
+    const last = cues.at(-1)
+    if (artifact.durationSec !== undefined && last !== undefined) {
+      expect(last.endSec).toBeLessThanOrEqual(artifact.durationSec + 0.05)
+    }
+  }, 30_000)
+
   it('reports a rejected credential as a provider-unavailable failure', async () => {
     const provider = new MiniMaxSpeechProvider(settings({ apiKey: 'sk-invalid-e2e-smoke' }))
 

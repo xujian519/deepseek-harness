@@ -8061,7 +8061,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'MediaArtifact',
-    declaration: 'export interface MediaArtifact {\n    readonly id: string;\n    readonly kind: MediaKind;\n    readonly mediaType: string;\n    readonly bytes?: Uint8Array;\n    readonly url?: string;\n    readonly durationSec?: number;\n    readonly width?: number;\n    readonly height?: number;\n}',
+    declaration: 'export interface MediaArtifact {\n    readonly id: string;\n    readonly kind: MediaKind;\n    readonly mediaType: string;\n    readonly bytes?: Uint8Array;\n    readonly url?: string;\n    readonly durationSec?: number;\n    readonly width?: number;\n    readonly height?: number;\n    readonly subtitles?: readonly MediaSubtitleCue[];\n}',
   },
   {
     name: 'MediaCost',
@@ -8097,7 +8097,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'MediaRequest',
-    declaration: 'export interface MediaRequest {\n    readonly kind: MediaKind;\n    readonly model?: string;\n    readonly prompt: string;\n    readonly negativePrompt?: string;\n    readonly references?: readonly MediaReference[];\n    readonly durationSec?: number;\n    readonly aspectRatio?: string;\n    readonly resolution?: string;\n    readonly seed?: number;\n    readonly voice?: string;\n}',
+    declaration: 'export interface MediaRequest {\n    readonly kind: MediaKind;\n    readonly model?: string;\n    readonly prompt: string;\n    readonly negativePrompt?: string;\n    readonly references?: readonly MediaReference[];\n    readonly durationSec?: number;\n    readonly aspectRatio?: string;\n    readonly resolution?: string;\n    readonly seed?: number;\n    readonly voice?: string;\n    readonly subtitles?: boolean;\n}',
+  },
+  {
+    name: 'MediaSubtitleCue',
+    declaration: 'export interface MediaSubtitleCue {\n    readonly text: string;\n    readonly startSec: number;\n    readonly endSec: number;\n}',
   },
   {
     name: 'MediaTask',

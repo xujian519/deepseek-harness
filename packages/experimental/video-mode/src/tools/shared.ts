@@ -54,6 +54,16 @@ export function derivedPath(path: string, index: number): string {
 }
 
 /**
+ * Derive the caption sidecar path for one audio artifact.
+ * @param path - declared audio path.
+ * @returns the same path with an `.srt` extension.
+ */
+export function subtitlePathOf(path: string): string {
+  const extension = extname(path)
+  return `${extension.length === 0 ? path : path.slice(0, -extension.length)}.srt`
+}
+
+/**
  * Write one artifact through the Session filesystem after checking its size and
  * signature. Provider-declared media types are not trusted: a mislabeled HTML
  * or SVG payload must fail instead of landing as an image.

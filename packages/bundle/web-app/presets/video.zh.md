@@ -18,7 +18,7 @@
 
 - Host 上有 `ffmpeg` 与 `ffprobe`。任一无法解析时汇编器以 `MEDIA_FFMPEG_MISSING` 失败。烧录中文字幕需要 `libass` 与 CJK 字体。
 - 具备 H3 视频权限的 MiniMax API 密钥，由 `minimax.apiKeyEnv` 命名为 `MINIMAX_API_KEY`，通过 credentials 服务保存或从启动环境导出。缺少密钥时预设仍可启动并使用 ComfyUI；MiniMax 请求会提示如何保存或导出密钥。密钥未授权或余额不足会在首次视频提交时返回 provider 的错误消息。
-- 语音合成使用同一把密钥与同一个 API 源，账号需要具备语音合成权限。provider 默认使用 `speech-2.8-turbo`，每万字符 2.00 元；`speech-2.8-hd` 为每万字符 3.50 元。缺少密钥时首次语音请求会返回相同的修复提示。
+- 语音合成使用同一把密钥与同一个 API 源，账号需要具备语音合成权限。provider 默认使用 `speech-2.8-turbo`，每万字符 2.00 元；`speech-2.8-hd` 为每万字符 3.50 元。缺少密钥时首次语音请求会返回相同的修复提示。给 `media generate` 传 `subtitles: true` 可获得 `.srt` 旁挂文件，时间轴来自 MiniMax 的词级时间戳。
 - `http://127.0.0.1:8188` 上有本地 ComfyUI（0.38 或更新），且 `models/` 下已放置 Z-Image Turbo。关键帧来自这一行。Wan 2.2 TI2V-5B 文件是可选项，仅在调用方显式选择 `wan2.2-ti2v-5b` 时使用。
 - 预设运行 `fakeProvider: false`，所有产物都来自 MiniMax 或 ComfyUI。需要免凭据演示时，把 `fakeProvider` 设为 true 并选择 `synthetic/*` 模型；合成 provider 产出一秒片段与固定价格。
 
@@ -34,7 +34,7 @@
 - **云端视频是默认路径** —— MiniMax-H3 服务视频并按生成秒数计费（768P 每秒 0.50 元，2K 每秒 0.80 元）。5 秒 768P 片段预估 2.50 元；超过 10 元确认阈值的片段需要用户批准。
 - **随包 Wan 工作流使用 CFG 1** —— 在 Apple MPS 上 CFG>1 的批量分支会让颜色失真，因此负向提示不生效。兼容运行时上的部署可挂载自己的 CFG 5 工作流。
 - **本地视频从关键帧开始** —— 调用方选择 `wan2.2-ti2v-5b` 时，`video-generate` 把镜头关键帧作为 `first_frame_path` 传入；纯提示词本地起始在 MPS 上颜色与构图可能漂移。MiniMax-H3 同样接受关键帧，技能仍会传入以保持跨镜一致。
-- **语音字幕使用估算时间轴** —— MiniMax 返回音频与总时长；句级时间戳文件尚未接入 `media` 工具。`video-voice` 按实测片段时长排布 SRT，并把按句拆分的时间轴标注为估算。
+- **字幕换行由标点决定** —— 语音 provider 按句末标点、逗号与 24 字符预算对 MiniMax 词级时间戳分组，长句会在固定宽度处分行。需要在别处分行时直接调整 SRT。
 - **没有转写、MV 与切片流水线** —— persona 提到这些工作流，但词级转写、节拍网格、源视频导入与 9:16 重构仍在规划；被问到时助手必须如实说明。
 - **没有数字人口型同步** —— 口播使用主播静帧、B-roll 与配音。
 - **不自动发布** —— 交付止于文件与清单，发布由用户完成。

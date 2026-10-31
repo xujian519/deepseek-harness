@@ -50,6 +50,7 @@ import {
   type MediaModel,
   type MediaProvider,
   type MediaRequest,
+  type MediaSubtitleCue,
   type MediaTask,
   type MediaTaskStatus,
 } from './types.ts'
@@ -901,6 +902,26 @@ export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/**
+ * Split a prompt into deterministic caption lines spread evenly across a clip.
+ * @param prompt - spoken text.
+ * @param durationSec - artifact duration the lines divide.
+ * @returns caption lines, twelve characters each.
+ */
+function syntheticCues(prompt: string, durationSec: number): readonly MediaSubtitleCue[] {
+  const characters = Array.from(prompt.trim())
+  const lines: string[] = []
+  for (let index = 0; index < characters.length; index += 12) {
+    const line = characters.slice(index, index + 12).join('').trim()
+    if (line.length > 0) lines.push(line)
+  }
+  return lines.map((text, index) => ({
+    text,
+    startSec: durationSec * index / lines.length,
+    endSec: durationSec * (index + 1) / lines.length,
+  }))
+}
+
 /** Deterministic synthetic provider used by tests and credential-free demos. */
 export class SyntheticMediaProvider implements MediaProvider {
   /** Registered provider id. */
@@ -1031,7 +1052,14 @@ export class SyntheticMediaProvider implements MediaProvider {
         }
       case 'speech': {
         const durationSec = request.durationSec ?? Math.max(1, Math.ceil(request.prompt.length / 12))
-        return { id: 'speech-1', kind: 'speech', mediaType: 'audio/wav', bytes: silentWav(durationSec), durationSec }
+        return {
+          id: 'speech-1',
+          kind: 'speech',
+          mediaType: 'audio/wav',
+          bytes: silentWav(durationSec),
+          durationSec,
+          ...request.subtitles === true ? { subtitles: syntheticCues(request.prompt, durationSec) } : {},
+        }
       }
     }
   }

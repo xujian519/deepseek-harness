@@ -1843,7 +1843,7 @@ export type PaidTranslationProvider = 'deepseek-account' | 'deepseek-official'
 
 ## `@deepseek-ai/dsh-experimental-video-mode`
 
-- `source`: [`packages/experimental/video-mode/src/media.ts:226`](../packages/experimental/video-mode/src/media.ts)
+- `source`: [`packages/experimental/video-mode/src/media.ts:227`](../packages/experimental/video-mode/src/media.ts)
 
 ```ts config-catalog
 /** Deployment configuration of the media runtime and the video tools. */

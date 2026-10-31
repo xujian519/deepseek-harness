@@ -3112,7 +3112,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 ### `media`
 
-通过已配置的媒体 provider 生成或查看图像、视频片段与语音。 Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; `generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; `cancel` stops one. Prefer `estimate` before a paid generation. The synthetic provider is for demos and tests; configure the local ComfyUI provider or a real provider for production. Generated files land under the Session workspace; keep each shot in its own directory.
+通过已配置的媒体 provider 生成或查看图像、视频片段与语音。 Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; `generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; `cancel` stops one. Prefer `estimate` before a paid generation. 语音请求传 `subtitles` 时会在音频旁写出 `.srt` 字幕文件。 The synthetic provider is for demos and tests; configure the local ComfyUI provider or a real provider for production. Generated files land under the Session workspace; keep each shot in its own directory.
 
 ```json
 {
@@ -3173,6 +3173,10 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     "voice": {
       "type": "string",
       "description": "Speech voice id."
+    },
+    "subtitles": {
+      "type": "boolean",
+      "description": "Request timed captions with speech. Generate writes an `.srt` sidecar beside the audio."
     },
     "output_path": {
       "type": "string",

@@ -138,6 +138,7 @@ export type {
   MediaProvider,
   MediaReference,
   MediaRequest,
+  MediaSubtitleCue,
   MediaTask,
   MediaTaskError,
   MediaTaskStatus,

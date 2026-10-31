@@ -10,8 +10,17 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type MediaRuntime from '../media.ts'
 import { projectCost, readProject } from '../project.ts'
-import { MediaFailure, type MediaEstimate, type MediaKind, type MediaRequest, type MediaTask } from '../types.ts'
-import { derivedPath, hostPathOf, workingDirectoryOf, writeArtifact } from './shared.ts'
+import { formatSrt } from '../subtitles.ts'
+import { MediaFailure, type MediaArtifact, type MediaEstimate, type MediaKind, type MediaRequest, type MediaTask } from '../types.ts'
+import { derivedPath, hostPathOf, subtitlePathOf, workingDirectoryOf, writeArtifact } from './shared.ts'
+
+/** One artifact the call wrote, including an optional caption sidecar. */
+interface WrittenArtifact {
+  readonly path: string
+  readonly bytes: number
+  readonly mediaType: string
+  readonly subtitlesPath?: string
+}
 
 /** Model-visible result of one `media` call. */
 interface MediaToolValue {
@@ -33,11 +42,36 @@ interface MediaToolValue {
     readonly status: string
     readonly progress?: number
   }
-  readonly artifacts?: {
-    readonly path: string
-    readonly bytes: number
-    readonly mediaType: string
-  }[]
+  readonly artifacts?: WrittenArtifact[]
+}
+
+/**
+ * Write the caption sidecar one speech artifact carries.
+ * @param ctx - tool context.
+ * @param artifact - settled artifact.
+ * @param path - declared audio path, relative to `cwd`.
+ * @param cwd - Session working directory.
+ * @param maxBytes - deployment artifact cap.
+ * @param signal - caller cancellation.
+ * @returns the written SRT path, or undefined when the artifact has no captions.
+ */
+async function writeCaptions(
+  ctx: Context,
+  artifact: MediaArtifact,
+  path: string,
+  cwd: string,
+  maxBytes: number,
+  signal: AbortSignal,
+): Promise<string | undefined> {
+  if (artifact.subtitles === undefined || artifact.subtitles.length === 0) return undefined
+  const sidecar: MediaArtifact = {
+    id: `${artifact.id}-subtitles`,
+    kind: 'speech',
+    mediaType: 'application/x-subrip',
+    bytes: new TextEncoder().encode(formatSrt(artifact.subtitles)),
+  }
+  const written = await writeArtifact(ctx, sidecar, subtitlePathOf(path), cwd, maxBytes, signal)
+  return written.path
 }
 
 /** One estimate rendered for the model. */
@@ -73,10 +107,14 @@ function requestFrom(args: {
   resolution?: string
   seed?: number
   voice?: string
+  subtitles?: boolean
 }): MediaRequest {
   if (args.kind === undefined) throw new MediaFailure('media requires `kind` for this action', 'MEDIA_REQUEST_INVALID')
   if (args.prompt === undefined || args.prompt.trim().length === 0) {
     throw new MediaFailure('media requires a non-empty `prompt` for this action', 'MEDIA_REQUEST_INVALID')
+  }
+  if (args.subtitles === true && args.kind !== 'speech') {
+    throw new MediaFailure('media accepts `subtitles` for speech only', 'MEDIA_REQUEST_INVALID')
   }
   return {
     kind: args.kind,
@@ -88,6 +126,7 @@ function requestFrom(args: {
     ...args.resolution === undefined ? {} : { resolution: args.resolution },
     ...args.seed === undefined ? {} : { seed: args.seed },
     ...args.voice === undefined ? {} : { voice: args.voice },
+    ...args.subtitles === undefined ? {} : { subtitles: args.subtitles },
   }
 }
 
@@ -104,6 +143,7 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
       + 'Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; '
       + '`generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; '
       + '`cancel` stops one. Prefer `estimate` before a paid generation. '
+      + 'Speech accepts `subtitles` and then writes an `.srt` sidecar beside the audio. '
       + 'The synthetic provider is for demos and tests; configure a real provider for production. '
       + 'Generated files land under the Session workspace; keep each shot in its own directory.',
     parameters: {
@@ -128,6 +168,10 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
         description: 'Image that starts the video clip, relative to the Session working directory. Sent as the provider first-frame reference; video only.',
       },
       voice: { type: 'string', description: 'Speech voice id.' },
+      subtitles: {
+        type: 'boolean',
+        description: 'Request timed captions with speech. Generate writes an `.srt` sidecar beside the audio.',
+      },
       output_path: { type: 'string', description: 'Artifact path relative to the Session working directory. Required for generate.' },
       wait: {
         type: 'boolean',
@@ -198,6 +242,7 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
                 path: { type: 'string', required: true },
                 bytes: { type: 'integer', required: true },
                 mediaType: { type: 'string', required: true },
+                subtitlesPath: { type: 'string' },
               },
             },
           },
@@ -295,12 +340,16 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
               task: renderTask(task),
             }
           }
-          const artifacts: { path: string; bytes: number; mediaType: string }[] = []
+          const artifacts: WrittenArtifact[] = []
+          const captions: string[] = []
           for (const [index, artifact] of (task.artifacts ?? []).entries()) {
+            const path = derivedPath(args.output_path, index)
             const written = await writeArtifact(
-              ctx, artifact, derivedPath(args.output_path, index), cwd, media.settings.maxArtifactBytes, exec.signal,
+              ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal,
             )
-            artifacts.push({ ...written, mediaType: artifact.mediaType })
+            const subtitlesPath = await writeCaptions(ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal)
+            if (subtitlesPath !== undefined) captions.push(subtitlesPath)
+            artifacts.push({ ...written, mediaType: artifact.mediaType, ...subtitlesPath === undefined ? {} : { subtitlesPath } })
           }
           if (artifacts.length === 0) {
             throw new MediaFailure(`media task ${task.id} succeeded without artifacts`, 'MEDIA_ARTIFACT_INVALID')
@@ -308,6 +357,7 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
           return {
             action: 'generate',
             message: `Generated ${task.kind} with ${task.provider}/${task.model}. Wrote ${artifacts.map(entry => entry.path).join(', ')}.`
+              + (captions.length === 0 ? '' : ` Captions: ${captions.join(', ')}.`)
               + (task.cost === undefined ? '' : ` Cost ${task.cost.amountMinor} ${task.cost.currency} minor units.`),
             task: renderTask(task),
             artifacts,
@@ -316,20 +366,25 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
         case 'status': {
           if (args.task_id === undefined) throw new MediaFailure('media status requires `task_id`', 'MEDIA_REQUEST_INVALID')
           const task = await media.refresh(args.task_id, exec.signal)
-          const artifacts: { path: string; bytes: number; mediaType: string }[] = []
+          const artifacts: WrittenArtifact[] = []
+          const captions: string[] = []
           if (task.status === 'succeeded' && task.artifacts !== undefined && args.output_path !== undefined) {
             const cwd = await workingDirectoryOf(ctx, exec)
             for (const [index, artifact] of task.artifacts.entries()) {
+              const path = derivedPath(args.output_path, index)
               const written = await writeArtifact(
-                ctx, artifact, derivedPath(args.output_path, index), cwd, media.settings.maxArtifactBytes, exec.signal,
+                ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal,
               )
-              artifacts.push({ ...written, mediaType: artifact.mediaType })
+              const subtitlesPath = await writeCaptions(ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal)
+              if (subtitlesPath !== undefined) captions.push(subtitlesPath)
+              artifacts.push({ ...written, mediaType: artifact.mediaType, ...subtitlesPath === undefined ? {} : { subtitlesPath } })
             }
           }
           return {
             action: 'status',
             message: `Task ${task.id} is ${task.status}${task.error === undefined ? '' : `: ${task.error.message}`}.`
-              + (artifacts.length === 0 ? '' : ` Wrote ${artifacts.map(entry => entry.path).join(', ')}.`),
+              + (artifacts.length === 0 ? '' : ` Wrote ${artifacts.map(entry => entry.path).join(', ')}.`)
+              + (captions.length === 0 ? '' : ` Captions: ${captions.join(', ')}.`),
             task: renderTask(task),
             ...artifacts.length === 0 ? {} : { artifacts },
           }
