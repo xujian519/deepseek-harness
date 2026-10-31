@@ -9,6 +9,7 @@ import {
   GENERIC_TEMPLATE_IDS,
   GENERIC_TEMPLATE_SCHEMAS,
 } from '../src/document/draftSchema/index.ts'
+import { OA_RESPONSE_SLOT_QUOTAS } from '../src/document/draftSchema/generic.ts'
 
 /** 从模板 HTML 机械提取全部 data-slot 引用（元素槽位与 choice 选项）。 */
 function extractSlotRefs(html: string): { elements: string[]; choices: Map<string, string[]> } {
@@ -131,6 +132,18 @@ describe('generic draft schema conformance（通用模板注册表 ↔ 模板 id
         for (const element of schema.staticElements) {
           expect(html.includes(element.marker), `marker ${element.marker}`).toBe(true)
         }
+      })
+
+      it('槽位配额只落在 oa-response 的七个小节，取值与配额表逐项一致', () => {
+        const declared: Record<string, Record<string, number>> = {}
+        for (const [id, slot] of Object.entries(schema.sections)) {
+          const quota: Record<string, number> = {}
+          if ('maxChars' in slot && slot.maxChars !== undefined) quota.maxChars = slot.maxChars
+          if ('maxItems' in slot && slot.maxItems !== undefined) quota.maxItems = slot.maxItems
+          if ('maxRows' in slot && slot.maxRows !== undefined) quota.maxRows = slot.maxRows
+          if (Object.keys(quota).length > 0) declared[id] = quota
+        }
+        expect(declared).toEqual(template === 'oa-response' ? OA_RESPONSE_SLOT_QUOTAS : {})
       })
 
       it('包装元素（含嵌套 id）全部登记为 staticElements', () => {

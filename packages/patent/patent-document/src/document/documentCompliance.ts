@@ -1,5 +1,6 @@
 /**
- * 对外文书的机械合规检查：章节编号唯一有序、无内部工作记录、证据编号与证据清单相互覆盖。
+ * 对外文书的机械合规检查：章节编号唯一有序、无内部工作记录、证据编号与证据清单相互覆盖、
+ * 修改对照表与修改后独权全文互相对应、三张表不留空表头。
  *
  * 这些约束写在 `templates/patent/invalidation-opinion/references/conventions.md` 与
  * `checklist.md` 中，但只有文字约束时依赖逐项自觉执行。本模块把它们变成可执行检查，
@@ -9,6 +10,11 @@
  * 正文命中正文词表（成功概率分档、缺口汇总、内部文件路径等）。标题词表按裸词匹配，
  * 正文词表按语义表达式匹配（`成功率|胜诉率|成功概率`），目的是让正文检查只命中内部
  * 记录特有的表达，不命中对外文书中正常的同形词。
+ *
+ * 「修改对照表 + 修改后独权全文」与「证据清单 + 引用日志」两处双份是所内口径（D-1 裁决，
+ * 见 oa-response `conventions.md` §11）：双份保留，不合并。本模块守的是**两份对得上**——
+ * 表里登记了修改、却没有对应的全文，或全文写的权项在表里没有登记，都报出来。文字是否
+ * 逐字一致不判：对照表是差异摘要，允许省略中间段落，按子串比对必然误伤。
  * @module @deepseek-ai/dsh-patent-document/document/documentCompliance
  */
 
@@ -21,6 +27,8 @@ export type ComplianceRule =
   | 'internal-section'
   | 'internal-body'
   | 'evidence-cross-reference'
+  | 'amendment-cross-reference'
+  | 'empty-table'
 
 /**
  * 检查范围。对外文书不得含内部工作记录；内部记录模板（如内部无效分析意见）正是这些
@@ -43,12 +51,17 @@ const HEADING_RE = /<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi
 const NON_VISIBLE_RE = /<(style|script)\b[^>]*>[\s\S]*?<\/\1>|<!--[\s\S]*?-->/gi
 
 /**
- * 章节编号：标题文本以中文数码（一至九十九）开头并后接「、」。数码的写法受限，
- * 因为编号要两两比大小：`一二`、`二十三五` 这类无法确定数值的写法按非章节编号跳过，
- * 不猜。命中的数码交给 {@link parseCnNumber} 取值。
+ * 章节编号的数码部分（不含后缀「、」）。数码的写法受限，因为编号要两两比大小：
+ * `一二`、`二十三五` 这类无法确定数值的写法按非章节编号跳过，不猜。
+ *
+ * 导出给 sectionFold 的重编号共用：两处各自维护词表时，重编号可能把合规检查不认的
+ * 写法当成节号去改，改完两边都自认为没问题。
  */
-const SECTION_NUMBER_RE =
-  /^(十[一二三四五六七八九]?|[一二三四五六七八九]十[一二三四五六七八九]?|[一二三四五六七八九])、/
+export const CN_SECTION_NUMERAL =
+  '十[一二三四五六七八九]?|[一二三四五六七八九]十[一二三四五六七八九]?|[一二三四五六七八九]'
+
+/** 章节编号：标题文本以中文数码（一至九十九）开头并后接「、」。命中的数码交给 {@link parseCnNumber} 取值。 */
+const SECTION_NUMBER_RE = new RegExp(`^(${CN_SECTION_NUMERAL})、`)
 
 /** 内部工作章节的标题用语。命中即表示内部工作记录进入了对外件。 */
 const INTERNAL_SECTION_KEYWORDS = [
@@ -100,6 +113,9 @@ function visibleText(html: string): string {
  *
  * 证据编号核对（见 {@link evidenceIssues}）在两种范围内都做：内部记录件同样按一套编号
  * 记账，清单与正文对不上时先修草案再出件。
+ *
+ * 双份核对（{@link amendmentIssues}）与空表核对（{@link emptyTableIssues}）只针对答复体例
+ * 的三张表与「本次修改」章节；其余模板没有这些标记，检查自然跳过，不因模板差异误报。
  * @param html - 渲染后的文书 HTML。
  * @param scope - 检查范围；`internal-record` 不做内部工作记录检查。
  * @returns 命中的合规问题；全部通过时为空数组。
@@ -156,6 +172,8 @@ export function checkDocumentCompliance(html: string, scope: ComplianceScope = '
     previous = Math.max(previous, value)
   }
   issues.push(...evidenceIssues(html))
+  issues.push(...amendmentIssues(html))
+  issues.push(...emptyTableIssues(html))
   if (isExternal) issues.push(...bodyIssues(html))
   return issues
 }
@@ -258,19 +276,21 @@ function evidenceTableRange(html: string): { start: number; end: number } | unde
 }
 
 /**
- * 取清单表的编号列：每个数据行第一个单元格的可见文本。
- * @param table - 证据清单表 HTML（含表头与表体）。
- * @returns 按行序排列的编号；单元格未填写时为空串；没有表体时为空数组。
+ * 取表格首列：每个数据行第一个单元格的可见文本（去掉中间空白）。
+ *
+ * 证据清单的编号列与修改对照表的权项列都是「首列是键、其余是内容」的形态，两处共用。
+ * @param table - 表格 HTML（含表头与表体）。
+ * @returns 按行序排列的首列文本；单元格未填写时为空串；没有表体时为空数组。
  */
-function evidenceIds(table: string): string[] {
-  const ids: string[] = []
+function firstColumnCells(table: string): string[] {
+  const cells: string[] = []
   for (const tbody of table.matchAll(/<tbody[^>]*>([\s\S]*?)<\/tbody>/gi)) {
     for (const row of group(tbody, 1).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
       const cell = /<td[^>]*>([\s\S]*?)<\/td>/i.exec(group(row, 1))
-      ids.push(cell === null ? '' : visibleText(group(cell, 1)).replace(/\s+/g, ''))
+      cells.push(cell === null ? '' : visibleText(group(cell, 1)).replace(/\s+/g, ''))
     }
   }
-  return ids
+  return cells
 }
 
 /**
@@ -314,7 +334,7 @@ function evidenceIssues(html: string): ComplianceIssue[] {
   if (range === undefined) return []
   const issues: ComplianceIssue[] = []
   const registered = new Map<string, string>()
-  evidenceIds(html.slice(range.start, range.end)).forEach((id, index) => {
+  firstColumnCells(html.slice(range.start, range.end)).forEach((id, index) => {
     if (BLANK_ID_RE.test(id)) {
       issues.push({
         rule: 'evidence-cross-reference',
@@ -341,6 +361,160 @@ function evidenceIssues(html: string): ComplianceIssue[] {
     issues.push({
       rule: 'evidence-cross-reference',
       message: `正文引用的「${id}」未登记在证据清单：在清单中补登该条证据`,
+    })
+  }
+  return issues
+}
+
+/**
+ * 「本次修改」章节的定位标记。答复体例把这个章节标成 `aria-label="本次修改"`；其余模板
+ * 没有该章节，双份核对随即跳过。
+ */
+const AMENDMENT_SECTION_OPEN_RE = /<section[^>]*\saria-label=["']本次修改["'][^>]*>/i
+
+/**
+ * 修改后独权全文块的定位标记：带 `claim-text` 类的元素。模板用 `<div>`，手改件可能用
+ * `<p>`，故只按 class 认、不限标签。全局正则只用于 `matchAll`（不改 `lastIndex`）。
+ */
+const CLAIM_TEXT_OPEN_RE = /<[a-z][^>]*\sclass=["'][^"']*\bclaim-text\b[^"']*["'][^>]*>/gi
+
+/** 表 1 首列的权项号写法：`权1`、`权利要求 1`、`1`（匹配前已去掉空白）。 */
+const CLAIM_LABEL_RE = /^(?:权利要求|权项|权)?(\d+)$/
+
+/** 权项全文里的权项号：`权利要求 1：`、`权1`。全局正则只用于 `matchAll`。 */
+const CLAIM_MENTION_RE = /权(?:利要求)?\s*(\d+)/g
+
+/**
+ * 取表 1 首列的权项号。
+ * @param table - 修改对照表 HTML（含表头与表体）。
+ * @returns 可识别的权项号，按行序；首列写法不是权项编号的行不进结果。
+ */
+function claimRowNumbers(table: string): number[] {
+  const numbers: number[] = []
+  for (const cell of firstColumnCells(table)) {
+    const match = CLAIM_LABEL_RE.exec(cell)
+    if (match === null) continue
+    numbers.push(Number(group(match, 1)))
+  }
+  return numbers
+}
+
+/**
+ * 修改对照表与修改后独权全文的对应检查（D-1 裁决：双份保留，不合并）。
+ *
+ * `conventions.md` §6 要求修改后的独立权利要求全文呈现，不能只写「参见修改对照表」；§11
+ * 说明两处双份是刻意的，守的是两份对得上。两个方向各报一种：
+ *
+ * 1. 表 1 登记了修改，章节里却没有全文 → 只做了差异视图，没有生效文本。
+ * 2. 全文写的权项在表 1 没有登记 → 生效文本对应的修改项在差异视图里查不到。
+ *
+ * 反向不报（表 1 有权项而全文没有）：从属权项的修改只出现在对照表里是合规体例，
+ * §6 只要求独立权利要求全文呈现。逐字比对也不做：对照表是差异摘要，允许省略中间段落。
+ * @param html - 渲染后的文书 HTML。
+ * @returns 命中的合规问题；文档没有「本次修改」章节时为空数组。
+ */
+function amendmentIssues(html: string): ComplianceIssue[] {
+  const section = AMENDMENT_SECTION_OPEN_RE.exec(html)
+  if (section === null) return []
+  const start = section.index + section[0].length
+  const end = findMatchingCloseTag(html, start) ?? html.length
+  const inner = html.slice(start, end)
+
+  let rowNumbers: number[] = []
+  const table = /<table[^>]*>/i.exec(inner)
+  if (table !== null) {
+    const tableStart = start + table.index
+    const tableClose = findMatchingCloseTag(html, tableStart + table[0].length)
+    if (tableClose !== undefined) {
+      rowNumbers = claimRowNumbers(html.slice(tableStart, tableClose + '</table>'.length))
+    }
+  }
+
+  const fullTextNumbers = new Set<number>()
+  let hasFullText = false
+  for (const block of inner.matchAll(CLAIM_TEXT_OPEN_RE)) {
+    hasFullText = true
+    const blockStart = start + block.index + block[0].length
+    const blockEnd = findMatchingCloseTag(html, blockStart) ?? end
+    for (const mention of visibleText(html.slice(blockStart, blockEnd)).matchAll(CLAIM_MENTION_RE)) {
+      fullTextNumbers.add(Number(group(mention, 1)))
+    }
+  }
+
+  const issues: ComplianceIssue[] = []
+  // 表 1 首列没有可识别的权项号（如整列写「权利要求书」）时无从对照，不猜。
+  if (rowNumbers.length === 0) return issues
+  if (!hasFullText) {
+    issues.push({
+      rule: 'amendment-cross-reference',
+      message: `表 1 登记了 ${rowNumbers.length} 项修改，本章没有「修改后的独立权利要求」全文：conventions §6 要求全文呈现，不能只写「参见修改对照表」`,
+    })
+    return issues
+  }
+  for (const number of fullTextNumbers) {
+    if (rowNumbers.includes(number)) continue
+    issues.push({
+      rule: 'amendment-cross-reference',
+      message: `修改后全文写的是权利要求 ${number}，表 1 没有登记该权项的修改：对照表（差异视图）与全文（生效文本）必须互相对应`,
+    })
+  }
+  return issues
+}
+
+/**
+ * 答复体例三张表的数据体 id 与表名。按 id 定位而不按「所有 `<table>`」：别的模板的表格
+ * 不在本条口径内，按标签定位会把表单模板的空白表当缺陷。
+ */
+const CHECKED_TABLE_BODIES: readonly (readonly [string, string])[] = [
+  ['amendment-table', '表 1 权利要求修改对照'],
+  ['evidence-table', '表 2 证据与对比文件清单'],
+  ['citation-table', '表 3 关键断言溯源'],
+]
+
+/** 未填写的单元格：空，或模板占位的连续下划线。 */
+const PLACEHOLDER_CELL_RE = /^_*$/
+
+/**
+ * 一个数据行是否全部未填写（空或占位下划线）。
+ * @param row - 一个 `<tr>` 的内容。
+ * @returns 该行没有任何单元填写内容时为 true；没有 `<td>` 的行按未填写处理。
+ */
+function rowIsBlank(row: string): boolean {
+  for (const cell of row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)) {
+    if (!PLACEHOLDER_CELL_RE.test(visibleText(group(cell, 1)).replace(/\s+/g, ''))) return false
+  }
+  return true
+}
+
+/**
+ * 三张表不留空表头：只有表头没有数据行，或数据行整行都是模板占位符。
+ *
+ * 草案校验已拒绝空行数组（`validateRows` 要求至少一行），故「没有数据行」只可能来自
+ * 手改 HTML；「整行占位」则是模型把模板占位符当内容抄进草案的形态——两种都会让读者
+ * 分不清是本案确无此类内容还是漏填，故一并报出。
+ * @param html - 渲染后的文书 HTML。
+ * @returns 命中的合规问题；文档没有这三张表时为空数组。
+ */
+function emptyTableIssues(html: string): ComplianceIssue[] {
+  const issues: ComplianceIssue[] = []
+  for (const [id, label] of CHECKED_TABLE_BODIES) {
+    const body = new RegExp(`<tbody[^>]*\\bid=["']${id}["'][^>]*>([\\s\\S]*?)</tbody>`, 'i').exec(html)
+    if (body === null) continue
+    // 没有单元格的行不承载数据（行容器写坏了），与「一行都没有」同判：这张表没有数据。
+    const rows = [...group(body, 1).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]
+      .map(row => group(row, 1))
+      .filter(row => /<td[^>]*>/i.test(row))
+    if (rows.length === 0) {
+      issues.push({
+        rule: 'empty-table',
+        message: `${label}只有表头没有数据行：无内容时整表删除，有内容时至少填一行`,
+      })
+      continue
+    }
+    if (!rows.every(row => rowIsBlank(row))) continue
+    issues.push({
+      rule: 'empty-table',
+      message: `${label}的数据行全是模板占位符：占位符不是内容，按实际条目填写或整表删除`,
     })
   }
   return issues

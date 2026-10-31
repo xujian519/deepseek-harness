@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/patent-oa-double-carrier/guide.md
+/:
+  en: c85a9e77e0fe4568
+  zh: fbd97cf7492fab83
+/oa-responses-cross-check-the-two-views-of-amendments-and-evidence:
+  en: 233eecb6e7e00098
+  zh: f45bf499b0a1503b
+/oa-responses-cross-check-the-two-views-of-amendments-and-evidence/change:
+  en: 63f17bb0ef386ab6
+  zh: 1a4ccd681ced079d
+/oa-responses-cross-check-the-two-views-of-amendments-and-evidence/migration:
+  en: 7da823b3a35e1287
+  zh: 239d190730361223

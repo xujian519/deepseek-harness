@@ -5262,10 +5262,20 @@ describe('PythonPtcRuntime — hostile peer', () => {
       ].join('\n'),
       bindings: [{ global: 'tools', functions: { chunk: async () => chunk } }],
     }))
-    // The program returned, so the completion wins over the mid-flight reply;
-    // whatever the result, the run must settle (no hang on the drain wait).
-    expect(result.error).toBeUndefined()
-    expect(result.value).toBe('done')
+    // The program returned, so the completion normally wins over the mid-flight
+    // reply. On Linux, the failed fd-3 write can tear the socket down before the
+    // queued completion is read, and the run then settles as worker-exit from the
+    // child's clean exit. This case owns prompt settlement (no hang on the drain
+    // wait, no wall-clock timeout), so either outcome is accepted while any other
+    // error still fails.
+    if (result.error === undefined) {
+      expect(result.value).toBe('done')
+    } else {
+      expect(result.error).toEqual({
+        kind: 'worker-exit',
+        message: 'python exited (code=0, signal=null) before completing',
+      })
+    }
   }, 30_000)
 
   it('caps the pending reply backlog when a child floods calls without reading its replies', async () => {

@@ -6,17 +6,19 @@
  */
 
 import { WorkflowError, type WorkflowManifest } from './types.ts'
+import { parseConsumeRef } from './consume-ref.ts'
 
 /**
  * Manifest 校验（轻量守卫，替代 zod）：非法即抛错。
  * options.atomNames 提供时，额外校验已声明 atom 均存在（fail-fast）。
  * @param manifest - 待校验的工作流 manifest。
  * @param options - 可选校验配置（atomNames 提供时校验 atom 均存在；
+ *                  projections 提供时校验 consumes 的投影键都已注册；
  *                  guidelineRevision 提供时期望 manifest 声明同一版本）。
  */
 export function validateWorkflowManifest(
   manifest: WorkflowManifest,
-  options?: { atomNames?: ReadonlySet<string>; guidelineRevision?: string },
+  options?: { atomNames?: ReadonlySet<string>; projections?: ReadonlySet<string>; guidelineRevision?: string },
 ): void {
   if (!manifest.id.trim()) throw new WorkflowError('manifest.id 不能为空')
   if (!manifest.name.trim()) throw new WorkflowError('manifest.name 不能为空')
@@ -39,6 +41,9 @@ export function validateWorkflowManifest(
     stageIndex += 1
     if (stage.atom === 'approval-gate') gateIndices.push(stageIndex)
     if (!stage.id.trim()) throw new WorkflowError('stage.id 不能为空')
+    // `#` 是 consumes 的投影分隔符：允许出现在阶段 id 里，索引就不会报「前序阶段不存在」，
+    // 运行时按投影去取值反而出错，属于最难查的一类。
+    if (stage.id.includes('#')) throw new WorkflowError(`stage.id 不能包含 "#"（与 consumes 投影语法冲突）: ${stage.id}`)
     if (ids.has(stage.id)) throw new WorkflowError(`重复的阶段 id: ${stage.id}`)
     ids.add(stage.id)
     if (!['chain', 'react', 'sub_agent'].includes(stage.strategy)) {
@@ -55,13 +60,27 @@ export function validateWorkflowManifest(
       if (stage.consumes.length === 0) {
         throw new WorkflowError(`阶段 ${stage.id} 的 consumes 不能为空数组`)
       }
-      if (new Set(stage.consumes).size !== stage.consumes.length) {
-        throw new WorkflowError(`阶段 ${stage.id} 的 consumes 有重复的阶段 id`)
-      }
-      for (const upstream of stage.consumes) {
+      // 去重按**上游阶段**判，不按条目字符串：`['s1', 's1#rows']` 是同一份产出取两遍，
+      // 按字符串判会放过它，等于把同一段文本塞进提示词两次。
+      const upstreamIds = new Set<string>()
+      for (const entry of stage.consumes) {
+        const { stageId: upstream, projection } = parseConsumeRef(entry)
+        if (upstream === '') {
+          throw new WorkflowError(`阶段 ${stage.id} 的 consumes 条目缺少阶段 id: ${entry}`)
+        }
+        if (projection !== undefined && projection.trim() === '') {
+          throw new WorkflowError(`阶段 ${stage.id} 的 consumes 投影缺少投影名: ${entry}`)
+        }
+        if (upstreamIds.has(upstream)) {
+          throw new WorkflowError(`阶段 ${stage.id} 的 consumes 有重复的阶段 id: ${upstream}`)
+        }
+        upstreamIds.add(upstream)
         // 只认此前已出现过的阶段：自身与后续阶段都还没有产出可拼入。
         if (upstream === stage.id || !ids.has(upstream)) {
           throw new WorkflowError(`阶段 ${stage.id} 的 consumes 引用了不存在或非前序的阶段: ${upstream}`)
+        }
+        if (projection !== undefined && options?.projections !== undefined && !options.projections.has(entry)) {
+          throw new WorkflowError(`阶段 ${stage.id} 的 consumes 引用了未注册的投影: ${entry}`)
         }
       }
     }

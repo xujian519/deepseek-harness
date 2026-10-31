@@ -27,6 +27,8 @@ export type RuleCheckType =
   | 'citation_analysis'
   | 'synonym_match'
   | 'quote_repetition'
+  | 'empty_section'
+  | 'sentence_repetition'
   | 'notice_ground_coverage'
   | 'unraised_statute_citation'
 
@@ -157,6 +159,45 @@ export type UnraisedStatuteCitationCheck = {
   type: 'unraised_statute_citation'
 }
 
+/**
+ * empty_section — 空节检测：小节标题后没有正文。
+ *
+ * 同时识别两种标题语法：Markdown ATX（`## 标题`）与 HTML（`<h2>标题</h2>`）。一个
+ * 标题到下一个标题之间（或到文末）去掉标签、列表/引用标记与表格分隔行后若无可见
+ * 文字，或整段只是「无」一类占位语，即为空节。只含子标题的父节不算空——正文全在
+ * 子节里是正常的层级结构。
+ *
+ * 与 `pattern_analysis` 的分工：本检查需要「标题 ↔ 正文」的配对关系，正则拿不到行
+ * 锚点（引擎按无 `m` 标志编译，`^`/`$` 只锚全文首尾），写出来的模式会把相邻标题
+ * 误当成空节，或漏掉标题后只有占位语的形态。
+ */
+export type EmptySectionCheck = {
+  type: 'empty_section'
+  /** 计入判定的最低标题层级（1-6，缺省 2：文档总标题不算小节）。 */
+  minLevel?: number
+  /**
+   * 视同「没有正文」的占位语，逐字相等才算命中（缺省「无」「无内容」「本节无内容」
+   * 「暂无」「略」「N/A」「—」）。比较前两侧都去空白、括号与句末标点，"（无）。"与
+   * "无"是同一项。不收「不适用」：带理由的「不适用」是有内容的答复。
+   */
+  placeholders?: string[]
+}
+
+/**
+ * sentence_repetition — 同一句话（通常是一个结论）在全文反复出现。
+ *
+ * 按句末标点与换行切句，长度达标的句子按「去掉空白与强调标记后逐字相同」归并，
+ * 同一句出现达到阈值即违规。与 `quote_repetition` 的区别：后者只统计成对引号内的
+ * 引述片段（重复引证），本检查统计作者自己的句子（换词不改事、同一结论写三遍）。
+ */
+export type SentenceRepetitionCheck = {
+  type: 'sentence_repetition'
+  /** 计入统计的最短句长（字符；缺省 12）。 */
+  minLength?: number
+  /** 同一句出现多少次即违规（缺省 3）。 */
+  minOccurrences?: number
+}
+
 /** 全部检查类型的判别联合（tagged enum）。 */
 export type RuleCheck =
   | KeywordBlocklistCheck
@@ -165,6 +206,8 @@ export type RuleCheck =
   | CitationAnalysisCheck
   | SynonymMatchCheck
   | QuoteRepetitionCheck
+  | EmptySectionCheck
+  | SentenceRepetitionCheck
   | NoticeGroundCoverageCheck
   | UnraisedStatuteCitationCheck
 

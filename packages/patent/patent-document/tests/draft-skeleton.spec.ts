@@ -18,6 +18,7 @@ import type {
 } from '@deepseek-ai/dsh-patent-core'
 import { renderPatentDocument } from '@deepseek-ai/dsh-patent-document'
 import { findMatchingCloseTag } from '../src/document/htmlScan.ts'
+import { foldEmptyOptionalSections, renumberSections } from '../src/document/sectionFold.ts'
 import { readTemplateHtml } from '../src/document/templateResolver.ts'
 import {
   FORM_TEMPLATE_IDS,
@@ -79,6 +80,15 @@ function slotElement(html: string, ref: string, attribute: SlotAttribute): SlotE
 /** 判断槽位是否只是文档里的装饰：签名行（`class="sign-block"`）有意留白，姓名与日期由人工签署时填写。 */
 function isSignatureLine(element: SlotElement): boolean {
   return /class="[^"]*\bsign-block\b/.test(element.openTag)
+}
+
+/** 按渲染管线折叠可空节（最小草案只填必填槽位）并重编号后的模板：标题期望的来源。 */
+function foldedTemplateHtml(html: string, schema: TemplateSlotRegistry): string {
+  const present = new Set(Object.entries(schema.sections)
+    .filter(([, slot]) => slot.required === true)
+    .map(([id]) => id))
+  const folded = foldEmptyOptionalSections(html, present)
+  return folded.folded.length === 0 ? folded.html : renumberSections(folded.html)
 }
 
 /** 模板里静态标题（标题文字不含子槽位）的可见文本；由子槽位拼出的标题随草案变化，不参与比较。 */
@@ -198,7 +208,9 @@ describe('草案模板骨架契约', () => {
       it('最小草案渲染后模板标题全部保留，且无伪造编号占位', async () => {
         const output = await renderTemplate(id, { templateDraft: minimalDraft(schema) })
         const actual = headingTexts(output)
-        expect(staticHeadingTexts(html, slotRefs(schema), attribute).filter(text => !actual.includes(text))).toEqual([])
+        // 期望取自「折叠 + 重编号后的模板」：可空节随最小草案消失，其后章节号前移。
+        const expected = staticHeadingTexts(foldedTemplateHtml(html, schema), slotRefs(schema), attribute)
+        expect(expected.filter(text => !actual.includes(text))).toEqual([])
         expect(visibleText(output).match(FABRICATED_PLACEHOLDER)).toBeNull()
       })
     })

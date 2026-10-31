@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { validateWorkflowManifest } from '@deepseek-ai/dsh-patent-core'
 import {
   builtinPatentManifests,
+  OA_RESPONSE_DRAFT_BUDGET,
   patentInfringementManifest,
   patentInventivenessManifest,
   patentInvalidationManifest,
@@ -65,6 +66,35 @@ describe('内置 manifest 的阶段法律指引（guidance）', () => {
     expect(report).toContain('现有技术抗辩')
     expect(report).toContain('手段-功能-效果')
     expect(report).toContain('风险等级')
+  })
+
+  it('OA 答复：draft 同时给出篇幅预算与删减三禁令，数值由预算常量插值', () => {
+    const draft = stageOf('patent_oa_response_v1', 'draft') ?? ''
+    // 数字一律经 OA_RESPONSE_DRAFT_BUDGET 插值：改常量必须传导到提示文字，
+    // 否则会出现「文案写 4000、校验按 5000」的两套数。
+    for (const line of [
+      `正文总量 ≤ ${OA_RESPONSE_DRAFT_BUDGET.total} 字`,
+      `一、总体立场 ≤ ${OA_RESPONSE_DRAFT_BUDGET.position} 字`,
+      `3.1 与 3.2 各 ≤ ${OA_RESPONSE_DRAFT_BUDGET.factItems} 项，每项 ≤ ${OA_RESPONSE_DRAFT_BUDGET.factSentences} 句`,
+      `R 条 ≤ ${OA_RESPONSE_DRAFT_BUDGET.ruleItems} 条`,
+      `5.1 ≤ ${OA_RESPONSE_DRAFT_BUDGET.argumentNovelty} 字，5.2 ≤ ${OA_RESPONSE_DRAFT_BUDGET.argumentInventiveness} 字`,
+      `5.3 ≤ ${OA_RESPONSE_DRAFT_BUDGET.otherIssues} 条`,
+      `八、结论与请求 ≤ ${OA_RESPONSE_DRAFT_BUDGET.conclusion} 字`,
+    ]) {
+      expect(draft).toContain(line)
+    }
+    // 负控制：三条禁令必须同时在场，且保持「不复述 → 不重述 → 不重引」的顺序。
+    // 删掉任何一条，这个整体匹配就不再命中。
+    expect(draft).toMatch(
+      /删减三禁令[\s\S]*不复述上游产物[\s\S]*同一结论不在三处改写[\s\S]*同一段原文只整段引用一次/,
+    )
+    expect(draft).toContain('审查意见未提出的争点不设节')
+    expect(draft).toContain('由模板折叠')
+    // 检索方案一节最易膨胀：只约束"一组一行"，不约束具体措辞。
+    expect(draft).toContain('七、证据与引用')
+    // 位置：预算段排在「输出顺序」之后，即紧邻材料注入处——放在指引中段会被
+    // 后面几万字的上游产物冲淡。
+    expect(draft.lastIndexOf('篇幅预算')).toBeGreaterThan(draft.lastIndexOf('输出顺序'))
   })
 
   it('全部内置 manifest 通过校验且已声明的 guidance 均非空', () => {

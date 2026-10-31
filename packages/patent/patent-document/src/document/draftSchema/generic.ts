@@ -126,6 +126,30 @@ const SEARCH_REPORT: TemplateSlotRegistry = {
 }
 
 /**
+ * oa-response 的槽位配额：渲染前的 fail-closed 上限，由 `validateTemplateSections` 执行。
+ *
+ * 数值取 `patent_oa_response_v1` 的 draft 篇幅预算（`patent-workflow/src/workflow/manifests.ts` 的
+ * `OA_RESPONSE_DRAFT_BUDGET`）× 1.25 向上取整：正常写作差一二十字不该让渲染失败，这里只拦明显
+ * 失控的草案。两个包不互相依赖，改预算须手工同步本表；表三的行数没有预算依据，按「每修改一处
+ * 一行 / 每份证据一行 / 每条引证一行」的体例定档，随预算定标一并复核。
+ *
+ * 只给三类槽位设限——事实（字符 + 条目）、论证（字符）、表格（行数）。其余小节的字数由
+ * 全篇预算约束：逐节设限会在「这一节确实需要展开」时误伤，删减交由 tighten 阶段处理。
+ */
+export const OA_RESPONSE_SLOT_QUOTAS = {
+  /** 事实：预算 5 项 × 2 句 × 约 80 字 ≈ 800 字、5 项 → ×1.25 得 1000 字、7 项。 */
+  'facts-application': { maxChars: 1000, maxItems: 7 },
+  'facts-prior-art': { maxChars: 1000, maxItems: 7 },
+  /** 论证：预算每节 1200 字 → ×1.25 得 1500 字。 */
+  'argument-novelty': { maxChars: 1500 },
+  'argument-inventiveness': { maxChars: 1500 },
+  /** 表格行数：无预算依据，按体例定档（修改项、所引证据、引证条数）。 */
+  'amendment-table': { maxRows: 20 },
+  'evidence-table': { maxRows: 15 },
+  'citation-table': { maxRows: 30 },
+} as const
+
+/**
  * oa-response 的草案注册表。
  *
  * 论证骨架按「事实 → 规则 → 论证」组织：facts-* 只承载可核验的事实，
@@ -148,25 +172,26 @@ const OA_RESPONSE: TemplateSlotRegistry = {
   sections: {
     'doc-number': { ...BLOCKS, ...req },
     'position-points': { ...BLOCKS, ...req },
-    'amendment-table': { ...rows(4), ...req },
+    'amendment-table': { ...rows(4), ...req, ...OA_RESPONSE_SLOT_QUOTAS['amendment-table'] },
     'amended-claim-1': { ...BLOCKS, ...req },
-    'facts-application': { ...BLOCKS, ...req },
-    'facts-prior-art': { ...BLOCKS, ...req },
+    'facts-application': { ...BLOCKS, ...req, ...OA_RESPONSE_SLOT_QUOTAS['facts-application'] },
+    'facts-prior-art': { ...BLOCKS, ...req, ...OA_RESPONSE_SLOT_QUOTAS['facts-prior-art'] },
     'rules-body': { ...BLOCKS, ...req },
-    'argument-novelty': { ...BLOCKS, ...req },
-    'argument-inventiveness': { ...BLOCKS, ...req },
+    'argument-novelty': { ...BLOCKS, ...req, ...OA_RESPONSE_SLOT_QUOTAS['argument-novelty'] },
+    'argument-inventiveness': { ...BLOCKS, ...req, ...OA_RESPONSE_SLOT_QUOTAS['argument-inventiveness'] },
     'argument-other': { ...BLOCKS, ...opt },
     'formalities-body': { ...BLOCKS, ...opt },
-    'evidence-table': { ...rows(6), ...req },
-    'citation-table': { ...rows(6), ...req },
+    'evidence-table': { ...rows(6), ...req, ...OA_RESPONSE_SLOT_QUOTAS['evidence-table'] },
+    'citation-table': { ...rows(6), ...req, ...OA_RESPONSE_SLOT_QUOTAS['citation-table'] },
   },
   staticElements: [
     { marker: 'id="position"', reason: '总体立场骨架包装：含分区标题与 position-summary/position-points 槽位' },
     { marker: 'id="amendments"', reason: '本次修改骨架包装：含分区标题与 amendment-table/amended-claim-1 槽位' },
     { marker: 'id="facts"', reason: '本案事实骨架包装：含分区标题与 facts-application/facts-prior-art 槽位' },
     { marker: 'id="rules"', reason: '适用规则骨架包装：含分区标题与 rules-body 槽位' },
-    { marker: 'id="arguments"', reason: '意见陈述骨架包装：含分区标题与 argument-* 槽位' },
-    { marker: 'id="formalities"', reason: '其他缺陷处理骨架包装：含分区标题与 formalities-body 槽位' },
+    { marker: 'id="arguments"', reason: '意见陈述骨架包装：含分区标题与 argument-* 槽位；5.3 小节另带可空折叠标记' },
+    { marker: 'data-omit-if-empty="argument-other"', reason: '5.3 其他争点的小节包装（标题 + 槽位）：argument-other 为空时整块由 sectionFold 移除，不设无内容的小节' },
+    { marker: 'id="formalities"', reason: '其他缺陷处理骨架包装：含分区标题与 formalities-body 槽位；整节随槽位为空折叠（本案无形式缺陷时不留空标题）' },
     { marker: 'id="evidence"', reason: '证据与引用骨架包装：含分区标题与 evidence-table/citation-table 槽位' },
     { marker: 'id="conclusion"', reason: '结论请求骨架包装：含分区标题与 conclusion-text 槽位' },
   ],

@@ -76,6 +76,8 @@ describe('legal-gaps 原子', () => {
         response_check_report: '答复规范检查：通过',
         response_check_passed: true,
         response_check_unevaluated: [],
+        response_concision_report: '答复表达质量检查：通过',
+        response_concision_passed: true,
         amendment_basis_report: '修改依据检查：通过',
         amendment_basis_passed: true,
         amendment_basis_scope: '原始权利要求书、原说明书',
@@ -121,6 +123,8 @@ describe('legal-gaps 原子', () => {
         response_check_report: '答复规范检查：通过（1 项未评估）',
         response_check_passed: true,
         response_check_unevaluated: [{ rule: 'PR-OA-008', reason: '缺少通知书' }],
+        response_concision_report: '答复表达质量检查：通过',
+        response_concision_passed: true,
         amendment_basis_report: '修改依据检查：通过',
         amendment_basis_passed: true,
       },
@@ -129,6 +133,30 @@ describe('legal-gaps 原子', () => {
     expect(out['legal_gaps_unassessed']).toEqual(['response-compliance'])
     const items = out['legal_gaps_items'] as LegalGapItem[]
     expect(items.find(item => item.id === 'response-compliance')?.evidence).toContain('1 项待核')
+  })
+
+  it('答复清单：表达质量未通过记为 warn 项，不翻转 legal_gaps_passed', async () => {
+    const out = await new LegalGapsHandler().execute({
+      state: {
+        profile: 'oa-response',
+        response_check_report: '答复规范检查：通过',
+        response_check_passed: true,
+        response_concision_report: '答复表达质量检查：未通过（2 条违规）',
+        response_concision_passed: false,
+        amendment_basis_report: '修改依据检查：通过',
+        amendment_basis_passed: true,
+      },
+    })
+    expect(out['legal_gaps_passed']).toBe(true)
+    const items = out['legal_gaps_items'] as LegalGapItem[]
+    expect(items.find(item => item.id === 'response-concision')).toMatchObject({
+      status: 'failed',
+      severity: 'warn',
+      evidence: 'state.response_concision_passed = false',
+    })
+    const report = String(out['legal_gaps_report'])
+    expect(report).toContain('无阻断项（1 项未通过')
+    expect(report).toContain('答复撰写规范：篇幅与论证密度')
   })
 
   it('答复清单：未检测到修改后权利要求时 A33 记不适用', async () => {
@@ -146,9 +174,13 @@ describe('legal-gaps 原子', () => {
   it('没有任何检查产出时列出全部法条为未评估，不空转（G-13 反例）', async () => {
     const out = await new LegalGapsHandler().execute({ state: { profile: 'oa-response' } })
     expect(out['legal_gaps_passed']).toBe(true)
-    expect(out['legal_gaps_unassessed']).toEqual(['response-compliance', 'amendment-basis'])
+    expect(out['legal_gaps_unassessed']).toEqual([
+      'response-compliance',
+      'response-concision',
+      'amendment-basis',
+    ])
     const report = String(out['legal_gaps_report'])
-    expect(report).toContain('2 项未评估')
+    expect(report).toContain('3 项未评估')
     expect(report).toContain('专利法第26条第3款')
     expect(report).toContain('专利法第33条')
     expect(report).toContain('未被任何确定性阶段覆盖')

@@ -189,12 +189,20 @@ export type {
   MatterLogRequest,
 } from './tool/matter-log-append.ts'
 export { slopGateAtom, SlopGateHandler, SLOP_GATE_PASS_THRESHOLD } from './atoms/slop-gate.ts'
+export {
+  tightenAtom,
+  TightenHandler,
+  DEFAULT_TIGHTEN_PLAN_KEY,
+  DEFAULT_TIGHTEN_TEXT_KEY,
+} from './atoms/tighten.ts'
 export { draftSpecificationAtom, DraftSpecificationHandler } from './atoms/draft-specification.ts'
 export { figureAnalysisAtom, FigureAnalysisHandler } from './atoms/figure-analysis.ts'
 export { specCheckAtom, SpecCheckHandler, type SpecCheckMode } from './atoms/spec-check.ts'
 export {
   responseCheckAtom,
   ResponseCheckHandler,
+  COMPLIANCE_RULE_IDS,
+  CONCISION_RULE_IDS,
   RESPONSE_CHECK_RULE_IDS,
   DEFAULT_RESPONSE_TEXT_KEYS,
   DEFAULT_OFFICE_ACTION_KEY,
@@ -232,6 +240,10 @@ export {
 } from './atoms/legal-gaps.ts'
 export { buildSlopRevisionHint } from './internal/retry-hints.ts'
 export type { EvaluatedText } from './internal/evaluated-input.ts'
+
+// 篇幅口径只此一处：`slop-gate` 与 `tighten` 用它判预算，评测读数也用它，
+// 否则「同一个 4000 字」在两处会算出不同的数。
+export { visibleChars } from './internal/slop-engine.ts'
 
 // 检索质量度量是纯算术库：语料与基线排序是测试资产，这里只发布指标函数。
 export { meanReciprocalRank, ndcgAtK, rankOfFirstRelevant } from './eval/ir-metrics.ts'

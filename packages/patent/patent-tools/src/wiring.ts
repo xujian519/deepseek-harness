@@ -67,6 +67,7 @@ import { createPatentWorkerValidateTool } from './tool/patent-worker-validate.ts
 import { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 import { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
 import { slopGateAtom, SlopGateHandler } from './atoms/slop-gate.ts'
+import { tightenAtom, TightenHandler } from './atoms/tighten.ts'
 import { draftSpecificationAtom, DraftSpecificationHandler } from './atoms/draft-specification.ts'
 import { figureAnalysisAtom, FigureAnalysisHandler } from './atoms/figure-analysis.ts'
 import { specCheckAtom, SpecCheckHandler } from './atoms/spec-check.ts'
@@ -300,11 +301,13 @@ export function registerPatentTools(ctx: Context, config: Config): void {
   // 内置原子（契约 + 运行时）注册进全局注册表；幂等。不注册则 atom-bearing
   // manifest 在 runWorkflow 的 fail-fast 处抛错，工作流工具全部不可用。
   registerBuiltinAtoms()
-  // slop-gate 依赖本包的 slop 引擎，spec-check 依赖本包的说明书校验器，
+  // slop-gate 依赖本包的 slop 引擎，tighten 依赖同一引擎的可见字符口径与
+  // patent-core 的 LLM 骨架，spec-check 依赖本包的说明书校验器，
   // response-check 与 eligibility 复用 patent-rule 的规则资产，legal-gaps 汇总这些检查；
   // 均按依赖方向注册在 patent-core 内置之外。
   registerPackageAtoms(ctx, [
     { atom: slopGateAtom, handler: new SlopGateHandler() },
+    { atom: tightenAtom, handler: new TightenHandler() },
     { atom: draftSpecificationAtom, handler: new DraftSpecificationHandler() },
     { atom: figureAnalysisAtom, handler: new FigureAnalysisHandler() },
     { atom: specCheckAtom, handler: new SpecCheckHandler() },

@@ -59,6 +59,7 @@ import {
   WORKFLOW_PATCH_FILE,
   type RunAgents,
 } from './patent-oas-run-core.ts'
+import { formatConcision } from './patent-oas-concision.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const exampleDir = resolve(root, PATENT_OAS_EXAMPLE_DIR)
@@ -152,6 +153,10 @@ export async function main(args: string[]): Promise<number> {
   })
   await writeRunRecord(options.outPath, record)
   console.log(`run-patent-oas: 已写出 ${options.outPath}(产物与日志在 ${options.workDir})`)
+  // 篇幅读数与分数分开打印:它不进分数,但读一次采集就能看到「这份答复有多长」,
+  // 不必再去 open 每份 deliverable.md 逐字数。
+  const concision = formatConcision(record)
+  if (concision !== undefined) console.log(concision)
 
   const comparisonProblems = baseline === undefined
     ? []

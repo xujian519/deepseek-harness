@@ -27,6 +27,9 @@ type ResponseOutput = {
   response_check_passed: boolean
   response_check_violations: RuleViolation[]
   response_check_unevaluated: string[]
+  response_concision_report: string
+  response_concision_passed: boolean
+  response_concision_violations: RuleViolation[]
 }
 
 /** 读取并校验原子输出，避免在断言处重复类型收窄。 */
@@ -35,11 +38,17 @@ function readOutput(output: PipelineState): ResponseOutput {
   const passed = output.response_check_passed
   const violations = output.response_check_violations
   const unevaluated = output.response_check_unevaluated
+  const concisionReport = output.response_concision_report
+  const concisionPassed = output.response_concision_passed
+  const concisionViolations = output.response_concision_violations
   if (
     typeof report !== 'string'
     || typeof passed !== 'boolean'
     || !Array.isArray(violations)
     || !Array.isArray(unevaluated)
+    || typeof concisionReport !== 'string'
+    || typeof concisionPassed !== 'boolean'
+    || !Array.isArray(concisionViolations)
   ) {
     throw new Error('response-check 输出缺少约定的键')
   }
@@ -50,11 +59,17 @@ function readOutput(output: PipelineState): ResponseOutput {
     response_check_unevaluated: unevaluated.filter(
       (entry): entry is string => typeof entry === 'string',
     ),
+    response_concision_report: concisionReport,
+    response_concision_passed: concisionPassed,
+    response_concision_violations: concisionViolations as RuleViolation[],
   }
 }
 
 const ruleIds = (output: ResponseOutput): string[] =>
   output.response_check_violations.map(violation => violation.ruleId)
+
+const concisionRuleIds = (output: ResponseOutput): string[] =>
+  output.response_concision_violations.map(violation => violation.ruleId)
 
 const degradedReason = (output: PipelineState): string => {
   const error = output._error
@@ -142,6 +157,51 @@ describe('response-check atom', () => {
     }))
     expect(output.response_check_passed).toBe(true)
     expect(output.response_check_violations).toEqual([])
+  })
+
+  it('计数式论证只翻表达质量通道，合规判定不受影响', async () => {
+    const output = readOutput(await handler.execute({
+      state: { draft: '说明书中「供漆」共出现 3 处，故公开充分。' },
+    }))
+    expect(output.response_check_passed).toBe(true)
+    expect(output.response_concision_passed).toBe(false)
+    expect(concisionRuleIds(output)).toEqual(['PR-OA-005'])
+    expect(output.response_check_report).not.toContain('PR-OA-005')
+    expect(output.response_concision_report).toContain('不构成法律合规阻断')
+  })
+
+  it('空节命中 PR-OA-010，证据是可读小节标题', async () => {
+    const draft = [
+      '## 一、总体立场',
+      '请求驳回审查意见。',
+      '',
+      '## 六、其他缺陷的处理',
+      '',
+      '## 七、证据与引用',
+      '检索方案见附件。',
+    ].join('\n')
+    const output = readOutput(await handler.execute({ state: { draft } }))
+    expect(output.response_check_passed).toBe(true)
+    expect(concisionRuleIds(output)).toEqual(['PR-OA-010'])
+    expect(output.response_concision_violations[0]?.evidence).toEqual(['六、其他缺陷的处理'])
+    expect(output.response_concision_report).toContain('空节')
+  })
+
+  it('同一结论写三遍命中 PR-OA-011', async () => {
+    const sentence = '本案权利要求1相对于对比文件1具备创造性'
+    const draft = [sentence + '。', '事实与规则见前述。', sentence + '。', sentence + '。'].join('\n')
+    const output = readOutput(await handler.execute({ state: { draft } }))
+    expect(output.response_check_passed).toBe(true)
+    expect(concisionRuleIds(output)).toEqual(['PR-OA-011'])
+    expect(output.response_concision_violations[0]?.evidence).toEqual([sentence])
+  })
+
+  it('表达质量通过时报告给出 0 条违规，且不断言合规结论', async () => {
+    const output = readOutput(await handler.execute({ state: { draft: PASSING_RESPONSE } }))
+    expect(output.response_concision_passed).toBe(true)
+    expect(output.response_concision_violations).toEqual([])
+    expect(output.response_concision_report).toContain('通过（0 条违规）')
+    expect(output.response_concision_report).not.toContain('未通过')
   })
 
   it('缺少通知书时双输入规则显式列为未评估，不静默跳过', async () => {
@@ -357,7 +417,15 @@ describe('loadResponseCheckRules', () => {
       )
       const loaded = loadResponseCheckRules(root)
       expect(loaded.rules).toEqual([])
-      expect(loaded.missingIds).toEqual(['PR-OA-007', 'PR-OA-008', 'PR-OA-009'])
+      expect(loaded.missingIds).toEqual([
+        'PR-OA-007',
+        'PR-OA-008',
+        'PR-OA-009',
+        'PR-OA-005',
+        'PR-OA-006',
+        'PR-OA-010',
+        'PR-OA-011',
+      ])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

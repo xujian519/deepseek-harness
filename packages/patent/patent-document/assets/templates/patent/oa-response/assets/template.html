@@ -295,7 +295,6 @@
 
   <section id="facts" aria-label="本案事实">
     <h2>三、本案事实</h2>
-    <p>本部分只陈述可核验的事实并注明出处，不作评价；对事实的评价见第五部分。每项事实控制在两句以内，只保留与争点相关的特征。</p>
     <h3>3.1 申请文件记载的事实</h3>
     <div id="facts-application"></div>
     <h3>3.2 对比文件公开的事实</h3>
@@ -304,24 +303,24 @@
 
   <section id="rules" aria-label="适用规则">
     <h2>四、适用规则</h2>
-    <p>逐条列明本案据以论证的规则，注明法条条款号或《专利审查指南》节号。未核验来源的规则不得作为断言依据：随包索引对指南只登记节号、未转录原文，需要逐字引用指南时应另行提供经核验的文本来源。第五部分以 R 编号回指本部分。</p>
     <div id="rules-body"></div>
   </section>
 
   <section id="arguments" aria-label="意见陈述">
     <h2>五、意见陈述</h2>
-    <p>本部分按争点组织论证，每条论证回指第三部分的事实编号（F/P）与第四部分的规则编号（R）。审查意见项号只在需要定位时以括注出现，不作小节标题。</p>
+    <p>以下论证回指第三部分的事实编号与第四部分的规则编号。</p>
     <h3>5.1 关于新颖性</h3>
     <div id="argument-novelty"></div>
     <h3>5.2 关于创造性</h3>
     <div id="argument-inventiveness"></div>
-    <h3>5.3 其他争点</h3>
-    <div id="argument-other"></div>
+    <div data-omit-if-empty="argument-other">
+      <h3>5.3 其他争点</h3>
+      <div id="argument-other"></div>
+    </div>
   </section>
 
-  <section id="formalities" aria-label="其他缺陷的处理">
+  <section id="formalities" aria-label="其他缺陷的处理" data-omit-if-empty="formalities-body">
     <h2>六、其他缺陷的处理</h2>
-    <p>形式缺陷、笔误、附图标记、摘要撰写等不进入论证主线的缺陷，在此逐项列明处理方式与依据。</p>
     <div id="formalities-body"></div>
   </section>
 
@@ -349,7 +348,6 @@
     </table>
 
     <h3>7.2 引用日志</h3>
-    <p>来源类型与置信度取值见 <span class="mono">references/citation-log.md</span>。</p>
     <table>
       <caption>表 3 · 关键断言溯源</caption>
       <thead>

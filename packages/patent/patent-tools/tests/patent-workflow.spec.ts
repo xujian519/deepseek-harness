@@ -11,10 +11,13 @@ import {
   globalAtomRegistry,
   globalStageHandlerRegistry,
   registerBuiltinAtoms,
+  validateWorkflowManifest,
   type WorkflowRunResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
+import { CONSUME_PROJECTION_KEYS } from '../src/tool/internal/consume-projections.ts'
 import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
+import { tightenAtom, TightenHandler } from '../src/atoms/tighten.ts'
 import { draftSpecificationAtom, DraftSpecificationHandler } from '../src/atoms/draft-specification.ts'
 import { figureAnalysisAtom, FigureAnalysisHandler } from '../src/atoms/figure-analysis.ts'
 import { specCheckAtom, SpecCheckHandler } from '../src/atoms/spec-check.ts'
@@ -40,6 +43,8 @@ registerBuiltinAtoms()
 // 本包自有原子由 apply() 注册；测试直接导入工具函数，需同样登记才能覆盖全部 manifest。
 globalAtomRegistry.register(slopGateAtom)
 globalStageHandlerRegistry.register(new SlopGateHandler())
+globalAtomRegistry.register(tightenAtom)
+globalStageHandlerRegistry.register(new TightenHandler())
 globalAtomRegistry.register(draftSpecificationAtom)
 globalStageHandlerRegistry.register(new DraftSpecificationHandler())
 globalAtomRegistry.register(figureAnalysisAtom)
@@ -288,5 +293,25 @@ describe('workflow-helpers', () => {
     expect(atom.preview).not.toContain('截断')
     const huge = stageFlagAndPreview({ stageId: 's', strategy: 'chain', atom: 'coverage', output: 'x'.repeat(2500), degraded: false, retries: 0 })
     expect(huge.preview).toBe(`${'x'.repeat(2000)}…（截断，完整内容见 run 记录）`)
+  })
+})
+
+describe('consumes 投影名册', () => {
+  it('内置 manifest 用到的投影全部已注册（manifest 层 fail-loud 名册与运行期注册表一致）', () => {
+    for (const manifest of builtinPatentManifests) {
+      expect(() => { validateWorkflowManifest(manifest, { projections: CONSUME_PROJECTION_KEYS }) })
+        .not.toThrow()
+    }
+  })
+
+  it('答复链的 draft 只取解析摘要与对照表结论行，不再全文注入两份结构化产出', () => {
+    const draft = builtinPatentManifests
+      .find(manifest => manifest.id === 'patent_oa_response_v1')
+      ?.stages.find(stage => stage.id === 'draft')
+    expect(draft?.consumes).toContain('parse#oa-summary')
+    expect(draft?.consumes).toContain('claim-chart#rows')
+    // 全文形态不该同时留着：同一份产出注入两遍既重复又抵消投影的意义。
+    expect(draft?.consumes).not.toContain('parse')
+    expect(draft?.consumes).not.toContain('claim-chart')
   })
 })

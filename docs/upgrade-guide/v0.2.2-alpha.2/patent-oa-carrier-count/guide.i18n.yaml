@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/patent-oa-carrier-count/guide.md
+/:
+  en: bebb7249109a3233
+  zh: e9ae3e8741b208a0
+/the-length-budget-stops-counting-tables:
+  en: 66cb7eb0d77031e4
+  zh: 6bcaea0dd96ebfa0
+/the-length-budget-stops-counting-tables/change:
+  en: c32e455dca86713d
+  zh: 5e9a41095f17ce8a
+/the-length-budget-stops-counting-tables/migration:
+  en: a1f7cb65a0433b69
+  zh: 5054522f709dab2e

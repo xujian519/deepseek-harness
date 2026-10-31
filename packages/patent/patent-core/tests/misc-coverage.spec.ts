@@ -235,6 +235,34 @@ it('validateWorkflowManifest：各非法分支抛 WorkflowError', () => {
   expect(() => { validateWorkflowManifest(base()) }).not.toThrow()
 })
 
+it('validateWorkflowManifest：consumes 的投影语法与投影名册', () => {
+  const manifest = (...consumes: string[]): WorkflowManifest => ({
+    id: 'm',
+    name: 'n',
+    caseType: 'test',
+    stages: [
+      { id: 's1', strategy: 'chain', description: 'd' },
+      { id: 's2', strategy: 'chain', description: 'd', consumes },
+    ],
+  })
+  // 投影形态本身合法。
+  expect(() => { validateWorkflowManifest(manifest('s1#rows')) }).not.toThrow()
+  expect(() => { validateWorkflowManifest(manifest('s1#rows'), { projections: new Set(['s1#rows']) }) }).not.toThrow()
+  // 缺阶段 id / 缺投影名。
+  expect(() => { validateWorkflowManifest(manifest('#rows')) }).toThrow(/缺少阶段 id/)
+  expect(() => { validateWorkflowManifest(manifest('s1#')) }).toThrow(/缺少投影名/)
+  expect(() => { validateWorkflowManifest(manifest('s1#  ')) }).toThrow(/缺少投影名/)
+  // 同一阶段取两遍（带不带投影都算）是重复。
+  expect(() => { validateWorkflowManifest(manifest('s1', 's1#rows')) }).toThrow(/consumes 有重复/)
+  // 投影键未注册：给了名册就 fail-loud，没给就只管语法。
+  expect(() => { validateWorkflowManifest(manifest('s1#rows'), { projections: new Set(['s1#cells']) }) })
+    .toThrow(/未注册的投影/)
+  // 阶段 id 里带 # 会让 consumes 的投影拆分错位，直接拒。
+  expect(() => {
+    validateWorkflowManifest({ id: 'm', name: 'n', caseType: 'test', stages: [{ id: 's#1', strategy: 'chain', description: 'd' }] })
+  }).toThrow(/不能包含 "#"/)
+})
+
 it('validateWorkflowManifest：guidelineRevision 校验', () => {
   const revision = '2023 年修订版（2024-01-20 施行）'
   const declared: WorkflowManifest = {

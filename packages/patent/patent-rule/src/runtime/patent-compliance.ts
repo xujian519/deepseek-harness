@@ -301,13 +301,17 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
  * 可以直接作用于工具结果的全文。
  *
  * citation_analysis 只对「引用范围」报违规（条号超出法定条数），引用本身不在文本
- * 里就不产生结果，故与关键词禁令同为命中即违规。
+ * 里就不产生结果，故与关键词禁令同为命中即违规。empty_section / sentence_repetition
+ * 同理：文本里没有空节、没有重复句，就没有可报的对象——它们只在文书确有该缺陷时
+ * 出声，不会因为文本「没写某个章节」而报缺失。
  */
 export const INCIDENT_GATE_CHECK_TYPES = [
   'keyword_blocklist',
   'pattern_analysis',
   'citation_analysis',
   'quote_repetition',
+  'empty_section',
+  'sentence_repetition',
 ] as const
 
 /**

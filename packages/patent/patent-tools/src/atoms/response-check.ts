@@ -1,11 +1,17 @@
 /**
  * 答复域原子：response-check（审查意见答复合规检查）。
  *
- * 包装 `patent-rule` 的既有规则资产，不新写规则：
- * - PR-OA-007（26.3 判准落位）：结构分析，话题命中后要求本领域技术人员、
- *   能够实现、说明书记载三要素；
- * - PR-OA-008（驳回理由覆盖）：通知书提出的每条理由简称须在答复中出现；
- * - PR-OA-009（未提条款引用）：答复引用的驳回条款须在通知书援引范围内。
+ * 包装 `patent-rule` 的既有规则资产，不新写规则。规则分两条判定通道，各自一个布尔键：
+ * - 合规通道（{@link COMPLIANCE_RULE_IDS}）→ `response_check_passed`：
+ *   PR-OA-007（26.3 判准落位）、PR-OA-008（驳回理由覆盖）、PR-OA-009（未提条款引用）；
+ * - 表达质量通道（{@link CONCISION_RULE_IDS}）→ `response_concision_passed`：
+ *   PR-OA-005（计数式论证）、PR-OA-006（重复引证）、PR-OA-010（空节）、
+ *   PR-OA-011（结论重复）。
+ *
+ * 两条通道分开而非合并，是因为两者的后果不同：合规通道的命中说明文书不满足法定或
+ * 程序要求（`legal-gaps` 里按 block 记账），表达质量通道的命中说明该改稿、说明篇幅
+ * 与论证密度不划算，不是「法律上不合规」。合成一个布尔会让「句子写啰嗦了」以法律
+ * 阻断项的样子出现，也会改掉 `response_check_passed` 既有语义。
  *
  * 缺少通知书时双输入规则列入 `response_check_unevaluated`，不静默跳过；
  * 答复正文缺失、状态值类型错误或规则资产缺失时降级。
@@ -33,8 +39,25 @@ import {
 } from '@deepseek-ai/dsh-patent-rule'
 import { readFirstStateText } from './state-text.ts'
 
-/** 本原子检查的规则编号（顺序即报告顺序）。 */
-export const RESPONSE_CHECK_RULE_IDS = ['PR-OA-007', 'PR-OA-008', 'PR-OA-009'] as const
+/** 合规通道的规则编号（顺序即报告顺序）：决定 `response_check_passed`。 */
+export const COMPLIANCE_RULE_IDS = ['PR-OA-007', 'PR-OA-008', 'PR-OA-009'] as const
+
+/** 表达质量通道的规则编号：决定 `response_concision_passed`，不翻合规判定。 */
+export const CONCISION_RULE_IDS = ['PR-OA-005', 'PR-OA-006', 'PR-OA-010', 'PR-OA-011'] as const
+
+/**
+ * 历史名称：等于 {@link COMPLIANCE_RULE_IDS}。
+ *
+ * 保留是因为它是包入口的公开导出，且语义一直是「合规通道那三条」——改名会让调用方
+ * 以为判定范围变了。新代码请直接用 `COMPLIANCE_RULE_IDS`。
+ */
+export const RESPONSE_CHECK_RULE_IDS = COMPLIANCE_RULE_IDS
+
+/** 全部规则编号：合规通道在前，表达质量通道在后。 */
+const ALL_RULE_IDS: readonly string[] = [...COMPLIANCE_RULE_IDS, ...CONCISION_RULE_IDS]
+
+/** 表达质量通道的编号集合，用于把规则分派到两个通道。 */
+const CONCISION_ID_SET: ReadonlySet<string> = new Set(CONCISION_RULE_IDS)
 
 /** 答复正文的默认读取键；阶段参数 `response_key` 优先。 */
 export const DEFAULT_RESPONSE_TEXT_KEYS: readonly string[] = [
@@ -54,7 +77,7 @@ export const DEFAULT_NOTICE_TEXT_KEYS: readonly string[] = ['notice', 'office_ac
 export const responseCheckAtom: Atom = {
   name: 'response-check',
   description:
-    '审查意见答复合规检查（PR-OA-007/008/009）：26.3 判准落位、驳回理由覆盖、未提条款引用',
+    '审查意见答复检查：合规（PR-OA-007/008/009）与表达质量（PR-OA-005/006/010/011）分两通道，各出一个通过标记',
   category: 'gate',
   inputSchema: [
     ...DEFAULT_RESPONSE_TEXT_KEYS,
@@ -66,12 +89,15 @@ export const responseCheckAtom: Atom = {
     'response_check_passed',
     'response_check_violations',
     'response_check_unevaluated',
+    'response_concision_report',
+    'response_concision_passed',
+    'response_concision_violations',
   ],
 }
 
 /** 规则加载结果：选中的规则、缺失编号与资产警告。 */
 export type ResponseRuleLoad = {
-  /** 按 {@link RESPONSE_CHECK_RULE_IDS} 顺序选中的规则。 */
+  /** 按「合规通道 → 表达质量通道」顺序选中的规则。 */
   rules: ConstitutionalRule[]
   /** 资产中缺失的规则编号。 */
   missingIds: string[]
@@ -89,12 +115,25 @@ export function loadResponseCheckRules(rulesDir?: string): ResponseRuleLoad {
   const byId = new Map(loaded.ruleSet.rules.map(rule => [rule.id, rule]))
   const rules: ConstitutionalRule[] = []
   const missingIds: string[] = []
-  for (const id of RESPONSE_CHECK_RULE_IDS) {
+  for (const id of ALL_RULE_IDS) {
     const rule = byId.get(id)
     if (rule === undefined) missingIds.push(id)
     else rules.push(rule)
   }
   return { rules, missingIds, warnings: loaded.warnings }
+}
+
+/**
+ * 规则归属的通道：编号在表达质量表里归质量通道，其余（含测试注入的自定义规则）
+ * 归合规通道。
+ *
+ * 未登记的规则默认走合规通道而不是被丢弃：自定义规则此前就影响
+ * `response_check_passed`，静默把它移出判定会让门禁悄悄放宽。
+ * @param ruleId - 规则编号。
+ * @returns 通道名。
+ */
+function channelOf(ruleId: string): 'compliance' | 'concision' {
+  return CONCISION_ID_SET.has(ruleId) ? 'concision' : 'compliance'
 }
 
 let cachedRules: ResponseRuleLoad | undefined
@@ -189,13 +228,25 @@ function readNotice(
   return { kind: 'parsed', notice: parseOfficeAction(noticeText.text) }
 }
 
-/** 报告渲染参数。 */
+/** 合规报告渲染参数。 */
 type ReportInput = {
-  passed: boolean
-  violations: readonly RuleViolation[]
+  /** 合规通道结果。 */
+  compliance: { passed: boolean; violations: readonly RuleViolation[] }
   notice: NoticeRead
   unevaluated: readonly string[]
   warnings: readonly string[]
+}
+
+/** 违规的 Markdown 行（证据、定位与依据按有无渲染）。 */
+function violationLine(violation: RuleViolation): string {
+  const basis = violation.legalBasis === undefined ? '' : `（依据：${violation.legalBasis}）`
+  const evidence = violation.evidence.length > 0
+    ? ` 命中「${violation.evidence.join('」「')}」`
+    : ''
+  const where = violation.line !== undefined && violation.matchedSentence !== undefined
+    ? `（第 ${violation.line} 行「${violation.matchedSentence}」）`
+    : ''
+  return `- [${violation.severity}/${violation.action}] ${violation.ruleId} ${violation.ruleName}：${violation.message}${evidence}${where}${basis}`
 }
 
 /**
@@ -204,9 +255,9 @@ type ReportInput = {
  * @returns 面向模型/用户的 Markdown 文本。
  */
 function renderReport(input: ReportInput): string {
-  const { passed, violations, notice, unevaluated, warnings } = input
+  const { compliance, notice, unevaluated, warnings } = input
   const lines = [
-    `审查意见答复合规检查（PR-OA-007/008/009）：${passed ? '通过（0 条违规）' : `未通过（${violations.length} 条违规）`}`,
+    `审查意见答复合规检查（${COMPLIANCE_RULE_IDS.join('/')}）：${compliance.passed ? '通过（0 条违规）' : `未通过（${compliance.violations.length} 条违规）`}`,
   ]
   if (notice.kind === 'parsed') {
     const labels = notice.notice.rejectionTypes.map(ground => REJECTION_SHORT_LABELS[ground])
@@ -218,18 +269,7 @@ function renderReport(input: ReportInput): string {
   } else {
     lines.push(`- ${notice.reason}（PR-OA-008/009 未评估）`)
   }
-  for (const violation of violations) {
-    const basis = violation.legalBasis === undefined ? '' : `（依据：${violation.legalBasis}）`
-    const evidence = violation.evidence.length > 0
-      ? ` 命中「${violation.evidence.join('」「')}」`
-      : ''
-    const where = violation.line !== undefined && violation.matchedSentence !== undefined
-      ? `（第 ${violation.line} 行「${violation.matchedSentence}」）`
-      : ''
-    lines.push(
-      `- [${violation.severity}/${violation.action}] ${violation.ruleId} ${violation.ruleName}：${violation.message}${evidence}${where}${basis}`,
-    )
-  }
+  for (const violation of compliance.violations) lines.push(violationLine(violation))
   if (unevaluated.length > 0) {
     lines.push(`- 未评估规则：${unevaluated.join('、')}`)
   }
@@ -239,6 +279,22 @@ function renderReport(input: ReportInput): string {
     lines.push(`- 规则加载警告：${shown}${suffix}`)
   }
   return lines.join('\n')
+}
+
+/**
+ * 渲染表达质量报告。单列一份而不是并进合规报告：两条通道的结论级别不同，
+ * 混在一份里会让「句子啰嗦」读起来像一条法律结论。
+ * @param passed - 质量通道是否通过。
+ * @param violations - 质量通道违规。
+ * @returns Markdown 文本。
+ */
+function renderConcisionReport(passed: boolean, violations: readonly RuleViolation[]): string {
+  const verdict = passed ? '通过（0 条违规）' : `未通过（${violations.length} 条违规）`
+  return [
+    `答复表达质量检查（${CONCISION_RULE_IDS.join('/')}）：${verdict}`,
+    '- 本通道不构成法律合规阻断：命中说明该处篇幅与论证密度不划算，改法是删内容而不是压句子；合规结论见 response_check_report',
+    ...violations.map(violationLine),
+  ].join('\n')
 }
 
 /**
@@ -319,27 +375,39 @@ export class ResponseCheckHandler implements StageHandler {
     }
 
     const violations: RuleViolation[] = []
+    const concisionViolations: RuleViolation[] = []
     const unevaluated: string[] = []
     for (const rule of loaded.rules) {
+      const target = channelOf(rule.id) === 'concision' ? concisionViolations : violations
       if (isDualInputCheck(rule.check.type)) {
         if (notice.kind === 'missing') {
           unevaluated.push(rule.id)
           continue
         }
         const found = evaluateDualRule(rule, { notice: notice.notice, response: response.text })
-        if (found !== null) violations.push(found)
+        if (found !== null) target.push(found)
         continue
       }
-      violations.push(...evaluateText(response.text, { rules: [rule] }).violations)
+      target.push(...evaluateText(response.text, { rules: [rule] }).violations)
     }
 
     const deduped = uniqueEvidence(violations)
+    const concisionDeduped = uniqueEvidence(concisionViolations)
     const passed = deduped.length === 0
+    const concisionPassed = concisionDeduped.length === 0
     return {
-      response_check_report: renderReport({ passed, violations: deduped, notice, unevaluated, warnings: loaded.warnings }),
+      response_check_report: renderReport({
+        compliance: { passed, violations: deduped },
+        notice,
+        unevaluated,
+        warnings: loaded.warnings,
+      }),
       response_check_passed: passed,
       response_check_violations: deduped,
       response_check_unevaluated: unevaluated,
+      response_concision_report: renderConcisionReport(concisionPassed, concisionDeduped),
+      response_concision_passed: concisionPassed,
+      response_concision_violations: concisionDeduped,
     }
   }
 }

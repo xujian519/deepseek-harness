@@ -14,7 +14,7 @@
     {
       "stageId": "parse",
       "strategy": "chain",
-      "output": "驳回类型为创造性（专利法第22条第3款，权利要求1-3）与权利要求3保护范围不清楚（专利法第26条第4款）两类理由并存。",
+      "output": "驳回类型为创造性（专利法第22条第3款）与不清楚（专利法第26条第4款），涉及权利要求1-3，引用对比文件1（CN101234567A，X类）与对比文件2（CN2345678B，Y类）。",
       "degraded": false,
       "retries": 0,
       "atom": "oa-parse"
@@ -30,7 +30,7 @@
     {
       "stageId": "claim-chart",
       "strategy": "chain",
-      "output": "要素级映射要点：将权利要求1-3逐项拆为阀体、直管加热结构、螺旋形加热介质通道等要素，分别对应对比文件1（X类，公开阀体与直管加热结构）与对比文件2（Y类，公开螺旋形通道、目的为延长介质停留时间），逐格标注公开与区别。",
+      "output": "要素级映射要点：将权利要求1拆分为阀体、夹套、加热介质通道等要素，逐项对应D1的阀体与直管加热结构，并标出D2公开的螺旋形通道仅用于延长停留时间、与区别特征不对应。",
       "degraded": false,
       "retries": 0,
       "atom": "claim-chart"
@@ -38,7 +38,7 @@
     {
       "stageId": "response-plan",
       "strategy": "chain",
-      "output": "策略摘要：对创造性以区别技术特征及对比文件2的相反教导论证非显而易见，对权利要求3以澄清与限缩修改克服不清楚；必答段落为区别特征认定段、技术启示否定段、修改依据说明段。",
+      "output": "策略摘要：以D1未公开螺旋形伴热通道与阀体间的限定配合关系为区别特征，主张D2未给出结合启示；必答段落包括区别特征认定、技术启示缺失与权3清楚性澄清三段。",
       "degraded": false,
       "retries": 0,
       "atom": "response-plan"
@@ -62,9 +62,25 @@
     {
       "stageId": "draft",
       "strategy": "chain",
-      "output": "答复策略：先确认与对比文件1的区别特征在于螺旋形伴热通道的布置及其与阀体的换热配合，再论证对比文件2的延长停留时间目的不构成结合启示，最后以权利要求3的清楚性修改同步修改说明书背景技术。",
+      "output": "答复策略：先修正权3的清楚性缺陷，再以区别特征与技术启示缺失论证权1-2的创造性，同步修改说明书背景技术段落以支持修改后的权利要求。",
       "degraded": false,
       "retries": 0
+    },
+    {
+      "stageId": "tighten",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "tighten"
+    },
+    {
+      "stageId": "slop_gate",
+      "strategy": "chain",
+      "output": "",
+      "degraded": true,
+      "retries": 3,
+      "atom": "slop-gate"
     },
     {
       "stageId": "adversary-review",
@@ -74,6 +90,7 @@
       "retries": 3,
       "atom": "adversary-review",
       "inputScope": [
+        "draft_tightened",
         "draft",
         "reference_documents",
         "claims",
@@ -83,7 +100,7 @@
     {
       "stageId": "response_check",
       "strategy": "chain",
-      "output": "答复合规检查结论：答复覆盖全部驳回条款与权利要求，修改未超出原说明书和权利要求书记载的范围，形式与引用均合规。",
+      "output": "答复合规检查结论：答复逐条覆盖了通知书指出的22条3款与26条4款两项缺陷，未引入新的超范围内容，形式与引用均符合要求。",
       "degraded": false,
       "retries": 0,
       "atom": "response-check"
@@ -91,7 +108,7 @@
     {
       "stageId": "amendment_basis",
       "strategy": "chain",
-      "output": "修改依据检查结论：背景技术段的修改仅删除占位对比文件号并限定为直管布置的现有技术，属原说明书记载范围内的适应性修改。",
+      "output": "修改依据检查结论：权利要求的修改限于原说明书与权利要求书记载的范围，背景技术的适应性修改有原文依据，未超出原申请文件记载范围。",
       "degraded": false,
       "retries": 0,
       "atom": "amendment-basis"
@@ -99,7 +116,7 @@
     {
       "stageId": "legal_gaps",
       "strategy": "chain",
-      "output": "法条缺口汇总结论：创造性争辩尚需补充对比文件2技术启示的实证依据，权利要求3的清楚性修改需在答复中同步记载修改依据。",
+      "output": "法条缺口汇总结论：22条3款的技术启示论证与26条4款的清楚性修改均已落实，未发现遗漏的驳回理由或其他需要答复的法条缺口。",
       "degraded": false,
       "retries": 0,
       "atom": "legal-gaps"
@@ -118,7 +135,9 @@
     "dispute-framing-refine",
     "adversary-model",
     "generate_keywords",
+    "tighten",
+    "slop_gate",
     "adversary-review"
   ],
-  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 8/13 阶段完成，降级阶段: dispute-framing、dispute-framing-refine、adversary-model、generate_keywords、adversary-review"
+  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 8/15 阶段完成，降级阶段: dispute-framing、dispute-framing-refine、adversary-model、generate_keywords、tighten、slop_gate、adversary-review"
 }

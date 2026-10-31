@@ -58,6 +58,11 @@ export type WorkflowStage = {
    * 阶段描述与 guidance 都不携带上游产出，未声明即读不到——三步法第二步看不到第一步选定的
    * 最接近现有技术，逐特征新颖性看不到检索证据，都属这一类。原子阶段的 handler 直接读共享
    * state（其中已有全部阶段输出），无需声明。
+   *
+   * 条目可带一个 `#` 投影键（`'claim-chart#rows'`）：只把该阶段产出的命名投影交给提示词，
+   * 而不是全文。投影用于结构化产出（对照表 JSON、解析结果 JSON）——它们的全文既占篇幅，
+   * 又带着下游不用的字段。投影键必须在执行器注册过的投影表里，否则 `validateWorkflowManifest`
+   * （提供 `projections` 时）与运行时渲染两处都 fail-loud。不带 `#` 即取全文。
    */
   consumes?: readonly string[]
   /**

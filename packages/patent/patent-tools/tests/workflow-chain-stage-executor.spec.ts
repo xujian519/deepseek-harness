@@ -71,6 +71,38 @@ describe('createChainStageExecutor', () => {
     expect(prompts[0]).toContain('## 上游阶段产出: closest\n（该阶段无产出）')
   })
 
+  it('consumes 条目带投影时只注入投影，不注入原文', async () => {
+    const { provider, prompts } = captureProvider()
+    const chart = JSON.stringify({
+      elements: [{ id: '1a', claimNo: 1, text: '一种阀体伴热夹套结构', kind: 'preamble' }],
+      targets: [{ id: 'CN101234567A', kind: 'prior-art' }],
+      rows: [
+        { elementId: '1a', targetId: 'CN101234567A', quote: '', pinCite: '', mapping: 'needs-evidence', state: 'needs-evidence', verified: false },
+      ],
+    }, null, 2)
+    await createChainStageExecutor(provider, 'patent_workflow_run')(
+      stage({ consumes: ['claim-chart#rows'] }),
+      ctx('通知书正文'),
+      { 'claim-chart': chart },
+    )
+    const prompt = prompts[0] ?? ''
+    expect(prompt).toContain('## 上游阶段产出: claim-chart\n')
+    expect(prompt).toContain('要素映射结论（1 项要素 / 1 篇对比文件')
+    // 结构化全文字段不进提示词：投影就是为了不再把整张 JSON 塞进去。
+    expect(prompt).not.toContain('"verified"')
+  })
+
+  it('未注册的投影直接抛错，不静默退回全文', async () => {
+    const { provider } = captureProvider()
+    await expect(
+      createChainStageExecutor(provider, 'patent_workflow_run')(
+        stage({ consumes: ['closest#rows'] }),
+        ctx('通知书正文'),
+        { closest: 'D1 选定理由' },
+      ),
+    ).rejects.toThrow(/未注册的投影/)
+  })
+
   it('consumes 声明的上游产出超长时截断并标注', async () => {
     const { provider, prompts } = captureProvider()
     await createChainStageExecutor(provider, 'patent_workflow_run')(
@@ -106,5 +138,27 @@ describe('createChainStageExecutor', () => {
     const { provider, prompts } = captureProvider()
     await createChainStageExecutor(provider, 'patent_workflow_run')(stage(), ctx('通知书正文'), {})
     expect(prompts[0]).not.toContain('权利要求书（本次调用的 claims 参数）')
+  })
+
+  it('回退重跑时把上一轮评审意见接在材料与上游产出之后', async () => {
+    const { provider, prompts } = captureProvider()
+    await createChainStageExecutor(provider, 'patent_workflow_run')(
+      stage({ consumes: ['closest'] }),
+      ctx('通知书正文'),
+      { closest: 'D1 选定理由', slop_revision_hint: '命中套话表述：填充词「进一步地」 → （删除）' },
+    )
+    const prompt = prompts[0] ?? ''
+    expect(prompt).toContain('## 上一轮评审意见（须逐条处理，不得忽略）\n<data>')
+    expect(prompt).toContain('填充词「进一步地」')
+    // 顺序：材料 → 上游产出 → 评审意见（评审意见是对本阶段产出的修订要求，不是上游数据）。
+    expect(prompt.indexOf('上游阶段产出: closest')).toBeLessThan(prompt.indexOf('上一轮评审意见'))
+  })
+
+  it('无评审意见时不注入该块', async () => {
+    const { provider, prompts } = captureProvider()
+    await createChainStageExecutor(provider, 'patent_workflow_run')(stage(), ctx('通知书正文'), {
+      slop_revision_hint: '  ',
+    })
+    expect(prompts[0]).not.toContain('上一轮评审意见')
   })
 })

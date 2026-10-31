@@ -9,6 +9,7 @@
 import type {
   CitationAnalysisCheck,
   ConstitutionalRule,
+  EmptySectionCheck,
   KeywordBlocklistCheck,
   PatternAnalysisCheck,
   QuoteRepetitionCheck,
@@ -16,6 +17,7 @@ import type {
   RuleSeverity,
   RuleSet,
   RuleViolation,
+  SentenceRepetitionCheck,
   StructuralAnalysisCheck,
 } from '@deepseek-ai/dsh-patent-core'
 import { hasNegationContext, locateMatch, locationAt, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
@@ -188,6 +190,177 @@ function checkQuoteRepetition(check: QuoteRepetitionCheck, text: string): string
   const evidence: string[] = []
   for (const { quote, count } of seen.values()) {
     if (count >= minOccurrences) evidence.push(`${quote}（${count} 次）`)
+  }
+  return evidence
+}
+
+/**
+ * 视为「没有正文」的占位语（归一后的形态：小写、无空白、无括号、无句末标点）。
+ *
+ * 表里放的是编辑实稿里真出现过的写法。判定是**整段逐字相等**，故收窄词表不会误伤
+ * 「无。理由如下……」这类带说明的答复；不收「不适用」是因为它在实务里常是格式要求
+ * 的一部分（「本次修改：不适用」），删掉会改变官方格式的节次结构，不是可删的空节。
+ */
+const EMPTY_SECTION_PLACEHOLDERS: readonly string[] = [
+  '无',
+  '无内容',
+  '本节无内容',
+  '暂无',
+  '略',
+  'n/a',
+  '—',
+  '——',
+]
+
+/** 归一分节占位语：去空白、去包裹式括号、去句末标点、统一小写。 */
+function normalizePlaceholder(text: string): string {
+  return text
+    .replace(/\s+/gu, '')
+    .replace(/[（）()【】[\]]/gu, '')
+    .replace(/[。.！!？?；;]+$/gu, '')
+    .toLowerCase()
+}
+
+/** 一个标题的层级、可读标题与其在全文中的区间（`end` 为标题行末尾）。 */
+type HeadingHit = {
+  level: number
+  title: string
+  start: number
+  end: number
+}
+
+/** Markdown ATX 标题（`## 标题`）；缩进至多三格，与 CommonMark 一致。 */
+const MD_HEADING = /^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/u
+
+/** 围栏代码块的起始行（``` 或 ~~~）；块内的 `#` 不是标题。 */
+const FENCE_LINE = /^\s{0,3}(?:```|~~~)/u
+
+/** HTML 标题（`<h2>…</h2>`），与模板渲染出的成品同形。 */
+const HTML_HEADING = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1\s*>/giu
+
+/** 去掉行内标签，用于把 HTML 标题转成可读标题。 */
+function stripInlineTags(html: string): string {
+  return html.replace(/<[^>]*>/gu, ' ')
+}
+
+/**
+ * 扫描全文标题，按出现位置排序。
+ *
+ * 两种语法必须一起扫：答复正文在上游是 Markdown，`render_patent_document` 的成品
+ * 是 HTML，同一条规则要能在两条路径上都生效。
+ * @param text - 待扫描文本。
+ * @returns 标题层级、标题文字与区间。
+ */
+function scanHeadings(text: string): HeadingHit[] {
+  const hits: HeadingHit[] = []
+  let inFence = false
+  let offset = 0
+  for (const line of text.split('\n')) {
+    const lineEnd = offset + line.length
+    if (FENCE_LINE.test(line)) {
+      inFence = !inFence
+    } else if (!inFence) {
+      const match = MD_HEADING.exec(line)
+      if (match !== null) {
+        /* v8 ignore next -- the prefix group always participates. */
+        const level = match[1]?.length ?? 0
+        /* v8 ignore next -- the title group always participates. */
+        const title = (match[2] ?? '').trim()
+        if (title.length > 0) hits.push({ level, title, start: offset, end: lineEnd })
+      }
+    }
+    offset = lineEnd + 1
+  }
+  for (const match of text.matchAll(HTML_HEADING)) {
+    /* v8 ignore next -- the title group always participates. */
+    const title = stripInlineTags(match[2] ?? '').trim()
+    if (title.length === 0) continue
+    const start = match.index
+    hits.push({ level: Number(match[1]), title, start, end: start + match[0].length })
+  }
+  hits.sort((a, b) => a.start - b.start)
+  return hits
+}
+
+/**
+ * 取小节正文里「看得见的字」：去注释、去标签、去列表/引用/表格分隔行与强调符号。
+ * 只用于判定有无正文，不用于计数——故不保留空白与标点的原始位置。
+ */
+function sectionBodyText(body: string): string {
+  return body
+    .replace(/<!--[\s\S]*?-->/gu, ' ')
+    .replace(/<[^>]*>/gu, ' ')
+    .replace(/^\s{0,3}(?:[-*+]|\d+[.)])\s+/gmu, ' ')
+    .replace(/^\s{0,3}>\s?/gmu, ' ')
+    .replace(/^\s*\|?[\s:|-]+\|[\s:|-]*$/gmu, ' ')
+    .replace(/[|*_`~#>-]/gu, ' ')
+    .replace(/\s+/gu, '')
+}
+
+/**
+ * 空节检查：标题到下一个标题之间没有正文，或只有「无」一类占位语。
+ *
+ * 只含子标题的父节不算空——正文全在子节里是正常的层级结构，`三、本案事实` 下面
+ * 直接接 `3.1` 不该报空节。占位语在整段逐字相等时才算命中，故「无。理由如下」不误伤。
+ * @param check - 检查参数（层级下限、占位语表）。
+ * @param text - 待扫描文本。
+ * @returns 命中空节的可读标题。
+ */
+function checkEmptySection(check: EmptySectionCheck, text: string): string[] {
+  const minLevel = check.minLevel ?? 2
+  const placeholders = new Set(
+    (check.placeholders ?? EMPTY_SECTION_PLACEHOLDERS).map(normalizePlaceholder),
+  )
+  const headings = scanHeadings(text)
+  const evidence: string[] = []
+  for (const [index, heading] of headings.entries()) {
+    if (heading.level < minLevel) continue
+    const next = headings[index + 1]
+    if (next !== undefined && next.level > heading.level) continue
+    const body = text.slice(heading.end, next === undefined ? text.length : next.start)
+    const visible = sectionBodyText(body)
+    if (visible.length === 0 || placeholders.has(normalizePlaceholder(visible))) {
+      evidence.push(heading.title)
+    }
+  }
+  return evidence
+}
+
+/** 句子边界：句末标点与换行。 */
+const SENTENCE_BOUNDARY = /[。！？；!?;\n]+/u
+
+/**
+ * 非正文区：HTML 注释、`style`/`script` 块。成品的样式表里同一句声明会出现十几次，
+ * 不剔除就会把 CSS 读成「同一句重复出现 12 处」。
+ */
+const NON_PROSE_BLOCK =
+  /<!--[\s\S]*?-->|<(style|script)\b[^>]*>[\s\S]*?<\/\1\s*>/giu
+
+/** 含文字或数字才算句子；纯符号行（如 Markdown 表格分隔行 `|---|---|`）不参与计数。 */
+const PROSE_CHARS = /[\p{L}\p{N}]/u
+
+/**
+ * 句子重复检查：同一句（通常是同一个结论）在全文出现达到阈值即违规。
+ * 句子按「去空白与强调标记后逐字相同」归一，故换行与格式不影响判定。
+ * @param check - 检查参数（最短句长、出现次数）。
+ * @param text - 待扫描文本。
+ * @returns 重复出现的句子（原样，供定位）。
+ */
+function checkSentenceRepetition(check: SentenceRepetitionCheck, text: string): string[] {
+  const minLength = check.minLength ?? 12
+  const minOccurrences = check.minOccurrences ?? 3
+  const seen = new Map<string, { sentence: string; count: number }>()
+  for (const raw of text.replace(NON_PROSE_BLOCK, ' ').split(SENTENCE_BOUNDARY)) {
+    const sentence = stripInlineTags(raw).replace(/[#>*_`]/gu, ' ').trim()
+    const key = sentence.replace(/\s+/gu, '')
+    if (key.length < minLength || !PROSE_CHARS.test(key)) continue
+    const entry = seen.get(key)
+    if (entry === undefined) seen.set(key, { sentence, count: 1 })
+    else entry.count += 1
+  }
+  const evidence: string[] = []
+  for (const { sentence, count } of seen.values()) {
+    if (count >= minOccurrences) evidence.push(sentence)
   }
   return evidence
 }
@@ -391,6 +564,18 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
       evidence = checkQuoteRepetition(check, text)
       if (evidence.length === 0) return null
       message = `重复引证：同一引文重复出现（${[...new Set(evidence)].slice(0, 3).map(truncate).join('；')}）`
+      break
+    }
+    case 'empty_section': {
+      evidence = checkEmptySection(check, text)
+      if (evidence.length === 0) return null
+      message = `空节：${evidence.length} 个小节标题后没有正文——无内容的小节整节删除，已折叠的槽位不要在成品里留标题`
+      break
+    }
+    case 'sentence_repetition': {
+      evidence = checkSentenceRepetition(check, text)
+      if (evidence.length === 0) return null
+      message = `同一句重复出现 ${evidence.length} 处：一个结论只写一处，其余以「见前述结论」指代`
       break
     }
     case 'notice_ground_coverage':

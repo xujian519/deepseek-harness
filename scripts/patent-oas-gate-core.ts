@@ -16,6 +16,7 @@ import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { JSON_SCHEMA, load as loadYaml } from 'js-yaml'
+import type { ConcisionObservation } from './patent-oas-concision.ts'
 
 /** 问题空间图上的一个节点:一个可被交付物观测的实务切面。 */
 export interface ProblemSpaceNode {
@@ -214,6 +215,13 @@ export interface RunRound {
    * 只在工作流设置下记录:提示词设置不写 `_matter-log.md`,没有可复算的修订链。
    */
   claimVersions?: number[]
+  /**
+   * 该轮每次运行的篇幅观测,按运行顺序;只记录、不计分。
+   *
+   * 采集器没有这一观测时省略(旧记录、以及不在乎篇幅的采集)。它不参与任何分数计算,
+   * 门禁只校验自洽性——`overBudget` 能由字数与预算复算,记录里写错的数不该被当真。
+   */
+  concision?: ConcisionObservation[]
 }
 
 /** run 记录里的一个 case。 */
@@ -226,6 +234,13 @@ export interface RunCase {
   dimensions: RunDimension[]
   /** 逐轮观测,按轮次排序;多轮 case 必填,单轮 case 省略。 */
   rounds?: RunRound[]
+  /**
+   * 单轮 case 每次运行的篇幅观测,按运行顺序;多轮 case 的观测记在 {@link RunRound.concision}。
+   *
+   * 单轮 case 没有逐轮观测可挂,而篇幅读数必须覆盖每个 case——量不到 `claim-drafting` 的
+   * 字数,「写得长」这件事在撰写任务上就没有代价。同一份读数只存一处:多轮 case 不重复记。
+   */
+  concision?: ConcisionObservation[]
 }
 
 /** 一次实测的原始记录;基线与被检运行同构。 */
@@ -361,6 +376,14 @@ function optionalString(source: Record<string, unknown>, key: string, where: str
   const value = source[key]
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'string') throw new Error(`${where}: 字段 "${key}" 必须是字符串`)
+  return value
+}
+
+/** 读一个可选有限数字段。 */
+function optionalNumber(source: Record<string, unknown>, key: string, where: string): number | undefined {
+  const value = source[key]
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`${where}: 字段 "${key}" 必须是有限数`)
   return value
 }
 
@@ -784,12 +807,44 @@ function loadRunRounds(value: unknown, where: string): RunRound[] {
     })
     const statementDigest = optionalString(rawRound, 'statementDigest', roundWhere)
     const claimVersions = optionalNumberArray(rawRound, 'claimVersions', roundWhere)
+    const concision = loadConcisionObservations(rawRound.concision, `${roundWhere}.concision`)
     return {
       round: requireNumber(rawRound, 'round', roundWhere),
       ...statementDigest === undefined ? {} : { statementDigest },
       dimensions,
       deliverableDigests,
       ...claimVersions === undefined ? {} : { claimVersions },
+      ...concision === undefined ? {} : { concision },
+    }
+  })
+}
+
+/**
+ * 读取篇幅观测的可选 `concision` 字段。
+ *
+ * 只做结构读取:字段是否齐全、`overBudget` 是否与字数自洽,交给
+ * {@link validateRunRecord}(那里的判定才能带上「应为几次运行」这类上下文)。
+ *
+ * @param value 原始字段值。
+ * @param where 诊断位置。
+ * @returns 篇幅观测数组;字段缺席时为 `undefined`。
+ */
+function loadConcisionObservations(value: unknown, where: string): ConcisionObservation[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) throw new Error(`${where}: 必须是数组`)
+  return value.map((raw, index) => {
+    const entryWhere = `${where}[${index}]`
+    if (!isRecord(raw)) throw new Error(`${entryWhere}: 必须是对象`)
+    const budget = optionalNumber(raw, 'budget', entryWhere)
+    const overBudget = optionalNumber(raw, 'overBudget', entryWhere)
+    return {
+      proseChars: requireNumber(raw, 'proseChars', entryWhere),
+      ...budget === undefined ? {} : { budget },
+      ...overBudget === undefined ? {} : { overBudget },
+      paragraphs: requireNumber(raw, 'paragraphs', entryWhere),
+      sections: requireNumber(raw, 'sections', entryWhere),
+      emptySections: requireNumber(raw, 'emptySections', entryWhere),
+      repeatedSentences: requireNumber(raw, 'repeatedSentences', entryWhere),
     }
   })
 }
@@ -825,11 +880,13 @@ export async function loadRunRecord(path: string): Promise<RunRecord> {
     })
     const rounds = rawCase.rounds === undefined ? undefined : loadRunRounds(rawCase.rounds, `${where}.rounds`)
     const retrieval = optionalRetrieval(rawCase, 'retrieval', where)
+    const concision = loadConcisionObservations(rawCase.concision, `${where}.concision`)
     return {
       caseId,
       ...retrieval === undefined ? {} : { retrieval },
       dimensions,
       ...rounds === undefined ? {} : { rounds },
+      ...concision === undefined ? {} : { concision },
     }
   })
   const record: RunRecord = {
@@ -1070,6 +1127,7 @@ function validateRunRounds(
       if (!DIGEST_PATTERN.test(digest)) problems.push(`${where}第 ${index + 1} 次运行的交付物摘要不是 sha256:<hex>`)
     }
     problems.push(...validateClaimVersions(round, where, run))
+    problems.push(...validateConcision(round, where, run))
     const observed = new Set<number>()
     for (const dimension of round.dimensions) {
       if (observed.has(dimension.index)) problems.push(`${where}重复观测维度 ${dimension.index}`)
@@ -1122,6 +1180,66 @@ function validateRunRounds(
   }
   problems.push(...validateClaimChain(rounds, run, `${label}: case "${runCase.caseId}"`))
   return problems
+}
+
+/**
+ * 校验一组篇幅观测的自洽性。
+ *
+ * 只验自洽,不设阈值:篇幅先只记录、不进分数,所以这里能判的只有「记录自身的算术对不对」。
+ * `overBudget` 由字数与预算完全决定,记录里若写了不同的数,那是抄错或改过——两种情况都不该
+ * 被当成读数当真。
+ *
+ * 为什么留在门禁核心而不是回到度量模块:度量模块要引 `patent-tools` 与 `patent-workflow`
+ * (取口径与预算常量),而 `verify-patent-oas-gold` 是无 key 的 CI 门禁,拉进这两个包会让每次
+ * 子进程启动多几秒。类型可以从度量模块借(编译后消失),判据不借。
+ *
+ * @param observations - 观测数组;缺席时无问题。
+ * @param where - 诊断位置。
+ * @param runsPerCase - 该记录每个 case 的运行次数。
+ * @returns 一条问题一条消息。
+ */
+function validateConcisionObservations(
+  observations: readonly ConcisionObservation[] | undefined,
+  where: string,
+  runsPerCase: number,
+): string[] {
+  const problems: string[] = []
+  if (observations === undefined) return problems
+  if (observations.length !== runsPerCase) {
+    problems.push(`${where}有 ${observations.length} 条篇幅观测,应为 ${runsPerCase}`)
+  }
+  const counters = ['proseChars', 'paragraphs', 'sections', 'emptySections', 'repeatedSentences'] as const
+  for (const [index, observation] of observations.entries()) {
+    const entryWhere = `${where}第 ${index + 1} 次运行的篇幅观测`
+    for (const field of counters) {
+      const value = observation[field]
+      if (!Number.isInteger(value) || value < 0) problems.push(`${entryWhere}的 ${field} 必须是非负整数,得到 ${value}`)
+    }
+    const { budget, overBudget } = observation
+    if (budget === undefined && overBudget === undefined) continue
+    if (budget === undefined || overBudget === undefined) {
+      problems.push(`${entryWhere}只记了 budget 与 overBudget 之一;有预算的任务两者同时记录`)
+      continue
+    }
+    if (!Number.isInteger(budget) || budget <= 0) problems.push(`${entryWhere}的 budget 必须是正整数,得到 ${budget}`)
+    const expected = Math.max(0, observation.proseChars - budget)
+    if (overBudget !== expected) {
+      problems.push(`${entryWhere}的 overBudget 为 ${overBudget},按字数 ${observation.proseChars} 与预算 ${budget} 应为 ${expected}`)
+    }
+  }
+  return problems
+}
+
+/**
+ * 校验一轮的篇幅观测。
+ *
+ * @param round 该轮观测。
+ * @param where 诊断位置。
+ * @param run 所属 run 记录。
+ * @returns 一条问题一条消息。
+ */
+function validateConcision(round: RunRound, where: string, run: RunRecord): string[] {
+  return validateConcisionObservations(round.concision, where, run.runsPerCase)
 }
 
 /**
@@ -1287,6 +1405,12 @@ export function validateRunRecord(
     const observed = new Set(runCase.dimensions.map(dimension => dimension.index))
     for (const dimension of dimensions) {
       if (!observed.has(dimension.index)) problems.push(`${label}: case "${runCase.caseId}" 缺少维度 ${dimension.index} 的观测`)
+    }
+    if (runCase.concision !== undefined && (goldCase.rounds?.length ?? 0) > 0) {
+      // 同一份读数只存一处:多轮 case 的字数逐轮不同,记在 case 上会变成「哪一轮的」说不清。
+      problems.push(`${label}: case "${runCase.caseId}" 是多轮 case,篇幅观测记在逐轮观测里,不在 case 上`)
+    } else {
+      problems.push(...validateConcisionObservations(runCase.concision, `${label}: case "${runCase.caseId}" `, run.runsPerCase))
     }
     problems.push(...validateRunRounds(runCase, goldCase, dimensions, run, label))
   }

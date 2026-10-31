@@ -6,7 +6,9 @@ flowchart TD
   response-plan["答复计划骨架（逐理由策略与必答段落、逐权项修改对照、缺口；确定性）"]
   adversary-model["对立审查员模型：独立评估答复计划的薄弱环节（确定性骨架，完整版调用模型）"]
   generate_keywords["生成检索关键词（上位/下位/同义词）"]
-  draft["撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart、答复计划、对立检验报告与检索关键词）"]
+  draft["撰写意见陈述书（新颖性陈述 + 三步法，消费解析摘要、对照表结论行、答复计划、对立检验报告与检索关键词）"]
+  tighten["删减阶段（模型）：按篇幅预算删除复述、重复与无关事实，产出删减后正文与逐条删除清单；仍超预算即降级"]
+  slop_gate["反套话评分门（答复正文：套话表述、结构性问题与相对篇幅预算的精简度；未通过自动带证据提示回退重写）"]
   adversary-review["换位重跑：从对立审查员视角评估最终意见陈述书的论证强度（确定性，不调用模型）"]
   response_check["答复合规检查（PR-OA-007/008/009：26.3 判准落位、驳回理由覆盖、未提条款引用）"]
   amendment_basis["修改依据检查（A33：修改后权利要求的新增技术特征须记载于原说明书或原权利要求书）"]
@@ -19,8 +21,11 @@ flowchart TD
   response-plan --> adversary-model
   adversary-model --> generate_keywords
   generate_keywords --> draft
-  draft --> adversary-review
+  draft --> tighten
+  tighten --> slop_gate
+  slop_gate --> adversary-review
   adversary-review --> response_check
   response_check --> amendment_basis
   amendment_basis --> legal_gaps
   legal_gaps --> approval
+  slop_gate -.-> draft

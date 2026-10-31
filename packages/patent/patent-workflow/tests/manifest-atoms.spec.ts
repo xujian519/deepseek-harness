@@ -4,13 +4,14 @@ import {
   compileSignal,
   countWorkflowLlmStages,
   globalAtomRegistry,
+  parseConsumeRef,
   registerBuiltinAtoms,
   signalMatches,
   validateWorkflowBudget,
   type WorkflowManifest,
   type WorkflowStage,
 } from '@deepseek-ai/dsh-patent-core'
-import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
+import { OA_RESPONSE_DRAFT_BUDGET, builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 
 const manifestOf = (id: string): WorkflowManifest => {
   const manifest = builtinPatentManifests.find(m => m.id === id)
@@ -27,7 +28,7 @@ const indexOf = (manifestId: string, stageId: string): number =>
   manifestOf(manifestId).stages.findIndex(s => s.id === stageId)
 
 describe('内置 manifest 的跨包原子归属', () => {
-  it('声明的原子与核心注册表的差集恰好是 patent-tools 提供的六个（本文件不导入 patent-tools，避免依赖倒置）', () => {
+  it('声明的原子与核心注册表的差集恰好是 patent-tools 提供的八个（本文件不导入 patent-tools，避免依赖倒置）', () => {
     registerBuiltinAtoms()
     const declared = new Set(
       builtinPatentManifests.flatMap(manifest =>
@@ -44,6 +45,7 @@ describe('内置 manifest 的跨包原子归属', () => {
       'response-check',
       'slop-gate',
       'spec-check',
+      'tighten',
     ])
   })
 })
@@ -101,7 +103,7 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
       patent_disclosure_v1: 23,
       patent_inventiveness_v1: 16,
       patent_patentability_v1: 16,
-      patent_oa_response_v1: 13,
+      patent_oa_response_v1: 15,
       patent_invalidation_v1: 11,
       patent_reexamination_v1: 11,
       patent_infringement_v1: 8,
@@ -114,16 +116,25 @@ describe('争议定位接线范围（6 必须 / 1 可选 / 1 排除）', () => {
 
   it('默认预算（24/12）下全部内置 manifest 通过，模型阶段数不因确定性定位增加', () => {
     registerBuiltinAtoms()
-    // patent-tools 的七个原子在预算统计里只需契约（usesModel 标记），此处注册同名 stub。
+    // patent-tools 的确定性原子在预算统计里只需契约（usesModel 标记），此处注册同名 stub。
     for (const name of ['draft-specification', 'eligibility', 'figure-analysis', 'legal-gaps', 'response-check', 'slop-gate', 'spec-check']) {
       globalAtomRegistry.register({ name, category: 'gate', description: 'test stub', inputSchema: [], outputSchema: [] })
     }
+    // tighten 是模型阶段：stub 必须带 usesModel，否则预算统计会漏计它的模型调用。
+    globalAtomRegistry.register({
+      name: 'tighten',
+      category: 'extract',
+      description: 'test stub',
+      inputSchema: [],
+      outputSchema: [],
+      usesModel: true,
+    })
     const expectedLlmStages: Record<string, number> = {
       patent_novelty_v1: 4,
       patent_disclosure_v1: 10,
       patent_inventiveness_v1: 7,
       patent_patentability_v1: 5,
-      patent_oa_response_v1: 4,
+      patent_oa_response_v1: 5,
       patent_invalidation_v1: 4,
       patent_reexamination_v1: 4,
       patent_infringement_v1: 3,
@@ -152,6 +163,40 @@ describe('内置 manifest 的确定性原子接线', () => {
     const parse = stageOf('patent_oa_response_v1', 'parse')
     expect(parse?.atom).toBe('oa-parse')
     expect(parse?.params).toBeUndefined()
+  })
+
+  it('OA 答复：tighten 紧跟 draft，门紧随其后判删减稿，回退目标仍是 draft', () => {
+    const tighten = stageOf('patent_oa_response_v1', 'tighten')
+    expect(tighten?.atom).toBe('tighten')
+    expect(tighten?.params).toEqual({
+      text_key: 'draft',
+      plan_key: 'response-plan',
+      char_budget: OA_RESPONSE_DRAFT_BUDGET.total,
+    })
+    // 原子阶段不声明 consumes（链式执行器的提示词投影）；只读范围由原子契约记录。
+    expect(tighten?.consumes).toBeUndefined()
+    expect(indexOf('patent_oa_response_v1', 'tighten')).toBe(
+      indexOf('patent_oa_response_v1', 'draft') + 1,
+    )
+  })
+
+  it('OA 答复：slop-gate 判删减稿、回退到 draft，篇幅预算取同一常量', () => {
+    const gate = stageOf('patent_oa_response_v1', 'slop_gate')
+    expect(gate?.atom).toBe('slop-gate')
+    // 判交付稿（删减后），不是原稿。
+    expect(gate?.params).toEqual({ text_keys: ['draft_tightened'], char_budget: OA_RESPONSE_DRAFT_BUDGET.total })
+    expect(gate?.retry).toEqual({ whenOutputMatches: '需修订', rewindTo: 'draft', maxRetries: 1 })
+    expect(indexOf('patent_oa_response_v1', 'slop_gate')).toBe(
+      indexOf('patent_oa_response_v1', 'tighten') + 1,
+    )
+    expect(indexOf('patent_oa_response_v1', 'slop_gate')).toBeLessThan(
+      indexOf('patent_oa_response_v1', 'response_check'),
+    )
+  })
+
+  it('OA 答复：下游读删减稿（response_check 的 response_key）', () => {
+    const check = stageOf('patent_oa_response_v1', 'response_check')
+    expect(check?.params).toEqual({ response_key: 'draft_tightened' })
   })
 
   it('无效答复：grounds 原子排在 parse 之后、claim-chart 之前，程序取无效理由表', () => {
@@ -396,7 +441,9 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
   it('consumes 只引用本 manifest 中位次更早的阶段', () => {
     for (const manifest of builtinPatentManifests) {
       for (const stage of manifest.stages) {
-        for (const upstream of stage.consumes ?? []) {
+        for (const entry of stage.consumes ?? []) {
+          // 条目可能带投影（`'parse#oa-summary'`）：位次只看 `#` 前的阶段 id。
+          const { stageId: upstream } = parseConsumeRef(entry)
           const upstreamIndex = manifest.stages.findIndex(s => s.id === upstream)
           expect(upstreamIndex).toBeGreaterThanOrEqual(0)
           expect(upstreamIndex).toBeLessThan(manifest.stages.findIndex(s => s.id === stage.id))
@@ -444,9 +491,9 @@ describe('内置 manifest 的收口阶段依赖声明', () => {
     expect(stageOf('patent_oa_response_v1', 'prior_art_filter')).toBeUndefined()
   })
 
-  it('OA 答复：draft 消费解析结果、claim-chart、答复计划、对立检验报告与检索关键词（描述里的"消费"由 consumes 兑现）', () => {
+  it('OA 答复：draft 消费解析摘要、对照表结论行、答复计划、对立检验报告与检索关键词（两份结构化产出只取投影）', () => {
     expect(stageOf('patent_oa_response_v1', 'draft')?.consumes).toEqual([
-      'dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model', 'generate_keywords',
+      'dispute-framing-refine', 'parse#oa-summary', 'claim-chart#rows', 'response-plan', 'adversary-model', 'generate_keywords',
     ])
   })
 
