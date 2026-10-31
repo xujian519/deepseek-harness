@@ -4,9 +4,11 @@
  * One repo-wide pass keeps the long-standing threshold behavior, then a
  * tightened pass runs over the domains whose real clones sat below that
  * threshold and compares the reported clone pairs against the checked-in
- * baseline. The tightened pass ignores `jscpd:ignore` markers on purpose: in
- * these domains an accepted clone is registered by naming its file pair in the
- * baseline, so a one-sided marker can never quietly hide a new pair.
+ * baseline. A second tightened invocation scans every tightened domain at once
+ * so clones that span two domains are compared too. Both tightened passes
+ * ignore `jscpd:ignore` markers on purpose: in these domains an accepted clone
+ * is registered by naming its file pair in the baseline, so a one-sided marker
+ * can never quietly hide a new pair.
  *
  * Regenerate the baseline with `pnpm run duplication:baseline` after reviewing
  * every added pair.
@@ -28,9 +30,10 @@ const REPO_WIDE_ROOTS: readonly string[] = ['packages', 'scripts']
 
 /**
  * Domains whose real clones stayed invisible under the repo-wide threshold.
- * Each is passed as its own jscpd root so reported paths are stable.
+ * Each is passed as its own jscpd root so reported paths are stable, and the
+ * whole set is scanned once more for pairs that span two of them.
  */
-export const TIGHTENED_DOMAINS: readonly string[] = ['packages/patent', 'packages/document']
+export const TIGHTENED_DOMAINS: readonly string[] = ['packages/patent', 'packages/legal', 'packages/document']
 
 /** Token floor of the tightened pass; below the repo-wide `.jscpd.json` floor. */
 export const TIGHTENED_MIN_TOKENS = 30
@@ -45,7 +48,10 @@ export const BASELINE_PATH = 'scripts/duplication-baseline.json'
 interface DuplicationBaseline {
   minTokens: number
   minLines: number
+  /** Pairs whose two files sit in the same tightened domain. */
   pairs: string[]
+  /** Pairs whose two files sit in different tightened domains. */
+  crossDomainPairs: string[]
 }
 
 /** One jscpd duplicate entry, as the JSON reporter writes it. */
@@ -124,6 +130,32 @@ export function diffClonePairs(baseline: readonly string[], current: readonly st
 }
 
 /**
+ * Package group a repo-relative path belongs to.
+ * @param path - repo-relative POSIX path as reported by the tightened pass.
+ * @returns `packages/<group>` for a workspace package, otherwise the first segment.
+ */
+function domainOf(path: string): string {
+  const segments = path.split('/')
+  return segments[0] === 'packages' ? `packages/${segments[1] ?? ''}` : (segments[0] ?? '')
+}
+
+/**
+ * Keep only the clone pairs whose two files sit in different tightened domains.
+ * A per-domain pass cannot report these: jscpd only compares files inside the
+ * roots of one invocation.
+ * @param pairs - pair keys as {@link pairKey} reports them.
+ * @returns the cross-domain subset, sorted.
+ */
+export function crossDomainPairs(pairs: readonly string[]): string[] {
+  return pairs
+    .filter((pair) => {
+      const [first, second] = pair.split('|')
+      return first !== undefined && second !== undefined && domainOf(first) !== domainOf(second)
+    })
+    .sort()
+}
+
+/**
  * Locate the jscpd executable: this repo's workspace bin first, then `PATH`.
  * Resolved relative to this module so a pass over a fixture tree still runs the
  * installed binary.
@@ -181,33 +213,63 @@ export function detectClonePairs(
   }
 }
 
+/** Thresholds every tightened and cross-domain pass runs with. */
+const TIGHTENED_THRESHOLDS: PassThresholds = { minTokens: TIGHTENED_MIN_TOKENS, minLines: TIGHTENED_MIN_LINES }
+
 /**
  * Read the checked-in accepted-pair baseline.
+ * The file is a durable boundary: a missing list is rejected instead of being
+ * read as "nothing accepted", which would silently pass a new clone.
  * @param root - repo root holding the baseline file.
  * @returns the recorded thresholds and accepted pairs.
+ * @throws Error when the file does not hold both accepted-pair lists.
  */
 export function readBaseline(root: string): DuplicationBaseline {
-  return JSON.parse(readFileSync(join(root, BASELINE_PATH), 'utf8')) as DuplicationBaseline
+  const parsed = JSON.parse(readFileSync(join(root, BASELINE_PATH), 'utf8')) as Partial<DuplicationBaseline>
+  for (const field of ['pairs', 'crossDomainPairs'] as const) {
+    if (!Array.isArray(parsed[field])) {
+      throw new Error(`duplication-gate: ${BASELINE_PATH} 缺少 ${field} 数组；用 \`pnpm run duplication:baseline\` 重新生成`)
+    }
+  }
+  return parsed as DuplicationBaseline
+}
+
+/** Report the pairs a per-domain tightened pass accepts. */
+function detectTightenedPairs(root: string): string[] {
+  return TIGHTENED_DOMAINS.flatMap(domain => detectClonePairs(
+    root,
+    [domain],
+    TIGHTENED_THRESHOLDS,
+    { maskMarkers: false },
+  ))
+}
+
+/** Report the cross-domain pairs one pass over every tightened domain finds. */
+function detectCrossDomainPairs(root: string): string[] {
+  return crossDomainPairs(detectClonePairs(
+    root,
+    TIGHTENED_DOMAINS,
+    TIGHTENED_THRESHOLDS,
+    { maskMarkers: false },
+  ))
 }
 
 /**
- * Regenerate the baseline from the tightened pass and write it to disk.
+ * Regenerate the baseline from the tightened and cross-domain passes and write
+ * it to disk.
  * @param root - repo root holding the baseline file.
  */
 function writeBaseline(root: string): void {
-  const pairs = TIGHTENED_DOMAINS.flatMap(domain => detectClonePairs(
-    root,
-    [domain],
-    { minTokens: TIGHTENED_MIN_TOKENS, minLines: TIGHTENED_MIN_LINES },
-    { maskMarkers: false },
-  ))
   const baseline: DuplicationBaseline = {
     minTokens: TIGHTENED_MIN_TOKENS,
     minLines: TIGHTENED_MIN_LINES,
-    pairs: [...new Set(pairs)].sort(),
+    pairs: [...new Set(detectTightenedPairs(root))].sort(),
+    crossDomainPairs: detectCrossDomainPairs(root),
   }
   writeFileSync(join(root, BASELINE_PATH), `${JSON.stringify(baseline, null, 2)}\n`)
-  process.stdout.write(`duplication-gate: recorded ${String(baseline.pairs.length)} accepted pair(s) in ${BASELINE_PATH}\n`)
+  process.stdout.write(
+    `duplication-gate: recorded ${String(baseline.pairs.length)} accepted pair(s) and ${String(baseline.crossDomainPairs.length)} cross-domain pair(s) in ${BASELINE_PATH}\n`,
+  )
 }
 
 /**
@@ -233,23 +295,27 @@ export function runDuplicationGate(root: string): number {
       `${BASELINE_PATH} records ${String(baseline.minTokens)} tokens / ${String(baseline.minLines)} lines but the gate runs ${String(TIGHTENED_MIN_TOKENS)} / ${String(TIGHTENED_MIN_LINES)}; regenerate with \`pnpm run duplication:baseline\``,
     )
   }
-  const tightened = TIGHTENED_DOMAINS.flatMap(domain => detectClonePairs(
-    root,
-    [domain],
-    { minTokens: TIGHTENED_MIN_TOKENS, minLines: TIGHTENED_MIN_LINES },
-    { maskMarkers: false },
-  ))
-  const diff = diffClonePairs(baseline.pairs, tightened)
-  if (diff.added.length > 0) {
-    failures.push(`tightened pass reported ${String(diff.added.length)} pair(s) outside ${BASELINE_PATH}:\n${diff.added.map(pair => `  ${pair}`).join('\n')}`)
+  const tightened = detectTightenedPairs(root)
+  const tightenedDiff = diffClonePairs(baseline.pairs, tightened)
+  if (tightenedDiff.added.length > 0) {
+    failures.push(`tightened pass reported ${String(tightenedDiff.added.length)} pair(s) outside ${BASELINE_PATH}:\n${tightenedDiff.added.map(pair => `  ${pair}`).join('\n')}`)
   }
-  if (diff.stale.length > 0) {
-    failures.push(`${BASELINE_PATH} lists ${String(diff.stale.length)} pair(s) the tightened pass no longer reports:\n${diff.stale.map(pair => `  ${pair}`).join('\n')}`)
+  if (tightenedDiff.stale.length > 0) {
+    failures.push(`${BASELINE_PATH} lists ${String(tightenedDiff.stale.length)} pair(s) the tightened pass no longer reports:\n${tightenedDiff.stale.map(pair => `  ${pair}`).join('\n')}`)
+  }
+
+  const cross = detectCrossDomainPairs(root)
+  const crossDiff = diffClonePairs(baseline.crossDomainPairs, cross)
+  if (crossDiff.added.length > 0) {
+    failures.push(`cross-domain pass reported ${String(crossDiff.added.length)} pair(s) outside ${BASELINE_PATH}:\n${crossDiff.added.map(pair => `  ${pair}`).join('\n')}`)
+  }
+  if (crossDiff.stale.length > 0) {
+    failures.push(`${BASELINE_PATH} lists ${String(crossDiff.stale.length)} cross-domain pair(s) the pass no longer reports:\n${crossDiff.stale.map(pair => `  ${pair}`).join('\n')}`)
   }
 
   for (const failure of failures) process.stderr.write(`duplication-gate: ${failure}\n`)
   if (failures.length === 0) {
-    process.stdout.write(`duplication-gate: 0 repo-wide clones; ${String(tightened.length)} tightened-domain pair(s) match ${BASELINE_PATH}\n`)
+    process.stdout.write(`duplication-gate: 0 repo-wide clones; ${String(tightened.length)} tightened-domain pair(s) and ${String(cross.length)} cross-domain pair(s) match ${BASELINE_PATH}\n`)
   }
   return failures.length === 0 ? 0 : 1
 }

@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-31-duplication-gate-legal-and-cross-domain.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-10-31-duplication-gate-legal-and-cross-domain.md
+/agent-note-duplication-gate-covers-the-legal-domain-and-cross-domain-clones:
+  en: 06217b50e5d470be
+  zh: 8775608512fa6318
+/agent-note-duplication-gate-covers-the-legal-domain-and-cross-domain-clones/problem:
+  en: 210af43656509811
+  zh: bb3861c869b99bb9
+/agent-note-duplication-gate-covers-the-legal-domain-and-cross-domain-clones/decision:
+  en: 6497d98839a00270
+  zh: 609c7c9f1e8bf224
+/agent-note-duplication-gate-covers-the-legal-domain-and-cross-domain-clones/accepted-pairs:
+  en: 06eb4d9389b4ad36
+  zh: 0dd66301550c698c
+/agent-note-duplication-gate-covers-the-legal-domain-and-cross-domain-clones/alternatives-considered:
+  en: be73f5380243d0b0
+  zh: b151df99c11973f4
+/agent-note-duplication-gate-covers-the-legal-domain-and-cross-domain-clones/consequences:
+  en: 9f92c6386762f0b8
+  zh: 6bb7eb7fd0a4cbca
