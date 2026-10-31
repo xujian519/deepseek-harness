@@ -126,6 +126,35 @@ describe('claim-chart#rows', () => {
   })
 })
 
+describe('claim-chart#rows：外部产出的字段缺失与类型不对', () => {
+  it('数组字段不是数组时视为空，行仍照出（要素信息退化为占位）', () => {
+    const out = projectConsumedOutput('claim-chart#rows', textOf(chart({
+      elements: 'not-an-array',
+      gaps: 'not-an-array',
+      rows: [{ elementId: '1a', targetId: 'D1', mapping: 'literal', pinCite: 'D1 段[0042]' }],
+    })), {})
+    // 要素表读不到时，行里只剩 elementId 自己，权项与要素原文都退化为占位符。
+    expect(out).toContain('| 1a | — | — | D1 | literal | D1 段[0042] |')
+    expect(out).toContain('0 项要素')
+  })
+
+  it('要素与映射行里的非对象项被跳过，字符串权项号原样取用', () => {
+    const out = projectConsumedOutput('claim-chart#rows', textOf(chart({
+      elements: [null, '1a', { id: '1a', claimNo: '2', text: '一种阀体' }],
+      rows: [null, 42, { elementId: '1a', targetId: 'D1', mapping: 7, pinCite: 9 }],
+      gaps: [null, { elementId: '1a' }, { kind: '', elementId: '1b' }, { kind: 'needs-evidence', elementId: '1c' }],
+    })), {})
+    // mapping 与 pinCite 不是字符串时退化为占位符，而不是写成 7 / 9。
+    expect(out).toContain('| 1a | 2 | 一种阀体 | D1 | — | — |')
+    expect(out).toContain('needs-evidence 1 项（1c）')
+  })
+
+  it('没有缺口时不输出缺口行', () => {
+    const out = projectConsumedOutput('claim-chart#rows', textOf(chart({ gaps: [] })), {})
+    expect(out).not.toContain('缺口')
+  })
+})
+
 describe('parse#oa-summary', () => {
   const parsed = textOf({ rejectionTypes: ['inventiveness'], affectedClaims: [1, 2] })
 

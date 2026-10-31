@@ -147,6 +147,31 @@ describe('tighten：没减到验收标准就降级', () => {
     })
     expect(out.draft_tightened).toBe(body(600))
   })
+
+  it('首行像围栏、末行不是围栏时不剥，保持原样', async () => {
+    const raw = ['```markdown', body(600), '尾声'].join('\n')
+    const out = await handler.execute({
+      state: { draft: body(800), char_budget: 700 },
+      provider: providerOf(raw),
+    })
+    // 只剥成对的围栏：首尾不配对时按原文交，免得吃掉正文第一行。
+    expect(out.draft_tightened).toBe(raw)
+  })
+
+  it('不足三行或首行不是围栏时同样按原文交', async () => {
+    const twoLines = [body(400), body(300)].join('\n')
+    const first = await handler.execute({
+      state: { draft: body(800), char_budget: 700 },
+      provider: providerOf(twoLines),
+    })
+    expect(first.draft_tightened).toBe(twoLines)
+    const prose = [body(200), body(200), body(200)].join('\n')
+    const second = await handler.execute({
+      state: { draft: body(800), char_budget: 700 },
+      provider: providerOf(prose),
+    })
+    expect(second.draft_tightened).toBe(prose)
+  })
 })
 
 describe('tighten：参数与前置条件', () => {
@@ -246,5 +271,63 @@ describe('tighten：原样返回与删不够分开报', () => {
       provider: providerOf(replyOf(body(900))),
     })
     expect(out._error).toBeUndefined()
+  })
+})
+
+describe('tighten：模型产出格式抖动不换掉整次删减', () => {
+  it('removed 不是数组时按「清单缺失」记，正文照收', async () => {
+    const out = await handler.execute({
+      state: { draft: body(1200), char_budget: 1000 },
+      provider: providerOf(JSON.stringify({ tightened: body(800), removed: '第一条：复述审查意见' })),
+    })
+    expect(out.draft_tightened).toBe(body(800))
+    expect(out.tighten_report).toContain('逐条清单缺失')
+  })
+
+  it('removed 里的非法项被丢弃，合法的照收', async () => {
+    const out = await handler.execute({
+      state: { draft: body(1200), char_budget: 1000 },
+      provider: providerOf(JSON.stringify({
+        tightened: body(800),
+        removed: [
+          null,
+          42,
+          { what: 42, why: true },
+          { what: '复述审查意见', why: '' },
+          { what: '', why: '已概括' },
+          { what: '第二遍论证', why: '首次已完整' },
+        ],
+      })),
+    })
+    expect(out.tighten_report).toContain('- 第二遍论证：首次已完整')
+    // 缺 what 或缺 why 的项不给理由就写进报告，等于编造删除依据。
+    expect(out.tighten_report).not.toContain('复述审查意见')
+  })
+
+  it('tightened 不是字符串时按空正文降级', async () => {
+    const out = await handler.execute({
+      state: { draft: body(800), char_budget: 700 },
+      provider: providerOf(JSON.stringify({ tightened: 42 })),
+    })
+    expect(out._error).toContain('tightened 为空')
+  })
+
+  it('模型调用失败时透传降级原因，不当作删减结果', async () => {
+    const out = await handler.execute({
+      state: { draft: body(800), char_budget: 700 },
+      provider: { callLLM: async () => { throw new Error('boom') } },
+    })
+    expect(out._error).toContain('LLM 调用失败: boom')
+    expect(out.draft_tightened).toBeUndefined()
+  })
+
+  it('HTML 载体（<table> 与 claim-text）同样不计数、也不得被删', async () => {
+    const html = '<table><tr><td>1</td></tr></table><p class="claim-text">权利要求 1：一种装置。</p>'
+    const out = await handler.execute({
+      state: { draft: `${body(1200)}\n\n${html}`, char_budget: 1000 },
+      provider: providerOf(replyOf(body(800))),
+    })
+    expect(out.tighten_violations).toContain('1 张表')
+    expect(out.tighten_violations).toContain('修改后的独立权利要求')
   })
 })

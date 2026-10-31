@@ -307,10 +307,14 @@ function countCarriers(text: string): CarrierCount {
  * @returns 去掉围栏后的正文。
  */
 function stripFence(raw: string): string {
-  const lines = raw.trim().split('\n')
-  if (lines.length < 3) return raw
-  const first = lines[0]?.trim() ?? ''
-  const last = lines[lines.length - 1]?.trim() ?? ''
-  if (!first.startsWith('```') || last !== '```') return raw
-  return lines.slice(1, -1).join('\n')
+  const text = raw.trim()
+  const end = text.lastIndexOf('\n')
+  // 不足三行时没有可剥的围栏：配对的围栏至少还得夹住一行正文。
+  if (end < 0) return raw
+  if (text.lastIndexOf('\n', end - 1) < 0) return raw
+  const start = text.indexOf('\n')
+  if (!text.slice(0, start).startsWith('```')) return raw
+  // 首尾必须成对：只有开头围栏时按原文交，免得把正文第一行当围栏吃掉。
+  if (text.slice(end + 1) !== '```') return raw
+  return text.slice(start + 1, end)
 }
