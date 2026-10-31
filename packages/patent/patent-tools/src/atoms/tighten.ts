@@ -29,6 +29,7 @@ import {
   requireLlm,
 } from '@deepseek-ai/dsh-patent-core'
 import { visibleChars } from '../internal/slop-engine.ts'
+import { readCharBudget } from '../internal/stage-params.ts'
 
 /** 缺省受理文本键（`draft` 阶段的输出键）。 */
 export const DEFAULT_TIGHTEN_TEXT_KEY = 'draft'
@@ -47,8 +48,7 @@ type TightenRemoval = {
   why: string
 }
 
-/** 阶段参数 `char_budget` 的读取结果。 */
-type BudgetRead = { kind: 'ok'; value?: number } | { kind: 'invalid' }
+/** 阶段参数 `char_budget` 的读取结果见 `internal/stage-params.ts`；它与 `slop-gate` 共用同一实现。 */
 
 /** tighten 原子：按篇幅预算删减答复正文，并对字数做机械校验。 */
 export const tightenAtom: Atom = {
@@ -72,18 +72,6 @@ function resolveKey(state: PipelineState, key: string, fallback: string): string
   if (raw === undefined) return fallback
   if (typeof raw !== 'string' || raw.trim().length === 0) return undefined
   return raw.trim()
-}
-
-/**
- * 读取阶段参数 `char_budget`。
- * @param state - 阶段执行态。
- * @returns 预算（未声明时 value 为 undefined）或非法标记。
- */
-function readCharBudget(state: PipelineState): BudgetRead {
-  const raw = state.char_budget
-  if (raw === undefined) return { kind: 'ok' }
-  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw <= 0) return { kind: 'invalid' }
-  return { kind: 'ok', value: raw }
 }
 
 /**

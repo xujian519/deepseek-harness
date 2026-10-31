@@ -28,15 +28,13 @@ import {
 } from '@deepseek-ai/dsh-patent-core'
 import { analyzeSlop, SLOP_PASS_LINE } from '../internal/slop-engine.ts'
 import { buildSlopRevisionHint } from '../internal/retry-hints.ts'
+import { readCharBudget } from '../internal/stage-params.ts'
 
 /** 反套话评分门通过线（单一来源为 slop 引擎的 SLOP_PASS_LINE；改判定须改 engine）。 */
 export const SLOP_GATE_PASS_THRESHOLD = SLOP_PASS_LINE
 
 /** 缺省受理文本键（撰写链路的权利要求草稿）。 */
 export const DEFAULT_SLOP_TEXT_KEYS: readonly string[] = ['claims_draft']
-
-/** 篇幅预算的读取结果：已声明、未声明或取值非法。 */
-type BudgetRead = { kind: 'ok'; value?: number } | { kind: 'invalid' }
 
 /**
  * 解析阶段参数 `text_keys`。
@@ -56,18 +54,6 @@ function resolveTextKeys(state: PipelineState): string[] | undefined {
     keys.push(item.trim())
   }
   return keys
-}
-
-/**
- * 读取阶段参数 `char_budget`。
- * @param state - 阶段执行态。
- * @returns 预算（未声明时为 undefined）或非法标记。
- */
-function readCharBudget(state: PipelineState): BudgetRead {
-  const raw = state.char_budget
-  if (raw === undefined) return { kind: 'ok' }
-  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw <= 0) return { kind: 'invalid' }
-  return { kind: 'ok', value: raw }
 }
 
 /** slop-gate 原子：对草稿文本做确定性套话检测，未通过时输出「需修订」并附证据提示。 */
