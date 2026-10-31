@@ -53,6 +53,7 @@ export type {
 } from '@deepseek-ai/dsh-patent-core'
 export {
   builtinPatentManifests,
+  OA_RESPONSE_DRAFT_BUDGET,
   patentDisclosureManifest,
   patentInfringementManifest,
   patentInventivenessManifest,

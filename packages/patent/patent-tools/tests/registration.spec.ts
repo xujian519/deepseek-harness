@@ -48,7 +48,7 @@ const EXPECTED_TOOLS = [
 
 /**
  * Atoms a complete composition registers: patent-core's 24 built-ins plus
- * `slop-gate`, `draft-specification`, `spec-check`, `response-check`,
+ * `slop-gate`, `tighten`, `draft-specification`, `spec-check`, `response-check`,
  * `eligibility`, and `legal-gaps` (registered by this package, not by
  * registerBuiltinAtoms).
  */
@@ -87,6 +87,7 @@ const REGISTERED_ATOMS = [
   'search',
   'slop-gate',
   'spec-check',
+  'tighten',
   'time-baseline',
 ]
 

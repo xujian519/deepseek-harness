@@ -143,6 +143,15 @@ export interface TemplateBlocksSlot {
   required?: boolean
   /** 槽位类别：`blocks`（默认）。 */
   kind?: 'blocks'
+  /**
+   * 可见字符上限；缺省不限。
+   *
+   * 计数口径：段落 `text` 与列表 `items` 去掉全部空白后按码点计数的合计
+   * （表格块不在正文槽位，不计入）。超限在校验阶段失败，而不是渲染成成品。
+   */
+  maxChars?: number
+  /** 列表项上限：槽位内各 list 块的 `items` 项数之和；缺省不限。 */
+  maxItems?: number
 }
 
 /** 表格数据行槽位：草案值为等宽字符串数组，列宽由模板的行模板决定。 */
@@ -153,6 +162,8 @@ export interface TemplateRowsSlot {
   kind: 'rows'
   /** 每行宽度必须等于 columns。 */
   columns: number
+  /** 数据行上限（不含表头行）；缺省不限。超限在校验阶段失败。 */
+  maxRows?: number
 }
 
 /** 按法条组织的理由节槽位：草案值为 {@link DraftGroundItem} 序列，节标题与四段式小标题由渲染器生成。 */

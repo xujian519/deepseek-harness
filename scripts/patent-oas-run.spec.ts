@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
+import { OA_RESPONSE_DRAFT_BUDGET, builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 import { MATTER_LOG_FILE, renderMatterEntry } from '@deepseek-ai/dsh-patent-tools'
 import {
   GATE_FILE,
@@ -278,6 +278,7 @@ describe('提示词契约', () => {
     expect(prompt).not.toContain(other.label)
     expect(prompt).not.toContain(other.body)
   })
+
 })
 
 describe('分数解析', () => {
@@ -619,6 +620,38 @@ describe('多轮编排', () => {
     )).toBe('第 1 轮答复')
   })
 
+  it('篇幅观测随记录落盘:有预算的任务记超出量,无预算的任务只记字数', async () => {
+    const { record } = await collect({ deliverableFor: () => '第一段。\n\n第二段。' })
+    const oaAnswer = record.cases.find(entry => entry.caseId === 'oa-answer')
+    const claimDrafting = record.cases.find(entry => entry.caseId === 'claim-drafting')
+    const observationOf = (caseId: string): unknown => {
+      const runCase = record.cases.find(entry => entry.caseId === caseId)
+      return runCase?.rounds?.at(-1)?.concision?.[0] ?? runCase?.concision?.[0]
+    }
+    // 「第一段。」4 + 「第二段。」4 = 8 字,两段;预算按 manifest 的答复正文预算记。
+    expect(observationOf('oa-answer')).toEqual({
+      proseChars: 8,
+      budget: OA_RESPONSE_DRAFT_BUDGET.total,
+      overBudget: 0,
+      paragraphs: 2,
+      sections: 0,
+      emptySections: 0,
+      repeatedSentences: 0,
+    })
+    expect(oaAnswer?.rounds?.at(-1)?.concision).toHaveLength(1)
+    // 撰写任务没有篇幅预算:计量照记,但不写 budget / overBudget——编一个预算会让
+    // 「超预算」变成与任务无关的常数。
+    expect(observationOf('claim-drafting')).toEqual({
+      proseChars: 8,
+      paragraphs: 2,
+      sections: 0,
+      emptySections: 0,
+      repeatedSentences: 0,
+    })
+    expect(claimDrafting).toBeDefined()
+    expect(validateRunRecord(record, space, gold, 'collected')).toEqual([])
+  })
+
   it('多轮记录保留逐轮逐次分数', async () => {
     const { record } = await collect({
       runsPerCase: 2,
@@ -749,9 +782,12 @@ describe('工作流设置编排', () => {
     expect(workflow?.deliverableStage).toBe('draft')
     expect(workflow?.approvalStages).toEqual(['approval'])
     expect(plan.execution).toBe('workflow')
+    // 从 manifest 推出期望值:阶段数由 manifest 决定,写死字面量只会每加一个阶段就红一次,
+    // 却看不出「计划有没有按轮次乘对」这件真正要测的事。
+    const stageRuns = manifest.stages.length * 2
     expect(plan.calls).toBe(14)
-    expect(plan.stageRuns).toBe(26)
-    expect(formatRunPlan(plan, 'headless')).toContain('每轮 13 阶段,合计 26 次阶段执行')
+    expect(plan.stageRuns).toBe(stageRuns)
+    expect(formatRunPlan(plan, 'headless')).toContain(`每轮 ${manifest.stages.length} 阶段,合计 ${stageRuns} 次阶段执行`)
   })
 
   it('没有声明 manifest 的 case 在工作流设置下被拒', () => {
@@ -920,11 +956,14 @@ describe('真实子进程接缝', () => {
     const dir = scratch('timeout')
     const hang = join(dir, 'hang.mjs')
     writeFileSync(hang, 'setInterval(() => process.stdout.write("x".repeat(1024)), 1)\n', 'utf8')
+    // 超时值取 2000ms 而不是 300ms:本机 `node --import tsx/esm` 冷启动约 220ms,300ms 的余量
+    // 在并行跑测试时会被吃掉,子进程还没吐第一行就被杀,日志自然为空——那是启动竞态,不是超时行为。
+    // 用例要验的是「挂住的子进程被终止且日志已落盘」,子进程永不退出,超时值取多大都会触发。
     await expect(spawnAgentProcess({
       invocation: { cwd: dir, prompt: 'ignored', label: 'hang 调用' },
       launcher: { binPath: hang, tsxImport: import.meta.resolve('tsx/esm'), profile: 'headless' },
-      timeoutMs: 300,
-    })).rejects.toThrow('超过 300ms 未结束')
+      timeoutMs: 2000,
+    })).rejects.toThrow('超过 2000ms 未结束')
     expect(readFileSync(join(dir, AGENT_LOG_FILENAME), 'utf8').length).toBeGreaterThan(0)
   })
 

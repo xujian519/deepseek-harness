@@ -14,9 +14,10 @@ import { DocumentRenderError } from './errors.ts'
 import { findMatchingCloseTag } from './htmlScan.ts'
 import { applyParagraphNumbering } from './paragraphNumbering.ts'
 import { DEFAULT_PDF_TIMEOUT_MS, renderPdf } from './pdfRenderer.ts'
+import { foldEmptyOptionalSections, renumberSections } from './sectionFold.ts'
 import { isInternalRecordTemplate, readTemplateHtml } from './templateResolver.ts'
 import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './types.ts'
-import { isFormTemplateId } from './draftSchema/index.ts'
+import { isFormTemplateId, isGenericTemplateId } from './draftSchema/index.ts'
 import { groundsSectionStyles } from './draftSchema/generic.ts'
 import { injectTemplateDraft, renderGenericTemplateSections, renderSpecDraftSections } from './draftConverter/index.ts'
 
@@ -202,6 +203,28 @@ function resolveDraft(html: string, input: DocumentRenderInput): { html: string;
 }
 
 /**
+ * 折叠「槽位无内容」的可选块，并在确实折叠过时重编章节序号。
+ *
+ * 只有通用文档模板路径生效：表单模板按 data-slot 注入、claims-spec 由转换器重建结构，
+ * 两者的章节由注册表决定，不存在「模板写了、草案没给」的空节。告警随渲染结果返回，
+ * 让人工知道成品比模板少哪几节——少节是可感知的改动，不能悄悄发生。
+ * @param html - 草案注入后的 HTML。
+ * @param input - 渲染输入。
+ * @param warnings - 渲染告警收集数组。
+ * @returns 折叠（必要时重编号）后的 HTML。
+ */
+function foldDraftSections(html: string, input: DocumentRenderInput, warnings: string[]): string {
+  if (input.templateDraft === undefined || !isGenericTemplateId(input.template)) return html
+  const present = new Set(input.templateDraft.sections.map(section => section.id))
+  const folded = foldEmptyOptionalSections(html, present)
+  for (const block of folded.folded) {
+    warnings.push(`已折叠空节：${block.title}（槽位 ${block.id} 无内容）`)
+  }
+  // 没折叠过就不重编号：其他模板的既有编号一个字符都不动。
+  return folded.folded.length === 0 ? folded.html : renumberSections(folded.html)
+}
+
+/**
  * 渲染并落盘专利文书（HTML，可选 PDF）。
  * @param input - 渲染输入。
  * @param cwd - 相对路径基准目录。
@@ -236,6 +259,7 @@ export async function renderPatentDocument(
   if (drafted.skippedIds.length > 0) {
     warnings.push(`以下 section id 未命中模板，内容已忽略: ${drafted.skippedIds.join(', ')}`)
   }
+  html = foldDraftSections(html, input, warnings)
   // 段落编号由模板通过 data-paragraph-numbering 声明；引擎把编号写成字面文本，
   // 使 PDF 与下游 HTML→docx 转制读到同一串字符。
   html = applyParagraphNumbering(html).html

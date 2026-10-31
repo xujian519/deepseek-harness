@@ -178,11 +178,13 @@ describe('checkDocumentCompliance · 证据编号与清单相互覆盖', () => {
     ])
   })
 
-  it('数据行没有编号单元格时按未填写报告', () => {
+  it('数据行没有编号单元格时按未填写报告，同时按空表报告', () => {
     const html = '<h2>一、总体立场</h2><section aria-label="证据清单"><table>'
       + '<tbody id="evidence-table"><tr></tr></tbody></table></section>'
-    expect(checkDocumentCompliance(html).map(issue => issue.message))
-      .toEqual(['证据清单第 1 行未填编号：正文无法引用该条证据，登记编号后正文与清单共用同一写法'])
+    expect(checkDocumentCompliance(html).map(issue => issue.message)).toEqual([
+      '证据清单第 1 行未填编号：正文无法引用该条证据，登记编号后正文与清单共用同一写法',
+      '表 2 证据与对比文件清单只有表头没有数据行：无内容时整表删除，有内容时至少填一行',
+    ])
   })
 
   it('区间写法按逐个编号展开', () => {
@@ -255,5 +257,128 @@ describe('checkDocumentCompliance · 证据编号与清单相互覆盖', () => {
     expect(checkDocumentCompliance(
       '<h2>一、总体立场</h2><p>D9 公开。</p><tbody id="evidence-table"><tr><td>D1</td></tr></tbody>',
     )).toEqual([])
+  })
+})
+
+/**
+ * 生成「本次修改」章节：表 1 的权项行 + 可选的修改后全文块。
+ * @param labels - 表 1 首列的权项写法，按行序。
+ * @param fullText - 修改后全文块的内部 HTML；省略时不渲染全文块。
+ * @returns 含该章节的文书 HTML。
+ */
+function amendmentDoc(labels: readonly string[], fullText?: string): string {
+  const cells = labels
+    .map(label => `<tr><td>${label}</td><td>修改前</td><td>修改后</td><td>依据</td></tr>`)
+    .join('')
+  const table = '<table><caption>表 1 · 权利要求修改对照</caption>'
+    + '<thead><tr><th>权利要求</th><th>修改前</th><th>修改后</th><th>依据</th></tr></thead>'
+    + `<tbody id="amendment-table">${cells}</tbody></table>`
+  const claim = fullText === undefined ? '' : `<div class="claim-text">${fullText}</div>`
+  return `<h2>一、总体立场</h2><section aria-label="本次修改">${table}${claim}</section>`
+}
+
+describe('checkDocumentCompliance · 修改对照表与修改后独权全文互相对应（D-1 双份）', () => {
+  it('放行对照表与全文互相对应的文书', () => {
+    const html = amendmentDoc(['权1'], '<strong>权利要求 1：</strong>一种装置，包括……。')
+    expect(checkDocumentCompliance(html)).toEqual([])
+  })
+
+  it('表 1 登记了修改却没有全文时报出', () => {
+    const issues = checkDocumentCompliance(amendmentDoc(['权1', '权3']))
+    expect(issues.map(issue => issue.rule)).toEqual(['amendment-cross-reference'])
+    expect(issues[0]?.message).toContain('表 1 登记了 2 项修改')
+    expect(issues[0]?.message).toContain('没有「修改后的独立权利要求」全文')
+  })
+
+  it('全文写的权项在表 1 没有登记时报出', () => {
+    const issues = checkDocumentCompliance(amendmentDoc(['权1'], '<strong>权利要求 2：</strong>一种装置。'))
+    expect(issues.map(issue => issue.rule)).toEqual(['amendment-cross-reference'])
+    expect(issues[0]?.message).toContain('权利要求 2，表 1 没有登记')
+  })
+
+  it('从属权项的修改只出现在对照表里不报（§6 只要求独立权利要求全文）', () => {
+    const html = amendmentDoc(['权1', '权2', '权3'], '<strong>权利要求 1：</strong>一种装置。')
+    expect(checkDocumentCompliance(html)).toEqual([])
+  })
+
+  it('首列写法不是权项号时不参与核对', () => {
+    expect(checkDocumentCompliance(amendmentDoc(['权利要求书全部'], '权利要求 3：一种装置。'))).toEqual([])
+    expect(checkDocumentCompliance(amendmentDoc(['全文替换'], '权利要求 3：一种装置。'))).toEqual([])
+  })
+
+  it('全文没有权项号时不报', () => {
+    expect(checkDocumentCompliance(amendmentDoc(['权1'], '一种装置，其特征在于……'))).toEqual([])
+  })
+
+  it('章节里没有表或没有「本次修改」章节时都不报', () => {
+    expect(checkDocumentCompliance(
+      '<h2>一、总体立场</h2><section aria-label="本次修改"><div class="claim-text">权利要求 1：一种装置。</div></section>',
+    )).toEqual([])
+    expect(checkDocumentCompliance(
+      '<h2>一、总体立场</h2><section aria-label="权利要求解释"><div class="claim-text">权利要求 2：一种装置。</div></section>',
+    )).toEqual([])
+  })
+
+  it('表格或全文块未闭合时无从取权项号，不报', () => {
+    const html = '<h2>一、总体立场</h2><section aria-label="本次修改">'
+      + '<table><tbody><tr><td>权1</td>'
+      + '<div class="claim-text">权利要求 1：一种装置。'
+    expect(checkDocumentCompliance(html)).toEqual([])
+  })
+
+  it('章节未闭合时按到文末处理，仍报缺全文', () => {
+    const html = '<h2>一、总体立场</h2><section aria-label="本次修改">'
+      + '<table><tbody id="amendment-table"><tr><td>权1</td><td>修改后</td></tr></tbody></table>'
+    const issues = checkDocumentCompliance(html)
+    expect(issues.map(issue => issue.rule)).toEqual(['amendment-cross-reference'])
+  })
+})
+
+describe('checkDocumentCompliance · 三张表不留空表头', () => {
+  /** 生成一张带表头与给定数据体的表（不含章节标题，便于一次拼多张）。 */
+  function tableDoc(id: string, body: string): string {
+    return '<table><thead><tr><th>列</th></tr></thead>'
+      + `<tbody id="${id}">${body}</tbody></table>`
+  }
+
+  /** 把表放进唯一一个章节标题下，避免重复章节编号干扰断言。 */
+  function page(body: string): string {
+    return `<h2>一、总体立场</h2>${body}`
+  }
+
+  it('只有表头没有数据行时报出', () => {
+    const issues = checkDocumentCompliance(page(tableDoc('citation-table', '')))
+    expect(issues.map(issue => issue.rule)).toEqual(['empty-table'])
+    expect(issues[0]?.message).toContain('表 3 关键断言溯源只有表头没有数据行')
+  })
+
+  it('数据行整行是模板占位符时报出', () => {
+    const issues = checkDocumentCompliance(page(tableDoc('amendment-table', '<tr><td>________</td><td>____</td></tr>')))
+    expect(issues.map(issue => issue.rule)).toEqual(['empty-table'])
+    expect(issues[0]?.message).toContain('表 1 权利要求修改对照的数据行全是模板占位符')
+  })
+
+  it('有一行填了内容就放行，占位行不影响', () => {
+    const body = '<tr><td>权1</td><td>修改后</td></tr><tr><td>________</td><td>________</td></tr>'
+    expect(checkDocumentCompliance(page(tableDoc('amendment-table', body)))).toEqual([])
+  })
+
+  it('没有任何单元格的数据行按没有数据行报出', () => {
+    const issues = checkDocumentCompliance(page(tableDoc('amendment-table', '<tr></tr><tr></tr>')))
+    expect(issues.map(issue => issue.rule)).toEqual(['empty-table'])
+    expect(issues[0]?.message).toContain('表 1 权利要求修改对照只有表头没有数据行')
+  })
+
+  it('不在这三张表之列的表格不查', () => {
+    expect(checkDocumentCompliance(page(tableDoc('other-table', '')))).toEqual([])
+    expect(checkDocumentCompliance(page(tableDoc('claim-outlook-table', '<tr></tr>')))).toEqual([])
+  })
+
+  it('三张表各自报一条，不合并成一条', () => {
+    const html = page(
+      tableDoc('amendment-table', '') + tableDoc('evidence-table', '') + tableDoc('citation-table', ''),
+    )
+    expect(checkDocumentCompliance(html).map(issue => issue.rule))
+      .toEqual(['empty-table', 'empty-table', 'empty-table'])
   })
 })

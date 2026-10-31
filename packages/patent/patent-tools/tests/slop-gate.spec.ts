@@ -49,6 +49,64 @@ const SLOP_FAIL_WITHOUT_EVIDENCE = [
   '第三段描述方案 C。',
 ].join('\n')
 
+/** 合规的意见陈述书正文（八节骨架、每条论证都带证据锚点）。 */
+const COMPLIANT_RESPONSE = [
+  '# 意见陈述书',
+  '',
+  '**申请号：** CN2026XXXXXXXX.X',
+  '**发明名称：** 一种智能保温杯',
+  '',
+  '> 说明：本稿引用的对比文件为审查意见明确引用的 D1。',
+  '',
+  '## 一、总体立场',
+  '审查意见对权利要求 1 的创造性异议不能成立。',
+  '',
+  '修改后的权利要求 1 补入了水温联动特征，请求在此基础上继续审查。',
+  '',
+  '## 二、本次修改',
+  '修改对照见表 1。',
+  '',
+  '修改依据为原说明书第 [0031] 段。',
+  '',
+  '## 三、本案事实',
+  'F1：权利要求 1 记载「加热单元根据水温自动启停」（见 3.1 节）。',
+  '',
+  'P1：审查意见仅认定 D1 公开了加热单元本身，未认定联动控制被公开。',
+  '',
+  '## 四、适用规则',
+  'R1：专利法第22条第3款。',
+  '',
+  'R2：创造性判断的三步法。',
+  '',
+  '## 五、意见陈述',
+  '### 5.1 新颖性',
+  'D1 ¶0123 未公开 F2 所载的联动控制，权利要求 1 具备新颖性。',
+  '',
+  '### 5.2 创造性',
+  '区别特征 F2 的实际作用是按需补热，D1 与 D2 均未给出结合启示（见 3.1 节）。',
+  '',
+  'D2 ¶0045 仅公开定时加热，未涉及按水温启停。',
+  '',
+  '## 六、证据与引用',
+  '| 编号 | 文献 | 用途 |',
+  '',
+  '## 七、结论与请求',
+  '请求在修改文本的基础上继续审查。',
+].join('\n')
+
+/** 套话版意见陈述书：命中 oa_formula 与无锚点的区别特征陈述。 */
+const SLOP_RESPONSE = [
+  '# 意见陈述书',
+  '',
+  '## 一、总体立场',
+  '申请人恳请审查员重新考虑审查意见，本次答复理由是充分的。',
+  '',
+  '## 五、意见陈述',
+  '进一步地，此外，值得一提的是，审查员认定有误，本申请具有显著进步。',
+  '',
+  '区别特征在于采用了新型结构。',
+].join('\n')
+
 describe('SlopGateHandler', () => {
   it('passes a clean draft and emits no revision hint', async () => {
     const analysis = analyzeSlop(CLEAN_DRAFT)
@@ -82,6 +140,48 @@ describe('SlopGateHandler', () => {
     expect(String(missing._error)).toMatch(/输入为空/)
     const blank = await handler.execute({ state: { claims_draft: '   ' } })
     expect(String(blank._error)).toMatch(/输入为空/)
+  })
+
+  it('reads the text named by text_keys so the same gate serves the response body', async () => {
+    const out = await handler.execute({
+      state: { text_keys: ['draft'], draft: COMPLIANT_RESPONSE, char_budget: 4000 },
+    })
+    expect(out.slop_report).toMatch(/通过/)
+    expect(out.slop_score).toBe(analyzeSlop(COMPLIANT_RESPONSE, { charBudget: 4000 }).score.total)
+    expect(out.slop_revision_hint).toBeUndefined()
+  })
+
+  it('flags a formulaic response and passes the evidence hint to the rewind', async () => {
+    const out = await handler.execute({
+      state: { text_keys: ['draft'], draft: SLOP_RESPONSE, char_budget: 4000 },
+    })
+    expect(out.slop_report).toMatch(/需修订/)
+    expect(typeof out.slop_revision_hint).toBe('string')
+    expect(String(out.slop_revision_hint)).toMatch(/审查员认定有误|重新考虑/)
+  })
+
+  it('falls through to the declared keys in order and joins the non-empty ones', async () => {
+    const both = await handler.execute({
+      state: { text_keys: ['draft', 'claims_draft'], draft: '', claims_draft: CLEAN_DRAFT },
+    })
+    expect(both.slop_report).toMatch(/通过/)
+    // 空串键被跳过：只有 claims_draft 参与判定，等价于撰写链路的默认路径。
+    expect(both.slop_score).toBe(analyzeSlop(CLEAN_DRAFT).score.total)
+  })
+
+  it('degrades on invalid text_keys or char_budget instead of guessing', async () => {
+    for (const state of [
+      { claims_draft: CLEAN_DRAFT, text_keys: [] },
+      { claims_draft: CLEAN_DRAFT, text_keys: ['  '] },
+      { claims_draft: CLEAN_DRAFT, text_keys: 'claims_draft' },
+    ]) {
+      const out = await handler.execute({ state })
+      expect(String(out._error)).toMatch(/text_keys 必须是非空字符串数组/)
+    }
+    for (const charBudget of [0, -1, 1.5, '4000']) {
+      const out = await handler.execute({ state: { claims_draft: CLEAN_DRAFT, char_budget: charBudget } })
+      expect(String(out._error)).toMatch(/char_budget 必须是正整数/)
+    }
   })
 })
 

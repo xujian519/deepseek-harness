@@ -34,6 +34,7 @@ export const adversaryReviewAtom: Atom = {
   usesModel: false,
   logInputScope: true,
   inputSchema: [
+    'draft_tightened',
     'draft',
     'reference_documents',
     'claims',
@@ -66,14 +67,17 @@ function readClaimsText(state: PipelineState): string {
 }
 
 /**
- * 读取最终意见陈述书。`draft` 是 manifest 中 draft 阶段的输出键；
- * `final_draft` 保留给按旧键写入的调用方。
+ * 读取最终意见陈述书。优先 `draft_tightened`（删减阶段的产出），其次 `draft`
+ * （manifest 中 draft 阶段的输出键），最后 `final_draft`（按旧键写入的调用方）。
  * @param state - 状态容器。
  * @returns 最终意见陈述书文本。
  */
 function readFinalDraft(state: PipelineState): string {
-  const draft = getStateString(state, 'draft')
-  return draft.trim().length > 0 ? draft : getStateString(state, 'final_draft')
+  for (const key of ['draft_tightened', 'draft', 'final_draft']) {
+    const value = getStateString(state, key)
+    if (value.trim().length > 0) return value
+  }
+  return ''
 }
 
 /**

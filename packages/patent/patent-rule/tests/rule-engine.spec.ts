@@ -533,3 +533,165 @@ describe('RuleEngine domain filter', () => {
     expect(ids([])).toEqual(['D-NOV', 'D-INF', 'D-UNI'])
   })
 })
+
+describe('RuleEngine 空节（empty_section）', () => {
+  const empty = ruleSet([
+    { id: 'T-EMP-001', name: '空节', severity: 'minor', action: 'warn', check: { type: 'empty_section' } },
+  ])
+
+  it('Markdown 标题后直接跟下一个标题 → 命中，证据是可读标题', () => {
+    const text = '## 一、总体立场\n请求驳回。\n\n## 六、其他缺陷的处理\n\n## 七、证据与引用\n见附件。'
+    const result = evaluateText(text, empty)
+    expect(result.violations.length).toBe(1)
+    expect(result.violations[0]?.evidence).toEqual(['六、其他缺陷的处理'])
+    expect(result.violations[0]?.line).toBe(4)
+  })
+
+  it('标题后只有占位语「无」也算空节', () => {
+    expect(evaluateText('## 六、其他缺陷的处理\n（无）\n', empty).violations.length).toBe(1)
+  })
+
+  it('标题后是列表项或表格 → 不算空节', () => {
+    expect(evaluateText('## 三、本案事实\n- F1 权利要求限定阀体。\n', empty).violations.length).toBe(0)
+    expect(evaluateText('## 七、证据与引用\n| 编号 | 文献 |\n|---|---|\n| D1 | CN101234567A |\n', empty).violations.length).toBe(0)
+  })
+
+  it('HTML 标题同样识别（渲染成品走这条路径）', () => {
+    const text = '<h2>六、其他缺陷的处理</h2>\n<h2>七、证据与引用</h2>\n<p>见附件。</p>'
+    const result = evaluateText(text, empty)
+    expect(result.violations.length).toBe(1)
+    expect(result.violations[0]?.evidence).toEqual(['六、其他缺陷的处理'])
+  })
+
+  it('文末最后一个标题没有正文也算空节', () => {
+    expect(evaluateText('## 一、总体立场\n请求驳回。\n\n## 八、结论与请求\n', empty).violations.length).toBe(1)
+  })
+
+  it('默认不把文档总标题当作小节，minLevel 1 时才计入', () => {
+    const level1 = ruleSet([
+      { id: 'T-EMP-002', name: 'x', severity: 'minor', action: 'warn', check: { type: 'empty_section', minLevel: 1 } },
+    ])
+    // 总标题后面紧跟 h2 子节属正常层级，两级下限都不报空。
+    const withChild = '# 意见陈述书\n\n## 一、总体立场\n请求驳回。'
+    expect(evaluateText(withChild, empty).violations.length).toBe(0)
+    expect(evaluateText(withChild, level1).violations.length).toBe(0)
+    // 同级相邻、自身无正文的总标题才是空节，且只有放开到第 1 级才看得见。
+    const emptyTitle = '# 意见陈述书\n\n# 附件\n见附件清单。'
+    expect(evaluateText(emptyTitle, empty).violations.length).toBe(0)
+    expect(evaluateText(emptyTitle, level1).violations[0]?.evidence).toEqual(['意见陈述书'])
+  })
+
+  it('只有图标或只有井号、没有标题文字的空标题不成节', () => {
+    expect(evaluateText('<h2><span class="icon"></span></h2>\n<p>正文。</p>', empty).violations.length).toBe(0)
+    expect(evaluateText('##   \n正文。\n', empty).violations.length).toBe(0)
+  })
+
+  it('只有分隔线的小节算空节（分隔线不是正文）', () => {
+    expect(evaluateText('## 六、其他缺陷的处理\n\n---\n\n## 七、证据与引用\n见附件。\n', empty).violations.length)
+      .toBe(1)
+  })
+
+  it('围栏代码块里的 # 不是标题', () => {
+    const text = '## 一、总体立场\n```\n# 注释行\n```\n请求驳回。'
+    expect(evaluateText(text, empty).violations.length).toBe(0)
+  })
+
+  it('自定义 placeholders 替换默认表：默认算空节的写法不再命中', () => {
+    expect(evaluateText('## 六、其他缺陷的处理\n无\n', empty).violations.length).toBe(1)
+    const custom = ruleSet([
+      { id: 'T-EMP-003', name: 'x', severity: 'minor', action: 'warn', check: { type: 'empty_section', placeholders: ['待补'] } },
+    ])
+    expect(evaluateText('## 六、其他缺陷的处理\n无\n', custom).violations.length).toBe(0)
+    expect(evaluateText('## 六、其他缺陷的处理\n待补\n', custom).violations.length).toBe(1)
+  })
+
+  it('标题行尾的收尾 # 不进入证据', () => {
+    expect(evaluateText('## 六、其他缺陷的处理 ##\n\n## 七、证据与引用\n见附件。', empty).violations[0]?.evidence)
+      .toEqual(['六、其他缺陷的处理'])
+  })
+
+  it('没有标题的段落式文本不评估空节', () => {
+    expect(evaluateText('请求驳回审查意见。', empty).violations.length).toBe(0)
+  })
+
+  it('只有子标题的父节不算空节（正文全在子节里）', () => {
+    const text = '## 三、本案事实\n\n### 3.1 申请文件记载的事实\n- F1 杯体为双层真空结构。\n'
+    expect(evaluateText(text, empty).violations.length).toBe(0)
+    // 负控制：子节自己也空时仍要命中。
+    const both = '## 三、本案事实\n\n### 3.1 申请文件记载的事实\n'
+    expect(evaluateText(both, empty).violations).toHaveLength(1)
+    expect(evaluateText(both, empty).violations[0]?.evidence).toEqual(['3.1 申请文件记载的事实'])
+  })
+
+  it('占位语带句末标点仍算空节', () => {
+    expect(evaluateText('## 六、其他缺陷的处理\n无。\n', empty).violations.length).toBe(1)
+    expect(evaluateText('## 六、其他缺陷的处理\n（无）。\n', empty).violations.length).toBe(1)
+  })
+
+  it('占位语后还有说明 → 不是空节（逐字相等才算）', () => {
+    expect(evaluateText('## 六、其他缺陷的处理\n无。理由：本次审查意见未指出形式缺陷。\n', empty).violations.length)
+      .toBe(0)
+  })
+})
+
+describe('RuleEngine 句重复（sentence_repetition）', () => {
+  const repeated = ruleSet([
+    { id: 'T-SRP-001', name: '结论重复', severity: 'minor', action: 'warn', check: { type: 'sentence_repetition' } },
+  ])
+  const sentence = '本案权利要求1相对于对比文件1具备创造性'
+
+  it('同一句出现三次即命中，证据保留原句以便定位', () => {
+    const result = evaluateText(`${sentence}。事实见前述。${sentence}。${sentence}。`, repeated)
+    expect(result.violations.length).toBe(1)
+    expect(result.violations[0]?.evidence).toEqual([sentence])
+    expect(result.violations[0]?.message).toBe('同一句重复出现 1 处：一个结论只写一处，其余以「见前述结论」指代')
+  })
+
+  it('出现两次不命中（默认阈值 3）', () => {
+    expect(evaluateText(`${sentence}。${sentence}。`, repeated).violations.length).toBe(0)
+  })
+
+  it('短于 minLength 的句子不参与计数', () => {
+    expect(evaluateText('具备创造性。具备创造性。具备创造性。', repeated).violations.length).toBe(0)
+  })
+
+  it('换行与强调标记不影响归一', () => {
+    const text = `**${sentence}**。${sentence.slice(0, 8)} ${sentence.slice(8)}。\n${sentence}。`
+    expect(evaluateText(text, repeated).violations.length).toBe(1)
+  })
+
+  it('minOccurrences 可配置为 2', () => {
+    const strict = ruleSet([
+      { id: 'T-SRP-002', name: 'x', severity: 'minor', action: 'warn', check: { type: 'sentence_repetition', minOccurrences: 2 } },
+    ])
+    expect(evaluateText(`${sentence}。${sentence}。`, strict).violations.length).toBe(1)
+  })
+
+  it('样式表与表格分隔行不参与计数', () => {
+    // 成品的样式表就是每行一条声明、选择器与声明分行——不剔除时每行都成了「同一句」。
+    const html = [
+      '<style>',
+      '.a {',
+      '  color: var(--doc-body);',
+      '}',
+      '.b {',
+      '  color: var(--doc-body);',
+      '}',
+      '.c {',
+      '  color: var(--doc-body);',
+      '}',
+      '</style>',
+      '<p>请求驳回。</p>',
+    ].join('\n')
+    expect(evaluateText(html, repeated).violations.length).toBe(0)
+    // 分隔行要长过 minLength，否则「没命中」只是因为太短，证明不了剔除生效。
+    const sep = '|---|---|---|---|'
+    const table = `| 编号 | 文献 | 日期 | 页 |\n${sep}\n${sep}\n${sep}\n${sep}\n| D1 | CN101234567A | 2020 | 3 |\n`
+    expect(evaluateText(table, repeated).violations.length).toBe(0)
+  })
+
+  it('剔除样式表后仍能命中正文里的重复句', () => {
+    const html = `<style>.a{color:red}</style>\n<p>${sentence}。</p>\n<p>${sentence}。</p>\n<p>${sentence}。</p>`
+    expect(evaluateText(html, repeated).violations.length).toBe(1)
+  })
+})

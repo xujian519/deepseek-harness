@@ -29,6 +29,7 @@ import {
   type WorkflowRunJobRegistry,
 } from '../src/tool/patent-workflow-run.ts'
 import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
+import { tightenAtom, TightenHandler } from '../src/atoms/tighten.ts'
 import { draftSpecificationAtom, DraftSpecificationHandler } from '../src/atoms/draft-specification.ts'
 import { figureAnalysisAtom, FigureAnalysisHandler } from '../src/atoms/figure-analysis.ts'
 import { specCheckAtom, SpecCheckHandler } from '../src/atoms/spec-check.ts'
@@ -38,10 +39,12 @@ import { legalGapsAtom, LegalGapsHandler } from '../src/atoms/legal-gaps.ts'
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 
 registerBuiltinAtoms()
-// slop-gate、spec-check、response-check、eligibility 与 legal-gaps 依赖本包实现，真实注册在 apply()；
+// slop-gate、tighten、spec-check、response-check、eligibility 与 legal-gaps 依赖本包实现，真实注册在 apply()；
 // 测试直接走包内实现，保证 manifest 校验与实际运行路径一致。
 globalAtomRegistry.register(slopGateAtom)
 globalStageHandlerRegistry.register(new SlopGateHandler())
+globalAtomRegistry.register(tightenAtom)
+globalStageHandlerRegistry.register(new TightenHandler())
 globalAtomRegistry.register(draftSpecificationAtom)
 globalStageHandlerRegistry.register(new DraftSpecificationHandler())
 globalAtomRegistry.register(figureAnalysisAtom)
@@ -1623,6 +1626,98 @@ describe('specification inputs', () => {
     await expect(
       tool.execute({ manifestId: 'patent_disclosure_v1', input: 'x', abstractFigureNumber: 0 }, exec),
     ).rejects.toThrow(/abstractFigureNumber/)
+  })
+})
+
+describe('patent_oa_response_v1 的反套话门（真实原子装配）', () => {
+  /** 套话答复：两句话、零证据锚点，正是门要拦的形状。 */
+  const BOILERPLATE_DRAFT = [
+    '申请人恳请审查员重新考虑本申请的创造性。',
+    '',
+    '综上所述，本申请具备创造性。',
+  ].join('\n')
+
+  /** 合规答复：点明争点、带对比文件段落与事实编号。 */
+  const COMPLIANT_DRAFT = [
+    '## 一、总体立场',
+    '',
+    '审查意见对权利要求 1 的创造性异议不能成立。修改后的权利要求 1 已补入温度联动特征，D1 与 D2 均未给出该特征的结合启示，请求在修改文本的基础上继续审查。',
+    '',
+    '## 三、本案事实',
+    '',
+    '- F1：权利要求 1 记载「壳体内设置温控腔」。',
+    '- F2：权利要求 1 记载温度联动特征，见说明书第 3.1 节。',
+    '',
+    '## 四、适用规则',
+    '',
+    '- R1：专利法第 22 条第 3 款，创造性以三步法判断。',
+    '',
+    '## 五、意见陈述',
+    '',
+    'D1 段 [0042] 仅公开壳体与加热腔，未公开温度联动特征 F2。',
+  ].join('\n')
+
+  /**
+   * 按阶段描述分流的最小模型：draft 阶段返回给定正文，tighten 阶段原样交回
+   * （本案样例本来就该删的不多），其余阶段返回 JSON 占位。
+   * @param draft - draft 阶段产出的答复正文。
+   * @param onDraft - 每次 draft 阶段被调用时的回调（用于数回退次数）。
+   * @returns 模型端口替身。
+   */
+  function oaModel(draft: string, onDraft: () => void): PatentModelPort {
+    return {
+      stream: async function* (request) {
+        const prompt = request.messages.map(m => m.content).join('\n')
+        const isDraft = prompt.includes('撰写意见陈述书')
+        const isTighten = prompt.includes('压进篇幅预算')
+        if (isDraft) onDraft()
+        yield {
+          type: 'delta',
+          text: isDraft ? draft : isTighten ? JSON.stringify({ tightened: draft, removed: [] }) : '{}',
+        }
+        yield { type: 'done' }
+      },
+    }
+  }
+
+  /**
+   * 跑一遍 OA 答复链路的 manifest 路径。
+   * @param draft - draft 阶段产出的答复正文。
+   * @returns 阶段结果列表与 draft 阶段被调用的次数。
+   */
+  async function runOa(draft: string): Promise<{ stages: WorkflowStageResult[]; draftCalls: number }> {
+    let draftCalls = 0
+    const tool = createPatentWorkflowRunTool({
+      model: oaModel(draft, () => { draftCalls += 1 }),
+      search: fakeSearch,
+    })
+    const value = (await tool.execute(
+      { manifestId: 'patent_oa_response_v1', input: '审查意见正文', claims: '权利要求 1' },
+      exec,
+    )) as PatentWorkflowRunOutput
+    return { stages: (value.stages ?? []) as WorkflowStageResult[], draftCalls }
+  }
+
+  it('rejects a boilerplate draft, rewinds once, then records the exhausted gate', async () => {
+    const { stages, draftCalls } = await runOa(BOILERPLATE_DRAFT)
+    const gate = stages.find(stage => stage.stageId === 'slop_gate')
+    // 模型两次都给同一段套话：回退一次后信号仍在，门按耗尽处理并保留「需修订」。
+    expect(gate?.output).toContain('需修订')
+    expect(gate?.output).toContain('通过线 35')
+    expect(gate?.degraded).toBe(true)
+    // 回退目标就是 draft：原稿只有一次机会，回退后 draft 被重新调用一次。
+    expect(draftCalls).toBe(2)
+    // 结果里只留重写后的那一稿（回退会 splice 掉旧结果）。
+    expect(stages.filter(stage => stage.stageId === 'draft')).toHaveLength(1)
+  })
+
+  it('passes a compliant response without rewinding the draft', async () => {
+    const { stages, draftCalls } = await runOa(COMPLIANT_DRAFT)
+    const gate = stages.find(stage => stage.stageId === 'slop_gate')
+    expect(gate?.output).toContain('✅ 通过')
+    expect(gate?.degraded).toBe(false)
+    // 通过即不触发回退：draft 只被调用一次。
+    expect(draftCalls).toBe(1)
   })
 })
 

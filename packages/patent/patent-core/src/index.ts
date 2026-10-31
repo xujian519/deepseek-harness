@@ -80,6 +80,7 @@ export { dataBlock } from './prompt-hygiene.ts'
 export type {
   CitationAnalysisCheck,
   ConstitutionalRule,
+  EmptySectionCheck,
   KeywordBlocklistCheck,
   LoadedRuleSet,
   NoticeGroundCoverageCheck,
@@ -95,6 +96,7 @@ export type {
   RuleSetValidationIssue,
   RuleSeverity,
   RuleViolation,
+  SentenceRepetitionCheck,
   StructuralAnalysisCheck,
   StructuralElement,
   SynonymMatchCheck,
@@ -191,6 +193,13 @@ export {
   scanClaimNumbers,
   scanDisputeText,
 } from './atoms/index.ts'
+
+// LLM stage helpers: the provider check / call / JSON-fallback skeleton shared by
+// every model-backed handler. Exported so a downstream package (e.g. patent-tools'
+// `tighten`) can implement a model stage with the same cancel and retry semantics
+// instead of re-deriving them.
+export { callLlm, parseLlmJson, requireLlm } from './atoms/handlers/builtin/llm.ts'
+export type { DegradedOptions, LlmCallResult } from './atoms/handlers/builtin/llm.ts'
 
 // Claim-chart engine (element validation / mapping / gap / pin-cite / store).
 export type * from './claim-chart/index.ts'
@@ -636,6 +645,8 @@ export type {
 // has no dependency on the P3.1 workflow executor. The runWorkflow executor and
 // builtin manifests land in dsh-patent-workflow and re-import these from here.
 export { validateWorkflowManifest } from './workflow/manifest.ts'
+export { parseConsumeRef } from './workflow/consume-ref.ts'
+export type { ConsumeRef } from './workflow/consume-ref.ts'
 export { countWorkflowLlmStages, validateWorkflowBudget } from './workflow/budget.ts'
 export type { WorkflowStageBudget } from './workflow/budget.ts'
 export { compileSignal, digestText, parseRetrySignals, signalMatches } from './workflow/signal.ts'

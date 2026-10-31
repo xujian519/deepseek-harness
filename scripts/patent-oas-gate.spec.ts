@@ -757,6 +757,82 @@ describe('被测面的可比性', () => {
     expect(String(result.stderr)).toContain('未记录被测面(execution),不能落为基线')
   })
 
+  it('篇幅观测只验自洽:超预算字数必须能由字数与预算复算', async () => {
+    const record = recordFrom(gold, () => 90)
+    const rounds = roundsOf(record)
+    const roundNumber = rounds.length
+    const terminal = rounds.at(-1)
+    if (terminal === undefined) throw new Error('fixture: 缺少终局轮')
+    const observation = {
+      proseChars: 4310,
+      budget: 4000,
+      overBudget: 310,
+      paragraphs: 12,
+      sections: 5,
+      emptySections: 0,
+      repeatedSentences: 2,
+    }
+    terminal.concision = [observation]
+    expect(validateRunRecord(record, space, gold, 'run.json')).toEqual([])
+    expect(roundsOf(await loadRunRecord(writeRecord(record))).at(-1)?.concision).toEqual([observation])
+
+    terminal.concision = [{ ...observation, overBudget: 300 }]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n'))
+      .toContain(`第 ${roundNumber} 轮第 1 次运行的篇幅观测的 overBudget 为 300,按字数 4310 与预算 4000 应为 310`)
+
+    terminal.concision = [observation, observation]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n'))
+      .toContain(`第 ${roundNumber} 轮有 2 条篇幅观测,应为 1`)
+
+    terminal.concision = [{ proseChars: 100, budget: 4000, paragraphs: 1, sections: 1, emptySections: 0, repeatedSentences: 0 }]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n'))
+      .toContain('只记了 budget 与 overBudget 之一')
+
+    terminal.concision = [{ ...observation, paragraphs: -1 }]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n'))
+      .toContain('的 paragraphs 必须是非负整数,得到 -1')
+  })
+
+  it('篇幅观测按轮次归属:单轮 case 记在 case 上,多轮 case 不许记在 case 上', () => {
+    const record = recordFrom(gold, () => 90)
+    const single = record.cases.find(entry => entry.caseId === 'claim-drafting')
+    if (single === undefined) throw new Error('fixture: 缺少 claim-drafting')
+    single.concision = [{
+      proseChars: 1200,
+      paragraphs: 4,
+      sections: 2,
+      emptySections: 0,
+      repeatedSentences: 0,
+    }]
+    expect(validateRunRecord(record, space, gold, 'run.json')).toEqual([])
+
+    const multiround = record.cases.find(entry => entry.caseId === 'oa-answer')
+    if (multiround === undefined) throw new Error('fixture: 缺少 oa-answer')
+    multiround.concision = [...single.concision]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n'))
+      .toContain('case "oa-answer" 是多轮 case,篇幅观测记在逐轮观测里,不在 case 上')
+
+    const flat = { paragraphs: 4, sections: 2, emptySections: 0, repeatedSentences: 0 }
+    single.concision = [{ ...flat, proseChars: 1200 }, { ...flat, proseChars: 1300 }]
+    expect(validateRunRecord(record, space, gold, 'run.json').join('\n'))
+      .toContain('case "claim-drafting" 有 2 条篇幅观测,应为 1')
+  })
+
+  it('篇幅观测的结构错误在读侧就拒绝,不留到校验层', async () => {
+    const base = {
+      benchmarkId: 'patent-oas',
+      recordedAt: '2026-10-25T00:00:00.000Z',
+      runsPerCase: 1,
+      cases: [{ caseId: 'oa-answer', dimensions: [], rounds: [{ round: 1, dimensions: [], deliverableDigests: [], concision: 'x' }] }],
+    }
+    await expect(loadRunRecord(writeRawRecord(base))).rejects.toThrow('rounds[0].concision: 必须是数组')
+    const missingField = structuredClone(base)
+    const round = missingField.cases[0]?.rounds[0] as Record<string, unknown> | undefined
+    if (round === undefined) throw new Error('fixture: 缺少逐轮观测')
+    round.concision = [{ proseChars: 100, paragraphs: 1, sections: 1, emptySections: 0 }]
+    await expect(loadRunRecord(writeRawRecord(missingField))).rejects.toThrow('字段 "repeatedSentences" 必须是有限数')
+  })
+
   it('没有在 gate.yaml 声明基线的被测面不能落盘,并给出要追加的条目', () => {
     const promptOnly: GateConfig = { ...config, baselines: [first(config.baselines)] }
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})

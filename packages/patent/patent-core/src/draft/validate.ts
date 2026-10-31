@@ -15,9 +15,11 @@ import {
   type SpecDraft,
   type SpecDraftMeta,
   type SpecPartId,
+  type TemplateBlocksSlot,
   type TemplateChoiceOption,
   type TemplateDraft,
   type TemplateDraftSchema,
+  type TemplateRowsSlot,
 } from './types.ts'
 
 /** 草案校验失败：聚合全部违规，消息面向模型可读。 */
@@ -500,20 +502,101 @@ function validateRows(value: unknown, path: string, columns: number | undefined,
   return valid ? rows : undefined
 }
 
+/** 块序列的计量：只覆盖段落与列表（表格块不在正文槽位，见 {@link validateTemplateBlocks}）。 */
+interface BlockMeasure {
+  /** 可见字符数。 */
+  chars: number
+  /** 列表项数。 */
+  items: number
+}
+
+/**
+ * 可见字符数：去掉全部空白后按码点计数。
+ *
+ * 与篇幅预算的口径一致（模型按字数自控、校验按字数兜底），按码点而非 UTF-16 码元，
+ * 避免一个生僻字被计成两个字。
+ * @param text - 待计数的文本。
+ * @returns 可见字符数。
+ */
+function visibleChars(text: string): number {
+  return Array.from(text.replace(/\s+/gu, '')).length
+}
+
 /**
  * 校验 blocks 章节槽位值；模板草案不支持表格块（表格仅 claims-spec 支持）。
+ *
+ * 同时给出该槽位的计量，供 {@link checkBlocksQuota} 判配额——计量与结构校验同一遍完成，
+ * 避免为算字数再走一遍块数组。
+ * @param value - 槽位值。
+ * @param path - 违规消息中的位置前缀。
+ * @param violations - 违规收集器。
+ * @returns 窄化后的块数组与计量；存在违规返回 undefined。
  */
-function validateTemplateBlocks(value: unknown, path: string, violations: string[]): DraftBlock[] | undefined {
+function validateTemplateBlocks(
+  value: unknown,
+  path: string,
+  violations: string[],
+): (BlockMeasure & { blocks: DraftBlock[] }) | undefined {
   const blocks = validateBlocks(value, path, violations)
   if (blocks === undefined) return undefined
   let valid = true
+  let chars = 0
+  let items = 0
   for (const [index, block] of blocks.entries()) {
     if (block.kind === 'table') {
       violations.push(`${path}[${index}] 表格块仅 claims-spec 支持：表单模板用 rows 数据行槽位`)
       valid = false
+      continue
     }
+    if (block.kind === 'paragraph') {
+      chars += visibleChars(block.text)
+      continue
+    }
+    chars += block.items.reduce((sum, item) => sum + visibleChars(item), 0)
+    items += block.items.length
   }
-  return valid ? blocks : undefined
+  return valid ? { blocks, chars, items } : undefined
+}
+
+/**
+ * 校验正文槽位的字符与条目配额；超限的违规文案带槽位 id、实测值、上限与需删减量。
+ * @param id - 槽位 id。
+ * @param slot - 槽位声明（只读取 `maxChars` / `maxItems`）。
+ * @param measure - 该槽位的计量。
+ * @param violations - 违规收集器。
+ * @returns 是否在配额内。
+ */
+function checkBlocksQuota(id: string, slot: TemplateBlocksSlot, measure: BlockMeasure, violations: string[]): boolean {
+  let within = true
+  if (slot.maxChars !== undefined && measure.chars > slot.maxChars) {
+    violations.push(
+      `sections.${id} 正文 ${measure.chars} 字超出配额（上限 ${slot.maxChars} 字）：请删减 ${measure.chars - slot.maxChars} 字以上`,
+    )
+    within = false
+  }
+  if (slot.maxItems !== undefined && measure.items > slot.maxItems) {
+    violations.push(
+      `sections.${id} 列表 ${measure.items} 项超出配额（上限 ${slot.maxItems} 项）：请合并或删除 ${measure.items - slot.maxItems} 项以上`,
+    )
+    within = false
+  }
+  return within
+}
+
+/**
+ * 校验数据行槽位的行数配额。
+ * @param id - 槽位 id。
+ * @param slot - 槽位声明（只读取 `maxRows`）。
+ * @param rows - 已校验的数据行。
+ * @param violations - 违规收集器。
+ * @returns 是否在配额内。
+ */
+function checkRowsQuota(id: string, slot: TemplateRowsSlot, rows: readonly string[][], violations: string[]): boolean {
+  if (slot.maxRows === undefined || rows.length <= slot.maxRows) return true
+  violations.push(
+    `sections.${id} 数据行 ${rows.length} 行超出配额（上限 ${slot.maxRows} 行）：请合并或删除 ${rows.length - slot.maxRows} 行以上`,
+  )
+  return false
 }
 
 /**
@@ -636,6 +719,7 @@ function validateTemplateSections(
       if (id === undefined || rows === undefined) {
         valid = false
       } else {
+        if (!checkRowsQuota(id, slot, rows, violations)) valid = false
         sections.push({ id, rows })
       }
       return
@@ -650,11 +734,12 @@ function validateTemplateSections(
       valid = false
       return
     }
-    const blocks = validateTemplateBlocks(record.blocks, `sections[${index}].blocks`, violations)
-    if (id === undefined || blocks === undefined) {
+    const measured = validateTemplateBlocks(record.blocks, `sections[${index}].blocks`, violations)
+    if (id === undefined || measured === undefined) {
       valid = false
     } else {
-      sections.push({ id, blocks })
+      if (slot !== undefined && !checkBlocksQuota(id, slot, measured, violations)) valid = false
+      sections.push({ id, blocks: measured.blocks })
     }
   })
   if (schema?.sections !== undefined) {

@@ -26,6 +26,7 @@ import {
   collectPortText,
   dataBlock,
   getStateString,
+  parseConsumeRef,
   type AtomRegistry,
   type PatentModelPort,
   type PipelineState,
@@ -41,6 +42,7 @@ import {
 import { JsonFileWorkflowRunStore, runWorkflow, workflowManifestToMermaid } from '@deepseek-ai/dsh-patent-workflow'
 import { createNuoSearchProvider } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../../error.ts'
+import { projectConsumedOutput } from './consume-projections.ts'
 
 /** Stage-output preview limit for stages the caller's executor produced. */
 const EXECUTOR_OUTPUT_PREVIEW_LIMIT = 80
@@ -64,6 +66,18 @@ const MATERIAL_PROMPT_LIMIT = 12000
 
 /** Header introducing the claims material block in the chain-stage prompt. */
 const CLAIMS_MATERIAL_HEADER = '## 权利要求书（本次调用的 claims 参数）'
+
+/**
+ * Header introducing the previous round's review hint in the chain-stage prompt.
+ *
+ * 反套话门（`slop-gate`）未通过时产出 `slop_revision_hint` 并把控制权回退到本阶段；
+ * 收口阶段若不读该键，回退就只是「用同一段提示再问一遍」，模型看不到上一轮评审
+ * 意见，回路等于空转。键名与该门约定一致，见 `patent-tools/atoms/slop-gate.ts`。
+ */
+const REVISION_HINT_HEADER = '## 上一轮评审意见（须逐条处理，不得忽略）'
+
+/** Prompt cap for the previous round's review hint. */
+const REVISION_HINT_LIMIT = 2000
 
 /**
  * Cap a text block spliced into a prompt and mark the cut. An unmarked cut
@@ -439,6 +453,7 @@ export function createChainStageExecutor(
     /* v8 ignore next -- buildWorkflowRunContext always sets input. */
     const material = ctx.input ?? ''
     const claims = getStateString(state, 'claims')
+    const revisionHint = getStateString(state, 'slop_revision_hint')
     const prompt = [
       '你是资深专利代理师。请完成当前工作流阶段，输出阶段成果文本：',
       stage.description,
@@ -449,6 +464,11 @@ export function createChainStageExecutor(
         ? [CLAIMS_MATERIAL_HEADER, dataBlock(capPromptBlock(claims, MATERIAL_PROMPT_LIMIT))]
         : []),
       ...consumedStageBlocks(stage, state),
+      // 回退重跑时把上一轮评审意见接在材料之后：它是对本阶段产出的具体修订要求，
+      // 不是上游数据，故不进 consumes。
+      ...(revisionHint.trim().length > 0
+        ? [REVISION_HINT_HEADER, dataBlock(capPromptBlock(revisionHint, REVISION_HINT_LIMIT))]
+        : []),
     ].join('\n')
     return await call(prompt, { temperature: 0.3 })
   }
@@ -459,15 +479,21 @@ export function createChainStageExecutor(
  * declaration order and each under its own header. A declared stage that
  * produced nothing renders an explicit marker: dropping it silently would let
  * the stage answer as if the upstream artifact did not exist.
+ *
+ * An entry may name a projection (`'claim-chart#rows'`): the projector decides
+ * what part of that artifact the prompt gets. Unknown projections throw — the
+ * manifest is data, and a typo must not silently restore full-text injection.
  * @param stage - the stage whose declared dependencies are rendered.
  * @param state - the accumulated run state (holds `state[stageId]` outputs).
  * @returns header + data-block line pairs, empty without declared dependencies.
  */
 function consumedStageBlocks(stage: WorkflowStage, state: PipelineState): string[] {
-  return (stage.consumes ?? []).flatMap((stageId) => {
+  return (stage.consumes ?? []).flatMap((entry) => {
+    const { stageId } = parseConsumeRef(entry)
     const text = getStateString(state, stageId)
     if (text.trim().length === 0) return [`## 上游阶段产出: ${stageId}`, '（该阶段无产出）']
-    return [`## 上游阶段产出: ${stageId}`, dataBlock(capPromptBlock(text, CONSUMED_OUTPUT_LIMIT))]
+    const projected = projectConsumedOutput(entry, text, state)
+    return [`## 上游阶段产出: ${stageId}`, dataBlock(capPromptBlock(projected, CONSUMED_OUTPUT_LIMIT))]
   })
 }
 

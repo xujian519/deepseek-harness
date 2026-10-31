@@ -34,6 +34,8 @@ const CHECK_TYPES: readonly RuleCheckType[] = [
   'citation_analysis',
   'synonym_match',
   'quote_repetition',
+  'empty_section',
+  'sentence_repetition',
   'notice_ground_coverage',
   'unraised_statute_citation',
 ]
@@ -388,6 +390,36 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
       }
       if (typeof minOccurrences !== 'number' || !Number.isInteger(minOccurrences) || minOccurrences < 2) {
         issues.push({ ruleId, message: `rule ${ruleId}: quote_repetition 的 minOccurrences 必须是不小于 2 的整数` })
+        return null
+      }
+      return { type, minLength, minOccurrences }
+    }
+    case 'empty_section': {
+      const minLevel = record.minLevel ?? 2
+      if (typeof minLevel !== 'number' || !Number.isInteger(minLevel) || minLevel < 1 || minLevel > 6) {
+        issues.push({ ruleId, message: `rule ${ruleId}: empty_section 的 minLevel 必须是 1-6 的整数` })
+        return null
+      }
+      let placeholders: string[] | undefined
+      if (record.placeholders !== undefined) {
+        const parsed = asStringArray(record.placeholders)
+        if (parsed === null || !hasNonEmptyWord(parsed)) {
+          issues.push({ ruleId, message: `rule ${ruleId}: empty_section 的 placeholders 必须是非空字符串数组` })
+          return null
+        }
+        placeholders = parsed
+      }
+      return { type, minLevel, ...(placeholders === undefined ? {} : { placeholders }) }
+    }
+    case 'sentence_repetition': {
+      const minLength = record.minLength ?? 12
+      const minOccurrences = record.minOccurrences ?? 3
+      if (typeof minLength !== 'number' || !Number.isInteger(minLength) || minLength < 1) {
+        issues.push({ ruleId, message: `rule ${ruleId}: sentence_repetition 的 minLength 必须是正整数` })
+        return null
+      }
+      if (typeof minOccurrences !== 'number' || !Number.isInteger(minOccurrences) || minOccurrences < 2) {
+        issues.push({ ruleId, message: `rule ${ruleId}: sentence_repetition 的 minOccurrences 必须是不小于 2 的整数` })
         return null
       }
       return { type, minLength, minOccurrences }

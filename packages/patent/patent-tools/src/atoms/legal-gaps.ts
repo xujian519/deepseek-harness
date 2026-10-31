@@ -245,6 +245,18 @@ export const LEGAL_GAP_CHECKS: Record<LegalGapProfile, readonly LegalGapCheckpoi
       pendingKey: 'response_check_unevaluated',
     },
     {
+      // 表达质量与合规分列：命中说明该改稿，不说明文书不满足法定要求，故 severity
+      // 记 warn——`legal_gaps_passed` 只在 block 级失败时翻转，篇幅纪律不会拦交付。
+      id: 'response-concision',
+      provision: '答复撰写规范：篇幅与论证密度',
+      label: '答复表达质量（PR-OA-005/006/010/011：计数式论证、重复引证、空节、结论重复）',
+      severity: 'warn',
+      assessKeys: ['response_concision_report'],
+      failureKey: 'response_concision_passed',
+      // 未评估时不给反哺清单：表达质量没跑起来该重跑检查，不是让模型补提事实。
+      revisionTarget: false,
+    },
+    {
       id: 'amendment-basis',
       provision: '专利法第33条',
       label: '修改依据（修改不得超出原说明书和权利要求书记载的范围）',

@@ -27,6 +27,7 @@ describe('adversary-review atom', () => {
     expect(adversaryReviewAtom.category).toBe('gate')
     expect(adversaryReviewAtom.usesModel).toBe(false)
     expect(adversaryReviewAtom.inputSchema).toEqual([
+      'draft_tightened',
       'draft',
       'reference_documents',
       'claims',

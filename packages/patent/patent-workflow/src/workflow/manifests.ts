@@ -469,6 +469,40 @@ export const patentPatentabilityManifest: WorkflowManifest = {
 }
 
 /**
+ * 审查意见答复正文的篇幅预算，供 `patent_oa_response_v1` 的 draft 指引插值。
+ *
+ * 计数口径为去掉空白后的可见字符，不含表格与权利要求全文；该口径由 `patent-tools` 的
+ * `visibleChars` 执行，`slop-gate`、`tighten` 与评测的篇幅观测吃的是同一份实现。
+ *
+ * 数值由 10 份真实答复稿定标（2026-10-31，样本与分布见计划的 P2-07）：散文 P50 = 1918、
+ * P90 = 3938、最大 5955，按「P90 > 4000 上调、P90 ≤ 2500 下调、其余保持」的规则落回
+ * **保持 4000**。这份预算对中位数的稿子约有一倍余量，对复杂案（3000–6000 字）刚好够用；
+ * 若将来要再动，只改这里，指引文字随之更新，不会出现「文案写 4000、校验按 5000」的漂移。
+ *
+ * `packages/patent/patent-document` 的 `OA_RESPONSE_SLOT_QUOTAS` 按本表 × 1.25 另存了一份
+ * 槽位上限（渲染前 fail-closed，只拦明显失控的草案）。两处须手工同步——该包不依赖本包，
+ * 改本表不会连带改那边。
+ */
+export const OA_RESPONSE_DRAFT_BUDGET = {
+  /** 正文总量。 */
+  total: 4000,
+  /** 一、总体立场。 */
+  position: 200,
+  /** 三、本案事实：每小节条目数、每项句数。 */
+  factItems: 5,
+  factSentences: 2,
+  /** 四、适用规则：R 条数。 */
+  ruleItems: 6,
+  /** 五、意见陈述：新颖性、创造性各节字数。 */
+  argumentNovelty: 1200,
+  argumentInventiveness: 1200,
+  /** 五、5.3 其他争点：条数。 */
+  otherIssues: 3,
+  /** 八、结论与请求。 */
+  conclusion: 150,
+} as const
+
+/**
  * 内置：审查意见答复 manifest（OA 答复场景）。
  */
 export const patentOaResponseManifest: WorkflowManifest = {
@@ -508,8 +542,11 @@ export const patentOaResponseManifest: WorkflowManifest = {
     {
       id: 'draft',
       strategy: 'chain',
-      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果、claim-chart、答复计划、对立检验报告与检索关键词）',
-      consumes: ['dispute-framing-refine', 'parse', 'claim-chart', 'response-plan', 'adversary-model', 'generate_keywords'],
+      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析摘要、对照表结论行、答复计划、对立检验报告与检索关键词）',
+      // 结构化上游只取投影：对照表的格式化 JSON 有四千多字，要素原文与结论行才是撰写
+      // 需要的部分，逐行引用与 pin-cite 留在 run 记录里按要素编号回指；解析结果同理，
+      // 取它自己产出的中文摘要。其余四个上游是短文本，全文注入。
+      consumes: ['dispute-framing-refine', 'parse#oa-summary', 'claim-chart#rows', 'response-plan', 'adversary-model', 'generate_keywords'],
       guidance: [
         '驳回类型对照表（先按解析结果定主策略，再逐类处理；多种类型并存时以最核心的驳回理由确定主策略）：',
         '- A-充分公开（专利法26.3）：说明书未清楚完整说明 → 举证实施例、实验数据与本领域可实现性',
@@ -526,7 +563,43 @@ export const patentOaResponseManifest: WorkflowManifest = {
         '检索策略：把 generate_keywords 阶段产出的关键词落到「证据与引用」一节，写成可执行的检索方案——逐组列出关键词（含上位、下位与同义词）、拟用的 IPC/CPC 分类号、拟检索的数据库，并说明每组检索要核验什么（区别特征是否属公知常识、对比文件之间是否存在结合启示）。本节只陈述检索方案，不冒充已完成的检索：未实际检索到的文献不得写成对比文件，不得编造文献号与公开日。',
         '撰写规范：论证按「事实 → 规则 → 论证」三层组织、按争点分节（新颖性／创造性／其他争点），不以通知书审查意见项号铺陈；事实只陈述、逐项编号（F1…／P1…）并注明出处（权项号／说明书节次／对比文件段落），评价一律归入论证；修改时在答复书中列出修改后权利要求全文且不得超出原记载范围（A33）；禁止编造实验数据，禁止无逻辑链的空泛断言。',
         '输出顺序：总体立场 → 本次修改（修改对照表＋修改后独立权利要求全文）→ 本案事实 → 适用规则 → 意见陈述 → 其他缺陷的处理 → 证据与引用 → 结论与请求（与 oa-response 模板八节一致）。',
+        '',
+        `篇幅预算（正文总量 ≤ ${OA_RESPONSE_DRAFT_BUDGET.total} 字，不含表格与权利要求全文；超预算时删内容，不是把句子压短）：`,
+        `- 一、总体立场 ≤ ${OA_RESPONSE_DRAFT_BUDGET.position} 字：只说争什么、改不改、请求什么，不在此铺陈理由。`,
+        `- 三、本案事实：3.1 与 3.2 各 ≤ ${OA_RESPONSE_DRAFT_BUDGET.factItems} 项，每项 ≤ ${OA_RESPONSE_DRAFT_BUDGET.factSentences} 句，只留与争点相关的特征。`,
+        `- 四、适用规则：R 条 ≤ ${OA_RESPONSE_DRAFT_BUDGET.ruleItems} 条，一条一句话，只列本案论证实际用到的规则。`,
+        `- 五、意见陈述：5.1 ≤ ${OA_RESPONSE_DRAFT_BUDGET.argumentNovelty} 字，5.2 ≤ ${OA_RESPONSE_DRAFT_BUDGET.argumentInventiveness} 字；5.3 ≤ ${OA_RESPONSE_DRAFT_BUDGET.otherIssues} 条，无其他争点则整节留空，不写「无」。`,
+        '- 七、证据与引用：证据清单与检索方案各用表格或逐行检索式，一组一行，不逐篇复述对比文件内容。',
+        `- 八、结论与请求 ≤ ${OA_RESPONSE_DRAFT_BUDGET.conclusion} 字：只写请求与依据条款，不重复论证过程。`,
+        '删减三禁令：',
+        '- 不复述上游产物：要素对照表的逐特征比对、答复计划的逐理由策略、对立模型的弱点清单一律不进正文；只写由它们得出的结论，需要时以「见对照表 F2」「按答复计划第 3 项」回指。',
+        '- 同一结论不在三处改写：「总体立场」「论证末句」「结论与请求」各出现一次为限，后两处只写结论与请求，不换词重述理由。',
+        '- 同一段原文只整段引用一次：其后以「见前述引文」或事实编号（P3、D1 段 [0042]）指代，不再重复引述。',
+        '审查意见未提出的争点不设节：写一句「审查意见未就新颖性提出异议」即可，不展开、不设小节标题，对应槽位置空（例如 5.1 或第六节整节）——置空的槽位由模板折叠，不会在成品里留下空标题。',
       ].join('\n'),
+    },
+    {
+      id: 'tighten',
+      strategy: 'chain',
+      description: '删减阶段（模型）：按篇幅预算删除复述、重复与无关事实，产出删减后正文与逐条删除清单；仍超预算即降级',
+      atom: 'tighten',
+      // 原子阶段不声明 consumes（那是链式执行器的提示词投影，原子自己读 state）；
+      // 只读范围由原子契约的 inputSchema 记录：draft 与答复计划的决策段。
+      params: { text_key: 'draft', plan_key: 'response-plan', char_budget: OA_RESPONSE_DRAFT_BUDGET.total },
+    },
+    {
+      id: 'slop_gate',
+      strategy: 'chain',
+      description: '反套话评分门（答复正文：套话表述、结构性问题与相对篇幅预算的精简度；未通过自动带证据提示回退重写）',
+      atom: 'slop-gate',
+      // 判删减后的正文：门要判的是交付稿，不是删减前的原稿。回退目标仍是 draft
+      // ——套话与结构问题只能靠重写解决，删减阶段只会删，改不了开头套话。
+      params: { text_keys: ['draft_tightened'], char_budget: OA_RESPONSE_DRAFT_BUDGET.total },
+      retry: {
+        whenOutputMatches: '需修订',
+        rewindTo: 'draft',
+        maxRetries: 1,
+      },
     },
     {
       id: 'adversary-review',
@@ -539,6 +612,10 @@ export const patentOaResponseManifest: WorkflowManifest = {
       strategy: 'chain',
       description: '答复合规检查（PR-OA-007/008/009：26.3 判准落位、驳回理由覆盖、未提条款引用）',
       atom: 'response-check',
+      // 检的是删减后的正文：删减可能删掉驳回理由的回应，必须按交付稿判。
+      // 原子读不到 `draft_tightened` 时回落到 `draft`——删减阶段降级（仍超预算）时
+      // 检查不能跟着失效，否则一份超预算但漏答理由的答复会安静通过。
+      params: { response_key: 'draft_tightened' },
     },
     {
       id: 'amendment_basis',

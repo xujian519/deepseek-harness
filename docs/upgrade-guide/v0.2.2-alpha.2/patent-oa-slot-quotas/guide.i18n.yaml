@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/patent-oa-slot-quotas/guide.md
+/:
+  en: dc9cf7a92683ddb0
+  zh: a7e58c6561b8041f
+/over-long-office-action-drafts-now-fail-to-render:
+  en: 3a57eefae5b6b302
+  zh: a93d1addc165dfcb
+/over-long-office-action-drafts-now-fail-to-render/change:
+  en: 0612655fe85c537d
+  zh: 46672145d43394d6
+/over-long-office-action-drafts-now-fail-to-render/migration:
+  en: aabaab264353c2c6
+  zh: 375697eaa71cfdc6

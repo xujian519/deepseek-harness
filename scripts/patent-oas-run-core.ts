@@ -61,6 +61,7 @@ import {
   type RunRound,
   type RunRoundDimension,
 } from './patent-oas-gate-core.ts'
+import { budgetOf, observeConcision, type ConcisionObservation } from './patent-oas-concision.ts'
 
 /** 执行者写出的交付物文件名,相对于该次调用的工作目录。 */
 export const DELIVERABLE_FILENAME = 'deliverable.md'
@@ -783,6 +784,8 @@ interface RoundAccumulator {
   dimensions: Map<number, number[]>
   deliverableDigests: string[]
   claimVersions: number[]
+  /** 每次运行的篇幅观测:只记录、不计分。 */
+  concision: ConcisionObservation[]
 }
 
 /**
@@ -828,6 +831,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         dimensions: new Map(dimensions.map(dimension => [dimension.index, []])),
         deliverableDigests: [],
         claimVersions: [],
+        concision: [],
       }
     })
     for (let run = 1; run <= plan.runsPerCase; run += 1) {
@@ -888,6 +892,9 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
           throw new Error(`${executorLabel}: 交付物为 ${bytes} 字节,超过上限 ${MAX_DELIVERABLE_BYTES};该交付物会被复制进每个维度的评估提示词`)
         }
         roundAccumulator.deliverableDigests.push(textDigest(deliverable))
+        // 篇幅观测与评分并行记录:它不改分数,但要能回答「这份答复有多长」——
+        // rubric 目前没有篇幅维度,长与短在读数上完全等价。
+        roundAccumulator.concision.push(observeConcision(deliverable, budgetOf(caseId)))
         for (const accumulator of terminalAccumulators) {
           const scoreDir = isFirst
             ? join(base, `dim-${accumulator.dimension.index}`)
@@ -918,6 +925,7 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
       })),
       deliverableDigests: [...accumulator.deliverableDigests],
       ...accumulator.claimVersions.length > 0 ? { claimVersions: [...accumulator.claimVersions] } : {},
+      ...accumulator.concision.length > 0 ? { concision: [...accumulator.concision] } : {},
     }))
     cases.push({
       caseId,
@@ -930,6 +938,11 @@ export async function collectRunRecord(options: CollectRunOptions): Promise<RunR
         ...accumulator.scores.length > 1 ? { scores: [...accumulator.scores] } : {},
       })),
       ...roundCount > 1 ? { rounds } : {},
+      // 单轮 case 没有逐轮观测可挂,篇幅读数记在 case 上;多轮 case 只记逐轮那一份,
+      // 否则同一份读数存两处,改的时候必然只改一处。
+      ...roundCount === 1 && (roundAccumulators[0]?.concision.length ?? 0) > 0
+        ? { concision: [...(roundAccumulators[0]?.concision ?? [])] }
+        : {},
     })
   }
   const workflowId = plan.cases.find(entry => entry.workflow !== undefined)?.workflow?.manifestId

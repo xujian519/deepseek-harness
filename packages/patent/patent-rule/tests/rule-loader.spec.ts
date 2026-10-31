@@ -823,3 +823,46 @@ describe('RuleLoader quote handling', () => {
     }
   })
 })
+
+describe('RuleLoader 空节与句重复', () => {
+  const check = (body: string): string =>
+    `rules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n    check: { ${body} }\n`
+
+  it('parses empty_section with default minLevel and no placeholders field', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(check('type: empty_section'))
+    expect(issues).toEqual([])
+    expect(ruleSet.rules[0]?.check).toEqual({ type: 'empty_section', minLevel: 2 })
+  })
+
+  it('keeps an explicit placeholder list on empty_section', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(check('type: empty_section, minLevel: 3, placeholders: ["待补"]'))
+    expect(issues).toEqual([])
+    expect(ruleSet.rules[0]?.check).toEqual({
+      type: 'empty_section',
+      minLevel: 3,
+      placeholders: ['待补'],
+    })
+  })
+
+  it('rejects empty_section bounds and placeholder lists that could never match', () => {
+    const cases = ['minLevel: 0', 'minLevel: 7', 'minLevel: 2.5', 'placeholders: []', 'placeholders: ["  "]']
+    for (const body of cases) {
+      const { issues } = parseRuleSetFromYaml(check(`type: empty_section, ${body}`))
+      expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('empty_section')), body).toBe(true)
+    }
+  })
+
+  it('parses sentence_repetition with the documented defaults', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(check('type: sentence_repetition'))
+    expect(issues).toEqual([])
+    expect(ruleSet.rules[0]?.check).toEqual({ type: 'sentence_repetition', minLength: 12, minOccurrences: 3 })
+  })
+
+  it('rejects sentence_repetition bounds that would never match', () => {
+    const cases = ['minLength: 0', 'minLength: 1.5', 'minOccurrences: 1', 'minOccurrences: 2.5']
+    for (const body of cases) {
+      const { issues } = parseRuleSetFromYaml(check(`type: sentence_repetition, ${body}`))
+      expect(issues.some(i => i.ruleId === 'A1' && i.message.includes('sentence_repetition')), body).toBe(true)
+    }
+  })
+})

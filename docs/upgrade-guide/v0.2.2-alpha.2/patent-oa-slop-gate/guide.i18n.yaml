@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/patent-oa-slop-gate/guide.md
+/:
+  en: 44dd7060afc34491
+  zh: 32110c0343e17cb8
+/the-slop-gate-now-covers-the-answer-body:
+  en: f6f16f7fdd855e6a
+  zh: 35c8896dba5a448e
+/the-slop-gate-now-covers-the-answer-body/change:
+  en: 62be272935512cc6
+  zh: 879e30fa22dc5856
+/the-slop-gate-now-covers-the-answer-body/migration:
+  en: 7f468df6377f64a4
+  zh: 61e263b6c2807687

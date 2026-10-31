@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   patentDisclosureManifest,
+  patentOaResponseManifest,
   runWorkflow,
   validateWorkflowManifest,
   type WorkflowManifest,
@@ -834,5 +835,75 @@ describe('workflow retry validation', () => {
     expect(slopClean.output).toMatch(/\[WORKFLOW_RETRY_EXHAUSTED\]/)
     expect(slopClean.degraded).toBe(true)
     expect(result.degradedSteps).toContain('slop_clean')
+  })
+})
+
+describe('patentOaResponseManifest 的反套话回路', () => {
+  /** 注册答复 manifest 声明的跨包原子契约（真实实现由 patent-tools 覆盖）。 */
+  const registerResponseAtomStubs = (): void => {
+    registerBuiltinAtoms()
+    for (const [name, outputSchema] of [
+      ['slop-gate', ['slop_report']],
+      // 删减阶段的产出键：门的 text_keys 与新正文键在 manifest 里成对出现，缺一个就接线断。
+      ['tighten', ['draft_tightened', 'tighten_report', 'tighten_violations']],
+      ['response-check', ['response_check_report']],
+      ['legal-gaps', ['legal_gaps_report']],
+    ] as const) {
+      globalAtomRegistry.register({
+        name,
+        category: 'gate',
+        description: 'test stub — 真实注册在 patent-tools apply()',
+        inputSchema: [],
+        outputSchema: [...outputSchema],
+      })
+    }
+  }
+
+  it('draft 的套话稿触发回退：第二次通过后保留新产出，不留降级', async () => {
+    registerResponseAtomStubs()
+    let draftRound = 0
+    const executor = async (stage: WorkflowStage) => {
+      if (stage.id === 'draft') {
+        draftRound += 1
+        return draftRound === 1 ? '申请人恳请审查员重新考虑审查意见。' : '审查意见对权利要求 1 的创造性异议不能成立。'
+      }
+      if (stage.id === 'slop_gate') {
+        return draftRound === 1 ? '反套话评分门: ⚠️ 需修订（总分 28，通过线 35）' : '反套话评分门: ✅ 通过（总分 41，通过线 35）'
+      }
+      if (stage.id === 'approval') return 'APPROVED'
+      return `${stage.id} 完成`
+    }
+
+    const result = await runWorkflow(patentOaResponseManifest, { input: '通知书' }, executor, {
+      handlers: new StageHandlerRegistry(),
+    })
+    expect(draftRound).toBe(2)
+    const gate = result.stages.find(s => s.stageId === 'slop_gate')!
+    expect(gate.output).toContain('✅ 通过')
+    expect(gate.degraded).toBe(false)
+    // 回退 splice 掉首轮结果：只留重跑后的产出，成品不会拿到那版套话稿。
+    const draft = result.stages.filter(s => s.stageId === 'draft')
+    expect(draft).toHaveLength(1)
+    expect(draft[0]!.output).toContain('不能成立')
+    expect(result.degradedSteps).toHaveLength(0)
+  })
+
+  it('持续不通过时只回退一次，随后记降级而不是死循环', async () => {
+    registerResponseAtomStubs()
+    let draftRound = 0
+    const executor = async (stage: WorkflowStage) => {
+      if (stage.id === 'draft') { draftRound += 1; return '申请人恳请审查员重新考虑审查意见。' }
+      if (stage.id === 'slop_gate') return '反套话评分门: ⚠️ 需修订（总分 28，通过线 35）'
+      if (stage.id === 'approval') return 'APPROVED'
+      return `${stage.id} 完成`
+    }
+
+    const result = await runWorkflow(patentOaResponseManifest, { input: '通知书' }, executor, {
+      handlers: new StageHandlerRegistry(),
+    })
+    expect(draftRound).toBe(2) // 初次 + 一次回退（maxRetries=1），此后耗尽
+    const gate = result.stages.find(s => s.stageId === 'slop_gate')!
+    expect(gate.output).toMatch(/\[WORKFLOW_RETRY_EXHAUSTED\]/)
+    expect(result.degradedSteps).toContain('slop_gate')
   })
 })
