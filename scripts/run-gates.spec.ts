@@ -383,6 +383,24 @@ describe('gate graph validation', () => {
     }
   })
 
+  it('runs the ledger, preset, and patent reference gates in every static documentation lane', () => {
+    const wired = [
+      'tech-debt-counters',
+      'agent-preset-config',
+      'preset-tool-refs',
+      'preset-divergence',
+      'preset-mode-baseline',
+      'patent-team-roster',
+      'patent-document-output',
+    ]
+    for (const mode of ['doc-sync', 'doc-quick', 'ci-static'] as const) {
+      const ids = withPnpmEntrypoint(() => gatesForMode(mode).map(gate => gate.id))
+      expect(ids).toEqual(expect.arrayContaining(wired))
+    }
+    expect(withPnpmEntrypoint(() => gatesForMode('doc-quick').find(gate => gate.id === 'tech-debt-counters')))
+      .toMatchObject({ displayCommand: 'pnpm run verify-tech-debt-counters' })
+  })
+
   it('keeps the hygiene aggregate aligned with the package script checks', () => {
     const ids = withPnpmEntrypoint(() => gatesForMode('hygiene').map(subject => subject.id))
 
