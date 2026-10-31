@@ -200,14 +200,15 @@ function stripCarriers(text: string): string {
   const kept: string[] = []
   let skipLevel = 0
   for (const line of withoutHtml.split('\n')) {
-    const heading = /^(#{1,6})\s/.exec(line.trim())
+    const trimmed = line.trim()
+    const level = /^(#{1,6})\s/.exec(trimmed)?.[1]?.length ?? 0
     if (skipLevel > 0) {
       // 同级或更高级标题结束该节；更深层标题仍属本节正文。
-      if (heading !== null && heading[1].length <= skipLevel) skipLevel = 0
+      if (level > 0 && level <= skipLevel) skipLevel = 0
       else continue
     }
-    if (heading !== null && RE_CLAIM_FULLTEXT_HEADING.test(line.trim())) {
-      skipLevel = heading[1].length
+    if (level > 0 && RE_CLAIM_FULLTEXT_HEADING.test(trimmed)) {
+      skipLevel = level
       continue
     }
     if (RE_MD_TABLE_ROW.test(line)) continue
