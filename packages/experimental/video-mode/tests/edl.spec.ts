@@ -136,6 +136,24 @@ describe('ffmpeg arguments', () => {
     expect(graph).toContain('atrim=start=1,')
   })
 
+  it('fits video and image clips into the canvas', () => {
+    const edl: Edl = {
+      version: 1,
+      canvas: { width: 320, height: 568, fps: 30 },
+      clips: [
+        { kind: 'video', source: 'a.mp4', inSec: 1, outSec: 4 },
+        { kind: 'video', source: 'b.mp4', outSec: 2 },
+        { kind: 'image', source: 'still.png', durationSec: 2 },
+      ],
+      output: 'out/ep.mp4',
+    }
+    const args = buildFfmpegArgs(edl, { subtitleFont: '' })
+    const graph = args[args.indexOf('-filter_complex') + 1] as string
+    expect(graph).toContain('trim=start=1:end=4')
+    expect(graph).toContain('trim=start=0:end=2')
+    expect(args).toContain('-loop')
+  })
+
   it('mixes a silent track when the EDL has no audio', () => {
     const args = buildFfmpegArgs(colorEdl(), { subtitleFont: '' })
     const graph = args[args.indexOf('-filter_complex') + 1] as string
@@ -217,6 +235,29 @@ describe.runIf(FFMPEG)('assembly with real ffmpeg', () => {
     await writeFile(join(root, 'out', 'existing.mp4'), 'placeholder')
     const result = await assemble(ctx, colorEdl('out/existing.mp4'), optionsOf())
     expect(result.bytes).toBeGreaterThan(0)
+  })
+})
+
+describe('path resolution without real media tools', () => {
+  it('resolves an image clip source and reports the complete probe', async () => {
+    const ffmpeg = join(root, 'fake-ffmpeg-image.sh')
+    await writeFile(ffmpeg, '#!/bin/sh\nfor last; do :; done\necho rendered > "$last"\nexit 0\n')
+    await chmod(ffmpeg, 0o755)
+    const probe = join(root, 'fake-ffprobe-complete.sh')
+    await writeFile(probe, '#!/bin/sh\necho \'{"format":{"duration":"1"},"streams":[{"codec_type":"video","width":64,"height":96},{"codec_type":"audio"}]}\'\nexit 0\n')
+    await chmod(probe, 0o755)
+    await mkdir(join(root, 'assets'), { recursive: true })
+    await writeFile(join(root, 'assets', 'still.png'), 'png')
+
+    const result = await assemble(ctx, {
+      version: 1,
+      canvas: { width: 64, height: 96, fps: 12 },
+      clips: [{ kind: 'image', source: 'assets/still.png', durationSec: 1 }],
+      output: 'out/image.mp4',
+    }, optionsOf({ ffmpegPath: ffmpeg, ffprobePath: probe }))
+
+    expect(result.command).toContain(join(root, 'assets', 'still.png'))
+    expect(result.probe).toEqual({ durationSec: 1, width: 64, height: 96, hasAudio: true, format: undefined })
   })
 })
 

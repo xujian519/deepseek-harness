@@ -1843,7 +1843,7 @@ export type PaidTranslationProvider = 'deepseek-account' | 'deepseek-official'
 
 ## `@deepseek-ai/dsh-experimental-video-mode`
 
-- `source`: [`packages/experimental/video-mode/src/media.ts:227`](../packages/experimental/video-mode/src/media.ts)
+- `source`: [`packages/experimental/video-mode/src/media.ts:271`](../packages/experimental/video-mode/src/media.ts)
 
 ```ts config-catalog
 /** Deployment configuration of the media runtime and the video tools. */
@@ -1878,6 +1878,8 @@ export interface MediaRuntimeConfig {
   readonly comfyui?: ComfyUiConfig
   /** MiniMax cloud video backend; omitted leaves it unregistered. */
   readonly minimax?: MiniMaxConfig
+  /** SiliconFlow cloud video backend; omitted leaves it unregistered. */
+  readonly siliconflow?: SiliconFlowConfig
 }
 
 /** Local ComfyUI backend configuration. */
@@ -1924,6 +1926,30 @@ export interface MiniMaxConfig {
   readonly aspectRatio?: string
   /** Speech synthesis overrides; omitted leaves the speech provider unregistered. */
   readonly speech?: MiniMaxSpeechConfig
+}
+
+/** SiliconFlow cloud video configuration. */
+export interface SiliconFlowConfig {
+  /** Register the provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** Direct bearer API key for programmatic use; empty when {@link apiKeyEnv} names the credential. */
+  readonly apiKey?: string
+  /** Credential reference resolved per request through `ctx.credentials`, for example `SILICONFLOW_API_KEY`. */
+  readonly apiKeyEnv?: string
+  /** SiliconFlow API origin, including the `/v1` prefix. */
+  readonly baseUrl?: string
+  /** Minimum gap between two status polls for one task. */
+  readonly pollMs?: number
+  /** Failure deadline measured from submission. */
+  readonly timeoutMs?: number
+  /** Model id reported to consumers and submitted to the API. */
+  readonly model?: string
+  /** Aspect ratio used when the request omits one. */
+  readonly aspectRatio?: string
+  /** Price of one completed video in major currency units. */
+  readonly pricePerVideo?: number
+  /** Currency of {@link pricePerVideo}; the mainland site bills CNY and the international site USD. */
+  readonly currency?: MediaCurrency
 }
 
 /** ComfyUI video settings a deployment may override. */
@@ -1983,6 +2009,9 @@ export interface MiniMaxSpeechConfig {
   /** Fixed emotion label; empty lets the model infer it from the text. */
   readonly emotion?: string
 }
+
+/** Currency carried by a price. */
+export type MediaCurrency = 'CNY' | 'USD'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-video-mode -->
 
@@ -6530,6 +6559,7 @@ export type PatternCategory = (typeof PATTERN_CATEGORIES)[number]
 | `@deepseek-ai/dsh-client-ui-todo-board` | — | [`packages/client/ui-todo-board/src/index.ts`](../packages/client/ui-todo-board/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-tool` | — | [`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-user-questions` | — | [`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-video-studio` | — | [`packages/client/ui-video-studio/src/index.ts`](../packages/client/ui-video-studio/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-workflow-run` | — | [`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-workspace` | — | [`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts) |
 | `@deepseek-ai/dsh-command-compact` | `commands` · `compaction` | [`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts) |

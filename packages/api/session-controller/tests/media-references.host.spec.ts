@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
-import { SessionMediaReferences } from '../src/media-references.ts'
+import { parseByteRange, SessionMediaReferences } from '../src/media-references.ts'
 
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
 const DEFAULT_LIMIT = 20 * 1024 * 1024
@@ -151,17 +151,80 @@ describe('SessionMediaReferences /api/file', () => {
     expect((await responseBytes(await route.raw(next.href))).at(-1)).toBe(9)
   })
 
-  it('ignores Range headers and returns complete bodies without advertising ranges', async () => {
+  it('serves one byte range as a partial response', async () => {
     const route = await mount()
     const path = join(root, 'clip.mp4')
     await writeFile(path, PNG_BYTES)
-    for (const range of ['bytes=0-3', 'bytes=-4', 'bytes=999-', 'bytes=abc', 'items=0-0', 'bytes=0-1,3-4']) {
+    for (const [range, start, end] of [
+      ['bytes=0-3', 0, 3],
+      ['bytes=4-', 4, PNG_BYTES.length - 1],
+      ['bytes=-4', PNG_BYTES.length - 4, PNG_BYTES.length - 1],
+      ['bytes=2-999', 2, PNG_BYTES.length - 1],
+    ] as const) {
+      const response = await route.call(path, { headers: { range } })
+      expect(response.status).toBe(206)
+      expect(response.headers.get('accept-ranges')).toBe('bytes')
+      expect(response.headers.get('content-range')).toBe(`bytes ${start}-${end}/${PNG_BYTES.length}`)
+      expect(response.headers.get('content-length')).toBe(String(end - start + 1))
+      expect(response.headers.get('cache-control')).toBe('private, max-age=31536000, immutable')
+      expect(await responseBytes(response)).toEqual(PNG_BYTES.slice(start, end + 1))
+    }
+    const complete = await route.call(path)
+    expect(complete.status).toBe(200)
+    expect(complete.headers.get('accept-ranges')).toBe('bytes')
+    expect(complete.headers.get('content-range')).toBeNull()
+  })
+
+  it('answers an unsatisfiable range with 416 and the complete size', async () => {
+    const route = await mount()
+    const path = join(root, 'clip.mp4')
+    await writeFile(path, PNG_BYTES)
+    for (const range of ['bytes=999-', 'bytes=-0', 'bytes=12-']) {
+      const response = await route.call(path, { headers: { range } })
+      expect(response.status).toBe(416)
+      expect(response.headers.get('content-range')).toBe(`bytes */${PNG_BYTES.length}`)
+      expect(response.headers.get('accept-ranges')).toBe('bytes')
+      expect(response.body).toBeNull()
+    }
+    const empty = join(root, 'empty.mp4')
+    await writeFile(empty, '')
+    expect((await route.call(empty, { headers: { range: 'bytes=0-' } })).status).toBe(416)
+  })
+
+  it('keeps complete bodies for malformed and multi-range headers', async () => {
+    const route = await mount()
+    const path = join(root, 'clip.mp4')
+    await writeFile(path, PNG_BYTES)
+    for (const range of ['bytes=abc', 'items=0-0', 'bytes=0-1,3-4', 'bytes=3-1', 'bytes=-']) {
       const response = await route.call(path, { headers: { range } })
       expect(response.status).toBe(200)
-      expect(response.headers.get('accept-ranges')).toBeNull()
       expect(response.headers.get('content-range')).toBeNull()
       expect(await responseBytes(response)).toEqual(PNG_BYTES)
     }
+  })
+
+  it('ignores a range when the filesystem reports no size', async () => {
+    const route = await mount()
+    const path = join(root, 'clip.mp4')
+    await writeFile(path, PNG_BYTES)
+    vi.spyOn(route.fs, 'stat').mockResolvedValue({ type: 'file', version: FsVersion('v1') })
+    const response = await route.call(path, { headers: { range: 'bytes=0-3' } })
+    expect(response.status).toBe(200)
+    expect(await responseBytes(response)).toEqual(PNG_BYTES)
+  })
+
+  it('parses only a well-formed single bytes range', () => {
+    expect(parseByteRange(null, 10)).toBeUndefined()
+    expect(parseByteRange('bytes=0-1', undefined)).toBeUndefined()
+    expect(parseByteRange('bytes=0-1', 10)).toEqual({ kind: 'range', start: 0, end: 1 })
+    expect(parseByteRange('bytes=5-', 10)).toEqual({ kind: 'range', start: 5, end: 9 })
+    expect(parseByteRange('bytes=-3', 10)).toEqual({ kind: 'range', start: 7, end: 9 })
+    expect(parseByteRange('bytes=-30', 10)).toEqual({ kind: 'range', start: 0, end: 9 })
+    expect(parseByteRange('bytes=8-99', 10)).toEqual({ kind: 'range', start: 8, end: 9 })
+    expect(parseByteRange('bytes=10-', 10)).toEqual({ kind: 'unsatisfiable', size: 10 })
+    expect(parseByteRange('bytes=-', 10)).toEqual({ kind: 'invalid' })
+    expect(parseByteRange('bytes=3-2', 10)).toEqual({ kind: 'invalid' })
+    expect(parseByteRange('bytes=0-1,3-4', 10)).toEqual({ kind: 'invalid' })
   })
 
   it('answers HEAD without reading content and reports missing and non-regular files', async () => {

@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import VideoMode, {
   MINIMAX_PROVIDER_ID,
@@ -18,6 +18,7 @@ import VideoMode, {
   resolveMiniMax,
   solidPng,
   type MediaTask,
+  type MediaTaskRecord,
   type MiniMaxConfig,
   type MiniMaxFetchLike,
 } from '../src/index.ts'
@@ -281,11 +282,16 @@ describe('minimax provider', () => {
     })
     const provider = new MiniMaxMediaProvider(settingsOf({ timeoutMs: 1 }), fetchImpl)
     const submitted = await submitVideo(provider)
-    await delay(2)
-    const settled = await provider.poll(submitted, new AbortController().signal)
-    expect(settled.status).toBe('failed')
-    expect(settled.error?.code).toBe('MEDIA_TASK_TIMEOUT')
-    expect(calls.some(call => call.method === 'DELETE')).toBe(true)
+    // Advance the clock past the deadline instead of racing real elapsed time.
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 2)
+    try {
+      const settled = await provider.poll(submitted, new AbortController().signal)
+      expect(settled.status).toBe('failed')
+      expect(settled.error?.code).toBe('MEDIA_TASK_TIMEOUT')
+      expect(calls.some(call => call.method === 'DELETE')).toBe(true)
+    } finally {
+      now.mockRestore()
+    }
   })
 
   it('rejects an artifact above the configured cap', async () => {
@@ -634,5 +640,47 @@ describe('minimax credential references', () => {
     expect(provider.available()).toBe(false)
     await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
       .rejects.toThrow(/set MINIMAX_API_KEY or configure minimax.apiKeyEnv/)
+  })
+})
+
+describe('resumption', () => {
+  /** One journal record for a MiniMax task. */
+  function record(): MediaTaskRecord {
+    return {
+      task: { id: 'minimax-remote-1', provider: 'minimax', model: MINIMAX_VIDEO_MODEL, kind: 'video', status: 'running' },
+      submittedAt: Date.now(),
+      request: { kind: 'video', model: MINIMAX_VIDEO_MODEL, prompt: 'a lantern', durationSec: 4, aspectRatio: '9:16', resolution: '768P' },
+      outputPath: 'shots/s01.mp4',
+    }
+  }
+
+  it('rebuilds pending state from the remote id and downloads the settled clip', async () => {
+    const { calls, fetchImpl } = recorder((call) => {
+      if (call.url.includes('/v2/query/video_generation/remote-1')) {
+        return json({ task: { status: 'succeeded', content: { url: 'https://cdn.test/clip.mp4' } } })
+      }
+      if (call.url === 'https://cdn.test/clip.mp4') return new Response(MP4, { status: 200 })
+      throw new Error(`unexpected ${call.url}`)
+    })
+    const provider = new MiniMaxMediaProvider(settingsOf(), fetchImpl)
+    const resumed = provider.resume(record())
+    expect(resumed?.id).toBe('minimax-remote-1')
+
+    const settled = await provider.poll(resumed as MediaTask, new AbortController().signal)
+    expect(settled.status).toBe('succeeded')
+    expect(settled.artifacts?.[0]).toMatchObject({ mediaType: 'video/mp4', durationSec: 4 })
+    expect(settled.artifacts?.[0]?.bytes).toEqual(MP4)
+    expect(calls[0]?.url).toContain('/v2/query/video_generation/remote-1')
+  })
+
+  it('ignores foreign records and rejects a resumed duration the API cannot serve', () => {
+    const provider = new MiniMaxMediaProvider(settingsOf())
+    const base = record()
+    expect(provider.resume({ ...base, task: { ...base.task, provider: 'comfyui' } })).toBeUndefined()
+    expect(provider.resume({ ...base, task: { ...base.task, kind: 'speech' } })).toBeUndefined()
+    expect(provider.resume({ ...base, task: { ...base.task, id: 'other' } })).toBeUndefined()
+    expect(provider.resume({ ...base, task: { ...base.task, id: 'minimax-' } })).toBeUndefined()
+    expect(provider.resume({ ...base, request: { ...base.request, durationSec: undefined } })?.id).toBe('minimax-remote-1')
+    expect(() => provider.resume({ ...base, request: { ...base.request, durationSec: 2 } })).toThrow(/4 to 15/)
   })
 })

@@ -684,6 +684,23 @@ async submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>
 async generate(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>
 
 /**
+ * Wait up to `waitMs` for one submitted task to settle.
+ * @param task - submitted task.
+ * @param signal - caller cancellation, forwarded to the provider.
+ * @returns the settled task, or the current running task when the wait expired.
+ * @throws {@link MediaFailure} when the owning provider disappeared.
+ */
+async wait(task: MediaTask, signal: AbortSignal): Promise<MediaTask>
+
+/**
+ * Rebuild in-flight provider state from a journal record after a restart.
+ * @param record - persisted task snapshot and request.
+ * @returns the resumed task.
+ * @throws {@link MediaFailure} when the provider is gone, cannot resume, or rejects the record.
+ */
+resume(record: MediaTaskRecord): MediaTask
+
+/**
  * Read one retained task.
  * @param taskId - id returned by {@link generate}.
  * @returns the latest known task.

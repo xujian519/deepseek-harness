@@ -2298,6 +2298,20 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['{@link MediaFailure} for selection, validation, and provider failures.'],
       },
       {
+        signature: 'async wait(task: MediaTask, signal: AbortSignal): Promise<MediaTask>',
+        description: 'Wait up to `waitMs` for one submitted task to settle.',
+        parameters: [{ name: 'task', description: 'submitted task.' }, { name: 'signal', description: 'caller cancellation, forwarded to the provider.' }],
+        returns: 'the settled task, or the current running task when the wait expired.',
+        throws: ['{@link MediaFailure} when the owning provider disappeared.'],
+      },
+      {
+        signature: 'resume(record: MediaTaskRecord): MediaTask',
+        description: 'Rebuild in-flight provider state from a journal record after a restart.',
+        parameters: [{ name: 'record', description: 'persisted task snapshot and request.' }],
+        returns: 'the resumed task.',
+        throws: ['{@link MediaFailure} when the provider is gone, cannot resume, or rejects the record.'],
+      },
+      {
         signature: 'status(taskId: string): MediaTask',
         description: 'Read one retained task.',
         parameters: [{ name: 'taskId', description: 'id returned by {@link generate}.' }],
@@ -8084,12 +8098,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface MediaModel {\n    readonly id: string;\n    readonly kind: MediaKind;\n    readonly provider: string;\n    readonly maxDurationSec?: number;\n    readonly aspectRatios?: readonly string[];\n    readonly referenceModes?: readonly (\'image\' | \'first-frame\' | \'last-frame\')[];\n    readonly audio?: boolean;\n    readonly price?: MediaPrice;\n}',
   },
   {
+    name: 'MediaPendingTask',
+    declaration: 'export type MediaPendingTask = Pick<MediaTask, \'id\' | \'provider\' | \'model\' | \'kind\' | \'status\'>;',
+  },
+  {
     name: 'MediaPrice',
-    declaration: 'export interface MediaPrice {\n    readonly amountMinor: number;\n    readonly currency: MediaCurrency;\n    readonly unit: \'image\' | \'video-second\' | \'1000-chars\';\n}',
+    declaration: 'export interface MediaPrice {\n    readonly amountMinor: number;\n    readonly currency: MediaCurrency;\n    readonly unit: \'image\' | \'video\' | \'video-second\' | \'1000-chars\';\n}',
   },
   {
     name: 'MediaProvider',
-    declaration: 'export interface MediaProvider {\n    readonly id: string;\n    readonly capabilities: readonly MediaKind[];\n    models(): readonly MediaModel[];\n    available(): boolean;\n    unavailableReason?(): string | undefined;\n    estimate(request: MediaRequest): MediaEstimate;\n    submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>;\n    poll(task: MediaTask, signal: AbortSignal): Promise<MediaTask>;\n    cancel(task: MediaTask): Promise<void>;\n}',
+    declaration: 'export interface MediaProvider {\n    readonly id: string;\n    readonly capabilities: readonly MediaKind[];\n    models(): readonly MediaModel[];\n    available(): boolean;\n    unavailableReason?(): string | undefined;\n    estimate(request: MediaRequest): MediaEstimate;\n    submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask>;\n    poll(task: MediaTask, signal: AbortSignal): Promise<MediaTask>;\n    cancel(task: MediaTask): Promise<void>;\n    resume?(record: MediaTaskRecord): MediaTask | undefined;\n}',
   },
   {
     name: 'MediaReference',
@@ -8110,6 +8128,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'MediaTaskError',
     declaration: 'export interface MediaTaskError {\n    readonly code: string;\n    readonly message: string;\n}',
+  },
+  {
+    name: 'MediaTaskRecord',
+    declaration: 'export interface MediaTaskRecord {\n    readonly task: MediaPendingTask;\n    readonly submittedAt: number;\n    readonly request: MediaTaskRequest;\n    readonly outputPath: string;\n}',
+  },
+  {
+    name: 'MediaTaskRequest',
+    declaration: 'export interface MediaTaskRequest {\n    readonly kind: MediaKind;\n    readonly model: string;\n    readonly prompt: string;\n    readonly durationSec?: number | undefined;\n    readonly aspectRatio?: string | undefined;\n    readonly resolution?: string | undefined;\n}',
   },
   {
     name: 'MediaTaskStatus',

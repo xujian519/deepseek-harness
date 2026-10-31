@@ -10,9 +10,90 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type MediaRuntime from '../media.ts'
 import { projectCost, readProject } from '../project.ts'
+import {
+  appendLedgerEntry,
+  findTaskRecord,
+  forgetTask,
+  ledgerCost,
+  readLedger,
+  recordTask,
+  taskRequestOf,
+} from '../store.ts'
 import { formatSrt } from '../subtitles.ts'
-import { MediaFailure, type MediaArtifact, type MediaEstimate, type MediaKind, type MediaRequest, type MediaTask } from '../types.ts'
+import {
+  MediaFailure,
+  type MediaArtifact,
+  type MediaEstimate,
+  type MediaKind,
+  type MediaRequest,
+  type MediaTask,
+  type MediaTaskRecord,
+  type MediaTaskStatus,
+} from '../types.ts'
 import { derivedPath, hostPathOf, subtitlePathOf, workingDirectoryOf, writeArtifact } from './shared.ts'
+
+/** Task states a journal record can be resumed from. */
+const PENDING: ReadonlySet<MediaTaskStatus> = new Set(['queued', 'submitted', 'running'])
+
+/**
+ * Write every artifact of a settled task through the Session filesystem.
+ * @param ctx - tool context.
+ * @param artifacts - settled artifacts.
+ * @param outputPath - declared output path.
+ * @param cwd - Session working directory.
+ * @param maxBytes - deployment artifact cap.
+ * @param signal - caller cancellation.
+ * @returns written artifacts and caption sidecar paths.
+ */
+async function writeArtifacts(
+  ctx: Context,
+  artifacts: readonly MediaArtifact[],
+  outputPath: string,
+  cwd: string,
+  maxBytes: number,
+  signal: AbortSignal,
+): Promise<{ artifacts: WrittenArtifact[]; captions: string[] }> {
+  const written: WrittenArtifact[] = []
+  const captions: string[] = []
+  for (const [index, artifact] of artifacts.entries()) {
+    const path = derivedPath(outputPath, index)
+    const result = await writeArtifact(ctx, artifact, path, cwd, maxBytes, signal)
+    const subtitlesPath = await writeCaptions(ctx, artifact, path, cwd, maxBytes, signal)
+    if (subtitlesPath !== undefined) captions.push(subtitlesPath)
+    written.push({ ...result, mediaType: artifact.mediaType, ...subtitlesPath === undefined ? {} : { subtitlesPath } })
+  }
+  return { artifacts: written, captions }
+}
+
+/**
+ * Close one successful settlement: drop its journal record and append the
+ * charge to the project ledger. Repeat calls are idempotent.
+ * @param ctx - tool context.
+ * @param projectPath - project file path, when the call named one.
+ * @param task - settled task.
+ * @param cwd - Session working directory.
+ * @param signal - caller cancellation.
+ */
+async function settleTask(
+  ctx: Context,
+  projectPath: string | undefined,
+  task: MediaTask,
+  cwd: string,
+  signal: AbortSignal,
+): Promise<void> {
+  if (projectPath === undefined) return
+  if (task.cost?.currency === 'CNY') {
+    await appendLedgerEntry(ctx, projectPath, {
+      taskId: task.id,
+      kind: task.kind,
+      model: task.model,
+      costCny: task.cost.amountMinor / 100,
+      at: new Date().toISOString(),
+    }, cwd, signal)
+  }
+  // Keep the record when the charge failed, so a retry can settle again.
+  await forgetTask(ctx, projectPath, task.id, cwd, signal)
+}
 
 /** One artifact the call wrote, including an optional caption sidecar. */
 interface WrittenArtifact {
@@ -142,7 +223,8 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
     description: 'Generate or inspect images, video clips, and speech through the configured media providers. '
       + 'Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; '
       + '`generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; '
-      + '`cancel` stops one. Prefer `estimate` before a paid generation. '
+      + '`cancel` stops one. `status` with `project_path` recovers a task journaled before a runtime restart. '
+      + 'Prefer `estimate` before a paid generation. '
       + 'Speech accepts `subtitles` and then writes an `.srt` sidecar beside the audio. '
       + 'The synthetic provider is for demos and tests; configure a real provider for production. '
       + 'Generated files land under the Session workspace; keep each shot in its own directory.',
@@ -180,7 +262,7 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
       task_id: { type: 'string', description: 'Task id for status and cancel.' },
       project_path: {
         type: 'string',
-        description: 'Project file used to enforce the remaining budget. Video mode should pass it on every generate call.',
+        description: 'Project file used to enforce the remaining budget and to journal in-flight tasks. Pass it on generate and status so a restart can resume the task.',
       },
       confirm_cost: {
         type: 'boolean',
@@ -299,7 +381,8 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
             }
           if (args.project_path !== undefined) {
             const project = await readProject(ctx, args.project_path, cwd, exec.signal)
-            const spent = projectCost(project)
+            const ledger = await readLedger(ctx, args.project_path, cwd, exec.signal)
+            const spent = Math.max(projectCost(project), ledgerCost(ledger))
             const remaining = project.budgetCny - spent
             const estimate = media.estimate(framed)
             const costCny = estimate.cost?.currency === 'CNY' ? estimate.cost.amountMinor / 100 : undefined
@@ -324,13 +407,28 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
               )
             }
           }
-          const task = args.wait === false
-            ? await media.submit(framed, exec.signal)
-            : await media.generate(framed, exec.signal)
+          const submitted = await media.submit(framed, exec.signal)
+          if (args.project_path !== undefined && PENDING.has(submitted.status)) {
+            await recordTask(ctx, args.project_path, {
+              task: {
+                id: submitted.id,
+                provider: submitted.provider,
+                model: submitted.model,
+                kind: submitted.kind,
+                status: submitted.status,
+              },
+              submittedAt: Date.now(),
+              request: taskRequestOf(framed, submitted.model),
+              outputPath: args.output_path,
+            }, cwd, exec.signal)
+          }
+          const task = args.wait === false ? submitted : await media.wait(submitted, exec.signal)
           if (task.status === 'failed') {
+            if (args.project_path !== undefined) await forgetTask(ctx, args.project_path, task.id, cwd, exec.signal)
             throw new MediaFailure(`media task ${task.id} failed: ${task.error?.message ?? 'provider reported failure'}`, 'MEDIA_TASK_FAILED')
           }
           if (task.status === 'cancelled') {
+            if (args.project_path !== undefined) await forgetTask(ctx, args.project_path, task.id, cwd, exec.signal)
             throw new MediaFailure(`media task ${task.id} was cancelled`, 'MEDIA_TASK_FAILED')
           }
           if (task.status !== 'succeeded') {
@@ -340,58 +438,62 @@ export function createMediaTool(ctx: Context, media: MediaRuntime): ToolDefiniti
               task: renderTask(task),
             }
           }
-          const artifacts: WrittenArtifact[] = []
-          const captions: string[] = []
-          for (const [index, artifact] of (task.artifacts ?? []).entries()) {
-            const path = derivedPath(args.output_path, index)
-            const written = await writeArtifact(
-              ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal,
-            )
-            const subtitlesPath = await writeCaptions(ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal)
-            if (subtitlesPath !== undefined) captions.push(subtitlesPath)
-            artifacts.push({ ...written, mediaType: artifact.mediaType, ...subtitlesPath === undefined ? {} : { subtitlesPath } })
-          }
-          if (artifacts.length === 0) {
+          const written = await writeArtifacts(
+            ctx, task.artifacts ?? [], args.output_path, cwd, media.settings.maxArtifactBytes, exec.signal,
+          )
+          if (written.artifacts.length === 0) {
             throw new MediaFailure(`media task ${task.id} succeeded without artifacts`, 'MEDIA_ARTIFACT_INVALID')
           }
+          await settleTask(ctx, args.project_path, task, cwd, exec.signal)
           return {
             action: 'generate',
-            message: `Generated ${task.kind} with ${task.provider}/${task.model}. Wrote ${artifacts.map(entry => entry.path).join(', ')}.`
-              + (captions.length === 0 ? '' : ` Captions: ${captions.join(', ')}.`)
+            message: `Generated ${task.kind} with ${task.provider}/${task.model}. Wrote ${written.artifacts.map(entry => entry.path).join(', ')}.`
+              + (written.captions.length === 0 ? '' : ` Captions: ${written.captions.join(', ')}.`)
               + (task.cost === undefined ? '' : ` Cost ${task.cost.amountMinor} ${task.cost.currency} minor units.`),
             task: renderTask(task),
-            artifacts,
+            artifacts: written.artifacts,
           }
         }
         case 'status': {
           if (args.task_id === undefined) throw new MediaFailure('media status requires `task_id`', 'MEDIA_REQUEST_INVALID')
-          const task = await media.refresh(args.task_id, exec.signal)
-          const artifacts: WrittenArtifact[] = []
-          const captions: string[] = []
-          if (task.status === 'succeeded' && task.artifacts !== undefined && args.output_path !== undefined) {
-            const cwd = await workingDirectoryOf(ctx, exec)
-            for (const [index, artifact] of task.artifacts.entries()) {
-              const path = derivedPath(args.output_path, index)
-              const written = await writeArtifact(
-                ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal,
-              )
-              const subtitlesPath = await writeCaptions(ctx, artifact, path, cwd, media.settings.maxArtifactBytes, exec.signal)
-              if (subtitlesPath !== undefined) captions.push(subtitlesPath)
-              artifacts.push({ ...written, mediaType: artifact.mediaType, ...subtitlesPath === undefined ? {} : { subtitlesPath } })
-            }
+          const cwd = await workingDirectoryOf(ctx, exec)
+          let recovered: MediaTaskRecord | undefined
+          let task: MediaTask
+          try {
+            task = await media.refresh(args.task_id, exec.signal)
+          } catch (error) {
+            if (!(error instanceof MediaFailure) || error.code !== 'MEDIA_TASK_NOT_FOUND' || args.project_path === undefined) throw error
+            recovered = await findTaskRecord(ctx, args.project_path, args.task_id, cwd, exec.signal)
+            if (recovered === undefined) throw error
+            media.resume(recovered)
+            task = await media.refresh(args.task_id, exec.signal)
+          }
+          const outputPath = args.output_path ?? recovered?.outputPath
+          const written: { artifacts: WrittenArtifact[]; captions: string[] } =
+            task.status === 'succeeded' && task.artifacts !== undefined && outputPath !== undefined
+              ? await writeArtifacts(ctx, task.artifacts, outputPath, cwd, media.settings.maxArtifactBytes, exec.signal)
+              : { artifacts: [], captions: [] }
+          if (task.status === 'succeeded' && task.artifacts !== undefined && outputPath !== undefined) {
+            await settleTask(ctx, args.project_path, task, cwd, exec.signal)
+          }
+          if (task.status === 'failed' || task.status === 'cancelled') {
+            if (args.project_path !== undefined) await forgetTask(ctx, args.project_path, task.id, cwd, exec.signal)
           }
           return {
             action: 'status',
             message: `Task ${task.id} is ${task.status}${task.error === undefined ? '' : `: ${task.error.message}`}.`
-              + (artifacts.length === 0 ? '' : ` Wrote ${artifacts.map(entry => entry.path).join(', ')}.`)
-              + (captions.length === 0 ? '' : ` Captions: ${captions.join(', ')}.`),
+              + (written.artifacts.length === 0 ? '' : ` Wrote ${written.artifacts.map(entry => entry.path).join(', ')}.`)
+              + (written.captions.length === 0 ? '' : ` Captions: ${written.captions.join(', ')}.`),
             task: renderTask(task),
-            ...artifacts.length === 0 ? {} : { artifacts },
+            ...written.artifacts.length === 0 ? {} : { artifacts: written.artifacts },
           }
         }
         case 'cancel': {
           if (args.task_id === undefined) throw new MediaFailure('media cancel requires `task_id`', 'MEDIA_REQUEST_INVALID')
           const task = await media.cancel(args.task_id)
+          if (args.project_path !== undefined) {
+            await forgetTask(ctx, args.project_path, task.id, await workingDirectoryOf(ctx, exec), exec.signal)
+          }
           return { action: 'cancel', message: `Task ${task.id} is ${task.status}.`, task: renderTask(task) }
         }
       }

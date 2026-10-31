@@ -44,6 +44,12 @@ describe('artifact signatures', () => {
     }
   })
 
+  it('accepts an ID3-tagged MP3 and rejects a truncated tag', () => {
+    const check = signatureOf('audio/mpeg')
+    expect(check?.(new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0]))).toBe(true)
+    expect(check?.(new Uint8Array([0x49, 0x44]))).toBe(false)
+  })
+
   it('leaves an unknown media type unchecked', () => {
     expect(signatureOf('application/octet-stream')).toBeUndefined()
   })

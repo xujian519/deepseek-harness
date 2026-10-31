@@ -1027,6 +1027,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   MediaProvider: 'media provider seam is owned by packages/experimental/video-mode/README.md',
   MediaRequest: 'media request vocabulary is owned by packages/experimental/video-mode/README.md',
   MediaTask: 'media task snapshot is owned by packages/experimental/video-mode/README.md',
+  MediaTaskRecord: 'durable task journal record is owned by packages/experimental/video-mode/README.md',
   AgentHandle: 'agent ownership handle is owned by packages/core/agent/README.md',
   AgentPreset: 'discovered preset record is owned by packages/preset/agent-preset-registry/README.md',
   AgentPresetRoster: 'path-free preset roster is owned by packages/preset/agent-preset-registry/README.md',

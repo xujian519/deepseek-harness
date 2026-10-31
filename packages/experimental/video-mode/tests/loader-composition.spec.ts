@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
+import Loader, { type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
@@ -26,6 +26,36 @@ import WorkingDirectory from '@deepseek-ai/dsh-working-directory'
 import { unsupportedInbox, unsupportedModel } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import VideoMode from '../src/index.ts'
+
+/**
+ * Loader internals stand-in: resolves only the modules this composition names.
+ * `loadCache` belongs to Node's live loader and is never read here.
+ */
+class StubLoader implements ModuleLoaderV2 {
+  readonly version = 'v2'
+  declare loadCache: ModuleLoaderV2['loadCache']
+
+  constructor(private readonly modules: ReadonlyMap<string, unknown>) {}
+
+  async import(specifier: string): Promise<unknown> {
+    if (!this.modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
+    return this.modules.get(specifier)
+  }
+
+  register(): void {}
+
+  getOrCreateModuleJob(): Promise<never> {
+    return Promise.reject(new Error('getOrCreateModuleJob is not part of this composition'))
+  }
+
+  resolveSync(): never {
+    throw new Error('resolveSync is not part of this composition')
+  }
+
+  load(): Promise<never> {
+    return Promise.reject(new Error('load is not part of this composition'))
+  }
+}
 
 let root: string | undefined
 let context: Context | undefined
@@ -107,13 +137,7 @@ async function boot(directory: string): Promise<Context> {
     ['@deepseek-ai/dsh-working-directory', WorkingDirectory],
     ['@deepseek-ai/dsh-experimental-video-mode', VideoMode],
   ])
-  ctx.loader.internal = {
-    version: 'v2',
-    async import(specifier: string) {
-      if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
-      return modules.get(specifier)
-    },
-  } as unknown as NonNullable<typeof ctx.loader.internal>
+  ctx.loader.internal = new StubLoader(modules)
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(configPath).href } })
   await ctx.loader.await()
   for (const entry of ctx.loader.entries()) await entry.fiber?.await()

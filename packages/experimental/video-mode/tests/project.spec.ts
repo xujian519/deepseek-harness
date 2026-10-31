@@ -5,6 +5,7 @@
  */
 
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -13,15 +14,20 @@ import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import { FsError } from '@deepseek-ai/dsh-fs'
 import {
   missingShotClips,
+  mutateProjectFile,
   newProject,
+  parseProject,
   projectCost,
   projectPathFor,
   readProject,
+  readProjectText,
   recordRender,
   removeShot,
+  serializeProject,
   slugify,
   upsertShot,
   validateProject,
+  withProjectLock,
   writeProject,
 } from '../src/index.ts'
 
@@ -115,5 +121,71 @@ describe('project store', () => {
     const rerendered = recordRender(rendered, { id: 'r1', path: 'out/final-v2.mp4', createdAt: '2026-01-02T00:00:00.000Z' })
     expect(rerendered.renders).toHaveLength(1)
     expect(rerendered.renders[0]?.path).toBe('out/final-v2.mp4')
+  })
+})
+
+describe('project concurrency', () => {
+  it('reads and serializes documents with the shared helpers', async () => {
+    const project = newProject({ title: 'Round Trip' })
+    const text = serializeProject(project)
+    expect(parseProject(text, 'project.json')).toEqual(project)
+    await writeFile(join(root, 'round.json'), text)
+    expect(await readProjectText(ctx, 'round.json', root)).toBe(text)
+    await expect(readProjectText(ctx, 'absent.json', root)).rejects.toMatchObject({ code: 'MEDIA_PROJECT_INVALID' })
+    expect(() => parseProject('{', 'broken.json')).toThrow(/not valid JSON/)
+  })
+
+  it('retries a mutation when another writer changes the document', async () => {
+    const base = newProject({ title: 'Retry' })
+    const concurrent = serializeProject(recordRender(base, {
+      id: 'r1', path: 'out/other.mp4', createdAt: '2026-01-01T00:00:00.000Z',
+    }))
+    let reads = 0
+    let written = ''
+    const result = await mutateProjectFile({
+      path: 'project.json',
+      read: async () => {
+        reads += 1
+        return reads === 1 ? serializeProject(base) : concurrent
+      },
+      write: async (text) => { written = text },
+    }, project => upsertShot(project, { id: 's01', index: 1, prompt: 'one', durationSec: 1, status: 'draft' }))
+
+    expect(result.shots).toHaveLength(1)
+    expect(result.renders).toHaveLength(1)
+    const saved = parseProject(written, 'project.json')
+    expect(saved.shots.map(shot => shot.id)).toEqual(['s01'])
+    expect(saved.renders.map(render => render.id)).toEqual(['r1'])
+  })
+
+  it('fails loud after the attempt budget when the document keeps moving', async () => {
+    let reads = 0
+    const io = {
+      path: 'project.json',
+      read: async () => {
+        reads += 1
+        return serializeProject(recordRender(newProject({ title: 'Moving' }), {
+          id: `r${reads}`, path: `out/${reads}.mp4`, createdAt: '2026-01-01T00:00:00.000Z',
+        }))
+      },
+      write: async () => {},
+    }
+    await expect(mutateProjectFile(io, project => project, 3)).rejects.toMatchObject({ code: 'MEDIA_PROJECT_CONFLICT' })
+    expect(reads).toBe(6)
+  })
+
+  it('serializes writers per project and releases the lock after a failure', async () => {
+    const order: string[] = []
+    const first = withProjectLock('lock-a', async () => {
+      order.push('first-start')
+      await delay(5)
+      order.push('first-end')
+    })
+    const second = withProjectLock('lock-a', async () => { order.push('second') })
+    await Promise.all([first, second])
+    expect(order).toEqual(['first-start', 'first-end', 'second'])
+
+    await expect(withProjectLock('lock-b', async () => { throw new Error('boom') })).rejects.toThrow('boom')
+    await expect(withProjectLock('lock-b', async () => 'after')).resolves.toBe('after')
   })
 })

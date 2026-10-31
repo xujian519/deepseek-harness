@@ -1,0 +1,31 @@
+/* The frame fills the scroller and centres a video that keeps its intrinsic
+   aspect ratio; the player never widens the pane. */
+.frame {
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 12px;
+  gap: 8px;
+  font-family: var(--dsw-font-family, sans-serif);
+}
+
+.video {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 160px);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3, #000);
+}
+
+.status {
+  margin: 0;
+  padding: 24px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  text-align: center;
+}

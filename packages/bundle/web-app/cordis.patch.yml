@@ -401,6 +401,12 @@
     - id: ui-document-studio
       name: '@deepseek-ai/dsh-client-ui-document-studio'
 
+    # Video studio: the Video conversation view (session-discovered video
+    # projects, shots, renders, pending tasks, CNY ledger) and its clip /
+    # keyframe preview. Remove this entry to turn the studio off.
+    - id: ui-video-studio
+      name: '@deepseek-ai/dsh-client-ui-video-studio'
+
     # Records each top-level turn's changed files from git working-tree
     # snapshots; the changed-files card above renders its events.
     - id: workspace-changes

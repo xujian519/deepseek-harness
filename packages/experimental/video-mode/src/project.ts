@@ -12,10 +12,14 @@ import { z } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
 import { FsError } from '@deepseek-ai/dsh-fs'
 import type { FsTarget } from '@deepseek-ai/dsh-fs'
+import { withKeyLock } from './lock.ts'
 import { MediaFailure, type VideoProject, type VideoRender, type VideoShot } from './types.ts'
 
 /** Project format version written by this package. */
 export const PROJECT_SCHEMA_VERSION = 1 as const
+
+/** Attempts allowed when another process rewrites the project between reads. */
+const PROJECT_WRITE_ATTEMPTS = 3
 
 /** Relative directory under the Session working directory that holds every production. */
 export const VIDEO_ROOT = 'video'
@@ -150,16 +154,43 @@ export function projectPathFor(cwd: string, id: string): string {
  * @throws {@link MediaFailure} when the file is absent or invalid.
  */
 export async function readProject(ctx: Context, path: string, cwd: string, signal?: AbortSignal): Promise<VideoProject> {
+  return parseProject(await readProjectText(ctx, path, cwd, signal), path)
+}
+
+/**
+ * Read one project file as text.
+ * @param ctx - context providing `ctx.fs`.
+ * @param path - absolute or working-directory-relative project path.
+ * @param cwd - Session working directory for relative resolution.
+ * @param signal - caller cancellation.
+ * @returns the file contents.
+ * @throws {@link MediaFailure} `MEDIA_PROJECT_INVALID` when the file is absent.
+ */
+export async function readProjectText(
+  ctx: Context,
+  path: string,
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<string> {
   const target = await ctx.fs.resolve(path, { cwd })
-  let text: string
   try {
-    text = await ctx.fs.readText(target, signal)
+    return await ctx.fs.readText(target, signal)
   } catch (error) {
     if (error instanceof FsError && error.code === 'FS_NOT_FOUND') {
       throw new MediaFailure(`video project not found at ${path}; run video_project init first`, 'MEDIA_PROJECT_INVALID', { cause: error })
     }
     throw error
   }
+}
+
+/**
+ * Parse and validate one project document.
+ * @param text - JSON file contents.
+ * @param path - path used in diagnostics.
+ * @returns the validated project.
+ * @throws {@link MediaFailure} `MEDIA_PROJECT_INVALID` for unreadable JSON or a schema failure.
+ */
+export function parseProject(text: string, path: string): VideoProject {
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -167,6 +198,66 @@ export async function readProject(ctx: Context, path: string, cwd: string, signa
     throw new MediaFailure(`video project ${path} is not valid JSON: ${String(error)}`, 'MEDIA_PROJECT_INVALID', { cause: error })
   }
   return validateProject(parsed)
+}
+
+/**
+ * Serialize one project document exactly as it is stored.
+ * @param project - validated project.
+ * @returns pretty JSON with a trailing newline.
+ */
+export function serializeProject(project: VideoProject): string {
+  return `${JSON.stringify(validateProject(project), null, 2)}\n`
+}
+
+/**
+ * Serialize writers for one project inside this process. Cross-process writers
+ * are detected by {@link mutateProjectFile} before publication.
+ * @param key - resolved project path.
+ * @param task - mutation to run with exclusive in-process access.
+ * @returns the task result.
+ */
+export function withProjectLock<T>(key: string, task: () => Promise<T>): Promise<T> {
+  return withKeyLock(`project:${key}`, task)
+}
+
+/**
+ * Filesystem access the conflict-aware mutator needs.
+ */
+export interface ProjectFileIo {
+  /** Project path used in diagnostics. */
+  readonly path: string
+  /** Read the current document text. */
+  read(): Promise<string>
+  /** Publish one serialized document. */
+  write(text: string): Promise<void>
+}
+
+/**
+ * Apply one mutation and publish it only when the document still matches the
+ * text that was mutated. A mismatch retries against the newer document and
+ * fails loud after the attempt budget.
+ * @param io - read/write access to the project file.
+ * @param apply - pure mutation applied to the current document.
+ * @param attempts - publication attempts before a conflict failure.
+ * @returns the written project.
+ * @throws {@link MediaFailure} `MEDIA_PROJECT_CONFLICT` after repeated changes.
+ */
+export async function mutateProjectFile(
+  io: ProjectFileIo,
+  apply: (project: VideoProject) => VideoProject,
+  attempts = PROJECT_WRITE_ATTEMPTS,
+): Promise<VideoProject> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const text = await io.read()
+    const updated = apply(parseProject(text, io.path))
+    if (await io.read() !== text) continue
+    await io.write(serializeProject(updated))
+    return updated
+  }
+  throw new MediaFailure(
+    'the video project changed while it was being updated; retry the call',
+    'MEDIA_PROJECT_CONFLICT',
+  )
 }
 
 /**

@@ -246,6 +246,8 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
     'presets/document.zh.md',
     'presets/legal.md',
     'presets/legal.zh.md',
+    'presets/video.md',
+    'presets/video.zh.md',
     'skills',
     'lib/public-url-*.js',
   ],

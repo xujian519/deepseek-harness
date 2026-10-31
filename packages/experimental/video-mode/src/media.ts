@@ -5,7 +5,7 @@
  * normalized failure vocabulary.
  *
  * The shipped synthetic provider produces deterministic fixtures so the whole
- * video pipeline can run without credentials. A cloud provider registers the
+ * video pipeline can run without credentials. Cloud providers register the
  * same interface; no consumer changes.
  * @module @deepseek-ai/dsh-experimental-video-mode/media
  */
@@ -35,8 +35,15 @@ import {
   type MiniMaxSpeechEmotion,
   type MiniMaxSpeechSettings,
 } from './minimax-speech.ts'
+import {
+  SILICONFLOW_IMAGE_SIZES,
+  SILICONFLOW_VIDEO_MODEL,
+  SiliconFlowMediaProvider,
+  type SiliconFlowSettings,
+} from './siliconflow.ts'
 import { FAKE_MP4_BASE64 } from './fixture-mp4.ts'
 import { colorFor, silentWav, solidPng } from './fixture-bytes.ts'
+import { requestOfTask } from './store.ts'
 import { createAssembleTool } from './tools/assemble.ts'
 import { createDeliverTool } from './tools/deliver.ts'
 import { createMediaTool } from './tools/media.ts'
@@ -45,6 +52,7 @@ import {
   MediaFailure,
   type MediaArtifact,
   type MediaCost,
+  type MediaCurrency,
   type MediaEstimate,
   type MediaKind,
   type MediaModel,
@@ -52,6 +60,7 @@ import {
   type MediaRequest,
   type MediaSubtitleCue,
   type MediaTask,
+  type MediaTaskRecord,
   type MediaTaskStatus,
 } from './types.ts'
 
@@ -156,6 +165,30 @@ export interface MiniMaxConfig {
   readonly speech?: MiniMaxSpeechConfig
 }
 
+/** SiliconFlow cloud video configuration. */
+export interface SiliconFlowConfig {
+  /** Register the provider. Defaults to false. */
+  readonly enabled?: boolean
+  /** Direct bearer API key for programmatic use; empty when {@link apiKeyEnv} names the credential. */
+  readonly apiKey?: string
+  /** Credential reference resolved per request through `ctx.credentials`, for example `SILICONFLOW_API_KEY`. */
+  readonly apiKeyEnv?: string
+  /** SiliconFlow API origin, including the `/v1` prefix. */
+  readonly baseUrl?: string
+  /** Minimum gap between two status polls for one task. */
+  readonly pollMs?: number
+  /** Failure deadline measured from submission. */
+  readonly timeoutMs?: number
+  /** Model id reported to consumers and submitted to the API. */
+  readonly model?: string
+  /** Aspect ratio used when the request omits one. */
+  readonly aspectRatio?: string
+  /** Price of one completed video in major currency units. */
+  readonly pricePerVideo?: number
+  /** Currency of {@link pricePerVideo}; the mainland site bills CNY and the international site USD. */
+  readonly currency?: MediaCurrency
+}
+
 /** Local ComfyUI backend configuration. */
 export interface ComfyUiConfig {
   /** Register the provider. Defaults to false. */
@@ -223,6 +256,17 @@ const MINIMAX_SPEECH_DEFAULTS = {
   pitch: 0,
 } as const
 
+/** SiliconFlow defaults; the mainland site bills 2.00 CNY per completed video. */
+const SILICONFLOW_DEFAULTS = {
+  baseUrl: 'https://api.siliconflow.cn/v1',
+  pollMs: 10_000,
+  timeoutMs: 3_600_000,
+  model: SILICONFLOW_VIDEO_MODEL,
+  aspectRatio: '9:16',
+  pricePerVideo: 2,
+  currency: 'CNY' as MediaCurrency,
+} as const
+
 /** Deployment configuration of the media runtime and the video tools. */
 export interface MediaRuntimeConfig {
   /** Mount the synthetic provider. Defaults to true for the experimental slice. */
@@ -255,6 +299,8 @@ export interface MediaRuntimeConfig {
   readonly comfyui?: ComfyUiConfig
   /** MiniMax cloud video backend; omitted leaves it unregistered. */
   readonly minimax?: MiniMaxConfig
+  /** SiliconFlow cloud video backend; omitted leaves it unregistered. */
+  readonly siliconflow?: SiliconFlowConfig
 }
 
 /** Media runtime configuration after defaults. */
@@ -278,6 +324,8 @@ export interface ResolvedMediaConfig {
   readonly minimax?: MiniMaxSettings
   /** Resolved MiniMax speech backend; present only when the config enables it. */
   readonly minimaxSpeech?: MiniMaxSpeechSettings
+  /** Resolved SiliconFlow backend; present only when the config enables it. */
+  readonly siliconflow?: SiliconFlowSettings
 }
 
 /**
@@ -330,6 +378,9 @@ export function resolveMediaConfig(config: MediaRuntimeConfig = {}): ResolvedMed
       : {},
     ...minimax !== undefined && minimax.speech?.enabled === true
       ? { minimaxSpeech: resolveMiniMaxSpeech(minimax, resolved.maxArtifactBytes) }
+      : {},
+    ...config.siliconflow?.enabled === true
+      ? { siliconflow: resolveSiliconFlow(config.siliconflow, resolved.maxArtifactBytes) }
       : {},
   }
 }
@@ -468,6 +519,51 @@ export function resolveMiniMaxSpeech(config: MiniMaxConfig, maxArtifactBytes: nu
 }
 
 /**
+ * Apply defaults to the SiliconFlow configuration and validate its bounds. An
+ * empty key is valid configuration: the provider registers unavailable, so a
+ * preset that also carries a local provider still boots without cloud
+ * credentials.
+ * @param config - partial SiliconFlow configuration.
+ * @param maxArtifactBytes - artifact cap inherited from the media runtime.
+ * @returns the complete provider settings.
+ * @throws When a bound, model, ratio, price, or currency is invalid.
+ */
+export function resolveSiliconFlow(config: SiliconFlowConfig, maxArtifactBytes: number): SiliconFlowSettings {
+  const apiKeyEnv = (config.apiKeyEnv ?? '').trim()
+  const currency = config.currency ?? SILICONFLOW_DEFAULTS.currency
+  const pricePerVideo = config.pricePerVideo ?? SILICONFLOW_DEFAULTS.pricePerVideo
+  const settings: SiliconFlowSettings = {
+    apiKey: (config.apiKey ?? '').trim(),
+    ...apiKeyEnv.length === 0 ? {} : { apiKeyEnv },
+    baseUrl: (config.baseUrl ?? SILICONFLOW_DEFAULTS.baseUrl).trim().replace(/\/+$/, ''),
+    pollMs: config.pollMs ?? SILICONFLOW_DEFAULTS.pollMs,
+    timeoutMs: config.timeoutMs ?? SILICONFLOW_DEFAULTS.timeoutMs,
+    maxArtifactBytes,
+    model: config.model ?? SILICONFLOW_DEFAULTS.model,
+    aspectRatio: config.aspectRatio ?? SILICONFLOW_DEFAULTS.aspectRatio,
+    priceMinor: Math.round(pricePerVideo * 100),
+    currency,
+  }
+  if (settings.baseUrl.length === 0) throw new Error('video mode: siliconflow.baseUrl must not be empty')
+  if (settings.model !== SILICONFLOW_VIDEO_MODEL) {
+    throw new Error(`video mode: siliconflow.model must be ${SILICONFLOW_VIDEO_MODEL}`)
+  }
+  if (!(settings.aspectRatio in SILICONFLOW_IMAGE_SIZES)) {
+    throw new Error(`video mode: siliconflow.aspectRatio must be one of ${Object.keys(SILICONFLOW_IMAGE_SIZES).join(', ')}`)
+  }
+  if (!Number.isSafeInteger(settings.pollMs) || settings.pollMs <= 0) {
+    throw new Error('video mode: siliconflow.pollMs must be a positive integer')
+  }
+  if (!Number.isSafeInteger(settings.timeoutMs) || settings.timeoutMs <= 0) {
+    throw new Error('video mode: siliconflow.timeoutMs must be a positive integer')
+  }
+  if (!Number.isFinite(pricePerVideo) || pricePerVideo < 0) {
+    throw new Error('video mode: siliconflow.pricePerVideo must be a non-negative number')
+  }
+  return settings
+}
+
+/**
  * Read one optional emotion label.
  * @param value - configured label.
  * @returns the validated label, or undefined when empty.
@@ -546,6 +642,18 @@ export const Config: z<MediaRuntimeConfig> = z.object({
       emotion: z.string().default(''),
     }),
   }),
+  siliconflow: z.object({
+    enabled: z.boolean().default(false),
+    apiKey: z.string().default(''),
+    apiKeyEnv: z.string().role('credential-ref').default(''),
+    baseUrl: z.string().default(SILICONFLOW_DEFAULTS.baseUrl),
+    pollMs: z.natural().min(1).default(SILICONFLOW_DEFAULTS.pollMs),
+    timeoutMs: z.natural().min(1).default(SILICONFLOW_DEFAULTS.timeoutMs),
+    model: z.string().default(SILICONFLOW_DEFAULTS.model),
+    aspectRatio: z.string().default(SILICONFLOW_DEFAULTS.aspectRatio),
+    pricePerVideo: z.number().min(0).default(SILICONFLOW_DEFAULTS.pricePerVideo),
+    currency: z.union(['CNY', 'USD'] as const).default(SILICONFLOW_DEFAULTS.currency),
+  }),
 })
 
 declare module '@deepseek-ai/cordis' {
@@ -571,6 +679,8 @@ export class MediaRuntime extends Service {
 
   private readonly providers = new Map<string, MediaProvider>()
   private readonly tasks = new Map<string, MediaTask>()
+  /** Estimated cost captured at submission, keyed by task id. */
+  private readonly costs = new Map<string, MediaCost>()
   private counter = 0
   private readonly config: ResolvedMediaConfig
 
@@ -596,6 +706,9 @@ export class MediaRuntime extends Service {
     }
     if (this.config.minimaxSpeech !== undefined) {
       this.register(new MiniMaxSpeechProvider(this.config.minimaxSpeech, fetch, ref => this.resolveCredential(ref)))
+    }
+    if (this.config.siliconflow !== undefined) {
+      this.register(new SiliconFlowMediaProvider(this.config.siliconflow, fetch, ref => this.resolveCredential(ref)))
     }
     this.ctx.inject(['tools', 'fs', 'subprocess'], (scope) => {
       scope.tools.register(createMediaTool(scope, this))
@@ -676,6 +789,7 @@ export class MediaRuntime extends Service {
   async submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask> {
     const selection = this.resolve(request)
     const normalized: MediaRequest = { ...request, model: selection.model.id }
+    const cost = selection.provider.estimate(normalized).cost
     let task: MediaTask
     try {
       task = await selection.provider.submit(normalized, signal)
@@ -683,8 +797,8 @@ export class MediaRuntime extends Service {
       if (error instanceof MediaFailure) throw error
       throw new MediaFailure(`media provider ${selection.provider.id} failed to submit: ${messageOf(error)}`, 'MEDIA_TASK_FAILED', { cause: error })
     }
-    this.remember(task)
-    return task
+    if (cost !== undefined) this.costs.set(task.id, cost)
+    return this.remember(task)
   }
 
   /**
@@ -695,25 +809,80 @@ export class MediaRuntime extends Service {
    * @throws {@link MediaFailure} for selection, validation, and provider failures.
    */
   async generate(request: MediaRequest, signal: AbortSignal): Promise<MediaTask> {
-    const selection = this.resolve(request)
-    const estimate = selection.provider.estimate({ ...request, model: selection.model.id })
-    let task: MediaTask = await this.submit(request, signal)
+    const task = await this.submit(request, signal)
+    return this.wait(task, signal)
+  }
+
+  /**
+   * Wait up to `waitMs` for one submitted task to settle.
+   * @param task - submitted task.
+   * @param signal - caller cancellation, forwarded to the provider.
+   * @returns the settled task, or the current running task when the wait expired.
+   * @throws {@link MediaFailure} when the owning provider disappeared.
+   */
+  async wait(task: MediaTask, signal: AbortSignal): Promise<MediaTask> {
+    let current = task
     const deadline = Date.now() + this.config.waitMs
-    while (!TERMINAL.has(task.status) && Date.now() < deadline) {
+    while (!TERMINAL.has(current.status) && Date.now() < deadline) {
       signal.throwIfAborted()
       await delay(this.config.pollMs, undefined, { signal })
-      const provider = this.providers.get(task.provider)
+      const provider = this.providers.get(current.provider)
       if (provider === undefined) {
-        throw new MediaFailure(`provider ${task.provider} disappeared while task ${task.id} was running`, 'MEDIA_PROVIDER_UNAVAILABLE')
+        throw new MediaFailure(`provider ${current.provider} disappeared while task ${current.id} was running`, 'MEDIA_PROVIDER_UNAVAILABLE')
       }
-      task = await provider.poll(task, signal)
-      this.remember(task)
+      current = this.remember(await provider.poll(current, signal))
     }
-    if (task.status === 'succeeded' && task.cost === undefined && estimate.cost !== undefined) {
-      task = { ...task, cost: estimate.cost }
-      this.remember(task)
+    return current
+  }
+
+  /**
+   * Rebuild in-flight provider state from a journal record after a restart.
+   * @param record - persisted task snapshot and request.
+   * @returns the resumed task.
+   * @throws {@link MediaFailure} when the provider is gone, cannot resume, or rejects the record.
+   */
+  resume(record: MediaTaskRecord): MediaTask {
+    const existing = this.tasks.get(record.task.id)
+    if (existing !== undefined) return existing
+    const provider = this.providers.get(record.task.provider)
+    if (provider === undefined) {
+      throw new MediaFailure(
+        `cannot resume ${record.task.id}: provider ${JSON.stringify(record.task.provider)} is not registered`,
+        'MEDIA_PROVIDER_UNAVAILABLE',
+      )
     }
-    return task
+    if (provider.resume === undefined) {
+      throw new MediaFailure(
+        `provider ${record.task.provider} cannot resume a task across a restart; resubmit the request`,
+        'MEDIA_TASK_NOT_FOUND',
+      )
+    }
+    const resumed = provider.resume(record)
+    if (resumed === undefined || resumed.id !== record.task.id) {
+      throw new MediaFailure(
+        `provider ${record.task.provider} rejected the journal record for ${record.task.id}`,
+        'MEDIA_STORE_INVALID',
+      )
+    }
+    const cost = this.estimateOrUndefined(requestOfTask(record.request))?.cost
+    if (cost !== undefined) this.costs.set(record.task.id, cost)
+    this.remember(resumed)
+    return resumed
+  }
+
+  /**
+   * Estimate a request, tolerating a selection that was reconfigured while a
+   * task was durably pending.
+   * @param request - requested generation.
+   * @returns the estimate, or undefined when the provider or model is gone.
+   */
+  private estimateOrUndefined(request: MediaRequest): MediaEstimate | undefined {
+    try {
+      return this.estimate(request)
+    } catch (error) {
+      if (error instanceof MediaFailure) return undefined
+      throw error
+    }
   }
 
   /**
@@ -745,8 +914,7 @@ export class MediaRuntime extends Service {
     if (provider === undefined) {
       throw new MediaFailure(`provider ${task.provider} is no longer registered`, 'MEDIA_PROVIDER_UNAVAILABLE')
     }
-    const latest = await provider.poll(task, signal)
-    this.remember(latest)
+    const latest = this.remember(await provider.poll(task, signal))
     return latest
   }
 
@@ -845,16 +1013,28 @@ export class MediaRuntime extends Service {
   }
 
   /**
-   * Retain one task record, evicting the oldest settled record at the cap.
+   * Retain one task record, pricing a successful settlement from the estimate
+   * captured at submission when the provider reports no cost, and evicting the
+   * oldest settled record at the cap.
    * @param task - latest task snapshot.
+   * @returns the retained snapshot, priced when an estimate was recorded.
    */
-  private remember(task: MediaTask): void {
-    this.tasks.set(task.id, task)
-    if (this.tasks.size <= this.config.maxTasks) return
+  private remember(task: MediaTask): MediaTask {
+    let stored = task
+    if (task.status === 'succeeded' && task.cost === undefined) {
+      const cost = this.costs.get(task.id)
+      if (cost !== undefined) stored = { ...task, cost }
+    }
+    this.tasks.set(stored.id, stored)
+    if (this.tasks.size <= this.config.maxTasks) return stored
     for (const [id, entry] of this.tasks) {
       if (this.tasks.size <= this.config.maxTasks) break
-      if (id !== task.id && TERMINAL.has(entry.status)) this.tasks.delete(id)
+      if (id !== stored.id && TERMINAL.has(entry.status)) {
+        this.tasks.delete(id)
+        this.costs.delete(id)
+      }
     }
+    return stored
   }
 
   /**
@@ -870,8 +1050,8 @@ export class MediaRuntime extends Service {
 }
 
 /** Cost helper used by the synthetic provider and tests. */
-function costOf(amountMinor: number): MediaCost {
-  return { amountMinor, currency: 'CNY' }
+function costOf(amountMinor: number, currency: MediaCurrency): MediaCost {
+  return { amountMinor, currency }
 }
 
 /**
@@ -885,11 +1065,13 @@ export function estimateCost(model: MediaModel, request: MediaRequest): MediaCos
   if (price === undefined) return undefined
   switch (price.unit) {
     case 'image':
-      return costOf(price.amountMinor)
+      return costOf(price.amountMinor, price.currency)
+    case 'video':
+      return costOf(price.amountMinor, price.currency)
     case 'video-second':
-      return costOf(Math.max(1, Math.ceil(request.durationSec ?? 1)) * price.amountMinor)
+      return costOf(Math.max(1, Math.ceil(request.durationSec ?? 1)) * price.amountMinor, price.currency)
     case '1000-chars':
-      return costOf(Math.max(1, Math.ceil(request.prompt.length / 1000)) * price.amountMinor)
+      return costOf(Math.max(1, Math.ceil(request.prompt.length / 1000)) * price.amountMinor, price.currency)
   }
 }
 

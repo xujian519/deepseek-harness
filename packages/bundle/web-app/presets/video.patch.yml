@@ -116,8 +116,9 @@
           # ── video production ────────────────────────────────────────────────────────
 
           # One experimental row provides `ctx.media`, the cloud MiniMax-H3 video
-          # provider, the cloud MiniMax speech provider, the local ComfyUI provider
-          # (Z-Image Turbo keyframes; Wan 2.2 remains available as
+          # provider, the cloud SiliconFlow Wan2.2 image-to-video provider, the
+          # cloud MiniMax speech provider, the local ComfyUI provider (Z-Image
+          # Turbo keyframes; Wan 2.2 remains available as
           # `wan2.2-ti2v-5b`), and the four model-facing tools (`media`,
           # `video_project`, `video_assemble`, `video_deliver`). It provides a
           # service, so it sits inside an entry-local realm; without one the
@@ -174,6 +175,16 @@
                       enabled: true
                       model: speech-2.8-turbo
                       voiceId: Chinese (Mandarin)_News_Anchor
+                  siliconflow:
+                    enabled: true
+                    apiKeyEnv: SILICONFLOW_API_KEY
+                    baseUrl: https://api.siliconflow.cn/v1
+                    pollMs: 10000
+                    timeoutMs: 3600000
+                    model: Wan-AI/Wan2.2-I2V-A14B
+                    aspectRatio: 9:16
+                    pricePerVideo: 2
+                    currency: CNY
 
           # ── goals ───────────────────────────────────────────────────────────────────
 

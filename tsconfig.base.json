@@ -418,6 +418,7 @@
       "@deepseek-ai/dsh-api-plugin-market-controller/types": ["./packages/api/plugin-market-controller/src/types.ts"],
       "@deepseek-ai/dsh-client-synapse": ["./packages/client/synapse/src"],
       "@deepseek-ai/dsh-client-ui-document-studio": ["./packages/client/ui-document-studio/src"],
+      "@deepseek-ai/dsh-client-ui-video-studio": ["./packages/client/ui-video-studio/src"],
       "@deepseek-ai/dsh-client-ui-patent-teams": ["./packages/client/ui-patent-teams/src"],
       "@deepseek-ai/dsh-client-ui-plugin-catalog": ["./packages/client/ui-plugin-catalog/src"],
       "@deepseek-ai/dsh-desktop-directory-picker": ["./packages/desktop/directory-picker/src"],

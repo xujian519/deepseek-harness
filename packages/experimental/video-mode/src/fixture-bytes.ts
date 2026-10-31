@@ -191,7 +191,9 @@ export function signatureOf(mediaType: string): ((bytes: Uint8Array) => boolean)
         && String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF'
         && String.fromCharCode(...bytes.subarray(8, 12)) === 'WAVE'
     case 'audio/mpeg':
-      return bytes => bytes.length >= 2 && bytes[0] === 0xff && ((bytes[1] as number) & 0xe0) === 0xe0
+      // MiniMax returns ID3v2-tagged audio; a bare frame sync is the other legal start.
+      return bytes => (bytes.length >= 3 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33)
+        || (bytes.length >= 2 && bytes[0] === 0xff && ((bytes[1] as number) & 0xe0) === 0xe0)
     default:
       return undefined
   }

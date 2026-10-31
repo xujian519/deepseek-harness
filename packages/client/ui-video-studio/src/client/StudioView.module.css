@@ -1,0 +1,384 @@
+.studio {
+  display: flex;
+  container-type: inline-size;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  background: var(--dsw-alias-bg-base);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 8px;
+}
+
+.heading {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.headerActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.select {
+  max-width: 220px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.budget {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 12px;
+  font-size: 12px;
+}
+
+.budgetLabel {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.bar {
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.fill {
+  height: 100%;
+  background: var(--dsw-alias-state-business-primary);
+  transition: width 160ms ease;
+}
+
+.overFill {
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.budgetValue {
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.over {
+  color: var(--dsw-alias-state-error-primary);
+  white-space: nowrap;
+}
+
+.status {
+  margin: 0;
+  padding: 8px 20px 16px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.columns {
+  box-sizing: border-box;
+  width: 100%;
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 42%);
+  gap: 16px;
+  min-height: 0;
+  padding: 0 20px 20px;
+  overflow: auto;
+  /* The rows and the preview sit on elevated layers, so this scroller rebinds
+     the thumb indirection in a complete pair. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.lists {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.section {
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 8px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.note {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  box-sizing: border-box;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  text-align: left;
+  background: var(--dsw-alias-bg-layer-2);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .row:hover:enabled {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.row:disabled {
+  cursor: default;
+}
+
+.index {
+  flex: none;
+  width: 24px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 18px;
+  word-break: break-word;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+.badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  corner-shape: round;
+  font-weight: 500;
+}
+
+.badge_draft {
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.badge_ready {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-tertiary);
+}
+
+.badge_generating {
+  color: var(--dsw-alias-state-warning-primary);
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.badge_failed {
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.muted {
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.task {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  font-size: 12px;
+}
+
+.preview {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  min-height: 240px;
+  padding: 12px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.frame {
+  display: flex;
+  min-width: 0;
+  justify-content: center;
+}
+
+.video,
+.image {
+  display: block;
+  max-width: 100%;
+  max-height: 46vh;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-3);
+  object-fit: contain;
+}
+
+.path {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.previewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.empty {
+  box-sizing: border-box;
+  max-width: 460px;
+  margin: auto;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.emptyHint {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* The board follows the column it is given: the shell can show all three
+   columns at a viewport where the conversation column is already narrow. */
+@container (max-width: 720px) {
+  .columns {
+    display: flex;
+    flex-direction: column;
+    padding: 0 12px 16px;
+  }
+
+  .header {
+    padding: 12px 12px 8px;
+  }
+
+  .budget {
+    padding: 0 12px 12px;
+  }
+
+  .preview {
+    position: static;
+  }
+
+  .video,
+  .image {
+    max-height: 38vh;
+  }
+}
+
+@media (max-width: 900px) {
+  .columns {
+    display: flex;
+    flex-direction: column;
+    padding: 0 12px 16px;
+  }
+
+  .header {
+    padding: 12px 12px 8px;
+  }
+
+  .budget {
+    padding: 0 12px 12px;
+  }
+
+  .preview {
+    position: static;
+  }
+
+  .video,
+  .image {
+    max-height: 38vh;
+  }
+}

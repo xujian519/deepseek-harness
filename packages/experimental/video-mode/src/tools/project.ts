@@ -8,13 +8,16 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import {
+  mutateProjectFile,
   newProject,
   projectCost,
   projectPathFor,
   readProject,
+  readProjectText,
   recordRender,
   removeShot,
   upsertShot,
+  withProjectLock,
   writeProject,
 } from '../project.ts'
 import { MediaFailure, type VideoProject, type VideoShot } from '../types.ts'
@@ -43,6 +46,31 @@ function summarize(project: VideoProject, path: string): string {
     lines.push(`${String(shot.index).padStart(2, '0')} ${shot.id} [${shot.status}] ${shot.durationSec}s ${shot.prompt.slice(0, 100)}`)
   }
   return lines.join('\n')
+}
+
+/**
+ * Apply one mutation under the in-process project lock and publish it only
+ * when no other writer changed the document since it was read.
+ * @param ctx - tool context.
+ * @param path - project path.
+ * @param cwd - Session working directory.
+ * @param signal - caller cancellation.
+ * @param apply - pure mutation.
+ * @returns the written project.
+ */
+async function mutateProject(
+  ctx: Context,
+  path: string,
+  cwd: string,
+  signal: AbortSignal,
+  apply: (project: VideoProject) => VideoProject,
+): Promise<VideoProject> {
+  const target = await ctx.fs.resolve(path, { cwd })
+  return withProjectLock(ctx.fs.processPath(target), () => mutateProjectFile({
+    path,
+    read: () => readProjectText(ctx, path, cwd, signal),
+    write: async (text) => { await ctx.fs.writeText(target, text, undefined, signal) },
+  }, apply))
 }
 
 /**
@@ -134,6 +162,9 @@ export function createProjectTool(ctx: Context): ToolDefinition {
         },
       },
       render: (_args, value) => [{ type: 'text', text: value.message }],
+      // The studio discovers productions from settled calls; this is the
+      // authoritative resolved path, which a client cannot derive from a title.
+      presentationMeta: (_args, value) => ({ projectPath: value.path }),
     },
     async execute(args, exec): Promise<ProjectToolValue> {
       const cwd = await workingDirectoryOf(ctx, exec)
@@ -164,31 +195,28 @@ export function createProjectTool(ctx: Context): ToolDefinition {
         case 'upsert_shot': {
           const path = requirePath(args.project_path)
           if (args.shot === undefined) throw new MediaFailure('video_project upsert_shot requires `shot`', 'MEDIA_PROJECT_INVALID')
-          const project = await readProject(ctx, path, cwd, exec.signal)
-          const updated = upsertShot(project, shotFrom(args.shot))
-          await writeProject(ctx, path, updated, cwd, exec.signal)
+          const shot = shotFrom(args.shot)
+          const updated = await mutateProject(ctx, path, cwd, exec.signal, project => upsertShot(project, shot))
           return { action: 'upsert_shot', path, message: summarize(updated, path) }
         }
         case 'remove_shot': {
           const path = requirePath(args.project_path)
-          if (args.shot_id === undefined) throw new MediaFailure('video_project remove_shot requires `shot_id`', 'MEDIA_PROJECT_INVALID')
-          const project = await readProject(ctx, path, cwd, exec.signal)
-          const updated = removeShot(project, args.shot_id)
-          await writeProject(ctx, path, updated, cwd, exec.signal)
+          const shotId = args.shot_id
+          if (shotId === undefined) throw new MediaFailure('video_project remove_shot requires `shot_id`', 'MEDIA_PROJECT_INVALID')
+          const updated = await mutateProject(ctx, path, cwd, exec.signal, project => removeShot(project, shotId))
           return { action: 'remove_shot', path, message: summarize(updated, path) }
         }
         case 'record_render': {
           const path = requirePath(args.project_path)
           if (args.render === undefined) throw new MediaFailure('video_project record_render requires `render`', 'MEDIA_PROJECT_INVALID')
-          const project = await readProject(ctx, path, cwd, exec.signal)
-          const updated = recordRender(project, {
+          const render = {
             id: args.render.id,
             path: args.render.path,
             createdAt: new Date().toISOString(),
             ...args.render.duration_sec === undefined ? {} : { durationSec: args.render.duration_sec },
             ...args.render.cost_cny === undefined ? {} : { costCny: args.render.cost_cny },
-          })
-          await writeProject(ctx, path, updated, cwd, exec.signal)
+          }
+          const updated = await mutateProject(ctx, path, cwd, exec.signal, project => recordRender(project, render))
           return { action: 'record_render', path, message: summarize(updated, path) }
         }
       }

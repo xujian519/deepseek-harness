@@ -9,6 +9,7 @@
     - tab "Deliverables"
     - tab "Board"
     - tab "Teams"
+    - tab "Video"
   - button "More conversation views"
 - navigation "Turn navigation":
   - button "Jump to turn 1"

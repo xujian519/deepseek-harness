@@ -8,6 +8,7 @@
  */
 
 import {
+  KeyedMiniMaxProvider,
   failureCodeFor,
   isRecord,
   minimaxJsonHeaders,
@@ -22,8 +23,6 @@ import {
   type MediaArtifact,
   type MediaEstimate,
   type MediaKind,
-  type MediaModel,
-  type MediaProvider,
   type MediaRequest,
   type MediaSubtitleCue,
   type MediaTask,
@@ -97,8 +96,12 @@ const BITRATE = 128_000
 /** Bound on the subtitle-download request so a stalled object store cannot hold the tool open. */
 const SUBTITLE_FETCH_TIMEOUT_MS = 30_000
 
-/** Longest caption line before a hard break, in characters. */
-const MAX_CUE_CHARS = 24
+/**
+ * Longest caption line before a hard break, in characters. Thirteen Han
+ * characters at the assembler's burn-in font size (4.3% of canvas height) stay
+ * inside a 720-pixel-wide 9:16 frame.
+ */
+const MAX_CUE_CHARS = 13
 
 /** Shortest run that may close at a comma, in characters. */
 const MIN_COMMA_CUE_CHARS = 12
@@ -276,14 +279,13 @@ function parseSubtitleFile(text: string): MediaSubtitleCue[] {
  * returns a succeeded task with inline MP3 bytes; `poll` and `cancel` are
  * idempotent because the task never leaves the provider.
  */
-export class MiniMaxSpeechProvider implements MediaProvider {
+export class MiniMaxSpeechProvider extends KeyedMiniMaxProvider {
   /** Registered provider id. */
   readonly id = MINIMAX_SPEECH_PROVIDER_ID
 
   /** Capability this provider serves. */
   readonly capabilities: readonly MediaKind[] = ['speech']
 
-  private readonly modelsById: readonly MediaModel[]
   private readonly pricePer10k: number | undefined
   private counter = 0
 
@@ -298,30 +300,15 @@ export class MiniMaxSpeechProvider implements MediaProvider {
     private readonly resolveApiKey?: MiniMaxKeyResolver,
   ) {
     const pricePer10k = PRICE_PER_10K_CHARS_MINOR[settings.model]
-    this.pricePer10k = pricePer10k
-    this.modelsById = [{
+    super(settings, [{
       id: settings.model,
       kind: 'speech',
       provider: MINIMAX_SPEECH_PROVIDER_ID,
       ...pricePer10k === undefined
         ? {}
         : { price: { amountMinor: Math.ceil(pricePer10k / 10), currency: 'CNY', unit: '1000-chars' } },
-    }]
-  }
-
-  /** Models the configured MiniMax key serves. */
-  models(): readonly MediaModel[] {
-    return this.modelsById
-  }
-
-  /** A key or credential reference was configured; reachability is proven by the first submission. */
-  available(): boolean {
-    return this.settings.apiKey.length > 0 || this.settings.apiKeyEnv !== undefined
-  }
-
-  /** Explain the missing credential so selection can report a remedy. */
-  unavailableReason(): string | undefined {
-    return this.available() ? undefined : 'set MINIMAX_API_KEY in the environment or name it through minimax.apiKeyEnv'
+    }])
+    this.pricePer10k = pricePer10k
   }
 
   /**
@@ -329,7 +316,7 @@ export class MiniMaxSpeechProvider implements MediaProvider {
    * @param request - requested generation.
    * @returns the prorated cost, or unknown for non-speech kinds.
    */
-  estimate(request: MediaRequest): MediaEstimate {
+  override estimate(request: MediaRequest): MediaEstimate {
     if (request.kind !== 'speech') return { confidence: 'unknown' }
     if (this.pricePer10k === undefined) return { confidence: 'unknown' }
     return {
@@ -345,7 +332,7 @@ export class MiniMaxSpeechProvider implements MediaProvider {
    * @returns the succeeded task with its audio artifact and actual cost.
    * @throws {@link MediaFailure} for an unknown model, missing credential, rejected request, or malformed audio.
    */
-  async submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask> {
+  override async submit(request: MediaRequest, signal: AbortSignal): Promise<MediaTask> {
     if (request.kind !== 'speech') {
       throw new MediaFailure(`MiniMax speech serves speech only, not ${request.kind}`, 'MEDIA_REQUEST_INVALID')
     }
@@ -479,12 +466,12 @@ export class MiniMaxSpeechProvider implements MediaProvider {
    * @param task - current task.
    * @returns the same task.
    */
-  poll(task: MediaTask): Promise<MediaTask> {
+  override poll(task: MediaTask): Promise<MediaTask> {
     return Promise.resolve(task)
   }
 
   /** Cancellation is a no-op because synthesis settles during submission. */
-  cancel(): Promise<void> {
+  override cancel(): Promise<void> {
     return Promise.resolve()
   }
 }

@@ -54,7 +54,7 @@
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给定 improving/worsening 参数对时读取对应的 39×39 矛盾矩阵单元格；registerSection（默认 true）只切换常驻的 tool:triz 提示词区段。 |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
-| `@deepseek-ai/dsh-experimental-video-mode` | `media`, `video_assemble`, `video_deliver`, `video_project` | `ctx.tools`、`ctx.fs`、`ctx.subprocess` | `tool/call`、`tool/result` | - | 视频模式：media 选择图像/视频/语音模型并通过 ctx.fs 写入产物；video_project 拥有持久项目文档；video_assemble 通过 ffmpeg 渲染 EDL；video_deliver 检查声明文件并拒绝不完整或超预算的交付。随包提供确定性合成 provider、本地 ComfyUI provider（Wan 2.2 视频、Z-Image 图像）与云端 MiniMax-H3 provider（按秒计费视频）。 |
+| `@deepseek-ai/dsh-experimental-video-mode` | `media`, `video_assemble`, `video_deliver`, `video_project` | `ctx.tools`、`ctx.fs`、`ctx.subprocess` | `tool/call`、`tool/result` | - | 视频模式：media 选择图像/视频/语音模型并通过 ctx.fs 写入产物；video_project 拥有持久项目文档；video_assemble 通过 ffmpeg 渲染 EDL；video_deliver 检查声明文件并拒绝不完整或超预算的交付。随包提供确定性合成 provider、本地 ComfyUI provider（Wan 2.2 视频、Z-Image 图像），以及云端 MiniMax-H3（按秒计费）与 SiliconFlow Wan2.2（按条计费）视频 provider。 |
 | `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`check_patent_figure_consistency`、`claim_chart_build`、`claim_lint`、`compare_patent_figure_analysis`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`matter_log_append`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`law_search`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`triz_contradiction_analysis`、`validate_specification`、`verify_patent_figure`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/规范原文（法规与审查指南全文）/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document`、`verify_deliverable` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-patent-filing` | `build_patent_filing`、`verify_patent_filing` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | build_patent_filing 把一件 CNIPA 申请文件（说明书摘要、摘要附图、权利要求书、说明书、说明书附图）按随包模板的体例成文为一件 DOCX，段落编号按 spec 的节声明执行；verify_patent_filing 就同一模板对成品跑体例与内容断言（分节数与各节页眉、行距、首行缩进、字号、非黑色文字、说明书五部分、说明书名称、权项数、按节声明生效的编号连续性、残留内部痕迹）。 |
@@ -3112,7 +3112,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 ### `media`
 
-通过已配置的媒体 provider 生成或查看图像、视频片段与语音。 Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; `generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; `cancel` stops one. Prefer `estimate` before a paid generation. 语音请求传 `subtitles` 时会在音频旁写出 `.srt` 字幕文件。 The synthetic provider is for demos and tests; configure the local ComfyUI provider or a real provider for production. Generated files land under the Session workspace; keep each shot in its own directory.
+通过已配置的媒体 provider 生成或查看图像、视频片段与语音。 Actions: `models` lists available models and prices; `estimate` previews cost and duration without generating; `generate` submits one generation and writes the artifact to `output_path`; `status` polls one task once and writes a settled artifact when `output_path` is given; `cancel` stops one. 带 `project_path` 的 `status` 可恢复运行时重启前的任务。 Prefer `estimate` before a paid generation. 语音请求传 `subtitles` 时会在音频旁写出 `.srt` 字幕文件。 The synthetic provider is for demos and tests; configure the local ComfyUI provider or a real provider for production. Generated files land under the Session workspace; keep each shot in its own directory.
 
 ```json
 {
@@ -3192,7 +3192,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "project_path": {
       "type": "string",
-      "description": "Project file used to enforce the remaining budget. Video mode should pass it on every generate call."
+      "description": "Project file used to enforce the remaining budget and to journal in-flight tasks. Pass it on generate and status so a restart can resume the task."
     },
     "confirm_cost": {
       "type": "boolean",
@@ -3413,7 +3413,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 来源： [`packages/experimental/video-mode/src/media.ts`](../packages/experimental/video-mode/src/media.ts)
 
-The media tool selects an image, video, or speech model through the provider seam and writes the artifact through ctx.fs; video_project owns the durable project document; video_assemble renders an EDL through ffmpeg; video_deliver checks the declared files and refuses incomplete or over-budget work. The synthetic provider makes the whole flow runnable without credentials; the local ComfyUI provider adds Wan 2.2 video and Z-Image images, and the cloud MiniMax-H3 provider adds per-second video generation.
+The media tool selects an image, video, or speech model through the provider seam and writes the artifact through ctx.fs; video_project owns the durable project document; video_assemble renders an EDL through ffmpeg; video_deliver checks the declared files and refuses incomplete or over-budget work. The synthetic provider makes the whole flow runnable without credentials; the local ComfyUI provider adds Wan 2.2 video and Z-Image images, and the cloud MiniMax-H3 and SiliconFlow Wan2.2 providers add per-second and per-video generation.
 
 <a id="deepseek-aidsh-patent-tools"></a>
 

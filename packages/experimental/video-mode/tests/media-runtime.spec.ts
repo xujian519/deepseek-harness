@@ -20,6 +20,7 @@ import VideoMode, {
   type MediaModel,
   type MediaProvider,
   type MediaTask,
+  type MediaTaskRecord,
 } from '../src/index.ts'
 import { messageOf } from '../src/media.ts'
 import { MediaFailure } from '../src/types.ts'
@@ -55,6 +56,7 @@ function stubProvider(overrides: Partial<Omit<MediaProvider, 'models'>> & {
     })),
     poll: overrides.poll ?? (async task => ({ ...task, status: 'succeeded' })),
     cancel: overrides.cancel ?? (async () => {}),
+    ...overrides.resume === undefined ? {} : { resume: overrides.resume },
   }
 }
 
@@ -305,11 +307,13 @@ describe('retained tasks', () => {
 })
 
 describe('cost estimation', () => {
-  it('prices image, video-second, and 1000-character units', () => {
+  it('prices image, video, video-second, and 1000-character units', () => {
     const image: MediaModel = { id: 'i', kind: 'image', provider: 'p', price: { amountMinor: 3, currency: 'CNY', unit: 'image' } }
+    const perVideo: MediaModel = { id: 'pv', kind: 'video', provider: 'p', price: { amountMinor: 29, currency: 'USD', unit: 'video' } }
     const video: MediaModel = { id: 'v', kind: 'video', provider: 'p', price: { amountMinor: 5, currency: 'CNY', unit: 'video-second' } }
     const speech: MediaModel = { id: 's', kind: 'speech', provider: 'p', price: { amountMinor: 2, currency: 'CNY', unit: '1000-chars' } }
     expect(estimateCost(image, { kind: 'image', prompt: 'x' })).toEqual({ amountMinor: 3, currency: 'CNY' })
+    expect(estimateCost(perVideo, { kind: 'video', prompt: 'x', durationSec: 30 })).toEqual({ amountMinor: 29, currency: 'USD' })
     expect(estimateCost(video, { kind: 'video', prompt: 'x', durationSec: 3 })).toEqual({ amountMinor: 15, currency: 'CNY' })
     expect(estimateCost(video, { kind: 'video', prompt: 'x' })).toEqual({ amountMinor: 5, currency: 'CNY' })
     expect(estimateCost(speech, { kind: 'speech', prompt: 'x'.repeat(2500) })).toEqual({ amountMinor: 6, currency: 'CNY' })
@@ -472,5 +476,80 @@ describe('cloud credential resolution', () => {
       if (originalKey === undefined) Reflect.deleteProperty(process.env, 'MINIMAX_API_KEY')
       else process.env.MINIMAX_API_KEY = originalKey
     }
+  })
+})
+
+describe('task resumption', () => {
+  /** One journal record for a stub video task. */
+  function recordOf(overrides: Partial<MediaTaskRecord> = {}): MediaTaskRecord {
+    return {
+      task: { id: 'stub-video-1', provider: 'stub', model: 'stub/video', kind: 'video', status: 'running' },
+      submittedAt: 1_000,
+      request: { kind: 'video', model: 'stub/video', prompt: 'x', durationSec: 4 },
+      outputPath: 'out/clip.mp4',
+      ...overrides,
+    }
+  }
+
+  it('resumes through the provider and prices the settlement in remember', async () => {
+    const { ctx, media } = await bareRuntime()
+    media.register(stubProvider({
+      id: 'stub',
+      estimate: () => ({ cost: { amountMinor: 7, currency: 'CNY' }, confidence: 'exact' }),
+      poll: async task => ({ ...task, status: 'succeeded' }),
+      resume: record => record.task,
+    }))
+
+    const resumed = media.resume(recordOf())
+    expect(resumed).toMatchObject({ id: 'stub-video-1', status: 'running' })
+    expect(media.status('stub-video-1').status).toBe('running')
+    expect(media.resume(recordOf()).id).toBe('stub-video-1')
+
+    const settled = await media.refresh('stub-video-1', new AbortController().signal)
+    expect(settled.cost).toEqual({ amountMinor: 7, currency: 'CNY' })
+    await ctx.fiber.dispose()
+  })
+
+  it('tolerates a record whose model is no longer served and propagates other estimate failures', async () => {
+    const { ctx, media } = await bareRuntime()
+    media.register(stubProvider({
+      id: 'stub',
+      resume: record => record.task,
+      poll: async task => ({ ...task, status: 'succeeded' }),
+    }))
+    const resumed = media.resume(recordOf({ request: { kind: 'video', model: 'gone/video', prompt: 'x' } }))
+    expect(resumed.id).toBe('stub-video-1')
+    const settled = await media.refresh('stub-video-1', new AbortController().signal)
+    expect(settled.status).toBe('succeeded')
+    expect(settled.cost).toBeUndefined()
+    await ctx.fiber.dispose()
+
+    const ctx2 = new Context()
+    await ctx2.plugin(VideoMode, { fakeProvider: false }).await()
+    ctx2.media.register(stubProvider({
+      id: 'stub',
+      estimate: () => { throw new Error('pricing down') },
+      resume: record => record.task,
+    }))
+    expect(() => ctx2.media.resume(recordOf())).toThrow('pricing down')
+    await ctx2.fiber.dispose()
+  })
+
+  it('reports a missing provider, an unsupported provider, and a rejected record', async () => {
+    const { ctx, media } = await bareRuntime()
+    expect(() => media.resume(recordOf())).toThrow(/provider "stub" is not registered/)
+
+    media.register(stubProvider({ id: 'stub' }))
+    expect(() => media.resume(recordOf())).toThrow(/cannot resume a task across a restart/)
+
+    const wrongId = stubProvider({ id: 'stub', resume: () => ({ id: 'other', provider: 'stub', model: 'stub/video', kind: 'video', status: 'running' }) })
+    const ctx2 = new Context()
+    await ctx2.plugin(VideoMode, { fakeProvider: false }).await()
+    ctx2.media.register(wrongId)
+    expect(() => ctx2.media.resume(recordOf())).toThrow(/rejected the journal record/)
+    await ctx2.fiber.dispose()
+
+    expect(() => media.status('stub-video-1')).toThrow(/unknown media task/)
+    await ctx.fiber.dispose()
   })
 })

@@ -22,8 +22,8 @@ export interface MediaPrice {
   readonly amountMinor: number
   /** Currency of {@link amountMinor}. */
   readonly currency: MediaCurrency
-  /** What one price covers: `image`, `video-second`, or `1000-chars`. */
-  readonly unit: 'image' | 'video-second' | '1000-chars'
+  /** What one price covers: `image`, `video`, `video-second`, or `1000-chars`. */
+  readonly unit: 'image' | 'video' | 'video-second' | '1000-chars'
 }
 
 /** One model a provider serves. */
@@ -152,6 +152,51 @@ export interface MediaTask {
   readonly error?: MediaTaskError
 }
 
+/** Task fields persisted while a task is still in flight. */
+export type MediaPendingTask = Pick<MediaTask, 'id' | 'provider' | 'model' | 'kind' | 'status'>
+
+/** Request fields a provider needs to rebuild in-flight state after a restart. */
+export interface MediaTaskRequest {
+  /** Requested capability. */
+  readonly kind: MediaKind
+  /** Provider model id that served the request. */
+  readonly model: string
+  /** Positive prompt of the original request. */
+  readonly prompt: string
+  /** Requested duration for `video` and `speech`. */
+  readonly durationSec?: number | undefined
+  /** Requested aspect ratio for `image` and `video`. */
+  readonly aspectRatio?: string | undefined
+  /** Requested resolution label. */
+  readonly resolution?: string | undefined
+}
+
+/** One durable in-flight task record, stored beside the project document. */
+export interface MediaTaskRecord {
+  /** Runtime task snapshot taken after submission. */
+  readonly task: MediaPendingTask
+  /** Submission time in epoch milliseconds. */
+  readonly submittedAt: number
+  /** Request fields needed to resume polling. */
+  readonly request: MediaTaskRequest
+  /** Declared artifact path, reused when a recovered task settles. */
+  readonly outputPath: string
+}
+
+/** One settled generation recorded in the project budget ledger. */
+export interface MediaLedgerEntry {
+  /** Task that produced the charge. */
+  readonly taskId: string
+  /** Requested capability. */
+  readonly kind: MediaKind
+  /** Provider model id. */
+  readonly model: string
+  /** Settled cost in CNY. */
+  readonly costCny: number
+  /** Settlement time as an ISO instant. */
+  readonly at: string
+}
+
 /** Cost and duration preview for one request. */
 export interface MediaEstimate {
   /** Expected cost, omitted when the provider has no price for the selection. */
@@ -182,6 +227,13 @@ export interface MediaProvider {
   poll(task: MediaTask, signal: AbortSignal): Promise<MediaTask>
   /** Request cancellation. Idempotent. */
   cancel(task: MediaTask): Promise<void>
+  /**
+   * Rebuild in-flight state for a task read from the project journal after a
+   * runtime restart. Omitted when the provider keeps no resumable work.
+   * @param record - persisted task snapshot and request.
+   * @returns the resumed task, or undefined when the record is not this provider's.
+   */
+  resume?(record: MediaTaskRecord): MediaTask | undefined
 }
 
 /** Stable failure codes of the video mode. */
@@ -197,6 +249,8 @@ export type MediaFailureCode =
   | 'MEDIA_ARTIFACT_INVALID'
   | 'MEDIA_ARTIFACT_TOO_LARGE'
   | 'MEDIA_PROJECT_INVALID'
+  | 'MEDIA_PROJECT_CONFLICT'
+  | 'MEDIA_STORE_INVALID'
   | 'MEDIA_DELIVERY_BLOCKED'
   | 'MEDIA_EDL_INVALID'
   | 'MEDIA_FFMPEG_MISSING'

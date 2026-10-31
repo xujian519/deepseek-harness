@@ -762,7 +762,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(VideoMode, { fakeProvider: true })
     },
     note:
-      'The media tool selects an image, video, or speech model through the provider seam and writes the artifact through ctx.fs; video_project owns the durable project document; video_assemble renders an EDL through ffmpeg; video_deliver checks the declared files and refuses incomplete or over-budget work. The synthetic provider makes the whole flow runnable without credentials; the local ComfyUI provider adds Wan 2.2 video and Z-Image images, and the cloud MiniMax-H3 provider adds per-second video generation.',
+      'The media tool selects an image, video, or speech model through the provider seam and writes the artifact through ctx.fs; video_project owns the durable project document; video_assemble renders an EDL through ffmpeg; video_deliver checks the declared files and refuses incomplete or over-budget work. The synthetic provider makes the whole flow runnable without credentials; the local ComfyUI provider adds Wan 2.2 video and Z-Image images, and the cloud MiniMax-H3 and SiliconFlow Wan2.2 providers add per-second and per-video generation.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-tools',

@@ -75,6 +75,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-approval` | no | Approval composer takeover over the scoped Remote Event waterfall |
 | `@deepseek-ai/dsh-client-ui-attachment` | no | Dynamic attachment presentation plugin for conversation input, message-image, and trajectory image slots |
 | `@deepseek-ai/dsh-client-ui-brand-official` | no | Official DeepSeek Harness brand occupants for the Web client's sidebar slots |
+| `@deepseek-ai/dsh-client-ui-brand-patent` | no | DSH Patent brand occupants for the Web client's sidebar and hero brand slots |
 | `@deepseek-ai/dsh-client-ui-chat` | no | Chat Conversation target, node definitions, renderers, and details surface |
 | `@deepseek-ai/dsh-client-ui-commands` | no | Client command surface: global directory cache, '/' source, three command UI kinds, popupSelect registry |
 | `@deepseek-ai/dsh-client-ui-conversation` | no | Target-neutral Conversation assembly, shell, composer, queue, and view navigation |
@@ -127,6 +128,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-tool` | no | Client Tool call-tree renderer and keyed per-tool presentation slot |
 | `@deepseek-ai/dsh-client-ui-trajectory` | yes | Trajectory event ledger and timing overview with live tool-result inspection |
 | `@deepseek-ai/dsh-client-ui-user-questions` | no | Web ask_user_question composer takeover and plan-review presentation UI |
+| `@deepseek-ai/dsh-client-ui-video-studio` | no | Video production studio view: discovers the session's video projects, lists shots, renders, pending tasks, and the CNY ledger, and previews clips and keyframes through the authenticated file route |
 | `@deepseek-ai/dsh-client-ui-workflow-run` | no | Durable workflow-run Conversation Node and nested member disclosure for dsh web |
 | `@deepseek-ai/dsh-client-ui-workspace` | no | Workspace picker plugin: one WorkspacePicker registered into the sidebar and empty-state workspace slots |
 
@@ -242,7 +244,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-experimental-tool-subagent-oar` | yes | Delegate standalone tasks to configured external subagent providers |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | no | Model tool that creates and enters a new Git worktree |
 | `@deepseek-ai/dsh-experimental-translator` | yes | Machine translation with reusable Session results |
-| `@deepseek-ai/dsh-experimental-video-mode` | yes | Experimental video production mode: a media provider seam, deterministic project and EDL contracts, a model-facing generation/assembly/delivery tool set, a synthetic provider for end-to-end runs without credentials, a local ComfyUI provider for Wan video and Z-Image keyframes, and cloud MiniMax-H3 video and MiniMax speech providers |
+| `@deepseek-ai/dsh-experimental-video-mode` | yes | Experimental video production mode: a media provider seam, deterministic project and EDL contracts, a model-facing generation/assembly/delivery tool set, a synthetic provider for end-to-end runs without credentials, a local ComfyUI provider for Wan video and Z-Image keyframes, and cloud MiniMax-H3, MiniMax speech, and SiliconFlow Wan2.2 providers |
 | `@deepseek-ai/dsh-experimental-worktree` | yes | Creates a named Git worktree and changes the calling Session working directory |
 | `@deepseek-ai/dsh-hooks-claude-code` | yes | Bridge plugin: run a Claude Code hooks.json / settings hook config on the DeepSeek Harness interception seams |
 | `@deepseek-ai/dsh-hooks-codex` | yes | Bridge plugin: run a Codex hooks.json hook config on the DeepSeek Harness interception seams |

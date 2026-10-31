@@ -14,6 +14,7 @@ import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { z } from 'zod'
 import { WAN22_TI2V_WORKFLOW, Z_IMAGE_WORKFLOW, type ComfyWorkflow, type ComfyWorkflowNode } from './comfyui-workflows.ts'
+import { requestOfTask } from './store.ts'
 import {
   MediaFailure,
   type MediaArtifact,
@@ -23,6 +24,7 @@ import {
   type MediaProvider,
   type MediaRequest,
   type MediaTask,
+  type MediaTaskRecord,
 } from './types.ts'
 
 /** Registered provider id of the local ComfyUI backend. */
@@ -522,6 +524,29 @@ export class ComfyUiMediaProvider implements MediaProvider {
       return this.failed(task, 'MEDIA_TASK_FAILED', `ComfyUI no longer reports task ${promptId}; it may have restarted`)
     }
     return { ...task, status: state }
+  }
+
+  /**
+   * Rebuild in-flight state from a journal record so history polling can
+   * continue after the runtime restarted.
+   * @param record - persisted task snapshot and request.
+   * @returns the resumed task, or undefined when the record belongs to another provider.
+   */
+  resume(record: MediaTaskRecord): MediaTask | undefined {
+    if (record.task.provider !== this.id || record.task.kind === 'speech') return undefined
+    const promptId = promptIdOf(record.task.id)
+    if (promptId === record.task.id || promptId.length === 0) return undefined
+    const prepared = this.prepare({ ...requestOfTask(record.request), kind: record.task.kind }, 0)
+    this.pending.set(promptId, {
+      promptId,
+      kind: record.task.kind,
+      submittedAt: record.submittedAt,
+      lastPollAt: 0,
+      width: prepared.width,
+      height: prepared.height,
+      ...prepared.durationSec === undefined ? {} : { durationSec: prepared.durationSec },
+    })
+    return record.task
   }
 
   /**

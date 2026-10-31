@@ -23,6 +23,10 @@ import { unsupportedInbox, unsupportedModel } from '@deepseek-ai/dsh-agent-loop-
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import VideoMode, {
+  forgetTask,
+  readLedger,
+  readTaskRecords,
+  recordTask,
   silentWav,
   solidPng,
   type MediaArtifact,
@@ -122,6 +126,7 @@ function providerOf(options: {
   readonly estimate?: () => { readonly confidence: 'exact' | 'estimated' | 'unknown'; readonly cost?: { readonly amountMinor: number; readonly currency: 'CNY' | 'USD' }; readonly durationSec?: number }
   readonly submit?: MediaProvider['submit']
   readonly poll?: MediaProvider['poll']
+  readonly resume?: MediaProvider['resume']
 }): MediaProvider {
   const id = options.id ?? 'stub'
   return {
@@ -135,6 +140,7 @@ function providerOf(options: {
     })),
     poll: options.poll ?? (async task => ({ ...task, status: 'succeeded' })),
     cancel: async () => {},
+    ...options.resume === undefined ? {} : { resume: options.resume },
   }
 }
 
@@ -405,6 +411,58 @@ describe('assembly and delivery tools', () => {
     expect(result.hasAudio).toBe(false)
   })
 
+  it('keeps the EDL output and reports complete probe fields', async () => {
+    const ffmpeg = join(root, 'complete-ffmpeg.sh')
+    await writeFile(ffmpeg, '#!/bin/sh\nfor last; do :; done\necho rendered > "$last"\nexit 0\n')
+    await chmod(ffmpeg, 0o755)
+    const probe = join(root, 'complete-ffprobe.sh')
+    await writeFile(probe, '#!/bin/sh\necho \'{"format":{"duration":"2.5"},"streams":[{"codec_type":"video","width":64,"height":96},{"codec_type":"audio"}]}\'\nexit 0\n')
+    await chmod(probe, 0o755)
+    const created = await boot({ ffprobePath: probe, ffmpegPath: ffmpeg })
+    const result = valueOf(await call(created, 'video_assemble', {
+      edl: {
+        version: 1,
+        canvas: { width: 64, height: 96, fps: 12 },
+        clips: [{ kind: 'color', color: '000000', durationSec: 0.1 }],
+        output: 'out/ep.mp4',
+      },
+    }))
+    expect(result.output).toBe('out/ep.mp4')
+    expect(result.durationSec).toBe(2.5)
+    expect(result.width).toBe(64)
+    expect(result.height).toBe(96)
+    expect(String(result.message)).toContain('2.50s')
+    expect(String(result.message)).toContain('with audio')
+  })
+
+  it('passes a clean delivery and blocks a shot without a selected clip', async () => {
+    const probe = join(root, 'clean-ffprobe.sh')
+    await writeFile(probe, '#!/bin/sh\necho \'{"format":{"duration":"1"},"streams":[{"codec_type":"video","width":64,"height":96},{"codec_type":"audio"}]}\'\nexit 0\n')
+    await chmod(probe, 0o755)
+    const created = await boot({ ffprobePath: probe })
+    const project = valueOf(await call(created, 'video_project', { action: 'init', title: 'Clean', target_seconds: 2, budget_cny: 10 }))
+    const path = project.path as string
+    valueOf(await call(created, 'video_project', {
+      action: 'upsert_shot', project_path: path,
+      shot: { id: 's1', index: 1, prompt: 'x', duration_sec: 1, status: 'ready', clip_path: 'out/clean.mp4' },
+    }))
+    await mkdir(join(root, 'out'), { recursive: true })
+    await writeFile(join(root, 'out/clean.mp4'), 'video bytes')
+    const clean = valueOf(await call(created, 'video_deliver', {
+      project_path: path, files: [{ path: 'out/clean.mp4', format: 'video' }],
+    }))
+    expect(clean.ok).toBe(true)
+    expect(String(clean.message)).toContain('all checks passed')
+
+    valueOf(await call(created, 'video_project', {
+      action: 'upsert_shot', project_path: path,
+      shot: { id: 's2', index: 2, prompt: 'y', duration_sec: 1, status: 'draft' },
+    }))
+    expect(errorOf(await call(created, 'video_deliver', {
+      project_path: path, files: [{ path: 'out/clean.mp4', format: 'video' }],
+    }))).toContain('shots without a selected clip: s2')
+  })
+
   it.runIf(FFMPEG)('reports a complete probe for a real render', async () => {
     const created = await boot()
     const result = valueOf(await call(created, 'video_assemble', {
@@ -450,6 +508,7 @@ describe('assembly and delivery tools', () => {
     await writeFile(join(root, 'out/empty.mp4'), '')
     await writeFile(join(root, 'out/broken.mp4'), 'not video')
     await writeFile(join(root, 'out/other.txt'), 'text')
+    await mkdir(join(root, 'out/folder'), { recursive: true })
     const message = errorOf(await call(created, 'video_deliver', {
       project_path: path,
       files: [
@@ -457,6 +516,7 @@ describe('assembly and delivery tools', () => {
         { path: 'out/empty.mp4', format: 'video' },
         { path: 'out/broken.mp4', format: 'video' },
         { path: 'out/other.txt', format: 'other' },
+        { path: 'out/folder', format: 'other' },
       ],
     }))
     expect(message).toContain('duration_plan')
@@ -685,5 +745,254 @@ describe('delivery stream findings', () => {
     }))
     expect(message).toContain('no readable video stream')
     expect(message).toContain('no audio stream')
+  })
+})
+
+describe('durable tasks and the budget ledger', () => {
+  it('journals a pending task, recovers it after a restart, and ledgers one charge', async () => {
+    const first = await boot({ approvalThresholdCny: 100 })
+    first.media.register(providerOf({
+      id: 'durable',
+      models: [{ id: 'durable/video', kind: 'video', provider: 'durable' }],
+      estimate: () => ({ confidence: 'exact', cost: { amountMinor: 700, currency: 'CNY' } }),
+      submit: async request => ({
+        id: 'durable-video-1', provider: 'durable', model: request.model ?? '', kind: request.kind, status: 'submitted',
+      }),
+    }))
+    const project = valueOf(await call(first, 'video_project', { action: 'init', title: 'Durable', budget_cny: 10 }))
+    const projectPath = project.path as string
+
+    const submitted = valueOf(await call(first, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'durable/video', output_path: 'out/clip.mp4',
+      wait: false, project_path: projectPath,
+    }))
+    expect(String(submitted.message)).toContain('Submitted video task')
+    expect(await readTaskRecords(first, projectPath, root)).toHaveLength(1)
+    await first.fiber.dispose()
+
+    const second = await boot()
+    let resumed = 0
+    second.media.register(providerOf({
+      id: 'durable',
+      models: [{ id: 'durable/video', kind: 'video', provider: 'durable' }],
+      estimate: () => ({ confidence: 'exact', cost: { amountMinor: 700, currency: 'CNY' } }),
+      resume: (record) => {
+        resumed += 1
+        return record.task
+      },
+      poll: async task => ({
+        ...task,
+        status: 'succeeded',
+        artifacts: [{ id: 'clip', kind: 'video', mediaType: 'video/mp4', bytes: MP4 }],
+      }),
+    }))
+
+    const settled = valueOf(await call(second, 'media', {
+      action: 'status', task_id: 'durable-video-1', project_path: projectPath,
+    }))
+    expect(resumed).toBe(1)
+    expect(String(settled.message)).toContain('Wrote')
+    expect((await stat(join(root, 'out/clip.mp4'))).size).toBe(MP4.length)
+    expect(await readTaskRecords(second, projectPath, root)).toEqual([])
+    const charges = await readLedger(second, projectPath, root)
+    expect(charges).toHaveLength(1)
+    expect(charges[0]).toMatchObject({
+      taskId: 'durable-video-1', kind: 'video', model: 'durable/video', costCny: 7,
+    })
+    expect(charges[0]?.at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+
+    valueOf(await call(second, 'media', { action: 'status', task_id: 'durable-video-1', project_path: projectPath }))
+    expect(await readLedger(second, projectPath, root)).toHaveLength(1)
+    await second.fiber.dispose()
+  })
+
+  it('counts the ledger against the budget when a shot records no cost', async () => {
+    const created = await boot()
+    let price = 100
+    created.media.register(providerOf({
+      id: 'priced',
+      models: [{ id: 'priced/video', kind: 'video', provider: 'priced' }],
+      estimate: () => ({ confidence: 'exact', cost: { amountMinor: price, currency: 'CNY' } }),
+      submit: async request => ({
+        id: `priced-${price}`, provider: 'priced', model: request.model ?? '', kind: request.kind,
+        status: 'succeeded', artifacts: [{ id: 'clip', kind: 'video', mediaType: 'video/mp4', bytes: MP4 }],
+      }),
+    }))
+    const project = valueOf(await call(created, 'video_project', { action: 'init', title: 'Priced', budget_cny: 3 }))
+    const projectPath = project.path as string
+
+    valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'priced/video', output_path: 'out/a.mp4',
+      project_path: projectPath, confirm_cost: true,
+    }))
+    expect(await readLedger(created, projectPath, root)).toHaveLength(1)
+
+    price = 300
+    const error = errorOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'priced/video', output_path: 'out/b.mp4',
+      project_path: projectPath, confirm_cost: true,
+    }))
+    expect(error).toContain('exceeds the 2.00 CNY remaining')
+    expect(await readLedger(created, projectPath, root)).toHaveLength(1)
+  })
+
+  it('journals only pending tasks and clears a record on failure or cancel', async () => {
+    const created = await boot({ approvalThresholdCny: 100 })
+    created.media.register(providerOf({
+      id: 'sync',
+      models: [{ id: 'sync/video', kind: 'video', provider: 'sync' }],
+      submit: async request => ({
+        id: 'sync-1', provider: 'sync', model: request.model ?? '', kind: request.kind, status: 'succeeded',
+        artifacts: [{ id: 'clip', kind: 'video', mediaType: 'video/mp4', bytes: MP4 }],
+      }),
+    }))
+    created.media.register(providerOf({
+      id: 'flaky',
+      models: [{ id: 'flaky/video', kind: 'video', provider: 'flaky' }],
+      submit: async request => ({
+        id: 'flaky-1', provider: 'flaky', model: request.model ?? '', kind: request.kind, status: 'submitted',
+      }),
+      poll: async task => ({ ...task, status: 'failed', error: { code: 'X', message: 'bad' } }),
+    }))
+    created.media.register(providerOf({
+      id: 'slow',
+      models: [{ id: 'slow/video', kind: 'video', provider: 'slow' }],
+      submit: async request => ({
+        id: 'slow-1', provider: 'slow', model: request.model ?? '', kind: request.kind, status: 'submitted',
+      }),
+      poll: async task => task,
+    }))
+    const project = valueOf(await call(created, 'video_project', { action: 'init', title: 'Cleanup' }))
+    const projectPath = project.path as string
+
+    valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'sync/video', output_path: 'out/a.mp4', project_path: projectPath,
+    }))
+    expect(await readTaskRecords(created, projectPath, root)).toEqual([])
+
+    expect(errorOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'flaky/video', output_path: 'out/f.mp4', project_path: projectPath,
+    }))).toContain('bad')
+    expect(await readTaskRecords(created, projectPath, root)).toEqual([])
+
+    valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'slow/video', output_path: 'out/s.mp4',
+      wait: false, project_path: projectPath,
+    }))
+    expect(await readTaskRecords(created, projectPath, root)).toHaveLength(1)
+    valueOf(await call(created, 'media', { action: 'cancel', task_id: 'slow-1', project_path: projectPath }))
+    expect(await readTaskRecords(created, projectPath, root)).toEqual([])
+
+    created.media.register(providerOf({
+      id: 'cancel',
+      models: [{ id: 'cancel/video', kind: 'video', provider: 'cancel' }],
+      submit: async request => ({
+        id: 'cancel-1', provider: 'cancel', model: request.model ?? '', kind: request.kind, status: 'cancelled',
+      }),
+    }))
+    expect(errorOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'cancel/video', output_path: 'out/c.mp4', project_path: projectPath,
+    }))).toContain('was cancelled')
+    expect(await readTaskRecords(created, projectPath, root)).toEqual([])
+  })
+
+  it('leaves a failed status without a project path unflagged', async () => {
+    const created = await boot({ approvalThresholdCny: 100 })
+    created.media.register(providerOf({
+      id: 'late',
+      models: [{ id: 'late/video', kind: 'video', provider: 'late' }],
+      submit: async request => ({
+        id: 'late-1', provider: 'late', model: request.model ?? '', kind: request.kind, status: 'submitted',
+      }),
+      poll: async task => ({ ...task, status: 'failed', error: { code: 'X', message: 'late failure' } }),
+    }))
+    const submitted = valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'late/video', output_path: 'out/l.mp4', wait: false,
+    }))
+    expect(String(submitted.message)).toContain('Submitted')
+    const failed = valueOf(await call(created, 'media', { action: 'status', task_id: 'late-1' }))
+    expect(String(failed.message)).toContain('is failed: late failure')
+
+    const project = valueOf(await call(created, 'video_project', { action: 'init', title: 'Late' }))
+    const projectPath = project.path as string
+    created.media.register(providerOf({
+      id: 'later',
+      models: [{ id: 'later/video', kind: 'video', provider: 'later' }],
+      submit: async request => ({
+        id: 'later-1', provider: 'later', model: request.model ?? '', kind: request.kind, status: 'submitted',
+      }),
+      poll: async task => ({ ...task, status: 'failed', error: { code: 'X', message: 'still bad' } }),
+    }))
+    valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'later/video', output_path: 'out/ll.mp4',
+      wait: false, project_path: projectPath,
+    }))
+    expect(await readTaskRecords(created, projectPath, root)).toHaveLength(1)
+    const settled = valueOf(await call(created, 'media', { action: 'status', task_id: 'later-1', project_path: projectPath }))
+    expect(String(settled.message)).toContain('is failed')
+    expect(await readTaskRecords(created, projectPath, root)).toEqual([])
+  })
+
+  it('reports a lost task when the journal has no usable record', async () => {
+    const created = await boot()
+    const project = valueOf(await call(created, 'video_project', { action: 'init', title: 'Lost' }))
+    const projectPath = project.path as string
+
+    expect(errorOf(await call(created, 'media', { action: 'status', task_id: 'missing', project_path: projectPath })))
+      .toContain('unknown media task')
+    expect(errorOf(await call(created, 'media', { action: 'status', task_id: 'missing' })))
+      .toContain('unknown media task')
+
+    await recordTask(created, projectPath, {
+      task: { id: 'ghost-video-1', provider: 'ghost', model: 'ghost/video', kind: 'video', status: 'running' },
+      submittedAt: Date.now(),
+      request: { kind: 'video', model: 'ghost/video', prompt: 'x', durationSec: 4 },
+      outputPath: 'out/ghost.mp4',
+    }, root)
+    expect(errorOf(await call(created, 'media', { action: 'status', task_id: 'ghost-video-1', project_path: projectPath })))
+      .toContain('provider "ghost" is not registered')
+    await forgetTask(created, projectPath, 'ghost-video-1', root)
+  })
+
+  it('keeps a recovered task journaled while it is still running', async () => {
+    const created = await boot()
+    const project = valueOf(await call(created, 'video_project', { action: 'init', title: 'Running' }))
+    const projectPath = project.path as string
+    created.media.register(providerOf({
+      id: 'slow',
+      models: [{ id: 'slow/video', kind: 'video', provider: 'slow' }],
+      resume: record => record.task,
+      poll: async task => ({ ...task, status: 'running' }),
+    }))
+    await recordTask(created, projectPath, {
+      task: { id: 'slow-video-1', provider: 'slow', model: 'slow/video', kind: 'video', status: 'running' },
+      submittedAt: Date.now(),
+      request: { kind: 'video', model: 'slow/video', prompt: 'x', durationSec: 4 },
+      outputPath: 'out/slow.mp4',
+    }, root)
+
+    const running = valueOf(await call(created, 'media', { action: 'status', task_id: 'slow-video-1', project_path: projectPath }))
+    expect(String(running.message)).toContain('is running')
+    expect(await readTaskRecords(created, projectPath, root)).toHaveLength(1)
+  })
+
+  it('does not ledger a settlement in another currency', async () => {
+    const created = await boot()
+    created.media.register(providerOf({
+      id: 'usd',
+      models: [{ id: 'usd/video', kind: 'video', provider: 'usd' }],
+      estimate: () => ({ confidence: 'exact', cost: { amountMinor: 1, currency: 'USD' } }),
+      submit: async request => ({
+        id: 'usd-1', provider: 'usd', model: request.model ?? '', kind: request.kind, status: 'succeeded',
+        artifacts: [{ id: 'clip', kind: 'video', mediaType: 'video/mp4', bytes: MP4 }],
+      }),
+    }))
+    const project = valueOf(await call(created, 'video_project', { action: 'init', title: 'Usd Ledger' }))
+    const projectPath = project.path as string
+    valueOf(await call(created, 'media', {
+      action: 'generate', kind: 'video', prompt: 'x', model: 'usd/video', output_path: 'out/u.mp4',
+      project_path: projectPath, confirm_cost: true,
+    }))
+    expect(await readLedger(created, projectPath, root)).toEqual([])
   })
 })

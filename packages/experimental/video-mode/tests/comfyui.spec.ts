@@ -26,6 +26,7 @@ import VideoMode, {
   type ComfyUiConfig,
   type FetchLike,
   type MediaTask,
+  type MediaTaskRecord,
   type WorkflowValues,
 } from '../src/index.ts'
 
@@ -721,5 +722,83 @@ describe('comfyui non-JSON success body', () => {
     const provider = new ComfyUiMediaProvider(settingsOf(), recorder(() => new Response('not json', { status: 200 })).fetchImpl)
     await expect(provider.submit({ kind: 'video', prompt: 'x' }, new AbortController().signal))
       .rejects.toThrow(/without returning a prompt id/)
+  })
+})
+
+describe('comfyui resumption', () => {
+  /** One journal record for a ComfyUI prompt. */
+  function record(overrides: Partial<MediaTaskRecord> = {}): MediaTaskRecord {
+    return {
+      task: { id: 'comfyui-prompt-9', provider: 'comfyui', model: COMFYUI_VIDEO_MODEL, kind: 'video', status: 'running' },
+      submittedAt: Date.now(),
+      request: { kind: 'video', model: COMFYUI_VIDEO_MODEL, prompt: 'a cat', durationSec: 2, aspectRatio: '9:16', resolution: '480p' },
+      outputPath: 'shots/s01.mp4',
+      ...overrides,
+    }
+  }
+
+  it('resumes a video prompt and downloads its history file', async () => {
+    const { fetchImpl } = recorder((call) => {
+      if (call.url.includes('/history/prompt-9')) {
+        return json({
+          'prompt-9': {
+            status: { status_str: 'success', completed: true },
+            outputs: { '11': { images: [{ filename: 'clip.mp4', subfolder: 'dsh/video', type: 'output' }] } },
+          },
+        })
+      }
+      if (call.url.includes('/view')) return new Response(MP4, { status: 200 })
+      throw new Error(`unexpected request ${call.url}`)
+    })
+    const provider = new ComfyUiMediaProvider(settingsOf(), fetchImpl)
+    const resumed = provider.resume(record())
+    expect(resumed?.id).toBe('comfyui-prompt-9')
+
+    const settled = await provider.poll(resumed as MediaTask, new AbortController().signal)
+    expect(settled.status).toBe('succeeded')
+    expect(settled.artifacts?.[0]).toMatchObject({ mediaType: 'video/mp4', width: 480, height: 864, durationSec: 2 })
+    expect(settled.artifacts?.[0]?.bytes).toEqual(MP4)
+  })
+
+  it('resumes an image prompt with its stored canvas', async () => {
+    const png = solidPng(4, 4, 1, 2, 3)
+    const { fetchImpl } = recorder((call) => {
+      if (call.url.includes('/history/prompt-8')) {
+        return json({
+          'prompt-8': {
+            status: { status_str: 'success', completed: true },
+            outputs: { '9': { images: [{ filename: 'frame.png', subfolder: 'dsh/image', type: 'output' }] } },
+          },
+        })
+      }
+      if (call.url.includes('/view')) return new Response(new Uint8Array(png), { status: 200 })
+      throw new Error(`unexpected request ${call.url}`)
+    })
+    const provider = new ComfyUiMediaProvider(settingsOf(), fetchImpl)
+    const resumed = provider.resume(record({
+      task: { id: 'comfyui-prompt-8', provider: 'comfyui', model: COMFYUI_IMAGE_MODEL, kind: 'image', status: 'running' },
+      request: { kind: 'image', model: COMFYUI_IMAGE_MODEL, prompt: 'a cat', aspectRatio: '1:1' },
+      outputPath: 'assets/frame.png',
+    }))
+    expect(resumed?.kind).toBe('image')
+
+    const settled = await provider.poll(resumed as MediaTask, new AbortController().signal)
+    expect(settled.status).toBe('succeeded')
+    expect(settled.artifacts?.[0]).toMatchObject({ mediaType: 'image/png', width: 1024, height: 1024 })
+  })
+
+  it('ignores foreign records and rejects an unservable request', () => {
+    const provider = new ComfyUiMediaProvider(settingsOf())
+    const base = record()
+    expect(provider.resume({ ...base, task: { ...base.task, provider: 'minimax' } })).toBeUndefined()
+    expect(provider.resume({ ...base, task: { ...base.task, kind: 'speech' } })).toBeUndefined()
+    expect(provider.resume({ ...base, task: { ...base.task, id: 'prompt-9' } })).toBeUndefined()
+    const sparse = provider.resume({
+      ...base,
+      request: { ...base.request, durationSec: undefined, aspectRatio: undefined, resolution: undefined },
+    })
+    expect(sparse?.id).toBe('comfyui-prompt-9')
+    expect(() => provider.resume({ ...base, request: { ...base.request, aspectRatio: '2:1' } }))
+      .toThrow(/Unsupported aspect ratio/)
   })
 })

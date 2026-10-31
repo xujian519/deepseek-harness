@@ -561,12 +561,12 @@ describe('speech captions', () => {
     ])
 
     const hard = captionRecorder(wordFile(
-      Array.from({ length: 25 }, (_, index) => ['乙', index * 100, index * 100 + 100] as const),
+      Array.from({ length: 26 }, (_, index) => ['乙', index * 100, index * 100 + 100] as const),
     ))
     const hardTask = await submitWithCaptions(new MiniMaxSpeechProvider(settingsOf(), hard.fetchImpl))
     expect(hardTask.artifacts?.[0]?.subtitles).toEqual([
-      { text: '乙'.repeat(24), startSec: 0, endSec: 2.4 },
-      { text: '乙', startSec: 2.4, endSec: 2.5 },
+      { text: '乙'.repeat(13), startSec: 0, endSec: 1.3 },
+      { text: '乙'.repeat(13), startSec: 1.3, endSec: 2.6 },
     ])
   })
 

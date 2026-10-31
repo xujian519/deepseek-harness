@@ -53,6 +53,7 @@ kind: "package-group"
 | [`ui-sidebar-right/`](ui-sidebar-right/README.zh.md) | 承载右侧 Sidebar：每会话一块停靠面，架在停靠套件与 tab 类型注册表之上 | `ctx.sidebarRight` / `ctx.sidebarRightTabs` |
 | [`ui-dockkit/`](ui-dockkit/README.zh.md) | 提供停靠布局引擎——由可逆操作组成的标签格分裂树——以及渲染并驱动它的组件 | — |
 | [`ui-brand-official/`](ui-brand-official/README.zh.md) | 用官方名称与标记填充通用浏览器品牌 slot | — |
+| [`ui-brand-patent/`](ui-brand-patent/README.zh.md) | 用 DSH Patent 名称与标记填充侧栏与首屏品牌 slot | — |
 | [`ui-workspace/`](ui-workspace/README.zh.md) | 提供工作区选择与创建界面 | — |
 | [`ui-conversation/`](ui-conversation/README.zh.md) | 展示当前对话及其输入界面 | — |
 | [`ui-chat/`](ui-chat/README.zh.md) | 投影并渲染 Chat 对话 target | — |
@@ -93,6 +94,7 @@ kind: "package-group"
 | [`ui-plugin-catalog/`](ui-plugin-catalog/README.zh.md) | 向「插件」设置分区贡献只读的插件目录标签页 | — |
 | [`ui-deliverables/`](ui-deliverables/README.zh.md) | 生成改动文件卡片及其对比 tab、交付文件卡片与可点击的最终响应文件引用 | — |
 | [`ui-document-studio/`](ui-document-studio/README.zh.md) | 贡献文档工作台：列出已交付文件的对话视图标签页，含宿主预览与打开／在文件夹中显示／打印动作 | — |
+| [`ui-video-studio/`](ui-video-studio/README.zh.md) | 贡献视频制作看板：发现视频项目的对话视图标签页，展示分镜、成片、进行中任务与人民币账本，并经已鉴权文件路由预览媒体 | — |
 | [`ui-message-feedback/`](ui-message-feedback/README.zh.md) | 提供消息赞踩，以及从赞踩、`/feedback` 或会话标题栏菜单打开的反馈弹窗 | `ctx.feedbackUi` |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.zh.md) | 面向工作区目录流程的应用内目录浏览界面 | — |
 | [`ui-directory-picker-native/`](ui-directory-picker-native/README.zh.md) | 驱动本地 Desktop 或 Host OS 选择器的原生目录选择界面 | — |

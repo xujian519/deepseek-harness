@@ -1,10 +1,11 @@
 /**
  * Experimental video production mode. One service provides `ctx.media`, a
  * deterministic synthetic provider, a local ComfyUI provider, cloud MiniMax-H3
- * video and MiniMax speech providers, and four model-facing tools: `media`,
- * `video_project`, `video_assemble`, and `video_deliver`. The project document
- * and the EDL are the durable, reproducible contracts; the service owns
- * provider selection and task retention.
+ * video, MiniMax speech, and SiliconFlow Wan2.2 image-to-video providers, and
+ * four model-facing tools: `media`, `video_project`, `video_assemble`, and
+ * `video_deliver`. The project document and the EDL are the durable,
+ * reproducible contracts; the service owns provider selection and task
+ * retention.
  *
  * This package is an evaluated prototype. The provider seam, the project
  * document, and the EDL are designed for promotion into separate `media/` and
@@ -27,6 +28,7 @@ export {
   resolveMediaConfig,
   resolveMiniMax,
   resolveMiniMaxSpeech,
+  resolveSiliconFlow,
 } from './media.ts'
 export type {
   ComfyUiConfig,
@@ -36,6 +38,7 @@ export type {
   MiniMaxConfig,
   MiniMaxSpeechConfig,
   ResolvedMediaConfig,
+  SiliconFlowConfig,
 } from './media.ts'
 export { MediaRuntime }
 
@@ -82,6 +85,14 @@ export {
   billingCharsOf,
 } from './minimax-speech.ts'
 export type { MiniMaxSpeechEmotion, MiniMaxSpeechSettings } from './minimax-speech.ts'
+export {
+  SILICONFLOW_DURATION_SEC,
+  SILICONFLOW_IMAGE_SIZES,
+  SILICONFLOW_PROVIDER_ID,
+  SILICONFLOW_VIDEO_MODEL,
+  SiliconFlowMediaProvider,
+} from './siliconflow.ts'
+export type { SiliconFlowSettings } from './siliconflow.ts'
 export type { ComfyWorkflow, ComfyWorkflowNode } from './comfyui-workflows.ts'
 export { colorFor, silentWav, solidPng } from './fixture-bytes.ts'
 
@@ -101,19 +112,41 @@ export {
   PROJECT_SCHEMA_VERSION,
   VIDEO_ROOT,
   missingShotClips,
+  mutateProjectFile,
   newProject,
+  parseProject,
   projectCost,
   projectPathFor,
   projectSchema,
   readProject,
+  readProjectText,
   recordRender,
   removeShot,
+  serializeProject,
   slugify,
   upsertShot,
   validateProject,
+  withProjectLock,
   writeProject,
 } from './project.ts'
-export type { NewProject } from './project.ts'
+export type { NewProject, ProjectFileIo } from './project.ts'
+
+export {
+  BUDGET_LEDGER_FILE,
+  STORE_SCHEMA_VERSION,
+  TASK_JOURNAL_FILE,
+  appendLedgerEntry,
+  findTaskRecord,
+  forgetTask,
+  ledgerCost,
+  readLedger,
+  readTaskRecords,
+  recordTask,
+  requestOfTask,
+  storePathOf,
+  taskRequestOf,
+  writeTaskRecords,
+} from './store.ts'
 
 export { createAssembleTool } from './tools/assemble.ts'
 export { createDeliverTool } from './tools/deliver.ts'
@@ -133,7 +166,9 @@ export type {
   MediaEstimate,
   MediaFailureCode,
   MediaKind,
+  MediaLedgerEntry,
   MediaModel,
+  MediaPendingTask,
   MediaPrice,
   MediaProvider,
   MediaReference,
@@ -141,6 +176,8 @@ export type {
   MediaSubtitleCue,
   MediaTask,
   MediaTaskError,
+  MediaTaskRecord,
+  MediaTaskRequest,
   MediaTaskStatus,
   VideoProject,
   VideoRender,
